@@ -41,127 +41,248 @@ overview:
     RunResult to the caller. The domain agent can extend RunResult
     with its own fields by embedding core.RunResult.
 
-packages:
-  - name: pkg/core
-    purpose: |
-      The generic agentic loop engine. Contains all six components:
-      types, state machine, dispatch, registry, loop, and machine
-      config. No domain-specific references.
-    files:
-      - types.go
-      - state.go
-      - dispatch.go
-      - registry.go
-      - loop.go
-      - machine.go
+  coordination_pattern: |
+    Work flows through the state machine. The loop holds the current
+    State and last Result. StateMachine.Step returns the next State
+    plus a Command (via ActionFunc). The loop dispatches that Command
+    via Dispatch and repeats.
 
-  - name: pkg/tracing
-    purpose: |
-      Port interface for OpenTelemetry tracing. Defines the Tracer
-      interface with three methods: Push, Event, SetAttributes. The
-      engine imports this interface; concrete implementations live in
-      the domain agent's telemetry package.
-    files:
-      - tracer.go
+    Domain agents control behavior by supplying:
+    - State and Signal constants (string types)
+    - A TransitionTable mapping (State, Signal) pairs to transitions
+    - Tool Builders registered in a Registry
+    - A TerminalFunc predicate for stop states
+    - Optional LoopHooks for domain-specific budget, status, and result processing
 
-dependency_rules:
-  - rule: pkg/core depends only on pkg/tracing, the Go standard library, go.opentelemetry.io/otel/attribute, and gopkg.in/yaml.v3.
-  - rule: pkg/tracing depends only on go.opentelemetry.io/otel/attribute.
-  - rule: No package in agent-core imports domain-specific code.
-  - rule: Domain agents import pkg/core and pkg/tracing. They provide concrete Tracer implementations and register domain-specific tools.
+    Dependency rules:
+    - pkg/core depends only on pkg/tracing, the Go standard library,
+      go.opentelemetry.io/otel/attribute, and gopkg.in/yaml.v3.
+    - pkg/tracing depends only on go.opentelemetry.io/otel/attribute.
+    - No package in agent-core imports domain-specific code.
+    - Domain agents import pkg/core and pkg/tracing.
 
 interfaces:
-  tracer:
-    package: pkg/tracing
-    type: Tracer
-    methods:
-      - "Push(name string, attrs ...attribute.KeyValue) (Tracer, func())"
-      - "Event(name string, attrs ...attribute.KeyValue)"
-      - "SetAttributes(attrs ...attribute.KeyValue)"
-    purpose: |
-      Decouples span creation from a specific OpenTelemetry SDK setup.
-      Domain agents create a concrete Trace type wrapping an OTel
-      TracerProvider and pass it to Loop via LoopParams.Trace.
+  - name: Tracer interface
+    summary: |
+      Port interface for OpenTelemetry tracing (pkg/tracing). Three
+      methods: Push (child span), Event (span event), SetAttributes
+      (span metadata). The engine imports this interface; concrete
+      implementations live in the domain agent's telemetry package.
 
-  command:
-    package: pkg/core
-    type: Command
-    methods:
-      - "Name() string"
-      - "Execute() Result"
-    purpose: |
-      Single interface for all executable units of work. Both internal
+  - name: Command interface
+    summary: |
+      Single interface for all executable units of work (pkg/core).
+      Two methods: Name() string, Execute() Result. Both internal
       commands (LLM invoke, response parsing) and external tools (file
       I/O, build, test) implement Command. The loop dispatches them
-      uniformly.
+      uniformly through Dispatch.
 
-  builder:
-    package: pkg/core
-    type: Builder
-    methods:
-      - "Build(res Result) Command"
-    purpose: |
+  - name: Builder interface
+    summary: |
       Stateless factory that constructs a ready-to-execute Command
-      from the previous Result. Builders are registered in the
-      Registry and resolved by name during dispatch.
+      from the previous Result (pkg/core). One method: Build(res
+      Result) Command. Builders are registered in the Registry and
+      resolved by name during state machine transitions and YAML
+      machine config loading.
 
-  command_resolver:
-    package: pkg/core
-    type: CommandResolver
-    methods:
-      - "Resolve(name string) (Builder, bool)"
-    purpose: |
-      Lookup interface satisfied by Registry. Used by domain code
-      that needs to resolve builders without depending on the full
-      Registry type.
+  - name: CommandResolver interface
+    summary: |
+      Lookup interface satisfied by Registry (pkg/core). One method:
+      Resolve(name string) (Builder, bool). Used by domain code that
+      needs to resolve builders without depending on the full Registry
+      type.
 
-key_types:
-  state_and_signal:
-    description: |
-      State and Signal are string types. The engine defines three
-      generic signals (Seed, BudgetExhausted, CommandError). All other
-      states and signals are defined by the domain agent.
+components:
+  - name: Types
+    responsibility: |
+      Core type definitions shared across all components. Defines
+      State (string), Signal (string), Command interface, Result
+      struct, Cost struct, Builder interface, and CommandResolver
+      interface. Also defines three generic signals: Seed,
+      BudgetExhausted, and CommandError.
+    capabilities:
+      - Define the State and Signal string types
+      - Define the Command interface (Name, Execute)
+      - Define Result and Cost structs for command output
+      - Define Builder and CommandResolver interfaces
+      - Define generic signals (Seed, BudgetExhausted, CommandError)
 
-  transition_table:
-    description: |
-      A map from TransitionInput{State, Signal} to TransitionValue
-      {NextState, ActionFunc}. Can be built programmatically or loaded
-      from a YAML MachineSpec. The $tool sentinel in YAML enables
-      dynamic dispatch where the action is resolved at runtime from
-      the tool name in the previous Result.
+  - name: State Machine
+    responsibility: |
+      Holds an immutable transition table and a terminal-state
+      predicate. Step performs a single (State, Signal) lookup and
+      returns the next state and a Command built by the matching
+      ActionFunc. IsTerminal delegates to the domain-supplied
+      TerminalFunc.
+    capabilities:
+      - Map (State, Signal) pairs to (NextState, ActionFunc) transitions
+      - Build Commands via ActionFunc from the previous Result
+      - Detect terminal states via TerminalFunc
+      - Report unhandled state-signal pairs as errors
 
-  loop_hooks:
-    description: |
-      LoopHooks is a struct of optional callbacks that inject domain
-      behavior into the generic loop:
-      - ValidateParams: pre-run validation (e.g., required builders)
-      - BudgetExceeded: domain-specific budget dimensions
-      - TerminalStatus: map terminal states to RunStatus
-      - OnResult: post-dispatch processing (e.g., failure counting)
-      - TaskCompletedSignal: which signal captures the task summary
+  - name: Dispatch
+    responsibility: |
+      Wraps Command.Execute with tracing, timeout, panic recovery,
+      duration measurement, and signal normalization. SafeExecute
+      runs the command in a goroutine with a timer. Dispatch adds
+      an OpenTelemetry child span.
+    capabilities:
+      - Execute commands with panic recovery
+      - Enforce per-command timeout
+      - Measure and fill command duration
+      - Normalize error signals (ForceErrorSignal)
+      - Emit OpenTelemetry spans per dispatch
 
-  run_result:
-    description: |
-      RunResult carries the outcome of a complete run: Status,
-      Iterations, TokensIn, TokensOut, Duration, TotalCost,
-      FinalState, LastError, Summary, and Events. Domain agents
-      extend it by embedding core.RunResult and adding fields like
-      FilesModified or BuildFailures.
+  - name: Registry
+    responsibility: |
+      Pairs ToolSpec metadata (name, description, JSON schema,
+      visibility, phases) with Builders. Supports state-filtered
+      manifest generation. Freezes before the loop starts to prevent
+      mutation during execution.
+    capabilities:
+      - Register ToolSpec-Builder pairs (panics on duplicate or post-freeze)
+      - Freeze the registry to prevent further registration
+      - Resolve a Builder by name
+      - Look up a ToolSpec by name
+      - Generate state-filtered manifests of external tools
+      - Report all tool names or external-only tool names
 
-  registry:
-    description: |
-      Pairs ToolSpec metadata with Builders. Supports:
-      - Register: add a tool (panics on duplicate or post-freeze)
-      - Freeze: lock for the duration of the run
-      - Resolve: look up a Builder by name
-      - SpecByName: look up a ToolSpec by name
-      - Manifest: return external tools filtered by state/phase
-      - AllToolNames / ExternalToolNames: sorted name lists
+  - name: Loop
+    responsibility: |
+      The main agentic loop. Drives the state machine from an initial
+      state to a terminal state, dispatching Commands, tracking budget,
+      and collecting events. Domain-specific behavior is injected
+      through LoopHooks callbacks.
+    capabilities:
+      - Drive the state machine through initialization, iteration, and completion
+      - Enforce iteration, token, and wall-clock budget limits
+      - Support domain-specific budget hooks (BudgetExceeded)
+      - Accumulate token usage, cost, and events per iteration
+      - Capture task summary from TaskCompletedSignal
+      - Emit OpenTelemetry spans for the entire run and each iteration
+      - Support pre-run validation (ValidateParams hook)
+      - Support post-dispatch processing (OnResult hook)
+      - Handle context cancellation
 
-  machine_spec:
-    description: |
-      YAML schema for declarative state machine definition. Includes
-      name, initial_state, states, terminal_states, signals, and
-      transitions. ParseMachineSpec validates the spec (referential
-      integrity, no duplicates, minimum elements). BuildTransitionTable
-      resolves action names from the Registry.
+  - name: Machine Config
+    responsibility: |
+      Provides YAML-based declarative state machine configuration.
+      MachineSpec defines states, signals, terminal states, and
+      transitions. ParseMachineSpec validates referential integrity.
+      BuildTransitionTable resolves action names from the Registry.
+    capabilities:
+      - Parse MachineSpec from YAML bytes or file
+      - Validate referential integrity (states, signals, terminals, transitions)
+      - Build a TransitionTable from a MachineSpec and Registry
+      - Support the $tool sentinel for dynamic dispatch
+      - Support empty actions for terminal transitions
+
+design_decisions:
+  - id: 1
+    title: Domain-agnostic engine
+    decision: |
+      The engine defines only State, Signal, Command, and Budget as
+      abstract types. All domain-specific states, signals, tools, and
+      budget dimensions are supplied by the importing agent. No import
+      in agent-core references coding tools, LLMs, file systems, or
+      any specific domain.
+    benefits:
+      - Multiple agent types share one loop engine
+      - Engine improvements propagate to all agents
+      - Clean testing without domain dependencies
+    alternatives_rejected:
+      - "Embedded domain logic: couples engine to one agent type"
+
+  - id: 2
+    title: Hooks for domain injection
+    decision: |
+      LoopHooks is a struct of optional function callbacks. The domain
+      agent populates only the hooks it needs. No interface
+      implementation or subclassing required.
+    benefits:
+      - Zero-cost for unused hooks (nil check)
+      - New hooks can be added without breaking existing agents
+      - Simpler than interface hierarchies
+    alternatives_rejected:
+      - "Interface with many methods: forces empty stubs"
+      - "Plugin system: overengineered for a Go library"
+
+  - id: 3
+    title: OpenTelemetry for observability
+    decision: |
+      The engine emits OpenTelemetry spans and events for state
+      transitions, budget checks, and command dispatch. The Tracer
+      port interface decouples span creation from the OTel SDK setup.
+    benefits:
+      - Industry-standard API, stable Go SDK
+      - Instrumentation decoupled from export destination
+      - Domain agents supply their own OTel configuration
+    alternatives_rejected:
+      - "Custom logging: not interoperable"
+      - "No tracing: loses observability"
+
+  - id: 4
+    title: YAML declarative state machine
+    decision: |
+      State machines can be defined in YAML files (MachineSpec) and
+      converted to TransitionTables at runtime. This separates behavior
+      definition from code.
+    benefits:
+      - Non-programmers can read and modify agent behavior
+      - Machine configuration is version-controlled alongside code
+      - Validation catches errors before the loop starts
+    alternatives_rejected:
+      - "Code-only tables: harder to audit, harder to diff"
+
+  - id: 5
+    title: Registry freeze before loop
+    decision: |
+      The Registry is mutable during initialization and frozen before
+      the loop starts. Post-freeze registration panics. This ensures
+      the tool set is stable during execution.
+    benefits:
+      - No race conditions during the loop
+      - Manifest generation is deterministic
+      - Early detection of initialization errors
+    alternatives_rejected:
+      - "Immutable from construction: harder to build incrementally"
+      - "No freeze: risk of mutation during dispatch"
+
+technology_choices:
+  - component: Language
+    technology: Go
+    purpose: Implementation language
+  - component: Observability
+    technology: OpenTelemetry (go.opentelemetry.io/otel/attribute)
+    purpose: Span attribute types for tracing interface
+  - component: YAML parsing
+    technology: gopkg.in/yaml.v3
+    purpose: Machine spec parsing and validation
+  - component: Test assertions
+    technology: testify (stretchr/testify)
+    purpose: Test assertions and helpers
+
+project_structure:
+  - path: pkg/core/
+    role: Generic agentic loop engine (types, state machine, dispatch, registry, loop, machine config)
+  - path: pkg/tracing/
+    role: Tracer port interface for OpenTelemetry
+  - path: docs/
+    role: Documentation and specifications
+  - path: magefiles/
+    role: Mage targets from cobbler-scaffold
+
+implementation_status:
+  current_focus: Initial import of core packages from generator
+  progress:
+    - done: VISION.yaml authored
+    - done: ARCHITECTURE.yaml authored
+    - done: pkg/tracing/tracer.go imported
+    - done: pkg/core/ imported (types, state, dispatch, registry, loop, machine)
+    - done: Tests imported and passing (23 tests)
+    - planned: SPECIFICATIONS.yaml and initial SRDs
+    - planned: Generator updated to import agent-core
+
+related_documents:
+  - doc: docs/VISION.yaml
+    purpose: What we build and why; success criteria and boundaries

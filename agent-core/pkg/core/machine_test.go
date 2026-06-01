@@ -1,0 +1,289 @@
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package core
+
+import (
+	"strings"
+	"testing"
+)
+
+const validYAML = `
+name: test-machine
+initial_state: Idle
+states: [Idle, Running, Done, Error]
+terminal_states: [Done, Error]
+signals: [Start, Finished, Failed]
+transitions:
+  - state: Idle
+    signal: Start
+    next: Running
+    action: do_work
+  - state: Running
+    signal: Finished
+    next: Done
+  - state: Running
+    signal: Failed
+    next: Error
+`
+
+func TestParseMachineSpec_Valid(t *testing.T) {
+	spec, err := ParseMachineSpec([]byte(validYAML))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if spec.Name != "test-machine" {
+		t.Errorf("name = %q, want %q", spec.Name, "test-machine")
+	}
+	if spec.InitialState != "Idle" {
+		t.Errorf("initial_state = %q, want %q", spec.InitialState, "Idle")
+	}
+	if len(spec.States) != 4 {
+		t.Errorf("states count = %d, want 4", len(spec.States))
+	}
+	if len(spec.TerminalStates) != 2 {
+		t.Errorf("terminal_states count = %d, want 2", len(spec.TerminalStates))
+	}
+	if len(spec.Transitions) != 3 {
+		t.Errorf("transitions count = %d, want 3", len(spec.Transitions))
+	}
+}
+
+func TestParseMachineSpec_MissingInitialState(t *testing.T) {
+	yaml := `
+name: bad
+states: [A]
+terminal_states: [A]
+signals: [S]
+transitions:
+  - state: A
+    signal: S
+    next: A
+`
+	_, err := ParseMachineSpec([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for missing initial_state")
+	}
+	if !strings.Contains(err.Error(), "initial_state is required") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestParseMachineSpec_UnknownStateInTransition(t *testing.T) {
+	yaml := `
+name: bad
+initial_state: A
+states: [A, B]
+terminal_states: [B]
+signals: [Go]
+transitions:
+  - state: C
+    signal: Go
+    next: B
+`
+	_, err := ParseMachineSpec([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for unknown state in transition")
+	}
+	if !strings.Contains(err.Error(), `state "C" not in states list`) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestParseMachineSpec_UnknownSignalInTransition(t *testing.T) {
+	yaml := `
+name: bad
+initial_state: A
+states: [A, B]
+terminal_states: [B]
+signals: [Go]
+transitions:
+  - state: A
+    signal: Unknown
+    next: B
+`
+	_, err := ParseMachineSpec([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for unknown signal in transition")
+	}
+	if !strings.Contains(err.Error(), `signal "Unknown" not in signals list`) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestParseMachineSpec_TerminalNotInStates(t *testing.T) {
+	yaml := `
+name: bad
+initial_state: A
+states: [A]
+terminal_states: [Z]
+signals: [Go]
+transitions:
+  - state: A
+    signal: Go
+    next: A
+`
+	_, err := ParseMachineSpec([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for terminal state not in states list")
+	}
+	if !strings.Contains(err.Error(), `terminal_state "Z" not in states list`) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+type dummyCmd struct{ name string }
+
+func (d *dummyCmd) Name() string    { return d.name }
+func (d *dummyCmd) Execute() Result { return Result{} }
+
+type dummyBuilder struct{ name string }
+
+func (d *dummyBuilder) Build(_ Result) Command { return &dummyCmd{name: d.name} }
+
+func TestBuildTransitionTable(t *testing.T) {
+	spec, err := ParseMachineSpec([]byte(validYAML))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	reg := NewRegistry()
+	reg.Register(ToolSpec{Name: "do_work", Phases: []State{"Running"}}, &dummyBuilder{name: "do_work"})
+
+	table, isTerminal, err := BuildTransitionTable(spec, reg, nil)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	if len(table) != 3 {
+		t.Errorf("table size = %d, want 3", len(table))
+	}
+
+	if !isTerminal("Done") {
+		t.Error("Done should be terminal")
+	}
+	if !isTerminal("Error") {
+		t.Error("Error should be terminal")
+	}
+	if isTerminal("Idle") {
+		t.Error("Idle should not be terminal")
+	}
+
+	key := TransitionInput{State: "Idle", Signal: "Start"}
+	tv, ok := table[key]
+	if !ok {
+		t.Fatal("missing transition for Idle+Start")
+	}
+	if tv.NextState != "Running" {
+		t.Errorf("next = %q, want Running", tv.NextState)
+	}
+	if tv.Action == nil {
+		t.Error("action should not be nil for do_work transition")
+	}
+
+	key2 := TransitionInput{State: "Running", Signal: "Finished"}
+	tv2, ok := table[key2]
+	if !ok {
+		t.Fatal("missing transition for Running+Finished")
+	}
+	if tv2.Action != nil {
+		t.Error("terminal transition action should be nil")
+	}
+}
+
+func TestBuildTransitionTable_ToolActionSentinel(t *testing.T) {
+	yaml := `
+name: tool-test
+initial_state: A
+states: [A, B]
+terminal_states: [B]
+signals: [Go]
+transitions:
+  - state: A
+    signal: Go
+    next: B
+    action: $tool
+`
+	spec, err := ParseMachineSpec([]byte(yaml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	called := false
+	toolAction := func(r Result) Command {
+		called = true
+		return &dummyCmd{}
+	}
+
+	reg := NewRegistry()
+	table, _, err := BuildTransitionTable(spec, reg, toolAction)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	key := TransitionInput{State: "A", Signal: "Go"}
+	tv := table[key]
+	tv.Action(Result{})
+	if !called {
+		t.Error("$tool action should have invoked the toolAction function")
+	}
+}
+
+func TestBuildTransitionTable_ToolActionNil(t *testing.T) {
+	yaml := `
+name: tool-test
+initial_state: A
+states: [A, B]
+terminal_states: [B]
+signals: [Go]
+transitions:
+  - state: A
+    signal: Go
+    next: B
+    action: $tool
+`
+	spec, err := ParseMachineSpec([]byte(yaml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	reg := NewRegistry()
+	_, _, err = BuildTransitionTable(spec, reg, nil)
+	if err == nil {
+		t.Fatal("expected error when $tool action used without toolAction function")
+	}
+}
+
+func TestBuildTransitionTable_UnknownAction(t *testing.T) {
+	yaml := `
+name: bad-action
+initial_state: A
+states: [A, B]
+terminal_states: [B]
+signals: [Go]
+transitions:
+  - state: A
+    signal: Go
+    next: B
+    action: nonexistent
+`
+	spec, err := ParseMachineSpec([]byte(yaml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	reg := NewRegistry()
+	_, _, err = BuildTransitionTable(spec, reg, nil)
+	if err == nil {
+		t.Fatal("expected error for unknown action")
+	}
+	if !strings.Contains(err.Error(), `"nonexistent" not found in registry`) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadMachineSpec_FileNotFound(t *testing.T) {
+	_, err := LoadMachineSpec("/nonexistent/path/machine.yaml")
+	if err == nil {
+		t.Fatal("expected error for missing file")
+	}
+}
