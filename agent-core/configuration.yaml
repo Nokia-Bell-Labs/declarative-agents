@@ -2,7 +2,7 @@
 # See docs/ARCHITECTURE.yaml for field descriptions.
 
 project:
-    module_path: gitlabe1.ext.net.nokia.com/proof-of-concepts/agentic-loop/agent-core
+    module_path: gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core
     binary_name: ""
     binary_dir: bin
     main_package: ""
