@@ -1,0 +1,17 @@
+# Phase context for the measure workflow.
+# Fields override the corresponding configuration.yaml settings when present.
+# Remove or leave fields empty to use configuration.yaml defaults.
+# See docs/engineering/eng08-phase-context-files.yaml for schema details.
+
+# include: |
+#   docs/VISION.yaml
+#   docs/ARCHITECTURE.yaml
+#   docs/specs/**/*.yaml
+
+# exclude: |
+#   docs/engineering/*
+
+# sources: |
+#   docs/constitutions/*.yaml
+
+# release: "01.0"

@@ -1,0 +1,81 @@
+# Copyright (c) 2026 Petar Djukic. All rights reserved.
+# SPDX-License-Identifier: MIT
+#
+# Testing Constitution
+#
+# Rules for test naming, organization, and traceability. Scaffolded into
+# consuming projects so Claude and contributors follow a consistent
+# test structure.
+
+articles:
+  - id: T1
+    title: Hierarchical test naming
+    rule: |
+      Encode the test suite and use case into every test function name using
+      a fixed prefix: Test{Suite}_UC{NNN}_DescriptiveName.
+
+      {Suite} identifies the test suite (e.g., Rel01, Alpha, Smoke).
+      UC{NNN} is the zero-padded use case number from the spec.
+      DescriptiveName is CamelCase and describes the behavior under test
+      in action-outcome form (e.g., CreateReturnsID, StartFailsWhenLocked).
+
+      The prefix hierarchy enables filtering at any granularity:
+
+        go test -run TestRel01             # entire suite
+        go test -run TestRel01_UC003       # one use case
+        go test -run TestRel01_UC003_Create  # one test
+
+  - id: T2
+    title: One file per use case
+    rule: |
+      Group tests into one file per use case, named uc{NNN}_{slug}_test.go.
+      Shared test infrastructure (setup, helpers, TestMain) lives in a
+      dedicated helpers file (e.g., helpers_test.go). Do not mix tests from
+      different use cases in the same file.
+
+  - id: T3
+    title: Spec-to-code traceability
+    rule: |
+      Every test case entry in the test suite spec must reference the test
+      function that implements it. Every test function must appear in the
+      spec. No orphans in either direction.
+
+      When one test function covers multiple spec entries, each entry
+      references the same function. The entry with the closest name match
+      is the primary; others note the shared coverage.
+
+  - id: T4
+    title: Test count invariant
+    rule: |
+      The number of test functions in a suite must be greater than or equal
+      to the number of test case entries in the corresponding spec. Tests
+      may exceed the spec count (edge cases, performance tests) but must
+      never fall below it. Reorganizing tests must not reduce the total.
+
+  - id: T5
+    title: Mage target naming
+    rule: |
+      Expose each use case as a mage target under the Test namespace:
+
+        (Test) Uc{NNN}{UseCaseSlug}()
+
+      {NNN} is the zero-padded use case number. {UseCaseSlug} is the
+      CamelCase form of the use case slug from the spec (e.g.,
+      OrchestratorInitialization, MeasureWorkflow, BuildTooling).
+
+      Additionally provide test:usecase (all use-case tests), test:unit (package
+      tests), and test:all (both). Examples:
+
+        mage test:uc001OrchestratorInitialization
+        mage test:uc003MeasureWorkflow
+        mage test:usecase
+
+sections:
+  - tag: articles
+    title: Testing Principles
+    content: |
+      Five principles govern the testing phase: hierarchical test naming
+      (Test{Suite}_UC{NNN}_DescriptiveName), one file per use case,
+      bidirectional spec-to-code traceability, a test count invariant that
+      never allows fewer tests than spec entries, and mage test:uc{NNN} targets
+      for each use case.

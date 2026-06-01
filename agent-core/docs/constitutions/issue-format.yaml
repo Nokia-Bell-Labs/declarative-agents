@@ -1,0 +1,225 @@
+# Issue Format Constitution
+#
+# Formal YAML schema for issue descriptions produced by the measure phase
+# and consumed by the stitch phase. Referenced by the measure prompt (to
+# tell Claude what format to produce) and used by stitch (to validate what
+# it reads back).
+
+schema:
+  description: |
+    Every issue description must be a valid YAML document conforming to this
+    schema. The stitch agent parses the description as YAML to extract
+    required_reading, files, requirements, and acceptance_criteria.
+
+  required_fields:
+    - deliverable_type
+    - required_reading
+    - files
+    - requirements
+    - acceptance_criteria
+
+  optional_fields:
+    - format_rule
+    - required_sections
+    - design_decisions
+
+yaml_rules:
+  - rule: All strings containing colons, commas, or special YAML characters must be quoted.
+    example_bad: "- R1: Implement feature: core"
+    example_good: '- "R1: Implement feature: core"'
+
+  - rule: List items are YAML mappings, not bare strings, when they have sub-fields.
+    example_bad: "- Use table accessor pattern"
+    example_good: |
+      - id: D1
+        text: Use table accessor pattern
+
+  - rule: Use ASCII dashes (--) not Unicode em dashes or en dashes.
+    example_bad: "Flag interactions — especially combined flags"
+    example_good: "Flag interactions -- especially combined flags"
+
+  - rule: Requirements, design decisions, and acceptance criteria are all mappings with id and text fields.
+    example_bad: "- Use singleton pattern"
+    example_good: |
+      - id: D1
+        text: Use singleton pattern
+
+field_specs:
+  deliverable_type:
+    type: string
+    values: [documentation, code]
+    required: true
+    description: What kind of deliverable this issue produces.
+
+  required_reading:
+    type: list of strings
+    required: true
+    description: |
+      Files the agent must read before starting. Each entry is a file path
+      with an optional parenthetical reason. This is mandatory for all issues.
+
+  files:
+    type: list of mappings
+    required: true
+    sub_fields:
+      path:
+        type: string
+        required: true
+        description: Absolute path from repo root.
+      action:
+        type: string
+        required: true
+        values: [create, modify]
+      note:
+        type: string
+        required: false
+        description: Brief purpose of this file change.
+
+  requirements:
+    type: list of mappings
+    required: true
+    sub_fields:
+      id:
+        type: string
+        required: true
+        description: "Sequential ID: R1, R2, R3, ..."
+      text:
+        type: string
+        required: true
+        description: What needs to be built or written. Be specific and actionable.
+
+  design_decisions:
+    type: list of mappings
+    required: false
+    sub_fields:
+      id:
+        type: string
+        required: true
+        description: "Sequential ID: D1, D2, D3, ..."
+      text:
+        type: string
+        required: true
+        description: The decision text.
+
+  acceptance_criteria:
+    type: list of mappings
+    required: true
+    sub_fields:
+      id:
+        type: string
+        required: true
+        description: "Sequential ID: AC1, AC2, AC3, ..."
+      text:
+        type: string
+        required: true
+        description: Checkable outcome. Must be verifiable without ambiguity.
+
+  format_rule:
+    type: string
+    required: false
+    description: |
+      For documentation issues only. The rule file that governs the output
+      format (e.g., srd-format, use-case-format).
+
+  required_sections:
+    type: list of strings
+    required: false
+    description: |
+      For documentation issues only. Sections the document must contain.
+
+examples:
+  code_issue: |
+    deliverable_type: code
+
+    required_reading:
+      - docs/specs/software-requirements/srd003-crumbs-interface.yaml
+      - pkg/types/cupboard.go
+
+    files:
+      - path: pkg/types/crumb.go
+        action: create
+        note: Crumb struct, Filter type
+      - path: internal/sqlite/crumbs.go
+        action: create
+        note: CrumbTable implementation
+
+    requirements:
+      - id: R1
+        text: Implement CrumbTable interface per srd003-crumbs-interface
+      - id: R2
+        text: Add, Get, Archive, Purge, Fetch operations
+      - id: R3
+        text: Property operations (Set/Get/Clear)
+
+    design_decisions:
+      - id: D1
+        text: Use table accessor pattern from srd001-cupboard-core
+      - id: D2
+        text: Filter as map[string]any per SRD
+
+    acceptance_criteria:
+      - id: AC1
+        text: All CrumbTable operations implemented
+      - id: AC2
+        text: Tests pass for each operation
+      - id: AC3
+        text: Errors match SRD error types
+
+  documentation_issue: |
+    deliverable_type: documentation
+    format_rule: srd-format
+
+    required_reading:
+      - docs/ARCHITECTURE.yaml (components section)
+      - docs/specs/software-requirements/srd001-cupboard-core.yaml
+
+    files:
+      - path: docs/specs/software-requirements/srd-feature-name.yaml
+        action: create
+
+    required_sections:
+      - "Problem: explain the problem and why it matters"
+      - "Goals: G1 ..., G2 ..."
+      - "Requirements: R1.1 ..., R1.2 ..."
+      - "Non-Goals: what is out of scope"
+      - "Acceptance Criteria: checkable outcomes"
+
+    requirements:
+      - id: R1
+        text: Write SRD covering all identified requirements
+      - id: R2
+        text: Include acceptance criteria for each requirement
+
+    acceptance_criteria:
+      - id: AC1
+        text: All required sections present
+      - id: AC2
+        text: File saved as srd-feature-name.yaml
+      - id: AC3
+        text: Requirements numbered and specific
+
+sections:
+  - tag: schema
+    title: Issue Schema
+    content: |
+      Each issue description is a YAML document with five required fields:
+      deliverable_type, required_reading, files, requirements, and
+      acceptance_criteria. Optional fields include design_decisions and
+      format_rule.
+  - tag: yaml_rules
+    title: YAML Formatting Rules
+    content: |
+      Use multi-line block literals (|) for prose. Keys are lowercase with
+      underscores. Avoid unnecessary quoting. Each requirement and acceptance
+      criterion is a mapping with id and text fields.
+  - tag: field_specs
+    title: Field Specifications
+    content: |
+      Field specifications define the type, allowed values, whether the field is
+      required, and sub-field structure for each issue description field.
+  - tag: examples
+    title: Examples
+    content: |
+      Reference examples for documentation issues and code issues show the full
+      expected YAML structure, including required reading, output paths, format
+      rules, requirements, and acceptance criteria.

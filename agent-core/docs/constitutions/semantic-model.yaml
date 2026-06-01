@@ -1,0 +1,237 @@
+# Semantic Model Constitution
+#
+# This constitution governs the authoring and validation of semantic models.
+# It is injected into the specification authoring phase so the Generator
+# (human or machine) knows how to produce well-formed, complete behavioral
+# specifications.
+#
+# A semantic model is the mutable behavioral layer of an agent specification.
+# It declares what the agent observes, how it reasons, and what it produces—
+# without prescribing code structure. The SRD defines architecture (stable).
+# The semantic model defines behavior (mutable). Constitutions and guidelines
+# constrain how behavior is implemented (prohibitive). The semantic model
+# declares what behavior IS (declarative).
+
+articles:
+  - id: SM1
+    title: Four mandatory sections
+    rule: |
+      Every semantic model must contain exactly four top-level sections:
+      data_sources, features, algorithm, and output_format. A semantic
+      model that omits any section is incomplete. A semantic model that
+      adds sections beyond these four is overspecified—move the extra
+      content to the SRD, architectural guidelines, or domain knowledge.
+
+      data_sources: what the agent observes (inputs)
+      features: how the agent interprets observations (derived signals)
+      algorithm: how the agent reasons (decision logic)
+      output_format: what the agent produces (outputs)
+
+  - id: SM2
+    title: Data sources are connectors, not implementations
+    rule: |
+      Each data source declares a connector type and a set of named
+      queries. The connector type names an interface or protocol—not a
+      library, endpoint URL, or implementation class. Queries declare
+      parameters and return types using domain types, not language-specific
+      types.
+
+      Good:
+        connector: INetworkState
+        queries:
+          - name: site_capacity
+            parameters: [site_id]
+            returns: {compute_available: float, memory_available: float}
+
+      Bad:
+        connector: "http://10.0.1.5:8080/api/v2"
+        queries:
+          - name: get_capacity
+            parameters: ["string siteId"]
+            returns: "json.RawMessage"
+
+      The semantic model specifies what data the agent needs, not where
+      or how it fetches it. Binding data sources to concrete endpoints
+      happens at deployment through configuration, not at specification
+      time through the semantic model.
+
+  - id: SM3
+    title: Features derive from data sources
+    rule: |
+      Every feature must reference at least one data source by id and
+      query name using dot notation (e.g., network_state.site_capacity).
+      Features that do not trace to a declared data source are untethered—
+      they claim to observe something the agent has no access to.
+
+      The extraction field describes the derivation in domain language,
+      not in code. It should be readable by a domain expert who does not
+      program. The Generator translates extraction descriptions into code;
+      the semantic model author describes the intent.
+
+      Features may reference other features to build derived signals.
+      Feature references must not form cycles. The dependency graph of
+      features must be a DAG.
+
+  - id: SM4
+    title: Algorithm declares logic, not code
+    rule: |
+      The algorithm section specifies the agent's reasoning as a named
+      type, a parameter set, and a logic block written in structured
+      pseudocode or domain language.
+
+      The type field names the reasoning pattern (e.g.,
+      threshold_with_trend, gap_ordered_task_generation,
+      ensemble_prediction). Types should be reusable across semantic
+      models—they name a family of algorithms, not a specific
+      implementation.
+
+      The parameters field declares the tunable knobs of the algorithm.
+      Parameters are the primary target of runtime configuration changes—
+      a threshold change should not require a specification delta if the
+      parameter is already declared.
+
+      The logic block is pseudocode, not executable code. It describes
+      the decision flow using feature names and domain concepts. The
+      Generator reads the logic block to understand the intended behavior
+      and produces the implementation. If the logic block is precise
+      enough to be executable, it is overspecified—it has become code
+      in disguise.
+
+  - id: SM5
+    title: Output format matches the functional interface
+    rule: |
+      The output_format section must align with the agent's IFunctional
+      interface as declared in the SRD. Every field in the output format
+      must correspond to a return type or response structure in the
+      functional interface.
+
+      If the semantic model produces outputs that IFunctional cannot
+      express, either the semantic model is wrong (specifying behavior
+      the architecture does not support) or the SRD needs a delta (the
+      architecture must grow to support the new behavior). This cross-
+      reference between semantic model and SRD is what makes specification
+      layers a graph, not a stack.
+
+  - id: SM6
+    title: One semantic model per behavior
+    rule: |
+      Each semantic model specifies one coherent behavior—one
+      observation-reasoning-output pipeline. An agent that performs
+      multiple behaviors (e.g., capacity prediction AND fault diagnosis)
+      has multiple semantic models, not one large one.
+
+      Semantic models are composed at the specification level. The
+      Specification Selector assembles the set of semantic models an
+      agent instance needs. The SRD defines the architectural slots
+      these models fill. Each slot corresponds to one behavioral
+      capability.
+
+      Splitting behaviors into separate semantic models enables
+      independent evolution. A new fault diagnosis algorithm does not
+      require re-specifying capacity prediction. The evolution pipeline
+      applies the delta to one semantic model without touching others.
+
+  - id: SM7
+    title: Naming and versioning
+    rule: |
+      Every semantic model has a name and a version.
+
+      The name follows the pattern: {domain}-{behavior}
+      Examples: edge-compute-capacity-predictor, transport-fault-diagnoser,
+      cobbler-measure, ran-latency-monitor.
+
+      The version follows semantic versioning (MAJOR.MINOR.PATCH):
+      - MAJOR: breaking changes to data sources or output format
+      - MINOR: new features or algorithm changes (backward compatible)
+      - PATCH: parameter tuning or extraction refinements
+
+      Version changes trigger different evolution responses. A PATCH
+      change may only require regenerating the algorithm implementation.
+      A MAJOR change may require regenerating data connectors, feature
+      extractors, and output formatters—touching multiple components.
+
+  - id: SM8
+    title: Semantic models are declarative, not prohibitive
+    rule: |
+      A semantic model declares what the agent DOES. It does not declare
+      what the agent must NOT do. Prohibitions belong in architectural
+      guidelines or constitutions.
+
+      Declarative (semantic model):
+        "Observe the specification tree, identify unimplemented use cases,
+        order by release priority, decompose into sized tasks."
+
+      Prohibitive (constitution/guideline):
+        "Do NOT propose tasks for implemented use cases."
+        "Do NOT exceed 350 lines per task."
+
+      If a statement in the semantic model begins with "do not," "never,"
+      "must not," or "avoid," it is a constraint and belongs in the
+      architectural guidelines layer. Move it there.
+
+      This separation matters because constraints are stable across
+      instances (every Analyst follows the same coding standards) while
+      behaviors are mutable per instance (each Analyst observes different
+      data and runs different algorithms).
+
+  - id: SM9
+    title: Testability
+    rule: |
+      Every semantic model must be testable through its output format.
+      Given known inputs to data_sources and known feature extractions,
+      the algorithm must produce deterministic or bounded outputs that
+      tests can verify.
+
+      When authoring a semantic model, ask: "Can I write a test that
+      provides mock data sources, runs the algorithm, and checks the
+      output?" If the answer is no, the semantic model is underspecified—
+      it does not declare enough about the algorithm's behavior for the
+      Generator to produce testable code.
+
+      The test suite layer of the agent specification contains tests
+      derived from the semantic model. Each feature should have at least
+      one test validating its extraction. The algorithm should have tests
+      for each branch of its logic. The output format should have tests
+      validating structure and value ranges.
+
+  - id: SM10
+    title: Domain knowledge references, not domain knowledge
+    rule: |
+      The semantic model may reference domain knowledge (ontologies,
+      protocol specs, vendor documentation) but must not embed it.
+      Data source connectors reference interface names defined in
+      domain knowledge. Feature extractions reference domain concepts
+      explained in domain knowledge. The semantic model says "use X";
+      domain knowledge defines what X is.
+
+      This separation keeps the semantic model portable. The same
+      capacity prediction semantic model can apply to different vendors
+      by swapping the domain knowledge binding—different equipment APIs,
+      same behavioral specification.
+
+sections:
+  - tag: articles
+    title: Core Principles
+    content: |
+      Ten principles govern semantic model authoring: four mandatory
+      sections (SM1), connector-based data sources (SM2), traceable
+      features (SM3), declarative algorithms (SM4), interface-aligned
+      outputs (SM5), one behavior per model (SM6), semantic versioning
+      (SM7), declarative not prohibitive (SM8), testability (SM9), and
+      referenced not embedded domain knowledge (SM10).
+  - tag: structure
+    title: Semantic Model Structure
+    content: |
+      A semantic model is a YAML document with four sections:
+      data_sources (inputs), features (derived signals), algorithm
+      (reasoning), and output_format (outputs). Each section has
+      specific structural requirements defined in the articles.
+  - tag: evolution
+    title: Semantic Model Evolution
+    content: |
+      The semantic model is the primary target for agent evolution.
+      Version changes signal the scope of regeneration needed. PATCH
+      changes tune parameters. MINOR changes add features or modify
+      algorithms. MAJOR changes alter inputs or outputs and may
+      require SRD changes. Each semantic model evolves independently
+      of others in the same agent.

@@ -1,0 +1,135 @@
+# Interface Constitution
+#
+# This constitution governs the definition, naming, and traceability of
+# interfaces in the architecture and SRDs. It is scaffolded into consuming
+# projects so Claude knows how to write well-formed interface specifications
+# and how SRDs reference interfaces.
+
+articles:
+  - id: I1
+    title: Interface specifications live in docs/interfaces/
+    rule: |
+      Every interface has a specification file in docs/interfaces/. The
+      specification file is the authoritative contract: it defines data
+      structures with typed fields and operations with typed parameters and
+      return values. See eng10-interface-specifications for the full format.
+
+      ARCHITECTURE.yaml declares each interface in its interfaces section
+      with a name, summary, and a spec_file field pointing to the
+      specification file. The ARCHITECTURE.yaml entry is a discovery point
+      and summary; the specification file is the source of truth.
+
+  - id: I2
+    title: Required interface fields
+    rule: |
+      Every interface entry in ARCHITECTURE.yaml must have a name, a
+      summary, and a spec_file. The name is a short, unique identifier
+      (e.g., "Orchestrator and Config", "Prompt Templates"). The summary
+      describes what the interface provides in one to three sentences. The
+      spec_file is the path to the specification file in docs/interfaces/.
+      Optional fields are data_structures (list of type names with brief
+      descriptions) and operations (list of method or function signatures).
+
+      Interface specification files in docs/interfaces/ must have id, name,
+      and summary. Optional fields are data_structures (with typed field
+      lists), operations (with typed parameters and returns), announcements,
+      and references.
+
+  - id: I3
+    title: Naming conventions
+    rule: |
+      Interface names use title case with spaces (e.g., "Generation
+      Lifecycle", "Issue Tracker"). Names must be unique within
+      ARCHITECTURE.yaml. Abbreviations are permitted when the abbreviation
+      is standard in the domain (e.g., "OOD" for object-oriented design),
+      but must be explained in the summary on first use.
+
+      Specification file names use kebab case matching the interface name:
+      ifc-[kebab-case-name].yaml (e.g., ifc-generation-lifecycle.yaml).
+
+  - id: I4
+    title: SRD interface references
+    rule: |
+      SRDs may declare interface relationships using two optional fields:
+      implemented_by and used_by. Both are lists of interface names that
+      must resolve to entries in ARCHITECTURE.yaml's interfaces section.
+
+      implemented_by declares that the SRD's requirements define the
+      implementation of the named interface. The SRD's package_contract
+      exports correspond to the interface's operations.
+
+      used_by declares that the SRD's implementation consumes the named
+      interface. The SRD depends on the interface being available but does
+      not define it.
+
+      A single SRD may appear in both lists for different interfaces. An
+      interface may be implemented by one SRD and used by many.
+
+  - id: I5
+    title: Port and adapter semantics
+    rule: |
+      Interfaces follow the ports and adapters pattern. The specification
+      file in docs/interfaces/ is the port: it defines the contract without
+      specifying implementation. ARCHITECTURE.yaml is the discovery index
+      that points to ports via spec_file. SRDs that list the interface in
+      implemented_by are adapters: they provide a concrete implementation
+      of the port.
+
+      This separation means changing an adapter (rewriting a SRD's
+      implementation) does not change the port (the specification file).
+      Consumers that reference the interface via used_by depend on the
+      port, not the adapter. Analysis enforces that every referenced
+      interface name resolves to a declared port.
+
+      The port contract is defined in the specification file using typed
+      field lists for data structures and typed parameter/return lists for
+      operations.
+
+  - id: I6
+    title: Interface traceability
+    rule: |
+      The traceability chain for interfaces runs: ARCHITECTURE.yaml
+      (declares the interface with spec_file) -> specification file in
+      docs/interfaces/ (defines the contract) -> SRD implemented_by
+      (provides the implementation) -> SRD used_by (consumes the
+      interface). Analysis validates both directions: every name in
+      implemented_by and used_by must match an interface name in
+      ARCHITECTURE.yaml. Broken references fail the analysis check.
+
+      Specification files include a references field listing SRD and use
+      case IDs that the interface traces to, completing the bidirectional
+      link.
+
+sections:
+  - tag: articles
+    title: Core Principles
+    content: |
+      Six principles govern interface specifications: interfaces live in
+      docs/interfaces/ as standalone specification files referenced from
+      ARCHITECTURE.yaml via spec_file (I1), required ARCHITECTURE.yaml
+      fields are name, summary, and spec_file (I2), names use title case
+      and specification files use kebab case (I3), SRDs reference
+      interfaces via implemented_by and used_by (I4), specification files
+      are the ports in ports-and-adapters semantics (I5), and traceability
+      runs from architecture through specification files through SRDs (I6).
+  - tag: structure
+    title: Interface Structure
+    content: |
+      An interface entry in ARCHITECTURE.yaml is a YAML mapping with five
+      fields: name (required), summary (required), spec_file (required),
+      data_structures (optional list), and operations (optional list). SRDs
+      reference interfaces by name using implemented_by and used_by string
+      lists.
+
+      Specification files in docs/interfaces/ use typed field lists for
+      data structures and typed parameter/return lists for operations.
+      See eng10-interface-specifications for the full format.
+  - tag: validation
+    title: Analysis Validation
+    content: |
+      The mage analyze target validates interface references. Every entry
+      in a SRD's implemented_by and used_by lists must match the name
+      field of an interface in ARCHITECTURE.yaml. Unresolved references
+      are reported as errors. Missing or empty interface lists are not
+      errors; the fields are optional. Analyze validates that spec_file
+      paths point to existing files.
