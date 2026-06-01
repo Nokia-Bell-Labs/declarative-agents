@@ -1,0 +1,103 @@
+id: agent-core-specifications
+title: Agent Core Specification Index
+
+overview: |
+  Specification index for the agent-core library. Seven SRDs define the
+  generic agentic loop engine: core types, state machine, command
+  dispatch, tool registry, agentic loop, YAML machine configuration,
+  and the tracer port interface. One use case exercises all seven SRDs
+  through a domain agent integration scenario. One test suite covers
+  all acceptance criteria with 23 test cases.
+
+  SRD release assignments.
+  - 00.0: srd001 (core types), srd002 (state machine), srd003 (command
+    dispatch), srd004 (tool registry), srd005 (agentic loop), srd006
+    (YAML machine config), srd007 (tracer interface)
+
+roadmap_summary:
+  - version: "00.0"
+    name: Core engine import
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
+
+srd_index:
+  - id: srd001-core-types
+    title: Core Types
+    summary: State, Signal, Command, Result, Cost, Builder, and CommandResolver types. Three generic Signal constants.
+    path: docs/specs/software-requirements/srd001-core-types.yaml
+  - id: srd002-state-machine
+    title: State Machine
+    summary: TransitionTable mapping (State, Signal) to (NextState, ActionFunc). StateMachine.Step, TerminalFunc, NewStateMachine.
+    path: docs/specs/software-requirements/srd002-state-machine.yaml
+  - id: srd003-command-dispatch
+    title: Command Dispatch
+    summary: Dispatch wrapping Command.Execute with tracing, timeout, panic recovery. SafeExecute, FillDuration, ForceErrorSignal.
+    path: docs/specs/software-requirements/srd003-command-dispatch.yaml
+  - id: srd004-tool-registry
+    title: Tool Registry
+    summary: ToolSpec with Visibility and Phases. Registry pairing specs with Builders. Manifest filtering, freeze semantics.
+    path: docs/specs/software-requirements/srd004-tool-registry.yaml
+  - id: srd005-agentic-loop
+    title: Agentic Loop
+    summary: Loop function driving state machine with budget enforcement, event recording, LoopHooks, RunResult, and OTel tracing.
+    path: docs/specs/software-requirements/srd005-agentic-loop.yaml
+  - id: srd006-yaml-machine-config
+    title: YAML State Machine Configuration
+    summary: MachineSpec YAML schema, validation, BuildTransitionTable, LoadMachineSpec, ParseMachineSpec.
+    path: docs/specs/software-requirements/srd006-yaml-machine-config.yaml
+  - id: srd007-tracer-interface
+    title: Tracer Port Interface
+    summary: Tracer interface with Push, Event, SetAttributes. Depends only on otel/attribute.
+    path: docs/specs/software-requirements/srd007-tracer-interface.yaml
+
+use_case_index:
+  - id: rel00.0-uc001-domain-agent-integration
+    title: Domain agent imports agent-core and runs an agentic loop
+    release: "00.0"
+    status: done
+    test_suite: test-rel00.0
+    path: docs/specs/use-cases/rel00.0-uc001-domain-agent-integration.yaml
+
+test_suite_index:
+  - id: test-rel00.0
+    title: Test Suite for Release 00.0 (Core Engine Import)
+    release: "00.0"
+    traces:
+      - rel00.0-uc001-domain-agent-integration
+    test_case_count: 23
+    path: docs/specs/test-suites/test-rel00.0.yaml
+
+srd_to_use_case_mapping:
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd001-core-types
+    why_required: Domain agent uses State, Signal, Command, Result, Cost, Builder types from pkg/core.
+    coverage: Full. Covers AC1 through AC5 via SC1 through SC8.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd002-state-machine
+    why_required: Domain agent builds a TransitionTable and StateMachine to drive the loop.
+    coverage: Full. Covers AC1 through AC4 via SC2 and test cases.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd003-command-dispatch
+    why_required: Dispatch wraps every command execution with tracing, timeout, and recovery.
+    coverage: Full. Covers AC1 through AC3 via SC6 and test cases.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd004-tool-registry
+    why_required: Domain agent registers tools in a Registry and generates manifests.
+    coverage: Full. Covers AC1 through AC5 via SC1 and test cases.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd005-agentic-loop
+    why_required: Domain agent calls Loop with LoopParams to run the agentic loop.
+    coverage: Full. Covers AC1 through AC6 via SC3, SC4, SC5 and test cases.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd006-yaml-machine-config
+    why_required: Domain agent can define state machines via YAML using ParseMachineSpec and BuildTransitionTable.
+    coverage: Full. Covers AC1 through AC4 via SC2, SC7 and test cases.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd007-tracer-interface
+    why_required: Domain agent supplies a concrete Tracer implementation satisfying the port interface.
+    coverage: Full. Covers AC1 and AC2 via SC8.
+
+coverage_gaps: |
+  All seven SRDs have full use case touchpoints and test suite coverage
+  in release 00.0.

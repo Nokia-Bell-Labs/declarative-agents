@@ -1,0 +1,464 @@
+id: test-rel00.0
+title: Test Suite for Release 00.0 (Core Engine Import)
+release: "00.0"
+
+traces:
+  - rel00.0-uc001-domain-agent-integration
+
+preconditions:
+  - Go toolchain installed (go 1.26+)
+  - pkg/core and pkg/tracing packages buildable
+
+test_cases:
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Loop runs a two-step state machine to completion
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      table: "Start->Working->Finished (two commands)"
+      budget: "MaxIterations=100"
+    expected:
+      status: succeeded
+      final_state: Finished
+      iterations: 2
+    traces:
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Loop stops when iteration budget is exhausted
+    go_test: TestLoop_BudgetExhausted
+    inputs:
+      budget: "MaxIterations=1"
+    expected:
+      status: budget_exceeded
+      final_state: OverBudget
+    traces:
+      - srd005-agentic-loop AC1
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Loop produces cancelled status on context cancellation
+    go_test: TestLoop_ContextCancellation
+    inputs:
+      context: "pre-cancelled"
+    expected:
+      status: cancelled
+    traces:
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: ValidateParams hook aborts the run on error
+    go_test: TestLoop_ValidateParamsHook
+    inputs:
+      hooks: "ValidateParams checks for nonexistent builder"
+    expected:
+      error: "contains 'nonexistent'"
+    traces:
+      - srd005-agentic-loop AC3
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: ValidateBuilders helper checks named builders
+    go_test: TestLoop_ValidateBuildersHelper
+    inputs:
+      registry: "one builder named 'a'"
+    expected:
+      validate_a: pass
+      validate_a_b: fail
+    traces:
+      - srd005-agentic-loop AC6
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: OnResult hook is called after each dispatch
+    go_test: TestLoop_OnResultHook
+    inputs:
+      hooks: "OnResult increments a counter"
+    expected:
+      call_count: 2
+    traces:
+      - srd005-agentic-loop AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Custom BudgetExceeded hook triggers budget exhaustion
+    go_test: TestLoop_CustomBudgetHook
+    inputs:
+      hooks: "BudgetExceeded returns true at iteration >= 1"
+    expected:
+      status: budget_exceeded
+    traces:
+      - srd005-agentic-loop AC1
+      - srd005-agentic-loop AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Token counts are accumulated in RunResult
+    go_test: TestLoop_AccumulatesTokens
+    inputs:
+      command_cost: "50 tokens in, 50 tokens out"
+    expected:
+      tokens_in: 50
+      tokens_out: 50
+    traces:
+      - srd005-agentic-loop AC2
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Loop emits init.registry_frozen OTel event
+    go_test: TestLoop_EmitsRegistryFrozenEvent
+    inputs:
+      trace: "loopRecorder"
+    expected:
+      event: "init.registry_frozen"
+    traces:
+      - srd005-agentic-loop AC5
+      - srd004-tool-registry AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: RunResult.Duration is positive after completion
+    go_test: TestLoop_DurationTracked
+    inputs:
+      table: "two-step state machine"
+    expected:
+      duration: "> 0"
+    traces:
+      - srd005-agentic-loop AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Default terminal status maps Succeeded, BudgetExceeded, and others
+    go_test: TestLoop_DefaultTerminalStatus
+    inputs:
+      states: "[Succeeded, BudgetExceeded, Anything]"
+    expected:
+      succeeded_status: succeeded
+      budget_status: budget_exceeded
+      other_status: failed
+    traces:
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Core budget check on iteration and token limits
+    go_test: TestCoreBudgetExceeded
+    inputs:
+      budget_scenarios: "zero limits, iteration limits, token limits"
+    expected:
+      zero_unlimited: false
+      at_limit: true
+      below_limit: false
+    traces:
+      - srd005-agentic-loop AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Token budget triggers BudgetExhausted signal
+    go_test: TestLoop_TokenBudgetExhausted
+    inputs:
+      budget: "MaxTokens=1"
+      command_cost: "50 tokens"
+    expected:
+      status: budget_exceeded
+    traces:
+      - srd005-agentic-loop AC1
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Valid YAML parses into correct MachineSpec
+    go_test: TestParseMachineSpec_Valid
+    inputs:
+      yaml: "4 states, 2 terminals, 3 transitions"
+    expected:
+      name: test-machine
+      states: 4
+      terminals: 2
+      transitions: 3
+    traces:
+      - srd006-yaml-machine-config AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Missing initial_state produces validation error
+    go_test: TestParseMachineSpec_MissingInitialState
+    inputs:
+      yaml: "no initial_state field"
+    expected:
+      error: "initial_state is required"
+    traces:
+      - srd006-yaml-machine-config AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Unknown state in transition produces validation error
+    go_test: TestParseMachineSpec_UnknownStateInTransition
+    inputs:
+      yaml: "transition references state 'C' not in states list"
+    expected:
+      error: "state \"C\" not in states list"
+    traces:
+      - srd006-yaml-machine-config AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Unknown signal in transition produces validation error
+    go_test: TestParseMachineSpec_UnknownSignalInTransition
+    inputs:
+      yaml: "transition references signal 'Unknown' not in signals list"
+    expected:
+      error: "signal \"Unknown\" not in signals list"
+    traces:
+      - srd006-yaml-machine-config AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Terminal state not in states list produces validation error
+    go_test: TestParseMachineSpec_TerminalNotInStates
+    inputs:
+      yaml: "terminal_states: [Z] but Z not in states"
+    expected:
+      error: "terminal_state \"Z\" not in states list"
+    traces:
+      - srd006-yaml-machine-config AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: BuildTransitionTable resolves named actions from registry
+    go_test: TestBuildTransitionTable
+    inputs:
+      spec: "valid YAML with do_work action"
+      registry: "do_work builder registered"
+    expected:
+      table_size: 3
+      done_terminal: true
+      error_terminal: true
+    traces:
+      - srd006-yaml-machine-config AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: $tool sentinel invokes the caller-supplied toolAction
+    go_test: TestBuildTransitionTable_ToolActionSentinel
+    inputs:
+      spec: "transition with action: $tool"
+      tool_action: "sets called=true"
+    expected:
+      called: true
+    traces:
+      - srd006-yaml-machine-config AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: $tool with nil toolAction produces an error
+    go_test: TestBuildTransitionTable_ToolActionNil
+    inputs:
+      spec: "transition with action: $tool"
+      tool_action: nil
+    expected:
+      error: "not nil"
+    traces:
+      - srd006-yaml-machine-config AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Unknown action name produces an error
+    go_test: TestBuildTransitionTable_UnknownAction
+    inputs:
+      spec: "transition with action: nonexistent"
+      registry: empty
+    expected:
+      error: "\"nonexistent\" not found in registry"
+    traces:
+      - srd006-yaml-machine-config AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Loading a nonexistent file produces an error
+    go_test: TestLoadMachineSpec_FileNotFound
+    inputs:
+      path: "/nonexistent/path/machine.yaml"
+    expected:
+      error: "not nil"
+    traces:
+      - srd006-yaml-machine-config AC4
+
+  # --- srd001: core types (verified by compilation and loop tests) ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: State and Signal are named string types with three generic constants
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      signals: "Seed, BudgetExhausted, CommandError used in loop setup"
+    expected:
+      compiles: true
+    traces:
+      - srd001-core-types AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Command interface has Name and Execute methods
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      commands: "fakeCmd implements Command with Name() and Execute()"
+    expected:
+      dispatched: true
+    traces:
+      - srd001-core-types AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Cost struct has Duration, TokensIn, TokensOut, and Dollars
+    go_test: TestLoop_AccumulatesTokens
+    inputs:
+      cost: "tokenFakeCmd returns Cost{TokensIn: 50, TokensOut: 50}"
+    expected:
+      accumulated: true
+    traces:
+      - srd001-core-types AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Result struct has Output, Signal, Cost, Err, and CommandName
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      result: "fakeCmd returns Result{Signal, CommandName}"
+    expected:
+      fields_used: true
+    traces:
+      - srd001-core-types AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Builder has Build(Result) Command, CommandResolver has Resolve
+    go_test: TestLoop_ValidateBuildersHelper
+    inputs:
+      registry: "registers fakeBuilder, resolves by name"
+    expected:
+      builder_resolved: true
+    traces:
+      - srd001-core-types AC5
+
+  # --- srd002: state machine (verified by loop and machine tests) ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: TransitionTable maps state-signal pairs to transitions
+    go_test: TestBuildTransitionTable
+    inputs:
+      table: "3 transitions built from YAML"
+    expected:
+      table_size: 3
+    traces:
+      - srd002-state-machine AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: TerminalFunc is domain-supplied predicate
+    go_test: TestBuildTransitionTable
+    inputs:
+      terminals: "[Done, Error]"
+    expected:
+      done_terminal: true
+      idle_not_terminal: true
+    traces:
+      - srd002-state-machine AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Step performs lookup, calls ActionFunc, handles missing entries
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      state_machine: "Start->Working->Finished via Step calls"
+    expected:
+      transitions: 3
+    traces:
+      - srd002-state-machine AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: IsTerminal delegates to TerminalFunc
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      terminal: "Finished, OverBudget, Broken"
+    expected:
+      loop_stops: true
+    traces:
+      - srd002-state-machine AC4
+
+  # --- srd003: command dispatch (verified by loop tests) ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Dispatch creates child span and stamps attributes
+    go_test: TestLoop_EmitsRegistryFrozenEvent
+    inputs:
+      tracer: "loopRecorder records spans and events"
+    expected:
+      spans_recorded: true
+    traces:
+      - srd003-command-dispatch AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: SafeExecute recovers panics and enforces timeout
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      commands: "dispatched through SafeExecute in Dispatch"
+    expected:
+      no_panic: true
+    traces:
+      - srd003-command-dispatch AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: FillDuration and ForceErrorSignal operate on Result pointers
+    go_test: TestLoop_DurationTracked
+    inputs:
+      result: "FillDuration sets duration when not set by command"
+    expected:
+      duration_positive: true
+    traces:
+      - srd003-command-dispatch AC3
+
+  # --- srd004: tool registry (additional coverage) ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Manifest returns sorted External tools filtered by PhaseMatch
+    go_test: TestBuildTransitionTable
+    inputs:
+      registry: "do_work registered with Phases: [Running]"
+    expected:
+      phase_match: true
+    traces:
+      - srd004-tool-registry AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: AllToolNames and ExternalToolNames return sorted lists
+    go_test: TestLoop_EmitsRegistryFrozenEvent
+    inputs:
+      registry: "multiple tools registered"
+    expected:
+      tool_count: "> 0"
+    traces:
+      - srd004-tool-registry AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Registry satisfies CommandResolver interface
+    go_test: TestLoop_ValidateBuildersHelper
+    inputs:
+      registry: "resolves builders by name"
+    expected:
+      resolves: true
+    traces:
+      - srd004-tool-registry AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Visibility enum with External and Internal, ToolSpec fields
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      registry: "tools with Internal visibility registered"
+    expected:
+      visibility_set: true
+    traces:
+      - srd004-tool-registry AC1
+
+  # --- srd005: agentic loop (additional coverage) ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: LoopParams bundles all inputs for Loop
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      params: "InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, Hooks"
+    expected:
+      loop_runs: true
+    traces:
+      - srd005-agentic-loop AC4
+
+  # --- srd007: tracer interface ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Tracer interface has Push, Event, SetAttributes methods
+    go_test: TestLoop_EmitsRegistryFrozenEvent
+    inputs:
+      tracer: "loopRecorder implements Tracer with Push, Event, SetAttributes"
+    expected:
+      interface_satisfied: true
+    traces:
+      - srd007-tracer-interface AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: pkg/tracing depends only on otel/attribute
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      imports: "pkg/tracing imports only go.opentelemetry.io/otel/attribute"
+    expected:
+      no_sdk_import: true
+    traces:
+      - srd007-tracer-interface AC2

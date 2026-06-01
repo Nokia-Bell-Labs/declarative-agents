@@ -1,0 +1,111 @@
+id: srd005-agentic-loop
+title: Agentic Loop
+
+problem: |
+  The core iteration pattern -- check budget, step the state machine,
+  dispatch the command, accumulate cost, record the event -- recurs in
+  every agentic agent. Domain agents differ in their states, tools, and
+  budget dimensions, but the loop skeleton is identical. Agent-core
+  provides a generic Loop function that domain agents customize through
+  hooks.
+
+goals:
+  - G1: Generic Loop function driving the state machine to a terminal state.
+  - G2: Budget enforcement (iterations, tokens, wall-clock, domain hooks).
+  - G3: Event recording and cost accumulation.
+  - G4: LoopHooks for domain-specific behavior injection.
+  - G5: RunResult carrying structured outcome data.
+
+requirements:
+  R1:
+    title: Budget
+    items:
+      - R1.1: "Budget struct has three fields: MaxIterations (int), MaxTokens (int), MaxDuration (time.Duration)."
+      - R1.2: Zero values mean unlimited for that dimension.
+      - R1.3: Domain agents extend budget checking via LoopHooks.BudgetExceeded.
+
+  R2:
+    title: RunStatus and RunResult
+    items:
+      - R2.1: "RunStatus is a string type with four constants: StatusSucceeded, StatusFailed, StatusBudgetExceeded, StatusCancelled."
+      - R2.2: "RunResult has eleven fields: Status, Iterations, TokensIn, TokensOut, Duration, TotalCost, FinalState, LastError, Summary, Events."
+      - R2.3: RunResult has custom MarshalJSON that serializes Duration as a string and LastError as a nullable string pointer.
+      - R2.4: "RunEvent records one command dispatch with fields: Iteration, Timestamp, CommandName, Signal, Cost, FromState, ToState."
+
+  R3:
+    title: LoopHooks
+    items:
+      - R3.1: ValidateParams checks that required builders exist in the registry. Non-nil error aborts the run.
+      - R3.2: BudgetExceeded checks domain-specific budget dimensions. Returns true to trigger BudgetExhausted signal.
+      - R3.3: TerminalStatus maps a terminal State to a RunStatus. Nil uses default mapping.
+      - R3.4: OnResult is called after each dispatch. The returned RunResult replaces the accumulator.
+      - R3.5: TaskCompletedSignal specifies the signal that captures the task summary. Defaults to "TaskCompleted".
+      - R3.6: All hooks are optional. Nil means default behavior.
+
+  R4:
+    title: LoopParams
+    items:
+      - R4.1: "LoopParams bundles: InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, CommandTimeout, ModelName, Directory, Hooks."
+
+  R5:
+    title: Loop function
+    items:
+      - R5.1: Loop(params LoopParams, ctx context.Context) returns (RunResult, error).
+      - R5.2: If ValidateParams hook returns error, Loop returns immediately with the error.
+      - R5.3: If Budget.MaxDuration > 0, Loop wraps ctx with context.WithTimeout.
+      - R5.4: Loop freezes the Registry before entering the iteration loop.
+      - R5.5: Each iteration checks context cancellation, budget, steps the state machine, and dispatches the command.
+      - R5.6: Context cancellation produces StatusCancelled.
+      - R5.7: BudgetExhausted signal is injected when core or hook budget checks trigger.
+      - R5.8: Terminal states are resolved to RunStatus via TerminalStatus hook or defaults.
+      - R5.9: Cost is accumulated across iterations (TokensIn, TokensOut, TotalCost).
+      - R5.10: Events are appended with per-iteration metadata.
+      - R5.11: Loop emits OTel spans for the run and events for transitions, budget, and termination.
+
+  R6:
+    title: ValidateBuilders helper
+    items:
+      - R6.1: ValidateBuilders(names ...string) returns a ValidateParams hook that checks all named builders exist in the registry.
+
+non_goals:
+  - Domain-specific budget dimensions (those use the BudgetExceeded hook).
+  - Parallel command execution.
+  - History management or context window management.
+  - Result persistence.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Budget has MaxIterations, MaxTokens, and MaxDuration. Zero values mean unlimited.
+    traces: [R1.1, R1.2, R1.3]
+
+  - id: AC2
+    criterion: RunStatus has four constants. RunResult carries status, iterations, tokens, duration, cost, events, and summary. Custom JSON marshaling.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC3
+    criterion: LoopHooks has ValidateParams, BudgetExceeded, TerminalStatus, OnResult, and TaskCompletedSignal. All optional.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+
+  - id: AC4
+    criterion: LoopParams bundles all inputs for Loop.
+    traces: [R4.1]
+
+  - id: AC5
+    criterion: Loop drives state machine from InitialState to terminal, checking budget and context, dispatching commands, accumulating cost, recording events, and emitting OTel spans.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10, R5.11]
+
+  - id: AC6
+    criterion: ValidateBuilders returns a ValidateParams hook checking named builders.
+    traces: [R6.1]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [State, Signal, Command, Result, Cost, Seed, BudgetExhausted]
+  - srd_id: srd002-state-machine
+    symbols_used: [TransitionTable, StateMachine, TerminalFunc, NewStateMachine]
+  - srd_id: srd003-command-dispatch
+    symbols_used: [Dispatch]
+  - srd_id: srd004-tool-registry
+    symbols_used: [Registry]
+  - srd_id: srd007-tracer-interface
+    symbols_used: [Tracer]

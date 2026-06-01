@@ -1,0 +1,78 @@
+id: srd004-tool-registry
+title: Tool Registry
+
+problem: |
+  Agentic agents need to register tools at startup and look them up at
+  runtime. Some tools are visible to the LLM (external), others are
+  internal. The set of available tools may vary by execution state. A
+  central registry must pair tool metadata with command builders and
+  support state-filtered manifest generation.
+
+goals:
+  - G1: ToolSpec metadata type with visibility and phase filtering.
+  - G2: Registry pairing ToolSpecs with Builders.
+  - G3: State-filtered manifest generation.
+  - G4: Freeze semantics to prevent mutation during the loop.
+
+requirements:
+  R1:
+    title: Visibility and ToolSpec
+    items:
+      - R1.1: Visibility is an int enum with External (0) and Internal (1) constants.
+      - R1.2: "ToolSpec has five fields: Name (string), Description (string), InputSchema (json.RawMessage), Visibility (Visibility), Phases ([]State)."
+
+  R2:
+    title: Registry operations
+    items:
+      - R2.1: NewRegistry() creates an empty, mutable Registry.
+      - R2.2: Register(spec ToolSpec, builder Builder) adds a pair. Panics on empty name, duplicate name, or post-freeze call.
+      - R2.3: Freeze() marks the registry as immutable for the duration of the run.
+      - R2.4: Resolve(name string) returns (Builder, bool). False if not found.
+      - R2.5: SpecByName(name string) returns (ToolSpec, bool). False if not found.
+
+  R3:
+    title: Manifest generation
+    items:
+      - R3.1: Manifest(state State) returns a sorted copy of all External ToolSpecs whose Phases match the given state.
+      - R3.2: PhaseMatch returns true when Phases is empty (matches all states) or contains the given state.
+
+  R4:
+    title: Name listing
+    items:
+      - R4.1: AllToolNames() returns every registered tool name sorted alphabetically.
+      - R4.2: ExternalToolNames() returns only External tool names sorted alphabetically.
+
+  R5:
+    title: Interface conformance
+    items:
+      - R5.1: Registry satisfies the CommandResolver interface.
+
+non_goals:
+  - Tool implementation (domain agent responsibility).
+  - Dynamic registration during the loop (prevented by freeze).
+  - Tool input schema validation (consumer responsibility).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Visibility enum with External and Internal. ToolSpec with Name, Description, InputSchema, Visibility, and Phases.
+    traces: [R1.1, R1.2]
+
+  - id: AC2
+    criterion: Registry supports Register (with panic on violations), Freeze, Resolve, and SpecByName.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+
+  - id: AC3
+    criterion: Manifest returns sorted External tools filtered by PhaseMatch. PhaseMatch handles empty Phases as match-all.
+    traces: [R3.1, R3.2]
+
+  - id: AC4
+    criterion: AllToolNames and ExternalToolNames return sorted name lists.
+    traces: [R4.1, R4.2]
+
+  - id: AC5
+    criterion: Registry satisfies CommandResolver interface.
+    traces: [R5.1]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [State, Builder, CommandResolver]

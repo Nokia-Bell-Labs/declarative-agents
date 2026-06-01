@@ -1,0 +1,78 @@
+id: srd006-yaml-machine-config
+title: YAML State Machine Configuration
+
+problem: |
+  Hardcoded transition tables require Go code changes to define new
+  agent types. A declarative YAML format lets users define state
+  machines by editing a configuration file. Agent-core provides the
+  schema, parser, validator, and table builder.
+
+goals:
+  - G1: YAML schema for declarative state machine definition.
+  - G2: Validation with referential integrity checks.
+  - G3: BuildTransitionTable converting YAML to a core.TransitionTable.
+
+requirements:
+  R1:
+    title: YAML schema (MachineSpec)
+    items:
+      - R1.1: "Top-level fields: name (string), initial_state (string), states (list), terminal_states (list), signals (list), transitions (list of TransitionSpec)."
+      - R1.2: "TransitionSpec fields: state (string), signal (string), next (string), action (string, optional)."
+      - R1.3: "action is either a tool name resolvable from the Registry, the special sentinel $tool for dynamic dispatch, or empty for terminal transitions."
+      - R1.4: "$tool is resolved using a caller-supplied ActionFunc for runtime tool lookup."
+
+  R2:
+    title: Validation
+    items:
+      - R2.1: initial_state must appear in the states list.
+      - R2.2: Every terminal_state must appear in the states list.
+      - R2.3: Every transition's state and next fields must appear in the states list.
+      - R2.4: Every transition's signal must appear in the signals list.
+      - R2.5: At least one state, one terminal_state, and one transition are required.
+      - R2.6: Validation errors are collected and reported together, not one at a time.
+
+  R3:
+    title: BuildTransitionTable
+    items:
+      - R3.1: "BuildTransitionTable(spec MachineSpec, reg *Registry, toolAction ActionFunc) returns (TransitionTable, TerminalFunc, error)."
+      - R3.2: For named actions, reg.Resolve(action) obtains the Builder. Resolution failure is an error.
+      - R3.3: For "$tool" action, the caller-supplied toolAction is used. Nil toolAction with "$tool" is an error.
+      - R3.4: Empty action produces nil ActionFunc (terminal transition).
+      - R3.5: TerminalFunc is constructed from the terminal_states list.
+
+  R4:
+    title: File loading
+    items:
+      - R4.1: LoadMachineSpec(path string) reads and parses a YAML file.
+      - R4.2: ParseMachineSpec(data []byte) parses YAML bytes and validates.
+      - R4.3: File read errors and YAML parse errors are wrapped with context.
+
+non_goals:
+  - Dynamic table modification during a run.
+  - Tool registration from YAML (tools are registered in Go and resolved by name).
+  - CLI integration (domain agent responsibility).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: MachineSpec has name, initial_state, states, terminal_states, signals, and transitions. TransitionSpec has state, signal, next, and optional action.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+
+  - id: AC2
+    criterion: Validation checks referential integrity for initial_state, terminal_states, transitions, and minimum counts. Errors collected together.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
+
+  - id: AC3
+    criterion: BuildTransitionTable resolves named actions from Registry, uses toolAction for "$tool", nil for empty. Returns TransitionTable, TerminalFunc, and error.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+
+  - id: AC4
+    criterion: LoadMachineSpec reads and parses YAML files. ParseMachineSpec parses bytes with validation. Errors include context.
+    traces: [R4.1, R4.2, R4.3]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [State, Signal, Result, Command]
+  - srd_id: srd002-state-machine
+    symbols_used: [TransitionTable, TransitionInput, TransitionValue, ActionFunc, TerminalFunc]
+  - srd_id: srd004-tool-registry
+    symbols_used: [Registry]

@@ -1,0 +1,71 @@
+id: srd001-core-types
+title: Core Types
+
+problem: |
+  Every agentic loop needs a common vocabulary: executable units of work,
+  their outcomes, the signals those outcomes carry, and the cost of
+  execution. Without shared types, each agent reimplements these concepts
+  with incompatible interfaces. Agent-core defines these types once so
+  domain agents import them rather than redefine them.
+
+goals:
+  - G1: Domain-agnostic types for commands, results, signals, and costs.
+  - G2: Interfaces for command construction (Builder) and lookup (CommandResolver).
+
+requirements:
+  R1:
+    title: State and Signal types
+    items:
+      - R1.1: State is a named string type representing a position in the agentic loop lifecycle.
+      - R1.2: Signal is a named string type carrying the outcome of a Command back to the state machine.
+      - R1.3: "Three generic Signal constants are defined: Seed, BudgetExhausted, CommandError. Domain agents define additional signals."
+
+  R2:
+    title: Command interface
+    items:
+      - R2.1: Command is an interface with two methods -- Name() string and Execute() Result.
+      - R2.2: Commands embed their parameters at creation time. Execute takes no domain parameters.
+
+  R3:
+    title: Cost struct
+    items:
+      - R3.1: "Cost has four fields: Duration (time.Duration), TokensIn (int), TokensOut (int), Dollars (float64)."
+      - R3.2: All Cost fields carry JSON tags for serialization.
+
+  R4:
+    title: Result struct
+    items:
+      - R4.1: "Result has five fields: Output (string), Signal (Signal), Cost (Cost), Err (error), CommandName (string)."
+      - R4.2: Err carries infrastructure errors. Signal carries domain outcomes.
+
+  R5:
+    title: Builder and CommandResolver interfaces
+    items:
+      - R5.1: Builder interface has Build(res Result) Command. It constructs a ready-to-execute Command from the previous Result.
+      - R5.2: CommandResolver interface has Resolve(name string) (Builder, bool). It looks up a Builder by command name.
+
+non_goals:
+  - Domain-specific state or signal constants.
+  - Command implementations (those live in domain agents).
+  - JSON serialization of Result (Result.Err is not serializable by default).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: State and Signal are named string types. Three generic Signal constants (Seed, BudgetExhausted, CommandError) are exported.
+    traces: [R1.1, R1.2, R1.3]
+
+  - id: AC2
+    criterion: Command interface has Name() and Execute() methods. Execute returns Result.
+    traces: [R2.1, R2.2]
+
+  - id: AC3
+    criterion: Cost struct has Duration, TokensIn, TokensOut, and Dollars fields with JSON tags.
+    traces: [R3.1, R3.2]
+
+  - id: AC4
+    criterion: Result struct has Output, Signal, Cost, Err, and CommandName fields.
+    traces: [R4.1, R4.2]
+
+  - id: AC5
+    criterion: Builder has Build(Result) Command. CommandResolver has Resolve(string) (Builder, bool).
+    traces: [R5.1, R5.2]

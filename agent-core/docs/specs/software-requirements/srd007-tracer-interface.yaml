@@ -1,0 +1,43 @@
+id: srd007-tracer-interface
+title: Tracer Port Interface
+
+problem: |
+  The agentic loop engine needs to emit OpenTelemetry spans and events
+  for observability. Depending directly on the OTel SDK would couple
+  the engine to a specific tracer configuration. A port interface
+  abstracts span creation, event recording, and attribute setting
+  behind three methods. Domain agents supply the concrete implementation.
+
+goals:
+  - G1: Minimal interface decoupling the engine from OTel SDK internals.
+  - G2: Support child span creation, event recording, and attribute setting.
+
+requirements:
+  R1:
+    title: Tracer interface
+    items:
+      - R1.1: Tracer is an interface in pkg/tracing with three methods.
+      - R1.2: "Push(name string, attrs ...attribute.KeyValue) returns (Tracer, func()). Creates a child span and returns a scoped Tracer plus a done function."
+      - R1.3: "Event(name string, attrs ...attribute.KeyValue) records a point-in-time span event."
+      - R1.4: "SetAttributes(attrs ...attribute.KeyValue) sets attributes on the current span."
+
+  R2:
+    title: Dependencies
+    items:
+      - R2.1: pkg/tracing depends only on go.opentelemetry.io/otel/attribute for the KeyValue type.
+      - R2.2: The interface does not import the OTel SDK (go.opentelemetry.io/otel/sdk).
+      - R2.3: The underlying context.Context is hidden inside the concrete implementation.
+
+non_goals:
+  - Concrete Tracer implementation (domain agent responsibility).
+  - OTel exporter configuration.
+  - Metrics or logging interfaces.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Tracer interface has Push, Event, and SetAttributes methods with attribute.KeyValue variadic parameters.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+
+  - id: AC2
+    criterion: pkg/tracing depends only on go.opentelemetry.io/otel/attribute. No OTel SDK import.
+    traces: [R2.1, R2.2, R2.3]

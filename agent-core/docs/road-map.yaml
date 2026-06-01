@@ -1,0 +1,17 @@
+id: agent-core-roadmap
+title: Agent Core Release Road Map
+
+releases:
+  - version: "00.0"
+    name: Core engine import
+    description: |
+      Import the generic agentic loop engine from the generator project.
+      Establishes pkg/core (types, state machine, dispatch, registry,
+      loop, machine config) and pkg/tracing (Tracer port interface).
+      All code is extracted from generator's internal/core and
+      internal/tracing packages, adapted for the public API surface.
+    status: done
+    use_cases:
+      - id: rel00.0-uc001-domain-agent-integration
+        summary: Domain agent imports agent-core and runs an agentic loop
+        status: done

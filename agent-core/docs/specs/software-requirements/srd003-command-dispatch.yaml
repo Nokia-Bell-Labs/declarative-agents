@@ -1,0 +1,61 @@
+id: srd003-command-dispatch
+title: Command Dispatch
+
+problem: |
+  Every command execution needs the same cross-cutting concerns:
+  tracing, timeout enforcement, panic recovery, duration measurement,
+  and signal normalization. Without a shared dispatch function, each
+  domain agent implements these independently and inconsistently.
+
+goals:
+  - G1: Wrap Command.Execute with tracing, timeout, and panic recovery.
+  - G2: Normalize signals and durations on all command outcomes.
+  - G3: Export SafeExecute, FillDuration, and ForceErrorSignal as reusable building blocks.
+
+requirements:
+  R1:
+    title: Dispatch function
+    items:
+      - R1.1: Dispatch(cmd Command, tr Tracer, timeout time.Duration) returns Result.
+      - R1.2: Dispatch creates a child span named after the command, calls SafeExecute, sets CommandName on the result, and stamps the span.
+      - R1.3: The child span records command.name, command.signal, command.duration_ms, command.tokens_in, and command.tokens_out as attributes.
+      - R1.4: If Result.Err is non-nil, Dispatch records an error event on the span.
+
+  R2:
+    title: SafeExecute function
+    items:
+      - R2.1: SafeExecute(cmd Command, timeout time.Duration) returns Result.
+      - R2.2: SafeExecute runs cmd.Execute() in a goroutine and recovers panics.
+      - R2.3: Panics produce a Result with CommandError signal, a formatted error, and panic output.
+      - R2.4: When timeout is positive and exceeded, SafeExecute returns a timeout Result with CommandError signal.
+      - R2.5: When timeout is zero or negative, SafeExecute waits indefinitely.
+      - R2.6: After normal completion, SafeExecute calls FillDuration and ForceErrorSignal.
+
+  R3:
+    title: Helper functions
+    items:
+      - R3.1: FillDuration(res *Result, start time.Time) sets Cost.Duration from wall clock if the command did not set it.
+      - R3.2: ForceErrorSignal(res *Result) overrides Signal to CommandError when Err is non-nil.
+
+non_goals:
+  - Retry logic (domain agent responsibility).
+  - Command queuing or batching.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Dispatch creates a child span, calls SafeExecute, sets CommandName, stamps span attributes.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+
+  - id: AC2
+    criterion: SafeExecute recovers panics, enforces timeout, fills duration, and normalizes error signals.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
+
+  - id: AC3
+    criterion: FillDuration and ForceErrorSignal are exported and operate on Result pointers.
+    traces: [R3.1, R3.2]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Command, Result, Cost, Signal, CommandError]
+  - srd_id: srd007-tracer-interface
+    symbols_used: [Tracer]
