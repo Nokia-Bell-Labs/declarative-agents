@@ -7,7 +7,7 @@ traces:
 
 preconditions:
   - Go toolchain installed (go 1.26+)
-  - pkg/core and pkg/tracing packages buildable
+  - pkg/core, pkg/tracing, and pkg/telemetry packages buildable
 
 test_cases:
   - use_case: rel00.0-uc001-domain-agent-integration
@@ -462,3 +462,100 @@ test_cases:
       no_sdk_import: true
     traces:
       - srd007-tracer-interface AC2
+
+  # --- srd008: telemetry ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: NewRoot rejects empty ExporterConfig
+    go_test: TestNewRoot_EmptyConfig
+    inputs:
+      config: "ExporterConfig{} (both fields empty)"
+    expected:
+      error: "at least one exporter required"
+    traces:
+      - srd008-telemetry AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Trace Push creates child, Event records event, SetAttributes sets attributes
+    go_test: TestTrace_PushEventSetAttributes
+    inputs:
+      trace: "Trace from NewRoot with file exporter"
+    expected:
+      child_created: true
+      event_recorded: true
+      attributes_set: true
+    traces:
+      - srd008-telemetry AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Trace Context returns context, Meter returns meter
+    go_test: TestTrace_ContextAndMeter
+    inputs:
+      trace: "Trace from NewRoot"
+    expected:
+      context_not_nil: true
+      meter_not_nil: true
+    traces:
+      - srd008-telemetry AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: NewRoot with file exporter creates providers and root span
+    go_test: TestNewRoot_FileExporter
+    inputs:
+      config: "ExporterConfig{FilePath: tempfile}"
+    expected:
+      trace_not_zero: true
+      shutdown_not_nil: true
+    traces:
+      - srd008-telemetry AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Shutdown is idempotent and flushes providers
+    go_test: TestNewRoot_ShutdownIdempotent
+    inputs:
+      shutdown: "called twice"
+    expected:
+      no_panic: true
+    traces:
+      - srd008-telemetry AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: File exporter writes temp file and renames atomically
+    go_test: TestNewRoot_FileExporterAtomicRename
+    inputs:
+      config: "ExporterConfig{FilePath: target}"
+    expected:
+      temp_file_during: true
+      final_file_after: true
+    traces:
+      - srd008-telemetry AC6
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: OTLP exporter configuration accepted
+    go_test: TestNewRoot_OTLPExporter
+    inputs:
+      config: "ExporterConfig{OTLPEndpoint: localhost:4317}"
+    expected:
+      trace_not_zero: true
+    traces:
+      - srd008-telemetry AC7
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: TraceAdapter satisfies tracing.Tracer and wraps Push
+    go_test: TestTraceAdapter_SatisfiesInterface
+    inputs:
+      adapter: "TraceAdapter{T: trace}"
+    expected:
+      interface_check: "compile-time var _ tracing.Tracer = TraceAdapter{}"
+      push_returns_adapter: true
+    traces:
+      - srd008-telemetry AC8
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: ReplayFile reads OTLP JSON and sends spans
+    go_test: TestReplayFile_InvalidPath
+    inputs:
+      path: "/nonexistent/trace.json"
+    expected:
+      error: "not nil"
+    traces:
+      - srd008-telemetry AC9

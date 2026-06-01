@@ -2,21 +2,21 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core library. Seven SRDs define the
+  Specification index for the agent-core library. Eight SRDs define the
   generic agentic loop engine: core types, state machine, command
   dispatch, tool registry, agentic loop, YAML machine configuration,
-  and the tracer port interface. One use case exercises all seven SRDs
-  through a domain agent integration scenario. One test suite covers
-  all acceptance criteria with 23 test cases.
+  the tracer port interface, and the telemetry implementation. One use
+  case exercises all eight SRDs through a domain agent integration
+  scenario. One test suite covers acceptance criteria with test cases.
 
   SRD release assignments.
   - 00.0: srd001 (core types), srd002 (state machine), srd003 (command
     dispatch), srd004 (tool registry), srd005 (agentic loop), srd006
-    (YAML machine config), srd007 (tracer interface)
+    (YAML machine config), srd007 (tracer interface), srd008 (telemetry)
 
 roadmap_summary:
   - version: "00.0"
-    name: Core engine import
+    name: Core engine and telemetry import
     use_cases_done: 1
     use_cases_total: 1
     status: done
@@ -50,6 +50,10 @@ srd_index:
     title: Tracer Port Interface
     summary: Tracer interface with Push, Event, SetAttributes. Depends only on otel/attribute.
     path: docs/specs/software-requirements/srd007-tracer-interface.yaml
+  - id: srd008-telemetry
+    title: Telemetry Implementation
+    summary: Concrete OTel setup with Trace, TraceAdapter, NewRoot, ExporterConfig, file/OTLP exporters, and ReplayFile.
+    path: docs/specs/software-requirements/srd008-telemetry.yaml
 
 use_case_index:
   - id: rel00.0-uc001-domain-agent-integration
@@ -97,7 +101,11 @@ srd_to_use_case_mapping:
     srd: srd007-tracer-interface
     why_required: Domain agent supplies a concrete Tracer implementation satisfying the port interface.
     coverage: Full. Covers AC1 and AC2 via SC8.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd008-telemetry
+    why_required: Domain agent uses pkg/telemetry to set up OTel providers, create root spans, and adapt Trace to the Tracer interface.
+    coverage: Full. Covers AC1 through AC9 via SC8 and telemetry initialization.
 
 coverage_gaps: |
-  All seven SRDs have full use case touchpoints and test suite coverage
+  All eight SRDs have full use case touchpoints and test suite coverage
   in release 00.0.

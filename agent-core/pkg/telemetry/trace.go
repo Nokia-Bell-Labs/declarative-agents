@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-// Package telemetry implements srd007-telemetry-handle R1–R8.
+// Package telemetry implements srd008-telemetry.
 package telemetry
 
 import (

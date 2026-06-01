@@ -1,0 +1,108 @@
+id: srd008-telemetry
+title: Telemetry Implementation
+
+problem: |
+  Every agent built on agent-core needs OpenTelemetry wiring: provider
+  setup, exporter configuration, root span lifecycle, shutdown
+  sequencing, and a concrete Tracer adapter. Without a shared
+  implementation each agent reimplements the same boilerplate.
+
+goals:
+  - G1: Provide a ready-to-use OpenTelemetry setup for file and OTLP export.
+  - G2: Satisfy the pkg/tracing.Tracer interface with a concrete adapter.
+  - G3: Support offline replay of recorded trace files.
+
+requirements:
+  R1:
+    title: ExporterConfig
+    items:
+      - R1.1: ExporterConfig struct with FilePath and OTLPEndpoint string fields.
+      - R1.2: At least one of FilePath or OTLPEndpoint must be non-empty. NewRoot returns an error otherwise.
+
+  R2:
+    title: Trace type
+    items:
+      - R2.1: Trace struct bundles an OTel tracer, context, and meter. Immutable after construction.
+      - R2.2: "Push(name, attrs) starts a child span, returns a new Trace and a done function."
+      - R2.3: "Event(name, attrs) records a span event on the current span."
+      - R2.4: "SetAttributes(attrs) sets attributes on the current span."
+      - R2.5: Context() returns the underlying context.Context.
+      - R2.6: Meter() returns the OpenTelemetry Meter.
+
+  R3:
+    title: NewRoot
+    items:
+      - R3.1: NewRoot accepts a name, ExporterConfig, and parent context.
+      - R3.2: Creates trace and metric providers with the configured exporters.
+      - R3.3: Starts a root span and returns a Trace, shutdown function, and error.
+      - R3.4: The shutdown function flushes providers, ends the root span, and closes file handles.
+      - R3.5: Shutdown is idempotent (sync.Once).
+
+  R4:
+    title: File exporter
+    items:
+      - R4.1: Writes traces and metrics to a temporary file in the target directory.
+      - R4.2: On shutdown, renames the temp file to the final path for atomic delivery.
+
+  R5:
+    title: OTLP exporter
+    items:
+      - R5.1: Sends traces via gRPC to the configured endpoint.
+      - R5.2: Sends metrics via gRPC to the configured endpoint.
+      - R5.3: Uses insecure credentials (no TLS).
+
+  R6:
+    title: TraceAdapter
+    items:
+      - R6.1: TraceAdapter wraps a Trace to satisfy the tracing.Tracer interface.
+      - R6.2: Push returns a TraceAdapter so the interface return type is met.
+      - R6.3: Compile-time check (var _ tracing.Tracer = TraceAdapter{}).
+
+  R7:
+    title: Offline replay
+    items:
+      - R7.1: ReplayFile reads an OTLP JSON trace file and sends spans to a remote endpoint.
+      - R7.2: Accepts an optional tracing.Tracer to record replay lifecycle events.
+      - R7.3: Replay is idempotent; replaying the same file produces duplicate spans on the collector.
+
+non_goals:
+  - TLS or authenticated OTLP connections.
+  - Metric recording beyond provider setup (domain agent responsibility).
+  - Custom resource attributes beyond service name.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: ExporterConfig requires at least one exporter. NewRoot rejects empty config with an error.
+    traces: [R1.1, R1.2]
+
+  - id: AC2
+    criterion: Trace.Push creates a child span. Trace.Event records an event. Trace.SetAttributes sets attributes.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC3
+    criterion: Trace.Context returns a context.Context. Trace.Meter returns a metric.Meter.
+    traces: [R2.5, R2.6]
+
+  - id: AC4
+    criterion: NewRoot creates providers, starts a root span, returns a Trace and shutdown function.
+    traces: [R3.1, R3.2, R3.3]
+
+  - id: AC5
+    criterion: Shutdown flushes, ends the root span, closes files, and is idempotent.
+    traces: [R3.4, R3.5]
+
+  - id: AC6
+    criterion: File exporter writes to a temp file and renames atomically on shutdown.
+    traces: [R4.1, R4.2]
+
+  - id: AC7
+    criterion: OTLP exporter sends traces and metrics via insecure gRPC.
+    traces: [R5.1, R5.2, R5.3]
+
+  - id: AC8
+    criterion: TraceAdapter satisfies tracing.Tracer at compile time. Push wraps the child Trace in an adapter.
+    traces: [R6.1, R6.2, R6.3]
+
+  - id: AC9
+    criterion: ReplayFile reads an OTLP JSON file, sends spans to the endpoint, and optionally logs lifecycle events.
+    traces: [R7.1, R7.2, R7.3]

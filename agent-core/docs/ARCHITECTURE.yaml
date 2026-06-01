@@ -7,6 +7,9 @@ overview:
     components form the engine, each in its own source file under
     pkg/core. A seventh package, pkg/tracing, defines the Tracer port
     interface that decouples the engine from OpenTelemetry internals.
+    An eighth package, pkg/telemetry, provides the concrete
+    OpenTelemetry implementation: provider setup, exporter config,
+    root span lifecycle, a Tracer adapter, and offline trace replay.
 
     Components:
     - Types -- Command, Result, Signal, Cost, Builder, CommandResolver
@@ -18,8 +21,8 @@ overview:
 
     The engine is domain-agnostic. It knows about States, Signals, and
     Commands but not about coding tools, LLMs, or file systems. Domain
-    agents import pkg/core and supply their own constants, tools, and
-    transition tables.
+    agents import pkg/core, pkg/tracing, and pkg/telemetry, then
+    supply their own constants, tools, and transition tables.
 
   lifecycle: |
     A run proceeds through three phases.
@@ -58,16 +61,18 @@ overview:
     - pkg/core depends only on pkg/tracing, the Go standard library,
       go.opentelemetry.io/otel/attribute, and gopkg.in/yaml.v3.
     - pkg/tracing depends only on go.opentelemetry.io/otel/attribute.
+    - pkg/telemetry depends on pkg/tracing, the OTel SDK, gRPC, and
+      protobuf. It imports pkg/tracing but not pkg/core.
     - No package in agent-core imports domain-specific code.
-    - Domain agents import pkg/core and pkg/tracing.
+    - Domain agents import pkg/core, pkg/tracing, and pkg/telemetry.
 
 interfaces:
   - name: Tracer interface
     summary: |
       Port interface for OpenTelemetry tracing (pkg/tracing). Three
       methods: Push (child span), Event (span event), SetAttributes
-      (span metadata). The engine imports this interface; concrete
-      implementations live in the domain agent's telemetry package.
+      (span metadata). The engine imports this interface; the concrete
+      implementation lives in pkg/telemetry (TraceAdapter).
 
   - name: Command interface
     summary: |
@@ -177,6 +182,19 @@ components:
       - Support the $tool sentinel for dynamic dispatch
       - Support empty actions for terminal transitions
 
+  - name: Telemetry
+    responsibility: |
+      Concrete OpenTelemetry implementation satisfying the Tracer port
+      interface. Sets up trace and metric providers, manages root span
+      lifecycle, handles file and OTLP export, and provides offline
+      trace replay.
+    capabilities:
+      - Create providers with file and/or OTLP exporters (NewRoot)
+      - Manage root span lifecycle with idempotent shutdown
+      - Atomic file delivery via temp-file-then-rename
+      - Satisfy tracing.Tracer via TraceAdapter
+      - Replay recorded OTLP JSON trace files to a remote collector
+
 design_decisions:
   - id: 1
     title: Domain-agnostic engine
@@ -267,6 +285,8 @@ project_structure:
     role: Generic agentic loop engine (types, state machine, dispatch, registry, loop, machine config)
   - path: pkg/tracing/
     role: Tracer port interface for OpenTelemetry
+  - path: pkg/telemetry/
+    role: Concrete OTel implementation (providers, exporters, adapter, replay)
   - path: docs/
     role: Documentation and specifications
   - path: magefiles/
@@ -279,9 +299,10 @@ implementation_status:
     - done: ARCHITECTURE.yaml authored
     - done: pkg/tracing/tracer.go imported
     - done: pkg/core/ imported (types, state, dispatch, registry, loop, machine)
+    - done: pkg/telemetry/ imported (trace, adapter, replay)
     - done: Tests imported and passing (23 tests)
-    - planned: SPECIFICATIONS.yaml and initial SRDs
-    - planned: Generator updated to import agent-core
+    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd008)
+    - done: Generator updated to import agent-core
 
 related_documents:
   - doc: docs/VISION.yaml

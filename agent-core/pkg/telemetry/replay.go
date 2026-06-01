@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-// Implements srd007-telemetry-handle R7 (offline replay).
+// Implements srd008-telemetry R7 (offline replay).
 package telemetry
 
 import (
