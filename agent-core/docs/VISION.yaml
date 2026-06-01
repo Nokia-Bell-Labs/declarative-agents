@@ -1,0 +1,121 @@
+id: agent-core
+title: "Agent Core: A Generic Agentic Loop Engine"
+
+executive_summary: |
+  Agent Core is a domain-agnostic library for building tool-augmented
+  agentic loops. It provides the state machine, command dispatch,
+  tool registry, budget tracking, event recording, and tracing that
+  every agentic agent needs -- without prescribing what tools exist,
+  what states mean, or what LLM to use.
+
+  Domain-specific agents import agent-core and supply their own
+  states, signals, tools, and transition tables. The library drives
+  the loop; the agent defines its behavior.
+
+problem: |
+  The agentic loop pattern -- observe, decide, act, validate, repeat --
+  recurs across agent types. A coding agent loops until tests pass.
+  A research agent loops until it finds an answer. An orchestrator
+  loops until subtasks complete. Each embeds the same machinery:
+  state transitions, budget enforcement, command dispatch with
+  timeout and panic recovery, cost tracking, event logging,
+  OpenTelemetry tracing, and tool manifest filtering.
+
+  When this machinery is coupled to a specific domain (coding tools,
+  specific LLM, particular states), it cannot be reused. Building a
+  new agent means reimplementing the same loop plumbing. Bugs fixed
+  in one agent stay unfixed in another. Improvements to budget
+  tracking or tracing require changes in every agent.
+
+  Agent Core extracts the loop engine into a standalone Go library.
+  Domain agents become thin wrappers that register tools, define
+  states, and supply hooks. The engine does the rest.
+
+what_this_does: |
+  Agent Core is a Go library (not a binary). It provides six
+  components that together implement the generic agentic loop.
+
+  State Machine. A static transition table maps (State, Signal) pairs
+  to (NextState, ActionFunc). Step performs a single lookup. The
+  domain supplies its own State and Signal constants, its own
+  TransitionTable, and a TerminalFunc predicate. The state machine
+  knows nothing about coding, research, or any other domain.
+
+  Command Dispatch. Dispatch wraps Command.Execute with an
+  OpenTelemetry child span, optional per-command timeout, panic
+  recovery, duration measurement, and signal normalization. SafeExecute
+  runs the command in a goroutine with a timer. Commands are the
+  single interface for all units of work.
+
+  Tool Registry. Registry pairs ToolSpec metadata (name, description,
+  JSON schema, visibility, phases) with Builders. Manifest() returns
+  the external tools available in a given state. The registry freezes
+  before the loop starts.
+
+  Agentic Loop. Loop drives the state machine from an initial state to
+  a terminal state. Each iteration checks the budget, calls Step,
+  dispatches the returned Command, accumulates costs, records events,
+  and checks for context cancellation. Domain-specific behavior is
+  injected through LoopHooks callbacks.
+
+  YAML Machine Config. MachineSpec defines a state machine in YAML --
+  states, signals, terminal states, and transitions with named actions.
+  BuildTransitionTable resolves action names from the registry. The
+  $tool sentinel enables dynamic dispatch. This lets agents define
+  their behavior declaratively.
+
+  Tracer Port. A minimal Tracer interface (Push, Event, SetAttributes)
+  abstracts OpenTelemetry. The domain supplies a concrete
+  implementation; agent-core depends only on the interface and the
+  OTel attribute package.
+
+why_we_build_this: |
+  Three reasons.
+
+  First, to enable multiple agent types within the agentic-loop project.
+  The generator (coding agent) was the first agent built on this engine.
+  Future agents -- an outer-loop orchestrator, a research agent, a
+  testing agent -- reuse the same loop machinery without reimplementing
+  state machines, dispatch, or budget tracking.
+
+  Second, to enforce a clean separation between engine and domain. The
+  engine knows about States, Signals, Commands, and Budgets. It does
+  not know about Go toolchains, LLMs, file systems, or test runners.
+  This boundary prevents coupling and makes each piece independently
+  testable.
+
+  Third, to accumulate engine improvements in one place. Better
+  tracing, smarter budget checks, more robust panic recovery, and new
+  dispatch modes benefit every agent that imports agent-core.
+
+success_criteria:
+  domain_agnosticism: |
+    No import in agent-core references a specific domain (coding, LLM
+    provider, file system operations). The only external dependencies
+    are the Go standard library, OpenTelemetry attributes, and a YAML
+    parser.
+  composability: |
+    A domain agent can build a working agentic loop by supplying: a set
+    of State and Signal constants, a TransitionTable (or YAML machine
+    file), tool Builders registered in a Registry, a TerminalFunc, and
+    optional LoopHooks. No subclassing, no code generation.
+  budget_enforcement: |
+    Iteration, token, and wall-clock-time limits are enforced by the
+    generic loop. Domain-specific limits (e.g., max build failures)
+    plug in through the BudgetExceeded hook.
+  observability: |
+    Every command dispatch is recorded as a RunEvent. The loop emits
+    OpenTelemetry spans and events for state transitions, budget
+    checks, and dispatch outcomes.
+  backward_compatibility: |
+    The generator (formerly harness) re-exports agent-core types via
+    type aliases. Existing code compiles without import changes.
+
+not:
+  - We do not implement any specific tools (file I/O, build, test, LLM calls).
+  - We do not define domain-specific states or signals.
+  - We do not provide an LLM adapter or prompt assembly.
+  - We do not build a CLI. Agent-core is a library.
+  - We do not manage conversation history.
+  - We do not implement an orchestrator or outer loop.
+  - We do not define deployment, packaging, or container images.
