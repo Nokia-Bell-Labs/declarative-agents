@@ -14,4 +14,7 @@ type Client interface {
 	// assistant's response. The caller is responsible for assembling
 	// the full message history including the system prompt.
 	Chat(ctx context.Context, messages []Message, opts ChatOptions) (ChatResponse, error)
+
+	// ListModels returns the models available from this backend.
+	ListModels(ctx context.Context) ([]ModelInfo, error)
 }
