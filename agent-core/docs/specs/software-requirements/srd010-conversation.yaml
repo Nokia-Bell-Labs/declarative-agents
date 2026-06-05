@@ -1,0 +1,118 @@
+id: srd010-conversation
+title: Conversation Management
+
+problem: |
+  Agent-core provides a Conversation type that manages multi-turn chat
+  sessions with an LLM backend. It was originally designed for a managed
+  pattern only: each Send call appends a user message, calls Chat with
+  the full history, and appends the assistant's response.
+
+  The generator uses a separate ConversationHistory type with an
+  append-only pattern: messages are added manually (Append), and Chat
+  is invoked externally by the invoke_llm command. This manual mode is
+  needed when prompt assembly, tool manifests, or retry logic must be
+  interleaved between message appends and Chat calls.
+
+  Having two conversation types creates duplication and makes it hard
+  for new agents to choose. A single Conversation type supporting both
+  managed and manual modes eliminates the split.
+
+goals:
+  - G1: Single Conversation type supporting managed (Send) and manual (Append + external Chat) modes.
+  - G2: Thread-safe append-only message history with copy-on-read semantics.
+  - G3: System prompt management (get, set, assemble).
+  - G4: Replace generator's ConversationHistory with agent-core Conversation.
+
+requirements:
+  R1:
+    title: Message types
+    items:
+      - R1.1: Message is a struct with Role (MessageRole) and Content (string).
+      - R1.2: MessageRole is a named string type with constants System, User, and Assistant.
+      - R1.3: Message and MessageRole are JSON-serializable.
+      - R1.4: Messages are immutable after append. Corrections arrive as new messages.
+
+  R2:
+    title: Conversation struct
+    items:
+      - R2.1: Conversation wraps a Client, system prompt, ChatOptions, and a mutex-protected message slice.
+      - R2.2: NewConversation(client, systemPrompt, opts) creates an empty Conversation.
+      - R2.3: All methods are safe for concurrent use via sync.RWMutex.
+
+  R3:
+    title: Managed mode (Send)
+    items:
+      - R3.1: Send(ctx, userMessage) appends a User message, calls Chat with the full assembled history, and appends the Assistant response.
+      - R3.2: On Chat failure, the User message remains appended but no Assistant message is added, preserving retry ability.
+      - R3.3: Send returns the ChatResponse from the backend.
+
+  R4:
+    title: Manual mode (Append)
+    items:
+      - R4.1: Append(msg) adds a message to history without triggering a Chat call.
+      - R4.2: Append supports any role (User, Assistant, System) for maximum flexibility.
+      - R4.3: Messages added via Append are included in subsequent Send or AssembleMessages calls.
+      - R4.4: Append and Send can be mixed within the same Conversation.
+
+  R5:
+    title: History access
+    items:
+      - R5.1: History() returns a copy of all messages in insertion order (oldest first), excluding the system prompt.
+      - R5.2: Messages() is an alias for History(), easing migration from generator's ConversationHistory.
+      - R5.3: Len() returns the message count excluding the system prompt.
+      - R5.4: AssembleMessages() returns the full Chat input — system prompt (if non-empty) followed by all messages. Returns a copy.
+
+  R6:
+    title: System prompt
+    items:
+      - R6.1: SystemPrompt() returns the current system prompt.
+      - R6.2: SetSystemPrompt(prompt) replaces the system prompt. Takes effect on the next Send or AssembleMessages call.
+      - R6.3: An empty system prompt is omitted from assembled messages.
+
+  R7:
+    title: Reset
+    items:
+      - R7.1: Reset() clears the message history. The system prompt and client binding are preserved.
+      - R7.2: After Reset, Len() returns 0 and History() returns an empty slice.
+      - R7.3: Append and Send work normally after Reset.
+
+  R8:
+    title: No-compaction boundary
+    items:
+      - R8.1: Conversation does not compress, summarize, truncate, or slide-window the message slice.
+      - R8.2: Context window management is the caller's responsibility, not the Conversation's.
+
+non_goals:
+  - Token counting or context window estimation.
+  - Prompt assembly from structured parts (srd009 prompt schema responsibility).
+  - Retry logic or error recovery.
+  - Message persistence or serialization to disk.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Append(msg) adds a message without calling Chat. Appended messages appear in History and AssembleMessages.
+    traces: [R4.1, R4.2, R4.3]
+
+  - id: AC2
+    criterion: Send and Append can be mixed. History preserves insertion order across both methods.
+    traces: [R4.4, R3.1]
+
+  - id: AC3
+    criterion: History and Messages return defensive copies. Mutations do not affect internal state.
+    traces: [R5.1, R5.2]
+
+  - id: AC4
+    criterion: AssembleMessages returns system prompt + history. Empty system prompt is omitted.
+    traces: [R5.4, R6.3]
+
+  - id: AC5
+    criterion: Generator can replace ConversationHistory with Conversation using Append + History without behavior change.
+    traces: [R4.1, R5.2, R7.1]
+
+  - id: AC6
+    criterion: Reset clears history. Append and Send work after Reset. System prompt is preserved.
+    traces: [R7.1, R7.2, R7.3]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Message, MessageRole]

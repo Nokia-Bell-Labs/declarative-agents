@@ -58,6 +58,18 @@ func (c *Conversation) Send(ctx context.Context, userMessage string) (ChatRespon
 	return resp, nil
 }
 
+// Append adds a message to the conversation history without triggering
+// a Chat call. This supports the manual/append-only pattern where the
+// caller builds the history independently and invokes Chat externally.
+//
+// Use Send for the managed pattern (auto-calls Chat). Use Append when
+// assembling messages from multiple sources before a single Chat call.
+func (c *Conversation) Append(msg Message) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.messages = append(c.messages, msg)
+}
+
 // History returns a copy of the conversation messages (excluding the
 // system prompt). Messages are in insertion order, oldest first.
 func (c *Conversation) History() []Message {
@@ -66,6 +78,22 @@ func (c *Conversation) History() []Message {
 	out := make([]Message, len(c.messages))
 	copy(out, c.messages)
 	return out
+}
+
+// Messages is an alias for History. It exists to ease migration from
+// generator's ConversationHistory which uses this method name.
+func (c *Conversation) Messages() []Message {
+	return c.History()
+}
+
+// AssembleMessages returns the full message list for a Chat call:
+// system prompt (if non-empty) followed by all conversation messages.
+// Useful in manual mode where the caller needs the complete input for
+// an external Chat call.
+func (c *Conversation) AssembleMessages() []Message {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.assembleMessagesLocked()
 }
 
 // Len returns the number of messages in the conversation (excluding

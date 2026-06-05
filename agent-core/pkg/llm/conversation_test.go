@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -210,6 +211,141 @@ func TestConversation_SetSystemPrompt(t *testing.T) {
 	c.SetSystemPrompt("updated")
 	_, _ = c.Send(context.Background(), "b")
 	require.Equal(t, "updated", client.calls[1][0].Content)
+}
+
+// --- Append (manual/append-only mode) ---
+
+func TestConversation_Append(t *testing.T) {
+	t.Parallel()
+	c := NewConversation(&stubClient{}, "", ChatOptions{})
+
+	c.Append(Message{Role: User, Content: "hello"})
+	c.Append(Message{Role: Assistant, Content: "hi"})
+
+	require.Equal(t, 2, c.Len())
+	h := c.History()
+	require.Equal(t, User, h[0].Role)
+	require.Equal(t, "hello", h[0].Content)
+	require.Equal(t, Assistant, h[1].Role)
+	require.Equal(t, "hi", h[1].Content)
+}
+
+func TestConversation_AppendDoesNotCallChat(t *testing.T) {
+	t.Parallel()
+	client := &stubClient{}
+	c := NewConversation(client, "sys", ChatOptions{})
+
+	c.Append(Message{Role: User, Content: "manual"})
+	c.Append(Message{Role: Assistant, Content: "response"})
+
+	require.Empty(t, client.calls, "Append must not invoke Chat")
+	require.Equal(t, 2, c.Len())
+}
+
+func TestConversation_AppendThenSend(t *testing.T) {
+	t.Parallel()
+	client := &stubClient{
+		responses: []ChatResponse{{Content: "r1"}},
+	}
+	c := NewConversation(client, "sys", ChatOptions{})
+
+	c.Append(Message{Role: User, Content: "preloaded"})
+	c.Append(Message{Role: Assistant, Content: "prior"})
+
+	_, err := c.Send(context.Background(), "new question")
+	require.NoError(t, err)
+
+	// Chat should have received system + preloaded + prior + new question
+	require.Len(t, client.calls, 1)
+	msgs := client.calls[0]
+	require.Len(t, msgs, 4) // sys + preloaded + prior + new question
+	require.Equal(t, "sys", msgs[0].Content)
+	require.Equal(t, "preloaded", msgs[1].Content)
+	require.Equal(t, "prior", msgs[2].Content)
+	require.Equal(t, "new question", msgs[3].Content)
+}
+
+func TestConversation_AppendPreservesOrder(t *testing.T) {
+	t.Parallel()
+	c := NewConversation(&stubClient{}, "", ChatOptions{})
+
+	for i := 0; i < 5; i++ {
+		c.Append(Message{Role: User, Content: fmt.Sprintf("msg%d", i)})
+	}
+
+	h := c.History()
+	require.Len(t, h, 5)
+	for i := 0; i < 5; i++ {
+		require.Equal(t, fmt.Sprintf("msg%d", i), h[i].Content)
+	}
+}
+
+func TestConversation_AppendResetAppend(t *testing.T) {
+	t.Parallel()
+	c := NewConversation(&stubClient{}, "", ChatOptions{})
+
+	c.Append(Message{Role: User, Content: "old"})
+	require.Equal(t, 1, c.Len())
+
+	c.Reset()
+	require.Equal(t, 0, c.Len())
+
+	c.Append(Message{Role: User, Content: "fresh"})
+	require.Equal(t, 1, c.Len())
+	require.Equal(t, "fresh", c.History()[0].Content)
+}
+
+// --- Messages (alias for History) ---
+
+func TestConversation_Messages(t *testing.T) {
+	t.Parallel()
+	client := &stubClient{responses: []ChatResponse{{Content: "r"}}}
+	c := NewConversation(client, "", ChatOptions{})
+
+	_, _ = c.Send(context.Background(), "hi")
+
+	msgs := c.Messages()
+	hist := c.History()
+	require.Equal(t, hist, msgs)
+}
+
+// --- AssembleMessages ---
+
+func TestConversation_AssembleMessages(t *testing.T) {
+	t.Parallel()
+	c := NewConversation(&stubClient{}, "system", ChatOptions{})
+
+	c.Append(Message{Role: User, Content: "u1"})
+	c.Append(Message{Role: Assistant, Content: "a1"})
+
+	assembled := c.AssembleMessages()
+	require.Len(t, assembled, 3) // system + u1 + a1
+	require.Equal(t, System, assembled[0].Role)
+	require.Equal(t, "system", assembled[0].Content)
+	require.Equal(t, User, assembled[1].Role)
+	require.Equal(t, Assistant, assembled[2].Role)
+}
+
+func TestConversation_AssembleMessages_NoSystemPrompt(t *testing.T) {
+	t.Parallel()
+	c := NewConversation(&stubClient{}, "", ChatOptions{})
+
+	c.Append(Message{Role: User, Content: "u1"})
+	assembled := c.AssembleMessages()
+	require.Len(t, assembled, 1) // no system message
+	require.Equal(t, User, assembled[0].Role)
+}
+
+func TestConversation_AssembleMessages_CopySemantics(t *testing.T) {
+	t.Parallel()
+	c := NewConversation(&stubClient{}, "sys", ChatOptions{})
+	c.Append(Message{Role: User, Content: "original"})
+
+	snapshot := c.AssembleMessages()
+	snapshot[1].Content = "mutated"
+
+	fresh := c.AssembleMessages()
+	require.Equal(t, "original", fresh[1].Content)
 }
 
 // --- Message type tests ---
