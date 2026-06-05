@@ -68,30 +68,33 @@ func (t Trace) Meter() metric.Meter { return t.meter }
 // NewRoot creates providers, starts a root span, and returns a Trace plus a
 // shutdown function that flushes exporters. The caller defers shutdown.
 //
+// serviceName identifies the agent in OTel resource attributes, tracer,
+// meter, and temp file prefix (e.g. "generator", "planner").
+//
 // buildProviders runs before the root span exists and cannot emit OTel
 // events; failures at that stage are returned as errors and logged to
 // stderr via log.Printf (pre-root boundary).
-func NewRoot(name string, cfg ExporterConfig, parentCtx context.Context) (Trace, func(), error) {
+func NewRoot(serviceName, name string, cfg ExporterConfig, parentCtx context.Context) (Trace, func(), error) {
 	if cfg.FilePath == "" && cfg.OTLPEndpoint == "" {
 		return Trace{}, nil, fmt.Errorf("ExporterConfig: at least one exporter required")
 	}
 
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
-		semconv.ServiceNameKey.String("harness"),
+		semconv.ServiceNameKey.String(serviceName),
 	)
 
 	// Pre-root boundary: buildProviders failures are log-only because
 	// no span exists yet to record events on.
-	tp, mp, file, err := buildProviders(cfg, res)
+	tp, mp, file, err := buildProviders(cfg, res, serviceName)
 	if err != nil {
 		return Trace{}, nil, fmt.Errorf("telemetry setup: %w", err)
 	}
 
 	logExporterConfig(cfg)
 
-	tracer := tp.Tracer("harness")
-	meter := mp.Meter("harness")
+	tracer := tp.Tracer(serviceName)
+	meter := mp.Meter(serviceName)
 	ctx, span := tracer.Start(parentCtx, name)
 
 	span.SetAttributes(
@@ -157,6 +160,7 @@ func buildShutdown(
 func buildProviders(
 	cfg ExporterConfig,
 	res *resource.Resource,
+	serviceName string,
 ) (*sdktrace.TracerProvider, *sdkmetric.MeterProvider, *os.File, error) {
 	var spanOpts []sdktrace.TracerProviderOption
 	var metricOpts []sdkmetric.Option
@@ -166,7 +170,7 @@ func buildProviders(
 	metricOpts = append(metricOpts, sdkmetric.WithResource(res))
 
 	if cfg.FilePath != "" {
-		f, traceExp, metricExp, err := fileExporters(cfg.FilePath)
+		f, traceExp, metricExp, err := fileExporters(cfg.FilePath, serviceName)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -196,11 +200,11 @@ func buildProviders(
 // fileExporters writes to a temp file in the same directory; buildShutdown
 // renames it to the final path for atomic delivery (srd007 R6.2).
 // Pre-root boundary: failures here are returned as errors, not traced.
-func fileExporters(path string) (
+func fileExporters(path, serviceName string) (
 	*os.File, sdktrace.SpanExporter, sdkmetric.Exporter, error,
 ) {
 	dir := filepath.Dir(path)
-	f, err := os.CreateTemp(dir, ".harness-trace-*.tmp")
+	f, err := os.CreateTemp(dir, fmt.Sprintf(".%s-trace-*.tmp", serviceName))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create trace temp file in %s: %w", dir, err)
 	}

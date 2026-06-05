@@ -32,7 +32,8 @@ requirements:
   R3:
     title: NewRoot
     items:
-      - R3.1: NewRoot accepts a name, ExporterConfig, and parent context.
+      - R3.1: NewRoot accepts a service name (string), a root span name (string), ExporterConfig, and parent context.
+      - R3.1b: The service name is used for the OTel resource attribute, tracer name, meter name, and temp file prefix. Each agent supplies its own name (e.g. "generator", "planner").
       - R3.2: Creates trace and metric providers with the configured exporters.
       - R3.3: Starts a root span and returns a Trace, shutdown function, and error.
       - R3.4: The shutdown function flushes providers, ends the root span, and closes file handles.
@@ -84,8 +85,8 @@ acceptance_criteria:
     traces: [R2.5, R2.6]
 
   - id: AC4
-    criterion: NewRoot creates providers, starts a root span, returns a Trace and shutdown function.
-    traces: [R3.1, R3.2, R3.3]
+    criterion: NewRoot accepts a service name used for OTel resource, tracer, meter, and temp file prefix. Creates providers, starts a root span, returns a Trace and shutdown function.
+    traces: [R3.1, R3.1b, R3.2, R3.3]
 
   - id: AC5
     criterion: Shutdown flushes, ends the root span, closes files, and is idempotent.
