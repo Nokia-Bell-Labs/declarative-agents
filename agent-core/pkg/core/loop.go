@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry/genai"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
@@ -119,6 +120,11 @@ type LoopParams struct {
 	ModelName      string
 	Directory      string
 	Hooks          LoopHooks
+
+	// Agent identity for OTel GenAI semantic conventions.
+	AgentName     string // e.g. "generator", "planner"
+	AgentVersion  string // e.g. "v0.20260605.0"
+	ProviderName  string // e.g. "ollama"
 }
 
 // Loop executes the generic agentic loop. It drives the state machine
@@ -146,12 +152,17 @@ func Loop(params LoopParams, ctx context.Context) (RunResult, error) {
 		attribute.Int("tool_count", len(params.Registry.AllToolNames())),
 	)
 
-	runTrace, runDone := params.Trace.Push("runtime.run",
-		attribute.String("model", params.ModelName),
+	agentSpanAttrs := append(
+		genai.AgentAttrs(params.AgentName, params.AgentVersion, params.ProviderName, params.ModelName),
 		attribute.String("directory", params.Directory),
 		attribute.Int("budget.max_iterations", params.Budget.MaxIterations),
 		attribute.Int("budget.max_tokens", params.Budget.MaxTokens),
 		attribute.Int64("budget.max_duration_ms", params.Budget.MaxDuration.Milliseconds()),
+	)
+
+	runTrace, runDone := params.Trace.Push(
+		genai.AgentSpanName(params.AgentName),
+		agentSpanAttrs...,
 	)
 	defer runDone()
 
@@ -161,9 +172,10 @@ func Loop(params LoopParams, ctx context.Context) (RunResult, error) {
 		attribute.String("run.status", string(rr.Status)),
 		attribute.String("run.final_state", string(rr.FinalState)),
 		attribute.Int("run.iterations", rr.Iterations),
-		attribute.Int("run.tokens_in", rr.TokensIn),
-		attribute.Int("run.tokens_out", rr.TokensOut),
+		genai.AttrUsageInputTokens.Int(rr.TokensIn),
+		genai.AttrUsageOutputTokens.Int(rr.TokensOut),
 		attribute.Int64("run.duration_ms", rr.Duration.Milliseconds()),
+		genai.AttrResponseFinishReasons.String(mapRunStatusToFinishReason(rr.Status)),
 	)
 
 	return rr, err
@@ -301,6 +313,19 @@ func defaultTerminalStatus(s State) RunStatus {
 		return StatusBudgetExceeded
 	default:
 		return StatusFailed
+	}
+}
+
+func mapRunStatusToFinishReason(s RunStatus) string {
+	switch s {
+	case StatusSucceeded:
+		return "stop"
+	case StatusBudgetExceeded:
+		return "length"
+	case StatusCancelled:
+		return "cancelled"
+	default:
+		return "error"
 	}
 }
 

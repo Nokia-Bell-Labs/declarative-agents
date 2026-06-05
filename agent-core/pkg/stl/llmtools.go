@@ -13,6 +13,7 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry/genai"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
@@ -27,6 +28,8 @@ type invokeLLMCmd struct {
 	assembler    llm.PromptAssembler
 	state        core.State
 	model        string
+	providerName string
+	serverAddr   string
 	userMessage  string
 	tracer       tracing.Tracer
 	contextLimit int
@@ -36,33 +39,45 @@ type invokeLLMCmd struct {
 
 func (c *invokeLLMCmd) Name() string { return "invoke_llm" }
 
+// SpanName implements core.SpanOverride so Dispatch emits a semconv
+// inference span instead of execute_tool.
+func (c *invokeLLMCmd) SpanName() string {
+	return genai.InferenceSpanName(c.model)
+}
+
+// SpanCreationAttrs implements core.SpanOverride.
+func (c *invokeLLMCmd) SpanCreationAttrs() []attribute.KeyValue {
+	return genai.InferenceAttrs(c.providerName, c.model, c.serverAddr)
+}
+
 func (c *invokeLLMCmd) Execute() core.Result {
 	if c.ctx == nil {
 		c.ctx = context.Background()
 	}
-	child, done := c.tracer.Push(c.Name())
-	defer done()
+	// No inner Push — Dispatch already creates the semconv span via SpanOverride.
+	// Use c.tracer which IS the Dispatch child span.
+	tr := c.tracer
 
 	c.history.Append(llm.Message{Role: llm.User, Content: c.userMessage})
-	child.Event("history.user_appended",
+	tr.Event("history.user_appended",
 		attribute.Int("history_len", c.history.Len()),
 	)
 
 	messages := c.assembler.AssembleMessages(c.history, c.registry, c.state)
 
-	child.Event("prompt.assembled",
+	tr.Event("prompt.assembled",
 		attribute.Int("message_count", len(messages)),
 		attribute.Int("history_messages", c.history.Len()),
 	)
 
 	if c.contextLimit > 0 {
 		est := llm.EstimateTokens(messages)
-		child.SetAttributes(
+		tr.SetAttributes(
 			attribute.Int("context.estimated_tokens", est),
 			attribute.Int("context.limit", c.contextLimit),
 		)
 		if est > c.contextLimit {
-			child.Event("context.overflow",
+			tr.Event("context.overflow",
 				attribute.Int("estimated", est),
 				attribute.Int("limit", c.contextLimit),
 			)
@@ -82,17 +97,16 @@ func (c *invokeLLMCmd) Execute() core.Result {
 
 	if c.verbose {
 		if inputJSON, err := json.Marshal(messages); err == nil {
-			child.SetAttributes(attribute.String("llm.input", string(inputJSON)))
+			tr.SetAttributes(genai.AttrInputMessages.String(string(inputJSON)))
 		}
 	}
 
-	child.Event("chat.request_start")
+	tr.Event("chat.request_start")
 	start := time.Now()
 	chatResp, err := c.client.Chat(c.ctx, messages, opts)
 	duration := time.Since(start)
 
 	if err != nil {
-		child.Event("chat.request_error", attribute.String("error.message", err.Error()))
 		return core.Result{
 			Signal: core.CommandError,
 			Err:    err,
@@ -101,12 +115,12 @@ func (c *invokeLLMCmd) Execute() core.Result {
 		}
 	}
 
-	child.Event("chat.request_done",
+	tr.Event("chat.request_done",
 		attribute.Int("response_content_len", len(chatResp.Content)),
 	)
 
 	c.history.Append(llm.Message{Role: llm.Assistant, Content: chatResp.Content})
-	child.Event("history.assistant_appended",
+	tr.Event("history.assistant_appended",
 		attribute.Int("history_len", c.history.Len()),
 	)
 
@@ -117,15 +131,14 @@ func (c *invokeLLMCmd) Execute() core.Result {
 		Dollars:   0,
 	}
 
-	child.SetAttributes(
-		attribute.String("model", c.model),
-		attribute.Int("tokens_in", cost.TokensIn),
-		attribute.Int("tokens_out", cost.TokensOut),
+	tr.SetAttributes(
+		genai.AttrUsageInputTokens.Int(cost.TokensIn),
+		genai.AttrUsageOutputTokens.Int(cost.TokensOut),
 		attribute.Int64("duration_ms", cost.Duration.Milliseconds()),
 	)
 
 	if c.verbose {
-		child.SetAttributes(attribute.String("llm.output", chatResp.Content))
+		tr.SetAttributes(genai.AttrOutputMessages.String(chatResp.Content))
 	}
 
 	return core.Result{
@@ -145,6 +158,8 @@ type InvokeLLMBuilder struct {
 	Assembler    llm.PromptAssembler
 	State        core.State
 	Model        string
+	ProviderName string // e.g. "ollama"
+	ServerAddr   string // e.g. "localhost:11434"
 	Tracer       tracing.Tracer
 	ContextLimit int
 	Verbose      bool
@@ -163,6 +178,8 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		assembler:    b.Assembler,
 		state:        b.State,
 		model:        b.Model,
+		providerName: b.ProviderName,
+		serverAddr:   b.ServerAddr,
 		userMessage:  res.Output,
 		tracer:       b.Tracer,
 		contextLimit: b.ContextLimit,
@@ -184,38 +201,37 @@ type parseResponseCmd struct {
 func (p *parseResponseCmd) Name() string { return "parse_response" }
 
 func (p *parseResponseCmd) Execute() core.Result {
-	child, done := p.tracer.Push(p.Name())
-	defer done()
+	tr := p.tracer
 
-	child.SetAttributes(attribute.Int("raw_response_bytes", len(p.raw)))
+	tr.SetAttributes(attribute.Int("raw_response_bytes", len(p.raw)))
 	if p.verbose {
-		child.SetAttributes(attribute.String("llm.raw_output", p.raw))
+		tr.SetAttributes(attribute.String("llm.raw_output", p.raw))
 	}
 
-	tr, sig, errMsg := p.parse(child)
+	toolReq, sig, errMsg := p.parse(tr)
 	if sig == core.ParseFailed {
-		child.Event("parse_failed", attribute.String("reason", errMsg))
-		child.SetAttributes(attribute.String("outcome", "failed"))
+		tr.Event("parse_failed", attribute.String("reason", errMsg))
+		tr.SetAttributes(attribute.String("outcome", "failed"))
 		return core.Result{Signal: core.ParseFailed, Output: errMsg}
 	}
 
-	isDone := tr.ToolName == doneToolName
-	child.SetAttributes(
-		attribute.String("tool_name", tr.ToolName),
+	isDone := toolReq.ToolName == doneToolName
+	tr.SetAttributes(
+		attribute.String("tool_name", toolReq.ToolName),
 		attribute.String("outcome", string(sig)),
 		attribute.Bool("is_done_tool", isDone),
 	)
 	if p.verbose {
-		child.SetAttributes(attribute.String("tool.params", string(tr.Params)))
+		tr.SetAttributes(attribute.String("tool.params", string(toolReq.Params)))
 	}
 
 	if isDone {
-		summary := llm.ExtractDoneSummary(tr.Params)
-		child.SetAttributes(attribute.String("done.summary", summary))
+		summary := llm.ExtractDoneSummary(toolReq.Params)
+		tr.SetAttributes(attribute.String("done.summary", summary))
 		return core.Result{Signal: sig, Output: summary, CommandName: p.Name()}
 	}
 
-	out, err := json.Marshal(tr)
+	out, err := json.Marshal(toolReq)
 	if err != nil {
 		return core.Result{Signal: core.ParseFailed, Output: fmt.Sprintf("failed to serialize ToolRequest: %v", err)}
 	}
@@ -339,10 +355,7 @@ type reportParseErrorCmd struct {
 func (r *reportParseErrorCmd) Name() string { return "report_parse_error" }
 
 func (r *reportParseErrorCmd) Execute() core.Result {
-	child, done := r.tracer.Push(r.Name())
-	defer done()
-
-	child.Event("parse_error_reported",
+	r.tracer.Event("parse_error_reported",
 		attribute.String("error_class", llm.ClassifyParseError(r.errorText)),
 	)
 
@@ -374,13 +387,10 @@ type resetHistoryCmd struct {
 func (r *resetHistoryCmd) Name() string { return "reset_history" }
 
 func (r *resetHistoryCmd) Execute() core.Result {
-	child, done := r.tracer.Push(r.Name())
-	defer done()
-
 	prevLen := r.history.Len()
 	r.history.Reset()
 
-	child.SetAttributes(
+	r.tracer.SetAttributes(
 		attribute.Int("history.cleared_messages", prevLen),
 	)
 

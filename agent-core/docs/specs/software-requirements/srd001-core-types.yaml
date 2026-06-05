@@ -18,7 +18,9 @@ requirements:
     items:
       - R1.1: State is a named string type representing a position in the agentic loop lifecycle.
       - R1.2: Signal is a named string type carrying the outcome of a Command back to the state machine.
-      - R1.3: "Three generic Signal constants are defined: Seed, BudgetExhausted, CommandError. Domain agents define additional signals."
+      - R1.3: "Three generic Signal constants are defined: Seed, BudgetExhausted, CommandError."
+      - R1.4: "Three standard tool Signal constants are defined: ToolDone, ToolFailed, EditDone."
+      - R1.5: "Three LLM Signal constants are defined: LLMResponded, ParseFailed, TaskCompleted."
 
   R2:
     title: Command interface
@@ -44,6 +46,13 @@ requirements:
       - R5.1: Builder interface has Build(res Result) Command. It constructs a ready-to-execute Command from the previous Result.
       - R5.2: CommandResolver interface has Resolve(name string) (Builder, bool). It looks up a Builder by command name.
 
+  R6:
+    title: SpanOverride interface
+    items:
+      - R6.1: SpanOverride allows Commands to customize the Dispatch span name and creation-time attributes.
+      - R6.2: "SpanOverride has two methods: SpanName() string and SpanCreationAttrs() []attribute.KeyValue."
+      - R6.3: Without SpanOverride, Dispatch defaults to GenAI semconv execute_tool naming.
+
 non_goals:
   - Domain-specific state or signal constants.
   - Command implementations (those live in domain agents).
@@ -51,8 +60,8 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: State and Signal are named string types. Three generic Signal constants (Seed, BudgetExhausted, CommandError) are exported.
-    traces: [R1.1, R1.2, R1.3]
+    criterion: State and Signal are named string types. Generic signals (Seed, BudgetExhausted, CommandError), tool signals (ToolDone, ToolFailed, EditDone), and LLM signals (LLMResponded, ParseFailed, TaskCompleted) are exported.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
 
   - id: AC2
     criterion: Command interface has Name() and Execute() methods. Execute returns Result.
@@ -69,3 +78,7 @@ acceptance_criteria:
   - id: AC5
     criterion: Builder has Build(Result) Command. CommandResolver has Resolve(string) (Builder, bool).
     traces: [R5.1, R5.2]
+
+  - id: AC6
+    criterion: SpanOverride interface has SpanName() and SpanCreationAttrs() for customizing Dispatch span naming.
+    traces: [R6.1, R6.2, R6.3]

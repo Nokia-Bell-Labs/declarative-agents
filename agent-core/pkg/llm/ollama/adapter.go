@@ -12,12 +12,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry/genai"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
@@ -110,6 +112,9 @@ func (a *Adapter) Model() string { return a.model }
 // Chat sends a chat request to Ollama POST /api/chat and returns the
 // response. Satisfies llm.Client.
 func (a *Adapter) Chat(ctx context.Context, messages []llm.Message, opts llm.ChatOptions) (llm.ChatResponse, error) {
+	tr, span := a.chatSpan(ctx, opts.Model)
+	defer span()
+
 	dtos := make([]msgDTO, len(messages))
 	for i, m := range messages {
 		dtos[i] = msgDTO{Role: string(m.Role), Content: m.Content}
@@ -124,41 +129,79 @@ func (a *Adapter) Chat(ctx context.Context, messages []llm.Message, opts llm.Cha
 
 	body, err := json.Marshal(req)
 	if err != nil {
+		tr.RecordError(fmt.Errorf("marshal chat request: %w", err))
 		return llm.ChatResponse{}, fmt.Errorf("marshal chat request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, a.baseURL+"/api/chat", bytes.NewReader(body))
 	if err != nil {
+		tr.RecordError(fmt.Errorf("create HTTP request: %w", err))
 		return llm.ChatResponse{}, fmt.Errorf("create HTTP request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
+		tr.RecordError(fmt.Errorf("ollama chat request failed: %w", err))
 		return llm.ChatResponse{}, fmt.Errorf("ollama chat request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		return llm.ChatResponse{}, fmt.Errorf("ollama /api/chat returned status %d: %s", resp.StatusCode, string(respBody))
+		err := fmt.Errorf("ollama /api/chat returned status %d: %s", resp.StatusCode, string(respBody))
+		tr.SetAttributes(genai.AttrErrorType.String(fmt.Sprintf("%d", resp.StatusCode)))
+		tr.RecordError(err)
+		return llm.ChatResponse{}, err
 	}
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		tr.RecordError(fmt.Errorf("read chat response: %w", err))
 		return llm.ChatResponse{}, fmt.Errorf("read chat response: %w", err)
 	}
 
 	var cr chatResp
 	if err := json.Unmarshal(respBody, &cr); err != nil {
+		tr.RecordError(fmt.Errorf("parse chat response: %w", err))
 		return llm.ChatResponse{}, fmt.Errorf("parse chat response: %w", err)
 	}
+
+	tr.SetAttributes(
+		genai.AttrUsageInputTokens.Int(cr.PromptEvalCount),
+		genai.AttrUsageOutputTokens.Int(cr.EvalCount),
+		genai.AttrResponseModel.String(opts.Model),
+	)
 
 	return llm.ChatResponse{
 		Content:   cr.Message.Content,
 		TokensIn:  cr.PromptEvalCount,
 		TokensOut: cr.EvalCount,
 	}, nil
+}
+
+// chatSpan creates a semconv inference span for the Chat call if a
+// tracer is configured, otherwise returns a noop.
+func (a *Adapter) chatSpan(ctx context.Context, model string) (tracing.Tracer, func()) {
+	if a.tracer == nil {
+		return tracing.NoopTracer{}, func() {}
+	}
+
+	serverAddr := ""
+	if u, err := url.Parse(a.baseURL); err == nil {
+		serverAddr = u.Host
+	}
+
+	attrs := genai.InferenceAttrs(genai.ProviderOllama, model, serverAddr)
+	if u, err := url.Parse(a.baseURL); err == nil && u.Port() != "" {
+		port := 0
+		fmt.Sscanf(u.Port(), "%d", &port)
+		if port > 0 {
+			attrs = append(attrs, genai.AttrServerPort.Int(port))
+		}
+	}
+
+	return a.tracer.Push(genai.InferenceSpanName(model), attrs...)
 }
 
 // ListModels queries Ollama GET /api/tags and returns metadata for all

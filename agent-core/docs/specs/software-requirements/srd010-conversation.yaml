@@ -113,6 +113,4 @@ acceptance_criteria:
     criterion: Reset clears history. Append and Send work after Reset. System prompt is preserved.
     traces: [R7.1, R7.2, R7.3]
 
-depends_on:
-  - srd_id: srd001-core-types
-    symbols_used: [Message, MessageRole]
+depends_on: []

@@ -6,17 +6,25 @@ overview:
     A generic agentic loop engine packaged as a Go library. Six
     components form the engine, each in its own source file under
     pkg/core. A seventh package, pkg/tracing, defines the Tracer port
-    interface that decouples the engine from OpenTelemetry internals.
+    interface (five methods: Push, Event, SetAttributes, RecordError,
+    Context) that decouples the engine from OpenTelemetry internals.
     An eighth package, pkg/telemetry, provides the concrete
     OpenTelemetry implementation: provider setup, exporter config,
-    root span lifecycle, a Tracer adapter, and offline trace replay.
+    root span lifecycle, a Tracer adapter, GenAI semantic convention
+    helpers (pkg/telemetry/genai), W3C traceparent parsing
+    (pkg/telemetry), and offline trace replay.
 
-    Components:
-    - Types -- Command, Result, Signal, Cost, Builder, CommandResolver
+    Additional packages provide LLM integration (pkg/llm with Client,
+    Conversation, parseutil, profiles, interfaces), prompt assembly
+    (pkg/prompt), standard tools (pkg/stl), and specification
+    validation (pkg/spec).
+
+    Core engine components:
+    - Types -- Command, Result, Signal, Cost, Builder, CommandResolver, SpanOverride
     - State machine -- TransitionTable, StateMachine, Step, TerminalFunc
-    - Dispatch -- command execution with tracing, timeout, panic recovery
+    - Dispatch -- command execution with GenAI semconv tracing, timeout, panic recovery
     - Registry -- ToolSpec + Builder pairs, manifest filtering, freeze
-    - Loop -- budget-tracked iteration driving the state machine
+    - Loop -- budget-tracked iteration driving the state machine with invoke_agent spans
     - Machine config -- YAML schema, parser, BuildTransitionTable
 
     The engine is domain-agnostic. It knows about States, Signals, and
@@ -58,21 +66,32 @@ overview:
     - Optional LoopHooks for domain-specific budget, status, and result processing
 
     Dependency rules:
-    - pkg/core depends only on pkg/tracing, the Go standard library,
-      go.opentelemetry.io/otel/attribute, and gopkg.in/yaml.v3.
-    - pkg/tracing depends only on go.opentelemetry.io/otel/attribute.
+    - pkg/core depends on pkg/tracing, pkg/telemetry/genai, the Go
+      standard library, go.opentelemetry.io/otel/attribute, and
+      gopkg.in/yaml.v3.
+    - pkg/tracing depends on go.opentelemetry.io/otel/attribute and
+      context.
     - pkg/telemetry depends on pkg/tracing, the OTel SDK, gRPC, and
       protobuf. It imports pkg/tracing but not pkg/core.
+    - pkg/telemetry/genai depends only on go.opentelemetry.io/otel/attribute.
+    - pkg/llm depends on pkg/core, pkg/prompt, and pkg/tracing.
+    - pkg/stl depends on pkg/core, pkg/llm, pkg/tracing, and
+      pkg/telemetry/genai.
+    - pkg/spec depends on the Go standard library, gopkg.in/yaml.v3,
+      and a graph library.
     - No package in agent-core imports domain-specific code.
-    - Domain agents import pkg/core, pkg/tracing, and pkg/telemetry.
+    - Domain agents import pkg/core, pkg/tracing, pkg/telemetry,
+      pkg/llm, pkg/prompt, and pkg/stl.
 
 interfaces:
   - name: Tracer interface
     summary: |
-      Port interface for OpenTelemetry tracing (pkg/tracing). Three
+      Port interface for OpenTelemetry tracing (pkg/tracing). Five
       methods: Push (child span), Event (span event), SetAttributes
-      (span metadata). The engine imports this interface; the concrete
-      implementation lives in pkg/telemetry (TraceAdapter).
+      (span metadata), RecordError (error recording with status),
+      Context (span context access). The engine imports this interface;
+      the concrete implementation lives in pkg/telemetry (TraceAdapter).
+      A NoopTracer is provided for tests and optional tracing paths.
 
   - name: Command interface
     summary: |
@@ -102,15 +121,20 @@ components:
     responsibility: |
       Core type definitions shared across all components. Defines
       State (string), Signal (string), Command interface, Result
-      struct, Cost struct, Builder interface, and CommandResolver
-      interface. Also defines three generic signals: Seed,
-      BudgetExhausted, and CommandError.
+      struct, Cost struct, Builder interface, CommandResolver
+      interface, and SpanOverride interface. Defines generic signals
+      (Seed, BudgetExhausted, CommandError), standard tool signals
+      (ToolDone, ToolFailed, EditDone), and LLM signals (LLMResponded,
+      ParseFailed, TaskCompleted).
     capabilities:
       - Define the State and Signal string types
       - Define the Command interface (Name, Execute)
       - Define Result and Cost structs for command output
       - Define Builder and CommandResolver interfaces
+      - Define SpanOverride interface for custom dispatch span naming
       - Define generic signals (Seed, BudgetExhausted, CommandError)
+      - Define standard tool signals (ToolDone, ToolFailed, EditDone)
+      - Define LLM signals (LLMResponded, ParseFailed, TaskCompleted)
 
   - name: State Machine
     responsibility: |
@@ -130,13 +154,15 @@ components:
       Wraps Command.Execute with tracing, timeout, panic recovery,
       duration measurement, and signal normalization. SafeExecute
       runs the command in a goroutine with a timer. Dispatch adds
-      an OpenTelemetry child span.
+      an OpenTelemetry child span using GenAI semconv execute_tool
+      naming. Commands implementing SpanOverride customize the span.
     capabilities:
       - Execute commands with panic recovery
       - Enforce per-command timeout
       - Measure and fill command duration
       - Normalize error signals (ForceErrorSignal)
-      - Emit OpenTelemetry spans per dispatch
+      - Emit GenAI semconv execute_tool spans per dispatch
+      - Support SpanOverride for custom span naming (e.g. LLM inference)
 
   - name: Registry
     responsibility: |
@@ -164,7 +190,7 @@ components:
       - Support domain-specific budget hooks (BudgetExceeded)
       - Accumulate token usage, cost, and events per iteration
       - Capture task summary from TaskCompletedSignal
-      - Emit OpenTelemetry spans for the entire run and each iteration
+      - Emit GenAI semconv invoke_agent spans for the entire run and events for each iteration
       - Support pre-run validation (ValidateParams hook)
       - Support post-dispatch processing (OnResult hook)
       - Handle context cancellation
@@ -284,24 +310,42 @@ project_structure:
   - path: pkg/core/
     role: Generic agentic loop engine (types, state machine, dispatch, registry, loop, machine config)
   - path: pkg/tracing/
-    role: Tracer port interface for OpenTelemetry
+    role: Tracer port interface for OpenTelemetry (5 methods) and NoopTracer
   - path: pkg/telemetry/
-    role: Concrete OTel implementation (providers, exporters, adapter, replay)
+    role: Concrete OTel implementation (providers, exporters, adapter, traceparent, replay)
+  - path: pkg/telemetry/genai/
+    role: OTel GenAI semantic convention constants, span name builders, attribute helpers
+  - path: pkg/llm/
+    role: LLM infrastructure (Client, Conversation, Message, ChatOptions, ModelInfo)
+  - path: pkg/llm/ollama/
+    role: Ollama LLM adapter satisfying llm.Client
+  - path: pkg/prompt/
+    role: Prompt struct, YAML loading, system prompt template, and manifest serialization
+  - path: pkg/stl/
+    role: Standard tool library (file tools, build tools, LLM commands, subprocess, process groups)
+  - path: pkg/spec/
+    role: Specification graph loader and cross-artifact validator
   - path: docs/
     role: Documentation and specifications
   - path: magefiles/
     role: Mage targets from cobbler-scaffold
 
 implementation_status:
-  current_focus: Initial import of core packages from generator
+  current_focus: Expanding agent-core with LLM, prompt, STL, and spec packages
   progress:
     - done: VISION.yaml authored
     - done: ARCHITECTURE.yaml authored
-    - done: pkg/tracing/tracer.go imported
+    - done: pkg/tracing/tracer.go imported (5-method interface with NoopTracer)
     - done: pkg/core/ imported (types, state, dispatch, registry, loop, machine)
-    - done: pkg/telemetry/ imported (trace, adapter, replay)
-    - done: Tests imported and passing (23 tests)
-    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd008)
+    - done: pkg/telemetry/ imported (trace, adapter, traceparent, replay)
+    - done: pkg/telemetry/genai/ (GenAI semconv constants and helpers)
+    - done: pkg/llm/ imported (Client, Conversation, Message, parseutil, profile, interfaces)
+    - done: pkg/llm/ollama/ (Ollama adapter satisfying llm.Client)
+    - done: pkg/prompt/ imported (Prompt, LoadPrompt, system template, SerializeManifest)
+    - done: pkg/stl/ imported (file tools, build tools, LLM commands, subprocess)
+    - done: pkg/spec/ imported (SRD/UC/TS parsing, graph, validation, corpus)
+    - done: Tests imported and passing (281 tests across 8 packages)
+    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd017)
     - done: Generator updated to import agent-core
 
 related_documents:

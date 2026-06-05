@@ -18,4 +18,4 @@ const DefaultConstraints = `Respond only with a single JSON tool call per turn. 
 
 // DefaultOutputFormat describes the expected JSON response structure.
 const DefaultOutputFormat = `Return a JSON object with two fields: ` +
-	`"tool" (the tool name) and "params" (an object whose keys match the tool's parameter schema).`
+	`"tool" (the tool name) and "parameters" (an object whose keys match the tool's parameter schema).`

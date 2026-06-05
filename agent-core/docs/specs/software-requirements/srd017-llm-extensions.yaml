@@ -1,0 +1,80 @@
+id: srd017-llm-extensions
+title: LLM Package Extensions (parseutil, profile, interfaces)
+
+problem: |
+  The LLM package grew beyond the original Client and Conversation types
+  to include response parsing utilities, model profile management, and
+  domain interfaces for prompt assembly and response extraction. These
+  additions are undocumented.
+
+goals:
+  - G1: Parse utilities for JSON repair, flat parameter extraction, token estimation, and field validation.
+  - G2: YAML-driven model profile system for per-model response extraction pipelines.
+  - G3: Domain interfaces (ResponseParser, PromptAssembler) for extensible prompt and response handling.
+
+requirements:
+  R1:
+    title: Parse utilities (parseutil)
+    items:
+      - R1.1: FixNewlinesInStrings replaces literal newlines and tabs inside JSON string values with escape sequences.
+      - R1.2: ExtractFlatParams handles models that put parameters at the top level alongside "tool".
+      - R1.3: CountToolCallBlocks counts [tool_call] occurrences in raw LLM output.
+      - R1.4: EstimateTokens provides a rough token count by dividing content length by 4.
+      - R1.5: ExtractDoneSummary extracts the "summary" field from done-tool parameters.
+      - R1.6: CheckRequiredFields validates required JSON Schema fields are present in parameters.
+      - R1.7: ClassifyParseError returns a short category for parse error text.
+      - R1.8: Truncate shortens a string to a maximum length for logging.
+
+  R2:
+    title: Model profiles
+    items:
+      - R2.1: ProfileSpec defines a model profile with name, match_prefixes, envelope, strict_format, and extraction_pipeline.
+      - R2.2: LoadProfiles reads all YAML profile files from a directory. LoadProfilesFromBytes loads from embedded byte maps.
+      - R2.3: ProfileRegistry resolves profiles by model name using prefix matching, falling back to a default.
+      - R2.4: "Extraction pipeline steps: strip_code_fences, strip_thinking_blocks, extract_envelope, extract_native_token, extract_braces."
+      - R2.5: DefaultProfile creates a fallback ResponseParser with envelope-based extraction.
+
+  R3:
+    title: Domain interfaces
+    items:
+      - R3.1: ResponseParser interface has ExtractToolCall(raw) and EnvelopeConfig() methods.
+      - R3.2: PromptAssembler interface has AssembleMessages(conv, registry, state) returning []Message.
+
+  R4:
+    title: Extraction functions
+    items:
+      - R4.1: StripCodeFences removes markdown code fences, keeping content.
+      - R4.2: ExtractWithEnvelope extracts JSON from between open/close tags, falling back to brace extraction.
+      - R4.3: StripThinkingBlocks removes <think>...</think> blocks.
+      - R4.4: ExtractBraces isolates JSON by finding the first '{' and last '}'.
+      - R4.5: MakeNativeTokenExtractor builds an extraction step for model-native tokens.
+
+non_goals:
+  - Concrete ResponseParser or PromptAssembler implementations (those live in domain agents or STL).
+  - LLM client implementations (srd009).
+  - Conversation management (srd010).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Parse utilities handle JSON repair, flat params, token estimation, required field checking, and error classification.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
+
+  - id: AC2
+    criterion: ProfileRegistry loads YAML profiles, resolves by model prefix, and provides a default. Pipeline steps are configurable.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+
+  - id: AC3
+    criterion: ResponseParser and PromptAssembler are domain interfaces. yamlProfile satisfies ResponseParser at compile time.
+    traces: [R3.1, R3.2]
+
+  - id: AC4
+    criterion: Extraction functions handle code fences, envelopes, thinking blocks, braces, and native tokens.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+
+depends_on:
+  - srd_id: srd010-conversation
+    symbols_used: [Conversation, Message]
+  - srd_id: srd004-tool-registry
+    symbols_used: [Registry, ToolSpec]
+  - srd_id: srd012-system-prompt-template
+    symbols_used: [Envelope]

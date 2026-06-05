@@ -8,13 +8,23 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry/genai"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
 // Dispatch wraps Command.Execute with tracing, timeout, panic
 // recovery, duration measurement, and CommandName assignment.
 func Dispatch(cmd Command, tr tracing.Tracer, timeout time.Duration) Result {
-	child, done := tr.Push(cmd.Name())
+	spanName := genai.ToolSpanName(cmd.Name())
+	var spanAttrs []attribute.KeyValue
+	spanAttrs = append(spanAttrs, genai.ToolAttrs(cmd.Name(), genai.ToolTypeFunction)...)
+
+	if so, ok := cmd.(SpanOverride); ok {
+		spanName = so.SpanName()
+		spanAttrs = so.SpanCreationAttrs()
+	}
+
+	child, done := tr.Push(spanName, spanAttrs...)
 	defer done()
 
 	res := SafeExecute(cmd, timeout)
@@ -87,10 +97,11 @@ func stampSpan(tr tracing.Tracer, name string, res Result) {
 		attribute.String("command.name", name),
 		attribute.String("command.signal", string(res.Signal)),
 		attribute.Int64("command.duration_ms", res.Cost.Duration.Milliseconds()),
-		attribute.Int("command.tokens_in", res.Cost.TokensIn),
-		attribute.Int("command.tokens_out", res.Cost.TokensOut),
+		genai.AttrUsageInputTokens.Int(res.Cost.TokensIn),
+		genai.AttrUsageOutputTokens.Int(res.Cost.TokensOut),
 	)
 	if res.Err != nil {
-		tr.Event("error", attribute.String("error.message", res.Err.Error()))
+		tr.SetAttributes(genai.ErrorAttrs(res.Err.Error())...)
+		tr.RecordError(res.Err)
 	}
 }

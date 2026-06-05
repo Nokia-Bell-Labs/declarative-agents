@@ -28,7 +28,7 @@ requirements:
     title: RunStatus and RunResult
     items:
       - R2.1: "RunStatus is a string type with four constants: StatusSucceeded, StatusFailed, StatusBudgetExceeded, StatusCancelled."
-      - R2.2: "RunResult has eleven fields: Status, Iterations, TokensIn, TokensOut, Duration, TotalCost, FinalState, LastError, Summary, Events."
+      - R2.2: "RunResult has ten fields: Status, Iterations, TokensIn, TokensOut, Duration, TotalCost, FinalState, LastError, Summary, Events."
       - R2.3: RunResult has custom MarshalJSON that serializes Duration as a string and LastError as a nullable string pointer.
       - R2.4: "RunEvent records one command dispatch with fields: Iteration, Timestamp, CommandName, Signal, Cost, FromState, ToState."
 
@@ -45,7 +45,8 @@ requirements:
   R4:
     title: LoopParams
     items:
-      - R4.1: "LoopParams bundles: InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, CommandTimeout, ModelName, Directory, Hooks."
+      - R4.1: "LoopParams bundles: InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, CommandTimeout, ModelName, Directory, Hooks, AgentName, AgentVersion, ProviderName."
+      - R4.2: AgentName, AgentVersion, and ProviderName supply agent identity for OTel GenAI semantic conventions.
 
   R5:
     title: Loop function
@@ -60,7 +61,7 @@ requirements:
       - R5.8: Terminal states are resolved to RunStatus via TerminalStatus hook or defaults.
       - R5.9: Cost is accumulated across iterations (TokensIn, TokensOut, TotalCost).
       - R5.10: Events are appended with per-iteration metadata.
-      - R5.11: Loop emits OTel spans for the run and events for transitions, budget, and termination.
+      - R5.11: "Loop emits OTel spans using GenAI semconv naming: an invoke_agent {AgentName} root span for the run, and events for transitions, budget, and termination."
 
   R6:
     title: ValidateBuilders helper
@@ -87,8 +88,8 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
 
   - id: AC4
-    criterion: LoopParams bundles all inputs for Loop.
-    traces: [R4.1]
+    criterion: LoopParams bundles all inputs for Loop including AgentName, AgentVersion, and ProviderName for GenAI semconv.
+    traces: [R4.1, R4.2]
 
   - id: AC5
     criterion: Loop drives state machine from InitialState to terminal, checking budget and context, dispatching commands, accumulating cost, recording events, and emitting OTel spans.
@@ -109,3 +110,5 @@ depends_on:
     symbols_used: [Registry]
   - srd_id: srd007-tracer-interface
     symbols_used: [Tracer]
+  - srd_id: srd015-genai-semconv
+    symbols_used: [AgentSpanName, AgentAttrs, AttrUsageInputTokens, AttrUsageOutputTokens, AttrResponseFinishReasons]

@@ -28,6 +28,7 @@ requirements:
       - R2.4: "SetAttributes(attrs) sets attributes on the current span."
       - R2.5: Context() returns the underlying context.Context.
       - R2.6: Meter() returns the OpenTelemetry Meter.
+      - R2.7: "RecordError(err) records err on the current span and sets the span status to error."
 
   R3:
     title: NewRoot
@@ -77,8 +78,8 @@ acceptance_criteria:
     traces: [R1.1, R1.2]
 
   - id: AC2
-    criterion: Trace.Push creates a child span. Trace.Event records an event. Trace.SetAttributes sets attributes.
-    traces: [R2.1, R2.2, R2.3, R2.4]
+    criterion: Trace.Push creates a child span. Trace.Event records an event. Trace.SetAttributes sets attributes. Trace.RecordError records an error and sets span status.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.7]
 
   - id: AC3
     criterion: Trace.Context returns a context.Context. Trace.Meter returns a metric.Meter.

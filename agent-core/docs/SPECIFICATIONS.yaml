@@ -2,17 +2,26 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core library. Eight SRDs define the
-  generic agentic loop engine: core types, state machine, command
-  dispatch, tool registry, agentic loop, YAML machine configuration,
-  the tracer port interface, and the telemetry implementation. One use
-  case exercises all eight SRDs through a domain agent integration
-  scenario. One test suite covers acceptance criteria with test cases.
+  Specification index for the agent-core library. Seventeen SRDs define
+  the generic agentic loop engine and its supporting packages: core
+  types, state machine, command dispatch, tool registry, agentic loop,
+  YAML machine configuration, the tracer port interface, the telemetry
+  implementation, the Ollama LLM adapter, conversation management,
+  prompt schema and loading, system prompt template rendering, the
+  standard tool library, specification graph tooling, GenAI semantic
+  convention helpers, W3C traceparent support, and LLM package
+  extensions. One use case exercises the core SRDs through a domain
+  agent integration scenario. One test suite covers acceptance criteria
+  with test cases.
 
   SRD release assignments.
   - 00.0: srd001 (core types), srd002 (state machine), srd003 (command
     dispatch), srd004 (tool registry), srd005 (agentic loop), srd006
-    (YAML machine config), srd007 (tracer interface), srd008 (telemetry)
+    (YAML machine config), srd007 (tracer interface), srd008 (telemetry),
+    srd009 (Ollama adapter), srd010 (conversation), srd011 (prompt
+    schema), srd012 (system prompt template), srd013 (STL), srd014
+    (spec graph), srd015 (GenAI semconv), srd016 (traceparent),
+    srd017 (LLM extensions)
 
 roadmap_summary:
   - version: "00.0"
@@ -48,12 +57,48 @@ srd_index:
     path: docs/specs/software-requirements/srd006-yaml-machine-config.yaml
   - id: srd007-tracer-interface
     title: Tracer Port Interface
-    summary: Tracer interface with Push, Event, SetAttributes. Depends only on otel/attribute.
+    summary: "Tracer interface with five methods: Push, Event, SetAttributes, RecordError, Context. Includes NoopTracer."
     path: docs/specs/software-requirements/srd007-tracer-interface.yaml
   - id: srd008-telemetry
     title: Telemetry Implementation
     summary: Concrete OTel setup with Trace, TraceAdapter, NewRoot, ExporterConfig, file/OTLP exporters, and ReplayFile.
     path: docs/specs/software-requirements/srd008-telemetry.yaml
+  - id: srd009-ollama-adapter
+    title: Ollama LLM Adapter
+    summary: Production-ready Ollama adapter in pkg/llm/ollama satisfying llm.Client. Model validation, tracing, model discovery.
+    path: docs/specs/software-requirements/srd009-ollama-adapter.yaml
+  - id: srd010-conversation
+    title: Conversation Management
+    summary: Single Conversation type supporting managed (Send) and manual (Append) modes with thread-safe history and system prompt management.
+    path: docs/specs/software-requirements/srd010-conversation.yaml
+  - id: srd011-prompt-schema
+    title: Prompt Schema and Loading
+    summary: Prompt struct with Role, Task, Constraints, OutputFormat. YAML loading with mode detection, defaults, validation, and assembly.
+    path: docs/specs/software-requirements/srd011-prompt-schema.yaml
+  - id: srd012-system-prompt-template
+    title: System Prompt Template and Manifest Serialization
+    summary: Embedded Go text/template for system prompts, PromptData struct, SerializeManifest, and custom template support.
+    path: docs/specs/software-requirements/srd012-system-prompt-template.yaml
+  - id: srd013-standard-tool-library
+    title: Standard Tool Library (STL)
+    summary: Shared file tools, build tools, LLM commands, subprocess utilities, and process group management in pkg/stl.
+    path: docs/specs/software-requirements/srd013-standard-tool-library.yaml
+  - id: srd014-spec-graph
+    title: Specification Graph Loader and Validator
+    summary: Parses SRDs, use cases, test suites into typed structs. Builds a labeled property graph for cross-artifact validation.
+    path: docs/specs/software-requirements/srd014-spec-graph.yaml
+  - id: srd015-genai-semconv
+    title: GenAI Semantic Convention Helpers
+    summary: OTel GenAI semantic convention constants, span name builders, and attribute helpers in pkg/telemetry/genai.
+    path: docs/specs/software-requirements/srd015-genai-semconv.yaml
+  - id: srd016-traceparent
+    title: W3C Traceparent Parse and Format
+    summary: W3C traceparent version-00 parser, formatter, and context builder in pkg/telemetry.
+    path: docs/specs/software-requirements/srd016-traceparent.yaml
+  - id: srd017-llm-extensions
+    title: LLM Package Extensions
+    summary: Parse utilities (parseutil), YAML model profiles, and domain interfaces (ResponseParser, PromptAssembler) in pkg/llm.
+    path: docs/specs/software-requirements/srd017-llm-extensions.yaml
 
 use_case_index:
   - id: rel00.0-uc001-domain-agent-integration
@@ -69,7 +114,7 @@ test_suite_index:
     release: "00.0"
     traces:
       - rel00.0-uc001-domain-agent-integration
-    test_case_count: 23
+    test_case_count: 47
     path: docs/specs/test-suites/test-rel00.0.yaml
 
 srd_to_use_case_mapping:
@@ -107,5 +152,9 @@ srd_to_use_case_mapping:
     coverage: Full. Covers AC1 through AC9 via SC8 and telemetry initialization.
 
 coverage_gaps: |
-  All eight SRDs have full use case touchpoints and test suite coverage
-  in release 00.0.
+  The original eight core SRDs (srd001-srd008) have full use case
+  touchpoints and test suite coverage in release 00.0. SRDs srd009
+  through srd017 cover additional packages: LLM adapter, conversation,
+  prompt schema, system prompt template, STL, spec graph, GenAI
+  semconv, traceparent, and LLM extensions. Test coverage for these
+  SRDs is tracked in their respective package test files.

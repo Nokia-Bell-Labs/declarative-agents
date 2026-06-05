@@ -6,7 +6,11 @@
 // states, signals, tools, and transition tables.
 package core
 
-import "time"
+import (
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+)
 
 // State represents a position in the agentic loop lifecycle.
 type State string
@@ -56,6 +60,15 @@ type Result struct {
 	Cost        Cost
 	Err         error
 	CommandName string
+}
+
+// SpanOverride allows Commands to customize the Dispatch span name and
+// creation-time attributes. Without it, Dispatch defaults to semconv
+// execute_tool naming. LLM commands implement this to emit inference
+// (chat) spans instead.
+type SpanOverride interface {
+	SpanName() string
+	SpanCreationAttrs() []attribute.KeyValue
 }
 
 // Builder constructs a ready-to-execute Command from the previous Result.
