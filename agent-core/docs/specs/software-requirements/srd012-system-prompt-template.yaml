@@ -1,0 +1,106 @@
+id: srd012-system-prompt-template
+title: System Prompt Template and Manifest Serialization
+
+problem: |
+  The generator assembles system prompts by rendering an embedded Go
+  text/template with role, task, constraints, output format, and a
+  serialized tool manifest. It also has a SerializeManifest function
+  that converts []ToolSpec into the Markdown text block embedded in the
+  prompt. Both live in generator's internal/llm package.
+
+  Without sharing these, every new agent reimplements template rendering
+  and manifest serialization. Moving them to agent-core pkg/prompt
+  alongside the Prompt struct and loading functions (srd011) provides a
+  complete prompt assembly pipeline usable by any agent.
+
+goals:
+  - G1: Embedded Go text/template for the system prompt in pkg/prompt.
+  - G2: PromptData struct carrying all template parameters.
+  - G3: SerializeManifest converting []core.ToolSpec to prompt text.
+  - G4: Customizable template for agents with different layouts.
+  - G5: Replace generator's internal/llm/systmpl.go and SerializeManifest.
+
+requirements:
+  R1:
+    title: Template embedding
+    items:
+      - R1.1: The system prompt template is stored in system.tmpl in the prompt package.
+      - R1.2: The template is embedded at compile time using go:embed.
+      - R1.3: The template is parsed once at package init via template.Must.
+
+  R2:
+    title: PromptData struct
+    items:
+      - R2.1: "PromptData has seven fields: Role, Task, Constraints, OutputFormat (strings), ToolManifest (string), Envelope (*Envelope), StrictFormat (bool)."
+      - R2.2: Role and Task are always populated. Constraints, OutputFormat, and ToolManifest may be empty.
+      - R2.3: A nil Envelope means bare JSON format with no wrapping tags.
+      - R2.4: When StrictFormat is true, the template instructs the model to produce only the tool call.
+
+  R3:
+    title: Envelope struct
+    items:
+      - R3.1: Envelope has Open and Close string fields defining wrapping tags for tool calls.
+
+  R4:
+    title: Template rendering
+    items:
+      - R4.1: RenderSystemPrompt(data PromptData) string executes the embedded template.
+      - R4.2: Constraints, OutputFormat, and ToolManifest sections are omitted when empty.
+      - R4.3: When ToolManifest is non-empty, tool call format instructions and the manifest are rendered.
+      - R4.4: Envelope presence controls whether wrapping tag instructions appear.
+      - R4.5: On template execution error, RenderSystemPrompt falls back to Role + Task.
+      - R4.6: Output has no trailing newlines.
+
+  R5:
+    title: Custom template support
+    items:
+      - R5.1: RenderSystemPromptWith(tmplText, data) renders a custom template with the same PromptData.
+      - R5.2: Invalid template text returns an error.
+
+  R6:
+    title: SerializeManifest
+    items:
+      - R6.1: SerializeManifest([]core.ToolSpec) returns a string. Pure and deterministic.
+      - R6.2: Each tool block opens with ### Name, followed by the verbatim description.
+      - R6.3: Non-empty InputSchema appears in a fenced JSON code block, re-indented to 2 spaces.
+      - R6.4: Empty, nil, or "null" schema omits the fence entirely.
+      - R6.5: Tool blocks are separated by one blank line. Order matches input slice.
+      - R6.6: Empty input returns an empty string. No leading or trailing blank lines.
+      - R6.7: Invalid JSON schema is included as raw bytes (no error, no skip).
+
+non_goals:
+  - Prompt struct fields or YAML loading (srd011-prompt-schema).
+  - Conversation history management (srd010-conversation).
+  - Tool registry or manifest filtering (pkg/core).
+  - Per-model profile definitions.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: system.tmpl is embedded and parsed at init. RenderSystemPrompt renders the template with conditional sections.
+    traces: [R1.1, R1.2, R1.3, R4.1, R4.2]
+
+  - id: AC2
+    criterion: PromptData has all seven fields. Envelope controls tag display. StrictFormat controls extra-text prohibition.
+    traces: [R2.1, R2.3, R2.4, R3.1]
+
+  - id: AC3
+    criterion: Template error falls back to Role + Task. No trailing newlines.
+    traces: [R4.5, R4.6]
+
+  - id: AC4
+    criterion: RenderSystemPromptWith renders custom templates with PromptData. Invalid template returns error.
+    traces: [R5.1, R5.2]
+
+  - id: AC5
+    criterion: SerializeManifest produces ### headings, verbatim descriptions, fenced JSON schemas. Empty/nil/null schemas omit fence. Order matches input. Empty input returns empty string.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6]
+
+  - id: AC6
+    criterion: Schema JSON is re-indented to 2 spaces. Invalid JSON included as raw bytes.
+    traces: [R6.3, R6.7]
+
+depends_on:
+  - srd_id: srd011-prompt-schema
+    symbols_used: [Prompt, Assemble]
+  - srd_id: srd004-tool-registry
+    symbols_used: [ToolSpec, Name, Description, InputSchema]
