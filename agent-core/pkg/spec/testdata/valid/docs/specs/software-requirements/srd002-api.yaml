@@ -1,0 +1,24 @@
+id: srd002-api
+title: REST API
+
+problem: |
+  The system needs an HTTP API.
+
+goals:
+  - G1: RESTful endpoints for CRUD.
+
+depends_on:
+  - srd_id: srd001-auth
+    symbols_used: [SessionToken]
+
+requirements:
+  R1:
+    title: Endpoints
+    items:
+      - R1.1: GET /users returns a list of users.
+      - R1.2: POST /users creates a new user.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: GET /users returns 200 with a JSON array.
+    traces: [R1.1]

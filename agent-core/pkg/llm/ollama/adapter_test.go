@@ -85,6 +85,10 @@ func (r *recordingTracer) Event(name string, attrs ...attribute.KeyValue) {
 
 func (r *recordingTracer) SetAttributes(_ ...attribute.KeyValue) {}
 
+func (r *recordingTracer) RecordError(_ error) {}
+
+func (r *recordingTracer) Context() context.Context { return context.Background() }
+
 func attrValue(v attribute.Value) interface{} {
 	switch v.Type() {
 	case attribute.STRING:

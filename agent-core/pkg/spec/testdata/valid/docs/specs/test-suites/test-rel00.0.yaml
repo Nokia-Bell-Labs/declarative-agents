@@ -1,0 +1,21 @@
+id: test-rel00.0
+title: Release 00.0 Tests
+release: "00.0"
+
+traces:
+  - rel00.0-uc001-login
+
+preconditions:
+  - Fixture project directory available.
+
+test_cases:
+  - name: TestLogin_ValidCredentials
+    use_case: rel00.0-uc001-login
+    description: Valid credentials return a session token.
+    traces:
+      - srd001-auth AC1
+  - name: TestLogin_InvalidCredentials
+    use_case: rel00.0-uc001-login
+    description: Invalid credentials return 401.
+    traces:
+      - srd001-auth AC2

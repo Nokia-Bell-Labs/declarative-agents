@@ -36,6 +36,10 @@ func (r *loopRecorder) Event(name string, _ ...attribute.KeyValue) {
 
 func (r *loopRecorder) SetAttributes(_ ...attribute.KeyValue) {}
 
+func (r *loopRecorder) RecordError(_ error) {}
+
+func (r *loopRecorder) Context() context.Context { return context.Background() }
+
 func (r *loopRecorder) hasEvent(name string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -74,10 +74,11 @@ type detailedModelEntry struct {
 
 // Adapter wraps the Ollama HTTP API and implements llm.Client.
 type Adapter struct {
-	baseURL string
-	model   string
-	client  *http.Client
-	tracer  tracing.Tracer
+	baseURL        string
+	model          string
+	client         *http.Client
+	tracer         tracing.Tracer
+	skipModelCheck bool
 }
 
 var _ llm.Client = (*Adapter)(nil)
@@ -95,8 +96,10 @@ func NewAdapter(baseURL, model string, opts ...Option) (*Adapter, error) {
 		opt(a)
 	}
 
-	if err := a.checkModel(); err != nil {
-		return nil, err
+	if !a.skipModelCheck {
+		if err := a.checkModel(); err != nil {
+			return nil, err
+		}
 	}
 	return a, nil
 }

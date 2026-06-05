@@ -5,12 +5,15 @@
 // the concrete telemetry package directly.
 package tracing
 
-import "go.opentelemetry.io/otel/attribute"
+import (
+	"context"
+
+	"go.opentelemetry.io/otel/attribute"
+)
 
 // Tracer is the port interface for tracing (ifc-tracer). It abstracts
-// span creation, event recording, and attribute setting behind three
-// methods. The underlying context is an implementation detail hidden
-// inside the concrete type.
+// span creation, event recording, and attribute setting. The underlying
+// context is accessible via Context() for propagation and cancellation.
 type Tracer interface {
 	// Push creates a child span and returns a Tracer scoped to it
 	// plus a done function that ends the span.
@@ -21,4 +24,11 @@ type Tracer interface {
 
 	// SetAttributes sets attributes on the current span.
 	SetAttributes(attrs ...attribute.KeyValue)
+
+	// RecordError records err on the current span and sets its status
+	// to error with the given message.
+	RecordError(err error)
+
+	// Context returns the context carrying the current span.
+	Context() context.Context
 }

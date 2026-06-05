@@ -22,3 +22,10 @@ func WithTracer(tr tracing.Tracer) Option {
 func WithHTTPClient(c *http.Client) Option {
 	return func(a *Adapter) { a.client = c }
 }
+
+// WithSkipModelCheck disables the startup model-availability check.
+// Useful when the adapter is created only for ListModels or other
+// operations that don't require a specific model.
+func WithSkipModelCheck() Option {
+	return func(a *Adapter) { a.skipModelCheck = true }
+}

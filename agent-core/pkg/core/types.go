@@ -21,6 +21,20 @@ const (
 	CommandError    Signal = "CommandError"
 )
 
+// Standard tool signals used by the STL and available to all agents.
+const (
+	ToolDone   Signal = "ToolDone"
+	ToolFailed Signal = "ToolFailed"
+	EditDone   Signal = "EditDone"
+)
+
+// LLM tool signals used by the STL invoke/parse commands.
+const (
+	LLMResponded  Signal = "LLMResponded"
+	ParseFailed   Signal = "ParseFailed"
+	TaskCompleted Signal = "TaskCompleted"
+)
+
 // Command is the single interface for all executable units of work.
 type Command interface {
 	Name() string

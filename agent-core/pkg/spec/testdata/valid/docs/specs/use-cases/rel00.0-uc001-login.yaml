@@ -1,0 +1,34 @@
+id: rel00.0-uc001-login
+title: Login flow
+
+summary: |
+  A user logs in via the REST API.
+
+actor: End user
+
+trigger: |
+  POST /login with credentials
+
+flow:
+  - F1: User submits credentials.
+  - F2: API validates against auth module.
+  - F3: Token is returned.
+
+touchpoints:
+  - "srd001-auth R1, R2 -- authentication flow"
+  - "srd002-api R1 -- REST endpoints"
+
+success_criteria:
+  - id: S1
+    criterion: Valid credentials return a token.
+    traces:
+      - srd001-auth AC1
+  - id: S2
+    criterion: Invalid credentials return 401.
+    traces:
+      - srd001-auth AC2
+
+out_of_scope:
+  - Password reset flow.
+
+test_suite: test-rel00.0

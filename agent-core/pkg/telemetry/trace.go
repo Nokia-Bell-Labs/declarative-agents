@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
@@ -49,6 +50,9 @@ func (t Trace) Push(name string, attrs ...attribute.KeyValue) (Trace, func()) {
 	return child, done
 }
 
+// IsZero returns true if the Trace was not initialized by NewRoot.
+func (t Trace) IsZero() bool { return t.tracer == nil }
+
 // Event records a span event on the current span.
 func (t Trace) Event(name string, attrs ...attribute.KeyValue) {
 	trace.SpanFromContext(t.ctx).AddEvent(name, trace.WithAttributes(attrs...))
@@ -59,11 +63,28 @@ func (t Trace) SetAttributes(attrs ...attribute.KeyValue) {
 	trace.SpanFromContext(t.ctx).SetAttributes(attrs...)
 }
 
+// RecordError records err on the current span and sets the span status
+// to error.
+func (t Trace) RecordError(err error) {
+	span := trace.SpanFromContext(t.ctx)
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
+}
+
 // Context returns the underlying context.Context.
 func (t Trace) Context() context.Context { return t.ctx }
 
 // Meter returns the OpenTelemetry Meter.
 func (t Trace) Meter() metric.Meter { return t.meter }
+
+// NewTraceFromProvider wraps an existing TracerProvider into a Trace. Useful
+// in tests where the provider is set up externally (e.g. with an in-memory
+// exporter). The returned Trace has no meter; calling Meter() returns a
+// noop meter.
+func NewTraceFromProvider(tp trace.TracerProvider, serviceName string, ctx context.Context) Trace {
+	tracer := tp.Tracer(serviceName)
+	return Trace{tracer: tracer, ctx: ctx}
+}
 
 // NewRoot creates providers, starts a root span, and returns a Trace plus a
 // shutdown function that flushes exporters. The caller defers shutdown.

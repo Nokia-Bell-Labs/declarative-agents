@@ -3,6 +3,8 @@
 package telemetry
 
 import (
+	"context"
+
 	"go.opentelemetry.io/otel/attribute"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
@@ -28,6 +30,16 @@ func (a TraceAdapter) Event(name string, attrs ...attribute.KeyValue) {
 // SetAttributes sets attributes on the current span.
 func (a TraceAdapter) SetAttributes(attrs ...attribute.KeyValue) {
 	a.T.SetAttributes(attrs...)
+}
+
+// RecordError records err on the current span and sets error status.
+func (a TraceAdapter) RecordError(err error) {
+	a.T.RecordError(err)
+}
+
+// Context returns the context carrying the current span.
+func (a TraceAdapter) Context() context.Context {
+	return a.T.Context()
 }
 
 var _ tracing.Tracer = TraceAdapter{}
