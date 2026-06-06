@@ -33,6 +33,7 @@ type invokeLLMCmd struct {
 	userMessage  string
 	tracer       tracing.Tracer
 	contextLimit int
+	numCtx       int
 	verbose      bool
 	ctx          context.Context
 }
@@ -93,6 +94,7 @@ func (c *invokeLLMCmd) Execute() core.Result {
 		Model:       c.model,
 		Temperature: 0,
 		Seed:        42,
+		NumCtx:      c.numCtx,
 	}
 
 	if c.verbose {
@@ -162,6 +164,7 @@ type InvokeLLMBuilder struct {
 	ServerAddr   string // e.g. "localhost:11434"
 	Tracer       tracing.Tracer
 	ContextLimit int
+	NumCtx       int // Ollama num_ctx: context window size for inference
 	Verbose      bool
 	Ctx          context.Context
 }
@@ -183,6 +186,7 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		userMessage:  res.Output,
 		tracer:       b.Tracer,
 		contextLimit: b.ContextLimit,
+		numCtx:       b.NumCtx,
 		verbose:      b.Verbose,
 		ctx:          ctx,
 	}

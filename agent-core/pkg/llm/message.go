@@ -28,6 +28,7 @@ type ChatOptions struct {
 	Model       string  `json:"model"`
 	Temperature float64 `json:"temperature"`
 	Seed        int     `json:"seed"`
+	NumCtx      int     `json:"num_ctx,omitempty"`
 }
 
 // ChatResponse is the result of a single LLM chat call.

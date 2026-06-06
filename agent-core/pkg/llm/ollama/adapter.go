@@ -39,6 +39,7 @@ type msgDTO struct {
 type chatOpts struct {
 	Temperature float64 `json:"temperature"`
 	Seed        int     `json:"seed"`
+	NumCtx      int     `json:"num_ctx,omitempty"`
 }
 
 // chatResp is the JSON body returned from Ollama POST /api/chat.
@@ -124,7 +125,7 @@ func (a *Adapter) Chat(ctx context.Context, messages []llm.Message, opts llm.Cha
 		Model:    opts.Model,
 		Messages: dtos,
 		Stream:   false,
-		Options:  chatOpts{Temperature: opts.Temperature, Seed: opts.Seed},
+		Options:  chatOpts{Temperature: opts.Temperature, Seed: opts.Seed, NumCtx: opts.NumCtx},
 	}
 
 	body, err := json.Marshal(req)

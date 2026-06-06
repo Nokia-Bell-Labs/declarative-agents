@@ -5,6 +5,7 @@ package ollama
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -280,7 +281,7 @@ func TestChatReq_JSONRoundTrip(t *testing.T) {
 			{Role: "user", Content: "Hello"},
 		},
 		Stream:  false,
-		Options: chatOpts{Temperature: 0, Seed: 42},
+		Options: chatOpts{Temperature: 0, Seed: 42, NumCtx: 8192},
 	}
 
 	data, err := json.Marshal(req)
@@ -293,6 +294,20 @@ func TestChatReq_JSONRoundTrip(t *testing.T) {
 	require.Len(t, decoded.Messages, 2)
 	require.Equal(t, float64(0), decoded.Options.Temperature)
 	require.Equal(t, 42, decoded.Options.Seed)
+	require.Equal(t, 8192, decoded.Options.NumCtx)
+}
+
+func TestChatReq_NumCtxOmittedWhenZero(t *testing.T) {
+	t.Parallel()
+	req := chatReq{
+		Model:   "llama3",
+		Stream:  false,
+		Options: chatOpts{Temperature: 0, Seed: 42},
+	}
+
+	data, err := json.Marshal(req)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "num_ctx")
 }
 
 func TestChatResp_TokenExtraction(t *testing.T) {
@@ -340,6 +355,66 @@ func TestChat_Success(t *testing.T) {
 	require.Equal(t, "hello back", resp.Content)
 	require.Equal(t, 100, resp.TokensIn)
 	require.Equal(t, 15, resp.TokensOut)
+}
+
+func TestChat_NumCtxPassedToOllama(t *testing.T) {
+	t.Parallel()
+	var captured chatReq
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/tags" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(tagsResp{Models: []modelEntry{{Name: "llama3:latest"}}})
+			return
+		}
+		_ = json.NewDecoder(r.Body).Decode(&captured)
+		resp := chatResp{
+			Message:         msgDTO{Role: "assistant", Content: "ok"},
+			EvalCount:       5,
+			PromptEvalCount: 10,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	a, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()))
+	require.NoError(t, err)
+
+	msgs := []llm.Message{{Role: llm.User, Content: "hi"}}
+	opts := llm.ChatOptions{Model: "llama3", NumCtx: 16384}
+	_, err = a.Chat(context.Background(), msgs, opts)
+	require.NoError(t, err)
+	require.Equal(t, 16384, captured.Options.NumCtx)
+}
+
+func TestChat_NumCtxZeroOmitted(t *testing.T) {
+	t.Parallel()
+	var rawBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/tags" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(tagsResp{Models: []modelEntry{{Name: "llama3:latest"}}})
+			return
+		}
+		rawBody, _ = io.ReadAll(r.Body)
+		resp := chatResp{
+			Message:         msgDTO{Role: "assistant", Content: "ok"},
+			EvalCount:       5,
+			PromptEvalCount: 10,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	a, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()))
+	require.NoError(t, err)
+
+	msgs := []llm.Message{{Role: llm.User, Content: "hi"}}
+	_, err = a.Chat(context.Background(), msgs, llm.ChatOptions{Model: "llama3"})
+	require.NoError(t, err)
+	require.NotContains(t, string(rawBody), "num_ctx",
+		"num_ctx should be omitted when zero so Ollama uses model default")
 }
 
 func TestChat_HTTPError(t *testing.T) {
