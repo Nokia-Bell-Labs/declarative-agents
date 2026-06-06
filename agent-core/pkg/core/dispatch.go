@@ -104,4 +104,11 @@ func stampSpan(tr tracing.Tracer, name string, res Result) {
 		tr.SetAttributes(genai.ErrorAttrs(res.Err.Error())...)
 		tr.RecordError(res.Err)
 	}
+	if res.Metrics != nil {
+		tr.SetAttributes(
+			attribute.Int("tool.metrics.total", res.Metrics.Total),
+			attribute.Int("tool.metrics.passed", res.Metrics.Passed),
+			attribute.Int("tool.metrics.failed", res.Metrics.Failed),
+		)
+	}
 }

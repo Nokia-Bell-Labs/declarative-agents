@@ -19,7 +19,9 @@ func (b *buildCmd) Execute() core.Result {
 	cmd := exec.Command("go", "build", "./...")
 	cmd.Dir = b.root
 	out, err := cmd.CombinedOutput()
-	return SubprocessResult("build", out, err)
+	res := SubprocessResult("build", out, err)
+	res.Metrics = ParseBuildMetrics(res.Output)
+	return res
 }
 
 // BuildBuilder constructs build commands.
@@ -121,6 +123,7 @@ func (t *testCmd) Execute() core.Result {
 	cmd.Dir = t.root
 	out, err := cmd.CombinedOutput()
 	res := SubprocessResult("test", out, err)
+	res.Metrics = ParseTestMetrics(res.Output)
 	if t.outputLineCap > 0 {
 		res.Output = CapOutput(res.Output, t.outputLineCap)
 	}

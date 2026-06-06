@@ -289,6 +289,7 @@ func (e *editCmd) Execute() core.Result {
 				relPath, snippet),
 			Signal:      core.ToolFailed,
 			CommandName: "edit",
+			Metrics:     &core.ToolMetrics{Total: 1, Passed: 0, Failed: 1},
 		}
 	}
 
@@ -297,6 +298,7 @@ func (e *editCmd) Execute() core.Result {
 			Output:      fmt.Sprintf("ambiguous match: %d occurrences found in %s", count, relPath),
 			Signal:      core.ToolFailed,
 			CommandName: "edit",
+			Metrics:     &core.ToolMetrics{Total: 1, Passed: 0, Failed: 1},
 		}
 	}
 
@@ -313,6 +315,7 @@ func (e *editCmd) Execute() core.Result {
 		Output:      fmt.Sprintf("replacement applied in %s", relPath),
 		Signal:      core.EditDone,
 		CommandName: "edit",
+		Metrics:     &core.ToolMetrics{Total: 1, Passed: 1, Failed: 0},
 	}
 }
 

@@ -53,6 +53,16 @@ type Cost struct {
 	Dollars   float64       `json:"dollars"`
 }
 
+// ToolMetrics carries structured success/failure counts for a tool
+// invocation, enabling the evaluator to track tool progression
+// (e.g. "5 tests failing → 2 → 0") without parsing free text.
+type ToolMetrics struct {
+	Total   int            `json:"total"`
+	Passed  int            `json:"passed"`
+	Failed  int            `json:"failed"`
+	Details map[string]any `json:"details,omitempty"`
+}
+
 // Result carries the output of a Command execution.
 type Result struct {
 	Output      string
@@ -60,6 +70,7 @@ type Result struct {
 	Cost        Cost
 	Err         error
 	CommandName string
+	Metrics     *ToolMetrics // nil when tool doesn't report metrics
 }
 
 // SpanOverride allows Commands to customize the Dispatch span name and
