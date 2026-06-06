@@ -13,6 +13,29 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
 
+const editErrorMaxLines = 100
+
+// fileSnippet returns the first maxLines numbered lines of content,
+// appending an omission notice if the file is longer.
+func fileSnippet(content string, maxLines int) string {
+	lines := strings.Split(content, "\n")
+	end := len(lines)
+	truncated := false
+	if end > maxLines {
+		end = maxLines
+		truncated = true
+	}
+	width := len(fmt.Sprintf("%d", end))
+	var sb strings.Builder
+	for i := 0; i < end; i++ {
+		fmt.Fprintf(&sb, "%*d|%s\n", width, i+1, lines[i])
+	}
+	if truncated {
+		fmt.Fprintf(&sb, "\n... %d lines omitted", len(lines)-end)
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
 // --- read tool ---
 
 type readCmd struct {
@@ -256,10 +279,14 @@ func (e *editCmd) Execute() core.Result {
 
 	content := string(data)
 	count := strings.Count(content, e.oldString)
+	relPath := RelPath(e.root, resolved)
 
 	if count == 0 {
+		snippet := fileSnippet(content, editErrorMaxLines)
 		return core.Result{
-			Output:      fmt.Sprintf("search text not found in %s", RelPath(e.root, resolved)),
+			Output: fmt.Sprintf(
+				"search text not found in %s\n\nCurrent file contents:\n%s",
+				relPath, snippet),
 			Signal:      core.ToolFailed,
 			CommandName: "edit",
 		}
@@ -267,7 +294,7 @@ func (e *editCmd) Execute() core.Result {
 
 	if count > 1 {
 		return core.Result{
-			Output:      fmt.Sprintf("ambiguous match: %d occurrences found in %s", count, RelPath(e.root, resolved)),
+			Output:      fmt.Sprintf("ambiguous match: %d occurrences found in %s", count, relPath),
 			Signal:      core.ToolFailed,
 			CommandName: "edit",
 		}
@@ -282,7 +309,6 @@ func (e *editCmd) Execute() core.Result {
 		}
 	}
 
-	relPath := RelPath(e.root, resolved)
 	return core.Result{
 		Output:      fmt.Sprintf("replacement applied in %s", relPath),
 		Signal:      core.EditDone,

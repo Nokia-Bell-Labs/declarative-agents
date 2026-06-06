@@ -136,6 +136,21 @@ func TestEdit_NoMatch(t *testing.T) {
 	res := cmd.Execute()
 	assert.Equal(t, core.ToolFailed, res.Signal)
 	assert.Contains(t, res.Output, "not found")
+	assert.Contains(t, res.Output, "Current file contents:")
+	assert.Contains(t, res.Output, "hello")
+}
+
+func TestEdit_NoMatchIncludesNumberedLines(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "e.txt"), []byte("line1\nline2\nline3"), 0o644)
+
+	b := &EditBuilder{Root: root}
+	cmd := b.Build(toolReq(`{"path":"e.txt","old_string":"missing","new_string":"abc"}`))
+	res := cmd.Execute()
+	assert.Equal(t, core.ToolFailed, res.Signal)
+	assert.Contains(t, res.Output, "1|line1")
+	assert.Contains(t, res.Output, "2|line2")
+	assert.Contains(t, res.Output, "3|line3")
 }
 
 func TestEdit_AmbiguousMatch(t *testing.T) {
