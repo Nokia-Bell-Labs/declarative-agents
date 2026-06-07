@@ -287,3 +287,110 @@ func TestLoadMachineSpec_FileNotFound(t *testing.T) {
 		t.Fatal("expected error for missing file")
 	}
 }
+
+// TestToolComposition_ViaStateMachine demonstrates the pattern of composing
+// atomic tools via machine.yaml transitions. Three tools (stage, commit,
+// tag) are chained through state transitions, each emitting ToolDone to
+// advance to the next step. The state machine is the composition layer.
+func TestToolComposition_ViaStateMachine(t *testing.T) {
+	machineYAML := `
+name: commit-workflow
+initial_state: Idle
+states: [Idle, Staging, Committing, Tagging, Done, Failed]
+terminal_states: [Done, Failed]
+signals: [Seed, ToolDone, ToolFailed, CommandError]
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Staging
+    action: stage_all
+  - state: Staging
+    signal: ToolDone
+    next: Committing
+    action: commit
+  - state: Staging
+    signal: ToolFailed
+    next: Failed
+  - state: Committing
+    signal: ToolDone
+    next: Tagging
+    action: tag
+  - state: Committing
+    signal: ToolFailed
+    next: Failed
+  - state: Tagging
+    signal: ToolDone
+    next: Done
+  - state: Tagging
+    signal: ToolFailed
+    next: Failed
+`
+	spec, err := ParseMachineSpec([]byte(machineYAML))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	var executionOrder []string
+	makeBuilder := func(name string) Builder {
+		return &orderTracker{toolName: name, order: &executionOrder}
+	}
+
+	reg := NewRegistry()
+	reg.Register(ToolSpec{Name: "stage_all"}, makeBuilder("stage_all"))
+	reg.Register(ToolSpec{Name: "commit"}, makeBuilder("commit"))
+	reg.Register(ToolSpec{Name: "tag"}, makeBuilder("tag"))
+
+	table, isTerminal, err := BuildTransitionTable(spec, reg, nil)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	sm := NewStateMachine(table, isTerminal)
+	state := State("Idle")
+	result := Result{Signal: Seed}
+
+	for !sm.IsTerminal(state) {
+		nextState, cmd, err := sm.Step(state, result.Signal, result)
+		if err != nil {
+			t.Fatalf("step from %s with %s: %v", state, result.Signal, err)
+		}
+		state = nextState
+		if cmd != nil {
+			result = cmd.Execute()
+		}
+	}
+
+	if state != "Done" {
+		t.Errorf("final state = %q, want Done", state)
+	}
+
+	expected := []string{"stage_all", "commit", "tag"}
+	if len(executionOrder) != len(expected) {
+		t.Fatalf("execution order length = %d, want %d: %v", len(executionOrder), len(expected), executionOrder)
+	}
+	for i, name := range expected {
+		if executionOrder[i] != name {
+			t.Errorf("execution order[%d] = %q, want %q", i, executionOrder[i], name)
+		}
+	}
+}
+
+type orderTracker struct {
+	toolName string
+	order    *[]string
+}
+
+func (o *orderTracker) Build(_ Result) Command {
+	return &orderCmd{toolName: o.toolName, order: o.order}
+}
+
+type orderCmd struct {
+	toolName string
+	order    *[]string
+}
+
+func (o *orderCmd) Name() string { return o.toolName }
+func (o *orderCmd) Execute() Result {
+	*o.order = append(*o.order, o.toolName)
+	return Result{Signal: ToolDone, CommandName: o.toolName, Output: o.toolName + " done"}
+}

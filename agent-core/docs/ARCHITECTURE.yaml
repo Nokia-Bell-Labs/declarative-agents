@@ -280,6 +280,45 @@ design_decisions:
       - "Code-only tables: harder to audit, harder to diff"
 
   - id: 5
+    title: Tool composition via machine.yaml sequences
+    decision: |
+      Complex workflows (e.g. "stage all then commit") are NOT encoded
+      as compound Go tools. Instead, each atomic verb is a separate
+      YAML-defined tool (stage_all, commit), and the machine.yaml
+      wires them together via state transitions:
+
+        - state: Staging
+          signal: ToolDone
+          next: Committing
+          action: commit
+
+      The state machine IS the composition layer. This eliminates
+      compound tool code entirely — the workflow lives in YAML where
+      it can be audited, diffed, and modified without recompilation.
+    benefits:
+      - Workflows are visible in machine.yaml diffs
+      - Each tool stays atomic and independently testable
+      - New workflows require zero Go code changes
+      - State machine validation catches broken compositions at init
+    alternatives_rejected:
+      - "Compound Go tools: embed workflow logic in code, untestable"
+      - "Shell script tools: opaque, no validation, no tracing"
+
+  - id: 6
+    title: Declarative tool initialization
+    decision: |
+      When LoopParams.MachineFile is set, Loop owns the full init
+      sequence: create registry, call InitFunc to register tools,
+      load machine YAML, validate all actions resolve, enter loop.
+      This enforces the ordering invariant structurally.
+    benefits:
+      - Impossible to validate the machine before tools are registered
+      - Eliminates per-agent init boilerplate
+      - Single function call replaces multi-step setup
+    alternatives_rejected:
+      - "Caller manages ordering: error-prone, duplicated in every agent"
+
+  - id: 7
     title: Registry freeze before loop
     decision: |
       The Registry is mutable during initialization and frozen before
