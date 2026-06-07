@@ -23,9 +23,29 @@ func RegisterBuildTools(reg *core.Registry, root string) {
 	reg.Register(TestToolSpec(), &TestBuilder{Root: root})
 }
 
-// RegisterAll registers all standard tools (file + build) with the
-// given registry, all scoped to root.
+// RegisterGitTools registers commit, workspace_status, worktree_add, and
+// worktree_remove with the given registry, all scoped to root.
+func RegisterGitTools(reg *core.Registry, root string) {
+	reg.Register(CommitToolSpec(), &CommitBuilder{Root: root})
+	reg.Register(WorkspaceStatusToolSpec(), &WorkspaceStatusBuilder{Root: root})
+	reg.Register(WorktreeAddToolSpec(), &WorktreeAddBuilder{Root: root})
+	reg.Register(WorktreeRemoveToolSpec(), &WorktreeRemoveBuilder{Root: root})
+}
+
+// RegisterIssueTools registers issue_create, issue_claim, issue_close,
+// and issue_list with the given registry, all scoped to root.
+func RegisterIssueTools(reg *core.Registry, root string) {
+	reg.Register(IssueCreateToolSpec(), &IssueCreateBuilder{Root: root})
+	reg.Register(IssueClaimToolSpec(), &IssueClaimBuilder{Root: root})
+	reg.Register(IssueCloseToolSpec(), &IssueCloseBuilder{Root: root})
+	reg.Register(IssueListToolSpec(), &IssueListBuilder{Root: root})
+}
+
+// RegisterAll registers all standard tools (file + build + git + issue)
+// with the given registry, all scoped to root.
 func RegisterAll(reg *core.Registry, root string) {
 	RegisterFileTools(reg, root)
 	RegisterBuildTools(reg, root)
+	RegisterGitTools(reg, root)
+	RegisterIssueTools(reg, root)
 }

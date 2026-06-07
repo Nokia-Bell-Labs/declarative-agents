@@ -36,21 +36,59 @@ func TestRegisterBuildTools(t *testing.T) {
 	}
 }
 
+func TestRegisterGitTools(t *testing.T) {
+	reg := core.NewRegistry()
+	RegisterGitTools(reg, "/tmp")
+
+	expected := []string{"commit", "workspace_status", "worktree_add", "worktree_remove"}
+	assert.Equal(t, expected, reg.ExternalToolNames())
+
+	for _, name := range expected {
+		_, ok := reg.Resolve(name)
+		assert.True(t, ok, "should resolve %s", name)
+	}
+}
+
+func TestRegisterIssueTools(t *testing.T) {
+	reg := core.NewRegistry()
+	RegisterIssueTools(reg, "/tmp")
+
+	expected := []string{"issue_claim", "issue_close", "issue_create", "issue_list"}
+	assert.Equal(t, expected, reg.ExternalToolNames())
+
+	for _, name := range expected {
+		_, ok := reg.Resolve(name)
+		assert.True(t, ok, "should resolve %s", name)
+	}
+}
+
 func TestRegisterAll(t *testing.T) {
 	reg := core.NewRegistry()
 	RegisterAll(reg, "/tmp")
 
 	names := reg.AllToolNames()
-	assert.Len(t, names, 9)
+	assert.Len(t, names, 17)
+	// file tools
 	assert.Contains(t, names, "read")
 	assert.Contains(t, names, "write")
 	assert.Contains(t, names, "edit")
 	assert.Contains(t, names, "find")
 	assert.Contains(t, names, "list_files")
+	// build tools
 	assert.Contains(t, names, "build")
 	assert.Contains(t, names, "vet")
 	assert.Contains(t, names, "lint")
 	assert.Contains(t, names, "test")
+	// git tools
+	assert.Contains(t, names, "commit")
+	assert.Contains(t, names, "workspace_status")
+	assert.Contains(t, names, "worktree_add")
+	assert.Contains(t, names, "worktree_remove")
+	// issue tools
+	assert.Contains(t, names, "issue_create")
+	assert.Contains(t, names, "issue_claim")
+	assert.Contains(t, names, "issue_close")
+	assert.Contains(t, names, "issue_list")
 }
 
 func TestToolSpecs_HaveDescriptions(t *testing.T) {
@@ -58,6 +96,10 @@ func TestToolSpecs_HaveDescriptions(t *testing.T) {
 		ReadToolSpec(), WriteToolSpec(), EditToolSpec(),
 		FindToolSpec(), ListFilesToolSpec(),
 		BuildToolSpec(), VetToolSpec(), LintToolSpec(), TestToolSpec(),
+		CommitToolSpec(), WorkspaceStatusToolSpec(),
+		WorktreeAddToolSpec(), WorktreeRemoveToolSpec(),
+		IssueCreateToolSpec(), IssueClaimToolSpec(),
+		IssueCloseToolSpec(), IssueListToolSpec(),
 	}
 
 	for _, s := range specs {

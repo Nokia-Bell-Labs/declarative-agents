@@ -161,6 +161,10 @@ func (c *invokeLLMCmd) Execute() core.Result {
 // InvokeLLMBuilder constructs invoke_llm commands. All behavior is
 // configured through interfaces: Client for the provider, Assembler
 // for prompt structure, and the Registry for tool manifests.
+//
+// Side effects: appends the user message and assistant response to the
+// conversation History. The conversation state is mutated on every
+// successful invocation.
 type InvokeLLMBuilder struct {
 	Client       llm.Client
 	History      *llm.Conversation
