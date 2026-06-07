@@ -1,0 +1,94 @@
+tools:
+  # --- build tools ---
+  - name: build
+    binary: go
+    args: [build, "./..."]
+    description: "Compile all Go packages with go build ./... Returns compiler errors on failure."
+
+  - name: vet
+    binary: go
+    args: [vet, "./..."]
+    description: "Run go vet ./... on the workspace. Reports suspicious constructs."
+
+  - name: lint
+    binary: golangci-lint
+    args: [run, "./..."]
+    description: "Run golangci-lint run ./... on the Go workspace."
+
+  - name: test
+    binary: go
+    args: [test, "-count=1"]
+    description: "Run go test -count=1 on the workspace. Returns test output including pass/fail results. Defaults to ./... (all packages)."
+    output_cap: 200
+    params:
+      - name: package
+        positional: true
+        default: "./..."
+        description: "Go package path (default ./...)"
+
+  # --- git tools ---
+  - name: workspace_status
+    binary: git
+    args: [status, --porcelain]
+    description: "Report git workspace state: changed files with status codes (M/A/D/??)."
+    precondition: git_repo
+
+  # --- issue tools ---
+  - name: issue_create
+    binary: bd
+    args: [create, --json]
+    description: "Create a new beads issue. Returns the issue ID."
+    side_effects: "writes to .beads/issues.jsonl and .beads/interactions.jsonl"
+    params:
+      - name: title
+        flag: --title
+        required: true
+        description: "Issue title"
+      - name: body
+        flag: --body
+        description: "Issue body/description"
+      - name: type
+        flag: -t
+        description: "Issue type (default: task)"
+      - name: priority
+        flag: -p
+        description: "Priority level (default: P2)"
+      - name: deps
+        flag: --deps
+        description: "Comma-separated dependency issue IDs"
+
+  - name: issue_close
+    binary: bd
+    args: [close]
+    description: "Close an issue by ID."
+    side_effects: "sets issue status to closed in .beads/issues.jsonl"
+    params:
+      - name: id
+        positional: true
+        required: true
+        description: "Issue ID to close"
+
+  - name: issue_list
+    binary: bd
+    args: [list]
+    description: "List beads issues. Defaults to open issues only."
+    params:
+      - name: all
+        flag: --all
+        bool_flag: true
+        description: "Include closed issues"
+
+  - name: issue_claim
+    binary: bd
+    args: [update]
+    description: "Claim an issue: set status to in_progress and assign to current user."
+    side_effects: "modifies issue status in .beads/issues.jsonl"
+    params:
+      - name: id
+        positional: true
+        required: true
+        description: "Issue ID to claim"
+      - name: claim
+        flag: --claim
+        bool_flag: true
+        default: "true"
