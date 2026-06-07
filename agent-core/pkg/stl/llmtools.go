@@ -36,6 +36,7 @@ type invokeLLMCmd struct {
 	numCtx       int
 	verbose      bool
 	ctx          context.Context
+	callTimeout  time.Duration
 }
 
 func (c *invokeLLMCmd) Name() string { return "invoke_llm" }
@@ -103,9 +104,16 @@ func (c *invokeLLMCmd) Execute() core.Result {
 		}
 	}
 
+	chatCtx := c.ctx
+	if c.callTimeout > 0 {
+		var cancel context.CancelFunc
+		chatCtx, cancel = context.WithTimeout(c.ctx, c.callTimeout)
+		defer cancel()
+	}
+
 	tr.Event("chat.request_start")
 	start := time.Now()
-	chatResp, err := c.client.Chat(c.ctx, messages, opts)
+	chatResp, err := c.client.Chat(chatCtx, messages, opts)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -164,7 +172,8 @@ type InvokeLLMBuilder struct {
 	ServerAddr   string // e.g. "localhost:11434"
 	Tracer       tracing.Tracer
 	ContextLimit int
-	NumCtx       int // Ollama num_ctx: context window size for inference
+	NumCtx       int           // Ollama num_ctx: context window size for inference
+	CallTimeout  time.Duration // per-call deadline; 0 = no limit
 	Verbose      bool
 	Ctx          context.Context
 }
@@ -187,6 +196,7 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		tracer:       b.Tracer,
 		contextLimit: b.ContextLimit,
 		numCtx:       b.NumCtx,
+		callTimeout:  b.CallTimeout,
 		verbose:      b.Verbose,
 		ctx:          ctx,
 	}
