@@ -1,5 +1,10 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
+// Deprecated: This file contains compound Go tool implementations that
+// are superseded by atomic YAML-defined tools in tools.yaml. Use
+// RegisterExecTools or RegisterAll to register the YAML versions. These
+// types remain for backward compatibility and will be removed in a
+// future release.
 package stl
 
 import (
@@ -13,7 +18,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
 
-// --- commit tool ---
+// --- commit tool (DEPRECATED: use atomic stage_all + commit from tools.yaml) ---
 
 type commitCmd struct {
 	root    string
@@ -73,6 +78,8 @@ func (c *commitCmd) Execute() core.Result {
 }
 
 // CommitBuilder constructs commit commands.
+//
+// Deprecated: Use atomic stage_all + commit tools from tools.yaml instead.
 type CommitBuilder struct {
 	Root string
 }
@@ -86,6 +93,8 @@ func (b *CommitBuilder) Build(res core.Result) core.Command {
 }
 
 // CommitToolSpec returns the ToolSpec for the commit tool.
+//
+// Deprecated: Use atomic stage_all + commit tools from tools.yaml instead.
 func CommitToolSpec() core.ToolSpec {
 	return core.ToolSpec{
 		Name:        "commit",
@@ -140,6 +149,8 @@ func (w *workspaceStatusCmd) Execute() core.Result {
 }
 
 // WorkspaceStatusBuilder constructs workspace_status commands.
+//
+// Deprecated: Use workspace_status from tools.yaml instead.
 type WorkspaceStatusBuilder struct {
 	Root string
 }
@@ -149,6 +160,8 @@ func (b *WorkspaceStatusBuilder) Build(_ core.Result) core.Command {
 }
 
 // WorkspaceStatusToolSpec returns the ToolSpec for the workspace_status tool.
+//
+// Deprecated: Use workspace_status from tools.yaml instead.
 func WorkspaceStatusToolSpec() core.ToolSpec {
 	return core.ToolSpec{
 		Name:        "workspace_status",
@@ -214,6 +227,8 @@ func (w *worktreeAddCmd) Execute() core.Result {
 }
 
 // WorktreeAddBuilder constructs worktree_add commands.
+//
+// Deprecated: Use atomic worktree_add from tools.yaml instead.
 type WorktreeAddBuilder struct {
 	Root string
 }
@@ -231,6 +246,8 @@ func (b *WorktreeAddBuilder) Build(res core.Result) core.Command {
 }
 
 // WorktreeAddToolSpec returns the ToolSpec for the worktree_add tool.
+//
+// Deprecated: Use atomic worktree_add from tools.yaml instead.
 func WorktreeAddToolSpec() core.ToolSpec {
 	return core.ToolSpec{
 		Name:        "worktree_add",
@@ -288,6 +305,8 @@ func (w *worktreeRemoveCmd) Execute() core.Result {
 }
 
 // WorktreeRemoveBuilder constructs worktree_remove commands.
+//
+// Deprecated: Use atomic worktree_remove from tools.yaml instead.
 type WorktreeRemoveBuilder struct {
 	Root string
 }
@@ -305,6 +324,8 @@ func (b *WorktreeRemoveBuilder) Build(res core.Result) core.Command {
 }
 
 // WorktreeRemoveToolSpec returns the ToolSpec for the worktree_remove tool.
+//
+// Deprecated: Use atomic worktree_remove from tools.yaml instead.
 func WorktreeRemoveToolSpec() core.ToolSpec {
 	return core.ToolSpec{
 		Name:        "worktree_remove",

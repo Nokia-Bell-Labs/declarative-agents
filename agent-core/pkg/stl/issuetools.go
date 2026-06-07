@@ -1,5 +1,9 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
+// Deprecated: This file contains Go tool implementations that are
+// superseded by YAML-defined tools in tools.yaml. Use RegisterExecTools
+// or RegisterAll to register the YAML versions. These types remain for
+// backward compatibility and will be removed in a future release.
 package stl
 
 import (
@@ -71,6 +75,8 @@ func (c *issueCreateCmd) Execute() core.Result {
 }
 
 // IssueCreateBuilder constructs issue_create commands.
+//
+// Deprecated: Use issue_create from tools.yaml instead.
 type IssueCreateBuilder struct {
 	Root string
 }
@@ -91,6 +97,8 @@ func (b *IssueCreateBuilder) Build(res core.Result) core.Command {
 }
 
 // IssueCreateToolSpec returns the ToolSpec for the issue_create tool.
+//
+// Deprecated: Use issue_create from tools.yaml instead.
 func IssueCreateToolSpec() core.ToolSpec {
 	return core.ToolSpec{
 		Name:        "issue_create",
@@ -127,6 +135,8 @@ func (c *issueClaimCmd) Execute() core.Result {
 }
 
 // IssueClaimBuilder constructs issue_claim commands.
+//
+// Deprecated: Use issue_claim from tools.yaml instead.
 type IssueClaimBuilder struct {
 	Root string
 }
@@ -140,6 +150,8 @@ func (b *IssueClaimBuilder) Build(res core.Result) core.Command {
 }
 
 // IssueClaimToolSpec returns the ToolSpec for the issue_claim tool.
+//
+// Deprecated: Use issue_claim from tools.yaml instead.
 func IssueClaimToolSpec() core.ToolSpec {
 	return core.ToolSpec{
 		Name:        "issue_claim",
@@ -176,6 +188,8 @@ func (c *issueCloseCmd) Execute() core.Result {
 }
 
 // IssueCloseBuilder constructs issue_close commands.
+//
+// Deprecated: Use issue_close from tools.yaml instead.
 type IssueCloseBuilder struct {
 	Root string
 }
@@ -189,6 +203,8 @@ func (b *IssueCloseBuilder) Build(res core.Result) core.Command {
 }
 
 // IssueCloseToolSpec returns the ToolSpec for the issue_close tool.
+//
+// Deprecated: Use issue_close from tools.yaml instead.
 func IssueCloseToolSpec() core.ToolSpec {
 	return core.ToolSpec{
 		Name:        "issue_close",
@@ -239,6 +255,8 @@ func (c *issueListCmd) Execute() core.Result {
 }
 
 // IssueListBuilder constructs issue_list commands.
+//
+// Deprecated: Use issue_list from tools.yaml instead.
 type IssueListBuilder struct {
 	Root string
 }
@@ -252,6 +270,8 @@ func (b *IssueListBuilder) Build(res core.Result) core.Command {
 }
 
 // IssueListToolSpec returns the ToolSpec for the issue_list tool.
+//
+// Deprecated: Use issue_list from tools.yaml instead.
 func IssueListToolSpec() core.ToolSpec {
 	return core.ToolSpec{
 		Name:        "issue_list",
