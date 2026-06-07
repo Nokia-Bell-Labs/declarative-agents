@@ -37,8 +37,16 @@ requirements:
   R4:
     title: Result struct
     items:
-      - R4.1: "Result has five fields: Output (string), Signal (Signal), Cost (Cost), Err (error), CommandName (string)."
+      - R4.1: "Result has six fields: Output (string), Signal (Signal), Cost (Cost), Err (error), CommandName (string), Metrics (*ToolMetrics)."
       - R4.2: Err carries infrastructure errors. Signal carries domain outcomes.
+      - R4.3: Metrics is nil when the tool does not report structured metrics.
+
+  R7:
+    title: ToolMetrics struct
+    items:
+      - R7.1: "ToolMetrics has four fields: Total (int), Passed (int), Failed (int), Details (map[string]any)."
+      - R7.2: All ToolMetrics fields carry JSON tags for serialization. Details uses omitempty.
+      - R7.3: ToolMetrics enables structured progress tracking (e.g. test counts) without parsing free text.
 
   R5:
     title: Builder and CommandResolver interfaces
@@ -72,8 +80,12 @@ acceptance_criteria:
     traces: [R3.1, R3.2]
 
   - id: AC4
-    criterion: Result struct has Output, Signal, Cost, Err, and CommandName fields.
-    traces: [R4.1, R4.2]
+    criterion: Result struct has Output, Signal, Cost, Err, CommandName, and Metrics (*ToolMetrics) fields. Metrics is nil when not reported.
+    traces: [R4.1, R4.2, R4.3]
+
+  - id: AC7
+    criterion: ToolMetrics struct has Total, Passed, Failed (int) and Details (map[string]any) with JSON tags. Details uses omitempty.
+    traces: [R7.1, R7.2, R7.3]
 
   - id: AC5
     criterion: Builder has Build(Result) Command. CommandResolver has Resolve(string) (Builder, bool).

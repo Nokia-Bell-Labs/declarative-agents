@@ -1,16 +1,17 @@
 id: agent-core
-title: "Agent Core: A Generic Agentic Loop Engine"
+title: "Agent Core: Framework for Building Agentic Coding Tools"
 
 executive_summary: |
-  Agent Core is a domain-agnostic library for building tool-augmented
-  agentic loops. It provides the state machine, command dispatch,
-  tool registry, budget tracking, event recording, and tracing that
-  every agentic agent needs -- without prescribing what tools exist,
-  what states mean, or what LLM to use.
+  Agent Core is a Go library for building tool-augmented agentic loops.
+  It provides the state machine, command dispatch, tool registry, budget
+  tracking, event recording, tracing, LLM integration, prompt assembly,
+  a standard tool library, and a CLI flags package.
 
-  Domain-specific agents import agent-core and supply their own
-  states, signals, tools, and transition tables. The library drives
-  the loop; the agent defines its behavior.
+  The core engine (pkg/core) remains domain-agnostic: it drives the loop
+  without knowing what tools exist or what LLM is in use. Higher-level
+  packages (pkg/llm, pkg/stl, pkg/prompt, pkg/cli) build on the engine
+  to provide reusable infrastructure that domain agents compose into
+  complete systems.
 
 problem: |
   The agentic loop pattern -- observe, decide, act, validate, repeat --
@@ -19,55 +20,65 @@ problem: |
   loops until subtasks complete. Each embeds the same machinery:
   state transitions, budget enforcement, command dispatch with
   timeout and panic recovery, cost tracking, event logging,
-  OpenTelemetry tracing, and tool manifest filtering.
+  OpenTelemetry tracing, tool manifest filtering, LLM invocation,
+  prompt assembly, and standard file/build/subprocess tools.
 
-  When this machinery is coupled to a specific domain (coding tools,
-  specific LLM, particular states), it cannot be reused. Building a
-  new agent means reimplementing the same loop plumbing. Bugs fixed
-  in one agent stay unfixed in another. Improvements to budget
-  tracking or tracing require changes in every agent.
+  When this machinery is coupled to a specific domain, it cannot be
+  reused. Building a new agent means reimplementing the same loop
+  plumbing plus LLM and tool boilerplate. Bugs fixed in one agent
+  stay unfixed in another. Improvements to budget tracking, tracing,
+  or LLM handling require changes in every agent.
 
-  Agent Core extracts the loop engine into a standalone Go library.
-  Domain agents become thin wrappers that register tools, define
-  states, and supply hooks. The engine does the rest.
+  Agent Core extracts the loop engine and its supporting infrastructure
+  into a standalone Go library. Domain agents become thin wrappers that
+  register additional tools, define states, and supply hooks. The
+  framework provides the rest.
 
 what_this_does: |
-  Agent Core is a Go library (not a binary). It provides six
-  components that together implement the generic agentic loop.
+  Agent Core is a Go library (not a binary). It provides a layered set
+  of packages that together implement a complete agentic loop framework.
 
-  State Machine. A static transition table maps (State, Signal) pairs
-  to (NextState, ActionFunc). Step performs a single lookup. The
-  domain supplies its own State and Signal constants, its own
-  TransitionTable, and a TerminalFunc predicate. The state machine
-  knows nothing about coding, research, or any other domain.
+  Core Engine (pkg/core). The domain-agnostic loop machinery:
+  - State Machine: static transition table mapping (State, Signal) to
+    (NextState, ActionFunc). Domain supplies its own constants.
+  - Command Dispatch: wraps Execute with OTel tracing, timeout, panic
+    recovery, duration measurement, and signal normalization.
+  - Tool Registry: ToolSpec + Builder pairs, state-filtered manifests,
+    freeze-before-run semantics.
+  - Agentic Loop: budget-tracked iteration driving the state machine
+    with LoopHooks for domain injection.
+  - YAML Machine Config: declarative state machine definition with
+    referential integrity validation and $tool dynamic dispatch.
+  - Types: Command, Result (with ToolMetrics), Signal, Cost, Builder,
+    CommandResolver, SpanOverride.
 
-  Command Dispatch. Dispatch wraps Command.Execute with an
-  OpenTelemetry child span, optional per-command timeout, panic
-  recovery, duration measurement, and signal normalization. SafeExecute
-  runs the command in a goroutine with a timer. Commands are the
-  single interface for all units of work.
+  LLM Integration (pkg/llm). Client interface with concrete Ollama
+  adapter, Conversation management, message types, model profiles,
+  response parsing utilities, and ChatOptions.
 
-  Tool Registry. Registry pairs ToolSpec metadata (name, description,
-  JSON schema, visibility, phases) with Builders. Manifest() returns
-  the external tools available in a given state. The registry freezes
-  before the loop starts.
+  Prompt Assembly (pkg/prompt). Prompt struct with YAML loading,
+  system prompt Go template, and tool manifest serialization for
+  LLM context injection.
 
-  Agentic Loop. Loop drives the state machine from an initial state to
-  a terminal state. Each iteration checks the budget, calls Step,
-  dispatches the returned Command, accumulates costs, records events,
-  and checks for context cancellation. Domain-specific behavior is
-  injected through LoopHooks callbacks.
+  Standard Tool Library (pkg/stl). Reusable tool implementations:
+  file tools, build tools, LLM invoke/parse commands, subprocess
+  execution with process group management, workspace tools, and
+  tool metrics extraction.
 
-  YAML Machine Config. MachineSpec defines a state machine in YAML --
-  states, signals, terminal states, and transitions with named actions.
-  BuildTransitionTable resolves action names from the registry. The
-  $tool sentinel enables dynamic dispatch. This lets agents define
-  their behavior declaratively.
+  CLI Flags (pkg/cli). Common CLI flag definitions for agents that
+  expose a command-line interface.
 
-  Tracer Port. A minimal Tracer interface (Push, Event, SetAttributes)
-  abstracts OpenTelemetry. The domain supplies a concrete
-  implementation; agent-core depends only on the interface and the
-  OTel attribute package.
+  Tracing (pkg/tracing). Tracer port interface (Push, Event,
+  SetAttributes, RecordError, Context) decoupling the engine from
+  OpenTelemetry internals. Includes NoopTracer for testing.
+
+  Telemetry (pkg/telemetry). Concrete OpenTelemetry implementation:
+  provider setup, exporter config (file + OTLP), root span lifecycle,
+  TraceAdapter satisfying the Tracer port, GenAI semantic convention
+  helpers, W3C traceparent parsing, and offline trace replay.
+
+  Specification Tooling (pkg/spec). SRD/UC/TS YAML parsing, dependency
+  graph construction, cross-artifact validation, and corpus management.
 
 why_we_build_this: |
   Three reasons.
@@ -78,27 +89,31 @@ why_we_build_this: |
   testing agent -- reuse the same loop machinery without reimplementing
   state machines, dispatch, or budget tracking.
 
-  Second, to enforce a clean separation between engine and domain. The
-  engine knows about States, Signals, Commands, and Budgets. It does
-  not know about Go toolchains, LLMs, file systems, or test runners.
-  This boundary prevents coupling and makes each piece independently
-  testable.
+  Second, to provide shared infrastructure above the engine layer. LLM
+  integration, prompt assembly, and standard tools are needed by every
+  agent. Centralizing them in agent-core avoids duplication and ensures
+  consistent behavior across agents.
 
-  Third, to accumulate engine improvements in one place. Better
-  tracing, smarter budget checks, more robust panic recovery, and new
-  dispatch modes benefit every agent that imports agent-core.
+  Third, to accumulate improvements in one place. Better tracing,
+  smarter budget checks, more robust panic recovery, improved LLM
+  parsing, and new tool implementations benefit every agent that imports
+  agent-core.
 
 success_criteria:
-  domain_agnosticism: |
-    No import in agent-core references a specific domain (coding, LLM
-    provider, file system operations). The only external dependencies
-    are the Go standard library, OpenTelemetry attributes, and a YAML
-    parser.
+  engine_agnosticism: |
+    The core engine (pkg/core) does not import LLM providers, file
+    system operations, or domain-specific tool implementations. It
+    depends only on pkg/tracing, pkg/telemetry/genai, the Go standard
+    library, OTel attributes, and a YAML parser.
   composability: |
     A domain agent can build a working agentic loop by supplying: a set
     of State and Signal constants, a TransitionTable (or YAML machine
     file), tool Builders registered in a Registry, a TerminalFunc, and
     optional LoopHooks. No subclassing, no code generation.
+  reusable_infrastructure: |
+    LLM integration (pkg/llm), prompt assembly (pkg/prompt), standard
+    tools (pkg/stl), and CLI flags (pkg/cli) are shared across agents.
+    Domain agents compose these packages without reimplementing them.
   budget_enforcement: |
     Iteration, token, and wall-clock-time limits are enforced by the
     generic loop. Domain-specific limits (e.g., max build failures)
@@ -106,16 +121,29 @@ success_criteria:
   observability: |
     Every command dispatch is recorded as a RunEvent. The loop emits
     OpenTelemetry spans and events for state transitions, budget
-    checks, and dispatch outcomes.
+    checks, and dispatch outcomes. ToolMetrics on Result enable
+    structured progress tracking.
   backward_compatibility: |
     The generator (formerly harness) re-exports agent-core types via
     type aliases. Existing code compiles without import changes.
 
 not:
-  - We do not implement any specific tools (file I/O, build, test, LLM calls).
   - We do not define domain-specific states or signals.
-  - We do not provide an LLM adapter or prompt assembly.
-  - We do not build a CLI. Agent-core is a library.
-  - We do not manage conversation history.
   - We do not implement an orchestrator or outer loop.
   - We do not define deployment, packaging, or container images.
+  - We do not provide a standalone executable; agent-core is a library.
+
+dependencies:
+  direct:
+    - go.opentelemetry.io/otel (attributes, trace, metric)
+    - go.opentelemetry.io/otel/sdk (trace and metric providers)
+    - go.opentelemetry.io/otel/exporters (OTLP gRPC, stdout)
+    - go.opentelemetry.io/proto/otlp (proto types for replay)
+    - google.golang.org/grpc (OTLP transport)
+    - google.golang.org/protobuf (proto serialization)
+    - gopkg.in/yaml.v3 (YAML parsing)
+    - github.com/stretchr/testify (test assertions)
+  indirect:
+    - github.com/dominikbraun/graph (spec dependency graphs)
+    - github.com/google/uuid (trace IDs)
+    - github.com/cenkalti/backoff/v5 (OTLP retry)

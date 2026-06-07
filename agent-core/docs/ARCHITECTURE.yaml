@@ -121,15 +121,16 @@ components:
     responsibility: |
       Core type definitions shared across all components. Defines
       State (string), Signal (string), Command interface, Result
-      struct, Cost struct, Builder interface, CommandResolver
-      interface, and SpanOverride interface. Defines generic signals
-      (Seed, BudgetExhausted, CommandError), standard tool signals
-      (ToolDone, ToolFailed, EditDone), and LLM signals (LLMResponded,
-      ParseFailed, TaskCompleted).
+      struct, Cost struct, ToolMetrics struct, Builder interface,
+      CommandResolver interface, and SpanOverride interface. Defines
+      generic signals (Seed, BudgetExhausted, CommandError), standard
+      tool signals (ToolDone, ToolFailed, EditDone), and LLM signals
+      (LLMResponded, ParseFailed, TaskCompleted).
     capabilities:
       - Define the State and Signal string types
       - Define the Command interface (Name, Execute)
-      - Define Result and Cost structs for command output
+      - Define Result, Cost, and ToolMetrics structs for command output
+      - Define ToolMetrics for structured success/failure tracking on Result
       - Define Builder and CommandResolver interfaces
       - Define SpanOverride interface for custom dispatch span naming
       - Define generic signals (Seed, BudgetExhausted, CommandError)
