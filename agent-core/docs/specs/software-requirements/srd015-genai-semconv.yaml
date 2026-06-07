@@ -19,10 +19,12 @@ requirements:
     items:
       - R1.1: Define gen_ai.operation.name, gen_ai.provider.name, gen_ai.request.model, gen_ai.response.model constants.
       - R1.2: Define gen_ai.agent.name, gen_ai.agent.id, gen_ai.agent.version, gen_ai.agent.description constants.
-      - R1.3: Define gen_ai.tool.name, gen_ai.tool.type, gen_ai.tool.call.id, gen_ai.tool.description constants.
+      - R1.3: Define gen_ai.tool.name, gen_ai.tool.type, gen_ai.tool.call.id, gen_ai.tool.description, gen_ai.tool.call.arguments, gen_ai.tool.call.result, gen_ai.tool.definitions constants.
       - R1.4: Define gen_ai.usage.input_tokens, gen_ai.usage.output_tokens constants.
       - R1.5: Define gen_ai.response.finish_reasons, gen_ai.response.id constants.
       - R1.6: Define error.type, server.address, server.port constants.
+      - R1.7: Define gen_ai.output.type, gen_ai.workflow.name, gen_ai.conversation.id constants.
+      - R1.8: Define content attribute keys for opt-in data capture — gen_ai.input.messages, gen_ai.output.messages, gen_ai.system_instructions.
 
   R2:
     title: Operation name constants
@@ -30,10 +32,11 @@ requirements:
       - R2.1: "Define operation names: chat, create_agent, invoke_agent, execute_tool, invoke_workflow, embeddings, retrieval, text_completion."
 
   R3:
-    title: Provider and tool type constants
+    title: Provider, tool type, and output type constants
     items:
       - R3.1: "Define provider names: ollama, openai, anthropic, deepseek."
       - R3.2: "Define tool types: function, extension, datastore."
+      - R3.3: "Define output type constants: text, json, image."
 
   R4:
     title: Span name builders
@@ -51,6 +54,7 @@ requirements:
       - R5.3: ToolAttrs returns gen_ai.operation.name, gen_ai.tool.name, and optional gen_ai.tool.type.
       - R5.4: UsageAttrs returns gen_ai.usage.input_tokens and gen_ai.usage.output_tokens.
       - R5.5: ErrorAttrs returns error.type, defaulting to "_OTHER" for empty input.
+      - R5.6: WorkflowAttrs returns gen_ai.operation.name (invoke_workflow) and optional gen_ai.workflow.name.
 
 non_goals:
   - Span creation or lifecycle management.
@@ -59,16 +63,20 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: All gen_ai.* attribute key constants match the OTel GenAI semantic convention specification.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
+    criterion: All gen_ai.* attribute key constants match the OTel GenAI semantic convention specification. Content, workflow, conversation, and output-type keys are defined.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
 
   - id: AC2
     criterion: "Span name builders produce \"{operation} {name}\" format, falling back to bare operation name for empty input."
     traces: [R4.1, R4.2, R4.3, R4.4]
 
   - id: AC3
-    criterion: Attribute builders return correct attribute slices for inference, agent, tool, and usage spans.
-    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+    criterion: Attribute builders return correct attribute slices for inference, agent, tool, workflow, usage, and error spans.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6]
+
+  - id: AC4
+    criterion: Output type constants (text, json, image) and provider/tool type constants are exported.
+    traces: [R3.1, R3.2, R3.3]
 
 depends_on:
   - srd_id: srd007-tracer-interface

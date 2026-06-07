@@ -2,10 +2,12 @@ id: srd017-llm-extensions
 title: LLM Package Extensions (parseutil, profile, interfaces)
 
 problem: |
-  The LLM package grew beyond the original Client and Conversation types
-  to include response parsing utilities, model profile management, and
-  domain interfaces for prompt assembly and response extraction. These
-  additions are undocumented.
+  The LLM package provides infrastructure beyond the core Client and
+  Conversation types: response parsing utilities for JSON repair and
+  validation, a YAML-driven model profile system for per-model extraction
+  pipelines, and domain interfaces (ResponseParser, PromptAssembler) for
+  extensible prompt and response handling. These capabilities need formal
+  specification to ensure stable contracts.
 
 goals:
   - G1: Parse utilities for JSON repair, flat parameter extraction, token estimation, and field validation.
@@ -28,17 +30,18 @@ requirements:
   R2:
     title: Model profiles
     items:
-      - R2.1: ProfileSpec defines a model profile with name, match_prefixes, envelope, strict_format, and extraction_pipeline.
+      - R2.1: "ProfileSpec defines a model profile with name, match_prefixes, machine (MachineName), envelope, strict_format, and extraction_pipeline."
       - R2.2: LoadProfiles reads all YAML profile files from a directory. LoadProfilesFromBytes loads from embedded byte maps.
       - R2.3: ProfileRegistry resolves profiles by model name using prefix matching, falling back to a default.
       - R2.4: "Extraction pipeline steps: strip_code_fences, strip_thinking_blocks, extract_envelope, extract_native_token, extract_braces."
       - R2.5: DefaultProfile creates a fallback ResponseParser with envelope-based extraction.
 
   R3:
-    title: Domain interfaces
+    title: Domain interfaces and types
     items:
       - R3.1: ResponseParser interface has ExtractToolCall(raw) and EnvelopeConfig() methods.
       - R3.2: PromptAssembler interface has AssembleMessages(conv, registry, state) returning []Message.
+      - R3.3: "ToolRequest struct represents a parsed tool call with ToolName (string, json:\"tool\") and Params (json.RawMessage, json:\"parameters\"). Used as the intermediate representation between parse_response and command dispatch."
 
   R4:
     title: Extraction functions
@@ -64,8 +67,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
 
   - id: AC3
-    criterion: ResponseParser and PromptAssembler are domain interfaces. yamlProfile satisfies ResponseParser at compile time.
-    traces: [R3.1, R3.2]
+    criterion: ResponseParser and PromptAssembler are domain interfaces. yamlProfile satisfies ResponseParser at compile time. ToolRequest is the parsed tool call representation.
+    traces: [R3.1, R3.2, R3.3]
 
   - id: AC4
     criterion: Extraction functions handle code fences, envelopes, thinking blocks, braces, and native tokens.

@@ -324,6 +324,8 @@ project_structure:
     role: Prompt struct, YAML loading, system prompt template, and manifest serialization
   - path: pkg/stl/
     role: Standard tool library (file tools, build tools, LLM commands, subprocess, process groups)
+  - path: pkg/cli/
+    role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
   - path: pkg/spec/
     role: Specification graph loader and cross-artifact validator
   - path: docs/
@@ -332,7 +334,7 @@ project_structure:
     role: Mage targets from cobbler-scaffold
 
 implementation_status:
-  current_focus: Expanding agent-core with LLM, prompt, STL, and spec packages
+  current_focus: CLI flag contract, documentation accuracy, and cross-reference hygiene
   progress:
     - done: VISION.yaml authored
     - done: ARCHITECTURE.yaml authored
@@ -345,8 +347,9 @@ implementation_status:
     - done: pkg/prompt/ imported (Prompt, LoadPrompt, system template, SerializeManifest)
     - done: pkg/stl/ imported (file tools, build tools, LLM commands, subprocess)
     - done: pkg/spec/ imported (SRD/UC/TS parsing, graph, validation, corpus)
-    - done: Tests imported and passing (281 tests across 8 packages)
-    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd017)
+    - done: pkg/cli/ (standard flag constants, PropagateArgs, RemainingBudget)
+    - done: Tests imported and passing (297 tests across 9 packages)
+    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd018)
     - done: Generator updated to import agent-core
 
 related_documents:

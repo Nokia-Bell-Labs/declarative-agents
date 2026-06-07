@@ -84,7 +84,7 @@ requirements:
 
 non_goals:
   - Token counting or context window estimation.
-  - Prompt assembly from structured parts (srd009 prompt schema responsibility).
+  - Prompt assembly from structured parts (srd011 prompt schema responsibility).
   - Retry logic or error recovery.
   - Message persistence or serialization to disk.
 

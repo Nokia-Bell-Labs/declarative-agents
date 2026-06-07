@@ -39,8 +39,12 @@ requirements:
     title: LLM tools
     items:
       - R3.1: invoke_llm assembles messages via PromptAssembler, calls Chat, and appends the response to the conversation.
-      - R3.2: parse_response extracts tool calls from LLM output using a ResponseParser.
-      - R3.3: done tool signals task completion and extracts a summary.
+      - R3.2: parse_response extracts tool calls from LLM output using a ResponseParser. The "done" tool name is recognised inside parse_response to signal TaskCompleted; it is not a separate Command.
+      - R3.3: report_parse_error feeds parse failure feedback back to the LLM, classifying the error via ClassifyParseError.
+      - R3.4: reset_history clears the Conversation for a fresh LLM context, emitting the previous message count as a span attribute.
+      - R3.5: invoke_llm checks ContextLimit; if estimated tokens exceed the limit it returns CommandError before calling Chat.
+      - R3.6: invoke_llm supports CallTimeout (per-call context deadline) and NumCtx (Ollama context window size forwarded via ChatOptions).
+      - R3.7: invoke_llm emits verbose OTel attributes (genai input/output messages) when Verbose is true.
 
   R4:
     title: Subprocess utilities
@@ -48,6 +52,14 @@ requirements:
       - R4.1: SubprocessResult maps subprocess output and error to a core.Result with ToolDone or ToolFailed signals.
       - R4.2: ProcGroupCmd sets up a command to run in its own process group for clean cancellation.
       - R4.3: RunInProcGroup executes a command with process group management, capturing stdout, stderr, exit code, and elapsed time.
+      - R4.4: CapOutput truncates output to a maximum line count, appending an omission summary. DefaultOutputLineCap (200) is the default limit.
+      - R4.5: ExtractStringParam extracts a named string parameter from a serialised JSON tool request for use by tool builders.
+
+  R7:
+    title: Metrics helpers
+    items:
+      - R7.1: ParseTestMetrics extracts pass/fail/skip counts from go test output. Detects build-failed state (no tests ran).
+      - R7.2: ParseBuildMetrics extracts unique file-level error counts from go build output.
 
   R5:
     title: Registration helpers
@@ -76,12 +88,16 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4]
 
   - id: AC3
-    criterion: LLM tools (invoke_llm, parse_response, done) integrate with Conversation, ResponseParser, and PromptAssembler.
-    traces: [R3.1, R3.2, R3.3]
+    criterion: LLM tools (invoke_llm, parse_response, report_parse_error, reset_history) integrate with Conversation, ResponseParser, and PromptAssembler. invoke_llm enforces ContextLimit, CallTimeout, and NumCtx. "done" is a tool name recognised in parse_response.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7]
 
   - id: AC4
-    criterion: SubprocessResult maps output to ToolDone/ToolFailed. ProcGroupCmd enables process group cancellation.
-    traces: [R4.1, R4.2, R4.3]
+    criterion: SubprocessResult maps output to ToolDone/ToolFailed. ProcGroupCmd enables process group cancellation. CapOutput and ExtractStringParam support tool builders.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+
+  - id: AC7
+    criterion: ParseTestMetrics and ParseBuildMetrics extract structured ToolMetrics from go test and go build output.
+    traces: [R7.1, R7.2]
 
   - id: AC5
     criterion: RegisterFileTools, RegisterBuildTools, and RegisterAll register tools in bulk with workspace scoping.

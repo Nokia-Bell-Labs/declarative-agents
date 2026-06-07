@@ -1,0 +1,73 @@
+id: srd018-cli-flag-contract
+title: CLI Standard Flag Contract
+
+problem: |
+  Agent CLIs share a common set of flags for telemetry propagation, model
+  selection, timeouts, and working directory. Without a shared contract,
+  each CLI binary reinvents flag names and argument-building logic,
+  leading to inconsistencies and broken parent→child span propagation.
+
+goals:
+  - G1: Define canonical flag name constants so all agent binaries use identical CLI surfaces.
+  - G2: Provide PropagateArgs for building child-process argument slices with traceparent and budget propagation.
+  - G3: Provide helpers for remaining-budget calculation and ad-hoc flag formatting.
+
+requirements:
+  R1:
+    title: Standard flag name constants
+    items:
+      - R1.1: FlagOTelLogFile ("otel-log-file") — path to the OTLP JSON log file shared across the process tree.
+      - R1.2: FlagOTelParent ("otel-parent-span") — W3C traceparent string linking child spans to the parent trace.
+      - R1.3: FlagModel ("model") — LLM model identifier passed to the Ollama adapter.
+      - R1.4: FlagDirectory ("directory") — working directory the agent operates in.
+      - R1.5: FlagMaxTime ("max-time") — total wall-clock budget for the agent process.
+      - R1.6: FlagLLMTimeout ("llm-timeout") — per-LLM-call timeout.
+      - R1.7: FlagPrompt ("prompt") — path to the prompt/task file.
+      - R1.8: FlagOllamaURL ("ollama-url") — base URL of the Ollama API server.
+
+  R2:
+    title: PropagateArgs struct and Build method
+    items:
+      - R2.1: "PropagateArgs fields: SpanContext (trace.SpanContext), TraceFile (string), Model (string), Directory (string), Prompt (string), OllamaURL (string), MaxTime (time.Duration), LLMTimeout (time.Duration)."
+      - R2.2: Build() serialises SpanContext via telemetry.FormatTraceparent and emits --otel-parent-span only when the span context is valid.
+      - R2.3: Build() omits flags whose values are zero/empty, producing a minimal argument slice.
+      - R2.4: Build() emits durations using Go's Duration.String() format (e.g. "5m0s").
+
+  R3:
+    title: RemainingBudget helper
+    items:
+      - R3.1: "RemainingBudget(total, elapsed time.Duration) time.Duration computes the remaining wall-clock budget."
+      - R3.2: Returns 0 when total is zero (unlimited budget) or when elapsed >= total (exhausted).
+
+  R4:
+    title: FormatFlag helper
+    items:
+      - R4.1: "FormatFlag(name, value string) []string returns [\"--name\", \"value\"] for ad-hoc flags not covered by PropagateArgs."
+
+non_goals:
+  - Flag registration with cobra/pflag (that is the responsibility of each CLI binary's main).
+  - Parsing inbound flags (each binary uses its own flag set).
+  - Environment variable fallbacks.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Eight standard flag name constants are exported and match the canonical CLI surface.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
+
+  - id: AC2
+    criterion: PropagateArgs.Build() produces a correct flag slice, omitting flags with zero values and formatting traceparent via telemetry.FormatTraceparent.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC3
+    criterion: RemainingBudget returns 0 for unlimited or exhausted budgets, and the correct remainder otherwise.
+    traces: [R3.1, R3.2]
+
+  - id: AC4
+    criterion: FormatFlag returns a two-element slice with the prefixed flag name and value.
+    traces: [R4.1]
+
+depends_on:
+  - srd_id: srd016-traceparent
+    symbols_used: [FormatTraceparent, ParseTraceparent]
+  - srd_id: srd009-ollama-adapter
+    symbols_used: [Adapter]
