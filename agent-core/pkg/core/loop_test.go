@@ -4,6 +4,8 @@ package core
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -348,6 +350,138 @@ func TestLoop_TokenBudgetExhausted(t *testing.T) {
 	rr, err := Loop(params, context.Background())
 	require.NoError(t, err)
 	require.Equal(t, StatusBudgetExceeded, rr.Status)
+}
+
+func TestLoop_DeclarativeInit(t *testing.T) {
+	t.Parallel()
+
+	machineYAML := `
+name: test-machine
+initial_state: Start
+states: [Start, Working, Finished, Failed]
+terminal_states: [Finished, Failed]
+signals: [Seed, Done, TaskCompleted, BudgetExhausted, CommandError]
+transitions:
+  - state: Start
+    signal: Seed
+    next: Working
+    action: step_a
+  - state: Working
+    signal: Done
+    next: Working
+    action: step_b
+  - state: Working
+    signal: TaskCompleted
+    next: Finished
+  - state: Working
+    signal: BudgetExhausted
+    next: Failed
+  - state: Working
+    signal: CommandError
+    next: Failed
+`
+	dir := t.TempDir()
+	machineFile := dir + "/machine.yaml"
+	if err := os.WriteFile(machineFile, []byte(machineYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tr := &loopRecorder{}
+
+	params := LoopParams{
+		Prompt:      "test",
+		MachineFile: machineFile,
+		Trace:       tr,
+		Budget:      Budget{MaxIterations: 100},
+		InitFunc: func(reg *Registry) error {
+			reg.Register(ToolSpec{Name: "step_a", Visibility: Internal}, &fakeBuilder{name: "step_a", signal: Signal("Done")})
+			reg.Register(ToolSpec{Name: "step_b", Visibility: Internal}, &fakeBuilder{name: "step_b", signal: Signal("TaskCompleted")})
+			return nil
+		},
+		Hooks: LoopHooks{
+			TaskCompletedSignal: Signal("TaskCompleted"),
+			TerminalStatus: func(s State) RunStatus {
+				if s == "Finished" {
+					return StatusSucceeded
+				}
+				return StatusFailed
+			},
+		},
+	}
+
+	rr, err := Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, StatusSucceeded, rr.Status)
+	require.Equal(t, State("Finished"), rr.FinalState)
+	require.Equal(t, 2, rr.Iterations)
+}
+
+func TestLoop_DeclarativeInit_MissingTool(t *testing.T) {
+	t.Parallel()
+
+	machineYAML := `
+name: test
+initial_state: S
+states: [S, F]
+terminal_states: [F]
+signals: [Seed]
+transitions:
+  - state: S
+    signal: Seed
+    next: F
+    action: nonexistent
+`
+	dir := t.TempDir()
+	machineFile := dir + "/machine.yaml"
+	if err := os.WriteFile(machineFile, []byte(machineYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	params := LoopParams{
+		Prompt:      "test",
+		MachineFile: machineFile,
+		Trace:       &loopRecorder{},
+		Budget:      Budget{MaxIterations: 10},
+	}
+
+	_, err := Loop(params, context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nonexistent")
+}
+
+func TestLoop_DeclarativeInit_InitFuncError(t *testing.T) {
+	t.Parallel()
+
+	machineYAML := `
+name: test
+initial_state: S
+states: [S, F]
+terminal_states: [F]
+signals: [Seed]
+transitions:
+  - state: S
+    signal: Seed
+    next: F
+`
+	dir := t.TempDir()
+	machineFile := dir + "/machine.yaml"
+	if err := os.WriteFile(machineFile, []byte(machineYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	params := LoopParams{
+		Prompt:      "test",
+		MachineFile: machineFile,
+		Trace:       &loopRecorder{},
+		Budget:      Budget{MaxIterations: 10},
+		InitFunc: func(reg *Registry) error {
+			return fmt.Errorf("init failed: bad config")
+		},
+	}
+
+	_, err := Loop(params, context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "init failed: bad config")
 }
 
 // --- test helpers ---

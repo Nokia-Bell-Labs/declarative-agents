@@ -108,6 +108,17 @@ type LoopHooks struct {
 }
 
 // LoopParams bundles all inputs for Loop.
+//
+// There are two initialization modes:
+//
+// Manual mode (existing): caller sets Registry, Table, IsTerminal.
+//
+// Declarative mode (new): caller sets MachineFile (and optionally
+// InitFunc to register tools). Loop loads the machine, validates
+// actions against the registry, and builds the transition table.
+//
+// When MachineFile is set, Table and IsTerminal are ignored and
+// built internally. InitialState is derived from the machine spec.
 type LoopParams struct {
 	InitialState   State
 	Prompt         string
@@ -125,12 +136,44 @@ type LoopParams struct {
 	AgentName     string // e.g. "generator", "planner"
 	AgentVersion  string // e.g. "v0.20260605.0"
 	ProviderName  string // e.g. "ollama"
+
+	// Declarative initialization: Loop loads the machine from YAML,
+	// validates that every action resolves to a registered tool, and
+	// builds the transition table. Requires Registry to be populated
+	// (either by the caller or via InitFunc).
+	MachineFile string
+
+	// InitFunc is called before the machine is loaded. Use it to
+	// register tools with the registry (e.g. load from YAML, register
+	// Go builders). Called with the registry that Loop will use.
+	// When nil, the caller must populate the registry before calling Loop.
+	InitFunc func(reg *Registry) error
+
+	// ToolAction is the ActionFunc for "$tool" transitions (dynamic
+	// dispatch). Required when the machine uses "$tool" actions.
+	ToolAction ActionFunc
 }
 
 // Loop executes the generic agentic loop. It drives the state machine
 // from InitialState to a terminal state, dispatching Commands through
 // Dispatch, tracking budget, and collecting events.
+//
+// When MachineFile is set, Loop owns initialization:
+//  1. Create registry if nil
+//  2. Call InitFunc to register tools
+//  3. Load machine YAML
+//  4. BuildTransitionTable (validates all actions resolve)
+//  5. Freeze registry and enter the loop
 func Loop(params LoopParams, ctx context.Context) (RunResult, error) {
+	if err := initFromMachine(&params); err != nil {
+		if params.Trace != nil {
+			params.Trace.Event("init.machine_failed",
+				attribute.String("error", err.Error()),
+			)
+		}
+		return RunResult{}, fmt.Errorf("loop init: %w", err)
+	}
+
 	if params.Hooks.ValidateParams != nil {
 		if err := params.Hooks.ValidateParams(params.Registry); err != nil {
 			params.Trace.Event("init.validate_failed",
@@ -345,6 +388,41 @@ func emitIterationSpan(tr tracing.Tracer, iter int, res Result, from, to State) 
 		attribute.Int("budget.tokens_in", res.Cost.TokensIn),
 		attribute.Int("budget.tokens_out", res.Cost.TokensOut),
 	)
+}
+
+// initFromMachine handles declarative initialization when MachineFile is set.
+// It creates the registry, calls InitFunc, loads the machine, validates
+// actions, and populates Table/IsTerminal/InitialState on params.
+func initFromMachine(params *LoopParams) error {
+	if params.MachineFile == "" {
+		return nil
+	}
+
+	if params.Registry == nil {
+		params.Registry = NewRegistry()
+	}
+
+	if params.InitFunc != nil {
+		if err := params.InitFunc(params.Registry); err != nil {
+			return fmt.Errorf("init tools: %w", err)
+		}
+	}
+
+	spec, err := LoadMachineSpec(params.MachineFile)
+	if err != nil {
+		return err
+	}
+
+	table, isTerminal, err := BuildTransitionTable(spec, params.Registry, params.ToolAction)
+	if err != nil {
+		return err
+	}
+
+	params.Table = table
+	params.IsTerminal = isTerminal
+	params.InitialState = State(spec.InitialState)
+
+	return nil
 }
 
 // ValidateBuilders is a convenience for creating ValidateParams hooks
