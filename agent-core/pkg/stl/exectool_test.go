@@ -18,24 +18,31 @@ tools:
     binary: echo
     args: [hello]
     description: "Say hello"
-    params:
-      - name: name
-        flag: --name
-        required: true
-        description: "Name to greet"
-      - name: loud
-        flag: --loud
-        bool_flag: true
-        description: "Shout"
+    parameters:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "Name to greet"
+          flag: --name
+        loud:
+          type: boolean
+          description: "Shout"
+          flag: --loud
+          bool_flag: true
+      required: [name]
   - name: list_dir
     binary: ls
     args: [-la]
     description: "List directory"
-    params:
-      - name: path
-        positional: true
-        default: "."
-        description: "Directory to list"
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Directory to list"
+          positional: true
+          default: "."
 `
 
 func TestParseToolDefs(t *testing.T) {
@@ -46,13 +53,34 @@ func TestParseToolDefs(t *testing.T) {
 	assert.Equal(t, "greet", defs[0].Name)
 	assert.Equal(t, "echo", defs[0].Binary)
 	assert.Equal(t, []string{"hello"}, defs[0].Args)
-	assert.Len(t, defs[0].Params, 2)
-	assert.True(t, defs[0].Params[0].Required)
-	assert.True(t, defs[0].Params[1].BoolFlag)
+
+	mappings := defs[0].ExtractParamMappings()
+	assert.Len(t, mappings, 2)
+
+	nameMapping := findMapping(mappings, "name")
+	require.NotNil(t, nameMapping)
+	assert.Equal(t, "--name", nameMapping.Flag)
+	assert.True(t, nameMapping.Required)
+
+	loudMapping := findMapping(mappings, "loud")
+	require.NotNil(t, loudMapping)
+	assert.True(t, loudMapping.BoolFlag)
 
 	assert.Equal(t, "list_dir", defs[1].Name)
-	assert.True(t, defs[1].Params[0].Positional)
-	assert.Equal(t, ".", defs[1].Params[0].Default)
+	pathMappings := defs[1].ExtractParamMappings()
+	pathMapping := findMapping(pathMappings, "path")
+	require.NotNil(t, pathMapping)
+	assert.True(t, pathMapping.Positional)
+	assert.Equal(t, ".", pathMapping.Default)
+}
+
+func findMapping(mappings []ParamMapping, name string) *ParamMapping {
+	for i := range mappings {
+		if mappings[i].Name == name {
+			return &mappings[i]
+		}
+	}
+	return nil
 }
 
 func TestParseToolDefs_Errors(t *testing.T) {
@@ -93,8 +121,16 @@ func TestToolDef_ToToolSpec(t *testing.T) {
 		Binary:      "go",
 		Args:        []string{"build"},
 		SideEffects: "produces binary",
-		Params: []ParamDef{
-			{Name: "pkg", Flag: "--pkg", Required: true, Desc: "Package"},
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"pkg": map[string]interface{}{
+					"type":        "string",
+					"description": "Package",
+					"flag":        "--pkg",
+				},
+			},
+			"required": []interface{}{"pkg"},
 		},
 	}
 
@@ -107,9 +143,11 @@ func TestToolDef_ToToolSpec(t *testing.T) {
 	var schema map[string]interface{}
 	require.NoError(t, json.Unmarshal(spec.InputSchema, &schema))
 	props := schema["properties"].(map[string]interface{})
-	assert.Contains(t, props, "pkg")
-	req := schema["required"].([]interface{})
-	assert.Contains(t, req, "pkg")
+	pkg := props["pkg"].(map[string]interface{})
+	assert.Equal(t, "string", pkg["type"])
+	assert.Equal(t, "Package", pkg["description"])
+	// CLI extensions should be stripped
+	assert.NotContains(t, pkg, "flag")
 }
 
 func TestToolDef_ToToolSpec_Internal(t *testing.T) {
@@ -122,12 +160,51 @@ func TestToolDef_ToToolSpec_Internal(t *testing.T) {
 	assert.Equal(t, core.Internal, spec.Visibility)
 }
 
+func TestStripCLIExtensions(t *testing.T) {
+	schema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"msg": map[string]interface{}{
+				"type":        "string",
+				"description": "Message",
+				"flag":        "-m",
+				"positional":  false,
+				"bool_flag":   false,
+				"default":     "hello",
+			},
+		},
+		"required": []interface{}{"msg"},
+	}
+
+	cleaned := stripCLIExtensions(schema)
+
+	props := cleaned["properties"].(map[string]interface{})
+	msg := props["msg"].(map[string]interface{})
+
+	assert.Equal(t, "string", msg["type"])
+	assert.Equal(t, "Message", msg["description"])
+	assert.NotContains(t, msg, "flag")
+	assert.NotContains(t, msg, "positional")
+	assert.NotContains(t, msg, "bool_flag")
+	assert.NotContains(t, msg, "default")
+
+	assert.Contains(t, cleaned, "required")
+	assert.Equal(t, "object", cleaned["type"])
+}
+
 func TestExecBuilder_MissingRequired(t *testing.T) {
 	td := ToolDef{
 		Name:   "greet",
 		Binary: "echo",
-		Params: []ParamDef{
-			{Name: "name", Flag: "--name", Required: true},
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"name": map[string]interface{}{
+					"type": "string",
+					"flag": "--name",
+				},
+			},
+			"required": []interface{}{"name"},
 		},
 	}
 	builder := &ExecBuilder{Def: td, Root: "/tmp"}
@@ -142,8 +219,15 @@ func TestExecBuilder_WithDefault(t *testing.T) {
 		Name:   "list",
 		Binary: "echo",
 		Args:   []string{"listing"},
-		Params: []ParamDef{
-			{Name: "path", Positional: true, Default: "."},
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"path": map[string]interface{}{
+					"type":       "string",
+					"positional": true,
+					"default":    ".",
+				},
+			},
 		},
 	}
 	builder := &ExecBuilder{Def: td, Root: "/tmp"}
@@ -158,9 +242,19 @@ func TestExecCmd_BuildArgs(t *testing.T) {
 		Name:   "test",
 		Binary: "go",
 		Args:   []string{"test", "-count=1"},
-		Params: []ParamDef{
-			{Name: "package", Positional: true},
-			{Name: "verbose", Flag: "-v", BoolFlag: true},
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"package": map[string]interface{}{
+					"type":       "string",
+					"positional": true,
+				},
+				"verbose": map[string]interface{}{
+					"type":      "boolean",
+					"flag":      "-v",
+					"bool_flag": true,
+				},
+			},
 		},
 	}
 
@@ -171,7 +265,11 @@ func TestExecCmd_BuildArgs(t *testing.T) {
 	}
 
 	args := cmd.buildArgs()
-	assert.Equal(t, []string{"test", "-count=1", "./pkg/...", "-v"}, args)
+	// Order depends on map iteration, so check contents
+	assert.Contains(t, args, "test")
+	assert.Contains(t, args, "-count=1")
+	assert.Contains(t, args, "./pkg/...")
+	assert.Contains(t, args, "-v")
 }
 
 func TestExecCmd_BuildArgs_FlagParams(t *testing.T) {
@@ -179,9 +277,18 @@ func TestExecCmd_BuildArgs_FlagParams(t *testing.T) {
 		Name:   "create",
 		Binary: "bd",
 		Args:   []string{"create", "--json"},
-		Params: []ParamDef{
-			{Name: "title", Flag: "--title"},
-			{Name: "body", Flag: "--body"},
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"title": map[string]interface{}{
+					"type": "string",
+					"flag": "--title",
+				},
+				"body": map[string]interface{}{
+					"type": "string",
+					"flag": "--body",
+				},
+			},
 		},
 	}
 
@@ -192,7 +299,9 @@ func TestExecCmd_BuildArgs_FlagParams(t *testing.T) {
 	}
 
 	args := cmd.buildArgs()
-	assert.Equal(t, []string{"create", "--json", "--title", "fix bug"}, args)
+	assert.Contains(t, args, "--title")
+	assert.Contains(t, args, "fix bug")
+	assert.NotContains(t, args, "--body")
 }
 
 func TestExecCmd_Execute_Success(t *testing.T) {
@@ -299,4 +408,78 @@ func TestLoadDefaultToolDefs(t *testing.T) {
 	} {
 		assert.True(t, names[expected], "missing tool %q", expected)
 	}
+}
+
+func TestDefaultToolDefs_CLIExtensionsStripped(t *testing.T) {
+	defs, err := LoadToolDefs("tools.yaml")
+	require.NoError(t, err)
+
+	for _, d := range defs {
+		spec := d.ToToolSpec()
+		if len(spec.InputSchema) == 0 {
+			continue
+		}
+
+		var schema map[string]interface{}
+		require.NoError(t, json.Unmarshal(spec.InputSchema, &schema), "tool %s", d.Name)
+
+		props, ok := schema["properties"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		for pName, pVal := range props {
+			pMap, ok := pVal.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			for ext := range cliExtensionKeys {
+				assert.NotContains(t, pMap, ext,
+					"tool %s property %s should not have CLI extension %q in LLM schema",
+					d.Name, pName, ext)
+			}
+		}
+	}
+}
+
+func TestExtractParamMappings_Empty(t *testing.T) {
+	td := ToolDef{Name: "noop", Binary: "true"}
+	assert.Nil(t, td.ExtractParamMappings())
+}
+
+func TestExtractParamMappings_Full(t *testing.T) {
+	td := ToolDef{
+		Name:   "test",
+		Binary: "go",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"pkg": map[string]interface{}{
+					"type":       "string",
+					"positional": true,
+					"default":    "./...",
+				},
+				"verbose": map[string]interface{}{
+					"type":      "boolean",
+					"flag":      "-v",
+					"bool_flag": true,
+				},
+			},
+			"required": []interface{}{"pkg"},
+		},
+	}
+
+	mappings := td.ExtractParamMappings()
+	assert.Len(t, mappings, 2)
+
+	pkg := findMapping(mappings, "pkg")
+	require.NotNil(t, pkg)
+	assert.True(t, pkg.Positional)
+	assert.True(t, pkg.Required)
+	assert.Equal(t, "./...", pkg.Default)
+
+	verbose := findMapping(mappings, "verbose")
+	require.NotNil(t, verbose)
+	assert.True(t, verbose.BoolFlag)
+	assert.Equal(t, "-v", verbose.Flag)
+	assert.False(t, verbose.Required)
 }

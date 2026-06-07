@@ -14,33 +14,39 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
 
-// ToolDef is a declarative, YAML-driven definition for a CLI-wrapping tool.
-// Instead of writing Go structs per tool, define them in YAML and let the
-// generic ExecCmd + ExecBuilder handle execution and parameter mapping.
-type ToolDef struct {
-	Name        string     `yaml:"name"`
-	Description string     `yaml:"description"`
-	Binary      string     `yaml:"binary"`
-	Args        []string   `yaml:"args"`
-	Params      []ParamDef `yaml:"params,omitempty"`
-	Dir         string     `yaml:"dir,omitempty"`
-	Precondition string   `yaml:"precondition,omitempty"`
-	Visibility  string     `yaml:"visibility,omitempty"`
-	OutputCap   int        `yaml:"output_cap,omitempty"`
-	SideEffects string     `yaml:"side_effects,omitempty"`
+// CLI mapping extension keys embedded in JSON Schema properties.
+// These are stripped before sending the schema to the LLM.
+var cliExtensionKeys = map[string]bool{
+	"flag":       true,
+	"positional": true,
+	"bool_flag":  true,
+	"default":    true,
 }
 
-// ParamDef maps a tool input parameter to a CLI flag.
-type ParamDef struct {
-	Name     string `yaml:"name"`
-	Flag     string `yaml:"flag"`
-	Required bool   `yaml:"required,omitempty"`
-	Default  string `yaml:"default,omitempty"`
-	Desc     string `yaml:"description,omitempty"`
-	// Positional, when true, appends the value without a flag prefix.
-	Positional bool `yaml:"positional,omitempty"`
-	// BoolFlag, when true, appends the flag without a value when param is present.
-	BoolFlag bool `yaml:"bool_flag,omitempty"`
+// ToolDef is a declarative, YAML-driven definition for a CLI-wrapping tool.
+// The parameters field uses JSON Schema format (same as the LLM tool calling
+// spec) with CLI mapping extensions on each property.
+type ToolDef struct {
+	Name         string                 `yaml:"name"`
+	Description  string                 `yaml:"description"`
+	Binary       string                 `yaml:"binary"`
+	Args         []string               `yaml:"args"`
+	Parameters   map[string]interface{} `yaml:"parameters,omitempty"`
+	Dir          string                 `yaml:"dir,omitempty"`
+	Precondition string                 `yaml:"precondition,omitempty"`
+	Visibility   string                 `yaml:"visibility,omitempty"`
+	OutputCap    int                    `yaml:"output_cap,omitempty"`
+	SideEffects  string                 `yaml:"side_effects,omitempty"`
+}
+
+// ParamMapping holds the extracted CLI mapping for one parameter.
+type ParamMapping struct {
+	Name       string
+	Flag       string
+	Positional bool
+	BoolFlag   bool
+	Default    string
+	Required   bool
 }
 
 // ToolDefsFile is the top-level YAML structure.
@@ -104,35 +110,94 @@ func (td *ToolDef) ToToolSpec() core.ToolSpec {
 	}
 }
 
+// buildInputSchema produces the LLM-facing JSON Schema by stripping
+// CLI mapping extensions from the parameters block.
 func (td *ToolDef) buildInputSchema() json.RawMessage {
-	if len(td.Params) == 0 {
+	if len(td.Parameters) == 0 {
 		return json.RawMessage(`{"type":"object","properties":{}}`)
 	}
 
-	props := make(map[string]map[string]string)
-	var required []string
-
-	for _, p := range td.Params {
-		prop := map[string]string{"type": "string"}
-		if p.Desc != "" {
-			prop["description"] = p.Desc
-		}
-		props[p.Name] = prop
-		if p.Required {
-			required = append(required, p.Name)
-		}
-	}
-
-	schema := map[string]interface{}{
-		"type":       "object",
-		"properties": props,
-	}
-	if len(required) > 0 {
-		schema["required"] = required
-	}
-
-	data, _ := json.Marshal(schema)
+	cleaned := stripCLIExtensions(td.Parameters)
+	data, _ := json.Marshal(cleaned)
 	return data
+}
+
+// stripCLIExtensions recursively removes CLI mapping keys from a
+// JSON Schema map, returning a clean copy for the LLM.
+func stripCLIExtensions(schema map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{}, len(schema))
+	for k, v := range schema {
+		if cliExtensionKeys[k] {
+			continue
+		}
+		if k == "properties" {
+			if props, ok := v.(map[string]interface{}); ok {
+				cleaned := make(map[string]interface{}, len(props))
+				for pName, pVal := range props {
+					if pMap, ok := pVal.(map[string]interface{}); ok {
+						cleaned[pName] = stripCLIExtensions(pMap)
+					} else {
+						cleaned[pName] = pVal
+					}
+				}
+				result[k] = cleaned
+				continue
+			}
+		}
+		result[k] = v
+	}
+	return result
+}
+
+// ExtractParamMappings extracts CLI mapping information from the
+// parameters JSON Schema.
+func (td *ToolDef) ExtractParamMappings() []ParamMapping {
+	if len(td.Parameters) == 0 {
+		return nil
+	}
+
+	props, _ := td.Parameters["properties"].(map[string]interface{})
+	if props == nil {
+		return nil
+	}
+
+	requiredSet := make(map[string]bool)
+	if reqList, ok := td.Parameters["required"].([]interface{}); ok {
+		for _, r := range reqList {
+			if s, ok := r.(string); ok {
+				requiredSet[s] = true
+			}
+		}
+	}
+
+	var mappings []ParamMapping
+	for name, val := range props {
+		pm := ParamMapping{Name: name}
+		pm.Required = requiredSet[name]
+
+		pMap, ok := val.(map[string]interface{})
+		if !ok {
+			mappings = append(mappings, pm)
+			continue
+		}
+
+		if f, ok := pMap["flag"].(string); ok {
+			pm.Flag = f
+		}
+		if b, ok := pMap["positional"].(bool); ok {
+			pm.Positional = b
+		}
+		if b, ok := pMap["bool_flag"].(bool); ok {
+			pm.BoolFlag = b
+		}
+		if d, ok := pMap["default"].(string); ok {
+			pm.Default = d
+		}
+
+		mappings = append(mappings, pm)
+	}
+
+	return mappings
 }
 
 // ExecBuilder is the generic Builder for YAML-defined tools.
@@ -143,17 +208,19 @@ type ExecBuilder struct {
 
 // Build extracts parameters from the previous result and creates an ExecCmd.
 func (b *ExecBuilder) Build(res core.Result) core.Command {
+	mappings := b.Def.ExtractParamMappings()
 	params := make(map[string]string)
-	for _, p := range b.Def.Params {
-		val := ExtractStringParam(res.Output, p.Name)
-		if val == "" && p.Default != "" {
-			val = p.Default
+
+	for _, pm := range mappings {
+		val := ExtractStringParam(res.Output, pm.Name)
+		if val == "" && pm.Default != "" {
+			val = pm.Default
 		}
-		if val == "" && p.Required {
-			return &FailedParamCmd{ToolName: b.Def.Name, Missing: p.Name}
+		if val == "" && pm.Required {
+			return &FailedParamCmd{ToolName: b.Def.Name, Missing: pm.Name}
 		}
 		if val != "" {
-			params[p.Name] = val
+			params[pm.Name] = val
 		}
 	}
 	return &ExecCmd{def: b.Def, root: b.Root, params: params}
@@ -203,17 +270,18 @@ func (c *ExecCmd) buildArgs() []string {
 	args := make([]string, len(c.def.Args))
 	copy(args, c.def.Args)
 
-	for _, p := range c.def.Params {
-		val, ok := c.params[p.Name]
+	mappings := c.def.ExtractParamMappings()
+	for _, pm := range mappings {
+		val, ok := c.params[pm.Name]
 		if !ok {
 			continue
 		}
-		if p.BoolFlag {
-			args = append(args, p.Flag)
-		} else if p.Positional {
+		if pm.BoolFlag {
+			args = append(args, pm.Flag)
+		} else if pm.Positional {
 			args = append(args, val)
 		} else {
-			args = append(args, p.Flag, val)
+			args = append(args, pm.Flag, val)
 		}
 	}
 
