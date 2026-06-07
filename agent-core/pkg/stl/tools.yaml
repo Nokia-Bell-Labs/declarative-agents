@@ -26,11 +26,122 @@ tools:
         default: "./..."
         description: "Go package path (default ./...)"
 
-  # --- git tools ---
+  # --- git tools (atomic verbs) ---
+  - name: stage_all
+    binary: git
+    args: [add, -A]
+    description: "Stage all changes including untracked files (git add -A)."
+    precondition: git_repo
+    side_effects: "moves all working tree changes to the index"
+
   - name: workspace_status
     binary: git
     args: [status, --porcelain]
     description: "Report git workspace state: changed files with status codes (M/A/D/??)."
+    precondition: git_repo
+
+  - name: commit
+    binary: git
+    args: [commit]
+    description: "Create a git commit from staged changes. Fails if nothing is staged."
+    precondition: git_repo
+    side_effects: "creates a commit object on the current branch"
+    params:
+      - name: message
+        flag: -m
+        required: true
+        description: "Commit message"
+
+  - name: rev_parse
+    binary: git
+    args: [rev-parse, --short, HEAD]
+    description: "Return the short hash of HEAD."
+    precondition: git_repo
+
+  - name: branch_create
+    binary: git
+    args: [branch]
+    description: "Create a new branch at HEAD. Does not switch to it."
+    precondition: git_repo
+    side_effects: "creates a new branch ref"
+    params:
+      - name: name
+        positional: true
+        required: true
+        description: "Branch name"
+
+  - name: branch_delete
+    binary: git
+    args: [branch, -D]
+    description: "Force-delete a branch. Irreversible."
+    precondition: git_repo
+    side_effects: "removes a branch ref"
+    params:
+      - name: name
+        positional: true
+        required: true
+        description: "Branch name"
+
+  - name: branch_list
+    binary: git
+    args: [branch, --list]
+    description: "List branches matching a pattern."
+    precondition: git_repo
+    params:
+      - name: pattern
+        positional: true
+        description: "Branch name pattern (glob)"
+
+  - name: branch_current
+    binary: git
+    args: [branch, --show-current]
+    description: "Return the name of the current branch."
+    precondition: git_repo
+
+  - name: worktree_add
+    binary: git
+    args: [worktree, add, -b]
+    description: "Create a git worktree with a new branch."
+    precondition: git_repo
+    side_effects: "creates a new branch and a new working directory"
+    params:
+      - name: branch
+        positional: true
+        required: true
+        description: "New branch name"
+      - name: path
+        positional: true
+        required: true
+        description: "Worktree directory path"
+
+  - name: worktree_remove
+    binary: git
+    args: [worktree, remove, --force]
+    description: "Remove a git worktree directory. Uncommitted changes are lost."
+    precondition: git_repo
+    side_effects: "removes the worktree directory"
+    params:
+      - name: path
+        positional: true
+        required: true
+        description: "Worktree directory path"
+
+  - name: worktree_list
+    binary: git
+    args: [worktree, list]
+    description: "List all git worktrees."
+    precondition: git_repo
+
+  - name: diff_stat
+    binary: git
+    args: [diff, --stat]
+    description: "Show a summary of uncommitted changes (files changed, insertions, deletions)."
+    precondition: git_repo
+
+  - name: log_oneline
+    binary: git
+    args: [log, --oneline, -10]
+    description: "Show the last 10 commits as one-line summaries."
     precondition: git_repo
 
   # --- issue tools ---

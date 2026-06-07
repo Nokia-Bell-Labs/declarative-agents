@@ -285,14 +285,18 @@ func TestMergeToolDefs(t *testing.T) {
 func TestLoadDefaultToolDefs(t *testing.T) {
 	defs, err := LoadToolDefs("tools.yaml")
 	require.NoError(t, err)
-	assert.True(t, len(defs) >= 9, "expected at least 9 default tool defs, got %d", len(defs))
+	assert.True(t, len(defs) >= 21, "expected at least 21 default tool defs, got %d", len(defs))
 
 	names := make(map[string]bool)
 	for _, d := range defs {
 		names[d.Name] = true
 	}
-	for _, expected := range []string{"build", "vet", "lint", "test",
-		"workspace_status", "issue_create", "issue_close", "issue_list", "issue_claim"} {
+	for _, expected := range []string{
+		"build", "vet", "lint", "test",
+		"stage_all", "workspace_status", "commit", "rev_parse",
+		"branch_create", "branch_delete", "worktree_add", "worktree_remove",
+		"issue_create", "issue_close", "issue_list", "issue_claim",
+	} {
 		assert.True(t, names[expected], "missing tool %q", expected)
 	}
 }

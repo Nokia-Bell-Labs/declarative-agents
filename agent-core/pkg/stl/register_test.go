@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
@@ -23,40 +24,42 @@ func TestRegisterFileTools(t *testing.T) {
 	}
 }
 
-func TestRegisterBuildTools(t *testing.T) {
-	reg := core.NewRegistry()
-	RegisterBuildTools(reg, "/tmp")
+func TestDefaultToolDefs(t *testing.T) {
+	defs, err := DefaultToolDefs()
+	require.NoError(t, err)
 
-	expected := []string{"build", "lint", "test", "vet"}
-	assert.Equal(t, expected, reg.ExternalToolNames())
+	names := make(map[string]bool)
+	for _, d := range defs {
+		names[d.Name] = true
+	}
 
-	for _, name := range expected {
-		_, ok := reg.Resolve(name)
-		assert.True(t, ok, "should resolve %s", name)
+	for _, expected := range []string{
+		"build", "vet", "lint", "test",
+		"stage_all", "workspace_status", "commit", "rev_parse",
+		"branch_create", "branch_delete", "branch_list", "branch_current",
+		"worktree_add", "worktree_remove", "worktree_list",
+		"diff_stat", "log_oneline",
+		"issue_create", "issue_close", "issue_list", "issue_claim",
+	} {
+		assert.True(t, names[expected], "missing tool %q", expected)
 	}
 }
 
-func TestRegisterGitTools(t *testing.T) {
+func TestRegisterExecTools(t *testing.T) {
 	reg := core.NewRegistry()
-	RegisterGitTools(reg, "/tmp")
+	err := RegisterExecTools(reg, "/tmp")
+	require.NoError(t, err)
 
-	expected := []string{"commit", "workspace_status", "worktree_add", "worktree_remove"}
-	assert.Equal(t, expected, reg.ExternalToolNames())
+	names := reg.ExternalToolNames()
+	assert.Contains(t, names, "build")
+	assert.Contains(t, names, "commit")
+	assert.Contains(t, names, "stage_all")
+	assert.Contains(t, names, "issue_create")
+	assert.Contains(t, names, "worktree_add")
+	assert.Contains(t, names, "branch_create")
+	assert.Contains(t, names, "log_oneline")
 
-	for _, name := range expected {
-		_, ok := reg.Resolve(name)
-		assert.True(t, ok, "should resolve %s", name)
-	}
-}
-
-func TestRegisterIssueTools(t *testing.T) {
-	reg := core.NewRegistry()
-	RegisterIssueTools(reg, "/tmp")
-
-	expected := []string{"issue_claim", "issue_close", "issue_create", "issue_list"}
-	assert.Equal(t, expected, reg.ExternalToolNames())
-
-	for _, name := range expected {
+	for _, name := range names {
 		_, ok := reg.Resolve(name)
 		assert.True(t, ok, "should resolve %s", name)
 	}
@@ -64,42 +67,65 @@ func TestRegisterIssueTools(t *testing.T) {
 
 func TestRegisterAll(t *testing.T) {
 	reg := core.NewRegistry()
-	RegisterAll(reg, "/tmp")
+	err := RegisterAll(reg, "/tmp")
+	require.NoError(t, err)
 
 	names := reg.AllToolNames()
-	assert.Len(t, names, 17)
-	// file tools
-	assert.Contains(t, names, "read")
-	assert.Contains(t, names, "write")
-	assert.Contains(t, names, "edit")
-	assert.Contains(t, names, "find")
-	assert.Contains(t, names, "list_files")
-	// build tools
-	assert.Contains(t, names, "build")
-	assert.Contains(t, names, "vet")
-	assert.Contains(t, names, "lint")
-	assert.Contains(t, names, "test")
-	// git tools
-	assert.Contains(t, names, "commit")
-	assert.Contains(t, names, "workspace_status")
-	assert.Contains(t, names, "worktree_add")
-	assert.Contains(t, names, "worktree_remove")
-	// issue tools
-	assert.Contains(t, names, "issue_create")
-	assert.Contains(t, names, "issue_claim")
-	assert.Contains(t, names, "issue_close")
-	assert.Contains(t, names, "issue_list")
+	// 5 file tools + 21 YAML-defined exec tools = 26
+	assert.Len(t, names, 26)
+
+	// file tools (Go)
+	for _, name := range []string{"read", "write", "edit", "find", "list_files"} {
+		assert.Contains(t, names, name)
+	}
+	// build tools (YAML)
+	for _, name := range []string{"build", "vet", "lint", "test"} {
+		assert.Contains(t, names, name)
+	}
+	// git tools (YAML, atomic)
+	for _, name := range []string{
+		"stage_all", "commit", "rev_parse", "workspace_status",
+		"branch_create", "branch_delete", "branch_list", "branch_current",
+		"worktree_add", "worktree_remove", "worktree_list",
+		"diff_stat", "log_oneline",
+	} {
+		assert.Contains(t, names, name)
+	}
+	// issue tools (YAML)
+	for _, name := range []string{"issue_create", "issue_claim", "issue_close", "issue_list"} {
+		assert.Contains(t, names, name)
+	}
+}
+
+// Legacy registration still works.
+func TestRegisterBuildTools_Legacy(t *testing.T) {
+	reg := core.NewRegistry()
+	RegisterBuildTools(reg, "/tmp")
+
+	expected := []string{"build", "lint", "test", "vet"}
+	assert.Equal(t, expected, reg.ExternalToolNames())
+}
+
+func TestRegisterGitTools_Legacy(t *testing.T) {
+	reg := core.NewRegistry()
+	RegisterGitTools(reg, "/tmp")
+
+	expected := []string{"commit", "workspace_status", "worktree_add", "worktree_remove"}
+	assert.Equal(t, expected, reg.ExternalToolNames())
+}
+
+func TestRegisterIssueTools_Legacy(t *testing.T) {
+	reg := core.NewRegistry()
+	RegisterIssueTools(reg, "/tmp")
+
+	expected := []string{"issue_claim", "issue_close", "issue_create", "issue_list"}
+	assert.Equal(t, expected, reg.ExternalToolNames())
 }
 
 func TestToolSpecs_HaveDescriptions(t *testing.T) {
 	specs := []core.ToolSpec{
 		ReadToolSpec(), WriteToolSpec(), EditToolSpec(),
 		FindToolSpec(), ListFilesToolSpec(),
-		BuildToolSpec(), VetToolSpec(), LintToolSpec(), TestToolSpec(),
-		CommitToolSpec(), WorkspaceStatusToolSpec(),
-		WorktreeAddToolSpec(), WorktreeRemoveToolSpec(),
-		IssueCreateToolSpec(), IssueClaimToolSpec(),
-		IssueCloseToolSpec(), IssueListToolSpec(),
 	}
 
 	for _, s := range specs {
@@ -107,5 +133,17 @@ func TestToolSpecs_HaveDescriptions(t *testing.T) {
 		assert.NotEmpty(t, s.Description, "spec %s should have a description", s.Name)
 		assert.NotEmpty(t, s.InputSchema, "spec %s should have an input schema", s.Name)
 		assert.Equal(t, core.External, s.Visibility, "spec %s should be external", s.Name)
+	}
+}
+
+func TestYAMLToolSpecs_HaveDescriptions(t *testing.T) {
+	defs, err := DefaultToolDefs()
+	require.NoError(t, err)
+
+	for _, d := range defs {
+		spec := d.ToToolSpec()
+		assert.NotEmpty(t, spec.Name, "spec should have a name")
+		assert.NotEmpty(t, spec.Description, "spec %s should have a description", spec.Name)
+		assert.NotEmpty(t, spec.InputSchema, "spec %s should have an input schema", spec.Name)
 	}
 }
