@@ -11,7 +11,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
 // configDir resolves the absolute path to the configs/ directory relative to this test file.
@@ -42,34 +44,44 @@ func stubFactory() stl.BuiltinFactory {
 	}
 }
 
-// registerAllAsStubs registers stub factories for every init name found in
-// the tool definitions, skipping any already present in the builtin registry.
-func registerAllAsStubs(br *stl.BuiltinRegistry, defs []stl.ToolDef) {
-	registered := make(map[string]bool)
-	for _, n := range br.Names() {
-		registered[n] = true
-	}
-	for _, td := range defs {
-		if td.Type == "builtin" && td.Init != "" && !registered[td.Init] {
-			br.Register(td.Init, stubFactory())
-			registered[td.Init] = true
-		}
-	}
-}
-
 // buildRegistryForDefs creates a fully wired Registry from tool definitions,
-// using real builtin factories where available and stubs for the rest.
+// using real builtin factories for file/done tools and stubs for everything else.
+// In integration tests we don't have an Ollama server or pipeline/eval implementations,
+// so we use stubs for those tools to verify config wiring only.
 func buildRegistryForDefs(t *testing.T, defs []stl.ToolDef) *core.Registry {
 	t.Helper()
 	builtins := stl.NewBuiltinRegistry()
-	registerBuiltinFactories(builtins)
-	registerAllAsStubs(builtins, defs)
-
 	reg := core.NewRegistry()
-	vars := map[string]string{"directory": t.TempDir(), "model": "test", "ollama_url": "http://localhost:11434"}
+
+	st := &agentState{
+		registry:      reg,
+		tracer:        tracing.NoopTracer{},
+		tracker:       stl.NewToolTracker(),
+		conversation:  llm.NewConversation(nil, "", llm.ChatOptions{}),
+		conversations: stl.NewConversationStore(),
+		directory:     t.TempDir(),
+	}
+	registerBuiltinFactories(builtins, st)
+
+	// Override factories that would error (no Ollama, no pipeline/eval impl)
+	// with stubs for config-wiring tests.
+	overrideWithStubs(builtins, defs)
+
+	vars := map[string]string{"directory": st.directory, "model": "test", "ollama_url": "http://localhost:11434"}
 	err := stl.RegisterUnifiedTools(reg, builtins, vars["directory"], defs, vars)
 	require.NoError(t, err)
 	return reg
+}
+
+// overrideWithStubs replaces registered factories with stubs for any
+// builtin tool whose factory would error in a test environment (no LLM,
+// no pipeline/eval implementations). Uses BuiltinRegistry.Override.
+func overrideWithStubs(br *stl.BuiltinRegistry, defs []stl.ToolDef) {
+	for _, td := range defs {
+		if td.Type == "builtin" && td.Init != "" {
+			br.Override(td.Init, stubFactory())
+		}
+	}
 }
 
 // dummyToolAction is a stand-in ActionFunc for the $tool dynamic dispatch transitions.
@@ -134,6 +146,41 @@ func TestGenerateConfig_TransitionTable(t *testing.T) {
 	require.NotNil(t, isTerminal)
 	require.True(t, isTerminal(core.State("Succeeded")))
 	require.False(t, isTerminal(core.State("Idle")))
+}
+
+func TestGenerateConfig_DeepseekMachineLoads(t *testing.T) {
+	path := filepath.Join(configDir(t), "generate", "deepseek-coding-agent.yaml")
+	spec, err := core.LoadMachineSpec(path)
+	require.NoError(t, err)
+
+	require.Equal(t, "generate-deepseek", spec.Name)
+	require.Equal(t, "Idle", spec.InitialState)
+	require.Contains(t, spec.TerminalStates, "Succeeded")
+	require.Contains(t, spec.TerminalStates, "Failed")
+	require.Contains(t, spec.TerminalStates, "BudgetExceeded")
+}
+
+func TestGenerateConfig_DeepseekTransitionTable(t *testing.T) {
+	cd := configDir(t)
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "generate", "deepseek-coding-agent.yaml"))
+	require.NoError(t, err)
+
+	defs, err := stl.LoadToolDefs(filepath.Join(cd, "generate", "tools.yaml"))
+	require.NoError(t, err)
+
+	reg := buildRegistryForDefs(t, defs)
+
+	table, isTerminal, err := core.BuildTransitionTable(spec, reg, dummyToolAction)
+	require.NoError(t, err)
+	require.NotEmpty(t, table)
+	require.NotNil(t, isTerminal)
+	require.True(t, isTerminal(core.State("Succeeded")))
+
+	// Deepseek machine should have nudge_reread wired for EditDone
+	key := core.TransitionInput{State: core.State("Composing"), Signal: core.Signal("EditDone")}
+	tv, ok := table[key]
+	require.True(t, ok, "deepseek machine must handle EditDone in Composing")
+	require.Equal(t, core.State("Composing"), tv.NextState)
 }
 
 // ---------------------------------------------------------------------------

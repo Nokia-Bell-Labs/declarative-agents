@@ -94,6 +94,13 @@ tools:
     visibility: internal
     description: "Run build, vet, lint, and test to validate generated code."
 
+  # --- nudge reread (used by deepseek machine variant) ---
+  - name: nudge_reread
+    type: builtin
+    init: nudge_reread
+    visibility: internal
+    description: "Append a re-read instruction after file edits to prompt the model to verify changes."
+
   # --- done (signals TaskCompleted) ---
   - name: done
     type: builtin

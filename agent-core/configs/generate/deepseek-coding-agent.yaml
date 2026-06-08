@@ -1,0 +1,101 @@
+# Deepseek variant of the generate state machine.
+# Differs from the default machine.yaml by adding a nudge_reread
+# transition after EditDone, prompting the model to re-read files
+# before making further changes.
+
+name: generate-deepseek
+initial_state: Idle
+
+states:
+  - Idle
+  - Composing
+  - Parsing
+  - ValidatingBuild
+  - Succeeded
+  - Failed
+  - BudgetExceeded
+
+terminal_states:
+  - Succeeded
+  - Failed
+  - BudgetExceeded
+
+signals:
+  - Seed
+  - LLMResponded
+  - ToolDone
+  - ToolFailed
+  - ParseFailed
+  - TaskCompleted
+  - CommandError
+  - ValidationPassed
+  - ValidationFailed
+  - BudgetExhausted
+  - EditDone
+
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Composing
+    action: invoke_llm
+
+  - state: Composing
+    signal: LLMResponded
+    next: Parsing
+    action: parse_response
+
+  - state: Parsing
+    signal: ToolDone
+    next: Composing
+    action: $tool
+
+  - state: Parsing
+    signal: TaskCompleted
+    next: ValidatingBuild
+    action: validate
+
+  - state: Parsing
+    signal: ParseFailed
+    next: Composing
+    action: report_parse_error
+
+  # Standard tool result → feed back to LLM
+  - state: Composing
+    signal: ToolDone
+    next: Composing
+    action: invoke_llm
+
+  # Edit completed → nudge the model to re-read (deepseek-specific)
+  - state: Composing
+    signal: EditDone
+    next: Composing
+    action: nudge_reread
+
+  - state: Composing
+    signal: ToolFailed
+    next: Composing
+    action: invoke_llm
+
+  - state: ValidatingBuild
+    signal: ValidationPassed
+    next: Succeeded
+
+  - state: ValidatingBuild
+    signal: ValidationFailed
+    next: Failed
+
+  - state: Composing
+    signal: CommandError
+    next: Failed
+
+  - state: Parsing
+    signal: CommandError
+    next: Failed
+
+  - state: ValidatingBuild
+    signal: CommandError
+    next: Failed
+
+  - state: Composing
+    signal: BudgetExhausted
+    next: BudgetExceeded

@@ -30,6 +30,13 @@ func (br *BuiltinRegistry) Register(initName string, factory BuiltinFactory) {
 	br.factories[initName] = factory
 }
 
+// Override replaces the factory for the given init name, or registers
+// it if not present. Use this in tests to replace real factories with
+// stubs.
+func (br *BuiltinRegistry) Override(initName string, factory BuiltinFactory) {
+	br.factories[initName] = factory
+}
+
 // Resolve looks up a factory by init name.
 func (br *BuiltinRegistry) Resolve(initName string) (BuiltinFactory, bool) {
 	f, ok := br.factories[initName]
