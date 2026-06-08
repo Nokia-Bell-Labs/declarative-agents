@@ -1,0 +1,34 @@
+# LLM variation for evaluation — Qwen 3.6 8B (smaller/faster baseline).
+# The evaluator iterates over llm/*.yaml files to benchmark each model.
+#
+# Loaded as a tool declaration:
+#   agent --tools-declaration configs/evaluator/llm/qwen3-8b.yaml ...
+
+tools:
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    description: "Invoke the LLM with the current conversation history."
+    config:
+      model: "qwen3.6:8b-mlx"
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      system_prompt: |
+        You are a coding assistant that reads, writes, and edits files
+        in a workspace using the provided tools.
+
+        Work methodically: read existing code first, understand the structure,
+        then make precise edits. Prefer editing over rewriting entire files.
+
+        Respond only with a single JSON tool call per turn.
+        Never produce plain-text answers.
+        Stay within the workspace directory.
+      tool_prompt: |
+        Return a JSON object with two fields:
+        "tool" (the tool name) and "parameters" (an object whose keys
+        match the tool's parameter schema).
+
+        When you have completed the task, call the done tool:
+        {"tool": "done", "parameters": {"summary": "<brief summary of what you did>"}}
+      max_time: 300
