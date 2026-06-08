@@ -24,6 +24,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/eval"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm/ollama"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/pipeline"
@@ -88,6 +89,7 @@ func init() {
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(generateMachineCmd)
+	rootCmd.AddCommand(evalCmd)
 }
 
 var versionCmd = &cobra.Command{
@@ -129,6 +131,52 @@ loops into linear state machines with no cycles.`,
 		fmt.Print(string(out))
 		return nil
 	},
+}
+
+var evalCmd = &cobra.Command{
+	Use:   "eval <suite.yaml>",
+	Short: "Run an evaluation suite",
+	Long: `Runs an evaluation suite defined in YAML. The suite specifies harnesses,
+models, grid parameters, and sample directories. Each combination is
+executed as an evaluation point.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		suite, err := eval.LoadSuite(args[0])
+		if err != nil {
+			return fmt.Errorf("load suite: %w", err)
+		}
+
+		outputDir, _ := cmd.Flags().GetString("output")
+		if outputDir == "" {
+			outputDir = "eval-results"
+		}
+
+		reps, _ := cmd.Flags().GetInt("reps")
+
+		cfg := eval.SessionConfig{
+			OutputDir:  outputDir,
+			OllamaURL: flagOllamaURL,
+			LLMTimeout: time.Duration(flagLLMTimeout) * time.Second,
+			Timeout:    time.Duration(flagMaxTime) * time.Second,
+			Reps:       reps,
+			Stderr:     os.Stderr,
+		}
+
+		result, err := eval.RunSession(cmd.Context(), suite, cfg)
+		if err != nil {
+			return err
+		}
+
+		if result.Passed < result.TotalPoints {
+			os.Exit(1)
+		}
+		return nil
+	},
+}
+
+func init() {
+	evalCmd.Flags().String("output", "eval-results", "output directory for results")
+	evalCmd.Flags().Int("reps", 1, "number of repetitions per point")
 }
 
 // agentState holds the shared state needed by builtin tool factories.
