@@ -66,6 +66,58 @@ type ToolDefsFile struct {
 	Tools    []ToolDef `yaml:"tools"`
 }
 
+// ToolSelectionFile is the YAML structure for a tool selection file.
+// It lists tool names that an agent is allowed to use — a subset of
+// the tools loaded via declaration files.
+type ToolSelectionFile struct {
+	Tools []string `yaml:"tools"`
+}
+
+// LoadToolSelection reads a YAML file listing tool names.
+func LoadToolSelection(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("load tool selection %s: %w", path, err)
+	}
+	var sel ToolSelectionFile
+	if err := yaml.Unmarshal(data, &sel); err != nil {
+		return nil, fmt.Errorf("parse tool selection %s: %w", path, err)
+	}
+	return sel.Tools, nil
+}
+
+// LoadToolDeclarations loads multiple declaration files and merges them.
+// Later files override earlier ones with the same tool name.
+func LoadToolDeclarations(paths []string) ([]ToolDef, error) {
+	var all []ToolDef
+	for _, p := range paths {
+		defs, err := LoadToolDefs(p)
+		if err != nil {
+			return nil, err
+		}
+		all = MergeToolDefs(all, defs)
+	}
+	return all, nil
+}
+
+// SelectTools filters a set of declarations to only those named in the
+// selection list. Returns an error if any selected name is not declared.
+func SelectTools(declarations []ToolDef, selection []string) ([]ToolDef, error) {
+	index := make(map[string]ToolDef, len(declarations))
+	for _, d := range declarations {
+		index[d.Name] = d
+	}
+	var result []ToolDef
+	for _, name := range selection {
+		d, ok := index[name]
+		if !ok {
+			return nil, fmt.Errorf("tool %q is selected but not declared", name)
+		}
+		result = append(result, d)
+	}
+	return result, nil
+}
+
 // LoadToolDefs reads a YAML file and returns the tool definitions.
 // If the file has an `includes` field, included files are loaded first
 // (relative to the directory of the including file) and merged so that

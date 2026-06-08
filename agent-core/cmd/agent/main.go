@@ -34,15 +34,16 @@ import (
 )
 
 var (
-	flagMachine      string
-	flagTools        string
-	flagOTelLog      string
-	flagOTelParent   string
-	flagDirectory    string
-	flagPrompt       string
-	flagPromptString string
-	flagProfilesDir  string
-	flagVerboseTrace bool
+	flagMachine          string
+	flagTools            string
+	flagToolDeclarations []string
+	flagOTelLog          string
+	flagOTelParent       string
+	flagDirectory        string
+	flagPrompt           string
+	flagPromptString     string
+	flagProfilesDir      string
+	flagVerboseTrace     bool
 )
 
 func main() {
@@ -65,7 +66,8 @@ Different modes (generate, pipeline, eval) are selected by which
 func init() {
 	f := rootCmd.Flags()
 	f.StringVar(&flagMachine, "machine", "", "path to state machine YAML (required)")
-	f.StringVar(&flagTools, "tools", "", "path to tools YAML (required)")
+	f.StringVar(&flagTools, "tools", "", "path to tool selection YAML (required)")
+	f.StringArrayVar(&flagToolDeclarations, "tools-declaration", nil, "path to tool declaration YAML (repeatable)")
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
@@ -204,10 +206,29 @@ func run(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	// Load tool definitions
-	defs, err := stl.LoadToolDefs(flagTools)
-	if err != nil {
-		return fmt.Errorf("load tools: %w", err)
+	// Load tool definitions: either declaration+selection or legacy single file
+	var defs []stl.ToolDef
+	var err error
+	if len(flagToolDeclarations) > 0 {
+		var declarations []stl.ToolDef
+		declarations, err = stl.LoadToolDeclarations(flagToolDeclarations)
+		if err != nil {
+			return fmt.Errorf("load tool declarations: %w", err)
+		}
+		var selection []string
+		selection, err = stl.LoadToolSelection(flagTools)
+		if err != nil {
+			return fmt.Errorf("load tool selection: %w", err)
+		}
+		defs, err = stl.SelectTools(declarations, selection)
+		if err != nil {
+			return fmt.Errorf("select tools: %w", err)
+		}
+	} else {
+		defs, err = stl.LoadToolDefs(flagTools)
+		if err != nil {
+			return fmt.Errorf("load tools: %w", err)
+		}
 	}
 
 	// Resolve LLM config from invoke_llm tool definition in tools.yaml.

@@ -4,6 +4,7 @@ package stl
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -482,4 +483,82 @@ func TestExtractParamMappings_Full(t *testing.T) {
 	assert.True(t, verbose.BoolFlag)
 	assert.Equal(t, "-v", verbose.Flag)
 	assert.False(t, verbose.Required)
+}
+
+func TestLoadToolSelection(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/tools.yaml"
+	writeFile(t, path, `tools:
+  - read
+  - write
+  - build
+`)
+	names, err := LoadToolSelection(path)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"read", "write", "build"}, names)
+}
+
+func TestSelectTools(t *testing.T) {
+	decls := []ToolDef{
+		{Name: "read", Type: "builtin", Init: "file_read", Description: "Read files"},
+		{Name: "write", Type: "builtin", Init: "file_write", Description: "Write files"},
+		{Name: "build", Type: "exec", Binary: "go", Args: []string{"build"}, Description: "Go build"},
+	}
+
+	t.Run("valid selection", func(t *testing.T) {
+		result, err := SelectTools(decls, []string{"read", "build"})
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		assert.Equal(t, "read", result[0].Name)
+		assert.Equal(t, "build", result[1].Name)
+		assert.Equal(t, "builtin", result[0].Type)
+		assert.Equal(t, "exec", result[1].Type)
+	})
+
+	t.Run("undeclared tool", func(t *testing.T) {
+		_, err := SelectTools(decls, []string{"read", "missing"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing")
+		assert.Contains(t, err.Error(), "not declared")
+	})
+
+	t.Run("empty selection", func(t *testing.T) {
+		result, err := SelectTools(decls, []string{})
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+}
+
+func TestLoadToolDeclarations_Merge(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir+"/a.yaml", `tools:
+  - name: foo
+    type: exec
+    binary: echo
+    args: [a]
+    description: "Foo A"
+`)
+	writeFile(t, dir+"/b.yaml", `tools:
+  - name: foo
+    type: exec
+    binary: echo
+    args: [b]
+    description: "Foo B"
+  - name: bar
+    type: exec
+    binary: echo
+    args: [bar]
+    description: "Bar"
+`)
+	defs, err := LoadToolDeclarations([]string{dir + "/a.yaml", dir + "/b.yaml"})
+	require.NoError(t, err)
+	require.Len(t, defs, 2)
+	assert.Equal(t, "foo", defs[0].Name)
+	assert.Equal(t, "Foo B", defs[0].Description)
+	assert.Equal(t, "bar", defs[1].Name)
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(path, []byte(content), 0644))
 }

@@ -1,140 +1,31 @@
-# Tool definitions for the generator state machine.
-# Used with: agent --machine configs/generator/machine.yaml --tools configs/generator/tools.yaml
-
-includes:
-  - ../common/tools-base.yaml
+# Tool selection for the generator agent.
+# Lists the subset of declared tools this agent uses.
+#
+# Usage:
+#   agent --tools-declaration configs/tools/builtin.yaml \
+#         --tools-declaration configs/tools/exec.yaml \
+#         --tools configs/generator/tools.yaml \
+#         --machine configs/generator/machine.yaml
 
 tools:
-  # --- file tools (builtin) ---
-  - name: read
-    type: builtin
-    init: file_read
-    description: "Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths first."
-    parameters:
-      type: object
-      properties:
-        path:
-          type: string
-          description: "File path relative to workspace root (must be a file, not a directory)"
-        start_line:
-          type: integer
-          description: "Start line (1-indexed, inclusive)"
-        end_line:
-          type: integer
-          description: "End line (1-indexed, inclusive)"
-      required: [path]
-
-  - name: write
-    type: builtin
-    init: file_write
-    description: "Create or overwrite a file. Provide the complete file content — this replaces the entire file. Parent directories are created automatically."
-    parameters:
-      type: object
-      properties:
-        path:
-          type: string
-          description: "File path relative to workspace root"
-        content:
-          type: string
-          description: "Full file content to write"
-      required: [path, content]
-
-  - name: edit
-    type: builtin
-    init: file_edit
-    description: "Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match."
-    parameters:
-      type: object
-      properties:
-        path:
-          type: string
-          description: "File path relative to workspace root"
-        old_string:
-          type: string
-          description: "Exact text to find"
-        new_string:
-          type: string
-          description: "Replacement text"
-      required: [path, old_string, new_string]
-
-  - name: find
-    type: builtin
-    init: file_find
-    description: "Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob — use \\.go$ to find Go files, not *.go. Returns matching lines with file paths and line numbers."
-    parameters:
-      type: object
-      properties:
-        query:
-          type: string
-          description: "Regex pattern (ripgrep syntax, not glob). Example: \\.go$ for Go files, func main for function search"
-        path:
-          type: string
-          description: "Subdirectory to scope the search (optional)"
-      required: [query]
-
-  - name: list_files
-    type: builtin
-    init: file_list
-    description: "List files and directories in a tree format. Use this first to understand the workspace layout before reading files."
-    parameters:
-      type: object
-      properties:
-        path:
-          type: string
-          description: "Subdirectory to list (default: workspace root)"
-        max_depth:
-          type: integer
-          description: "Maximum directory depth to traverse (default: 4)"
-
-  # --- LLM tools (builtin, internal) ---
-  - name: invoke_llm
-    type: builtin
-    init: invoke_llm
-    visibility: internal
-    description: "Invoke the LLM with the current conversation history."
-    config:
-      model: "qwen3.6:35b-mlx"
-      ollama_url: "http://localhost:11434"
-      num_ctx: 0
-      llm_timeout: 0
-      max_time: 600
-      max_tokens: 0
-
-  - name: parse_response
-    type: builtin
-    init: parse_response
-    visibility: internal
-    description: "Parse raw LLM output into a tool call or task-completed signal."
-
-  - name: report_parse_error
-    type: builtin
-    init: report_parse_error
-    visibility: internal
-    description: "Report a parse error back to the LLM for correction."
-
-  - name: reset_history
-    type: builtin
-    init: reset_history
-    visibility: internal
-    description: "Clear the conversation history and restart the LLM context."
-
-  # --- validation (builtin, internal) ---
-  - name: validate
-    type: builtin
-    init: validate
-    visibility: internal
-    description: "Run build, vet, lint, and test to validate generated code."
-
-  # --- nudge reread (used by deepseek machine variant) ---
-  - name: nudge_reread
-    type: builtin
-    init: nudge_reread
-    visibility: internal
-    description: "Append a re-read instruction after file edits to prompt the model to verify changes."
-
-  # --- done (signals TaskCompleted) ---
-  - name: done
-    type: builtin
-    init: done
-    visibility: internal
-    description: "Signal that the generation task is complete."
+  # file tools
+  - read
+  - write
+  - edit
+  - find
+  - list_files
+  # LLM tools
+  - invoke_llm
+  - parse_response
+  - report_parse_error
+  - reset_history
+  # validation
+  - validate
+  - nudge_reread
+  # completion
+  - done
+  # build/test (used by validate)
+  - build
+  - vet
+  - lint
+  - test

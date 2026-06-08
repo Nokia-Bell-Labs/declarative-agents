@@ -1,64 +1,38 @@
-# Tool definitions for the planner state machine.
-# Used with: agent --machine configs/planner/machine.yaml --tools configs/planner/tools.yaml
-
-includes:
-  - ../common/tools-base.yaml
+# Tool selection for the planner agent.
+# Lists the subset of declared tools this agent uses.
+#
+# Usage:
+#   agent --tools-declaration configs/tools/builtin.yaml \
+#         --tools-declaration configs/tools/exec.yaml \
+#         --tools configs/planner/tools.yaml \
+#         --machine configs/planner/machine.yaml
 
 tools:
-  # --- planning tools (builtin) ---
-  - name: extract_task
-    type: builtin
-    init: extract_task
-    description: "Extract the next unblocked task from the dependency graph."
-    visibility: internal
-
-  - name: extract_all
-    type: builtin
-    init: extract_all
-    description: "Extract all requirements as a single task group (passthrough mode)."
-    visibility: internal
-
-  - name: assemble_prompt
-    type: builtin
-    init: assemble_prompt
-    description: "Assemble the LLM prompt from task context and SRD requirements."
-    visibility: internal
-
-  - name: parse_plan
-    type: builtin
-    init: parse_plan
-    description: "Parse the LLM YAML response into an ImplementationPlan."
-    visibility: internal
-
-  - name: create_issue
-    type: builtin
-    init: create_issue
-    description: "Create a bd issue from the parsed implementation plan."
-    visibility: internal
-
-  # --- execution (builtin) ---
-  - name: execute_task
-    type: builtin
-    init: execute_task
-    description: "Execute the current task via the code generator agent."
-    visibility: internal
-
-  # --- LLM tools (builtin) ---
-  - name: invoke_llm
-    type: builtin
-    init: invoke_llm
-    description: "Send the assembled prompt to the LLM and return the response."
-    visibility: internal
-
-  - name: reset_history
-    type: builtin
-    init: reset_history
-    description: "Clear the LLM conversation history for a fresh context."
-    visibility: internal
-
-  # --- infrastructure (builtin) ---
-  - name: check_result
-    type: builtin
-    init: check_result
-    description: "Evaluate validation results and decide retry vs. advance vs. fail."
-    visibility: internal
+  # planning tools
+  - extract_task
+  - extract_all
+  - assemble_prompt
+  - parse_plan
+  - create_issue
+  # execution
+  - execute_task
+  - check_result
+  # LLM tools
+  - invoke_llm
+  - reset_history
+  # build/test (used by check_result validation)
+  - build
+  - vet
+  - lint
+  - test
+  # git tools
+  - stage_all
+  - workspace_status
+  - commit
+  - rev_parse
+  - diff_stat
+  - log_oneline
+  # issue tools
+  - issue_create
+  - issue_close
+  - issue_list

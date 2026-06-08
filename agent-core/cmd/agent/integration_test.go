@@ -45,6 +45,21 @@ func stubFactory() stl.BuiltinFactory {
 	}
 }
 
+// loadTestDefs loads tool declarations and applies a selection file.
+func loadTestDefs(t *testing.T, cd, agent string) []stl.ToolDef {
+	t.Helper()
+	declarations, err := stl.LoadToolDeclarations([]string{
+		filepath.Join(cd, "tools", "builtin.yaml"),
+		filepath.Join(cd, "tools", "exec.yaml"),
+	})
+	require.NoError(t, err)
+	selection, err := stl.LoadToolSelection(filepath.Join(cd, agent, "tools.yaml"))
+	require.NoError(t, err)
+	defs, err := stl.SelectTools(declarations, selection)
+	require.NoError(t, err)
+	return defs
+}
+
 // buildRegistryForDefs creates a fully wired Registry from tool definitions,
 // using real builtin factories for file/done tools and stubs for everything else.
 // In integration tests we don't have an Ollama server or pipeline/eval implementations,
@@ -166,9 +181,15 @@ func buildE2EParams(t *testing.T, workspace string, llmResponses []string) core.
 	t.Helper()
 	cd := configDir(t)
 	machineFile := filepath.Join(cd, "generator", "machine.yaml")
-	toolsFile := filepath.Join(cd, "generator", "tools.yaml")
 
-	defs, err := stl.LoadToolDefs(toolsFile)
+	declarations, err := stl.LoadToolDeclarations([]string{
+		filepath.Join(cd, "tools", "builtin.yaml"),
+		filepath.Join(cd, "tools", "exec.yaml"),
+	})
+	require.NoError(t, err)
+	selection, err := stl.LoadToolSelection(filepath.Join(cd, "generator", "tools.yaml"))
+	require.NoError(t, err)
+	defs, err := stl.SelectTools(declarations, selection)
 	require.NoError(t, err)
 
 	builtins := stl.NewBuiltinRegistry()
@@ -394,9 +415,8 @@ func TestGenerateConfig_MachineLoads(t *testing.T) {
 }
 
 func TestGenerateConfig_ToolsLoad(t *testing.T) {
-	path := filepath.Join(configDir(t), "generator", "tools.yaml")
-	defs, err := stl.LoadToolDefs(path)
-	require.NoError(t, err)
+	cd := configDir(t)
+	defs := loadTestDefs(t, cd, "generator")
 	require.NotEmpty(t, defs)
 
 	assertToolNames(t, defs, []string{
@@ -411,9 +431,7 @@ func TestGenerateConfig_TransitionTable(t *testing.T) {
 	spec, err := core.LoadMachineSpec(filepath.Join(cd, "generator", "machine.yaml"))
 	require.NoError(t, err)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "generator", "tools.yaml"))
-	require.NoError(t, err)
-
+	defs := loadTestDefs(t, cd, "generator")
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, dummyToolAction)
@@ -441,9 +459,7 @@ func TestGenerateConfig_DeepseekTransitionTable(t *testing.T) {
 	spec, err := core.LoadMachineSpec(filepath.Join(cd, "generator", "deepseek-coding-agent.yaml"))
 	require.NoError(t, err)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "generator", "tools.yaml"))
-	require.NoError(t, err)
-
+	defs := loadTestDefs(t, cd, "generator")
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, dummyToolAction)
@@ -502,9 +518,8 @@ func TestPipelineConfig_PlanOnlyLoads(t *testing.T) {
 }
 
 func TestPipelineConfig_ToolsLoad(t *testing.T) {
-	path := filepath.Join(configDir(t), "planner", "tools.yaml")
-	defs, err := stl.LoadToolDefs(path)
-	require.NoError(t, err)
+	cd := configDir(t)
+	defs := loadTestDefs(t, cd, "planner")
 	require.NotEmpty(t, defs)
 
 	assertToolNames(t, defs, []string{
@@ -521,9 +536,7 @@ func TestPipelineConfig_TransitionTable(t *testing.T) {
 	spec, err := core.LoadMachineSpec(filepath.Join(cd, "planner", "machine.yaml"))
 	require.NoError(t, err)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "planner", "tools.yaml"))
-	require.NoError(t, err)
-
+	defs := loadTestDefs(t, cd, "planner")
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
@@ -538,9 +551,7 @@ func TestPipelineConfig_PassthroughTransitionTable(t *testing.T) {
 	spec, err := core.LoadMachineSpec(filepath.Join(cd, "planner", "machine-passthrough.yaml"))
 	require.NoError(t, err)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "planner", "tools.yaml"))
-	require.NoError(t, err)
-
+	defs := loadTestDefs(t, cd, "planner")
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
@@ -554,9 +565,7 @@ func TestPipelineConfig_PlanOnlyTransitionTable(t *testing.T) {
 	spec, err := core.LoadMachineSpec(filepath.Join(cd, "planner", "machine-plan-only.yaml"))
 	require.NoError(t, err)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "planner", "tools.yaml"))
-	require.NoError(t, err)
-
+	defs := loadTestDefs(t, cd, "planner")
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)

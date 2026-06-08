@@ -1,6 +1,5 @@
-# Shared exec tool definitions used by all agent modes.
-# Mode-specific tools.yaml files include this via:
-#   includes: [../common/tools-base.yaml]
+# Exec tool declarations — CLI-wrapper tools.
+# Pass via: agent --tools-declaration configs/tools/exec.yaml
 
 tools:
   # --- build tools ---

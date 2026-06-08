@@ -1,0 +1,190 @@
+# Builtin tool declarations — Go-implemented tools.
+# Pass via: agent --tools-declaration configs/tools/builtin.yaml
+
+tools:
+  # --- file tools ---
+  - name: read
+    type: builtin
+    init: file_read
+    description: "Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths first."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File path relative to workspace root (must be a file, not a directory)"
+        start_line:
+          type: integer
+          description: "Start line (1-indexed, inclusive)"
+        end_line:
+          type: integer
+          description: "End line (1-indexed, inclusive)"
+      required: [path]
+
+  - name: write
+    type: builtin
+    init: file_write
+    description: "Create or overwrite a file. Provide the complete file content — this replaces the entire file. Parent directories are created automatically."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File path relative to workspace root"
+        content:
+          type: string
+          description: "Full file content to write"
+      required: [path, content]
+
+  - name: edit
+    type: builtin
+    init: file_edit
+    description: "Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File path relative to workspace root"
+        old_string:
+          type: string
+          description: "Exact text to find"
+        new_string:
+          type: string
+          description: "Replacement text"
+      required: [path, old_string, new_string]
+
+  - name: find
+    type: builtin
+    init: file_find
+    description: "Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob — use \\.go$ to find Go files, not *.go. Returns matching lines with file paths and line numbers."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Regex pattern (ripgrep syntax, not glob). Example: \\.go$ for Go files, func main for function search"
+        path:
+          type: string
+          description: "Subdirectory to scope the search (optional)"
+      required: [query]
+
+  - name: list_files
+    type: builtin
+    init: file_list
+    description: "List files and directories in a tree format. Use this first to understand the workspace layout before reading files."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Subdirectory to list (default: workspace root)"
+        max_depth:
+          type: integer
+          description: "Maximum directory depth to traverse (default: 4)"
+
+  # --- LLM tools ---
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    description: "Invoke the LLM with the current conversation history."
+
+  - name: parse_response
+    type: builtin
+    init: parse_response
+    visibility: internal
+    description: "Parse raw LLM output into a tool call or task-completed signal."
+
+  - name: report_parse_error
+    type: builtin
+    init: report_parse_error
+    visibility: internal
+    description: "Report a parse error back to the LLM for correction."
+
+  - name: reset_history
+    type: builtin
+    init: reset_history
+    visibility: internal
+    description: "Clear the conversation history and restart the LLM context."
+
+  # --- validation ---
+  - name: validate
+    type: builtin
+    init: validate
+    visibility: internal
+    description: "Run build, vet, lint, and test to validate generated code."
+
+  - name: nudge_reread
+    type: builtin
+    init: nudge_reread
+    visibility: internal
+    description: "Append a re-read instruction after file edits to prompt the model to verify changes."
+
+  - name: done
+    type: builtin
+    init: done
+    visibility: internal
+    description: "Signal that the generation task is complete."
+
+  # --- pipeline/planner tools ---
+  - name: extract_task
+    type: builtin
+    init: extract_task
+    description: "Extract the next unblocked task from the dependency graph."
+    visibility: internal
+
+  - name: extract_all
+    type: builtin
+    init: extract_all
+    description: "Extract all requirements as a single task group (passthrough mode)."
+    visibility: internal
+
+  - name: assemble_prompt
+    type: builtin
+    init: assemble_prompt
+    description: "Assemble the LLM prompt from task context and SRD requirements."
+    visibility: internal
+
+  - name: parse_plan
+    type: builtin
+    init: parse_plan
+    description: "Parse the LLM YAML response into an ImplementationPlan."
+    visibility: internal
+
+  - name: create_issue
+    type: builtin
+    init: create_issue
+    description: "Create a bd issue from the parsed implementation plan."
+    visibility: internal
+
+  - name: execute_task
+    type: builtin
+    init: execute_task
+    description: "Execute the current task via the code generator agent."
+    visibility: internal
+
+  - name: check_result
+    type: builtin
+    init: check_result
+    description: "Evaluate validation results and decide retry vs. advance vs. fail."
+    visibility: internal
+
+  # --- spec validation tools ---
+  - name: load_corpus
+    type: builtin
+    init: load_corpus
+    visibility: internal
+    description: "Load the specification corpus from the project directory."
+
+  - name: validate_specs
+    type: builtin
+    init: validate_specs
+    visibility: internal
+    description: "Run consistency checks on the loaded specification corpus."
+
+  - name: format_report
+    type: builtin
+    init: format_report
+    visibility: internal
+    description: "Format the validation results as a human-readable report."
