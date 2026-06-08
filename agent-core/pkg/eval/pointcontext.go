@@ -9,12 +9,10 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
 
-// Signals emitted by the per-point experiment commands.
+// Signals emitted by the per-point evaluation commands.
 const (
-	SigWorkspaceReady   core.Signal = "WorkspaceReady"
 	SigResultsCollected core.Signal = "ResultsCollected"
 	SigMetricsCollected core.Signal = "MetricsCollected"
-	SigSummarized       core.Signal = "Summarized"
 )
 
 // Signals emitted by the CLI tool.

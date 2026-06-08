@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
@@ -575,53 +575,6 @@ func TestPipelineConfig_PlanOnlyTransitionTable(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Eval config tests
 // ---------------------------------------------------------------------------
-
-func TestEvalConfig_GenerateSpecLoads(t *testing.T) {
-	path := filepath.Join(configDir(t), "evaluator", "generate-spec.yaml")
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	var gen core.GenerateSpec
-	err = yaml.Unmarshal(data, &gen)
-	require.NoError(t, err)
-
-	require.Equal(t, "evaluator", gen.Name)
-	require.NotEmpty(t, gen.Points)
-	require.Equal(t, "summarize", gen.DoneAction)
-
-	point := gen.Points[0]
-	require.Equal(t, []string{"prepare_workspace", "run_agent", "check_results", "collect_metrics"}, point.Steps)
-	require.NotEmpty(t, point.Vars)
-}
-
-func TestEvalConfig_GenerateLinearMachine(t *testing.T) {
-	path := filepath.Join(configDir(t), "evaluator", "generate-spec.yaml")
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	var gen core.GenerateSpec
-	err = yaml.Unmarshal(data, &gen)
-	require.NoError(t, err)
-
-	spec := core.GenerateLinearMachine(gen)
-
-	require.Equal(t, "evaluator", spec.Name)
-	require.Equal(t, "Point_0_Step_0", spec.InitialState)
-	require.Contains(t, spec.TerminalStates, "Done")
-	require.Contains(t, spec.States, "Point_0_Step_0")
-	require.Contains(t, spec.States, "Point_0_Step_1")
-	require.Contains(t, spec.States, "Point_0_Step_2")
-	require.Contains(t, spec.States, "Point_0_Step_3")
-	require.Contains(t, spec.States, "Summarize")
-	require.Contains(t, spec.States, "Done")
-	require.NotEmpty(t, spec.Transitions)
-
-	// The generated machine must be self-consistent (ParseMachineSpec validates it).
-	out, err := core.MarshalMachineSpec(spec)
-	require.NoError(t, err)
-	_, err = core.ParseMachineSpec(out)
-	require.NoError(t, err)
-}
 
 func TestEvalConfig_ToolsLoad(t *testing.T) {
 	cd := configDir(t)

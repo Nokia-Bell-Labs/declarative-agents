@@ -3,66 +3,11 @@
 package eval
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
-
-// prepareWorkspaceCmd creates the point directory, copies the sample workspace,
-// and initializes git.
-type prepareWorkspaceCmd struct {
-	pc *PointContext
-}
-
-func (c *prepareWorkspaceCmd) Name() string { return "prepare_workspace" }
-
-func (c *prepareWorkspaceCmd) Execute() core.Result {
-	pc := c.pc
-	pc.PointDir = filepath.Join(pc.SessionDir, pc.PointID)
-
-	if err := os.MkdirAll(pc.PointDir, 0o755); err != nil {
-		return core.Result{
-			CommandName: c.Name(),
-			Signal:      core.CommandError,
-			Err:         fmt.Errorf("create point dir: %w", err),
-		}
-	}
-
-	if err := copyDirTo(pc.Sample.WorkspaceDir, pc.PointDir); err != nil {
-		return core.Result{
-			CommandName: c.Name(),
-			Signal:      core.CommandError,
-			Err:         fmt.Errorf("copy workspace: %w", err),
-		}
-	}
-
-	if pc.Sample.DocDir != "" {
-		docDst := filepath.Join(pc.PointDir, "doc")
-		if err := copyDirTo(pc.Sample.DocDir, docDst); err != nil {
-			return core.Result{
-				CommandName: c.Name(),
-				Signal:      core.CommandError,
-				Err:         fmt.Errorf("copy doc dir: %w", err),
-			}
-		}
-	}
-
-	if err := gitInit(context.TODO(), pc.PointDir); err != nil {
-		fmt.Fprintf(pc.Stderr, "  WARN: git init failed: %v\n", err)
-	}
-
-	pc.TracePath = filepath.Join(pc.PointDir, "trace.json")
-	pc.ResultPath = filepath.Join(pc.PointDir, "result.json")
-
-	return core.Result{
-		CommandName: c.Name(),
-		Signal:      SigWorkspaceReady,
-		Output:      pc.PointDir,
-	}
-}
 
 // checkResultsCmd runs the oracle test and parses token usage from the trace.
 type checkResultsCmd struct {
@@ -125,17 +70,3 @@ func (c *collectMetricsCmd) Execute() core.Result {
 	}
 }
 
-// summarizeCmd is a no-op placeholder; session-level summary is handled
-// outside the per-point state machine.
-type summarizeCmd struct {
-	pc *PointContext
-}
-
-func (c *summarizeCmd) Name() string { return "summarize" }
-
-func (c *summarizeCmd) Execute() core.Result {
-	return core.Result{
-		CommandName: c.Name(),
-		Signal:      SigSummarized,
-	}
-}

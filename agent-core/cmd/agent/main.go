@@ -224,7 +224,7 @@ func runEval(cmd *cobra.Command, args []string) error {
 		ES:         es,
 	}
 
-	result, err := eval.RunSessionStandard(cmd.Context(), suite, cfg)
+	result, err := eval.RunSession(cmd.Context(), suite, cfg)
 	if err != nil {
 		return err
 	}

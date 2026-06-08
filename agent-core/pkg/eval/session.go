@@ -33,7 +33,6 @@ type SuiteConfig struct {
 	Models     []string          `yaml:"models"`
 	Grid       map[string][]any  `yaml:"grid,omitempty"`
 	Samples    []Sample          `yaml:"-"`
-	Experiment *ExperimentConfig `yaml:"experiment,omitempty"`
 	Timeout    time.Duration     `yaml:"-"`
 	OllamaURL  string            `yaml:"-"`
 	Reps       int               `yaml:"-"`
@@ -62,120 +61,6 @@ type PointResult struct {
 	Duration    time.Duration
 }
 
-// RunSession executes a full evaluation session, running through all
-// combinations of harnesses × models × grid × samples × reps.
-//
-// Deprecated: Use RunSessionStandard for new code. This function
-// remains for backward compatibility with ExperimentConfig-based setups.
-func RunSession(
-	ctx context.Context,
-	suite SuiteConfig,
-	cfg SessionConfig,
-) (*SessionResult, error) {
-	if cfg.Stderr == nil {
-		cfg.Stderr = os.Stderr
-	}
-
-	sessionDir := filepath.Join(cfg.OutputDir, suite.Name, time.Now().Format("20060102-150405"))
-	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create session dir: %w", err)
-	}
-
-	gridPoints := expandGrid(suite.Grid)
-	if len(gridPoints) == 0 {
-		gridPoints = []GridPoint{{}}
-	}
-
-	reps := cfg.Reps
-	if reps < 1 {
-		reps = 1
-	}
-
-	timeout := cfg.Timeout
-	if timeout == 0 {
-		timeout = 10 * time.Minute
-	}
-
-	start := time.Now()
-	var result SessionResult
-
-	for _, harness := range suite.Harnesses {
-		for _, model := range suite.Models {
-			for _, gp := range gridPoints {
-				for _, sample := range suite.Samples {
-					for rep := 0; rep < reps; rep++ {
-						if ctx.Err() != nil {
-							return &result, ctx.Err()
-						}
-
-						pointID := EvalPointID(sample.Name, harness.Name, model, gp, rep)
-
-						pc := &PointContext{
-							SessionDir: sessionDir,
-							PointID:    pointID,
-							Sample:     sample,
-							Harness:    harness,
-							Model:      model,
-							GridPoint:  gp,
-							Rep:        rep,
-							Timeout:    timeout,
-							LLMTimeout: cfg.LLMTimeout,
-							OllamaURL:  cfg.OllamaURL,
-							Stderr:     cfg.Stderr,
-						}
-
-						fmt.Fprintf(cfg.Stderr, "  → %s\n", pointID)
-
-						exp := suite.Experiment
-						if exp == nil {
-							defaultExp := DefaultExperiment(harness)
-							exp = &defaultExp
-						}
-						pc, _ = RunPoint(ctx, *exp, pc)
-
-						pr := PointResult{
-							PointID:     pointID,
-							Sample:      sample.Name,
-							Harness:     harness.Name,
-							Model:       model,
-							TestsPassed: pc.TestsPassed,
-							TimedOut:    pc.TimedOut,
-							ExitCode:    pc.ExitCode,
-							Tokens:      pc.Tokens,
-							Duration:    pc.Duration,
-						}
-
-						result.Points = append(result.Points, pr)
-						result.TotalPoints++
-						if pc.TestsPassed {
-							result.Passed++
-						} else if pc.TimedOut {
-							result.TimedOut++
-						} else {
-							result.Failed++
-						}
-
-						status := "PASS"
-						if pc.TimedOut {
-							status = "TIMEOUT"
-						} else if !pc.TestsPassed {
-							status = "FAIL"
-						}
-						fmt.Fprintf(cfg.Stderr, "    %s (exit=%d tokens=%d %s)\n",
-							status, pc.ExitCode, pc.Tokens, pc.Duration.Round(time.Second))
-					}
-				}
-			}
-		}
-	}
-
-	result.Duration = time.Since(start)
-	fmt.Fprintf(cfg.Stderr, "\nSession complete: %d/%d passed (%d timed out) in %s\n",
-		result.Passed, result.TotalPoints, result.TimedOut, result.Duration.Round(time.Second))
-
-	return &result, nil
-}
-
 // StandardSessionConfig extends SessionConfig with standard infrastructure
 // references for running evaluation points through core.Loop.
 type StandardSessionConfig struct {
@@ -191,10 +76,10 @@ type StandardSessionConfig struct {
 	ES *EvalState
 }
 
-// RunSessionStandard executes a full evaluation session using the
-// standard core.Loop infrastructure. Each evaluation point runs through
-// the machine.yaml-defined state machine with standard tool resolution.
-func RunSessionStandard(
+// RunSession executes a full evaluation session using the standard
+// core.Loop infrastructure. Each evaluation point runs through the
+// machine.yaml-defined state machine with standard tool resolution.
+func RunSession(
 	ctx context.Context,
 	suite SuiteConfig,
 	cfg StandardSessionConfig,
@@ -410,8 +295,6 @@ func LoadSuite(path string) (SuiteConfig, error) {
 }
 
 // ParseSuite parses suite YAML and resolves samples relative to baseDir.
-// The experiment field can be either an inline ExperimentConfig struct
-// or a string path to an experiment YAML file (resolved relative to baseDir).
 func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 	var raw struct {
 		Name        string            `yaml:"name"`
@@ -419,7 +302,6 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 		Models      []string          `yaml:"models"`
 		Grid        map[string][]any  `yaml:"grid,omitempty"`
 		SamplesDir  string            `yaml:"samples_dir"`
-		Experiment  yaml.Node         `yaml:"experiment,omitempty"`
 		Timeout     string            `yaml:"timeout,omitempty"`
 		OllamaURL   string            `yaml:"ollama_url,omitempty"`
 		Reps        int               `yaml:"repetitions,omitempty"`
@@ -446,40 +328,20 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 		return SuiteConfig{}, fmt.Errorf("suite %q: %w", raw.Name, err)
 	}
 
-	var experiment *ExperimentConfig
-	if raw.Experiment.Kind == yaml.ScalarNode && raw.Experiment.Value != "" {
-		expPath := raw.Experiment.Value
-		if !filepath.IsAbs(expPath) {
-			expPath = filepath.Join(baseDir, expPath)
-		}
-		exp, err := LoadExperiment(expPath)
-		if err != nil {
-			return SuiteConfig{}, fmt.Errorf("suite %q: %w", raw.Name, err)
-		}
-		experiment = &exp
-	} else if raw.Experiment.Kind == yaml.MappingNode {
-		var exp ExperimentConfig
-		if err := raw.Experiment.Decode(&exp); err != nil {
-			return SuiteConfig{}, fmt.Errorf("suite %q: decode experiment: %w", raw.Name, err)
-		}
-		experiment = &exp
-	}
-
 	var timeout time.Duration
 	if raw.Timeout != "" {
 		timeout, _ = time.ParseDuration(raw.Timeout)
 	}
 
 	return SuiteConfig{
-		Name:       raw.Name,
-		Harnesses:  raw.Harnesses,
-		Models:     raw.Models,
-		Grid:       raw.Grid,
-		Samples:    samples,
-		Experiment: experiment,
-		Timeout:    timeout,
-		OllamaURL:  raw.OllamaURL,
-		Reps:       raw.Reps,
+		Name:      raw.Name,
+		Harnesses: raw.Harnesses,
+		Models:    raw.Models,
+		Grid:      raw.Grid,
+		Samples:   samples,
+		Timeout:   timeout,
+		OllamaURL: raw.OllamaURL,
+		Reps:      raw.Reps,
 	}, nil
 }
 

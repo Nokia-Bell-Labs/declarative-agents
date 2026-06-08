@@ -27,16 +27,9 @@ func (b *RunAgentBuilder) Build(_ core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
 		return &failCmd{err: fmt.Errorf("run_agent: EvalState.PC not initialized")}
 	}
-	toolDef := ExperimentTool{
-		Type:      "cli",
-		Binary:    b.ES.PC.Harness.Binary,
-		FlagsFrom: "harness",
-		Propagate: []string{"otel-parent-span", "otel-log-file", "llm-timeout", "max-time"},
-	}
 	return &runAgentCmd{
-		pc:      b.ES.PC,
-		ctx:     b.ES.Ctx,
-		toolDef: toolDef,
+		pc:  b.ES.PC,
+		ctx: b.ES.Ctx,
 	}
 }
 
