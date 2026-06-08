@@ -1,0 +1,113 @@
+name: pipeline-plan-only
+initial_state: Idle
+
+states:
+  - Idle
+  - Extracting
+  - Resetting
+  - PromptAssembly
+  - PlanInvoking
+  - PlanParsing
+  - Materializing
+  - Completed
+  - Stalled
+  - Paused
+  - Failed
+
+terminal_states:
+  - Completed
+  - Stalled
+  - Paused
+  - Failed
+
+signals:
+  - Seed
+  - TaskExtracted
+  - AllDone
+  - Blocked
+  - BatchLimitReached
+  - ToolDone
+  - LLMResponded
+  - PlanReady
+  - PlanFailed
+  - Materialized
+  - MaterializeFailed
+  - CommandError
+
+transitions:
+  # Idle
+  - state: Idle
+    signal: Seed
+    next: Extracting
+    action: extract_task
+
+  # Extracting
+  - state: Extracting
+    signal: TaskExtracted
+    next: Resetting
+    action: reset_history
+  - state: Extracting
+    signal: AllDone
+    next: Completed
+  - state: Extracting
+    signal: Blocked
+    next: Stalled
+  - state: Extracting
+    signal: BatchLimitReached
+    next: Paused
+  - state: Extracting
+    signal: CommandError
+    next: Failed
+
+  # Resetting — clear conversation history
+  - state: Resetting
+    signal: ToolDone
+    next: PromptAssembly
+    action: assemble_prompt
+  - state: Resetting
+    signal: CommandError
+    next: Failed
+
+  # PromptAssembly — build task/SRD context into prompt
+  - state: PromptAssembly
+    signal: ToolDone
+    next: PlanInvoking
+    action: invoke_llm
+  - state: PromptAssembly
+    signal: CommandError
+    next: Failed
+
+  # PlanInvoking
+  - state: PlanInvoking
+    signal: LLMResponded
+    next: PlanParsing
+    action: parse_plan
+  - state: PlanInvoking
+    signal: CommandError
+    next: Failed
+
+  # PlanParsing
+  - state: PlanParsing
+    signal: PlanReady
+    next: Materializing
+    action: create_issue
+  - state: PlanParsing
+    signal: PlanFailed
+    next: Extracting
+    action: extract_task
+  - state: PlanParsing
+    signal: CommandError
+    next: Failed
+
+  # Materializing — after creating the issue, go back to Extracting
+  # instead of Executing. This is what makes plan-only different.
+  - state: Materializing
+    signal: Materialized
+    next: Extracting
+    action: extract_task
+  - state: Materializing
+    signal: MaterializeFailed
+    next: Failed
+  - state: Materializing
+    signal: CommandError
+    next: Failed

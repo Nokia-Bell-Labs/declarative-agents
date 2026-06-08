@@ -1,0 +1,122 @@
+name: pipeline-passthrough
+initial_state: Idle
+
+states:
+  - Idle
+  - Extracting
+  - Executing
+  - Vetting
+  - Building
+  - Testing
+  - CheckingResult
+  - Completed
+  - Stalled
+  - Failed
+
+terminal_states:
+  - Completed
+  - Stalled
+  - Failed
+
+signals:
+  - Seed
+  - TaskExtracted
+  - AllDone
+  - Blocked
+  - ToolDone
+  - ToolFailed
+  - ExecutionDone
+  - ExecutionFailed
+  - ValidationPassed
+  - RetryAvailable
+  - RetriesExhausted
+  - CommandError
+
+transitions:
+  # Idle
+  - state: Idle
+    signal: Seed
+    next: Extracting
+    action: extract_all
+
+  # Extracting
+  - state: Extracting
+    signal: TaskExtracted
+    next: Executing
+    action: execute_task
+  - state: Extracting
+    signal: AllDone
+    next: Completed
+  - state: Extracting
+    signal: Blocked
+    next: Stalled
+  - state: Extracting
+    signal: CommandError
+    next: Failed
+
+  # Executing
+  - state: Executing
+    signal: ExecutionDone
+    next: Vetting
+    action: vet
+  - state: Executing
+    signal: ExecutionFailed
+    next: Vetting
+    action: vet
+  - state: Executing
+    signal: CommandError
+    next: Failed
+
+  # Vetting
+  - state: Vetting
+    signal: ToolDone
+    next: Building
+    action: build
+  - state: Vetting
+    signal: ToolFailed
+    next: CheckingResult
+    action: check_result
+  - state: Vetting
+    signal: CommandError
+    next: Failed
+
+  # Building
+  - state: Building
+    signal: ToolDone
+    next: Testing
+    action: test
+  - state: Building
+    signal: ToolFailed
+    next: CheckingResult
+    action: check_result
+  - state: Building
+    signal: CommandError
+    next: Failed
+
+  # Testing
+  - state: Testing
+    signal: ToolDone
+    next: CheckingResult
+    action: check_result
+  - state: Testing
+    signal: ToolFailed
+    next: CheckingResult
+    action: check_result
+  - state: Testing
+    signal: CommandError
+    next: Failed
+
+  # CheckingResult
+  - state: CheckingResult
+    signal: ValidationPassed
+    next: Completed
+  - state: CheckingResult
+    signal: RetryAvailable
+    next: Executing
+    action: execute_task
+  - state: CheckingResult
+    signal: RetriesExhausted
+    next: Stalled
+  - state: CheckingResult
+    signal: CommandError
+    next: Failed

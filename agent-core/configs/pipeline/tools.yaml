@@ -1,0 +1,188 @@
+tools:
+  # --- planning tools (builtin) ---
+  - name: extract_task
+    type: builtin
+    init: extract_task
+    description: "Extract the next unblocked task from the dependency graph."
+    visibility: internal
+
+  - name: extract_all
+    type: builtin
+    init: extract_all
+    description: "Extract all requirements as a single task group (passthrough mode)."
+    visibility: internal
+
+  - name: assemble_prompt
+    type: builtin
+    init: assemble_prompt
+    description: "Assemble the LLM prompt from task context and SRD requirements."
+    visibility: internal
+
+  - name: parse_plan
+    type: builtin
+    init: parse_plan
+    description: "Parse the LLM YAML response into an ImplementationPlan."
+    visibility: internal
+
+  - name: create_issue
+    type: builtin
+    init: create_issue
+    description: "Create a bd issue from the parsed implementation plan."
+    visibility: internal
+
+  # --- execution (builtin) ---
+  - name: execute_task
+    type: builtin
+    init: execute_task
+    description: "Execute the current task via the code generator agent."
+    visibility: internal
+
+  # --- LLM tools (builtin) ---
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    description: "Send the assembled prompt to the LLM and return the response."
+    visibility: internal
+
+  - name: reset_history
+    type: builtin
+    init: reset_history
+    description: "Clear the LLM conversation history for a fresh context."
+    visibility: internal
+
+  # --- infrastructure (builtin) ---
+  - name: check_result
+    type: builtin
+    init: check_result
+    description: "Evaluate validation results and decide retry vs. advance vs. fail."
+    visibility: internal
+
+  # --- validation tools (exec) ---
+  - name: vet
+    binary: go
+    args: [vet, "./..."]
+    description: "Run go vet ./... on the workspace. Reports suspicious constructs."
+
+  - name: build
+    binary: go
+    args: [build, "./..."]
+    description: "Compile all Go packages with go build ./... Returns compiler errors on failure."
+
+  - name: test
+    binary: go
+    args: [test, "-count=1"]
+    description: "Run go test -count=1 on the workspace. Returns test output including pass/fail results."
+    output_cap: 200
+    parameters:
+      type: object
+      properties:
+        package:
+          type: string
+          description: "Go package path (default ./...)"
+          positional: true
+          default: "./..."
+
+  # --- git tools (exec) ---
+  - name: stage_all
+    binary: git
+    args: [add, -A]
+    description: "Stage all changes including untracked files (git add -A)."
+    precondition: git_repo
+    side_effects: "moves all working tree changes to the index"
+
+  - name: workspace_status
+    binary: git
+    args: [status, --porcelain]
+    description: "Report git workspace state: changed files with status codes (M/A/D/??)."
+    precondition: git_repo
+
+  - name: commit
+    binary: git
+    args: [commit]
+    description: "Create a git commit from staged changes. Fails if nothing is staged."
+    precondition: git_repo
+    side_effects: "creates a commit object on the current branch"
+    parameters:
+      type: object
+      properties:
+        message:
+          type: string
+          description: "Commit message"
+          flag: -m
+      required: [message]
+
+  - name: rev_parse
+    binary: git
+    args: [rev-parse, --short, HEAD]
+    description: "Return the short hash of HEAD."
+    precondition: git_repo
+
+  - name: diff_stat
+    binary: git
+    args: [diff, --stat]
+    description: "Show a summary of uncommitted changes (files changed, insertions, deletions)."
+    precondition: git_repo
+
+  - name: log_oneline
+    binary: git
+    args: [log, --oneline, -10]
+    description: "Show the last 10 commits as one-line summaries."
+    precondition: git_repo
+
+  # --- issue tools (exec, bd CLI) ---
+  - name: issue_create
+    binary: bd
+    args: [create, --json]
+    description: "Create a new beads issue. Returns the issue ID."
+    side_effects: "writes to .beads/issues.jsonl and .beads/interactions.jsonl"
+    parameters:
+      type: object
+      properties:
+        title:
+          type: string
+          description: "Issue title"
+          flag: --title
+        body:
+          type: string
+          description: "Issue body/description"
+          flag: --body
+        type:
+          type: string
+          description: "Issue type (default: task)"
+          flag: -t
+        priority:
+          type: string
+          description: "Priority level (default: P2)"
+          flag: -p
+        deps:
+          type: string
+          description: "Comma-separated dependency issue IDs"
+          flag: --deps
+      required: [title]
+
+  - name: issue_close
+    binary: bd
+    args: [close]
+    description: "Close an issue by ID."
+    side_effects: "sets issue status to closed in .beads/issues.jsonl"
+    parameters:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Issue ID to close"
+          positional: true
+      required: [id]
+
+  - name: issue_list
+    binary: bd
+    args: [list]
+    description: "List beads issues. Defaults to open issues only."
+    parameters:
+      type: object
+      properties:
+        all:
+          type: boolean
+          description: "Include closed issues"
+          flag: --all
+          bool_flag: true

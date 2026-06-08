@@ -1,0 +1,41 @@
+# Tool definitions for evaluator state machine steps.
+# All tools are type: builtin, resolved via the eval package's
+# builtinBuilder (pkg/eval/experiment.go).
+tools:
+  - name: prepare_workspace
+    type: builtin
+    init: prepare_workspace
+    description: "Clone or reset the sample workspace for an evaluation point."
+    visibility: internal
+
+  - name: run_agent
+    type: builtin
+    init: run_agent
+    description: "Invoke the harness binary on the prepared workspace."
+    visibility: internal
+    config:
+      binary: "{{harness.binary}}"
+      flags_from: harness
+      propagate:
+        - otel-parent-span
+        - otel-log-file
+        - llm-timeout
+        - max-time
+
+  - name: check_results
+    type: builtin
+    init: check_results
+    description: "Validate agent output against expected results for the sample."
+    visibility: internal
+
+  - name: collect_metrics
+    type: builtin
+    init: collect_metrics
+    description: "Gather telemetry, token counts, and timing data for the point."
+    visibility: internal
+
+  - name: summarize
+    type: builtin
+    init: summarize
+    description: "Aggregate metrics across all points and produce the final report."
+    visibility: internal

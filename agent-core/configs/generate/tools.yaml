@@ -1,0 +1,102 @@
+# Tool definitions for the generate state machine.
+# Used with: agent --machine configs/generate/machine.yaml --tools configs/generate/tools.yaml
+
+tools:
+  # --- file tools (builtin) ---
+  - name: read
+    type: builtin
+    init: file_read
+    description: "Read a file from the workspace. Returns the file contents."
+
+  - name: write
+    type: builtin
+    init: file_write
+    description: "Write a file to the workspace. Creates or overwrites the file."
+
+  - name: edit
+    type: builtin
+    init: file_edit
+    description: "Apply a targeted edit to an existing file using search-and-replace."
+
+  - name: find
+    type: builtin
+    init: file_find
+    description: "Search for files matching a glob pattern in the workspace."
+
+  - name: list_files
+    type: builtin
+    init: file_list
+    description: "List files in a directory within the workspace."
+
+  # --- build tools (exec) ---
+  - name: build
+    type: exec
+    binary: go
+    args: [build, "./..."]
+    description: "Compile all Go packages with go build ./... Returns compiler errors on failure."
+
+  - name: vet
+    type: exec
+    binary: go
+    args: [vet, "./..."]
+    description: "Run go vet ./... on the workspace. Reports suspicious constructs."
+
+  - name: lint
+    type: exec
+    binary: golangci-lint
+    args: [run, "./..."]
+    description: "Run golangci-lint run ./... on the Go workspace."
+
+  - name: test
+    type: exec
+    binary: go
+    args: [test, "-count=1"]
+    description: "Run go test -count=1 on the workspace. Returns test output including pass/fail results."
+    output_cap: 200
+    parameters:
+      type: object
+      properties:
+        package:
+          type: string
+          description: "Go package path (default ./...)"
+          positional: true
+          default: "./..."
+
+  # --- LLM tools (builtin, internal) ---
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    description: "Invoke the LLM with the current conversation history."
+
+  - name: parse_response
+    type: builtin
+    init: parse_response
+    visibility: internal
+    description: "Parse raw LLM output into a tool call or task-completed signal."
+
+  - name: report_parse_error
+    type: builtin
+    init: report_parse_error
+    visibility: internal
+    description: "Report a parse error back to the LLM for correction."
+
+  - name: reset_history
+    type: builtin
+    init: reset_history
+    visibility: internal
+    description: "Clear the conversation history and restart the LLM context."
+
+  # --- validation (builtin, internal) ---
+  - name: validate
+    type: builtin
+    init: validate
+    visibility: internal
+    description: "Run build, vet, lint, and test to validate generated code."
+
+  # --- done (signals TaskCompleted) ---
+  - name: done
+    type: builtin
+    init: done
+    visibility: internal
+    description: "Signal that the generation task is complete."

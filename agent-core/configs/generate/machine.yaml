@@ -1,0 +1,110 @@
+# State machine for the Go code-generation agent.
+# Adapted from the generator's machine.yaml for use with the
+# unified agent binary (cmd/agent).
+
+name: generate
+initial_state: Idle
+
+states:
+  - Idle
+  - Composing
+  - Parsing
+  - ValidatingBuild
+  - Succeeded
+  - Failed
+  - BudgetExceeded
+
+terminal_states:
+  - Succeeded
+  - Failed
+  - BudgetExceeded
+
+signals:
+  - Seed
+  - LLMResponded
+  - ToolDone
+  - ToolFailed
+  - ParseFailed
+  - TaskCompleted
+  - CommandError
+  - ValidationPassed
+  - ValidationFailed
+  - BudgetExhausted
+  - EditDone
+
+transitions:
+  # Initial entry: start by invoking the LLM
+  - state: Idle
+    signal: Seed
+    next: Composing
+    action: invoke_llm
+
+  # LLM responded: parse the raw output
+  - state: Composing
+    signal: LLMResponded
+    next: Parsing
+    action: parse_response
+
+  # Parse succeeded with a tool call: dispatch the tool dynamically
+  - state: Parsing
+    signal: ToolDone
+    next: Composing
+    action: $tool
+
+  # Parse produced TaskCompleted (done tool): run validation
+  - state: Parsing
+    signal: TaskCompleted
+    next: ValidatingBuild
+    action: validate
+
+  # Parse failed (malformed JSON): report error back to LLM
+  - state: Parsing
+    signal: ParseFailed
+    next: Composing
+    action: report_parse_error
+
+  # Tool completed successfully: feed result back to LLM
+  - state: Composing
+    signal: ToolDone
+    next: Composing
+    action: invoke_llm
+
+  # Edit completed: same as ToolDone
+  - state: Composing
+    signal: EditDone
+    next: Composing
+    action: invoke_llm
+
+  # Tool failed (recoverable): feed error back to LLM
+  - state: Composing
+    signal: ToolFailed
+    next: Composing
+    action: invoke_llm
+
+  # Validation passed: success
+  - state: ValidatingBuild
+    signal: ValidationPassed
+    next: Succeeded
+
+  # Validation failed: terminate with failure
+  - state: ValidatingBuild
+    signal: ValidationFailed
+    next: Failed
+
+  # Error handling: infrastructure failures terminate the run
+  - state: Composing
+    signal: CommandError
+    next: Failed
+
+  - state: Parsing
+    signal: CommandError
+    next: Failed
+
+  - state: ValidatingBuild
+    signal: CommandError
+    next: Failed
+
+  # Budget exhaustion
+  - state: Composing
+    signal: BudgetExhausted
+    next: BudgetExceeded
