@@ -163,6 +163,14 @@ func RunPoint(
 		Budget: core.Budget{
 			MaxIterations: 20,
 		},
+		Hooks: core.LoopHooks{
+			TerminalStatus: func(s core.State) core.RunStatus {
+				if isTerminal(s) && s != core.State("Failed") {
+					return core.StatusSucceeded
+				}
+				return core.StatusFailed
+			},
+		},
 	}
 
 	_, err = core.Loop(params, ctx)

@@ -48,10 +48,10 @@ func (c *runAgentCmd) Execute() core.Result {
 	}
 
 	if shouldPropagate(c.toolDef.Propagate, "max-time") && pc.Timeout > 0 {
-		args = append(args, "--max-time", pc.Timeout.String())
+		args = append(args, "--max-time", fmt.Sprintf("%d", int(pc.Timeout.Seconds())))
 	}
 	if shouldPropagate(c.toolDef.Propagate, "llm-timeout") && pc.LLMTimeout > 0 {
-		args = append(args, "--llm-timeout", pc.LLMTimeout.String())
+		args = append(args, "--llm-timeout", fmt.Sprintf("%d", int(pc.LLMTimeout.Seconds())))
 	}
 
 	if c.toolDef.FlagsFrom == "harness" {
