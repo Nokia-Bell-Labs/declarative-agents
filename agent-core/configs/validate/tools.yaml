@@ -1,0 +1,21 @@
+# Tool definitions for the validate state machine.
+# Used with: agent --machine configs/validate/machine.yaml --tools configs/validate/tools.yaml
+
+tools:
+  - name: load_corpus
+    type: builtin
+    init: load_corpus
+    visibility: internal
+    description: "Load all specification artifacts (SRDs, use cases, test suites, roadmap) from the project directory."
+
+  - name: validate_specs
+    type: builtin
+    init: validate_specs
+    visibility: internal
+    description: "Build a labeled property graph and run consistency checks on the loaded corpus."
+
+  - name: format_report
+    type: builtin
+    init: format_report
+    visibility: internal
+    description: "Format and print the validation findings report."

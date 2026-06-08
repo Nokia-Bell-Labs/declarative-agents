@@ -1,0 +1,148 @@
+# State machine for batch plan+materialize from a tasks file.
+# Iterates through tasks, plans each via LLM, and materializes
+# as bd issues in a git worktree.
+#
+# Usage:
+#   agent --machine configs/apply/machine.yaml \
+#         --tools configs/apply/tools.yaml \
+#         --model <model> --directory <repo-dir> \
+#         --prompt-string <tasks-path>
+
+name: apply
+initial_state: Idle
+
+states:
+  - Idle
+  - LoadingTasks
+  - CreatingWorktree
+  - NextTask
+  - Resetting
+  - PromptAssembly
+  - PlanInvoking
+  - PlanParsing
+  - Materializing
+  - Completed
+  - Failed
+
+terminal_states:
+  - Completed
+  - Failed
+
+signals:
+  - Seed
+  - ToolDone
+  - ToolFailed
+  - CommandError
+  - LLMResponded
+  - TaskExtracted
+  - AllDone
+  - PlanReady
+  - PlanFailed
+  - Materialized
+  - MaterializeFailed
+  - BudgetExhausted
+
+transitions:
+  # Start: load the tasks file
+  - state: Idle
+    signal: Seed
+    next: LoadingTasks
+    action: load_apply_tasks
+
+  - state: LoadingTasks
+    signal: ToolDone
+    next: CreatingWorktree
+    action: create_worktree
+
+  - state: LoadingTasks
+    signal: CommandError
+    next: Failed
+
+  # Create git worktree for materialization
+  - state: CreatingWorktree
+    signal: ToolDone
+    next: NextTask
+    action: next_apply_task
+
+  - state: CreatingWorktree
+    signal: CommandError
+    next: Failed
+
+  # Task iteration loop
+  - state: NextTask
+    signal: TaskExtracted
+    next: Resetting
+    action: reset_history
+
+  - state: NextTask
+    signal: AllDone
+    next: Completed
+
+  - state: NextTask
+    signal: CommandError
+    next: Failed
+
+  # Reset conversation for fresh LLM context per task
+  - state: Resetting
+    signal: ToolDone
+    next: PromptAssembly
+    action: assemble_apply_prompt
+
+  - state: Resetting
+    signal: CommandError
+    next: Failed
+
+  # Build the planning prompt
+  - state: PromptAssembly
+    signal: ToolDone
+    next: PlanInvoking
+    action: invoke_llm
+
+  - state: PromptAssembly
+    signal: CommandError
+    next: Failed
+
+  # LLM call
+  - state: PlanInvoking
+    signal: LLMResponded
+    next: PlanParsing
+    action: parse_apply_plan
+
+  - state: PlanInvoking
+    signal: CommandError
+    next: Failed
+
+  # Parse the plan YAML from LLM response
+  - state: PlanParsing
+    signal: PlanReady
+    next: Materializing
+    action: materialize_issue
+
+  - state: PlanParsing
+    signal: PlanFailed
+    next: NextTask
+    action: next_apply_task
+
+  - state: PlanParsing
+    signal: CommandError
+    next: Failed
+
+  # Materialize as bd issue
+  - state: Materializing
+    signal: Materialized
+    next: NextTask
+    action: next_apply_task
+
+  - state: Materializing
+    signal: MaterializeFailed
+    next: NextTask
+    action: next_apply_task
+
+  - state: Materializing
+    signal: CommandError
+    next: Failed
+
+  # Budget exhaustion
+  - state: PlanInvoking
+    signal: BudgetExhausted
+    next: Failed

@@ -1,0 +1,68 @@
+# State machine for spec validation.
+# Loads a specification corpus, builds a labeled property graph,
+# runs consistency checks, and formats the report.
+#
+# Usage:
+#   agent --machine configs/validate/machine.yaml \
+#         --tools configs/validate/tools.yaml \
+#         --directory <project-root>
+
+name: validate
+initial_state: Idle
+
+states:
+  - Idle
+  - Loading
+  - Validating
+  - Reporting
+  - Passed
+  - Failed
+
+terminal_states:
+  - Passed
+  - Failed
+
+signals:
+  - Seed
+  - ToolDone
+  - ToolFailed
+  - CommandError
+  - ValidationPassed
+  - ValidationFailed
+
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Loading
+    action: load_corpus
+
+  - state: Loading
+    signal: ToolDone
+    next: Validating
+    action: validate_specs
+
+  - state: Loading
+    signal: CommandError
+    next: Failed
+
+  - state: Validating
+    signal: ValidationPassed
+    next: Reporting
+    action: format_report
+
+  - state: Validating
+    signal: ValidationFailed
+    next: Reporting
+    action: format_report
+
+  - state: Reporting
+    signal: ToolDone
+    next: Passed
+
+  - state: Reporting
+    signal: ToolFailed
+    next: Failed
+
+  - state: Reporting
+    signal: CommandError
+    next: Failed
