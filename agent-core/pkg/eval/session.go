@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gopkg.in/yaml.v3"
 )
 
@@ -63,6 +64,9 @@ type PointResult struct {
 
 // RunSession executes a full evaluation session, running through all
 // combinations of harnesses × models × grid × samples × reps.
+//
+// Deprecated: Use RunSessionStandard for new code. This function
+// remains for backward compatibility with ExperimentConfig-based setups.
 func RunSession(
 	ctx context.Context,
 	suite SuiteConfig,
@@ -123,11 +127,141 @@ func RunSession(
 						fmt.Fprintf(cfg.Stderr, "  → %s\n", pointID)
 
 						exp := suite.Experiment
-					if exp == nil {
-						defaultExp := DefaultExperiment(harness)
-						exp = &defaultExp
+						if exp == nil {
+							defaultExp := DefaultExperiment(harness)
+							exp = &defaultExp
+						}
+						pc, _ = RunPoint(ctx, *exp, pc)
+
+						pr := PointResult{
+							PointID:     pointID,
+							Sample:      sample.Name,
+							Harness:     harness.Name,
+							Model:       model,
+							TestsPassed: pc.TestsPassed,
+							TimedOut:    pc.TimedOut,
+							ExitCode:    pc.ExitCode,
+							Tokens:      pc.Tokens,
+							Duration:    pc.Duration,
+						}
+
+						result.Points = append(result.Points, pr)
+						result.TotalPoints++
+						if pc.TestsPassed {
+							result.Passed++
+						} else if pc.TimedOut {
+							result.TimedOut++
+						} else {
+							result.Failed++
+						}
+
+						status := "PASS"
+						if pc.TimedOut {
+							status = "TIMEOUT"
+						} else if !pc.TestsPassed {
+							status = "FAIL"
+						}
+						fmt.Fprintf(cfg.Stderr, "    %s (exit=%d tokens=%d %s)\n",
+							status, pc.ExitCode, pc.Tokens, pc.Duration.Round(time.Second))
 					}
-					pc, _ = RunPoint(ctx, *exp, pc)
+				}
+			}
+		}
+	}
+
+	result.Duration = time.Since(start)
+	fmt.Fprintf(cfg.Stderr, "\nSession complete: %d/%d passed (%d timed out) in %s\n",
+		result.Passed, result.TotalPoints, result.TimedOut, result.Duration.Round(time.Second))
+
+	return &result, nil
+}
+
+// StandardSessionConfig extends SessionConfig with standard infrastructure
+// references for running evaluation points through core.Loop.
+type StandardSessionConfig struct {
+	SessionConfig
+
+	// LoopParams is a template for each evaluation point's loop.
+	// The function clones and adjusts per-point fields (Budget, AgentName)
+	// before each core.Loop call.
+	LoopParams core.LoopParams
+
+	// ES is the shared eval state whose PC field is updated before
+	// each point's loop run.
+	ES *EvalState
+}
+
+// RunSessionStandard executes a full evaluation session using the
+// standard core.Loop infrastructure. Each evaluation point runs through
+// the machine.yaml-defined state machine with standard tool resolution.
+func RunSessionStandard(
+	ctx context.Context,
+	suite SuiteConfig,
+	cfg StandardSessionConfig,
+) (*SessionResult, error) {
+	if cfg.Stderr == nil {
+		cfg.Stderr = os.Stderr
+	}
+
+	sessionDir := filepath.Join(cfg.OutputDir, suite.Name, time.Now().Format("20060102-150405"))
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create session dir: %w", err)
+	}
+
+	gridPoints := expandGrid(suite.Grid)
+	if len(gridPoints) == 0 {
+		gridPoints = []GridPoint{{}}
+	}
+
+	reps := cfg.Reps
+	if reps < 1 {
+		reps = 1
+	}
+
+	timeout := cfg.Timeout
+	if timeout == 0 {
+		timeout = 10 * time.Minute
+	}
+
+	start := time.Now()
+	var result SessionResult
+
+	for _, harness := range suite.Harnesses {
+		for _, model := range suite.Models {
+			for _, gp := range gridPoints {
+				for _, sample := range suite.Samples {
+					for rep := 0; rep < reps; rep++ {
+						if ctx.Err() != nil {
+							return &result, ctx.Err()
+						}
+
+						pointID := EvalPointID(sample.Name, harness.Name, model, gp, rep)
+
+						pc := &PointContext{
+							SessionDir: sessionDir,
+							PointID:    pointID,
+							Sample:     sample,
+							Harness:    harness,
+							Model:      model,
+							GridPoint:  gp,
+							Rep:        rep,
+							Timeout:    timeout,
+							LLMTimeout: cfg.LLMTimeout,
+							OllamaURL:  cfg.OllamaURL,
+							Stderr:     cfg.Stderr,
+						}
+
+						cfg.ES.PC = pc
+
+						fmt.Fprintf(cfg.Stderr, "  → %s\n", pointID)
+
+						params := cfg.LoopParams
+						params.AgentName = "evaluator-point"
+
+						_, loopErr := core.Loop(params, ctx)
+						if loopErr != nil {
+							fmt.Fprintf(cfg.Stderr, "    ERROR: %v\n", loopErr)
+						}
 
 						pr := PointResult{
 							PointID:     pointID,

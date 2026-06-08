@@ -86,50 +86,153 @@ var evalCmd = &cobra.Command{
 	Short: "Run an evaluation suite",
 	Long: `Runs an evaluation suite defined in YAML. The suite specifies harnesses,
 models, grid parameters, and sample directories. Each combination is
-executed as an evaluation point.`,
+executed as an evaluation point using the standard state machine infrastructure.`,
 	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		suite, err := eval.LoadSuite(args[0])
-		if err != nil {
-			return fmt.Errorf("load suite: %w", err)
-		}
-
-		outputDir, _ := cmd.Flags().GetString("output")
-		if outputDir == "" {
-			outputDir = "eval-results"
-		}
-
-		reps, _ := cmd.Flags().GetInt("reps")
-		if reps == 0 && suite.Reps > 0 {
-			reps = suite.Reps
-		}
-		if reps == 0 {
-			reps = 1
-		}
-
-		cfg := eval.SessionConfig{
-			OutputDir:  outputDir,
-			OllamaURL:  suite.OllamaURL,
-			Timeout:    suite.Timeout,
-			Reps:       reps,
-			Stderr:     os.Stderr,
-		}
-
-		result, err := eval.RunSession(cmd.Context(), suite, cfg)
-		if err != nil {
-			return err
-		}
-
-		if result.Passed < result.TotalPoints {
-			os.Exit(1)
-		}
-		return nil
-	},
+	RunE: runEval,
 }
 
 func init() {
-	evalCmd.Flags().String("output", "eval-results", "output directory for results")
-	evalCmd.Flags().Int("reps", 1, "number of repetitions per point")
+	f := evalCmd.Flags()
+	f.String("output", "eval-results", "output directory for results")
+	f.Int("reps", 1, "number of repetitions per point")
+	f.String("eval-machine", "", "path to evaluator machine.yaml (default: configs/evaluator/machine.yaml)")
+	f.String("eval-tools", "", "path to evaluator tools.yaml selection file (default: configs/evaluator/tools.yaml)")
+	f.StringSlice("eval-tools-declaration", nil, "paths to tool declaration files for evaluator")
+}
+
+func runEval(cmd *cobra.Command, args []string) error {
+	suite, err := eval.LoadSuite(args[0])
+	if err != nil {
+		return fmt.Errorf("load suite: %w", err)
+	}
+
+	outputDir, _ := cmd.Flags().GetString("output")
+	if outputDir == "" {
+		outputDir = "eval-results"
+	}
+
+	reps, _ := cmd.Flags().GetInt("reps")
+	if reps == 0 && suite.Reps > 0 {
+		reps = suite.Reps
+	}
+	if reps == 0 {
+		reps = 1
+	}
+
+	machineFile, _ := cmd.Flags().GetString("eval-machine")
+	if machineFile == "" {
+		machineFile = "configs/evaluator/machine.yaml"
+	}
+
+	toolsFile, _ := cmd.Flags().GetString("eval-tools")
+	if toolsFile == "" {
+		toolsFile = "configs/evaluator/tools.yaml"
+	}
+
+	declPaths, _ := cmd.Flags().GetStringSlice("eval-tools-declaration")
+	if len(declPaths) == 0 {
+		declPaths = []string{
+			"configs/tools/builtin.yaml",
+			"configs/tools/exec.yaml",
+		}
+	}
+
+	// Load tool definitions via standard declaration+selection
+	declarations, err := stl.LoadToolDeclarations(declPaths)
+	if err != nil {
+		return fmt.Errorf("load eval tool declarations: %w", err)
+	}
+	selection, err := stl.LoadToolSelection(toolsFile)
+	if err != nil {
+		return fmt.Errorf("load eval tool selection: %w", err)
+	}
+	defs, err := stl.SelectTools(declarations, selection)
+	if err != nil {
+		return fmt.Errorf("select eval tools: %w", err)
+	}
+
+	// Build registries using standard infrastructure
+	reg := core.NewRegistry()
+	builtins := stl.NewBuiltinRegistry()
+
+	es := &eval.EvalState{Ctx: cmd.Context()}
+
+	st := &agentState{
+		registry: reg,
+		tracer:   tracing.NoopTracer{},
+		ctx:      cmd.Context(),
+	}
+
+	registerBuiltinFactories(builtins, st)
+
+	vars := map[string]string{"directory": flagDirectory}
+	if err := stl.RegisterUnifiedTools(reg, builtins, flagDirectory, defs, vars); err != nil {
+		return fmt.Errorf("register eval tools: %w", err)
+	}
+
+	// Inject the eval state into the eval builders already registered
+	// by registerEvalFactories. The builders hold a pointer to the
+	// EvalState created lazily; we need to replace it with ours.
+	// Re-register eval factories with our shared EvalState.
+	builtins.Register("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &eval.RunAgentBuilder{ES: es}, nil
+	})
+	builtins.Register("check_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &eval.CheckResultsBuilder{ES: es}, nil
+	})
+	builtins.Register("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &eval.CollectMetricsBuilder{ES: es}, nil
+	})
+
+	// Re-register the eval tools with our EvalState
+	for _, d := range defs {
+		if d.Type == "builtin" && (d.Name == "run_agent" || d.Name == "check_results" || d.Name == "collect_metrics") {
+			if err := stl.RegisterSingleBuiltin(reg, builtins, d, vars); err != nil {
+				return fmt.Errorf("re-register eval tool %s: %w", d.Name, err)
+			}
+		}
+	}
+
+	// Build loop params template
+	loopParams := core.LoopParams{
+		MachineFile: machineFile,
+		AgentName:   "evaluator",
+		Trace:       tracing.NoopTracer{},
+		Budget: core.Budget{
+			MaxIterations: 20,
+		},
+		Registry: reg,
+		Hooks: core.LoopHooks{
+			TerminalStatus: func(s core.State) core.RunStatus {
+				if s == core.State("Done") {
+					return core.StatusSucceeded
+				}
+				return core.StatusFailed
+			},
+		},
+	}
+
+	cfg := eval.StandardSessionConfig{
+		SessionConfig: eval.SessionConfig{
+			OutputDir:  outputDir,
+			OllamaURL: suite.OllamaURL,
+			Timeout:   suite.Timeout,
+			Reps:      reps,
+			Stderr:    os.Stderr,
+		},
+		LoopParams: loopParams,
+		ES:         es,
+	}
+
+	result, err := eval.RunSessionStandard(cmd.Context(), suite, cfg)
+	if err != nil {
+		return err
+	}
+
+	if result.Passed < result.TotalPoints {
+		os.Exit(1)
+	}
+	return nil
 }
 
 

@@ -62,6 +62,24 @@ func (br *BuiltinRegistry) Names() []string {
 //
 // The vars map provides template variable resolution (e.g. "model",
 // "directory") for tool config values.
+// RegisterSingleBuiltin registers a single builtin tool definition
+// into the registry, resolving its factory from the BuiltinRegistry.
+func RegisterSingleBuiltin(reg *core.Registry, builtins *BuiltinRegistry, td ToolDef, vars map[string]string) error {
+	if td.Init == "" {
+		return fmt.Errorf("builtin tool %q has no init field", td.Name)
+	}
+	factory, ok := builtins.Resolve(td.Init)
+	if !ok {
+		return fmt.Errorf("builtin tool %q: unknown init %q", td.Name, td.Init)
+	}
+	builder, err := factory(td, vars)
+	if err != nil {
+		return fmt.Errorf("builtin tool %q init: %w", td.Name, err)
+	}
+	reg.Register(td.ToToolSpec(), builder)
+	return nil
+}
+
 func RegisterUnifiedTools(reg *core.Registry, builtins *BuiltinRegistry, root string, defs []ToolDef, vars map[string]string) error {
 	for _, td := range defs {
 		spec := td.ToToolSpec()
