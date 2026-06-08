@@ -27,11 +27,15 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/eval"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm/ollama"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/materialize"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/pipeline"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/plan"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/prompt"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/worktree"
 )
 
 var (
@@ -91,6 +95,8 @@ func init() {
 	rootCmd.AddCommand(generateMachineCmd)
 	rootCmd.AddCommand(evalCmd)
 	rootCmd.AddCommand(analyzeCmd)
+	rootCmd.AddCommand(validateSpecCmd)
+	rootCmd.AddCommand(applyCmd)
 }
 
 var versionCmd = &cobra.Command{
@@ -240,6 +246,234 @@ func init() {
 	analyzeCmd.Flags().Bool("progression", false, "show per-run tool progression timelines")
 	analyzeCmd.Flags().Bool("detailed", false, "show per-(sample, model) convergence breakdown")
 	analyzeCmd.Flags().String("csv", "", "write detailed per-run CSV to this path")
+}
+
+// ---------------------------------------------------------------------------
+// validate subcommand — spec consistency checks
+// ---------------------------------------------------------------------------
+
+var validateSpecCmd = &cobra.Command{
+	Use:   "validate [requirements-dir]",
+	Short: "Validate specification consistency using the labeled property graph",
+	Long: `Loads all specification artifacts (SRDs, use cases, test suites,
+roadmap) from the given directory, builds a labeled property graph,
+and runs consistency checks. Exits 1 if any errors are found.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runValidateSpec,
+}
+
+func init() {
+	validateSpecCmd.Flags().Bool("errors-only", false, "only show error-level findings (suppress warnings)")
+}
+
+func runValidateSpec(cmd *cobra.Command, args []string) error {
+	reqDir := args[0]
+	errorsOnly, _ := cmd.Flags().GetBool("errors-only")
+
+	corpus, err := spec.LoadCorpus(reqDir)
+	if err != nil {
+		return fmt.Errorf("load corpus: %w", err)
+	}
+
+	g, err := spec.BuildGraph(corpus)
+	if err != nil {
+		return fmt.Errorf("build graph: %w", err)
+	}
+
+	findings := spec.Validate(g, corpus)
+	if errorsOnly {
+		findings = spec.Errors(findings)
+	}
+
+	fmt.Fprint(os.Stderr, spec.FormatFindings(findings))
+
+	errs := spec.Errors(findings)
+	if len(errs) > 0 {
+		return fmt.Errorf("found %d error(s)", len(errs))
+	}
+
+	fmt.Fprintf(os.Stderr, "validate: %d SRDs, %d use cases, %d test suites, %d nodes, %d edges — OK\n",
+		len(corpus.SRDs), len(corpus.UseCases), len(corpus.TestSuites), g.NodeCount(), len(g.Edges()))
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// apply subcommand — batch plan+materialize from tasks.yaml
+// ---------------------------------------------------------------------------
+
+// applyInputTask is one entry in the tasks.yaml input file.
+type applyInputTask struct {
+	ID    string         `yaml:"id"`
+	SRDID string         `yaml:"srd_id"`
+	Items []plan.TaskItem `yaml:"items"`
+	SRD   plan.SRDContext `yaml:"srd"`
+	Deps  []string        `yaml:"deps,omitempty"`
+}
+
+type applyTasksFile struct {
+	Tasks []applyInputTask `yaml:"tasks"`
+}
+
+var applyCmd = &cobra.Command{
+	Use:   "apply [tasks.yaml] [repo-dir]",
+	Short: "Plan and materialize tasks from a tasks.yaml file",
+	Long: `Reads a tasks.yaml file describing tasks with SRD context,
+creates an implementation plan for each task via LLM, and
+materializes each plan as a bd issue in a git worktree.`,
+	Args: cobra.ExactArgs(2),
+	RunE: runApply,
+}
+
+func init() {
+	applyCmd.Flags().String("model", "", "LLM model name (required)")
+	applyCmd.Flags().String("ollama-url", "http://localhost:11434", "Ollama server URL")
+	applyCmd.Flags().Int("max-retries", 2, "maximum plan retries per task")
+	applyCmd.Flags().Int("num-ctx", 0, "Ollama context window size (0 = model default)")
+	applyCmd.Flags().String("run-id", "", "worktree branch suffix (default: unix timestamp)")
+	applyCmd.Flags().String("otel-log-file", "", "path to OTel trace output file")
+}
+
+func runApply(cmd *cobra.Command, args []string) error {
+	tasksPath := args[0]
+	repoDir := args[1]
+
+	model, _ := cmd.Flags().GetString("model")
+	ollamaURL, _ := cmd.Flags().GetString("ollama-url")
+	maxRetries, _ := cmd.Flags().GetInt("max-retries")
+	numCtx, _ := cmd.Flags().GetInt("num-ctx")
+	runID, _ := cmd.Flags().GetString("run-id")
+	otelLogFile, _ := cmd.Flags().GetString("otel-log-file")
+
+	if model == "" {
+		return fmt.Errorf("--model is required")
+	}
+
+	if runID == "" {
+		runID = fmt.Sprintf("%d", time.Now().Unix())
+	}
+
+	// Set up tracing
+	var tracer tracing.Tracer = tracing.NoopTracer{}
+	ctx := context.Background()
+
+	if otelLogFile != "" {
+		t, shutdown, err := telemetry.NewRoot("agent", "agent.apply",
+			telemetry.ExporterConfig{FilePath: otelLogFile}, ctx)
+		if err != nil {
+			return err
+		}
+		defer shutdown()
+		tracer = telemetry.TraceAdapter{T: t}
+	}
+
+	// Load tasks
+	data, err := os.ReadFile(tasksPath)
+	if err != nil {
+		return fmt.Errorf("read tasks file: %w", err)
+	}
+	var tf applyTasksFile
+	if err := yaml.Unmarshal(data, &tf); err != nil {
+		return fmt.Errorf("parse tasks file: %w", err)
+	}
+	if len(tf.Tasks) == 0 {
+		return fmt.Errorf("tasks file %s contains no tasks", tasksPath)
+	}
+
+	// Set up LLM
+	client, err := ollama.NewAdapter(ollamaURL, model)
+	if err != nil {
+		return fmt.Errorf("ollama adapter: %w", err)
+	}
+	conv := llm.NewConversation(client, "", llm.ChatOptions{Model: model, NumCtx: numCtx})
+	assembler := &llm.DefaultAssembler{
+		Prompt: prompt.Prompt{
+			Role: "You are a software architect planning implementation of requirement items.\nReturn ONLY valid YAML, optionally wrapped in a yaml code fence.",
+		},
+	}
+
+	// Create worktree
+	wt, err := worktree.Create(ctx, tracer, repoDir, runID)
+	if err != nil {
+		return fmt.Errorf("worktree: %w", err)
+	}
+	defer wt.Remove(ctx, tracer) //nolint:errcheck
+
+	mt := materialize.NewMaterializeTask()
+	issued := make(map[string]string)
+	var failures int
+
+	for _, task := range tf.Tasks {
+		tc := plan.TaskContext{ID: task.ID, SRDID: task.SRDID, Items: task.Items}
+		taskDeps := make(map[string]string)
+		for _, dep := range task.Deps {
+			if id, ok := issued[dep]; ok {
+				taskDeps[dep] = id
+			}
+		}
+
+		implPlan, err := applyPlanWithRetry(ctx, tracer, client, conv, assembler,
+			tc, task.SRD, maxRetries, model, numCtx)
+		if err != nil {
+			failures++
+			fmt.Fprintf(os.Stderr, "agent apply: task %s failed: %v\n", task.ID, err)
+			continue
+		}
+
+		issueID, err := mt.Execute(ctx, tracer, implPlan, wt.Dir, taskDeps)
+		if err != nil {
+			failures++
+			fmt.Fprintf(os.Stderr, "agent apply: task %s materialize failed: %v\n", task.ID, err)
+			continue
+		}
+
+		issued[task.ID] = issueID
+		fmt.Fprintf(os.Stderr, "agent apply: task %s → %s\n", task.ID, issueID)
+	}
+
+	if failures > 0 {
+		return fmt.Errorf("%d of %d tasks failed", failures, len(tf.Tasks))
+	}
+	return nil
+}
+
+func applyPlanWithRetry(
+	ctx context.Context,
+	tracer tracing.Tracer,
+	client llm.Client,
+	conv *llm.Conversation,
+	assembler llm.PromptAssembler,
+	tc plan.TaskContext,
+	srd plan.SRDContext,
+	maxRetries int,
+	model string,
+	numCtx int,
+) (plan.ImplementationPlan, error) {
+	var failureCtx []string
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		conv.Reset()
+		prompt, err := plan.AssemblePrompt(tc, srd, nil, failureCtx)
+		if err != nil {
+			return plan.ImplementationPlan{}, err
+		}
+		conv.Append(llm.Message{Role: llm.User, Content: prompt})
+		messages := assembler.AssembleMessages(conv, nil, "")
+
+		resp, err := client.Chat(ctx, messages, llm.ChatOptions{Model: model, NumCtx: numCtx})
+		if err != nil {
+			failureCtx = append(failureCtx, err.Error())
+			continue
+		}
+
+		conv.Append(llm.Message{Role: llm.Assistant, Content: resp.Content})
+		result, err := plan.ParsePlan(resp.Content)
+		if err != nil {
+			failureCtx = append(failureCtx, err.Error())
+			continue
+		}
+		return result, nil
+	}
+	return plan.ImplementationPlan{}, fmt.Errorf(
+		"plan exhausted %d attempts for %s", maxRetries+1, tc.ID)
 }
 
 // agentState holds the shared state needed by builtin tool factories.
