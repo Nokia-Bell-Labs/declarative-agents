@@ -1,41 +1,21 @@
-# Tool definitions for evaluator state machine steps.
-# All tools are type: builtin, resolved via the eval package's
-# builtinBuilder (pkg/eval/experiment.go).
+# Tool selection for the evaluator agent.
+# Lists the subset of declared tools this agent uses.
+#
+# Usage:
+#   agent --tools-declaration configs/tools/builtin.yaml \
+#         --tools-declaration configs/tools/exec.yaml \
+#         --tools configs/evaluator/tools.yaml \
+#         --machine configs/evaluator/machine.yaml
+
 tools:
-  - name: prepare_workspace
-    type: builtin
-    init: prepare_workspace
-    description: "Clone or reset the sample workspace for an evaluation point."
-    visibility: internal
-
-  - name: run_agent
-    type: builtin
-    init: run_agent
-    description: "Invoke the harness binary on the prepared workspace."
-    visibility: internal
-    config:
-      binary: "{{harness.binary}}"
-      flags_from: harness
-      propagate:
-        - otel-parent-span
-        - otel-log-file
-        - llm-timeout
-        - max-time
-
-  - name: check_results
-    type: builtin
-    init: check_results
-    description: "Validate agent output against expected results for the sample."
-    visibility: internal
-
-  - name: collect_metrics
-    type: builtin
-    init: collect_metrics
-    description: "Gather telemetry, token counts, and timing data for the point."
-    visibility: internal
-
-  - name: summarize
-    type: builtin
-    init: summarize
-    description: "Aggregate metrics across all points and produce the final report."
-    visibility: internal
+  # workspace preparation
+  - copy_dir
+  - make_dir
+  - git_init
+  - stage_all
+  - commit
+  # agent execution
+  - run_agent
+  # results
+  - check_results
+  - collect_metrics

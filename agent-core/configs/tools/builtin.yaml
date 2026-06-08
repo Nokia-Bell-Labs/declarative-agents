@@ -168,6 +168,25 @@ tools:
     description: "Evaluate validation results and decide retry vs. advance vs. fail."
     visibility: internal
 
+  # --- evaluator tools ---
+  - name: run_agent
+    type: builtin
+    init: run_agent
+    visibility: internal
+    description: "Run the agent binary on the prepared workspace and collect exit code, timing, and output."
+
+  - name: check_results
+    type: builtin
+    init: check_results
+    visibility: internal
+    description: "Validate agent output against expected results (run oracle tests, parse trace tokens)."
+
+  - name: collect_metrics
+    type: builtin
+    init: collect_metrics
+    visibility: internal
+    description: "Write evaluation metadata (exit code, duration, test results, tokens) to meta.json."
+
   # --- spec validation tools ---
   - name: load_corpus
     type: builtin

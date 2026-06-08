@@ -624,37 +624,28 @@ func TestEvalConfig_GenerateLinearMachine(t *testing.T) {
 }
 
 func TestEvalConfig_ToolsLoad(t *testing.T) {
-	path := filepath.Join(configDir(t), "evaluator", "tools.yaml")
-	defs, err := stl.LoadToolDefs(path)
-	require.NoError(t, err)
+	cd := configDir(t)
+	defs := loadTestDefs(t, cd, "evaluator")
 	require.NotEmpty(t, defs)
 
 	assertToolNames(t, defs, []string{
-		"prepare_workspace", "run_agent", "check_results",
-		"collect_metrics", "summarize",
+		"copy_dir", "make_dir", "git_init", "stage_all", "commit",
+		"run_agent", "check_results", "collect_metrics",
 	})
 }
 
 func TestEvalConfig_TransitionTable(t *testing.T) {
 	cd := configDir(t)
-
-	specData, err := os.ReadFile(filepath.Join(cd, "evaluator", "generate-spec.yaml"))
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "evaluator", "machine.yaml"))
 	require.NoError(t, err)
 
-	var gen core.GenerateSpec
-	err = yaml.Unmarshal(specData, &gen)
-	require.NoError(t, err)
-
-	machineSpec := core.GenerateLinearMachine(gen)
-
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "evaluator", "tools.yaml"))
-	require.NoError(t, err)
-
+	defs := loadTestDefs(t, cd, "evaluator")
 	reg := buildRegistryForDefs(t, defs)
 
-	table, isTerminal, err := core.BuildTransitionTable(machineSpec, reg, nil)
+	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, table)
 	require.True(t, isTerminal(core.State("Done")))
-	require.False(t, isTerminal(core.State("Point_0_Step_0")))
+	require.True(t, isTerminal(core.State("Failed")))
+	require.False(t, isTerminal(core.State("Idle")))
 }
