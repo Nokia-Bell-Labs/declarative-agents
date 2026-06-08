@@ -4,6 +4,7 @@ package llm
 
 import (
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,6 +140,47 @@ func TestProfileSpec_Machine(t *testing.T) {
 	p := newYAMLProfile(spec)
 	assert.Equal(t, "deepseek", p.Name())
 	assert.Equal(t, "deepseek-machine", p.Machine())
+}
+
+func TestDefaultProfileRegistry(t *testing.T) {
+	reg, err := DefaultProfileRegistry()
+	require.NoError(t, err)
+
+	names := reg.ProfileNames()
+	assert.Contains(t, names, "default")
+	assert.Contains(t, names, "qwen")
+	assert.Contains(t, names, "deepseek")
+	assert.Contains(t, names, "gemma")
+
+	// Default profile resolves for an unknown model.
+	dp := reg.ResolveProfile("llama3:latest")
+	env, strict := dp.EnvelopeConfig()
+	require.NotNil(t, env)
+	assert.Equal(t, "[tool_call]", env.Open)
+	assert.False(t, strict)
+
+	// Qwen prefix match.
+	qp := reg.ResolveProfile("qwen3-coder:latest")
+	_, qStrict := qp.EnvelopeConfig()
+	assert.True(t, qStrict)
+
+	// Deepseek prefix match with machine name.
+	ds := reg.ResolveProfileSpec("deepseek-coder:latest")
+	assert.Equal(t, "deepseek", ds.ProfileName)
+	assert.Equal(t, "deepseek-coding-agent", ds.MachineName)
+
+	// Gemma has nil envelope.
+	gp := reg.ResolveProfile("gemma3:latest")
+	gEnv, gStrict := gp.EnvelopeConfig()
+	assert.Nil(t, gEnv)
+	assert.True(t, gStrict)
+}
+
+func TestLoadProfilesFromFS_Empty(t *testing.T) {
+	emptyFS := fstest.MapFS{}
+	_, err := LoadProfilesFromFS(emptyFS)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no default profile")
 }
 
 func TestResolveProfileSpec(t *testing.T) {

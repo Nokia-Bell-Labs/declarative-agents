@@ -3,7 +3,9 @@
 package llm
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +14,9 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/prompt"
 )
+
+//go:embed profiles/*.yaml
+var embeddedProfiles embed.FS
 
 // --- YAML schema types ---
 
@@ -128,6 +133,56 @@ func LoadProfilesFromBytes(files map[string][]byte) (*ProfileRegistry, error) {
 	}
 	if reg.defaultSpec.ProfileName == "" {
 		return nil, fmt.Errorf("no default profile found in embedded profiles")
+	}
+	return reg, nil
+}
+
+// DefaultProfileRegistry creates a registry from the embedded profile
+// YAML files shipped with agent-core. This is the standard way for
+// agents to obtain a fully populated ProfileRegistry without loading
+// files from disk at runtime.
+func DefaultProfileRegistry() (*ProfileRegistry, error) {
+	return LoadProfilesFromFS(embeddedProfiles)
+}
+
+// LoadProfilesFromFS walks an fs.FS looking for .yaml files and loads
+// them into a ProfileRegistry. The FS must contain the files under
+// "profiles/" (matching the go:embed layout).
+func LoadProfilesFromFS(fsys fs.FS) (*ProfileRegistry, error) {
+	reg := &ProfileRegistry{}
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".yaml") && !strings.HasSuffix(d.Name(), ".yml") {
+			return nil
+		}
+		data, readErr := fs.ReadFile(fsys, path)
+		if readErr != nil {
+			return fmt.Errorf("read profile %s: %w", path, readErr)
+		}
+		var spec ProfileSpec
+		if parseErr := yaml.Unmarshal(data, &spec); parseErr != nil {
+			return fmt.Errorf("parse profile %s: %w", path, parseErr)
+		}
+		if spec.ProfileName == "" {
+			return fmt.Errorf("profile %s: missing 'name' field", path)
+		}
+		if spec.ProfileName == "default" || len(spec.MatchPrefixes) == 0 {
+			reg.defaultSpec = spec
+		} else {
+			reg.profiles = append(reg.profiles, spec)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if reg.defaultSpec.ProfileName == "" {
+		return nil, fmt.Errorf("no default profile found in FS")
 	}
 	return reg, nil
 }

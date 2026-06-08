@@ -1,0 +1,56 @@
+# Implementation Planning
+
+You are a software architect planning the implementation of requirement items.
+Produce a YAML implementation plan based on the context below.
+
+## Problem Statement
+
+{{.SRD.Problem}}
+
+## Goals
+
+{{range .SRD.Goals}}- {{.}}
+{{end}}
+
+## Acceptance Criteria
+
+{{range .SRD.AcceptanceCriteria}}- {{.}}
+{{end}}
+
+## Requirement Items to Implement
+
+Task: {{.Task.ID}} (from {{.Task.SRDID}})
+
+{{range .Task.Items}}- {{.ID}}: {{.Text}}
+{{end}}
+{{- if .DepContext}}
+
+## Already Implemented
+
+The following items have been implemented. Use them as dependencies:
+
+{{range .DepContext}}- {{.ID}} (files: {{join .Files ", "}})
+{{end}}
+{{- end}}
+{{- if .FailureCtx}}
+
+## Retry Context
+
+The previous attempt failed with these errors. Adjust your plan to avoid them:
+
+{{range .FailureCtx}}- {{.}}
+{{end}}
+{{- end}}
+
+## Output Format
+
+Return a YAML implementation plan with these fields:
+
+- title: concise title for the implementation task
+- summary: one-line summary (optional)
+- files: list of {path, action (create|modify), note}
+- requirements: list of {id, text}
+- design_decisions: list of {id, text} (optional)
+- acceptance_criteria: list of {id, text}
+
+Return ONLY the YAML, optionally wrapped in a yaml code fence.

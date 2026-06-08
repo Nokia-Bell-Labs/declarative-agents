@@ -1,0 +1,13 @@
+name: qwen
+match_prefixes: ["qwen"]
+
+envelope:
+  open: "[tool_call]"
+  close: "[/tool_call]"
+strict_format: true
+
+extraction_pipeline:
+  - strip_thinking_blocks
+  - extract_envelope:
+      open: "[tool_call]"
+      close: "[/tool_call]"

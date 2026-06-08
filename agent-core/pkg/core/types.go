@@ -39,6 +39,12 @@ const (
 	TaskCompleted Signal = "TaskCompleted"
 )
 
+// Validation signals used by the STL validate orchestrator.
+const (
+	ValidationPassed Signal = "ValidationPassed"
+	ValidationFailed Signal = "ValidationFailed"
+)
+
 // Command is the single interface for all executable units of work.
 type Command interface {
 	Name() string

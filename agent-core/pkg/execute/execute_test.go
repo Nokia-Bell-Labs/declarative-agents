@@ -1,0 +1,188 @@
+// Copyright (c) 2026 Petar Djukic. All rights reserved.
+// SPDX-License-Identifier: MIT
+
+package execute
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
+
+	agentllm "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
+	agenttel "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
+)
+
+func TestFormatTraceparent(t *testing.T) {
+	t.Run("valid span context", func(t *testing.T) {
+		traceID, _ := trace.TraceIDFromHex("0af7651916cd43dd8448eb211c80319c")
+		spanID, _ := trace.SpanIDFromHex("b7ad6b7169203331")
+		sc := trace.NewSpanContext(trace.SpanContextConfig{
+			TraceID:    traceID,
+			SpanID:     spanID,
+			TraceFlags: trace.FlagsSampled,
+			Remote:     true,
+		})
+		got := agenttel.FormatTraceparent(sc)
+		assert.Equal(t, "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01", got)
+	})
+
+	t.Run("invalid span context", func(t *testing.T) {
+		sc := trace.SpanContext{}
+		got := agenttel.FormatTraceparent(sc)
+		assert.Equal(t, "", got)
+	})
+}
+
+func TestWritePromptFile(t *testing.T) {
+	dir := t.TempDir()
+	plan := map[string]string{"title": "test plan"}
+
+	path, err := writePromptFile(dir, "task-1", plan)
+	require.NoError(t, err)
+	defer os.Remove(path)
+
+	assert.Contains(t, filepath.Base(path), "agent-prompt-task-1-")
+	assert.True(t, filepath.IsAbs(path))
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "title: test plan")
+}
+
+func TestWritePromptFile_DefaultDir(t *testing.T) {
+	plan := map[string]string{"key": "value"}
+	path, err := writePromptFile("", "task-2", plan)
+	require.NoError(t, err)
+	defer os.Remove(path)
+	assert.FileExists(t, path)
+}
+
+func TestTruncateViaAgentCore(t *testing.T) {
+	assert.Equal(t, "abc", agentllm.Truncate("abc", 10))
+	assert.Equal(t, "", agentllm.Truncate("", 5))
+	result := agentllm.Truncate("abcdef", 2)
+	assert.Equal(t, "ab", result[:2])
+	assert.Contains(t, result, "...")
+}
+
+func TestExecute_BinaryNotFound(t *testing.T) {
+	cfg := Config{
+		Binary:  "nonexistent-generator-binary-xyz",
+		Model:   "test-model",
+		Timeout: 5 * time.Second,
+		OTelDir: t.TempDir(),
+	}
+
+	result, err := Execute(context.Background(), tracing.NoopTracer{}, cfg, "task-1", t.TempDir(), map[string]string{"title": "test"})
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "execute task-1")
+}
+
+func TestExecute_ScriptExitNonZero(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "fake-gen.sh")
+	err := os.WriteFile(script, []byte("#!/bin/sh\necho 'stdout-output'\necho 'stderr-output' >&2\nexit 1\n"), 0o755)
+	require.NoError(t, err)
+
+	cfg := Config{
+		Binary:  script,
+		Model:   "test-model",
+		Timeout: 5 * time.Second,
+		OTelDir: dir,
+	}
+
+	result, err := Execute(context.Background(), tracing.NoopTracer{}, cfg, "fail-task", dir, map[string]string{"title": "fail"})
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ExitCode)
+	assert.False(t, result.Success())
+	assert.Contains(t, result.Stdout, "stdout-output")
+	assert.Contains(t, result.Stderr, "stderr-output")
+	assert.True(t, result.Duration > 0)
+}
+
+func TestExecute_ScriptExitZero(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "ok-gen.sh")
+	err := os.WriteFile(script, []byte("#!/bin/sh\necho 'done'\n"), 0o755)
+	require.NoError(t, err)
+
+	cfg := Config{
+		Binary:  script,
+		Model:   "test-model",
+		Timeout: 5 * time.Second,
+		OTelDir: dir,
+	}
+
+	result, err := Execute(context.Background(), tracing.NoopTracer{}, cfg, "ok-task", dir, map[string]string{"title": "ok"})
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.True(t, result.Success())
+	assert.Contains(t, result.Stdout, "done")
+}
+
+func TestExecute_Timeout(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "slow-gen.sh")
+	err := os.WriteFile(script, []byte("#!/bin/sh\nsleep 30\n"), 0o755)
+	require.NoError(t, err)
+
+	cfg := Config{
+		Binary:  script,
+		Model:   "test-model",
+		Timeout: 500 * time.Millisecond,
+		OTelDir: dir,
+	}
+
+	result, err := Execute(context.Background(), tracing.NoopTracer{}, cfg, "slow-task", dir, map[string]string{"title": "slow"})
+	require.NoError(t, err)
+	assert.NotEqual(t, 0, result.ExitCode)
+	assert.False(t, result.Success())
+}
+
+func TestExecute_PromptFileCleanedUp(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "check-gen.sh")
+	err := os.WriteFile(script, []byte("#!/bin/sh\necho ok\n"), 0o755)
+	require.NoError(t, err)
+
+	otelDir := t.TempDir()
+	cfg := Config{
+		Binary:  script,
+		Model:   "test-model",
+		Timeout: 5 * time.Second,
+		OTelDir: otelDir,
+	}
+
+	_, err = Execute(context.Background(), tracing.NoopTracer{}, cfg, "cleanup-task", dir, map[string]string{"title": "cleanup"})
+	require.NoError(t, err)
+
+	entries, _ := os.ReadDir(otelDir)
+	for _, e := range entries {
+		assert.NotContains(t, e.Name(), "agent-prompt-cleanup-task",
+			"prompt file should be cleaned up after execution")
+	}
+}
+
+func TestConfigDefaults(t *testing.T) {
+	c := Config{}
+	assert.Equal(t, "generator", c.binary())
+	assert.Equal(t, 10*time.Minute, c.timeout())
+
+	c2 := Config{Binary: "my-gen", Timeout: 3 * time.Minute}
+	assert.Equal(t, "my-gen", c2.binary())
+	assert.Equal(t, 3*time.Minute, c2.timeout())
+}
+
+func TestResultSuccess(t *testing.T) {
+	assert.True(t, (&Result{ExitCode: 0}).Success())
+	assert.False(t, (&Result{ExitCode: 1}).Success())
+	assert.False(t, (&Result{ExitCode: -1}).Success())
+}

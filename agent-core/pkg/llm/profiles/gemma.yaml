@@ -1,0 +1,15 @@
+name: gemma
+match_prefixes: ["gemma"]
+
+envelope: null
+strict_format: true
+
+# Gemma uses its own native tokens. Pipeline steps run in order:
+# each step passes through if it didn't find its pattern.
+extraction_pipeline:
+  - extract_envelope:
+      open: "<tool_call>"
+      close: "</tool_call>"
+  - extract_native_token:
+      token: "<tool_call"
+  - extract_braces
