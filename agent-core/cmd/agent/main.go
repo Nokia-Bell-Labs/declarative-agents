@@ -713,39 +713,31 @@ func registerValidateSpecFactories(br *stl.BuiltinRegistry, st *agentState) {
 
 
 // registerEvalFactories registers factories for eval tools.
-// These use the existing pkg/eval/ implementations. The PointContext
-// must be set on the builders before they can execute (done by the
-// eval session orchestrator).
+// EvalState is lazily initialized on first factory call. The eval
+// session orchestrator sets ES.PC before each point's loop runs.
 func registerEvalFactories(br *stl.BuiltinRegistry, st *agentState) {
-	br.Register("prepare_workspace", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &evalStaticFactory{name: "prepare_workspace"}, nil
-	})
+	var es *eval.EvalState
+
+	initES := func() *eval.EvalState {
+		if es != nil {
+			return es
+		}
+		es = &eval.EvalState{Ctx: st.ctx}
+		return es
+	}
+
 	br.Register("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &evalStaticFactory{name: "run_agent"}, nil
+		return &eval.RunAgentBuilder{ES: initES()}, nil
 	})
 	br.Register("check_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &evalStaticFactory{name: "check_results"}, nil
+		return &eval.CheckResultsBuilder{ES: initES()}, nil
 	})
 	br.Register("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &evalStaticFactory{name: "collect_metrics"}, nil
-	})
-	br.Register("summarize", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &evalStaticFactory{name: "summarize"}, nil
+		return &eval.CollectMetricsBuilder{ES: initES()}, nil
 	})
 }
 
-// evalStaticFactory is a placeholder builder for eval tools. The eval
-// mode uses RegisterExperimentTools (in pkg/eval/experiment.go) which
-// replaces these with PointContext-bound builders before the loop runs.
-type evalStaticFactory struct {
-	name string
-}
-
-func (f *evalStaticFactory) Build(_ core.Result) core.Command {
-	return &failCmd{err: fmt.Errorf("eval tool %q: PointContext not initialized (use eval session mode)", f.name)}
-}
-
-// failCmd immediately returns CommandError.
+// failCmd immediately returns CommandError with the given error.
 type failCmd struct {
 	err error
 }
