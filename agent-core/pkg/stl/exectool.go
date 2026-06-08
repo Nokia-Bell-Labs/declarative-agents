@@ -23,14 +23,22 @@ var cliExtensionKeys = map[string]bool{
 	"default":    true,
 }
 
-// ToolDef is a declarative, YAML-driven definition for a CLI-wrapping tool.
+// ToolDef is a declarative, YAML-driven tool definition. It supports two types:
+//
+//   - exec (default): wraps a CLI binary. Binary and Args are required.
+//   - builtin: delegates to a Go factory function. Init names the factory
+//     registered in a BuiltinRegistry. Config passes tool-specific settings.
+//
 // The parameters field uses JSON Schema format (same as the LLM tool calling
 // spec) with CLI mapping extensions on each property.
 type ToolDef struct {
 	Name         string                 `yaml:"name"`
+	Type         string                 `yaml:"type,omitempty"`
 	Description  string                 `yaml:"description"`
-	Binary       string                 `yaml:"binary"`
-	Args         []string               `yaml:"args"`
+	Binary       string                 `yaml:"binary,omitempty"`
+	Args         []string               `yaml:"args,omitempty"`
+	Init         string                 `yaml:"init,omitempty"`
+	Config       map[string]interface{} `yaml:"config,omitempty"`
 	Parameters   map[string]interface{} `yaml:"parameters,omitempty"`
 	Dir          string                 `yaml:"dir,omitempty"`
 	Precondition string                 `yaml:"precondition,omitempty"`
@@ -73,8 +81,17 @@ func ParseToolDefs(data []byte) ([]ToolDef, error) {
 		if td.Name == "" {
 			return nil, fmt.Errorf("tool at index %d has no name", i)
 		}
-		if td.Binary == "" {
-			return nil, fmt.Errorf("tool %q has no binary", td.Name)
+		switch td.Type {
+		case "builtin":
+			if td.Init == "" {
+				return nil, fmt.Errorf("builtin tool %q has no init field", td.Name)
+			}
+		case "exec", "":
+			if td.Binary == "" {
+				return nil, fmt.Errorf("tool %q has no binary", td.Name)
+			}
+		default:
+			return nil, fmt.Errorf("tool %q: unknown type %q", td.Name, td.Type)
 		}
 	}
 	return file.Tools, nil
