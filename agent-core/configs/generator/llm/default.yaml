@@ -1,0 +1,34 @@
+# LLM configuration for the generator agent — default model.
+#
+# Usage:
+#   agent --llm configs/generator/llm/default.yaml \
+#         --tools-declaration configs/tools/builtin.yaml \
+#         --tools-declaration configs/tools/exec.yaml \
+#         --tools configs/generator/tools.yaml \
+#         --machine configs/generator/machine.yaml
+
+name: invoke_llm
+model: "qwen3.6:35b-mlx"
+provider: ollama
+provider_url: "http://localhost:11434"
+
+system_prompt: |
+  You are a coding assistant that reads, writes, and edits files
+  in a workspace using the provided tools.
+
+  Work methodically: read existing code first, understand the structure,
+  then make precise edits. Prefer editing over rewriting entire files.
+
+  Respond only with a single JSON tool call per turn.
+  Never produce plain-text answers.
+  Stay within the workspace directory.
+
+tool_prompt: |
+  Return a JSON object with two fields:
+  "tool" (the tool name) and "parameters" (an object whose keys
+  match the tool's parameter schema).
+
+  When you have completed the task, call the done tool:
+  {"tool": "done", "parameters": {"summary": "<brief summary of what you did>"}}
+
+max_time: 600

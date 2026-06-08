@@ -84,11 +84,9 @@ tools:
           description: "Maximum directory depth to traverse (default: 4)"
 
   # --- LLM tools ---
-  - name: invoke_llm
-    type: builtin
-    init: invoke_llm
-    visibility: internal
-    description: "Invoke the LLM with the current conversation history."
+  # invoke_llm is NOT declared here — it is defined per-agent via
+  # --llm config files (e.g. configs/generator/llm/default.yaml).
+  # Multiple LLM tools can be registered with different names/models.
 
   - name: parse_response
     type: builtin

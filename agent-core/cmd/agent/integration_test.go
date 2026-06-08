@@ -86,6 +86,16 @@ func buildRegistryForDefs(t *testing.T, defs []stl.ToolDef) *core.Registry {
 	vars := map[string]string{"directory": st.directory, "model": "test", "ollama_url": "http://localhost:11434"}
 	err := stl.RegisterUnifiedTools(reg, builtins, vars["directory"], defs, vars)
 	require.NoError(t, err)
+
+	// Register stub invoke_llm — it's now provided via --llm configs,
+	// not through tool declarations.
+	if _, ok := reg.SpecByName("invoke_llm"); !ok {
+		reg.Register(core.ToolSpec{
+			Name:       "invoke_llm",
+			Visibility: core.Internal,
+		}, &noopBuilder{})
+	}
+
 	return reg
 }
 
@@ -206,12 +216,6 @@ func buildE2EParams(t *testing.T, workspace string, llmResponses []string) core.
 	}
 	registerBuiltinFactories(builtins, st)
 
-	// Replace invoke_llm with scripted responses
-	scripted := &scriptedLLMBuilder{responses: llmResponses}
-	builtins.Override("invoke_llm", func(_ stl.ToolDef, _ map[string]string) (core.Builder, error) {
-		return scripted, nil
-	})
-
 	builtins.Override("validate", func(_ stl.ToolDef, _ map[string]string) (core.Builder, error) {
 		return &stl.ValidateBuilder{
 			Tracker:  st.tracker,
@@ -222,6 +226,13 @@ func buildE2EParams(t *testing.T, workspace string, llmResponses []string) core.
 
 	vars := map[string]string{"directory": workspace, "model": "test", "ollama_url": "http://localhost:11434"}
 	require.NoError(t, stl.RegisterUnifiedTools(reg, builtins, workspace, defs, vars))
+
+	// Register scripted invoke_llm (now provided via --llm, not declarations)
+	scripted := &scriptedLLMBuilder{responses: llmResponses}
+	reg.Register(core.ToolSpec{
+		Name:       "invoke_llm",
+		Visibility: core.Internal,
+	}, scripted)
 
 	// Override build/lint/test exec tools with stubs so validate passes
 	for _, name := range []string{"build", "lint", "test"} {
@@ -422,7 +433,7 @@ func TestGenerateConfig_ToolsLoad(t *testing.T) {
 	assertToolNames(t, defs, []string{
 		"read", "write", "edit", "find", "list_files",
 		"build", "vet", "lint", "test",
-		"invoke_llm", "parse_response", "validate", "done",
+		"parse_response", "validate", "done",
 	})
 }
 
@@ -524,7 +535,7 @@ func TestPipelineConfig_ToolsLoad(t *testing.T) {
 
 	assertToolNames(t, defs, []string{
 		"extract_task", "extract_all", "assemble_prompt", "parse_plan",
-		"create_issue", "execute_task", "invoke_llm", "reset_history",
+		"create_issue", "execute_task", "reset_history",
 		"check_result", "vet", "build", "test",
 		"stage_all", "workspace_status", "commit", "rev_parse",
 		"diff_stat", "log_oneline", "issue_create", "issue_close", "issue_list",

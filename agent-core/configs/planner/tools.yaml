@@ -17,8 +17,7 @@ tools:
   # execution
   - execute_task
   - check_result
-  # LLM tools
-  - invoke_llm
+  # LLM tools (invoke_llm registered via --llm flag)
   - reset_history
   # build/test (used by check_result validation)
   - build
