@@ -90,6 +90,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(generateMachineCmd)
 	rootCmd.AddCommand(evalCmd)
+	rootCmd.AddCommand(analyzeCmd)
 }
 
 var versionCmd = &cobra.Command{
@@ -177,6 +178,68 @@ executed as an evaluation point.`,
 func init() {
 	evalCmd.Flags().String("output", "eval-results", "output directory for results")
 	evalCmd.Flags().Int("reps", 1, "number of repetitions per point")
+}
+
+var analyzeCmd = &cobra.Command{
+	Use:   "analyze [session-dir...]",
+	Short: "Analyze results from one or more evaluation sessions",
+	Long: `Analyze results from one or more session directories. When multiple
+directories are provided, results are merged for cross-run comparison.
+
+Examples:
+  agent analyze benchmark/results/2026-06-05-22-54
+  agent analyze results/run1 results/run2
+  agent analyze --progression benchmark/results/2026-06-05-22-54`,
+
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return fmt.Errorf("at least one session directory is required")
+		}
+
+		groups, err := eval.LoadMultiple(args)
+		if err != nil {
+			return err
+		}
+		if len(groups) == 0 {
+			return fmt.Errorf("no results found in provided directories")
+		}
+
+		w := cmd.OutOrStdout()
+
+		showProgression, _ := cmd.Flags().GetBool("progression")
+		showDetailed, _ := cmd.Flags().GetBool("detailed")
+		csvPath, _ := cmd.Flags().GetString("csv")
+
+		stats := eval.ComputeModelStats(groups)
+		eval.PrintModelTable(w, stats)
+
+		if showDetailed {
+			fmt.Fprintln(w)
+			rows := eval.ComputeDetailed(groups)
+			eval.PrintDetailedTable(w, rows)
+		}
+
+		if showProgression {
+			fmt.Fprintf(w, "\n--- Tool Progression ---\n\n")
+			eval.PrintProgression(w, groups)
+		}
+
+		if csvPath != "" {
+			if err := eval.WriteCSV(csvPath, groups); err != nil {
+				fmt.Fprintf(os.Stderr, "CSV write error: %v\n", err)
+			} else {
+				fmt.Fprintf(os.Stderr, "CSV written to %s\n", csvPath)
+			}
+		}
+
+		return nil
+	},
+}
+
+func init() {
+	analyzeCmd.Flags().Bool("progression", false, "show per-run tool progression timelines")
+	analyzeCmd.Flags().Bool("detailed", false, "show per-(sample, model) convergence breakdown")
+	analyzeCmd.Flags().String("csv", "", "write detailed per-run CSV to this path")
 }
 
 // agentState holds the shared state needed by builtin tool factories.
