@@ -57,6 +57,18 @@ func (r *Registry) Register(spec ToolSpec, builder Builder) {
 	r.entries[spec.Name] = registryEntry{spec: spec, builder: builder}
 }
 
+// Override replaces the builder (and optionally the spec) for an
+// existing entry, or inserts a new one if absent.
+func (r *Registry) Override(spec ToolSpec, builder Builder) {
+	if r.frozen {
+		panic("registry: Override called after Freeze")
+	}
+	if spec.Name == "" {
+		panic("registry: ToolSpec.Name must not be empty")
+	}
+	r.entries[spec.Name] = registryEntry{spec: spec, builder: builder}
+}
+
 // Freeze marks the registry as immutable.
 func (r *Registry) Freeze() {
 	r.frozen = true

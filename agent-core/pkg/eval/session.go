@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
-
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
 
 // SessionConfig holds the configuration for an evaluation session.
@@ -124,11 +122,12 @@ func RunSession(
 
 						fmt.Fprintf(cfg.Stderr, "  → %s\n", pointID)
 
-						if suite.Experiment != nil {
-							pc, _ = RunPoint(ctx, *suite.Experiment, pc)
-						} else {
-							runPointLegacy(ctx, pc)
-						}
+						exp := suite.Experiment
+					if exp == nil {
+						defaultExp := DefaultExperiment(harness)
+						exp = &defaultExp
+					}
+					pc, _ = RunPoint(ctx, *exp, pc)
 
 						pr := PointResult{
 							PointID:     pointID,
@@ -171,35 +170,6 @@ func RunSession(
 		result.Passed, result.TotalPoints, result.TimedOut, result.Duration.Round(time.Second))
 
 	return &result, nil
-}
-
-// runPointLegacy is the non-experiment fallback for running a single point.
-// It runs prepare_workspace → run_agent → check_results → collect_metrics
-// imperatively without a state machine.
-func runPointLegacy(ctx context.Context, pc *PointContext) {
-	prepCmd := &prepareWorkspaceCmd{pc: pc}
-	prepRes := prepCmd.Execute()
-	if prepRes.Signal == core.CommandError {
-		return
-	}
-
-	agentCmd := &runAgentCmd{
-		pc:  pc,
-		ctx: ctx,
-		toolDef: ExperimentTool{
-			Type:      "cli",
-			Binary:    pc.Harness.Binary,
-			FlagsFrom: "harness",
-			Propagate: []string{"otel-parent-span", "otel-log-file", "llm-timeout", "max-time"},
-		},
-	}
-	agentCmd.Execute()
-
-	checkCmd := &checkResultsCmd{pc: pc}
-	checkCmd.Execute()
-
-	metricsCmd := &collectMetricsCmd{pc: pc}
-	metricsCmd.Execute()
 }
 
 // expandGrid generates all combinations of grid parameters.

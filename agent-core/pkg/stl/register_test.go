@@ -97,31 +97,6 @@ func TestRegisterAll(t *testing.T) {
 	}
 }
 
-// Legacy registration still works.
-func TestRegisterBuildTools_Legacy(t *testing.T) {
-	reg := core.NewRegistry()
-	RegisterBuildTools(reg, "/tmp")
-
-	expected := []string{"build", "lint", "test", "vet"}
-	assert.Equal(t, expected, reg.ExternalToolNames())
-}
-
-func TestRegisterGitTools_Legacy(t *testing.T) {
-	reg := core.NewRegistry()
-	RegisterGitTools(reg, "/tmp")
-
-	expected := []string{"commit", "workspace_status", "worktree_add", "worktree_remove"}
-	assert.Equal(t, expected, reg.ExternalToolNames())
-}
-
-func TestRegisterIssueTools_Legacy(t *testing.T) {
-	reg := core.NewRegistry()
-	RegisterIssueTools(reg, "/tmp")
-
-	expected := []string{"issue_claim", "issue_close", "issue_create", "issue_list"}
-	assert.Equal(t, expected, reg.ExternalToolNames())
-}
-
 func TestToolSpecs_HaveDescriptions(t *testing.T) {
 	specs := []core.ToolSpec{
 		ReadToolSpec(), WriteToolSpec(), EditToolSpec(),

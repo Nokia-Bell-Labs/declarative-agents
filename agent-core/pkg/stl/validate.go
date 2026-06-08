@@ -155,22 +155,23 @@ func (v *validateCmd) Execute() core.Result {
 	}
 }
 
-// ValidateBuilder constructs validate commands.
+// ValidateBuilder constructs validate commands. It resolves build, lint,
+// and test builders from the registry at Build time, so it works with
+// both YAML-defined exec tools and legacy Go tool wrappers.
 type ValidateBuilder struct {
-	Tracker      *ToolTracker
-	BuildBuilder core.Builder
-	LintBuilder  core.Builder
-	TestBuilder  core.Builder
-	Tracer       tracing.Tracer
-	Verbose      bool
+	Tracker  *ToolTracker
+	Registry *core.Registry
+	Tracer   tracing.Tracer
+	Verbose  bool
 }
 
 func (b *ValidateBuilder) Build(_ core.Result) core.Command {
 	skipped := b.Tracker.Skipped()
-	builders := map[string]core.Builder{
-		"build": b.BuildBuilder,
-		"lint":  b.LintBuilder,
-		"test":  b.TestBuilder,
+	builders := make(map[string]core.Builder, len(skipped))
+	for _, name := range skipped {
+		if builder, ok := b.Registry.Resolve(name); ok {
+			builders[name] = builder
+		}
 	}
 	return &validateCmd{
 		skipped:  skipped,

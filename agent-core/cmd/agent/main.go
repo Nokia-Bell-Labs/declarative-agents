@@ -558,16 +558,13 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState) {
 		return stl.DoneBuilder{}, nil
 	})
 
-	// Validate (runs skipped build/lint/test tools)
+	// Validate (runs skipped build/lint/test tools from registry)
 	br.Register("validate", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		dir := vars["directory"]
 		return &stl.ValidateBuilder{
-			Tracker:      st.tracker,
-			BuildBuilder: &stl.BuildBuilder{Root: dir},
-			LintBuilder:  &stl.LintBuilder{Root: dir},
-			TestBuilder:  &stl.TestBuilder{Root: dir},
-			Tracer:       st.tracer,
-			Verbose:      st.verbose,
+			Tracker:  st.tracker,
+			Registry: st.registry,
+			Tracer:   st.tracer,
+			Verbose:  st.verbose,
 		}, nil
 	})
 

@@ -10,6 +10,61 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
+// DefaultExperiment returns an ExperimentConfig that reproduces the
+// legacy prepare → run → check → collect flow as a state machine.
+// The harness binary is injected so the CLI tool knows what to invoke.
+func DefaultExperiment(harness Harness) ExperimentConfig {
+	return ExperimentConfig{
+		Name:         "default",
+		InitialState: "Idle",
+		Tools: map[string]ExperimentTool{
+			"prepare_workspace": {Type: "builtin"},
+			"run_agent": {
+				Type:      "cli",
+				Binary:    harness.Binary,
+				FlagsFrom: "harness",
+				Propagate: []string{"otel-parent-span", "otel-log-file", "llm-timeout", "max-time"},
+			},
+			"check_results":  {Type: "builtin"},
+			"collect_metrics": {Type: "builtin"},
+		},
+		States: map[string]ExperimentState{
+			"Idle": {
+				Transitions: []ExperimentTransition{
+					{Signal: "Start", Command: "prepare_workspace", NextState: "Preparing"},
+				},
+			},
+			"Preparing": {
+				Transitions: []ExperimentTransition{
+					{Signal: "WorkspaceReady", Command: "run_agent", NextState: "Running"},
+					{Signal: "CommandError", NextState: "Failed"},
+				},
+			},
+			"Running": {
+				Transitions: []ExperimentTransition{
+					{Signal: "HarnessFinished", Command: "check_results", NextState: "Checking"},
+					{Signal: "HarnessFailed", Command: "check_results", NextState: "Checking"},
+					{Signal: "HarnessTimedOut", Command: "check_results", NextState: "Checking"},
+				},
+			},
+			"Checking": {
+				Transitions: []ExperimentTransition{
+					{Signal: "ResultsCollected", Command: "collect_metrics", NextState: "Collecting"},
+					{Signal: "CommandError", NextState: "Failed"},
+				},
+			},
+			"Collecting": {
+				Transitions: []ExperimentTransition{
+					{Signal: "MetricsCollected", NextState: "Done"},
+					{Signal: "CommandError", NextState: "Failed"},
+				},
+			},
+			"Done":   {Terminal: true},
+			"Failed": {Terminal: true},
+		},
+	}
+}
+
 // ExperimentToMachineSpec converts an ExperimentConfig into a
 // core.MachineSpec suitable for core.BuildTransitionTable.
 func ExperimentToMachineSpec(exp ExperimentConfig) core.MachineSpec {

@@ -360,7 +360,14 @@ func (c *ExecCmd) buildArgs() []string {
 func (c *ExecCmd) checkPrecondition(dir string) error {
 	switch c.def.Precondition {
 	case "git_repo":
-		return verifyGitDir(dir)
+		gitPath := filepath.Join(dir, ".git")
+		if _, err := os.Stat(gitPath); err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("not a git repository: %s", dir)
+			}
+			return fmt.Errorf("checking git repo %s: %v", dir, err)
+		}
+		return nil
 	case "":
 		return nil
 	default:

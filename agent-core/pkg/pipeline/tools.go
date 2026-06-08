@@ -18,7 +18,6 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/extract"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/graph"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/materialize"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/plan"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
@@ -254,16 +253,12 @@ type parsePlanCmd struct {
 func (c *parsePlanCmd) Name() string { return "parse_plan" }
 
 func (c *parsePlanCmd) Execute() core.Result {
-	p, err := plan.ParsePlan(c.rawResp)
-	if err != nil {
+	p, res := DoParsePlan(c.Name(), c.rawResp)
+	if res.Signal == core.ParseFailed {
 		c.ps.Tracer.Event("pipeline.parse_plan_failed",
-			attribute.String("error", err.Error()),
+			attribute.String("error", res.Output),
 		)
-		return core.Result{
-			CommandName: c.Name(),
-			Signal:      core.ParseFailed,
-			Output:      err.Error(),
-		}
+		return res
 	}
 
 	c.ps.CurrentPlan = &p
@@ -272,12 +267,7 @@ func (c *parsePlanCmd) Execute() core.Result {
 		attribute.Int("plan.files", len(p.Files)),
 		attribute.Int("plan.requirements", len(p.Requirements)),
 	)
-
-	return core.Result{
-		CommandName: c.Name(),
-		Signal:      SigPlanReady,
-		Output:      fmt.Sprintf("parsed plan: %s (%d files, %d requirements)", p.Title, len(p.Files), len(p.Requirements)),
-	}
+	return res
 }
 
 // ParsePlanBuilder constructs parse_plan commands.
@@ -306,15 +296,9 @@ func (c *createIssueCmd) Execute() core.Result {
 		}
 	}
 
-	m := materialize.NewMaterializeTask()
-	issueID, err := m.Execute(c.ps.Ctx, c.ps.Tracer, *c.ps.CurrentPlan, c.ps.Directory, c.ps.TaskDeps)
-	if err != nil {
-		return core.Result{
-			CommandName: c.Name(),
-			Signal:      core.CommandError,
-			Err:         err,
-			Output:      err.Error(),
-		}
+	issueID, res := DoMaterialize(c.ps.Ctx, c.ps.Tracer, *c.ps.CurrentPlan, c.ps.Directory, c.ps.TaskDeps, c.Name())
+	if res.Signal == core.CommandError {
+		return res
 	}
 
 	c.ps.IssueID = issueID
@@ -324,12 +308,7 @@ func (c *createIssueCmd) Execute() core.Result {
 		}
 		c.ps.TaskDeps[c.ps.CurrentTask.ID] = issueID
 	}
-
-	return core.Result{
-		CommandName: c.Name(),
-		Signal:      SigMaterialized,
-		Output:      fmt.Sprintf("created issue %s for plan %q", issueID, c.ps.CurrentPlan.Title),
-	}
+	return res
 }
 
 // CreateIssueBuilder constructs create_issue commands.

@@ -12,7 +12,7 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/materialize"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/pipeline"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/plan"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/worktree"
@@ -231,21 +231,13 @@ type parseApplyPlanCmd struct {
 func (c *parseApplyPlanCmd) Name() string { return "parse_apply_plan" }
 func (c *parseApplyPlanCmd) Execute() core.Result {
 	c.as.conversation.Append(llm.Message{Role: llm.Assistant, Content: c.llmOutput})
-	result, err := plan.ParsePlan(c.llmOutput)
-	if err != nil {
+	p, res := pipeline.DoParsePlan(c.Name(), c.llmOutput)
+	if res.Signal == core.ParseFailed {
 		c.as.failures++
-		return core.Result{
-			Signal:      core.ParseFailed,
-			Output:      fmt.Sprintf("parse plan for %s: %v", c.as.current.ID, err),
-			CommandName: "parse_apply_plan",
-		}
+		return res
 	}
-	c.as.lastPlan = result
-	return core.Result{
-		Signal:      "PlanReady",
-		Output:      fmt.Sprintf("plan parsed for %s: %d files", c.as.current.ID, len(result.Files)),
-		CommandName: "parse_apply_plan",
-	}
+	c.as.lastPlan = p
+	return res
 }
 
 // materializeIssueBuilder materializes the plan as a bd issue.
@@ -271,20 +263,12 @@ func (c *materializeIssueCmd) Execute() core.Result {
 		}
 	}
 
-	mt := materialize.NewMaterializeTask()
-	issueID, err := mt.Execute(c.as.ctx, c.as.tracer, c.as.lastPlan, c.as.wt.Dir, taskDeps)
-	if err != nil {
+	issueID, res := pipeline.DoMaterialize(c.as.ctx, c.as.tracer, c.as.lastPlan, c.as.wt.Dir, taskDeps, c.Name())
+	if res.Signal == core.CommandError {
 		c.as.failures++
-		return core.Result{
-			Signal:      "MaterializeFailed",
-			Output:      fmt.Sprintf("materialize %s: %v", task.ID, err),
-			CommandName: "materialize_issue",
-		}
+		res.Signal = "MaterializeFailed"
+		return res
 	}
 	c.as.issued[task.ID] = issueID
-	return core.Result{
-		Signal:      "Materialized",
-		Output:      fmt.Sprintf("task %s → %s", task.ID, issueID),
-		CommandName: "materialize_issue",
-	}
+	return res
 }

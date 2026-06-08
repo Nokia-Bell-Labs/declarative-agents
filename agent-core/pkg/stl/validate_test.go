@@ -136,11 +136,14 @@ func TestValidateCmd_DomainFailure_NilErr(t *testing.T) {
 func TestValidateBuilder_Build(t *testing.T) {
 	t.Parallel()
 	tracker := NewToolTracker()
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "build"}, &valStubBuilder{signal: core.ToolDone})
+	reg.Register(core.ToolSpec{Name: "lint"}, &valStubBuilder{signal: core.ToolDone})
+	reg.Register(core.ToolSpec{Name: "test"}, &valStubBuilder{signal: core.ToolDone})
+
 	b := &ValidateBuilder{
-		Tracker:      tracker,
-		BuildBuilder: &valStubBuilder{signal: core.ToolDone},
-		LintBuilder:  &valStubBuilder{signal: core.ToolDone},
-		TestBuilder:  &valStubBuilder{signal: core.ToolDone},
+		Tracker:  tracker,
+		Registry: reg,
 	}
 	cmd := b.Build(core.Result{})
 	require.Equal(t, "validate", cmd.Name())

@@ -191,19 +191,21 @@ func buildE2EParams(t *testing.T, workspace string, llmResponses []string) core.
 		return scripted, nil
 	})
 
-	// Replace build/lint/test validation with stubs
 	builtins.Override("validate", func(_ stl.ToolDef, _ map[string]string) (core.Builder, error) {
 		return &stl.ValidateBuilder{
-			Tracker:      st.tracker,
-			BuildBuilder: &stubPassBuilder{name: "build"},
-			LintBuilder:  &stubPassBuilder{name: "lint"},
-			TestBuilder:  &stubPassBuilder{name: "test"},
-			Tracer:       tr,
+			Tracker:  st.tracker,
+			Registry: reg,
+			Tracer:   tr,
 		}, nil
 	})
 
 	vars := map[string]string{"directory": workspace, "model": "test", "ollama_url": "http://localhost:11434"}
 	require.NoError(t, stl.RegisterUnifiedTools(reg, builtins, workspace, defs, vars))
+
+	// Override build/lint/test exec tools with stubs so validate passes
+	for _, name := range []string{"build", "lint", "test"} {
+		reg.Override(core.ToolSpec{Name: name}, &stubPassBuilder{name: name})
+	}
 
 	toolAction := buildToolAction(st, reg)
 

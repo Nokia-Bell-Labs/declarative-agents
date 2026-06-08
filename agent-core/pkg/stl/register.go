@@ -69,39 +69,3 @@ func RegisterAll(reg *core.Registry, root string) error {
 	return RegisterExecTools(reg, root)
 }
 
-// --- Legacy Go-based registration (deprecated, use RegisterAll) ---
-// These remain for backward compatibility. New code should use
-// RegisterAll or RegisterExecTools which load from YAML.
-
-// RegisterBuildTools registers build, vet, lint, and test with the
-// given registry, all scoped to root.
-//
-// Deprecated: use RegisterExecTools or RegisterAll instead.
-func RegisterBuildTools(reg *core.Registry, root string) {
-	reg.Register(BuildToolSpec(), &BuildBuilder{Root: root})
-	reg.Register(VetToolSpec(), &VetBuilder{Root: root})
-	reg.Register(LintToolSpec(), &LintBuilder{Root: root})
-	reg.Register(TestToolSpec(), &TestBuilder{Root: root})
-}
-
-// RegisterGitTools registers commit, workspace_status, worktree_add, and
-// worktree_remove with the given registry, all scoped to root.
-//
-// Deprecated: use RegisterExecTools or RegisterAll instead.
-func RegisterGitTools(reg *core.Registry, root string) {
-	reg.Register(CommitToolSpec(), &CommitBuilder{Root: root})
-	reg.Register(WorkspaceStatusToolSpec(), &WorkspaceStatusBuilder{Root: root})
-	reg.Register(WorktreeAddToolSpec(), &WorktreeAddBuilder{Root: root})
-	reg.Register(WorktreeRemoveToolSpec(), &WorktreeRemoveBuilder{Root: root})
-}
-
-// RegisterIssueTools registers issue_create, issue_claim, issue_close,
-// and issue_list with the given registry, all scoped to root.
-//
-// Deprecated: use RegisterExecTools or RegisterAll instead.
-func RegisterIssueTools(reg *core.Registry, root string) {
-	reg.Register(IssueCreateToolSpec(), &IssueCreateBuilder{Root: root})
-	reg.Register(IssueClaimToolSpec(), &IssueClaimBuilder{Root: root})
-	reg.Register(IssueCloseToolSpec(), &IssueCloseBuilder{Root: root})
-	reg.Register(IssueListToolSpec(), &IssueListBuilder{Root: root})
-}
