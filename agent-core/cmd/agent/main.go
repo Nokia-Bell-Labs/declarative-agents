@@ -15,6 +15,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
@@ -67,6 +68,7 @@ func init() {
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
 
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(generateMachineCmd)
 }
 
 var versionCmd = &cobra.Command{
@@ -74,6 +76,39 @@ var versionCmd = &cobra.Command{
 	Short: "Print agent version",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("agent v0.0.0-dev")
+	},
+}
+
+var generateMachineCmd = &cobra.Command{
+	Use:   "generate-machine <generate-spec.yaml>",
+	Short: "Generate a linear state machine from a generate spec",
+	Long: `Reads a GenerateSpec YAML (points × steps) and produces a flat
+MachineSpec YAML on stdout. Use this to unroll evaluator experiment
+loops into linear state machines with no cycles.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		data, err := os.ReadFile(args[0])
+		if err != nil {
+			return fmt.Errorf("read spec: %w", err)
+		}
+
+		var gen core.GenerateSpec
+		if err := yaml.Unmarshal(data, &gen); err != nil {
+			return fmt.Errorf("parse spec: %w", err)
+		}
+
+		if len(gen.Points) == 0 {
+			return fmt.Errorf("generate spec has no points")
+		}
+
+		spec := core.GenerateLinearMachine(gen)
+		out, err := core.MarshalMachineSpec(spec)
+		if err != nil {
+			return fmt.Errorf("marshal machine: %w", err)
+		}
+
+		fmt.Print(string(out))
+		return nil
 	},
 }
 
