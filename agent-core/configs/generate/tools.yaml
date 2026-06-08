@@ -6,27 +6,82 @@ tools:
   - name: read
     type: builtin
     init: file_read
-    description: "Read a file from the workspace. Returns the file contents."
+    description: "Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths first."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File path relative to workspace root (must be a file, not a directory)"
+        start_line:
+          type: integer
+          description: "Start line (1-indexed, inclusive)"
+        end_line:
+          type: integer
+          description: "End line (1-indexed, inclusive)"
+      required: [path]
 
   - name: write
     type: builtin
     init: file_write
-    description: "Write a file to the workspace. Creates or overwrites the file."
+    description: "Create or overwrite a file. Provide the complete file content — this replaces the entire file. Parent directories are created automatically."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File path relative to workspace root"
+        content:
+          type: string
+          description: "Full file content to write"
+      required: [path, content]
 
   - name: edit
     type: builtin
     init: file_edit
-    description: "Apply a targeted edit to an existing file using search-and-replace."
+    description: "Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File path relative to workspace root"
+        old_string:
+          type: string
+          description: "Exact text to find"
+        new_string:
+          type: string
+          description: "Replacement text"
+      required: [path, old_string, new_string]
 
   - name: find
     type: builtin
     init: file_find
-    description: "Search for files matching a glob pattern in the workspace."
+    description: "Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob — use \\.go$ to find Go files, not *.go. Returns matching lines with file paths and line numbers."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Regex pattern (ripgrep syntax, not glob). Example: \\.go$ for Go files, func main for function search"
+        path:
+          type: string
+          description: "Subdirectory to scope the search (optional)"
+      required: [query]
 
   - name: list_files
     type: builtin
     init: file_list
-    description: "List files in a directory within the workspace."
+    description: "List files and directories in a tree format. Use this first to understand the workspace layout before reading files."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Subdirectory to list (default: workspace root)"
+        max_depth:
+          type: integer
+          description: "Maximum directory depth to traverse (default: 4)"
 
   # --- build tools (exec) ---
   - name: build
