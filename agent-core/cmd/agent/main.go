@@ -21,7 +21,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/attribute"
-	"gopkg.in/yaml.v3"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/eval"
@@ -87,51 +86,9 @@ func init() {
 	f.StringVar(&flagProfilesDir, "profiles-dir", "", "directory with model profile YAML files (overrides embedded)")
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
 
-	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(generateMachineCmd)
 	rootCmd.AddCommand(evalCmd)
-	rootCmd.AddCommand(analyzeCmd)
-}
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print agent version",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("agent v0.0.0-dev")
-	},
-}
-
-var generateMachineCmd = &cobra.Command{
-	Use:   "generate-machine <generate-spec.yaml>",
-	Short: "Generate a linear state machine from a generate spec",
-	Long: `Reads a GenerateSpec YAML (points × steps) and produces a flat
-MachineSpec YAML on stdout. Use this to unroll evaluator experiment
-loops into linear state machines with no cycles.`,
-	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		data, err := os.ReadFile(args[0])
-		if err != nil {
-			return fmt.Errorf("read spec: %w", err)
-		}
-
-		var gen core.GenerateSpec
-		if err := yaml.Unmarshal(data, &gen); err != nil {
-			return fmt.Errorf("parse spec: %w", err)
-		}
-
-		if len(gen.Points) == 0 {
-			return fmt.Errorf("generate spec has no points")
-		}
-
-		spec := core.GenerateLinearMachine(gen)
-		out, err := core.MarshalMachineSpec(spec)
-		if err != nil {
-			return fmt.Errorf("marshal machine: %w", err)
-		}
-
-		fmt.Print(string(out))
-		return nil
-	},
+	rootCmd.Version = "v0.0.0-dev"
 }
 
 var evalCmd = &cobra.Command{
@@ -180,67 +137,6 @@ func init() {
 	evalCmd.Flags().Int("reps", 1, "number of repetitions per point")
 }
 
-var analyzeCmd = &cobra.Command{
-	Use:   "analyze [session-dir...]",
-	Short: "Analyze results from one or more evaluation sessions",
-	Long: `Analyze results from one or more session directories. When multiple
-directories are provided, results are merged for cross-run comparison.
-
-Examples:
-  agent analyze benchmark/results/2026-06-05-22-54
-  agent analyze results/run1 results/run2
-  agent analyze --progression benchmark/results/2026-06-05-22-54`,
-
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 {
-			return fmt.Errorf("at least one session directory is required")
-		}
-
-		groups, err := eval.LoadMultiple(args)
-		if err != nil {
-			return err
-		}
-		if len(groups) == 0 {
-			return fmt.Errorf("no results found in provided directories")
-		}
-
-		w := cmd.OutOrStdout()
-
-		showProgression, _ := cmd.Flags().GetBool("progression")
-		showDetailed, _ := cmd.Flags().GetBool("detailed")
-		csvPath, _ := cmd.Flags().GetString("csv")
-
-		stats := eval.ComputeModelStats(groups)
-		eval.PrintModelTable(w, stats)
-
-		if showDetailed {
-			fmt.Fprintln(w)
-			rows := eval.ComputeDetailed(groups)
-			eval.PrintDetailedTable(w, rows)
-		}
-
-		if showProgression {
-			fmt.Fprintf(w, "\n--- Tool Progression ---\n\n")
-			eval.PrintProgression(w, groups)
-		}
-
-		if csvPath != "" {
-			if err := eval.WriteCSV(csvPath, groups); err != nil {
-				fmt.Fprintf(os.Stderr, "CSV write error: %v\n", err)
-			} else {
-				fmt.Fprintf(os.Stderr, "CSV written to %s\n", csvPath)
-			}
-		}
-
-		return nil
-	},
-}
-
-func init() {
-	analyzeCmd.Flags().Bool("progression", false, "show per-run tool progression timelines")
-	analyzeCmd.Flags().Bool("detailed", false, "show per-(sample, model) convergence breakdown")
-	analyzeCmd.Flags().String("csv", "", "write detailed per-run CSV to this path")
-}
 
 
 
@@ -390,17 +286,102 @@ func run(cmd *cobra.Command, args []string) error {
 	conversations := stl.NewConversationStore()
 	tracker := stl.NewToolTracker()
 
+	// Load tool definitions
+	defs, err := stl.LoadToolDefs(flagTools)
+	if err != nil {
+		return fmt.Errorf("load tools: %w", err)
+	}
+
+	// Extract LLM config from invoke_llm tool definition (YAML is source
+	// of truth; CLI flags override for eval harness / ad-hoc runs).
+	llmCfg := extractLLMConfig(defs)
+	if flagModel != "" {
+		llmCfg.Model = flagModel
+	}
+	if flagOllamaURL != "http://localhost:11434" {
+		llmCfg.OllamaURL = flagOllamaURL
+	}
+	if flagNumCtx != 0 {
+		llmCfg.NumCtx = flagNumCtx
+	}
+	if flagLLMTimeout != 0 {
+		llmCfg.LLMTimeout = time.Duration(flagLLMTimeout) * time.Second
+	}
+	if flagMaxTime != 0 {
+		llmCfg.MaxTime = time.Duration(flagMaxTime) * time.Second
+	}
+	if flagMaxTokens != 0 {
+		llmCfg.MaxTokens = flagMaxTokens
+	}
+
+	// Re-create adapter with resolved config (may have changed from YAML)
+	if llmCfg.Model != "" && adapter == nil {
+		flagModel = llmCfg.Model
+		flagOllamaURL = llmCfg.OllamaURL
+		flagNumCtx = llmCfg.NumCtx
+
+		httpTimeout := 5 * time.Minute
+		if llmCfg.MaxTime > 0 && llmCfg.MaxTime < httpTimeout {
+			httpTimeout = llmCfg.MaxTime
+		}
+		adapter, err = ollama.NewAdapter(llmCfg.OllamaURL, llmCfg.Model,
+			ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout}),
+			ollama.WithTracer(tracer),
+		)
+		if err != nil {
+			return fmt.Errorf("ollama adapter (from config): %w", err)
+		}
+		if u, err := url.Parse(llmCfg.OllamaURL); err == nil {
+			serverAddr = u.Host
+		}
+		tracer.Event("setup.adapter_ready",
+			attribute.String("ollama.url", llmCfg.OllamaURL),
+			attribute.String("llm.model", llmCfg.Model),
+			attribute.String("config.source", "tools.yaml"),
+		)
+
+		// Load profiles for config-sourced model
+		if profileReg == nil {
+			if flagProfilesDir != "" {
+				profileReg, err = llm.LoadProfiles(flagProfilesDir)
+			} else {
+				profileReg, err = llm.DefaultProfileRegistry()
+			}
+			if err != nil {
+				return fmt.Errorf("load profiles: %w", err)
+			}
+			parser = profileReg.ResolveProfile(llmCfg.Model)
+
+			profileSpec := profileReg.ResolveProfileSpec(llmCfg.Model)
+			tracer.Event("setup.model_profile",
+				attribute.String("profile.name", profileSpec.ProfileName),
+			)
+			if profileSpec.MachineName != "" {
+				flagMachine = filepath.Join(filepath.Dir(flagMachine), profileSpec.MachineName+".yaml")
+			}
+		}
+
+		callTimeout = llmCfg.LLMTimeout
+		conversation = llm.NewConversation(adapter, "", llm.ChatOptions{
+			Model:  llmCfg.Model,
+			NumCtx: llmCfg.NumCtx,
+		})
+		if agentPrompt.Task != "" {
+			assembler = &llm.DefaultAssembler{
+				Prompt: agentPrompt,
+				Parser: parser,
+			}
+		}
+	} else if llmCfg.Model != "" {
+		// Adapter exists from CLI flags — apply any config overrides
+		callTimeout = llmCfg.LLMTimeout
+	}
+
 	vars := map[string]string{
 		"model":         flagModel,
 		"directory":     flagDirectory,
 		"ollama_url":    flagOllamaURL,
 		"prompt_string": flagPromptString,
-	}
-
-	// Load tool definitions
-	defs, err := stl.LoadToolDefs(flagTools)
-	if err != nil {
-		return fmt.Errorf("load tools: %w", err)
 	}
 
 	// Build registries
@@ -440,11 +421,11 @@ func run(cmd *cobra.Command, args []string) error {
 	budget := core.Budget{
 		MaxIterations: 100,
 	}
-	if flagMaxTime > 0 {
-		budget.MaxDuration = time.Duration(flagMaxTime) * time.Second
+	if llmCfg.MaxTime > 0 {
+		budget.MaxDuration = llmCfg.MaxTime
 	}
-	if flagMaxTokens > 0 {
-		budget.MaxTokens = flagMaxTokens
+	if llmCfg.MaxTokens > 0 {
+		budget.MaxTokens = llmCfg.MaxTokens
 	}
 
 	// Run the loop
@@ -494,6 +475,67 @@ func buildToolAction(st *agentState, reg *core.Registry) core.ActionFunc {
 			}
 		}
 		return cmd
+	}
+}
+
+// llmConfig holds LLM-related settings resolved from tools.yaml config
+// and optionally overridden by CLI flags.
+type llmConfig struct {
+	Model      string
+	OllamaURL  string
+	NumCtx     int
+	LLMTimeout time.Duration
+	MaxTime    time.Duration
+	MaxTokens  int
+}
+
+// extractLLMConfig scans tool definitions for an invoke_llm tool and
+// extracts LLM settings from its config block.
+func extractLLMConfig(defs []stl.ToolDef) llmConfig {
+	cfg := llmConfig{
+		OllamaURL: "http://localhost:11434",
+	}
+	for _, td := range defs {
+		if td.Init != "invoke_llm" {
+			continue
+		}
+		if v, ok := td.Config["model"].(string); ok && v != "" {
+			cfg.Model = v
+		}
+		if v, ok := td.Config["ollama_url"].(string); ok && v != "" {
+			cfg.OllamaURL = v
+		}
+		if v := configInt(td.Config, "num_ctx"); v > 0 {
+			cfg.NumCtx = v
+		}
+		if v := configInt(td.Config, "llm_timeout"); v > 0 {
+			cfg.LLMTimeout = time.Duration(v) * time.Second
+		}
+		if v := configInt(td.Config, "max_time"); v > 0 {
+			cfg.MaxTime = time.Duration(v) * time.Second
+		}
+		if v := configInt(td.Config, "max_tokens"); v > 0 {
+			cfg.MaxTokens = v
+		}
+		break
+	}
+	return cfg
+}
+
+// configInt extracts an integer from a map[string]interface{}, handling
+// both int and float64 (YAML numbers decode as int via go-yaml).
+func configInt(m map[string]interface{}, key string) int {
+	v, ok := m[key]
+	if !ok {
+		return 0
+	}
+	switch n := v.(type) {
+	case int:
+		return n
+	case float64:
+		return int(n)
+	default:
+		return 0
 	}
 }
 

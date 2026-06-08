@@ -123,6 +123,13 @@ tools:
     init: invoke_llm
     visibility: internal
     description: "Invoke the LLM with the current conversation history."
+    config:
+      model: "qwen3.6:35b-mlx"
+      ollama_url: "http://localhost:11434"
+      num_ctx: 0
+      llm_timeout: 0
+      max_time: 600
+      max_tokens: 0
 
   - name: parse_response
     type: builtin

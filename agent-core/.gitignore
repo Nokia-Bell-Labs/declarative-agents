@@ -3,4 +3,5 @@
 .dolt/
 *.db
 .beads-credential-key
-agent
+/agent
+/eval-analyze
