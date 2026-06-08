@@ -26,6 +26,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm/ollama"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/pipeline"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/prompt"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
@@ -490,36 +491,78 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState) {
 	registerEvalFactories(br, st)
 }
 
-// registerPipelineFactories registers stub factories for pipeline tools.
-// These will be replaced with real implementations when planner code
-// is migrated to agent-core (issue agent-core-4bb).
+// registerPipelineFactories registers real factories for pipeline tools.
+// PipelineState is lazily initialized on first factory call.
 func registerPipelineFactories(br *stl.BuiltinRegistry, st *agentState) {
-	pipelineTools := []string{
-		"extract_task", "extract_all", "assemble_prompt", "parse_plan",
-		"create_issue", "execute_task", "check_result",
+	var ps *pipeline.State
+
+	initPS := func() *pipeline.State {
+		if ps != nil {
+			return ps
+		}
+		ps = &pipeline.State{
+			Directory: st.directory,
+			Tracer:    st.tracer,
+			Ctx:       st.ctx,
+			TaskDeps:  make(map[string]string),
+		}
+		return ps
 	}
-	for _, name := range pipelineTools {
-		n := name
-		br.Register(n, func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return nil, fmt.Errorf("pipeline tool %q: implementation pending (issue agent-core-4bb)", n)
-		})
-	}
+
+	br.Register("extract_task", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &pipeline.ExtractTaskBuilder{PS: initPS()}, nil
+	})
+	br.Register("extract_all", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &pipeline.ExtractAllBuilder{PS: initPS()}, nil
+	})
+	br.Register("assemble_prompt", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &pipeline.AssemblePromptBuilder{PS: initPS()}, nil
+	})
+	br.Register("parse_plan", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &pipeline.ParsePlanBuilder{PS: initPS()}, nil
+	})
+	br.Register("create_issue", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &pipeline.CreateIssueBuilder{PS: initPS()}, nil
+	})
+	br.Register("execute_task", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &pipeline.ExecuteTaskBuilder{PS: initPS()}, nil
+	})
+	br.Register("check_result", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &pipeline.CheckResultBuilder{PS: initPS()}, nil
+	})
 }
 
-// registerEvalFactories registers stub factories for eval tools.
-// These will be replaced with real implementations when evaluator
-// code is migrated (issues agent-core-wxb, agent-core-uxu).
+// registerEvalFactories registers factories for eval tools.
+// These use the existing pkg/eval/ implementations. The PointContext
+// must be set on the builders before they can execute (done by the
+// eval session orchestrator).
 func registerEvalFactories(br *stl.BuiltinRegistry, st *agentState) {
-	evalTools := []string{
-		"prepare_workspace", "run_agent", "check_results",
-		"collect_metrics", "summarize",
-	}
-	for _, name := range evalTools {
-		n := name
-		br.Register(n, func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return nil, fmt.Errorf("eval tool %q: implementation pending (issues agent-core-wxb/uxu)", n)
-		})
-	}
+	br.Register("prepare_workspace", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &evalStaticFactory{name: "prepare_workspace"}, nil
+	})
+	br.Register("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &evalStaticFactory{name: "run_agent"}, nil
+	})
+	br.Register("check_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &evalStaticFactory{name: "check_results"}, nil
+	})
+	br.Register("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &evalStaticFactory{name: "collect_metrics"}, nil
+	})
+	br.Register("summarize", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &evalStaticFactory{name: "summarize"}, nil
+	})
+}
+
+// evalStaticFactory is a placeholder builder for eval tools. The eval
+// mode uses RegisterExperimentTools (in pkg/eval/experiment.go) which
+// replaces these with PointContext-bound builders before the loop runs.
+type evalStaticFactory struct {
+	name string
+}
+
+func (f *evalStaticFactory) Build(_ core.Result) core.Command {
+	return &failCmd{err: fmt.Errorf("eval tool %q: PointContext not initialized (use eval session mode)", f.name)}
 }
 
 // failCmd immediately returns CommandError.
