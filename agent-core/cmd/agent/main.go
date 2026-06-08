@@ -593,9 +593,6 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState) {
 	// Validate spec tools (load_corpus, validate_specs, format_report)
 	registerValidateSpecFactories(br, st)
 
-	// Apply tools (load_apply_tasks, create_worktree, next_apply_task,
-	// assemble_apply_prompt, parse_apply_plan, materialize_issue)
-	registerApplyFactories(br, st)
 }
 
 // registerPipelineFactories registers real factories for pipeline tools.
@@ -666,48 +663,6 @@ func registerValidateSpecFactories(br *stl.BuiltinRegistry, st *agentState) {
 	})
 }
 
-// registerApplyFactories registers factories for apply (batch plan+materialize) tools.
-func registerApplyFactories(br *stl.BuiltinRegistry, st *agentState) {
-	var as *applyState
-
-	initAS := func() *applyState {
-		if as != nil {
-			return as
-		}
-		as = &applyState{
-			directory:    st.directory,
-			ctx:          st.ctx,
-			tracer:       st.tracer,
-			client:       st.adapter,
-			conversation: st.conversation,
-			assembler:    st.assembler,
-			model:        st.model,
-			numCtx:       st.numCtx,
-		}
-		return as
-	}
-
-	br.Register("load_apply_tasks", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		s := initAS()
-		s.tasksPath = vars["prompt_string"]
-		return &loadApplyTasksBuilder{as: s}, nil
-	})
-	br.Register("create_worktree", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &createWorktreeBuilder{as: initAS()}, nil
-	})
-	br.Register("next_apply_task", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &nextApplyTaskBuilder{as: initAS()}, nil
-	})
-	br.Register("assemble_apply_prompt", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &assembleApplyPromptBuilder{as: initAS()}, nil
-	})
-	br.Register("parse_apply_plan", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &parseApplyPlanBuilder{as: initAS()}, nil
-	})
-	br.Register("materialize_issue", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &materializeIssueBuilder{as: initAS()}, nil
-	})
-}
 
 // registerEvalFactories registers factories for eval tools.
 // These use the existing pkg/eval/ implementations. The PointContext
