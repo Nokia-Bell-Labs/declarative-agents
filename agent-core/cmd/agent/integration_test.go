@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -97,6 +98,279 @@ func assertToolNames(t *testing.T, defs []stl.ToolDef, want []string) {
 	for _, w := range want {
 		require.True(t, nameSet[w], "expected tool %q not found in definitions", w)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// End-to-end loop tests with real generate configs and scripted LLM
+// ---------------------------------------------------------------------------
+
+// scriptedLLMBuilder returns canned LLM responses in sequence,
+// emulating what a real LLM would produce without needing Ollama.
+type scriptedLLMBuilder struct {
+	responses []string
+	callIdx   int
+}
+
+func (s *scriptedLLMBuilder) Build(_ core.Result) core.Command {
+	if s.callIdx >= len(s.responses) {
+		return &scriptedCmd{output: `{"tool":"done","parameters":{"summary":"out of responses"}}`}
+	}
+	resp := s.responses[s.callIdx]
+	s.callIdx++
+	return &scriptedCmd{output: resp}
+}
+
+type scriptedCmd struct{ output string }
+
+func (s *scriptedCmd) Name() string { return "invoke_llm" }
+func (s *scriptedCmd) Execute() core.Result {
+	return core.Result{
+		Output:      s.output,
+		Signal:      core.Signal("LLMResponded"),
+		CommandName: "invoke_llm",
+	}
+}
+
+// stubPassBuilder always builds a Command that returns ToolDone.
+type stubPassBuilder struct{ name string }
+
+func (s *stubPassBuilder) Build(_ core.Result) core.Command {
+	return &stubPassCmd{name: s.name}
+}
+
+type stubPassCmd struct{ name string }
+
+func (s *stubPassCmd) Name() string { return s.name }
+func (s *stubPassCmd) Execute() core.Result {
+	return core.Result{
+		Signal:      core.ToolDone,
+		Output:      s.name + " passed",
+		CommandName: s.name,
+	}
+}
+
+// setupFixtureWorkspace creates a minimal Go CLI workspace for testing.
+func setupFixtureWorkspace(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	appDir := root + "/cmd/app"
+	require.NoError(t, os.MkdirAll(appDir, 0o755))
+	require.NoError(t, os.WriteFile(root+"/go.mod", []byte("module fixture\n\ngo 1.23\n"), 0o644))
+	require.NoError(t, os.WriteFile(appDir+"/root.go", []byte("package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"old help\")\n}\n"), 0o644))
+	return root
+}
+
+// buildE2EParams loads the generate machine/tools configs and wires
+// scripted LLM responses with real file tools + stub validation.
+func buildE2EParams(t *testing.T, workspace string, llmResponses []string) core.LoopParams {
+	t.Helper()
+	cd := configDir(t)
+	machineFile := filepath.Join(cd, "generate", "machine.yaml")
+	toolsFile := filepath.Join(cd, "generate", "tools.yaml")
+
+	defs, err := stl.LoadToolDefs(toolsFile)
+	require.NoError(t, err)
+
+	builtins := stl.NewBuiltinRegistry()
+	reg := core.NewRegistry()
+	tr := tracing.NoopTracer{}
+
+	st := &agentState{
+		registry:      reg,
+		tracer:        tr,
+		tracker:       stl.NewToolTracker(),
+		conversation:  llm.NewConversation(nil, "", llm.ChatOptions{}),
+		conversations: stl.NewConversationStore(),
+		directory:     workspace,
+	}
+	registerBuiltinFactories(builtins, st)
+
+	// Replace invoke_llm with scripted responses
+	scripted := &scriptedLLMBuilder{responses: llmResponses}
+	builtins.Override("invoke_llm", func(_ stl.ToolDef, _ map[string]string) (core.Builder, error) {
+		return scripted, nil
+	})
+
+	// Replace build/lint/test validation with stubs
+	builtins.Override("validate", func(_ stl.ToolDef, _ map[string]string) (core.Builder, error) {
+		return &stl.ValidateBuilder{
+			Tracker:      st.tracker,
+			BuildBuilder: &stubPassBuilder{name: "build"},
+			LintBuilder:  &stubPassBuilder{name: "lint"},
+			TestBuilder:  &stubPassBuilder{name: "test"},
+			Tracer:       tr,
+		}, nil
+	})
+
+	vars := map[string]string{"directory": workspace, "model": "test", "ollama_url": "http://localhost:11434"}
+	require.NoError(t, stl.RegisterUnifiedTools(reg, builtins, workspace, defs, vars))
+
+	toolAction := buildToolAction(st, reg)
+
+	return core.LoopParams{
+		MachineFile: machineFile,
+		AgentName:   "agent",
+		ModelName:   "test",
+		Trace:       tr,
+		Budget:      core.Budget{MaxIterations: 100},
+		ToolAction:  toolAction,
+		Registry:    reg,
+		Directory:   workspace,
+	}
+}
+
+func TestE2E_ReadFileAndSucceed(t *testing.T) {
+	t.Parallel()
+	ws := setupFixtureWorkspace(t)
+	params := buildE2EParams(t, ws, []string{
+		`{"tool":"read","parameters":{"path":"cmd/app/root.go"}}`,
+		`{"tool":"done","parameters":{"summary":"File has old help text"}}`,
+	})
+	rr, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, rr.Status)
+	require.Equal(t, core.State("Succeeded"), rr.FinalState)
+}
+
+func TestE2E_EditFileAndSucceed(t *testing.T) {
+	t.Parallel()
+	ws := setupFixtureWorkspace(t)
+	params := buildE2EParams(t, ws, []string{
+		`{"tool":"read","parameters":{"path":"cmd/app/root.go"}}`,
+		`{"tool":"edit","parameters":{"path":"cmd/app/root.go","old_string":"old help","new_string":"new help"}}`,
+		`{"tool":"done","parameters":{"summary":"Updated CLI help text"}}`,
+	})
+	rr, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, rr.Status)
+
+	data, err := os.ReadFile(filepath.Join(ws, "cmd", "app", "root.go"))
+	require.NoError(t, err)
+	require.Contains(t, string(data), "new help")
+	require.NotContains(t, string(data), "old help")
+}
+
+func TestE2E_MalformedJSONRetries(t *testing.T) {
+	t.Parallel()
+	ws := setupFixtureWorkspace(t)
+	params := buildE2EParams(t, ws, []string{
+		`{"tool":"read","parameters":`,
+		`{"tool":"read","parameters":{"path":"cmd/app/root.go"}}`,
+		`{"tool":"done","parameters":{"summary":"Recovered after retry"}}`,
+	})
+	rr, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, rr.Status)
+
+	var foundParseFailed bool
+	for _, e := range rr.Events {
+		if e.Signal == core.Signal("ParseFailed") {
+			foundParseFailed = true
+		}
+	}
+	require.True(t, foundParseFailed, "should have at least one ParseFailed event")
+}
+
+func TestE2E_DoneImmediately(t *testing.T) {
+	t.Parallel()
+	ws := setupFixtureWorkspace(t)
+	params := buildE2EParams(t, ws, []string{
+		`{"tool":"done","parameters":{"summary":"Nothing to change"}}`,
+	})
+	rr, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, rr.Status)
+	require.Equal(t, core.State("Succeeded"), rr.FinalState)
+}
+
+func TestE2E_BudgetExhausted(t *testing.T) {
+	t.Parallel()
+	ws := setupFixtureWorkspace(t)
+	params := buildE2EParams(t, ws, []string{
+		`{"tool":"read","parameters":{"path":"cmd/app/root.go"}}`,
+		`{"tool":"read","parameters":{"path":"cmd/app/root.go"}}`,
+		`{"tool":"read","parameters":{"path":"cmd/app/root.go"}}`,
+	})
+	params.Budget.MaxIterations = 3
+	rr, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, core.StatusBudgetExceeded, rr.Status)
+	require.Equal(t, core.State("BudgetExceeded"), rr.FinalState)
+}
+
+func TestE2E_ReadMissingFile_Recovers(t *testing.T) {
+	t.Parallel()
+	ws := setupFixtureWorkspace(t)
+	params := buildE2EParams(t, ws, []string{
+		`{"tool":"read","parameters":{"path":"nonexistent.txt"}}`,
+		`{"tool":"done","parameters":{"summary":"File was missing"}}`,
+	})
+	rr, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, rr.Status)
+}
+
+func TestE2E_BoundaryRejectsTraversal(t *testing.T) {
+	t.Parallel()
+	ws := setupFixtureWorkspace(t)
+	params := buildE2EParams(t, ws, []string{
+		`{"tool":"read","parameters":{"path":"../../etc/passwd"}}`,
+		`{"tool":"done","parameters":{"summary":"Path rejected"}}`,
+	})
+	rr, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, rr.Status)
+}
+
+func TestE2E_WriteTool(t *testing.T) {
+	t.Parallel()
+	ws := setupFixtureWorkspace(t)
+	params := buildE2EParams(t, ws, []string{
+		`{"tool":"write","parameters":{"path":"new_file.go","content":"package main\n"}}`,
+		`{"tool":"done","parameters":{"summary":"Created new file"}}`,
+	})
+	rr, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, rr.Status)
+
+	data, err := os.ReadFile(filepath.Join(ws, "new_file.go"))
+	require.NoError(t, err)
+	require.Equal(t, "package main\n", string(data))
+}
+
+func TestE2E_FindTool(t *testing.T) {
+	t.Parallel()
+	ws := setupFixtureWorkspace(t)
+	params := buildE2EParams(t, ws, []string{
+		`{"tool":"find","parameters":{"query":"func main"}}`,
+		`{"tool":"done","parameters":{"summary":"Found main function"}}`,
+	})
+	rr, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, rr.Status)
+}
+
+func TestE2E_ManifestFilteredByVisibility(t *testing.T) {
+	t.Parallel()
+	ws := setupFixtureWorkspace(t)
+	params := buildE2EParams(t, ws, nil)
+
+	manifest := params.Registry.Manifest(core.State("Composing"))
+	var names []string
+	for _, s := range manifest {
+		names = append(names, s.Name)
+	}
+	require.Contains(t, names, "read")
+	require.Contains(t, names, "edit")
+	require.Contains(t, names, "find")
+	require.Contains(t, names, "write")
+	require.Contains(t, names, "build")
+	require.Contains(t, names, "lint")
+	require.Contains(t, names, "test")
+	require.NotContains(t, names, "invoke_llm")
+	require.NotContains(t, names, "parse_response")
+	require.NotContains(t, names, "report_parse_error")
+	require.NotContains(t, names, "validate")
 }
 
 // ---------------------------------------------------------------------------
