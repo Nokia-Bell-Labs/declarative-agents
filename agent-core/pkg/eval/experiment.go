@@ -34,12 +34,13 @@ func ExperimentToMachineSpec(exp ExperimentConfig) core.MachineSpec {
 		}
 	}
 
-	// The initial state needs a seed transition: ToolDone signal → first command.
+	// The initial state needs a Seed transition so core.Loop can enter
+	// the machine. Map Seed to the first configured transition.
 	if initState, ok := exp.States[exp.InitialState]; ok && len(initState.Transitions) > 0 {
-		signalSet[string(core.ToolDone)] = true
+		signalSet[string(core.Seed)] = true
 		transitions = append(transitions, core.TransitionSpec{
 			State:  exp.InitialState,
-			Signal: string(core.ToolDone),
+			Signal: string(core.Seed),
 			Next:   initState.Transitions[0].NextState,
 			Action: initState.Transitions[0].Command,
 		})

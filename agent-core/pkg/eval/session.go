@@ -244,20 +244,31 @@ func DiscoverSamples(dir string) ([]Sample, error) {
 		return nil, fmt.Errorf("discover samples in %s: %w", dir, err)
 	}
 
+	// Check for a shared prompt.yaml at the samples root level.
+	sharedPrompt := filepath.Join(dir, "prompt.yaml")
+	if _, err := os.Stat(sharedPrompt); err != nil {
+		sharedPrompt = ""
+	}
+
 	var samples []Sample
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
 		sampleDir := filepath.Join(dir, e.Name())
-		promptPath := filepath.Join(sampleDir, "prompt.yaml")
 		workspaceDir := filepath.Join(sampleDir, "workspace")
 
-		if _, err := os.Stat(promptPath); err != nil {
-			continue
-		}
 		if _, err := os.Stat(workspaceDir); err != nil {
 			continue
+		}
+
+		promptPath := filepath.Join(sampleDir, "prompt.yaml")
+		if _, err := os.Stat(promptPath); err != nil {
+			if sharedPrompt != "" {
+				promptPath = sharedPrompt
+			} else {
+				continue
+			}
 		}
 
 		sample := Sample{
@@ -292,6 +303,8 @@ func LoadSuite(path string) (SuiteConfig, error) {
 }
 
 // ParseSuite parses suite YAML and resolves samples relative to baseDir.
+// The experiment field can be either an inline ExperimentConfig struct
+// or a string path to an experiment YAML file (resolved relative to baseDir).
 func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 	var raw struct {
 		Name       string            `yaml:"name"`
@@ -299,7 +312,7 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 		Models     []string          `yaml:"models"`
 		Grid       map[string][]any  `yaml:"grid,omitempty"`
 		SamplesDir string            `yaml:"samples_dir"`
-		Experiment *ExperimentConfig `yaml:"experiment,omitempty"`
+		Experiment yaml.Node         `yaml:"experiment,omitempty"`
 	}
 
 	if err := yaml.Unmarshal(data, &raw); err != nil {
@@ -323,13 +336,32 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 		return SuiteConfig{}, fmt.Errorf("suite %q: %w", raw.Name, err)
 	}
 
+	var experiment *ExperimentConfig
+	if raw.Experiment.Kind == yaml.ScalarNode && raw.Experiment.Value != "" {
+		expPath := raw.Experiment.Value
+		if !filepath.IsAbs(expPath) {
+			expPath = filepath.Join(baseDir, expPath)
+		}
+		exp, err := LoadExperiment(expPath)
+		if err != nil {
+			return SuiteConfig{}, fmt.Errorf("suite %q: %w", raw.Name, err)
+		}
+		experiment = &exp
+	} else if raw.Experiment.Kind == yaml.MappingNode {
+		var exp ExperimentConfig
+		if err := raw.Experiment.Decode(&exp); err != nil {
+			return SuiteConfig{}, fmt.Errorf("suite %q: decode experiment: %w", raw.Name, err)
+		}
+		experiment = &exp
+	}
+
 	return SuiteConfig{
 		Name:       raw.Name,
 		Harnesses:  raw.Harnesses,
 		Models:     raw.Models,
 		Grid:       raw.Grid,
 		Samples:    samples,
-		Experiment: raw.Experiment,
+		Experiment: experiment,
 	}, nil
 }
 

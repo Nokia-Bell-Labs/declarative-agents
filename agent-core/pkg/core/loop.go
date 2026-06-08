@@ -288,6 +288,17 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 		fromState := state
 		state = nextState
 
+		if cmd == nil {
+			tr.Event("dispatch.nil_command",
+				attribute.String("state", string(state)),
+				attribute.String("signal", string(sig)),
+			)
+			rr.Status = StatusFailed
+			rr.FinalState = state
+			rr.LastError = fmt.Errorf("nil command in state %s (signal %s)", state, sig)
+			break
+		}
+
 		res = Dispatch(cmd, tr, p.CommandTimeout)
 		sig = res.Signal
 

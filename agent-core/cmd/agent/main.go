@@ -275,7 +275,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Set up OTel if configured
-	var tracer telemetry.TraceAdapter
+	var tracer tracing.Tracer = tracing.NoopTracer{}
 	if flagOTelLog != "" {
 		parentCtx, _ := telemetry.ParseParentSpan(flagOTelParent)
 		cfg := telemetry.ExporterConfig{FilePath: flagOTelLog}
