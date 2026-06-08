@@ -23,7 +23,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/eval"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm/ollama"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/pipeline"
@@ -101,7 +100,7 @@ func init() {
 }
 
 func runEval(cmd *cobra.Command, args []string) error {
-	suite, err := eval.LoadSuite(args[0])
+	suite, err := stl.LoadSuite(args[0])
 	if err != nil {
 		return fmt.Errorf("load suite: %w", err)
 	}
@@ -155,7 +154,7 @@ func runEval(cmd *cobra.Command, args []string) error {
 	reg := core.NewRegistry()
 	builtins := stl.NewBuiltinRegistry()
 
-	es := &eval.EvalState{Ctx: cmd.Context()}
+	es := &stl.EvalState{Ctx: cmd.Context()}
 
 	st := &agentState{
 		registry: reg,
@@ -175,13 +174,13 @@ func runEval(cmd *cobra.Command, args []string) error {
 	// EvalState created lazily; we need to replace it with ours.
 	// Re-register eval factories with our shared EvalState.
 	builtins.Register("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &eval.RunAgentBuilder{ES: es}, nil
+		return &stl.RunAgentBuilder{ES: es}, nil
 	})
 	builtins.Register("check_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &eval.CheckResultsBuilder{ES: es}, nil
+		return &stl.CheckResultsBuilder{ES: es}, nil
 	})
 	builtins.Register("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &eval.CollectMetricsBuilder{ES: es}, nil
+		return &stl.CollectMetricsBuilder{ES: es}, nil
 	})
 
 	// Re-register the eval tools with our EvalState
@@ -212,8 +211,8 @@ func runEval(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	cfg := eval.StandardSessionConfig{
-		SessionConfig: eval.SessionConfig{
+	cfg := stl.StandardSessionConfig{
+		SessionConfig: stl.SessionConfig{
 			OutputDir:  outputDir,
 			OllamaURL: suite.OllamaURL,
 			Timeout:   suite.Timeout,
@@ -224,7 +223,7 @@ func runEval(cmd *cobra.Command, args []string) error {
 		ES:         es,
 	}
 
-	result, err := eval.RunSession(cmd.Context(), suite, cfg)
+	result, err := stl.RunSession(cmd.Context(), suite, cfg)
 	if err != nil {
 		return err
 	}
@@ -818,24 +817,24 @@ func registerValidateSpecFactories(br *stl.BuiltinRegistry, st *agentState) {
 // EvalState is lazily initialized on first factory call. The eval
 // session orchestrator sets ES.PC before each point's loop runs.
 func registerEvalFactories(br *stl.BuiltinRegistry, st *agentState) {
-	var es *eval.EvalState
+	var es *stl.EvalState
 
-	initES := func() *eval.EvalState {
+	initES := func() *stl.EvalState {
 		if es != nil {
 			return es
 		}
-		es = &eval.EvalState{Ctx: st.ctx}
+		es = &stl.EvalState{Ctx: st.ctx}
 		return es
 	}
 
 	br.Register("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &eval.RunAgentBuilder{ES: initES()}, nil
+		return &stl.RunAgentBuilder{ES: initES()}, nil
 	})
 	br.Register("check_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &eval.CheckResultsBuilder{ES: initES()}, nil
+		return &stl.CheckResultsBuilder{ES: initES()}, nil
 	})
 	br.Register("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &eval.CollectMetricsBuilder{ES: initES()}, nil
+		return &stl.CollectMetricsBuilder{ES: initES()}, nil
 	})
 }
 

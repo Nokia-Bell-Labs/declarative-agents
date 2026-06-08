@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package eval
+package stl
 
 import (
 	"regexp"
@@ -81,10 +81,10 @@ func findOutputFromSibling(target *Span, spans []*Span) string {
 }
 
 var (
-	reTestPass   = regexp.MustCompile(`(?m)^--- PASS:`)
-	reTestFail   = regexp.MustCompile(`(?m)^--- FAIL:`)
-	reBuildFail  = regexp.MustCompile(`(?m)FAIL\s+.*\[build failed\]`)
-	reBuildError = regexp.MustCompile(`(?m)^([^\s:]+\.go):\d+:\d+:`)
+	reEvalTestPass   = regexp.MustCompile(`(?m)^--- PASS:`)
+	reEvalTestFail   = regexp.MustCompile(`(?m)^--- FAIL:`)
+	reEvalBuildFail  = regexp.MustCompile(`(?m)FAIL\s+.*\[build failed\]`)
+	reEvalBuildError = regexp.MustCompile(`(?m)^([^\s:]+\.go):\d+:\d+:`)
 )
 
 func parseLegacyOutput(tool, signal, output string) ToolSnapshot {
@@ -92,17 +92,17 @@ func parseLegacyOutput(tool, signal, output string) ToolSnapshot {
 
 	switch tool {
 	case "test":
-		if reBuildFail.MatchString(output) {
+		if reEvalBuildFail.MatchString(output) {
 			return snap
 		}
-		passed := len(reTestPass.FindAllString(output, -1))
-		failed := len(reTestFail.FindAllString(output, -1))
+		passed := len(reEvalTestPass.FindAllString(output, -1))
+		failed := len(reEvalTestFail.FindAllString(output, -1))
 		snap.Total = passed + failed
 		snap.Passed = passed
 		snap.Failed = failed
 
 	case "build":
-		matches := reBuildError.FindAllStringSubmatch(output, -1)
+		matches := reEvalBuildError.FindAllStringSubmatch(output, -1)
 		files := make(map[string]struct{})
 		for _, m := range matches {
 			files[m[1]] = struct{}{}

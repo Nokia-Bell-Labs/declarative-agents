@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package eval
+package stl
 
 import (
 	"encoding/json"
@@ -21,8 +21,8 @@ func (k GroupKey) String() string {
 	return k.Sample + "/" + k.Model
 }
 
-// RunResult holds all metrics and analysis for a single evaluation run.
-type RunResult struct {
+// EvalRunResult holds all metrics and analysis for a single evaluation run.
+type EvalRunResult struct {
 	Sample      string
 	Model       string
 	Repetition  int
@@ -38,8 +38,8 @@ type RunResult struct {
 
 // LoadMultiple loads and merges results from one or more session directories.
 // Each directory should contain point subdirectories with meta.json files.
-func LoadMultiple(dirs []string) (map[GroupKey][]RunResult, error) {
-	groups := make(map[GroupKey][]RunResult)
+func LoadMultiple(dirs []string) (map[GroupKey][]EvalRunResult, error) {
+	groups := make(map[GroupKey][]EvalRunResult)
 
 	for _, dir := range dirs {
 		results, err := loadDir(dir)
@@ -55,13 +55,13 @@ func LoadMultiple(dirs []string) (map[GroupKey][]RunResult, error) {
 	return groups, nil
 }
 
-func loadDir(dir string) ([]RunResult, error) {
+func loadDir(dir string) ([]EvalRunResult, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	var results []RunResult
+	var results []EvalRunResult
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -79,7 +79,7 @@ func loadDir(dir string) ([]RunResult, error) {
 			continue
 		}
 
-		r := RunResult{
+		r := EvalRunResult{
 			Sample:      meta.Sample,
 			Model:       meta.Model,
 			Repetition:  meta.Repetition,

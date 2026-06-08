@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package eval
+package stl
 
 import (
 	"encoding/csv"
@@ -29,8 +29,8 @@ type ModelStats struct {
 }
 
 // ComputeModelStats builds model-level statistics from grouped results.
-func ComputeModelStats(groups map[GroupKey][]RunResult) []ModelStats {
-	byModel := make(map[string][]RunResult)
+func ComputeModelStats(groups map[GroupKey][]EvalRunResult) []ModelStats {
+	byModel := make(map[string][]EvalRunResult)
 	for _, runs := range groups {
 		for _, r := range runs {
 			byModel[r.Model] = append(byModel[r.Model], r)
@@ -53,7 +53,7 @@ func ComputeModelStats(groups map[GroupKey][]RunResult) []ModelStats {
 	return stats
 }
 
-func computeModel(model string, runs []RunResult) ModelStats {
+func computeModel(model string, runs []EvalRunResult) ModelStats {
 	ms := ModelStats{Model: model, Runs: len(runs)}
 
 	var iters, tokIn, tokOut []float64
@@ -118,7 +118,7 @@ type SampleModelRow struct {
 }
 
 // ComputeDetailed builds per-(sample, model) rows.
-func ComputeDetailed(groups map[GroupKey][]RunResult) []SampleModelRow {
+func ComputeDetailed(groups map[GroupKey][]EvalRunResult) []SampleModelRow {
 	var rows []SampleModelRow
 	for key, runs := range groups {
 		row := SampleModelRow{
@@ -222,10 +222,10 @@ func PrintDetailedTable(w io.Writer, rows []SampleModelRow) {
 }
 
 // PrintProgression writes per-run tool progression timelines.
-func PrintProgression(w io.Writer, groups map[GroupKey][]RunResult) {
+func PrintProgression(w io.Writer, groups map[GroupKey][]EvalRunResult) {
 	type entry struct {
 		key  GroupKey
-		runs []RunResult
+		runs []EvalRunResult
 	}
 	var entries []entry
 	for k, v := range groups {
@@ -262,7 +262,7 @@ func PrintProgression(w io.Writer, groups map[GroupKey][]RunResult) {
 }
 
 // WriteCSV writes detailed per-run data as CSV.
-func WriteCSV(path string, groups map[GroupKey][]RunResult) error {
+func WriteCSV(path string, groups map[GroupKey][]EvalRunResult) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("create CSV: %w", err)
@@ -284,7 +284,7 @@ func WriteCSV(path string, groups map[GroupKey][]RunResult) error {
 
 	type entry struct {
 		key  GroupKey
-		runs []RunResult
+		runs []EvalRunResult
 	}
 	var entries []entry
 	for k, v := range groups {

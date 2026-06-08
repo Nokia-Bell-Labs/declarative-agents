@@ -15,7 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/eval"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 )
 
 func main() {
@@ -37,7 +37,7 @@ Examples:
 	Version: "v0.0.0-dev",
 	Args:    cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		groups, err := eval.LoadMultiple(args)
+		groups, err := stl.LoadMultiple(args)
 		if err != nil {
 			return err
 		}
@@ -51,22 +51,22 @@ Examples:
 		showDetailed, _ := cmd.Flags().GetBool("detailed")
 		csvPath, _ := cmd.Flags().GetString("csv")
 
-		stats := eval.ComputeModelStats(groups)
-		eval.PrintModelTable(w, stats)
+		stats := stl.ComputeModelStats(groups)
+		stl.PrintModelTable(w, stats)
 
 		if showDetailed {
 			fmt.Fprintln(w)
-			rows := eval.ComputeDetailed(groups)
-			eval.PrintDetailedTable(w, rows)
+			rows := stl.ComputeDetailed(groups)
+			stl.PrintDetailedTable(w, rows)
 		}
 
 		if showProgression {
 			fmt.Fprintf(w, "\n--- Tool Progression ---\n\n")
-			eval.PrintProgression(w, groups)
+			stl.PrintProgression(w, groups)
 		}
 
 		if csvPath != "" {
-			if err := eval.WriteCSV(csvPath, groups); err != nil {
+			if err := stl.WriteCSV(csvPath, groups); err != nil {
 				fmt.Fprintf(os.Stderr, "CSV write error: %v\n", err)
 			} else {
 				fmt.Fprintf(os.Stderr, "CSV written to %s\n", csvPath)
