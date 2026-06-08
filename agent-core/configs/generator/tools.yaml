@@ -14,7 +14,8 @@ tools:
   - edit
   - find
   - list_files
-  # LLM tools (invoke_llm registered via --llm flag)
+  # LLM tools
+  - invoke_llm
   - parse_response
   - report_parse_error
   - reset_history

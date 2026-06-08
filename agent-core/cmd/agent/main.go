@@ -37,7 +37,6 @@ var (
 	flagMachine          string
 	flagTools            string
 	flagToolDeclarations []string
-	flagLLM              []string
 	flagOTelLog          string
 	flagOTelParent       string
 	flagDirectory        string
@@ -69,7 +68,6 @@ func init() {
 	f.StringVar(&flagMachine, "machine", "", "path to state machine YAML (required)")
 	f.StringVar(&flagTools, "tools", "", "path to tool selection YAML (required)")
 	f.StringArrayVar(&flagToolDeclarations, "tools-declaration", nil, "path to tool declaration YAML (repeatable)")
-	f.StringArrayVar(&flagLLM, "llm", nil, "path to LLM config YAML (repeatable, registers invoke_llm tools)")
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
@@ -233,36 +231,21 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Load LLM configs from --llm flags, or fall back to legacy extractLLMConfig
-	var llmConfigs []stl.LLMConfig
-	if len(flagLLM) > 0 {
-		llmConfigs, err = stl.LoadLLMConfigs(flagLLM)
-		if err != nil {
-			return fmt.Errorf("load llm configs: %w", err)
-		}
-	}
+	// Resolve LLM config from invoke_llm tool definition's config block.
+	// Environment variables (AGENT_MODEL, etc.) override config values.
+	llmCfg := extractLLMConfig(defs)
+	applyLLMEnvOverrides(&llmCfg)
 
-	var llmCfg llmConfig
-	if len(llmConfigs) > 0 {
-		primary := llmConfigs[0]
-		llmCfg = llmConfig{
-			Model:      primary.Model,
-			OllamaURL:  primary.EffectiveProviderURL(),
-			NumCtx:     primary.NumCtx,
-			LLMTimeout: primary.LLMTimeoutDuration(),
-			MaxTime:    primary.MaxTimeDuration(),
-			MaxTokens:  primary.MaxTokens,
-		}
-		if agentPrompt.Task == "" && primary.SystemPrompt != "" {
+	// If the invoke_llm config has a system_prompt, use it as the agent prompt
+	// (unless --prompt or --prompt-string was explicitly provided).
+	if agentPrompt.Task == "" && agentPrompt.Role == "" {
+		if sp := llmCfg.SystemPrompt; sp != "" {
 			agentPrompt = prompt.Prompt{
-				Role:         primary.SystemPrompt,
-				OutputFormat: primary.ToolPrompt,
+				Role:         sp,
+				OutputFormat: llmCfg.ToolPrompt,
 			}
 		}
-	} else {
-		llmCfg = extractLLMConfig(defs)
 	}
-	applyLLMEnvOverrides(&llmCfg)
 
 	// Create Ollama adapter (only if model is configured)
 	var adapter llm.Client
@@ -313,7 +296,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Create assembler
 	var assembler llm.PromptAssembler
-	if agentPrompt.Task != "" || agentPrompt.Role != "" {
+	if agentPrompt.Role != "" || agentPrompt.Task != "" {
 		assembler = &llm.DefaultAssembler{
 			Prompt: agentPrompt,
 			Parser: parser,
@@ -363,29 +346,6 @@ func run(cmd *cobra.Command, args []string) error {
 
 	if err := stl.RegisterUnifiedTools(reg, builtins, flagDirectory, defs, vars); err != nil {
 		return fmt.Errorf("register tools: %w", err)
-	}
-
-	// Register LLM tools from --llm configs
-	for _, lc := range llmConfigs {
-		toolName := lc.EffectiveName()
-		reg.Register(core.ToolSpec{
-			Name:        toolName,
-			Description: fmt.Sprintf("Invoke %s via %s", lc.Model, lc.Provider),
-			Visibility:  core.Internal,
-		}, &stl.InvokeLLMBuilder{
-			Client:       adapter,
-			History:      conversation,
-			Registry:     reg,
-			Assembler:    assembler,
-			Model:        llmCfg.Model,
-			ProviderName: lc.Provider,
-			ServerAddr:   serverAddr,
-			Tracer:       tracer,
-			NumCtx:       llmCfg.NumCtx,
-			CallTimeout:  llmCfg.LLMTimeout,
-			Verbose:      flagVerboseTrace,
-			Ctx:          cmd.Context(),
-		})
 	}
 
 	// Build $tool action (dynamic tool dispatch from parse_response output)
@@ -458,20 +418,22 @@ func buildToolAction(st *agentState, reg *core.Registry) core.ActionFunc {
 	}
 }
 
-// llmConfig holds LLM-related settings resolved from tools.yaml config
-// and optionally overridden by CLI flags.
+// llmConfig holds LLM-related settings resolved from the invoke_llm
+// tool definition's config block.
 type llmConfig struct {
-	Model      string
-	OllamaURL  string
-	NumCtx     int
-	LLMTimeout time.Duration
-	MaxTime    time.Duration
-	MaxTokens  int
+	Model        string
+	Provider     string
+	OllamaURL    string
+	SystemPrompt string
+	ToolPrompt   string
+	NumCtx       int
+	LLMTimeout   time.Duration
+	MaxTime      time.Duration
+	MaxTokens    int
 }
 
 // extractLLMConfig scans tool definitions for an invoke_llm tool and
-// extracts LLM settings from its config block. Legacy path used when
-// no --llm flags are provided.
+// extracts LLM settings from its config block.
 func extractLLMConfig(defs []stl.ToolDef) llmConfig {
 	cfg := llmConfig{
 		OllamaURL: "http://localhost:11434",
@@ -483,8 +445,20 @@ func extractLLMConfig(defs []stl.ToolDef) llmConfig {
 		if v, ok := td.Config["model"].(string); ok && v != "" {
 			cfg.Model = v
 		}
+		if v, ok := td.Config["provider"].(string); ok && v != "" {
+			cfg.Provider = v
+		}
+		if v, ok := td.Config["provider_url"].(string); ok && v != "" {
+			cfg.OllamaURL = v
+		}
 		if v, ok := td.Config["ollama_url"].(string); ok && v != "" {
 			cfg.OllamaURL = v
+		}
+		if v, ok := td.Config["system_prompt"].(string); ok && v != "" {
+			cfg.SystemPrompt = v
+		}
+		if v, ok := td.Config["tool_prompt"].(string); ok && v != "" {
+			cfg.ToolPrompt = v
 		}
 		if v := configInt(td.Config, "num_ctx"); v > 0 {
 			cfg.NumCtx = v

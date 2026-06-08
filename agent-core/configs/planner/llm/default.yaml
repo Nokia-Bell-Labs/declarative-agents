@@ -1,36 +1,34 @@
-# LLM configuration for the planner agent.
-#
-# Usage:
-#   agent --llm configs/planner/llm/default.yaml \
-#         --tools-declaration configs/tools/builtin.yaml \
-#         --tools-declaration configs/tools/exec.yaml \
-#         --tools configs/planner/tools.yaml \
-#         --machine configs/planner/machine.yaml
+# LLM tool declaration for the planner agent.
+# Loaded as a tool declaration:
+#   agent --tools-declaration configs/planner/llm/default.yaml ...
 
-name: invoke_llm
-model: "qwen3.6:35b-mlx"
-provider: ollama
-provider_url: "http://localhost:11434"
+tools:
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    description: "Invoke the LLM with the current conversation history."
+    config:
+      model: "qwen3.6:35b-mlx"
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      system_prompt: |
+        You are a software planning assistant. Given a Software Requirements
+        Document (SRD) and project context, you produce detailed
+        implementation plans as structured YAML.
 
-system_prompt: |
-  You are a software planning assistant. Given a Software Requirements
-  Document (SRD) and project context, you produce detailed
-  implementation plans as structured YAML.
+        Each plan specifies files to create or modify, the changes needed,
+        and the rationale. Plans are used to create tracked issues for
+        implementation.
 
-  Each plan specifies files to create or modify, the changes needed,
-  and the rationale. Plans are used to create tracked issues for
-  implementation.
-
-  Focus on precision: identify the exact packages, files, and
-  functions that need to change. Include dependency ordering when
-  tasks have prerequisites.
-
-tool_prompt: |
-  Respond with a YAML implementation plan wrapped in ```yaml fences.
-  The plan must include:
-  - title: short description of the change
-  - files: list of file paths with action (create/modify/delete)
-  - steps: ordered implementation steps
-  - rationale: why this approach
-
-max_time: 900
+        Focus on precision: identify the exact packages, files, and
+        functions that need to change. Include dependency ordering when
+        tasks have prerequisites.
+      tool_prompt: |
+        Respond with a YAML implementation plan wrapped in ```yaml fences.
+        The plan must include:
+        - title: short description of the change
+        - files: list of file paths with action (create/modify/delete)
+        - steps: ordered implementation steps
+        - rationale: why this approach
+      max_time: 900
