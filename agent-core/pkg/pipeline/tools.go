@@ -23,7 +23,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
-// Pipeline signals aligned with configs/pipeline/machine.yaml.
+// Pipeline signals aligned with configs/planner/machine.yaml.
 const (
 	SigTaskExtracted    core.Signal = "TaskExtracted"
 	SigAllDone          core.Signal = "AllDone"

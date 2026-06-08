@@ -1,5 +1,5 @@
-# Tool definitions for the generate state machine.
-# Used with: agent --machine configs/generate/machine.yaml --tools configs/generate/tools.yaml
+# Tool definitions for the generator state machine.
+# Used with: agent --machine configs/generator/machine.yaml --tools configs/generator/tools.yaml
 
 includes:
   - ../common/tools-base.yaml

@@ -1,12 +1,12 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-// Command eval-analyze reads evaluation session results and prints
+// Command analyzer reads evaluation session results and prints
 // reports. It has no dependency on the agent runtime — it only reads
 // result JSON files and produces tables, progression timelines, and CSV.
 //
 // Usage:
 //
-//	eval-analyze [flags] <session-dir...>
+//	analyzer [flags] <session-dir...>
 package main
 
 import (
@@ -25,15 +25,15 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "eval-analyze [session-dir...]",
+	Use:   "analyzer [session-dir...]",
 	Short: "Analyze results from one or more evaluation sessions",
 	Long: `Analyze results from one or more session directories. When multiple
 directories are provided, results are merged for cross-run comparison.
 
 Examples:
-  eval-analyze benchmark/results/2026-06-05-22-54
-  eval-analyze results/run1 results/run2
-  eval-analyze --progression benchmark/results/2026-06-05-22-54`,
+  analyzer benchmark/results/2026-06-05-22-54
+  analyzer results/run1 results/run2
+  analyzer --progression benchmark/results/2026-06-05-22-54`,
 	Version: "v0.0.0-dev",
 	Args:    cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

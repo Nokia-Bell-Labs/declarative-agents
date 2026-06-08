@@ -1,4 +1,4 @@
-name: pipeline-plan-only
+name: planner-plan-only
 initial_state: Idle
 
 states:

@@ -165,8 +165,8 @@ func setupFixtureWorkspace(t *testing.T) string {
 func buildE2EParams(t *testing.T, workspace string, llmResponses []string) core.LoopParams {
 	t.Helper()
 	cd := configDir(t)
-	machineFile := filepath.Join(cd, "generate", "machine.yaml")
-	toolsFile := filepath.Join(cd, "generate", "tools.yaml")
+	machineFile := filepath.Join(cd, "generator", "machine.yaml")
+	toolsFile := filepath.Join(cd, "generator", "tools.yaml")
 
 	defs, err := stl.LoadToolDefs(toolsFile)
 	require.NoError(t, err)
@@ -380,11 +380,11 @@ func TestE2E_ManifestFilteredByVisibility(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGenerateConfig_MachineLoads(t *testing.T) {
-	path := filepath.Join(configDir(t), "generate", "machine.yaml")
+	path := filepath.Join(configDir(t), "generator", "machine.yaml")
 	spec, err := core.LoadMachineSpec(path)
 	require.NoError(t, err)
 
-	require.Equal(t, "generate", spec.Name)
+	require.Equal(t, "generator", spec.Name)
 	require.Equal(t, "Idle", spec.InitialState)
 	require.Contains(t, spec.TerminalStates, "Succeeded")
 	require.Contains(t, spec.TerminalStates, "Failed")
@@ -394,7 +394,7 @@ func TestGenerateConfig_MachineLoads(t *testing.T) {
 }
 
 func TestGenerateConfig_ToolsLoad(t *testing.T) {
-	path := filepath.Join(configDir(t), "generate", "tools.yaml")
+	path := filepath.Join(configDir(t), "generator", "tools.yaml")
 	defs, err := stl.LoadToolDefs(path)
 	require.NoError(t, err)
 	require.NotEmpty(t, defs)
@@ -408,10 +408,10 @@ func TestGenerateConfig_ToolsLoad(t *testing.T) {
 
 func TestGenerateConfig_TransitionTable(t *testing.T) {
 	cd := configDir(t)
-	spec, err := core.LoadMachineSpec(filepath.Join(cd, "generate", "machine.yaml"))
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "generator", "machine.yaml"))
 	require.NoError(t, err)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "generate", "tools.yaml"))
+	defs, err := stl.LoadToolDefs(filepath.Join(cd, "generator", "tools.yaml"))
 	require.NoError(t, err)
 
 	reg := buildRegistryForDefs(t, defs)
@@ -425,11 +425,11 @@ func TestGenerateConfig_TransitionTable(t *testing.T) {
 }
 
 func TestGenerateConfig_DeepseekMachineLoads(t *testing.T) {
-	path := filepath.Join(configDir(t), "generate", "deepseek-coding-agent.yaml")
+	path := filepath.Join(configDir(t), "generator", "deepseek-coding-agent.yaml")
 	spec, err := core.LoadMachineSpec(path)
 	require.NoError(t, err)
 
-	require.Equal(t, "generate-deepseek", spec.Name)
+	require.Equal(t, "generator-deepseek", spec.Name)
 	require.Equal(t, "Idle", spec.InitialState)
 	require.Contains(t, spec.TerminalStates, "Succeeded")
 	require.Contains(t, spec.TerminalStates, "Failed")
@@ -438,10 +438,10 @@ func TestGenerateConfig_DeepseekMachineLoads(t *testing.T) {
 
 func TestGenerateConfig_DeepseekTransitionTable(t *testing.T) {
 	cd := configDir(t)
-	spec, err := core.LoadMachineSpec(filepath.Join(cd, "generate", "deepseek-coding-agent.yaml"))
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "generator", "deepseek-coding-agent.yaml"))
 	require.NoError(t, err)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "generate", "tools.yaml"))
+	defs, err := stl.LoadToolDefs(filepath.Join(cd, "generator", "tools.yaml"))
 	require.NoError(t, err)
 
 	reg := buildRegistryForDefs(t, defs)
@@ -464,11 +464,11 @@ func TestGenerateConfig_DeepseekTransitionTable(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPipelineConfig_MachineLoads(t *testing.T) {
-	path := filepath.Join(configDir(t), "pipeline", "machine.yaml")
+	path := filepath.Join(configDir(t), "planner", "machine.yaml")
 	spec, err := core.LoadMachineSpec(path)
 	require.NoError(t, err)
 
-	require.Equal(t, "pipeline", spec.Name)
+	require.Equal(t, "planner", spec.Name)
 	require.Equal(t, "Idle", spec.InitialState)
 	require.Contains(t, spec.TerminalStates, "Completed")
 	require.Contains(t, spec.TerminalStates, "Failed")
@@ -477,11 +477,11 @@ func TestPipelineConfig_MachineLoads(t *testing.T) {
 }
 
 func TestPipelineConfig_PassthroughLoads(t *testing.T) {
-	path := filepath.Join(configDir(t), "pipeline", "machine-passthrough.yaml")
+	path := filepath.Join(configDir(t), "planner", "machine-passthrough.yaml")
 	spec, err := core.LoadMachineSpec(path)
 	require.NoError(t, err)
 
-	require.Equal(t, "pipeline-passthrough", spec.Name)
+	require.Equal(t, "planner-passthrough", spec.Name)
 	require.Equal(t, "Idle", spec.InitialState)
 	require.Contains(t, spec.TerminalStates, "Completed")
 	require.Contains(t, spec.TerminalStates, "Failed")
@@ -489,11 +489,11 @@ func TestPipelineConfig_PassthroughLoads(t *testing.T) {
 }
 
 func TestPipelineConfig_PlanOnlyLoads(t *testing.T) {
-	path := filepath.Join(configDir(t), "pipeline", "machine-plan-only.yaml")
+	path := filepath.Join(configDir(t), "planner", "machine-plan-only.yaml")
 	spec, err := core.LoadMachineSpec(path)
 	require.NoError(t, err)
 
-	require.Equal(t, "pipeline-plan-only", spec.Name)
+	require.Equal(t, "planner-plan-only", spec.Name)
 	require.Equal(t, "Idle", spec.InitialState)
 	require.Contains(t, spec.TerminalStates, "Completed")
 	require.Contains(t, spec.TerminalStates, "Failed")
@@ -502,7 +502,7 @@ func TestPipelineConfig_PlanOnlyLoads(t *testing.T) {
 }
 
 func TestPipelineConfig_ToolsLoad(t *testing.T) {
-	path := filepath.Join(configDir(t), "pipeline", "tools.yaml")
+	path := filepath.Join(configDir(t), "planner", "tools.yaml")
 	defs, err := stl.LoadToolDefs(path)
 	require.NoError(t, err)
 	require.NotEmpty(t, defs)
@@ -518,10 +518,10 @@ func TestPipelineConfig_ToolsLoad(t *testing.T) {
 
 func TestPipelineConfig_TransitionTable(t *testing.T) {
 	cd := configDir(t)
-	spec, err := core.LoadMachineSpec(filepath.Join(cd, "pipeline", "machine.yaml"))
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "planner", "machine.yaml"))
 	require.NoError(t, err)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "pipeline", "tools.yaml"))
+	defs, err := stl.LoadToolDefs(filepath.Join(cd, "planner", "tools.yaml"))
 	require.NoError(t, err)
 
 	reg := buildRegistryForDefs(t, defs)
@@ -535,10 +535,10 @@ func TestPipelineConfig_TransitionTable(t *testing.T) {
 
 func TestPipelineConfig_PassthroughTransitionTable(t *testing.T) {
 	cd := configDir(t)
-	spec, err := core.LoadMachineSpec(filepath.Join(cd, "pipeline", "machine-passthrough.yaml"))
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "planner", "machine-passthrough.yaml"))
 	require.NoError(t, err)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "pipeline", "tools.yaml"))
+	defs, err := stl.LoadToolDefs(filepath.Join(cd, "planner", "tools.yaml"))
 	require.NoError(t, err)
 
 	reg := buildRegistryForDefs(t, defs)
@@ -551,10 +551,10 @@ func TestPipelineConfig_PassthroughTransitionTable(t *testing.T) {
 
 func TestPipelineConfig_PlanOnlyTransitionTable(t *testing.T) {
 	cd := configDir(t)
-	spec, err := core.LoadMachineSpec(filepath.Join(cd, "pipeline", "machine-plan-only.yaml"))
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "planner", "machine-plan-only.yaml"))
 	require.NoError(t, err)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "pipeline", "tools.yaml"))
+	defs, err := stl.LoadToolDefs(filepath.Join(cd, "planner", "tools.yaml"))
 	require.NoError(t, err)
 
 	reg := buildRegistryForDefs(t, defs)
@@ -571,7 +571,7 @@ func TestPipelineConfig_PlanOnlyTransitionTable(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvalConfig_GenerateSpecLoads(t *testing.T) {
-	path := filepath.Join(configDir(t), "eval", "generate-spec.yaml")
+	path := filepath.Join(configDir(t), "evaluator", "generate-spec.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -579,7 +579,7 @@ func TestEvalConfig_GenerateSpecLoads(t *testing.T) {
 	err = yaml.Unmarshal(data, &gen)
 	require.NoError(t, err)
 
-	require.Equal(t, "eval", gen.Name)
+	require.Equal(t, "evaluator", gen.Name)
 	require.NotEmpty(t, gen.Points)
 	require.Equal(t, "summarize", gen.DoneAction)
 
@@ -589,7 +589,7 @@ func TestEvalConfig_GenerateSpecLoads(t *testing.T) {
 }
 
 func TestEvalConfig_GenerateLinearMachine(t *testing.T) {
-	path := filepath.Join(configDir(t), "eval", "generate-spec.yaml")
+	path := filepath.Join(configDir(t), "evaluator", "generate-spec.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -599,7 +599,7 @@ func TestEvalConfig_GenerateLinearMachine(t *testing.T) {
 
 	spec := core.GenerateLinearMachine(gen)
 
-	require.Equal(t, "eval", spec.Name)
+	require.Equal(t, "evaluator", spec.Name)
 	require.Equal(t, "Point_0_Step_0", spec.InitialState)
 	require.Contains(t, spec.TerminalStates, "Done")
 	require.Contains(t, spec.States, "Point_0_Step_0")
@@ -618,7 +618,7 @@ func TestEvalConfig_GenerateLinearMachine(t *testing.T) {
 }
 
 func TestEvalConfig_ToolsLoad(t *testing.T) {
-	path := filepath.Join(configDir(t), "eval", "tools.yaml")
+	path := filepath.Join(configDir(t), "evaluator", "tools.yaml")
 	defs, err := stl.LoadToolDefs(path)
 	require.NoError(t, err)
 	require.NotEmpty(t, defs)
@@ -632,7 +632,7 @@ func TestEvalConfig_ToolsLoad(t *testing.T) {
 func TestEvalConfig_TransitionTable(t *testing.T) {
 	cd := configDir(t)
 
-	specData, err := os.ReadFile(filepath.Join(cd, "eval", "generate-spec.yaml"))
+	specData, err := os.ReadFile(filepath.Join(cd, "evaluator", "generate-spec.yaml"))
 	require.NoError(t, err)
 
 	var gen core.GenerateSpec
@@ -641,7 +641,7 @@ func TestEvalConfig_TransitionTable(t *testing.T) {
 
 	machineSpec := core.GenerateLinearMachine(gen)
 
-	defs, err := stl.LoadToolDefs(filepath.Join(cd, "eval", "tools.yaml"))
+	defs, err := stl.LoadToolDefs(filepath.Join(cd, "evaluator", "tools.yaml"))
 	require.NoError(t, err)
 
 	reg := buildRegistryForDefs(t, defs)

@@ -1,9 +1,14 @@
-name: pipeline-passthrough
+name: planner
 initial_state: Idle
 
 states:
   - Idle
   - Extracting
+  - Resetting
+  - PromptAssembly
+  - PlanInvoking
+  - PlanParsing
+  - Materializing
   - Executing
   - Vetting
   - Building
@@ -11,11 +16,13 @@ states:
   - CheckingResult
   - Completed
   - Stalled
+  - Paused
   - Failed
 
 terminal_states:
   - Completed
   - Stalled
+  - Paused
   - Failed
 
 signals:
@@ -23,8 +30,14 @@ signals:
   - TaskExtracted
   - AllDone
   - Blocked
+  - BatchLimitReached
   - ToolDone
   - ToolFailed
+  - LLMResponded
+  - PlanReady
+  - ParseFailed
+  - Materialized
+  - MaterializeFailed
   - ExecutionDone
   - ExecutionFailed
   - ValidationPassed
@@ -37,13 +50,13 @@ transitions:
   - state: Idle
     signal: Seed
     next: Extracting
-    action: extract_all
+    action: extract_task
 
   # Extracting
   - state: Extracting
     signal: TaskExtracted
-    next: Executing
-    action: execute_task
+    next: Resetting
+    action: reset_history
   - state: Extracting
     signal: AllDone
     next: Completed
@@ -51,6 +64,61 @@ transitions:
     signal: Blocked
     next: Stalled
   - state: Extracting
+    signal: BatchLimitReached
+    next: Paused
+  - state: Extracting
+    signal: CommandError
+    next: Failed
+
+  # Resetting — clear conversation history
+  - state: Resetting
+    signal: ToolDone
+    next: PromptAssembly
+    action: assemble_prompt
+  - state: Resetting
+    signal: CommandError
+    next: Failed
+
+  # PromptAssembly — build task/SRD context into prompt
+  - state: PromptAssembly
+    signal: ToolDone
+    next: PlanInvoking
+    action: invoke_llm
+  - state: PromptAssembly
+    signal: CommandError
+    next: Failed
+
+  # PlanInvoking — LLM call via STL invoke_llm
+  - state: PlanInvoking
+    signal: LLMResponded
+    next: PlanParsing
+    action: parse_plan
+  - state: PlanInvoking
+    signal: CommandError
+    next: Failed
+
+  # PlanParsing — parse YAML response into ImplementationPlan
+  - state: PlanParsing
+    signal: PlanReady
+    next: Materializing
+    action: create_issue
+  - state: PlanParsing
+    signal: ParseFailed
+    next: Extracting
+    action: extract_task
+  - state: PlanParsing
+    signal: CommandError
+    next: Failed
+
+  # Materializing
+  - state: Materializing
+    signal: Materialized
+    next: Executing
+    action: execute_task
+  - state: Materializing
+    signal: MaterializeFailed
+    next: Failed
+  - state: Materializing
     signal: CommandError
     next: Failed
 
@@ -67,7 +135,7 @@ transitions:
     signal: CommandError
     next: Failed
 
-  # Vetting
+  # Vetting — go vet ./...
   - state: Vetting
     signal: ToolDone
     next: Building
@@ -80,7 +148,7 @@ transitions:
     signal: CommandError
     next: Failed
 
-  # Building
+  # Building — go build ./...
   - state: Building
     signal: ToolDone
     next: Testing
@@ -93,7 +161,7 @@ transitions:
     signal: CommandError
     next: Failed
 
-  # Testing
+  # Testing — go test ./...
   - state: Testing
     signal: ToolDone
     next: CheckingResult
@@ -106,17 +174,19 @@ transitions:
     signal: CommandError
     next: Failed
 
-  # CheckingResult
+  # CheckingResult — retry logic and graph mutation
   - state: CheckingResult
     signal: ValidationPassed
-    next: Completed
+    next: Extracting
+    action: extract_task
   - state: CheckingResult
     signal: RetryAvailable
-    next: Executing
-    action: execute_task
+    next: Resetting
+    action: reset_history
   - state: CheckingResult
     signal: RetriesExhausted
-    next: Stalled
+    next: Extracting
+    action: extract_task
   - state: CheckingResult
     signal: CommandError
     next: Failed

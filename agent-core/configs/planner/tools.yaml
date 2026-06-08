@@ -1,5 +1,5 @@
-# Tool definitions for the pipeline state machine.
-# Used with: agent --machine configs/pipeline/machine.yaml --tools configs/pipeline/tools.yaml
+# Tool definitions for the planner state machine.
+# Used with: agent --machine configs/planner/machine.yaml --tools configs/planner/tools.yaml
 
 includes:
   - ../common/tools-base.yaml

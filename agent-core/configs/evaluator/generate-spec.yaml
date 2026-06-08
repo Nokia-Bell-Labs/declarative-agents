@@ -4,7 +4,7 @@
 #
 # Usage: feed this spec (with vars expanded per-point) to
 # core.GenerateLinearMachine to produce a flat MachineSpec.
-name: eval
+name: evaluator
 points:
   - steps:
       - prepare_workspace
