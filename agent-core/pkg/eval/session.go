@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
@@ -345,22 +343,3 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 	}, nil
 }
 
-// InstallHarness installs a harness binary using go install.
-func InstallHarness(ctx context.Context, h Harness) error {
-	if h.Module == "" {
-		return nil
-	}
-
-	installPath := h.Module
-	if h.Version != "" {
-		installPath = h.Module + "@" + h.Version
-	}
-
-	args := []string{"install", installPath}
-	cmd := exec.Command("go", args...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("install harness %s: %s: %w", h.Name, strings.TrimSpace(string(out)), err)
-	}
-	return nil
-}

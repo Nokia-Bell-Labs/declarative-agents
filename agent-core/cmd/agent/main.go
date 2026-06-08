@@ -737,8 +737,7 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState) {
 	// create_issue, execute_task, check_result)
 	registerPipelineFactories(br, st)
 
-	// Eval tools (prepare_workspace, run_agent, check_results,
-	// collect_metrics, summarize)
+	// Eval tools (run_agent, check_results, collect_metrics)
 	registerEvalFactories(br, st)
 
 	// Validate spec tools (load_corpus, validate_specs, format_report)

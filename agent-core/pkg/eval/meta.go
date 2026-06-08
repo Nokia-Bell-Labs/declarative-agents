@@ -3,7 +3,6 @@
 package eval
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,8 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 )
 
 // EvalMeta records metadata for a single evaluation point.
@@ -37,36 +34,6 @@ func EvalPointID(sample, harness, model string, gridPoint GridPoint, rep int) st
 		parts = append(parts, gridStr)
 	}
 	return fmt.Sprintf("%s--rep%d", strings.Join(parts, "--"), rep)
-}
-
-func copyDirTo(src, dst string) error {
-	if err := os.MkdirAll(dst, 0o755); err != nil {
-		return err
-	}
-	cmd := exec.Command("cp", "-a", src+"/.", dst)
-	return cmd.Run()
-}
-
-func gitInit(ctx context.Context, dir string) error {
-	if _, err := stl.RunGit(ctx, dir, "init"); err != nil {
-		return fmt.Errorf("git init: %w", err)
-	}
-	if _, err := stl.RunGit(ctx, dir, "add", "-A"); err != nil {
-		return fmt.Errorf("git add: %w", err)
-	}
-
-	cmd := exec.Command("git", "commit", "-m", "initial workspace", "--allow-empty")
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=evaluator",
-		"GIT_AUTHOR_EMAIL=evaluator@local",
-		"GIT_COMMITTER_NAME=evaluator",
-		"GIT_COMMITTER_EMAIL=evaluator@local",
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("git commit: %s: %w", string(out), err)
-	}
-	return nil
 }
 
 func runOracleCheck(workspaceDir string) (bool, string) {
