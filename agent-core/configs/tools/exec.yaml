@@ -36,7 +36,48 @@ tools:
           positional: true
           default: "./..."
 
+  # --- workspace tools ---
+  - name: copy_dir
+    type: exec
+    binary: cp
+    args: [-a]
+    description: "Copy a directory tree. Provide source and destination paths."
+    side_effects: "creates files in the destination directory"
+    parameters:
+      type: object
+      properties:
+        source:
+          type: string
+          description: "Source directory path (appends /. for contents)"
+          positional: true
+        destination:
+          type: string
+          description: "Destination directory path"
+          positional: true
+      required: [source, destination]
+
+  - name: make_dir
+    type: exec
+    binary: mkdir
+    args: [-p]
+    description: "Create a directory and any missing parent directories."
+    side_effects: "creates directories on disk"
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Directory path to create"
+          positional: true
+      required: [path]
+
   # --- git tools ---
+  - name: git_init
+    binary: git
+    args: [init]
+    description: "Initialize a new git repository in the current directory."
+    side_effects: "creates .git directory"
+
   - name: stage_all
     binary: git
     args: [add, -A]
