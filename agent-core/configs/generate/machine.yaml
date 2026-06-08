@@ -5,6 +5,10 @@
 name: generate
 initial_state: Idle
 
+budget:
+  max_iterations: 100
+  max_consecutive_parse_errors: 5
+
 states:
   - Idle
   - Composing

@@ -76,6 +76,23 @@ type ProfileRegistry struct {
 	defaultSpec ProfileSpec
 }
 
+// addProfileEntry unmarshals a single YAML profile and adds it to the registry.
+func addProfileEntry(reg *ProfileRegistry, filename string, data []byte) error {
+	var spec ProfileSpec
+	if err := yaml.Unmarshal(data, &spec); err != nil {
+		return fmt.Errorf("parse profile %s: %w", filename, err)
+	}
+	if spec.ProfileName == "" {
+		return fmt.Errorf("profile %s: missing 'name' field", filename)
+	}
+	if spec.ProfileName == "default" || len(spec.MatchPrefixes) == 0 {
+		reg.defaultSpec = spec
+	} else {
+		reg.profiles = append(reg.profiles, spec)
+	}
+	return nil
+}
+
 // LoadProfiles reads all .yaml files from a directory and returns a registry.
 func LoadProfiles(dir string) (*ProfileRegistry, error) {
 	entries, err := os.ReadDir(dir)
@@ -92,17 +109,8 @@ func LoadProfiles(dir string) (*ProfileRegistry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read profile %s: %w", e.Name(), err)
 		}
-		var spec ProfileSpec
-		if err := yaml.Unmarshal(data, &spec); err != nil {
-			return nil, fmt.Errorf("parse profile %s: %w", e.Name(), err)
-		}
-		if spec.ProfileName == "" {
-			return nil, fmt.Errorf("profile %s: missing 'name' field", e.Name())
-		}
-		if spec.ProfileName == "default" || len(spec.MatchPrefixes) == 0 {
-			reg.defaultSpec = spec
-		} else {
-			reg.profiles = append(reg.profiles, spec)
+		if err := addProfileEntry(reg, e.Name(), data); err != nil {
+			return nil, err
 		}
 	}
 
@@ -118,17 +126,8 @@ func LoadProfiles(dir string) (*ProfileRegistry, error) {
 func LoadProfilesFromBytes(files map[string][]byte) (*ProfileRegistry, error) {
 	reg := &ProfileRegistry{}
 	for name, data := range files {
-		var spec ProfileSpec
-		if err := yaml.Unmarshal(data, &spec); err != nil {
-			return nil, fmt.Errorf("parse embedded profile %s: %w", name, err)
-		}
-		if spec.ProfileName == "" {
-			return nil, fmt.Errorf("embedded profile %s: missing 'name' field", name)
-		}
-		if spec.ProfileName == "default" || len(spec.MatchPrefixes) == 0 {
-			reg.defaultSpec = spec
-		} else {
-			reg.profiles = append(reg.profiles, spec)
+		if err := addProfileEntry(reg, name, data); err != nil {
+			return nil, err
 		}
 	}
 	if reg.defaultSpec.ProfileName == "" {
@@ -164,19 +163,7 @@ func LoadProfilesFromFS(fsys fs.FS) (*ProfileRegistry, error) {
 		if readErr != nil {
 			return fmt.Errorf("read profile %s: %w", path, readErr)
 		}
-		var spec ProfileSpec
-		if parseErr := yaml.Unmarshal(data, &spec); parseErr != nil {
-			return fmt.Errorf("parse profile %s: %w", path, parseErr)
-		}
-		if spec.ProfileName == "" {
-			return fmt.Errorf("profile %s: missing 'name' field", path)
-		}
-		if spec.ProfileName == "default" || len(spec.MatchPrefixes) == 0 {
-			reg.defaultSpec = spec
-		} else {
-			reg.profiles = append(reg.profiles, spec)
-		}
-		return nil
+		return addProfileEntry(reg, path, data)
 	})
 	if err != nil {
 		return nil, err
@@ -226,7 +213,8 @@ func (r *ProfileRegistry) ProfileNames() []string {
 }
 
 // DefaultProfile creates a ResponseParser with default settings (used
-// as fallback when no profile registry is available).
+// as fallback when no profile registry is available). These values
+// mirror profiles/default.yaml; keep them in sync.
 func DefaultProfile() ResponseParser {
 	return newYAMLProfile(ProfileSpec{
 		ProfileName:  "default",

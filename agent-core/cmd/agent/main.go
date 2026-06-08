@@ -38,12 +38,6 @@ var (
 	flagTools        string
 	flagOTelLog      string
 	flagOTelParent   string
-	flagModel        string
-	flagOllamaURL    string
-	flagNumCtx       int
-	flagLLMTimeout   int
-	flagMaxTime      int
-	flagMaxTokens    int
 	flagDirectory    string
 	flagPrompt       string
 	flagPromptString string
@@ -74,12 +68,6 @@ func init() {
 	f.StringVar(&flagTools, "tools", "", "path to tools YAML (required)")
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
-	f.StringVar(&flagModel, "model", "", "LLM model name")
-	f.StringVar(&flagOllamaURL, "ollama-url", "http://localhost:11434", "Ollama server URL")
-	f.IntVar(&flagNumCtx, "num-ctx", 0, "context window size (0 = model default)")
-	f.IntVar(&flagLLMTimeout, "llm-timeout", 0, "per-LLM-call timeout in seconds (0 = no limit)")
-	f.IntVar(&flagMaxTime, "max-time", 0, "max wall-clock time in seconds (0 = no limit)")
-	f.IntVar(&flagMaxTokens, "max-tokens", 0, "max token budget (0 = no limit)")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
 	f.StringVar(&flagPrompt, "prompt", "", "path to prompt YAML file")
 	f.StringVar(&flagPromptString, "prompt-string", "", "inline prompt text (alternative to --prompt)")
@@ -110,12 +98,17 @@ executed as an evaluation point.`,
 		}
 
 		reps, _ := cmd.Flags().GetInt("reps")
+		if reps == 0 && suite.Reps > 0 {
+			reps = suite.Reps
+		}
+		if reps == 0 {
+			reps = 1
+		}
 
 		cfg := eval.SessionConfig{
 			OutputDir:  outputDir,
-			OllamaURL: flagOllamaURL,
-			LLMTimeout: time.Duration(flagLLMTimeout) * time.Second,
-			Timeout:    time.Duration(flagMaxTime) * time.Second,
+			OllamaURL:  suite.OllamaURL,
+			Timeout:    suite.Timeout,
 			Reps:       reps,
 			Stderr:     os.Stderr,
 		}
@@ -211,39 +204,42 @@ func run(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	// Create Ollama adapter (only if model is set — eval machines may not need LLM)
+	// Load tool definitions
+	defs, err := stl.LoadToolDefs(flagTools)
+	if err != nil {
+		return fmt.Errorf("load tools: %w", err)
+	}
+
+	// Resolve LLM config from invoke_llm tool definition in tools.yaml.
+	// Environment variables (AGENT_MODEL, etc.) override config values,
+	// allowing the eval harness to control the model per-point.
+	llmCfg := extractLLMConfig(defs)
+
+	// Create Ollama adapter (only if model is configured)
 	var adapter llm.Client
 	var serverAddr string
-	if flagModel != "" {
+	var profileReg *llm.ProfileRegistry
+	var parser llm.ResponseParser
+	if llmCfg.Model != "" {
 		httpTimeout := 5 * time.Minute
-		if flagMaxTime > 0 {
-			maxDur := time.Duration(flagMaxTime) * time.Second
-			if maxDur < httpTimeout {
-				httpTimeout = maxDur
-			}
+		if llmCfg.MaxTime > 0 && llmCfg.MaxTime < httpTimeout {
+			httpTimeout = llmCfg.MaxTime
 		}
-		var err error
-		adapter, err = ollama.NewAdapter(flagOllamaURL, flagModel,
+		adapter, err = ollama.NewAdapter(llmCfg.OllamaURL, llmCfg.Model,
 			ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout}),
 			ollama.WithTracer(tracer),
 		)
 		if err != nil {
 			return fmt.Errorf("ollama adapter: %w", err)
 		}
-		if u, err := url.Parse(flagOllamaURL); err == nil {
+		if u, err := url.Parse(llmCfg.OllamaURL); err == nil {
 			serverAddr = u.Host
 		}
 		tracer.Event("setup.adapter_ready",
-			attribute.String("ollama.url", flagOllamaURL),
-			attribute.String("llm.model", flagModel),
+			attribute.String("ollama.url", llmCfg.OllamaURL),
+			attribute.String("llm.model", llmCfg.Model),
 		)
-	}
 
-	// Load profile registry
-	var profileReg *llm.ProfileRegistry
-	var parser llm.ResponseParser
-	if flagModel != "" {
-		var err error
 		if flagProfilesDir != "" {
 			profileReg, err = llm.LoadProfiles(flagProfilesDir)
 		} else {
@@ -252,14 +248,12 @@ func run(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("load profiles: %w", err)
 		}
-		parser = profileReg.ResolveProfile(flagModel)
+		parser = profileReg.ResolveProfile(llmCfg.Model)
 
-		profileSpec := profileReg.ResolveProfileSpec(flagModel)
+		profileSpec := profileReg.ResolveProfileSpec(llmCfg.Model)
 		tracer.Event("setup.model_profile",
 			attribute.String("profile.name", profileSpec.ProfileName),
 		)
-
-		// Profile can override the machine path
 		if profileSpec.MachineName != "" {
 			flagMachine = filepath.Join(filepath.Dir(flagMachine), profileSpec.MachineName+".yaml")
 			tracer.Event("setup.machine_from_profile",
@@ -278,109 +272,17 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create conversation and tracker
-	callTimeout := time.Duration(flagLLMTimeout) * time.Second
 	conversation := llm.NewConversation(adapter, "", llm.ChatOptions{
-		Model:  flagModel,
-		NumCtx: flagNumCtx,
+		Model:  llmCfg.Model,
+		NumCtx: llmCfg.NumCtx,
 	})
 	conversations := stl.NewConversationStore()
 	tracker := stl.NewToolTracker()
 
-	// Load tool definitions
-	defs, err := stl.LoadToolDefs(flagTools)
-	if err != nil {
-		return fmt.Errorf("load tools: %w", err)
-	}
-
-	// Extract LLM config from invoke_llm tool definition (YAML is source
-	// of truth; CLI flags override for eval harness / ad-hoc runs).
-	llmCfg := extractLLMConfig(defs)
-	if flagModel != "" {
-		llmCfg.Model = flagModel
-	}
-	if flagOllamaURL != "http://localhost:11434" {
-		llmCfg.OllamaURL = flagOllamaURL
-	}
-	if flagNumCtx != 0 {
-		llmCfg.NumCtx = flagNumCtx
-	}
-	if flagLLMTimeout != 0 {
-		llmCfg.LLMTimeout = time.Duration(flagLLMTimeout) * time.Second
-	}
-	if flagMaxTime != 0 {
-		llmCfg.MaxTime = time.Duration(flagMaxTime) * time.Second
-	}
-	if flagMaxTokens != 0 {
-		llmCfg.MaxTokens = flagMaxTokens
-	}
-
-	// Re-create adapter with resolved config (may have changed from YAML)
-	if llmCfg.Model != "" && adapter == nil {
-		flagModel = llmCfg.Model
-		flagOllamaURL = llmCfg.OllamaURL
-		flagNumCtx = llmCfg.NumCtx
-
-		httpTimeout := 5 * time.Minute
-		if llmCfg.MaxTime > 0 && llmCfg.MaxTime < httpTimeout {
-			httpTimeout = llmCfg.MaxTime
-		}
-		adapter, err = ollama.NewAdapter(llmCfg.OllamaURL, llmCfg.Model,
-			ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout}),
-			ollama.WithTracer(tracer),
-		)
-		if err != nil {
-			return fmt.Errorf("ollama adapter (from config): %w", err)
-		}
-		if u, err := url.Parse(llmCfg.OllamaURL); err == nil {
-			serverAddr = u.Host
-		}
-		tracer.Event("setup.adapter_ready",
-			attribute.String("ollama.url", llmCfg.OllamaURL),
-			attribute.String("llm.model", llmCfg.Model),
-			attribute.String("config.source", "tools.yaml"),
-		)
-
-		// Load profiles for config-sourced model
-		if profileReg == nil {
-			if flagProfilesDir != "" {
-				profileReg, err = llm.LoadProfiles(flagProfilesDir)
-			} else {
-				profileReg, err = llm.DefaultProfileRegistry()
-			}
-			if err != nil {
-				return fmt.Errorf("load profiles: %w", err)
-			}
-			parser = profileReg.ResolveProfile(llmCfg.Model)
-
-			profileSpec := profileReg.ResolveProfileSpec(llmCfg.Model)
-			tracer.Event("setup.model_profile",
-				attribute.String("profile.name", profileSpec.ProfileName),
-			)
-			if profileSpec.MachineName != "" {
-				flagMachine = filepath.Join(filepath.Dir(flagMachine), profileSpec.MachineName+".yaml")
-			}
-		}
-
-		callTimeout = llmCfg.LLMTimeout
-		conversation = llm.NewConversation(adapter, "", llm.ChatOptions{
-			Model:  llmCfg.Model,
-			NumCtx: llmCfg.NumCtx,
-		})
-		if agentPrompt.Task != "" {
-			assembler = &llm.DefaultAssembler{
-				Prompt: agentPrompt,
-				Parser: parser,
-			}
-		}
-	} else if llmCfg.Model != "" {
-		// Adapter exists from CLI flags — apply any config overrides
-		callTimeout = llmCfg.LLMTimeout
-	}
-
 	vars := map[string]string{
-		"model":         flagModel,
+		"model":         llmCfg.Model,
 		"directory":     flagDirectory,
-		"ollama_url":    flagOllamaURL,
+		"ollama_url":    llmCfg.OllamaURL,
 		"prompt_string": flagPromptString,
 	}
 
@@ -398,11 +300,11 @@ func run(cmd *cobra.Command, args []string) error {
 		tracker:       tracker,
 		registry:      reg,
 		tracer:        tracer,
-		model:         flagModel,
+		model:         llmCfg.Model,
 		providerName:  "ollama",
 		serverAddr:    serverAddr,
-		numCtx:        flagNumCtx,
-		callTimeout:   callTimeout,
+		numCtx:        llmCfg.NumCtx,
+		callTimeout:   llmCfg.LLMTimeout,
 		verbose:       flagVerboseTrace,
 		ctx:           cmd.Context(),
 		directory:     flagDirectory,
@@ -417,10 +319,16 @@ func run(cmd *cobra.Command, args []string) error {
 	// Build $tool action (dynamic tool dispatch from parse_response output)
 	toolAction := buildToolAction(st, reg)
 
-	// Build budget
-	budget := core.Budget{
-		MaxIterations: 100,
+	// Build budget: defaults from machine.yaml, overridden by LLM config
+	machineSpec, err := core.LoadMachineSpec(flagMachine)
+	if err != nil {
+		return fmt.Errorf("load machine spec for budget: %w", err)
 	}
+	budgetDefaults := core.Budget{
+		MaxIterations:            100,
+		MaxConsecutiveParseErrors: 5,
+	}
+	budget := machineSpec.BudgetSpec.ToBudget(budgetDefaults)
 	if llmCfg.MaxTime > 0 {
 		budget.MaxDuration = llmCfg.MaxTime
 	}
@@ -432,7 +340,7 @@ func run(cmd *cobra.Command, args []string) error {
 	params := core.LoopParams{
 		MachineFile:  flagMachine,
 		AgentName:    "agent",
-		ModelName:    flagModel,
+		ModelName:    llmCfg.Model,
 		ProviderName: "ollama",
 		Trace:        tracer,
 		Budget:       budget,
@@ -490,7 +398,9 @@ type llmConfig struct {
 }
 
 // extractLLMConfig scans tool definitions for an invoke_llm tool and
-// extracts LLM settings from its config block.
+// extracts LLM settings from its config block. Environment variables
+// override config values (AGENT_MODEL, AGENT_OLLAMA_URL, AGENT_NUM_CTX,
+// AGENT_LLM_TIMEOUT, AGENT_MAX_TIME, AGENT_MAX_TOKENS).
 func extractLLMConfig(defs []stl.ToolDef) llmConfig {
 	cfg := llmConfig{
 		OllamaURL: "http://localhost:11434",
@@ -519,7 +429,44 @@ func extractLLMConfig(defs []stl.ToolDef) llmConfig {
 		}
 		break
 	}
+
+	// Environment variables override config values.
+	if v := os.Getenv("AGENT_MODEL"); v != "" {
+		cfg.Model = v
+	}
+	if v := os.Getenv("AGENT_OLLAMA_URL"); v != "" {
+		cfg.OllamaURL = v
+	}
+	if v := envInt("AGENT_NUM_CTX"); v > 0 {
+		cfg.NumCtx = v
+	}
+	if v := envInt("AGENT_LLM_TIMEOUT"); v > 0 {
+		cfg.LLMTimeout = time.Duration(v) * time.Second
+	}
+	if v := envInt("AGENT_MAX_TIME"); v > 0 {
+		cfg.MaxTime = time.Duration(v) * time.Second
+	}
+	if v := envInt("AGENT_MAX_TOKENS"); v > 0 {
+		cfg.MaxTokens = v
+	}
+
 	return cfg
+}
+
+// envInt reads an environment variable as an integer, returning 0 if
+// unset or unparseable.
+func envInt(key string) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return 0
+	}
+	n, _ := fmt.Sscanf(v, "%d", new(int))
+	if n == 0 {
+		return 0
+	}
+	var val int
+	fmt.Sscanf(v, "%d", &val)
+	return val
 }
 
 // configInt extracts an integer from a map[string]interface{}, handling

@@ -1,6 +1,9 @@
 # Tool definitions for the generate state machine.
 # Used with: agent --machine configs/generate/machine.yaml --tools configs/generate/tools.yaml
 
+includes:
+  - ../common/tools-base.yaml
+
 tools:
   # --- file tools (builtin) ---
   - name: read
@@ -82,40 +85,6 @@ tools:
         max_depth:
           type: integer
           description: "Maximum directory depth to traverse (default: 4)"
-
-  # --- build tools (exec) ---
-  - name: build
-    type: exec
-    binary: go
-    args: [build, "./..."]
-    description: "Compile all Go packages with go build ./... Returns compiler errors on failure."
-
-  - name: vet
-    type: exec
-    binary: go
-    args: [vet, "./..."]
-    description: "Run go vet ./... on the workspace. Reports suspicious constructs."
-
-  - name: lint
-    type: exec
-    binary: golangci-lint
-    args: [run, "./..."]
-    description: "Run golangci-lint run ./... on the Go workspace."
-
-  - name: test
-    type: exec
-    binary: go
-    args: [test, "-count=1"]
-    description: "Run go test -count=1 on the workspace. Returns test output including pass/fail results."
-    output_cap: 200
-    parameters:
-      type: object
-      properties:
-        package:
-          type: string
-          description: "Go package path (default ./...)"
-          positional: true
-          default: "./..."
 
   # --- LLM tools (builtin, internal) ---
   - name: invoke_llm

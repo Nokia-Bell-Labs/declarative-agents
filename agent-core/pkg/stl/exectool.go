@@ -57,44 +57,96 @@ type ParamMapping struct {
 	Required   bool
 }
 
-// ToolDefsFile is the top-level YAML structure.
+// ToolDefsFile is the top-level YAML structure. The optional Includes
+// field lists relative paths to other tool definition files whose tools
+// are loaded first; the current file's tools override included ones
+// with the same name.
 type ToolDefsFile struct {
-	Tools []ToolDef `yaml:"tools"`
+	Includes []string  `yaml:"includes,omitempty"`
+	Tools    []ToolDef `yaml:"tools"`
 }
 
 // LoadToolDefs reads a YAML file and returns the tool definitions.
+// If the file has an `includes` field, included files are loaded first
+// (relative to the directory of the including file) and merged so that
+// the current file's definitions take precedence.
 func LoadToolDefs(path string) ([]ToolDef, error) {
-	data, err := os.ReadFile(path)
+	return loadToolDefsRecursive(path, nil)
+}
+
+func loadToolDefsRecursive(path string, seen map[string]bool) ([]ToolDef, error) {
+	abs, err := filepath.Abs(path)
 	if err != nil {
-		return nil, fmt.Errorf("load tool defs %s: %w", path, err)
+		return nil, fmt.Errorf("resolve path %s: %w", path, err)
 	}
-	return ParseToolDefs(data)
+	if seen == nil {
+		seen = make(map[string]bool)
+	}
+	if seen[abs] {
+		return nil, fmt.Errorf("circular include detected: %s", abs)
+	}
+	seen[abs] = true
+
+	data, err := os.ReadFile(abs)
+	if err != nil {
+		return nil, fmt.Errorf("load tool defs %s: %w", abs, err)
+	}
+
+	var file ToolDefsFile
+	if err := yaml.Unmarshal(data, &file); err != nil {
+		return nil, fmt.Errorf("parse tool defs %s: %w", abs, err)
+	}
+
+	var base []ToolDef
+	dir := filepath.Dir(abs)
+	for _, inc := range file.Includes {
+		incPath := inc
+		if !filepath.IsAbs(incPath) {
+			incPath = filepath.Join(dir, incPath)
+		}
+		incDefs, err := loadToolDefsRecursive(incPath, seen)
+		if err != nil {
+			return nil, fmt.Errorf("include %s from %s: %w", inc, abs, err)
+		}
+		base = MergeToolDefs(base, incDefs)
+	}
+
+	if err := validateToolDefs(file.Tools); err != nil {
+		return nil, err
+	}
+
+	return MergeToolDefs(base, file.Tools), nil
 }
 
 // ParseToolDefs parses YAML bytes into tool definitions.
+// Note: includes are not resolved when parsing from bytes.
 func ParseToolDefs(data []byte) ([]ToolDef, error) {
 	var file ToolDefsFile
 	if err := yaml.Unmarshal(data, &file); err != nil {
 		return nil, fmt.Errorf("parse tool defs: %w", err)
 	}
-	for i, td := range file.Tools {
+	return file.Tools, validateToolDefs(file.Tools)
+}
+
+func validateToolDefs(defs []ToolDef) error {
+	for i, td := range defs {
 		if td.Name == "" {
-			return nil, fmt.Errorf("tool at index %d has no name", i)
+			return fmt.Errorf("tool at index %d has no name", i)
 		}
 		switch td.Type {
 		case "builtin":
 			if td.Init == "" {
-				return nil, fmt.Errorf("builtin tool %q has no init field", td.Name)
+				return fmt.Errorf("builtin tool %q has no init field", td.Name)
 			}
 		case "exec", "":
 			if td.Binary == "" {
-				return nil, fmt.Errorf("tool %q has no binary", td.Name)
+				return fmt.Errorf("tool %q has no binary", td.Name)
 			}
 		default:
-			return nil, fmt.Errorf("tool %q: unknown type %q", td.Name, td.Type)
+			return fmt.Errorf("tool %q: unknown type %q", td.Name, td.Type)
 		}
 	}
-	return file.Tools, nil
+	return nil
 }
 
 // RegisterToolDefs registers all tool definitions with the given registry.

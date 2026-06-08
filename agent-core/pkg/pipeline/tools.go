@@ -24,16 +24,17 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
-// Pipeline signals emitted by pipeline tools.
+// Pipeline signals aligned with configs/pipeline/machine.yaml.
 const (
-	SigTaskExtracted core.Signal = "TaskExtracted"
-	SigNoMoreTasks   core.Signal = "NoMoreTasks"
-	SigPromptReady   core.Signal = "PromptReady"
-	SigPlanParsed    core.Signal = "PlanParsed"
-	SigIssueCreated  core.Signal = "IssueCreated"
-	SigTaskExecuted  core.Signal = "TaskExecuted"
-	SigCheckPassed   core.Signal = "CheckPassed"
-	SigCheckFailed   core.Signal = "CheckFailed"
+	SigTaskExtracted    core.Signal = "TaskExtracted"
+	SigAllDone          core.Signal = "AllDone"
+	SigBlocked          core.Signal = "Blocked"
+	SigPlanReady        core.Signal = "PlanReady"
+	SigMaterialized     core.Signal = "Materialized"
+	SigExecutionDone    core.Signal = "ExecutionDone"
+	SigExecutionFailed  core.Signal = "ExecutionFailed"
+	SigRetryAvailable   core.Signal = "RetryAvailable"
+	SigRetriesExhausted core.Signal = "RetriesExhausted"
 )
 
 // State holds the shared mutable state for a pipeline run.
@@ -48,10 +49,39 @@ type State struct {
 	TaskDeps    map[string]string
 	Directory   string
 	MaxWeight   int
+	MaxRetries  int
 	Tracer      tracing.Tracer
 
-	ExecConfig execute.Config
-	Ctx        context.Context
+	ExecConfig   execute.Config
+	Ctx          context.Context
+	retryCount   int
+}
+
+// classifyEmpty determines whether the graph is fully done or blocked.
+func (s *State) classifyEmpty() (core.Signal, string) {
+	for _, n := range s.Graph.Nodes() {
+		if n.Status == graph.Pending || n.Status == graph.Planning || n.Status == graph.Executing {
+			return SigBlocked, fmt.Sprintf("blocked: %d nodes have unmet dependencies", s.countPending())
+		}
+	}
+	return SigAllDone, "all tasks completed"
+}
+
+func (s *State) countPending() int {
+	count := 0
+	for _, n := range s.Graph.Nodes() {
+		if n.Status != graph.Done && n.Status != graph.Failed {
+			count++
+		}
+	}
+	return count
+}
+
+func (s *State) currentTaskID() string {
+	if s.CurrentTask != nil {
+		return s.CurrentTask.ID
+	}
+	return ""
 }
 
 // --- extract_task ---
@@ -65,12 +95,14 @@ func (c *extractTaskCmd) Name() string { return "extract_task" }
 func (c *extractTaskCmd) Execute() core.Result {
 	task := c.ps.Extractor.ExtractNext(c.ps.Graph, c.ps.MaxWeight)
 	if task == nil {
+		sig, msg := c.ps.classifyEmpty()
 		return core.Result{
 			CommandName: c.Name(),
-			Signal:      SigNoMoreTasks,
-			Output:      "no more tasks available",
+			Signal:      sig,
+			Output:      msg,
 		}
 	}
+	c.ps.retryCount = 0
 
 	c.ps.CurrentTask = task
 	c.ps.Tracer.Event("pipeline.task_extracted",
@@ -107,12 +139,14 @@ func (c *extractAllCmd) Name() string { return "extract_all" }
 func (c *extractAllCmd) Execute() core.Result {
 	ready := c.ps.Graph.Ready()
 	if len(ready) == 0 {
+		sig, msg := c.ps.classifyEmpty()
 		return core.Result{
 			CommandName: c.Name(),
-			Signal:      SigNoMoreTasks,
-			Output:      "no ready nodes in graph",
+			Signal:      sig,
+			Output:      msg,
 		}
 	}
+	c.ps.retryCount = 0
 
 	nodeIDs := make([]string, len(ready))
 	for i, n := range ready {
@@ -196,7 +230,7 @@ func (c *assemblePromptCmd) Execute() core.Result {
 
 	return core.Result{
 		CommandName: c.Name(),
-		Signal:      SigPromptReady,
+		Signal:      core.ToolDone,
 		Output:      prompt,
 	}
 }
@@ -241,7 +275,7 @@ func (c *parsePlanCmd) Execute() core.Result {
 
 	return core.Result{
 		CommandName: c.Name(),
-		Signal:      SigPlanParsed,
+		Signal:      SigPlanReady,
 		Output:      fmt.Sprintf("parsed plan: %s (%d files, %d requirements)", p.Title, len(p.Files), len(p.Requirements)),
 	}
 }
@@ -293,7 +327,7 @@ func (c *createIssueCmd) Execute() core.Result {
 
 	return core.Result{
 		CommandName: c.Name(),
-		Signal:      SigIssueCreated,
+		Signal:      SigMaterialized,
 		Output:      fmt.Sprintf("created issue %s for plan %q", issueID, c.ps.CurrentPlan.Title),
 	}
 }
@@ -341,10 +375,10 @@ func (c *executeTaskCmd) Execute() core.Result {
 		}
 	}
 
-	signal := SigTaskExecuted
+	signal := SigExecutionDone
 	output := result.Stdout
 	if !result.Success() {
-		signal = core.ToolFailed
+		signal = SigExecutionFailed
 		output = fmt.Sprintf("exit %d\nstdout: %s\nstderr: %s",
 			result.ExitCode,
 			llm.Truncate(result.Stdout, 2000),
@@ -380,10 +414,33 @@ func (c *checkResultCmd) Name() string { return "check_result" }
 
 func (c *checkResultCmd) Execute() core.Result {
 	if c.prevRes.Signal == core.ToolFailed || c.prevRes.Signal == core.CommandError {
+		c.ps.retryCount++
+		maxRetries := c.ps.MaxRetries
+		if maxRetries <= 0 {
+			maxRetries = 2
+		}
+
+		if c.ps.retryCount >= maxRetries {
+			c.ps.Tracer.Event("pipeline.retries_exhausted",
+				attribute.String("task.id", c.ps.currentTaskID()),
+				attribute.Int("retries", c.ps.retryCount),
+			)
+			return core.Result{
+				CommandName: c.Name(),
+				Signal:      SigRetriesExhausted,
+				Output:      fmt.Sprintf("retries exhausted (%d/%d): %s", c.ps.retryCount, maxRetries, c.prevRes.Output),
+			}
+		}
+
+		c.ps.Tracer.Event("pipeline.retry_available",
+			attribute.String("task.id", c.ps.currentTaskID()),
+			attribute.Int("retry", c.ps.retryCount),
+			attribute.Int("max_retries", maxRetries),
+		)
 		return core.Result{
 			CommandName: c.Name(),
-			Signal:      SigCheckFailed,
-			Output:      fmt.Sprintf("previous step failed: %s", c.prevRes.Output),
+			Signal:      SigRetryAvailable,
+			Output:      fmt.Sprintf("retry %d/%d: %s", c.ps.retryCount, maxRetries, c.prevRes.Output),
 		}
 	}
 
@@ -407,7 +464,7 @@ func (c *checkResultCmd) Execute() core.Result {
 
 	return core.Result{
 		CommandName: c.Name(),
-		Signal:      SigCheckPassed,
+		Signal:      core.ValidationPassed,
 		Output:      msg,
 	}
 }

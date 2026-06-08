@@ -6,15 +6,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/subprocess"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
@@ -43,43 +41,31 @@ type SelfInvokeResult struct {
 func (r *SelfInvokeResult) Success() bool { return r.ExitCode == 0 }
 
 // SelfInvoke runs the agent binary with different configuration.
-// It propagates OTel context to the child process.
+// It propagates OTel context to the child process via subprocess.Run.
 func SelfInvoke(ctx context.Context, tracer tracing.Tracer, cfg SelfInvokeConfig, runID string) (*SelfInvokeResult, error) {
 	binary := cfg.Binary
 	if binary == "" {
 		binary = os.Args[0]
 	}
 
-	args := buildSelfInvokeArgs(cfg, runID, ctx)
-
-	timeout := cfg.Timeout
-	if timeout == 0 {
-		timeout = 10 * time.Minute
+	args, env := buildSelfInvokeArgs(cfg, runID)
+	spec := subprocess.Spec{
+		Binary:        binary,
+		Args:          args,
+		Env:           env,
+		Timeout:       cfg.Timeout,
+		PropagateOTel: true,
 	}
 
-	childCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(childCtx, binary, args...)
-	ProcGroupCmd(cmd)
-
-	start := time.Now()
-	output, err := cmd.CombinedOutput()
-	duration := time.Since(start)
+	r := subprocess.Run(ctx, spec)
+	if r.Err != nil {
+		return nil, fmt.Errorf("self-invoke %s: %w", binary, r.Err)
+	}
 
 	result := &SelfInvokeResult{
-		Stdout:   string(output),
-		Duration: duration,
-	}
-
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			result.ExitCode = exitErr.ExitCode()
-		} else if childCtx.Err() == context.DeadlineExceeded {
-			result.ExitCode = -1
-		} else {
-			return nil, fmt.Errorf("self-invoke %s: %w", binary, err)
-		}
+		Stdout:   r.Stdout,
+		ExitCode: r.ExitCode,
+		Duration: r.Duration,
 	}
 
 	if tracer != nil {
@@ -94,10 +80,7 @@ func SelfInvoke(ctx context.Context, tracer tracing.Tracer, cfg SelfInvokeConfig
 	return result, nil
 }
 
-// buildSelfInvokeArgs constructs the CLI argument list from config.
-func buildSelfInvokeArgs(cfg SelfInvokeConfig, runID string, ctx context.Context) []string {
-	var args []string
-
+func buildSelfInvokeArgs(cfg SelfInvokeConfig, runID string) (args, env []string) {
 	if cfg.Machine != "" {
 		args = append(args, "--machine", cfg.Machine)
 	}
@@ -107,30 +90,25 @@ func buildSelfInvokeArgs(cfg SelfInvokeConfig, runID string, ctx context.Context
 	if cfg.Directory != "" {
 		args = append(args, "--directory", cfg.Directory)
 	}
-	if cfg.Model != "" {
-		args = append(args, "--model", cfg.Model)
-	}
-	if cfg.OllamaURL != "" {
-		args = append(args, "--ollama-url", cfg.OllamaURL)
-	}
-	if cfg.LLMTimeout > 0 {
-		args = append(args, "--llm-timeout", cfg.LLMTimeout.String())
-	}
-	if cfg.MaxTime > 0 {
-		args = append(args, "--max-time", cfg.MaxTime.String())
-	}
-
 	if cfg.OTelDir != "" {
 		tracePath := fmt.Sprintf("%s/child-%s.otel.json", cfg.OTelDir, runID)
 		args = append(args, "--otel-log-file", tracePath)
 	}
 
-	span := trace.SpanFromContext(ctx)
-	if span.SpanContext().IsValid() {
-		args = append(args, "--otel-parent-span", telemetry.FormatTraceparent(span.SpanContext()))
+	if cfg.Model != "" {
+		env = append(env, subprocess.EnvVar("AGENT_MODEL", cfg.Model))
+	}
+	if cfg.OllamaURL != "" {
+		env = append(env, subprocess.EnvVar("AGENT_OLLAMA_URL", cfg.OllamaURL))
+	}
+	if cfg.MaxTime > 0 {
+		env = append(env, subprocess.EnvVarInt("AGENT_MAX_TIME", int(cfg.MaxTime.Seconds())))
+	}
+	if cfg.LLMTimeout > 0 {
+		env = append(env, subprocess.EnvVarInt("AGENT_LLM_TIMEOUT", int(cfg.LLMTimeout.Seconds())))
 	}
 
-	return args
+	return args, env
 }
 
 // SelfInvokeBuilder constructs self-invocation commands as a builtin factory.

@@ -6,28 +6,23 @@
 package execute
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 
 	agentllm "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
-	agenttel "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/subprocess"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
 const (
-	spanExecute    = "execute_task"
-	defaultBinary  = "generator"
-	defaultTimeout = 10 * time.Minute
+	spanExecute   = "execute_task"
+	defaultBinary = "agent"
 )
 
 // Config holds execution engine settings.
@@ -50,7 +45,7 @@ func (c *Config) timeout() time.Duration {
 	if c.Timeout > 0 {
 		return c.Timeout
 	}
-	return defaultTimeout
+	return 10 * time.Minute
 }
 
 // Result captures the outcome of an agent invocation.
@@ -86,49 +81,41 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 	}
 	defer os.Remove(promptFile)
 
-	otelLogFile := filepath.Join(otelDir(cfg), fmt.Sprintf("generator-%s.otel.json", taskID))
+	otelLogFile := filepath.Join(otelDir(cfg), fmt.Sprintf("agent-%s.otel.json", taskID))
 
 	args := []string{
 		"--prompt", promptFile,
 		"--directory", worktreeDir,
-		"--model", cfg.Model,
 		"--otel-log-file", otelLogFile,
 	}
+
+	var env []string
+	if cfg.Model != "" {
+		env = append(env, subprocess.EnvVar("AGENT_MODEL", cfg.Model))
+	}
 	if cfg.OllamaURL != "" {
-		args = append(args, "--ollama-url", cfg.OllamaURL)
+		env = append(env, subprocess.EnvVar("AGENT_OLLAMA_URL", cfg.OllamaURL))
 	}
 
-	sc := trace.SpanFromContext(child.Context()).SpanContext()
-	if tp := agenttel.FormatTraceparent(sc); tp != "" {
-		args = append(args, "--otel-parent-span", tp)
+	spec := subprocess.Spec{
+		Binary:        cfg.binary(),
+		Args:          args,
+		Env:           env,
+		Timeout:       cfg.timeout(),
+		PropagateOTel: true,
 	}
 
-	start := time.Now()
-	tctx, cancel := context.WithTimeout(ctx, cfg.timeout())
-	defer cancel()
-
-	cmd := exec.CommandContext(tctx, cfg.binary(), args...)
-	stl.ProcGroupCmd(cmd)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	runErr := cmd.Run()
-	elapsed := time.Since(start)
-
+	r := subprocess.Run(child.Context(), spec)
 	result := &Result{
-		Stdout:   stdout.String(),
-		Stderr:   stderr.String(),
-		Duration: elapsed,
+		Stdout:   r.Stdout,
+		Stderr:   r.Stderr,
+		ExitCode: r.ExitCode,
+		Duration: r.Duration,
 	}
 
-	if runErr != nil {
-		if exitErr, ok := runErr.(*exec.ExitError); ok {
-			result.ExitCode = exitErr.ExitCode()
-		} else {
-			child.RecordError(runErr)
-			return nil, fmt.Errorf("execute %s: %w", taskID, runErr)
-		}
+	if r.Err != nil {
+		child.RecordError(r.Err)
+		return nil, fmt.Errorf("execute %s: %w", taskID, r.Err)
 	}
 
 	if result.ExitCode != 0 {
@@ -136,7 +123,7 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 			attribute.Int("exit_code", result.ExitCode),
 			attribute.String("stderr", agentllm.Truncate(result.Stderr, 4096)),
 		)
-		child.RecordError(fmt.Errorf("generator exited %d", result.ExitCode))
+		child.RecordError(fmt.Errorf("agent exited %d", result.ExitCode))
 	}
 
 	return result, nil

@@ -235,7 +235,7 @@ func (c *parseApplyPlanCmd) Execute() core.Result {
 	if err != nil {
 		c.as.failures++
 		return core.Result{
-			Signal:      "PlanFailed",
+			Signal:      core.ParseFailed,
 			Output:      fmt.Sprintf("parse plan for %s: %v", c.as.current.ID, err),
 			CommandName: "parse_apply_plan",
 		}

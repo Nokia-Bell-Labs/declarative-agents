@@ -86,7 +86,7 @@ func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {
 	cmd := builder.Build(core.Result{})
 	result := cmd.Execute()
 
-	assert.Equal(t, SigNoMoreTasks, result.Signal)
+	assert.Equal(t, SigAllDone, result.Signal)
 }
 
 func TestExtractAllBuilder_ExtractsAllReady(t *testing.T) {
@@ -115,7 +115,7 @@ func TestExtractAllBuilder_NoReady(t *testing.T) {
 	cmd := builder.Build(core.Result{})
 	result := cmd.Execute()
 
-	assert.Equal(t, SigNoMoreTasks, result.Signal)
+	assert.Equal(t, SigAllDone, result.Signal)
 }
 
 func TestAssemblePromptBuilder_ProducesPrompt(t *testing.T) {
@@ -130,7 +130,7 @@ func TestAssemblePromptBuilder_ProducesPrompt(t *testing.T) {
 	cmd := builder.Build(core.Result{})
 	result := cmd.Execute()
 
-	assert.Equal(t, SigPromptReady, result.Signal)
+	assert.Equal(t, core.ToolDone, result.Signal)
 	assert.Contains(t, result.Output, "Implementation Planning")
 }
 
@@ -164,7 +164,7 @@ acceptance_criteria:
 	cmd := builder.Build(core.Result{Output: rawPlan})
 	result := cmd.Execute()
 
-	assert.Equal(t, SigPlanParsed, result.Signal)
+	assert.Equal(t, SigPlanReady, result.Signal)
 	assert.NotNil(t, ps.CurrentPlan)
 	assert.Equal(t, "Implement config parser", ps.CurrentPlan.Title)
 }
@@ -193,7 +193,7 @@ func TestCheckResultBuilder_Pass(t *testing.T) {
 	cmd := builder.Build(core.Result{Signal: core.ToolDone})
 	result := cmd.Execute()
 
-	assert.Equal(t, SigCheckPassed, result.Signal)
+	assert.Equal(t, core.ValidationPassed, result.Signal)
 	assert.Contains(t, result.Output, "completed")
 }
 
@@ -205,8 +205,8 @@ func TestCheckResultBuilder_Fail(t *testing.T) {
 	cmd := builder.Build(core.Result{Signal: core.ToolFailed, Output: "build error"})
 	result := cmd.Execute()
 
-	assert.Equal(t, SigCheckFailed, result.Signal)
-	assert.Contains(t, result.Output, "failed")
+	assert.Equal(t, SigRetryAvailable, result.Signal)
+	assert.Contains(t, result.Output, "retry")
 }
 
 func TestPlannerAssembler_PrependsSystem(t *testing.T) {

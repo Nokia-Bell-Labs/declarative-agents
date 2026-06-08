@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -18,6 +19,39 @@ type MachineSpec struct {
 	TerminalStates []string         `yaml:"terminal_states"`
 	Signals        []string         `yaml:"signals"`
 	Transitions    []TransitionSpec `yaml:"transitions"`
+	BudgetSpec     *BudgetSpec      `yaml:"budget,omitempty"`
+}
+
+// BudgetSpec is the optional budget block in machine YAML.
+// Zero values mean "use default" or "unlimited".
+type BudgetSpec struct {
+	MaxIterations            int    `yaml:"max_iterations,omitempty"`
+	MaxTokens                int    `yaml:"max_tokens,omitempty"`
+	MaxDuration              string `yaml:"max_duration,omitempty"`
+	MaxConsecutiveParseErrors int    `yaml:"max_consecutive_parse_errors,omitempty"`
+}
+
+// ToBudget converts a BudgetSpec into a Budget, applying defaults.
+func (bs *BudgetSpec) ToBudget(defaults Budget) Budget {
+	b := defaults
+	if bs == nil {
+		return b
+	}
+	if bs.MaxIterations > 0 {
+		b.MaxIterations = bs.MaxIterations
+	}
+	if bs.MaxTokens > 0 {
+		b.MaxTokens = bs.MaxTokens
+	}
+	if bs.MaxConsecutiveParseErrors > 0 {
+		b.MaxConsecutiveParseErrors = bs.MaxConsecutiveParseErrors
+	}
+	if bs.MaxDuration != "" {
+		if d, err := time.ParseDuration(bs.MaxDuration); err == nil {
+			b.MaxDuration = d
+		}
+	}
+	return b
 }
 
 // TransitionSpec is one row in the transition table YAML.

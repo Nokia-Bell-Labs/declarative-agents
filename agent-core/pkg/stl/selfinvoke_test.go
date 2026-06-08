@@ -17,8 +17,9 @@ import (
 func TestSelfInvokeConfig_BinaryDefault(t *testing.T) {
 	t.Parallel()
 	cfg := SelfInvokeConfig{}
-	args := buildSelfInvokeArgs(cfg, "run-1", context.Background())
+	args, env := buildSelfInvokeArgs(cfg, "run-1")
 	assert.Empty(t, args, "empty config should produce no args")
+	assert.Empty(t, env, "empty config should produce no env")
 }
 
 func TestSelfInvokeConfig_BinaryExplicit(t *testing.T) {
@@ -40,7 +41,7 @@ func TestBuildSelfInvokeArgs_AllFlags(t *testing.T) {
 		OTelDir:    "/tmp/otel",
 	}
 
-	args := buildSelfInvokeArgs(cfg, "run-42", context.Background())
+	args, env := buildSelfInvokeArgs(cfg, "run-42")
 
 	assert.Contains(t, args, "--machine")
 	assert.Contains(t, args, "pipeline.yaml")
@@ -48,16 +49,13 @@ func TestBuildSelfInvokeArgs_AllFlags(t *testing.T) {
 	assert.Contains(t, args, "tools.yaml")
 	assert.Contains(t, args, "--directory")
 	assert.Contains(t, args, "/workspace")
-	assert.Contains(t, args, "--model")
-	assert.Contains(t, args, "qwen2.5-coder")
-	assert.Contains(t, args, "--ollama-url")
-	assert.Contains(t, args, "http://localhost:11434")
-	assert.Contains(t, args, "--llm-timeout")
-	assert.Contains(t, args, "30s")
-	assert.Contains(t, args, "--max-time")
-	assert.Contains(t, args, "5m0s")
 	assert.Contains(t, args, "--otel-log-file")
 	assert.Contains(t, args, "/tmp/otel/child-run-42.otel.json")
+
+	assert.Contains(t, env, "AGENT_MODEL=qwen2.5-coder")
+	assert.Contains(t, env, "AGENT_OLLAMA_URL=http://localhost:11434")
+	assert.Contains(t, env, "AGENT_MAX_TIME=300")
+	assert.Contains(t, env, "AGENT_LLM_TIMEOUT=30")
 }
 
 func TestBuildSelfInvokeArgs_Minimal(t *testing.T) {
@@ -67,9 +65,10 @@ func TestBuildSelfInvokeArgs_Minimal(t *testing.T) {
 		Tools:   "gen-tools.yaml",
 	}
 
-	args := buildSelfInvokeArgs(cfg, "run-1", context.Background())
+	args, env := buildSelfInvokeArgs(cfg, "run-1")
 
 	assert.Equal(t, []string{"--machine", "gen.yaml", "--tools", "gen-tools.yaml"}, args)
+	assert.Empty(t, env)
 }
 
 func TestBuildSelfInvokeArgs_SkipsEmpty(t *testing.T) {
@@ -78,14 +77,11 @@ func TestBuildSelfInvokeArgs_SkipsEmpty(t *testing.T) {
 		Machine: "m.yaml",
 	}
 
-	args := buildSelfInvokeArgs(cfg, "r", context.Background())
+	args, env := buildSelfInvokeArgs(cfg, "r")
 	assert.NotContains(t, args, "--tools")
 	assert.NotContains(t, args, "--directory")
-	assert.NotContains(t, args, "--model")
-	assert.NotContains(t, args, "--ollama-url")
-	assert.NotContains(t, args, "--llm-timeout")
-	assert.NotContains(t, args, "--max-time")
 	assert.NotContains(t, args, "--otel-log-file")
+	assert.Empty(t, env)
 }
 
 func TestSelfInvoke_Success(t *testing.T) {

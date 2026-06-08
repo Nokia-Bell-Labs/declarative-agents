@@ -28,9 +28,10 @@ const (
 // Budget controls iteration, token, and wall-clock limits for a run.
 // Domain agents extend budget checking via LoopHooks.BudgetExceeded.
 type Budget struct {
-	MaxIterations int
-	MaxTokens     int
-	MaxDuration   time.Duration
+	MaxIterations            int
+	MaxTokens                int
+	MaxDuration              time.Duration
+	MaxConsecutiveParseErrors int
 }
 
 // RunEvent records one command dispatch.
@@ -237,6 +238,7 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 
 	var rr RunResult
 	var iteration int
+	var consecutiveParseErrors int
 
 	for {
 		if ctx.Err() != nil {
@@ -301,6 +303,20 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 
 		res = Dispatch(cmd, tr, p.CommandTimeout)
 		sig = res.Signal
+
+		if sig == ParseFailed {
+			consecutiveParseErrors++
+		} else {
+			consecutiveParseErrors = 0
+		}
+
+		if p.Budget.MaxConsecutiveParseErrors > 0 && consecutiveParseErrors >= p.Budget.MaxConsecutiveParseErrors {
+			tr.Event("budget_exhausted.parse_errors",
+				attribute.Int("consecutive_parse_errors", consecutiveParseErrors),
+				attribute.Int("max_consecutive_parse_errors", p.Budget.MaxConsecutiveParseErrors),
+			)
+			sig = BudgetExhausted
+		}
 
 		accumulateCost(&rr, res)
 		if res.Err != nil {

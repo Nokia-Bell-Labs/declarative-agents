@@ -37,7 +37,7 @@ signals:
   - TaskExtracted
   - AllDone
   - PlanReady
-  - PlanFailed
+  - ParseFailed
   - Materialized
   - MaterializeFailed
   - BudgetExhausted
@@ -119,7 +119,7 @@ transitions:
     action: materialize_issue
 
   - state: PlanParsing
-    signal: PlanFailed
+    signal: ParseFailed
     next: NextTask
     action: next_apply_task
 

@@ -35,6 +35,9 @@ type SuiteConfig struct {
 	Grid       map[string][]any  `yaml:"grid,omitempty"`
 	Samples    []Sample          `yaml:"-"`
 	Experiment *ExperimentConfig `yaml:"experiment,omitempty"`
+	Timeout    time.Duration     `yaml:"-"`
+	OllamaURL  string            `yaml:"-"`
+	Reps       int               `yaml:"-"`
 }
 
 // SessionResult holds the outcome of an evaluation session.
@@ -307,12 +310,15 @@ func LoadSuite(path string) (SuiteConfig, error) {
 // or a string path to an experiment YAML file (resolved relative to baseDir).
 func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 	var raw struct {
-		Name       string            `yaml:"name"`
-		Harnesses  []Harness         `yaml:"harnesses"`
-		Models     []string          `yaml:"models"`
-		Grid       map[string][]any  `yaml:"grid,omitempty"`
-		SamplesDir string            `yaml:"samples_dir"`
-		Experiment yaml.Node         `yaml:"experiment,omitempty"`
+		Name        string            `yaml:"name"`
+		Harnesses   []Harness         `yaml:"harnesses"`
+		Models      []string          `yaml:"models"`
+		Grid        map[string][]any  `yaml:"grid,omitempty"`
+		SamplesDir  string            `yaml:"samples_dir"`
+		Experiment  yaml.Node         `yaml:"experiment,omitempty"`
+		Timeout     string            `yaml:"timeout,omitempty"`
+		OllamaURL   string            `yaml:"ollama_url,omitempty"`
+		Reps        int               `yaml:"repetitions,omitempty"`
 	}
 
 	if err := yaml.Unmarshal(data, &raw); err != nil {
@@ -355,6 +361,11 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 		experiment = &exp
 	}
 
+	var timeout time.Duration
+	if raw.Timeout != "" {
+		timeout, _ = time.ParseDuration(raw.Timeout)
+	}
+
 	return SuiteConfig{
 		Name:       raw.Name,
 		Harnesses:  raw.Harnesses,
@@ -362,6 +373,9 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 		Grid:       raw.Grid,
 		Samples:    samples,
 		Experiment: experiment,
+		Timeout:    timeout,
+		OllamaURL:  raw.OllamaURL,
+		Reps:       raw.Reps,
 	}, nil
 }
 

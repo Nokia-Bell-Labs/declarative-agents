@@ -104,7 +104,7 @@ func TestExecute_ScriptExitNonZero(t *testing.T) {
 	assert.Equal(t, 1, result.ExitCode)
 	assert.False(t, result.Success())
 	assert.Contains(t, result.Stdout, "stdout-output")
-	assert.Contains(t, result.Stderr, "stderr-output")
+	assert.Contains(t, result.Stdout, "stderr-output")
 	assert.True(t, result.Duration > 0)
 }
 
@@ -173,7 +173,7 @@ func TestExecute_PromptFileCleanedUp(t *testing.T) {
 
 func TestConfigDefaults(t *testing.T) {
 	c := Config{}
-	assert.Equal(t, "generator", c.binary())
+	assert.Equal(t, "agent", c.binary())
 	assert.Equal(t, 10*time.Minute, c.timeout())
 
 	c2 := Config{Binary: "my-gen", Timeout: 3 * time.Minute}

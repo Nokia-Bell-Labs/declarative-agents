@@ -6,15 +6,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"go.opentelemetry.io/otel/trace"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/subprocess"
 )
 
 // runAgentCmd executes a harness binary as a subprocess with flag
@@ -36,22 +32,7 @@ func (c *runAgentCmd) Execute() core.Result {
 	args := []string{
 		"--prompt", pc.Sample.PromptPath,
 		"--directory", pc.PointDir,
-		"--model", pc.Model,
 		"--otel-log-file", absTrace,
-	}
-
-	if shouldPropagate(c.toolDef.Propagate, "otel-parent-span") {
-		sc := trace.SpanFromContext(c.ctx).SpanContext()
-		if tp := telemetry.FormatTraceparent(sc); tp != "" {
-			args = append(args, "--otel-parent-span", tp)
-		}
-	}
-
-	if shouldPropagate(c.toolDef.Propagate, "max-time") && pc.Timeout > 0 {
-		args = append(args, "--max-time", fmt.Sprintf("%d", int(pc.Timeout.Seconds())))
-	}
-	if shouldPropagate(c.toolDef.Propagate, "llm-timeout") && pc.LLMTimeout > 0 {
-		args = append(args, "--llm-timeout", fmt.Sprintf("%d", int(pc.LLMTimeout.Seconds())))
 	}
 
 	if c.toolDef.FlagsFrom == "harness" {
@@ -65,27 +46,29 @@ func (c *runAgentCmd) Execute() core.Result {
 		}
 	}
 
-	runCtx, cancel := context.WithTimeout(c.ctx, pc.Timeout)
-	defer cancel()
-
-	start := time.Now()
-	cmd := exec.CommandContext(runCtx, binary, args...)
-	output, cmdErr := cmd.CombinedOutput()
-	pc.Duration = time.Since(start)
-
-	_ = os.WriteFile(pc.ResultPath, output, 0o644)
-
-	pc.ExitCode = 0
-	if cmdErr != nil {
-		if runCtx.Err() == context.DeadlineExceeded {
-			pc.TimedOut = true
-		}
-		if exitErr, ok := cmdErr.(*exec.ExitError); ok {
-			pc.ExitCode = exitErr.ExitCode()
-		} else {
-			pc.ExitCode = -1
-		}
+	var env []string
+	env = append(env, subprocess.EnvVar("AGENT_MODEL", pc.Model))
+	if pc.Timeout > 0 {
+		env = append(env, subprocess.EnvVarInt("AGENT_MAX_TIME", int(pc.Timeout.Seconds())))
 	}
+	if pc.LLMTimeout > 0 {
+		env = append(env, subprocess.EnvVarInt("AGENT_LLM_TIMEOUT", int(pc.LLMTimeout.Seconds())))
+	}
+
+	spec := subprocess.Spec{
+		Binary:        binary,
+		Args:          args,
+		Env:           env,
+		Timeout:       pc.Timeout,
+		PropagateOTel: shouldPropagate(c.toolDef.Propagate, "otel-parent-span"),
+	}
+
+	r := subprocess.Run(c.ctx, spec)
+	pc.Duration = r.Duration
+	pc.ExitCode = r.ExitCode
+	pc.TimedOut = r.TimedOut
+
+	_ = os.WriteFile(pc.ResultPath, []byte(r.Stdout), 0o644)
 
 	sig := SigHarnessFinished
 	if pc.TimedOut {
@@ -97,7 +80,7 @@ func (c *runAgentCmd) Execute() core.Result {
 	return core.Result{
 		CommandName: c.Name(),
 		Signal:      sig,
-		Output:      string(output),
+		Output:      r.Stdout,
 		Cost:        core.Cost{Duration: pc.Duration},
 	}
 }

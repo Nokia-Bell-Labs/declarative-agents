@@ -29,7 +29,7 @@ signals:
   - ToolDone
   - LLMResponded
   - PlanReady
-  - PlanFailed
+  - ParseFailed
   - Materialized
   - MaterializeFailed
   - CommandError
@@ -92,7 +92,7 @@ transitions:
     next: Materializing
     action: create_issue
   - state: PlanParsing
-    signal: PlanFailed
+    signal: ParseFailed
     next: Extracting
     action: extract_task
   - state: PlanParsing
