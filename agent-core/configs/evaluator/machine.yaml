@@ -10,6 +10,7 @@ budget:
 states:
   - Idle
   - PreparingWorkspace
+  - SnapshotConfig
   - RunningAgent
   - CheckingResults
   - CollectingMetrics
@@ -24,6 +25,7 @@ signals:
   - Seed
   - CommandError
   - WorkspaceReady
+  - ConfigDumped
   - HarnessFinished
   - HarnessFailed
   - HarnessTimedOut
@@ -38,6 +40,11 @@ transitions:
 
   - state: PreparingWorkspace
     signal: WorkspaceReady
+    next: SnapshotConfig
+    action: dump_config
+
+  - state: SnapshotConfig
+    signal: ConfigDumped
     next: RunningAgent
     action: run_agent
 
@@ -67,6 +74,10 @@ transitions:
 
   # --- error handling ---
   - state: PreparingWorkspace
+    signal: CommandError
+    next: Failed
+
+  - state: SnapshotConfig
     signal: CommandError
     next: Failed
 

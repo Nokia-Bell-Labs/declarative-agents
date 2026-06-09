@@ -193,6 +193,12 @@ tools:
     visibility: internal
     description: "Write evaluation metadata (exit code, duration, test results, tokens) to meta.json."
 
+  - name: dump_config
+    type: builtin
+    init: dump_config
+    visibility: internal
+    description: "Serialize the full experiment configuration (harness, model, tools, prompts) into experiment.yaml."
+
   # --- spec validation tools ---
   - name: load_corpus
     type: builtin

@@ -185,10 +185,13 @@ func runEval(cmd *cobra.Command, args []string) error {
 	builtins.Override("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &stl.CollectMetricsBuilder{ES: es}, nil
 	})
+	builtins.Override("dump_config", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &stl.DumpConfigBuilder{ES: es}, nil
+	})
 
 	// Re-register the eval tools with our EvalState
 	for _, d := range defs {
-		if d.Type == "builtin" && (d.Name == "prepare_workspace" || d.Name == "run_agent" || d.Name == "check_results" || d.Name == "collect_metrics") {
+		if d.Type == "builtin" && (d.Name == "prepare_workspace" || d.Name == "run_agent" || d.Name == "check_results" || d.Name == "collect_metrics" || d.Name == "dump_config") {
 			if err := stl.RegisterSingleBuiltin(reg, builtins, d, vars); err != nil {
 				return fmt.Errorf("re-register eval tool %s: %w", d.Name, err)
 			}
@@ -772,6 +775,9 @@ func registerEvalFactories(br *stl.BuiltinRegistry, st *agentState) {
 	})
 	br.Register("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &stl.CollectMetricsBuilder{ES: initES()}, nil
+	})
+	br.Register("dump_config", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &stl.DumpConfigBuilder{ES: initES()}, nil
 	})
 }
 

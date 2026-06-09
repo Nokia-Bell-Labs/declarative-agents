@@ -1,6 +1,7 @@
 # Tool selection for the evaluator agent.
 tools:
   - prepare_workspace
+  - dump_config
   - run_agent
   - check_results
   - collect_metrics
