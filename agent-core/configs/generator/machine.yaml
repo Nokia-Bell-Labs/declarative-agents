@@ -73,11 +73,11 @@ transitions:
     next: Composing
     action: invoke_llm
 
-  # Edit completed: same as ToolDone
+  # Edit completed: nudge the model to re-read before continuing
   - state: Composing
     signal: EditDone
     next: Composing
-    action: invoke_llm
+    action: nudge_reread
 
   # Tool failed (recoverable): feed error back to LLM
   - state: Composing
