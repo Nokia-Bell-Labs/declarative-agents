@@ -40,27 +40,27 @@ func TestFormatTraceparent(t *testing.T) {
 	})
 }
 
-func TestWritePromptFile(t *testing.T) {
+func TestWriteTaskFile(t *testing.T) {
 	dir := t.TempDir()
 	plan := map[string]string{"title": "test plan"}
+	path := filepath.Join(dir, "doc", "task.yaml")
 
-	path, err := writePromptFile(dir, "task-1", plan)
+	err := writeTaskFile(path, plan)
 	require.NoError(t, err)
-	defer os.Remove(path)
 
-	assert.Contains(t, filepath.Base(path), "agent-prompt-task-1-")
-	assert.True(t, filepath.IsAbs(path))
+	assert.FileExists(t, path)
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "title: test plan")
 }
 
-func TestWritePromptFile_DefaultDir(t *testing.T) {
-	plan := map[string]string{"key": "value"}
-	path, err := writePromptFile("", "task-2", plan)
+func TestWriteTaskFile_CreatesParentDir(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nested", "doc", "task.yaml")
+
+	err := writeTaskFile(path, map[string]string{"key": "value"})
 	require.NoError(t, err)
-	defer os.Remove(path)
 	assert.FileExists(t, path)
 }
 
@@ -147,28 +147,25 @@ func TestExecute_Timeout(t *testing.T) {
 	assert.False(t, result.Success())
 }
 
-func TestExecute_PromptFileCleanedUp(t *testing.T) {
+func TestExecute_TaskFileWritten(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "check-gen.sh")
 	err := os.WriteFile(script, []byte("#!/bin/sh\necho ok\n"), 0o755)
 	require.NoError(t, err)
 
-	otelDir := t.TempDir()
+	worktree := t.TempDir()
 	cfg := Config{
 		Binary:  script,
 		Model:   "test-model",
 		Timeout: 5 * time.Second,
-		OTelDir: otelDir,
+		OTelDir: dir,
 	}
 
-	_, err = Execute(context.Background(), tracing.NoopTracer{}, cfg, "cleanup-task", dir, map[string]string{"title": "cleanup"})
+	_, err = Execute(context.Background(), tracing.NoopTracer{}, cfg, "cleanup-task", worktree, map[string]string{"title": "cleanup"})
 	require.NoError(t, err)
 
-	entries, _ := os.ReadDir(otelDir)
-	for _, e := range entries {
-		assert.NotContains(t, e.Name(), "agent-prompt-cleanup-task",
-			"prompt file should be cleaned up after execution")
-	}
+	taskFile := filepath.Join(worktree, "doc", "task.yaml")
+	assert.FileExists(t, taskFile)
 }
 
 func TestConfigDefaults(t *testing.T) {
