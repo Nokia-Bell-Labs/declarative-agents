@@ -1,12 +1,3 @@
-// Copyright (c) 2026 Nokia. All rights reserved.
-
-// Command analyzer reads evaluation session results and prints
-// reports. It has no dependency on the agent runtime — it only reads
-// result JSON files and produces tables, progression timelines, and CSV.
-//
-// Usage:
-//
-//	analyzer [flags] <session-dir...>
 package main
 
 import (
@@ -25,17 +16,15 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "analyzer [session-dir...]",
-	Short: "Analyze results from one or more evaluation sessions",
-	Long: `Analyze results from one or more session directories. When multiple
-directories are provided, results are merged for cross-run comparison.
-
-Examples:
-  analyzer benchmark/results/2026-06-05-22-54
-  analyzer results/run1 results/run2
-  analyzer --progression benchmark/results/2026-06-05-22-54`,
+	Use:     "analyzer",
+	Short:   "Analyze and visualize evaluation results",
 	Version: "v0.0.0-dev",
-	Args:    cobra.MinimumNArgs(1),
+}
+
+var reportCmd = &cobra.Command{
+	Use:   "report [session-dir...]",
+	Short: "Print evaluation reports to stdout",
+	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		groups, err := stl.LoadMultiple(args)
 		if err != nil {
@@ -78,7 +67,10 @@ Examples:
 }
 
 func init() {
-	rootCmd.Flags().Bool("progression", false, "show per-run tool progression timelines")
-	rootCmd.Flags().Bool("detailed", false, "show per-(sample, model) convergence breakdown")
-	rootCmd.Flags().String("csv", "", "write detailed per-run CSV to this path")
+	reportCmd.Flags().Bool("progression", false, "show per-run tool progression timelines")
+	reportCmd.Flags().Bool("detailed", false, "show per-(sample, model) convergence breakdown")
+	reportCmd.Flags().String("csv", "", "write detailed per-run CSV to this path")
+
+	rootCmd.AddCommand(reportCmd)
+	rootCmd.AddCommand(serveCmd)
 }

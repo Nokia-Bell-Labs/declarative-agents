@@ -1,0 +1,14 @@
+name: glm
+match_prefixes: ["glm"]
+
+envelope:
+  open: "[tool_call]"
+  close: "[/tool_call]"
+strict_format: false
+
+extraction_pipeline:
+  - strip_thinking_blocks
+  - extract_envelope:
+      open: "[tool_call]"
+      close: "[/tool_call]"
+  - extract_braces

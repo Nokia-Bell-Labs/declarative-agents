@@ -169,6 +169,12 @@ tools:
     visibility: internal
 
   # --- evaluator tools ---
+  - name: prepare_workspace
+    type: builtin
+    init: prepare_workspace
+    visibility: internal
+    description: "Copy sample workspace, initialise git repo, and create baseline commit."
+
   - name: run_agent
     type: builtin
     init: run_agent

@@ -14,11 +14,11 @@ type Sample struct {
 
 // Harness defines a harness binary and its flag template.
 type Harness struct {
-	Name    string            `yaml:"name"`
-	Binary  string            `yaml:"binary"`
-	Module  string            `yaml:"module"`
-	Version string            `yaml:"version"`
-	Flags   map[string]string `yaml:"flags"`
+	Name    string                 `yaml:"name"`
+	Binary  string                 `yaml:"binary"`
+	Module  string                 `yaml:"module"`
+	Version string                 `yaml:"version"`
+	Flags   map[string]interface{} `yaml:"flags"`
 }
 
 // GridPoint is a single point in the parameter space.

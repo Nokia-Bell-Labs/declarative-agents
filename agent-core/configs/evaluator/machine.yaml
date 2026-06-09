@@ -1,24 +1,15 @@
 # State machine for a single evaluation point.
 # Sequences: prepare workspace → run agent → check results → collect metrics.
-#
-# Usage:
-#   agent --machine configs/evaluator/machine.yaml \
-#         --tools-declaration configs/tools/builtin.yaml \
-#         --tools-declaration configs/tools/exec.yaml \
-#         --tools configs/evaluator/tools.yaml
 
 name: evaluator
 initial_state: Idle
 
 budget:
-  max_iterations: 20
+  max_iterations: 10
 
 states:
   - Idle
-  - CreatingWorkspace
-  - InitRepo
-  - StagingFiles
-  - CommittingBaseline
+  - PreparingWorkspace
   - RunningAgent
   - CheckingResults
   - CollectingMetrics
@@ -31,7 +22,6 @@ terminal_states:
 
 signals:
   - Seed
-  - ToolDone
   - CommandError
   - WorkspaceReady
   - HarnessFinished
@@ -41,38 +31,16 @@ signals:
   - MetricsCollected
 
 transitions:
-  # --- workspace preparation ---
-  # Create the point directory and copy sample files
   - state: Idle
     signal: Seed
-    next: CreatingWorkspace
-    action: copy_dir
+    next: PreparingWorkspace
+    action: prepare_workspace
 
-  # Initialize git in the workspace
-  - state: CreatingWorkspace
-    signal: ToolDone
-    next: InitRepo
-    action: git_init
-
-  # Stage all files
-  - state: InitRepo
-    signal: ToolDone
-    next: StagingFiles
-    action: stage_all
-
-  # Commit the baseline
-  - state: StagingFiles
-    signal: ToolDone
-    next: CommittingBaseline
-    action: commit
-
-  # --- run the agent under test ---
-  - state: CommittingBaseline
-    signal: ToolDone
+  - state: PreparingWorkspace
+    signal: WorkspaceReady
     next: RunningAgent
     action: run_agent
 
-  # --- check and collect ---
   - state: RunningAgent
     signal: HarnessFinished
     next: CheckingResults
@@ -98,19 +66,7 @@ transitions:
     next: Done
 
   # --- error handling ---
-  - state: CreatingWorkspace
-    signal: CommandError
-    next: Failed
-
-  - state: InitRepo
-    signal: CommandError
-    next: Failed
-
-  - state: StagingFiles
-    signal: CommandError
-    next: Failed
-
-  - state: CommittingBaseline
+  - state: PreparingWorkspace
     signal: CommandError
     next: Failed
 

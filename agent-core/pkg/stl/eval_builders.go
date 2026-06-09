@@ -17,6 +17,18 @@ type EvalState struct {
 	Ctx context.Context
 }
 
+// PrepareWorkspaceBuilder creates prepareWorkspaceCmd instances.
+type PrepareWorkspaceBuilder struct {
+	ES *EvalState
+}
+
+func (b *PrepareWorkspaceBuilder) Build(_ core.Result) core.Command {
+	if b.ES == nil || b.ES.PC == nil {
+		return &failCmd{err: fmt.Errorf("prepare_workspace: EvalState.PC not initialized")}
+	}
+	return &prepareWorkspaceCmd{pc: b.ES.PC}
+}
+
 // RunAgentBuilder creates runAgentCmd instances using the PointContext
 // and tool configuration from EvalState.
 type RunAgentBuilder struct {

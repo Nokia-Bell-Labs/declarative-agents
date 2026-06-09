@@ -284,7 +284,7 @@ func TestEvaluatorConfig_ToolsLoad(t *testing.T) {
 	require.NotEmpty(t, defs)
 
 	assertToolNames(t, defs, []string{
-		"copy_dir", "make_dir", "git_init", "stage_all", "commit",
+		"prepare_workspace",
 		"run_agent", "check_results", "collect_metrics",
 	})
 }
