@@ -184,10 +184,12 @@ func TestDefaultProfileRegistry(t *testing.T) {
 	assert.Equal(t, "deepseek", ds.ProfileName)
 	assert.Equal(t, "deepseek-coding-agent", ds.MachineName)
 
-	// Gemma has nil envelope.
+	// Gemma uses <tool_call> envelope.
 	gp := reg.ResolveProfile("gemma3:latest")
 	gEnv, gStrict := gp.EnvelopeConfig()
-	assert.Nil(t, gEnv)
+	require.NotNil(t, gEnv)
+	assert.Equal(t, "<tool_call>", gEnv.Open)
+	assert.Equal(t, "</tool_call>", gEnv.Close)
 	assert.True(t, gStrict)
 }
 

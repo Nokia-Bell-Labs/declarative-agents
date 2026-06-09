@@ -1,7 +1,9 @@
 name: gemma
 match_prefixes: ["gemma"]
 
-envelope: null
+envelope:
+  open: "<tool_call>"
+  close: "</tool_call>"
 strict_format: true
 
 # Gemma uses its own native tokens. Pipeline steps run in order:
