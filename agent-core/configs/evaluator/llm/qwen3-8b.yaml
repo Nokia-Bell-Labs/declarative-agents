@@ -34,14 +34,4 @@ tools:
         Use the tools to read the spec files, read existing code, make edits,
         and signal done when the implementation satisfies the requirements.
 
-        Respond only with a single JSON tool call per turn.
-        Never produce plain-text answers.
-        Stay within the workspace directory.
-      tool_prompt: |
-        Return a JSON object with two fields:
-        "tool" (the tool name) and "parameters" (an object whose keys
-        match the tool's parameter schema).
-
-        When you have completed the task, call the done tool:
-        {"tool": "done", "parameters": {"summary": "<brief summary of what you did>"}}
       max_time: 300
