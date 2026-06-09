@@ -96,19 +96,13 @@ func buildSelfInvokeArgs(cfg SelfInvokeConfig, runID string) (args, env []string
 	}
 
 	if cfg.Model != "" {
-		env = append(env, subprocess.EnvVar("AGENT_MODEL", cfg.Model))
+		args = append(args, "--model", cfg.Model)
 	}
 	if cfg.OllamaURL != "" {
-		env = append(env, subprocess.EnvVar("AGENT_OLLAMA_URL", cfg.OllamaURL))
-	}
-	if cfg.MaxTime > 0 {
-		env = append(env, subprocess.EnvVarInt("AGENT_MAX_TIME", int(cfg.MaxTime.Seconds())))
-	}
-	if cfg.LLMTimeout > 0 {
-		env = append(env, subprocess.EnvVarInt("AGENT_LLM_TIMEOUT", int(cfg.LLMTimeout.Seconds())))
+		args = append(args, "--ollama-url", cfg.OllamaURL)
 	}
 
-	return args, env
+	return args, nil
 }
 
 // SelfInvokeBuilder constructs self-invocation commands as a builtin factory.

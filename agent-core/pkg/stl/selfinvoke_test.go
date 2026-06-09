@@ -52,10 +52,11 @@ func TestBuildSelfInvokeArgs_AllFlags(t *testing.T) {
 	assert.Contains(t, args, "--otel-log-file")
 	assert.Contains(t, args, "/tmp/otel/child-run-42.otel.json")
 
-	assert.Contains(t, env, "AGENT_MODEL=qwen2.5-coder")
-	assert.Contains(t, env, "AGENT_OLLAMA_URL=http://localhost:11434")
-	assert.Contains(t, env, "AGENT_MAX_TIME=300")
-	assert.Contains(t, env, "AGENT_LLM_TIMEOUT=30")
+	assert.Contains(t, args, "--model")
+	assert.Contains(t, args, "qwen2.5-coder")
+	assert.Contains(t, args, "--ollama-url")
+	assert.Contains(t, args, "http://localhost:11434")
+	assert.Empty(t, env)
 }
 
 func TestBuildSelfInvokeArgs_Minimal(t *testing.T) {

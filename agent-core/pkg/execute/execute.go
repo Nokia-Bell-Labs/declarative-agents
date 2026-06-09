@@ -88,19 +88,16 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 		"--directory", worktreeDir,
 		"--otel-log-file", otelLogFile,
 	}
-
-	var env []string
 	if cfg.Model != "" {
-		env = append(env, subprocess.EnvVar("AGENT_MODEL", cfg.Model))
+		args = append(args, "--model", cfg.Model)
 	}
 	if cfg.OllamaURL != "" {
-		env = append(env, subprocess.EnvVar("AGENT_OLLAMA_URL", cfg.OllamaURL))
+		args = append(args, "--ollama-url", cfg.OllamaURL)
 	}
 
 	spec := subprocess.Spec{
 		Binary:        cfg.binary(),
 		Args:          args,
-		Env:           env,
 		Timeout:       cfg.timeout(),
 		PropagateOTel: true,
 	}

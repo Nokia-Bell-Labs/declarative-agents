@@ -27,33 +27,34 @@ func (c *runAgentCmd) Execute() core.Result {
 
 	absTrace, _ := filepath.Abs(pc.TracePath)
 	args := []string{
-		"--prompt", pc.Sample.PromptPath,
 		"--directory", pc.PointDir,
 		"--otel-log-file", absTrace,
+		"--model", pc.Model,
 	}
 
 	for flag, val := range pc.Harness.Flags {
-		resolved := resolveTemplate(val, pc.GridPoint)
-		if resolved != "" {
-			args = append(args, "--"+flag, resolved)
-		} else {
-			args = append(args, "--"+flag)
+		switch v := val.(type) {
+		case string:
+			resolved := resolveTemplate(v, pc.GridPoint)
+			if resolved != "" {
+				args = append(args, "--"+flag, resolved)
+			} else {
+				args = append(args, "--"+flag)
+			}
+		case []interface{}:
+			for _, elem := range v {
+				s := fmt.Sprintf("%v", elem)
+				resolved := resolveTemplate(s, pc.GridPoint)
+				args = append(args, "--"+flag, resolved)
+			}
+		default:
+			args = append(args, "--"+flag, fmt.Sprintf("%v", val))
 		}
-	}
-
-	var env []string
-	env = append(env, subprocess.EnvVar("AGENT_MODEL", pc.Model))
-	if pc.Timeout > 0 {
-		env = append(env, subprocess.EnvVarInt("AGENT_MAX_TIME", int(pc.Timeout.Seconds())))
-	}
-	if pc.LLMTimeout > 0 {
-		env = append(env, subprocess.EnvVarInt("AGENT_LLM_TIMEOUT", int(pc.LLMTimeout.Seconds())))
 	}
 
 	spec := subprocess.Spec{
 		Binary:        pc.Harness.Binary,
 		Args:          args,
-		Env:           env,
 		Timeout:       pc.Timeout,
 		PropagateOTel: true,
 	}

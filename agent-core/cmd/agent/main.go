@@ -43,6 +43,8 @@ var (
 	flagPromptString     string
 	flagProfilesDir      string
 	flagVerboseTrace     bool
+	flagModel            string
+	flagOllamaURL        string
 )
 
 func main() {
@@ -74,6 +76,8 @@ func init() {
 	f.StringVar(&flagPromptString, "prompt-string", "", "inline prompt text (alternative to --prompt)")
 	f.StringVar(&flagProfilesDir, "profiles-dir", "", "directory with model profile YAML files (overrides embedded)")
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
+	f.StringVar(&flagModel, "model", "", "override LLM model name")
+	f.StringVar(&flagOllamaURL, "ollama-url", "", "override Ollama server URL")
 
 	rootCmd.AddCommand(evalCmd)
 
@@ -173,19 +177,22 @@ func runEval(cmd *cobra.Command, args []string) error {
 	// by registerEvalFactories. The builders hold a pointer to the
 	// EvalState created lazily; we need to replace it with ours.
 	// Re-register eval factories with our shared EvalState.
-	builtins.Register("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	builtins.Override("prepare_workspace", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &stl.PrepareWorkspaceBuilder{ES: es}, nil
+	})
+	builtins.Override("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &stl.RunAgentBuilder{ES: es}, nil
 	})
-	builtins.Register("check_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	builtins.Override("check_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &stl.CheckResultsBuilder{ES: es}, nil
 	})
-	builtins.Register("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	builtins.Override("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &stl.CollectMetricsBuilder{ES: es}, nil
 	})
 
 	// Re-register the eval tools with our EvalState
 	for _, d := range defs {
-		if d.Type == "builtin" && (d.Name == "run_agent" || d.Name == "check_results" || d.Name == "collect_metrics") {
+		if d.Type == "builtin" && (d.Name == "prepare_workspace" || d.Name == "run_agent" || d.Name == "check_results" || d.Name == "collect_metrics") {
 			if err := stl.RegisterSingleBuiltin(reg, builtins, d, vars); err != nil {
 				return fmt.Errorf("re-register eval tool %s: %w", d.Name, err)
 			}
@@ -333,10 +340,13 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Resolve LLM config from invoke_llm tool definition's config block.
-	// Environment variables (AGENT_MODEL, etc.) override config values.
 	llmCfg := extractLLMConfig(defs)
-	applyLLMEnvOverrides(&llmCfg)
+	if flagModel != "" {
+		llmCfg.Model = flagModel
+	}
+	if flagOllamaURL != "" {
+		llmCfg.OllamaURL = flagOllamaURL
+	}
 
 	// If the invoke_llm config has a system_prompt, use it as the agent prompt
 	// (unless --prompt or --prompt-string was explicitly provided).
@@ -579,46 +589,6 @@ func extractLLMConfig(defs []stl.ToolDef) llmConfig {
 	return cfg
 }
 
-// applyLLMEnvOverrides applies environment variable overrides to an
-// llmConfig. AGENT_MODEL, AGENT_OLLAMA_URL, AGENT_NUM_CTX,
-// AGENT_LLM_TIMEOUT, AGENT_MAX_TIME, AGENT_MAX_TOKENS.
-func applyLLMEnvOverrides(cfg *llmConfig) {
-	if v := os.Getenv("AGENT_MODEL"); v != "" {
-		cfg.Model = v
-	}
-	if v := os.Getenv("AGENT_OLLAMA_URL"); v != "" {
-		cfg.OllamaURL = v
-	}
-	if v := envInt("AGENT_NUM_CTX"); v > 0 {
-		cfg.NumCtx = v
-	}
-	if v := envInt("AGENT_LLM_TIMEOUT"); v > 0 {
-		cfg.LLMTimeout = time.Duration(v) * time.Second
-	}
-	if v := envInt("AGENT_MAX_TIME"); v > 0 {
-		cfg.MaxTime = time.Duration(v) * time.Second
-	}
-	if v := envInt("AGENT_MAX_TOKENS"); v > 0 {
-		cfg.MaxTokens = v
-	}
-}
-
-// envInt reads an environment variable as an integer, returning 0 if
-// unset or unparseable.
-func envInt(key string) int {
-	v := os.Getenv(key)
-	if v == "" {
-		return 0
-	}
-	n, _ := fmt.Sscanf(v, "%d", new(int))
-	if n == 0 {
-		return 0
-	}
-	var val int
-	fmt.Sscanf(v, "%d", &val)
-	return val
-}
-
 // configInt extracts an integer from a map[string]interface{}, handling
 // both int and float64 (YAML numbers decode as int via go-yaml).
 func configInt(m map[string]interface{}, key string) int {
@@ -827,6 +797,9 @@ func registerEvalFactories(br *stl.BuiltinRegistry, st *agentState) {
 		return es
 	}
 
+	br.Register("prepare_workspace", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &stl.PrepareWorkspaceBuilder{ES: initES()}, nil
+	})
 	br.Register("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &stl.RunAgentBuilder{ES: initES()}, nil
 	})
