@@ -336,21 +336,26 @@ func ExtractWithEnvelope(raw, openTag, closeTag string) string {
 	return ExtractBraces(s)
 }
 
-// StripThinkingBlocks removes <think>...</think> blocks that
-// thinking-mode models prepend to their output.
+// StripThinkingBlocks removes <think>...</think> and
+// <thinking>...</thinking> blocks that thinking-mode models prepend
+// to their output.
 func StripThinkingBlocks(raw string) string {
 	s := raw
-	for {
-		start := strings.Index(s, "<think>")
-		if start < 0 {
-			break
+	for _, tag := range []string{"think", "thinking"} {
+		open := "<" + tag + ">"
+		close := "</" + tag + ">"
+		for {
+			start := strings.Index(s, open)
+			if start < 0 {
+				break
+			}
+			end := strings.Index(s[start:], close)
+			if end < 0 {
+				s = s[:start]
+				break
+			}
+			s = s[:start] + s[start+end+len(close):]
 		}
-		end := strings.Index(s[start:], "</think>")
-		if end < 0 {
-			s = s[:start]
-			break
-		}
-		s = s[:start] + s[start+end+len("</think>"):]
 	}
 	return strings.TrimSpace(s)
 }

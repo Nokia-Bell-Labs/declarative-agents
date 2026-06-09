@@ -41,8 +41,23 @@ func TestStripThinkingBlocks(t *testing.T) {
 	assert.Equal(t, `{"tool":"read"}`, StripThinkingBlocks(input))
 }
 
+func TestStripThinkingBlocks_ThinkingTag(t *testing.T) {
+	input := `<thinking>reasoning here</thinking>{"tool":"write"}`
+	assert.Equal(t, `{"tool":"write"}`, StripThinkingBlocks(input))
+}
+
+func TestStripThinkingBlocks_BothTags(t *testing.T) {
+	input := `<think>first</think><thinking>second</thinking>{"tool":"edit"}`
+	assert.Equal(t, `{"tool":"edit"}`, StripThinkingBlocks(input))
+}
+
 func TestStripThinkingBlocks_Unclosed(t *testing.T) {
 	input := `<think>thinking forever`
+	assert.Equal(t, "", StripThinkingBlocks(input))
+}
+
+func TestStripThinkingBlocks_UnclosedThinking(t *testing.T) {
+	input := `<thinking>reasoning forever`
 	assert.Equal(t, "", StripThinkingBlocks(input))
 }
 
