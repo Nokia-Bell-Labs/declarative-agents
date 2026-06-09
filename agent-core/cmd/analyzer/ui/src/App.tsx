@@ -12,8 +12,8 @@ export default function App() {
       <main className="app-main">
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/sessions/:id" element={<SessionDetail />} />
-          <Route path="/sessions/:id/points/:pointId" element={<TraceViewer />} />
+          <Route path="/sessions/:suite/:ts" element={<SessionDetail />} />
+          <Route path="/sessions/:suite/:ts/points/:pointId" element={<TraceViewer />} />
         </Routes>
       </main>
     </div>
