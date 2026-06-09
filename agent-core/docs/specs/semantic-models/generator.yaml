@@ -1,0 +1,101 @@
+id: sm-generator
+title: Generator Agent Semantic Model
+
+purpose: |
+  The generator is a coding agent that solves programming tasks by
+  iteratively composing LLM calls with tool execution. It reads files,
+  writes code, runs builds and tests, and converges on a solution that
+  passes validation.
+
+configuration:
+  machine: configs/generator/machine.yaml
+  tools: configs/generator/tools.yaml
+  llm_configs: configs/generator/llm/*.yaml
+  tool_declarations:
+    - configs/tools/builtin.yaml
+    - configs/tools/exec.yaml
+
+states:
+  - name: Idle
+    meaning: Initial state before any work begins.
+  - name: Composing
+    meaning: |
+      The LLM is being invoked or a tool result is being fed back.
+      This is the main working state where the agent reasons about
+      the task and decides what to do next.
+  - name: Parsing
+    meaning: |
+      The raw LLM response is being parsed to extract tool calls.
+      If parsing fails, the error is reported back to the LLM.
+  - name: ValidatingBuild
+    meaning: |
+      The agent has declared the task complete (done tool). Build,
+      lint, and test validation is running to confirm correctness.
+  - name: Succeeded
+    meaning: Terminal. Validation passed — the task is complete.
+  - name: Failed
+    meaning: Terminal. An unrecoverable error or validation failure occurred.
+  - name: BudgetExceeded
+    meaning: Terminal. Iteration or token budget was exhausted.
+
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: LLMResponded
+    trigger: The LLM returned a response (invoke_llm completed).
+  - name: ToolDone
+    trigger: A tool executed successfully.
+  - name: ToolFailed
+    trigger: A tool executed but reported failure (recoverable).
+  - name: EditDone
+    trigger: A file edit tool completed — triggers re-read nudge.
+  - name: ParseFailed
+    trigger: The LLM response could not be parsed as a valid tool call.
+  - name: TaskCompleted
+    trigger: The LLM called the done tool, declaring the task finished.
+  - name: ValidationPassed
+    trigger: Build, lint, and test all passed.
+  - name: ValidationFailed
+    trigger: Validation (build/lint/test) failed.
+  - name: CommandError
+    trigger: Infrastructure-level error (not a tool failure).
+  - name: BudgetExhausted
+    trigger: Iteration or token budget limit reached.
+
+lifecycle: |
+  1. Idle → Composing: invoke_llm with the task prompt
+  2. Composing → Parsing: LLM responds, parse the output
+  3. Parsing → Composing ($tool): extracted tool call is dispatched
+  4. Composing → Composing: tool result fed back to LLM (invoke_llm)
+  5. Composing → Composing (EditDone): nudge_reread after file edits
+  6. Parsing → Composing (ParseFailed): report_parse_error to LLM
+  7. Parsing → ValidatingBuild (TaskCompleted): run validate
+  8. ValidatingBuild → Succeeded/Failed: based on validation outcome
+
+  The agent loops between Composing and Parsing, making tool calls
+  (read, write, edit, find, list_files, build, test, lint) until
+  the LLM calls done. After done, validation determines success.
+
+budget:
+  max_iterations: 100
+  max_consecutive_parse_errors: 5
+
+tools_required:
+  builtin:
+    - invoke_llm (per-model config in llm/*.yaml)
+    - parse_response
+    - report_parse_error
+    - reset_history
+    - validate
+    - nudge_reread
+    - done
+    - read, write, edit, find, list_files
+  exec:
+    - build, vet, lint, test
+
+invariants:
+  - Every tool result is fed back to the LLM before the next reasoning step
+  - File edits trigger a re-read nudge to prevent stale context
+  - The done tool always triggers validation before declaring success
+  - Parse failures are reported to the LLM for self-correction
+  - Infrastructure errors (CommandError) are terminal — no recovery

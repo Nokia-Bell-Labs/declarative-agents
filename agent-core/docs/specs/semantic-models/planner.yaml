@@ -1,0 +1,94 @@
+id: sm-planner
+title: Planner Agent Semantic Model
+
+purpose: |
+  The planner is a pipeline agent that decomposes a requirement graph
+  into tasks, generates implementation plans via LLM, materializes
+  them as issues, executes them by invoking the generator agent, and
+  validates the results. It loops over the requirement graph until
+  all tasks are done, all are blocked, or a batch limit is reached.
+
+configuration:
+  machine: configs/planner/machine.yaml
+  tools: configs/planner/tools.yaml
+  llm_configs: configs/planner/llm/*.yaml
+  tool_declarations:
+    - configs/tools/builtin.yaml
+    - configs/tools/exec.yaml
+  variants:
+    - configs/planner/machine-passthrough.yaml
+    - configs/planner/machine-plan-only.yaml
+
+states:
+  - name: Idle
+    meaning: Initial state before planning begins.
+  - name: Extracting
+    meaning: |
+      Selecting the next ready task from the requirement graph.
+      May terminate if all tasks are done, blocked, or batch limit reached.
+  - name: Resetting
+    meaning: Clearing conversation history before a new task's LLM call.
+  - name: PromptAssembly
+    meaning: Building the task context and SRD references into a prompt.
+  - name: PlanInvoking
+    meaning: Calling the LLM to generate an implementation plan.
+  - name: PlanParsing
+    meaning: Parsing the LLM response as a YAML implementation plan.
+  - name: Materializing
+    meaning: Creating an issue (bd create) from the parsed plan.
+  - name: Executing
+    meaning: Running the generator agent to implement the task.
+  - name: Vetting
+    meaning: Running go vet on the workspace.
+  - name: Building
+    meaning: Running go build on the workspace.
+  - name: Testing
+    meaning: Running go test on the workspace.
+  - name: CheckingResult
+    meaning: |
+      Evaluating execution outcome. On success, marks the graph node
+      done and extracts the next task. On failure, retries if available.
+  - name: Completed
+    meaning: Terminal. All tasks in the graph are done.
+  - name: Stalled
+    meaning: Terminal. Remaining tasks are blocked by failed dependencies.
+  - name: Paused
+    meaning: Terminal. Batch limit reached — resume later.
+  - name: Failed
+    meaning: Terminal. An unrecoverable error occurred.
+
+lifecycle: |
+  1. Idle → Extracting: extract_task from requirement graph
+  2. Extracting → Resetting: task extracted, clear LLM history
+  3. Resetting → PromptAssembly: assemble_prompt with SRD context
+  4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
+  5. PlanInvoking → PlanParsing: parse_plan from LLM response
+  6. PlanParsing → Materializing: create_issue (bd create)
+  7. Materializing → Executing: execute_task (run generator agent)
+  8. Executing → Vetting → Building → Testing: validation pipeline
+  9. Testing → CheckingResult: evaluate pass/fail
+  10. CheckingResult → Extracting: success or retries exhausted, next task
+  10a. CheckingResult → Resetting: retry available, re-plan
+
+  The outer loop (Extracting → ... → CheckingResult → Extracting)
+  repeats until the graph is fully resolved.
+
+tools_required:
+  builtin:
+    - extract_task, extract_all
+    - assemble_prompt
+    - invoke_llm (planner LLM config)
+    - parse_plan
+    - create_issue
+    - execute_task
+    - check_result
+    - reset_history
+  exec:
+    - vet, build, test
+
+invariants:
+  - Conversation history is reset between tasks
+  - Each task gets a fresh prompt with SRD context
+  - Failed tasks can be retried before moving on
+  - Graph nodes are marked done/failed to track progress
+  - The planner terminates when no more tasks are extractable

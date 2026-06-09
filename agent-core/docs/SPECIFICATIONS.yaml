@@ -169,6 +169,8 @@ coverage_gaps: |
   These packages support the planner pipeline and evaluator workflows
   and have package-level tests but no formal SRD documentation yet.
 
-  Agent configurations (configs/generator/, configs/evaluator/,
-  configs/planner/, configs/validate/) define agent behavior via YAML
-  but lack formal semantic model documentation.
+  Agent configurations are documented as semantic models:
+  - docs/specs/semantic-models/generator.yaml (sm-generator)
+  - docs/specs/semantic-models/evaluator.yaml (sm-evaluator)
+  - docs/specs/semantic-models/planner.yaml (sm-planner)
+  - docs/specs/semantic-models/validator.yaml (sm-validator)

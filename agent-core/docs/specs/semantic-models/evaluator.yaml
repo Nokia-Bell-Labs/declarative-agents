@@ -1,0 +1,88 @@
+id: sm-evaluator
+title: Evaluator Agent Semantic Model
+
+purpose: |
+  The evaluator orchestrates a single evaluation point: it prepares
+  a workspace, invokes the generator agent as a subprocess, checks
+  the results, and collects metrics. The evaluator does NOT use an
+  LLM — it is a deterministic pipeline that sequences four tools.
+
+  The eval subcommand of cmd/agent runs multiple evaluator instances
+  across a grid of (sample, model) pairs defined in a suite YAML.
+
+configuration:
+  machine: configs/evaluator/machine.yaml
+  tools: configs/evaluator/tools.yaml
+  llm_configs: configs/evaluator/llm/*.yaml
+  tool_declarations:
+    - configs/tools/builtin.yaml
+    - configs/tools/exec.yaml
+
+states:
+  - name: Idle
+    meaning: Initial state before evaluation begins.
+  - name: PreparingWorkspace
+    meaning: |
+      Creating a temporary directory, initializing git, and copying
+      sample files into the workspace.
+  - name: RunningAgent
+    meaning: |
+      The generator agent is running as a subprocess in the prepared
+      workspace. Waits for completion, failure, or timeout.
+  - name: CheckingResults
+    meaning: |
+      Examining the agent's exit code, test results, and trace output
+      to determine pass/fail/timeout status.
+  - name: CollectingMetrics
+    meaning: |
+      Reading trace files to extract token counts, iteration counts,
+      duration, and tool progression data.
+  - name: Done
+    meaning: Terminal. Evaluation point completed successfully.
+  - name: Failed
+    meaning: Terminal. An infrastructure error prevented evaluation.
+
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: WorkspaceReady
+    trigger: Workspace preparation completed.
+  - name: HarnessFinished
+    trigger: The generator agent exited normally (exit code 0).
+  - name: HarnessFailed
+    trigger: The generator agent exited with a non-zero exit code.
+  - name: HarnessTimedOut
+    trigger: The generator agent exceeded its time budget.
+  - name: ResultsCollected
+    trigger: Result checking completed.
+  - name: MetricsCollected
+    trigger: Metrics extraction completed.
+  - name: CommandError
+    trigger: Infrastructure-level error.
+
+lifecycle: |
+  1. Idle → PreparingWorkspace: prepare_workspace
+  2. PreparingWorkspace → RunningAgent: run_agent
+  3. RunningAgent → CheckingResults: check_results (on any outcome)
+  4. CheckingResults → CollectingMetrics: collect_metrics
+  5. CollectingMetrics → Done
+
+  This is a linear pipeline — no loops, no LLM calls, no branching
+  except for error handling. All three agent outcomes (finished,
+  failed, timed out) proceed to result checking.
+
+budget:
+  max_iterations: 10
+
+tools_required:
+  builtin:
+    - prepare_workspace
+    - run_agent
+    - check_results
+    - collect_metrics
+
+invariants:
+  - The evaluator never calls an LLM directly
+  - All agent outcomes (success, failure, timeout) proceed to check_results
+  - The workspace is a fresh temporary directory for each evaluation point
+  - Metrics are collected even when the agent fails or times out
