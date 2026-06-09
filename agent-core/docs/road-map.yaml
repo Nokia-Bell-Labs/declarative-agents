@@ -13,9 +13,45 @@ releases:
       traceparent), pkg/llm (Client, Conversation, Ollama adapter,
       parseutil, profile, interfaces), pkg/prompt (Prompt, loading,
       template, SerializeManifest), pkg/stl (file tools, build tools,
-      LLM commands, subprocess), and pkg/spec (graph loader, validator).
+      LLM commands, subprocess), pkg/spec (graph loader, validator),
+      and pkg/cli (standard flag constants, PropagateArgs).
     status: done
     use_cases:
       - id: rel00.0-uc001-domain-agent-integration
         summary: Domain agent imports agent-core and runs an agentic loop
+        status: done
+
+  - version: "01.0"
+    name: Unified agent binary and configuration-driven architecture
+    description: |
+      Consolidate generator, planner, and evaluator into a single agent
+      binary (cmd/agent) driven entirely by YAML configurations. The
+      original projects become configuration-only repositories.
+
+      Key deliverables:
+      - Unified cmd/agent binary with run and eval subcommands
+      - YAML state machine configs for generator, evaluator, planner,
+        and validator (configs/*/machine.yaml)
+      - YAML tool declarations replacing Go tool implementations
+        (configs/tools/builtin.yaml with 28 tools, exec.yaml with 17)
+      - Per-model LLM tool configurations (configs/*/llm/*.yaml)
+      - LLM response profiles for 9 model families (pkg/llm/profiles/)
+      - Planner pipeline packages (pkg/pipeline, pkg/plan, pkg/extract,
+        pkg/graph, pkg/materialize)
+      - Agent execution with process groups (pkg/execute)
+      - Git worktree management (pkg/worktree)
+      - Evaluator benchmark infrastructure (eval suites, result analysis)
+      - Analyzer web UI (cmd/analyzer) with embedded React frontend
+      - Native Mage build targets replacing cobbler-scaffold dependency
+      - 514 tests across 14 packages
+    status: done
+    use_cases:
+      - id: rel01.0-uc001-generator-coding
+        summary: Generator agent solves Go coding tasks using YAML config
+        status: done
+      - id: rel01.0-uc002-evaluator-benchmark
+        summary: Evaluator runs generator across models and collects results
+        status: done
+      - id: rel01.0-uc003-analyzer-visualization
+        summary: Analyzer serves web UI for evaluation result exploration
         status: done
