@@ -370,7 +370,7 @@ project_structure:
   - path: docs/
     role: Documentation and specifications
   - path: magefiles/
-    role: Mage targets from cobbler-scaffold
+    role: Mage build targets (build, lint, tag, stats, analyzer)
 
 implementation_status:
   current_focus: CLI flag contract, documentation accuracy, and cross-reference hygiene
