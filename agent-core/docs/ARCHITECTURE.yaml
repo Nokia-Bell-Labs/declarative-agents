@@ -3,34 +3,46 @@ title: Agent Core Architecture
 
 overview:
   summary: |
-    A generic agentic loop engine packaged as a Go library. Six
-    components form the engine, each in its own source file under
-    pkg/core. A seventh package, pkg/tracing, defines the Tracer port
-    interface (five methods: Push, Event, SetAttributes, RecordError,
-    Context) that decouples the engine from OpenTelemetry internals.
-    An eighth package, pkg/telemetry, provides the concrete
-    OpenTelemetry implementation: provider setup, exporter config,
-    root span lifecycle, a Tracer adapter, GenAI semantic convention
-    helpers (pkg/telemetry/genai), W3C traceparent parsing
-    (pkg/telemetry), and offline trace replay.
+    A Go framework for building tool-augmented agentic loops. A single
+    unified binary (cmd/agent) drives four agent types — generator,
+    evaluator, planner, and validator — each defined entirely by YAML
+    configuration files (state machines, tool selections, LLM configs).
+    A companion binary (cmd/analyzer) serves an embedded web UI for
+    visualizing evaluation results.
 
-    Additional packages provide LLM integration (pkg/llm with Client,
-    Conversation, parseutil, profiles, interfaces), prompt assembly
-    (pkg/prompt), standard tools (pkg/stl), and specification
-    validation (pkg/spec).
+    The framework is organized in three layers:
 
-    Core engine components:
-    - Types -- Command, Result, Signal, Cost, Builder, CommandResolver, SpanOverride
-    - State machine -- TransitionTable, StateMachine, Step, TerminalFunc
-    - Dispatch -- command execution with GenAI semconv tracing, timeout, panic recovery
-    - Registry -- ToolSpec + Builder pairs, manifest filtering, freeze
-    - Loop -- budget-tracked iteration driving the state machine with invoke_agent spans
-    - Machine config -- YAML schema, parser, BuildTransitionTable
+    Engine layer (pkg/core). Domain-agnostic loop machinery: types,
+    state machine, command dispatch, tool registry, agentic loop, and
+    YAML machine configuration. The engine knows about States, Signals,
+    and Commands but not about coding tools, LLMs, or file systems.
 
-    The engine is domain-agnostic. It knows about States, Signals, and
-    Commands but not about coding tools, LLMs, or file systems. Domain
-    agents import pkg/core, pkg/tracing, and pkg/telemetry, then
-    supply their own constants, tools, and transition tables.
+    Infrastructure layer. Shared packages consumed by all agent types:
+    - pkg/tracing — Tracer port interface (5 methods) and NoopTracer
+    - pkg/telemetry — concrete OTel implementation, traceparent, replay
+    - pkg/telemetry/genai — GenAI semantic convention helpers
+    - pkg/llm — LLM client, conversation, profiles, parsing utilities
+    - pkg/llm/ollama — Ollama adapter satisfying llm.Client
+    - pkg/prompt — prompt schema, YAML loading, system template
+    - pkg/stl — standard tool library (file, build, LLM, eval tools)
+    - pkg/cli — standard CLI flag constants and argument propagation
+    - pkg/subprocess — subprocess execution utilities
+
+    Domain layer. Packages supporting specific agent workflows:
+    - pkg/execute — agent subprocess execution with process groups
+    - pkg/pipeline — planner pipeline tools (extract, assemble, parse)
+    - pkg/plan — implementation plan parsing and prompt assembly
+    - pkg/extract — task extraction from requirement graphs
+    - pkg/graph — requirement DAG construction and traversal
+    - pkg/materialize — plan-to-issue materialization
+    - pkg/worktree — git worktree lifecycle management
+    - pkg/spec — specification corpus parsing and validation
+
+    Configuration layer (configs/). YAML files defining each agent's
+    behavior: state machines (machine.yaml), tool selections (tools.yaml),
+    tool declarations (configs/tools/), and per-model LLM configurations
+    (configs/*/llm/*.yaml). The configurations ARE the agents — no Go
+    code changes are needed to modify agent behavior.
 
   lifecycle: |
     A run proceeds through three phases.
@@ -75,13 +87,23 @@ overview:
       protobuf. It imports pkg/tracing but not pkg/core.
     - pkg/telemetry/genai depends only on go.opentelemetry.io/otel/attribute.
     - pkg/llm depends on pkg/core, pkg/prompt, and pkg/tracing.
-    - pkg/stl depends on pkg/core, pkg/llm, pkg/tracing, and
-      pkg/telemetry/genai.
+    - pkg/stl depends on pkg/core, pkg/llm, pkg/tracing,
+      pkg/telemetry/genai, pkg/execute, and pkg/subprocess.
+    - pkg/pipeline depends on pkg/core, pkg/plan, pkg/extract,
+      pkg/materialize, and pkg/stl.
+    - pkg/execute depends on pkg/subprocess and pkg/cli.
+    - pkg/plan depends on gopkg.in/yaml.v3.
+    - pkg/extract depends on pkg/graph and pkg/plan.
+    - pkg/graph depends on gopkg.in/yaml.v3.
+    - pkg/materialize depends on pkg/plan.
+    - pkg/worktree depends on os/exec.
     - pkg/spec depends on the Go standard library, gopkg.in/yaml.v3,
       and a graph library.
-    - No package in agent-core imports domain-specific code.
-    - Domain agents import pkg/core, pkg/tracing, pkg/telemetry,
-      pkg/llm, pkg/prompt, and pkg/stl.
+    - pkg/subprocess depends on the Go standard library.
+    - pkg/cli depends on the Go standard library.
+    - cmd/agent imports pkg/core, pkg/stl, pkg/llm, pkg/prompt,
+      pkg/telemetry, pkg/cli, and pkg/pipeline.
+    - cmd/analyzer imports pkg/stl for evaluation result analysis.
 
 interfaces:
   - name: Tracer interface
@@ -347,49 +369,100 @@ technology_choices:
     purpose: Test assertions and helpers
 
 project_structure:
-  - path: pkg/core/
-    role: Generic agentic loop engine (types, state machine, dispatch, registry, loop, machine config)
-  - path: pkg/tracing/
-    role: Tracer port interface for OpenTelemetry (5 methods) and NoopTracer
-  - path: pkg/telemetry/
-    role: Concrete OTel implementation (providers, exporters, adapter, traceparent, replay)
-  - path: pkg/telemetry/genai/
-    role: OTel GenAI semantic convention constants, span name builders, attribute helpers
-  - path: pkg/llm/
-    role: LLM infrastructure (Client, Conversation, Message, ChatOptions, ModelInfo)
-  - path: pkg/llm/ollama/
-    role: Ollama LLM adapter satisfying llm.Client
-  - path: pkg/prompt/
-    role: Prompt struct, YAML loading, system prompt template, and manifest serialization
-  - path: pkg/stl/
-    role: Standard tool library (file tools, build tools, LLM commands, subprocess, process groups)
-  - path: pkg/cli/
-    role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
-  - path: pkg/spec/
-    role: Specification graph loader and cross-artifact validator
-  - path: docs/
-    role: Documentation and specifications
-  - path: magefiles/
-    role: Mage build targets (build, lint, tag, stats, analyzer)
+  binaries:
+    - path: cmd/agent/
+      role: Unified agent binary — generator, evaluator, planner, validator modes via YAML config
+    - path: cmd/analyzer/
+      role: Evaluation results web UI with embedded React frontend
+
+  engine:
+    - path: pkg/core/
+      role: Generic agentic loop engine (types, state machine, dispatch, registry, loop, machine config)
+
+  infrastructure:
+    - path: pkg/tracing/
+      role: Tracer port interface for OpenTelemetry (5 methods) and NoopTracer
+    - path: pkg/telemetry/
+      role: Concrete OTel implementation (providers, exporters, adapter, traceparent, replay)
+    - path: pkg/telemetry/genai/
+      role: OTel GenAI semantic convention constants, span name builders, attribute helpers
+    - path: pkg/llm/
+      role: LLM client, conversation, profiles, parse utilities, domain interfaces
+    - path: pkg/llm/ollama/
+      role: Ollama LLM adapter satisfying llm.Client
+    - path: pkg/prompt/
+      role: Prompt struct, YAML loading, system prompt template, and manifest serialization
+    - path: pkg/stl/
+      role: Standard tool library (file, build, LLM, eval tools, config loading, subprocess)
+    - path: pkg/cli/
+      role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
+    - path: pkg/subprocess/
+      role: Subprocess execution utilities (Run, EnvVar)
+
+  domain:
+    - path: pkg/execute/
+      role: Agent subprocess execution with process groups and timeouts
+    - path: pkg/pipeline/
+      role: Planner pipeline tools (extract, assemble, parse, create issue, execute, check)
+    - path: pkg/plan/
+      role: Implementation plan parsing and prompt assembly
+    - path: pkg/extract/
+      role: Task extraction from requirement graphs
+    - path: pkg/graph/
+      role: Requirement DAG construction, traversal, and persistence
+    - path: pkg/materialize/
+      role: Plan-to-issue materialization (bd create)
+    - path: pkg/worktree/
+      role: Git worktree lifecycle management
+    - path: pkg/spec/
+      role: Specification corpus parsing, graph construction, and cross-artifact validation
+
+  configuration:
+    - path: configs/generator/
+      role: Generator agent — machine.yaml, tools.yaml, llm/*.yaml
+    - path: configs/evaluator/
+      role: Evaluator agent — machine.yaml, tools.yaml, llm/*.yaml
+    - path: configs/planner/
+      role: Planner agent — machine.yaml (3 variants), tools.yaml, llm/*.yaml
+    - path: configs/validate/
+      role: Validation agent — machine.yaml, tools.yaml
+    - path: configs/tools/
+      role: Shared tool declarations — builtin.yaml (28 tools), exec.yaml (17 tools)
+    - path: pkg/llm/profiles/
+      role: Embedded LLM response profiles (9 model families)
+
+  build:
+    - path: magefiles/
+      role: Mage build targets (build, lint, install, clean, tag, stats)
+    - path: docs/
+      role: Documentation, specifications, and roadmap
 
 implementation_status:
-  current_focus: CLI flag contract, documentation accuracy, and cross-reference hygiene
+  current_focus: Documentation accuracy and agent configuration documentation
   progress:
-    - done: VISION.yaml authored
-    - done: ARCHITECTURE.yaml authored
-    - done: pkg/tracing/tracer.go imported (5-method interface with NoopTracer)
-    - done: pkg/core/ imported (types, state, dispatch, registry, loop, machine)
-    - done: pkg/telemetry/ imported (trace, adapter, traceparent, replay)
-    - done: pkg/telemetry/genai/ (GenAI semconv constants and helpers)
-    - done: pkg/llm/ imported (Client, Conversation, Message, parseutil, profile, interfaces)
-    - done: pkg/llm/ollama/ (Ollama adapter satisfying llm.Client)
-    - done: pkg/prompt/ imported (Prompt, LoadPrompt, system template, SerializeManifest)
-    - done: pkg/stl/ imported (file tools, build tools, LLM commands, subprocess)
-    - done: pkg/spec/ imported (SRD/UC/TS parsing, graph, validation, corpus)
-    - done: pkg/cli/ (standard flag constants, PropagateArgs, RemainingBudget)
-    - done: Tests imported and passing (297 tests across 9 packages)
+    - done: Core engine (pkg/core) — types, state machine, dispatch, registry, loop, machine config
+    - done: Tracing port (pkg/tracing) — 5-method Tracer interface with NoopTracer
+    - done: Telemetry (pkg/telemetry) — OTel providers, exporters, adapter, traceparent, replay
+    - done: GenAI semconv (pkg/telemetry/genai) — constants, span builders, attribute helpers
+    - done: LLM integration (pkg/llm) — Client, Conversation, profiles, parseutil, interfaces
+    - done: Ollama adapter (pkg/llm/ollama) — Chat, ListModels, model validation, tracing
+    - done: Prompt assembly (pkg/prompt) — Prompt struct, YAML loading, system template
+    - done: Standard tool library (pkg/stl) — file, build, LLM, eval tools, config loading
+    - done: CLI flags (pkg/cli) — standard flag constants, PropagateArgs, RemainingBudget
+    - done: Subprocess (pkg/subprocess) — process execution utilities
+    - done: Planner pipeline (pkg/pipeline, pkg/plan, pkg/extract, pkg/graph, pkg/materialize)
+    - done: Agent execution (pkg/execute) — subprocess execution with process groups
+    - done: Worktree management (pkg/worktree) — git worktree lifecycle
+    - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
+    - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, validator
+    - done: Analyzer web UI (cmd/analyzer) — embedded React frontend for eval results
+    - done: YAML tool definitions — builtin.yaml (28 tools), exec.yaml (17 tools)
+    - done: Agent configurations — generator, evaluator, planner, validate machine/tools/llm
+    - done: LLM profiles — 9 model families with extraction pipelines
+    - done: Mage build targets — build, lint, install, clean, tag, stats
+    - done: cobbler-scaffold dependency removed
+    - done: 514 tests passing across 14 packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd018)
-    - done: Generator updated to import agent-core
 
 related_documents:
   - doc: docs/VISION.yaml
