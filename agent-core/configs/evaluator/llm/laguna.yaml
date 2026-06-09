@@ -1,7 +1,3 @@
-# LLM tool declaration for the generator agent — DeepSeek model.
-# Loaded as a tool declaration:
-#   agent --tools-declaration configs/generator/llm/deepseek.yaml ...
-
 tools:
   - name: invoke_llm
     type: builtin
@@ -9,7 +5,7 @@ tools:
     visibility: internal
     description: "Invoke the LLM with the current conversation history."
     config:
-      model: "deepseek-coder-v2:16b"
+      model: "laguna-xs.2:latest"
       provider: ollama
       provider_url: "http://localhost:11434"
       system_prompt: |
@@ -42,4 +38,4 @@ tools:
 
         When you have completed the task, call the done tool:
         {"tool": "done", "parameters": {"summary": "<brief summary of what you did>"}}
-      max_time: 900
+      max_time: 600

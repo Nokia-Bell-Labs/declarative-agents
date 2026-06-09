@@ -39,8 +39,6 @@ var (
 	flagOTelLog          string
 	flagOTelParent       string
 	flagDirectory        string
-	flagPrompt           string
-	flagPromptString     string
 	flagProfilesDir      string
 	flagVerboseTrace     bool
 	flagModel            string
@@ -72,8 +70,6 @@ func init() {
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
-	f.StringVar(&flagPrompt, "prompt", "", "path to prompt YAML file")
-	f.StringVar(&flagPromptString, "prompt-string", "", "inline prompt text (alternative to --prompt)")
 	f.StringVar(&flagProfilesDir, "profiles-dir", "", "directory with model profile YAML files (overrides embedded)")
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
 	f.StringVar(&flagModel, "model", "", "override LLM model name")
@@ -287,34 +283,6 @@ func run(cmd *cobra.Command, args []string) error {
 		tracer = telemetry.TraceAdapter{T: t}
 	}
 
-	// Load prompt (optional — not all machines need it, e.g. eval)
-	var agentPrompt prompt.Prompt
-	if flagPrompt != "" && flagPromptString != "" {
-		return fmt.Errorf("--prompt and --prompt-string are mutually exclusive")
-	}
-	if flagPrompt != "" {
-		lr, err := prompt.LoadPrompt(flagPrompt)
-		if err != nil {
-			return fmt.Errorf("load prompt: %w", err)
-		}
-		agentPrompt = lr.Prompt
-		tracer.Event("prompt.loaded",
-			attribute.String("prompt.path", flagPrompt),
-			attribute.String("prompt.mode", lr.Mode),
-			attribute.Int("prompt.task_len", lr.TaskLen),
-		)
-	} else if flagPromptString != "" {
-		lr, err := prompt.LoadPromptFromString(flagPromptString)
-		if err != nil {
-			return fmt.Errorf("load prompt string: %w", err)
-		}
-		agentPrompt = lr.Prompt
-		tracer.Event("prompt.loaded",
-			attribute.String("prompt.source", "string"),
-			attribute.Int("prompt.task_len", lr.TaskLen),
-		)
-	}
-
 	// Load tool definitions: either declaration+selection or legacy single file
 	var defs []stl.ToolDef
 	var err error
@@ -348,14 +316,11 @@ func run(cmd *cobra.Command, args []string) error {
 		llmCfg.OllamaURL = flagOllamaURL
 	}
 
-	// If the invoke_llm config has a system_prompt, use it as the agent prompt
-	// (unless --prompt or --prompt-string was explicitly provided).
-	if agentPrompt.Task == "" && agentPrompt.Role == "" {
-		if sp := llmCfg.SystemPrompt; sp != "" {
-			agentPrompt = prompt.Prompt{
-				Role:         sp,
-				OutputFormat: llmCfg.ToolPrompt,
-			}
+	var agentPrompt prompt.Prompt
+	if sp := llmCfg.SystemPrompt; sp != "" {
+		agentPrompt = prompt.Prompt{
+			Role:         sp,
+			OutputFormat: llmCfg.ToolPrompt,
 		}
 	}
 
@@ -424,10 +389,9 @@ func run(cmd *cobra.Command, args []string) error {
 	tracker := stl.NewToolTracker()
 
 	vars := map[string]string{
-		"model":         llmCfg.Model,
-		"directory":     flagDirectory,
-		"ollama_url":    llmCfg.OllamaURL,
-		"prompt_string": flagPromptString,
+		"model":      llmCfg.Model,
+		"directory":  flagDirectory,
+		"ollama_url": llmCfg.OllamaURL,
 	}
 
 	// Build registries

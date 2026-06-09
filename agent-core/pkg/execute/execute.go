@@ -74,17 +74,15 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 	)
 	defer done()
 
-	promptFile, err := writePromptFile(cfg.OTelDir, taskID, plan)
-	if err != nil {
+	taskFile := filepath.Join(worktreeDir, "doc", "task.yaml")
+	if err := writeTaskFile(taskFile, plan); err != nil {
 		child.RecordError(err)
-		return nil, fmt.Errorf("execute %s: write prompt: %w", taskID, err)
+		return nil, fmt.Errorf("execute %s: write task file: %w", taskID, err)
 	}
-	defer os.Remove(promptFile)
 
 	otelLogFile := filepath.Join(otelDir(cfg), fmt.Sprintf("agent-%s.otel.json", taskID))
 
 	args := []string{
-		"--prompt", promptFile,
 		"--directory", worktreeDir,
 		"--otel-log-file", otelLogFile,
 	}
@@ -126,30 +124,15 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 	return result, nil
 }
 
-func writePromptFile(dir, taskID string, plan any) (string, error) {
+func writeTaskFile(path string, plan any) error {
 	data, err := yaml.Marshal(plan)
 	if err != nil {
-		return "", fmt.Errorf("marshal plan: %w", err)
+		return fmt.Errorf("marshal plan: %w", err)
 	}
-	d := dir
-	if d == "" {
-		d = os.TempDir()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
 	}
-	f, err := os.CreateTemp(d, fmt.Sprintf("agent-prompt-%s-*.yaml", taskID))
-	if err != nil {
-		return "", err
-	}
-	path := f.Name()
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(path)
-		return "", err
-	}
-	if err := f.Close(); err != nil {
-		os.Remove(path)
-		return "", err
-	}
-	return path, nil
+	return os.WriteFile(path, data, 0o644)
 }
 
 func otelDir(cfg Config) string {
