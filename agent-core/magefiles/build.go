@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/magefile/mage/sh"
@@ -14,6 +15,8 @@ import (
 const binDir = "bin"
 
 // Build compiles all cmd/ binaries into bin/.
+// Packages with a ui/ subdirectory get their frontend built first and
+// are compiled with -tags production to embed the assets.
 func Build() error {
 	pkgs, err := discoverCmdPackages()
 	if err != nil {
@@ -29,12 +32,41 @@ func Build() error {
 	for _, pkg := range pkgs {
 		name := filepath.Base(pkg)
 		out := filepath.Join(binDir, name)
+		uiDir := filepath.Join("cmd", name, "ui")
+		args := []string{"build", "-o", out}
+
+		if hasUI(uiDir) {
+			fmt.Printf("installing frontend deps for %s\n", name)
+			if err := runInDir(uiDir, "npm", "install"); err != nil {
+				return fmt.Errorf("%s npm install: %w", name, err)
+			}
+			fmt.Printf("building frontend for %s\n", name)
+			if err := runInDir(uiDir, "npm", "run", "build"); err != nil {
+				return fmt.Errorf("%s frontend build: %w", name, err)
+			}
+			args = append(args, "-tags", "production")
+		}
+
+		args = append(args, pkg)
 		fmt.Printf("building %s → %s\n", pkg, out)
-		if err := sh.Run("go", "build", "-o", out, pkg); err != nil {
+		if err := sh.Run("go", args...); err != nil {
 			return fmt.Errorf("build %s: %w", pkg, err)
 		}
 	}
 	return nil
+}
+
+func hasUI(uiDir string) bool {
+	_, err := os.Stat(filepath.Join(uiDir, "package.json"))
+	return err == nil
+}
+
+func runInDir(dir string, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // Lint runs golangci-lint on the project.
