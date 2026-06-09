@@ -51,6 +51,7 @@ var serveCmd = &cobra.Command{
 		mux.HandleFunc("GET /api/v1/sessions/{suite}/{ts}", srv.handleGetSession)
 		mux.HandleFunc("GET /api/v1/sessions/{suite}/{ts}/points", srv.handleListPoints)
 		mux.HandleFunc("GET /api/v1/sessions/{suite}/{ts}/points/{pointId}", srv.handleGetTrace)
+		mux.HandleFunc("GET /api/v1/sessions/{suite}/{ts}/points/{pointId}/experiment", srv.handleGetExperiment)
 
 		mux.HandleFunc("GET /api/v1/configs", srv.handleListConfigs)
 		mux.HandleFunc("GET /api/v1/configs/{path...}", srv.handleGetConfig)

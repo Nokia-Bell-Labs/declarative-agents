@@ -448,3 +448,121 @@ tbody tr:hover {
   background: rgba(247, 183, 55, 0.15);
   color: #b8860b;
 }
+
+/* Experiment config panel */
+
+.config-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.config-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.config-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.config-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.config-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.config-section h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+
+.config-states,
+.config-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.config-state-badge {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: rgba(0, 90, 255, 0.08);
+  color: var(--accent);
+  border: 1px solid rgba(0, 90, 255, 0.2);
+}
+
+.config-tool-badge {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: rgba(55, 204, 115, 0.08);
+  color: var(--success);
+  border: 1px solid rgba(55, 204, 115, 0.2);
+}
+
+.config-prompt {
+  margin-top: 8px;
+}
+
+.config-prompt-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.config-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.config-toggle:hover {
+  background: var(--bg-tertiary);
+}

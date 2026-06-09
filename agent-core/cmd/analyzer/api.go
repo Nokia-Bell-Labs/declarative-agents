@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
+	"gopkg.in/yaml.v3"
 )
 
 type sessionSummary struct {
@@ -425,4 +426,41 @@ func convertSnapshots(snaps []stl.ToolSnapshot) []snapshotJSON {
 		}
 	}
 	return out
+}
+
+func (s *server) handleGetExperiment(w http.ResponseWriter, r *http.Request) {
+	suite := r.PathValue("suite")
+	ts := r.PathValue("ts")
+	pointID := r.PathValue("pointId")
+
+	dir := s.sessionDir(suite, ts)
+	if dir == "" {
+		writeError(w, http.StatusBadRequest, "invalid session path")
+		return
+	}
+
+	cleanPoint := filepath.Clean(pointID)
+	if strings.Contains(cleanPoint, string(filepath.Separator)) {
+		writeError(w, http.StatusBadRequest, "invalid point ID")
+		return
+	}
+
+	expPath := filepath.Join(dir, cleanPoint, "experiment.yaml")
+	data, err := os.ReadFile(expPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			writeError(w, http.StatusNotFound, "experiment.yaml not found for this point")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to read experiment config")
+		return
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to parse experiment config")
+		return
+	}
+
+	writeData(w, config)
 }
