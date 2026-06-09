@@ -10,3 +10,4 @@
 cmd/analyzer/ui/dist/
 cmd/analyzer/ui/node_modules/
 !cmd/analyzer/ui/dist/.gitkeep
+bin/
