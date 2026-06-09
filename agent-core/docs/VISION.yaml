@@ -124,14 +124,14 @@ success_criteria:
     checks, and dispatch outcomes. ToolMetrics on Result enable
     structured progress tracking.
   backward_compatibility: |
-    The generator (formerly harness) re-exports agent-core types via
-    type aliases. Existing code compiles without import changes.
+    The generator, planner, and evaluator are now configuration-only
+    repositories. All Go code lives in agent-core and is consumed by
+    the unified cmd/agent binary via YAML configurations.
 
 not:
-  - We do not define domain-specific states or signals.
-  - We do not implement an orchestrator or outer loop.
   - We do not define deployment, packaging, or container images.
-  - We do not provide a standalone executable; agent-core is a library.
+  - Domain-specific behavior is defined in YAML configurations, not in
+    Go code within the library packages.
 
 dependencies:
   direct:
