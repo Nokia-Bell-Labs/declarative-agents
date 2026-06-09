@@ -20,6 +20,7 @@ var serveCmd = &cobra.Command{
 		addr, _ := cmd.Flags().GetString("addr")
 		dataDir, _ := cmd.Flags().GetString("data")
 		configsDir, _ := cmd.Flags().GetString("configs")
+		profilesDir, _ := cmd.Flags().GetString("profiles-dir")
 
 		if dataDir != "" {
 			if abs, err := filepath.Abs(dataDir); err == nil {
@@ -31,10 +32,16 @@ var serveCmd = &cobra.Command{
 				configsDir = abs
 			}
 		}
+		if profilesDir != "" {
+			if abs, err := filepath.Abs(profilesDir); err == nil {
+				profilesDir = abs
+			}
+		}
 
 		srv := &server{
-			dataDir:    dataDir,
-			configsDir: configsDir,
+			dataDir:     dataDir,
+			configsDir:  configsDir,
+			profilesDir: profilesDir,
 		}
 
 		mux := http.NewServeMux()
@@ -45,9 +52,13 @@ var serveCmd = &cobra.Command{
 		mux.HandleFunc("GET /api/v1/sessions/{suite}/{ts}/points", srv.handleListPoints)
 		mux.HandleFunc("GET /api/v1/sessions/{suite}/{ts}/points/{pointId}", srv.handleGetTrace)
 
+		mux.HandleFunc("GET /api/v1/configs", srv.handleListConfigs)
+		mux.HandleFunc("GET /api/v1/configs/{path...}", srv.handleGetConfig)
+		mux.HandleFunc("GET /api/v1/profiles", srv.handleListProfiles)
+
 		mux.Handle("/", spaHandler(ui.Assets()))
 
-		log.Printf("analyzer listening on %s (data=%s, configs=%s)", addr, dataDir, configsDir)
+		log.Printf("analyzer listening on %s (data=%s, configs=%s, profiles=%s)", addr, dataDir, configsDir, profilesDir)
 		return http.ListenAndServe(addr, mux)
 	},
 }
@@ -56,11 +67,13 @@ func init() {
 	serveCmd.Flags().String("addr", ":8080", "listen address")
 	serveCmd.Flags().String("data", "", "path to eval-results directory")
 	serveCmd.Flags().String("configs", "", "path to configs directory")
+	serveCmd.Flags().String("profiles-dir", "pkg/llm/profiles", "path to LLM profiles directory")
 }
 
 type server struct {
-	dataDir    string
-	configsDir string
+	dataDir     string
+	configsDir  string
+	profilesDir string
 }
 
 func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
