@@ -306,7 +306,7 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 
 		if sig == ParseFailed {
 			consecutiveParseErrors++
-		} else {
+		} else if sig != ToolDone || (cmd.Name() != "report_parse_error" && cmd.Name() != "invoke_llm") {
 			consecutiveParseErrors = 0
 		}
 
