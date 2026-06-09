@@ -40,6 +40,10 @@ var serveCmd = &cobra.Command{
 		mux := http.NewServeMux()
 
 		mux.HandleFunc("GET /api/v1/health", srv.handleHealth)
+		mux.HandleFunc("GET /api/v1/sessions", srv.handleListSessions)
+		mux.HandleFunc("GET /api/v1/sessions/{suite}/{ts}", srv.handleGetSession)
+		mux.HandleFunc("GET /api/v1/sessions/{suite}/{ts}/points", srv.handleListPoints)
+		mux.HandleFunc("GET /api/v1/sessions/{suite}/{ts}/points/{pointId}", srv.handleGetTrace)
 
 		mux.Handle("/", spaHandler(ui.Assets()))
 
