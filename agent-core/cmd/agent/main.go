@@ -331,7 +331,7 @@ func run(cmd *cobra.Command, args []string) error {
 	var parser llm.ResponseParser
 	if llmCfg.Model != "" {
 		httpTimeout := 5 * time.Minute
-		if llmCfg.MaxTime > 0 && llmCfg.MaxTime < httpTimeout {
+		if llmCfg.MaxTime > httpTimeout {
 			httpTimeout = llmCfg.MaxTime
 		}
 		adapter, err = ollama.NewAdapter(llmCfg.OllamaURL, llmCfg.Model,
