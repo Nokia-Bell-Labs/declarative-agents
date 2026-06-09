@@ -1,16 +1,26 @@
 :root {
-  --bg-primary: #0d1117;
-  --bg-secondary: #161b22;
-  --bg-tertiary: #21262d;
-  --text-primary: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-tertiary: #6e7681;
-  --border: #30363d;
-  --accent: #58a6ff;
-  --success: #3fb950;
-  --danger: #f85149;
-  --warning: #d29922;
+  --bg-primary: #ffffff;
+  --bg-secondary: #ebebeb;
+  --bg-tertiary: #f5f5f5;
+  --text-primary: #001135;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --border: #dcdcdc;
+  --accent: #005aff;
+  --success: #37cc73;
+  --danger: #e23b3b;
+  --warning: #f7b737;
   --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+
+  --chart-white: #ffffff;
+  --chart-blue: #005aff;
+  --chart-teal: #23abb6;
+  --chart-green: #37cc73;
+  --chart-yellow: #f7b737;
+  --chart-orange: #747f31;
+  --chart-red: #e23b3b;
+  --chart-pink: #e03dcd;
+  --chart-purple: #7d33f2;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -25,11 +35,11 @@ body {
 .app-header {
   border-bottom: 1px solid var(--border);
   padding: 12px 24px;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
 }
 
 .app-title {
-  color: var(--text-primary);
+  color: var(--accent);
   text-decoration: none;
   font-weight: 600;
   font-size: 16px;
@@ -48,6 +58,7 @@ h1 {
   font-size: 24px;
   font-weight: 600;
   margin-bottom: 16px;
+  color: var(--text-primary);
 }
 
 h2 {
@@ -107,12 +118,12 @@ h2 {
   border-radius: 8px;
   padding: 16px;
   color: var(--text-primary);
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .session-card:hover {
   border-color: var(--accent);
-  background: var(--bg-tertiary);
+  box-shadow: 0 2px 8px rgba(0, 90, 255, 0.1);
   text-decoration: none;
 }
 
@@ -130,7 +141,7 @@ h2 {
 
 .session-ts {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
 }
 
@@ -154,14 +165,14 @@ h2 {
 
 .stat-label {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .pass-bar {
   height: 4px;
-  background: var(--bg-tertiary);
+  background: var(--border);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 6px;
@@ -199,11 +210,12 @@ h2 {
   font-size: 32px;
   font-weight: 700;
   line-height: 1.2;
+  color: var(--text-primary);
 }
 
 .summary-label {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -302,17 +314,17 @@ tbody tr:hover {
 }
 
 .cell-pass {
-  background: rgba(63, 185, 80, 0.25);
+  background: rgba(55, 204, 115, 0.15);
   color: var(--success);
 }
 
 .cell-fail {
-  background: rgba(248, 81, 73, 0.25);
+  background: rgba(226, 59, 59, 0.15);
   color: var(--danger);
 }
 
 .cell-timeout {
-  background: rgba(210, 153, 34, 0.25);
+  background: rgba(247, 183, 55, 0.15);
   color: var(--warning);
 }
 
@@ -369,23 +381,23 @@ tbody tr:hover {
 }
 
 .badge-llm {
-  background: rgba(88, 166, 255, 0.2);
+  background: rgba(0, 90, 255, 0.12);
   color: var(--accent);
 }
 
 .badge-tool {
-  background: rgba(63, 185, 80, 0.2);
+  background: rgba(55, 204, 115, 0.12);
   color: var(--success);
 }
 
 .badge-other {
-  background: rgba(139, 148, 158, 0.2);
+  background: rgba(102, 102, 102, 0.12);
   color: var(--text-secondary);
 }
 
 .timeline-bar-container {
   height: 8px;
-  background: var(--bg-tertiary);
+  background: var(--border);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -426,13 +438,13 @@ tbody tr:hover {
 .timeline-tokens {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .timeline-signal {
   font-size: 11px;
   padding: 1px 5px;
   border-radius: 3px;
-  background: rgba(210, 153, 34, 0.2);
-  color: var(--warning);
+  background: rgba(247, 183, 55, 0.15);
+  color: #b8860b;
 }

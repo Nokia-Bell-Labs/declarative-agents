@@ -106,6 +106,10 @@ func (s *server) sessionDir(suite, ts string) string {
 func (s *server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	suites, err := os.ReadDir(s.dataDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			writeData(w, []sessionSummary{})
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "failed to read data directory")
 		return
 	}

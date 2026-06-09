@@ -215,6 +215,10 @@ func (s *server) handleListProfiles(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := os.ReadDir(s.profilesDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			writeData(w, []profileEntry{})
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "failed to read profiles directory")
 		return
 	}

@@ -94,12 +94,12 @@ export default function SessionDetail() {
       <div style={{ width: '100%', height: 250 }}>
         <ResponsiveContainer>
           <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-            <XAxis dataKey="name" tick={{ fill: '#8b949e', fontSize: 12 }} />
-            <YAxis tick={{ fill: '#8b949e', fontSize: 12 }} />
-            <Tooltip contentStyle={{ background: '#161b22', border: '1px solid #30363d', color: '#e6edf3' }} />
+            <XAxis dataKey="name" tick={{ fill: '#666666', fontSize: 12 }} />
+            <YAxis tick={{ fill: '#666666', fontSize: 12 }} />
+            <Tooltip contentStyle={{ background: '#ebebeb', border: '1px solid #dcdcdc', color: '#001135' }} />
             <Bar dataKey="passed" radius={[4, 4, 0, 0]}>
               {chartData.map((entry, i) => (
-                <Cell key={i} fill={entry.passed === entry.total ? '#3fb950' : entry.passed >= entry.total * 0.7 ? '#58a6ff' : '#f85149'} />
+                <Cell key={i} fill={entry.passed === entry.total ? '#37cc73' : entry.passed >= entry.total * 0.7 ? '#005aff' : '#e23b3b'} />
               ))}
             </Bar>
           </BarChart>
