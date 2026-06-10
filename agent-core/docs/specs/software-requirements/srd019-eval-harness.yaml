@@ -1,0 +1,92 @@
+id: srd019-eval-harness
+title: Evaluation Harness Infrastructure
+
+problem: |
+  Running reproducible benchmarks across multiple LLM models and coding
+  tasks requires orchestrating workspace preparation, agent subprocess
+  execution, result validation, metrics collection, and configuration
+  snapshotting. Without a shared harness, each benchmark script
+  reimplements this pipeline with inconsistent result formats and no
+  configuration traceability.
+
+goals:
+  - G1: Provide a deterministic evaluation pipeline driven by the core state machine.
+  - G2: Support grid evaluation across models, samples, grid parameters, and repetitions.
+  - G3: Capture full experiment configuration alongside results for reproducibility.
+  - G4: Produce structured metrics (meta.json) and trace data (trace.ndjson) per evaluation point.
+  - G5: Analyze results with convergence tracking, model statistics, and detailed breakdowns.
+
+requirements:
+  R1:
+    title: Suite configuration
+    items:
+      - R1.1: SuiteConfig defines name, harnesses, models, grid parameters, samples directory, timeout, and repetitions.
+      - R1.2: Harness specifies a binary, flag templates, and optional grid parameter interpolation via ${param} syntax.
+      - R1.3: DiscoverSamples scans a directory for subdirectories containing workspace/ and prompt.yaml files.
+      - R1.4: LoadSuite reads a YAML suite file and resolves samples relative to the suite's base directory.
+      - R1.5: expandGrid generates the Cartesian product of all grid parameter values.
+
+  R2:
+    title: Evaluation session execution
+    items:
+      - R2.1: RunSession iterates the grid of (harness, model, gridPoint, sample, repetition) and runs each point through core.Loop.
+      - R2.2: PointContext holds per-point mutable state (directories, trace path, tokens, results, timing).
+      - R2.3: EvalState is the shared state container whose PC field is updated before each point's loop run.
+      - R2.4: SessionResult and PointResult capture aggregate and per-point outcomes.
+
+  R3:
+    title: Evaluation tools
+    items:
+      - R3.1: prepare_workspace creates the point directory, copies sample workspace and docs, initializes git, and commits a baseline.
+      - R3.2: dump_config serializes the resolved configuration (machine, tools, tool declarations, LLM config, model, budget) into experiment.yaml.
+      - R3.3: run_agent executes the harness binary as a subprocess with flag propagation, timeout, and OTel context.
+      - R3.4: check_results runs oracle tests and parses trace files for token counts and version verification.
+      - R3.5: collect_metrics writes meta.json with exit code, duration, test results, token counts, and convergence data.
+
+  R4:
+    title: Result analysis
+    items:
+      - R4.1: LoadMultiple reads meta.json and trace.ndjson from session directories into EvalRunResult groups.
+      - R4.2: ComputeModelStats aggregates per-model success rate, clean rate, recovery rate, stuck rate, mean iterations, tokens, and duration.
+      - R4.3: ComputeDetailed produces per-sample-per-model breakdowns.
+      - R4.4: ConvergenceTracker classifies tool call patterns as Clean, Recovery, Stuck, or Divergent based on edit-test-pass sequences.
+
+  R5:
+    title: Trace and span utilities
+    items:
+      - R5.1: ReadTraceFile parses OTLP JSON ndjson files into Span structs.
+      - R5.2: ExtractToolSnapshots extracts ordered tool call summaries from spans.
+      - R5.3: StrAttr and IntAttr extract typed attribute values from spans.
+      - R5.4: AgentVersion extracts the agent.version attribute from trace spans.
+
+non_goals:
+  - LLM-based evaluation (the evaluator is deterministic, no LLM calls).
+  - Parallel point execution within a single session.
+  - Automatic model management (pulling/loading Ollama models).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: RunSession executes all grid points and produces SessionResult with correct pass/fail/timeout counts.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC2
+    criterion: Each evaluation point creates an isolated workspace with git baseline, experiment.yaml config snapshot, trace.ndjson, and meta.json.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+
+  - id: AC3
+    criterion: ComputeModelStats and ComputeDetailed produce accurate statistics from session results.
+    traces: [R4.1, R4.2, R4.3]
+
+  - id: AC4
+    criterion: ConvergenceTracker correctly classifies agent behavior patterns from trace data.
+    traces: [R4.4]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Command, Result, Signal, Builder]
+  - srd_id: srd005-agentic-loop
+    symbols_used: [Loop, LoopParams, Budget]
+  - srd_id: srd006-yaml-machine-config
+    symbols_used: [MachineSpec, LoadMachineSpec]
+  - srd_id: srd013-standard-tool-library
+    symbols_used: [BuiltinRegistry, RegisterSingleBuiltin]

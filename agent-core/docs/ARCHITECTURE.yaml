@@ -427,7 +427,7 @@ project_structure:
     - path: configs/validate/
       role: Validation agent — machine.yaml, tools.yaml
     - path: configs/tools/
-      role: Shared tool declarations — builtin.yaml (28 tools), exec.yaml (17 tools)
+      role: Shared tool declarations — builtin.yaml (26 tools), exec.yaml (16 tools)
     - path: pkg/llm/profiles/
       role: Embedded LLM response profiles (9 model families)
 
@@ -456,12 +456,12 @@ implementation_status:
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, validator
     - done: Analyzer web UI (cmd/analyzer) — embedded React frontend for eval results
-    - done: YAML tool definitions — builtin.yaml (28 tools), exec.yaml (17 tools)
+    - done: YAML tool definitions — builtin.yaml (26 declared, 28 registered in Go), exec.yaml (16 tools)
     - done: Agent configurations — generator, evaluator, planner, validate machine/tools/llm
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats
     - done: cobbler-scaffold dependency removed
-    - done: 514 tests passing across 14 packages
+    - done: 554 tests passing across 16 packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd018)
 
 related_documents:

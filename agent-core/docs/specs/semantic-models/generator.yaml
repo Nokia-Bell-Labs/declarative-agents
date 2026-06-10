@@ -63,18 +63,25 @@ signals:
     trigger: Iteration or token budget limit reached.
 
 lifecycle: |
-  1. Idle → Composing: invoke_llm with the task prompt
-  2. Composing → Parsing: LLM responds, parse the output
-  3. Parsing → Composing ($tool): extracted tool call is dispatched
-  4. Composing → Composing: tool result fed back to LLM (invoke_llm)
+  1. Idle → Composing (Seed): invoke_llm with the task prompt
+  2. Composing → Parsing (LLMResponded): parse_response extracts tool call
+  3. Parsing → Composing (ToolDone via $tool): dispatched tool result
+     feeds back — the $tool sentinel resolves the tool name from the
+     parsed LLM output at dispatch time
+  4. Composing → Composing (ToolDone): invoke_llm sends tool result to LLM
   5. Composing → Composing (EditDone): nudge_reread after file edits
-  6. Parsing → Composing (ParseFailed): report_parse_error to LLM
-  7. Parsing → ValidatingBuild (TaskCompleted): run validate
-  8. ValidatingBuild → Succeeded/Failed: based on validation outcome
+  6. Composing → Composing (ToolFailed): invoke_llm sends failure to LLM
+  7. Parsing → Composing (ParseFailed): report_parse_error to LLM
+  8. Parsing → ValidatingBuild (TaskCompleted): parse_response recognized
+     the done tool — validate runs build, vet, lint, test
+  9. ValidatingBuild → Succeeded (ValidationPassed)
+  10. ValidatingBuild → Failed (ValidationFailed)
+  11. Composing → BudgetExceeded (BudgetExhausted)
 
   The agent loops between Composing and Parsing, making tool calls
   (read, write, edit, find, list_files, build, test, lint) until
   the LLM calls done. After done, validation determines success.
+  CommandError in any state transitions to Failed.
 
 budget:
   max_iterations: 100

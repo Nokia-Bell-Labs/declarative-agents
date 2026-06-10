@@ -3,9 +3,10 @@ title: Evaluator Agent Semantic Model
 
 purpose: |
   The evaluator orchestrates a single evaluation point: it prepares
-  a workspace, invokes the generator agent as a subprocess, checks
-  the results, and collects metrics. The evaluator does NOT use an
-  LLM — it is a deterministic pipeline that sequences four tools.
+  a workspace, snapshots the experiment configuration, invokes the
+  generator agent as a subprocess, checks the results, and collects
+  metrics. The evaluator does NOT use an LLM — it is a deterministic
+  pipeline that sequences five tools.
 
   The eval subcommand of cmd/agent runs multiple evaluator instances
   across a grid of (sample, model) pairs defined in a suite YAML.
@@ -25,6 +26,11 @@ states:
     meaning: |
       Creating a temporary directory, initializing git, and copying
       sample files into the workspace.
+  - name: SnapshotConfig
+    meaning: |
+      Serializing the full experiment configuration (harness, model,
+      tools, tool declarations, LLM config, budget) into a single
+      experiment.yaml file in the point directory for reproducibility.
   - name: RunningAgent
     meaning: |
       The generator agent is running as a subprocess in the prepared
@@ -47,6 +53,8 @@ signals:
     trigger: Loop initialization.
   - name: WorkspaceReady
     trigger: Workspace preparation completed.
+  - name: ConfigDumped
+    trigger: Experiment configuration snapshot written to experiment.yaml.
   - name: HarnessFinished
     trigger: The generator agent exited normally (exit code 0).
   - name: HarnessFailed
@@ -62,14 +70,16 @@ signals:
 
 lifecycle: |
   1. Idle → PreparingWorkspace: prepare_workspace
-  2. PreparingWorkspace → RunningAgent: run_agent
-  3. RunningAgent → CheckingResults: check_results (on any outcome)
-  4. CheckingResults → CollectingMetrics: collect_metrics
-  5. CollectingMetrics → Done
+  2. PreparingWorkspace → SnapshotConfig: dump_config
+  3. SnapshotConfig → RunningAgent: run_agent
+  4. RunningAgent → CheckingResults: check_results (on any outcome)
+  5. CheckingResults → CollectingMetrics: collect_metrics
+  6. CollectingMetrics → Done
 
   This is a linear pipeline — no loops, no LLM calls, no branching
   except for error handling. All three agent outcomes (finished,
-  failed, timed out) proceed to result checking.
+  failed, timed out) proceed to result checking. The config snapshot
+  step captures the full experiment configuration for reproducibility.
 
 budget:
   max_iterations: 10
@@ -77,6 +87,7 @@ budget:
 tools_required:
   builtin:
     - prepare_workspace
+    - dump_config
     - run_agent
     - check_results
     - collect_metrics

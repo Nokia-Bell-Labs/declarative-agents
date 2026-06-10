@@ -33,7 +33,7 @@ releases:
       - YAML state machine configs for generator, evaluator, planner,
         and validator (configs/*/machine.yaml)
       - YAML tool declarations replacing Go tool implementations
-        (configs/tools/builtin.yaml with 28 tools, exec.yaml with 17)
+        (configs/tools/builtin.yaml with 26 tools, exec.yaml with 16)
       - Per-model LLM tool configurations (configs/*/llm/*.yaml)
       - LLM response profiles for 9 model families (pkg/llm/profiles/)
       - Planner pipeline packages (pkg/pipeline, pkg/plan, pkg/extract,
@@ -43,7 +43,7 @@ releases:
       - Evaluator benchmark infrastructure (eval suites, result analysis)
       - Analyzer web UI (cmd/analyzer) with embedded React frontend
       - Native Mage build targets replacing cobbler-scaffold dependency
-      - 514 tests across 14 packages
+      - 554 tests across 16 packages
     status: done
     use_cases:
       - id: rel01.0-uc001-generator-coding

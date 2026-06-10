@@ -12,9 +12,11 @@ problem: |
 goals:
   - G1: Shared file tools (read, write, edit, find, list_files) confined to a workspace root.
   - G2: Shared build tools (build, vet, lint, test) for Go projects.
-  - G3: LLM interaction commands (invoke_llm, parse_response, done) with tracing.
+  - G3: LLM interaction commands (invoke_llm, parse_response, report_parse_error, reset_history, nudge_reread, done) with tracing.
   - G4: Subprocess execution utilities with process group management.
-  - G5: Batch registration helpers (RegisterFileTools, RegisterBuildTools, RegisterAll).
+  - G5: YAML-based tool registration via BuiltinRegistry and tool declaration files.
+  - G6: Evaluation harness tools (prepare_workspace, dump_config, run_agent, check_results, collect_metrics).
+  - G7: Code validation tool (validate) for build/vet/lint/test pipeline.
 
 requirements:
   R1:
@@ -62,16 +64,39 @@ requirements:
       - R7.2: ParseBuildMetrics extracts unique file-level error counts from go build output.
 
   R5:
-    title: Registration helpers
+    title: Tool registration
     items:
-      - R5.1: RegisterFileTools registers all file tools scoped to a root directory.
-      - R5.2: RegisterBuildTools registers all build tools scoped to a root directory.
-      - R5.3: RegisterAll registers both file and build tools.
+      - R5.1: BuiltinRegistry maps tool init names to factory functions that produce core.Builder instances.
+      - R5.2: Tool declaration YAML files (builtin.yaml, exec.yaml) define tool metadata (name, type, init, visibility, description, parameters).
+      - R5.3: RegisterSingleBuiltin resolves a ToolDef against the BuiltinRegistry and registers the resulting Builder in the core.Registry.
+      - R5.4: LoadToolDefs parses YAML tool declaration files and returns ToolDef slices.
+      - R5.5: Legacy RegisterFileTools, RegisterBuildTools, and RegisterAll helpers remain for programmatic use.
 
   R6:
     title: Workspace utilities
     items:
       - R6.1: ValidatePath normalizes paths against the workspace root, resolves symlinks, and rejects escapes.
+
+  R8:
+    title: Validation tool
+    items:
+      - R8.1: validate runs build, vet, lint, and test as a composite validation pipeline.
+      - R8.2: validate emits ValidationPassed or ValidationFailed signal based on combined results.
+
+  R9:
+    title: Nudge and done tools
+    items:
+      - R9.1: nudge_reread appends a re-read instruction after file edits to prompt the model to verify changes.
+      - R9.2: done is a standalone builtin tool that signals TaskCompleted with a summary message.
+
+  R10:
+    title: Evaluation harness tools
+    items:
+      - R10.1: prepare_workspace creates a point directory, copies sample workspace and doc files, initializes git, and creates a baseline commit.
+      - R10.2: dump_config serializes the full experiment configuration (harness, model, tools, tool declarations, LLM config, budget) into experiment.yaml.
+      - R10.3: run_agent executes the generator binary as a subprocess with flag propagation and collects exit code, timing, and output.
+      - R10.4: check_results runs oracle tests and parses trace files to extract token usage and version information.
+      - R10.5: collect_metrics writes evaluation metadata (exit code, duration, test results, tokens) to meta.json.
 
 non_goals:
   - Domain-specific tools (those are registered by individual agents).
@@ -100,8 +125,16 @@ acceptance_criteria:
     traces: [R7.1, R7.2]
 
   - id: AC5
-    criterion: RegisterFileTools, RegisterBuildTools, and RegisterAll register tools in bulk with workspace scoping.
-    traces: [R5.1, R5.2, R5.3]
+    criterion: BuiltinRegistry maps init names to factory functions. YAML tool declarations are loaded via LoadToolDefs and registered via RegisterSingleBuiltin. Legacy Register* helpers remain available.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+
+  - id: AC8
+    criterion: validate runs build/vet/lint/test and emits ValidationPassed or ValidationFailed. nudge_reread appends re-read instructions. done signals TaskCompleted.
+    traces: [R8.1, R8.2, R9.1, R9.2]
+
+  - id: AC9
+    criterion: Evaluation harness tools (prepare_workspace, dump_config, run_agent, check_results, collect_metrics) orchestrate a complete evaluation point lifecycle with workspace isolation and config snapshotting.
+    traces: [R10.1, R10.2, R10.3, R10.4, R10.5]
 
 depends_on:
   - srd_id: srd001-core-types
