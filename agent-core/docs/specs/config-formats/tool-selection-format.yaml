@@ -1,0 +1,83 @@
+id: cfg-tool-selection-format
+title: Tool Selection Format (tools.yaml)
+
+purpose: |
+  Defines the simple name-list format used by each agent's tools.yaml
+  to select which declared tools are available to that agent. This
+  separates tool declaration (what a tool is and how it works) from
+  tool selection (which tools a specific agent can use), enabling
+  tool reuse across agents with different toolsets.
+
+schema:
+  - field: tools
+    type: "[]string"
+    required: true
+    description: |
+      List of tool names to make available to the agent. Each name
+      must match a tool declared in the loaded tool declaration files
+      (builtin.yaml, exec.yaml, or llm/*.yaml). Unknown names cause
+      a startup error.
+
+cli_mapping:
+  description: |
+    Tool files are loaded through CLI flags that separate declaration
+    from selection. The flag mapping determines how the agent resolves
+    its available tool set at startup.
+  flags:
+    - flag: --tools-declaration
+      repeatable: true
+      description: |
+        Paths to tool declaration files (e.g. configs/tools/builtin.yaml,
+        configs/tools/exec.yaml, configs/generator/llm/default.yaml).
+        Can be specified multiple times to load declarations from
+        multiple files. All declarations are merged into a single
+        registry.
+
+    - flag: --tools
+      repeatable: false
+      description: |
+        Path to the tool selection file (tools.yaml). The agent will
+        only have access to tools whose names appear in this file's
+        tools list.
+
+    - flag: (legacy mode)
+      description: |
+        When no --tools-declaration flag is provided, the --tools
+        file is treated as a legacy full-definition file containing
+        both declarations and selections inline. This supports the
+        configs/validate/tools.yaml pattern.
+
+selection_files:
+  - file: configs/generator/tools.yaml
+    tool_count: 17
+    description: |
+      Selects file operations (read, write, edit, find, list_files),
+      build tools (build, vet, lint, test), git tools, and internal
+      pipeline tools for the LLM-driven coding loop.
+
+  - file: configs/evaluator/tools.yaml
+    tool_count: 5
+    description: |
+      Selects the minimal set needed for evaluation: prepare_workspace,
+      invoke_generator, score, report, and cleanup.
+
+  - file: configs/planner/tools.yaml
+    tool_count: 24
+    description: |
+      Selects the broadest toolset including all generator tools plus
+      planning-specific tools (decompose, prioritize, estimate,
+      assign) for multi-step task orchestration.
+
+  - file: configs/validate/tools.yaml
+    tool_count: 3
+    description: |
+      Contains 3 inline tool declarations (build, vet_lint, test)
+      rather than using the name-list selection format. This is the
+      legacy inline pattern; see cfg-tool-declaration-format for
+      details.
+
+related_documents:
+  - cfg-tool-declaration-format
+  - srd013
+
+implementation: pkg/stl/exectool.go

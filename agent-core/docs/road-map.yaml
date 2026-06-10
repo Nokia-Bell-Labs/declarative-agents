@@ -41,7 +41,7 @@ releases:
       - Agent execution with process groups (pkg/execute)
       - Git worktree management (pkg/worktree)
       - Evaluator benchmark infrastructure (eval suites, result analysis)
-      - Analyzer web UI (cmd/analyzer) with embedded React frontend
+      - Bench web UI (cmd/bench) with embedded React frontend
       - Native Mage build targets replacing cobbler-scaffold dependency
       - 554 tests across 16 packages
     status: done
@@ -52,6 +52,6 @@ releases:
       - id: rel01.0-uc002-evaluator-benchmark
         summary: Evaluator runs generator across models and collects results
         status: done
-      - id: rel01.0-uc003-analyzer-visualization
-        summary: Analyzer serves web UI for evaluation result exploration
+      - id: rel01.0-uc003-bench-visualization
+        summary: Bench serves web UI for evaluation result exploration
         status: done

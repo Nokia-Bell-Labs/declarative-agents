@@ -7,7 +7,7 @@ overview:
     unified binary (cmd/agent) drives four agent types — generator,
     evaluator, planner, and validator — each defined entirely by YAML
     configuration files (state machines, tool selections, LLM configs).
-    A companion binary (cmd/analyzer) serves an embedded web UI for
+    A companion binary (cmd/bench) serves an embedded web UI for
     visualizing evaluation results.
 
     The framework is organized in three layers:
@@ -44,6 +44,72 @@ overview:
     (configs/*/llm/*.yaml). The configurations ARE the agents — no Go
     code changes are needed to modify agent behavior.
 
+  layer_diagram: |
+    ```mermaid
+    graph TD
+      subgraph Configuration
+        C1[generator]
+        C2[evaluator]
+        C3[planner]
+        C4[validator]
+        C5[tools]
+      end
+
+      subgraph Binaries
+        B1[agent]
+        B2[bench]
+      end
+
+      subgraph Domain
+        D1[pipeline]
+        D2[plan]
+        D3[extract]
+        D4[graph]
+        D5[execute]
+        D6[worktree]
+        D7[materialize]
+        D8[spec]
+      end
+
+      subgraph Infrastructure
+        I1[llm]
+        I2[prompt]
+        I3[stl]
+        I4[telemetry]
+        I5[tracing]
+        I6[cli]
+        I7[subprocess]
+      end
+
+      subgraph Engine
+        E1[core]
+      end
+
+      C1 --> B1
+      C2 --> B1
+      C3 --> B1
+      C4 --> B1
+      C5 --> B1
+      B1 --> D1
+      B1 --> D5
+      B1 --> D6
+      B1 --> I1
+      B1 --> I2
+      B1 --> I3
+      B1 --> I4
+      B2 --> I3
+      D1 --> D2
+      D1 --> D3
+      D1 --> D7
+      D3 --> D4
+      D5 --> I7
+      D5 --> I6
+      I1 --> E1
+      I3 --> E1
+      I4 --> I5
+      E1 --> I5
+    ```
+
   lifecycle: |
     A run proceeds through three phases.
 
@@ -63,6 +129,24 @@ overview:
     Completion. Loop sets Duration, logs a summary, and returns
     RunResult to the caller. The domain agent can extend RunResult
     with its own fields by embedding core.RunResult.
+
+  loop_flow: |
+    ```mermaid
+    flowchart TD
+      A[Initialize Registry] --> B[Configure Budget]
+      B --> C[core.Loop]
+      C --> D{Context cancelled}
+      D -->|Yes| J[StatusCancelled]
+      D -->|No| E{Budget exceeded}
+      E -->|Yes| K[StatusBudgetExceeded]
+      E -->|No| F[StateMachine.Step]
+      F --> G{Terminal state}
+      G -->|Yes| L[Resolve RunStatus]
+      G -->|No| H[Dispatch Command]
+      H --> I[Accumulate cost]
+      I --> D
+      L --> M[Return RunResult]
+    ```
 
   coordination_pattern: |
     Work flows through the state machine. The loop holds the current
@@ -103,7 +187,7 @@ overview:
     - pkg/cli depends on the Go standard library.
     - cmd/agent imports pkg/core, pkg/stl, pkg/llm, pkg/prompt,
       pkg/telemetry, pkg/cli, and pkg/pipeline.
-    - cmd/analyzer imports pkg/stl for evaluation result analysis.
+    - cmd/bench imports pkg/stl for evaluation result analysis.
 
 interfaces:
   - name: Tracer interface
@@ -372,7 +456,7 @@ project_structure:
   binaries:
     - path: cmd/agent/
       role: Unified agent binary — generator, evaluator, planner, validator modes via YAML config
-    - path: cmd/analyzer/
+    - path: cmd/bench/
       role: Evaluation results web UI with embedded React frontend
 
   engine:
@@ -455,7 +539,7 @@ implementation_status:
     - done: Worktree management (pkg/worktree) — git worktree lifecycle
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, validator
-    - done: Analyzer web UI (cmd/analyzer) — embedded React frontend for eval results
+    - done: Bench web UI (cmd/bench) — embedded React frontend for eval results
     - done: YAML tool definitions — builtin.yaml (26 declared, 28 registered in Go), exec.yaml (16 tools)
     - done: Agent configurations — generator, evaluator, planner, validate machine/tools/llm
     - done: LLM profiles — 9 model families with extraction pipelines

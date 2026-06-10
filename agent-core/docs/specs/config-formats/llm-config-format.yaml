@@ -1,0 +1,140 @@
+id: cfg-llm-config-format
+title: LLM Configuration Format (llm/*.yaml)
+
+purpose: |
+  Defines the per-model invoke_llm tool declaration format used under
+  each agent's llm/ directory. Each file configures a single model
+  variant as a builtin tool declaration with an invoke_llm config
+  block containing model, provider, endpoint, and prompt settings.
+
+schema:
+  description: |
+    Each LLM config file is a standard tool declaration file containing
+    a single tool entry. The tool always uses the same fixed identity
+    fields, with variation in the config block.
+  fields:
+    - field: name
+      type: string
+      required: true
+      description: |
+        Always "invoke_llm". This is the fixed tool name that machine
+        transitions reference to trigger LLM calls.
+
+    - field: type
+      type: string
+      required: true
+      description: |
+        Always "builtin". LLM invocation is a compiled-in capability.
+
+    - field: init
+      type: string
+      required: true
+      description: |
+        Always "invoke_llm". Maps to the invoke_llm factory in the
+        BuiltinRegistry.
+
+    - field: visibility
+      type: string
+      required: true
+      description: |
+        Always "internal". The invoke_llm tool is called by machine
+        transitions, not by the LLM itself. Hiding it from the LLM's
+        tool list prevents recursive self-invocation.
+
+    - field: config
+      type: object
+      required: true
+      description: |
+        Model-specific configuration passed to the invoke_llm factory.
+        This is where each file differs.
+      sub_fields:
+        - field: model
+          type: string
+          required: true
+          description: |
+            Model name as recognized by the provider (e.g.
+            "deepseek-r1:8b", "devstral:24b", "gemma3:27b").
+
+        - field: provider
+          type: string
+          required: true
+          description: |
+            LLM provider backend. Currently "ollama" is the primary
+            provider. Determines which client implementation is used
+            to make API calls.
+
+        - field: provider_url
+          type: string
+          required: true
+          description: |
+            Endpoint URL for the provider API (e.g.
+            "http://localhost:11434"). Used by the provider client
+            to route requests.
+
+        - field: system_prompt
+          type: string
+          required: false
+          description: |
+            System prompt prepended to the conversation. Sets the
+            agent's persona, constraints, and output format
+            expectations.
+
+        - field: tool_prompt
+          type: string
+          required: false
+          description: |
+            Additional prompt section describing available tools and
+            how to format tool calls. Used by the planner agent to
+            inject tool-use instructions into the LLM context.
+
+        - field: max_time
+          type: int
+          required: false
+          description: |
+            Maximum response time in seconds. If the model does not
+            respond within this limit, the call is cancelled and
+            treated as a failure.
+
+per_model_pattern: |
+  Each file under an agent's llm/ directory configures a different
+  model variant. The file name (e.g. default.yaml, deepseek.yaml,
+  devstral.yaml) identifies the variant but has no semantic meaning
+  to the system — all configuration comes from the fields inside.
+
+  The evaluator uses these files to build a grid of (sample, model)
+  pairs for benchmarking. By loading multiple llm/*.yaml files, the
+  evaluator can run the same coding task against different models and
+  compare their outputs. The generator and planner typically load a
+  single variant selected at invocation time.
+
+config_files:
+  - directory: configs/generator/llm/
+    variant_count: 9
+    description: |
+      Model variants for the generator agent: default, deepseek,
+      devstral, gemma4, gemma3, qwen3, codellama, mistral, and
+      llama3. Each configures a different local model via Ollama
+      with generator-specific system prompts.
+
+  - directory: configs/evaluator/llm/
+    variant_count: 10
+    description: |
+      Model variants for the evaluator's benchmark grid. Includes
+      the same models as the generator plus additional variants.
+      The evaluator iterates over all files in this directory to
+      build the evaluation matrix.
+
+  - directory: configs/planner/llm/
+    variant_count: 1
+    description: |
+      Single variant (default.yaml) for the planner agent. Includes
+      both system_prompt and tool_prompt fields since the planner
+      injects tool-use instructions into the LLM context.
+
+related_documents:
+  - cfg-tool-declaration-format
+  - srd017
+  - sm-generator
+  - sm-evaluator
+
+implementation: pkg/llm/ollama

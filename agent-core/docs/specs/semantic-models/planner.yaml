@@ -73,6 +73,25 @@ lifecycle: |
   The outer loop (Extracting → ... → CheckingResult → Extracting)
   repeats until the graph is fully resolved.
 
+pipeline_diagram: |
+  ```mermaid
+  flowchart TD
+    A[Idle] -->|Seed| B[Extracting]
+    B -->|TaskExtracted| C[Resetting]
+    C --> D[PromptAssembly]
+    D --> E[PlanInvoking]
+    E --> F[PlanParsing]
+    F --> G[Materializing]
+    G --> H[Executing]
+    H --> I[Vet / Build / Test]
+    I --> J[CheckingResult]
+    J -->|Success| B
+    J -->|Retry| C
+    B -->|AllDone| K[Completed]
+    B -->|AllBlocked| L[Stalled]
+    B -->|BatchLimit| M[Paused]
+  ```
+
 tools_required:
   builtin:
     - extract_task, extract_all

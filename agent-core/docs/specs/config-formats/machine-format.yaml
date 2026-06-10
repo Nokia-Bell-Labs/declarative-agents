@@ -1,0 +1,158 @@
+id: cfg-machine-format
+title: Machine Configuration Format (machine.yaml)
+
+purpose: |
+  Defines the MachineSpec YAML schema used by all four agents (generator,
+  evaluator, planner, validator). Each machine.yaml declares the finite
+  state machine that drives an agent's execution loop: its states,
+  signals, transitions, actions, and budget constraints.
+
+schema:
+  - field: name
+    type: string
+    required: true
+    description: |
+      Unique agent identifier. Used in logging, metrics, and
+      cross-references between agents.
+
+  - field: initial_state
+    type: string
+    required: true
+    description: |
+      The state the machine enters on startup. Must reference a state
+      present in the states list.
+
+  - field: budget
+    type: object
+    required: false
+    description: |
+      Resource limits that bound the agent's execution. When any
+      budget limit is reached, the machine transitions via the
+      BudgetExhausted signal.
+    sub_fields:
+      - field: max_iterations
+        type: int
+        description: Maximum number of state transitions before halting.
+      - field: max_tokens
+        type: int
+        description: Maximum total tokens consumed across all LLM calls.
+      - field: max_duration
+        type: duration string
+        description: |
+          Wall-clock time limit (e.g. "5m0s"). The machine is halted
+          when this duration elapses.
+      - field: max_consecutive_parse_errors
+        type: int
+        description: |
+          Maximum consecutive LLM parse failures before the machine
+          gives up and transitions to a terminal state.
+
+  - field: states
+    type: "[]string"
+    required: true
+    description: |
+      List of valid state names. Every state referenced in transitions,
+      initial_state, and terminal_states must appear here.
+
+  - field: terminal_states
+    type: "[]string"
+    required: true
+    description: |
+      Subset of states where the machine halts. Once the machine
+      enters a terminal state, no further transitions are processed.
+
+  - field: signals
+    type: "[]string"
+    required: true
+    description: |
+      List of valid signal names. Signals are emitted by tool
+      completions, errors, and internal events to trigger transitions.
+
+  - field: transitions
+    type: "[]object"
+    required: true
+    description: |
+      The transition table. Each entry maps a (state, signal) pair to
+      a next state and an optional action.
+    sub_fields:
+      - field: state
+        type: string
+        description: Current state the machine must be in.
+      - field: signal
+        type: string
+        description: Signal that triggers this transition.
+      - field: next
+        type: string
+        description: Target state after the transition.
+      - field: action
+        type: string
+        description: |
+          Tool to execute during the transition. See action_semantics
+          for the three modes. May be omitted for terminal transitions.
+
+action_semantics:
+  - mode: Named tool
+    description: |
+      A literal tool name (e.g. invoke_llm, prepare_workspace, validate).
+      The tool is resolved from the tool registry at build time via
+      BuildTransitionTable. If the name is not found, the build fails.
+    example: invoke_llm
+
+  - mode: $tool
+    description: |
+      Dynamic dispatch sentinel. At runtime, the actual tool name is
+      extracted from the parsed LLM output. This enables the LLM to
+      choose which tool to call (e.g. read, write, edit, build).
+      Used in the generator's Parsing → Composing transition.
+    example: $tool
+
+  - mode: Empty/omitted
+    description: |
+      No command is executed. Used for terminal transitions where the
+      machine simply moves to a halting state (e.g. Succeeded, Failed,
+      BudgetExceeded).
+
+validation_rules: |
+  BuildTransitionTable in pkg/core/machine.go performs the following
+  validation at startup:
+
+  - Every state referenced in transitions must exist in the states list
+  - Every signal referenced in transitions must exist in the signals list
+  - initial_state must be a member of states
+  - terminal_states must be a subset of states
+  - Named actions (not $tool, not empty) must resolve to a registered tool
+
+  Validation failures cause the agent to abort before processing any input.
+
+examples:
+  - file: configs/generator/machine.yaml
+    description: |
+      7 states, 11 signals. LLM-driven loop with $tool dispatch.
+      The generator iterates between Composing and Parsing, using
+      dynamic tool dispatch to execute LLM-chosen tools.
+
+  - file: configs/evaluator/machine.yaml
+    description: |
+      8 states, linear pipeline with no LLM interaction. Walks
+      through workspace preparation, generation, and scoring steps
+      in a fixed sequence.
+
+  - file: configs/planner/machine.yaml
+    description: |
+      16 states, complex branching with retry logic. Orchestrates
+      multi-step planning with LLM reasoning, sub-task decomposition,
+      and error recovery paths.
+
+  - file: configs/validate/machine.yaml
+    description: |
+      6 states, linear 3-tool pipeline. Runs build, vet/lint, and
+      test in sequence with pass/fail branching.
+
+related_documents:
+  - srd006
+  - sm-generator
+  - sm-evaluator
+  - sm-planner
+  - sm-validator
+
+implementation: pkg/core/machine.go

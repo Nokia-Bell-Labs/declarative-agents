@@ -1,4 +1,6 @@
-package main
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package bench
 
 import (
 	"net/http"
@@ -28,8 +30,8 @@ type configDetail struct {
 }
 
 type graphView struct {
-	States         []string         `json:"states"`
-	TerminalStates []string         `json:"terminalStates"`
+	States         []string          `json:"states"`
+	TerminalStates []string          `json:"terminalStates"`
 	Transitions    []graphTransition `json:"transitions"`
 }
 
@@ -41,14 +43,14 @@ type graphTransition struct {
 }
 
 type profileEntry struct {
-	Name         string      `json:"name"`
+	Name          string      `json:"name"`
 	MatchPrefixes []string   `json:"matchPrefixes"`
-	Envelope     interface{} `json:"envelope,omitempty"`
-	StrictFormat bool        `json:"strictFormat"`
-	Pipeline     []string    `json:"pipeline,omitempty"`
+	Envelope      interface{} `json:"envelope,omitempty"`
+	StrictFormat  bool        `json:"strictFormat"`
+	Pipeline      []string    `json:"pipeline,omitempty"`
 }
 
-func (s *server) handleListConfigs(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListConfigs(w http.ResponseWriter, r *http.Request) {
 	if s.configsDir == "" {
 		writeData(w, []configCategory{})
 		return
@@ -57,10 +59,7 @@ func (s *server) handleListConfigs(w http.ResponseWriter, r *http.Request) {
 	categories := map[string][]configFile{}
 
 	err := filepath.Walk(s.configsDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if info.IsDir() {
+		if err != nil || info.IsDir() {
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))
@@ -103,7 +102,7 @@ func (s *server) handleListConfigs(w http.ResponseWriter, r *http.Request) {
 	writeData(w, result)
 }
 
-func (s *server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	if s.configsDir == "" {
 		writeError(w, http.StatusNotFound, "configs directory not configured")
 		return
@@ -207,7 +206,7 @@ func strVal(m map[string]interface{}, key string) string {
 	return ""
 }
 
-func (s *server) handleListProfiles(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListProfiles(w http.ResponseWriter, r *http.Request) {
 	if s.profilesDir == "" {
 		writeData(w, []profileEntry{})
 		return

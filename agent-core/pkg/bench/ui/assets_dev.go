@@ -8,5 +8,5 @@ import (
 )
 
 func Assets() fs.FS {
-	return os.DirFS("cmd/analyzer/ui/dist")
+	return os.DirFS("pkg/bench/ui/dist")
 }

@@ -36,7 +36,7 @@ problem: |
 
 what_this_does: |
   Agent Core is a Go framework comprising library packages and two
-  standalone binaries (cmd/agent and cmd/analyzer). It provides a
+  standalone binaries (cmd/agent and cmd/bench). It provides a
   layered set of packages that together implement a complete agentic
   loop framework.
 

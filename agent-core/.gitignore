@@ -6,8 +6,7 @@
 /agent
 /eval-analyze
 
-# Analyzer UI
-cmd/analyzer/ui/dist/
-cmd/analyzer/ui/node_modules/
-!cmd/analyzer/ui/dist/.gitkeep
+# Bench UI
+pkg/bench/ui/dist/
+pkg/bench/ui/node_modules/
 bin/

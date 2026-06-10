@@ -83,6 +83,23 @@ lifecycle: |
   the LLM calls done. After done, validation determines success.
   CommandError in any state transitions to Failed.
 
+pipeline_diagram: |
+  ```mermaid
+  flowchart TD
+    A[Idle] -->|Seed| B[Composing]
+    B -->|LLMResponded| C[Parsing]
+    C -->|ToolDone| D[Dispatch Tool]
+    D --> B
+    C -->|EditDone| E[Nudge Reread]
+    E --> B
+    C -->|ParseFailed| F[Report Error]
+    F --> B
+    C -->|TaskCompleted| G[ValidatingBuild]
+    G -->|Passed| H[Succeeded]
+    G -->|Failed| I[Failed]
+    B -->|BudgetExhausted| J[BudgetExceeded]
+  ```
+
 budget:
   max_iterations: 100
   max_consecutive_parse_errors: 5

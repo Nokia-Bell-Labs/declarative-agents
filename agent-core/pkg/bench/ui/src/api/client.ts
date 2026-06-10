@@ -98,6 +98,72 @@ export interface ExperimentConfig {
   sample: { name: string }
 }
 
+export interface DocEntry {
+  path: string
+  name: string
+  category: string
+}
+
+export interface DocDetail {
+  path: string
+  content: Record<string, unknown>
+  raw: string
+}
+
+export interface ConfigFile {
+  path: string
+  name: string
+}
+
+export interface ConfigCategory {
+  category: string
+  files: ConfigFile[]
+}
+
+export interface ConfigDetail {
+  path: string
+  content: Record<string, unknown>
+  raw: string
+  graph?: {
+    states: string[]
+    terminalStates: string[]
+    transitions: { from: string; signal: string; to: string; action?: string }[]
+  }
+}
+
+export interface SourceDetail {
+  path: string
+  content: string
+  language: string
+  mimeType: string
+  size: number
+}
+
+export const listDocs = () => fetchJSON<DocEntry[]>('/docs')
+export const getDoc = (path: string) => fetchJSON<DocDetail>(`/docs/${path}`)
+export const listConfigs = () => fetchJSON<ConfigCategory[]>('/configs')
+export const getConfig = (path: string) => fetchJSON<ConfigDetail>(`/configs/${path}`)
+export const getSource = (path: string) => fetchJSON<SourceDetail>(`/source/${path}`)
+
+export interface ActionPayload {
+  type: string
+  config?: Record<string, unknown>
+}
+
+export async function postAction(action: ActionPayload): Promise<{ status: string }> {
+  const res = await fetch(`${BASE}/actions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(action),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `Action failed: ${res.status}`)
+  }
+  const body = await res.json()
+  return body
+}
+
 export const listSessions = () => fetchJSON<Session[]>('/sessions')
 export const getSession = (suite: string, ts: string) => fetchJSON<SessionDetail>(`/sessions/${suite}/${ts}`)
 export const listPoints = (suite: string, ts: string) => fetchJSON<Point[]>(`/sessions/${suite}/${ts}/points`)

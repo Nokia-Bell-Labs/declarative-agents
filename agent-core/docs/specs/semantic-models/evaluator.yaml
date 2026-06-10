@@ -81,6 +81,15 @@ lifecycle: |
   failed, timed out) proceed to result checking. The config snapshot
   step captures the full experiment configuration for reproducibility.
 
+pipeline_diagram: |
+  ```mermaid
+  flowchart LR
+    A[prepare_workspace] --> B[dump_config]
+    B --> C[run_agent]
+    C -->|any outcome| D[check_results]
+    D --> E[collect_metrics]
+  ```
+
 budget:
   max_iterations: 10
 

@@ -1,0 +1,182 @@
+id: cfg-tool-declaration-format
+title: Tool Declaration Format (builtin.yaml / exec.yaml)
+
+purpose: |
+  Defines the YAML schema for declaring tools that agents can use.
+  Tool declarations describe what a tool does, how it is invoked, and
+  what parameters it accepts. Two tool types exist: builtin tools
+  (compiled into the agent binary) and exec tools (external executables).
+
+schema:
+  - field: name
+    type: string
+    required: true
+    description: |
+      Unique tool identifier. Referenced by tool selection files
+      (tools.yaml), machine transition actions, and LLM tool-call
+      output. Must be unique across all loaded declaration files.
+
+  - field: type
+    type: string
+    required: false
+    description: |
+      Tool type discriminator. Either "builtin" (compiled-in Go
+      function) or "exec" (external executable). Defaults to "exec"
+      when omitted.
+
+  - field: description
+    type: string
+    required: true
+    description: |
+      Human-readable description of the tool's purpose and behavior.
+      Included in the tool schema sent to the LLM so it can decide
+      when and how to use the tool.
+
+  - field: parameters
+    type: object
+    required: true
+    description: |
+      JSON Schema describing the tool's input parameters. This schema
+      is sent to the LLM for function-calling and is used for input
+      validation at runtime. Exec tools may include parameter
+      extensions (see parameter_extensions) that are stripped before
+      sending to the LLM.
+
+  - field: visibility
+    type: string
+    required: false
+    description: |
+      Controls whether the tool appears in the LLM's tool list.
+      "external" (default) — visible to the LLM and available for
+      tool calls. "internal" — hidden from the LLM; can only be
+      invoked by machine transitions (e.g. invoke_llm, parse_response).
+
+builtin_fields:
+  - field: init
+    type: string
+    required: true
+    description: |
+      Factory name in the BuiltinRegistry. Maps to a Go constructor
+      that creates the tool instance at startup (e.g. "file_read",
+      "invoke_llm", "parse_response").
+
+  - field: config
+    type: object
+    required: false
+    description: |
+      Tool-specific configuration passed to the factory function.
+      Structure varies per tool. For invoke_llm, this contains model,
+      provider, provider_url, and prompt fields (see cfg-llm-config-format).
+
+exec_fields:
+  - field: binary
+    type: string
+    required: true
+    description: |
+      Executable name or path. Resolved via PATH at runtime.
+
+  - field: args
+    type: "[]string"
+    required: false
+    description: |
+      Base arguments prepended to every invocation. Parameter values
+      from the LLM's tool call are appended after these.
+
+  - field: precondition
+    type: string
+    required: false
+    description: |
+      A named precondition that must be satisfied before the tool can
+      run (e.g. "git_repo" requires the workspace to be a git
+      repository).
+
+  - field: side_effects
+    type: string
+    required: false
+    description: |
+      Human-readable description of the tool's side effects. Used for
+      documentation and safety auditing.
+
+  - field: output_cap
+    type: int
+    required: false
+    description: |
+      Maximum number of output lines captured from the tool's stdout.
+      Excess lines are truncated to keep LLM context manageable.
+
+  - field: includes
+    type: string
+    required: false
+    description: |
+      Path to another tool file whose declarations are merged into
+      this file. Used for composing tool sets from shared definitions.
+
+parameter_extensions:
+  description: |
+    Exec tools support custom JSON Schema extensions on individual
+    parameter properties. These extensions control how parameter values
+    are mapped to CLI arguments when invoking the external executable.
+    All extensions are stripped from the schema before it is sent to the
+    LLM, so the model never sees CLI-level details.
+  fields:
+    - field: flag
+      type: string
+      description: |
+        CLI flag mapping. The parameter value is passed as this flag
+        (e.g. "--path" causes the value to be passed as --path <value>).
+
+    - field: positional
+      type: bool
+      description: |
+        When true, the parameter value is passed as a positional
+        argument rather than a named flag.
+
+    - field: bool_flag
+      type: string
+      description: |
+        Boolean flag mapping. When the parameter value is true, this
+        flag is included in the command (e.g. "--recursive").
+
+    - field: default
+      type: string
+      description: |
+        Default value used when the LLM omits the parameter. Applied
+        before CLI argument construction.
+
+declaration_files:
+  - file: configs/tools/builtin.yaml
+    description: |
+      26 builtin tool declarations covering file operations (read,
+      write, edit, find, list_files), the LLM pipeline (invoke_llm,
+      parse_response, report_parse_error, reset_history), validation
+      (validate, done), and internal control tools.
+
+  - file: configs/tools/exec.yaml
+    description: |
+      16 exec tool declarations for Go build tools (build, vet, lint,
+      test), git operations (git_diff, git_status, git_commit),
+      filesystem utilities (find, grep), and bd issue management.
+
+  - file: "configs/*/llm/*.yaml"
+    description: |
+      Per-model invoke_llm declarations with config blocks specifying
+      model name, provider, endpoint URL, and prompts. Each agent
+      directory contains its own llm/ subdirectory with one file per
+      model variant. See cfg-llm-config-format for details.
+
+inline_pattern: |
+  configs/validate/tools.yaml uses inline full declarations instead of
+  the declaration+selection split. Each tool is fully defined within the
+  file rather than referencing a name from a separate declaration file.
+  This pattern is used when the tool set is small and agent-specific,
+  avoiding the overhead of separate declaration and selection files.
+
+related_documents:
+  - srd013
+  - srd004
+  - cfg-tool-selection-format
+  - cfg-llm-config-format
+
+implementation:
+  - pkg/stl/exectool.go
+  - pkg/stl/builtin.go

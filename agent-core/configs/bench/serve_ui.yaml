@@ -1,0 +1,19 @@
+# Tool declarations for bench agent.
+# Config values can be overridden by CLI flags.
+
+tools:
+  - name: serve_ui
+    type: builtin
+    init: serve_ui
+    visibility: internal
+    config:
+      addr: ":8080"
+      data_dir: eval-results
+      configs_dir: configs
+      docs_dir: docs
+      profiles_dir: pkg/llm/profiles
+
+  - name: launch_eval
+    type: builtin
+    init: launch_eval
+    visibility: internal

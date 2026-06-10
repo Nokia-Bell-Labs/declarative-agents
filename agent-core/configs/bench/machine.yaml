@@ -1,0 +1,63 @@
+# State machine for the bench agent.
+# Serves a web UI and orchestrates experiment launches.
+# serve_ui blocks waiting for human input — the bench equivalent of invoke_llm.
+
+name: bench
+initial_state: Idle
+
+budget:
+  max_iterations: 10000
+
+states:
+  - Idle
+  - Serving
+  - Launching
+  - Done
+  - Failed
+
+terminal_states:
+  - Done
+  - Failed
+
+signals:
+  - Seed
+  - ExperimentRequested
+  - Shutdown
+  - EvalCompleted
+  - EvalFailed
+  - CommandError
+
+transitions:
+  # Start: launch the web UI
+  - state: Idle
+    signal: Seed
+    next: Serving
+    action: serve_ui
+
+  # User requested an experiment: launch eval
+  - state: Serving
+    signal: ExperimentRequested
+    next: Launching
+    action: launch_eval
+
+  # User requested shutdown
+  - state: Serving
+    signal: Shutdown
+    next: Done
+
+  # Eval completed: return to serving
+  - state: Launching
+    signal: EvalCompleted
+    next: Serving
+    action: serve_ui
+
+  # Eval failed: return to serving (non-fatal)
+  - state: Launching
+    signal: EvalFailed
+    next: Serving
+    action: serve_ui
+
+  # Infrastructure error during launch
+  - state: Launching
+    signal: CommandError
+    next: Failed

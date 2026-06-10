@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench"
+	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench/ui"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm/ollama"
@@ -76,6 +78,7 @@ func init() {
 	f.StringVar(&flagOllamaURL, "ollama-url", "", "override Ollama server URL")
 
 	rootCmd.AddCommand(evalCmd)
+	rootCmd.AddCommand(benchCmd)
 
 	rootCmd.Version = "v0.0.0-dev"
 }
@@ -242,6 +245,140 @@ func runEval(cmd *cobra.Command, args []string) error {
 
 
 
+
+var benchCmd = &cobra.Command{
+	Use:   "bench",
+	Short: "Start the bench agent (interactive experiment browser and launcher)",
+	Long: `Runs the bench agent: a state-machine-driven interactive system for
+browsing evaluation results, launching experiments, and comparing
+model performance. The web UI is served by the serve_ui tool, which
+blocks waiting for user actions — the bench equivalent of invoke_llm.`,
+	RunE: runBench,
+}
+
+func init() {
+	f := benchCmd.Flags()
+	f.String("addr", ":8080", "HTTP listen address")
+	f.String("data", "eval-results", "path to eval-results directory")
+	f.String("configs", "configs", "path to configs directory")
+	f.String("profiles-dir", "pkg/llm/profiles", "path to LLM profiles directory")
+	f.String("docs", "docs", "path to documentation directory")
+	f.String("source", "", "path to source code root directory")
+	f.String("bench-machine", "", "path to bench machine.yaml (default: configs/bench/machine.yaml)")
+	f.String("bench-tools", "", "path to bench tools.yaml (default: configs/bench/tools.yaml)")
+	f.StringSlice("bench-tools-declaration", nil, "paths to tool declaration files for bench")
+}
+
+func runBench(cmd *cobra.Command, args []string) error {
+	addr, _ := cmd.Flags().GetString("addr")
+	dataDir, _ := cmd.Flags().GetString("data")
+	configsDir, _ := cmd.Flags().GetString("configs")
+	profilesDir, _ := cmd.Flags().GetString("profiles-dir")
+	docsDir, _ := cmd.Flags().GetString("docs")
+	sourceDir, _ := cmd.Flags().GetString("source")
+
+	if dataDir != "" {
+		if abs, err := filepath.Abs(dataDir); err == nil {
+			dataDir = abs
+		}
+	}
+	if configsDir != "" {
+		if abs, err := filepath.Abs(configsDir); err == nil {
+			configsDir = abs
+		}
+	}
+	if profilesDir != "" {
+		if abs, err := filepath.Abs(profilesDir); err == nil {
+			profilesDir = abs
+		}
+	}
+	if docsDir != "" {
+		if abs, err := filepath.Abs(docsDir); err == nil {
+			docsDir = abs
+		}
+	}
+	if sourceDir != "" {
+		if abs, err := filepath.Abs(sourceDir); err == nil {
+			sourceDir = abs
+		}
+	}
+
+	machineFile, _ := cmd.Flags().GetString("bench-machine")
+	if machineFile == "" {
+		machineFile = "configs/bench/machine.yaml"
+	}
+
+	toolsFile, _ := cmd.Flags().GetString("bench-tools")
+	if toolsFile == "" {
+		toolsFile = "configs/bench/tools.yaml"
+	}
+
+	declPaths, _ := cmd.Flags().GetStringSlice("bench-tools-declaration")
+	if len(declPaths) == 0 {
+		declPaths = []string{"configs/bench/serve_ui.yaml"}
+	}
+
+	declarations, err := stl.LoadToolDeclarations(declPaths)
+	if err != nil {
+		return fmt.Errorf("load bench tool declarations: %w", err)
+	}
+	selection, err := stl.LoadToolSelection(toolsFile)
+	if err != nil {
+		return fmt.Errorf("load bench tool selection: %w", err)
+	}
+	defs, err := stl.SelectTools(declarations, selection)
+	if err != nil {
+		return fmt.Errorf("select bench tools: %w", err)
+	}
+
+	cfg := bench.ServerConfig{
+		Addr:        addr,
+		DataDir:     dataDir,
+		ConfigsDir:  configsDir,
+		ProfilesDir: profilesDir,
+		DocsDir:     docsDir,
+		SourceDir:   sourceDir,
+		Assets:      benchui.Assets(),
+	}
+	bs := bench.NewBenchState(cfg)
+
+	reg := core.NewRegistry()
+	builtins := stl.NewBuiltinRegistry()
+
+	builtins.Register("serve_ui", bench.ServeUIFactory(bs))
+	builtins.Register("launch_eval", bench.LaunchEvalFactory(bs))
+
+	vars := map[string]string{}
+	if err := stl.RegisterUnifiedTools(reg, builtins, "", defs, vars); err != nil {
+		return fmt.Errorf("register bench tools: %w", err)
+	}
+
+	params := core.LoopParams{
+		MachineFile: machineFile,
+		AgentName:   "bench",
+		Trace:       tracing.NoopTracer{},
+		Budget: core.Budget{
+			MaxIterations: 10000,
+		},
+		Registry: reg,
+		Hooks: core.LoopHooks{
+			TerminalStatus: func(s core.State) core.RunStatus {
+				if s == core.State("Done") {
+					return core.StatusSucceeded
+				}
+				return core.StatusFailed
+			},
+		},
+	}
+
+	result, err := core.Loop(params, cmd.Context())
+	if err != nil {
+		return fmt.Errorf("bench loop: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "bench exited: %s\n", result.Status)
+	return nil
+}
 
 // agentState holds the shared state needed by builtin tool factories.
 // Created during run() initialization and captured by factory closures.

@@ -1,4 +1,6 @@
-package main
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package bench
 
 import (
 	"encoding/json"
@@ -94,9 +96,7 @@ type snapshotJSON struct {
 	Output    string `json:"output,omitempty"`
 }
 
-// sessionDir returns the cleaned, validated session directory path.
-// Returns empty string if the path would escape dataDir.
-func (s *server) sessionDir(suite, ts string) string {
+func (s *Server) sessionDir(suite, ts string) string {
 	cleaned := filepath.Join(s.dataDir, filepath.Clean(suite), filepath.Clean(ts))
 	if !strings.HasPrefix(cleaned, s.dataDir+string(filepath.Separator)) {
 		return ""
@@ -104,7 +104,7 @@ func (s *server) sessionDir(suite, ts string) string {
 	return cleaned
 }
 
-func (s *server) handleListSessions(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	suites, err := os.ReadDir(s.dataDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -186,7 +186,7 @@ func scanSession(suite, ts, dir string) sessionSummary {
 	return s
 }
 
-func (s *server) handleGetSession(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleGetSession(w http.ResponseWriter, r *http.Request) {
 	suite := r.PathValue("suite")
 	ts := r.PathValue("ts")
 	dir := s.sessionDir(suite, ts)
@@ -269,7 +269,7 @@ func convertSampleStats(rows []stl.SampleModelRow) []sampleStatJSON {
 	return out
 }
 
-func (s *server) handleListPoints(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListPoints(w http.ResponseWriter, r *http.Request) {
 	suite := r.PathValue("suite")
 	ts := r.PathValue("ts")
 	dir := s.sessionDir(suite, ts)
@@ -358,7 +358,7 @@ func findRun(index map[string]stl.EvalRunResult, groups map[stl.GroupKey][]stl.E
 	return stl.EvalRunResult{}, false
 }
 
-func (s *server) handleGetTrace(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleGetTrace(w http.ResponseWriter, r *http.Request) {
 	suite := r.PathValue("suite")
 	ts := r.PathValue("ts")
 	pointID := r.PathValue("pointId")
@@ -428,7 +428,7 @@ func convertSnapshots(snaps []stl.ToolSnapshot) []snapshotJSON {
 	return out
 }
 
-func (s *server) handleGetExperiment(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleGetExperiment(w http.ResponseWriter, r *http.Request) {
 	suite := r.PathValue("suite")
 	ts := r.PathValue("ts")
 	pointID := r.PathValue("pointId")

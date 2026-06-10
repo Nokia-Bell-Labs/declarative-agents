@@ -23,7 +23,7 @@ overview: |
     schema), srd012 (system prompt template), srd013 (STL), srd014
     (spec graph), srd015 (GenAI semconv), srd016 (traceparent),
     srd017 (LLM extensions), srd018 (CLI flag contract),
-    srd019 (eval harness), srd020 (analyzer web UI)
+    srd019 (eval harness), srd020 (bench web UI)
 
 roadmap_summary:
   - version: "00.0"
@@ -114,10 +114,10 @@ srd_index:
     title: Evaluation Harness Infrastructure
     summary: Suite configuration, grid evaluation, session execution, evaluation tools (prepare_workspace, dump_config, run_agent, check_results, collect_metrics), result analysis, and convergence tracking in pkg/stl.
     path: docs/specs/software-requirements/srd019-eval-harness.yaml
-  - id: srd020-analyzer-web-ui
-    title: Analyzer Web UI
-    summary: HTTP server with embedded React frontend, REST API for sessions/points/traces/experiments, SPA routing, and dual-mode asset loading in cmd/analyzer.
-    path: docs/specs/software-requirements/srd020-analyzer-web-ui.yaml
+  - id: srd020-bench-web-ui
+    title: Bench Web UI
+    summary: HTTP server with embedded React frontend, REST API for sessions/points/traces/experiments, SPA routing, and dual-mode asset loading in cmd/bench.
+    path: docs/specs/software-requirements/srd020-bench-web-ui.yaml
 
 use_case_index:
   - id: rel00.0-uc001-domain-agent-integration
@@ -134,8 +134,8 @@ use_case_index:
     title: Evaluator runs generator across models and collects results
     release: "01.0"
     status: done
-  - id: rel01.0-uc003-analyzer-visualization
-    title: Analyzer serves web UI for evaluation result exploration
+  - id: rel01.0-uc003-bench-visualization
+    title: Bench serves web UI for evaluation result exploration
     release: "01.0"
     status: done
 
@@ -211,7 +211,7 @@ coverage_gaps: |
     convergence analysis, trace reading, and config dumping
   - cmd/agent — unified binary orchestration, tool registration, LLM
     config loading, eval subcommand
-  - cmd/analyzer — web server with REST API, embedded React frontend,
+  - cmd/bench — web server with REST API, embedded React frontend,
     SPA routing, session/point/trace/experiment visualization
 
   srd013 (STL) needs expansion to cover eval tools (prepare_workspace,
