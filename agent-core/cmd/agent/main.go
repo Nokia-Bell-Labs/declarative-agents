@@ -26,7 +26,6 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench"
 	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench/ui"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm/ollama"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/pipeline"
@@ -502,203 +501,31 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState) {
 		}, nil
 	})
 
-	// Pipeline tools (extract_task, extract_all, assemble_prompt, parse_plan,
-	// create_issue, execute_task, check_result)
-	registerPipelineFactories(br, st)
+	// Pipeline tools
+	pipeline.RegisterFactories(br, pipeline.FactoryDeps{
+		Directory: st.directory,
+		Tracer:    st.tracer,
+		Ctx:       st.ctx,
+	})
 
 	// Eval tools (session + per-point)
-	registerEvalFactories(br, st)
+	stl.RegisterEvalFactories(br, stl.EvalFactoryDeps{
+		Ctx:       st.ctx,
+		Registry:  st.registry,
+		Stderr:    os.Stderr,
+		SuitePath: flagInput,
+		OutputDir: flagOutput,
+		OllamaURL: flagOllamaURL,
+	})
 
 	// Bench tools (serve_ui, launch_eval)
-	registerBenchFactories(br)
+	bench.RegisterFactories(br, benchui.Assets())
 
 	// Validate spec tools (load_corpus, validate_specs, format_report)
-	registerValidateSpecFactories(br, st)
+	stl.RegisterValidateFactories(br, st.directory)
 
 }
 
-// registerPipelineFactories registers real factories for pipeline tools.
-// PipelineState is lazily initialized on first factory call.
-func registerPipelineFactories(br *stl.BuiltinRegistry, st *agentState) {
-	var ps *pipeline.State
-
-	initPS := func(def stl.ToolDef) *pipeline.State {
-		if ps != nil {
-			return ps
-		}
-
-		var childCfg stl.ChildAgentConfig
-		_ = stl.DecodeToolConfig(def, &childCfg)
-
-		ps = &pipeline.State{
-			Directory: st.directory,
-			Tracer:    st.tracer,
-			Ctx:       st.ctx,
-			TaskDeps:  make(map[string]string),
-			ExecConfig: execute.Config{
-				Machine:          childCfg.Machine,
-				Tools:            childCfg.Tools,
-				ToolDeclarations: childCfg.ToolDeclarations,
-			},
-		}
-		return ps
-	}
-
-	br.Register("extract_task", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.ExtractTaskBuilder{PS: initPS(def)}, nil
-	})
-	br.Register("extract_all", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.ExtractAllBuilder{PS: initPS(def)}, nil
-	})
-	br.Register("assemble_prompt", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.AssemblePromptBuilder{PS: initPS(def)}, nil
-	})
-	br.Register("parse_plan", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.ParsePlanBuilder{PS: initPS(def)}, nil
-	})
-	br.Register("create_issue", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.CreateIssueBuilder{PS: initPS(def)}, nil
-	})
-	br.Register("execute_task", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.ExecuteTaskBuilder{PS: initPS(def)}, nil
-	})
-	br.Register("check_result", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.CheckResultBuilder{PS: initPS(def)}, nil
-	})
-}
-
-// registerValidateSpecFactories registers factories for spec validation tools.
-func registerValidateSpecFactories(br *stl.BuiltinRegistry, st *agentState) {
-	var vs *stl.ValidateSpecState
-
-	initVS := func() *stl.ValidateSpecState {
-		if vs != nil {
-			return vs
-		}
-		vs = &stl.ValidateSpecState{Directory: st.directory}
-		return vs
-	}
-
-	br.Register("load_corpus", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		s := initVS()
-		if dir := vars["directory"]; dir != "" {
-			s.Directory = dir
-		}
-		return &stl.LoadCorpusBuilder{VS: s}, nil
-	})
-	br.Register("validate_specs", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.ValidateSpecsBuilder{VS: initVS()}, nil
-	})
-	br.Register("format_report", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.FormatReportBuilder{VS: initVS()}, nil
-	})
-}
-
-// registerEvalFactories registers factories for both session-level
-// eval tools (load_suite, next_point, run_point, report_session) and
-// per-point eval tools (prepare_workspace, run_agent, etc.).
-// EvalSessionState is lazily initialized on first factory call.
-func registerEvalFactories(br *stl.BuiltinRegistry, st *agentState) {
-	var ess *stl.EvalSessionState
-
-	initESS := func() *stl.EvalSessionState {
-		if ess != nil {
-			return ess
-		}
-		ess = &stl.EvalSessionState{
-			EvalState: stl.EvalState{Ctx: st.ctx},
-			Stderr:    os.Stderr,
-			SuitePath: flagInput,
-			OutputDir: flagOutput,
-			OllamaURL: flagOllamaURL,
-		}
-		return ess
-	}
-
-	// Session-level tools
-	br.Register("load_suite", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		es := initESS()
-		factory := stl.LoadSuiteFactory(es)
-		return factory(def, vars)
-	})
-	br.Register("next_point", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		es := initESS()
-		factory := stl.NextPointFactory(es)
-		return factory(def, vars)
-	})
-	br.Register("run_point", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		es := initESS()
-		factory := stl.RunPointFactory(es, st.registry)
-		return factory(def, vars)
-	})
-	br.Register("report_session", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		es := initESS()
-		factory := stl.ReportSessionFactory(es)
-		return factory(def, vars)
-	})
-
-	// Per-point tools
-	br.Register("prepare_workspace", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.PrepareWorkspaceBuilder{ES: &initESS().EvalState}, nil
-	})
-	br.Register("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.RunAgentBuilder{ES: &initESS().EvalState}, nil
-	})
-	br.Register("check_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.CheckResultsBuilder{ES: &initESS().EvalState}, nil
-	})
-	br.Register("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.CollectMetricsBuilder{ES: &initESS().EvalState}, nil
-	})
-	br.Register("dump_config", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.DumpConfigBuilder{ES: &initESS().EvalState}, nil
-	})
-}
-
-// registerBenchFactories registers factories for bench tools (serve_ui,
-// launch_eval). BenchState is lazily initialized on first factory call,
-// pulling config from tool definition YAML.
-func registerBenchFactories(br *stl.BuiltinRegistry) {
-	var bs *bench.BenchState
-
-	initBS := func(def stl.ToolDef) *bench.BenchState {
-		if bs != nil {
-			return bs
-		}
-
-		var tc stl.ServeUIToolConfig
-		_ = stl.DecodeToolConfig(def, &tc)
-
-		dirs := []*string{&tc.DataDir, &tc.ConfigsDir, &tc.DocsDir, &tc.SourceDir, &tc.ProfilesDir}
-		for _, p := range dirs {
-			if *p != "" {
-				if abs, err := filepath.Abs(*p); err == nil {
-					*p = abs
-				}
-			}
-		}
-
-		cfg := bench.ServerConfig{
-			Addr:        tc.Addr,
-			DataDir:     tc.DataDir,
-			ConfigsDir:  tc.ConfigsDir,
-			ProfilesDir: tc.ProfilesDir,
-			DocsDir:     tc.DocsDir,
-			SourceDir:   tc.SourceDir,
-			Assets:      benchui.Assets(),
-		}
-		bs = bench.NewBenchState(cfg)
-		return bs
-	}
-
-	br.Register("serve_ui", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &bench.ServeUIBuilder{BS: initBS(def)}, nil
-	})
-	br.Register("launch_eval", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		factory := bench.LaunchEvalFactory(initBS(def))
-		return factory(def, vars)
-	})
-}
 
 // failCmd immediately returns CommandError with the given error.
 type failCmd struct {
