@@ -257,12 +257,13 @@ func rollbackCheckpointToIteration(cp core.Checkpoint, target int) (core.Checkpo
 	if target < 0 {
 		return core.Checkpoint{}, "", fmt.Errorf("target iteration must be >= 0, got %d", target)
 	}
+	restorer := &persistedRollbackRestorer{}
 	rollbackResult, err := core.RollbackTo(core.RollbackOptions{
-		History:         checkpointHistoryWithNoopCommands(cp.History),
+		History:         checkpointHistoryWithPersistedCommands(cp.History, restorer),
 		TargetIteration: target,
 	})
 	if err != nil {
-		return core.Checkpoint{}, "", err
+		return core.Checkpoint{}, "", fmt.Errorf("rollback command restore: %w", err)
 	}
 
 	out := cp
@@ -300,10 +301,13 @@ func rollbackCheckpointToIteration(cp core.Checkpoint, target int) (core.Checkpo
 	out.AgentState.State = targetState
 	out.AgentState.Signal = core.Approved
 	out.WorkspaceRef = targetRef
+	if restorer.domainState != nil {
+		out.DomainState = restorer.domainState
+	}
 	return out, targetRef, nil
 }
 
-func checkpointHistoryWithNoopCommands(digest []core.HistoryDigest) core.History {
+func checkpointHistoryWithPersistedCommands(digest []core.HistoryDigest, restorer *persistedRollbackRestorer) core.History {
 	if len(digest) == 0 {
 		return nil
 	}
@@ -312,10 +316,12 @@ func checkpointHistoryWithNoopCommands(digest []core.HistoryDigest) core.History
 		history = append(history, core.HistoryEntry{
 			Iteration:    entry.Iteration,
 			CommandName:  entry.CommandName,
-			Command:      persistedHistoryCommand{name: entry.CommandName},
+			Command:      persistedHistoryCommand{entry: entry, restorer: restorer},
 			FromState:    entry.FromState,
 			ToState:      entry.ToState,
 			Result:       core.ResultDigest{Signal: entry.Signal},
+			Undo:         entry.Undo,
+			UndoError:    entry.UndoError,
 			WorkspaceRef: entry.WorkspaceRef,
 		})
 	}
@@ -323,19 +329,69 @@ func checkpointHistoryWithNoopCommands(digest []core.HistoryDigest) core.History
 }
 
 type persistedHistoryCommand struct {
-	name string
+	entry    core.HistoryDigest
+	restorer *persistedRollbackRestorer
 }
 
 func (p persistedHistoryCommand) Name() string {
-	return p.name
+	return p.entry.CommandName
 }
 
 func (p persistedHistoryCommand) Execute() core.Result {
-	return core.Result{Signal: core.ToolDone, CommandName: p.name}
+	return core.Result{Signal: core.ToolDone, CommandName: p.Name()}
 }
 
 func (p persistedHistoryCommand) Undo() core.Result {
-	return core.NoopUndo(p.name)
+	if err := p.restorer.Restore(p.entry); err != nil {
+		return core.Result{
+			Signal:      core.CommandError,
+			CommandName: p.Name(),
+			Output:      err.Error(),
+			Err:         err,
+		}
+	}
+	return core.NoopUndo(p.Name())
+}
+
+type persistedRollbackRestorer struct {
+	domainState json.RawMessage
+}
+
+type persistedUndoPayload struct {
+	DomainState json.RawMessage `json:"domain_state,omitempty"`
+}
+
+func (p *persistedRollbackRestorer) Restore(entry core.HistoryDigest) error {
+	if entry.UndoError != "" {
+		return fmt.Errorf("%w: %s", core.ErrUndoMementoIncompatible, entry.UndoError)
+	}
+	if entry.Undo == nil {
+		return fmt.Errorf("%w: command %s at iteration %d", core.ErrUndoMementoMissing, entry.CommandName, entry.Iteration)
+	}
+	if err := core.ValidateUndoMemento(*entry.Undo); err != nil {
+		return err
+	}
+	switch entry.Undo.Kind {
+	case core.UndoMementoNoop:
+		return nil
+	case core.UndoMementoIrreversible:
+		return fmt.Errorf("%w: command %s is irreversible: %s", core.ErrUndoMementoIncompatible, entry.CommandName, entry.Undo.Description)
+	case core.UndoMementoReversible, core.UndoMementoCompensatable:
+		return p.restorePayload(entry)
+	default:
+		return fmt.Errorf("%w: unsupported undo kind %s", core.ErrUndoMementoIncompatible, entry.Undo.Kind)
+	}
+}
+
+func (p *persistedRollbackRestorer) restorePayload(entry core.HistoryDigest) error {
+	var payload persistedUndoPayload
+	if err := json.Unmarshal(entry.Undo.Payload, &payload); err != nil {
+		return fmt.Errorf("%w: decode payload for %s: %v", core.ErrUndoMementoIncompatible, entry.CommandName, err)
+	}
+	if len(payload.DomainState) > 0 {
+		p.domainState = append(json.RawMessage(nil), payload.DomainState...)
+	}
+	return nil
 }
 
 // agentState holds the shared state needed by builtin tool factories.

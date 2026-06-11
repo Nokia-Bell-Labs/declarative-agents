@@ -52,7 +52,31 @@ func TestRollbackCheckpointToIteration(t *testing.T) {
 	require.Equal(t, core.State("Reading"), rolledBack.AgentState.State)
 	require.Equal(t, "ref-1", rolledBack.WorkspaceRef)
 	require.Len(t, rolledBack.History, 1)
+	require.JSONEq(t, `{"conversation_len":1}`, string(rolledBack.DomainState))
 	require.True(t, strings.HasPrefix(rolledBack.ID, "rollback-cp-1-to-1-"))
+}
+
+func TestRollbackCheckpointToIterationReportsMissingUndoMemento(t *testing.T) {
+	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
+	cp.History[1].Undo = nil
+
+	_, _, err := rollbackCheckpointToIteration(cp, 1)
+
+	require.Contains(t, err.Error(), "rollback command restore")
+	require.Contains(t, err.Error(), core.ErrUndoMementoMissing.Error())
+	require.Contains(t, err.Error(), "write")
+}
+
+func TestRollbackCheckpointToIterationReportsIrreversibleUndoMemento(t *testing.T) {
+	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
+	irreversible := core.IrreversibleUndoMemento("write", "already published externally")
+	cp.History[1].Undo = &irreversible
+
+	_, _, err := rollbackCheckpointToIteration(cp, 1)
+
+	require.Contains(t, err.Error(), core.ErrUndoMementoIncompatible.Error())
+	require.Contains(t, err.Error(), "irreversible")
+	require.Contains(t, err.Error(), "already published externally")
 }
 
 func TestRunHistoryPrintsCheckpointHistory(t *testing.T) {
@@ -125,6 +149,7 @@ func sampleCheckpoint(id string, ts time.Time) core.Checkpoint {
 			Iteration: 2,
 		},
 		WorkspaceRef: "ref-2",
+		DomainState:  json.RawMessage(`{"conversation_len":2}`),
 		History: []core.HistoryDigest{
 			{
 				Iteration:    1,
@@ -135,11 +160,17 @@ func sampleCheckpoint(id string, ts time.Time) core.Checkpoint {
 				WorkspaceRef: "ref-1",
 			},
 			{
-				Iteration:    2,
-				CommandName:  "write",
-				FromState:    "Reading",
-				ToState:      "Working",
-				Signal:       core.EditDone,
+				Iteration:   2,
+				CommandName: "write",
+				FromState:   "Reading",
+				ToState:     "Working",
+				Signal:      core.EditDone,
+				Undo: &core.UndoMemento{
+					Version:     core.UndoMementoVersion,
+					Kind:        core.UndoMementoReversible,
+					CommandName: "write",
+					Payload:     json.RawMessage(`{"domain_state":{"conversation_len":1}}`),
+				},
 				WorkspaceRef: "ref-2",
 			},
 		},
