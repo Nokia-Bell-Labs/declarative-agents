@@ -49,6 +49,9 @@ var (
 	flagOllamaURL        string
 	flagInput            string
 	flagOutput           string
+	flagStateStoreDir    string
+	flagResumeCheckpoint string
+	flagResumeSignal     string
 )
 
 func main() {
@@ -82,6 +85,9 @@ func init() {
 	f.StringVar(&flagOllamaURL, "ollama-url", "", "override Ollama server URL")
 	f.StringVar(&flagInput, "input", "", "input file (e.g. suite YAML for evaluator mode)")
 	f.StringVar(&flagOutput, "output", "", "output directory for eval results (default: eval-results)")
+	f.StringVar(&flagStateStoreDir, "state-store-dir", "", "directory for lifecycle checkpoints")
+	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
+	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
 
 	rootCmd.Version = "v0.0.0-dev"
 }
@@ -107,6 +113,7 @@ type agentState struct {
 	verbose       bool
 	ctx           context.Context
 	directory     string
+	stateStore    core.StateStore
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -239,6 +246,10 @@ func run(cmd *cobra.Command, args []string) error {
 	})
 	conversations := stl.NewConversationStore()
 	tracker := stl.NewToolTracker()
+	var stateStore core.StateStore
+	if flagStateStoreDir != "" {
+		stateStore = core.NewFileStore(flagStateStoreDir)
+	}
 
 	vars := map[string]string{
 		"model":      llmCfg.Model,
@@ -269,6 +280,7 @@ func run(cmd *cobra.Command, args []string) error {
 		verbose:       flagVerboseTrace,
 		ctx:           cmd.Context(),
 		directory:     flagDirectory,
+		stateStore:    stateStore,
 	}
 
 	registerBuiltinFactories(builtins, st, selectedBuiltinInits(defs))
@@ -316,12 +328,42 @@ func run(cmd *cobra.Command, args []string) error {
 		ToolAction:   toolAction,
 		Registry:     reg,
 		Directory:    flagDirectory,
+		StateStore:   stateStore,
 		Hooks: core.LoopHooks{
 			AfterDispatch: afterDispatch,
+			SnapshotConversation: func() (json.RawMessage, error) {
+				return json.Marshal(conversation.Snapshot())
+			},
 		},
 	}
 
-	result, err := core.Loop(params, context.Background())
+	var result core.RunResult
+	if flagResumeCheckpoint != "" {
+		if stateStore == nil {
+			return fmt.Errorf("--resume-checkpoint requires --state-store-dir")
+		}
+		resumeResult, err := core.ResumeFromCheckpoint(core.ResumeOptions{
+			Store:        stateStore,
+			CheckpointID: flagResumeCheckpoint,
+			Params:       params,
+			ResumeSignal: core.Signal(flagResumeSignal),
+			RestoreConversation: func(data json.RawMessage) error {
+				var messages []llm.Message
+				if err := json.Unmarshal(data, &messages); err != nil {
+					return err
+				}
+				conversation.Restore(messages)
+				return nil
+			},
+			Ctx: cmd.Context(),
+		})
+		if err != nil {
+			return fmt.Errorf("resume: %w", err)
+		}
+		result = resumeResult.Run
+	} else {
+		result, err = core.Loop(params, context.Background())
+	}
 	if err != nil {
 		return fmt.Errorf("loop: %w", err)
 	}
@@ -568,7 +610,8 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected 
 	}
 	if selected["suspend"] {
 		stl.RegisterLifecycleFactories(br, stl.LifecycleFactoryDeps{
-			Tracer: st.tracer,
+			StateStore: st.stateStore,
+			Tracer:     st.tracer,
 		})
 	}
 	if selected["validate"] {

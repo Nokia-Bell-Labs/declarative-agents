@@ -114,6 +114,10 @@ type LoopHooks struct {
 	// TaskCompletedSignal is the signal that indicates the task is done
 	// and the summary should be captured. Defaults to "TaskCompleted".
 	TaskCompletedSignal Signal
+
+	// SnapshotConversation returns JSON-owned conversation state for lifecycle
+	// checkpoints. Nil means no conversation state is captured.
+	SnapshotConversation func() (json.RawMessage, error)
 }
 
 // LoopParams bundles all inputs for Loop.
@@ -131,6 +135,9 @@ type LoopHooks struct {
 // built internally. InitialState is derived from the machine spec.
 type LoopParams struct {
 	InitialState   State
+	InitialSignal  Signal
+	InitialResult  Result
+	InitialRun     RunResult
 	Prompt         string
 	Registry       *Registry
 	Table          TransitionTable
@@ -253,6 +260,16 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 	state := p.InitialState
 	sig := Seed
 	res := Result{Output: "Begin.", Signal: Seed}
+	if p.InitialSignal != "" {
+		sig = p.InitialSignal
+		res = p.InitialResult
+		if res.Signal == "" {
+			res.Signal = sig
+		}
+		if res.Output == "" {
+			res.Output = "Resume."
+		}
+	}
 	start := time.Now()
 
 	taskCompletedSig := p.Hooks.TaskCompletedSignal
@@ -260,8 +277,11 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 		taskCompletedSig = "TaskCompleted"
 	}
 
-	var rr RunResult
+	rr := p.InitialRun
 	var iteration int
+	if rr.Iterations > 0 {
+		iteration = rr.Iterations
+	}
 
 	for {
 		if ctx.Err() != nil {
@@ -517,6 +537,13 @@ func persistSuspendCheckpoint(ctx context.Context, p LoopParams, tr tracing.Trac
 		WorkspaceRef: workspaceRef,
 		History:      historyDigest(rr.History),
 	}
+	if p.Hooks.SnapshotConversation != nil {
+		conversationLog, err := p.Hooks.SnapshotConversation()
+		if err != nil {
+			return fmt.Errorf("suspend checkpoint conversation snapshot: %w", err)
+		}
+		cp.ConversationLog = conversationLog
+	}
 	data, err := json.Marshal(cp)
 	if err != nil {
 		return fmt.Errorf("suspend checkpoint marshal: %w", err)
@@ -609,7 +636,9 @@ func initFromMachine(params *LoopParams) error {
 
 	params.Table = table
 	params.IsTerminal = isTerminal
-	params.InitialState = State(spec.InitialState)
+	if params.InitialState == "" {
+		params.InitialState = State(spec.InitialState)
+	}
 
 	return nil
 }
