@@ -103,12 +103,10 @@ func RunPointFactory(es *EvalSessionState) BuiltinFactory {
 		if err := DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		if es.PointMachine == "" && cfg.PointMachine != "" {
-			es.PointMachine = cfg.PointMachine
+		if err := ValidateRunPointConfig(def.Name, cfg); err != nil {
+			return nil, err
 		}
-		if es.PointMachine == "" {
-			es.PointMachine = "configs/evaluator/point.yaml"
-		}
+		es.PointMachine = cfg.PointMachine
 		pointRegistry, err := buildPointRegistry(&es.EvalState, cfg.PointTools)
 		if err != nil {
 			return nil, err
@@ -118,9 +116,6 @@ func RunPointFactory(es *EvalSessionState) BuiltinFactory {
 }
 
 func buildPointRegistry(es *EvalState, selectionPath string) (*core.Registry, error) {
-	if selectionPath == "" {
-		selectionPath = "configs/evaluator/tools-point.yaml"
-	}
 	selection, err := LoadToolSelection(selectionPath)
 	if err != nil {
 		return nil, err

@@ -73,6 +73,7 @@ requirements:
       - R6.3: execute.RunAgent SHALL be the shared entry point for child invocations that do not require task-file writing.
       - R6.4: Child agent invocations SHALL propagate OTel tracing via subprocess.Run with PropagateOTel enabled.
       - R6.5: YAML-declared child agent config (machine, tools, tools_declarations) SHALL be decoded via ChildAgentConfig and mapped to execute.Config at registration time.
+      - R6.6: Child agent builtin factories SHALL fail registration when required ChildAgentConfig fields are missing; they SHALL NOT substitute behavior-shaping hardcoded machine, tools, or tools_declarations paths.
 
 non_goals:
   - Defining external CLI/exec tools; see the CLI/exec tool SRD work.
@@ -101,8 +102,8 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3, R5.4]
 
   - id: AC6
-    criterion: All child agent invocations share execute.Config and execute.BuildArgs/RunAgent with OTel propagation; no duplicated argument construction remains.
-    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+    criterion: All child agent invocations share execute.Config and execute.BuildArgs/RunAgent with OTel propagation; no duplicated argument construction remains, and missing machine/tools/tools_declarations config fails clearly at registration.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6]
 
 depends_on:
   - srd_id: srd001-core-types

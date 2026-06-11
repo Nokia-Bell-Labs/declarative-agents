@@ -43,6 +43,7 @@ requirements:
       - R2.2: PointContext holds per-point mutable state (directories, trace path, tokens, results, timing).
       - R2.3: EvalState is the shared state container whose PC field is updated before each point's loop run.
       - R2.4: SessionResult and PointResult capture aggregate and per-point outcomes.
+      - R2.5: run_point SHALL require point_machine and point_tools in its tool config and fail registration when either field is missing.
 
   R3:
     title: Evaluation tools

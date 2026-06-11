@@ -102,7 +102,10 @@ tool_parametrization: |
   Tool behavior is configured through the "config" block in tool
   declaration YAML. This config map is passed to the BuiltinFactory
   at registration time (step 4). Factories read config values with
-  fallback defaults, making tools reusable across modes.
+  typed config structs, making tools reusable across modes. Program-
+  shaping child and nested invocation config is required and validated
+  at registration time; missing machine/tool-selection/declaration
+  fields fail startup instead of falling back to hardcoded paths.
 
   Examples:
     - launch_eval reads "machine", "tools", and "tools_declarations"
@@ -164,7 +167,8 @@ config_file_layout: |
     evaluator/
       machine.yaml          # Session-level eval orchestration
       point.yaml            # Per-point eval pipeline
-      tools.yaml            # Selects both session + point tools
+      tools.yaml            # Session-level tool selection
+      tools-point.yaml      # Per-point tool selection loaded by run_point
     bench/
       machine.yaml          # Interactive web UI loop
       tools.yaml            # serve_ui + launch_eval

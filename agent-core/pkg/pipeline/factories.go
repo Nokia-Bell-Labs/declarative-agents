@@ -4,6 +4,7 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/execute"
@@ -30,19 +31,11 @@ func RegisterFactories(br *stl.BuiltinRegistry, deps FactoryDeps) {
 			return ps
 		}
 
-		var childCfg stl.ChildAgentConfig
-		_ = stl.DecodeToolConfig(def, &childCfg)
-
 		ps = &State{
 			Directory: deps.Directory,
 			Tracer:    deps.Tracer,
 			Ctx:       deps.Ctx,
 			TaskDeps:  make(map[string]string),
-			ExecConfig: execute.Config{
-				Machine:          childCfg.Machine,
-				Tools:            childCfg.Tools,
-				ToolDeclarations: childCfg.ToolDeclarations,
-			},
 		}
 		return ps
 	}
@@ -63,7 +56,20 @@ func RegisterFactories(br *stl.BuiltinRegistry, deps FactoryDeps) {
 		return &CreateIssueBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("execute_task", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &ExecuteTaskBuilder{PS: initPS(def)}, nil
+		var childCfg stl.ChildAgentConfig
+		if err := stl.DecodeToolConfig(def, &childCfg); err != nil {
+			return nil, err
+		}
+		if err := stl.ValidateChildAgentConfig(def.Name, childCfg); err != nil {
+			return nil, fmt.Errorf("pipeline execute_task: %w", err)
+		}
+		ps := initPS(def)
+		ps.ExecConfig = execute.Config{
+			Machine:          childCfg.Machine,
+			Tools:            childCfg.Tools,
+			ToolDeclarations: childCfg.ToolDeclarations,
+		}
+		return &ExecuteTaskBuilder{PS: ps}, nil
 	})
 	br.Register("check_result", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CheckResultBuilder{PS: initPS(def)}, nil

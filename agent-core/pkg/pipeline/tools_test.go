@@ -15,6 +15,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/plan"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
@@ -250,6 +251,28 @@ func TestMinimalState_GraphHasNodes(t *testing.T) {
 
 	ready := ps.Graph.Ready()
 	assert.Greater(t, len(ready), 0, "minimal corpus should have ready nodes")
+}
+
+func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
+	t.Parallel()
+	br := stl.NewBuiltinRegistry()
+	RegisterFactories(br, FactoryDeps{Ctx: context.Background()})
+
+	factory, ok := br.Resolve("execute_task")
+	require.True(t, ok)
+
+	_, err := factory(stl.ToolDef{Name: "execute_task", Init: "execute_task"}, nil)
+	require.ErrorContains(t, err, "requires machine")
+
+	_, err = factory(stl.ToolDef{
+		Name: "execute_task",
+		Init: "execute_task",
+		Config: map[string]interface{}{
+			"machine": "configs/generator/machine.yaml",
+			"tools":   "configs/generator/tools.yaml",
+		},
+	}, nil)
+	require.ErrorContains(t, err, "requires tools_declarations")
 }
 
 var _ llm.PromptAssembler = (*PlannerAssembler)(nil)
