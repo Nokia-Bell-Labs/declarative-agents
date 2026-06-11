@@ -210,7 +210,12 @@ func run(cmd *cobra.Command, args []string) error {
 			attribute.String("profile.name", profileSpec.ProfileName),
 		)
 		if profileSpec.MachineName != "" {
-			flagMachine = filepath.Join(filepath.Dir(flagMachine), profileSpec.MachineName+".yaml")
+			resolved := filepath.Join(filepath.Dir(flagMachine), profileSpec.MachineName+".yaml")
+			if _, err := os.Stat(resolved); err != nil {
+				return fmt.Errorf("profile %q references machine %q but %s does not exist: %w",
+					profileSpec.ProfileName, profileSpec.MachineName, resolved, err)
+			}
+			flagMachine = resolved
 			tracer.Event("setup.machine_from_profile",
 				attribute.String("machine.resolved_path", flagMachine),
 			)

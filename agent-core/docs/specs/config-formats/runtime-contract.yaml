@@ -55,7 +55,11 @@ startup_sequence:
       model, provider, endpoint, system prompt, num_ctx, llm_timeout,
       max_tokens, and max_time settings. Create the Ollama adapter.
       If a model profile has a MachineName, --machine is rewritten
-      to use the profile's machine file.
+      to use the profile's machine file (e.g. deepseek profile maps
+      to deepseek-coding-agent.yaml). The resolved machine file is
+      validated to exist at startup; a missing file fails immediately.
+      This is a declarative contract: profiles declare machine
+      affinity, the runtime validates and resolves it.
     implementation: extractLLMConfig, llm.LoadProfiles
 
   - step: 3
