@@ -12,8 +12,8 @@ scope:
     - tools/builtin.yaml
     - tools/exec.yaml
   mode_declarations:
-    - configs/*/builtin.yaml
-    - configs/*/llm/*.yaml
+    - agents/*/builtin.yaml
+    - agents/*/llm/*.yaml
   selections:
     - agents/generator/tools.yaml
     - agents/planner/tools.yaml

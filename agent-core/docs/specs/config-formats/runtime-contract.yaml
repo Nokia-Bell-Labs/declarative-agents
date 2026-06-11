@@ -211,12 +211,12 @@ history_and_rollback_cli: |
   identifies a managed GitWorkspace.
 
 config_file_layout: |
-  configs/
-    tools/
-      builtin.yaml          # Shared builtin tool declarations
-      exec.yaml             # Shared exec tool declarations
+  tools/
+    builtin.yaml            # Shared builtin tool declarations
+    exec.yaml               # Shared exec tool declarations
+  agents/
     generator/
-      machine.yaml          # Generator state machine
+      machine.yaml          # Generator state machine and semantics
       tools.yaml            # Tool selection (names only)
       llm/                  # Per-model LLM configs
     planner/
@@ -226,15 +226,15 @@ config_file_layout: |
       tools.yaml
       llm/
     evaluator/
-      machine.yaml          # Session-level eval orchestration
-      point.yaml            # Per-point eval pipeline
+      machine.yaml          # Session-level eval orchestration and semantics
+      point.yaml            # Per-point eval pipeline and semantics
       tools.yaml            # Session-level tool selection
       tools-point.yaml      # Per-point tool selection loaded by run_point
     bench/
-      machine.yaml          # Interactive web UI loop
+      machine.yaml          # Interactive web UI loop and semantics
       tools.yaml            # serve_ui + launch_eval
     validate/
-      machine.yaml          # Spec validation pipeline
+      machine.yaml          # Spec validation pipeline and semantics
       tools.yaml            # load_corpus + validate_specs + format_report
 
 invariants:

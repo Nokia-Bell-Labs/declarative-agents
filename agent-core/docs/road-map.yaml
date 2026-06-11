@@ -31,10 +31,10 @@ releases:
       Key deliverables:
       - Unified cmd/agent binary with machine-configurable modes (generate, eval, plan, bench)
       - YAML state machine configs for generator, evaluator, planner,
-        and validator (configs/*/machine.yaml)
+        and validator (agents/*/machine.yaml)
       - YAML tool declarations replacing Go tool implementations
         (tools/builtin.yaml with 32 tools, exec.yaml with 16)
-      - Per-model LLM tool configurations (configs/*/llm/*.yaml)
+      - Per-model LLM tool configurations (agents/*/llm/*.yaml)
       - LLM response profiles for 9 model families (pkg/llm/profiles/)
       - Planner pipeline packages (pkg/pipeline, pkg/plan, pkg/extract,
         pkg/graph, pkg/materialize)

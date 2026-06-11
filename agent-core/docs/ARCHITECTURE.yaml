@@ -38,10 +38,10 @@ overview:
     - pkg/worktree — git worktree lifecycle management
     - pkg/spec — specification corpus parsing and validation
 
-    Configuration layer (configs/ and docs/specs/). YAML files defining each agent's
+    Configuration layer (agents/, tools/, and docs/specs/). YAML files defining each agent's
     behavior: state machines (machine.yaml), tool selections (tools.yaml),
     tool declarations (tools/), and per-model LLM configurations
-    (configs/*/llm/*.yaml). Specification YAML documents define the
+    (agents/*/llm/*.yaml). Specification YAML documents define the
     requirements, semantic models, use cases, and formal tests that explain
     those agents. The configurations ARE the agents -- no Go code changes are
     needed to modify agent behavior.
@@ -50,10 +50,10 @@ overview:
     ```mermaid
     flowchart TB
       subgraph Config["Configuration and Specifications"]
-        MACH[configs/*/machine.yaml]
-        SEL[configs/*/tools.yaml]
+        MACH[agents/*/machine.yaml]
+        SEL[agents/*/tools.yaml]
         DEF[tools/*.yaml]
-        LLMCFG[configs/*/llm/*.yaml]
+        LLMCFG[agents/*/llm/*.yaml]
         SPECS[docs/specs/*.yaml]
       end
 

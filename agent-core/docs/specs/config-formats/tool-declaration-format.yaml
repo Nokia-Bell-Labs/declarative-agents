@@ -284,7 +284,7 @@ declaration_files:
       collect_trace_tokens, check_agent_version, summarize_point_results,
       collect_metrics), bench tools (serve_ui, launch_eval), and spec
       validation tools (load_corpus, validate_specs, format_report).
-      Note: invoke_llm is declared per-agent in configs/*/llm/*.yaml,
+      Note: invoke_llm is declared per-agent in agents/*/llm/*.yaml,
       not in this file.
 
   - file: tools/exec.yaml
@@ -295,7 +295,7 @@ declaration_files:
       rev_parse, diff_stat, log_oneline, git_init), and bd issue
       management (issue_create, issue_close, issue_list).
 
-  - file: "configs/*/llm/*.yaml"
+  - file: "agents/*/llm/*.yaml"
     description: |
       Per-model invoke_llm declarations with config blocks specifying
       model name, provider, endpoint URL, and prompts. Each agent
