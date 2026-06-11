@@ -81,8 +81,9 @@ builtin_fields:
       Tool-specific configuration passed to the factory function.
       Decoded into typed Go structs via DecodeToolConfig at registration
       time. Type mismatches produce errors mentioning the tool name.
-      Structure varies per tool: ChildAgentConfig for launch_eval and
-      execute_task, LLMToolConfig for invoke_llm, LoadSuiteConfig for
+      Structure varies per tool: ChildAgentConfig for launch_eval,
+      execute_task, and self_invoke (decoded into execute.Config at
+      runtime), LLMToolConfig for invoke_llm, LoadSuiteConfig for
       load_suite, RunPointConfig for run_point, ServeUIToolConfig for
       serve_ui. See cfg-llm-config-format for invoke_llm details.
 

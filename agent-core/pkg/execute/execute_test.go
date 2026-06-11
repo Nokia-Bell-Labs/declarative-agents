@@ -183,3 +183,69 @@ func TestResultSuccess(t *testing.T) {
 	assert.False(t, (&Result{ExitCode: 1}).Success())
 	assert.False(t, (&Result{ExitCode: -1}).Success())
 }
+
+func TestBuildArgs_AllFields(t *testing.T) {
+	cfg := Config{
+		Machine:          "machine.yaml",
+		Tools:            "tools.yaml",
+		ToolDeclarations: []string{"builtin.yaml", "exec.yaml"},
+		Model:            "qwen3-8b",
+		OllamaURL:        "http://localhost:11434",
+	}
+
+	args := cfg.BuildArgs()
+	assert.Equal(t, []string{
+		"--machine", "machine.yaml",
+		"--tools", "tools.yaml",
+		"--tools-declaration", "builtin.yaml",
+		"--tools-declaration", "exec.yaml",
+		"--model", "qwen3-8b",
+		"--ollama-url", "http://localhost:11434",
+	}, args)
+}
+
+func TestBuildArgs_Empty(t *testing.T) {
+	cfg := Config{}
+	args := cfg.BuildArgs()
+	assert.Empty(t, args)
+}
+
+func TestBuildArgs_Partial(t *testing.T) {
+	cfg := Config{Machine: "m.yaml"}
+	args := cfg.BuildArgs()
+	assert.Equal(t, []string{"--machine", "m.yaml"}, args)
+}
+
+func TestRunAgent_Success(t *testing.T) {
+	result := RunAgent(context.Background(), Config{
+		Binary:  "echo",
+		Timeout: 5 * time.Second,
+	}, "hello")
+
+	assert.Equal(t, 0, result.ExitCode)
+	assert.True(t, result.Success())
+	assert.Contains(t, result.Stdout, "hello")
+}
+
+func TestRunAgent_ExtraArgs(t *testing.T) {
+	result := RunAgent(context.Background(), Config{
+		Binary:  "echo",
+		Machine: "m.yaml",
+		Timeout: 5 * time.Second,
+	}, "--directory", "/workspace")
+
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Contains(t, result.Stdout, "--machine")
+	assert.Contains(t, result.Stdout, "--directory")
+	assert.Contains(t, result.Stdout, "/workspace")
+}
+
+func TestRunAgent_Failure(t *testing.T) {
+	result := RunAgent(context.Background(), Config{
+		Binary:  "false",
+		Timeout: 5 * time.Second,
+	})
+
+	assert.False(t, result.Success())
+	assert.NotEqual(t, 0, result.ExitCode)
+}

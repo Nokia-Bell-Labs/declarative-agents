@@ -51,6 +51,28 @@ func (c *Config) timeout() time.Duration {
 	return 10 * time.Minute
 }
 
+// BuildArgs constructs the CLI argument list from the config fields.
+// Callers append runtime-specific args (e.g. --directory, --input) after.
+func (c *Config) BuildArgs() []string {
+	var args []string
+	if c.Machine != "" {
+		args = append(args, "--machine", c.Machine)
+	}
+	if c.Tools != "" {
+		args = append(args, "--tools", c.Tools)
+	}
+	for _, decl := range c.ToolDeclarations {
+		args = append(args, "--tools-declaration", decl)
+	}
+	if c.Model != "" {
+		args = append(args, "--model", c.Model)
+	}
+	if c.OllamaURL != "" {
+		args = append(args, "--ollama-url", c.OllamaURL)
+	}
+	return args
+}
+
 // Result captures the outcome of an agent invocation.
 type Result struct {
 	ExitCode int
@@ -85,23 +107,8 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 
 	otelLogFile := filepath.Join(otelDir(cfg), fmt.Sprintf("agent-%s.otel.json", taskID))
 
-	var args []string
-	if cfg.Machine != "" {
-		args = append(args, "--machine", cfg.Machine)
-	}
-	if cfg.Tools != "" {
-		args = append(args, "--tools", cfg.Tools)
-	}
-	for _, decl := range cfg.ToolDeclarations {
-		args = append(args, "--tools-declaration", decl)
-	}
+	args := cfg.BuildArgs()
 	args = append(args, "--directory", worktreeDir, "--otel-log-file", otelLogFile)
-	if cfg.Model != "" {
-		args = append(args, "--model", cfg.Model)
-	}
-	if cfg.OllamaURL != "" {
-		args = append(args, "--ollama-url", cfg.OllamaURL)
-	}
 
 	spec := subprocess.Spec{
 		Binary:        cfg.binary(),
@@ -132,6 +139,29 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 	}
 
 	return result, nil
+}
+
+// RunAgent invokes the agent binary with base args from cfg plus any
+// extra args. Unlike Execute, it does not write a task file. Suitable
+// for launch_eval, self_invoke, and other child agent invocations.
+func RunAgent(ctx context.Context, cfg Config, extraArgs ...string) *Result {
+	args := cfg.BuildArgs()
+	args = append(args, extraArgs...)
+
+	spec := subprocess.Spec{
+		Binary:        cfg.binary(),
+		Args:          args,
+		Timeout:       cfg.timeout(),
+		PropagateOTel: true,
+	}
+
+	r := subprocess.Run(ctx, spec)
+	return &Result{
+		Stdout:   r.Stdout,
+		Stderr:   r.Stderr,
+		ExitCode: r.ExitCode,
+		Duration: r.Duration,
+	}
 }
 
 func writeTaskFile(path string, plan any) error {

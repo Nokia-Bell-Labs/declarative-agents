@@ -3,28 +3,21 @@
 package bench
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 )
-
-// LaunchEvalConfig holds the child agent invocation parameters
-// for launch_eval, populated from tool declaration YAML config.
-type LaunchEvalConfig struct {
-	Machine          string
-	Tools            string
-	ToolDeclarations []string
-}
 
 // LaunchEvalBuilder creates launchEvalCmd instances.
 type LaunchEvalBuilder struct {
 	BS     *BenchState
-	Config LaunchEvalConfig
+	Config execute.Config
 }
 
 func (b *LaunchEvalBuilder) Build(res core.Result) core.Command {
@@ -44,7 +37,7 @@ func (b *LaunchEvalBuilder) Build(res core.Result) core.Command {
 type launchEvalCmd struct {
 	bs     *BenchState
 	res    core.Result
-	config LaunchEvalConfig
+	config execute.Config
 }
 
 func (c *launchEvalCmd) Name() string { return "launch_eval" }
@@ -70,30 +63,19 @@ func (c *launchEvalCmd) Execute() core.Result {
 		}
 	}
 
-	agentBin := agentBinaryPath()
-
-	args := []string{
-		"--machine", c.config.Machine,
-		"--tools", c.config.Tools,
-	}
-	for _, decl := range c.config.ToolDeclarations {
-		args = append(args, "--tools-declaration", decl)
-	}
-	args = append(args, "--input", suitePath)
-
+	var extraArgs []string
+	extraArgs = append(extraArgs, "--input", suitePath)
 	if outputDir, ok := action.Config["output_dir"].(string); ok && outputDir != "" {
-		args = append(args, "--output", outputDir)
+		extraArgs = append(extraArgs, "--output", outputDir)
 	}
 
-	cmd := exec.Command(agentBin, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	result := execute.RunAgent(context.Background(), c.config, extraArgs...)
 
-	if err := cmd.Run(); err != nil {
+	if !result.Success() {
 		return core.Result{
 			Signal:      EvalFailed,
-			Err:         err,
-			Output:      fmt.Sprintf("eval failed: %v", err),
+			Err:         fmt.Errorf("eval exited %d", result.ExitCode),
+			Output:      fmt.Sprintf("eval failed (exit %d)", result.ExitCode),
 			CommandName: "launch_eval",
 		}
 	}
@@ -102,6 +84,7 @@ func (c *launchEvalCmd) Execute() core.Result {
 		Signal:      EvalCompleted,
 		Output:      fmt.Sprintf("eval completed for suite %s", suitePath),
 		CommandName: "launch_eval",
+		Cost:        core.Cost{Duration: result.Duration},
 	}
 }
 
@@ -121,7 +104,8 @@ func LaunchEvalFactory(bs *BenchState) stl.BuiltinFactory {
 		if err := stl.DecodeToolConfig(def, &parsed); err != nil {
 			return nil, err
 		}
-		cfg := LaunchEvalConfig{
+		cfg := execute.Config{
+			Binary:           agentBinaryPath(),
 			Machine:          "configs/evaluator/machine.yaml",
 			Tools:            "configs/evaluator/tools.yaml",
 			ToolDeclarations: []string{"configs/tools/builtin.yaml"},

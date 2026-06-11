@@ -26,6 +26,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench"
 	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench/ui"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm/ollama"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/pipeline"
@@ -489,15 +490,26 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState) {
 
 	// Self-invoke (for pipeline→generate child calls)
 	br.Register("self_invoke", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		cfg := stl.SelfInvokeConfig{
-			Directory: vars["directory"],
-			Model:     vars["model"],
-			OllamaURL: vars["ollama_url"],
+		var parsed stl.ChildAgentConfig
+		if err := stl.DecodeToolConfig(def, &parsed); err != nil {
+			return nil, err
+		}
+		cfg := execute.Config{
+			Machine:          parsed.Machine,
+			Tools:            parsed.Tools,
+			ToolDeclarations: parsed.ToolDeclarations,
+			Model:            vars["model"],
+			OllamaURL:        vars["ollama_url"],
+		}
+		var extra []string
+		if dir := vars["directory"]; dir != "" {
+			extra = append(extra, "--directory", dir)
 		}
 		return &stl.SelfInvokeBuilder{
-			Config: cfg,
-			Ctx:    st.ctx,
-			Tracer: st.tracer,
+			Config:    cfg,
+			ExtraArgs: extra,
+			Ctx:       st.ctx,
+			Tracer:    st.tracer,
 		}, nil
 	})
 

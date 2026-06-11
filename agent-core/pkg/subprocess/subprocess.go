@@ -2,8 +2,8 @@
 // binary (or other binaries) as a child process with OTel propagation,
 // timeout handling, environment variables, and process group management.
 //
-// All three call sites (stl.SelfInvoke, pkg/execute, eval/clitool) share
-// this foundation.
+// All child agent invocations (execute.RunAgent, execute.Execute) and exec
+// tools share this foundation.
 package subprocess
 
 import (

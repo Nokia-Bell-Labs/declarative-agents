@@ -65,6 +65,15 @@ requirements:
       - R5.3: Shared declarations SHOULD NOT require editing when adding a new machine configuration that reuses an existing builtin tool.
       - R5.4: Mode-local overrides SHALL preserve the same builtin name/init pair unless intentionally replacing the capability.
 
+  R6:
+    title: Unified child agent invocation
+    items:
+      - R6.1: All child agent invocations (execute_task, launch_eval, self_invoke) SHALL use execute.Config as the canonical runtime config type.
+      - R6.2: CLI argument construction SHALL be centralized in execute.Config.BuildArgs; callers SHALL NOT duplicate flag construction.
+      - R6.3: execute.RunAgent SHALL be the shared entry point for child invocations that do not require task-file writing.
+      - R6.4: Child agent invocations SHALL propagate OTel tracing via subprocess.Run with PropagateOTel enabled.
+      - R6.5: YAML-declared child agent config (machine, tools, tools_declarations) SHALL be decoded via ChildAgentConfig and mapped to execute.Config at registration time.
+
 non_goals:
   - Defining external CLI/exec tools; see the CLI/exec tool SRD work.
   - Defining every builtin tool's internal algorithm.
@@ -91,6 +100,10 @@ acceptance_criteria:
     criterion: Reusable builtin declarations are separated from mode-local config overrides.
     traces: [R5.1, R5.2, R5.3, R5.4]
 
+  - id: AC6
+    criterion: All child agent invocations share execute.Config and execute.BuildArgs/RunAgent with OTel propagation; no duplicated argument construction remains.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+
 depends_on:
   - srd_id: srd001-core-types
     symbols_used: [Builder, Command, Result, Signal]
@@ -103,7 +116,9 @@ depends_on:
 
 implementation:
   - configs/tools/builtin.yaml
+  - pkg/execute/execute.go
   - pkg/stl/builtintool.go
   - pkg/stl/exectool.go
+  - pkg/stl/selfinvoke.go
   - pkg/stl/tool_emits.go
   - pkg/stl/toolconfig.go
