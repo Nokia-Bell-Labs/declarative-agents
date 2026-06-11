@@ -1,0 +1,25 @@
+# Evaluator-local builtin overrides.
+# Adds mode-specific config to tools declared in configs/tools/builtin.yaml.
+# Pass after the shared declaration:
+#   --tools-declaration configs/tools/builtin.yaml \
+#   --tools-declaration configs/evaluator/builtin.yaml
+
+tools:
+  - name: load_suite
+    type: builtin
+    init: load_suite
+    visibility: internal
+    emits: [SuiteLoaded, CommandError]
+    description: "Load an evaluation suite YAML, discover samples, expand the grid, and create the session output directory."
+    config:
+      output_dir: eval-results
+      reps: 1
+
+  - name: run_point
+    type: builtin
+    init: run_point
+    visibility: internal
+    emits: [PointDone, CommandError]
+    description: "Run the per-point evaluation pipeline via a nested core.Loop with the point machine."
+    config:
+      point_machine: configs/evaluator/point.yaml

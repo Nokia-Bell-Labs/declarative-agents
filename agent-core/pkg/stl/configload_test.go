@@ -29,13 +29,17 @@ func configDir(t *testing.T) string {
 	return abs
 }
 
-// loadTestDefs loads shared tool declarations + per-agent LLM defaults and
-// applies the agent's selection file.
+// loadTestDefs loads shared tool declarations, mode-local overrides,
+// per-agent LLM defaults, and applies the agent's selection file.
 func loadTestDefs(t *testing.T, cd, agent string) []stl.ToolDef {
 	t.Helper()
 	declPaths := []string{
 		filepath.Join(cd, "tools", "builtin.yaml"),
 		filepath.Join(cd, "tools", "exec.yaml"),
+	}
+	modeBuiltin := filepath.Join(cd, agent, "builtin.yaml")
+	if _, err := os.Stat(modeBuiltin); err == nil {
+		declPaths = append(declPaths, modeBuiltin)
 	}
 	llmDefault := filepath.Join(cd, agent, "llm", "default.yaml")
 	if _, err := os.Stat(llmDefault); err == nil {

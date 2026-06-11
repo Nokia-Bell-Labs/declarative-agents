@@ -3,6 +3,7 @@
 #
 # Usage:
 #   agent --tools-declaration configs/tools/builtin.yaml \
+#         --tools-declaration configs/planner/builtin.yaml \
 #         --tools-declaration configs/tools/exec.yaml \
 #         --tools configs/planner/tools.yaml \
 #         --machine configs/planner/machine.yaml

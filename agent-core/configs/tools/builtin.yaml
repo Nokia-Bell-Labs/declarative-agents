@@ -1,5 +1,9 @@
 # Builtin tool declarations — Go-implemented tools.
-# Pass via: agent --tools-declaration configs/tools/builtin.yaml
+# Contains reusable tool identity, init, parameters, emits, and visibility.
+# Mode-specific config lives in per-mode override files (e.g.
+# configs/planner/builtin.yaml, configs/evaluator/builtin.yaml).
+# Pass via: agent --tools-declaration configs/tools/builtin.yaml \
+#                 --tools-declaration configs/<mode>/builtin.yaml
 
 tools:
   # --- file tools ---
@@ -178,12 +182,6 @@ tools:
     description: "Execute the current task via the code generator agent."
     visibility: internal
     emits: [ExecutionDone, ExecutionFailed, CommandError]
-    config:
-      machine: configs/generator/machine.yaml
-      tools: configs/generator/tools.yaml
-      tools_declarations:
-        - configs/tools/builtin.yaml
-        - configs/tools/exec.yaml
 
   - name: check_result
     type: builtin
@@ -199,9 +197,6 @@ tools:
     visibility: internal
     emits: [SuiteLoaded, CommandError]
     description: "Load an evaluation suite YAML, discover samples, expand the grid, and create the session output directory."
-    config:
-      output_dir: eval-results
-      reps: 1
 
   - name: next_point
     type: builtin
@@ -216,8 +211,6 @@ tools:
     visibility: internal
     emits: [PointDone, CommandError]
     description: "Run the per-point evaluation pipeline via a nested core.Loop with the point machine."
-    config:
-      point_machine: configs/evaluator/point.yaml
 
   - name: report_session
     type: builtin
@@ -269,12 +262,6 @@ tools:
     visibility: internal
     emits: [ExperimentRequested, Shutdown, CommandError]
     description: "Start the bench web UI server and block waiting for user actions (bench equivalent of invoke_llm)."
-    config:
-      addr: ":8080"
-      data_dir: eval-results
-      configs_dir: configs
-      docs_dir: docs
-      profiles_dir: pkg/llm/profiles
 
   - name: launch_eval
     type: builtin
@@ -282,11 +269,6 @@ tools:
     visibility: internal
     emits: [EvalCompleted, EvalFailed, CommandError]
     description: "Spawn a child agent as a subprocess to run an experiment."
-    config:
-      machine: configs/evaluator/machine.yaml
-      tools: configs/evaluator/tools.yaml
-      tools_declarations:
-        - configs/tools/builtin.yaml
 
   # --- spec validation tools ---
   - name: load_corpus
