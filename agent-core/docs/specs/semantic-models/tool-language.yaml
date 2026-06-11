@@ -1,0 +1,212 @@
+id: sm-tool-language
+title: Tool Language Semantic Model
+
+purpose: |
+  Models the language in which agent programs are written: a MachineSpec
+  composes tools into visible workflows, while each tool is a vocabulary item
+  with a declared contract. The model explains how ToolDef, ToolSpec, Command,
+  and MachineSpec relate, and how to classify ordinary words, stateful internal
+  words, boundary tools, and legacy sentence tools.
+
+requirements_source:
+  - docs/specs/config-formats/tool-authoring-standard.yaml
+  - docs/specs/software-requirements/srd022-builtin-tools.yaml
+  - docs/specs/software-requirements/srd023-cli-exec-tools.yaml
+  - docs/specs/software-requirements/srd024-blocking-input-tools.yaml
+  - tools-as-dsl.md
+
+primary_entities:
+  - name: ToolDef
+    kind: declaration_contract
+    responsibility: Declares the tool name, type, init/binary, visibility, parameters, emits, side effects, reversibility, undo, errors, and relationships.
+  - name: ToolSpec
+    kind: runtime_manifest_entry
+    responsibility: Represents selected tool metadata and parameter schema at runtime, including LLM-visible manifest shape when applicable.
+  - name: Command
+    kind: executable_tool_instance
+    responsibility: Executes one declared tool action with bound parameters and returns a Result.Signal.
+  - name: MachineSpec
+    kind: declarative_program
+    responsibility: Composes tools into workflows through states, signals, and transition actions.
+  - name: Loop
+    kind: runtime_interpreter
+    responsibility: Interprets MachineSpec by dispatching Commands and transitioning on Result.Signal.
+  - name: Registry
+    kind: runtime_catalog
+    responsibility: Maps selected ToolSpec values to Builders that produce Commands.
+  - name: Builder
+    kind: command_factory
+    responsibility: Converts prior Result or parsed tool input into a ready Command.
+  - name: Result
+    kind: execution_output
+    responsibility: Carries Output, Signal, Cost, Err, CommandName, and optional ToolMetrics back to the machine.
+  - name: StateStore
+    kind: lifecycle_storage
+    responsibility: Stores command/domain snapshots when a tool mutates internal state.
+  - name: Workspace
+    kind: lifecycle_environment
+    responsibility: Tracks filesystem/environment state for tools with workspace side effects.
+  - name: Checkpoint
+    kind: lifecycle_record
+    responsibility: Records tool effects across agent, command/domain, and workspace state when lifecycle features are enabled.
+
+language_model:
+  vocabulary_word: |
+    A tool is one clear verb. It has typed input, typed output, declared side
+    effects, explicit error semantics, and a reversibility/undo strategy.
+  sentence: |
+    A workflow is a sequence of words. Workflows belong in MachineSpec
+    transitions, not hidden inside a single tool implementation.
+  grammar: |
+    MachineSpec is the grammar. States are positions in the sentence, Signals
+    are punctuation/outcomes, and transition actions select the next word to
+    execute.
+  runtime: |
+    Loop interprets the grammar by asking Registry/Builder for a Command,
+    dispatching it, then routing on Result.Signal.
+
+tool_categories:
+  word:
+    definition: Single deterministic verb with one primary effect and structured output.
+    examples: [read, write, edit, find, parse_response, run_oracle_check]
+    composition: freely composed by MachineSpec or LLM-selected $tool dispatch.
+    undo_model: noop for read-only words; workspace_restore or command-specific undo for mutating words.
+  stateful_internal:
+    definition: Internal machine action that mutates agent or command/domain state rather than user-visible workspace state.
+    examples: [invoke_llm, report_parse_error, reset_history, nudge_reread, next_point]
+    composition: named internal MachineSpec action; usually hidden from LLM manifests.
+    undo_model: command/domain restore, such as conversation_truncate or evaluator_session_restore.
+  boundary:
+    definition: Tool that crosses a program, model, human, nested-machine, child-process, external-API, or workspace boundary.
+    examples: [agent, serve_ui, validate, self_invoke, launch_eval, run_agent]
+    composition: allowed as a word only when the boundary and emitted signals are explicit.
+    undo_model: workspace_restore, compensation, child-workspace restore, or irreversible confirmation.
+  sentence:
+    definition: Legacy tool that hides a multi-step workflow behind one command name.
+    examples: [legacy_load_suite, legacy_check_results, deprecated_validate_sequence]
+    composition: should migrate to multiple word tools with sequencing in MachineSpec.
+    undo_model: usually ambiguous until split; must be documented before new use.
+
+relationships:
+  ToolDef_to_ToolSpec:
+    meaning: ToolDef is parsed and selected into ToolSpec metadata for runtime registration and manifests.
+    invariant: LLM-visible ToolSpec schemas omit implementation-only argv mapping extensions.
+  ToolSpec_to_Command:
+    meaning: Registry and Builder use selected ToolSpec/config to build executable Commands.
+    invariant: A Command is an instance of one tool action, not a hidden workflow.
+  Command_to_Result:
+    meaning: Command.Execute returns Result; Result.Signal drives the next MachineSpec transition.
+    invariant: Infrastructure failures use Err/CommandError; domain outcomes use explicit Signals.
+  MachineSpec_to_ToolDef:
+    meaning: MachineSpec action names reference selected tool declarations.
+    invariant: Named action signals should be declared in emits and accepted by the target state transitions.
+  ToolDef_to_lifecycle:
+    meaning: ToolDef side_effects, reversibility, undo, and errors tell rollback lifecycle code how to reason about effects.
+    invariant: Undeclared side effects are documentation bugs.
+
+machine_composition:
+  static_actions: |
+    A transition action names a specific tool. This is appropriate for internal
+    workflow steps such as build -> lint -> test or evaluator point setup.
+  dynamic_tool_dispatch: |
+    The $tool sentinel resolves a parsed LLM tool call through Registry at
+    dispatch time. Dynamic dispatch still executes one selected word.
+  boundary_or_nested_machine: |
+    A boundary tool may run a child process or nested machine, but the boundary
+    must be explicit in ToolDef. The parent MachineSpec sees one boundary word
+    and declared Signals; the child MachineSpec owns the nested sentence.
+  validation_sequence: |
+    Validation is a visible sentence in machine.yaml. A compatibility aggregate
+    such as validate is a deprecated boundary aggregator, not the preferred
+    way to define new workflows.
+
+migration_states:
+  declared_word:
+    meaning: Tool satisfies the vocabulary model and has complete contract metadata.
+    next_action: keep stable and compose in MachineSpec.
+  word_missing_contract:
+    meaning: Tool does one thing but lacks complete side effects, output, undo, errors, or relationship metadata.
+    next_action: complete ToolDef contract without changing behavior.
+  boundary_documented:
+    meaning: Tool crosses a boundary but declares why, what it emits, and how side effects are handled.
+    next_action: preserve if it remains a true boundary word.
+  legacy_sentence:
+    meaning: Tool hides sequencing or multiple verbs.
+    next_action: split into words and move order into MachineSpec.
+  deprecated_compatibility:
+    meaning: Tool remains for old machines but should not be used for new workflows.
+    next_action: hide from LLM manifests, document replacement sequence, and remove when callers migrate.
+
+diagrams:
+  machine_as_sentence_composer: |
+    ```mermaid
+    flowchart TD
+      M[MachineSpec] --> S1[State A]
+      S1 -->|Signal X| W1[Tool word: build]
+      W1 --> R1[Result.Signal ToolDone]
+      R1 --> S2[State B]
+      S2 -->|ToolDone| W2[Tool word: lint]
+      W2 --> R2[Result.Signal ToolDone]
+      R2 --> S3[State C]
+      S3 -->|ToolDone| W3[Tool word: test]
+    ```
+  declaration_to_execution: |
+    ```mermaid
+    sequenceDiagram
+      participant D as ToolDef
+      participant R as Registry
+      participant B as Builder
+      participant C as Command
+      participant M as MachineSpec
+      participant L as Loop
+      D->>R: register selected ToolSpec
+      L->>M: step(state, signal)
+      M-->>L: action name
+      L->>R: resolve builder
+      R-->>L: Builder
+      L->>B: Build(previous Result)
+      B-->>L: Command
+      L->>C: Execute
+      C-->>L: Result.Signal
+    ```
+  boundary_tool: |
+    ```mermaid
+    flowchart LR
+      P[Parent MachineSpec] --> B[Boundary Tool]
+      B --> E[External actor or child machine]
+      E --> B
+      B -->|declared Signal| P
+      B -->|declared side effects| L[Lifecycle model]
+    ```
+  legacy_sentence_migration: |
+    ```mermaid
+    flowchart LR
+      A[Legacy sentence tool] --> B[Identify verbs]
+      B --> C[Create word ToolDefs]
+      C --> D[Declare emits and side effects]
+      D --> E[Move sequence to machine.yaml]
+      E --> F[Mark aggregate deprecated]
+    ```
+
+invariants:
+  - Tools do not hide workflows; workflows are MachineSpec transitions over tool words.
+  - A word has one primary semantic action even if its implementation has multiple internal statements.
+  - Boundary tools are allowed only when the boundary is explicit and the parent machine sees declared signals.
+  - New tools declare side effects, reversibility, undo, errors, and relationships.
+  - Irreversible tools require explicit documentation and should require confirmation before affecting user data or shared infrastructure.
+  - Tool output should be structured enough for the next machine step or tool to consume without LLM interpretation.
+  - Legacy sentence tools migrate by splitting verbs and preserving behavior in machine.yaml.
+
+non_goals:
+  - Requiring every existing legacy tool to be split in this semantic-model task.
+  - Prohibiting boundary tools such as LLM calls, child agents, or human approval gates.
+  - Treating implementation helper functions as separate tools.
+  - Letting ToolDef relationships prescribe a single hardcoded workflow.
+
+related_documents:
+  - cfg-tool-authoring-standard
+  - sm-tool-vocabulary-audit
+  - sm-rollback-lifecycle
+  - srd022-builtin-tools
+  - srd023-cli-exec-tools
+  - srd024-blocking-input-tools

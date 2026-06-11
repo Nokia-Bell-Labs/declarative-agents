@@ -18,6 +18,13 @@ goals:
   - G5: Define observability expectations for long-running tools.
 
 requirements:
+  R0:
+    title: Tool authoring standard
+    items:
+      - R0.1: Blocking input tool declarations SHOULD follow cfg-tool-authoring-standard for vocabulary category, problem, goals, requirements, non-goals, output, side effects, reversibility, undo, errors, and relationships.
+      - R0.2: Blocking input tools SHOULD be classified as boundary tools when they wait on a model, human, approval gate, server, or other external actor.
+      - R0.3: Blocking input tools SHOULD keep workflow sequencing in machine.yaml transitions and return one declared Signal per completed external interaction.
+
   R1:
     title: Blocking command execution
     items:
@@ -74,7 +81,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: Blocking input tools execute as normal Commands that block until input, cancellation, timeout, or shutdown and then return one Result.
-    traces: [R1.1, R1.2, R1.3, R1.4]
+    traces: [R0.1, R0.2, R0.3, R1.1, R1.2, R1.3, R1.4]
 
   - id: AC2
     criterion: External input maps to structured Result.Output and a machine-declared Signal, with invalid input mapped to a documented failure path.
@@ -109,6 +116,9 @@ depends_on:
     symbols_used: [serve_ui]
   - srd_id: srd022-builtin-tools
     symbols_used: [BuiltinRegistry]
+
+related_documents:
+  - cfg-tool-authoring-standard
 
 implementation_examples:
   - pkg/stl/llmtools.go

@@ -1,0 +1,72 @@
+id: rel02.0-uc003-tool-authoring
+title: Developer authors a new tool as a vocabulary word
+
+summary: |
+  A developer needs to expose a new capability to an agent. Before writing the
+  implementation, the developer authors a ToolDef using the tool authoring
+  standard: the new tool has a clear problem, goals, requirements, non-goals,
+  typed input/output, declared side effects, reversibility, undo, errors, and
+  relationships. The tool is classified as a word, stateful_internal,
+  boundary, or legacy sentence, and the MachineSpec composes it with other
+  tools through explicit signals.
+
+actor: Developer adding an agent capability
+
+trigger: |
+  The developer identifies a vocabulary gap in an agent workflow, such as a
+  missing parser, checker, artifact collector, or external CLI verb.
+
+flow:
+  - F1: The developer states the problem and non-goals to prove the tool fills one vocabulary gap rather than hiding a workflow (cfg-tool-authoring-standard).
+  - F2: The developer classifies the tool as word, stateful_internal, boundary, or sentence migration candidate (srd022 R0, srd023 R0, srd024 R0).
+  - F3: The developer defines parameters and output.schema so the next machine transition or tool can consume the result without prose interpretation (cfg-tool-authoring-standard).
+  - F4: The developer declares emits so named MachineSpec actions can validate returned signals (srd022 R4, srd023 R3).
+  - F5: The developer declares side_effects, reversibility, undo, errors, and state_after_failure using the three-layer rollback model (srd025 R11).
+  - F6: If the tool is irreversible or compensatable, the developer documents confirmation or compensation behavior before selecting it in user-affecting workflows (srd025 R11).
+  - F7: The developer documents relationships: likely preceding tools, likely consumers, and overlaps with similar words (cfg-tool-authoring-standard).
+  - F8: The developer wires the tool into machine.yaml as one action in a visible sequence rather than embedding sequencing inside the tool (srd006, sm-tool-language).
+
+touchpoints:
+  - T1: "srd006-yaml-machine-config R3, R4 -- MachineSpec composes declared action names and signals"
+  - T2: "srd022-builtin-tools R0, R1, R4 -- builtin declarations follow the authoring standard and integrate with machines"
+  - T3: "srd023-cli-exec-tools R0, R1, R3, R5 -- exec declarations model one CLI verb with declared side effects"
+  - T4: "srd024-blocking-input-tools R0, R2, R3 -- boundary/blocking tools declare external input and signals"
+  - T5: "srd025-rollback-lifecycle R4, R10, R11 -- undo, feature flags, reversibility, and safety behavior"
+  - T6: "sm-tool-language -- ToolDef, ToolSpec, Command, and MachineSpec relationships"
+
+success_criteria:
+  - id: S1
+    criterion: The tool declaration includes problem, goals, requirements, non_goals, output, side_effects, reversibility, undo, errors, and relationships.
+    traces:
+      - srd022-builtin-tools AC1
+  - id: S2
+    criterion: The tool is classified correctly as a word, stateful_internal, boundary, or legacy sentence migration candidate.
+    traces:
+      - srd023-cli-exec-tools AC5
+  - id: S3
+    criterion: Irreversible or compensatable side effects are documented and require confirmation where they affect user data or shared infrastructure.
+    traces:
+      - srd025-rollback-lifecycle AC6
+  - id: S4
+    criterion: MachineSpec owns sequencing; the new tool implementation does not hide a multi-step workflow.
+    traces:
+      - srd006-yaml-machine-config AC3
+
+failure_scenarios:
+  - id: E1
+    scenario: The tool description contains multiple observable verbs joined by "and".
+    expected: The review rejects the ToolDef until it is split or classified as a documented boundary.
+  - id: E2
+    scenario: The tool writes files but omits side_effects or undo.
+    expected: The declaration fails authoring review because rollback cannot reason about it.
+  - id: E3
+    scenario: The tool output requires LLM judgment to know whether it succeeded.
+    expected: The developer adds structured output and declared signals, or classifies the tool as boundary.
+
+out_of_scope:
+  - Implementing the tool body.
+  - Designing new MachineSpec syntax.
+  - Completing contract metadata for every existing tool.
+
+semantic_model: sm-tool-language
+test_suite_trace: test-rel02.0-tool-contracts
