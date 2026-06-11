@@ -49,10 +49,11 @@ schema:
         type: int
         description: |
           Maximum consecutive LLM parse failures before the machine
-          transitions via BudgetExhausted. This is a domain-specific
-          policy enforced by the stl.ParseErrorPolicy AfterDispatch
-          hook, not by the core loop itself. The value is read from
-          the machine YAML and passed to the hook at startup.
+          transitions via BudgetExhausted. For grammars that route
+          ParseFailed through report_parse_error, the value is read from
+          machine YAML and enforced by that explicit internal word. Machines
+          without report_parse_error may still use the compatibility
+          stl.ParseErrorPolicy AfterDispatch hook.
 
   - field: states
     type: "[]string"

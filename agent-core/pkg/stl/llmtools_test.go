@@ -334,6 +334,63 @@ func TestReportParseError(t *testing.T) {
 	assert.Contains(t, res.Output, "malformed JSON")
 }
 
+func TestReportParseError_EmitsBudgetExhaustedAtRetryLimit(t *testing.T) {
+	tracker := &ParseErrorRetryTracker{MaxConsecutive: 2}
+	builder := &ReportParseErrorBuilder{Tracer: noopTracer(), Retry: tracker}
+
+	first := builder.Build(core.Result{Output: "bad JSON"})
+	res := first.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+
+	second := builder.Build(core.Result{Output: "still bad JSON"})
+	res = second.Execute()
+	require.Equal(t, core.BudgetExhausted, res.Signal)
+	require.Contains(t, res.Output, "retry limit")
+	require.Equal(t, 2, tracker.Snapshot())
+}
+
+func TestReportParseError_UndoRestoresRetryCounter(t *testing.T) {
+	tracker := &ParseErrorRetryTracker{MaxConsecutive: 3}
+	builder := &ReportParseErrorBuilder{Tracer: noopTracer(), Retry: tracker}
+
+	cmd := builder.Build(core.Result{Output: "bad JSON"})
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.Equal(t, 1, tracker.Snapshot())
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 0, tracker.Snapshot())
+}
+
+func TestParseResponse_ResetsRetryCounterAfterSuccessfulParse(t *testing.T) {
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{
+		Name:        "read",
+		Description: "Read a file",
+		InputSchema: json.RawMessage(`{"type":"object","required":["path"]}`),
+		Visibility:  core.External,
+	}, &ReadBuilder{Root: "/tmp"})
+	tracker := &ParseErrorRetryTracker{MaxConsecutive: 3}
+	tracker.ReportParseError()
+	tracker.ReportParseError()
+
+	builder := &ParseResponseBuilder{
+		Registry: reg,
+		Parser:   &stubParser{},
+		Tracer:   noopTracer(),
+		Retry:    tracker,
+	}
+	cmd := builder.Build(core.Result{Output: `{"tool":"read","parameters":{"path":"main.go"}}`})
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.Equal(t, 0, tracker.Snapshot())
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 2, tracker.Snapshot())
+}
+
 // --- reset_history tests ---
 
 func TestResetHistory(t *testing.T) {

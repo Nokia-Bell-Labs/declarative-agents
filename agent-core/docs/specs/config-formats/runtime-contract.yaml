@@ -317,13 +317,14 @@ engine_policy_audit:
         runtime wiring.
 
   migration_candidates:
-    - item: Parse-error retry override
-      symbols: [core.LoopHooks.AfterDispatch, stl.ParseErrorPolicy, max_consecutive_parse_errors]
+    - item: Parse-error retry fallback
+      symbols: [core.LoopHooks.AfterDispatch, stl.ParseErrorPolicy]
       rationale: |
-        AfterDispatch can replace a tool-emitted signal before routing. The
-        current parse-error retry limit is useful behavior, but it is a grammar
-        policy enforced through a post-dispatch signal override; it should move
-        toward explicit internal words, signals, or machine metadata.
+        Generator-style grammars enforce max_consecutive_parse_errors through
+        the explicit report_parse_error word, which emits BudgetExhausted at
+        the configured limit. The remaining AfterDispatch hook is a
+        compatibility fallback for machines that do not route ParseFailed
+        through that internal word.
     - item: Result accumulator mutation
       symbols: [core.LoopHooks.OnResult]
       rationale: |

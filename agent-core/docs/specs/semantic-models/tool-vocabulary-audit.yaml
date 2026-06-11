@@ -39,7 +39,8 @@ role_legend:
 
 overall_findings:
   - Most file and simple exec tools are close to vocabulary words.
-  - Tool declarations still lack complete contract metadata for most tools:
+  - |
+    Tool declarations still lack complete contract metadata for most tools:
     problem, goals, non_goals, output.schema, structured side_effects,
     reversibility, undo, errors, and relationships.
   - The remaining high-priority sentence-shaped tools are now mostly planner
@@ -171,13 +172,13 @@ tools:
     role: stateful_internal
     selected_by: [generator]
     inputs_from: [parse_response]
-    feeds_into: [invoke_llm]
-    side_effects: conversation_append
+    feeds_into: [invoke_llm, BudgetExceeded]
+    side_effects: parse_retry_counter_update
     output_contract: missing
-    undo: conversation_truncate
+    undo: parse_retry_counter_restore
     overlaps: []
     issues:
-      - declare conversation mutation and undo strategy
+      - output.schema should distinguish retry feedback from retry-limit exhaustion
     migration_priority: medium
 
   - name: reset_history

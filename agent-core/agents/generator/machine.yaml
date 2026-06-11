@@ -16,6 +16,7 @@ invariants:
 - File edits trigger a re-read nudge to prevent stale context
 - The done tool always triggers validation before declaring success
 - Parse failures are reported to the LLM for self-correction
+- report_parse_error emits BudgetExhausted after max_consecutive_parse_errors
 - Infrastructure errors (CommandError) are terminal — no recovery
 lifecycle: |-
   1. Idle → Composing (Seed): invoke_llm with the task prompt
@@ -26,7 +27,8 @@ lifecycle: |-
   4. Composing → Composing (ToolDone): invoke_llm sends tool result to LLM
   5. Composing → Composing (EditDone): nudge_reread after file edits
   6. Composing → Composing (ToolFailed): invoke_llm sends failure to LLM
-  7. Parsing → Composing (ParseFailed): report_parse_error to LLM
+  7. Parsing → Composing (ParseFailed): report_parse_error to LLM,
+     or BudgetExceeded when max_consecutive_parse_errors is reached
   8. Parsing → ValidatingBuild (TaskCompleted): parse_response recognized
      the done tool — machine-declared validation starts with build
   9. ValidatingBuild → ValidatingLint (ToolDone): lint runs after build

@@ -232,18 +232,39 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 // --- parse_response command ---
 
 type parseResponseCmd struct {
-	raw      string
-	registry *core.Registry
-	parser   llm.ResponseParser
-	tracer   tracing.Tracer
-	verbose  bool
+	raw         string
+	registry    *core.Registry
+	parser      llm.ResponseParser
+	tracer      tracing.Tracer
+	verbose     bool
+	retry       *ParseErrorRetryTracker
+	prevRetries int
+	hasSnapshot bool
 }
 
-func (p *parseResponseCmd) Name() string      { return "parse_response" }
-func (p *parseResponseCmd) Undo() core.Result { return core.NoopUndo(p.Name()) }
+func (p *parseResponseCmd) Name() string { return "parse_response" }
+func (p *parseResponseCmd) Undo() core.Result {
+	if p.retry == nil {
+		return core.NoopUndo(p.Name())
+	}
+	if !p.hasSnapshot {
+		return core.Result{
+			Signal:      core.CommandError,
+			CommandName: p.Name(),
+			Output:      "undo parse_response: no retry counter snapshot recorded",
+			Err:         fmt.Errorf("undo parse_response: no retry counter snapshot recorded"),
+		}
+	}
+	p.retry.Restore(p.prevRetries)
+	return core.Result{Signal: core.ToolDone, CommandName: p.Name(), Output: fmt.Sprintf("undo: restored parse retry counter to %d", p.prevRetries)}
+}
 
 func (p *parseResponseCmd) Execute() core.Result {
 	tr := p.tracer
+	if p.retry != nil {
+		p.prevRetries = p.retry.Snapshot()
+		p.hasSnapshot = true
+	}
 
 	tr.SetAttributes(attribute.Int("raw_response_bytes", len(p.raw)))
 	if p.verbose {
@@ -251,6 +272,7 @@ func (p *parseResponseCmd) Execute() core.Result {
 	}
 
 	toolReq, sig, errMsg := p.parse(tr)
+	p.retry.RecordParseResult(sig)
 	if sig == core.ParseFailed {
 		tr.Event("parse_failed", attribute.String("reason", errMsg))
 		tr.SetAttributes(attribute.String("outcome", "failed"))
@@ -375,6 +397,7 @@ type ParseResponseBuilder struct {
 	Parser   llm.ResponseParser
 	Tracer   tracing.Tracer
 	Verbose  bool
+	Retry    *ParseErrorRetryTracker
 }
 
 func (b *ParseResponseBuilder) Build(res core.Result) core.Command {
@@ -384,23 +407,54 @@ func (b *ParseResponseBuilder) Build(res core.Result) core.Command {
 		parser:   b.Parser,
 		tracer:   b.Tracer,
 		verbose:  b.Verbose,
+		retry:    b.Retry,
 	}
 }
 
 // --- report_parse_error command ---
 
 type reportParseErrorCmd struct {
-	errorText string
-	tracer    tracing.Tracer
+	errorText   string
+	tracer      tracing.Tracer
+	retry       *ParseErrorRetryTracker
+	prevRetries int
+	hasSnapshot bool
 }
 
-func (r *reportParseErrorCmd) Name() string      { return "report_parse_error" }
-func (r *reportParseErrorCmd) Undo() core.Result { return core.NoopUndo(r.Name()) }
+func (r *reportParseErrorCmd) Name() string { return "report_parse_error" }
+func (r *reportParseErrorCmd) Undo() core.Result {
+	if r.retry == nil {
+		return core.NoopUndo(r.Name())
+	}
+	if !r.hasSnapshot {
+		return core.Result{
+			Signal:      core.CommandError,
+			CommandName: r.Name(),
+			Output:      "undo report_parse_error: no retry counter snapshot recorded",
+			Err:         fmt.Errorf("undo report_parse_error: no retry counter snapshot recorded"),
+		}
+	}
+	r.retry.Restore(r.prevRetries)
+	return core.Result{Signal: core.ToolDone, CommandName: r.Name(), Output: fmt.Sprintf("undo: restored parse retry counter to %d", r.prevRetries)}
+}
 
 func (r *reportParseErrorCmd) Execute() core.Result {
+	if r.retry != nil {
+		r.prevRetries = r.retry.Snapshot()
+		r.hasSnapshot = true
+	}
+	sig := r.retry.ReportParseError()
 	r.tracer.Event("parse_error_reported",
 		attribute.String("error_class", llm.ClassifyParseError(r.errorText)),
+		attribute.String("signal", string(sig)),
 	)
+
+	if sig == core.BudgetExhausted {
+		return core.Result{
+			Signal: sig,
+			Output: fmt.Sprintf("parse error retry limit reached: %s", r.errorText),
+		}
+	}
 
 	feedback := fmt.Sprintf(
 		"Your previous response was invalid. %s\n\n"+
@@ -414,10 +468,11 @@ func (r *reportParseErrorCmd) Execute() core.Result {
 // the error description produced by parse_response.
 type ReportParseErrorBuilder struct {
 	Tracer tracing.Tracer
+	Retry  *ParseErrorRetryTracker
 }
 
 func (b *ReportParseErrorBuilder) Build(res core.Result) core.Command {
-	return &reportParseErrorCmd{errorText: res.Output, tracer: b.Tracer}
+	return &reportParseErrorCmd{errorText: res.Output, tracer: b.Tracer, retry: b.Retry}
 }
 
 // --- reset_history command ---

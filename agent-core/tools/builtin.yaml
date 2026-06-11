@@ -201,31 +201,31 @@ tools:
     description: "Parse raw LLM output into a tool call or task-completed signal."
     category: word
     side_effects:
-      - kind: none
-        description: "Parses the prior command output and emits a structured routing signal without mutating state."
+      - kind: command_state
+        description: "Parses the prior command output and may reset the parse retry counter after a non-ParseFailed result."
     reversibility:
       classification: reversible
-      undo: "noop"
+      undo: "parse_retry_counter_restore"
     undo:
-      strategy: noop
-      description: "Parsing is stateless and has no effects to reverse."
+      strategy: parse_retry_counter_restore
+      description: "Restores the parse retry counter snapshot captured before parsing."
 
   - name: report_parse_error
     type: builtin
     init: report_parse_error
     visibility: internal
-    emits: [ToolDone]
+    emits: [ToolDone, BudgetExhausted]
     description: "Report a parse error back to the LLM for correction."
     category: word
     side_effects:
-      - kind: none
-        description: "Formats feedback for the next LLM turn without mutating command or workspace state."
+      - kind: command_state
+        description: "Increments the parse retry counter and emits BudgetExhausted when the configured retry limit is reached."
     reversibility:
       classification: reversible
-      undo: "noop"
+      undo: "parse_retry_counter_restore"
     undo:
-      strategy: noop
-      description: "Formatting parse feedback has no effects to reverse."
+      strategy: parse_retry_counter_restore
+      description: "Restores the parse retry counter snapshot captured before reporting the parse error."
 
   - name: reset_history
     type: builtin

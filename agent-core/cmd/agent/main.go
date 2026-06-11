@@ -410,6 +410,7 @@ type agentState struct {
 	providerName  string
 	serverAddr    string
 	manifestState core.State
+	parseRetries  *stl.ParseErrorRetryTracker
 	numCtx        int
 	callTimeout   time.Duration
 	verbose       bool
@@ -559,42 +560,8 @@ func run(cmd *cobra.Command, args []string) error {
 		"ollama_url": llmCfg.OllamaURL,
 	}
 
-	// Build registries
-	reg := core.NewRegistry()
-	builtins := stl.NewBuiltinRegistry()
-
-	st := &agentState{
-		adapter:       adapter,
-		profileReg:    profileReg,
-		parser:        parser,
-		assembler:     assembler,
-		conversation:  conversation,
-		conversations: conversations,
-		tracker:       tracker,
-		registry:      reg,
-		tracer:        tracer,
-		model:         llmCfg.Model,
-		providerName:  llmCfg.Provider,
-		serverAddr:    serverAddr,
-		manifestState: core.State(llmCfg.ManifestState),
-		numCtx:        llmCfg.NumCtx,
-		callTimeout:   llmCfg.LLMTimeout,
-		verbose:       flagVerboseTrace,
-		ctx:           cmd.Context(),
-		directory:     flagDirectory,
-		stateStore:    stateStore,
-	}
-
-	registerBuiltinFactories(builtins, st, selectedBuiltinInits(defs))
-
-	if err := stl.RegisterUnifiedTools(reg, builtins, flagDirectory, defs, vars); err != nil {
-		return fmt.Errorf("register tools: %w", err)
-	}
-
-	// Build $tool action (dynamic tool dispatch from parse_response output)
-	toolAction := buildToolAction(st, reg)
-
-	// Build budget: defaults from machine.yaml, overridden by LLM config
+	// Load the machine before tool registration so machine-scoped policy
+	// metadata can parameterize explicit grammar words such as report_parse_error.
 	machineSpec, err := core.LoadMachineSpec(flagMachine)
 	if err != nil {
 		return fmt.Errorf("load machine spec for budget: %w", err)
@@ -613,10 +580,55 @@ func run(cmd *cobra.Command, args []string) error {
 		budget.MaxTokens = llmCfg.MaxTokens
 	}
 
-	var afterDispatch func(core.Command, core.Result) core.Signal
-	if machineSpec.BudgetSpec != nil && machineSpec.BudgetSpec.MaxConsecutiveParseErrors > 0 {
-		afterDispatch = stl.ParseErrorPolicy(machineSpec.BudgetSpec.MaxConsecutiveParseErrors)
+	selectedInits := selectedBuiltinInits(defs)
+	parseErrorLimit := 0
+	if machineSpec.BudgetSpec != nil {
+		parseErrorLimit = machineSpec.BudgetSpec.MaxConsecutiveParseErrors
 	}
+	var parseRetries *stl.ParseErrorRetryTracker
+	var afterDispatch func(core.Command, core.Result) core.Signal
+	if parseErrorLimit > 0 {
+		if selectedInits["report_parse_error"] {
+			parseRetries = &stl.ParseErrorRetryTracker{MaxConsecutive: parseErrorLimit}
+		} else {
+			afterDispatch = stl.ParseErrorPolicy(parseErrorLimit)
+		}
+	}
+
+	// Build registries
+	reg := core.NewRegistry()
+	builtins := stl.NewBuiltinRegistry()
+	st := &agentState{
+		adapter:       adapter,
+		profileReg:    profileReg,
+		parser:        parser,
+		assembler:     assembler,
+		conversation:  conversation,
+		conversations: conversations,
+		tracker:       tracker,
+		registry:      reg,
+		tracer:        tracer,
+		model:         llmCfg.Model,
+		providerName:  llmCfg.Provider,
+		serverAddr:    serverAddr,
+		manifestState: core.State(llmCfg.ManifestState),
+		parseRetries:  parseRetries,
+		numCtx:        llmCfg.NumCtx,
+		callTimeout:   llmCfg.LLMTimeout,
+		verbose:       flagVerboseTrace,
+		ctx:           cmd.Context(),
+		directory:     flagDirectory,
+		stateStore:    stateStore,
+	}
+
+	registerBuiltinFactories(builtins, st, selectedInits)
+
+	if err := stl.RegisterUnifiedTools(reg, builtins, flagDirectory, defs, vars); err != nil {
+		return fmt.Errorf("register tools: %w", err)
+	}
+
+	// Build $tool action (dynamic tool dispatch from parse_response output)
+	toolAction := buildToolAction(st, reg)
 
 	// Run the loop
 	params := core.LoopParams{
@@ -880,6 +892,7 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected 
 				Parser:   st.parser,
 				Tracer:   st.tracer,
 				Verbose:  st.verbose,
+				Retry:    st.parseRetries,
 			}, nil
 		})
 	}
@@ -887,6 +900,7 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected 
 		br.Register("report_parse_error", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 			return &stl.ReportParseErrorBuilder{
 				Tracer: st.tracer,
+				Retry:  st.parseRetries,
 			}, nil
 		})
 	}
