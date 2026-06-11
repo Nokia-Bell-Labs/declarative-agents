@@ -140,6 +140,42 @@ func TestLLMConfigsDeclareManifestState(t *testing.T) {
 	}
 }
 
+func TestToolContractsWarnOnlyReport(t *testing.T) {
+	cd := configDir(t)
+	cases := []struct {
+		name          string
+		agent         string
+		selectionPath string
+	}{
+		{name: "generator", agent: "generator", selectionPath: filepath.Join(cd, "generator", "tools.yaml")},
+		{name: "planner", agent: "planner", selectionPath: filepath.Join(cd, "planner", "tools.yaml")},
+		{name: "evaluator-session", agent: "evaluator", selectionPath: filepath.Join(cd, "evaluator", "tools.yaml")},
+		{name: "evaluator-point", agent: "evaluator", selectionPath: filepath.Join(cd, "evaluator", "tools-point.yaml")},
+		{name: "bench", agent: "bench", selectionPath: filepath.Join(cd, "bench", "tools.yaml")},
+		{name: "validate", agent: "validate", selectionPath: filepath.Join(cd, "validate", "tools.yaml")},
+	}
+
+	total := 0
+	bySeverity := map[string]int{}
+	byCategory := map[string]int{}
+	for _, tc := range cases {
+		defs := loadTestDefsForSelection(t, cd, tc.agent, tc.selectionPath)
+		findings := stl.ValidateToolContracts(defs, stl.ContractValidationOptions{
+			IncludeInternal: true,
+		})
+		total += len(findings)
+		for _, finding := range findings {
+			bySeverity[finding.Severity]++
+			byCategory[finding.Category]++
+		}
+		t.Logf("%s: %d tool contract findings", tc.name, len(findings))
+	}
+
+	require.NotZero(t, total, "current declarations should still have warn-only contract migration findings")
+	t.Logf("tool contract findings by severity: %v", bySeverity)
+	t.Logf("tool contract findings by category: %v", byCategory)
+}
+
 func dummyToolAction(_ core.Result) core.Command { return noopCmd{} }
 
 // ---------------------------------------------------------------------------

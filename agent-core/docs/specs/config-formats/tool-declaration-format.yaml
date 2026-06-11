@@ -289,6 +289,14 @@ inline_pattern: |
   and each agent's tools.yaml contains only tool names (selection).
   This ensures a single source of truth for tool schemas and config.
 
+contract_validation: |
+  Tool vocabulary contract fields are validated incrementally. During
+  migration, ValidateToolContracts can run in warn-only mode over selected
+  tools and return structured findings with tool name, field, severity,
+  category, message, and remediation. Strict mode escalates missing required
+  contract fields to errors for tests or future startup enforcement. Internal
+  tools are excluded by default unless IncludeInternal is set.
+
 related_documents:
   - srd013
   - srd021
@@ -301,6 +309,7 @@ related_documents:
 
 implementation:
   - pkg/stl/exectool.go
+  - pkg/stl/tool_contracts.go
   - pkg/stl/tool_emits.go
   - pkg/stl/toolconfig.go
   - pkg/stl/builtintool.go
