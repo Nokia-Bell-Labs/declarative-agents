@@ -30,6 +30,21 @@ type ContractFinding struct {
 	Remediation string
 }
 
+const (
+	ContractAuditComplete = "complete"
+	ContractAuditPartial  = "partial"
+	ContractAuditMissing  = "missing"
+)
+
+// ContractAuditEntry summarizes Grammar Machine contract coverage for one tool.
+type ContractAuditEntry struct {
+	ToolName        string
+	Category        string
+	Status          string
+	MissingFields   []string
+	MigrationTarget string
+}
+
 // ValidateToolContracts reports missing or legacy vocabulary contract metadata
 // for tool declarations. It does not mutate definitions or affect runtime tool
 // execution.
@@ -75,6 +90,28 @@ func ValidateToolContracts(defs []ToolDef, opts ContractValidationOptions) []Con
 	return findings
 }
 
+// AuditToolContracts classifies each tool as complete, partial, or missing for
+// the core Grammar Machine word contract fields. It is meant for migration
+// planning; enforcement belongs in ValidateToolContracts strict modes.
+func AuditToolContracts(defs []ToolDef, opts ContractValidationOptions) []ContractAuditEntry {
+	audit := make([]ContractAuditEntry, 0, len(defs))
+	for _, def := range defs {
+		category := contractCategory(def)
+		if category == "internal" && !opts.IncludeInternal {
+			continue
+		}
+		missing := missingAuditFields(def, category)
+		audit = append(audit, ContractAuditEntry{
+			ToolName:        def.Name,
+			Category:        category,
+			Status:          contractAuditStatus(len(missing)),
+			MissingFields:   missing,
+			MigrationTarget: contractMigrationTarget(def, category, missing),
+		})
+	}
+	return audit
+}
+
 func contractCategory(def ToolDef) string {
 	if def.Category != "" {
 		return def.Category
@@ -86,6 +123,77 @@ func contractCategory(def ToolDef) string {
 		return "external_builtin"
 	}
 	return "exec"
+}
+
+func missingAuditFields(def ToolDef, category string) []string {
+	checks := []struct {
+		field   string
+		present bool
+	}{
+		{"category", def.Category != ""},
+		{"parameters", len(def.Parameters) > 0 || category == "internal"},
+		{"emits", len(def.Emits) > 0},
+		{"output.schema", len(def.Output.Schema) > 0},
+		{"side_effects", len(def.SideEffects.Items) > 0 || def.SideEffects.LegacyText != ""},
+		{"reversibility.classification", def.Reversibility.Classification != ""},
+		{"undo", def.Undo.Strategy != "" || def.Reversibility.Undo != "" || len(def.Requirements.Undo) > 0},
+		{"errors", len(def.Errors) > 0 || len(def.Requirements.Errors) > 0},
+		{"relationships", len(def.Relationships.Before) > 0 || len(def.Relationships.After) > 0 || len(def.Relationships.Overlaps) > 0},
+	}
+	missing := make([]string, 0, len(checks))
+	for _, check := range checks {
+		if !check.present {
+			missing = append(missing, check.field)
+		}
+	}
+	return missing
+}
+
+func contractAuditStatus(missingCount int) string {
+	switch {
+	case missingCount == 0:
+		return ContractAuditComplete
+	case missingCount >= 7:
+		return ContractAuditMissing
+	default:
+		return ContractAuditPartial
+	}
+}
+
+func contractMigrationTarget(def ToolDef, category string, missing []string) string {
+	if len(missing) == 0 {
+		return ""
+	}
+	switch {
+	case category == "boundary":
+		return "declare boundary side effects, compensation/confirmation, and child or external ownership"
+	case hasSideEffectKind(def, "state_mutation") || category == "stateful_internal":
+		return "declare state_mutation effects and a command/domain undo strategy"
+	case hasFilesystemEffect(def):
+		return "declare filesystem effects and workspace_restore or compensating undo"
+	case category == "internal":
+		return "classify as word, stateful_internal, or boundary and add missing internal word metadata"
+	default:
+		return "fill missing word contract fields so static analysis can reason about this tool"
+	}
+}
+
+func hasSideEffectKind(def ToolDef, kind string) bool {
+	for _, effect := range def.SideEffects.Items {
+		if effect.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func hasFilesystemEffect(def ToolDef) bool {
+	for _, effect := range def.SideEffects.Items {
+		if effect.Kind == "filesystem_write" || effect.Kind == "filesystem_delete" || effect.Kind == "filesystem_read" {
+			return true
+		}
+	}
+	return false
 }
 
 func severity(opts ContractValidationOptions) string {

@@ -110,6 +110,47 @@ func TestValidateToolContractsCompleteDefinitionHasNoWarnings(t *testing.T) {
 	assert.Empty(t, findings)
 }
 
+func TestAuditToolContractsClassifiesCompletePartialAndMissing(t *testing.T) {
+	defs := []ToolDef{
+		completeToolDef("parse_csv"),
+		{
+			Name:        "write",
+			Type:        "builtin",
+			Init:        "file_write",
+			Category:    "word",
+			Description: "Write a file.",
+			Parameters:  map[string]interface{}{"type": "object"},
+			Emits:       []string{"ToolDone", "ToolFailed"},
+			Output: ToolOutputContract{
+				Schema: map[string]interface{}{"type": "object"},
+			},
+			SideEffects: ToolSideEffects{
+				Items: []ToolSideEffect{{Kind: "filesystem_write", Target: "workspace"}},
+			},
+		},
+		{Name: "parse_response", Type: "builtin", Init: "parse_response", Visibility: "internal"},
+	}
+
+	audit := AuditToolContracts(defs, ContractValidationOptions{IncludeInternal: true})
+
+	require.Len(t, audit, 3)
+	assertAuditEntry(t, audit, "parse_csv", ContractAuditComplete, "")
+	assertAuditEntry(t, audit, "write", ContractAuditPartial, "declare filesystem effects")
+	assertAuditEntry(t, audit, "parse_response", ContractAuditMissing, "classify as word")
+}
+
+func TestAuditToolContractsCanSkipInternalTools(t *testing.T) {
+	defs := []ToolDef{
+		{Name: "parse_response", Type: "builtin", Init: "parse_response", Visibility: "internal"},
+		completeToolDef("read"),
+	}
+
+	audit := AuditToolContracts(defs, ContractValidationOptions{})
+
+	require.Len(t, audit, 1)
+	assert.Equal(t, "read", audit[0].ToolName)
+}
+
 func completeToolDef(name string) ToolDef {
 	return ToolDef{
 		Name:        name,
@@ -131,9 +172,18 @@ func completeToolDef(name string) ToolDef {
 			Items: []ToolSideEffect{{Kind: "none"}},
 		},
 		Reversibility: ToolReversibility{Classification: "reversible"},
+		Undo:          ToolUndoContract{Strategy: "noop", Description: "Read-only command has no state to restore."},
+		Errors: []ToolErrorContract{{
+			Signal:            "CommandError",
+			Condition:         "CSV cannot be parsed",
+			MessageShape:      "parse_csv: <error>",
+			StateAfterFailure: "no state changed",
+		}},
 		Relationships: ToolRelationships{
 			Before: []string{"read"},
 		},
+		Emits:      []string{"ToolDone", "CommandError"},
+		Parameters: map[string]interface{}{"type": "object"},
 	}
 }
 
@@ -157,4 +207,23 @@ func assertNoFinding(t *testing.T, findings []ContractFinding, tool, field strin
 			require.Failf(t, "unexpected finding", "tool=%s field=%s", tool, field)
 		}
 	}
+}
+
+func assertAuditEntry(t *testing.T, audit []ContractAuditEntry, tool, status, migrationSubstring string) {
+	t.Helper()
+	for _, entry := range audit {
+		if entry.ToolName != tool {
+			continue
+		}
+		assert.Equal(t, status, entry.Status)
+		if status == ContractAuditComplete {
+			assert.Empty(t, entry.MissingFields)
+			assert.Empty(t, entry.MigrationTarget)
+		} else {
+			assert.NotEmpty(t, entry.MissingFields)
+			assert.Contains(t, entry.MigrationTarget, migrationSubstring)
+		}
+		return
+	}
+	require.Failf(t, "missing audit entry", "tool=%s", tool)
 }

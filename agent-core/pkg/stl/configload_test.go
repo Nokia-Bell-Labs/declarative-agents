@@ -188,6 +188,34 @@ func TestToolContractsWarnOnlyReport(t *testing.T) {
 	t.Logf("tool contract findings by category: %v", byCategory)
 }
 
+func TestBuiltinToolContractAuditClassifiesMigrationCoverage(t *testing.T) {
+	cd := configDir(t)
+	defs, err := stl.LoadToolDeclarations([]string{
+		filepath.Join(cd, "tools", "builtin.yaml"),
+	})
+	require.NoError(t, err)
+
+	audit := stl.AuditToolContracts(defs, stl.ContractValidationOptions{IncludeInternal: true})
+
+	require.NotEmpty(t, audit)
+	statusCounts := map[string]int{}
+	byTool := map[string]stl.ContractAuditEntry{}
+	for _, entry := range audit {
+		statusCounts[entry.Status]++
+		byTool[entry.ToolName] = entry
+		if entry.Category == "boundary" || entry.Category == "stateful_internal" {
+			require.NotEmpty(t, entry.MigrationTarget, "stateful/boundary tool %s should name a migration target", entry.ToolName)
+		}
+	}
+	require.NotZero(t, statusCounts[stl.ContractAuditPartial], "audit should identify partial contracts")
+	require.NotZero(t, statusCounts[stl.ContractAuditMissing], "audit should identify missing contracts")
+	require.Equal(t, stl.ContractAuditPartial, byTool["validate"].Status)
+	require.Contains(t, byTool["validate"].MigrationTarget, "boundary side effects")
+	require.Equal(t, stl.ContractAuditMissing, byTool["parse_response"].Status)
+	require.Contains(t, byTool["parse_response"].MigrationTarget, "classify as word")
+	t.Logf("builtin tool contract audit status counts: %v", statusCounts)
+}
+
 func TestSelectedToolOutputContractsLoad(t *testing.T) {
 	cd := configDir(t)
 	defs := loadTestDefs(t, cd, "generator")
