@@ -20,7 +20,8 @@ type runAgentCmd struct {
 	ctx context.Context
 }
 
-func (c *runAgentCmd) Name() string { return "run_agent" }
+func (c *runAgentCmd) Name() string      { return "run_agent" }
+func (c *runAgentCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *runAgentCmd) Execute() core.Result {
 	pc := c.pc

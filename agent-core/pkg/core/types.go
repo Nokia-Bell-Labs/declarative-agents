@@ -49,6 +49,18 @@ const (
 type Command interface {
 	Name() string
 	Execute() Result
+	Undo() Result
+}
+
+// NoopUndo returns a successful no-op undo result for commands that do not
+// mutate rollback-managed state yet. Explicit Undo methods should call this so
+// future work can grep for commands that still need real rollback behavior.
+func NoopUndo(commandName string) Result {
+	return Result{
+		Signal:      ToolDone,
+		CommandName: commandName,
+		Output:      "undo: no-op",
+	}
 }
 
 // Cost tracks resource consumption for a single Command dispatch.

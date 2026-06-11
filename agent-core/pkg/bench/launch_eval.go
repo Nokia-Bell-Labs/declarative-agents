@@ -40,7 +40,8 @@ type launchEvalCmd struct {
 	config execute.Config
 }
 
-func (c *launchEvalCmd) Name() string { return "launch_eval" }
+func (c *launchEvalCmd) Name() string      { return "launch_eval" }
+func (c *launchEvalCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *launchEvalCmd) Execute() core.Result {
 	var action UserAction

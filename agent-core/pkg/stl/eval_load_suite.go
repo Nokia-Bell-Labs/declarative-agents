@@ -22,7 +22,8 @@ type loadSuiteCmd struct {
 	es *EvalSessionState
 }
 
-func (c *loadSuiteCmd) Name() string { return "load_suite" }
+func (c *loadSuiteCmd) Name() string      { return "load_suite" }
+func (c *loadSuiteCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *loadSuiteCmd) Execute() core.Result {
 	if c.es.SuitePath == "" {

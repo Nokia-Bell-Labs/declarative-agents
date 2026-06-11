@@ -45,7 +45,8 @@ type readCmd struct {
 	endLine   int
 }
 
-func (r *readCmd) Name() string { return "read" }
+func (r *readCmd) Name() string      { return "read" }
+func (r *readCmd) Undo() core.Result { return core.NoopUndo(r.Name()) }
 
 func (r *readCmd) Execute() core.Result {
 	resolved, err := ValidatePath(r.root, r.path)
@@ -169,7 +170,8 @@ type writeCmd struct {
 	content string
 }
 
-func (w *writeCmd) Name() string { return "write" }
+func (w *writeCmd) Name() string      { return "write" }
+func (w *writeCmd) Undo() core.Result { return core.NoopUndo(w.Name()) }
 
 func (w *writeCmd) Execute() core.Result {
 	resolved, err := ValidatePath(w.root, w.path)
@@ -249,7 +251,8 @@ type editCmd struct {
 	newString string
 }
 
-func (e *editCmd) Name() string { return "edit" }
+func (e *editCmd) Name() string      { return "edit" }
+func (e *editCmd) Undo() core.Result { return core.NoopUndo(e.Name()) }
 
 func (e *editCmd) Execute() core.Result {
 	resolved, err := ValidatePath(e.root, e.path)
@@ -358,7 +361,8 @@ type listFilesCmd struct {
 	maxDepth int
 }
 
-func (l *listFilesCmd) Name() string { return "list_files" }
+func (l *listFilesCmd) Name() string      { return "list_files" }
+func (l *listFilesCmd) Undo() core.Result { return core.NoopUndo(l.Name()) }
 
 func (l *listFilesCmd) Execute() core.Result {
 	walkRoot := l.root

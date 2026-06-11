@@ -189,7 +189,8 @@ type valStubCmd struct {
 	err    error
 }
 
-func (s *valStubCmd) Name() string { return s.name }
+func (s *valStubCmd) Name() string      { return s.name }
+func (s *valStubCmd) Undo() core.Result { return core.NoopUndo(s.Name()) }
 
 func (s *valStubCmd) Execute() core.Result {
 	return core.Result{
@@ -214,7 +215,8 @@ type valCallTrackerCmd struct {
 	signal core.Signal
 }
 
-func (c *valCallTrackerCmd) Name() string { return "tracker" }
+func (c *valCallTrackerCmd) Name() string      { return "tracker" }
+func (c *valCallTrackerCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *valCallTrackerCmd) Execute() core.Result {
 	*c.called = true

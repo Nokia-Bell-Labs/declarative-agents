@@ -51,9 +51,9 @@ type State struct {
 	MaxRetries  int
 	Tracer      tracing.Tracer
 
-	ExecConfig   execute.Config
-	Ctx          context.Context
-	retryCount   int
+	ExecConfig execute.Config
+	Ctx        context.Context
+	retryCount int
 }
 
 // classifyEmpty determines whether the graph is fully done or blocked.
@@ -89,7 +89,8 @@ type extractTaskCmd struct {
 	ps *State
 }
 
-func (c *extractTaskCmd) Name() string { return "extract_task" }
+func (c *extractTaskCmd) Name() string      { return "extract_task" }
+func (c *extractTaskCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *extractTaskCmd) Execute() core.Result {
 	task := c.ps.Extractor.ExtractNext(c.ps.Graph, c.ps.MaxWeight)
@@ -133,7 +134,8 @@ type extractAllCmd struct {
 	ps *State
 }
 
-func (c *extractAllCmd) Name() string { return "extract_all" }
+func (c *extractAllCmd) Name() string      { return "extract_all" }
+func (c *extractAllCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *extractAllCmd) Execute() core.Result {
 	ready := c.ps.Graph.Ready()
@@ -182,7 +184,8 @@ type assemblePromptCmd struct {
 	ps *State
 }
 
-func (c *assemblePromptCmd) Name() string { return "assemble_prompt" }
+func (c *assemblePromptCmd) Name() string      { return "assemble_prompt" }
+func (c *assemblePromptCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *assemblePromptCmd) Execute() core.Result {
 	task := c.ps.CurrentTask
@@ -250,7 +253,8 @@ type parsePlanCmd struct {
 	rawResp string
 }
 
-func (c *parsePlanCmd) Name() string { return "parse_plan" }
+func (c *parsePlanCmd) Name() string      { return "parse_plan" }
+func (c *parsePlanCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *parsePlanCmd) Execute() core.Result {
 	p, res := DoParsePlan(c.Name(), c.rawResp)
@@ -285,7 +289,8 @@ type createIssueCmd struct {
 	ps *State
 }
 
-func (c *createIssueCmd) Name() string { return "create_issue" }
+func (c *createIssueCmd) Name() string      { return "create_issue" }
+func (c *createIssueCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *createIssueCmd) Execute() core.Result {
 	if c.ps.CurrentPlan == nil {
@@ -326,7 +331,8 @@ type executeTaskCmd struct {
 	ps *State
 }
 
-func (c *executeTaskCmd) Name() string { return "execute_task" }
+func (c *executeTaskCmd) Name() string      { return "execute_task" }
+func (c *executeTaskCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *executeTaskCmd) Execute() core.Result {
 	if c.ps.CurrentTask == nil || c.ps.CurrentPlan == nil {
@@ -389,7 +395,8 @@ type checkResultCmd struct {
 	prevRes core.Result
 }
 
-func (c *checkResultCmd) Name() string { return "check_result" }
+func (c *checkResultCmd) Name() string      { return "check_result" }
+func (c *checkResultCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *checkResultCmd) Execute() core.Result {
 	if c.prevRes.Signal == core.ToolFailed || c.prevRes.Signal == core.CommandError {

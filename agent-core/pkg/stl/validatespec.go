@@ -31,7 +31,9 @@ type loadCorpusCmd struct {
 	vs *ValidateSpecState
 }
 
-func (c *loadCorpusCmd) Name() string { return "load_corpus" }
+func (c *loadCorpusCmd) Name() string      { return "load_corpus" }
+func (c *loadCorpusCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+
 func (c *loadCorpusCmd) Execute() core.Result {
 	corpus, err := spec.LoadCorpus(c.vs.Directory)
 	if err != nil {
@@ -64,7 +66,9 @@ type validateSpecsCmd struct {
 	vs *ValidateSpecState
 }
 
-func (c *validateSpecsCmd) Name() string { return "validate_specs" }
+func (c *validateSpecsCmd) Name() string      { return "validate_specs" }
+func (c *validateSpecsCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+
 func (c *validateSpecsCmd) Execute() core.Result {
 	g, err := spec.BuildGraph(c.vs.Corpus)
 	if err != nil {
@@ -110,7 +114,9 @@ type formatReportCmd struct {
 	vs *ValidateSpecState
 }
 
-func (c *formatReportCmd) Name() string { return "format_report" }
+func (c *formatReportCmd) Name() string      { return "format_report" }
+func (c *formatReportCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+
 func (c *formatReportCmd) Execute() core.Result {
 	report := spec.FormatFindings(c.vs.Findings)
 

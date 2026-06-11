@@ -62,7 +62,8 @@ type validateCmd struct {
 	verbose  bool
 }
 
-func (v *validateCmd) Name() string { return "validate" }
+func (v *validateCmd) Name() string      { return "validate" }
+func (v *validateCmd) Undo() core.Result { return core.NoopUndo(v.Name()) }
 
 func (v *validateCmd) Execute() core.Result {
 	if len(v.skipped) == 0 {

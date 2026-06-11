@@ -43,7 +43,8 @@ type selfInvokeCmd struct {
 	runID     string
 }
 
-func (c *selfInvokeCmd) Name() string { return "self_invoke" }
+func (c *selfInvokeCmd) Name() string      { return "self_invoke" }
+func (c *selfInvokeCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *selfInvokeCmd) Execute() core.Result {
 	cfg := c.config

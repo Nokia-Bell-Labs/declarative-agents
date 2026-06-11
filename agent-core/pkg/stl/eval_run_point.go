@@ -27,7 +27,8 @@ type runPointCmd struct {
 	config        RunPointConfig
 }
 
-func (c *runPointCmd) Name() string { return "run_point" }
+func (c *runPointCmd) Name() string      { return "run_point" }
+func (c *runPointCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *runPointCmd) Execute() core.Result {
 	pc := c.es.PC

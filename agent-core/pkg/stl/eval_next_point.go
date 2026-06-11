@@ -21,7 +21,8 @@ type nextPointCmd struct {
 	es *EvalSessionState
 }
 
-func (c *nextPointCmd) Name() string { return "next_point" }
+func (c *nextPointCmd) Name() string      { return "next_point" }
+func (c *nextPointCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *nextPointCmd) Execute() core.Result {
 	pc, ok := c.es.NextPoint()

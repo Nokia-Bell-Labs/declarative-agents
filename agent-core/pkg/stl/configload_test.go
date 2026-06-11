@@ -66,6 +66,7 @@ type noopCmd struct{}
 
 func (noopCmd) Name() string         { return "noop" }
 func (noopCmd) Execute() core.Result { return core.Result{Signal: core.ToolDone} }
+func (noopCmd) Undo() core.Result    { return core.NoopUndo("noop") }
 
 // buildRegistryForDefs creates a fully wired Registry from tool definitions.
 // All builtin factories are stubbed so no Ollama server or real implementations
@@ -647,7 +648,9 @@ func (s *scriptedLLMBuilder) Build(_ core.Result) core.Command {
 
 type scriptedCmd struct{ output string }
 
-func (s *scriptedCmd) Name() string { return "invoke_llm" }
+func (s *scriptedCmd) Name() string      { return "invoke_llm" }
+func (s *scriptedCmd) Undo() core.Result { return core.NoopUndo(s.Name()) }
+
 func (s *scriptedCmd) Execute() core.Result {
 	return core.Result{
 		Output:      s.output,
@@ -664,7 +667,9 @@ func (s *stubPassBuilder) Build(_ core.Result) core.Command {
 
 type stubPassCmd struct{ name string }
 
-func (s *stubPassCmd) Name() string { return s.name }
+func (s *stubPassCmd) Name() string      { return s.name }
+func (s *stubPassCmd) Undo() core.Result { return core.NoopUndo(s.Name()) }
+
 func (s *stubPassCmd) Execute() core.Result {
 	return core.Result{
 		Signal:      core.ToolDone,
@@ -703,7 +708,9 @@ func buildE2EToolAction(reg *core.Registry, tracker *stl.ToolTracker) core.Actio
 
 type failCmd struct{ err error }
 
-func (f *failCmd) Name() string { return "fail" }
+func (f *failCmd) Name() string      { return "fail" }
+func (f *failCmd) Undo() core.Result { return core.NoopUndo(f.Name()) }
+
 func (f *failCmd) Execute() core.Result {
 	return core.Result{Signal: core.CommandError, CommandName: "fail"}
 }

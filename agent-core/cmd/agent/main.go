@@ -642,7 +642,9 @@ type failCmd struct {
 	err error
 }
 
-func (f *failCmd) Name() string { return "fail" }
+func (f *failCmd) Name() string      { return "fail" }
+func (f *failCmd) Undo() core.Result { return core.NoopUndo(f.Name()) }
+
 func (f *failCmd) Execute() core.Result {
 	return core.Result{
 		Signal:      core.CommandError,
@@ -661,7 +663,9 @@ type tracedToolCmd struct {
 	params   string
 }
 
-func (t *tracedToolCmd) Name() string { return t.inner.Name() }
+func (t *tracedToolCmd) Name() string      { return t.inner.Name() }
+func (t *tracedToolCmd) Undo() core.Result { return t.inner.Undo() }
+
 func (t *tracedToolCmd) Execute() core.Result {
 	child, done := t.tracer.Push("dispatch/"+t.toolName,
 		attribute.String("tool.name", t.toolName),

@@ -26,8 +26,9 @@ requirements:
   R2:
     title: Command interface
     items:
-      - R2.1: Command is an interface with two methods -- Name() string and Execute() Result.
+      - R2.1: Command is an interface with three methods -- Name() string, Execute() Result, and Undo() Result.
       - R2.2: Commands embed their parameters at creation time. Execute takes no domain parameters.
+      - R2.3: NoopUndo returns a successful ToolDone Result for commands whose rollback behavior is not yet specialized.
 
   R3:
     title: Cost struct
@@ -83,8 +84,8 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
 
   - id: AC2
-    criterion: Command interface has Name() and Execute() methods. Execute returns Result.
-    traces: [R2.1, R2.2]
+    criterion: Command interface has Name(), Execute(), and Undo() methods. Execute and Undo return Result.
+    traces: [R2.1, R2.2, R2.3]
 
   - id: AC3
     criterion: Cost struct has Duration, TokensIn, TokensOut, and Dollars fields with JSON tags.

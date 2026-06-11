@@ -62,6 +62,7 @@ type fakeCmd struct {
 
 func (f *fakeCmd) Name() string    { return f.name }
 func (f *fakeCmd) Execute() Result { return Result{Signal: f.signal, CommandName: f.name} }
+func (f *fakeCmd) Undo() Result    { return NoopUndo(f.name) }
 
 type fakeBuilder struct {
 	name   string
@@ -553,6 +554,7 @@ func (f *tokenFakeCmd) Execute() Result {
 		Cost:        Cost{TokensIn: f.tokens, TokensOut: f.tokens, Duration: time.Millisecond},
 	}
 }
+func (f *tokenFakeCmd) Undo() Result { return NoopUndo(f.Name()) }
 
 type staticBuilder struct {
 	cmd Command

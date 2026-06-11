@@ -22,7 +22,8 @@ type reportSessionCmd struct {
 	es *EvalSessionState
 }
 
-func (c *reportSessionCmd) Name() string { return "report_session" }
+func (c *reportSessionCmd) Name() string      { return "report_session" }
+func (c *reportSessionCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *reportSessionCmd) Execute() core.Result {
 	c.es.FinalizeSession()

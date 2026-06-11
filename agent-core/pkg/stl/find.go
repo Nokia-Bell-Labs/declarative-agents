@@ -21,7 +21,8 @@ type findCmd struct {
 	outputLineCap int
 }
 
-func (f *findCmd) Name() string { return "find" }
+func (f *findCmd) Name() string      { return "find" }
+func (f *findCmd) Undo() core.Result { return core.NoopUndo(f.Name()) }
 
 func (f *findCmd) Execute() core.Result {
 	args := []string{"--no-heading", "--line-number", f.query}

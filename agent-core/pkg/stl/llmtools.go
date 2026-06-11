@@ -39,7 +39,8 @@ type invokeLLMCmd struct {
 	callTimeout  time.Duration
 }
 
-func (c *invokeLLMCmd) Name() string { return "invoke_llm" }
+func (c *invokeLLMCmd) Name() string      { return "invoke_llm" }
+func (c *invokeLLMCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 // SpanName implements core.SpanOverride so Dispatch emits a semconv
 // inference span instead of execute_tool.
@@ -216,7 +217,8 @@ type parseResponseCmd struct {
 	verbose  bool
 }
 
-func (p *parseResponseCmd) Name() string { return "parse_response" }
+func (p *parseResponseCmd) Name() string      { return "parse_response" }
+func (p *parseResponseCmd) Undo() core.Result { return core.NoopUndo(p.Name()) }
 
 func (p *parseResponseCmd) Execute() core.Result {
 	tr := p.tracer
@@ -370,7 +372,8 @@ type reportParseErrorCmd struct {
 	tracer    tracing.Tracer
 }
 
-func (r *reportParseErrorCmd) Name() string { return "report_parse_error" }
+func (r *reportParseErrorCmd) Name() string      { return "report_parse_error" }
+func (r *reportParseErrorCmd) Undo() core.Result { return core.NoopUndo(r.Name()) }
 
 func (r *reportParseErrorCmd) Execute() core.Result {
 	r.tracer.Event("parse_error_reported",
@@ -402,7 +405,8 @@ type resetHistoryCmd struct {
 	tracer  tracing.Tracer
 }
 
-func (r *resetHistoryCmd) Name() string { return "reset_history" }
+func (r *resetHistoryCmd) Name() string      { return "reset_history" }
+func (r *resetHistoryCmd) Undo() core.Result { return core.NoopUndo(r.Name()) }
 
 func (r *resetHistoryCmd) Execute() core.Result {
 	prevLen := r.history.Len()

@@ -1,0 +1,136 @@
+id: sm-command-undo-audit
+title: Command Undo Audit
+
+purpose: |
+  Tracks which commands currently satisfy the mechanical Command.Undo
+  contract with an explicit no-op and which commands still need real undo
+  implementations. This document is a migration checklist for the rollback
+  epic; it does not change runtime behavior.
+
+current_contract: |
+  Every core.Command implementation exposes Undo() Result. For this migration
+  step, Undo implementations return core.NoopUndo unless a later issue replaces
+  them with command-specific rollback logic.
+
+noop_contract:
+  signal: ToolDone
+  output: "undo: no-op"
+  command_name: "the command being undone"
+
+real_undo_pending:
+  conversation_state:
+    - command: invoke_llm
+      reason: "appends user and assistant messages to conversation history"
+      target_strategy: conversation_truncate
+    - command: reset_history
+      reason: "clears conversation history"
+      target_strategy: conversation_restore
+    - command: nudge_reread
+      reason: "adds a re-read instruction to the conversation path"
+      target_strategy: conversation_truncate
+
+  planner_state:
+    - command: extract_task
+      reason: "mutates CurrentTask and retry counter"
+      target_strategy: pipeline_state_restore
+    - command: extract_all
+      reason: "mutates CurrentTask and retry counter"
+      target_strategy: pipeline_state_restore
+    - command: parse_plan
+      reason: "mutates CurrentPlan"
+      target_strategy: pipeline_state_restore
+    - command: create_issue
+      reason: "mutates IssueID and task dependency mapping; also creates a bd issue"
+      target_strategy: pipeline_state_restore_and_issue_compensation
+    - command: check_result
+      reason: "mutates retry counter"
+      target_strategy: retry_counter_restore
+
+  workspace_state:
+    - command: write
+      reason: "creates or overwrites files"
+      target_strategy: workspace_restore
+    - command: edit
+      reason: "modifies files"
+      target_strategy: workspace_restore
+    - command: ExecCmd
+      reason: "some exec declarations mutate filesystem, git, or issue tracker state"
+      target_strategy: declaration_specific_workspace_or_compensation
+    - command: create_point_dir
+      reason: "creates evaluator point directory and mutates PointContext paths"
+      target_strategy: workspace_restore_and_point_context_restore
+    - command: copy_sample_workspace
+      reason: "copies sample files into point workspace"
+      target_strategy: workspace_restore
+    - command: copy_sample_docs
+      reason: "copies optional sample docs into point workspace"
+      target_strategy: workspace_restore
+    - command: init_workspace_repo
+      reason: "creates .git metadata in point workspace"
+      target_strategy: workspace_restore
+    - command: stage_workspace_baseline
+      reason: "mutates git index"
+      target_strategy: workspace_restore_or_git_index_restore
+    - command: commit_workspace_baseline
+      reason: "creates baseline commit in point workspace"
+      target_strategy: workspace_restore
+    - command: dump_config
+      reason: "writes experiment.yaml"
+      target_strategy: workspace_restore
+    - command: run_agent
+      reason: "runs child process that mutates point workspace and writes trace/result artifacts"
+      target_strategy: workspace_restore
+    - command: collect_metrics
+      reason: "writes meta.json"
+      target_strategy: workspace_restore
+
+  evaluator_state:
+    - command: load_suite
+      reason: "mutates suite/session state and creates session directory"
+      target_strategy: evaluator_session_restore_and_workspace_restore
+    - command: next_point
+      reason: "mutates point iterator and current PointContext"
+      target_strategy: evaluator_iterator_restore
+    - command: run_point
+      reason: "records point result after nested machine execution"
+      target_strategy: evaluator_session_restore_and_workspace_restore
+    - command: check_results
+      reason: "mutates point test output, token count, and result flags"
+      target_strategy: point_context_restore
+    - command: report_session
+      reason: "finalizes session duration"
+      target_strategy: evaluator_session_restore
+
+  boundary_or_compensation:
+    - command: execute_task
+      reason: "spawns child generator that can mutate workspace"
+      target_strategy: child_workspace_restore
+    - command: self_invoke
+      reason: "spawns child agent process"
+      target_strategy: child_workspace_restore_or_compensation
+    - command: launch_eval
+      reason: "spawns evaluator child process and can create eval artifacts"
+      target_strategy: artifact_compensation
+    - command: serve_ui
+      reason: "blocks on user input and mutates bench UI state"
+      target_strategy: bench_state_restore
+
+expected_noop_long_term:
+  - read
+  - find
+  - list_files
+  - parse_response
+  - report_parse_error
+  - done
+  - assemble_prompt
+  - validate
+  - load_corpus
+  - validate_specs
+  - format_report
+  - FailedParamCmd
+  - failCmd
+
+related_issues:
+  - agent-core-tundo.3
+  - agent-core-tundo.5
+  - agent-core-tundo.6

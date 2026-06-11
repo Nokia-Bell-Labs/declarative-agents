@@ -470,7 +470,8 @@ type ExecCmd struct {
 	params map[string]string
 }
 
-func (c *ExecCmd) Name() string { return c.def.Name }
+func (c *ExecCmd) Name() string      { return c.def.Name }
+func (c *ExecCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *ExecCmd) Execute() core.Result {
 	dir := c.root

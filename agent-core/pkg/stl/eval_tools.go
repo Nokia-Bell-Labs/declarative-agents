@@ -27,7 +27,8 @@ type createPointDirCmd struct {
 	pc *PointContext
 }
 
-func (c *createPointDirCmd) Name() string { return "create_point_dir" }
+func (c *createPointDirCmd) Name() string      { return "create_point_dir" }
+func (c *createPointDirCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *createPointDirCmd) Execute() core.Result {
 	pointDir := filepath.Join(c.pc.SessionDir, c.pc.PointID)
@@ -44,7 +45,8 @@ type copySampleWorkspaceCmd struct {
 	pc *PointContext
 }
 
-func (c *copySampleWorkspaceCmd) Name() string { return "copy_sample_workspace" }
+func (c *copySampleWorkspaceCmd) Name() string      { return "copy_sample_workspace" }
+func (c *copySampleWorkspaceCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *copySampleWorkspaceCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -62,7 +64,8 @@ type copySampleDocsCmd struct {
 	pc *PointContext
 }
 
-func (c *copySampleDocsCmd) Name() string { return "copy_sample_docs" }
+func (c *copySampleDocsCmd) Name() string      { return "copy_sample_docs" }
+func (c *copySampleDocsCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *copySampleDocsCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -82,7 +85,8 @@ type initWorkspaceRepoCmd struct {
 	pc *PointContext
 }
 
-func (c *initWorkspaceRepoCmd) Name() string { return "init_workspace_repo" }
+func (c *initWorkspaceRepoCmd) Name() string      { return "init_workspace_repo" }
+func (c *initWorkspaceRepoCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *initWorkspaceRepoCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -98,7 +102,8 @@ type stageWorkspaceBaselineCmd struct {
 	pc *PointContext
 }
 
-func (c *stageWorkspaceBaselineCmd) Name() string { return "stage_workspace_baseline" }
+func (c *stageWorkspaceBaselineCmd) Name() string      { return "stage_workspace_baseline" }
+func (c *stageWorkspaceBaselineCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *stageWorkspaceBaselineCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -114,7 +119,8 @@ type commitWorkspaceBaselineCmd struct {
 	pc *PointContext
 }
 
-func (c *commitWorkspaceBaselineCmd) Name() string { return "commit_workspace_baseline" }
+func (c *commitWorkspaceBaselineCmd) Name() string      { return "commit_workspace_baseline" }
+func (c *commitWorkspaceBaselineCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *commitWorkspaceBaselineCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -172,7 +178,8 @@ type checkResultsCmd struct {
 	pc *PointContext
 }
 
-func (c *checkResultsCmd) Name() string { return "check_results" }
+func (c *checkResultsCmd) Name() string      { return "check_results" }
+func (c *checkResultsCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *checkResultsCmd) Execute() core.Result {
 	pc := c.pc
@@ -207,7 +214,8 @@ type collectMetricsCmd struct {
 	pc *PointContext
 }
 
-func (c *collectMetricsCmd) Name() string { return "collect_metrics" }
+func (c *collectMetricsCmd) Name() string      { return "collect_metrics" }
+func (c *collectMetricsCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *collectMetricsCmd) Execute() core.Result {
 	pc := c.pc

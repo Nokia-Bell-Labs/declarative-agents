@@ -12,7 +12,9 @@ import (
 // registry but is never actually dispatched.
 type doneCmd struct{}
 
-func (doneCmd) Name() string { return "done" }
+func (doneCmd) Name() string      { return "done" }
+func (doneCmd) Undo() core.Result { return core.NoopUndo("done") }
+
 func (doneCmd) Execute() core.Result {
 	return core.Result{
 		Signal:      core.TaskCompleted,

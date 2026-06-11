@@ -93,6 +93,14 @@ func TestCheckpointContractsCompileAndRoundTrip(t *testing.T) {
 	require.Len(t, got.History, 1)
 }
 
+func TestNoopUndoReturnsSuccessfulResult(t *testing.T) {
+	res := NoopUndo("read")
+
+	require.Equal(t, ToolDone, res.Signal)
+	require.Equal(t, "read", res.CommandName)
+	require.Contains(t, res.Output, "no-op")
+}
+
 func TestStateStoreContractPersistsBytes(t *testing.T) {
 	store := &memoryStateStore{}
 	ctx := context.Background()

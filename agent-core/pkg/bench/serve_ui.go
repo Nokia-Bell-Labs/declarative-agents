@@ -29,7 +29,8 @@ type serveUICmd struct {
 	bs *BenchState
 }
 
-func (c *serveUICmd) Name() string { return "serve_ui" }
+func (c *serveUICmd) Name() string      { return "serve_ui" }
+func (c *serveUICmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *serveUICmd) Execute() core.Result {
 	c.bs.EnsureRunning()
@@ -80,7 +81,9 @@ type failCmd struct {
 	err error
 }
 
-func (f *failCmd) Name() string { return "fail" }
+func (f *failCmd) Name() string      { return "fail" }
+func (f *failCmd) Undo() core.Result { return core.NoopUndo(f.Name()) }
+
 func (f *failCmd) Execute() core.Result {
 	return core.Result{
 		Signal:      core.CommandError,

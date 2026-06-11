@@ -21,7 +21,8 @@ type dumpConfigCmd struct {
 	pc *PointContext
 }
 
-func (c *dumpConfigCmd) Name() string { return "dump_config" }
+func (c *dumpConfigCmd) Name() string      { return "dump_config" }
+func (c *dumpConfigCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *dumpConfigCmd) Execute() core.Result {
 	pc := c.pc
@@ -84,13 +85,13 @@ func (c *dumpConfigCmd) Execute() core.Result {
 }
 
 type experimentConfig struct {
-	AgentCommit string                 `yaml:"agent_commit,omitempty"`
-	Harness     experimentHarness      `yaml:"harness"`
-	Model       string                 `yaml:"model"`
-	OllamaURL   string                 `yaml:"ollama_url,omitempty"`
-	Timeout     string                 `yaml:"timeout,omitempty"`
-	Repetition  string                 `yaml:"repetition,omitempty"`
-	Sample      experimentSample       `yaml:"sample"`
+	AgentCommit string            `yaml:"agent_commit,omitempty"`
+	Harness     experimentHarness `yaml:"harness"`
+	Model       string            `yaml:"model"`
+	OllamaURL   string            `yaml:"ollama_url,omitempty"`
+	Timeout     string            `yaml:"timeout,omitempty"`
+	Repetition  string            `yaml:"repetition,omitempty"`
+	Sample      experimentSample  `yaml:"sample"`
 }
 
 type experimentHarness struct {
