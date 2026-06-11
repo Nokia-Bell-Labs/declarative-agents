@@ -2,7 +2,7 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Twenty-three SRDs define
+  Specification index for the agent-core framework. Twenty-four SRDs define
   the generic agentic loop engine and its supporting packages: core
   types, state machine, command dispatch, tool registry, agentic loop,
   YAML machine configuration, the tracer port interface, the telemetry
@@ -11,9 +11,9 @@ overview: |
   standard tool library, specification graph tooling, GenAI semantic
   convention helpers, W3C traceparent support, LLM package extensions,
   the CLI standard flag contract, the agent CLI as an exec tool, builtin
-  tool declaration/factory contracts, and CLI/exec tool declarations.
-  Four use cases exercise the SRDs across two releases. One formal YAML
-  test suite covers 51 acceptance
+  tool declaration/factory contracts, CLI/exec tool declarations, and
+  blocking input tools. Four use cases exercise the SRDs across two
+  releases. One formal YAML test suite covers 51 acceptance
   test cases for release 00.0; additional coverage comes from 522 Go
   test functions across 16 packages.
 
@@ -27,7 +27,7 @@ overview: |
     srd017 (LLM extensions), srd018 (CLI flag contract),
     srd019 (eval harness), srd020 (bench web UI),
     srd021 (agent CLI as exec tool), srd022 (builtin tools),
-    srd023 (CLI/exec tools)
+    srd023 (CLI/exec tools), srd024 (blocking input tools)
 
 roadmap_summary:
   - version: "00.0"
@@ -134,6 +134,10 @@ srd_index:
     title: CLI and Exec Tool Declarations
     summary: Requirements for declaring external CLIs as exec tools, mapping JSON parameters to argv, subprocess execution, output capture, and declaration selection.
     path: docs/specs/software-requirements/srd023-cli-exec-tools.yaml
+  - id: srd024-blocking-input-tools
+    title: Blocking Input Tools
+    summary: Requirements for tools like invoke_llm and serve_ui that intentionally block the loop while waiting for external model, human, or approval input.
+    path: docs/specs/software-requirements/srd024-blocking-input-tools.yaml
 
 use_case_index:
   - id: rel00.0-uc001-domain-agent-integration
@@ -212,7 +216,7 @@ srd_to_use_case_mapping:
 coverage_gaps: |
   The original eight core SRDs (srd001-srd008) have full use case
   touchpoints and formal YAML test suite coverage in release 00.0.
-  SRDs srd009-srd023 cover additional packages and have Go test
+  SRDs srd009-srd024 cover additional packages and have Go test
   coverage (522 test functions across 16 packages) but no formal
   YAML test suites.
 
