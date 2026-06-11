@@ -10,10 +10,11 @@ purpose: |
   core.Loop that runs the per-point pipeline.
 
   The point-level machine (configs/evaluator/point.yaml) orchestrates
-  a single evaluation point: it prepares a workspace, snapshots the
-  experiment configuration, invokes the generator agent as a subprocess,
+  a single evaluation point: it creates a point directory, copies the
+  sample workspace/docs, initializes and commits a git baseline, snapshots
+  the experiment configuration, invokes the generator agent as a subprocess,
   checks the results, and collects metrics. It is a deterministic
-  pipeline that sequences five tools — no LLM calls.
+  pipeline that sequences atomic tools — no LLM calls.
 
   The former `agent eval` subcommand has been removed. Evaluation is
   now fully driven by `--machine configs/evaluator/machine.yaml`.
@@ -111,8 +112,18 @@ session_tools:
 point_states:
   - name: Idle
     meaning: Initial state before evaluation begins.
-  - name: PreparingWorkspace
-    meaning: Creating temporary directory, initializing git, copying sample files.
+  - name: CreatingPointDir
+    meaning: Creating the per-point artifact directory and recording trace path.
+  - name: CopyingSampleWorkspace
+    meaning: Copying sample workspace files into the point directory.
+  - name: CopyingSampleDocs
+    meaning: Copying optional sample docs into the point directory.
+  - name: InitializingWorkspaceRepo
+    meaning: Initializing the point workspace git repository.
+  - name: StagingWorkspaceBaseline
+    meaning: Staging all point workspace files for the baseline commit.
+  - name: CommittingWorkspaceBaseline
+    meaning: Creating the baseline git commit for the point workspace.
   - name: SnapshotConfig
     meaning: Serializing the full experiment configuration into experiment.yaml.
   - name: RunningAgent
@@ -129,8 +140,18 @@ point_states:
 point_signals:
   - name: Seed
     trigger: Loop initialization.
-  - name: WorkspaceReady
-    trigger: Workspace preparation completed.
+  - name: PointDirCreated
+    trigger: Point artifact directory created and PointContext paths recorded.
+  - name: SampleWorkspaceCopied
+    trigger: Sample workspace copied into the point directory.
+  - name: SampleDocsCopied
+    trigger: Optional sample docs copied, or no docs were present.
+  - name: WorkspaceRepoInitialized
+    trigger: Git repository initialized in the point workspace.
+  - name: WorkspaceBaselineStaged
+    trigger: Baseline workspace files staged in the git index.
+  - name: WorkspaceBaselineCommitted
+    trigger: Baseline git commit created.
   - name: ConfigDumped
     trigger: Experiment configuration snapshot written to experiment.yaml.
   - name: HarnessFinished
@@ -147,20 +168,30 @@ point_signals:
     trigger: Infrastructure-level error.
 
 point_lifecycle: |
-  1. Idle → PreparingWorkspace: prepare_workspace
-  2. PreparingWorkspace → SnapshotConfig: dump_config
-  3. SnapshotConfig → RunningAgent: run_agent
-  4. RunningAgent → CheckingResults: check_results (on any outcome)
-  5. CheckingResults → CollectingMetrics: collect_metrics
-  6. CollectingMetrics → Done
+  1. Idle → CreatingPointDir: create_point_dir
+  2. CreatingPointDir → CopyingSampleWorkspace: copy_sample_workspace
+  3. CopyingSampleWorkspace → CopyingSampleDocs: copy_sample_docs
+  4. CopyingSampleDocs → InitializingWorkspaceRepo: init_workspace_repo
+  5. InitializingWorkspaceRepo → StagingWorkspaceBaseline: stage_workspace_baseline
+  6. StagingWorkspaceBaseline → CommittingWorkspaceBaseline: commit_workspace_baseline
+  7. CommittingWorkspaceBaseline → SnapshotConfig: dump_config
+  8. SnapshotConfig → RunningAgent: run_agent
+  9. RunningAgent → CheckingResults: check_results (on any outcome)
+  10. CheckingResults → CollectingMetrics: collect_metrics
+  11. CollectingMetrics → Done
 
 point_diagram: |
   ```mermaid
   flowchart LR
-    A[prepare_workspace] --> B[dump_config]
-    B --> C[run_agent]
-    C -->|any outcome| D[check_results]
-    D --> E[collect_metrics]
+    A[create_point_dir] --> B[copy_sample_workspace]
+    B --> C[copy_sample_docs]
+    C --> D[init_workspace_repo]
+    D --> E[stage_workspace_baseline]
+    E --> F[commit_workspace_baseline]
+    F --> G[dump_config]
+    G --> H[run_agent]
+    H -->|any outcome| I[check_results]
+    I --> J[collect_metrics]
   ```
 
 budget:
@@ -168,7 +199,12 @@ budget:
   point_max_iterations: 20
 
 point_tools:
-  - prepare_workspace
+  - create_point_dir
+  - copy_sample_workspace
+  - copy_sample_docs
+  - init_workspace_repo
+  - stage_workspace_baseline
+  - commit_workspace_baseline
   - dump_config
   - run_agent
   - check_results

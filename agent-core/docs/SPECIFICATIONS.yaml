@@ -116,7 +116,7 @@ srd_index:
     path: docs/specs/software-requirements/srd018-cli-flag-contract.yaml
   - id: srd019-eval-harness
     title: Evaluation Harness Infrastructure
-    summary: Suite configuration, grid evaluation, session execution, evaluation tools (prepare_workspace, dump_config, run_agent, check_results, collect_metrics), result analysis, and convergence tracking in pkg/stl.
+    summary: Suite configuration, grid evaluation, session execution, atomic point workspace tools, dump_config, run_agent, check_results, collect_metrics, result analysis, and convergence tracking in pkg/stl.
     path: docs/specs/software-requirements/srd019-eval-harness.yaml
   - id: srd020-bench-web-ui
     title: Bench Web UI
@@ -237,8 +237,8 @@ coverage_gaps: |
   - pkg/bench — state-machine-driven web UI with serve_ui and
     launch_eval tools (configured via --machine configs/bench/machine.yaml)
 
-  srd013 (STL) needs expansion to cover eval tools (prepare_workspace,
-  run_agent, check_results, collect_metrics, dump_config), nudge_reread,
+  srd013 (STL) needs expansion to cover evaluator point tools,
+  run_agent, check_results, collect_metrics, dump_config, nudge_reread,
   validate, done as standalone builtin, and YAML-based tool registration.
 
   Agent configurations are documented as semantic models:

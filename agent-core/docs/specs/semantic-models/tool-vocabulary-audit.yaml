@@ -43,7 +43,7 @@ overall_findings:
     problem, goals, non_goals, output.schema, structured side_effects,
     reversibility, undo, errors, and relationships.
   - Several evaluator and planner builtins are sentences, especially
-    prepare_workspace, load_suite, check_results, and validate.
+    load_suite, check_results, and validate.
   - Boundary tools need explicit classification so they are not mistaken
     for deterministic primitive words.
   - Runtime output is still mostly human-readable core.Result.Output strings.
@@ -470,35 +470,99 @@ tools:
     migration_priority: low
 
   # Evaluator point tools
-  - name: prepare_workspace
-    role: sentence
+  - name: create_point_dir
+    role: word
     selected_by: [evaluator_point]
     inputs_from: [next_point]
-    feeds_into: [dump_config, run_agent]
-    side_effects: filesystem_write, git_repo_create, point_context_mutation
+    feeds_into: [copy_sample_workspace]
+    side_effects: filesystem_write, point_context_mutation
+    output_contract: missing
+    undo: workspace_restore
+    overlaps: []
+    issues:
+      - needs output.schema for point_dir and trace_path
+      - needs full problem/goals/non_goals/reversibility metadata
+    migration_priority: medium
+
+  - name: copy_sample_workspace
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [create_point_dir]
+    feeds_into: [copy_sample_docs]
+    side_effects: filesystem_write
     output_contract: missing
     undo: workspace_restore
     overlaps:
       - tool: copy_dir
-        difference: prepare_workspace copies and initializes; copy_dir only copies
-      - tool: git_init
-        difference: prepare_workspace creates repo plus baseline; git_init only initializes
+        difference: copy_sample_workspace copies the selected sample workspace from PointContext; copy_dir is a generic CLI wrapper
     issues:
-      - creates point dir, copies workspace, copies docs, git init, git add, git commit baseline
-      - strongest single-verb violation in current selected tools
-    split_recommendation:
-      - create_point_dir
-      - copy_sample_workspace
-      - copy_sample_docs
-      - init_workspace_repo
-      - stage_workspace_baseline
-      - commit_workspace_baseline
-    migration_priority: highest
+      - needs output.schema for copied file count or destination
+    migration_priority: medium
+
+  - name: copy_sample_docs
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [copy_sample_workspace]
+    feeds_into: [init_workspace_repo]
+    side_effects: filesystem_write_or_none
+    output_contract: missing
+    undo: workspace_restore
+    overlaps:
+      - tool: copy_sample_workspace
+        difference: copy_sample_docs copies optional documentation only; copy_sample_workspace copies executable workspace files
+    issues:
+      - no-ops successfully when no docs exist, which should be explicit in output.schema
+    migration_priority: medium
+
+  - name: init_workspace_repo
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [copy_sample_docs]
+    feeds_into: [stage_workspace_baseline]
+    side_effects: git_repo_create
+    output_contract: missing
+    undo: workspace_restore
+    overlaps:
+      - tool: git_init
+        difference: init_workspace_repo initializes the current PointContext workspace; git_init is a generic CLI wrapper
+    issues:
+      - needs output.schema and reversibility contract
+    migration_priority: medium
+
+  - name: stage_workspace_baseline
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [init_workspace_repo]
+    feeds_into: [commit_workspace_baseline]
+    side_effects: git_index_mutation
+    output_contract: missing
+    undo: git_reset_index_or_workspace_restore
+    overlaps:
+      - tool: stage_all
+        difference: stage_workspace_baseline stages the PointContext workspace baseline; stage_all is a generic CLI wrapper
+    issues:
+      - needs output.schema and undo metadata
+    migration_priority: medium
+
+  - name: commit_workspace_baseline
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [stage_workspace_baseline]
+    feeds_into: [dump_config]
+    side_effects: git_commit_create
+    output_contract: missing
+    undo: workspace_restore
+    overlaps:
+      - tool: commit
+        difference: commit_workspace_baseline creates a local point-workspace baseline; commit is a generic repo-history operation
+    issues:
+      - needs output.schema for commit hash
+    migration_priority: medium
 
   - name: dump_config
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [prepare_workspace, point_context]
+    inputs_from: [commit_workspace_baseline, point_context]
     feeds_into: [run_agent]
     side_effects: filesystem_write
     output_contract: missing
@@ -646,8 +710,8 @@ tools:
     output_contract: missing
     undo: workspace_restore
     overlaps:
-      - tool: prepare_workspace
-        difference: copy_dir only copies; prepare_workspace also initializes git baseline
+      - tool: copy_sample_workspace
+        difference: copy_dir is a generic CLI wrapper; copy_sample_workspace copies the evaluator sample workspace from PointContext
     issues:
       - legacy scalar side_effects
     migration_priority: medium
@@ -674,8 +738,8 @@ tools:
     output_contract: missing
     undo: workspace_restore
     overlaps:
-      - tool: prepare_workspace
-        difference: git_init only creates .git; prepare_workspace also copies files and commits baseline
+      - tool: init_workspace_repo
+        difference: git_init is a generic CLI wrapper; init_workspace_repo initializes the evaluator point workspace from PointContext
     issues:
       - legacy scalar side_effects
     migration_priority: medium
@@ -814,15 +878,6 @@ tools:
 
 sentence_tools:
   highest_priority:
-    - tool: prepare_workspace
-      reason: hides six deterministic steps that should be visible in point.yaml
-      proposed_machine_sequence:
-        - create_point_dir
-        - copy_sample_workspace
-        - copy_sample_docs
-        - init_workspace_repo
-        - stage_workspace_baseline
-        - commit_workspace_baseline
     - tool: load_suite
       reason: combines parsing, validation, sample discovery, grid expansion, and session initialization
       proposed_machine_sequence:

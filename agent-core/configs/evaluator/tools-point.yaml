@@ -2,7 +2,12 @@
 # Loaded by run_point to build the nested point registry.
 
 tools:
-  - prepare_workspace
+  - create_point_dir
+  - copy_sample_workspace
+  - copy_sample_docs
+  - init_workspace_repo
+  - stage_workspace_baseline
+  - commit_workspace_baseline
   - dump_config
   - run_agent
   - check_results

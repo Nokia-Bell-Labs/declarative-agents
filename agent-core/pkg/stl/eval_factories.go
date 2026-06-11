@@ -22,9 +22,10 @@ type EvalFactoryDeps struct {
 
 // RegisterEvalFactories registers all evaluator builtin tool factories
 // (session-level: load_suite, next_point, run_point, report_session;
-// per-point: prepare_workspace, run_agent, check_results, collect_metrics,
-// dump_config) into the provided BuiltinRegistry. Session state is lazily
-// initialized on first factory call.
+// per-point: create_point_dir, copy_sample_workspace, copy_sample_docs,
+// init_workspace_repo, stage_workspace_baseline, commit_workspace_baseline,
+// dump_config, run_agent, check_results, collect_metrics) into the provided
+// BuiltinRegistry. Session state is lazily initialized on first factory call.
 func RegisterEvalFactories(br *BuiltinRegistry, deps EvalFactoryDeps) {
 	var ess *EvalSessionState
 
@@ -67,8 +68,23 @@ func RegisterEvalFactories(br *BuiltinRegistry, deps EvalFactoryDeps) {
 		return factory(def, vars)
 	})
 
-	br.Register("prepare_workspace", func(def ToolDef, vars map[string]string) (core.Builder, error) {
-		return &PrepareWorkspaceBuilder{ES: &initESS().EvalState}, nil
+	br.Register("create_point_dir", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		return &CreatePointDirBuilder{ES: &initESS().EvalState}, nil
+	})
+	br.Register("copy_sample_workspace", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		return &CopySampleWorkspaceBuilder{ES: &initESS().EvalState}, nil
+	})
+	br.Register("copy_sample_docs", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		return &CopySampleDocsBuilder{ES: &initESS().EvalState}, nil
+	})
+	br.Register("init_workspace_repo", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		return &InitWorkspaceRepoBuilder{ES: &initESS().EvalState}, nil
+	})
+	br.Register("stage_workspace_baseline", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		return &StageWorkspaceBaselineBuilder{ES: &initESS().EvalState}, nil
+	})
+	br.Register("commit_workspace_baseline", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		return &CommitWorkspaceBaselineBuilder{ES: &initESS().EvalState}, nil
 	})
 	br.Register("run_agent", func(def ToolDef, vars map[string]string) (core.Builder, error) {
 		return &RunAgentBuilder{ES: &initESS().EvalState}, nil

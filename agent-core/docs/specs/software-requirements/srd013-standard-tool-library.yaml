@@ -22,7 +22,7 @@ goals:
   - G3: LLM interaction commands (invoke_llm, parse_response, report_parse_error, reset_history, nudge_reread, done) with tracing.
   - G4: Subprocess execution utilities with process group management.
   - G5: YAML-based tool registration via BuiltinRegistry and tool declaration files.
-  - G6: Evaluation harness tools (prepare_workspace, dump_config, run_agent, check_results, collect_metrics).
+  - G6: Evaluation harness tools for atomic point workspace setup, config dumping, agent execution, result checking, and metrics collection.
   - G7: Code validation tool (validate) for build/vet/lint/test pipeline.
   - G8: Cross-reference focused tool SRDs rather than duplicating their detailed architectural contracts.
 
@@ -100,7 +100,13 @@ requirements:
   R10:
     title: Evaluation harness tools
     items:
-      - R10.1: prepare_workspace creates a point directory, copies sample workspace and doc files, initializes git, and creates a baseline commit.
+      - R10.1: The evaluator point machine uses atomic workspace preparation tools rather than a composite prepare_workspace tool.
+      - R10.1.1: create_point_dir creates a point directory and sets PointContext.PointDir and PointContext.TracePath.
+      - R10.1.2: copy_sample_workspace copies sample workspace files into the current point directory.
+      - R10.1.3: copy_sample_docs copies optional sample docs into the current point directory.
+      - R10.1.4: init_workspace_repo initializes git in the current point directory.
+      - R10.1.5: stage_workspace_baseline stages the baseline workspace contents.
+      - R10.1.6: commit_workspace_baseline creates the baseline git commit.
       - R10.2: dump_config serializes the full experiment configuration (harness, model, tools, tool declarations, LLM config, budget) into experiment.yaml.
       - R10.3: run_agent executes the generator binary as a subprocess with flag propagation and collects exit code, timing, and output.
       - R10.4: check_results runs oracle tests and parses trace files to extract token usage and version information.
@@ -145,8 +151,8 @@ acceptance_criteria:
     traces: [R8.1, R8.2, R9.1, R9.2]
 
   - id: AC9
-    criterion: Evaluation harness tools (prepare_workspace, dump_config, run_agent, check_results, collect_metrics) orchestrate a complete evaluation point lifecycle with workspace isolation and config snapshotting.
-    traces: [R10.1, R10.2, R10.3, R10.4, R10.5]
+    criterion: Evaluation harness tools orchestrate a complete evaluation point lifecycle with machine-declared atomic workspace setup, workspace isolation, and config snapshotting.
+    traces: [R10.1, R10.1.1, R10.1.2, R10.1.3, R10.1.4, R10.1.5, R10.1.6, R10.2, R10.3, R10.4, R10.5]
 
 depends_on:
   - srd_id: srd001-core-types

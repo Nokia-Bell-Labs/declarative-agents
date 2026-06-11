@@ -48,7 +48,13 @@ requirements:
   R3:
     title: Evaluation tools
     items:
-      - R3.1: prepare_workspace creates the point directory, copies sample workspace and docs, initializes git, and commits a baseline.
+      - R3.1: configs/evaluator/point.yaml SHALL express workspace preparation as separate tools: create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline.
+      - R3.1.1: create_point_dir SHALL create the point directory and set PointContext.PointDir and PointContext.TracePath.
+      - R3.1.2: copy_sample_workspace SHALL copy only sample workspace files into PointContext.PointDir.
+      - R3.1.3: copy_sample_docs SHALL copy sample docs into PointContext.PointDir/doc when docs exist and SHALL no-op successfully when they do not.
+      - R3.1.4: init_workspace_repo SHALL initialize git only in PointContext.PointDir.
+      - R3.1.5: stage_workspace_baseline SHALL stage all current point workspace files.
+      - R3.1.6: commit_workspace_baseline SHALL create the baseline commit for the point workspace.
       - R3.2: dump_config serializes the resolved configuration (machine, tools, tool declarations, LLM config, model, budget) into experiment.yaml.
       - R3.3: run_agent executes the harness binary as a subprocess with flag propagation, timeout, and OTel context.
       - R3.4: check_results runs oracle tests and parses trace files for token counts and version verification.
@@ -86,7 +92,7 @@ acceptance_criteria:
 
   - id: AC2
     criterion: Each evaluation point creates an isolated workspace with git baseline, experiment.yaml config snapshot, trace.ndjson, and meta.json.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+    traces: [R3.1, R3.1.1, R3.1.2, R3.1.3, R3.1.4, R3.1.5, R3.1.6, R3.2, R3.3, R3.4, R3.5]
 
   - id: AC3
     criterion: ComputeModelStats and ComputeDetailed produce accurate statistics from session results.

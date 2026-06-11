@@ -123,8 +123,18 @@ func buildPointRegistry(es *EvalState, selectionPath string) (*core.Registry, er
 	reg := core.NewRegistry()
 	for _, name := range selection {
 		switch name {
-		case "prepare_workspace":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &PrepareWorkspaceBuilder{ES: es})
+		case "create_point_dir":
+			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CreatePointDirBuilder{ES: es})
+		case "copy_sample_workspace":
+			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CopySampleWorkspaceBuilder{ES: es})
+		case "copy_sample_docs":
+			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CopySampleDocsBuilder{ES: es})
+		case "init_workspace_repo":
+			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &InitWorkspaceRepoBuilder{ES: es})
+		case "stage_workspace_baseline":
+			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &StageWorkspaceBaselineBuilder{ES: es})
+		case "commit_workspace_baseline":
+			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CommitWorkspaceBaselineBuilder{ES: es})
 		case "dump_config":
 			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &DumpConfigBuilder{ES: es})
 		case "run_agent":

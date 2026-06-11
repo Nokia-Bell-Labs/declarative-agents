@@ -65,11 +65,13 @@ selection_files:
       load_suite, next_point, run_point, and report_session.
 
   - file: configs/evaluator/tools-point.yaml
-    tool_count: 5
+    tool_count: 10
     description: |
       Selects per-point tools for configs/evaluator/point.yaml:
-      prepare_workspace, dump_config, run_agent, check_results, and
-      collect_metrics. Loaded by run_point to build the nested point
+      create_point_dir, copy_sample_workspace, copy_sample_docs,
+      init_workspace_repo, stage_workspace_baseline,
+      commit_workspace_baseline, dump_config, run_agent, check_results,
+      and collect_metrics. Loaded by run_point to build the nested point
       registry.
 
   - file: configs/planner/tools.yaml

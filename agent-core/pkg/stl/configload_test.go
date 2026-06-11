@@ -523,7 +523,9 @@ func TestEvaluatorConfig_PointTransitionTable(t *testing.T) {
 	defs := loadTestDefsForSelection(t, cd, "evaluator", filepath.Join(cd, "evaluator", "tools-point.yaml"))
 	require.NotEmpty(t, defs)
 	assertToolNames(t, defs, []string{
-		"prepare_workspace", "dump_config",
+		"create_point_dir", "copy_sample_workspace", "copy_sample_docs",
+		"init_workspace_repo", "stage_workspace_baseline", "commit_workspace_baseline",
+		"dump_config",
 		"run_agent", "check_results", "collect_metrics",
 	})
 	assertToolEmits(t, spec, defs)

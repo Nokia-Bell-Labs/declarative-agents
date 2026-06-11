@@ -258,12 +258,85 @@ tools:
     description: "Print session summary with pass/fail/timeout counts and total duration."
 
   # --- evaluator per-point tools ---
-  - name: prepare_workspace
+  - name: create_point_dir
     type: builtin
-    init: prepare_workspace
+    init: create_point_dir
     visibility: internal
-    emits: [WorkspaceReady, CommandError]
-    description: "Copy sample workspace, initialise git repo, and create baseline commit."
+    emits: [PointDirCreated, CommandError]
+    description: "Create the per-point evaluation directory and record trace artifact paths."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_artifacts
+        description: "Creates the point output directory under the evaluator session directory."
+      - kind: state_mutation
+        target: point_context
+        state: point_dir_and_trace_path_set
+        description: "Sets PointContext.PointDir and PointContext.TracePath for later point tools."
+
+  - name: copy_sample_workspace
+    type: builtin
+    init: copy_sample_workspace
+    visibility: internal
+    emits: [SampleWorkspaceCopied, CommandError]
+    description: "Copy the sample workspace contents into the current point directory."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_workspace
+        description: "Copies sample workspace files into PointContext.PointDir."
+
+  - name: copy_sample_docs
+    type: builtin
+    init: copy_sample_docs
+    visibility: internal
+    emits: [SampleDocsCopied, CommandError]
+    description: "Copy optional sample docs into the current point directory, or no-op when the sample has no docs."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_docs
+        paths: [doc]
+        description: "Copies sample docs into PointContext.PointDir/doc when docs exist."
+
+  - name: init_workspace_repo
+    type: builtin
+    init: init_workspace_repo
+    visibility: internal
+    emits: [WorkspaceRepoInitialized, CommandError]
+    description: "Initialize a git repository in the current point workspace."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_workspace_git_metadata
+        paths: [.git]
+        description: "Creates git metadata in PointContext.PointDir."
+
+  - name: stage_workspace_baseline
+    type: builtin
+    init: stage_workspace_baseline
+    visibility: internal
+    emits: [WorkspaceBaselineStaged, CommandError]
+    description: "Stage all current point workspace files for the baseline commit."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: git_index
+        state: all_changes_staged
+        description: "Stages all files in the point workspace git index."
+
+  - name: commit_workspace_baseline
+    type: builtin
+    init: commit_workspace_baseline
+    visibility: internal
+    emits: [WorkspaceBaselineCommitted, CommandError]
+    description: "Create the baseline git commit for the current point workspace."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_workspace_git_history
+        paths: [.git]
+        description: "Creates the baseline commit in the point workspace repository."
 
   - name: run_agent
     type: builtin

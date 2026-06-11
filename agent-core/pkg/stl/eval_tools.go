@@ -11,65 +11,152 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
 
-// SigWorkspaceReady is emitted when workspace preparation completes.
-const SigWorkspaceReady core.Signal = "WorkspaceReady"
+// Signals emitted by atomic evaluator workspace preparation commands.
+const (
+	SigPointDirCreated            core.Signal = "PointDirCreated"
+	SigSampleWorkspaceCopied      core.Signal = "SampleWorkspaceCopied"
+	SigSampleDocsCopied           core.Signal = "SampleDocsCopied"
+	SigWorkspaceRepoInitialized   core.Signal = "WorkspaceRepoInitialized"
+	SigWorkspaceBaselineStaged    core.Signal = "WorkspaceBaselineStaged"
+	SigWorkspaceBaselineCommitted core.Signal = "WorkspaceBaselineCommitted"
+)
 
-// prepareWorkspaceCmd copies the sample workspace, doc dir, and
-// initialises a git repo with a baseline commit.
-type prepareWorkspaceCmd struct {
+// createPointDirCmd creates the per-point directory and records paths that
+// later point tools consume.
+type createPointDirCmd struct {
 	pc *PointContext
 }
 
-func (c *prepareWorkspaceCmd) Name() string { return "prepare_workspace" }
+func (c *createPointDirCmd) Name() string { return "create_point_dir" }
 
-func (c *prepareWorkspaceCmd) Execute() core.Result {
-	pc := c.pc
-
-	pointDir := filepath.Join(pc.SessionDir, pc.PointID)
+func (c *createPointDirCmd) Execute() core.Result {
+	pointDir := filepath.Join(c.pc.SessionDir, c.pc.PointID)
 	if err := os.MkdirAll(pointDir, 0o755); err != nil {
-		return c.fail(fmt.Errorf("mkdir point dir: %w", err))
+		return pointToolError(c.Name(), fmt.Errorf("mkdir point dir: %w", err))
 	}
-	pc.PointDir = pointDir
-	pc.TracePath = filepath.Join(pointDir, ArtifactTrace)
+	c.pc.PointDir = pointDir
+	c.pc.TracePath = filepath.Join(pointDir, ArtifactTrace)
+	return pointToolDone(c.Name(), SigPointDirCreated, fmt.Sprintf("point dir created at %s", pointDir))
+}
 
-	if err := copyDir(pc.Sample.WorkspaceDir, pointDir); err != nil {
-		return c.fail(fmt.Errorf("copy workspace: %w", err))
+// copySampleWorkspaceCmd copies only the sample workspace into the point dir.
+type copySampleWorkspaceCmd struct {
+	pc *PointContext
+}
+
+func (c *copySampleWorkspaceCmd) Name() string { return "copy_sample_workspace" }
+
+func (c *copySampleWorkspaceCmd) Execute() core.Result {
+	if err := requirePointDir(c.pc); err != nil {
+		return pointToolError(c.Name(), err)
 	}
-
-	if pc.Sample.DocDir != "" {
-		dst := filepath.Join(pointDir, ArtifactDocDir)
-		if err := copyDir(pc.Sample.DocDir, dst); err != nil {
-			return c.fail(fmt.Errorf("copy docs: %w", err))
-		}
+	if err := copyDir(c.pc.Sample.WorkspaceDir, c.pc.PointDir); err != nil {
+		return pointToolError(c.Name(), fmt.Errorf("copy workspace: %w", err))
 	}
+	return pointToolDone(c.Name(), SigSampleWorkspaceCopied, fmt.Sprintf("sample workspace copied to %s", c.pc.PointDir))
+}
 
-	for _, cmd := range [][]string{
-		{"git", "init"},
-		{"git", "add", "-A"},
-		{"git", "commit", "-m", "baseline", "--allow-empty"},
-	} {
-		c := exec.Command(cmd[0], cmd[1:]...)
-		c.Dir = pointDir
-		if out, err := c.CombinedOutput(); err != nil {
-			return (&prepareWorkspaceCmd{pc: pc}).fail(
-				fmt.Errorf("%s: %s: %w", cmd[0], string(out), err))
-		}
+// copySampleDocsCmd copies optional sample docs into the point dir. Samples
+// without docs still complete successfully so the machine sequence remains fixed.
+type copySampleDocsCmd struct {
+	pc *PointContext
+}
+
+func (c *copySampleDocsCmd) Name() string { return "copy_sample_docs" }
+
+func (c *copySampleDocsCmd) Execute() core.Result {
+	if err := requirePointDir(c.pc); err != nil {
+		return pointToolError(c.Name(), err)
 	}
+	if c.pc.Sample.DocDir == "" {
+		return pointToolDone(c.Name(), SigSampleDocsCopied, "sample has no docs")
+	}
+	dst := filepath.Join(c.pc.PointDir, ArtifactDocDir)
+	if err := copyDir(c.pc.Sample.DocDir, dst); err != nil {
+		return pointToolError(c.Name(), fmt.Errorf("copy docs: %w", err))
+	}
+	return pointToolDone(c.Name(), SigSampleDocsCopied, fmt.Sprintf("sample docs copied to %s", dst))
+}
 
+type initWorkspaceRepoCmd struct {
+	pc *PointContext
+}
+
+func (c *initWorkspaceRepoCmd) Name() string { return "init_workspace_repo" }
+
+func (c *initWorkspaceRepoCmd) Execute() core.Result {
+	if err := requirePointDir(c.pc); err != nil {
+		return pointToolError(c.Name(), err)
+	}
+	if err := runPointGit(c.pc.PointDir, "init"); err != nil {
+		return pointToolError(c.Name(), err)
+	}
+	return pointToolDone(c.Name(), SigWorkspaceRepoInitialized, "workspace git repo initialized")
+}
+
+type stageWorkspaceBaselineCmd struct {
+	pc *PointContext
+}
+
+func (c *stageWorkspaceBaselineCmd) Name() string { return "stage_workspace_baseline" }
+
+func (c *stageWorkspaceBaselineCmd) Execute() core.Result {
+	if err := requirePointDir(c.pc); err != nil {
+		return pointToolError(c.Name(), err)
+	}
+	if err := runPointGit(c.pc.PointDir, "add", "-A"); err != nil {
+		return pointToolError(c.Name(), err)
+	}
+	return pointToolDone(c.Name(), SigWorkspaceBaselineStaged, "workspace baseline staged")
+}
+
+type commitWorkspaceBaselineCmd struct {
+	pc *PointContext
+}
+
+func (c *commitWorkspaceBaselineCmd) Name() string { return "commit_workspace_baseline" }
+
+func (c *commitWorkspaceBaselineCmd) Execute() core.Result {
+	if err := requirePointDir(c.pc); err != nil {
+		return pointToolError(c.Name(), err)
+	}
+	if err := runPointGit(c.pc.PointDir, "-c", "user.name=agent-core", "-c", "user.email=agent-core@example.invalid", "commit", "-m", "baseline", "--allow-empty"); err != nil {
+		return pointToolError(c.Name(), err)
+	}
+	return pointToolDone(c.Name(), SigWorkspaceBaselineCommitted, "workspace baseline committed")
+}
+
+func pointToolDone(command string, signal core.Signal, output string) core.Result {
 	return core.Result{
-		CommandName: "prepare_workspace",
-		Signal:      SigWorkspaceReady,
-		Output:      fmt.Sprintf("workspace ready at %s", pointDir),
+		CommandName: command,
+		Signal:      signal,
+		Output:      output,
 	}
 }
 
-func (c *prepareWorkspaceCmd) fail(err error) core.Result {
+func pointToolError(command string, err error) core.Result {
 	return core.Result{
-		CommandName: "prepare_workspace",
+		CommandName: command,
 		Signal:      core.CommandError,
 		Err:         err,
 		Output:      err.Error(),
 	}
+}
+
+func requirePointDir(pc *PointContext) error {
+	if pc.PointDir == "" {
+		return fmt.Errorf("point dir not initialized")
+	}
+	return nil
+}
+
+func runPointGit(dir string, args ...string) error {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git %v: %s: %w", args, string(out), err)
+	}
+	return nil
 }
 
 func copyDir(src, dst string) error {
@@ -140,4 +227,3 @@ func (c *collectMetricsCmd) Execute() core.Result {
 		Output:      string(metaJSON),
 	}
 }
-

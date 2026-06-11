@@ -1,15 +1,21 @@
 # State machine for a single evaluation point.
-# Sequences: prepare workspace → run agent → check results → collect metrics.
+# Sequences: create point dir → copy workspace/docs → git baseline →
+# dump config → run agent → check results → collect metrics.
 
 name: evaluator
 initial_state: Idle
 
 budget:
-  max_iterations: 10
+  max_iterations: 20
 
 states:
   - Idle
-  - PreparingWorkspace
+  - CreatingPointDir
+  - CopyingSampleWorkspace
+  - CopyingSampleDocs
+  - InitializingWorkspaceRepo
+  - StagingWorkspaceBaseline
+  - CommittingWorkspaceBaseline
   - SnapshotConfig
   - RunningAgent
   - CheckingResults
@@ -24,7 +30,12 @@ terminal_states:
 signals:
   - Seed
   - CommandError
-  - WorkspaceReady
+  - PointDirCreated
+  - SampleWorkspaceCopied
+  - SampleDocsCopied
+  - WorkspaceRepoInitialized
+  - WorkspaceBaselineStaged
+  - WorkspaceBaselineCommitted
   - ConfigDumped
   - HarnessFinished
   - HarnessFailed
@@ -35,11 +46,36 @@ signals:
 transitions:
   - state: Idle
     signal: Seed
-    next: PreparingWorkspace
-    action: prepare_workspace
+    next: CreatingPointDir
+    action: create_point_dir
 
-  - state: PreparingWorkspace
-    signal: WorkspaceReady
+  - state: CreatingPointDir
+    signal: PointDirCreated
+    next: CopyingSampleWorkspace
+    action: copy_sample_workspace
+
+  - state: CopyingSampleWorkspace
+    signal: SampleWorkspaceCopied
+    next: CopyingSampleDocs
+    action: copy_sample_docs
+
+  - state: CopyingSampleDocs
+    signal: SampleDocsCopied
+    next: InitializingWorkspaceRepo
+    action: init_workspace_repo
+
+  - state: InitializingWorkspaceRepo
+    signal: WorkspaceRepoInitialized
+    next: StagingWorkspaceBaseline
+    action: stage_workspace_baseline
+
+  - state: StagingWorkspaceBaseline
+    signal: WorkspaceBaselineStaged
+    next: CommittingWorkspaceBaseline
+    action: commit_workspace_baseline
+
+  - state: CommittingWorkspaceBaseline
+    signal: WorkspaceBaselineCommitted
     next: SnapshotConfig
     action: dump_config
 
@@ -73,7 +109,27 @@ transitions:
     next: Done
 
   # --- error handling ---
-  - state: PreparingWorkspace
+  - state: CreatingPointDir
+    signal: CommandError
+    next: Failed
+
+  - state: CopyingSampleWorkspace
+    signal: CommandError
+    next: Failed
+
+  - state: CopyingSampleDocs
+    signal: CommandError
+    next: Failed
+
+  - state: InitializingWorkspaceRepo
+    signal: CommandError
+    next: Failed
+
+  - state: StagingWorkspaceBaseline
+    signal: CommandError
+    next: Failed
+
+  - state: CommittingWorkspaceBaseline
     signal: CommandError
     next: Failed
 
