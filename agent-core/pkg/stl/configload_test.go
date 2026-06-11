@@ -18,13 +18,13 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
-// configDir resolves the absolute path to the top-level configs/ directory.
+// configDir resolves the absolute path to the top-level agents/ directory.
 func configDir(t *testing.T) string {
 	t.Helper()
 	_, thisFile, _, _ := runtime.Caller(0)
-	abs := filepath.Join(filepath.Dir(thisFile), "..", "..", "configs")
+	abs := filepath.Join(filepath.Dir(thisFile), "..", "..", "agents")
 	info, err := os.Stat(abs)
-	require.NoError(t, err, "configs directory must exist at %s", abs)
+	require.NoError(t, err, "agents directory must exist at %s", abs)
 	require.True(t, info.IsDir())
 	return abs
 }

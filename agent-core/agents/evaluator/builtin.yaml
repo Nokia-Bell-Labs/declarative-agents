@@ -2,7 +2,7 @@
 # Adds mode-specific config to tools declared in tools/builtin.yaml.
 # Pass after the shared declaration:
 #   --tools-declaration tools/builtin.yaml \
-#   --tools-declaration configs/evaluator/builtin.yaml
+#   --tools-declaration agents/evaluator/builtin.yaml
 
 tools:
   - name: parse_suite_config
@@ -101,8 +101,8 @@ tools:
         - tool: launch_eval
           difference: "launch_eval starts an evaluator session process; run_point runs one point inside that session."
     config:
-      point_machine: configs/evaluator/point.yaml
-      point_tools: configs/evaluator/tools-point.yaml
+      point_machine: agents/evaluator/point.yaml
+      point_tools: agents/evaluator/tools-point.yaml
       agent_name: evaluator-point
       max_iterations: 20
       success_state: Done

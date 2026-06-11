@@ -101,14 +101,14 @@ func TestDecodeToolConfigRunPoint(t *testing.T) {
 	def := ToolDef{
 		Name: "run_point",
 		Config: map[string]interface{}{
-			"point_machine": "configs/evaluator/point.yaml",
-			"point_tools":   "configs/evaluator/tools-point.yaml",
+			"point_machine": "agents/evaluator/point.yaml",
+			"point_tools":   "agents/evaluator/tools-point.yaml",
 		},
 	}
 	var cfg RunPointConfig
 	require.NoError(t, DecodeToolConfig(def, &cfg))
-	assert.Equal(t, "configs/evaluator/point.yaml", cfg.PointMachine)
-	assert.Equal(t, "configs/evaluator/tools-point.yaml", cfg.PointTools)
+	assert.Equal(t, "agents/evaluator/point.yaml", cfg.PointMachine)
+	assert.Equal(t, "agents/evaluator/tools-point.yaml", cfg.PointTools)
 }
 
 func TestDecodeToolConfigServeUI(t *testing.T) {
@@ -117,7 +117,7 @@ func TestDecodeToolConfigServeUI(t *testing.T) {
 		Config: map[string]interface{}{
 			"addr":         ":8080",
 			"data_dir":     "eval-results",
-			"configs_dir":  "configs",
+			"configs_dir":  "agents",
 			"docs_dir":     "docs",
 			"profiles_dir": "pkg/llm/profiles",
 		},
@@ -126,7 +126,7 @@ func TestDecodeToolConfigServeUI(t *testing.T) {
 	require.NoError(t, DecodeToolConfig(def, &cfg))
 	assert.Equal(t, ":8080", cfg.Addr)
 	assert.Equal(t, "eval-results", cfg.DataDir)
-	assert.Equal(t, "configs", cfg.ConfigsDir)
+	assert.Equal(t, "agents", cfg.ConfigsDir)
 	assert.Equal(t, "docs", cfg.DocsDir)
 	assert.Equal(t, "pkg/llm/profiles", cfg.ProfilesDir)
 	assert.Empty(t, cfg.SourceDir)

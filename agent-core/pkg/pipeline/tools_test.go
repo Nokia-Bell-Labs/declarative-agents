@@ -397,8 +397,8 @@ func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
 		Name: "execute_task",
 		Init: "execute_task",
 		Config: map[string]interface{}{
-			"machine": "configs/generator/machine.yaml",
-			"tools":   "configs/generator/tools.yaml",
+			"machine": "agents/generator/machine.yaml",
+			"tools":   "agents/generator/tools.yaml",
 		},
 	}, nil)
 	require.ErrorContains(t, err, "requires tools_declarations")

@@ -9,15 +9,15 @@ purpose: |
   all tasks are done, all are blocked, or a batch limit is reached.
 
 configuration:
-  machine: configs/planner/machine.yaml
-  tools: configs/planner/tools.yaml
-  llm_configs: configs/planner/llm/*.yaml
+  machine: agents/planner/machine.yaml
+  tools: agents/planner/tools.yaml
+  llm_configs: agents/planner/llm/*.yaml
   tool_declarations:
     - tools/builtin.yaml
     - tools/exec.yaml
   variants:
-    - configs/planner/machine-passthrough.yaml
-    - configs/planner/machine-plan-only.yaml
+    - agents/planner/machine-passthrough.yaml
+    - agents/planner/machine-plan-only.yaml
 
 states:
   - name: Idle

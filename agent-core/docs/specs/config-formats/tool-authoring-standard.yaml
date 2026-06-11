@@ -246,7 +246,7 @@ examples:
     side_effects:
       - kind: nested_machine_execution
         target: evaluator_point_machine
-        description: "Runs configs/evaluator/point.yaml with point tools."
+        description: "Runs agents/evaluator/point.yaml with point tools."
       - kind: state_mutation
         target: eval_session_state
         description: "Records the completed point result."

@@ -5,8 +5,8 @@
 # Usage:
 #   agent --tools-declaration tools/builtin.yaml \
 #         --tools-declaration tools/exec.yaml \
-#         --tools configs/generator/tools.yaml \
-#         --machine configs/generator/machine.yaml
+#         --tools agents/generator/tools.yaml \
+#         --machine agents/generator/machine.yaml
 
 tools:
   # File tools — LLM-invoked via $tool dispatch

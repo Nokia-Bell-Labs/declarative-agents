@@ -15,12 +15,12 @@ scope:
     - configs/*/builtin.yaml
     - configs/*/llm/*.yaml
   selections:
-    - configs/generator/tools.yaml
-    - configs/planner/tools.yaml
-    - configs/evaluator/tools.yaml
-    - configs/evaluator/tools-point.yaml
-    - configs/bench/tools.yaml
-    - configs/validate/tools.yaml
+    - agents/generator/tools.yaml
+    - agents/planner/tools.yaml
+    - agents/evaluator/tools.yaml
+    - agents/evaluator/tools-point.yaml
+    - agents/bench/tools.yaml
+    - agents/validate/tools.yaml
 
 role_legend:
   word: |

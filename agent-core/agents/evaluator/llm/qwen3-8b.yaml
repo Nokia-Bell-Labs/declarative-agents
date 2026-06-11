@@ -2,7 +2,7 @@
 # The evaluator iterates over llm/*.yaml files to benchmark each model.
 #
 # Loaded as a tool declaration:
-#   agent --tools-declaration configs/evaluator/llm/qwen3-8b.yaml ...
+#   agent --tools-declaration agents/evaluator/llm/qwen3-8b.yaml ...
 
 tools:
   - name: invoke_llm

@@ -2,7 +2,7 @@
 # Adds mode-specific config to tools declared in tools/builtin.yaml.
 # Pass after the shared declaration:
 #   --tools-declaration tools/builtin.yaml \
-#   --tools-declaration configs/planner/builtin.yaml
+#   --tools-declaration agents/planner/builtin.yaml
 
 tools:
   - name: execute_task
@@ -96,8 +96,8 @@ tools:
         - tool: run_point
           difference: "run_point invokes an in-process nested machine; execute_task spawns a child agent process."
     config:
-      machine: configs/generator/machine.yaml
-      tools: configs/generator/tools.yaml
+      machine: agents/generator/machine.yaml
+      tools: agents/generator/tools.yaml
       tools_declarations:
         - tools/builtin.yaml
         - tools/exec.yaml

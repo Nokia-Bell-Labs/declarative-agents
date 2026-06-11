@@ -1,5 +1,5 @@
 # Tool selection for the validate state machine.
-# Used with: agent --machine configs/validate/machine.yaml --tools configs/validate/tools.yaml
+# Used with: agent --machine agents/validate/machine.yaml --tools agents/validate/tools.yaml
 # Declarations live in tools/builtin.yaml.
 
 tools:

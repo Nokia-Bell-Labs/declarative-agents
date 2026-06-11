@@ -13,10 +13,10 @@ purpose: |
   response signals.
 
 configuration:
-  machine: configs/bench/machine.yaml
-  tools: configs/bench/tools.yaml
+  machine: agents/bench/machine.yaml
+  tools: agents/bench/tools.yaml
   tool_declarations:
-    - configs/bench/serve_ui.yaml
+    - agents/bench/serve_ui.yaml
     - tools/builtin.yaml
 
 states:

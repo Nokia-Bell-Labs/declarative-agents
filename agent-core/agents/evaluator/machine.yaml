@@ -1,7 +1,7 @@
 # Session-level state machine for the evaluator.
 # Drives grid iteration over (harness, model, sample, rep) points.
 # Each point runs the per-point pipeline via a nested core.Loop
-# using configs/evaluator/point.yaml.
+# using agents/evaluator/point.yaml.
 
 name: evaluator-session
 initial_state: Idle

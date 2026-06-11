@@ -22,8 +22,8 @@ harnesses:
   - name: agent
     binary: agent
     flags:
-      machine: configs/generator/machine.yaml
-      tools: configs/generator/tools.yaml
+      machine: agents/generator/machine.yaml
+      tools: agents/generator/tools.yaml
 models: [qwen3]
 samples_dir: samples
 `), base)

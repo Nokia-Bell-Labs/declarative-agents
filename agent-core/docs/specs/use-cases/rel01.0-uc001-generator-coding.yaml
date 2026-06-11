@@ -4,7 +4,7 @@ title: Generator agent solves Go coding tasks using YAML config
 summary: |
   The generator agent is configured entirely through YAML files passed
   to the unified agent binary. It loads a state machine from
-  configs/generator/machine.yaml, selects tools from tools.yaml, and
+  agents/generator/machine.yaml, selects tools from tools.yaml, and
   uses a per-model LLM config from llm/*.yaml. The agent iteratively
   invokes an LLM, parses tool calls, executes file/build/test tools,
   and converges on a solution that passes validation.
@@ -13,20 +13,20 @@ actor: Developer invoking the agent binary
 
 trigger: |
   The developer runs:
-    agent --machine configs/generator/machine.yaml \
+    agent --machine agents/generator/machine.yaml \
           --tools-declaration tools/builtin.yaml \
           --tools-declaration tools/exec.yaml \
-          --tools-declaration configs/generator/llm/default.yaml \
-          --tools configs/generator/tools.yaml \
+          --tools-declaration agents/generator/llm/default.yaml \
+          --tools agents/generator/tools.yaml \
           --directory <workspace>
 
 flow:
   - F1: cmd/agent parses CLI flags and loads tool declarations from multiple YAML files, merging them into a single registry (srd013, srd018).
-  - F2: Tool selection filters the declarations to the subset listed in configs/generator/tools.yaml (cfg-tool-selection-format).
+  - F2: Tool selection filters the declarations to the subset listed in agents/generator/tools.yaml (cfg-tool-selection-format).
   - F3: The invoke_llm tool definition provides model, provider URL, and system prompt. cmd/agent extracts this to configure the Ollama adapter (srd009, srd017).
   - F4: LLM response profiles are loaded from embedded defaults (or --profiles-dir override) to configure per-model parsing pipelines (srd017).
   - F5: Builtin and exec tool factories are registered (file tools, LLM tools, build/lint/test, done, etc.) and matched to their YAML declarations (srd013).
-  - F6: The state machine is loaded from configs/generator/machine.yaml and validated against the registered tools (srd006).
+  - F6: The state machine is loaded from agents/generator/machine.yaml and validated against the registered tools (srd006).
   - F7: core.Loop drives the state machine. Idle → Composing via invoke_llm sends the task prompt to the LLM (srd005, srd009).
   - F8: LLM response is parsed by parse_response. The $tool sentinel dispatches the extracted tool call (srd006, srd013).
   - F9: Tool results feed back to the LLM. The Composing ↔ Parsing cycle repeats until the LLM calls done (sm-generator).

@@ -25,15 +25,15 @@ func TestDocsYAMLCategory(t *testing.T) {
 
 func TestConfigsYAMLCategory(t *testing.T) {
 	tests := map[string]string{
-		"tools/builtin.yaml":                  "shared_tools",
-		"configs/generator/llm/default.yaml":  "llm_configs",
-		"configs/evaluator/llm/devstral.yaml": "llm_configs",
-		"configs/generator/machine.yaml":      "generator",
-		"configs/planner/machine.yaml":        "planner",
-		"configs/evaluator/machine.yaml":      "evaluator",
-		"configs/bench/machine.yaml":          "bench",
-		"configs/validate/machine.yaml":       "validate",
-		"configs/experimental/machine.yaml":   "configs_other",
+		"tools/builtin.yaml":                 "shared_tools",
+		"agents/generator/llm/default.yaml":  "llm_configs",
+		"agents/evaluator/llm/devstral.yaml": "llm_configs",
+		"agents/generator/machine.yaml":      "generator",
+		"agents/planner/machine.yaml":        "planner",
+		"agents/evaluator/machine.yaml":      "evaluator",
+		"agents/bench/machine.yaml":          "bench",
+		"agents/validate/machine.yaml":       "validate",
+		"configs/experimental/machine.yaml":  "configs_other",
 	}
 	for path, want := range tests {
 		if got := configsYAMLCategory(path); got != want {
@@ -49,16 +49,20 @@ func TestAddYAMLStats(t *testing.T) {
 
 	addYAMLStats(&stats, "docs/specs/config-formats/machine-format.yaml", 10)
 	addYAMLStats(&stats, "tools/builtin.yaml", 20)
+	addYAMLStats(&stats, "agents/generator/machine.yaml", 7)
 	addYAMLStats(&stats, "README.yaml", 3)
 
-	if stats.Total.Files != 3 || stats.Total.Lines != 33 {
-		t.Fatalf("total = %+v, want files=3 lines=33", stats.Total)
+	if stats.Total.Files != 4 || stats.Total.Lines != 40 {
+		t.Fatalf("total = %+v, want files=4 lines=40", stats.Total)
 	}
 	if got := stats.Docs.Categories["config_formats"]; got.Files != 1 || got.Lines != 10 {
 		t.Fatalf("docs config_formats = %+v, want files=1 lines=10", got)
 	}
 	if got := stats.Configs.Categories["shared_tools"]; got.Files != 1 || got.Lines != 20 {
 		t.Fatalf("configs shared_tools = %+v, want files=1 lines=20", got)
+	}
+	if got := stats.Configs.Categories["generator"]; got.Files != 1 || got.Lines != 7 {
+		t.Fatalf("configs generator = %+v, want files=1 lines=7", got)
 	}
 	if stats.Other.Files != 1 || stats.Other.Lines != 3 {
 		t.Fatalf("other = %+v, want files=1 lines=3", stats.Other)

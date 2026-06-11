@@ -1,6 +1,6 @@
 # LLM tool declaration for the generator agent — DeepSeek model.
 # Loaded as a tool declaration:
-#   agent --tools-declaration configs/generator/llm/deepseek.yaml ...
+#   agent --tools-declaration agents/generator/llm/deepseek.yaml ...
 
 tools:
   - name: invoke_llm

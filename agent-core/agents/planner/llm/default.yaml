@@ -1,6 +1,6 @@
 # LLM tool declaration for the planner agent.
 # Loaded as a tool declaration:
-#   agent --tools-declaration configs/planner/llm/default.yaml ...
+#   agent --tools-declaration agents/planner/llm/default.yaml ...
 
 tools:
   - name: invoke_llm

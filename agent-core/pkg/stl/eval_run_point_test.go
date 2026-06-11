@@ -18,7 +18,7 @@ func TestRunPointFactoryRequiresNestedConfig(t *testing.T) {
 		Name: "run_point",
 		Init: "run_point",
 		Config: map[string]interface{}{
-			"point_machine": "configs/evaluator/point.yaml",
+			"point_machine": "agents/evaluator/point.yaml",
 		},
 	}, nil)
 	require.ErrorContains(t, err, "requires point_tools")

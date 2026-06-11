@@ -1,7 +1,7 @@
 # Builtin tool declarations — Go-implemented tools.
 # Contains reusable tool identity, init, parameters, emits, and visibility.
 # Mode-specific config lives in per-mode override files (e.g.
-# configs/planner/builtin.yaml, configs/evaluator/builtin.yaml).
+# agents/planner/builtin.yaml, agents/evaluator/builtin.yaml).
 # Pass via: agent --tools-declaration tools/builtin.yaml \
 #                 --tools-declaration configs/<mode>/builtin.yaml
 
@@ -189,7 +189,7 @@ tools:
 
   # --- LLM tools ---
   # invoke_llm is NOT declared here — it is defined per-agent via
-  # --llm config files (e.g. configs/generator/llm/default.yaml).
+  # --llm config files (e.g. agents/generator/llm/default.yaml).
   # Multiple LLM tools can be registered with different names/models.
 
   - name: parse_response

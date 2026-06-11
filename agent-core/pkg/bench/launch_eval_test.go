@@ -20,8 +20,8 @@ func TestLaunchEvalFactoryRequiresChildAgentConfig(t *testing.T) {
 		Name: "launch_eval",
 		Init: "launch_eval",
 		Config: map[string]interface{}{
-			"machine": "configs/evaluator/machine.yaml",
-			"tools":   "configs/evaluator/tools.yaml",
+			"machine": "agents/evaluator/machine.yaml",
+			"tools":   "agents/evaluator/tools.yaml",
 		},
 	}, nil)
 	require.ErrorContains(t, err, "requires tools_declarations")

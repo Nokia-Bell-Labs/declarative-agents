@@ -146,7 +146,7 @@ per_model_pattern: |
   single variant selected at invocation time.
 
 config_files:
-  - directory: configs/generator/llm/
+  - directory: agents/generator/llm/
     variant_count: 9
     description: |
       Model variants for the generator agent: default, deepseek,
@@ -154,7 +154,7 @@ config_files:
       nemotron. Each configures a different local model via Ollama
       with generator-specific system prompts.
 
-  - directory: configs/evaluator/llm/
+  - directory: agents/evaluator/llm/
     variant_count: 10
     description: |
       Model variants for the evaluator's benchmark grid:
@@ -163,7 +163,7 @@ config_files:
       are harness profiles used by child generator processes, not
       by the evaluator state machine itself.
 
-  - directory: configs/planner/llm/
+  - directory: agents/planner/llm/
     variant_count: 1
     description: |
       Single variant (default.yaml) for the planner agent. Includes

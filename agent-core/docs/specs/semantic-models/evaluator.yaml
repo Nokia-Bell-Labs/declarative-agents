@@ -4,12 +4,12 @@ title: Evaluator Agent Semantic Model
 purpose: |
   The evaluator uses a two-level nested state machine architecture.
 
-  The session-level machine (configs/evaluator/machine.yaml) iterates
+  The session-level machine (agents/evaluator/machine.yaml) iterates
   over all combinations of (harness, model, sample, gridpoint, rep)
   defined in a suite YAML. For each combination it invokes a nested
   core.Loop that runs the per-point pipeline.
 
-  The point-level machine (configs/evaluator/point.yaml) orchestrates
+  The point-level machine (agents/evaluator/point.yaml) orchestrates
   a single evaluation point: it creates a point directory, copies the
   sample workspace/docs, initializes and commits a git baseline, snapshots
   the experiment configuration, invokes the generator agent as a subprocess,
@@ -17,12 +17,12 @@ purpose: |
   pipeline that sequences atomic tools — no LLM calls.
 
   The former `agent eval` subcommand has been removed. Evaluation is
-  now fully driven by `--machine configs/evaluator/machine.yaml`.
+  now fully driven by `--machine agents/evaluator/machine.yaml`.
 
 declarative_boundary: |
   The evaluator program definition is the pair of state machines
-  (configs/evaluator/machine.yaml and configs/evaluator/point.yaml),
-  the selected tools (configs/evaluator/tools.yaml), and the tool
+  (agents/evaluator/machine.yaml and agents/evaluator/point.yaml),
+  the selected tools (agents/evaluator/tools.yaml), and the tool
   declarations/overrides loaded at startup. Suite YAML is not a third
   program-definition mechanism. It is input data consumed by evaluator
   tools:
@@ -39,13 +39,13 @@ declarative_boundary: |
     prompt/profile configuration into experiment.yaml for reproducibility.
 
 configuration:
-  machine: configs/evaluator/machine.yaml
-  point_machine: configs/evaluator/point.yaml
-  session_tools: configs/evaluator/tools.yaml
-  point_tools: configs/evaluator/tools-point.yaml
+  machine: agents/evaluator/machine.yaml
+  point_machine: agents/evaluator/point.yaml
+  session_tools: agents/evaluator/tools.yaml
+  point_tools: agents/evaluator/tools-point.yaml
   tool_declarations:
     - tools/builtin.yaml
-    - configs/evaluator/builtin.yaml
+    - agents/evaluator/builtin.yaml
 
 # --- Session-level machine ---
 
@@ -279,4 +279,4 @@ invariants:
   - Metrics are collected even when the agent fails or times out
   - The session machine iterates sequentially through all grid points
   - Session and point machines have separate tool selections
-  - run_point builds the nested point registry from configs/evaluator/tools-point.yaml
+  - run_point builds the nested point registry from agents/evaluator/tools-point.yaml

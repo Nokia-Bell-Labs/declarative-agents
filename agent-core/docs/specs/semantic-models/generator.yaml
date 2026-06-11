@@ -8,9 +8,9 @@ purpose: |
   passes validation.
 
 configuration:
-  machine: configs/generator/machine.yaml
-  tools: configs/generator/tools.yaml
-  llm_configs: configs/generator/llm/*.yaml
+  machine: agents/generator/machine.yaml
+  tools: agents/generator/tools.yaml
+  llm_configs: agents/generator/llm/*.yaml
   tool_declarations:
     - tools/builtin.yaml
     - tools/exec.yaml

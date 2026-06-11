@@ -3,8 +3,8 @@
 # runs consistency checks, and formats the report.
 #
 # Usage:
-#   agent --machine configs/validate/machine.yaml \
-#         --tools configs/validate/tools.yaml \
+#   agent --machine agents/validate/machine.yaml \
+#         --tools agents/validate/tools.yaml \
 #         --directory <project-root>
 
 name: validate

@@ -865,15 +865,15 @@ project_structure:
       role: Specification corpus parsing, graph construction, and cross-artifact validation
 
   configuration:
-    - path: configs/generator/
+    - path: agents/generator/
       role: Generator agent — machine.yaml, tools.yaml, llm/*.yaml
-    - path: configs/evaluator/
+    - path: agents/evaluator/
       role: Evaluator agent — machine.yaml, tools.yaml, llm/*.yaml
-    - path: configs/planner/
+    - path: agents/planner/
       role: Planner agent — machine.yaml (3 variants), tools.yaml, llm/*.yaml
-    - path: configs/validate/
+    - path: agents/validate/
       role: Validation agent — machine.yaml, tools.yaml
-    - path: configs/bench/
+    - path: agents/bench/
       role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
     - path: tools/
       role: Shared tool declarations — builtin.yaml and exec.yaml

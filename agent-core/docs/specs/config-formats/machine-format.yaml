@@ -135,39 +135,39 @@ validation_rules: |
   Validation failures cause the agent to abort before processing any input.
 
 examples:
-  - file: configs/generator/machine.yaml
+  - file: agents/generator/machine.yaml
     description: |
       7 states, 11 signals. LLM-driven loop with $tool dispatch.
       The generator iterates between Composing and Parsing, using
       dynamic tool dispatch to execute LLM-chosen tools.
 
-  - file: configs/evaluator/machine.yaml
+  - file: agents/evaluator/machine.yaml
     description: |
       7 states, session-level orchestration with nested core.Loop.
       Drives grid iteration over (harness, model, sample, rep) points.
       Each point runs the per-point pipeline via a nested core.Loop
-      using configs/evaluator/point.yaml.
+      using agents/evaluator/point.yaml.
 
-  - file: configs/evaluator/point.yaml
+  - file: agents/evaluator/point.yaml
     description: |
       8 states, 9 signals, 13 transitions. Linear pipeline with no
       LLM interaction. Walks through workspace preparation, config
       snapshot, agent execution, result checking, and metrics
       collection in a fixed sequence with error handling.
 
-  - file: configs/planner/machine.yaml
+  - file: agents/planner/machine.yaml
     description: |
       16 states, complex branching with retry logic. Orchestrates
       multi-step planning with LLM reasoning, sub-task decomposition,
       and error recovery paths.
 
-  - file: configs/bench/machine.yaml
+  - file: agents/bench/machine.yaml
     description: |
       5 states, human-in-the-loop interactive agent. Serves a web UI
       and blocks waiting for user actions. Loops between serving and
       launching evaluations.
 
-  - file: configs/validate/machine.yaml
+  - file: agents/validate/machine.yaml
     description: |
       6 states, linear 3-tool pipeline. Loads specification corpus,
       runs consistency checks, and formats the report.

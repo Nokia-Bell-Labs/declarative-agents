@@ -1,5 +1,5 @@
 # Tool selection for the evaluator session machine (machine.yaml).
-# Per-point tools live in configs/evaluator/tools-point.yaml and are loaded
+# Per-point tools live in agents/evaluator/tools-point.yaml and are loaded
 # by run_point for the nested point machine.
 
 tools:

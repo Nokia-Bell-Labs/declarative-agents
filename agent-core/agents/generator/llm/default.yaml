@@ -1,6 +1,6 @@
 # LLM tool declaration for the generator agent — default model.
 # Loaded as a tool declaration:
-#   agent --tools-declaration configs/generator/llm/default.yaml ...
+#   agent --tools-declaration agents/generator/llm/default.yaml ...
 
 tools:
   - name: invoke_llm

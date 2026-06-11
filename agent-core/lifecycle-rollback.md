@@ -87,8 +87,8 @@ agent rollback \
   --directory "$PWD"
 
 agent \
-  --machine configs/generator/machine.yaml \
-  --tools configs/generator/tools.yaml \
+  --machine agents/generator/machine.yaml \
+  --tools agents/generator/tools.yaml \
   --tools-declaration tools/builtin.yaml \
   --state-store-dir .agent-state \
   --resume-checkpoint rollback-suspend-4-1780000000000000000-to-2-1780000000000000001 \

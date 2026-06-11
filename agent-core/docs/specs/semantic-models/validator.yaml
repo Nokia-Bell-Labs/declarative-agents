@@ -8,8 +8,8 @@ purpose: |
   report. It does NOT use an LLM — it is a tool pipeline.
 
 configuration:
-  machine: configs/validate/machine.yaml
-  tools: configs/validate/tools.yaml
+  machine: agents/validate/machine.yaml
+  tools: agents/validate/tools.yaml
 
 states:
   - name: Idle

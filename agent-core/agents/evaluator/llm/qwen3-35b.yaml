@@ -1,8 +1,8 @@
-# LLM variation for evaluation — DeepSeek Coder V2 16B.
+# LLM variation for evaluation — Qwen 3.6 35B.
 # The evaluator iterates over llm/*.yaml files to benchmark each model.
 #
 # Loaded as a tool declaration:
-#   agent --tools-declaration configs/evaluator/llm/deepseek-16b.yaml ...
+#   agent --tools-declaration agents/evaluator/llm/qwen3-35b.yaml ...
 
 tools:
   - name: invoke_llm
@@ -12,7 +12,7 @@ tools:
     emits: [LLMResponded, CommandError]
     description: "Invoke the LLM with the current conversation history."
     config:
-      model: "deepseek-coder-v2:16b"
+      model: "qwen3.6:35b-mlx"
       provider: ollama
       provider_url: "http://localhost:11434"
       manifest_state: Composing
@@ -36,4 +36,4 @@ tools:
         Use the tools to read the spec files, read existing code, make edits,
         and signal done when the implementation satisfies the requirements.
 
-      max_time: 900
+      max_time: 600

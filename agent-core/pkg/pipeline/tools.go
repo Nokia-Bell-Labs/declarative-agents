@@ -25,7 +25,7 @@ import (
 
 var materializePlan = DoMaterialize
 
-// Pipeline signals aligned with configs/planner/machine.yaml.
+// Pipeline signals aligned with agents/planner/machine.yaml.
 const (
 	SigTaskExtracted    core.Signal = "TaskExtracted"
 	SigAllDone          core.Signal = "AllDone"

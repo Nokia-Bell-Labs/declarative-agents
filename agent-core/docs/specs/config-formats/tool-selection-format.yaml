@@ -28,7 +28,7 @@ cli_mapping:
       repeatable: true
       description: |
         Paths to tool declaration files (e.g. tools/builtin.yaml,
-        tools/exec.yaml, configs/generator/llm/default.yaml).
+        tools/exec.yaml, agents/generator/llm/default.yaml).
         Can be specified multiple times to load declarations from
         multiple files. All declarations are merged into a single
         registry.
@@ -48,7 +48,7 @@ cli_mapping:
         use the declaration+selection split.
 
 selection_files:
-  - file: configs/generator/tools.yaml
+  - file: agents/generator/tools.yaml
     tool_count: 15
     description: |
       Selects file operations (read, write, edit, find, list_files),
@@ -58,18 +58,18 @@ selection_files:
       validation order is declared directly in machine.yaml as
       build → lint → test.
 
-  - file: configs/evaluator/tools.yaml
+  - file: agents/evaluator/tools.yaml
     tool_count: 8
     description: |
-      Selects session-level tools for configs/evaluator/machine.yaml:
+      Selects session-level tools for agents/evaluator/machine.yaml:
       parse_suite_config, discover_suite_samples, expand_eval_grid,
       init_eval_session, report_suite_summary, next_point, run_point,
       and report_session.
 
-  - file: configs/evaluator/tools-point.yaml
+  - file: agents/evaluator/tools-point.yaml
     tool_count: 13
     description: |
-      Selects per-point tools for configs/evaluator/point.yaml:
+      Selects per-point tools for agents/evaluator/point.yaml:
       create_point_dir, copy_sample_workspace, copy_sample_docs,
       init_workspace_repo, stage_workspace_baseline,
       commit_workspace_baseline, dump_config, run_agent,
@@ -77,7 +77,7 @@ selection_files:
       summarize_point_results, and collect_metrics. Loaded by run_point
       to build the nested point registry.
 
-  - file: configs/planner/tools.yaml
+  - file: agents/planner/tools.yaml
     tool_count: 12
     description: |
       Selects planning tools (extract_task, extract_all,
@@ -85,13 +85,13 @@ selection_files:
       check_result), LLM tools (invoke_llm, reset_history),
       and direct build/test transition tools (build, vet, test).
 
-  - file: configs/validate/tools.yaml
+  - file: agents/validate/tools.yaml
     tool_count: 3
     description: |
       Name-only selection of 3 tools (load_corpus, validate_specs,
       format_report). Declarations live in tools/builtin.yaml.
 
-  - file: configs/bench/tools.yaml
+  - file: agents/bench/tools.yaml
     tool_count: 2
     description: |
       Selects the two bench agent tools: serve_ui (blocks on

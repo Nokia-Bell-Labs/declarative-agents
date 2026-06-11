@@ -353,7 +353,7 @@ coverage_gaps: |
   - cmd/agent — unified binary orchestration, tool registration, LLM
     config loading, session-level eval machine
   - pkg/bench — state-machine-driven web UI with serve_ui and
-    launch_eval tools (configured via --machine configs/bench/machine.yaml)
+    launch_eval tools (configured via --machine agents/bench/machine.yaml)
 
   srd013 (STL) needs expansion to cover evaluator point tools,
   run_agent, point result tools, collect_metrics, dump_config, nudge_reread,
