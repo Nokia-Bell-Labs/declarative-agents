@@ -77,6 +77,8 @@ requirements:
       - R7.2: Workspace SHALL track external filesystem/environment state via Checkpoint, Restore, and CurrentRef.
       - R7.3: CheckpointPolicy SHALL decide whether a checkpoint should be considered for a CheckpointEvent.
       - R7.4: Checkpoint SHALL capture agent state, optional domain state, optional workspace ref, and optional history digest as independent layers.
+      - R7.5: GitWorkspace SHALL provide the default Workspace implementation by creating checkpoint commits, restoring refs with git reset --hard, and returning HEAD with CurrentRef.
+      - R7.6: GitWorkspace SHALL be opt-in and SHALL fail clearly when configured outside a git repository or below the repository top-level.
 
 non_goals:
   - Domain-specific budget dimensions (those use the BudgetExceeded hook).
@@ -110,12 +112,12 @@ acceptance_criteria:
     traces: [R6.1]
 
   - id: AC7
-    criterion: Rollback foundation interfaces compile and model agent state, command/domain state, and external workspace state as independent layers.
-    traces: [R7.1, R7.2, R7.3, R7.4]
+    criterion: Rollback foundation interfaces compile and model agent state, command/domain state, and external workspace state as independent layers, with GitWorkspace as an opt-in filesystem implementation.
+    traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6]
 
 depends_on:
   - srd_id: srd001-core-types
-    symbols_used: [State, Signal, Command, Result, Cost, Seed, BudgetExhausted, StateStore, Workspace, CheckpointPolicy, Checkpoint]
+    symbols_used: [State, Signal, Command, Result, Cost, Seed, BudgetExhausted, StateStore, Workspace, CheckpointPolicy, Checkpoint, GitWorkspace]
   - srd_id: srd002-state-machine
     symbols_used: [TransitionTable, StateMachine, TerminalFunc, NewStateMachine]
   - srd_id: srd003-command-dispatch

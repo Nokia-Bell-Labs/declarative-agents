@@ -69,6 +69,8 @@ requirements:
       - R8.2: Workspace tracks external environment state with Checkpoint, Restore, and CurrentRef.
       - R8.3: CheckpointPolicy decides whether to checkpoint a CheckpointEvent.
       - R8.4: Checkpoint captures AgentSnapshot, optional domain JSON, optional WorkspaceRef, and optional HistoryDigest entries.
+      - R8.5: GitWorkspace implements Workspace using git add, git commit --allow-empty, git reset --hard, and git rev-parse HEAD.
+      - R8.6: GitWorkspace SHALL require the configured directory to be the git top-level before checkpoint or restore operations.
 
 non_goals:
   - Domain-specific state or signal constants.
@@ -105,5 +107,5 @@ acceptance_criteria:
     traces: [R6.1, R6.2, R6.3]
 
   - id: AC8
-    criterion: Rollback foundation interfaces and checkpoint structs model agent state, command/domain state, and external workspace state separately.
-    traces: [R8.1, R8.2, R8.3, R8.4]
+    criterion: Rollback foundation interfaces, checkpoint structs, and GitWorkspace model agent state, command/domain state, and external workspace state separately.
+    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6]
