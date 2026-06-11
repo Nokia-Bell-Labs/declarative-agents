@@ -30,12 +30,16 @@ func ValidateToolEmits(spec core.MachineSpec, defs []ToolDef) error {
 	transitionSet := make(map[core.TransitionInput]bool, len(spec.Transitions))
 	actions := make(map[string][]core.TransitionSpec)
 	actionNames := make(map[string]bool)
+	var dynamicTransitions []core.TransitionSpec
 	for _, tr := range spec.Transitions {
 		transitionSet[core.TransitionInput{
 			State:  core.State(tr.State),
 			Signal: core.Signal(tr.Signal),
 		}] = true
-		if tr.Action != "" && tr.Action != "$tool" {
+		switch {
+		case tr.Action == "$tool":
+			dynamicTransitions = append(dynamicTransitions, tr)
+		case tr.Action != "":
 			actions[tr.Action] = append(actions[tr.Action], tr)
 			actionNames[tr.Action] = true
 		}
@@ -74,6 +78,26 @@ func ValidateToolEmits(spec core.MachineSpec, defs []ToolDef) error {
 				}
 				if !transitionSet[key] {
 					errs = append(errs, fmt.Sprintf("tool %q emits %q after %s/%s -> %s, but machine %q has no transition for %s/%s",
+						def.Name, emit, tr.State, tr.Signal, tr.Next, spec.Name, tr.Next, emit))
+				}
+			}
+		}
+	}
+	for _, tr := range dynamicTransitions {
+		if terminalSet[tr.Next] {
+			continue
+		}
+		for _, def := range defs {
+			if def.Visibility == "internal" || len(def.Emits) == 0 {
+				continue
+			}
+			for _, emit := range def.Emits {
+				key := core.TransitionInput{
+					State:  core.State(tr.Next),
+					Signal: core.Signal(emit),
+				}
+				if !transitionSet[key] {
+					errs = append(errs, fmt.Sprintf("dynamic $tool may dispatch tool %q which emits %q after %s/%s -> %s, but machine %q has no transition for %s/%s",
 						def.Name, emit, tr.State, tr.Signal, tr.Next, spec.Name, tr.Next, emit))
 				}
 			}

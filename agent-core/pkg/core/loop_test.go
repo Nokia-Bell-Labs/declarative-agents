@@ -719,6 +719,62 @@ func TestLoop_DeclarativeInit_UsesPreloadedMachineSpec(t *testing.T) {
 	require.Equal(t, StatusSucceeded, rr.Status)
 }
 
+func TestLoop_DeclarativeInit_MachineNameDoesNotChangeEngineBehavior(t *testing.T) {
+	t.Parallel()
+
+	run := func(t *testing.T, machineName string) RunResult {
+		t.Helper()
+		spec := MachineSpec{
+			Name:           machineName,
+			InitialState:   "Start",
+			States:         []string{"Start", "Working", "Finished"},
+			TerminalStates: []string{"Finished"},
+			Signals:        []string{"Seed", "Done", "TaskCompleted"},
+			Transitions: []TransitionSpec{
+				{State: "Start", Signal: "Seed", Next: "Working", Action: "step_a"},
+				{State: "Working", Signal: "Done", Next: "Working", Action: "step_b"},
+				{State: "Working", Signal: "TaskCompleted", Next: "Finished"},
+			},
+		}
+		params := LoopParams{
+			MachineSpec: &spec,
+			Trace:       &loopRecorder{},
+			Budget:      Budget{MaxIterations: 10},
+			InitFunc: func(reg *Registry) error {
+				reg.Register(ToolSpec{Name: "step_a", Visibility: Internal}, &fakeBuilder{name: "step_a", signal: Signal("Done")})
+				reg.Register(ToolSpec{Name: "step_b", Visibility: Internal}, &fakeBuilder{name: "step_b", signal: Signal("TaskCompleted")})
+				return nil
+			},
+			Hooks: LoopHooks{
+				TaskCompletedSignal: Signal("TaskCompleted"),
+				TerminalStatus: func(s State) RunStatus {
+					if s == "Finished" {
+						return StatusSucceeded
+					}
+					return StatusFailed
+				},
+			},
+		}
+		rr, err := Loop(params, context.Background())
+		require.NoError(t, err)
+		return rr
+	}
+
+	generatorRun := run(t, "generator")
+	evaluatorRun := run(t, "evaluator")
+
+	require.Equal(t, generatorRun.Status, evaluatorRun.Status)
+	require.Equal(t, generatorRun.FinalState, evaluatorRun.FinalState)
+	require.Equal(t, generatorRun.Iterations, evaluatorRun.Iterations)
+	require.Equal(t, len(generatorRun.Events), len(evaluatorRun.Events))
+	for i := range generatorRun.Events {
+		require.Equal(t, generatorRun.Events[i].CommandName, evaluatorRun.Events[i].CommandName)
+		require.Equal(t, generatorRun.Events[i].FromState, evaluatorRun.Events[i].FromState)
+		require.Equal(t, generatorRun.Events[i].ToState, evaluatorRun.Events[i].ToState)
+		require.Equal(t, generatorRun.Events[i].Signal, evaluatorRun.Events[i].Signal)
+	}
+}
+
 func TestLoop_DeclarativeInit_InitFuncError(t *testing.T) {
 	t.Parallel()
 

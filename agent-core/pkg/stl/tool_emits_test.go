@@ -85,3 +85,47 @@ func TestValidateToolEmitsTerminalTargetSkipsFollowup(t *testing.T) {
 
 	require.NoError(t, ValidateToolEmits(spec, defs))
 }
+
+func TestValidateToolEmitsDynamicToolMissingFollowupTransition(t *testing.T) {
+	spec := core.MachineSpec{
+		Name:           "grammar",
+		States:         []string{"Parsing", "Composing", "Done"},
+		TerminalStates: []string{"Done"},
+		Signals:        []string{"ToolReady", "ToolDone", "ToolFailed", "InternalOnly"},
+		Transitions: []core.TransitionSpec{
+			{State: "Parsing", Signal: "ToolReady", Next: "Composing", Action: "$tool"},
+			{State: "Composing", Signal: "ToolDone", Next: "Done"},
+		},
+	}
+	defs := []ToolDef{
+		{Name: "write", Type: "builtin", Init: "file_write", Emits: []string{"ToolDone", "ToolFailed"}},
+		{Name: "parse_response", Type: "builtin", Init: "parse_response", Visibility: "internal", Emits: []string{"InternalOnly"}},
+	}
+
+	err := ValidateToolEmits(spec, defs)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `dynamic $tool may dispatch tool "write" which emits "ToolFailed"`)
+	require.Contains(t, err.Error(), "has no transition for Composing/ToolFailed")
+	require.NotContains(t, err.Error(), "InternalOnly")
+}
+
+func TestValidateToolEmitsDynamicToolHandlesExternalVocabulary(t *testing.T) {
+	spec := core.MachineSpec{
+		Name:           "grammar",
+		States:         []string{"Parsing", "Composing", "Done", "Failed"},
+		TerminalStates: []string{"Done", "Failed"},
+		Signals:        []string{"ToolReady", "ToolDone", "ToolFailed"},
+		Transitions: []core.TransitionSpec{
+			{State: "Parsing", Signal: "ToolReady", Next: "Composing", Action: "$tool"},
+			{State: "Composing", Signal: "ToolDone", Next: "Done"},
+			{State: "Composing", Signal: "ToolFailed", Next: "Failed"},
+		},
+	}
+	defs := []ToolDef{
+		{Name: "read", Type: "builtin", Init: "file_read", Emits: []string{"ToolDone", "ToolFailed"}},
+		{Name: "write", Type: "builtin", Init: "file_write", Emits: []string{"ToolDone", "ToolFailed"}},
+	}
+
+	require.NoError(t, ValidateToolEmits(spec, defs))
+}
