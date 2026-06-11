@@ -23,3 +23,6 @@ tools:
     description: "Run the per-point evaluation pipeline via a nested core.Loop with the point machine."
     config:
       point_machine: configs/evaluator/point.yaml
+      agent_name: evaluator-point
+      max_iterations: 20
+      success_state: Done
