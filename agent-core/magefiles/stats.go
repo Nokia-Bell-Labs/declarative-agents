@@ -150,10 +150,7 @@ func configsYAMLCategory(path string) string {
 }
 
 func printStatsYAML(rec statsRecord) {
-	fmt.Println("go:")
-	fmt.Printf("  src_lines: %d\n", rec.GoSrc)
-	fmt.Printf("  test_lines: %d\n", rec.GoTest)
-	fmt.Printf("  total_lines: %d\n", rec.GoTotal)
+	fmt.Printf("go: {src_lines: %d, test_lines: %d, total_lines: %d}\n", rec.GoSrc, rec.GoTest, rec.GoTotal)
 	fmt.Println("yaml:")
 	printFileLineStats("  total", rec.YAML.Total)
 	printCategorizedYAMLStats("  docs", rec.YAML.Docs)
@@ -171,10 +168,7 @@ func printCategorizedYAMLStats(label string, stats categorizedYAMLStats) {
 }
 
 func printFileLineStats(label string, stats fileLineStats) {
-	childIndent := leadingWhitespace(label) + "  "
-	fmt.Printf("%s:\n", label)
-	fmt.Printf("%sfiles: %d\n", childIndent, stats.Files)
-	fmt.Printf("%slines: %d\n", childIndent, stats.Lines)
+	fmt.Printf("%s: {files: %d, lines: %d}\n", label, stats.Files, stats.Lines)
 }
 
 func sortedKeys[V any](m map[string]V) []string {
@@ -184,15 +178,6 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func leadingWhitespace(s string) string {
-	for i, r := range s {
-		if r != ' ' && r != '\t' {
-			return s[:i]
-		}
-	}
-	return s
 }
 
 func countLines(path string) (int, error) {
