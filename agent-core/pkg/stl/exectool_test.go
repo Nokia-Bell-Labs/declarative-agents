@@ -18,6 +18,7 @@ tools:
   - name: greet
     binary: echo
     args: [hello]
+    emits: [ToolDone, ToolFailed]
     description: "Say hello"
     parameters:
       type: object
@@ -54,6 +55,7 @@ func TestParseToolDefs(t *testing.T) {
 	assert.Equal(t, "greet", defs[0].Name)
 	assert.Equal(t, "echo", defs[0].Binary)
 	assert.Equal(t, []string{"hello"}, defs[0].Args)
+	assert.Equal(t, []string{"ToolDone", "ToolFailed"}, defs[0].Emits)
 
 	mappings := defs[0].ExtractParamMappings()
 	assert.Len(t, mappings, 2)

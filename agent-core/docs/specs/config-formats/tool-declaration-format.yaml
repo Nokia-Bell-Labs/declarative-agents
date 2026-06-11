@@ -53,6 +53,18 @@ schema:
       tool calls. "internal" — hidden from the LLM; can only be
       invoked by machine transitions (e.g. invoke_llm, parse_response).
 
+  - field: emits
+    type: "[]string"
+    required: false
+    description: |
+      Declarative signal contract for the tool. Lists the Result.Signal
+      values the tool may return, such as ToolDone, ToolFailed, CommandError,
+      or domain-specific signals like PointReady and AllPointsDone. Startup
+      validation checks action tools with emits metadata against the loaded
+      machine: emitted signals must be declared by the machine, and each
+      emitted signal must have a transition from the action's target state
+      unless that target state is terminal.
+
 builtin_fields:
   - field: init
     type: string
@@ -199,4 +211,5 @@ related_documents:
 
 implementation:
   - pkg/stl/exectool.go
+  - pkg/stl/tool_emits.go
   - pkg/stl/builtintool.go

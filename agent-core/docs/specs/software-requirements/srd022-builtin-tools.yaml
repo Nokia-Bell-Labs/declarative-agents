@@ -27,6 +27,7 @@ requirements:
       - R1.4: A builtin tool declaration MAY provide visibility, with internal tools hidden from LLM manifests.
       - R1.5: A builtin tool declaration MAY provide parameters as JSON Schema for LLM-visible or externally supplied inputs.
       - R1.6: A builtin tool declaration MAY provide config for tool-specific runtime configuration.
+      - R1.7: A builtin tool declaration MAY provide emits, the set of Result.Signal values the tool can return.
 
   R2:
     title: BuiltinRegistry factory resolution
@@ -51,7 +52,9 @@ requirements:
       - R4.2: BuildTransitionTable SHALL fail if a named builtin action is not registered in the core.Registry.
       - R4.3: Dynamic $tool dispatch MAY resolve to builtin tools selected for the current agent.
       - R4.4: Builtin tools SHALL return core.Result values whose Signal drives the next state-machine transition.
-      - R4.5: Builtin tools SHOULD declare their possible emitted signals once the tool signal contract is implemented.
+      - R4.5: Builtin tools used as named transition actions SHOULD declare their possible emitted signals using emits.
+      - R4.6: Startup validation SHALL reject a named action tool whose declared emitted signal is not in the machine signal list.
+      - R4.7: Startup validation SHALL reject a named action tool whose declared emitted signal has no transition from the action target state, unless that target state is terminal.
 
   R5:
     title: Reusable declarations and mode-local overrides
@@ -68,8 +71,8 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Builtin YAML declarations provide name, type: builtin, init, optional visibility, optional parameters, and optional config.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
+    criterion: Builtin YAML declarations provide name, type: builtin, init, optional visibility, optional parameters, optional config, and optional emits.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
     criterion: BuiltinRegistry resolves init names to factories and registration fails for selected builtin tools without a factory.
@@ -80,8 +83,8 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4]
 
   - id: AC4
-    criterion: Builtin tools can be referenced by machine actions or dynamic $tool dispatch and return signals that drive transitions.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+    criterion: Builtin tools can be referenced by machine actions or dynamic $tool dispatch, return signals that drive transitions, and validate declared emits against named action transitions.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
 
   - id: AC5
     criterion: Reusable builtin declarations are separated from mode-local config overrides.
@@ -101,3 +104,4 @@ implementation:
   - configs/tools/builtin.yaml
   - pkg/stl/builtintool.go
   - pkg/stl/exectool.go
+  - pkg/stl/tool_emits.go

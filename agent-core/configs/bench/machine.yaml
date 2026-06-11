@@ -45,6 +45,10 @@ transitions:
     signal: Shutdown
     next: Done
 
+  - state: Serving
+    signal: CommandError
+    next: Failed
+
   # Eval completed: return to serving
   - state: Launching
     signal: EvalCompleted

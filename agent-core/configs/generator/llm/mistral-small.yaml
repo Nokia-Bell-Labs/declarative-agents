@@ -3,6 +3,7 @@ tools:
     type: builtin
     init: invoke_llm
     visibility: internal
+    emits: [LLMResponded, CommandError]
     description: "Invoke the LLM with the current conversation history."
     config:
       model: "mistral-small3.2:24b"

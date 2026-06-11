@@ -6,6 +6,7 @@ tools:
   - name: read
     type: builtin
     init: file_read
+    emits: [ToolDone, ToolFailed]
     description: "Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths first."
     parameters:
       type: object
@@ -24,6 +25,7 @@ tools:
   - name: write
     type: builtin
     init: file_write
+    emits: [ToolDone, ToolFailed]
     description: "Create or overwrite a file. Provide the complete file content — this replaces the entire file. Parent directories are created automatically."
     parameters:
       type: object
@@ -39,6 +41,7 @@ tools:
   - name: edit
     type: builtin
     init: file_edit
+    emits: [EditDone, ToolFailed]
     description: "Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match."
     parameters:
       type: object
@@ -57,6 +60,7 @@ tools:
   - name: find
     type: builtin
     init: file_find
+    emits: [ToolDone, ToolFailed]
     description: "Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob — use \\.go$ to find Go files, not *.go. Returns matching lines with file paths and line numbers."
     parameters:
       type: object
@@ -72,6 +76,7 @@ tools:
   - name: list_files
     type: builtin
     init: file_list
+    emits: [ToolDone, ToolFailed]
     description: "List files and directories in a tree format. Use this first to understand the workspace layout before reading files."
     parameters:
       type: object
@@ -92,18 +97,21 @@ tools:
     type: builtin
     init: parse_response
     visibility: internal
+    emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
     description: "Parse raw LLM output into a tool call or task-completed signal."
 
   - name: report_parse_error
     type: builtin
     init: report_parse_error
     visibility: internal
+    emits: [ToolDone]
     description: "Report a parse error back to the LLM for correction."
 
   - name: reset_history
     type: builtin
     init: reset_history
     visibility: internal
+    emits: [ToolDone, CommandError]
     description: "Clear the conversation history and restart the LLM context."
 
   # --- validation ---
@@ -111,18 +119,21 @@ tools:
     type: builtin
     init: validate
     visibility: internal
+    emits: [ValidationPassed, ValidationFailed, CommandError]
     description: "Run build, vet, lint, and test to validate generated code."
 
   - name: nudge_reread
     type: builtin
     init: nudge_reread
     visibility: internal
+    emits: [ToolDone]
     description: "Append a re-read instruction after file edits to prompt the model to verify changes."
 
   - name: done
     type: builtin
     init: done
     visibility: internal
+    emits: [TaskCompleted]
     description: "Signal that the generation task is complete."
 
   # --- pipeline/planner tools ---
@@ -131,36 +142,42 @@ tools:
     init: extract_task
     description: "Extract the next unblocked task from the dependency graph."
     visibility: internal
+    emits: [TaskExtracted, AllDone, Blocked, BatchLimitReached, CommandError]
 
   - name: extract_all
     type: builtin
     init: extract_all
     description: "Extract all requirements as a single task group (passthrough mode)."
     visibility: internal
+    emits: [TaskExtracted, AllDone, Blocked, CommandError]
 
   - name: assemble_prompt
     type: builtin
     init: assemble_prompt
     description: "Assemble the LLM prompt from task context and SRD requirements."
     visibility: internal
+    emits: [ToolDone, CommandError]
 
   - name: parse_plan
     type: builtin
     init: parse_plan
     description: "Parse the LLM YAML response into an ImplementationPlan."
     visibility: internal
+    emits: [PlanReady, ParseFailed, CommandError]
 
   - name: create_issue
     type: builtin
     init: create_issue
     description: "Create a bd issue from the parsed implementation plan."
     visibility: internal
+    emits: [Materialized, MaterializeFailed, CommandError]
 
   - name: execute_task
     type: builtin
     init: execute_task
     description: "Execute the current task via the code generator agent."
     visibility: internal
+    emits: [ExecutionDone, ExecutionFailed, CommandError]
     config:
       machine: configs/generator/machine.yaml
       tools: configs/generator/tools.yaml
@@ -173,12 +190,14 @@ tools:
     init: check_result
     description: "Evaluate validation results and decide retry vs. advance vs. fail."
     visibility: internal
+    emits: [ValidationPassed, RetryAvailable, RetriesExhausted, CommandError]
 
   # --- evaluator session tools ---
   - name: load_suite
     type: builtin
     init: load_suite
     visibility: internal
+    emits: [SuiteLoaded, CommandError]
     description: "Load an evaluation suite YAML, discover samples, expand the grid, and create the session output directory."
     config:
       output_dir: eval-results
@@ -188,12 +207,14 @@ tools:
     type: builtin
     init: next_point
     visibility: internal
+    emits: [PointReady, AllPointsDone, CommandError]
     description: "Advance to the next evaluation point in the grid. Returns PointReady or AllPointsDone."
 
   - name: run_point
     type: builtin
     init: run_point
     visibility: internal
+    emits: [PointDone, CommandError]
     description: "Run the per-point evaluation pipeline via a nested core.Loop with the point machine."
     config:
       point_machine: configs/evaluator/point.yaml
@@ -202,6 +223,7 @@ tools:
     type: builtin
     init: report_session
     visibility: internal
+    emits: [SessionReported, CommandError]
     description: "Print session summary with pass/fail/timeout counts and total duration."
 
   # --- evaluator per-point tools ---
@@ -209,30 +231,35 @@ tools:
     type: builtin
     init: prepare_workspace
     visibility: internal
+    emits: [WorkspaceReady, CommandError]
     description: "Copy sample workspace, initialise git repo, and create baseline commit."
 
   - name: run_agent
     type: builtin
     init: run_agent
     visibility: internal
+    emits: [HarnessFinished, HarnessFailed, HarnessTimedOut, CommandError]
     description: "Run the agent binary on the prepared workspace and collect exit code, timing, and output."
 
   - name: check_results
     type: builtin
     init: check_results
     visibility: internal
+    emits: [ResultsCollected, CommandError]
     description: "Validate agent output against expected results (run oracle tests, parse trace tokens)."
 
   - name: collect_metrics
     type: builtin
     init: collect_metrics
     visibility: internal
+    emits: [MetricsCollected, CommandError]
     description: "Write evaluation metadata (exit code, duration, test results, tokens) to meta.json."
 
   - name: dump_config
     type: builtin
     init: dump_config
     visibility: internal
+    emits: [ConfigDumped, CommandError]
     description: "Serialize the full experiment configuration (harness, model, tools, prompts) into experiment.yaml."
 
   # --- bench tools ---
@@ -240,6 +267,7 @@ tools:
     type: builtin
     init: serve_ui
     visibility: internal
+    emits: [ExperimentRequested, Shutdown, CommandError]
     description: "Start the bench web UI server and block waiting for user actions (bench equivalent of invoke_llm)."
     config:
       addr: ":8080"
@@ -252,6 +280,7 @@ tools:
     type: builtin
     init: launch_eval
     visibility: internal
+    emits: [EvalCompleted, EvalFailed, CommandError]
     description: "Spawn a child agent as a subprocess to run an experiment."
     config:
       machine: configs/evaluator/machine.yaml
@@ -264,16 +293,19 @@ tools:
     type: builtin
     init: load_corpus
     visibility: internal
+    emits: [ToolDone, CommandError]
     description: "Load the specification corpus from the project directory."
 
   - name: validate_specs
     type: builtin
     init: validate_specs
     visibility: internal
+    emits: [ValidationPassed, ValidationFailed, CommandError]
     description: "Run consistency checks on the loaded specification corpus."
 
   - name: format_report
     type: builtin
     init: format_report
     visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
     description: "Format the validation results as a human-readable report."

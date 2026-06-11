@@ -26,6 +26,7 @@ requirements:
       - R1.4: An exec tool declaration MAY provide args, a base argument list prepended to every invocation.
       - R1.5: An exec tool declaration MAY provide dir, a working-directory override relative to the agent workspace.
       - R1.6: An exec tool declaration MAY provide precondition, output_cap, side_effects, visibility, description, and parameters.
+      - R1.7: An exec tool declaration MAY provide emits, the set of Result.Signal values the command wrapper can return.
 
   R2:
     title: Parameter-to-argv mapping
@@ -47,6 +48,7 @@ requirements:
       - R3.5: Non-zero exit or execution failure SHALL map to ToolFailed unless the failure prevents command construction, which SHALL map to CommandError.
       - R3.6: Output SHALL be capped when output_cap is configured.
       - R3.7: Parent context cancellation SHALL stop the subprocess.
+      - R3.8: Exec tools used as named machine actions SHOULD declare emits: [ToolDone, ToolFailed] unless they implement a more specific signal mapping.
 
   R4:
     title: Declaration loading and selection
@@ -71,16 +73,16 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Exec declarations support name, type, binary, args, dir, precondition, output_cap, side_effects, visibility, description, and parameters.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
+    criterion: Exec declarations support name, type, binary, args, dir, precondition, output_cap, side_effects, visibility, description, parameters, and optional emits.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
     criterion: Parameter mapping converts JSON tool parameters into argv using flag, positional, bool_flag, and default extensions while stripping those extensions from LLM-visible schema.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
 
   - id: AC3
-    criterion: Exec tools run subprocesses in the correct directory, capture output/exit/duration, honor output caps and cancellation, and map outcomes to ToolDone, ToolFailed, or CommandError.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7]
+    criterion: Exec tools run subprocesses in the correct directory, capture output/exit/duration, honor output caps and cancellation, map outcomes to ToolDone, ToolFailed, or CommandError, and can declare those signals in emits.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
 
   - id: AC4
     criterion: Declaration includes and declaration+selection loading support shared exec definitions with mode-local overrides.
@@ -105,3 +107,4 @@ depends_on:
 implementation:
   - configs/tools/exec.yaml
   - pkg/stl/exectool.go
+  - pkg/stl/tool_emits.go

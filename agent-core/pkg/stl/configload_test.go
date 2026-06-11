@@ -56,7 +56,7 @@ func (noopBuilder) Build(_ core.Result) core.Command { return noopCmd{} }
 
 type noopCmd struct{}
 
-func (noopCmd) Name() string        { return "noop" }
+func (noopCmd) Name() string         { return "noop" }
 func (noopCmd) Execute() core.Result { return core.Result{Signal: core.ToolDone} }
 
 // buildRegistryForDefs creates a fully wired Registry from tool definitions.
@@ -92,6 +92,11 @@ func assertToolNames(t *testing.T, defs []stl.ToolDef, want []string) {
 	for _, w := range want {
 		require.True(t, nameSet[w], "expected tool %q not found in definitions", w)
 	}
+}
+
+func assertToolEmits(t *testing.T, spec core.MachineSpec, defs []stl.ToolDef) {
+	t.Helper()
+	require.NoError(t, stl.ValidateToolEmits(spec, defs))
 }
 
 func dummyToolAction(_ core.Result) core.Command { return noopCmd{} }
@@ -132,6 +137,7 @@ func TestGeneratorConfig_TransitionTable(t *testing.T) {
 	require.NoError(t, err)
 
 	defs := loadTestDefs(t, cd, "generator")
+	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, dummyToolAction)
@@ -160,6 +166,7 @@ func TestGeneratorConfig_DeepseekTransitionTable(t *testing.T) {
 	require.NoError(t, err)
 
 	defs := loadTestDefs(t, cd, "generator")
+	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, dummyToolAction)
@@ -236,6 +243,7 @@ func TestPlannerConfig_TransitionTable(t *testing.T) {
 	require.NoError(t, err)
 
 	defs := loadTestDefs(t, cd, "planner")
+	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
@@ -251,6 +259,7 @@ func TestPlannerConfig_PassthroughTransitionTable(t *testing.T) {
 	require.NoError(t, err)
 
 	defs := loadTestDefs(t, cd, "planner")
+	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
@@ -265,6 +274,7 @@ func TestPlannerConfig_PlanOnlyTransitionTable(t *testing.T) {
 	require.NoError(t, err)
 
 	defs := loadTestDefs(t, cd, "planner")
+	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
@@ -309,6 +319,7 @@ func TestEvaluatorConfig_TransitionTable(t *testing.T) {
 	require.NoError(t, err)
 
 	defs := loadTestDefs(t, cd, "evaluator")
+	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
@@ -328,6 +339,23 @@ func TestEvaluatorConfig_PointMachineLoads(t *testing.T) {
 	require.Equal(t, "Idle", spec.InitialState)
 	require.Contains(t, spec.TerminalStates, "Done")
 	require.Contains(t, spec.TerminalStates, "Failed")
+}
+
+func TestEvaluatorConfig_PointTransitionTable(t *testing.T) {
+	cd := configDir(t)
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "evaluator", "point.yaml"))
+	require.NoError(t, err)
+
+	defs := loadTestDefs(t, cd, "evaluator")
+	assertToolEmits(t, spec, defs)
+	reg := buildRegistryForDefs(t, defs)
+
+	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, table)
+	require.True(t, isTerminal(core.State("Done")))
+	require.True(t, isTerminal(core.State("Failed")))
+	require.False(t, isTerminal(core.State("Idle")))
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +391,7 @@ func TestBenchConfig_TransitionTable(t *testing.T) {
 	require.NoError(t, err)
 
 	defs := loadTestDefs(t, cd, "bench")
+	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
@@ -406,6 +435,7 @@ func TestValidateConfig_TransitionTable(t *testing.T) {
 	require.NoError(t, err)
 
 	defs := loadTestDefs(t, cd, "validate")
+	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)
 
 	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)

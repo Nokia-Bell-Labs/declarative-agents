@@ -3,6 +3,7 @@ tools:
     type: builtin
     init: invoke_llm
     visibility: internal
+    emits: [LLMResponded, CommandError]
     description: "Invoke the LLM with the current conversation history."
     config:
       model: "granite4.1:30b"

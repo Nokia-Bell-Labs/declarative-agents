@@ -55,6 +55,10 @@ transitions:
     next: Reporting
     action: format_report
 
+  - state: Validating
+    signal: CommandError
+    next: Failed
+
   - state: Reporting
     signal: ToolDone
     next: Passed

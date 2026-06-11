@@ -47,8 +47,8 @@ var (
 	flagVerboseTrace     bool
 	flagModel            string
 	flagOllamaURL        string
-	flagInput  string
-	flagOutput string
+	flagInput            string
+	flagOutput           string
 )
 
 func main() {
@@ -85,8 +85,6 @@ func init() {
 
 	rootCmd.Version = "v0.0.0-dev"
 }
-
-
 
 // agentState holds the shared state needed by builtin tool factories.
 // Created during run() initialization and captured by factory closures.
@@ -280,8 +278,11 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("load machine spec for budget: %w", err)
 	}
+	if err := stl.ValidateToolEmits(machineSpec, defs); err != nil {
+		return err
+	}
 	budgetDefaults := core.Budget{
-		MaxIterations:            100,
+		MaxIterations:             100,
 		MaxConsecutiveParseErrors: 5,
 	}
 	budget := machineSpec.BudgetSpec.ToBudget(budgetDefaults)
@@ -613,7 +614,6 @@ func registerValidateSpecFactories(br *stl.BuiltinRegistry, st *agentState) {
 		return &stl.FormatReportBuilder{VS: initVS()}, nil
 	})
 }
-
 
 // registerEvalFactories registers factories for both session-level
 // eval tools (load_suite, next_point, run_point, report_session) and

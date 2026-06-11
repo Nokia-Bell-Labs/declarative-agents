@@ -7,24 +7,28 @@ tools:
     type: exec
     binary: go
     args: [build, "./..."]
+    emits: [ToolDone, ToolFailed]
     description: "Compile all Go packages with go build ./... Returns compiler errors on failure."
 
   - name: vet
     type: exec
     binary: go
     args: [vet, "./..."]
+    emits: [ToolDone, ToolFailed]
     description: "Run go vet ./... on the workspace. Reports suspicious constructs."
 
   - name: lint
     type: exec
     binary: golangci-lint
     args: [run, "./..."]
+    emits: [ToolDone, ToolFailed]
     description: "Run golangci-lint run ./... on the Go workspace."
 
   - name: test
     type: exec
     binary: go
     args: [test, "-count=1"]
+    emits: [ToolDone, ToolFailed]
     description: "Run go test -count=1 on the workspace. Returns test output including pass/fail results."
     output_cap: 200
     parameters:

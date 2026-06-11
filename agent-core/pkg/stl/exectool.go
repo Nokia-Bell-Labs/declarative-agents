@@ -39,6 +39,7 @@ type ToolDef struct {
 	Args         []string               `yaml:"args,omitempty"`
 	Init         string                 `yaml:"init,omitempty"`
 	Config       map[string]interface{} `yaml:"config,omitempty"`
+	Emits        []string               `yaml:"emits,omitempty"`
 	Parameters   map[string]interface{} `yaml:"parameters,omitempty"`
 	Dir          string                 `yaml:"dir,omitempty"`
 	Precondition string                 `yaml:"precondition,omitempty"`

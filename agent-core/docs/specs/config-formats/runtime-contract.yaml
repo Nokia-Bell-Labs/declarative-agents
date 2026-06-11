@@ -69,18 +69,28 @@ startup_sequence:
     implementation: stl.RegisterUnifiedTools
 
   - step: 4
-    name: Run the loop (includes machine loading)
+    name: Load machine and validate tool signal contracts
     description: |
-      core.Loop loads and validates the machine spec from --machine
-      via initFromMachine, then builds the transition table mapping
-      (state, signal) pairs to (next_state, Builder). Named actions
-      are resolved from the registry; $tool resolves to a dynamic
-      dispatch function. The loop then enters the initial state with
-      a Seed signal and executes the run-to-completion finite state
-      machine. Each transition fires its action's
-      Builder.Build(result).Execute(), producing a new Result with
-      a Signal that drives the next transition. The loop terminates
-      when a terminal state is reached or a budget limit is exceeded.
+      cmd/agent loads and validates the machine spec from --machine
+      before entering the loop. This extracts budget defaults and validates
+      declared tool emits metadata for tools used as named transition actions:
+      emitted signals must be declared by the machine, and each emitted signal
+      must have a transition from the action target state unless that target
+      state is terminal.
+    implementation: core.LoadMachineSpec, stl.ValidateToolEmits
+
+  - step: 5
+    name: Run the loop
+    description: |
+      core.Loop loads the machine spec from --machine via initFromMachine,
+      then builds the transition table mapping (state, signal) pairs to
+      (next_state, Builder). Named actions are resolved from the registry;
+      $tool resolves to a dynamic dispatch function. The loop then enters
+      the initial state with a Seed signal and executes the run-to-completion
+      finite state machine. Each transition fires its action's
+      Builder.Build(result).Execute(), producing a new Result with a Signal
+      that drives the next transition. The loop terminates when a terminal
+      state is reached or a budget limit is exceeded.
     implementation: core.Loop, core.LoadMachineSpec, core.BuildTransitionTable
 
 tool_parametrization: |
@@ -153,6 +163,8 @@ invariants:
     set of universal CLI flags (--input, --output, --model, --ollama-url)
     serve as overrides applicable to any mode.
   - Machine files reference tools by name; tools are resolved from the registry.
+  - Named action tools may declare emitted signals with emits; declared emits
+    are checked against the machine's signal and transition contract at startup.
   - Nested machine paths are declarative (read from tool config).
   - The transition table is fully validated at startup before any work begins.
   - Adding a new agent mode requires only new YAML files and (optionally)
@@ -174,3 +186,4 @@ implementation:
   - pkg/core/loop.go
   - pkg/core/machine.go
   - pkg/stl/register.go
+  - pkg/stl/tool_emits.go
