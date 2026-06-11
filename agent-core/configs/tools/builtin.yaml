@@ -194,6 +194,7 @@ tools:
 
   - name: parse_response
     type: builtin
+    contract: legacy
     init: parse_response
     visibility: internal
     emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
@@ -248,6 +249,7 @@ tools:
   # --- validation ---
   - name: validate
     type: builtin
+    contract: migrated
     init: validate
     visibility: internal
     emits: [ValidationPassed, ValidationFailed, CommandError]

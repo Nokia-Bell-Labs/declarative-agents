@@ -35,6 +35,7 @@ type ToolDef struct {
 	Name          string                 `yaml:"name"`
 	Type          string                 `yaml:"type,omitempty"`
 	Category      string                 `yaml:"category,omitempty"`
+	Contract      string                 `yaml:"contract,omitempty"`
 	Description   string                 `yaml:"description"`
 	Problem       string                 `yaml:"problem,omitempty"`
 	Goals         []string               `yaml:"goals,omitempty"`

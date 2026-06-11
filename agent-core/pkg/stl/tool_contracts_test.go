@@ -110,6 +110,42 @@ func TestValidateToolContractsCompleteDefinitionHasNoWarnings(t *testing.T) {
 	assert.Empty(t, findings)
 }
 
+func TestValidateToolContractsMigratedToolsEscalateMissingFields(t *testing.T) {
+	defs := []ToolDef{{
+		Name:     "parse_response",
+		Type:     "builtin",
+		Init:     "parse_response",
+		Contract: ToolContractMigrated,
+	}}
+
+	findings := ValidateToolContracts(defs, ContractValidationOptions{
+		MinimumLevel: ContractSeverityError,
+	})
+
+	require.NotEmpty(t, findings)
+	assertFinding(t, findings, "parse_response", "emits", ContractSeverityError)
+	assertFinding(t, findings, "parse_response", "side_effects", ContractSeverityError)
+	assertFinding(t, findings, "parse_response", "undo", ContractSeverityError)
+	assertFinding(t, findings, "parse_response", "output.schema", ContractSeverityError)
+	assertFinding(t, findings, "parse_response", "reversibility.classification", ContractSeverityError)
+}
+
+func TestValidateToolContractsLegacyToolsRemainWarnOnlyInStrictMode(t *testing.T) {
+	defs := []ToolDef{{
+		Name:     "legacy_tool",
+		Type:     "builtin",
+		Init:     "legacy_tool",
+		Contract: ToolContractLegacy,
+	}}
+
+	findings := ValidateToolContracts(defs, ContractValidationOptions{
+		Strict:       true,
+		MinimumLevel: ContractSeverityError,
+	})
+
+	assert.Empty(t, findings)
+}
+
 func TestAuditToolContractsClassifiesCompletePartialAndMissing(t *testing.T) {
 	defs := []ToolDef{
 		completeToolDef("parse_csv"),

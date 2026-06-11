@@ -10,6 +10,12 @@ const (
 	ContractSeverityError   = "error"
 )
 
+const (
+	ToolContractStrict   = "strict"
+	ToolContractMigrated = "migrated"
+	ToolContractLegacy   = "legacy"
+)
+
 // ContractValidationOptions controls how strictly tool vocabulary contracts
 // are checked. The validator is intentionally side-effect free so it can run in
 // warn-only migration mode over existing declarations.
@@ -55,32 +61,35 @@ func ValidateToolContracts(defs []ToolDef, opts ContractValidationOptions) []Con
 		if category == "internal" && !opts.IncludeInternal {
 			continue
 		}
+		effective := effectiveContractOptions(def, opts)
 
-		findings = appendIfIncluded(findings, missingString(def.Name, category, "problem", def.Problem, opts), opts)
-		findings = appendIfIncluded(findings, missingList(def.Name, category, "goals", len(def.Goals), opts), opts)
-		for _, finding := range missingRequirements(def, category, opts) {
+		findings = appendIfIncluded(findings, missingString(def.Name, category, "problem", def.Problem, effective), opts)
+		findings = appendIfIncluded(findings, missingList(def.Name, category, "goals", len(def.Goals), effective), opts)
+		for _, finding := range missingRequirements(def, category, effective) {
 			findings = appendIfIncluded(findings, finding, opts)
 		}
-		findings = appendIfIncluded(findings, missingList(def.Name, category, "non_goals", len(def.NonGoals), opts), opts)
-		findings = appendIfIncluded(findings, missingOutputSchema(def, category, opts), opts)
-		findings = appendIfIncluded(findings, missingReversibility(def, category, opts), opts)
-		findings = appendIfIncluded(findings, missingRelationships(def, category, opts), opts)
+		findings = appendIfIncluded(findings, missingList(def.Name, category, "non_goals", len(def.NonGoals), effective), opts)
+		findings = appendIfIncluded(findings, missingList(def.Name, category, "emits", len(def.Emits), effective), opts)
+		findings = appendIfIncluded(findings, missingOutputSchema(def, category, effective), opts)
+		findings = appendIfIncluded(findings, missingReversibility(def, category, effective), opts)
+		findings = appendIfIncluded(findings, missingUndo(def, category, effective), opts)
+		findings = appendIfIncluded(findings, missingRelationships(def, category, effective), opts)
 
 		if def.SideEffects.LegacyText != "" {
 			findings = appendIfIncluded(findings, ContractFinding{
 				ToolName:    def.Name,
 				Field:       "side_effects",
-				Severity:    severity(opts),
+				Severity:    severity(effective),
 				Category:    category,
 				Message:     fmt.Sprintf("tool %q uses legacy scalar side_effects", def.Name),
 				Remediation: "replace scalar side_effects with structured entries declaring kind, target, paths, state, and description",
 			}, opts)
 		}
-		if opts.RequireStructuredSideEffects && len(def.SideEffects.Items) == 0 {
+		if effective.RequireStructuredSideEffects && len(def.SideEffects.Items) == 0 {
 			findings = appendIfIncluded(findings, ContractFinding{
 				ToolName:    def.Name,
 				Field:       "side_effects",
-				Severity:    severity(opts),
+				Severity:    severity(effective),
 				Category:    category,
 				Message:     fmt.Sprintf("tool %q does not declare structured side_effects", def.Name),
 				Remediation: "add side_effects as a structured list; use kind: none for read-only tools",
@@ -88,6 +97,18 @@ func ValidateToolContracts(defs []ToolDef, opts ContractValidationOptions) []Con
 		}
 	}
 	return findings
+}
+
+func effectiveContractOptions(def ToolDef, opts ContractValidationOptions) ContractValidationOptions {
+	effective := opts
+	switch def.Contract {
+	case ToolContractStrict, ToolContractMigrated:
+		effective.Strict = true
+		effective.RequireStructuredSideEffects = true
+	case ToolContractLegacy:
+		effective.Strict = false
+	}
+	return effective
 }
 
 // AuditToolContracts classifies each tool as complete, partial, or missing for
@@ -282,6 +303,20 @@ func missingReversibility(def ToolDef, category string, opts ContractValidationO
 		Category:    category,
 		Message:     fmt.Sprintf("tool %q is missing reversibility.classification", def.Name),
 		Remediation: "classify reversibility as reversible, compensatable, or irreversible",
+	}
+}
+
+func missingUndo(def ToolDef, category string, opts ContractValidationOptions) ContractFinding {
+	if def.Undo.Strategy != "" || def.Reversibility.Undo != "" || len(def.Requirements.Undo) > 0 {
+		return ContractFinding{}
+	}
+	return ContractFinding{
+		ToolName:    def.Name,
+		Field:       "undo",
+		Severity:    severity(opts),
+		Category:    category,
+		Message:     fmt.Sprintf("tool %q is missing undo strategy", def.Name),
+		Remediation: "add undo.strategy or reversibility.undo describing noop, state restore, workspace restore, or compensation",
 	}
 }
 

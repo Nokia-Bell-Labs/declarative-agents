@@ -218,6 +218,25 @@ func TestBuiltinToolContractAuditClassifiesMigrationCoverage(t *testing.T) {
 	t.Logf("builtin tool contract audit status counts: %v", statusCounts)
 }
 
+func TestBuiltinMigratedContractsValidateAtErrorLevel(t *testing.T) {
+	cd := configDir(t)
+	defs, err := stl.LoadToolDeclarations([]string{
+		filepath.Join(cd, "tools", "builtin.yaml"),
+	})
+	require.NoError(t, err)
+
+	validate := requireToolDef(t, defs, "validate")
+	require.Equal(t, stl.ToolContractMigrated, validate.Contract)
+	parseResponse := requireToolDef(t, defs, "parse_response")
+	require.Equal(t, stl.ToolContractLegacy, parseResponse.Contract)
+
+	findings := stl.ValidateToolContracts([]stl.ToolDef{validate, parseResponse}, stl.ContractValidationOptions{
+		IncludeInternal: true,
+		MinimumLevel:    stl.ContractSeverityError,
+	})
+	require.Empty(t, findings)
+}
+
 func TestSelectedToolOutputContractsLoad(t *testing.T) {
 	cd := configDir(t)
 	defs := loadTestDefs(t, cd, "generator")
