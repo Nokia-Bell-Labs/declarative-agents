@@ -70,3 +70,32 @@ type HistoryDigest struct {
 	Signal       Signal `json:"signal"`
 	WorkspaceRef string `json:"workspace_ref,omitempty"`
 }
+
+// History is the rollback-oriented record of dispatched commands in a loop run.
+// Unlike RunEvent, it is opt-in and keeps the command object out of JSON while
+// preserving it in memory for future rollback traversal.
+type History []HistoryEntry
+
+// HistoryEntry records one completed command dispatch for replay summaries and
+// rollback traversal. Signal is the transition signal that selected the command;
+// Result contains the command's outcome.
+type HistoryEntry struct {
+	Iteration    int          `json:"iteration"`
+	Timestamp    time.Time    `json:"timestamp"`
+	Command      Command      `json:"-"`
+	CommandName  string       `json:"command_name"`
+	FromState    State        `json:"from_state"`
+	ToState      State        `json:"to_state"`
+	Signal       Signal       `json:"signal"`
+	Result       ResultDigest `json:"result"`
+	WorkspaceRef string       `json:"workspace_ref,omitempty"`
+}
+
+// ResultDigest is the serializable portion of a command result retained in
+// HistoryEntry.
+type ResultDigest struct {
+	Signal Signal `json:"signal"`
+	Output string `json:"output,omitempty"`
+	Error  string `json:"error,omitempty"`
+	Cost   Cost   `json:"cost"`
+}

@@ -57,6 +57,7 @@ type RunResult struct {
 	LastError  error         `json:"-"`
 	Summary    string        `json:"summary"`
 	Events     []RunEvent    `json:"events"`
+	History    History       `json:"history,omitempty"`
 }
 
 // MarshalJSON implements custom JSON serialization for RunResult.
@@ -282,7 +283,8 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 			sig = BudgetExhausted
 		}
 
-		nextState, cmd, err := sm.Step(state, sig, res)
+		transitionSignal := sig
+		nextState, cmd, err := sm.Step(state, transitionSignal, res)
 		if err != nil {
 			tr.Event("state.transition.unhandled",
 				attribute.String("state", string(state)),
@@ -353,6 +355,11 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 			ToState:     state,
 		})
 
+		if historyEnabled(p) {
+			workspaceRef := captureWorkspaceRef(p, tr, ctx, iteration, res.CommandName)
+			rr.History = append(rr.History, newHistoryEntry(iteration, cmd, res, fromState, state, transitionSignal, workspaceRef))
+		}
+
 		emitIterationSpan(tr, iteration, res, fromState, state)
 	}
 
@@ -416,6 +423,52 @@ func accumulateCost(rr *RunResult, res Result) {
 	rr.TokensIn += res.Cost.TokensIn
 	rr.TokensOut += res.Cost.TokensOut
 	rr.TotalCost += res.Cost.Dollars
+}
+
+func historyEnabled(p LoopParams) bool {
+	return p.CheckpointPolicy != nil
+}
+
+func captureWorkspaceRef(p LoopParams, tr tracing.Tracer, ctx context.Context, iteration int, commandName string) string {
+	if p.Workspace == nil {
+		return ""
+	}
+	ref, err := p.Workspace.CurrentRef(ctx)
+	if err != nil {
+		tr.Event("history.workspace_ref_failed",
+			attribute.Int("iteration", iteration),
+			attribute.String("command", commandName),
+			attribute.String("error", err.Error()),
+		)
+		return ""
+	}
+	return ref
+}
+
+func newHistoryEntry(iteration int, cmd Command, res Result, fromState, toState State, signal Signal, workspaceRef string) HistoryEntry {
+	return HistoryEntry{
+		Iteration:    iteration,
+		Timestamp:    time.Now(),
+		Command:      cmd,
+		CommandName:  res.CommandName,
+		FromState:    fromState,
+		ToState:      toState,
+		Signal:       signal,
+		Result:       digestResult(res),
+		WorkspaceRef: workspaceRef,
+	}
+}
+
+func digestResult(res Result) ResultDigest {
+	digest := ResultDigest{
+		Signal: res.Signal,
+		Output: res.Output,
+		Cost:   res.Cost,
+	}
+	if res.Err != nil {
+		digest.Error = res.Err.Error()
+	}
+	return digest
 }
 
 func emitIterationSpan(tr tracing.Tracer, iter int, res Result, from, to State) {

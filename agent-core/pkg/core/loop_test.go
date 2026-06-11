@@ -4,6 +4,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -153,6 +154,131 @@ func TestLoop_NilRollbackParamsPreserveBehavior(t *testing.T) {
 	require.Equal(t, State("Finished"), rr.FinalState)
 	require.Equal(t, 2, rr.Iterations)
 	require.Len(t, rr.Events, 2)
+	require.Empty(t, rr.History)
+}
+
+func TestLoop_HistoryDisabledWhenPolicyNil(t *testing.T) {
+	t.Parallel()
+	params := simpleLoopParams(&loopRecorder{})
+	params.CheckpointPolicy = nil
+	params.Workspace = refWorkspace{ref: "head"}
+
+	rr, err := Loop(params, context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, rr.Events, 2)
+	require.Empty(t, rr.History)
+}
+
+func TestLoop_HistoryRecordsDispatchesWhenPolicyEnabled(t *testing.T) {
+	t.Parallel()
+	params := simpleLoopParams(&loopRecorder{})
+	params.CheckpointPolicy = alwaysCheckpointPolicy{}
+
+	rr, err := Loop(params, context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, rr.History, 2)
+	require.Equal(t, 1, rr.History[0].Iteration)
+	require.Equal(t, "step_a", rr.History[0].CommandName)
+	require.NotNil(t, rr.History[0].Command)
+	require.Equal(t, State("Start"), rr.History[0].FromState)
+	require.Equal(t, State("Working"), rr.History[0].ToState)
+	require.Equal(t, Seed, rr.History[0].Signal)
+	require.Equal(t, Signal("Done"), rr.History[0].Result.Signal)
+	require.Equal(t, "step_b", rr.History[1].CommandName)
+	require.Equal(t, Signal("TaskCompleted"), rr.History[1].Result.Signal)
+}
+
+func TestLoop_HistoryCapturesWorkspaceRef(t *testing.T) {
+	t.Parallel()
+	params := simpleLoopParams(&loopRecorder{})
+	params.CheckpointPolicy = alwaysCheckpointPolicy{}
+	params.Workspace = refWorkspace{ref: "workspace-head"}
+
+	rr, err := Loop(params, context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, rr.History, 2)
+	require.Equal(t, "workspace-head", rr.History[0].WorkspaceRef)
+	require.Equal(t, "workspace-head", rr.History[1].WorkspaceRef)
+}
+
+func TestLoop_HistoryRecordsFailedCommand(t *testing.T) {
+	t.Parallel()
+	reg := NewRegistry()
+	reg.Register(ToolSpec{Name: "fail", Visibility: Internal}, &staticBuilder{cmd: &errorCmd{name: "fail", err: fmt.Errorf("boom")}})
+	builder, _ := reg.Resolve("fail")
+	params := LoopParams{
+		InitialState: "Start",
+		Registry:     reg,
+		Table: TransitionTable{
+			{State: "Start", Signal: Seed}: {
+				NextState: "Working",
+				Action:    func(r Result) Command { return builder.Build(r) },
+			},
+			{State: "Working", Signal: CommandError}: {
+				NextState: "Failed",
+			},
+		},
+		IsTerminal:       func(s State) bool { return s == "Failed" },
+		Trace:            &loopRecorder{},
+		Budget:           Budget{MaxIterations: 10},
+		CheckpointPolicy: alwaysCheckpointPolicy{},
+	}
+
+	rr, err := Loop(params, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusFailed, rr.Status)
+	require.Len(t, rr.History, 1)
+	require.Equal(t, "fail", rr.History[0].CommandName)
+	require.Equal(t, CommandError, rr.History[0].Result.Signal)
+	require.Contains(t, rr.History[0].Result.Error, "boom")
+}
+
+func TestLoop_HistoryBudgetAndCancelBehavior(t *testing.T) {
+	t.Parallel()
+
+	t.Run("budget terminal transition records only dispatched commands", func(t *testing.T) {
+		t.Parallel()
+		params := simpleLoopParams(&loopRecorder{})
+		params.Budget.MaxIterations = 1
+		params.CheckpointPolicy = alwaysCheckpointPolicy{}
+
+		rr, err := Loop(params, context.Background())
+
+		require.NoError(t, err)
+		require.Equal(t, StatusBudgetExceeded, rr.Status)
+		require.Len(t, rr.History, 1)
+		require.Equal(t, "step_a", rr.History[0].CommandName)
+	})
+
+	t.Run("pre-cancelled context records no history", func(t *testing.T) {
+		t.Parallel()
+		params := simpleLoopParams(&loopRecorder{})
+		params.CheckpointPolicy = alwaysCheckpointPolicy{}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		rr, err := Loop(params, ctx)
+
+		require.NoError(t, err)
+		require.Equal(t, StatusCancelled, rr.Status)
+		require.Empty(t, rr.History)
+	})
+}
+
+func TestRunResultJSONOmitsHistoryWhenDisabled(t *testing.T) {
+	t.Parallel()
+	params := simpleLoopParams(&loopRecorder{})
+
+	rr, err := Loop(params, context.Background())
+	require.NoError(t, err)
+
+	data, err := json.Marshal(rr)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), `"history"`)
 }
 
 func TestLoop_BudgetExhausted(t *testing.T) {
@@ -561,3 +687,23 @@ type staticBuilder struct {
 }
 
 func (s *staticBuilder) Build(_ Result) Command { return s.cmd }
+
+type errorCmd struct {
+	name string
+	err  error
+}
+
+func (e *errorCmd) Name() string { return e.name }
+func (e *errorCmd) Execute() Result {
+	return Result{Signal: ToolDone, CommandName: e.name, Err: e.err, Output: e.err.Error()}
+}
+func (e *errorCmd) Undo() Result { return NoopUndo(e.name) }
+
+type refWorkspace struct {
+	ref string
+	err error
+}
+
+func (r refWorkspace) Checkpoint(context.Context, string) (string, error) { return r.ref, r.err }
+func (r refWorkspace) Restore(context.Context, string) error              { return r.err }
+func (r refWorkspace) CurrentRef(context.Context) (string, error)         { return r.ref, r.err }
