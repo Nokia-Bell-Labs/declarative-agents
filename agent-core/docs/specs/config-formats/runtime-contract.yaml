@@ -110,7 +110,8 @@ tool_parametrization: |
     - execute_task reads the same keys to pass --machine/--tools to
       child agent processes.
     - load_suite reads "output_dir", "reps", "timeout" from config.
-    - run_point reads "point_machine" to locate the nested machine YAML.
+    - run_point reads "point_machine" and "point_tools" to locate the
+      nested machine YAML and build its point-specific registry.
     - serve_ui reads "addr", "data_dir", "configs_dir", etc.
 
 suite_input_contract: |
@@ -131,7 +132,9 @@ nested_machines: |
   path is read from the tool's config block, not hardcoded.
 
   Nested core.Loop (same process):
-    run_point reads config.point_machine → core.Loop(LoopParams{MachineFile: ...})
+    run_point reads config.point_machine and config.point_tools
+    → builds a point-specific registry
+    → core.Loop(LoopParams{MachineFile: ..., Registry: pointRegistry})
 
   Child process:
     launch_eval reads config.machine, config.tools, config.tools_declarations

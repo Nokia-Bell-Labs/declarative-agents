@@ -59,11 +59,18 @@ selection_files:
       build → lint → test.
 
   - file: configs/evaluator/tools.yaml
-    tool_count: 9
+    tool_count: 4
     description: |
-      Selects session-level tools (load_suite, next_point, run_point,
-      report_session) and per-point pipeline tools (prepare_workspace,
-      dump_config, run_agent, check_results, collect_metrics).
+      Selects session-level tools for configs/evaluator/machine.yaml:
+      load_suite, next_point, run_point, and report_session.
+
+  - file: configs/evaluator/tools-point.yaml
+    tool_count: 5
+    description: |
+      Selects per-point tools for configs/evaluator/point.yaml:
+      prepare_workspace, dump_config, run_agent, check_results, and
+      collect_metrics. Loaded by run_point to build the nested point
+      registry.
 
   - file: configs/planner/tools.yaml
     tool_count: 12

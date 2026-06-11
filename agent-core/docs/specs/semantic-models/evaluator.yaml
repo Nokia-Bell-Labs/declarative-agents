@@ -36,7 +36,8 @@ declarative_boundary: |
 configuration:
   machine: configs/evaluator/machine.yaml
   point_machine: configs/evaluator/point.yaml
-  tools: configs/evaluator/tools.yaml
+  session_tools: configs/evaluator/tools.yaml
+  point_tools: configs/evaluator/tools-point.yaml
   tool_declarations:
     - configs/tools/builtin.yaml
     - configs/evaluator/builtin.yaml
@@ -179,4 +180,5 @@ invariants:
   - The workspace is a fresh temporary directory for each evaluation point
   - Metrics are collected even when the agent fails or times out
   - The session machine iterates sequentially through all grid points
-  - Both session and point machines are fully YAML-configurable
+  - Session and point machines have separate tool selections
+  - run_point builds the nested point registry from configs/evaluator/tools-point.yaml

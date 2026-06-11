@@ -61,6 +61,7 @@ type LoadSuiteConfig struct {
 // RunPointConfig holds config for the run_point tool.
 type RunPointConfig struct {
 	PointMachine  string `json:"point_machine"`
+	PointTools    string `json:"point_tools"`
 	AgentName     string `json:"agent_name"`
 	MaxIterations int    `json:"max_iterations"`
 	SuccessState  string `json:"success_state"`

@@ -1,19 +1,9 @@
-# Tool selection for the evaluator agent.
-# Shared across session (machine.yaml) and per-point (point.yaml) machines.
-# Session-level tools drive grid iteration; per-point tools are used by the
-# nested core.Loop that run_point executes with point.yaml. Both sets must
-# be in the same selection because run_point reuses the parent registry.
+# Tool selection for the evaluator session machine (machine.yaml).
+# Per-point tools live in configs/evaluator/tools-point.yaml and are loaded
+# by run_point for the nested point machine.
 
 tools:
-  # Session-level tools — actions in machine.yaml
   - load_suite
   - next_point
   - run_point
   - report_session
-
-  # Per-point tools — actions in point.yaml (nested loop)
-  - prepare_workspace
-  - dump_config
-  - run_agent
-  - check_results
-  - collect_metrics

@@ -32,6 +32,10 @@ func configDir(t *testing.T) string {
 // loadTestDefs loads shared tool declarations, mode-local overrides,
 // per-agent LLM defaults, and applies the agent's selection file.
 func loadTestDefs(t *testing.T, cd, agent string) []stl.ToolDef {
+	return loadTestDefsForSelection(t, cd, agent, filepath.Join(cd, agent, "tools.yaml"))
+}
+
+func loadTestDefsForSelection(t *testing.T, cd, agent, selectionPath string) []stl.ToolDef {
 	t.Helper()
 	declPaths := []string{
 		filepath.Join(cd, "tools", "builtin.yaml"),
@@ -47,7 +51,7 @@ func loadTestDefs(t *testing.T, cd, agent string) []stl.ToolDef {
 	}
 	declarations, err := stl.LoadToolDeclarations(declPaths)
 	require.NoError(t, err)
-	selection, err := stl.LoadToolSelection(filepath.Join(cd, agent, "tools.yaml"))
+	selection, err := stl.LoadToolSelection(selectionPath)
 	require.NoError(t, err)
 	defs, err := stl.SelectTools(declarations, selection)
 	require.NoError(t, err)
@@ -356,8 +360,6 @@ func TestEvaluatorConfig_ToolsLoad(t *testing.T) {
 
 	assertToolNames(t, defs, []string{
 		"load_suite", "next_point", "run_point", "report_session",
-		"prepare_workspace", "dump_config",
-		"run_agent", "check_results", "collect_metrics",
 	})
 }
 
@@ -394,7 +396,12 @@ func TestEvaluatorConfig_PointTransitionTable(t *testing.T) {
 	spec, err := core.LoadMachineSpec(filepath.Join(cd, "evaluator", "point.yaml"))
 	require.NoError(t, err)
 
-	defs := loadTestDefs(t, cd, "evaluator")
+	defs := loadTestDefsForSelection(t, cd, "evaluator", filepath.Join(cd, "evaluator", "tools-point.yaml"))
+	require.NotEmpty(t, defs)
+	assertToolNames(t, defs, []string{
+		"prepare_workspace", "dump_config",
+		"run_agent", "check_results", "collect_metrics",
+	})
 	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)
 

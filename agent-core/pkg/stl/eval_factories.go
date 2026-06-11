@@ -58,7 +58,7 @@ func RegisterEvalFactories(br *BuiltinRegistry, deps EvalFactoryDeps) {
 	})
 	br.Register("run_point", func(def ToolDef, vars map[string]string) (core.Builder, error) {
 		es := initESS()
-		factory := RunPointFactory(es, deps.Registry)
+		factory := RunPointFactory(es)
 		return factory(def, vars)
 	})
 	br.Register("report_session", func(def ToolDef, vars map[string]string) (core.Builder, error) {

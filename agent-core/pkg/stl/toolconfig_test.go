@@ -102,11 +102,13 @@ func TestDecodeToolConfigRunPoint(t *testing.T) {
 		Name: "run_point",
 		Config: map[string]interface{}{
 			"point_machine": "configs/evaluator/point.yaml",
+			"point_tools":   "configs/evaluator/tools-point.yaml",
 		},
 	}
 	var cfg RunPointConfig
 	require.NoError(t, DecodeToolConfig(def, &cfg))
 	assert.Equal(t, "configs/evaluator/point.yaml", cfg.PointMachine)
+	assert.Equal(t, "configs/evaluator/tools-point.yaml", cfg.PointTools)
 }
 
 func TestDecodeToolConfigServeUI(t *testing.T) {
