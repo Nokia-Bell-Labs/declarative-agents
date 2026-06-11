@@ -102,6 +102,17 @@ func assertToolNames(t *testing.T, defs []stl.ToolDef, want []string) {
 	}
 }
 
+func requireToolDef(t *testing.T, defs []stl.ToolDef, name string) stl.ToolDef {
+	t.Helper()
+	for _, td := range defs {
+		if td.Name == name {
+			return td
+		}
+	}
+	require.Failf(t, "missing tool definition", "tool %q not found", name)
+	return stl.ToolDef{}
+}
+
 func assertToolEmits(t *testing.T, spec core.MachineSpec, defs []stl.ToolDef) {
 	t.Helper()
 	require.NoError(t, stl.ValidateToolEmits(spec, defs))
@@ -174,6 +185,38 @@ func TestToolContractsWarnOnlyReport(t *testing.T) {
 	require.NotZero(t, total, "current declarations should still have warn-only contract migration findings")
 	t.Logf("tool contract findings by severity: %v", bySeverity)
 	t.Logf("tool contract findings by category: %v", byCategory)
+}
+
+func TestSelectedToolOutputContractsLoad(t *testing.T) {
+	cd := configDir(t)
+	defs := loadTestDefs(t, cd, "generator")
+
+	for _, name := range []string{"read", "write", "edit", "test"} {
+		def := requireToolDef(t, defs, name)
+		require.NotEmpty(t, def.Output.Schema, "tool %s should declare output.schema", name)
+		require.Equal(t, "object", def.Output.Schema["type"], "tool %s output schema type", name)
+		require.NotEmpty(t, def.Output.Description, "tool %s should describe output", name)
+	}
+
+	allDecls, err := stl.LoadToolDeclarations([]string{
+		filepath.Join(cd, "tools", "builtin.yaml"),
+		filepath.Join(cd, "tools", "exec.yaml"),
+	})
+	require.NoError(t, err)
+	status := requireToolDef(t, allDecls, "workspace_status")
+	require.Equal(t, "object", status.Output.Schema["type"])
+}
+
+func TestToolOutputContractsStayOutOfManifestInputSchema(t *testing.T) {
+	cd := configDir(t)
+	defs := loadTestDefs(t, cd, "generator")
+	read := requireToolDef(t, defs, "read")
+
+	spec := read.ToToolSpec()
+	var schema map[string]interface{}
+	require.NoError(t, json.Unmarshal(spec.InputSchema, &schema))
+	require.NotContains(t, schema, "output")
+	require.Contains(t, schema, "properties")
 }
 
 func dummyToolAction(_ core.Result) core.Command { return noopCmd{} }

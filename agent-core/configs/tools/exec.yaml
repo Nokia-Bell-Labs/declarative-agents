@@ -30,6 +30,20 @@ tools:
     args: [test, "-count=1"]
     emits: [ToolDone, ToolFailed]
     description: "Run go test -count=1 on the workspace. Returns test output including pass/fail results."
+    output:
+      description: "Go test result summary and raw command output."
+      schema:
+        type: object
+        properties:
+          package:
+            type: string
+          passed:
+            type: boolean
+          output:
+            type: string
+          exit_code:
+            type: integer
+        required: [passed, output]
     output_cap: 200
     parameters:
       type: object
@@ -94,6 +108,23 @@ tools:
     args: [status, --porcelain]
     description: "Report git workspace state: changed files with status codes (M/A/D/??)."
     precondition: git_repo
+    output:
+      description: "Porcelain git status entries for changed workspace files."
+      schema:
+        type: object
+        properties:
+          clean:
+            type: boolean
+          files:
+            type: array
+            items:
+              type: object
+              properties:
+                path:
+                  type: string
+                status:
+                  type: string
+        required: [clean, files]
 
   - name: commit
     binary: git

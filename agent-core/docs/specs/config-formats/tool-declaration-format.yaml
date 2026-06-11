@@ -297,6 +297,23 @@ contract_validation: |
   contract fields to errors for tests or future startup enforcement. Internal
   tools are excluded by default unless IncludeInternal is set.
 
+structured_output_strategy: |
+  Tool output has two layers during migration:
+
+  1. Runtime string output: core.Result.Output remains the human-readable
+     command output used by existing machine transitions, parse-error repair,
+     logs, and tests.
+  2. Declarative output contract: tool declarations may provide output.schema
+     to describe the machine-readable data shape the tool should eventually
+     produce.
+
+  output.schema is not injected into the LLM-facing input schema and does not
+  change command execution. It lets developers document success shape, failure
+  shape, and downstream composition expectations before migrating individual
+  commands to a structured result field such as Result.Data. When Result.Data
+  is added later, existing output.schema declarations should be reused rather
+  than redesigned.
+
 related_documents:
   - srd013
   - srd021

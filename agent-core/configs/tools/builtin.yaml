@@ -12,6 +12,20 @@ tools:
     init: file_read
     emits: [ToolDone, ToolFailed]
     description: "Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths first."
+    output:
+      description: "Line-numbered text content from the requested file range."
+      schema:
+        type: object
+        properties:
+          path:
+            type: string
+          content:
+            type: string
+          start_line:
+            type: integer
+          end_line:
+            type: integer
+        required: [path, content]
     parameters:
       type: object
       properties:
@@ -31,6 +45,18 @@ tools:
     init: file_write
     emits: [ToolDone, ToolFailed]
     description: "Create or overwrite a file. Provide the complete file content — this replaces the entire file. Parent directories are created automatically."
+    output:
+      description: "Write result describing the file path and bytes written."
+      schema:
+        type: object
+        properties:
+          path:
+            type: string
+          bytes_written:
+            type: integer
+          created_parent_dirs:
+            type: boolean
+        required: [path, bytes_written]
     parameters:
       type: object
       properties:
@@ -47,6 +73,18 @@ tools:
     init: file_edit
     emits: [EditDone, ToolFailed]
     description: "Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match."
+    output:
+      description: "Edit result describing the changed file and replacement count."
+      schema:
+        type: object
+        properties:
+          path:
+            type: string
+          replacements:
+            type: integer
+          ambiguous_matches:
+            type: integer
+        required: [path, replacements]
     parameters:
       type: object
       properties:
