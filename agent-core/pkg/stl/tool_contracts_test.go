@@ -56,6 +56,23 @@ func TestValidateToolContractsCanIncludeInternalTools(t *testing.T) {
 	assertFinding(t, findings, "parse_response", "problem", ContractSeverityWarning)
 }
 
+func TestValidateToolContractsUsesExplicitCategory(t *testing.T) {
+	defs := []ToolDef{{
+		Name:       "run_point",
+		Type:       "builtin",
+		Init:       "run_point",
+		Visibility: "internal",
+		Category:   "boundary",
+	}}
+
+	findings := ValidateToolContracts(defs, ContractValidationOptions{IncludeInternal: true})
+
+	require.NotEmpty(t, findings)
+	for _, finding := range findings {
+		assert.Equal(t, "boundary", finding.Category)
+	}
+}
+
 func TestValidateToolContractsWarnsOnLegacySideEffects(t *testing.T) {
 	defs := []ToolDef{{
 		Name:        "copy_dir",
@@ -97,6 +114,7 @@ func completeToolDef(name string) ToolDef {
 	return ToolDef{
 		Name:        name,
 		Binary:      "csvtool",
+		Category:    "word",
 		Description: "Parse CSV.",
 		Problem:     "The agent needs structured CSV rows.",
 		Goals:       []string{"Return rows deterministically."},

@@ -24,6 +24,92 @@ tools:
     visibility: internal
     emits: [EvalCompleted, EvalFailed, CommandError]
     description: "Spawn a child agent as a subprocess to run an experiment."
+    category: boundary
+    problem: |
+      The bench machine needs a boundary word that starts a complete
+      evaluator session from a UI experiment request. This is not an
+      ordinary deterministic word because it spawns another agent program
+      that runs its own state machine and writes evaluation artifacts.
+    goals:
+      - "Run the configured evaluator machine for the experiment requested by serve_ui."
+      - "Propagate machine, tool selection, tool declaration, and trace configuration into the child agent invocation."
+      - "Return evaluator completion status to the bench UI loop."
+    requirements:
+      input:
+        - "must require machine, tools, and tools_declarations in config"
+        - "must consume the experiment request emitted by serve_ui"
+      output:
+        - "must emit EvalCompleted when the evaluator child exits successfully"
+        - "must emit EvalFailed when the evaluator child exits with a failed run status"
+      side_effects:
+        - "must spawn one evaluator child agent process"
+        - "must allow the evaluator child to create session directories and result artifacts"
+        - "must propagate trace context to the child process"
+      undo:
+        - "must compensate by deleting, archiving, or marking the created eval session artifacts"
+      errors:
+        - "must emit CommandError when required config is missing or the child process cannot be started"
+    non_goals:
+      - "Does not run individual evaluation points itself."
+      - "Does not inspect oracle results or aggregate metrics directly."
+      - "Does not provide literal undo for results already exposed outside the workspace."
+    output:
+      description: "Evaluator child process result."
+      schema:
+        type: object
+        properties:
+          experiment_id:
+            type: string
+          exit_code:
+            type: integer
+          stdout:
+            type: string
+          stderr:
+            type: string
+          elapsed_ms:
+            type: integer
+          result_dir:
+            type: string
+          traceparent:
+            type: string
+        required: [exit_code]
+    side_effects:
+      - kind: subprocess
+        target: agent_cli
+        description: "Starts the configured evaluator agent as a child process."
+      - kind: filesystem_write
+        target: eval_results
+        paths: [eval-results]
+        description: "The evaluator child may create session directories and artifact files."
+      - kind: state_mutation
+        target: bench_ui_state
+        state: experiment_result_recorded
+        description: "Returns evaluator status to the bench UI loop."
+    reversibility:
+      classification: compensatable
+      undo: artifact_compensation
+      requires_confirmation: false
+    undo:
+      strategy: compensating_action
+      description: "Delete, archive, or mark the generated eval result directory according to the bench retention policy."
+      requires: [result_dir]
+    errors:
+      - signal: CommandError
+        condition: "config is missing, experiment request is invalid, or child process cannot be started"
+        message_shape: "launch_eval: <error>"
+        state_after_failure: "no new eval artifacts unless the child process already started"
+      - signal: EvalFailed
+        condition: "evaluator child exits with failed run status"
+        message_shape: "launch_eval failed: <status/output>"
+        state_after_failure: "eval artifacts may exist and require compensation if rollback is requested"
+    relationships:
+      before: [serve_ui]
+      after: [serve_ui]
+      overlaps:
+        - tool: execute_task
+          difference: "execute_task starts a generator for one planner task; launch_eval starts a full evaluator session."
+        - tool: run_point
+          difference: "run_point runs one point inside evaluator; launch_eval starts the evaluator process."
     config:
       machine: configs/evaluator/machine.yaml
       tools: configs/evaluator/tools.yaml

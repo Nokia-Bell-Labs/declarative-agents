@@ -34,6 +34,7 @@ var cliExtensionKeys = map[string]bool{
 type ToolDef struct {
 	Name          string                 `yaml:"name"`
 	Type          string                 `yaml:"type,omitempty"`
+	Category      string                 `yaml:"category,omitempty"`
 	Description   string                 `yaml:"description"`
 	Problem       string                 `yaml:"problem,omitempty"`
 	Goals         []string               `yaml:"goals,omitempty"`

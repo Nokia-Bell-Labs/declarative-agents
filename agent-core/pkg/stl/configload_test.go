@@ -207,6 +207,51 @@ func TestSelectedToolOutputContractsLoad(t *testing.T) {
 	require.Equal(t, "object", status.Output.Schema["type"])
 }
 
+func TestSelectedBoundaryToolContractsLoad(t *testing.T) {
+	cd := configDir(t)
+	cases := []struct {
+		agent         string
+		selectionPath string
+		tools         []string
+	}{
+		{
+			agent:         "generator",
+			selectionPath: filepath.Join(cd, "generator", "tools.yaml"),
+			tools:         []string{"invoke_llm"},
+		},
+		{
+			agent:         "planner",
+			selectionPath: filepath.Join(cd, "planner", "tools.yaml"),
+			tools:         []string{"invoke_llm", "execute_task"},
+		},
+		{
+			agent:         "evaluator",
+			selectionPath: filepath.Join(cd, "evaluator", "tools.yaml"),
+			tools:         []string{"run_point"},
+		},
+		{
+			agent:         "bench",
+			selectionPath: filepath.Join(cd, "bench", "tools.yaml"),
+			tools:         []string{"launch_eval"},
+		},
+	}
+
+	for _, tc := range cases {
+		defs := loadTestDefsForSelection(t, cd, tc.agent, tc.selectionPath)
+		for _, name := range tc.tools {
+			def := requireToolDef(t, defs, name)
+			require.Equal(t, "boundary", def.Category, "%s/%s category", tc.agent, name)
+			require.NotEmpty(t, def.Problem, "%s/%s problem", tc.agent, name)
+			require.NotEmpty(t, def.NonGoals, "%s/%s non_goals", tc.agent, name)
+			require.NotEmpty(t, def.Output.Schema, "%s/%s output.schema", tc.agent, name)
+			require.NotEmpty(t, def.SideEffects.Items, "%s/%s side_effects", tc.agent, name)
+			require.NotEmpty(t, def.Reversibility.Classification, "%s/%s reversibility", tc.agent, name)
+			require.NotEmpty(t, def.Undo.Strategy, "%s/%s undo", tc.agent, name)
+			require.NotEmpty(t, def.Errors, "%s/%s errors", tc.agent, name)
+		}
+	}
+}
+
 func TestToolOutputContractsStayOutOfManifestInputSchema(t *testing.T) {
 	cd := configDir(t)
 	defs := loadTestDefs(t, cd, "generator")

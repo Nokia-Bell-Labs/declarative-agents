@@ -76,6 +76,9 @@ func ValidateToolContracts(defs []ToolDef, opts ContractValidationOptions) []Con
 }
 
 func contractCategory(def ToolDef) string {
+	if def.Category != "" {
+		return def.Category
+	}
 	if def.Visibility == "internal" {
 		return "internal"
 	}

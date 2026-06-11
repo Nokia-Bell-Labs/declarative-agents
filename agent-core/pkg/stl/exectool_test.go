@@ -159,6 +159,7 @@ func TestParseToolDefs_ContractFields(t *testing.T) {
 	yaml := `tools:
   - name: parse_csv
     type: exec
+    category: word
     binary: csvtool
     description: "Parse a CSV file into rows."
     problem: "The agent needs a typed way to turn CSV files into row data."
@@ -213,6 +214,7 @@ func TestParseToolDefs_ContractFields(t *testing.T) {
 	require.Len(t, defs, 1)
 
 	def := defs[0]
+	assert.Equal(t, "word", def.Category)
 	assert.Equal(t, "The agent needs a typed way to turn CSV files into row data.", def.Problem)
 	assert.Equal(t, []string{"Return deterministic row data for a single CSV input."}, def.Goals)
 	assert.Equal(t, []string{"must accept a path to one CSV file"}, def.Requirements.Input)
@@ -488,10 +490,11 @@ func TestRegisterToolDefs(t *testing.T) {
 func TestMergeToolDefs(t *testing.T) {
 	base := []ToolDef{
 		{
-			Name:    "build",
-			Binary:  "go",
-			Args:    []string{"build"},
-			Problem: "Compile the workspace.",
+			Name:     "build",
+			Binary:   "go",
+			Args:     []string{"build"},
+			Category: "boundary",
+			Problem:  "Compile the workspace.",
 			Reversibility: ToolReversibility{
 				Classification: "reversible",
 				Undo:           "noop",
@@ -501,10 +504,11 @@ func TestMergeToolDefs(t *testing.T) {
 	}
 	override := []ToolDef{
 		{
-			Name:    "build",
-			Binary:  "go",
-			Args:    []string{"build", "-race"},
-			Problem: "Compile the workspace with race detector.",
+			Name:     "build",
+			Binary:   "go",
+			Args:     []string{"build", "-race"},
+			Category: "boundary",
+			Problem:  "Compile the workspace with race detector.",
 			Reversibility: ToolReversibility{
 				Classification: "reversible",
 				Undo:           "noop",
@@ -518,6 +522,7 @@ func TestMergeToolDefs(t *testing.T) {
 
 	assert.Equal(t, "build", merged[0].Name)
 	assert.Equal(t, []string{"build", "-race"}, merged[0].Args)
+	assert.Equal(t, "boundary", merged[0].Category)
 	assert.Equal(t, "Compile the workspace with race detector.", merged[0].Problem)
 	assert.Equal(t, "reversible", merged[0].Reversibility.Classification)
 	assert.Equal(t, "test", merged[1].Name)

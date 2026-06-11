@@ -24,6 +24,18 @@ schema:
       function) or "exec" (external executable). Defaults to "exec"
       when omitted.
 
+  - field: category
+    type: string
+    required: false
+    description: |
+      Tool vocabulary category used by contract validation and authoring
+      guidance. Known categories are word, sentence, boundary, and
+      stateful_internal. Boundary tools intentionally cross a program
+      boundary, such as invoking an LLM, spawning an agent subprocess, or
+      running a nested state machine. If omitted, validation categorizes
+      internal tools as internal, external builtins as external_builtin,
+      and exec tools as exec.
+
   - field: description
     type: string
     required: false
@@ -295,7 +307,9 @@ contract_validation: |
   tools and return structured findings with tool name, field, severity,
   category, message, and remediation. Strict mode escalates missing required
   contract fields to errors for tests or future startup enforcement. Internal
-  tools are excluded by default unless IncludeInternal is set.
+  tools are excluded by default unless IncludeInternal is set. When category
+  is declared, validation reports that explicit category (for example,
+  boundary) instead of falling back to internal, external_builtin, or exec.
 
 structured_output_strategy: |
   Tool output has two layers during migration:
