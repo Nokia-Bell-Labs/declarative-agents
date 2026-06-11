@@ -23,7 +23,7 @@ goals:
   - G4: Subprocess execution utilities with process group management.
   - G5: YAML-based tool registration via BuiltinRegistry and tool declaration files.
   - G6: Evaluation harness tools for atomic point workspace setup, config dumping, agent execution, result checking, and metrics collection.
-  - G7: Code validation tool (validate) for build/vet/lint/test pipeline.
+  - G7: Machine-declared validation sequences using atomic build, lint, and test tools; validate remains only as an internal compatibility aggregator.
   - G8: Cross-reference focused tool SRDs rather than duplicating their detailed architectural contracts.
 
 requirements:
@@ -89,7 +89,9 @@ requirements:
     title: Validation tool
     items:
       - R8.1: Final generator validation SHOULD be declared in machine.yaml as explicit tool transitions (for example build → lint → test), not hidden inside a composite Go tool.
-      - R8.2: validate MAY run an explicitly supplied validation tool sequence and emit ValidationPassed or ValidationFailed for machines that still use aggregate validation.
+      - R8.2: validate MAY run an explicitly supplied validation tool sequence and emit ValidationPassed or ValidationFailed only for compatibility machines that explicitly select aggregate validation.
+      - R8.3: validate SHALL be internal-only and SHALL NOT appear in LLM tool manifests.
+      - R8.4: validate SHALL be documented as a boundary aggregator, not a normal vocabulary word.
 
   R9:
     title: Nudge and done tools
@@ -147,8 +149,8 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
 
   - id: AC8
-    criterion: Generator validation order is visible in machine.yaml; validate only runs an explicitly supplied sequence when selected. nudge_reread appends re-read instructions. done signals TaskCompleted.
-    traces: [R8.1, R8.2, R9.1, R9.2]
+    criterion: Generator validation order is visible in machine.yaml; validate only runs an explicitly supplied sequence when selected, remains internal-only, and is documented as a compatibility boundary aggregator. nudge_reread appends re-read instructions. done signals TaskCompleted.
+    traces: [R8.1, R8.2, R8.3, R8.4, R9.1, R9.2]
 
   - id: AC9
     criterion: Evaluation harness tools orchestrate a complete evaluation point lifecycle with machine-declared atomic workspace setup, workspace isolation, and config snapshotting.

@@ -43,7 +43,9 @@ overall_findings:
     problem, goals, non_goals, output.schema, structured side_effects,
     reversibility, undo, errors, and relationships.
   - Several evaluator and planner builtins are sentences, especially
-    load_suite, check_results, and validate.
+    load_suite and check_results.
+  - validate is retained as a deprecated internal boundary aggregator for
+    compatibility, but current generator validation is machine-declared.
   - Boundary tools need explicit classification so they are not mistaken
     for deterministic primitive words.
   - Runtime output is still mostly human-readable core.Result.Output strings.
@@ -282,24 +284,27 @@ tools:
     migration_priority: medium
 
   - name: validate
-    role: sentence
+    role: boundary
+    status: deprecated_compatibility
     selected_by: []
-    inputs_from: [tool_tracker]
+    inputs_from: [tool_tracker, configured_validation_order]
     feeds_into: [ValidationPassed, ValidationFailed]
-    side_effects: subprocesses_via_child_tools
-    output_contract: missing
-    undo: no_direct_undo
+    side_effects: child_tool_execution
+    output_contract: declared
+    undo: delegated_to_child_commands
     overlaps:
       - tool: build
         difference: validate aggregates multiple tools; build is one command
+      - tool: lint
+        difference: validate aggregates multiple tools; lint is one command
       - tool: test
         difference: validate aggregates multiple tools; test is one command
     issues:
-      - workflow aggregator; sequence should usually live in machine.yaml
-      - appears unused by current default selections
+      - retained only for compatibility with machines that explicitly select it
+      - new generator validation sequences should be expressed in machine.yaml
     split_recommendation:
-      - remove from default declarations if unused, or retain only as deprecated boundary aggregator
-    migration_priority: high
+      - do not use for new validation flows; compose build/lint/test as state-machine transitions
+    migration_priority: low
 
   # Planner tools
   - name: extract_task
@@ -894,8 +899,8 @@ sentence_tools:
         - check_agent_version
         - summarize_point_results
     - tool: validate
-      reason: workflow aggregator now mostly superseded by machine-declared validation transitions
-      recommendation: remove from default selected paths or retain only as deprecated boundary aggregator
+      reason: deprecated compatibility aggregator now superseded by machine-declared validation transitions
+      recommendation: retain only as internal boundary aggregator for old machines
 
 boundary_tools_requiring_contracts:
   - invoke_llm

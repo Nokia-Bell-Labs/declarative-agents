@@ -948,3 +948,28 @@ func TestE2E_ManifestFilteredByVisibility(t *testing.T) {
 	require.NotContains(t, names, "report_parse_error")
 	require.NotContains(t, names, "validate")
 }
+
+func TestValidateDeclarationIsInternalBoundaryAggregator(t *testing.T) {
+	t.Parallel()
+	cd := configDir(t)
+	declarations, err := stl.LoadToolDeclarations([]string{
+		filepath.Join(cd, "tools", "builtin.yaml"),
+	})
+	require.NoError(t, err)
+
+	validate := requireToolDef(t, declarations, "validate")
+	require.Equal(t, "boundary", validate.Category)
+	require.Equal(t, "internal", validate.Visibility)
+	require.Contains(t, validate.Description, "Deprecated compatibility aggregator")
+	require.NotEmpty(t, validate.Problem)
+	require.NotEmpty(t, validate.NonGoals)
+	require.NotEmpty(t, validate.Output.Schema)
+	require.NotEmpty(t, validate.SideEffects.Items)
+	require.Equal(t, "compensatable", validate.Reversibility.Classification)
+	require.NotEmpty(t, validate.Undo.Strategy)
+
+	generatorDefs := loadTestDefs(t, cd, "generator")
+	for _, def := range generatorDefs {
+		require.NotEqual(t, "validate", def.Name, "generator validation is expressed in machine.yaml transitions")
+	}
+}
