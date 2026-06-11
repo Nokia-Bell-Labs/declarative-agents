@@ -45,9 +45,10 @@ requirements:
   R4:
     title: LoopParams
     items:
-      - R4.1: "LoopParams bundles: InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, CommandTimeout, ModelName, Directory, Hooks, AgentName, AgentVersion, ProviderName, MachineFile, MachineSpec, InitFunc, and ToolAction."
+      - R4.1: "LoopParams bundles: InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, CommandTimeout, ModelName, Directory, Hooks, AgentName, AgentVersion, ProviderName, MachineFile, MachineSpec, InitFunc, ToolAction, StateStore, Workspace, and CheckpointPolicy."
       - R4.2: AgentName, AgentVersion, and ProviderName supply agent identity for OTel GenAI semantic conventions.
       - R4.3: Declarative initialization SHALL accept either MachineFile for path-based loading or MachineSpec for an already-loaded machine, using MachineSpec without rereading MachineFile when both are provided.
+      - R4.4: StateStore, Workspace, and CheckpointPolicy are optional rollback foundations; nil values SHALL preserve current loop behavior and perform no persistence or workspace checkpointing.
 
   R5:
     title: Loop function
@@ -69,6 +70,14 @@ requirements:
     items:
       - R6.1: ValidateBuilders(names ...string) returns a ValidateParams hook that checks all named builders exist in the registry.
 
+  R7:
+    title: Rollback foundation interfaces
+    items:
+      - R7.1: StateStore SHALL persist JSON blobs for agent and command/domain state via Save, Load, List, and Delete.
+      - R7.2: Workspace SHALL track external filesystem/environment state via Checkpoint, Restore, and CurrentRef.
+      - R7.3: CheckpointPolicy SHALL decide whether a checkpoint should be considered for a CheckpointEvent.
+      - R7.4: Checkpoint SHALL capture agent state, optional domain state, optional workspace ref, and optional history digest as independent layers.
+
 non_goals:
   - Domain-specific budget dimensions (those use the BudgetExceeded hook).
   - Parallel command execution.
@@ -89,8 +98,8 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
 
   - id: AC4
-    criterion: LoopParams bundles all inputs for Loop including AgentName, AgentVersion, and ProviderName for GenAI semconv, and supports path-based or preloaded declarative machine initialization.
-    traces: [R4.1, R4.2, R4.3]
+    criterion: LoopParams bundles all inputs for Loop including AgentName, AgentVersion, and ProviderName for GenAI semconv, supports path-based or preloaded declarative machine initialization, and carries optional rollback interfaces without changing nil behavior.
+    traces: [R4.1, R4.2, R4.3, R4.4]
 
   - id: AC5
     criterion: Loop drives state machine from InitialState to terminal, checking budget and context, dispatching commands, accumulating cost, recording events, and emitting OTel spans.
@@ -100,9 +109,13 @@ acceptance_criteria:
     criterion: ValidateBuilders returns a ValidateParams hook checking named builders.
     traces: [R6.1]
 
+  - id: AC7
+    criterion: Rollback foundation interfaces compile and model agent state, command/domain state, and external workspace state as independent layers.
+    traces: [R7.1, R7.2, R7.3, R7.4]
+
 depends_on:
   - srd_id: srd001-core-types
-    symbols_used: [State, Signal, Command, Result, Cost, Seed, BudgetExhausted]
+    symbols_used: [State, Signal, Command, Result, Cost, Seed, BudgetExhausted, StateStore, Workspace, CheckpointPolicy, Checkpoint]
   - srd_id: srd002-state-machine
     symbols_used: [TransitionTable, StateMachine, TerminalFunc, NewStateMachine]
   - srd_id: srd003-command-dispatch

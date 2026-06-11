@@ -138,6 +138,22 @@ func TestLoop_RunsToCompletion(t *testing.T) {
 	require.Equal(t, 2, rr.Iterations)
 }
 
+func TestLoop_NilRollbackParamsPreserveBehavior(t *testing.T) {
+	t.Parallel()
+	tr := &loopRecorder{}
+	params := simpleLoopParams(tr)
+	params.StateStore = nil
+	params.Workspace = nil
+	params.CheckpointPolicy = nil
+
+	rr, err := Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, StatusSucceeded, rr.Status)
+	require.Equal(t, State("Finished"), rr.FinalState)
+	require.Equal(t, 2, rr.Iterations)
+	require.Len(t, rr.Events, 2)
+}
+
 func TestLoop_BudgetExhausted(t *testing.T) {
 	t.Parallel()
 	tr := &loopRecorder{}

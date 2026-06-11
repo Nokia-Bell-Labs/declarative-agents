@@ -11,6 +11,7 @@ problem: |
 goals:
   - G1: Domain-agnostic types for commands, results, signals, and costs.
   - G2: Interfaces for command construction (Builder) and lookup (CommandResolver).
+  - G3: Foundation interfaces for rollback state storage, workspace refs, and checkpoint metadata.
 
 requirements:
   R1:
@@ -61,6 +62,14 @@ requirements:
       - R6.2: "SpanOverride has two methods: SpanName() string and SpanCreationAttrs() []attribute.KeyValue."
       - R6.3: Without SpanOverride, Dispatch defaults to GenAI semconv execute_tool naming.
 
+  R8:
+    title: Rollback foundation types
+    items:
+      - R8.1: StateStore persists JSON blobs for agent and command/domain state with Save, Load, List, and Delete.
+      - R8.2: Workspace tracks external environment state with Checkpoint, Restore, and CurrentRef.
+      - R8.3: CheckpointPolicy decides whether to checkpoint a CheckpointEvent.
+      - R8.4: Checkpoint captures AgentSnapshot, optional domain JSON, optional WorkspaceRef, and optional HistoryDigest entries.
+
 non_goals:
   - Domain-specific state or signal constants.
   - Command implementations (those live in domain agents).
@@ -94,3 +103,7 @@ acceptance_criteria:
   - id: AC6
     criterion: SpanOverride interface has SpanName() and SpanCreationAttrs() for customizing Dispatch span naming.
     traces: [R6.1, R6.2, R6.3]
+
+  - id: AC8
+    criterion: Rollback foundation interfaces and checkpoint structs model agent state, command/domain state, and external workspace state separately.
+    traces: [R8.1, R8.2, R8.3, R8.4]

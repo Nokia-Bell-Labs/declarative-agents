@@ -163,6 +163,18 @@ type LoopParams struct {
 	// ToolAction is the ActionFunc for "$tool" transitions (dynamic
 	// dispatch). Required when the machine uses "$tool" actions.
 	ToolAction ActionFunc
+
+	// StateStore enables agent and command/domain state persistence. When nil,
+	// no state is persisted and loop behavior is unchanged.
+	StateStore StateStore
+
+	// Workspace enables environment/filesystem checkpointing. When nil, the loop
+	// and commands do not track workspace refs.
+	Workspace Workspace
+
+	// CheckpointPolicy controls when checkpoints are considered. When nil, no
+	// automatic checkpoint decisions are made.
+	CheckpointPolicy CheckpointPolicy
 }
 
 // Loop executes the generic agentic loop. It drives the state machine
