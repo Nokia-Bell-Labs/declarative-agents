@@ -18,6 +18,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -37,21 +39,24 @@ import (
 )
 
 var (
-	flagMachine          string
-	flagTools            string
-	flagToolDeclarations []string
-	flagOTelLog          string
-	flagOTelParent       string
-	flagDirectory        string
-	flagProfilesDir      string
-	flagVerboseTrace     bool
-	flagModel            string
-	flagOllamaURL        string
-	flagInput            string
-	flagOutput           string
-	flagStateStoreDir    string
-	flagResumeCheckpoint string
-	flagResumeSignal     string
+	flagMachine             string
+	flagTools               string
+	flagToolDeclarations    []string
+	flagOTelLog             string
+	flagOTelParent          string
+	flagDirectory           string
+	flagProfilesDir         string
+	flagVerboseTrace        bool
+	flagModel               string
+	flagOllamaURL           string
+	flagInput               string
+	flagOutput              string
+	flagStateStoreDir       string
+	flagResumeCheckpoint    string
+	flagResumeSignal        string
+	flagHistoryCheckpoint   string
+	flagRollbackCheckpoint  string
+	flagRollbackToIteration int
 )
 
 func main() {
@@ -71,8 +76,33 @@ by which --machine and --tools files you pass.`,
 	RunE:         run,
 }
 
+var historyCmd = &cobra.Command{
+	Use:   "history",
+	Short: "Show checkpoint history",
+	Long: `Show a checkpoint history digest.
+
+Examples:
+  agent history --state-store-dir .agent-state --checkpoint latest
+  agent history --state-store-dir .agent-state --checkpoint suspend-1-123`,
+	RunE: runHistory,
+}
+
+var rollbackCmd = &cobra.Command{
+	Use:   "rollback",
+	Short: "Roll back a checkpoint to a target iteration",
+	Long: `Roll back a persisted checkpoint to a target iteration.
+
+The command rewrites checkpoint state to the target history position and
+restores the target workspace ref when one is present. A workspace restore
+requires --directory so the workspace can be verified as a managed git root.
+
+Examples:
+  agent rollback --state-store-dir .agent-state --checkpoint latest --to-iteration 2 --directory "$PWD"`,
+	RunE: runRollback,
+}
+
 func init() {
-	f := rootCmd.Flags()
+	f := rootCmd.PersistentFlags()
 	f.StringVar(&flagMachine, "machine", "", "path to state machine YAML (required)")
 	f.StringVar(&flagTools, "tools", "", "path to tool selection YAML (required)")
 	f.StringArrayVar(&flagToolDeclarations, "tools-declaration", nil, "path to tool declaration YAML (repeatable)")
@@ -89,7 +119,223 @@ func init() {
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
 	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
 
+	historyCmd.Flags().StringVar(&flagHistoryCheckpoint, "checkpoint", "latest", "checkpoint ID or latest")
+	rollbackCmd.Flags().StringVar(&flagRollbackCheckpoint, "checkpoint", "latest", "checkpoint ID or latest")
+	rollbackCmd.Flags().IntVar(&flagRollbackToIteration, "to-iteration", -1, "target iteration to roll back to")
+	rootCmd.AddCommand(historyCmd, rollbackCmd)
+
 	rootCmd.Version = "v0.0.0-dev"
+}
+
+func runHistory(cmd *cobra.Command, args []string) error {
+	store, err := lifecycleStore()
+	if err != nil {
+		return err
+	}
+	checkpointID, err := resolveCheckpointID(cmd.Context(), store, flagHistoryCheckpoint)
+	if err != nil {
+		return err
+	}
+	cp, err := core.LoadCheckpoint(cmd.Context(), store, checkpointID)
+	if err != nil {
+		return err
+	}
+	fmt.Fprint(cmd.OutOrStdout(), formatCheckpointHistory(cp))
+	return nil
+}
+
+func runRollback(cmd *cobra.Command, args []string) error {
+	if flagRollbackToIteration < 0 {
+		return fmt.Errorf("--to-iteration is required and must be >= 0")
+	}
+	store, err := lifecycleStore()
+	if err != nil {
+		return err
+	}
+	checkpointID, err := resolveCheckpointID(cmd.Context(), store, flagRollbackCheckpoint)
+	if err != nil {
+		return err
+	}
+	cp, err := core.LoadCheckpoint(cmd.Context(), store, checkpointID)
+	if err != nil {
+		return err
+	}
+	rolledBack, targetRef, err := rollbackCheckpointToIteration(cp, flagRollbackToIteration)
+	if err != nil {
+		return err
+	}
+	if targetRef != "" {
+		if flagDirectory == "" {
+			return fmt.Errorf("rollback target has workspace ref %q; --directory is required for managed workspace restore", targetRef)
+		}
+		ws, err := core.NewGitWorkspace(flagDirectory)
+		if err != nil {
+			return fmt.Errorf("rollback workspace %q: %w", flagDirectory, err)
+		}
+		if err := ws.Restore(cmd.Context(), targetRef); err != nil {
+			return fmt.Errorf("rollback restore workspace to %s: %w", targetRef, err)
+		}
+	}
+	key := "checkpoint/" + rolledBack.ID
+	data, err := json.Marshal(rolledBack)
+	if err != nil {
+		return fmt.Errorf("rollback checkpoint marshal: %w", err)
+	}
+	if err := store.Save(cmd.Context(), key, data); err != nil {
+		return fmt.Errorf("rollback checkpoint save %s: %w", key, err)
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "rolled back checkpoint %s to iteration %d\n", cp.ID, flagRollbackToIteration)
+	fmt.Fprintf(cmd.OutOrStdout(), "new checkpoint: %s\n", rolledBack.ID)
+	if targetRef != "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "workspace ref: %s\n", targetRef)
+	}
+	return nil
+}
+
+func lifecycleStore() (core.StateStore, error) {
+	if flagStateStoreDir == "" {
+		return nil, fmt.Errorf("--state-store-dir is required")
+	}
+	return core.NewFileStore(flagStateStoreDir), nil
+}
+
+func resolveCheckpointID(ctx context.Context, store core.StateStore, requested string) (string, error) {
+	if requested != "" && requested != "latest" {
+		return requested, nil
+	}
+	keys, err := store.List(ctx, "checkpoint/")
+	if err != nil {
+		return "", fmt.Errorf("list checkpoints: %w", err)
+	}
+	if len(keys) == 0 {
+		return "", fmt.Errorf("no checkpoints found")
+	}
+	sort.Strings(keys)
+	var latest core.Checkpoint
+	var latestID string
+	for _, key := range keys {
+		id := strings.TrimPrefix(key, "checkpoint/")
+		cp, err := core.LoadCheckpoint(ctx, store, id)
+		if err != nil {
+			continue
+		}
+		if latestID == "" || cp.Timestamp.After(latest.Timestamp) || (cp.Timestamp.Equal(latest.Timestamp) && id > latestID) {
+			latest = cp
+			latestID = id
+		}
+	}
+	if latestID == "" {
+		return "", fmt.Errorf("no readable checkpoints found")
+	}
+	return latestID, nil
+}
+
+func formatCheckpointHistory(cp core.Checkpoint) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "checkpoint: %s\n", cp.ID)
+	fmt.Fprintf(&b, "iteration: %d\n", cp.Iteration)
+	fmt.Fprintf(&b, "state: %s\n", cp.AgentState.State)
+	if cp.WorkspaceRef != "" {
+		fmt.Fprintf(&b, "workspace_ref: %s\n", cp.WorkspaceRef)
+	}
+	if len(cp.History) == 0 {
+		b.WriteString("history: <empty>\n")
+		return b.String()
+	}
+	b.WriteString("history:\n")
+	for _, entry := range cp.History {
+		fmt.Fprintf(&b, "  %d  %s  %s -> %s  signal=%s", entry.Iteration, entry.CommandName, entry.FromState, entry.ToState, entry.Signal)
+		if entry.WorkspaceRef != "" {
+			fmt.Fprintf(&b, "  workspace=%s", entry.WorkspaceRef)
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+func rollbackCheckpointToIteration(cp core.Checkpoint, target int) (core.Checkpoint, string, error) {
+	if target < 0 {
+		return core.Checkpoint{}, "", fmt.Errorf("target iteration must be >= 0, got %d", target)
+	}
+	rollbackResult, err := core.RollbackTo(core.RollbackOptions{
+		History:         checkpointHistoryWithNoopCommands(cp.History),
+		TargetIteration: target,
+	})
+	if err != nil {
+		return core.Checkpoint{}, "", err
+	}
+
+	out := cp
+	out.ID = fmt.Sprintf("rollback-%s-to-%d-%d", cp.ID, target, time.Now().UTC().UnixNano())
+	out.Timestamp = time.Now().UTC()
+	out.Iteration = target
+	out.AgentState.Iteration = target
+	targetState := rollbackResult.State
+	targetRef := rollbackResult.WorkspaceRef
+	switch {
+	case target == 0:
+		out.History = nil
+	case target == cp.AgentState.Iteration && len(cp.History) == 0:
+		targetState = cp.AgentState.State
+		targetRef = cp.WorkspaceRef
+	default:
+		found := false
+		history := make([]core.HistoryDigest, 0, len(cp.History))
+		for _, entry := range cp.History {
+			if entry.Iteration <= target {
+				history = append(history, entry)
+			}
+			if entry.Iteration == target {
+				found = true
+			}
+		}
+		if !found {
+			return core.Checkpoint{}, "", fmt.Errorf("target iteration %d not found in checkpoint %s", target, cp.ID)
+		}
+		out.History = history
+	}
+	if targetState == "" {
+		targetState = cp.AgentState.State
+	}
+	out.AgentState.State = targetState
+	out.AgentState.Signal = core.Approved
+	out.WorkspaceRef = targetRef
+	return out, targetRef, nil
+}
+
+func checkpointHistoryWithNoopCommands(digest []core.HistoryDigest) core.History {
+	if len(digest) == 0 {
+		return nil
+	}
+	history := make(core.History, 0, len(digest))
+	for _, entry := range digest {
+		history = append(history, core.HistoryEntry{
+			Iteration:    entry.Iteration,
+			CommandName:  entry.CommandName,
+			Command:      persistedHistoryCommand{name: entry.CommandName},
+			FromState:    entry.FromState,
+			ToState:      entry.ToState,
+			Result:       core.ResultDigest{Signal: entry.Signal},
+			WorkspaceRef: entry.WorkspaceRef,
+		})
+	}
+	return history
+}
+
+type persistedHistoryCommand struct {
+	name string
+}
+
+func (p persistedHistoryCommand) Name() string {
+	return p.name
+}
+
+func (p persistedHistoryCommand) Execute() core.Result {
+	return core.Result{Signal: core.ToolDone, CommandName: p.name}
+}
+
+func (p persistedHistoryCommand) Undo() core.Result {
+	return core.NoopUndo(p.name)
 }
 
 // agentState holds the shared state needed by builtin tool factories.
