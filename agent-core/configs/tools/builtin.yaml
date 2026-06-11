@@ -124,7 +124,7 @@ tools:
     init: validate
     visibility: internal
     emits: [ValidationPassed, ValidationFailed, CommandError]
-    description: "Run build, vet, lint, and test to validate generated code."
+    description: "Run a configured validation tool sequence and emit aggregate validation status."
 
   - name: nudge_reread
     type: builtin

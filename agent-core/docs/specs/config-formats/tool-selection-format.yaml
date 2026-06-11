@@ -49,13 +49,14 @@ cli_mapping:
 
 selection_files:
   - file: configs/generator/tools.yaml
-    tool_count: 16
+    tool_count: 15
     description: |
       Selects file operations (read, write, edit, find, list_files),
-      build tools (build, vet, lint, test), and internal pipeline
-      tools for the LLM-driven coding loop (invoke_llm,
-      parse_response, report_parse_error, reset_history, validate,
-      nudge_reread, done).
+      build/test tools (build, vet, lint, test), and internal pipeline
+      tools for the LLM-driven coding loop (invoke_llm, parse_response,
+      report_parse_error, reset_history, nudge_reread, done). Final
+      validation order is declared directly in machine.yaml as
+      build → lint → test.
 
   - file: configs/evaluator/tools.yaml
     tool_count: 9
@@ -65,15 +66,12 @@ selection_files:
       dump_config, run_agent, check_results, collect_metrics).
 
   - file: configs/planner/tools.yaml
-    tool_count: 22
+    tool_count: 12
     description: |
       Selects planning tools (extract_task, extract_all,
       assemble_prompt, parse_plan, create_issue, execute_task,
       check_result), LLM tools (invoke_llm, reset_history),
-      build/test tools (build, vet, lint, test), git tools
-      (stage_all, workspace_status, commit, rev_parse, diff_stat,
-      log_oneline), and issue tools (issue_create, issue_close,
-      issue_list).
+      and direct build/test transition tools (build, vet, test).
 
   - file: configs/validate/tools.yaml
     tool_count: 3

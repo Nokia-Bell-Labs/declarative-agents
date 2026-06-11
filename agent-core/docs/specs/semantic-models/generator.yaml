@@ -29,8 +29,14 @@ states:
       If parsing fails, the error is reported back to the LLM.
   - name: ValidatingBuild
     meaning: |
-      The agent has declared the task complete (done tool). Build,
-      lint, and test validation is running to confirm correctness.
+      The agent has declared the task complete (done tool). The build
+      validation command is running.
+  - name: ValidatingLint
+    meaning: |
+      Build passed. The lint validation command is running.
+  - name: ValidatingTest
+    meaning: |
+      Lint passed. The test validation command is running.
   - name: Succeeded
     meaning: Terminal. Validation passed — the task is complete.
   - name: Failed
@@ -53,10 +59,6 @@ signals:
     trigger: The LLM response could not be parsed as a valid tool call.
   - name: TaskCompleted
     trigger: The LLM called the done tool, declaring the task finished.
-  - name: ValidationPassed
-    trigger: Build, lint, and test all passed.
-  - name: ValidationFailed
-    trigger: Validation (build/lint/test) failed.
   - name: CommandError
     trigger: Infrastructure-level error (not a tool failure).
   - name: BudgetExhausted
@@ -73,15 +75,18 @@ lifecycle: |
   6. Composing → Composing (ToolFailed): invoke_llm sends failure to LLM
   7. Parsing → Composing (ParseFailed): report_parse_error to LLM
   8. Parsing → ValidatingBuild (TaskCompleted): parse_response recognized
-     the done tool — validate runs build, vet, lint, test
-  9. ValidatingBuild → Succeeded (ValidationPassed)
-  10. ValidatingBuild → Failed (ValidationFailed)
-  11. Composing → BudgetExceeded (BudgetExhausted)
+     the done tool — machine-declared validation starts with build
+  9. ValidatingBuild → ValidatingLint (ToolDone): lint runs after build
+  10. ValidatingLint → ValidatingTest (ToolDone): test runs after lint
+  11. ValidatingTest → Succeeded (ToolDone)
+  12. Any validation ToolFailed → Failed
+  13. Composing → BudgetExceeded (BudgetExhausted)
 
   The agent loops between Composing and Parsing, making tool calls
   (read, write, edit, find, list_files, build, test, lint) until
-  the LLM calls done. After done, validation determines success.
-  CommandError in Composing, Parsing, or ValidatingBuild transitions to Failed.
+  the LLM calls done. After done, machine-declared validation determines
+  success. CommandError in Composing, Parsing, or any validation state
+  transitions to Failed.
 
 pipeline_diagram: |
   ```mermaid
@@ -95,8 +100,12 @@ pipeline_diagram: |
     C -->|ParseFailed| F[Report Error]
     F --> B
     C -->|TaskCompleted| G[ValidatingBuild]
-    G -->|Passed| H[Succeeded]
-    G -->|Failed| I[Failed]
+    G -->|ToolDone| K[ValidatingLint]
+    K -->|ToolDone| L[ValidatingTest]
+    L -->|ToolDone| H[Succeeded]
+    G -->|ToolFailed| I[Failed]
+    K -->|ToolFailed| I
+    L -->|ToolFailed| I
     B -->|BudgetExhausted| J[BudgetExceeded]
   ```
 
@@ -110,7 +119,6 @@ tools_required:
     - parse_response
     - report_parse_error
     - reset_history
-    - validate
     - nudge_reread
     - done
     - read, write, edit, find, list_files

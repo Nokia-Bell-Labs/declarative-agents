@@ -22,15 +22,16 @@ tools:
   - report_parse_error   # action: ParseFailed→Composing
   - reset_history        # action: (available for budget recovery)
 
-  # Validation — direct transition action
-  - validate             # action: invokes build, lint, test internally
+  # Edit follow-up — direct transition action
   - nudge_reread         # action: after edits
 
   # Completion — emits TaskCompleted via parse_response
   - done
 
-  # Build/test — indirect via validate, also $tool-reachable
+  # Validation sequence — direct transition actions after TaskCompleted
   - build
+  # Vet remains $tool-reachable for the LLM, but is not part of the
+  # machine-declared final validation sequence.
   - vet
   - lint
   - test

@@ -14,6 +14,8 @@ states:
   - Composing
   - Parsing
   - ValidatingBuild
+  - ValidatingLint
+  - ValidatingTest
   - Succeeded
   - Failed
   - BudgetExceeded
@@ -31,8 +33,6 @@ signals:
   - ParseFailed
   - TaskCompleted
   - CommandError
-  - ValidationPassed
-  - ValidationFailed
   - BudgetExhausted
   - EditDone
 
@@ -55,11 +55,11 @@ transitions:
     next: Composing
     action: $tool
 
-  # Parse produced TaskCompleted (done tool): run validation
+  # Parse produced TaskCompleted (done tool): run declared validation sequence
   - state: Parsing
     signal: TaskCompleted
     next: ValidatingBuild
-    action: validate
+    action: build
 
   # Parse failed (malformed JSON): report error back to LLM
   - state: Parsing
@@ -85,14 +85,31 @@ transitions:
     next: Composing
     action: invoke_llm
 
-  # Validation passed: success
+  # Validation sequence: build -> lint -> test
   - state: ValidatingBuild
-    signal: ValidationPassed
+    signal: ToolDone
+    next: ValidatingLint
+    action: lint
+
+  - state: ValidatingBuild
+    signal: ToolFailed
+    next: Failed
+
+  - state: ValidatingLint
+    signal: ToolDone
+    next: ValidatingTest
+    action: test
+
+  - state: ValidatingLint
+    signal: ToolFailed
+    next: Failed
+
+  - state: ValidatingTest
+    signal: ToolDone
     next: Succeeded
 
-  # Validation failed: terminate with failure
-  - state: ValidatingBuild
-    signal: ValidationFailed
+  - state: ValidatingTest
+    signal: ToolFailed
     next: Failed
 
   # Error handling: infrastructure failures terminate the run
@@ -105,6 +122,14 @@ transitions:
     next: Failed
 
   - state: ValidatingBuild
+    signal: CommandError
+    next: Failed
+
+  - state: ValidatingLint
+    signal: CommandError
+    next: Failed
+
+  - state: ValidatingTest
     signal: CommandError
     next: Failed
 

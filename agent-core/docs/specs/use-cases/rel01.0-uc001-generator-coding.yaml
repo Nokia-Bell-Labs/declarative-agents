@@ -25,17 +25,17 @@ flow:
   - F2: Tool selection filters the declarations to the subset listed in configs/generator/tools.yaml (cfg-tool-selection-format).
   - F3: The invoke_llm tool definition provides model, provider URL, and system prompt. cmd/agent extracts this to configure the Ollama adapter (srd009, srd017).
   - F4: LLM response profiles are loaded from embedded defaults (or --profiles-dir override) to configure per-model parsing pipelines (srd017).
-  - F5: Builtin tool factories are registered (file tools, LLM tools, validate, done, etc.) and matched to their YAML declarations (srd013).
+  - F5: Builtin and exec tool factories are registered (file tools, LLM tools, build/lint/test, done, etc.) and matched to their YAML declarations (srd013).
   - F6: The state machine is loaded from configs/generator/machine.yaml and validated against the registered tools (srd006).
   - F7: core.Loop drives the state machine. Idle → Composing via invoke_llm sends the task prompt to the LLM (srd005, srd009).
   - F8: LLM response is parsed by parse_response. The $tool sentinel dispatches the extracted tool call (srd006, srd013).
   - F9: Tool results feed back to the LLM. The Composing ↔ Parsing cycle repeats until the LLM calls done (sm-generator).
-  - F10: After done, the validate tool runs build/vet/lint/test. ValidationPassed → Succeeded, ValidationFailed → Failed (srd013).
+  - F10: After done, machine-declared validation runs build → lint → test. ToolDone after the final test transitions to Succeeded; ToolFailed in any validation state transitions to Failed (srd006, srd013).
 
 touchpoints:
   - T1: "srd006-yaml-machine-config -- MachineSpec loading, $tool dispatch, transition validation"
   - T2: "srd009-ollama-adapter -- Chat API invocation, model validation, tracing"
-  - T3: "srd013-standard-tool-library -- file tools, build tools, LLM commands, validate, done"
+  - T3: "srd013-standard-tool-library -- file tools, build tools, LLM commands, done"
   - T4: "srd017-llm-extensions -- model profiles, response parsing pipelines"
   - T5: "srd018-cli-flag-contract -- flag constants, tools-declaration, machine flag"
   - T6: "cfg-tool-declaration-format -- builtin.yaml, exec.yaml, llm/*.yaml declarations"

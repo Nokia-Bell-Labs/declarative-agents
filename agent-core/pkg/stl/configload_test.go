@@ -103,6 +103,18 @@ func assertToolEmits(t *testing.T, spec core.MachineSpec, defs []stl.ToolDef) {
 	require.NoError(t, stl.ValidateToolEmits(spec, defs))
 }
 
+func assertTransition(t *testing.T, spec core.MachineSpec, state, signal, next, action string) {
+	t.Helper()
+	for _, tr := range spec.Transitions {
+		if tr.State == state && tr.Signal == signal {
+			require.Equal(t, next, tr.Next, "transition %s/%s next", state, signal)
+			require.Equal(t, action, tr.Action, "transition %s/%s action", state, signal)
+			return
+		}
+	}
+	require.Failf(t, "missing transition", "%s/%s", state, signal)
+}
+
 func TestLLMConfigsDeclareManifestState(t *testing.T) {
 	cd := configDir(t)
 	matches, err := filepath.Glob(filepath.Join(cd, "*", "llm", "*.yaml"))
@@ -142,6 +154,18 @@ func TestGeneratorConfig_MachineLoads(t *testing.T) {
 	require.Contains(t, spec.TerminalStates, "BudgetExceeded")
 	require.NotEmpty(t, spec.States)
 	require.NotEmpty(t, spec.Transitions)
+	assertGeneratorValidationSequence(t, spec)
+}
+
+func assertGeneratorValidationSequence(t *testing.T, spec core.MachineSpec) {
+	t.Helper()
+	assertTransition(t, spec, "Parsing", "TaskCompleted", "ValidatingBuild", "build")
+	assertTransition(t, spec, "ValidatingBuild", "ToolDone", "ValidatingLint", "lint")
+	assertTransition(t, spec, "ValidatingLint", "ToolDone", "ValidatingTest", "test")
+	assertTransition(t, spec, "ValidatingTest", "ToolDone", "Succeeded", "")
+	assertTransition(t, spec, "ValidatingBuild", "ToolFailed", "Failed", "")
+	assertTransition(t, spec, "ValidatingLint", "ToolFailed", "Failed", "")
+	assertTransition(t, spec, "ValidatingTest", "ToolFailed", "Failed", "")
 }
 
 func TestGeneratorConfig_ToolsLoad(t *testing.T) {
@@ -152,7 +176,7 @@ func TestGeneratorConfig_ToolsLoad(t *testing.T) {
 	assertToolNames(t, defs, []string{
 		"read", "write", "edit", "find", "list_files",
 		"build", "vet", "lint", "test",
-		"invoke_llm", "parse_response", "validate", "done",
+		"invoke_llm", "parse_response", "done",
 	})
 }
 
@@ -183,6 +207,7 @@ func TestGeneratorConfig_DeepseekMachineLoads(t *testing.T) {
 	require.Contains(t, spec.TerminalStates, "Succeeded")
 	require.Contains(t, spec.TerminalStates, "Failed")
 	require.Contains(t, spec.TerminalStates, "BudgetExceeded")
+	assertGeneratorValidationSequence(t, spec)
 }
 
 func TestGeneratorConfig_DeepseekTransitionTable(t *testing.T) {
@@ -607,15 +632,6 @@ func buildE2EParams(t *testing.T, workspace string, llmResponses []string) core.
 			}
 		}
 	}
-
-	// Override validate to use real ValidateBuilder with stubbed tools
-	builtins.Override("validate", func(_ stl.ToolDef, _ map[string]string) (core.Builder, error) {
-		return &stl.ValidateBuilder{
-			Tracker:  tracker,
-			Registry: reg,
-			Tracer:   tr,
-		}, nil
-	})
 
 	vars := map[string]string{"directory": workspace, "model": "test", "ollama_url": "http://localhost:11434"}
 	require.NoError(t, stl.RegisterUnifiedTools(reg, builtins, workspace, defs, vars))

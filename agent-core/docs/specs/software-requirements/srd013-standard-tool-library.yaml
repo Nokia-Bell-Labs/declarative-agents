@@ -88,8 +88,8 @@ requirements:
   R8:
     title: Validation tool
     items:
-      - R8.1: validate runs build, vet, lint, and test as a composite validation pipeline.
-      - R8.2: validate emits ValidationPassed or ValidationFailed signal based on combined results.
+      - R8.1: Final generator validation SHOULD be declared in machine.yaml as explicit tool transitions (for example build → lint → test), not hidden inside a composite Go tool.
+      - R8.2: validate MAY run an explicitly supplied validation tool sequence and emit ValidationPassed or ValidationFailed for machines that still use aggregate validation.
 
   R9:
     title: Nudge and done tools
@@ -141,7 +141,7 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
 
   - id: AC8
-    criterion: validate runs build/vet/lint/test and emits ValidationPassed or ValidationFailed. nudge_reread appends re-read instructions. done signals TaskCompleted.
+    criterion: Generator validation order is visible in machine.yaml; validate only runs an explicitly supplied sequence when selected. nudge_reread appends re-read instructions. done signals TaskCompleted.
     traces: [R8.1, R8.2, R9.1, R9.2]
 
   - id: AC9

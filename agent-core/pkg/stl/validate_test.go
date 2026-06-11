@@ -14,26 +14,36 @@ import (
 func TestToolTracker_Record_And_Skipped(t *testing.T) {
 	t.Parallel()
 	tr := NewToolTracker()
-	require.Equal(t, []string{"build", "lint", "test"}, tr.Skipped())
+	order := []string{"build", "lint", "test"}
+	require.Equal(t, order, tr.Skipped(order))
 
 	tr.Record("build")
-	require.Equal(t, []string{"lint", "test"}, tr.Skipped())
+	require.Equal(t, []string{"lint", "test"}, tr.Skipped(order))
 
 	tr.Record("lint")
 	tr.Record("test")
-	require.Nil(t, tr.Skipped())
+	require.Nil(t, tr.Skipped(order))
+}
+
+func TestToolTracker_SkippedUsesCallerOrder(t *testing.T) {
+	t.Parallel()
+	tr := NewToolTracker()
+	tr.Record("lint")
+
+	require.Equal(t, []string{"test", "build"}, tr.Skipped([]string{"test", "lint", "build"}))
 }
 
 func TestToolTracker_Reset(t *testing.T) {
 	t.Parallel()
 	tr := NewToolTracker()
+	order := []string{"build", "lint", "test"}
 	tr.Record("build")
 	tr.Record("lint")
 	tr.Record("test")
-	require.Nil(t, tr.Skipped())
+	require.Nil(t, tr.Skipped(order))
 
 	tr.Reset()
-	require.Equal(t, []string{"build", "lint", "test"}, tr.Skipped())
+	require.Equal(t, order, tr.Skipped(order))
 }
 
 func TestValidateCmd_Name(t *testing.T) {
@@ -144,6 +154,7 @@ func TestValidateBuilder_Build(t *testing.T) {
 	b := &ValidateBuilder{
 		Tracker:  tracker,
 		Registry: reg,
+		Tools:    []string{"build", "lint", "test"},
 	}
 	cmd := b.Build(core.Result{})
 	require.Equal(t, "validate", cmd.Name())

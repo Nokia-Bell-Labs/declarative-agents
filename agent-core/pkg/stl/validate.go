@@ -34,13 +34,13 @@ func (t *ToolTracker) Record(name string) {
 	t.recorded[name] = true
 }
 
-// Skipped returns the validation tool names that were not dispatched,
-// in the fixed order: build, lint, test.
-func (t *ToolTracker) Skipped() []string {
+// Skipped returns the provided validation tool names that were not dispatched,
+// preserving the order from the caller's program specification.
+func (t *ToolTracker) Skipped(order []string) []string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	var skipped []string
-	for _, name := range []string{"build", "lint", "test"} {
+	for _, name := range order {
 		if !t.recorded[name] {
 			skipped = append(skipped, name)
 		}
@@ -155,18 +155,19 @@ func (v *validateCmd) Execute() core.Result {
 	}
 }
 
-// ValidateBuilder constructs validate commands. It resolves build, lint,
-// and test builders from the registry at Build time, so it works with
-// both YAML-defined exec tools and legacy Go tool wrappers.
+// ValidateBuilder constructs validate commands. The validation sequence is
+// supplied by the program specification; the builder resolves those named tools
+// from the registry at Build time.
 type ValidateBuilder struct {
 	Tracker  *ToolTracker
 	Registry *core.Registry
 	Tracer   tracing.Tracer
 	Verbose  bool
+	Tools    []string
 }
 
 func (b *ValidateBuilder) Build(_ core.Result) core.Command {
-	skipped := b.Tracker.Skipped()
+	skipped := b.Tracker.Skipped(b.Tools)
 	builders := make(map[string]core.Builder, len(skipped))
 	for _, name := range skipped {
 		if builder, ok := b.Registry.Resolve(name); ok {
