@@ -203,16 +203,18 @@ func TestBuiltinToolContractAuditClassifiesMigrationCoverage(t *testing.T) {
 	for _, entry := range audit {
 		statusCounts[entry.Status]++
 		byTool[entry.ToolName] = entry
+		require.NotContains(t, entry.MissingFields, "side_effects", "tool %s should declare side effects", entry.ToolName)
+		require.NotContains(t, entry.MissingFields, "reversibility.classification", "tool %s should declare reversibility", entry.ToolName)
+		require.NotContains(t, entry.MissingFields, "undo", "tool %s should declare undo", entry.ToolName)
 		if entry.Category == "boundary" || entry.Category == "stateful_internal" {
 			require.NotEmpty(t, entry.MigrationTarget, "stateful/boundary tool %s should name a migration target", entry.ToolName)
 		}
 	}
 	require.NotZero(t, statusCounts[stl.ContractAuditPartial], "audit should identify partial contracts")
-	require.NotZero(t, statusCounts[stl.ContractAuditMissing], "audit should identify missing contracts")
 	require.Equal(t, stl.ContractAuditPartial, byTool["validate"].Status)
 	require.Contains(t, byTool["validate"].MigrationTarget, "boundary side effects")
-	require.Equal(t, stl.ContractAuditMissing, byTool["parse_response"].Status)
-	require.Contains(t, byTool["parse_response"].MigrationTarget, "classify as word")
+	require.Equal(t, stl.ContractAuditPartial, byTool["parse_response"].Status)
+	require.Contains(t, byTool["parse_response"].MissingFields, "output.schema")
 	t.Logf("builtin tool contract audit status counts: %v", statusCounts)
 }
 
