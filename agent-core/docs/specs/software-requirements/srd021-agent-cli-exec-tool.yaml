@@ -18,6 +18,12 @@ goals:
   - G4: Provide the requirements basis for replacing bespoke launch_eval, execute_task, and self_invoke subprocess builders.
 
 requirements:
+  R0:
+    title: Tool authoring standard
+    items:
+      - R0.1: The agent CLI tool declaration SHOULD follow cfg-tool-authoring-standard, with category boundary when it launches a child program or nested machine.
+      - R0.2: Agent CLI invocations SHOULD declare child process side effects, workspace effects, telemetry artifacts, reversibility, undo or compensation, and relationship metadata.
+
   R1:
     title: Agent exec tool declaration
     items:
@@ -69,7 +75,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: An agent exec tool declaration can represent machine, tools, repeated tools-declaration, directory, input, output, model, ollama-url, and telemetry flags.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
+    traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
     criterion: Child program selection is driven by YAML configuration, allowing the child machine/tools/declarations to change without recompiling Go code.
@@ -96,3 +102,6 @@ depends_on:
     symbols_used: [FormatTraceparent, ParseTraceparent]
   - srd_id: srd018-cli-flag-contract
     symbols_used: [PropagateArgs]
+
+related_documents:
+  - cfg-tool-authoring-standard

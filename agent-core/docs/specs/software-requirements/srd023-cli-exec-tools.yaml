@@ -17,6 +17,12 @@ goals:
   - G5: Clarify how exec tools differ from builtin tools.
 
 requirements:
+  R0:
+    title: Tool authoring standard
+    items:
+      - R0.1: Exec tool declarations SHOULD follow cfg-tool-authoring-standard for vocabulary category, problem, goals, requirements, non-goals, output, side effects, reversibility, undo, errors, and relationships.
+      - R0.2: Exec tools SHOULD model one external CLI verb; multi-step workflows SHOULD be represented by machine.yaml transitions over multiple exec or builtin tools.
+
   R1:
     title: Exec declaration schema
     items:
@@ -74,7 +80,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: Exec declarations support name, type, binary, args, dir, precondition, output_cap, side_effects, visibility, description, parameters, and optional emits.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
+    traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
     criterion: Parameter mapping converts JSON tool parameters into argv using flag, positional, bool_flag, and default extensions while stripping those extensions from LLM-visible schema.
@@ -108,3 +114,6 @@ implementation:
   - configs/tools/exec.yaml
   - pkg/stl/exectool.go
   - pkg/stl/tool_emits.go
+
+related_documents:
+  - cfg-tool-authoring-standard

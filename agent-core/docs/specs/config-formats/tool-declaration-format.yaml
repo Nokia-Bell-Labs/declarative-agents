@@ -336,6 +336,7 @@ structured_output_strategy: |
   than redesigned.
 
 related_documents:
+  - cfg-tool-authoring-standard
   - srd013
   - srd021
   - srd022

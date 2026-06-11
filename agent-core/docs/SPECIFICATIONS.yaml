@@ -139,6 +139,16 @@ srd_index:
     summary: Requirements for tools like invoke_llm and serve_ui that intentionally block the loop while waiting for external model, human, or approval input.
     path: docs/specs/software-requirements/srd024-blocking-input-tools.yaml
 
+config_format_index:
+  - id: cfg-tool-authoring-standard
+    title: Tool Definition Authoring Standard
+    summary: Source-of-truth guidance for authoring tools as vocabulary words with typed contracts, declared side effects, reversibility, undo, errors, and machine-composed workflows.
+    path: docs/specs/config-formats/tool-authoring-standard.yaml
+  - id: cfg-tool-declaration-format
+    title: Tool Declaration Format
+    summary: YAML schema for builtin and exec tool declarations.
+    path: docs/specs/config-formats/tool-declaration-format.yaml
+
 use_case_index:
   - id: rel00.0-uc001-domain-agent-integration
     title: Domain agent imports agent-core and runs an agentic loop

@@ -18,6 +18,12 @@ goals:
   - G5: Distinguish reusable builtin declarations from mode-specific config overrides.
 
 requirements:
+  R0:
+    title: Tool authoring standard
+    items:
+      - R0.1: Builtin tool declarations SHOULD follow cfg-tool-authoring-standard for vocabulary category, problem, goals, requirements, non-goals, output, side effects, reversibility, undo, errors, and relationships.
+      - R0.2: Builtin tools SHOULD be single vocabulary words unless explicitly classified and documented as boundary or deprecated compatibility tools.
+
   R1:
     title: Builtin declaration schema
     items:
@@ -83,7 +89,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: Builtin YAML declarations provide name, type: builtin, init, optional visibility, optional parameters, optional config, and optional emits.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
+    traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
     criterion: BuiltinRegistry resolves init names to factories and registration fails for selected builtin tools without a factory.
@@ -123,3 +129,6 @@ implementation:
   - pkg/stl/selfinvoke.go
   - pkg/stl/tool_emits.go
   - pkg/stl/toolconfig.go
+
+related_documents:
+  - cfg-tool-authoring-standard

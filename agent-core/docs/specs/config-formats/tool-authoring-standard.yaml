@@ -1,0 +1,294 @@
+id: cfg-tool-authoring-standard
+title: Tool Definition Authoring Standard
+
+purpose: |
+  Defines how to author tools as vocabulary words in the agent language.
+  A program is a declarative state machine wired to tools. The machine
+  composes behavior; tools provide the smallest useful verbs with typed
+  input, typed output contracts, declared side effects, explicit failure
+  semantics, and a rollback story.
+
+principle: |
+  A tool is a word, not a sentence. "read_file", "run_oracle_check", and
+  "collect_trace_tokens" are words. "prepare a workspace, initialize git,
+  run tests, parse traces, and write metrics" is a sentence and belongs in
+  machine.yaml as a sequence of tool actions.
+
+tool_categories:
+  word:
+    meaning: |
+      A single deterministic verb. A word does one thing and can be composed
+      freely by a state machine or, when externally visible, by LLM $tool
+      dispatch.
+    examples:
+      - read
+      - write
+      - run_oracle_check
+      - collect_trace_tokens
+
+  stateful_internal:
+    meaning: |
+      A single internal verb that mutates agent or domain state instead of
+      filesystem state. It is hidden from the LLM and invoked by machine
+      transitions.
+    examples:
+      - parse_response
+      - next_point
+      - parse_suite_config
+
+  boundary:
+    meaning: |
+      A tool that intentionally crosses a program, process, model, human,
+      or nested-machine boundary. Boundary tools are allowed when the boundary
+      is the vocabulary word, but they require especially explicit contracts.
+    examples:
+      - invoke_llm
+      - run_point
+      - launch_eval
+      - serve_ui
+
+  sentence:
+    meaning: |
+      A workflow hidden behind one tool name. Sentence tools are migration
+      targets. New tools should not use this category except to mark legacy
+      compatibility behavior while it is being decomposed.
+    examples:
+      - deprecated compatibility aggregators
+
+good_tool_rules:
+  - id: GT1
+    rule: "A tool does one thing."
+    test: "If the description needs 'and' between observable behaviors, split it."
+  - id: GT2
+    rule: "A tool is deterministic at its boundary."
+    test: "The same input and external state produce the same declared result; no hidden LLM judgment lives inside ordinary words."
+  - id: GT3
+    rule: "A tool has clear structured input and output contracts."
+    test: "A machine or later tool can know what was produced without interpreting prose."
+  - id: GT4
+    rule: "A tool declares every side effect beyond its return value."
+    test: "Filesystem writes, state mutations, subprocesses, external APIs, stderr output, and human/model calls are listed."
+  - id: GT5
+    rule: "A tool states its rollback story."
+    test: "The declaration says whether effects are reversible, compensatable, irreversible, or no-op."
+  - id: GT6
+    rule: "A tool fails loudly and specifically."
+    test: "Failures use declared signals and explain the state left behind."
+  - id: GT7
+    rule: "A tool name describes the verb, not the implementation."
+    test: "Prefer parse_suite_config over run_yaml_loader; prefer collect_trace_tokens over scan_file."
+
+anti_patterns:
+  - id: AP1
+    name: workflow_tool
+    description: "A tool that performs a multi-step workflow that could be expressed as machine transitions."
+    fix: "Split the workflow into words and wire them in machine.yaml."
+  - id: AP2
+    name: flag_trenchcoat
+    description: "One tool whose flags choose unrelated behaviors."
+    fix: "Declare separate tools for each verb."
+  - id: AP3
+    name: hidden_judgment
+    description: "A tool whose output requires an LLM or human to decide if it succeeded."
+    fix: "Make the tool compute and emit the decision itself, or mark it as a boundary tool."
+  - id: AP4
+    name: undeclared_side_effect
+    description: "A tool writes files, mutates state, calls APIs, or emits warnings without declaring it."
+    fix: "Add structured side_effects entries and undo/reversibility metadata."
+  - id: AP5
+    name: implementation_name
+    description: "A tool named for how it is implemented rather than what it means."
+    fix: "Rename around the vocabulary verb."
+
+required_contract_sections:
+  problem: |
+    One paragraph explaining why the word exists and what vocabulary gap it
+    fills. If the gap cannot be stated clearly, do not add the tool.
+
+  goals: |
+    Numbered, measurable success statements. Goals describe what becomes
+    possible when the tool is correct.
+
+  requirements:
+    input: "What the tool accepts, including formats, defaults, and preconditions."
+    output: "What the tool produces, including schema, signals, and result fields."
+    side_effects: "What the tool changes in files, memory, APIs, subprocesses, stderr/stdout, or human/model state."
+    undo: "How effects are reversed or compensated, or why they are not."
+    errors: "How the tool fails, which signal it emits, and what state remains."
+
+  non_goals: |
+    Specific things the tool deliberately does not do. Non-goals prevent
+    one word from being misused as a hidden workflow.
+
+  output_schema: |
+    Use output.description and output.schema to describe the structured output
+    contract. During migration, core.Result.Output may still be a string, but
+    the schema is the target contract and should be precise.
+
+  side_effects: |
+    Use structured side_effects entries. Include kind, target, state, paths
+    when relevant, and a description. Use kind: none only when the tool truly
+    has no effects beyond output.
+
+  reversibility: |
+    classification is required for new tools: reversible, compensatable, or
+    irreversible. requires_confirmation should be true for irreversible tools
+    that affect external systems or user data.
+
+  undo: |
+    Name the concrete strategy. Common strategies are noop,
+    conversation_truncate, session_state_restore, point_context_restore,
+    workspace_restore, child_command_undo, or compensating_action.
+
+  errors: |
+    Each expected failure mode should list signal, condition, message_shape,
+    and state_after_failure.
+
+  relationships: |
+    Describe common neighbors. before lists likely preceding words, after lists
+    likely consumers, and overlaps explains similar tools and differences.
+
+machine_composition:
+  rule: |
+    machine.yaml owns sentences. If a behavior is a sequence, each step should
+    be a tool action with an emitted signal and transition. This makes the
+    program auditable, resumable, testable, and rollback-aware.
+
+  allowed_tool_composition: |
+    A tool may call helpers internally to implement one verb. It must not hide
+    program flow. A boundary tool may run a nested machine or child process only
+    when that boundary is the declared word, and the contract must state that
+    a nested program can mutate state or workspace.
+
+  examples:
+    good:
+      - sequence: "create_point_dir -> copy_sample_workspace -> init_workspace_repo -> commit_workspace_baseline"
+        reason: "Workspace preparation is visible in point.yaml as separate words."
+      - sequence: "run_oracle_check -> collect_trace_tokens -> check_agent_version -> summarize_point_results"
+        reason: "Correctness, metrics, version checks, and summary are distinct point words."
+    bad:
+      - tool: prepare_workspace
+        reason: "Creates directories, copies files, initializes git, stages, and commits in one command."
+      - tool: check_results
+        reason: "Runs oracle tests, parses trace tokens, checks version, and summarizes in one command."
+
+rollback_model:
+  state_layers:
+    agent_state:
+      description: "State machine position, iteration, budget, and run accumulator."
+      tracked_by: "core loop snapshots"
+    command_state:
+      description: "Conversation history, planner state, evaluator PointContext, session iterator, and other in-process domain state."
+      tracked_by: "Command.Undo and StateStore-backed JSON snapshots when needed"
+    environment_state:
+      description: "Workspace filesystem and other external environment state."
+      tracked_by: "Workspace, usually GitWorkspace, with checkpoint/restore refs"
+
+  authoring_rules:
+    - "State-only tools should declare state_mutation side effects and undo via state restore or no-op when read-only."
+    - "Filesystem-mutating tools should declare filesystem_write/delete side effects and undo via workspace_restore or compensating_action."
+    - "Boundary tools should declare which child command, nested machine, model, human, or API owns effects that cannot be reversed directly."
+    - "No-op undo is acceptable only for truly read-only/stateless words or temporary migration steps explicitly tracked in an audit."
+    - "Irreversible tools require requires_confirmation when they affect user data, external services, or shared infrastructure."
+
+authoring_workflow:
+  - step: 1
+    name: choose_category
+    instruction: "Classify the tool as word, stateful_internal, boundary, or legacy sentence."
+  - step: 2
+    name: write_problem_and_non_goals
+    instruction: "Explain why the word exists and what it intentionally does not do."
+  - step: 3
+    name: define_io
+    instruction: "Declare parameters and output.schema before implementation."
+  - step: 4
+    name: declare_signals
+    instruction: "List emits and make sure named machine actions have transitions for those signals."
+  - step: 5
+    name: declare_effects_and_undo
+    instruction: "List side effects, reversibility, and undo strategy using the three-layer rollback model."
+  - step: 6
+    name: document_relationships
+    instruction: "List before/after neighbors and overlapping tools."
+  - step: 7
+    name: add_tests
+    instruction: "Test success, domain failure, command error, side effects, and important undo/reversibility behavior."
+
+acceptance_tests_for_authors:
+  - "Could a developer implement the tool without asking what it should do?"
+  - "Could the agent decide when not to use this tool from problem, goals, and non_goals?"
+  - "Can another tool or machine transition consume the output without prose interpretation?"
+  - "If the tool fails mid-execution, does the contract say what state remains?"
+  - "Can rollback machinery find all state layers the tool changed?"
+  - "Can similar tools be distinguished from the relationships.overlaps entries?"
+
+examples:
+  good_word:
+    name: collect_trace_tokens
+    category: word
+    problem: "The point machine needs a word that extracts token counts from trace.ndjson without also judging correctness or writing metadata."
+    emits: [TraceTokensCollected, CommandError]
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: trace_tokens_recorded
+        description: "Sets PointContext.Tokens."
+    non_goals:
+      - "Does not run oracle tests."
+      - "Does not write meta.json."
+      - "Does not classify convergence."
+
+  good_boundary:
+    name: run_point
+    category: boundary
+    problem: "The evaluator session machine needs a word that enters the point machine for one PointContext."
+    emits: [PointDone, CommandError]
+    side_effects:
+      - kind: nested_machine_execution
+        target: evaluator_point_machine
+        description: "Runs configs/evaluator/point.yaml with point tools."
+      - kind: state_mutation
+        target: eval_session_state
+        description: "Records the completed point result."
+    non_goals:
+      - "Does not choose the point sequence; point.yaml does."
+
+  bad_sentence:
+    name: prepare_workspace
+    category: sentence
+    problem: "Creates a point directory, copies workspace and docs, initializes git, stages files, and commits."
+    why_bad:
+      - "The description contains several verbs."
+      - "Intermediate failures leave ambiguous state unless each step is visible."
+      - "The sequence belongs in the point machine."
+    replacement:
+      - create_point_dir
+      - copy_sample_workspace
+      - copy_sample_docs
+      - init_workspace_repo
+      - stage_workspace_baseline
+      - commit_workspace_baseline
+
+migration_guidance:
+  - "When a legacy tool is a sentence, first classify it honestly as sentence or deprecated boundary."
+  - "Split the highest-risk side effects first: filesystem writes, child processes, and domain state mutation."
+  - "Move sequencing into machine.yaml and update emits on each new word."
+  - "Keep compatibility shims only when a shipped machine still selects the old tool; mark them internal and deprecated."
+  - "Update semantic-model audits and SRDs in the same change as the declaration or machine change."
+
+related_documents:
+  - cfg-tool-declaration-format
+  - cfg-tool-selection-format
+  - cfg-machine-format
+  - srd001-core-types
+  - srd005-agentic-loop
+  - srd021-agent-cli-exec-tool
+  - srd022-builtin-tools
+  - srd023-cli-exec-tools
+  - srd024-blocking-input-tools
+
+implementation:
+  - configs/tools/builtin.yaml
+  - configs/tools/exec.yaml
+  - pkg/stl/exectool.go
+  - pkg/stl/tool_contracts.go
