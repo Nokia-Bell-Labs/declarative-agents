@@ -1,5 +1,5 @@
 # Exec tool declarations — CLI-wrapper tools.
-# Pass via: agent --tools-declaration configs/tools/exec.yaml
+# Pass via: agent --tools-declaration tools/exec.yaml
 
 tools:
   # --- build tools ---

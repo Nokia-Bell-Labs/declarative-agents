@@ -288,7 +288,7 @@ related_documents:
   - srd024-blocking-input-tools
 
 implementation:
-  - configs/tools/builtin.yaml
-  - configs/tools/exec.yaml
+  - tools/builtin.yaml
+  - tools/exec.yaml
   - pkg/stl/exectool.go
   - pkg/stl/tool_contracts.go

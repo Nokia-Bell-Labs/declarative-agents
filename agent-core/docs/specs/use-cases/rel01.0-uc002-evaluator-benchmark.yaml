@@ -17,7 +17,7 @@ trigger: |
   The developer runs:
     agent --machine configs/evaluator/machine.yaml \
           --tools configs/evaluator/tools.yaml \
-          --tools-declaration configs/tools/builtin.yaml \
+          --tools-declaration tools/builtin.yaml \
           --input suites/my-suite.yaml \
           --output eval-results
 

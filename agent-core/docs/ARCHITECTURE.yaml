@@ -40,7 +40,7 @@ overview:
 
     Configuration layer (configs/ and docs/specs/). YAML files defining each agent's
     behavior: state machines (machine.yaml), tool selections (tools.yaml),
-    tool declarations (configs/tools/), and per-model LLM configurations
+    tool declarations (tools/), and per-model LLM configurations
     (configs/*/llm/*.yaml). Specification YAML documents define the
     requirements, semantic models, use cases, and formal tests that explain
     those agents. The configurations ARE the agents -- no Go code changes are
@@ -52,7 +52,7 @@ overview:
       subgraph Config["Configuration and Specifications"]
         MACH[configs/*/machine.yaml]
         SEL[configs/*/tools.yaml]
-        DEF[configs/tools/*.yaml]
+        DEF[tools/*.yaml]
         LLMCFG[configs/*/llm/*.yaml]
         SPECS[docs/specs/*.yaml]
       end
@@ -875,7 +875,7 @@ project_structure:
       role: Validation agent — machine.yaml, tools.yaml
     - path: configs/bench/
       role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
-    - path: configs/tools/
+    - path: tools/
       role: Shared tool declarations — builtin.yaml and exec.yaml
     - path: pkg/llm/profiles/
       role: Embedded LLM response profiles (9 model families)

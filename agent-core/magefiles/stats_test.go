@@ -25,7 +25,7 @@ func TestDocsYAMLCategory(t *testing.T) {
 
 func TestConfigsYAMLCategory(t *testing.T) {
 	tests := map[string]string{
-		"configs/tools/builtin.yaml":          "shared_tools",
+		"tools/builtin.yaml":                  "shared_tools",
 		"configs/generator/llm/default.yaml":  "llm_configs",
 		"configs/evaluator/llm/devstral.yaml": "llm_configs",
 		"configs/generator/machine.yaml":      "generator",
@@ -48,7 +48,7 @@ func TestAddYAMLStats(t *testing.T) {
 	stats.Configs.Categories = make(map[string]fileLineStats)
 
 	addYAMLStats(&stats, "docs/specs/config-formats/machine-format.yaml", 10)
-	addYAMLStats(&stats, "configs/tools/builtin.yaml", 20)
+	addYAMLStats(&stats, "tools/builtin.yaml", 20)
 	addYAMLStats(&stats, "README.yaml", 3)
 
 	if stats.Total.Files != 3 || stats.Total.Lines != 33 {

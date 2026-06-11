@@ -122,7 +122,7 @@ depends_on:
     symbols_used: [BuiltinRegistry, RegisterSingleBuiltin, ToolDef]
 
 implementation:
-  - configs/tools/builtin.yaml
+  - tools/builtin.yaml
   - pkg/execute/execute.go
   - pkg/stl/builtintool.go
   - pkg/stl/exectool.go

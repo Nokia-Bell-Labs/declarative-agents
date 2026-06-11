@@ -29,6 +29,15 @@ func configDir(t *testing.T) string {
 	return abs
 }
 
+func repoRootFromConfigDir(cd string) string {
+	return filepath.Dir(cd)
+}
+
+func sharedToolDecl(t *testing.T, cd, name string) string {
+	t.Helper()
+	return filepath.Join(repoRootFromConfigDir(cd), "tools", name)
+}
+
 // loadTestDefs loads shared tool declarations, mode-local overrides,
 // per-agent LLM defaults, and applies the agent's selection file.
 func loadTestDefs(t *testing.T, cd, agent string) []stl.ToolDef {
@@ -38,8 +47,8 @@ func loadTestDefs(t *testing.T, cd, agent string) []stl.ToolDef {
 func loadTestDefsForSelection(t *testing.T, cd, agent, selectionPath string) []stl.ToolDef {
 	t.Helper()
 	declPaths := []string{
-		filepath.Join(cd, "tools", "builtin.yaml"),
-		filepath.Join(cd, "tools", "exec.yaml"),
+		sharedToolDecl(t, cd, "builtin.yaml"),
+		sharedToolDecl(t, cd, "exec.yaml"),
 	}
 	modeBuiltin := filepath.Join(cd, agent, "builtin.yaml")
 	if _, err := os.Stat(modeBuiltin); err == nil {
@@ -191,7 +200,7 @@ func TestToolContractsWarnOnlyReport(t *testing.T) {
 func TestBuiltinToolContractAuditClassifiesMigrationCoverage(t *testing.T) {
 	cd := configDir(t)
 	defs, err := stl.LoadToolDeclarations([]string{
-		filepath.Join(cd, "tools", "builtin.yaml"),
+		sharedToolDecl(t, cd, "builtin.yaml"),
 	})
 	require.NoError(t, err)
 
@@ -221,7 +230,7 @@ func TestBuiltinToolContractAuditClassifiesMigrationCoverage(t *testing.T) {
 func TestBuiltinMigratedContractsValidateAtErrorLevel(t *testing.T) {
 	cd := configDir(t)
 	defs, err := stl.LoadToolDeclarations([]string{
-		filepath.Join(cd, "tools", "builtin.yaml"),
+		sharedToolDecl(t, cd, "builtin.yaml"),
 	})
 	require.NoError(t, err)
 
@@ -249,8 +258,8 @@ func TestSelectedToolOutputContractsLoad(t *testing.T) {
 	}
 
 	allDecls, err := stl.LoadToolDeclarations([]string{
-		filepath.Join(cd, "tools", "builtin.yaml"),
-		filepath.Join(cd, "tools", "exec.yaml"),
+		sharedToolDecl(t, cd, "builtin.yaml"),
+		sharedToolDecl(t, cd, "exec.yaml"),
 	})
 	require.NoError(t, err)
 	status := requireToolDef(t, allDecls, "workspace_status")
@@ -1005,7 +1014,7 @@ func TestValidateDeclarationIsInternalBoundaryAggregator(t *testing.T) {
 	t.Parallel()
 	cd := configDir(t)
 	declarations, err := stl.LoadToolDeclarations([]string{
-		filepath.Join(cd, "tools", "builtin.yaml"),
+		sharedToolDecl(t, cd, "builtin.yaml"),
 	})
 	require.NoError(t, err)
 

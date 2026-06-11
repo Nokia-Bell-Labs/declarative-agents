@@ -3,9 +3,9 @@
 # Each tool is a direct transition action in at least one variant.
 #
 # Usage:
-#   agent --tools-declaration configs/tools/builtin.yaml \
+#   agent --tools-declaration tools/builtin.yaml \
 #         --tools-declaration configs/planner/builtin.yaml \
-#         --tools-declaration configs/tools/exec.yaml \
+#         --tools-declaration tools/exec.yaml \
 #         --tools configs/planner/tools.yaml \
 #         --machine configs/planner/machine.yaml
 

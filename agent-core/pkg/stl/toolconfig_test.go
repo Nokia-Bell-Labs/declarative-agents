@@ -16,8 +16,8 @@ func TestDecodeToolConfigBasic(t *testing.T) {
 			"machine": "configs/gen/machine.yaml",
 			"tools":   "configs/gen/tools.yaml",
 			"tools_declarations": []interface{}{
-				"configs/tools/builtin.yaml",
-				"configs/tools/exec.yaml",
+				"tools/builtin.yaml",
+				"tools/exec.yaml",
 			},
 		},
 	}
@@ -25,7 +25,7 @@ func TestDecodeToolConfigBasic(t *testing.T) {
 	require.NoError(t, DecodeToolConfig(def, &cfg))
 	assert.Equal(t, "configs/gen/machine.yaml", cfg.Machine)
 	assert.Equal(t, "configs/gen/tools.yaml", cfg.Tools)
-	assert.Equal(t, []string{"configs/tools/builtin.yaml", "configs/tools/exec.yaml"}, cfg.ToolDeclarations)
+	assert.Equal(t, []string{"tools/builtin.yaml", "tools/exec.yaml"}, cfg.ToolDeclarations)
 }
 
 func TestDecodeToolConfigNilConfig(t *testing.T) {

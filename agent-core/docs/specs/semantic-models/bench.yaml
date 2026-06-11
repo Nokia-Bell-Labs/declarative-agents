@@ -17,7 +17,7 @@ configuration:
   tools: configs/bench/tools.yaml
   tool_declarations:
     - configs/bench/serve_ui.yaml
-    - configs/tools/builtin.yaml
+    - tools/builtin.yaml
 
 states:
   - name: Idle

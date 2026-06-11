@@ -1,7 +1,7 @@
 # Evaluator-local builtin overrides.
-# Adds mode-specific config to tools declared in configs/tools/builtin.yaml.
+# Adds mode-specific config to tools declared in tools/builtin.yaml.
 # Pass after the shared declaration:
-#   --tools-declaration configs/tools/builtin.yaml \
+#   --tools-declaration tools/builtin.yaml \
 #   --tools-declaration configs/evaluator/builtin.yaml
 
 tools:

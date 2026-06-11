@@ -89,7 +89,7 @@ agent rollback \
 agent \
   --machine configs/generator/machine.yaml \
   --tools configs/generator/tools.yaml \
-  --tools-declaration configs/tools/builtin.yaml \
+  --tools-declaration tools/builtin.yaml \
   --state-store-dir .agent-state \
   --resume-checkpoint rollback-suspend-4-1780000000000000000-to-2-1780000000000000001 \
   --resume-signal Approved \
@@ -150,7 +150,7 @@ transitions:
 ```
 
 Tool selection must include a `suspend` tool declaration. The shared builtin
-declaration in `configs/tools/builtin.yaml` exposes `init: suspend` and supports
+declaration in `tools/builtin.yaml` exposes `init: suspend` and supports
 configuration such as `reason` and `require_checkpoint`.
 
 ## Backtracking Workflow
@@ -180,7 +180,7 @@ Resume from the rollback checkpoint printed by the command:
 agent \
   --machine <machine.yaml> \
   --tools <tools.yaml> \
-  --tools-declaration configs/tools/builtin.yaml \
+  --tools-declaration tools/builtin.yaml \
   --state-store-dir .agent-state \
   --resume-checkpoint <rollback-checkpoint-id> \
   --resume-signal Approved \

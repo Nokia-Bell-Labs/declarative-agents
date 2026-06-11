@@ -1,6 +1,6 @@
 # Tool declarations for the evaluator session-level tools.
 # These tools drive the session machine (grid iteration, nested point loops).
-# Per-point tools are declared in configs/tools/builtin.yaml.
+# Per-point tools are declared in tools/builtin.yaml.
 
 tools:
   - name: parse_suite_config

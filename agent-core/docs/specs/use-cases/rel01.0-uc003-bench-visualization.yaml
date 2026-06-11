@@ -14,14 +14,14 @@ trigger: |
   The developer runs:
     agent --machine configs/bench/machine.yaml \
           --tools configs/bench/tools.yaml \
-          --tools-declaration configs/tools/builtin.yaml
+          --tools-declaration tools/builtin.yaml
 
   The serve_ui tool reads data_dir, configs_dir, docs_dir, source_dir,
   and addr from its config block in builtin.yaml (or an additional
   --tools-declaration file that overrides those values).
 
 flow:
-  - F1: The agent parses CLI flags and loads tool declarations including bench tools from configs/tools/builtin.yaml (srd018).
+  - F1: The agent parses CLI flags and loads tool declarations including bench tools from tools/builtin.yaml (srd018).
   - F2: The bench state machine is loaded from configs/bench/machine.yaml (srd006).
   - F3: BenchState is initialized with ServerConfig (data dir, configs dir, docs dir, source dir, UI assets) (srd020).
   - F4: serve_ui and launch_eval builtin factories are registered. Tool config values come from the config block in the tool declaration YAML (srd013).

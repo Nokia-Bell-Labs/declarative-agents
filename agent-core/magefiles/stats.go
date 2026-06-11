@@ -92,7 +92,7 @@ func addYAMLStats(stats *yamlStats, path string, lines int) {
 		s := stats.Docs.Categories[cat]
 		incFileLineStats(&s, lines)
 		stats.Docs.Categories[cat] = s
-	case strings.HasPrefix(path, "configs/"):
+	case strings.HasPrefix(path, "configs/") || strings.HasPrefix(path, "tools/"):
 		incFileLineStats(&stats.Configs.Total, lines)
 		cat := configsYAMLCategory(path)
 		s := stats.Configs.Categories[cat]
@@ -131,7 +131,7 @@ func docsYAMLCategory(path string) string {
 
 func configsYAMLCategory(path string) string {
 	switch {
-	case strings.HasPrefix(path, "configs/tools/"):
+	case strings.HasPrefix(path, "tools/"):
 		return "shared_tools"
 	case strings.Contains(path, "/llm/"):
 		return "llm_configs"

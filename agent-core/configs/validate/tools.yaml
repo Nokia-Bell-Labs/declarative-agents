@@ -1,6 +1,6 @@
 # Tool selection for the validate state machine.
 # Used with: agent --machine configs/validate/machine.yaml --tools configs/validate/tools.yaml
-# Declarations live in configs/tools/builtin.yaml.
+# Declarations live in tools/builtin.yaml.
 
 tools:
   - load_corpus

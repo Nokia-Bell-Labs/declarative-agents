@@ -1,7 +1,7 @@
 # Bench-local builtin overrides.
-# Adds mode-specific config to tools declared in configs/tools/builtin.yaml.
+# Adds mode-specific config to tools declared in tools/builtin.yaml.
 # Pass after the shared declaration:
-#   --tools-declaration configs/tools/builtin.yaml \
+#   --tools-declaration tools/builtin.yaml \
 #   --tools-declaration configs/bench/builtin.yaml
 
 tools:
@@ -114,5 +114,5 @@ tools:
       machine: configs/evaluator/machine.yaml
       tools: configs/evaluator/tools.yaml
       tools_declarations:
-        - configs/tools/builtin.yaml
+        - tools/builtin.yaml
         - configs/evaluator/builtin.yaml

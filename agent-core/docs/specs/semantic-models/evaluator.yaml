@@ -44,7 +44,7 @@ configuration:
   session_tools: configs/evaluator/tools.yaml
   point_tools: configs/evaluator/tools-point.yaml
   tool_declarations:
-    - configs/tools/builtin.yaml
+    - tools/builtin.yaml
     - configs/evaluator/builtin.yaml
 
 # --- Session-level machine ---

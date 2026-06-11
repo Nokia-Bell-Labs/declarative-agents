@@ -27,8 +27,8 @@ cli_mapping:
     - flag: --tools-declaration
       repeatable: true
       description: |
-        Paths to tool declaration files (e.g. configs/tools/builtin.yaml,
-        configs/tools/exec.yaml, configs/generator/llm/default.yaml).
+        Paths to tool declaration files (e.g. tools/builtin.yaml,
+        tools/exec.yaml, configs/generator/llm/default.yaml).
         Can be specified multiple times to load declarations from
         multiple files. All declarations are merged into a single
         registry.
@@ -89,7 +89,7 @@ selection_files:
     tool_count: 3
     description: |
       Name-only selection of 3 tools (load_corpus, validate_specs,
-      format_report). Declarations live in configs/tools/builtin.yaml.
+      format_report). Declarations live in tools/builtin.yaml.
 
   - file: configs/bench/tools.yaml
     tool_count: 2
@@ -97,7 +97,7 @@ selection_files:
       Selects the two bench agent tools: serve_ui (blocks on
       user input via web UI) and launch_eval (spawns the evaluator
       session machine subprocess). Declarations are in
-      configs/tools/builtin.yaml.
+      tools/builtin.yaml.
 
 related_documents:
   - cfg-tool-declaration-format
