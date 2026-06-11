@@ -70,6 +70,7 @@ type HistoryDigest struct {
 	ToState      State        `json:"to_state"`
 	Signal       Signal       `json:"signal"`
 	Undo         *UndoMemento `json:"undo,omitempty"`
+	UndoError    string       `json:"undo_error,omitempty"`
 	WorkspaceRef string       `json:"workspace_ref,omitempty"`
 }
 
@@ -91,6 +92,7 @@ type HistoryEntry struct {
 	Signal       Signal       `json:"signal"`
 	Result       ResultDigest `json:"result"`
 	Undo         *UndoMemento `json:"undo,omitempty"`
+	UndoError    string       `json:"undo_error,omitempty"`
 	WorkspaceRef string       `json:"workspace_ref,omitempty"`
 }
 

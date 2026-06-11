@@ -118,6 +118,10 @@ type LoopHooks struct {
 	// SnapshotConversation returns JSON-owned conversation state for lifecycle
 	// checkpoints. Nil means no conversation state is captured.
 	SnapshotConversation func() (json.RawMessage, error)
+
+	// SnapshotDomain returns JSON-owned domain state for lifecycle checkpoints.
+	// Nil means no domain state is captured.
+	SnapshotDomain func() (json.RawMessage, error)
 }
 
 // LoopParams bundles all inputs for Loop.
@@ -378,7 +382,7 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 
 		if historyEnabled(p) {
 			workspaceRef := captureWorkspaceRef(p, tr, ctx, iteration, res.CommandName)
-			rr.History = append(rr.History, newHistoryEntry(iteration, cmd, res, fromState, state, transitionSignal, workspaceRef))
+			rr.History = append(rr.History, newHistoryEntry(iteration, cmd, res, fromState, state, transitionSignal, workspaceRef, tr))
 		}
 
 		emitIterationSpan(tr, iteration, res, fromState, state)
@@ -484,7 +488,8 @@ func captureWorkspaceRef(p LoopParams, tr tracing.Tracer, ctx context.Context, i
 	return ref
 }
 
-func newHistoryEntry(iteration int, cmd Command, res Result, fromState, toState State, signal Signal, workspaceRef string) HistoryEntry {
+func newHistoryEntry(iteration int, cmd Command, res Result, fromState, toState State, signal Signal, workspaceRef string, tr tracing.Tracer) HistoryEntry {
+	undo, undoErr := captureUndoMemento(cmd, res.CommandName, tr, iteration)
 	return HistoryEntry{
 		Iteration:    iteration,
 		Timestamp:    time.Now(),
@@ -494,8 +499,36 @@ func newHistoryEntry(iteration int, cmd Command, res Result, fromState, toState 
 		ToState:      toState,
 		Signal:       signal,
 		Result:       digestResult(res),
+		Undo:         undo,
+		UndoError:    undoErr,
 		WorkspaceRef: workspaceRef,
 	}
+}
+
+func captureUndoMemento(cmd Command, commandName string, tr tracing.Tracer, iteration int) (*UndoMemento, string) {
+	provider, ok := cmd.(UndoMementoProvider)
+	if !ok {
+		return nil, ""
+	}
+	memento, err := provider.UndoMemento()
+	if err != nil {
+		return nil, recordUndoMementoError(tr, iteration, commandName, err)
+	}
+	if err := ValidateUndoMemento(memento); err != nil {
+		return nil, recordUndoMementoError(tr, iteration, commandName, err)
+	}
+	return cloneUndoMemento(&memento), ""
+}
+
+func recordUndoMementoError(tr tracing.Tracer, iteration int, commandName string, err error) string {
+	if tr != nil {
+		tr.Event("history.undo_memento_invalid",
+			attribute.Int("iteration", iteration),
+			attribute.String("command", commandName),
+			attribute.String("error", err.Error()),
+		)
+	}
+	return err.Error()
 }
 
 func digestResult(res Result) ResultDigest {
@@ -537,12 +570,22 @@ func persistSuspendCheckpoint(ctx context.Context, p LoopParams, tr tracing.Trac
 		WorkspaceRef: workspaceRef,
 		History:      historyDigest(rr.History),
 	}
+	if err := validateCheckpointHistory(cp.History); err != nil {
+		return err
+	}
 	if p.Hooks.SnapshotConversation != nil {
 		conversationLog, err := p.Hooks.SnapshotConversation()
 		if err != nil {
 			return fmt.Errorf("suspend checkpoint conversation snapshot: %w", err)
 		}
 		cp.ConversationLog = conversationLog
+	}
+	if p.Hooks.SnapshotDomain != nil {
+		domainState, err := p.Hooks.SnapshotDomain()
+		if err != nil {
+			return fmt.Errorf("suspend checkpoint domain snapshot: %w", err)
+		}
+		cp.DomainState = domainState
 	}
 	data, err := json.Marshal(cp)
 	if err != nil {
@@ -582,10 +625,25 @@ func historyDigest(history History) []HistoryDigest {
 			ToState:      entry.ToState,
 			Signal:       entry.Result.Signal,
 			Undo:         cloneUndoMemento(entry.Undo),
+			UndoError:    entry.UndoError,
 			WorkspaceRef: entry.WorkspaceRef,
 		})
 	}
 	return digest
+}
+
+func validateCheckpointHistory(history []HistoryDigest) error {
+	for _, entry := range history {
+		if entry.UndoError != "" {
+			return fmt.Errorf("%w: command %s at iteration %d: %s", ErrUndoMementoIncompatible, entry.CommandName, entry.Iteration, entry.UndoError)
+		}
+		if entry.Undo != nil {
+			if err := ValidateUndoMemento(*entry.Undo); err != nil {
+				return fmt.Errorf("checkpoint history undo memento for %s at iteration %d: %w", entry.CommandName, entry.Iteration, err)
+			}
+		}
+	}
+	return nil
 }
 
 func emitIterationSpan(tr tracing.Tracer, iter int, res Result, from, to State) {
