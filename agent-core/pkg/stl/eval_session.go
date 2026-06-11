@@ -13,14 +13,15 @@ import (
 
 // SuiteConfig defines a complete evaluation suite.
 type SuiteConfig struct {
-	Name      string           `yaml:"name"`
-	Harnesses []Harness        `yaml:"harnesses"`
-	Models    []string         `yaml:"models"`
-	Grid      map[string][]any `yaml:"grid,omitempty"`
-	Samples   []Sample         `yaml:"-"`
-	Timeout   time.Duration    `yaml:"-"`
-	OllamaURL string           `yaml:"-"`
-	Reps      int              `yaml:"-"`
+	Name       string           `yaml:"name"`
+	Harnesses  []Harness        `yaml:"harnesses"`
+	Models     []string         `yaml:"models"`
+	Grid       map[string][]any `yaml:"grid,omitempty"`
+	SamplesDir string           `yaml:"-"`
+	Samples    []Sample         `yaml:"-"`
+	Timeout    time.Duration    `yaml:"-"`
+	OllamaURL  string           `yaml:"-"`
+	Reps       int              `yaml:"-"`
 }
 
 // SessionResult holds the outcome of an evaluation session.
@@ -151,6 +152,22 @@ func LoadSuite(path string) (SuiteConfig, error) {
 
 // ParseSuite parses suite YAML and resolves samples relative to baseDir.
 func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
+	suite, err := ParseSuiteConfig(data, baseDir)
+	if err != nil {
+		return SuiteConfig{}, err
+	}
+	samples, err := DiscoverSamples(suite.SamplesDir)
+	if err != nil {
+		return SuiteConfig{}, fmt.Errorf("suite %q: %w", suite.Name, err)
+	}
+	suite.Samples = samples
+	return suite, nil
+}
+
+// ParseSuiteConfig parses suite YAML and validates metadata without discovering
+// samples. Runtime evaluator machines compose sample discovery as a separate
+// word after this parser.
+func ParseSuiteConfig(data []byte, baseDir string) (SuiteConfig, error) {
 	var raw struct {
 		Name       string           `yaml:"name"`
 		Harnesses  []Harness        `yaml:"harnesses"`
@@ -192,24 +209,19 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 		samplesDir = filepath.Join(baseDir, samplesDir)
 	}
 
-	samples, err := DiscoverSamples(samplesDir)
-	if err != nil {
-		return SuiteConfig{}, fmt.Errorf("suite %q: %w", raw.Name, err)
-	}
-
 	var timeout time.Duration
 	if raw.Timeout != "" {
 		timeout, _ = time.ParseDuration(raw.Timeout)
 	}
 
 	return SuiteConfig{
-		Name:      raw.Name,
-		Harnesses: raw.Harnesses,
-		Models:    raw.Models,
-		Grid:      raw.Grid,
-		Samples:   samples,
-		Timeout:   timeout,
-		OllamaURL: raw.OllamaURL,
-		Reps:      raw.Reps,
+		Name:       raw.Name,
+		Harnesses:  raw.Harnesses,
+		Models:     raw.Models,
+		Grid:       raw.Grid,
+		SamplesDir: samplesDir,
+		Timeout:    timeout,
+		OllamaURL:  raw.OllamaURL,
+		Reps:       raw.Reps,
 	}, nil
 }

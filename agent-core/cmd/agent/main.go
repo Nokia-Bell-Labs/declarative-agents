@@ -614,8 +614,11 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected 
 	}
 
 	if anyInitSelected(selected,
-		"load_suite", "next_point", "run_point", "report_session",
-		"prepare_workspace", "run_agent", "check_results", "collect_metrics",
+		"parse_suite_config", "discover_suite_samples", "expand_eval_grid",
+		"init_eval_session", "report_suite_summary",
+		"next_point", "run_point", "report_session",
+		"run_agent", "run_oracle_check", "collect_trace_tokens",
+		"check_agent_version", "summarize_point_results", "collect_metrics",
 		"dump_config",
 	) {
 		stl.RegisterEvalFactories(br, stl.EvalFactoryDeps{

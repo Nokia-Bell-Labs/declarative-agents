@@ -14,11 +14,15 @@ import (
 
 // Session-level signals for the evaluator session machine.
 const (
-	SigSuiteLoaded     core.Signal = "SuiteLoaded"
-	SigPointReady      core.Signal = "PointReady"
-	SigPointDone       core.Signal = "PointDone"
-	SigAllPointsDone   core.Signal = "AllPointsDone"
-	SigSessionReported core.Signal = "SessionReported"
+	SigSuiteConfigParsed      core.Signal = "SuiteConfigParsed"
+	SigSuiteSamplesDiscovered core.Signal = "SuiteSamplesDiscovered"
+	SigEvalGridExpanded       core.Signal = "EvalGridExpanded"
+	SigEvalSessionInitialized core.Signal = "EvalSessionInitialized"
+	SigSuiteLoaded            core.Signal = "SuiteLoaded"
+	SigPointReady             core.Signal = "PointReady"
+	SigPointDone              core.Signal = "PointDone"
+	SigAllPointsDone          core.Signal = "AllPointsDone"
+	SigSessionReported        core.Signal = "SessionReported"
 )
 
 // EvalSessionState holds session-level state for the evaluator session
@@ -28,11 +32,11 @@ type EvalSessionState struct {
 	EvalState
 
 	// Configured from CLI flags / tool YAML config
-	SuitePath  string
-	OutputDir  string
-	Reps       int
-	Timeout    time.Duration
-	OllamaURL  string
+	SuitePath string
+	OutputDir string
+	Reps      int
+	Timeout   time.Duration
+	OllamaURL string
 
 	Suite        SuiteConfig
 	SessionDir   string
@@ -55,17 +59,16 @@ type EvalSessionState struct {
 	start time.Time
 }
 
-// InitSession prepares the session for iteration. Must be called after
-// Suite is populated (by load_suite) and before NextPoint.
+// InitSession prepares the session for iteration. Must be called after Suite is
+// populated, samples are discovered, and the grid has been expanded.
 func (s *EvalSessionState) InitSession(outputDir string, reps int, timeout time.Duration, ollamaURL string, llmTimeout time.Duration) error {
 	s.SessionDir = filepath.Join(outputDir, s.Suite.Name, time.Now().Format("20060102-150405"))
 	if err := os.MkdirAll(s.SessionDir, 0o755); err != nil {
 		return fmt.Errorf("create session dir: %w", err)
 	}
 
-	s.gridPoints = expandGrid(s.Suite.Grid)
 	if len(s.gridPoints) == 0 {
-		s.gridPoints = []GridPoint{{}}
+		s.ExpandGrid()
 	}
 
 	s.reps = reps
@@ -85,6 +88,14 @@ func (s *EvalSessionState) InitSession(outputDir string, reps int, timeout time.
 
 	s.start = time.Now()
 	return nil
+}
+
+// ExpandGrid materializes the suite's grid into iteration points.
+func (s *EvalSessionState) ExpandGrid() {
+	s.gridPoints = expandGrid(s.Suite.Grid)
+	if len(s.gridPoints) == 0 {
+		s.gridPoints = []GridPoint{{}}
+	}
 }
 
 // NextPoint advances the iterator to the next grid point. Returns the

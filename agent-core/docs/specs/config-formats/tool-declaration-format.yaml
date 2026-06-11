@@ -188,7 +188,8 @@ builtin_fields:
       Structure varies per tool: ChildAgentConfig for launch_eval,
       execute_task, and self_invoke (decoded into execute.Config at
       runtime), LLMToolConfig for invoke_llm, LoadSuiteConfig for
-      load_suite, RunPointConfig for run_point, ServeUIToolConfig for
+      parse_suite_config and evaluator session setup tools,
+      RunPointConfig for run_point, ServeUIToolConfig for
       serve_ui. See cfg-llm-config-format for invoke_llm details.
 
 exec_fields:
@@ -265,16 +266,18 @@ parameter_extensions:
 
 declaration_files:
   - file: configs/tools/builtin.yaml
-    tool_count: 40
+    tool_count: 44
     description: |
-      40 builtin tool declarations covering file operations (read,
+      44 builtin tool declarations covering file operations (read,
       write, edit, find, list_files), the LLM pipeline (parse_response,
       report_parse_error, reset_history), completion (done),
       compatibility aggregate validation (validate),
       control (nudge_reread, self_invoke), planner tools (extract_task,
       extract_all, assemble_prompt, parse_plan, create_issue,
-      execute_task, check_result), evaluator session tools (load_suite,
-      next_point, run_point, report_session), evaluator per-point tools
+      execute_task, check_result), evaluator session tools
+      (parse_suite_config, discover_suite_samples, expand_eval_grid,
+      init_eval_session, report_suite_summary, next_point, run_point,
+      report_session), evaluator per-point tools
       (create_point_dir, copy_sample_workspace, copy_sample_docs,
       init_workspace_repo, stage_workspace_baseline,
       commit_workspace_baseline, dump_config, run_agent, run_oracle_check,

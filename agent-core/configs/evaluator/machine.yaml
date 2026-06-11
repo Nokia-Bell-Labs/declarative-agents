@@ -11,7 +11,11 @@ budget:
 
 states:
   - Idle
-  - LoadingSuite
+  - ParsingSuiteConfig
+  - DiscoveringSuiteSamples
+  - ExpandingEvalGrid
+  - InitializingEvalSession
+  - ReportingSuiteSummary
   - AdvancingPoint
   - RunningPoint
   - Reporting
@@ -25,6 +29,10 @@ terminal_states:
 signals:
   - Seed
   - CommandError
+  - SuiteConfigParsed
+  - SuiteSamplesDiscovered
+  - EvalGridExpanded
+  - EvalSessionInitialized
   - SuiteLoaded
   - PointReady
   - PointDone
@@ -34,10 +42,30 @@ signals:
 transitions:
   - state: Idle
     signal: Seed
-    next: LoadingSuite
-    action: load_suite
+    next: ParsingSuiteConfig
+    action: parse_suite_config
 
-  - state: LoadingSuite
+  - state: ParsingSuiteConfig
+    signal: SuiteConfigParsed
+    next: DiscoveringSuiteSamples
+    action: discover_suite_samples
+
+  - state: DiscoveringSuiteSamples
+    signal: SuiteSamplesDiscovered
+    next: ExpandingEvalGrid
+    action: expand_eval_grid
+
+  - state: ExpandingEvalGrid
+    signal: EvalGridExpanded
+    next: InitializingEvalSession
+    action: init_eval_session
+
+  - state: InitializingEvalSession
+    signal: EvalSessionInitialized
+    next: ReportingSuiteSummary
+    action: report_suite_summary
+
+  - state: ReportingSuiteSummary
     signal: SuiteLoaded
     next: AdvancingPoint
     action: next_point
@@ -62,7 +90,23 @@ transitions:
     next: Done
 
   # --- error handling ---
-  - state: LoadingSuite
+  - state: ParsingSuiteConfig
+    signal: CommandError
+    next: Failed
+
+  - state: DiscoveringSuiteSamples
+    signal: CommandError
+    next: Failed
+
+  - state: ExpandingEvalGrid
+    signal: CommandError
+    next: Failed
+
+  - state: InitializingEvalSession
+    signal: CommandError
+    next: Failed
+
+  - state: ReportingSuiteSummary
     signal: CommandError
     next: Failed
 

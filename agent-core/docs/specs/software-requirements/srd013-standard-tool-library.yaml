@@ -102,6 +102,12 @@ requirements:
   R10:
     title: Evaluation harness tools
     items:
+      - R10.0: The evaluator session machine uses atomic suite setup tools rather than a composite load_suite tool.
+      - R10.0.1: parse_suite_config reads and validates suite YAML metadata and resolves the samples directory.
+      - R10.0.2: discover_suite_samples discovers sample workspaces and docs from the resolved samples directory.
+      - R10.0.3: expand_eval_grid expands suite grid parameters into concrete grid points.
+      - R10.0.4: init_eval_session creates the evaluator session output directory and resolves runtime defaults.
+      - R10.0.5: report_suite_summary reports suite dimensions and total point count.
       - R10.1: The evaluator point machine uses atomic workspace preparation tools rather than a composite prepare_workspace tool.
       - R10.1.1: create_point_dir creates a point directory and sets PointContext.PointDir and PointContext.TracePath.
       - R10.1.2: copy_sample_workspace copies sample workspace files into the current point directory.
@@ -157,7 +163,7 @@ acceptance_criteria:
 
   - id: AC9
     criterion: Evaluation harness tools orchestrate a complete evaluation point lifecycle with machine-declared atomic workspace setup, workspace isolation, config snapshotting, oracle checking, trace token extraction, version checking, result summarization, and metrics persistence.
-    traces: [R10.1, R10.1.1, R10.1.2, R10.1.3, R10.1.4, R10.1.5, R10.1.6, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8]
+    traces: [R10.0, R10.0.1, R10.0.2, R10.0.3, R10.0.4, R10.0.5, R10.1, R10.1.1, R10.1.2, R10.1.3, R10.1.4, R10.1.5, R10.1.6, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8]
 
 depends_on:
   - srd_id: srd001-core-types

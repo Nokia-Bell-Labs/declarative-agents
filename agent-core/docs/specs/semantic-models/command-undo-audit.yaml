@@ -85,8 +85,17 @@ real_undo_pending:
       target_strategy: workspace_restore
 
   evaluator_state:
-    - command: load_suite
-      reason: "mutates suite/session state and creates session directory"
+    - command: parse_suite_config
+      reason: "mutates suite metadata state"
+      target_strategy: evaluator_session_restore
+    - command: discover_suite_samples
+      reason: "mutates suite sample state"
+      target_strategy: evaluator_session_restore
+    - command: expand_eval_grid
+      reason: "mutates grid point iterator input"
+      target_strategy: evaluator_session_restore
+    - command: init_eval_session
+      reason: "creates session directory and mutates runtime defaults"
       target_strategy: evaluator_session_restore_and_workspace_restore
     - command: next_point
       reason: "mutates point iterator and current PointContext"

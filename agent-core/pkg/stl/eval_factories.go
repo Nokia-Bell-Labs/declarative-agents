@@ -21,7 +21,9 @@ type EvalFactoryDeps struct {
 }
 
 // RegisterEvalFactories registers all evaluator builtin tool factories
-// (session-level: load_suite, next_point, run_point, report_session;
+// (session-level: parse_suite_config, discover_suite_samples,
+// expand_eval_grid, init_eval_session, report_suite_summary, next_point,
+// run_point, report_session;
 // per-point: create_point_dir, copy_sample_workspace, copy_sample_docs,
 // init_workspace_repo, stage_workspace_baseline, commit_workspace_baseline,
 // dump_config, run_agent, run_oracle_check, collect_trace_tokens,
@@ -49,9 +51,39 @@ func RegisterEvalFactories(br *BuiltinRegistry, deps EvalFactoryDeps) {
 		return ess
 	}
 
-	br.Register("load_suite", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("parse_suite_config", func(def ToolDef, vars map[string]string) (core.Builder, error) {
 		es := initESS()
-		factory := LoadSuiteFactory(es)
+		factory := evaluatorSessionConfigFactory(es, func(es *EvalSessionState) core.Builder {
+			return &ParseSuiteConfigBuilder{ES: es}
+		})
+		return factory(def, vars)
+	})
+	br.Register("discover_suite_samples", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		es := initESS()
+		factory := evaluatorSessionConfigFactory(es, func(es *EvalSessionState) core.Builder {
+			return &DiscoverSuiteSamplesBuilder{ES: es}
+		})
+		return factory(def, vars)
+	})
+	br.Register("expand_eval_grid", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		es := initESS()
+		factory := evaluatorSessionConfigFactory(es, func(es *EvalSessionState) core.Builder {
+			return &ExpandEvalGridBuilder{ES: es}
+		})
+		return factory(def, vars)
+	})
+	br.Register("init_eval_session", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		es := initESS()
+		factory := evaluatorSessionConfigFactory(es, func(es *EvalSessionState) core.Builder {
+			return &InitEvalSessionBuilder{ES: es}
+		})
+		return factory(def, vars)
+	})
+	br.Register("report_suite_summary", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		es := initESS()
+		factory := evaluatorSessionConfigFactory(es, func(es *EvalSessionState) core.Builder {
+			return &ReportSuiteSummaryBuilder{ES: es}
+		})
 		return factory(def, vars)
 	})
 	br.Register("next_point", func(def ToolDef, vars map[string]string) (core.Builder, error) {

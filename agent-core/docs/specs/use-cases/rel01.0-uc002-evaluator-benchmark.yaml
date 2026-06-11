@@ -22,13 +22,13 @@ trigger: |
           --output eval-results
 
 flow:
-  - F1: The session machine enters LoadingSuite; load_suite parses the suite YAML, discovers samples, expands the grid, and creates the session output directory (srd019).
+  - F1: The session machine runs parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary to prepare suite input and create the session output directory (srd019).
   - F2: The session machine enters AdvancingPoint; next_point returns the first (harness, model, sample, gridpoint, rep) combination (srd019).
   - F3: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (configs/evaluator/point.yaml) (srd005, sm-evaluator).
-  - F4: prepare_workspace creates a temporary directory, copies sample files, and initializes git (srd019).
+  - F4: The point machine runs create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline to prepare an isolated workspace (srd019).
   - F5: dump_config serializes the full experiment configuration into experiment.yaml for reproducibility (srd019).
   - F6: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation (srd016, srd019).
-  - F7: check_results examines exit code and test output to classify the outcome as pass/fail/timeout (srd019).
+  - F7: run_oracle_check, collect_trace_tokens, check_agent_version, and summarize_point_results classify the point outcome and collect trace-derived result state (srd019).
   - F8: collect_metrics writes meta.json with point metadata, duration, and outcome classification (srd019).
   - F9: The nested loop completes; control returns to the session machine which loops back to next_point.
   - F10: When the grid is exhausted, next_point emits AllPointsDone; report_session prints the summary.

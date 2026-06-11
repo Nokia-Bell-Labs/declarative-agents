@@ -42,8 +42,9 @@ overall_findings:
   - Tool declarations still lack complete contract metadata for most tools:
     problem, goals, non_goals, output.schema, structured side_effects,
     reversibility, undo, errors, and relationships.
-  - Several evaluator and planner builtins are sentences, especially
-    load_suite.
+  - The remaining high-priority sentence-shaped tools are now mostly planner
+    or lifecycle follow-ups; evaluator session and point workflows have been
+    split into machine-composed words.
   - validate is retained as a deprecated internal boundary aggregator for
     compatibility, but current generator validation is machine-declared.
   - Boundary tools need explicit classification so they are not mistaken
@@ -411,30 +412,79 @@ tools:
     migration_priority: medium
 
   # Evaluator session tools
-  - name: load_suite
-    role: sentence
+  - name: parse_suite_config
+    role: stateful_internal
     selected_by: [evaluator_session]
     inputs_from: [suite_yaml, cli_input, tool_config]
-    feeds_into: [next_point]
-    side_effects: eval_session_state_mutation, filesystem_directory_create
-    output_contract: missing
+    feeds_into: [discover_suite_samples]
+    side_effects: eval_session_suite_metadata_mutation
+    output_contract: declared_by_signal
+    undo: session_state_restore
+    overlaps: []
+    issues:
+      - needs output.schema for suite metadata summary
+    migration_priority: medium
+
+  - name: discover_suite_samples
+    role: stateful_internal
+    selected_by: [evaluator_session]
+    inputs_from: [parse_suite_config]
+    feeds_into: [expand_eval_grid]
+    side_effects: eval_session_sample_mutation
+    output_contract: declared_by_signal
+    undo: session_state_restore
+    overlaps:
+      - tool: load_corpus
+        difference: discover_suite_samples discovers evaluator sample workspaces; load_corpus loads project specs
+    issues:
+      - needs output.schema for discovered sample count and names
+    migration_priority: medium
+
+  - name: expand_eval_grid
+    role: stateful_internal
+    selected_by: [evaluator_session]
+    inputs_from: [discover_suite_samples]
+    feeds_into: [init_eval_session]
+    side_effects: eval_session_grid_mutation
+    output_contract: declared_by_signal
+    undo: session_state_restore
+    overlaps: []
+    issues:
+      - needs output.schema for grid point count
+    migration_priority: medium
+
+  - name: init_eval_session
+    role: stateful_internal
+    selected_by: [evaluator_session]
+    inputs_from: [expand_eval_grid, tool_config]
+    feeds_into: [report_suite_summary]
+    side_effects: filesystem_directory_create, eval_session_runtime_state_mutation
+    output_contract: declared_by_signal
     undo: session_state_restore_and_workspace_restore
     overlaps: []
     issues:
-      - reads suite YAML, validates, discovers samples, expands grid, resolves defaults, and initializes session directory
-      - sequence is hidden in Go instead of machine.yaml
-    split_recommendation:
-      - parse_suite_config
-      - discover_samples
-      - expand_eval_grid
-      - init_eval_session
-      - report_suite_summary
-    migration_priority: high
+      - creates session directory and should eventually participate in workspace rollback
+    migration_priority: medium
+
+  - name: report_suite_summary
+    role: word
+    selected_by: [evaluator_session]
+    inputs_from: [init_eval_session]
+    feeds_into: [next_point]
+    side_effects: stderr_write
+    output_contract: declared_by_signal
+    undo: noop
+    overlaps:
+      - tool: report_session
+        difference: report_suite_summary reports setup dimensions; report_session reports final outcomes
+    issues:
+      - needs output.schema for total point count
+    migration_priority: low
 
   - name: next_point
     role: stateful_internal
     selected_by: [evaluator_session]
-    inputs_from: [load_suite]
+    inputs_from: [report_suite_summary]
     feeds_into: [run_point, report_session]
     side_effects: eval_session_iterator_mutation
     output_contract: missing
@@ -709,8 +759,10 @@ tools:
     output_contract: missing
     undo: restore_validation_state
     overlaps:
-      - tool: load_suite
-        difference: load_corpus loads project specs; load_suite loads evaluator input data
+      - tool: parse_suite_config
+        difference: load_corpus loads project specs; parse_suite_config loads evaluator suite metadata
+      - tool: discover_suite_samples
+        difference: load_corpus loads project specs; discover_suite_samples finds evaluator sample workspaces
     issues:
       - needs output.schema for corpus counts
     migration_priority: medium
@@ -922,15 +974,7 @@ tools:
     migration_priority: low
 
 sentence_tools:
-  highest_priority:
-    - tool: load_suite
-      reason: combines parsing, validation, sample discovery, grid expansion, and session initialization
-      proposed_machine_sequence:
-        - parse_suite_config
-        - discover_samples
-        - expand_eval_grid
-        - init_eval_session
-        - report_suite_summary
+  highest_priority: []
 boundary_tools_requiring_contracts:
   - invoke_llm
   - run_point

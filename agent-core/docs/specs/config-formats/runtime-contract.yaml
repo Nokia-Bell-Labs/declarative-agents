@@ -115,18 +115,20 @@ tool_parametrization: |
       from its config to know which child agent to spawn.
     - execute_task reads the same keys to pass --machine/--tools to
       child agent processes.
-    - load_suite reads "output_dir", "reps", "timeout" from config.
+    - parse_suite_config and evaluator session setup tools read "output_dir",
+      "reps", and "timeout" from config.
     - run_point reads "point_machine" and "point_tools" to locate the
       nested machine YAML and build its point-specific registry.
     - serve_ui reads "addr", "data_dir", "configs_dir", etc.
 
 suite_input_contract: |
   Evaluator suite YAML is input data to evaluator tools, not a program
-  definition layer beside machine.yaml and tools.yaml. load_suite owns
-  parsing and validation of the suite input. run_agent consumes each
-  harness entry as subprocess data (binary plus flags) for the current
-  point. dump_config snapshots the resolved suite/harness/tool data into
-  experiment.yaml for reproducibility.
+  definition layer beside machine.yaml and tools.yaml. The evaluator session
+  machine composes parse_suite_config, discover_suite_samples, expand_eval_grid,
+  init_eval_session, and report_suite_summary to prepare suite input. run_agent
+  consumes each harness entry as subprocess data (binary plus flags) for the
+  current point. dump_config snapshots the resolved suite/harness/tool data
+  into experiment.yaml for reproducibility.
 
   CLI flags (--input, --output, --model, --ollama-url) serve as
   universal overrides. Mode-specific parameters live exclusively in

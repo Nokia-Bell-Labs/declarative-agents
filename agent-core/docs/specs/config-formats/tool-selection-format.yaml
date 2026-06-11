@@ -59,10 +59,12 @@ selection_files:
       build → lint → test.
 
   - file: configs/evaluator/tools.yaml
-    tool_count: 4
+    tool_count: 8
     description: |
       Selects session-level tools for configs/evaluator/machine.yaml:
-      load_suite, next_point, run_point, and report_session.
+      parse_suite_config, discover_suite_samples, expand_eval_grid,
+      init_eval_session, report_suite_summary, next_point, run_point,
+      and report_session.
 
   - file: configs/evaluator/tools-point.yaml
     tool_count: 13

@@ -484,7 +484,9 @@ func TestEvaluatorConfig_ToolsLoad(t *testing.T) {
 	require.NotEmpty(t, defs)
 
 	assertToolNames(t, defs, []string{
-		"load_suite", "next_point", "run_point", "report_session",
+		"parse_suite_config", "discover_suite_samples", "expand_eval_grid",
+		"init_eval_session", "report_suite_summary",
+		"next_point", "run_point", "report_session",
 	})
 }
 

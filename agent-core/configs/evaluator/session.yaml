@@ -1,17 +1,40 @@
 # Tool declarations for the evaluator session-level tools.
 # These tools drive the session machine (grid iteration, nested point loops).
-# Per-point tools (prepare_workspace, etc.) are declared in configs/tools/builtin.yaml.
+# Per-point tools are declared in configs/tools/builtin.yaml.
 
 tools:
-  - name: load_suite
+  - name: parse_suite_config
     type: builtin
-    init: load_suite
+    init: parse_suite_config
     visibility: internal
-    description: "Load an evaluation suite YAML, discover samples, expand the grid, and create the session output directory."
+    description: "Read and validate evaluator suite YAML metadata."
     config:
       output_dir: eval-results
       reps: 1
-      point_machine: configs/evaluator/point.yaml
+
+  - name: discover_suite_samples
+    type: builtin
+    init: discover_suite_samples
+    visibility: internal
+    description: "Discover evaluator samples from the parsed suite samples directory."
+
+  - name: expand_eval_grid
+    type: builtin
+    init: expand_eval_grid
+    visibility: internal
+    description: "Expand evaluator suite grid parameters into concrete grid points."
+
+  - name: init_eval_session
+    type: builtin
+    init: init_eval_session
+    visibility: internal
+    description: "Create the evaluator session output directory and resolve runtime defaults."
+
+  - name: report_suite_summary
+    type: builtin
+    init: report_suite_summary
+    visibility: internal
+    description: "Report suite point count after setup."
 
   - name: next_point
     type: builtin

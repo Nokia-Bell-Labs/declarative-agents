@@ -27,8 +27,12 @@ declarative_boundary: |
   program-definition mechanism. It is input data consumed by evaluator
   tools:
 
-  - load_suite parses and validates the suite, resolves samples, expands
-    the grid, and creates the session.
+  - parse_suite_config parses and validates suite metadata.
+  - discover_suite_samples resolves samples from suite input data.
+  - expand_eval_grid materializes concrete grid points.
+  - init_eval_session creates the session output directory and resolves
+    runtime defaults.
+  - report_suite_summary reports the completed setup before iteration.
   - run_agent consumes each harness entry as subprocess input data
     (binary plus flags) for the current point.
   - dump_config snapshots the resolved harness, model, machine/tools, and
@@ -48,8 +52,16 @@ configuration:
 session_states:
   - name: Idle
     meaning: Initial state before the suite is loaded.
-  - name: LoadingSuite
-    meaning: Parsing the suite YAML, discovering samples, expanding the grid.
+  - name: ParsingSuiteConfig
+    meaning: Reading and validating suite YAML metadata.
+  - name: DiscoveringSuiteSamples
+    meaning: Discovering samples from the resolved suite samples directory.
+  - name: ExpandingEvalGrid
+    meaning: Expanding suite grid parameters into concrete grid points.
+  - name: InitializingEvalSession
+    meaning: Creating the session output directory and resolving runtime defaults.
+  - name: ReportingSuiteSummary
+    meaning: Reporting suite point counts before iteration begins.
   - name: AdvancingPoint
     meaning: Advancing the iterator to the next (harness, model, sample, gridpoint, rep).
   - name: RunningPoint
@@ -64,8 +76,16 @@ session_states:
 session_signals:
   - name: Seed
     trigger: Loop initialization.
+  - name: SuiteConfigParsed
+    trigger: Suite YAML metadata parsed and validated.
+  - name: SuiteSamplesDiscovered
+    trigger: Suite samples discovered.
+  - name: EvalGridExpanded
+    trigger: Suite grid expanded into concrete grid points.
+  - name: EvalSessionInitialized
+    trigger: Session output directory and runtime defaults initialized.
   - name: SuiteLoaded
-    trigger: Suite YAML parsed and session directory created.
+    trigger: Suite setup summary reported.
   - name: PointReady
     trigger: Iterator advanced to a new grid point.
   - name: PointDone
@@ -78,31 +98,47 @@ session_signals:
     trigger: Infrastructure-level error.
 
 session_lifecycle: |
-  1. Idle → LoadingSuite: load_suite
-  2. LoadingSuite → AdvancingPoint: next_point
-  3. AdvancingPoint → RunningPoint: run_point  (if PointReady)
-  4. RunningPoint → AdvancingPoint: next_point  (loop back)
-  5. AdvancingPoint → Reporting: report_session  (if AllPointsDone)
-  6. Reporting → Done
+  1. Idle → ParsingSuiteConfig: parse_suite_config
+  2. ParsingSuiteConfig → DiscoveringSuiteSamples: discover_suite_samples
+  3. DiscoveringSuiteSamples → ExpandingEvalGrid: expand_eval_grid
+  4. ExpandingEvalGrid → InitializingEvalSession: init_eval_session
+  5. InitializingEvalSession → ReportingSuiteSummary: report_suite_summary
+  6. ReportingSuiteSummary → AdvancingPoint: next_point
+  7. AdvancingPoint → RunningPoint: run_point  (if PointReady)
+  8. RunningPoint → AdvancingPoint: next_point  (loop back)
+  9. AdvancingPoint → Reporting: report_session  (if AllPointsDone)
+  10. Reporting → Done
 
 session_diagram: |
   ```mermaid
   stateDiagram-v2
     [*] --> Idle
-    Idle --> LoadingSuite: Seed / load_suite
-    LoadingSuite --> AdvancingPoint: SuiteLoaded / next_point
+    Idle --> ParsingSuiteConfig: Seed / parse_suite_config
+    ParsingSuiteConfig --> DiscoveringSuiteSamples: SuiteConfigParsed / discover_suite_samples
+    DiscoveringSuiteSamples --> ExpandingEvalGrid: SuiteSamplesDiscovered / expand_eval_grid
+    ExpandingEvalGrid --> InitializingEvalSession: EvalGridExpanded / init_eval_session
+    InitializingEvalSession --> ReportingSuiteSummary: EvalSessionInitialized / report_suite_summary
+    ReportingSuiteSummary --> AdvancingPoint: SuiteLoaded / next_point
     AdvancingPoint --> RunningPoint: PointReady / run_point
     RunningPoint --> AdvancingPoint: PointDone / next_point
     AdvancingPoint --> Reporting: AllPointsDone / report_session
     Reporting --> Done: SessionReported
-    LoadingSuite --> Failed: CommandError
+    ParsingSuiteConfig --> Failed: CommandError
+    DiscoveringSuiteSamples --> Failed: CommandError
+    ExpandingEvalGrid --> Failed: CommandError
+    InitializingEvalSession --> Failed: CommandError
+    ReportingSuiteSummary --> Failed: CommandError
     AdvancingPoint --> Failed: CommandError
     RunningPoint --> Failed: CommandError
     Reporting --> Failed: CommandError
   ```
 
 session_tools:
-  - load_suite
+  - parse_suite_config
+  - discover_suite_samples
+  - expand_eval_grid
+  - init_eval_session
+  - report_suite_summary
   - next_point
   - run_point
   - report_session

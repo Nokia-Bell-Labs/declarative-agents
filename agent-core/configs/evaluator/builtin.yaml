@@ -5,12 +5,12 @@
 #   --tools-declaration configs/evaluator/builtin.yaml
 
 tools:
-  - name: load_suite
+  - name: parse_suite_config
     type: builtin
-    init: load_suite
+    init: parse_suite_config
     visibility: internal
-    emits: [SuiteLoaded, CommandError]
-    description: "Load an evaluation suite YAML, discover samples, expand the grid, and create the session output directory."
+    emits: [SuiteConfigParsed, CommandError]
+    description: "Read and validate evaluator suite YAML metadata without discovering samples or creating session artifacts."
     config:
       output_dir: eval-results
       reps: 1
