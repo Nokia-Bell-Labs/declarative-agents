@@ -15,7 +15,14 @@ invocation: |
         --tools-declaration <decl1.yaml> [--tools-declaration <decl2.yaml> ...] \
         [--input <file>] [--output <dir>] \
         [--model <name>] [--ollama-url <url>] \
-        [--directory <path>]
+        [--directory <path>] \
+        [--state-store-dir <dir>] \
+        [--resume-checkpoint <id>] [--resume-signal <signal>]
+
+  Lifecycle subcommands:
+    agent history --state-store-dir <dir> [--checkpoint <id|latest>]
+    agent rollback --state-store-dir <dir> --to-iteration <n> \
+          [--checkpoint <id|latest>] [--directory <path>]
 
   Required flags:
     --machine            Path to the state machine YAML (MachineSpec).
@@ -37,6 +44,14 @@ invocation: |
     --verbose-trace      Record LLM input/output in OTel traces.
     --otel-log-file      OTel trace output file.
     --otel-parent-span   W3C traceparent for distributed tracing.
+    --state-store-dir    Local FileStore root for lifecycle checkpoints.
+    --resume-checkpoint  Checkpoint ID to load before re-entering the loop.
+    --resume-signal      Signal used for the first resumed transition
+                         (default: Approved).
+
+  Lifecycle subcommand flags:
+    --checkpoint         Checkpoint ID or latest for history/rollback.
+    --to-iteration       Target history iteration for rollback.
 
 startup_sequence:
   - step: 1
@@ -85,6 +100,20 @@ startup_sequence:
     implementation: core.LoadMachineSpec, stl.ValidateToolEmits
 
   - step: 5
+    name: Configure lifecycle ports
+    description: |
+      Lifecycle behavior is opt-in. When --state-store-dir is absent,
+      cmd/agent does not create a FileStore and checkpoint persistence is
+      disabled. When present, cmd/agent creates a FileStore and passes it to
+      LoopParams.StateStore and lifecycle-aware builtin factories. Suspend
+      checkpoints can include AgentSnapshot, conversation JSON from
+      LoopHooks.SnapshotConversation, optional WorkspaceRef, and HistoryDigest.
+      Resume requires --state-store-dir and --resume-checkpoint; it loads the
+      checkpoint, restores configured state layers, validates the current
+      machine/tools, then re-enters core.Loop with resume seed fields.
+    implementation: core.FileStore, core.ResumeFromCheckpoint, core.LoopHooks.SnapshotConversation
+
+  - step: 6
     name: Run the loop
     description: |
       cmd/agent passes the already-loaded MachineSpec to core.Loop, and
@@ -154,6 +183,33 @@ nested_machines: |
   This design allows swapping nested machines by changing YAML config
   without recompiling the binary.
 
+lifecycle: |
+  Lifecycle features are runtime ports around the same machine contract, not a
+  separate programming model. See lifecycle-rollback.md for operator examples.
+
+  State layers remain independent:
+    - agent state is JSON loop bookkeeping in Checkpoint.agent_state;
+    - command/domain state is command-owned undo state or JSON snapshots such
+      as conversation logs;
+    - workspace state is represented by Workspace refs, usually GitWorkspace
+      commits, and is not stored in StateStore.
+
+  Safety rules:
+    - disabled lifecycle ports preserve existing runtime behavior;
+    - rollback and resume must refuse unmanaged workspace restore or require
+      explicit operator configuration;
+    - irreversible and compensatable tools must declare their side effects,
+      reversibility, undo strategy, and confirmation requirements in the tool
+      contract.
+
+history_and_rollback_cli: |
+  agent history reads a persisted checkpoint and prints a stable digest:
+  iteration, command, from state, to state, result signal, and workspace ref.
+  agent rollback resolves a checkpoint, targets an iteration, traverses the
+  persisted history digest through the rollback path, writes a new rollback
+  checkpoint, and restores the target workspace ref only when --directory
+  identifies a managed GitWorkspace.
+
 config_file_layout: |
   configs/
     tools/
@@ -183,7 +239,8 @@ config_file_layout: |
 
 invariants:
   - Every agent mode uses the same binary with the same startup sequence.
-  - No mode-specific CLI subcommands exist.
+  - No mode-specific run subcommands exist; lifecycle subcommands operate on
+    persisted checkpoint data and do not define agent behavior.
   - Mode-specific tool configuration lives in YAML config blocks. A small
     set of universal CLI flags (--input, --output, --model, --ollama-url)
     serve as overrides applicable to any mode.
@@ -200,11 +257,16 @@ related_documents:
   - cfg-tool-declaration-format
   - cfg-tool-selection-format
   - cfg-llm-config-format
+  - cfg-tool-authoring-standard
   - srd006
   - srd021
   - srd022
   - srd023
   - srd024
+  - srd025-rollback-lifecycle
+  - lifecycle-rollback.md
+  - roll-backs.md
+  - tools-as-dsl.md
 
 implementation:
   - cmd/agent/main.go

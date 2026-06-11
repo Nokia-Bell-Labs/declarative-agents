@@ -24,6 +24,14 @@ transition tables.
 | `pkg/telemetry` | Concrete OTel implementation: providers, exporters, trace adapter, replay |
 | `pkg/spec` | Specification graph loader and cross-artifact validator |
 
+## Lifecycle Operations
+
+Checkpointing, suspend/resume, approval gates, history, and rollback are
+opt-in lifecycle features. See `lifecycle-rollback.md` for the operator guide,
+including `--state-store-dir`, `--resume-checkpoint`, `agent history`,
+`agent rollback`, the three-layer state model, and safety rules for irreversible
+tools and workspace restore.
+
 ## Quick Start
 
 ```go
