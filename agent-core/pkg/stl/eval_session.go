@@ -11,27 +11,26 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-
 // SuiteConfig defines a complete evaluation suite.
 type SuiteConfig struct {
-	Name       string            `yaml:"name"`
-	Harnesses  []Harness         `yaml:"harnesses"`
-	Models     []string          `yaml:"models"`
-	Grid       map[string][]any  `yaml:"grid,omitempty"`
-	Samples    []Sample          `yaml:"-"`
-	Timeout    time.Duration     `yaml:"-"`
-	OllamaURL  string            `yaml:"-"`
-	Reps       int               `yaml:"-"`
+	Name      string           `yaml:"name"`
+	Harnesses []Harness        `yaml:"harnesses"`
+	Models    []string         `yaml:"models"`
+	Grid      map[string][]any `yaml:"grid,omitempty"`
+	Samples   []Sample         `yaml:"-"`
+	Timeout   time.Duration    `yaml:"-"`
+	OllamaURL string           `yaml:"-"`
+	Reps      int              `yaml:"-"`
 }
 
 // SessionResult holds the outcome of an evaluation session.
 type SessionResult struct {
-	TotalPoints  int
-	Passed       int
-	Failed       int
-	TimedOut     int
-	Duration     time.Duration
-	Points       []PointResult
+	TotalPoints int
+	Passed      int
+	Failed      int
+	TimedOut    int
+	Duration    time.Duration
+	Points      []PointResult
 }
 
 // PointResult captures the result of a single evaluation point.
@@ -46,7 +45,6 @@ type PointResult struct {
 	Tokens      int
 	Duration    time.Duration
 }
-
 
 // expandGrid generates all combinations of grid parameters.
 func expandGrid(grid map[string][]any) []GridPoint {
@@ -154,14 +152,14 @@ func LoadSuite(path string) (SuiteConfig, error) {
 // ParseSuite parses suite YAML and resolves samples relative to baseDir.
 func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 	var raw struct {
-		Name        string            `yaml:"name"`
-		Harnesses   []Harness         `yaml:"harnesses"`
-		Models      []string          `yaml:"models"`
-		Grid        map[string][]any  `yaml:"grid,omitempty"`
-		SamplesDir  string            `yaml:"samples_dir"`
-		Timeout     string            `yaml:"timeout,omitempty"`
-		OllamaURL   string            `yaml:"ollama_url,omitempty"`
-		Reps        int               `yaml:"repetitions,omitempty"`
+		Name       string           `yaml:"name"`
+		Harnesses  []Harness        `yaml:"harnesses"`
+		Models     []string         `yaml:"models"`
+		Grid       map[string][]any `yaml:"grid,omitempty"`
+		SamplesDir string           `yaml:"samples_dir"`
+		Timeout    string           `yaml:"timeout,omitempty"`
+		OllamaURL  string           `yaml:"ollama_url,omitempty"`
+		Reps       int              `yaml:"repetitions,omitempty"`
 	}
 
 	if err := yaml.Unmarshal(data, &raw); err != nil {
@@ -170,6 +168,20 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 
 	if raw.Name == "" {
 		return SuiteConfig{}, fmt.Errorf("suite: missing name")
+	}
+	if len(raw.Harnesses) == 0 {
+		return SuiteConfig{}, fmt.Errorf("suite %q: missing harnesses", raw.Name)
+	}
+	for i, h := range raw.Harnesses {
+		if h.Name == "" {
+			return SuiteConfig{}, fmt.Errorf("suite %q: harness[%d]: missing name", raw.Name, i)
+		}
+		if h.Binary == "" {
+			return SuiteConfig{}, fmt.Errorf("suite %q: harness %q: missing binary", raw.Name, h.Name)
+		}
+	}
+	if len(raw.Models) == 0 {
+		return SuiteConfig{}, fmt.Errorf("suite %q: missing models", raw.Name)
 	}
 
 	samplesDir := raw.SamplesDir
@@ -201,4 +213,3 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 		Reps:      raw.Reps,
 	}, nil
 }
-

@@ -18,14 +18,28 @@ purpose: |
   The former `agent eval` subcommand has been removed. Evaluation is
   now fully driven by `--machine configs/evaluator/machine.yaml`.
 
+declarative_boundary: |
+  The evaluator program definition is the pair of state machines
+  (configs/evaluator/machine.yaml and configs/evaluator/point.yaml),
+  the selected tools (configs/evaluator/tools.yaml), and the tool
+  declarations/overrides loaded at startup. Suite YAML is not a third
+  program-definition mechanism. It is input data consumed by evaluator
+  tools:
+
+  - load_suite parses and validates the suite, resolves samples, expands
+    the grid, and creates the session.
+  - run_agent consumes each harness entry as subprocess input data
+    (binary plus flags) for the current point.
+  - dump_config snapshots the resolved harness, model, machine/tools, and
+    prompt/profile configuration into experiment.yaml for reproducibility.
+
 configuration:
   machine: configs/evaluator/machine.yaml
   point_machine: configs/evaluator/point.yaml
   tools: configs/evaluator/tools.yaml
-  session_tools: configs/evaluator/session.yaml
   tool_declarations:
     - configs/tools/builtin.yaml
-    - configs/tools/exec.yaml
+    - configs/evaluator/builtin.yaml
 
 # --- Session-level machine ---
 

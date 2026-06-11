@@ -113,6 +113,14 @@ tool_parametrization: |
     - run_point reads "point_machine" to locate the nested machine YAML.
     - serve_ui reads "addr", "data_dir", "configs_dir", etc.
 
+suite_input_contract: |
+  Evaluator suite YAML is input data to evaluator tools, not a program
+  definition layer beside machine.yaml and tools.yaml. load_suite owns
+  parsing and validation of the suite input. run_agent consumes each
+  harness entry as subprocess data (binary plus flags) for the current
+  point. dump_config snapshots the resolved suite/harness/tool data into
+  experiment.yaml for reproducibility.
+
   CLI flags (--input, --output, --model, --ollama-url) serve as
   universal overrides. Mode-specific parameters live exclusively in
   tool config YAML, not as CLI flags.

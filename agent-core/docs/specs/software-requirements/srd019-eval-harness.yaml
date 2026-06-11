@@ -17,6 +17,15 @@ goals:
   - G5: Analyze results with convergence tracking, model statistics, and detailed breakdowns.
 
 requirements:
+  R0:
+    title: Declarative boundary
+    items:
+      - R0.1: The evaluator program SHALL be defined by configs/evaluator/machine.yaml, configs/evaluator/point.yaml, configs/evaluator/tools.yaml, and tool declarations.
+      - R0.2: Suite YAML SHALL be treated as input data to evaluator tools, not as a third program-definition mechanism.
+      - R0.3: load_suite SHALL parse and validate suite input data before the evaluator session can iterate points.
+      - R0.4: run_agent SHALL consume each suite harness as subprocess input data (binary plus flags) for the current evaluation point.
+      - R0.5: dump_config SHALL snapshot the resolved suite/harness/tool configuration into experiment.yaml for reproducibility.
+
   R1:
     title: Suite configuration
     items:
@@ -25,6 +34,7 @@ requirements:
       - R1.3: DiscoverSamples scans a directory for subdirectories containing workspace/ and prompt.yaml files.
       - R1.4: LoadSuite reads a YAML suite file and resolves samples relative to the suite's base directory.
       - R1.5: expandGrid generates the Cartesian product of all grid parameter values.
+      - R1.6: Suite parsing SHALL reject missing harnesses, harnesses without name or binary, and missing models.
 
   R2:
     title: Evaluation session execution
@@ -68,6 +78,10 @@ acceptance_criteria:
   - id: AC1
     criterion: The session state machine executes all grid points and produces SessionResult with correct pass/fail/timeout counts.
     traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC0
+    criterion: Suite YAML is documented and validated as evaluator tool input data, with load_suite/run_agent/dump_config boundaries clear.
+    traces: [R0.1, R0.2, R0.3, R0.4, R0.5, R1.6]
 
   - id: AC2
     criterion: Each evaluation point creates an isolated workspace with git baseline, experiment.yaml config snapshot, trace.ndjson, and meta.json.
