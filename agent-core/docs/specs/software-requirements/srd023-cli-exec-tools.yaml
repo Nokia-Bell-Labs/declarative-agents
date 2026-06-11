@@ -1,0 +1,107 @@
+id: srd023-cli-exec-tools
+title: CLI and Exec Tool Declarations
+
+problem: |
+  Declarative state machines need to invoke external CLIs without
+  embedding those CLI details in Go code. Exec tools provide this bridge:
+  YAML declares the binary, base arguments, parameter-to-argv mapping,
+  working directory behavior, output limits, and side effects. Without a
+  focused contract for exec tools, each external command risks becoming a
+  bespoke builtin rather than a reusable declarative capability.
+
+goals:
+  - G1: Define the YAML contract for type: exec tool declarations.
+  - G2: Define JSON Schema parameter mapping extensions used to build argv.
+  - G3: Define subprocess execution, output capture, cancellation, and signal mapping.
+  - G4: Define declaration includes, declaration loading, and selection behavior for exec tools.
+  - G5: Clarify how exec tools differ from builtin tools.
+
+requirements:
+  R1:
+    title: Exec declaration schema
+    items:
+      - R1.1: An exec tool declaration SHALL set type to exec or omit type, since exec is the default.
+      - R1.2: An exec tool declaration SHALL provide name, the registry-visible tool name.
+      - R1.3: An exec tool declaration SHALL provide binary, the executable name or path.
+      - R1.4: An exec tool declaration MAY provide args, a base argument list prepended to every invocation.
+      - R1.5: An exec tool declaration MAY provide dir, a working-directory override relative to the agent workspace.
+      - R1.6: An exec tool declaration MAY provide precondition, output_cap, side_effects, visibility, description, and parameters.
+
+  R2:
+    title: Parameter-to-argv mapping
+    items:
+      - R2.1: Exec tool parameters SHALL be described with JSON Schema under parameters.properties.
+      - R2.2: The flag extension SHALL map a parameter value to a named CLI flag such as --path.
+      - R2.3: The positional extension SHALL append a parameter value as a positional argument.
+      - R2.4: The bool_flag extension SHALL be boolean; when true and the parameter value is true, the flag value is appended without a following value.
+      - R2.5: The default extension SHALL provide a parameter value when the caller omits it.
+      - R2.6: CLI mapping extensions SHALL be stripped from the ToolSpec schema sent to LLMs.
+
+  R3:
+    title: Subprocess execution
+    items:
+      - R3.1: ExecBuilder SHALL construct argv from base args plus mapped parameter values.
+      - R3.2: ExecBuilder SHALL run the command in the configured workspace directory or dir override.
+      - R3.3: ExecBuilder SHALL capture stdout, stderr, exit code, elapsed duration, and execution errors.
+      - R3.4: Successful exit SHALL map to ToolDone.
+      - R3.5: Non-zero exit or execution failure SHALL map to ToolFailed unless the failure prevents command construction, which SHALL map to CommandError.
+      - R3.6: Output SHALL be capped when output_cap is configured.
+      - R3.7: Parent context cancellation SHALL stop the subprocess.
+
+  R4:
+    title: Declaration loading and selection
+    items:
+      - R4.1: Tool declaration files MAY include other declaration files with file-level includes.
+      - R4.2: Included declarations SHALL load before the including file so local definitions can override shared definitions.
+      - R4.3: Production startup SHOULD use LoadToolDeclarations + LoadToolSelection + SelectTools.
+      - R4.4: Selected exec tools SHALL fail startup if the selected name is not declared.
+
+  R5:
+    title: Relationship to builtin tools
+    items:
+      - R5.1: Exec tools SHALL represent external process capabilities described entirely by YAML.
+      - R5.2: Builtin tools SHALL be used when behavior requires Go-owned state, in-process APIs, or custom command construction that cannot be represented as argv mapping.
+      - R5.3: A CLI SHOULD be modeled as an exec tool before introducing a bespoke builtin wrapper.
+      - R5.4: Agent subprogram invocation SHOULD use the agent CLI exec tool contract when possible.
+
+non_goals:
+  - Defining every external command used by the repository.
+  - Defining builtin factory config validation; see srd022.
+  - Defining the agent CLI itself as a child tool; see srd021.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Exec declarations support name, type, binary, args, dir, precondition, output_cap, side_effects, visibility, description, and parameters.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
+
+  - id: AC2
+    criterion: Parameter mapping converts JSON tool parameters into argv using flag, positional, bool_flag, and default extensions while stripping those extensions from LLM-visible schema.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
+
+  - id: AC3
+    criterion: Exec tools run subprocesses in the correct directory, capture output/exit/duration, honor output caps and cancellation, and map outcomes to ToolDone, ToolFailed, or CommandError.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7]
+
+  - id: AC4
+    criterion: Declaration includes and declaration+selection loading support shared exec definitions with mode-local overrides.
+    traces: [R4.1, R4.2, R4.3, R4.4]
+
+  - id: AC5
+    criterion: Architecture guidance prefers exec tools for external CLIs and builtin tools only for in-process behavior that cannot be represented declaratively.
+    traces: [R5.1, R5.2, R5.3, R5.4]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [ToolDone, ToolFailed, CommandError, Result]
+  - srd_id: srd004-tool-registry
+    symbols_used: [Registry, ToolSpec]
+  - srd_id: srd013-standard-tool-library
+    symbols_used: [ToolDef, ExecBuilder]
+  - srd_id: srd021-agent-cli-exec-tool
+    symbols_used: [agent]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry]
+
+implementation:
+  - configs/tools/exec.yaml
+  - pkg/stl/exectool.go
