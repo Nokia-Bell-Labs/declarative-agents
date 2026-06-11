@@ -92,7 +92,7 @@ srd_index:
     path: docs/specs/software-requirements/srd012-system-prompt-template.yaml
   - id: srd013-standard-tool-library
     title: Standard Tool Library (STL)
-    summary: Shared file tools, build tools, LLM commands, subprocess utilities, and process group management in pkg/stl.
+    summary: Overview of shared STL tools and helpers, with focused tool architecture contracts delegated to srd021-srd024.
     path: docs/specs/software-requirements/srd013-standard-tool-library.yaml
   - id: srd014-spec-graph
     title: Specification Graph Loader and Validator

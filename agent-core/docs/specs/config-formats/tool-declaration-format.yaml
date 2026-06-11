@@ -189,6 +189,10 @@ inline_pattern: |
 
 related_documents:
   - srd013
+  - srd021
+  - srd022
+  - srd023
+  - srd024
   - srd004
   - cfg-tool-selection-format
   - cfg-llm-config-format

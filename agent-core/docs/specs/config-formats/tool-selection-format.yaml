@@ -92,5 +92,7 @@ selection_files:
 related_documents:
   - cfg-tool-declaration-format
   - srd013
+  - srd022
+  - srd023
 
 implementation: pkg/stl/exectool.go

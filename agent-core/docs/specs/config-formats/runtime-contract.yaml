@@ -164,6 +164,10 @@ related_documents:
   - cfg-tool-selection-format
   - cfg-llm-config-format
   - srd006
+  - srd021
+  - srd022
+  - srd023
+  - srd024
 
 implementation:
   - cmd/agent/main.go

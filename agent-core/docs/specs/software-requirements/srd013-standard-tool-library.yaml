@@ -9,6 +9,13 @@ problem: |
   with inconsistent interfaces and behavior. The STL provides production-
   ready implementations that any agent can import and register.
 
+  This SRD is the overview for the shared STL package. Focused tool
+  architecture contracts live in:
+  - srd021-agent-cli-exec-tool for treating agent as a configured CLI tool
+  - srd022-builtin-tools for builtin declarations and factories
+  - srd023-cli-exec-tools for external CLI/exec tool declarations
+  - srd024-blocking-input-tools for tools that block waiting for input
+
 goals:
   - G1: Shared file tools (read, write, edit, find, list_files) confined to a workspace root.
   - G2: Shared build tools (build, vet, lint, test) for Go projects.
@@ -17,6 +24,7 @@ goals:
   - G5: YAML-based tool registration via BuiltinRegistry and tool declaration files.
   - G6: Evaluation harness tools (prepare_workspace, dump_config, run_agent, check_results, collect_metrics).
   - G7: Code validation tool (validate) for build/vet/lint/test pipeline.
+  - G8: Cross-reference focused tool SRDs rather than duplicating their detailed architectural contracts.
 
 requirements:
   R1:
@@ -102,6 +110,10 @@ non_goals:
   - Domain-specific tools (those are registered by individual agents).
   - Tool parameter validation beyond path confinement.
   - Retry or error recovery logic.
+  - Full builtin declaration/factory contract (see srd022-builtin-tools).
+  - Full CLI/exec declaration and argv mapping contract (see srd023-cli-exec-tools).
+  - Agent-as-child-CLI invocation contract (see srd021-agent-cli-exec-tool).
+  - Blocking input tool lifecycle contract (see srd024-blocking-input-tools).
 
 acceptance_criteria:
   - id: AC1
@@ -145,3 +157,11 @@ depends_on:
     symbols_used: [Conversation]
   - srd_id: srd007-tracer-interface
     symbols_used: [Tracer]
+  - srd_id: srd021-agent-cli-exec-tool
+    symbols_used: [agent]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry, RegisterSingleBuiltin, ToolDef]
+  - srd_id: srd023-cli-exec-tools
+    symbols_used: [ExecBuilder]
+  - srd_id: srd024-blocking-input-tools
+    symbols_used: [invoke_llm, serve_ui]
