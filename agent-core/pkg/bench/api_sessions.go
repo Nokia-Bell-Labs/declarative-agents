@@ -160,7 +160,7 @@ func scanSession(suite, ts, dir string) sessionSummary {
 		if !e.IsDir() {
 			continue
 		}
-		metaPath := filepath.Join(dir, e.Name(), "meta.json")
+		metaPath := filepath.Join(dir, e.Name(), stl.ArtifactMeta)
 		data, err := os.ReadFile(metaPath)
 		if err != nil {
 			continue
@@ -308,7 +308,7 @@ func (s *Server) handleListPoints(w http.ResponseWriter, r *http.Request) {
 		if !e.IsDir() {
 			continue
 		}
-		metaPath := filepath.Join(dir, e.Name(), "meta.json")
+		metaPath := filepath.Join(dir, e.Name(), stl.ArtifactMeta)
 		if _, err := os.Stat(metaPath); err != nil {
 			continue
 		}
@@ -375,7 +375,7 @@ func (s *Server) handleGetTrace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tracePath := filepath.Join(dir, cleanPoint, "trace.ndjson")
+	tracePath := filepath.Join(dir, cleanPoint, stl.ArtifactTrace)
 	if _, err := os.Stat(tracePath); os.IsNotExist(err) {
 		writeError(w, http.StatusNotFound, "trace not found")
 		return
@@ -445,7 +445,7 @@ func (s *Server) handleGetExperiment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expPath := filepath.Join(dir, cleanPoint, "experiment.yaml")
+	expPath := filepath.Join(dir, cleanPoint, stl.ArtifactExperiment)
 	data, err := os.ReadFile(expPath)
 	if err != nil {
 		if os.IsNotExist(err) {

@@ -58,7 +58,7 @@ func writeMetaJSON(pc *PointContext) ([]byte, error) {
 	}
 
 	metaJSON, _ := json.MarshalIndent(meta, "", "  ")
-	metaPath := filepath.Join(pc.PointDir, "meta.json")
+	metaPath := filepath.Join(pc.PointDir, ArtifactMeta)
 	if err := os.WriteFile(metaPath, metaJSON, 0o644); err != nil {
 		return nil, fmt.Errorf("write meta.json: %w", err)
 	}

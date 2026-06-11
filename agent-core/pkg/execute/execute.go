@@ -23,6 +23,10 @@ import (
 const (
 	spanExecute   = "execute_task"
 	defaultBinary = "agent"
+
+	// TaskFilePath is the relative path under the worktree where the
+	// task plan YAML is written before spawning a child agent.
+	TaskFilePath = "doc/task.yaml"
 )
 
 // Config holds execution engine settings.
@@ -99,7 +103,7 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 	)
 	defer done()
 
-	taskFile := filepath.Join(worktreeDir, "doc", "task.yaml")
+	taskFile := filepath.Join(worktreeDir, TaskFilePath)
 	if err := writeTaskFile(taskFile, plan); err != nil {
 		child.RecordError(err)
 		return nil, fmt.Errorf("execute %s: write task file: %w", taskID, err)

@@ -30,14 +30,14 @@ func (c *prepareWorkspaceCmd) Execute() core.Result {
 		return c.fail(fmt.Errorf("mkdir point dir: %w", err))
 	}
 	pc.PointDir = pointDir
-	pc.TracePath = filepath.Join(pointDir, "trace.ndjson")
+	pc.TracePath = filepath.Join(pointDir, ArtifactTrace)
 
 	if err := copyDir(pc.Sample.WorkspaceDir, pointDir); err != nil {
 		return c.fail(fmt.Errorf("copy workspace: %w", err))
 	}
 
 	if pc.Sample.DocDir != "" {
-		dst := filepath.Join(pointDir, "doc")
+		dst := filepath.Join(pointDir, ArtifactDocDir)
 		if err := copyDir(pc.Sample.DocDir, dst); err != nil {
 			return c.fail(fmt.Errorf("copy docs: %w", err))
 		}

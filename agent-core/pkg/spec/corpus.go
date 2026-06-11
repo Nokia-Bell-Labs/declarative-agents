@@ -10,16 +10,19 @@ import (
 	"strings"
 )
 
+// Spec corpus layout paths. These define the expected directory
+// structure under the project root for specification artifacts.
+// Used by LoadCorpus and the validate state machine.
 const (
-	docsDir      = "docs"
-	srdSubdir    = "docs/specs/software-requirements"
-	srdGlob      = "srd*.yaml"
-	ucSubdir     = "docs/specs/use-cases"
-	ucGlob       = "rel*.yaml"
-	tsSubdir     = "docs/specs/test-suites"
-	tsGlob       = "test-*.yaml"
-	roadmapFile  = "docs/road-map.yaml"
-	specFile     = "docs/SPECIFICATIONS.yaml"
+	DocsDir     = "docs"
+	SRDSubdir   = "docs/specs/software-requirements"
+	SRDGlob     = "srd*.yaml"
+	UCSubdir    = "docs/specs/use-cases"
+	UCGlob      = "rel*.yaml"
+	TSSubdir    = "docs/specs/test-suites"
+	TSGlob      = "test-*.yaml"
+	RoadmapFile = "docs/road-map.yaml"
+	SpecFile    = "docs/SPECIFICATIONS.yaml"
 )
 
 // Corpus holds all parsed specification artifacts for a project.
@@ -37,7 +40,7 @@ type Corpus struct {
 // LoadCorpus discovers, parses, and validates all specification artifacts
 // under rootDir.
 func LoadCorpus(rootDir string) (*Corpus, error) {
-	docsPath := filepath.Join(rootDir, docsDir)
+	docsPath := filepath.Join(rootDir, DocsDir)
 	if _, err := os.Stat(docsPath); err != nil {
 		return nil, fmt.Errorf("docs directory not found in %s: %w", rootDir, err)
 	}
@@ -57,13 +60,13 @@ func LoadCorpus(rootDir string) (*Corpus, error) {
 		return nil, err
 	}
 
-	rmPath := filepath.Join(rootDir, roadmapFile)
+	rmPath := filepath.Join(rootDir, RoadmapFile)
 	rm, err := ParseRoadmap(rmPath)
 	if err != nil {
 		return nil, err
 	}
 
-	siPath := filepath.Join(rootDir, specFile)
+	siPath := filepath.Join(rootDir, SpecFile)
 	si, err := ParseSpecIndex(siPath)
 	if err != nil {
 		return nil, err
@@ -86,7 +89,7 @@ func LoadCorpus(rootDir string) (*Corpus, error) {
 }
 
 func discoverAndParseSRDs(rootDir string) (map[string]SRD, []string, error) {
-	pattern := filepath.Join(rootDir, srdSubdir, srdGlob)
+	pattern := filepath.Join(rootDir, SRDSubdir, SRDGlob)
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, nil, fmt.Errorf("glob SRD files: %w", err)
@@ -118,7 +121,7 @@ func discoverAndParseSRDs(rootDir string) (map[string]SRD, []string, error) {
 }
 
 func discoverAndParseUseCases(rootDir string) (map[string]UseCase, []string, error) {
-	pattern := filepath.Join(rootDir, ucSubdir, ucGlob)
+	pattern := filepath.Join(rootDir, UCSubdir, UCGlob)
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, nil, fmt.Errorf("glob use case files: %w", err)
@@ -147,7 +150,7 @@ func discoverAndParseUseCases(rootDir string) (map[string]UseCase, []string, err
 }
 
 func discoverAndParseTestSuites(rootDir string) (map[string]TestSuite, error) {
-	pattern := filepath.Join(rootDir, tsSubdir, tsGlob)
+	pattern := filepath.Join(rootDir, TSSubdir, TSGlob)
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("glob test suite files: %w", err)

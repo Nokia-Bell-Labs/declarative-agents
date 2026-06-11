@@ -67,7 +67,7 @@ func loadDir(dir string) ([]EvalRunResult, error) {
 			continue
 		}
 		pointDir := filepath.Join(dir, e.Name())
-		metaPath := filepath.Join(pointDir, "meta.json")
+		metaPath := filepath.Join(pointDir, ArtifactMeta)
 
 		data, err := os.ReadFile(metaPath)
 		if err != nil {
@@ -92,7 +92,7 @@ func loadDir(dir string) ([]EvalRunResult, error) {
 		// Token counts may be stored in meta or derived from traces.
 		r.TokensIn, r.TokensOut, r.Iterations = extractTokensFromTrace(pointDir)
 
-		tracePath := filepath.Join(pointDir, "trace.ndjson")
+		tracePath := filepath.Join(pointDir, ArtifactTrace)
 		if spans, err := ReadTraceFile(tracePath); err == nil && len(spans) > 0 {
 			snapshots := ExtractToolSnapshots(spans)
 			prog := Classify(snapshots, meta.TestsPassed)
@@ -109,7 +109,7 @@ func loadDir(dir string) ([]EvalRunResult, error) {
 }
 
 func extractTokensFromTrace(pointDir string) (tokensIn, tokensOut, iterations int) {
-	tracePath := filepath.Join(pointDir, "trace.ndjson")
+	tracePath := filepath.Join(pointDir, ArtifactTrace)
 	spans, err := ReadTraceFile(tracePath)
 	if err != nil {
 		return 0, 0, 0

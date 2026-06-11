@@ -66,7 +66,7 @@ func (c *dumpConfigCmd) Execute() core.Result {
 		}
 	}
 
-	dst := filepath.Join(pc.PointDir, "experiment.yaml")
+	dst := filepath.Join(pc.PointDir, ArtifactExperiment)
 	if err := os.WriteFile(dst, out, 0o644); err != nil {
 		return core.Result{
 			CommandName: c.Name(),
