@@ -32,20 +32,134 @@ var cliExtensionKeys = map[string]bool{
 // The parameters field uses JSON Schema format (same as the LLM tool calling
 // spec) with CLI mapping extensions on each property.
 type ToolDef struct {
-	Name         string                 `yaml:"name"`
-	Type         string                 `yaml:"type,omitempty"`
-	Description  string                 `yaml:"description"`
-	Binary       string                 `yaml:"binary,omitempty"`
-	Args         []string               `yaml:"args,omitempty"`
-	Init         string                 `yaml:"init,omitempty"`
-	Config       map[string]interface{} `yaml:"config,omitempty"`
-	Emits        []string               `yaml:"emits,omitempty"`
-	Parameters   map[string]interface{} `yaml:"parameters,omitempty"`
-	Dir          string                 `yaml:"dir,omitempty"`
-	Precondition string                 `yaml:"precondition,omitempty"`
-	Visibility   string                 `yaml:"visibility,omitempty"`
-	OutputCap    int                    `yaml:"output_cap,omitempty"`
-	SideEffects  string                 `yaml:"side_effects,omitempty"`
+	Name          string                 `yaml:"name"`
+	Type          string                 `yaml:"type,omitempty"`
+	Description   string                 `yaml:"description"`
+	Problem       string                 `yaml:"problem,omitempty"`
+	Goals         []string               `yaml:"goals,omitempty"`
+	Requirements  ToolRequirements       `yaml:"requirements,omitempty"`
+	NonGoals      []string               `yaml:"non_goals,omitempty"`
+	Output        ToolOutputContract     `yaml:"output,omitempty"`
+	SideEffects   ToolSideEffects        `yaml:"side_effects,omitempty"`
+	Reversibility ToolReversibility      `yaml:"reversibility,omitempty"`
+	Undo          ToolUndoContract       `yaml:"undo,omitempty"`
+	Errors        []ToolErrorContract    `yaml:"errors,omitempty"`
+	Relationships ToolRelationships      `yaml:"relationships,omitempty"`
+	Binary        string                 `yaml:"binary,omitempty"`
+	Args          []string               `yaml:"args,omitempty"`
+	Init          string                 `yaml:"init,omitempty"`
+	Config        map[string]interface{} `yaml:"config,omitempty"`
+	Emits         []string               `yaml:"emits,omitempty"`
+	Parameters    map[string]interface{} `yaml:"parameters,omitempty"`
+	Dir           string                 `yaml:"dir,omitempty"`
+	Precondition  string                 `yaml:"precondition,omitempty"`
+	Visibility    string                 `yaml:"visibility,omitempty"`
+	OutputCap     int                    `yaml:"output_cap,omitempty"`
+}
+
+// ToolRequirements groups observable behaviors a tool must satisfy. These
+// fields describe the tool contract; runtime validation is added separately.
+type ToolRequirements struct {
+	Input       []string `yaml:"input,omitempty"`
+	Output      []string `yaml:"output,omitempty"`
+	SideEffects []string `yaml:"side_effects,omitempty"`
+	Undo        []string `yaml:"undo,omitempty"`
+	Errors      []string `yaml:"errors,omitempty"`
+}
+
+// ToolOutputContract describes the structured output shape produced by a tool.
+type ToolOutputContract struct {
+	Description string                 `yaml:"description,omitempty"`
+	Schema      map[string]interface{} `yaml:"schema,omitempty"`
+}
+
+// ToolSideEffect describes one world mutation performed by a tool.
+type ToolSideEffect struct {
+	Kind        string   `yaml:"kind,omitempty"`
+	Target      string   `yaml:"target,omitempty"`
+	Paths       []string `yaml:"paths,omitempty"`
+	State       string   `yaml:"state,omitempty"`
+	Description string   `yaml:"description,omitempty"`
+}
+
+// ToolSideEffects accepts both the legacy scalar side_effects string and the
+// structured list form. The scalar is kept for migration compatibility.
+type ToolSideEffects struct {
+	LegacyText string
+	Items      []ToolSideEffect
+}
+
+// UnmarshalYAML supports legacy:
+//
+//	side_effects: "creates files"
+//
+// and structured:
+//
+//	side_effects:
+//	  - kind: filesystem_write
+//	    paths: ["out.txt"]
+func (se *ToolSideEffects) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		var text string
+		if err := value.Decode(&text); err != nil {
+			return err
+		}
+		se.LegacyText = text
+		return nil
+	case yaml.SequenceNode:
+		var items []ToolSideEffect
+		if err := value.Decode(&items); err != nil {
+			return err
+		}
+		se.Items = items
+		return nil
+	case 0:
+		return nil
+	default:
+		return fmt.Errorf("side_effects must be a string or list")
+	}
+}
+
+// IsZero lets yaml omit empty side_effects when serializing.
+func (se ToolSideEffects) IsZero() bool {
+	return se.LegacyText == "" && len(se.Items) == 0
+}
+
+// ToolReversibility classifies whether a tool's effects can be undone.
+type ToolReversibility struct {
+	Classification       string `yaml:"classification,omitempty"`
+	Undo                 string `yaml:"undo,omitempty"`
+	RequiresConfirmation bool   `yaml:"requires_confirmation,omitempty"`
+}
+
+// ToolUndoContract describes how to reverse or compensate for tool effects.
+type ToolUndoContract struct {
+	Strategy    string   `yaml:"strategy,omitempty"`
+	Description string   `yaml:"description,omitempty"`
+	Requires    []string `yaml:"requires,omitempty"`
+}
+
+// ToolErrorContract describes one expected failure mode.
+type ToolErrorContract struct {
+	Signal            string `yaml:"signal,omitempty"`
+	Condition         string `yaml:"condition,omitempty"`
+	MessageShape      string `yaml:"message_shape,omitempty"`
+	StateAfterFailure string `yaml:"state_after_failure,omitempty"`
+}
+
+// ToolRelationships documents common composition neighbors and overlapping
+// tools. It guides agents and humans but does not constrain state machines.
+type ToolRelationships struct {
+	Before   []string      `yaml:"before,omitempty"`
+	After    []string      `yaml:"after,omitempty"`
+	Overlaps []ToolOverlap `yaml:"overlaps,omitempty"`
+}
+
+// ToolOverlap explains how this tool differs from a similar tool.
+type ToolOverlap struct {
+	Tool       string `yaml:"tool,omitempty"`
+	Difference string `yaml:"difference,omitempty"`
 }
 
 // ParamMapping holds the extracted CLI mapping for one parameter.
@@ -220,8 +334,8 @@ func (td *ToolDef) ToToolSpec() core.ToolSpec {
 	}
 
 	desc := td.Description
-	if td.SideEffects != "" {
-		desc += " Side effects: " + td.SideEffects
+	if td.SideEffects.LegacyText != "" {
+		desc += " Side effects: " + td.SideEffects.LegacyText
 	}
 
 	return core.ToolSpec{

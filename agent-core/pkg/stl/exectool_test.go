@@ -123,7 +123,9 @@ func TestToolDef_ToToolSpec(t *testing.T) {
 		Description: "Compile stuff.",
 		Binary:      "go",
 		Args:        []string{"build"},
-		SideEffects: "produces binary",
+		SideEffects: ToolSideEffects{
+			LegacyText: "produces binary",
+		},
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -151,6 +153,114 @@ func TestToolDef_ToToolSpec(t *testing.T) {
 	assert.Equal(t, "Package", pkg["description"])
 	// CLI extensions should be stripped
 	assert.NotContains(t, pkg, "flag")
+}
+
+func TestParseToolDefs_ContractFields(t *testing.T) {
+	yaml := `tools:
+  - name: parse_csv
+    type: exec
+    binary: csvtool
+    description: "Parse a CSV file into rows."
+    problem: "The agent needs a typed way to turn CSV files into row data."
+    goals:
+      - "Return deterministic row data for a single CSV input."
+    requirements:
+      input:
+        - "must accept a path to one CSV file"
+      output:
+        - "must return row_count and rows"
+      side_effects:
+        - "must not mutate the workspace"
+      undo:
+        - "must be a no-op"
+      errors:
+        - "must fail when the CSV cannot be parsed"
+    non_goals:
+      - "Does not transform or clean CSV values."
+    output:
+      description: "Parsed CSV rows."
+      schema:
+        type: object
+        properties:
+          row_count:
+            type: integer
+          rows:
+            type: array
+    side_effects:
+      - kind: none
+        description: "Read-only tool."
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    undo:
+      strategy: noop
+      description: "No state is changed."
+    errors:
+      - signal: ToolFailed
+        condition: "CSV parse error"
+        message_shape: "parse csv: <error>"
+        state_after_failure: unchanged
+    relationships:
+      before: [read]
+      after: [write]
+      overlaps:
+        - tool: read
+          difference: "read returns raw text; parse_csv returns structured rows"
+`
+	defs, err := ParseToolDefs([]byte(yaml))
+	require.NoError(t, err)
+	require.Len(t, defs, 1)
+
+	def := defs[0]
+	assert.Equal(t, "The agent needs a typed way to turn CSV files into row data.", def.Problem)
+	assert.Equal(t, []string{"Return deterministic row data for a single CSV input."}, def.Goals)
+	assert.Equal(t, []string{"must accept a path to one CSV file"}, def.Requirements.Input)
+	assert.Equal(t, []string{"Does not transform or clean CSV values."}, def.NonGoals)
+	assert.Equal(t, "Parsed CSV rows.", def.Output.Description)
+	assert.Equal(t, "object", def.Output.Schema["type"])
+	require.Len(t, def.SideEffects.Items, 1)
+	assert.Equal(t, "none", def.SideEffects.Items[0].Kind)
+	assert.Equal(t, "reversible", def.Reversibility.Classification)
+	assert.Equal(t, "noop", def.Undo.Strategy)
+	require.Len(t, def.Errors, 1)
+	assert.Equal(t, "ToolFailed", def.Errors[0].Signal)
+	assert.Equal(t, []string{"read"}, def.Relationships.Before)
+	require.Len(t, def.Relationships.Overlaps, 1)
+	assert.Equal(t, "read", def.Relationships.Overlaps[0].Tool)
+}
+
+func TestParseToolDefs_LegacySideEffectsString(t *testing.T) {
+	defs, err := ParseToolDefs([]byte(`tools:
+  - name: copy_dir
+    type: exec
+    binary: cp
+    description: "Copy directory"
+    side_effects: "creates files in the destination directory"
+`))
+	require.NoError(t, err)
+	require.Len(t, defs, 1)
+	assert.Equal(t, "creates files in the destination directory", defs[0].SideEffects.LegacyText)
+	assert.Empty(t, defs[0].SideEffects.Items)
+}
+
+func TestToolDef_ToToolSpec_IgnoresStructuredContractFields(t *testing.T) {
+	td := ToolDef{
+		Name:        "parse_csv",
+		Description: "Parse CSV.",
+		Binary:      "csvtool",
+		Problem:     "Need structured CSV rows.",
+		Goals:       []string{"Return rows."},
+		SideEffects: ToolSideEffects{
+			Items: []ToolSideEffect{{Kind: "none", Description: "Read-only."}},
+		},
+		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+	}
+
+	spec := td.ToToolSpec()
+	assert.Equal(t, "Parse CSV.", spec.Description)
+	assert.NotContains(t, spec.Description, "Need structured CSV rows")
+	assert.NotContains(t, spec.Description, "Read-only")
 }
 
 func TestToolDef_ToToolSpec_Internal(t *testing.T) {
@@ -377,11 +487,29 @@ func TestRegisterToolDefs(t *testing.T) {
 
 func TestMergeToolDefs(t *testing.T) {
 	base := []ToolDef{
-		{Name: "build", Binary: "go", Args: []string{"build"}},
+		{
+			Name:    "build",
+			Binary:  "go",
+			Args:    []string{"build"},
+			Problem: "Compile the workspace.",
+			Reversibility: ToolReversibility{
+				Classification: "reversible",
+				Undo:           "noop",
+			},
+		},
 		{Name: "test", Binary: "go", Args: []string{"test"}},
 	}
 	override := []ToolDef{
-		{Name: "build", Binary: "go", Args: []string{"build", "-race"}},
+		{
+			Name:    "build",
+			Binary:  "go",
+			Args:    []string{"build", "-race"},
+			Problem: "Compile the workspace with race detector.",
+			Reversibility: ToolReversibility{
+				Classification: "reversible",
+				Undo:           "noop",
+			},
+		},
 		{Name: "lint", Binary: "golangci-lint"},
 	}
 
@@ -390,6 +518,8 @@ func TestMergeToolDefs(t *testing.T) {
 
 	assert.Equal(t, "build", merged[0].Name)
 	assert.Equal(t, []string{"build", "-race"}, merged[0].Args)
+	assert.Equal(t, "Compile the workspace with race detector.", merged[0].Problem)
+	assert.Equal(t, "reversible", merged[0].Reversibility.Classification)
 	assert.Equal(t, "test", merged[1].Name)
 	assert.Equal(t, "lint", merged[2].Name)
 }

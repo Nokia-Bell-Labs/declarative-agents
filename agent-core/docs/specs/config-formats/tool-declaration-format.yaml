@@ -33,6 +33,38 @@ schema:
       when and how to use the tool. Recommended but not enforced by
       validateToolDefs.
 
+  - field: problem
+    type: string
+    required: false
+    description: |
+      Contract field describing the vocabulary gap this tool fills.
+      It should explain why this tool exists as a single word in the
+      agent language. This is not currently sent to the LLM manifest.
+
+  - field: goals
+    type: "[]string"
+    required: false
+    description: |
+      Contract field listing measurable success goals for the tool.
+      Goals describe what a correct implementation makes possible.
+
+  - field: requirements
+    type: object
+    required: false
+    description: |
+      Contract field grouping observable "must" statements by
+      input, output, side_effects, undo, and errors. These sections
+      define the developer-facing requirements for the tool as a
+      deterministic vocabulary word.
+
+  - field: non_goals
+    type: "[]string"
+    required: false
+    description: |
+      Contract field listing behavior this tool deliberately does
+      not provide. Non-goals help the agent choose between overlapping
+      tools and avoid using one word as a hidden workflow.
+
   - field: parameters
     type: object
     required: false
@@ -64,6 +96,66 @@ schema:
       machine: emitted signals must be declared by the machine, and each
       emitted signal must have a transition from the action's target state
       unless that target state is terminal.
+
+  - field: output
+    type: object
+    required: false
+    description: |
+      Contract field describing the structured output produced by the
+      tool. Contains optional description and schema fields. The schema
+      is JSON Schema-compatible and describes the machine-readable output
+      contract. This does not yet change core.Result.Output, which remains
+      the human-readable/runtime string channel during migration.
+
+  - field: side_effects
+    type: string or list
+    required: false
+    description: |
+      Contract field declaring world mutations beyond the returned output.
+      The legacy scalar string form is still accepted for compatibility
+      and may be appended to the LLM-visible description. New declarations
+      should use the structured list form with entries containing kind,
+      target, paths, state, and description. Examples of kind include
+      filesystem_write, state_mutation, external_api_call, subprocess,
+      and none.
+
+  - field: reversibility
+    type: object
+    required: false
+    description: |
+      Contract field classifying whether effects can be undone.
+      classification is one of reversible, compensatable, or irreversible.
+      undo describes the undo/compensation mechanism. requires_confirmation
+      marks tools that require explicit approval before use.
+
+  - field: undo
+    type: object
+    required: false
+    description: |
+      Contract field describing how to reverse or compensate for the
+      tool's effects. Contains strategy, description, and requires fields.
+      This complements reversibility by naming the concrete rollback
+      mechanism, such as noop, conversation_truncate, workspace_restore,
+      or compensating_action.
+
+  - field: errors
+    type: "[]object"
+    required: false
+    description: |
+      Contract field describing expected failure modes. Each entry can
+      declare signal, condition, message_shape, and state_after_failure.
+      This lets developers and agents understand what state the world is
+      in after a failed command.
+
+  - field: relationships
+    type: object
+    required: false
+    description: |
+      Contract field documenting common composition neighbors and
+      overlapping tools. before lists tools that typically precede this
+      tool, after lists tools that typically consume this tool's output,
+      and overlaps explains similar tools and how they differ. These are
+      guidance, not execution constraints.
 
 builtin_fields:
   - field: init
@@ -108,13 +200,6 @@ exec_fields:
       A named precondition that must be satisfied before the tool can
       run (e.g. "git_repo" requires the workspace to be a git
       repository).
-
-  - field: side_effects
-    type: string
-    required: false
-    description: |
-      Human-readable description of the tool's side effects. Used for
-      documentation and safety auditing.
 
   - field: output_cap
     type: int
