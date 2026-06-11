@@ -295,6 +295,42 @@ func TestConversation_AppendResetAppend(t *testing.T) {
 	require.Equal(t, "fresh", c.History()[0].Content)
 }
 
+func TestConversation_TruncateTo(t *testing.T) {
+	t.Parallel()
+	c := NewConversation(&stubClient{}, "", ChatOptions{})
+	c.Append(Message{Role: User, Content: "one"})
+	c.Append(Message{Role: Assistant, Content: "two"})
+	c.Append(Message{Role: User, Content: "three"})
+
+	require.NoError(t, c.TruncateTo(2))
+	require.Equal(t, 2, c.Len())
+	require.Equal(t, "two", c.History()[1].Content)
+}
+
+func TestConversation_TruncateToRejectsInvalidLength(t *testing.T) {
+	t.Parallel()
+	c := NewConversation(&stubClient{}, "", ChatOptions{})
+	c.Append(Message{Role: User, Content: "one"})
+
+	require.Error(t, c.TruncateTo(2))
+	require.Equal(t, 1, c.Len())
+}
+
+func TestConversation_SnapshotRestore(t *testing.T) {
+	t.Parallel()
+	c := NewConversation(&stubClient{}, "", ChatOptions{})
+	c.Append(Message{Role: User, Content: "before"})
+	snapshot := c.Snapshot()
+
+	c.Append(Message{Role: Assistant, Content: "after"})
+	c.Restore(snapshot)
+
+	require.Equal(t, 1, c.Len())
+	require.Equal(t, "before", c.History()[0].Content)
+	snapshot[0].Content = "mutated"
+	require.Equal(t, "before", c.History()[0].Content)
+}
+
 // --- Messages (alias for History) ---
 
 func TestConversation_Messages(t *testing.T) {

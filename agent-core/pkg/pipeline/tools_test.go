@@ -19,6 +19,18 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
+const validRawPlan = `title: Implement config parser
+files:
+  - path: config.go
+    action: create
+requirements:
+  - id: R1
+    text: Define struct
+acceptance_criteria:
+  - id: AC1
+    text: Struct exists
+`
+
 func minimalState(t *testing.T) *State {
 	t.Helper()
 	corpus := &spec.Corpus{
@@ -73,6 +85,24 @@ func TestExtractTaskBuilder_ExtractsTask(t *testing.T) {
 	assert.Contains(t, result.Output, "extracted task")
 }
 
+func TestExtractTaskBuilder_UndoRestoresPipelineState(t *testing.T) {
+	t.Parallel()
+	ps := minimalState(t)
+	ps.retryCount = 3
+
+	builder := &ExtractTaskBuilder{PS: ps}
+	cmd := builder.Build(core.Result{})
+	result := cmd.Execute()
+	require.Equal(t, SigTaskExtracted, result.Signal)
+	require.NotNil(t, ps.CurrentTask)
+	require.Equal(t, 0, ps.retryCount)
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Nil(t, ps.CurrentTask)
+	require.Equal(t, 3, ps.retryCount)
+}
+
 func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
@@ -101,6 +131,24 @@ func TestExtractAllBuilder_ExtractsAllReady(t *testing.T) {
 	assert.Equal(t, SigTaskExtracted, result.Signal)
 	assert.NotNil(t, ps.CurrentTask)
 	assert.Contains(t, result.Output, "extracted all")
+}
+
+func TestExtractAllBuilder_UndoRestoresPipelineState(t *testing.T) {
+	t.Parallel()
+	ps := minimalState(t)
+	ps.retryCount = 4
+
+	builder := &ExtractAllBuilder{PS: ps}
+	cmd := builder.Build(core.Result{})
+	result := cmd.Execute()
+	require.Equal(t, SigTaskExtracted, result.Signal)
+	require.NotNil(t, ps.CurrentTask)
+	require.Equal(t, 0, ps.retryCount)
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Nil(t, ps.CurrentTask)
+	require.Equal(t, 4, ps.retryCount)
 }
 
 func TestExtractAllBuilder_NoReady(t *testing.T) {
@@ -150,24 +198,30 @@ func TestParsePlanBuilder_ValidYAML(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
 
-	rawPlan := `title: Implement config parser
-files:
-  - path: config.go
-    action: create
-requirements:
-  - id: R1
-    text: Define struct
-acceptance_criteria:
-  - id: AC1
-    text: Struct exists
-`
 	builder := &ParsePlanBuilder{PS: ps}
-	cmd := builder.Build(core.Result{Output: rawPlan})
+	cmd := builder.Build(core.Result{Output: validRawPlan})
 	result := cmd.Execute()
 
 	assert.Equal(t, SigPlanReady, result.Signal)
 	assert.NotNil(t, ps.CurrentPlan)
 	assert.Equal(t, "Implement config parser", ps.CurrentPlan.Title)
+}
+
+func TestParsePlanBuilder_UndoRestoresPreviousPlan(t *testing.T) {
+	t.Parallel()
+	ps := minimalState(t)
+	previous := &plan.ImplementationPlan{Title: "previous"}
+	ps.CurrentPlan = previous
+
+	builder := &ParsePlanBuilder{PS: ps}
+	cmd := builder.Build(core.Result{Output: validRawPlan})
+	result := cmd.Execute()
+	require.Equal(t, SigPlanReady, result.Signal)
+	require.Equal(t, "Implement config parser", ps.CurrentPlan.Title)
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, "previous", ps.CurrentPlan.Title)
 }
 
 func TestParsePlanBuilder_InvalidYAML(t *testing.T) {
@@ -198,6 +252,37 @@ func TestCheckResultBuilder_Pass(t *testing.T) {
 	assert.Contains(t, result.Output, "completed")
 }
 
+func TestCheckResultBuilder_UndoRestoresGraphStatusAfterPass(t *testing.T) {
+	t.Parallel()
+	ps := minimalState(t)
+
+	task := ps.Extractor.ExtractNext(ps.Graph, ps.MaxWeight)
+	require.NotNil(t, task)
+	ps.CurrentTask = task
+	for _, id := range task.NodeIDs {
+		n, ok := ps.Graph.Node(id)
+		require.True(t, ok)
+		require.NoError(t, n.MarkPlanning())
+		require.NoError(t, n.MarkExecuting())
+	}
+
+	builder := &CheckResultBuilder{PS: ps}
+	cmd := builder.Build(core.Result{Signal: core.ToolDone})
+	result := cmd.Execute()
+	require.Equal(t, core.ValidationPassed, result.Signal)
+	for _, id := range task.NodeIDs {
+		n, _ := ps.Graph.Node(id)
+		require.Equal(t, graph.Done, n.Status)
+	}
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	for _, id := range task.NodeIDs {
+		n, _ := ps.Graph.Node(id)
+		require.Equal(t, graph.Executing, n.Status)
+	}
+}
+
 func TestCheckResultBuilder_Fail(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
@@ -208,6 +293,50 @@ func TestCheckResultBuilder_Fail(t *testing.T) {
 
 	assert.Equal(t, SigRetryAvailable, result.Signal)
 	assert.Contains(t, result.Output, "retry")
+}
+
+func TestCheckResultBuilder_UndoRestoresRetryCount(t *testing.T) {
+	t.Parallel()
+	ps := minimalState(t)
+	ps.retryCount = 0
+
+	builder := &CheckResultBuilder{PS: ps}
+	cmd := builder.Build(core.Result{Signal: core.ToolFailed, Output: "build error"})
+	result := cmd.Execute()
+	require.Equal(t, SigRetryAvailable, result.Signal)
+	require.Equal(t, 1, ps.retryCount)
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 0, ps.retryCount)
+}
+
+func TestCreateIssueBuilder_UndoRestoresIssueState(t *testing.T) {
+	ps := minimalState(t)
+	task := ps.Extractor.ExtractNext(ps.Graph, ps.MaxWeight)
+	require.NotNil(t, task)
+	ps.CurrentTask = task
+	ps.CurrentPlan = &plan.ImplementationPlan{Title: "plan"}
+	ps.IssueID = "old-issue"
+	ps.TaskDeps = map[string]string{"old-task": "old-issue"}
+
+	prevMaterializePlan := materializePlan
+	materializePlan = func(context.Context, tracing.Tracer, plan.ImplementationPlan, string, map[string]string, string) (string, core.Result) {
+		return "new-issue", core.Result{Signal: SigMaterialized, Output: "created issue"}
+	}
+	t.Cleanup(func() { materializePlan = prevMaterializePlan })
+
+	builder := &CreateIssueBuilder{PS: ps}
+	cmd := builder.Build(core.Result{})
+	result := cmd.Execute()
+	require.Equal(t, SigMaterialized, result.Signal)
+	require.Equal(t, "new-issue", ps.IssueID)
+	require.Equal(t, "new-issue", ps.TaskDeps[task.ID])
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, "old-issue", ps.IssueID)
+	require.Equal(t, map[string]string{"old-task": "old-issue"}, ps.TaskDeps)
 }
 
 func TestPlannerAssembler_PrependsSystem(t *testing.T) {

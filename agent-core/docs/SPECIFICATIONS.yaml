@@ -54,6 +54,16 @@ roadmap_summary:
     use_cases_total: 4
     status: planned
 
+foundation_document_index:
+  - id: agent-core
+    title: "Agent Core: Framework for Declarative Tool-Language Agents"
+    summary: Vision, problem statement, success criteria, boundaries, and canonical links for declarative tool-language agents.
+    path: docs/VISION.yaml
+  - id: architecture-agent-core
+    title: Agent Core Architecture
+    summary: Runtime, package, configuration, tool-language, lifecycle, telemetry, and specification architecture with Mermaid diagrams.
+    path: docs/ARCHITECTURE.yaml
+
 srd_index:
   - id: srd001-core-types
     title: Core Types

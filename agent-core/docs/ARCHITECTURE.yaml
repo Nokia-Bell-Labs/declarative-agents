@@ -3,7 +3,7 @@ title: Agent Core Architecture
 
 overview:
   summary: |
-    A Go framework for building tool-augmented agentic loops. A single
+    A Go framework for building declarative tool-language agents. A single
     unified binary (cmd/agent) drives five agent types — generator,
     evaluator, planner, validator, and bench — each defined entirely by
     YAML configuration files (state machines, tool selections, LLM
@@ -355,6 +355,151 @@ overview:
       - docs/specs/semantic-models/tool-language.yaml
       - docs/specs/semantic-models/tool-vocabulary-audit.yaml
       - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
+
+  rollback_lifecycle_architecture:
+    status: |
+      The architecture defines the lifecycle ports and model now, while parts of
+      the full operational feature set are implemented by the follow-up
+      tundo/tlife epics. Disabled-mode behavior remains the default: when
+      StateStore, Workspace, and CheckpointPolicy are nil or disabled, existing
+      machines run without checkpoint persistence, full history recording, or
+      workspace restore behavior.
+
+    summary: |
+      Rollback and lifecycle support is architectural because agent programs
+      mutate more than one kind of state. The runtime must keep those state
+      layers separate:
+
+      - Agent state is loop bookkeeping: current state/signal, iteration,
+        budget counters, accumulated cost, status, and run summary.
+      - Command/domain state is mutable in-process state owned by commands or
+        domains: conversation history, planner pipeline state, evaluator
+        session state, or PointContext.
+      - Workspace/environment state is the external filesystem or environment
+        changed by file tools, exec tools, child agents, and evaluator point
+        tools.
+
+      StateStore stores JSON snapshots for agent and command/domain state.
+      Workspace stores external environment refs, with GitWorkspace as the
+      default filesystem implementation. A Checkpoint references all relevant
+      layers without pretending one layer can serialize another.
+
+    state_layer_diagram: |
+      ```mermaid
+      flowchart TB
+        subgraph Runtime["Loop runtime"]
+          L[Loop]
+          RR[RunResult]
+          H[History]
+        end
+
+        subgraph AgentState["Agent state JSON"]
+          AS[State, Signal, Iteration, Budget, Cost, Status]
+        end
+
+        subgraph DomainState["Command/domain state JSON"]
+          CONV[Conversation]
+          PLAN[Planner state]
+          EVAL[Evaluator session and PointContext]
+        end
+
+        subgraph WorkspaceState["Workspace/environment state"]
+          FS[Filesystem tree]
+          ART[Generated artifacts]
+          CHILD[Child process effects]
+        end
+
+        L --> AS
+        L --> H
+        RR --> AS
+        CONV --> STORE[StateStore or command snapshot]
+        PLAN --> STORE
+        EVAL --> STORE
+        FS --> WORK[Workspace]
+        ART --> WORK
+        CHILD --> WORK
+        WORK --> GIT[GitWorkspace ref]
+      ```
+
+    checkpoint_capture_diagram: |
+      ```mermaid
+      sequenceDiagram
+        participant L as Loop
+        participant P as CheckpointPolicy
+        participant C as Command or domain owner
+        participant W as Workspace
+        participant S as StateStore
+
+        L->>P: consider lifecycle event
+        P-->>L: checkpoint enabled
+        L->>L: build AgentSnapshot
+        L->>C: collect command/domain snapshot
+        C-->>L: domain JSON or no snapshot
+        L->>W: CurrentRef or Checkpoint(label)
+        W-->>L: WorkspaceRef
+        L->>S: Save checkpoint JSON
+      ```
+
+    suspend_resume_diagram: |
+      ```mermaid
+      stateDiagram-v2
+        [*] --> Running
+        Running --> AwaitingApproval: machine action emits approval signal
+        AwaitingApproval --> SavingCheckpoint: lifecycle enabled
+        SavingCheckpoint --> Suspended: checkpoint saved
+        Suspended --> LoadingCheckpoint: resume requested
+        LoadingCheckpoint --> RestoringState: checkpoint compatible
+        RestoringState --> Running: StateStore and Workspace restored
+        LoadingCheckpoint --> Failed: missing or incompatible checkpoint
+        SavingCheckpoint --> Failed: required StateStore unavailable
+      ```
+
+    rollback_traversal_diagram: |
+      ```mermaid
+      flowchart TD
+        A[Current iteration] --> B[Load History]
+        B --> C{Reached target iteration?}
+        C -- no --> D[Call Command.Undo]
+        D --> E{Undo succeeded?}
+        E -- yes --> F[Move to previous HistoryEntry]
+        F --> C
+        E -- no --> G[Report partial rollback and remaining state]
+        C -- yes --> H[Restore Workspace target ref]
+        H --> I[Return resumable agent state]
+      ```
+
+    tool_effects_to_lifecycle_diagram: |
+      ```mermaid
+      flowchart LR
+        TD[ToolDef contract] --> SE[side_effects]
+        TD --> RV[reversibility]
+        TD --> UNDO[undo strategy]
+        TD --> ERR[errors and state_after_failure]
+
+        SE --> CLASS{Effect layer}
+        CLASS -->|state_mutation| CMD[Command/domain restore]
+        CLASS -->|filesystem| WS[Workspace restore]
+        CLASS -->|boundary| COMP[Compensation or confirmation]
+
+        CMD --> HIST[HistoryEntry]
+        WS --> HIST
+        COMP --> HIST
+        HIST --> RB[Rollback traversal]
+      ```
+
+    ownership_rules:
+      - StateStore owns JSON blobs for agent and command/domain state; it does not store filesystem trees.
+      - Workspace owns external environment refs; GitWorkspace refs do not serialize conversation history or state-machine position.
+      - Command.Undo owns command/domain restoration because each command knows the state it changed.
+      - MachineSpec owns approval and suspend routing through explicit states and signals.
+      - Loop owns traversal order, checkpoint timing, and lifecycle status, but not domain-specific compensation logic.
+
+    references:
+      - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+      - docs/specs/semantic-models/rollback-lifecycle.yaml
+      - docs/specs/test-suites/test-rel02.0-lifecycle.yaml
+      - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
+      - roll-backs.md
 
   coordination_pattern: |
     Work flows through the state machine. The loop holds the current

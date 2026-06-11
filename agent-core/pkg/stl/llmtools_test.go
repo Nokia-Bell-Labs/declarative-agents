@@ -86,6 +86,59 @@ func TestInvokeLLM_Success(t *testing.T) {
 	assert.Equal(t, 2, history.Len()) // user + assistant
 }
 
+func TestInvokeLLM_UndoRestoresPreviousHistoryLength(t *testing.T) {
+	client := &stubClient{
+		response: llm.ChatResponse{Content: "assistant response"},
+	}
+	history := llm.NewConversation(nil, "", llm.ChatOptions{})
+	history.Append(llm.Message{Role: llm.User, Content: "existing"})
+
+	builder := &InvokeLLMBuilder{
+		Client:    client,
+		History:   history,
+		Registry:  core.NewRegistry(),
+		Assembler: &stubAssembler{},
+		Model:     "test-model",
+		Tracer:    noopTracer(),
+		Ctx:       context.Background(),
+	}
+
+	cmd := builder.Build(core.Result{Output: "new prompt"})
+	res := cmd.Execute()
+	require.Equal(t, core.LLMResponded, res.Signal)
+	require.Equal(t, 3, history.Len())
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 1, history.Len())
+	require.Equal(t, "existing", history.History()[0].Content)
+}
+
+func TestInvokeLLM_UndoRestoresUserMessageAfterError(t *testing.T) {
+	client := &stubClient{err: fmt.Errorf("connection refused")}
+	history := llm.NewConversation(nil, "", llm.ChatOptions{})
+	history.Append(llm.Message{Role: llm.User, Content: "existing"})
+
+	builder := &InvokeLLMBuilder{
+		Client:    client,
+		History:   history,
+		Registry:  core.NewRegistry(),
+		Assembler: &stubAssembler{},
+		Model:     "test-model",
+		Tracer:    noopTracer(),
+		Ctx:       context.Background(),
+	}
+
+	cmd := builder.Build(core.Result{Output: "new prompt"})
+	res := cmd.Execute()
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Equal(t, 2, history.Len())
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 1, history.Len())
+}
+
 func TestInvokeLLM_ChatError(t *testing.T) {
 	client := &stubClient{err: fmt.Errorf("connection refused")}
 	history := llm.NewConversation(nil, "", llm.ChatOptions{})
@@ -295,4 +348,35 @@ func TestResetHistory(t *testing.T) {
 
 	assert.Equal(t, core.ToolDone, res.Signal)
 	assert.Equal(t, 0, history.Len())
+}
+
+func TestResetHistory_UndoRestoresPreviousMessages(t *testing.T) {
+	history := llm.NewConversation(nil, "", llm.ChatOptions{})
+	history.Append(llm.Message{Role: llm.User, Content: "hello"})
+	history.Append(llm.Message{Role: llm.Assistant, Content: "hi"})
+
+	builder := &ResetHistoryBuilder{History: history, Tracer: noopTracer()}
+	cmd := builder.Build(core.Result{})
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.Equal(t, 0, history.Len())
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 2, history.Len())
+	require.Equal(t, "hello", history.History()[0].Content)
+	require.Equal(t, "hi", history.History()[1].Content)
+}
+
+func TestNudgeReread_UndoIsNoopBecauseCommandDoesNotMutateHistory(t *testing.T) {
+	builder := &NudgeRereadBuilder{Tracer: noopTracer()}
+	cmd := builder.Build(core.Result{Output: "edited file"})
+
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.Contains(t, res.Output, rereadNudge)
+
+	undo := cmd.Undo()
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Contains(t, undo.Output, "no-op")
 }

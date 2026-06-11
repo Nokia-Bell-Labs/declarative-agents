@@ -23,6 +23,8 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
+var materializePlan = DoMaterialize
+
 // Pipeline signals aligned with configs/planner/machine.yaml.
 const (
 	SigTaskExtracted    core.Signal = "TaskExtracted"
@@ -56,6 +58,94 @@ type State struct {
 	retryCount int
 }
 
+type pipelineSnapshot struct {
+	currentTask *extract.Task
+	currentPlan *plan.ImplementationPlan
+	issueID     string
+	taskDeps    map[string]string
+	retryCount  int
+	nodeStates  map[string]nodeSnapshot
+}
+
+type nodeSnapshot struct {
+	status  graph.Status
+	retries int
+}
+
+func snapshotPipelineState(ps *State) pipelineSnapshot {
+	snap := pipelineSnapshot{
+		currentTask: cloneTask(ps.CurrentTask),
+		currentPlan: clonePlan(ps.CurrentPlan),
+		issueID:     ps.IssueID,
+		taskDeps:    cloneStringMap(ps.TaskDeps),
+		retryCount:  ps.retryCount,
+	}
+	if ps.Graph != nil {
+		snap.nodeStates = make(map[string]nodeSnapshot)
+		for _, n := range ps.Graph.Nodes() {
+			snap.nodeStates[n.ID] = nodeSnapshot{status: n.Status, retries: n.Retries}
+		}
+	}
+	return snap
+}
+
+func (s pipelineSnapshot) restore(ps *State) {
+	ps.CurrentTask = cloneTask(s.currentTask)
+	ps.CurrentPlan = clonePlan(s.currentPlan)
+	ps.IssueID = s.issueID
+	ps.TaskDeps = cloneStringMap(s.taskDeps)
+	ps.retryCount = s.retryCount
+	if ps.Graph != nil {
+		for id, ns := range s.nodeStates {
+			if n, ok := ps.Graph.Node(id); ok {
+				n.Status = ns.status
+				n.Retries = ns.retries
+			}
+		}
+	}
+}
+
+func cloneTask(t *extract.Task) *extract.Task {
+	if t == nil {
+		return nil
+	}
+	clone := *t
+	clone.NodeIDs = append([]string(nil), t.NodeIDs...)
+	return &clone
+}
+
+func clonePlan(p *plan.ImplementationPlan) *plan.ImplementationPlan {
+	if p == nil {
+		return nil
+	}
+	clone := *p
+	clone.Files = append([]plan.PlanFile(nil), p.Files...)
+	clone.Requirements = append([]plan.PlanRequirement(nil), p.Requirements...)
+	clone.DesignDecisions = append([]plan.PlanDecision(nil), p.DesignDecisions...)
+	clone.AcceptanceCriteria = append([]plan.PlanCriterion(nil), p.AcceptanceCriteria...)
+	return &clone
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func undoPipelineSnapshot(commandName string, ps *State, snap pipelineSnapshot, ok bool) core.Result {
+	if !ok {
+		err := fmt.Errorf("undo %s: no pipeline snapshot recorded", commandName)
+		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+	}
+	snap.restore(ps)
+	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "undo: restored pipeline state"}
+}
+
 // classifyEmpty determines whether the graph is fully done or blocked.
 func (s *State) classifyEmpty() (core.Signal, string) {
 	for _, n := range s.Graph.Nodes() {
@@ -86,13 +176,19 @@ func (s *State) currentTaskID() string {
 // --- extract_task ---
 
 type extractTaskCmd struct {
-	ps *State
+	ps          *State
+	snapshot    pipelineSnapshot
+	hasSnapshot bool
 }
 
-func (c *extractTaskCmd) Name() string      { return "extract_task" }
-func (c *extractTaskCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *extractTaskCmd) Name() string { return "extract_task" }
+func (c *extractTaskCmd) Undo() core.Result {
+	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+}
 
 func (c *extractTaskCmd) Execute() core.Result {
+	c.snapshot = snapshotPipelineState(c.ps)
+	c.hasSnapshot = true
 	task := c.ps.Extractor.ExtractNext(c.ps.Graph, c.ps.MaxWeight)
 	if task == nil {
 		sig, msg := c.ps.classifyEmpty()
@@ -131,13 +227,19 @@ func (b *ExtractTaskBuilder) Build(_ core.Result) core.Command {
 // --- extract_all ---
 
 type extractAllCmd struct {
-	ps *State
+	ps          *State
+	snapshot    pipelineSnapshot
+	hasSnapshot bool
 }
 
-func (c *extractAllCmd) Name() string      { return "extract_all" }
-func (c *extractAllCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *extractAllCmd) Name() string { return "extract_all" }
+func (c *extractAllCmd) Undo() core.Result {
+	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+}
 
 func (c *extractAllCmd) Execute() core.Result {
+	c.snapshot = snapshotPipelineState(c.ps)
+	c.hasSnapshot = true
 	ready := c.ps.Graph.Ready()
 	if len(ready) == 0 {
 		sig, msg := c.ps.classifyEmpty()
@@ -249,14 +351,20 @@ func (b *AssemblePromptBuilder) Build(_ core.Result) core.Command {
 // --- parse_plan ---
 
 type parsePlanCmd struct {
-	ps      *State
-	rawResp string
+	ps          *State
+	rawResp     string
+	snapshot    pipelineSnapshot
+	hasSnapshot bool
 }
 
-func (c *parsePlanCmd) Name() string      { return "parse_plan" }
-func (c *parsePlanCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *parsePlanCmd) Name() string { return "parse_plan" }
+func (c *parsePlanCmd) Undo() core.Result {
+	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+}
 
 func (c *parsePlanCmd) Execute() core.Result {
+	c.snapshot = snapshotPipelineState(c.ps)
+	c.hasSnapshot = true
 	p, res := DoParsePlan(c.Name(), c.rawResp)
 	if res.Signal == core.ParseFailed {
 		c.ps.Tracer.Event("pipeline.parse_plan_failed",
@@ -286,13 +394,19 @@ func (b *ParsePlanBuilder) Build(res core.Result) core.Command {
 // --- create_issue ---
 
 type createIssueCmd struct {
-	ps *State
+	ps          *State
+	snapshot    pipelineSnapshot
+	hasSnapshot bool
 }
 
-func (c *createIssueCmd) Name() string      { return "create_issue" }
-func (c *createIssueCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *createIssueCmd) Name() string { return "create_issue" }
+func (c *createIssueCmd) Undo() core.Result {
+	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+}
 
 func (c *createIssueCmd) Execute() core.Result {
+	c.snapshot = snapshotPipelineState(c.ps)
+	c.hasSnapshot = true
 	if c.ps.CurrentPlan == nil {
 		return core.Result{
 			CommandName: c.Name(),
@@ -301,7 +415,7 @@ func (c *createIssueCmd) Execute() core.Result {
 		}
 	}
 
-	issueID, res := DoMaterialize(c.ps.Ctx, c.ps.Tracer, *c.ps.CurrentPlan, c.ps.Directory, c.ps.TaskDeps, c.Name())
+	issueID, res := materializePlan(c.ps.Ctx, c.ps.Tracer, *c.ps.CurrentPlan, c.ps.Directory, c.ps.TaskDeps, c.Name())
 	if res.Signal == core.CommandError {
 		return res
 	}
@@ -391,14 +505,20 @@ func (b *ExecuteTaskBuilder) Build(_ core.Result) core.Command {
 // --- check_result ---
 
 type checkResultCmd struct {
-	ps      *State
-	prevRes core.Result
+	ps          *State
+	prevRes     core.Result
+	snapshot    pipelineSnapshot
+	hasSnapshot bool
 }
 
-func (c *checkResultCmd) Name() string      { return "check_result" }
-func (c *checkResultCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *checkResultCmd) Name() string { return "check_result" }
+func (c *checkResultCmd) Undo() core.Result {
+	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+}
 
 func (c *checkResultCmd) Execute() core.Result {
+	c.snapshot = snapshotPipelineState(c.ps)
+	c.hasSnapshot = true
 	if c.prevRes.Signal == core.ToolFailed || c.prevRes.Signal == core.CommandError {
 		c.ps.retryCount++
 		maxRetries := c.ps.MaxRetries

@@ -278,10 +278,10 @@ test_cases:
       - srd001-core-types AC1
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: Command interface has Name and Execute methods
+    name: Command interface has Name, Execute, and Undo methods
     go_test: TestLoop_RunsToCompletion
     inputs:
-      commands: "fakeCmd implements Command with Name() and Execute()"
+      commands: "fakeCmd implements Command with Name(), Execute(), and Undo()"
     expected:
       dispatched: true
     traces:

@@ -37,10 +37,30 @@ type invokeLLMCmd struct {
 	verbose      bool
 	ctx          context.Context
 	callTimeout  time.Duration
+	prevLen      int
+	hasSnapshot  bool
 }
 
-func (c *invokeLLMCmd) Name() string      { return "invoke_llm" }
-func (c *invokeLLMCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *invokeLLMCmd) Name() string { return "invoke_llm" }
+func (c *invokeLLMCmd) Undo() core.Result {
+	if !c.hasSnapshot {
+		return core.Result{
+			Signal:      core.CommandError,
+			CommandName: c.Name(),
+			Output:      "undo invoke_llm: no conversation snapshot recorded",
+			Err:         fmt.Errorf("undo invoke_llm: no conversation snapshot recorded"),
+		}
+	}
+	if err := c.history.TruncateTo(c.prevLen); err != nil {
+		return core.Result{
+			Signal:      core.CommandError,
+			CommandName: c.Name(),
+			Output:      err.Error(),
+			Err:         err,
+		}
+	}
+	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: fmt.Sprintf("undo: restored conversation to %d messages", c.prevLen)}
+}
 
 // SpanName implements core.SpanOverride so Dispatch emits a semconv
 // inference span instead of execute_tool.
@@ -61,6 +81,8 @@ func (c *invokeLLMCmd) Execute() core.Result {
 	// Use c.tracer which IS the Dispatch child span.
 	tr := c.tracer
 
+	c.prevLen = c.history.Len()
+	c.hasSnapshot = true
 	c.history.Append(llm.Message{Role: llm.User, Content: c.userMessage})
 	tr.Event("history.user_appended",
 		attribute.Int("history_len", c.history.Len()),
@@ -401,15 +423,30 @@ func (b *ReportParseErrorBuilder) Build(res core.Result) core.Command {
 // --- reset_history command ---
 
 type resetHistoryCmd struct {
-	history *llm.Conversation
-	tracer  tracing.Tracer
+	history      *llm.Conversation
+	tracer       tracing.Tracer
+	prevMessages []llm.Message
+	hasSnapshot  bool
 }
 
-func (r *resetHistoryCmd) Name() string      { return "reset_history" }
-func (r *resetHistoryCmd) Undo() core.Result { return core.NoopUndo(r.Name()) }
+func (r *resetHistoryCmd) Name() string { return "reset_history" }
+func (r *resetHistoryCmd) Undo() core.Result {
+	if !r.hasSnapshot {
+		return core.Result{
+			Signal:      core.CommandError,
+			CommandName: r.Name(),
+			Output:      "undo reset_history: no conversation snapshot recorded",
+			Err:         fmt.Errorf("undo reset_history: no conversation snapshot recorded"),
+		}
+	}
+	r.history.Restore(r.prevMessages)
+	return core.Result{Signal: core.ToolDone, CommandName: r.Name(), Output: fmt.Sprintf("undo: restored %d conversation messages", len(r.prevMessages))}
+}
 
 func (r *resetHistoryCmd) Execute() core.Result {
-	prevLen := r.history.Len()
+	r.prevMessages = r.history.Snapshot()
+	r.hasSnapshot = true
+	prevLen := len(r.prevMessages)
 	r.history.Reset()
 
 	r.tracer.SetAttributes(
