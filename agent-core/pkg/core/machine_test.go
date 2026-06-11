@@ -131,6 +131,54 @@ transitions:
 	}
 }
 
+func TestDiagnoseMachineSpecCleanMachine(t *testing.T) {
+	spec, err := ParseMachineSpec([]byte(validYAML))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	diagnostics := DiagnoseMachineSpec(spec)
+
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diagnostics)
+	}
+}
+
+func TestDiagnoseMachineSpecReportsReachabilityAndDeadGrammar(t *testing.T) {
+	yaml := `
+name: diagnostics
+initial_state: Start
+states: [Start, Working, Done, Orphan, TerminalWithTransition]
+terminal_states: [Done, TerminalWithTransition]
+signals: [Seed, ToolDone, Unused]
+transitions:
+  - state: Start
+    signal: Seed
+    next: Working
+    action: step
+  - state: Working
+    signal: ToolDone
+    next: Done
+  - state: Orphan
+    signal: ToolDone
+    next: Done
+  - state: TerminalWithTransition
+    signal: ToolDone
+    next: Done
+`
+	spec, err := ParseMachineSpec([]byte(yaml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	diagnostics := DiagnoseMachineSpec(spec)
+
+	assertMachineDiagnostic(t, diagnostics, "unreachable_state", "Orphan", "", 0)
+	assertMachineDiagnostic(t, diagnostics, "unreachable_transition", "Orphan", "ToolDone", 2)
+	assertMachineDiagnostic(t, diagnostics, "terminal_transition", "TerminalWithTransition", "ToolDone", 3)
+	assertMachineDiagnostic(t, diagnostics, "unused_signal", "", "Unused", 0)
+}
+
 type dummyCmd struct{ name string }
 
 func (d *dummyCmd) Name() string    { return d.name }
@@ -396,3 +444,29 @@ func (o *orderCmd) Execute() Result {
 	return Result{Signal: ToolDone, CommandName: o.toolName, Output: o.toolName + " done"}
 }
 func (o *orderCmd) Undo() Result { return NoopUndo(o.toolName) }
+
+func assertMachineDiagnostic(t *testing.T, diagnostics []MachineDiagnostic, code, state, signal string, transitionIndex int) {
+	t.Helper()
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code != code {
+			continue
+		}
+		if state != "" && diagnostic.State != state {
+			continue
+		}
+		if signal != "" && diagnostic.Signal != signal {
+			continue
+		}
+		if transitionIndex != 0 && diagnostic.TransitionIndex != transitionIndex {
+			continue
+		}
+		if diagnostic.Severity != MachineDiagnosticWarning {
+			t.Fatalf("diagnostic severity = %q, want %q", diagnostic.Severity, MachineDiagnosticWarning)
+		}
+		if diagnostic.Message == "" {
+			t.Fatal("diagnostic message should not be empty")
+		}
+		return
+	}
+	t.Fatalf("missing diagnostic code=%s state=%s signal=%s transition=%d in %#v", code, state, signal, transitionIndex, diagnostics)
+}

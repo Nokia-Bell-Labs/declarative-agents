@@ -25,9 +25,9 @@ type MachineSpec struct {
 // BudgetSpec is the optional budget block in machine YAML.
 // Zero values mean "use default" or "unlimited".
 type BudgetSpec struct {
-	MaxIterations            int    `yaml:"max_iterations,omitempty"`
-	MaxTokens                int    `yaml:"max_tokens,omitempty"`
-	MaxDuration              string `yaml:"max_duration,omitempty"`
+	MaxIterations             int    `yaml:"max_iterations,omitempty"`
+	MaxTokens                 int    `yaml:"max_tokens,omitempty"`
+	MaxDuration               string `yaml:"max_duration,omitempty"`
 	MaxConsecutiveParseErrors int    `yaml:"max_consecutive_parse_errors,omitempty"`
 }
 
@@ -59,6 +59,24 @@ type TransitionSpec struct {
 	Signal string `yaml:"signal"`
 	Next   string `yaml:"next"`
 	Action string `yaml:"action,omitempty"`
+}
+
+// MachineDiagnosticSeverity classifies non-fatal grammar diagnostics.
+type MachineDiagnosticSeverity string
+
+const (
+	MachineDiagnosticWarning MachineDiagnosticSeverity = "warning"
+)
+
+// MachineDiagnostic describes a static grammar issue that does not make the
+// machine structurally invalid, but may indicate dead or surprising grammar.
+type MachineDiagnostic struct {
+	Severity        MachineDiagnosticSeverity
+	Code            string
+	Message         string
+	State           string
+	Signal          string
+	TransitionIndex int
 }
 
 // LoadMachineSpec reads and parses a machine YAML file.
@@ -133,6 +151,95 @@ func validateSpec(spec MachineSpec) error {
 		return fmt.Errorf("machine spec validation: %s", strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+// DiagnoseMachineSpec reports reachability and dead-grammar diagnostics for a
+// structurally valid machine. It is intentionally non-fatal so callers can
+// decide which warnings are policy violations for their workflow.
+func DiagnoseMachineSpec(spec MachineSpec) []MachineDiagnostic {
+	reachable := reachableStates(spec)
+	usedSignals := make(map[string]bool)
+	terminalSet := make(map[string]bool, len(spec.TerminalStates))
+	for _, state := range spec.TerminalStates {
+		terminalSet[state] = true
+	}
+
+	var diagnostics []MachineDiagnostic
+	for _, state := range spec.States {
+		if state == spec.InitialState {
+			continue
+		}
+		if !reachable[state] {
+			diagnostics = append(diagnostics, MachineDiagnostic{
+				Severity: MachineDiagnosticWarning,
+				Code:     "unreachable_state",
+				Message:  fmt.Sprintf("state %q is not reachable from initial_state %q", state, spec.InitialState),
+				State:    state,
+			})
+		}
+	}
+
+	for i, tr := range spec.Transitions {
+		usedSignals[tr.Signal] = true
+		if !reachable[tr.State] {
+			diagnostics = append(diagnostics, MachineDiagnostic{
+				Severity:        MachineDiagnosticWarning,
+				Code:            "unreachable_transition",
+				Message:         fmt.Sprintf("transition[%d] from %s/%s is unreachable", i, tr.State, tr.Signal),
+				State:           tr.State,
+				Signal:          tr.Signal,
+				TransitionIndex: i,
+			})
+		}
+		if terminalSet[tr.State] {
+			diagnostics = append(diagnostics, MachineDiagnostic{
+				Severity:        MachineDiagnosticWarning,
+				Code:            "terminal_transition",
+				Message:         fmt.Sprintf("transition[%d] starts from terminal state %q", i, tr.State),
+				State:           tr.State,
+				Signal:          tr.Signal,
+				TransitionIndex: i,
+			})
+		}
+	}
+
+	for _, signal := range spec.Signals {
+		if !usedSignals[signal] {
+			diagnostics = append(diagnostics, MachineDiagnostic{
+				Severity: MachineDiagnosticWarning,
+				Code:     "unused_signal",
+				Message:  fmt.Sprintf("signal %q is declared but no transition uses it", signal),
+				Signal:   signal,
+			})
+		}
+	}
+
+	return diagnostics
+}
+
+func reachableStates(spec MachineSpec) map[string]bool {
+	reachable := map[string]bool{}
+	if spec.InitialState == "" {
+		return reachable
+	}
+	adjacency := make(map[string][]string, len(spec.States))
+	for _, tr := range spec.Transitions {
+		adjacency[tr.State] = append(adjacency[tr.State], tr.Next)
+	}
+	queue := []string{spec.InitialState}
+	reachable[spec.InitialState] = true
+	for len(queue) > 0 {
+		state := queue[0]
+		queue = queue[1:]
+		for _, next := range adjacency[state] {
+			if reachable[next] {
+				continue
+			}
+			reachable[next] = true
+			queue = append(queue, next)
+		}
+	}
+	return reachable
 }
 
 // BuildTransitionTable converts a MachineSpec into a core.TransitionTable
