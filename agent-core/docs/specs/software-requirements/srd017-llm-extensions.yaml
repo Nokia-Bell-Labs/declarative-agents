@@ -36,6 +36,7 @@ requirements:
       - R2.4: "Extraction pipeline steps: strip_code_fences, strip_thinking_blocks, extract_envelope, extract_native_token, extract_braces."
       - R2.5: DefaultProfile creates a fallback ResponseParser with envelope-based extraction.
       - R2.6: "Profile-driven machine switching: when a ProfileSpec declares a MachineName, the runtime resolves it to a machine file adjacent to the originally specified --machine path and validates its existence at startup."
+      - R2.7: invoke_llm tool config SHALL declare provider, provider URL, and manifest_state; startup SHALL reject unsupported providers and missing required runtime fields.
 
   R3:
     title: Domain interfaces and types

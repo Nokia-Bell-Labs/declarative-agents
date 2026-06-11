@@ -13,6 +13,7 @@ tools:
       model: "qwen3.6:35b-mlx"
       provider: ollama
       provider_url: "http://localhost:11434"
+      manifest_state: Composing
       system_prompt: |
         You are a software planning assistant. Given a Software Requirements
         Document (SRD) and project context, you produce detailed

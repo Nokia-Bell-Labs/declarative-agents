@@ -36,16 +36,17 @@ type ChildAgentConfig struct {
 // LLMToolConfig holds LLM-related settings from an invoke_llm tool's
 // config block. Replaces ad-hoc map reads in extractLLMConfig.
 type LLMToolConfig struct {
-	Model        string `json:"model"`
-	Provider     string `json:"provider"`
-	ProviderURL  string `json:"provider_url"`
-	OllamaURL    string `json:"ollama_url"`
-	SystemPrompt string `json:"system_prompt"`
-	ToolPrompt   string `json:"tool_prompt"`
-	NumCtx       int    `json:"num_ctx"`
-	LLMTimeout   int    `json:"llm_timeout"`
-	MaxTime      int    `json:"max_time"`
-	MaxTokens    int    `json:"max_tokens"`
+	Model         string `json:"model"`
+	Provider      string `json:"provider"`
+	ProviderURL   string `json:"provider_url"`
+	OllamaURL     string `json:"ollama_url"`
+	ManifestState string `json:"manifest_state"`
+	SystemPrompt  string `json:"system_prompt"`
+	ToolPrompt    string `json:"tool_prompt"`
+	NumCtx        int    `json:"num_ctx"`
+	LLMTimeout    int    `json:"llm_timeout"`
+	MaxTime       int    `json:"max_time"`
+	MaxTokens     int    `json:"max_tokens"`
 }
 
 // LoadSuiteConfig holds config for the load_suite tool.

@@ -9,6 +9,7 @@ tools:
       model: "devstral-small-2:latest"
       provider: ollama
       provider_url: "http://localhost:11434"
+      manifest_state: Composing
       system_prompt: |
         You are a Go developer following specification-driven development. You
         read specifications before writing code. You make minimal, focused

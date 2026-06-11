@@ -52,8 +52,9 @@ startup_sequence:
     name: Extract LLM config and set up provider
     description: |
       Scan tool definitions for invoke_llm config blocks. Extract
-      model, provider, endpoint, system prompt, num_ctx, llm_timeout,
-      max_tokens, and max_time settings. Create the Ollama adapter.
+      model, provider, endpoint, manifest_state, system prompt, num_ctx,
+      llm_timeout, max_tokens, and max_time settings. Validate the
+      provider and create the provider adapter.
       If a model profile has a MachineName, --machine is rewritten
       to use the profile's machine file (e.g. deepseek profile maps
       to deepseek-coding-agent.yaml). The resolved machine file is

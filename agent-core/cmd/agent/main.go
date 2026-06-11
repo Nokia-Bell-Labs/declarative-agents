@@ -101,6 +101,7 @@ type agentState struct {
 	model         string
 	providerName  string
 	serverAddr    string
+	manifestState core.State
 	numCtx        int
 	callTimeout   time.Duration
 	verbose       bool
@@ -161,6 +162,9 @@ func run(cmd *cobra.Command, args []string) error {
 	if flagOllamaURL != "" {
 		llmCfg.OllamaURL = flagOllamaURL
 	}
+	if err := validateLLMConfig(llmCfg); err != nil {
+		return err
+	}
 
 	var agentPrompt prompt.Prompt
 	if sp := llmCfg.SystemPrompt; sp != "" {
@@ -180,12 +184,9 @@ func run(cmd *cobra.Command, args []string) error {
 		if llmCfg.MaxTime > httpTimeout {
 			httpTimeout = llmCfg.MaxTime
 		}
-		adapter, err = ollama.NewAdapter(llmCfg.OllamaURL, llmCfg.Model,
-			ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout}),
-			ollama.WithTracer(tracer),
-		)
+		adapter, err = createLLMAdapter(llmCfg, httpTimeout, tracer)
 		if err != nil {
-			return fmt.Errorf("ollama adapter: %w", err)
+			return fmt.Errorf("llm adapter: %w", err)
 		}
 		if u, err := url.Parse(llmCfg.OllamaURL); err == nil {
 			serverAddr = u.Host
@@ -260,8 +261,9 @@ func run(cmd *cobra.Command, args []string) error {
 		registry:      reg,
 		tracer:        tracer,
 		model:         llmCfg.Model,
-		providerName:  "ollama",
+		providerName:  llmCfg.Provider,
 		serverAddr:    serverAddr,
+		manifestState: core.State(llmCfg.ManifestState),
 		numCtx:        llmCfg.NumCtx,
 		callTimeout:   llmCfg.LLMTimeout,
 		verbose:       flagVerboseTrace,
@@ -297,9 +299,9 @@ func run(cmd *cobra.Command, args []string) error {
 		budget.MaxTokens = llmCfg.MaxTokens
 	}
 
-	maxParseErrors := 5
+	var afterDispatch func(core.Command, core.Result) core.Signal
 	if machineSpec.BudgetSpec != nil && machineSpec.BudgetSpec.MaxConsecutiveParseErrors > 0 {
-		maxParseErrors = machineSpec.BudgetSpec.MaxConsecutiveParseErrors
+		afterDispatch = stl.ParseErrorPolicy(machineSpec.BudgetSpec.MaxConsecutiveParseErrors)
 	}
 
 	// Run the loop
@@ -314,7 +316,7 @@ func run(cmd *cobra.Command, args []string) error {
 		Registry:     reg,
 		Directory:    flagDirectory,
 		Hooks: core.LoopHooks{
-			AfterDispatch: stl.ParseErrorPolicy(maxParseErrors),
+			AfterDispatch: afterDispatch,
 		},
 	}
 
@@ -358,22 +360,25 @@ func buildToolAction(st *agentState, reg *core.Registry) core.ActionFunc {
 // llmConfig holds LLM-related settings resolved from the invoke_llm
 // tool definition's config block.
 type llmConfig struct {
-	Model        string
-	Provider     string
-	OllamaURL    string
-	SystemPrompt string
-	ToolPrompt   string
-	NumCtx       int
-	LLMTimeout   time.Duration
-	MaxTime      time.Duration
-	MaxTokens    int
+	Model         string
+	Provider      string
+	OllamaURL     string
+	ManifestState string
+	SystemPrompt  string
+	ToolPrompt    string
+	NumCtx        int
+	LLMTimeout    time.Duration
+	MaxTime       time.Duration
+	MaxTokens     int
 }
 
 // extractLLMConfig scans tool definitions for an invoke_llm tool and
 // extracts LLM settings from its config block.
 func extractLLMConfig(defs []stl.ToolDef) llmConfig {
 	cfg := llmConfig{
-		OllamaURL: "http://localhost:11434",
+		Provider:      "ollama",
+		OllamaURL:     "http://localhost:11434",
+		ManifestState: "Composing",
 	}
 	for _, td := range defs {
 		if td.Init != "invoke_llm" {
@@ -389,11 +394,14 @@ func extractLLMConfig(defs []stl.ToolDef) llmConfig {
 		if tc.Provider != "" {
 			cfg.Provider = tc.Provider
 		}
+		if tc.OllamaURL != "" {
+			cfg.OllamaURL = tc.OllamaURL
+		}
 		if tc.ProviderURL != "" {
 			cfg.OllamaURL = tc.ProviderURL
 		}
-		if tc.OllamaURL != "" {
-			cfg.OllamaURL = tc.OllamaURL
+		if tc.ManifestState != "" {
+			cfg.ManifestState = tc.ManifestState
 		}
 		if tc.SystemPrompt != "" {
 			cfg.SystemPrompt = tc.SystemPrompt
@@ -416,6 +424,36 @@ func extractLLMConfig(defs []stl.ToolDef) llmConfig {
 		break
 	}
 	return cfg
+}
+
+func validateLLMConfig(cfg llmConfig) error {
+	if cfg.Model == "" {
+		return nil
+	}
+	if cfg.ManifestState == "" {
+		return fmt.Errorf("invoke_llm config requires manifest_state when model is set")
+	}
+	switch cfg.Provider {
+	case "ollama":
+		if cfg.OllamaURL == "" {
+			return fmt.Errorf("invoke_llm config provider %q requires provider_url or ollama_url", cfg.Provider)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported invoke_llm provider %q", cfg.Provider)
+	}
+}
+
+func createLLMAdapter(cfg llmConfig, httpTimeout time.Duration, tracer tracing.Tracer) (llm.Client, error) {
+	switch cfg.Provider {
+	case "ollama":
+		return ollama.NewAdapter(cfg.OllamaURL, cfg.Model,
+			ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout}),
+			ollama.WithTracer(tracer),
+		)
+	default:
+		return nil, fmt.Errorf("unsupported provider %q", cfg.Provider)
+	}
 }
 
 func selectedBuiltinInits(defs []stl.ToolDef) map[string]bool {
@@ -478,7 +516,7 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected 
 				History:      st.conversation,
 				Registry:     st.registry,
 				Assembler:    st.assembler,
-				State:        core.State("Composing"),
+				State:        st.manifestState,
 				Model:        st.model,
 				ProviderName: st.providerName,
 				ServerAddr:   st.serverAddr,

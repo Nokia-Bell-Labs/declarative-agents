@@ -71,6 +71,16 @@ schema:
             "http://localhost:11434"). Used by the provider client
             to route requests.
 
+        - field: manifest_state
+          type: string
+          required: true
+          description: |
+            Machine state whose external tools are included in the
+            invoke_llm manifest. For generator and planner machines this
+            is currently "Composing". Declaring this in YAML keeps LLM
+            manifest construction tied to the machine contract rather
+            than hardcoded in cmd/agent.
+
         - field: system_prompt
           type: string
           required: false

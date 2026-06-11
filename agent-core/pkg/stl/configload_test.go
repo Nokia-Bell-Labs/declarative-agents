@@ -103,6 +103,27 @@ func assertToolEmits(t *testing.T, spec core.MachineSpec, defs []stl.ToolDef) {
 	require.NoError(t, stl.ValidateToolEmits(spec, defs))
 }
 
+func TestLLMConfigsDeclareManifestState(t *testing.T) {
+	cd := configDir(t)
+	matches, err := filepath.Glob(filepath.Join(cd, "*", "llm", "*.yaml"))
+	require.NoError(t, err)
+	require.NotEmpty(t, matches)
+
+	for _, path := range matches {
+		defs, err := stl.LoadToolDefs(path)
+		require.NoError(t, err, path)
+		for _, def := range defs {
+			if def.Init != "invoke_llm" {
+				continue
+			}
+			var cfg stl.LLMToolConfig
+			require.NoError(t, stl.DecodeToolConfig(def, &cfg), path)
+			require.NotEmpty(t, cfg.Provider, path)
+			require.NotEmpty(t, cfg.ManifestState, path)
+		}
+	}
+}
+
 func dummyToolAction(_ core.Result) core.Command { return noopCmd{} }
 
 // ---------------------------------------------------------------------------

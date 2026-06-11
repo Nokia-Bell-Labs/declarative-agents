@@ -13,6 +13,7 @@ tools:
       model: "qwen3.6:35b-mlx"
       provider: ollama
       provider_url: "http://localhost:11434"
+      manifest_state: Composing
       system_prompt: |
         You are a Go developer following specification-driven development. You
         read specifications before writing code. You make minimal, focused

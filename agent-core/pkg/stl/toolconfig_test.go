@@ -39,14 +39,16 @@ func TestDecodeToolConfigIntegers(t *testing.T) {
 	def := ToolDef{
 		Name: "llm",
 		Config: map[string]interface{}{
-			"model":    "qwen3:8b",
-			"num_ctx":  4096,
-			"max_time": float64(600),
+			"model":          "qwen3:8b",
+			"manifest_state": "Composing",
+			"num_ctx":        4096,
+			"max_time":       float64(600),
 		},
 	}
 	var cfg LLMToolConfig
 	require.NoError(t, DecodeToolConfig(def, &cfg))
 	assert.Equal(t, "qwen3:8b", cfg.Model)
+	assert.Equal(t, "Composing", cfg.ManifestState)
 	assert.Equal(t, 4096, cfg.NumCtx)
 	assert.Equal(t, 600, cfg.MaxTime)
 }

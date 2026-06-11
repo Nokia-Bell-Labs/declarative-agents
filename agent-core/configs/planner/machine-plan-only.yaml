@@ -1,6 +1,9 @@
 name: planner-plan-only
 initial_state: Idle
 
+budget:
+  max_consecutive_parse_errors: 5
+
 states:
   - Idle
   - Extracting
