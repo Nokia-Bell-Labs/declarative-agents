@@ -40,10 +40,11 @@ requirements:
   R3:
     title: Builtin config validation
     items:
-      - R3.1: Builtin factories SHOULD validate tool-specific config types at registration time.
-      - R3.2: Required behavior-shaping config such as nested machine paths, tool selection paths, artifact paths, or server addresses SHOULD be explicit and validated.
-      - R3.3: Config validation errors SHALL include the tool name and invalid key.
+      - R3.1: Builtin factories SHALL decode tool-specific config into typed structs via DecodeToolConfig at registration time.
+      - R3.2: Required behavior-shaping config such as nested machine paths, tool selection paths, artifact paths, or server addresses SHALL be explicit typed fields.
+      - R3.3: Config decode errors SHALL include the tool name and type mismatch details.
       - R3.4: Defaults MAY exist for backwards compatibility, but defaults that change program behavior SHALL be documented.
+      - R3.5: Typed config structs SHALL exist for each config shape (ChildAgentConfig, LLMToolConfig, LoadSuiteConfig, RunPointConfig, ServeUIToolConfig).
 
   R4:
     title: State-machine integration
@@ -79,8 +80,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4]
 
   - id: AC3
-    criterion: Builtin tool config is validated early, with clear errors for missing or mistyped behavior-shaping config.
-    traces: [R3.1, R3.2, R3.3, R3.4]
+    criterion: Builtin tool config is decoded into typed structs at registration time, with clear errors for type mismatches.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
 
   - id: AC4
     criterion: Builtin tools can be referenced by machine actions or dynamic $tool dispatch, return signals that drive transitions, and validate declared emits against named action transitions.
@@ -105,3 +106,4 @@ implementation:
   - pkg/stl/builtintool.go
   - pkg/stl/exectool.go
   - pkg/stl/tool_emits.go
+  - pkg/stl/toolconfig.go

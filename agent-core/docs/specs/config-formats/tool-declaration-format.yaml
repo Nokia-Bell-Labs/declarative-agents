@@ -79,8 +79,12 @@ builtin_fields:
     required: false
     description: |
       Tool-specific configuration passed to the factory function.
-      Structure varies per tool. For invoke_llm, this contains model,
-      provider, provider_url, and prompt fields (see cfg-llm-config-format).
+      Decoded into typed Go structs via DecodeToolConfig at registration
+      time. Type mismatches produce errors mentioning the tool name.
+      Structure varies per tool: ChildAgentConfig for launch_eval and
+      execute_task, LLMToolConfig for invoke_llm, LoadSuiteConfig for
+      load_suite, RunPointConfig for run_point, ServeUIToolConfig for
+      serve_ui. See cfg-llm-config-format for invoke_llm details.
 
 exec_fields:
   - field: binary
@@ -212,4 +216,5 @@ related_documents:
 implementation:
   - pkg/stl/exectool.go
   - pkg/stl/tool_emits.go
+  - pkg/stl/toolconfig.go
   - pkg/stl/builtintool.go

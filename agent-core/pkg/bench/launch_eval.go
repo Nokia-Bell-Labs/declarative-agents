@@ -117,27 +117,23 @@ func agentBinaryPath() string {
 // invocation parameters from tool declaration config.
 func LaunchEvalFactory(bs *BenchState) stl.BuiltinFactory {
 	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		var parsed stl.ChildAgentConfig
+		if err := stl.DecodeToolConfig(def, &parsed); err != nil {
+			return nil, err
+		}
 		cfg := LaunchEvalConfig{
 			Machine:          "configs/evaluator/machine.yaml",
 			Tools:            "configs/evaluator/tools.yaml",
 			ToolDeclarations: []string{"configs/tools/builtin.yaml"},
 		}
-		if v, ok := def.Config["machine"].(string); ok && v != "" {
-			cfg.Machine = v
+		if parsed.Machine != "" {
+			cfg.Machine = parsed.Machine
 		}
-		if v, ok := def.Config["tools"].(string); ok && v != "" {
-			cfg.Tools = v
+		if parsed.Tools != "" {
+			cfg.Tools = parsed.Tools
 		}
-		if v, ok := def.Config["tools_declarations"].([]interface{}); ok {
-			var decls []string
-			for _, d := range v {
-				if s, ok := d.(string); ok {
-					decls = append(decls, s)
-				}
-			}
-			if len(decls) > 0 {
-				cfg.ToolDeclarations = decls
-			}
+		if len(parsed.ToolDeclarations) > 0 {
+			cfg.ToolDeclarations = parsed.ToolDeclarations
 		}
 		return &LaunchEvalBuilder{BS: bs, Config: cfg}, nil
 	}

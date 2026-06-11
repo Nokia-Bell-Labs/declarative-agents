@@ -367,56 +367,43 @@ func extractLLMConfig(defs []stl.ToolDef) llmConfig {
 		if td.Init != "invoke_llm" {
 			continue
 		}
-		if v, ok := td.Config["model"].(string); ok && v != "" {
-			cfg.Model = v
+		var tc stl.LLMToolConfig
+		if err := stl.DecodeToolConfig(td, &tc); err != nil {
+			break
 		}
-		if v, ok := td.Config["provider"].(string); ok && v != "" {
-			cfg.Provider = v
+		if tc.Model != "" {
+			cfg.Model = tc.Model
 		}
-		if v, ok := td.Config["provider_url"].(string); ok && v != "" {
-			cfg.OllamaURL = v
+		if tc.Provider != "" {
+			cfg.Provider = tc.Provider
 		}
-		if v, ok := td.Config["ollama_url"].(string); ok && v != "" {
-			cfg.OllamaURL = v
+		if tc.ProviderURL != "" {
+			cfg.OllamaURL = tc.ProviderURL
 		}
-		if v, ok := td.Config["system_prompt"].(string); ok && v != "" {
-			cfg.SystemPrompt = v
+		if tc.OllamaURL != "" {
+			cfg.OllamaURL = tc.OllamaURL
 		}
-		if v, ok := td.Config["tool_prompt"].(string); ok && v != "" {
-			cfg.ToolPrompt = v
+		if tc.SystemPrompt != "" {
+			cfg.SystemPrompt = tc.SystemPrompt
 		}
-		if v := configInt(td.Config, "num_ctx"); v > 0 {
-			cfg.NumCtx = v
+		if tc.ToolPrompt != "" {
+			cfg.ToolPrompt = tc.ToolPrompt
 		}
-		if v := configInt(td.Config, "llm_timeout"); v > 0 {
-			cfg.LLMTimeout = time.Duration(v) * time.Second
+		if tc.NumCtx > 0 {
+			cfg.NumCtx = tc.NumCtx
 		}
-		if v := configInt(td.Config, "max_time"); v > 0 {
-			cfg.MaxTime = time.Duration(v) * time.Second
+		if tc.LLMTimeout > 0 {
+			cfg.LLMTimeout = time.Duration(tc.LLMTimeout) * time.Second
 		}
-		if v := configInt(td.Config, "max_tokens"); v > 0 {
-			cfg.MaxTokens = v
+		if tc.MaxTime > 0 {
+			cfg.MaxTime = time.Duration(tc.MaxTime) * time.Second
+		}
+		if tc.MaxTokens > 0 {
+			cfg.MaxTokens = tc.MaxTokens
 		}
 		break
 	}
 	return cfg
-}
-
-// configInt extracts an integer from a map[string]interface{}, handling
-// both int and float64 (YAML numbers decode as int via go-yaml).
-func configInt(m map[string]interface{}, key string) int {
-	v, ok := m[key]
-	if !ok {
-		return 0
-	}
-	switch n := v.(type) {
-	case int:
-		return n
-	case float64:
-		return int(n)
-	default:
-		return 0
-	}
 }
 
 // registerBuiltinFactories wires all known builtin tool factories.
@@ -540,27 +527,19 @@ func registerPipelineFactories(br *stl.BuiltinRegistry, st *agentState) {
 			return ps
 		}
 
-		var execCfg execute.Config
-		if v, ok := def.Config["machine"].(string); ok && v != "" {
-			execCfg.Machine = v
-		}
-		if v, ok := def.Config["tools"].(string); ok && v != "" {
-			execCfg.Tools = v
-		}
-		if v, ok := def.Config["tools_declarations"].([]interface{}); ok {
-			for _, d := range v {
-				if s, ok := d.(string); ok {
-					execCfg.ToolDeclarations = append(execCfg.ToolDeclarations, s)
-				}
-			}
-		}
+		var childCfg stl.ChildAgentConfig
+		_ = stl.DecodeToolConfig(def, &childCfg)
 
 		ps = &pipeline.State{
-			Directory:  st.directory,
-			Tracer:     st.tracer,
-			Ctx:        st.ctx,
-			TaskDeps:   make(map[string]string),
-			ExecConfig: execCfg,
+			Directory: st.directory,
+			Tracer:    st.tracer,
+			Ctx:       st.ctx,
+			TaskDeps:  make(map[string]string),
+			ExecConfig: execute.Config{
+				Machine:          childCfg.Machine,
+				Tools:            childCfg.Tools,
+				ToolDeclarations: childCfg.ToolDeclarations,
+			},
 		}
 		return ps
 	}
@@ -687,21 +666,11 @@ func registerBenchFactories(br *stl.BuiltinRegistry) {
 			return bs
 		}
 
-		str := func(key string) string {
-			if v, ok := def.Config[key].(string); ok {
-				return v
-			}
-			return ""
-		}
+		var tc stl.ServeUIToolConfig
+		_ = stl.DecodeToolConfig(def, &tc)
 
-		addr := str("addr")
-		dataDir := str("data_dir")
-		configsDir := str("configs_dir")
-		docsDir := str("docs_dir")
-		sourceDir := str("source_dir")
-		profilesDir := str("profiles_dir")
-
-		for _, p := range []*string{&dataDir, &configsDir, &docsDir, &sourceDir, &profilesDir} {
+		dirs := []*string{&tc.DataDir, &tc.ConfigsDir, &tc.DocsDir, &tc.SourceDir, &tc.ProfilesDir}
+		for _, p := range dirs {
 			if *p != "" {
 				if abs, err := filepath.Abs(*p); err == nil {
 					*p = abs
@@ -710,12 +679,12 @@ func registerBenchFactories(br *stl.BuiltinRegistry) {
 		}
 
 		cfg := bench.ServerConfig{
-			Addr:        addr,
-			DataDir:     dataDir,
-			ConfigsDir:  configsDir,
-			ProfilesDir: profilesDir,
-			DocsDir:     docsDir,
-			SourceDir:   sourceDir,
+			Addr:        tc.Addr,
+			DataDir:     tc.DataDir,
+			ConfigsDir:  tc.ConfigsDir,
+			ProfilesDir: tc.ProfilesDir,
+			DocsDir:     tc.DocsDir,
+			SourceDir:   tc.SourceDir,
 			Assets:      benchui.Assets(),
 		}
 		bs = bench.NewBenchState(cfg)

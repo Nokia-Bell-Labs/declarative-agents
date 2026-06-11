@@ -85,49 +85,28 @@ func (c *loadSuiteCmd) Execute() core.Result {
 // Config keys: input, output_dir, reps, timeout, ollama_url.
 func LoadSuiteFactory(es *EvalSessionState) BuiltinFactory {
 	return func(def ToolDef, vars map[string]string) (core.Builder, error) {
-		if es.SuitePath == "" {
-			if v, ok := def.Config["input"].(string); ok && v != "" {
-				es.SuitePath = v
-			}
+		var cfg LoadSuiteConfig
+		if err := DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
 		}
-		if es.OutputDir == "" {
-			if v, ok := def.Config["output_dir"].(string); ok && v != "" {
-				es.OutputDir = v
-			}
+		if es.SuitePath == "" && cfg.Input != "" {
+			es.SuitePath = cfg.Input
+		}
+		if es.OutputDir == "" && cfg.OutputDir != "" {
+			es.OutputDir = cfg.OutputDir
 		}
 		if es.OutputDir == "" {
 			es.OutputDir = "eval-results"
 		}
-		if es.Reps == 0 {
-			if v := configIntFromMap(def.Config, "reps"); v > 0 {
-				es.Reps = v
-			}
+		if es.Reps == 0 && cfg.Reps > 0 {
+			es.Reps = cfg.Reps
 		}
-		if es.Timeout == 0 {
-			if v := configIntFromMap(def.Config, "timeout"); v > 0 {
-				es.Timeout = time.Duration(v) * time.Second
-			}
+		if es.Timeout == 0 && cfg.Timeout > 0 {
+			es.Timeout = time.Duration(cfg.Timeout) * time.Second
 		}
-		if es.OllamaURL == "" {
-			if v, ok := def.Config["ollama_url"].(string); ok && v != "" {
-				es.OllamaURL = v
-			}
+		if es.OllamaURL == "" && cfg.OllamaURL != "" {
+			es.OllamaURL = cfg.OllamaURL
 		}
 		return &LoadSuiteBuilder{ES: es}, nil
-	}
-}
-
-func configIntFromMap(m map[string]interface{}, key string) int {
-	v, ok := m[key]
-	if !ok {
-		return 0
-	}
-	switch n := v.(type) {
-	case int:
-		return n
-	case float64:
-		return int(n)
-	default:
-		return 0
 	}
 }

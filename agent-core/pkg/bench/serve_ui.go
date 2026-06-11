@@ -50,36 +50,27 @@ func (c *serveUICmd) Execute() core.Result {
 // declaration YAML to configure the server.
 func ServeUIFactory(bs *BenchState) stl.BuiltinFactory {
 	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		// Apply YAML config defaults for fields not yet set.
-		if bs.Addr == "" {
-			if addr, ok := def.Config["addr"].(string); ok && addr != "" {
-				bs.Addr = addr
-			}
+		var cfg stl.ServeUIToolConfig
+		if err := stl.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
 		}
-		if bs.Srv.dataDir == "" {
-			if dir, ok := def.Config["data_dir"].(string); ok && dir != "" {
-				bs.Srv.dataDir = dir
-			}
+		if bs.Addr == "" && cfg.Addr != "" {
+			bs.Addr = cfg.Addr
 		}
-		if bs.Srv.configsDir == "" {
-			if dir, ok := def.Config["configs_dir"].(string); ok && dir != "" {
-				bs.Srv.configsDir = dir
-			}
+		if bs.Srv.dataDir == "" && cfg.DataDir != "" {
+			bs.Srv.dataDir = cfg.DataDir
 		}
-		if bs.Srv.docsDir == "" {
-			if dir, ok := def.Config["docs_dir"].(string); ok && dir != "" {
-				bs.Srv.docsDir = dir
-			}
+		if bs.Srv.configsDir == "" && cfg.ConfigsDir != "" {
+			bs.Srv.configsDir = cfg.ConfigsDir
 		}
-		if bs.Srv.profilesDir == "" {
-			if dir, ok := def.Config["profiles_dir"].(string); ok && dir != "" {
-				bs.Srv.profilesDir = dir
-			}
+		if bs.Srv.docsDir == "" && cfg.DocsDir != "" {
+			bs.Srv.docsDir = cfg.DocsDir
 		}
-		if bs.Srv.sourceDir == "" {
-			if dir, ok := def.Config["source_dir"].(string); ok && dir != "" {
-				bs.Srv.sourceDir = dir
-			}
+		if bs.Srv.profilesDir == "" && cfg.ProfilesDir != "" {
+			bs.Srv.profilesDir = cfg.ProfilesDir
+		}
+		if bs.Srv.sourceDir == "" && cfg.SourceDir != "" {
+			bs.Srv.sourceDir = cfg.SourceDir
 		}
 		return &ServeUIBuilder{BS: bs}, nil
 	}
