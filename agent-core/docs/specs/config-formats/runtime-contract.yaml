@@ -252,6 +252,35 @@ invariants:
   - Adding a new agent mode requires only new YAML files and (optionally)
     new Go builtin tool implementations registered in the BuiltinRegistry.
 
+runtime_safety_boundary: |
+  The fixed engine is allowed to own universal safety and observability
+  mechanics that apply to every machine, even though those mechanics are not
+  ordinary grammar words.
+
+  Budget exhaustion is universal runtime safety. Iteration and token limits are
+  checked before each transition; when they are exceeded, core.Loop injects the
+  generic BudgetExhausted signal and lets the configured MachineSpec route it.
+  Wall-clock limits are enforced through context cancellation and terminate with
+  StatusCancelled because a cancelled process may not be in a state where
+  another grammar transition can safely run.
+
+  Dispatch protection is interpreter infrastructure. Command timeout, panic
+  recovery, error-signal normalization, cost accumulation, RunEvent history, and
+  tracing spans describe how the runtime executes a word. They do not choose
+  generator, planner, evaluator, bench, or validate behavior.
+
+  Lifecycle suspension is a runtime boundary around an explicit grammar signal.
+  A machine or tool emits AwaitApproval; the engine then persists checkpoint
+  state, marks the run suspended, and stops. Resume, history, and rollback
+  commands operate on checkpoints and undo mementos, not on mode-specific
+  branches. Disabled lifecycle ports preserve the normal no-persistence runtime.
+
+  Domain behavior remains in YAML and tool declarations: states, signals,
+  transitions, selected words, per-tool config, emitted-signal contracts, and
+  word-level undo metadata. If a policy depends on a specific workflow or state
+  name, it should be a machine transition, machine metadata, or an internal word
+  rather than a core.Loop branch.
+
 engine_policy_audit:
   fixed_engine_invariants:
     - item: State machine interpretation
