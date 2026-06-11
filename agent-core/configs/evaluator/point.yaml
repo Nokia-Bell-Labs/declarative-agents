@@ -1,0 +1,94 @@
+# State machine for a single evaluation point.
+# Sequences: prepare workspace → run agent → check results → collect metrics.
+
+name: evaluator
+initial_state: Idle
+
+budget:
+  max_iterations: 10
+
+states:
+  - Idle
+  - PreparingWorkspace
+  - SnapshotConfig
+  - RunningAgent
+  - CheckingResults
+  - CollectingMetrics
+  - Done
+  - Failed
+
+terminal_states:
+  - Done
+  - Failed
+
+signals:
+  - Seed
+  - CommandError
+  - WorkspaceReady
+  - ConfigDumped
+  - HarnessFinished
+  - HarnessFailed
+  - HarnessTimedOut
+  - ResultsCollected
+  - MetricsCollected
+
+transitions:
+  - state: Idle
+    signal: Seed
+    next: PreparingWorkspace
+    action: prepare_workspace
+
+  - state: PreparingWorkspace
+    signal: WorkspaceReady
+    next: SnapshotConfig
+    action: dump_config
+
+  - state: SnapshotConfig
+    signal: ConfigDumped
+    next: RunningAgent
+    action: run_agent
+
+  - state: RunningAgent
+    signal: HarnessFinished
+    next: CheckingResults
+    action: check_results
+
+  - state: RunningAgent
+    signal: HarnessFailed
+    next: CheckingResults
+    action: check_results
+
+  - state: RunningAgent
+    signal: HarnessTimedOut
+    next: CheckingResults
+    action: check_results
+
+  - state: CheckingResults
+    signal: ResultsCollected
+    next: CollectingMetrics
+    action: collect_metrics
+
+  - state: CollectingMetrics
+    signal: MetricsCollected
+    next: Done
+
+  # --- error handling ---
+  - state: PreparingWorkspace
+    signal: CommandError
+    next: Failed
+
+  - state: SnapshotConfig
+    signal: CommandError
+    next: Failed
+
+  - state: RunningAgent
+    signal: CommandError
+    next: Failed
+
+  - state: CheckingResults
+    signal: CommandError
+    next: Failed
+
+  - state: CollectingMetrics
+    signal: CommandError
+    next: Failed

@@ -1,0 +1,67 @@
+id: rel01.0-uc003-bench-visualization
+title: Bench serves web UI for evaluation result exploration
+
+summary: |
+  The agent, configured with the bench machine, starts a state-machine-driven web server
+  for browsing experiment results, viewing documentation, inspecting
+  source code, and launching new evaluations. The serve_ui tool blocks
+  on user input via HTTP (analogous to invoke_llm blocking on LLM
+  responses), and the launch_eval tool spawns the evaluator session machine as a subprocess.
+
+actor: Developer analyzing benchmark results
+
+trigger: |
+  The developer runs:
+    agent --machine configs/bench/machine.yaml \
+          --tools configs/bench/tools.yaml \
+          --tools-declaration configs/tools/builtin.yaml \
+          --data ../experiments --configs configs --docs docs \
+          --source . --addr :8080
+
+flow:
+  - F1: The agent parses CLI flags and loads tool declarations including bench tools from configs/tools/builtin.yaml (srd018).
+  - F2: The bench state machine is loaded from configs/bench/machine.yaml (srd006).
+  - F3: BenchState is initialized with ServerConfig (data dir, configs dir, docs dir, source dir, UI assets) (srd020).
+  - F4: serve_ui and launch_eval builtin factories are registered. CLI flag values take precedence over YAML config defaults (srd013).
+  - F5: core.Loop drives the bench state machine. Idle → Serving via serve_ui starts the HTTP server in a goroutine and blocks on the action channel (srd005, sm-bench).
+  - F6: The React SPA loads in the browser. The user browses sessions, inspects traces, views documentation, and reads source code via REST APIs (srd020).
+  - F7: GET /api/v1/sessions returns experiment sessions with pass/fail/timeout counts. The user drills into session details, point traces, and experiment configs (srd020).
+  - F8: The user navigates to the Launch page and submits an experiment configuration. POST /api/v1/actions sends an ExperimentRequested action (srd020).
+  - F9: serve_ui unblocks with the action. The state machine transitions Serving → Launching, and launch_eval spawns the evaluator session machine as a subprocess (sm-bench).
+  - F10: When the subprocess completes, EvalCompleted transitions Launching → Serving. serve_ui blocks again, waiting for the next user action (sm-bench).
+
+touchpoints:
+  - T1: "srd005-agentic-loop -- Loop drives the bench state machine"
+  - T2: "srd006-yaml-machine-config -- bench machine.yaml loading"
+  - T3: "srd020-bench-web-ui -- HTTP server, REST APIs, SPA routing, embedded assets"
+  - T4: "sm-bench -- states, signals, serve_ui/launch_eval lifecycle"
+  - T5: "srd019-eval-harness -- launch_eval reuses the eval pipeline"
+
+success_criteria:
+  - id: S1
+    criterion: The web UI serves from embedded assets and all SPA routes resolve without 404.
+    traces:
+      - srd020-bench-web-ui AC1
+  - id: S2
+    criterion: Session, point, trace, and experiment APIs return correct data from the results directory.
+    traces:
+      - srd020-bench-web-ui AC2
+  - id: S3
+    criterion: Documentation, source code, and config APIs serve content from disk.
+    traces:
+      - srd020-bench-web-ui AC4
+  - id: S4
+    criterion: User actions from the web UI drive state machine transitions via serve_ui.
+    traces:
+      - srd020-bench-web-ui AC4
+  - id: S5
+    criterion: Launching an experiment spawns the evaluator session machine and returns to serving on completion.
+    traces:
+      - srd020-bench-web-ui AC4
+
+out_of_scope:
+  - User authentication or multi-tenancy.
+  - Editing configurations through the UI.
+  - Real-time streaming of in-progress evaluations.
+
+semantic_model: sm-bench

@@ -15,8 +15,9 @@ import (
 const binDir = "bin"
 
 // Build compiles all cmd/ binaries into bin/.
-// Packages with a ui/ subdirectory get their frontend built first and
-// are compiled with -tags production to embed the assets.
+// If any embedded UI directories are found (pkg/bench/ui/, etc.),
+// their frontends are built first and Go is compiled with -tags
+// production to embed the assets.
 func Build() error {
 	pkgs, err := discoverCmdPackages()
 	if err != nil {
@@ -29,24 +30,29 @@ func Build() error {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", binDir, err)
 	}
+
+	needsProduction := false
+	for _, uiDir := range embeddedUIDirs {
+		if hasUI(uiDir) {
+			fmt.Printf("installing frontend deps for %s\n", uiDir)
+			if err := runInDir(uiDir, "npm", "install"); err != nil {
+				return fmt.Errorf("%s npm install: %w", uiDir, err)
+			}
+			fmt.Printf("building frontend for %s\n", uiDir)
+			if err := runInDir(uiDir, "npm", "run", "build"); err != nil {
+				return fmt.Errorf("%s frontend build: %w", uiDir, err)
+			}
+			needsProduction = true
+		}
+	}
+
 	for _, pkg := range pkgs {
 		name := filepath.Base(pkg)
 		out := filepath.Join(binDir, name)
-		uiDir := filepath.Join("cmd", name, "ui")
 		args := []string{"build", "-o", out}
-
-		if hasUI(uiDir) {
-			fmt.Printf("installing frontend deps for %s\n", name)
-			if err := runInDir(uiDir, "npm", "install"); err != nil {
-				return fmt.Errorf("%s npm install: %w", name, err)
-			}
-			fmt.Printf("building frontend for %s\n", name)
-			if err := runInDir(uiDir, "npm", "run", "build"); err != nil {
-				return fmt.Errorf("%s frontend build: %w", name, err)
-			}
+		if needsProduction {
 			args = append(args, "-tags", "production")
 		}
-
 		args = append(args, pkg)
 		fmt.Printf("building %s → %s\n", pkg, out)
 		if err := sh.Run("go", args...); err != nil {
@@ -54,6 +60,10 @@ func Build() error {
 		}
 	}
 	return nil
+}
+
+var embeddedUIDirs = []string{
+	"pkg/bench/ui",
 }
 
 func hasUI(uiDir string) bool {

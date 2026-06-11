@@ -133,9 +133,16 @@ examples:
 
   - file: configs/evaluator/machine.yaml
     description: |
-      8 states, linear pipeline with no LLM interaction. Walks
-      through workspace preparation, generation, and scoring steps
-      in a fixed sequence.
+      7 states, session-level orchestration with nested core.Loop.
+      Drives grid iteration over (harness, model, sample, rep) points.
+      Each point runs the per-point pipeline via a nested core.Loop
+      using configs/evaluator/point.yaml.
+
+  - file: configs/evaluator/point.yaml
+    description: |
+      5 states, linear pipeline with no LLM interaction. Walks
+      through workspace preparation, agent execution, and scoring
+      steps in a fixed sequence.
 
   - file: configs/planner/machine.yaml
     description: |
@@ -143,10 +150,16 @@ examples:
       multi-step planning with LLM reasoning, sub-task decomposition,
       and error recovery paths.
 
+  - file: configs/bench/machine.yaml
+    description: |
+      5 states, human-in-the-loop interactive agent. Serves a web UI
+      and blocks waiting for user actions. Loops between serving and
+      launching evaluations.
+
   - file: configs/validate/machine.yaml
     description: |
-      6 states, linear 3-tool pipeline. Runs build, vet/lint, and
-      test in sequence with pass/fail branching.
+      6 states, linear 3-tool pipeline. Loads specification corpus,
+      runs consistency checks, and formats the report.
 
 related_documents:
   - srd006

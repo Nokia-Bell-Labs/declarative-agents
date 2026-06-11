@@ -27,11 +27,14 @@ const (
 
 // Config holds execution engine settings.
 type Config struct {
-	Binary    string        // Agent binary path. Default: "generator" (resolved from PATH).
-	Model     string        // LLM model name passed via --model.
-	OllamaURL string        // Ollama server URL passed via --ollama-url.
-	Timeout   time.Duration // Per-invocation timeout. Default: 10 minutes.
-	OTelDir   string        // Directory for temporary OTel log files.
+	Binary           string        // Agent binary path. Default: "agent" (resolved from PATH).
+	Machine          string        // --machine flag for child agent.
+	Tools            string        // --tools flag for child agent.
+	ToolDeclarations []string      // --tools-declaration flags for child agent.
+	Model            string        // LLM model name passed via --model.
+	OllamaURL        string        // Ollama server URL passed via --ollama-url.
+	Timeout          time.Duration // Per-invocation timeout. Default: 10 minutes.
+	OTelDir          string        // Directory for temporary OTel log files.
 }
 
 func (c *Config) binary() string {
@@ -82,10 +85,17 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 
 	otelLogFile := filepath.Join(otelDir(cfg), fmt.Sprintf("agent-%s.otel.json", taskID))
 
-	args := []string{
-		"--directory", worktreeDir,
-		"--otel-log-file", otelLogFile,
+	var args []string
+	if cfg.Machine != "" {
+		args = append(args, "--machine", cfg.Machine)
 	}
+	if cfg.Tools != "" {
+		args = append(args, "--tools", cfg.Tools)
+	}
+	for _, decl := range cfg.ToolDeclarations {
+		args = append(args, "--tools-declaration", decl)
+	}
+	args = append(args, "--directory", worktreeDir, "--otel-log-file", otelLogFile)
 	if cfg.Model != "" {
 		args = append(args, "--model", cfg.Model)
 	}

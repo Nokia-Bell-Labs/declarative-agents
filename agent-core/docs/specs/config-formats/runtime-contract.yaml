@@ -1,0 +1,178 @@
+id: cfg-runtime-contract
+title: Machine + Tools Runtime Contract
+
+purpose: |
+  Documents the contract that governs how the agent binary assembles
+  a running agent from declarative YAML configuration. Every agent
+  mode (generator, planner, evaluator, bench, validate) follows the
+  same contract — no mode-specific subcommands or procedural code paths
+  exist. The binary is a universal runtime; behavior is determined
+  entirely by the config files it receives.
+
+invocation: |
+  agent --machine <machine.yaml> \
+        --tools <tools.yaml> \
+        --tools-declaration <decl1.yaml> [--tools-declaration <decl2.yaml> ...] \
+        [--input <file>] [--output <dir>] \
+        [--model <name>] [--ollama-url <url>] \
+        [--directory <path>]
+
+  Required flags:
+    --machine            Path to the state machine YAML (MachineSpec).
+    --tools              Path to the tool selection YAML (list of tool names).
+
+  Required when using declaration+selection split:
+    --tools-declaration  One or more paths to tool declaration YAML files.
+                         May be repeated. When provided, --tools is treated
+                         as a selection file (names only); otherwise it is
+                         parsed as a full declaration file.
+
+  Optional universal flags:
+    --input              Input file (e.g. suite YAML for evaluator).
+    --output             Output directory (e.g. eval results).
+    --model              Override LLM model name.
+    --ollama-url         Override LLM provider URL.
+    --directory          Workspace root for file tools and exec tools.
+    --profiles-dir       Directory with model profile YAML overrides.
+    --otel-log-file      OTel trace output file.
+    --otel-parent-span   W3C traceparent for distributed tracing.
+
+startup_sequence:
+  - step: 1
+    name: Load machine spec
+    description: |
+      Parse the --machine YAML into a MachineSpec (name, states,
+      signals, transitions, budget). Validated immediately.
+    implementation: core.LoadMachineSpec
+
+  - step: 2
+    name: Load tool definitions
+    description: |
+      If --tools-declaration is provided, load declarations from those
+      files, then load --tools as a name-only selection list, and
+      compute the intersection (SelectTools). Otherwise, load --tools
+      as a full declaration file. Result: []ToolDef.
+    implementation: stl.LoadToolDeclarations, stl.LoadToolSelection, stl.SelectTools
+
+  - step: 3
+    name: Extract LLM config
+    description: |
+      Scan tool definitions for invoke_llm config blocks. Extract
+      model, provider, endpoint, and system prompt settings.
+    implementation: extractLLMConfig
+
+  - step: 4
+    name: Register tool factories
+    description: |
+      For each ToolDef, resolve and register a Builder in the
+      core.Registry. Builtin tools are resolved via BuiltinRegistry
+      (Go factories keyed by the "init" field). Exec tools are
+      wrapped as ExecBuilder instances. Tool config from the
+      declaration YAML is passed to factories for parametrization.
+    implementation: stl.RegisterUnifiedTools
+
+  - step: 5
+    name: Build transition table
+    description: |
+      Map each (state, signal) pair from the MachineSpec to a
+      (next_state, Builder) pair. Named actions are resolved from
+      the registry; $tool resolves to a dynamic dispatch function.
+      Unknown action names cause a startup error.
+    implementation: core.BuildTransitionTable
+
+  - step: 6
+    name: Run the loop
+    description: |
+      Enter the initial state with a Seed signal and execute the
+      run-to-completion finite state machine. Each transition fires
+      its action's Builder.Build(result).Execute(), producing a new
+      Result with a Signal that drives the next transition. The loop
+      terminates when a terminal state is reached or a budget limit
+      is exceeded.
+    implementation: core.Loop
+
+tool_parametrization: |
+  Tool behavior is configured through the "config" block in tool
+  declaration YAML. This config map is passed to the BuiltinFactory
+  at registration time (step 4). Factories read config values with
+  fallback defaults, making tools reusable across modes.
+
+  Examples:
+    - launch_eval reads "machine", "tools", and "tools_declarations"
+      from its config to know which child agent to spawn.
+    - execute_task reads the same keys to pass --machine/--tools to
+      child agent processes.
+    - load_suite reads "output_dir", "reps", "timeout" from config.
+    - run_point reads "point_machine" to locate the nested machine YAML.
+    - serve_ui reads "addr", "data_dir", "configs_dir", etc.
+
+  CLI flags (--input, --output, --model, --ollama-url) serve as
+  universal overrides. Mode-specific parameters live exclusively in
+  tool config YAML, not as CLI flags.
+
+nested_machines: |
+  Some tools spawn nested core.Loop instances (run_point) or child
+  agent processes (launch_eval, execute_task). The nested machine
+  path is read from the tool's config block, not hardcoded.
+
+  Nested core.Loop (same process):
+    run_point reads config.point_machine → core.Loop(LoopParams{MachineFile: ...})
+
+  Child process:
+    launch_eval reads config.machine, config.tools, config.tools_declarations
+    → exec.Command("agent", "--machine", ..., "--tools", ...)
+
+    execute_task reads config.machine, config.tools, config.tools_declarations
+    → subprocess.Run with the same flags
+
+  This design allows swapping nested machines by changing YAML config
+  without recompiling the binary.
+
+config_file_layout: |
+  configs/
+    tools/
+      builtin.yaml          # Shared builtin tool declarations
+      exec.yaml             # Shared exec tool declarations
+    generator/
+      machine.yaml          # Generator state machine
+      tools.yaml            # Tool selection (names only)
+      llm/                  # Per-model LLM configs
+    planner/
+      machine.yaml          # Full planner with execution
+      machine-passthrough.yaml
+      machine-plan-only.yaml
+      tools.yaml
+      llm/
+    evaluator/
+      machine.yaml          # Session-level eval orchestration
+      point.yaml            # Per-point eval pipeline
+      tools.yaml            # Selects both session + point tools
+    bench/
+      machine.yaml          # Interactive web UI loop
+      tools.yaml            # serve_ui + launch_eval
+    validate/
+      machine.yaml          # Spec validation pipeline
+      tools.yaml            # load_corpus + validate_specs + format_report
+
+invariants:
+  - Every agent mode uses the same binary with the same startup sequence.
+  - No mode-specific CLI subcommands exist.
+  - All tool configuration lives in YAML config blocks, not CLI flags.
+  - Machine files reference tools by name; tools are resolved from the registry.
+  - Nested machine paths are declarative (read from tool config).
+  - The transition table is fully validated at startup before any work begins.
+  - Adding a new agent mode requires only new YAML files and (optionally)
+    new Go builtin tool implementations registered in the BuiltinRegistry.
+
+related_documents:
+  - cfg-machine-format
+  - cfg-tool-declaration-format
+  - cfg-tool-selection-format
+  - cfg-llm-config-format
+  - srd006
+
+implementation:
+  - cmd/agent/main.go
+  - pkg/core/loop.go
+  - pkg/core/machine.go
+  - pkg/stl/register.go

@@ -31,7 +31,7 @@ states:
   - name: Launching
     meaning: |
       An experiment is being executed. launch_eval has spawned
-      agent eval as a subprocess and is blocking until it completes.
+      the evaluator session machine as a subprocess and is blocking until it completes.
       The web UI remains accessible for monitoring progress.
   - name: Done
     meaning: Terminal. The user requested shutdown.
@@ -46,15 +46,15 @@ signals:
   - name: Shutdown
     trigger: User requested shutdown or Ctrl+C.
   - name: EvalCompleted
-    trigger: The agent eval subprocess exited successfully.
+    trigger: The evaluator session machine subprocess exited successfully.
   - name: EvalFailed
-    trigger: The agent eval subprocess exited with an error.
+    trigger: The evaluator session machine subprocess exited with an error.
   - name: CommandError
     trigger: Infrastructure-level error.
 
 lifecycle: |
   1. Idle → Serving (Seed): serve_ui starts the HTTP server and blocks
-  2. Serving → Launching (ExperimentRequested): launch_eval spawns agent eval
+  2. Serving → Launching (ExperimentRequested): launch_eval spawns evaluator session machine
   3. Launching → Serving (EvalCompleted/EvalFailed): return to serve_ui
   4. Serving → Done (Shutdown): clean exit
 
@@ -77,11 +77,11 @@ pipeline_diagram: |
 tools_required:
   builtin:
     - serve_ui (blocks on human input via web UI)
-    - launch_eval (spawns agent eval subprocess)
+    - launch_eval (spawns evaluator session machine subprocess)
 
 invariants:
   - The bench never calls an LLM directly
   - The HTTP server persists across serve_ui invocations (goroutine in BenchState)
   - User actions are the only input source — serve_ui is the human equivalent of invoke_llm
   - The web UI remains accessible during experiment execution for progress monitoring
-  - All experiment execution reuses the existing agent eval pipeline
+  - All experiment execution reuses the evaluator session machine pipeline

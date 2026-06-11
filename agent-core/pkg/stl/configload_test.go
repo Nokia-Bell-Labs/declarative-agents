@@ -275,8 +275,21 @@ func TestPlannerConfig_PlanOnlyTransitionTable(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Evaluator config tests
+// Evaluator config tests (session-level machine)
 // ---------------------------------------------------------------------------
+
+func TestEvaluatorConfig_SessionMachineLoads(t *testing.T) {
+	path := filepath.Join(configDir(t), "evaluator", "machine.yaml")
+	spec, err := core.LoadMachineSpec(path)
+	require.NoError(t, err)
+
+	require.Equal(t, "evaluator-session", spec.Name)
+	require.Equal(t, "Idle", spec.InitialState)
+	require.Contains(t, spec.TerminalStates, "Done")
+	require.Contains(t, spec.TerminalStates, "Failed")
+	require.NotEmpty(t, spec.States)
+	require.NotEmpty(t, spec.Transitions)
+}
 
 func TestEvaluatorConfig_ToolsLoad(t *testing.T) {
 	cd := configDir(t)
@@ -284,7 +297,8 @@ func TestEvaluatorConfig_ToolsLoad(t *testing.T) {
 	require.NotEmpty(t, defs)
 
 	assertToolNames(t, defs, []string{
-		"prepare_workspace",
+		"load_suite", "next_point", "run_point", "report_session",
+		"prepare_workspace", "dump_config",
 		"run_agent", "check_results", "collect_metrics",
 	})
 }
@@ -301,6 +315,103 @@ func TestEvaluatorConfig_TransitionTable(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, table)
 	require.True(t, isTerminal(core.State("Done")))
+	require.True(t, isTerminal(core.State("Failed")))
+	require.False(t, isTerminal(core.State("Idle")))
+}
+
+func TestEvaluatorConfig_PointMachineLoads(t *testing.T) {
+	path := filepath.Join(configDir(t), "evaluator", "point.yaml")
+	spec, err := core.LoadMachineSpec(path)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, spec.Name)
+	require.Equal(t, "Idle", spec.InitialState)
+	require.Contains(t, spec.TerminalStates, "Done")
+	require.Contains(t, spec.TerminalStates, "Failed")
+}
+
+// ---------------------------------------------------------------------------
+// Bench config tests
+// ---------------------------------------------------------------------------
+
+func TestBenchConfig_MachineLoads(t *testing.T) {
+	path := filepath.Join(configDir(t), "bench", "machine.yaml")
+	spec, err := core.LoadMachineSpec(path)
+	require.NoError(t, err)
+
+	require.Equal(t, "bench", spec.Name)
+	require.Equal(t, "Idle", spec.InitialState)
+	require.Contains(t, spec.TerminalStates, "Done")
+	require.Contains(t, spec.TerminalStates, "Failed")
+	require.NotEmpty(t, spec.States)
+	require.NotEmpty(t, spec.Transitions)
+}
+
+func TestBenchConfig_ToolsLoad(t *testing.T) {
+	cd := configDir(t)
+	defs := loadTestDefs(t, cd, "bench")
+	require.NotEmpty(t, defs)
+
+	assertToolNames(t, defs, []string{
+		"serve_ui", "launch_eval",
+	})
+}
+
+func TestBenchConfig_TransitionTable(t *testing.T) {
+	cd := configDir(t)
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "bench", "machine.yaml"))
+	require.NoError(t, err)
+
+	defs := loadTestDefs(t, cd, "bench")
+	reg := buildRegistryForDefs(t, defs)
+
+	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, table)
+	require.True(t, isTerminal(core.State("Done")))
+	require.True(t, isTerminal(core.State("Failed")))
+	require.False(t, isTerminal(core.State("Idle")))
+}
+
+// ---------------------------------------------------------------------------
+// Validate config tests
+// ---------------------------------------------------------------------------
+
+func TestValidateConfig_MachineLoads(t *testing.T) {
+	path := filepath.Join(configDir(t), "validate", "machine.yaml")
+	spec, err := core.LoadMachineSpec(path)
+	require.NoError(t, err)
+
+	require.Equal(t, "validate", spec.Name)
+	require.Equal(t, "Idle", spec.InitialState)
+	require.Contains(t, spec.TerminalStates, "Passed")
+	require.Contains(t, spec.TerminalStates, "Failed")
+	require.NotEmpty(t, spec.States)
+	require.NotEmpty(t, spec.Transitions)
+}
+
+func TestValidateConfig_ToolsLoad(t *testing.T) {
+	cd := configDir(t)
+	defs := loadTestDefs(t, cd, "validate")
+	require.NotEmpty(t, defs)
+
+	assertToolNames(t, defs, []string{
+		"load_corpus", "validate_specs", "format_report",
+	})
+}
+
+func TestValidateConfig_TransitionTable(t *testing.T) {
+	cd := configDir(t)
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "validate", "machine.yaml"))
+	require.NoError(t, err)
+
+	defs := loadTestDefs(t, cd, "validate")
+	reg := buildRegistryForDefs(t, defs)
+
+	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, table)
+	require.True(t, isTerminal(core.State("Passed")))
 	require.True(t, isTerminal(core.State("Failed")))
 	require.False(t, isTerminal(core.State("Idle")))
 }

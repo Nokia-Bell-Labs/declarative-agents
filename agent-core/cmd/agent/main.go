@@ -25,6 +25,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench"
 	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench/ui"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm/ollama"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/pipeline"
@@ -45,6 +46,8 @@ var (
 	flagVerboseTrace     bool
 	flagModel            string
 	flagOllamaURL        string
+	flagInput  string
+	flagOutput string
 )
 
 func main() {
@@ -58,8 +61,8 @@ var rootCmd = &cobra.Command{
 	Short: "Unified agentic-loop binary",
 	Long: `agent loads a state machine and tools from YAML config and runs core.Loop.
 
-Different modes (generate, pipeline, eval) are selected by which
---machine and --tools files you pass.`,
+Different modes (generate, pipeline, eval, bench) are selected entirely
+by which --machine and --tools files you pass.`,
 	SilenceUsage: true,
 	RunE:         run,
 }
@@ -76,309 +79,13 @@ func init() {
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
 	f.StringVar(&flagModel, "model", "", "override LLM model name")
 	f.StringVar(&flagOllamaURL, "ollama-url", "", "override Ollama server URL")
-
-	rootCmd.AddCommand(evalCmd)
-	rootCmd.AddCommand(benchCmd)
+	f.StringVar(&flagInput, "input", "", "input file (e.g. suite YAML for evaluator mode)")
+	f.StringVar(&flagOutput, "output", "", "output directory for eval results (default: eval-results)")
 
 	rootCmd.Version = "v0.0.0-dev"
 }
 
-var evalCmd = &cobra.Command{
-	Use:   "eval <suite.yaml>",
-	Short: "Run an evaluation suite",
-	Long: `Runs an evaluation suite defined in YAML. The suite specifies harnesses,
-models, grid parameters, and sample directories. Each combination is
-executed as an evaluation point using the standard state machine infrastructure.`,
-	Args: cobra.ExactArgs(1),
-	RunE: runEval,
-}
 
-func init() {
-	f := evalCmd.Flags()
-	f.String("output", "eval-results", "output directory for results")
-	f.Int("reps", 1, "number of repetitions per point")
-	f.String("eval-machine", "", "path to evaluator machine.yaml (default: configs/evaluator/machine.yaml)")
-	f.String("eval-tools", "", "path to evaluator tools.yaml selection file (default: configs/evaluator/tools.yaml)")
-	f.StringSlice("eval-tools-declaration", nil, "paths to tool declaration files for evaluator")
-}
-
-func runEval(cmd *cobra.Command, args []string) error {
-	suite, err := stl.LoadSuite(args[0])
-	if err != nil {
-		return fmt.Errorf("load suite: %w", err)
-	}
-
-	outputDir, _ := cmd.Flags().GetString("output")
-	if outputDir == "" {
-		outputDir = "eval-results"
-	}
-
-	reps, _ := cmd.Flags().GetInt("reps")
-	if reps == 0 && suite.Reps > 0 {
-		reps = suite.Reps
-	}
-	if reps == 0 {
-		reps = 1
-	}
-
-	machineFile, _ := cmd.Flags().GetString("eval-machine")
-	if machineFile == "" {
-		machineFile = "configs/evaluator/machine.yaml"
-	}
-
-	toolsFile, _ := cmd.Flags().GetString("eval-tools")
-	if toolsFile == "" {
-		toolsFile = "configs/evaluator/tools.yaml"
-	}
-
-	declPaths, _ := cmd.Flags().GetStringSlice("eval-tools-declaration")
-	if len(declPaths) == 0 {
-		declPaths = []string{
-			"configs/tools/builtin.yaml",
-			"configs/tools/exec.yaml",
-		}
-	}
-
-	// Load tool definitions via standard declaration+selection
-	declarations, err := stl.LoadToolDeclarations(declPaths)
-	if err != nil {
-		return fmt.Errorf("load eval tool declarations: %w", err)
-	}
-	selection, err := stl.LoadToolSelection(toolsFile)
-	if err != nil {
-		return fmt.Errorf("load eval tool selection: %w", err)
-	}
-	defs, err := stl.SelectTools(declarations, selection)
-	if err != nil {
-		return fmt.Errorf("select eval tools: %w", err)
-	}
-
-	// Build registries using standard infrastructure
-	reg := core.NewRegistry()
-	builtins := stl.NewBuiltinRegistry()
-
-	es := &stl.EvalState{Ctx: cmd.Context()}
-
-	st := &agentState{
-		registry: reg,
-		tracer:   tracing.NoopTracer{},
-		ctx:      cmd.Context(),
-	}
-
-	registerBuiltinFactories(builtins, st)
-
-	vars := map[string]string{"directory": flagDirectory}
-	if err := stl.RegisterUnifiedTools(reg, builtins, flagDirectory, defs, vars); err != nil {
-		return fmt.Errorf("register eval tools: %w", err)
-	}
-
-	// Inject the eval state into the eval builders already registered
-	// by registerEvalFactories. The builders hold a pointer to the
-	// EvalState created lazily; we need to replace it with ours.
-	// Re-register eval factories with our shared EvalState.
-	builtins.Override("prepare_workspace", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.PrepareWorkspaceBuilder{ES: es}, nil
-	})
-	builtins.Override("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.RunAgentBuilder{ES: es}, nil
-	})
-	builtins.Override("check_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.CheckResultsBuilder{ES: es}, nil
-	})
-	builtins.Override("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.CollectMetricsBuilder{ES: es}, nil
-	})
-	builtins.Override("dump_config", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.DumpConfigBuilder{ES: es}, nil
-	})
-
-	// Re-register the eval tools with our EvalState
-	for _, d := range defs {
-		if d.Type == "builtin" && (d.Name == "prepare_workspace" || d.Name == "run_agent" || d.Name == "check_results" || d.Name == "collect_metrics" || d.Name == "dump_config") {
-			if err := stl.RegisterSingleBuiltin(reg, builtins, d, vars); err != nil {
-				return fmt.Errorf("re-register eval tool %s: %w", d.Name, err)
-			}
-		}
-	}
-
-	// Build loop params template
-	loopParams := core.LoopParams{
-		MachineFile: machineFile,
-		AgentName:   "evaluator",
-		Trace:       tracing.NoopTracer{},
-		Budget: core.Budget{
-			MaxIterations: 20,
-		},
-		Registry: reg,
-		Hooks: core.LoopHooks{
-			TerminalStatus: func(s core.State) core.RunStatus {
-				if s == core.State("Done") {
-					return core.StatusSucceeded
-				}
-				return core.StatusFailed
-			},
-		},
-	}
-
-	cfg := stl.StandardSessionConfig{
-		SessionConfig: stl.SessionConfig{
-			OutputDir:  outputDir,
-			OllamaURL: suite.OllamaURL,
-			Timeout:   suite.Timeout,
-			Reps:      reps,
-			Stderr:    os.Stderr,
-		},
-		LoopParams: loopParams,
-		ES:         es,
-	}
-
-	result, err := stl.RunSession(cmd.Context(), suite, cfg)
-	if err != nil {
-		return err
-	}
-
-	if result.Passed < result.TotalPoints {
-		os.Exit(1)
-	}
-	return nil
-}
-
-
-
-
-var benchCmd = &cobra.Command{
-	Use:   "bench",
-	Short: "Start the bench agent (interactive experiment browser and launcher)",
-	Long: `Runs the bench agent: a state-machine-driven interactive system for
-browsing evaluation results, launching experiments, and comparing
-model performance. The web UI is served by the serve_ui tool, which
-blocks waiting for user actions — the bench equivalent of invoke_llm.`,
-	RunE: runBench,
-}
-
-func init() {
-	f := benchCmd.Flags()
-	f.String("addr", ":8080", "HTTP listen address")
-	f.String("data", "eval-results", "path to eval-results directory")
-	f.String("configs", "configs", "path to configs directory")
-	f.String("profiles-dir", "pkg/llm/profiles", "path to LLM profiles directory")
-	f.String("docs", "docs", "path to documentation directory")
-	f.String("source", "", "path to source code root directory")
-	f.String("bench-machine", "", "path to bench machine.yaml (default: configs/bench/machine.yaml)")
-	f.String("bench-tools", "", "path to bench tools.yaml (default: configs/bench/tools.yaml)")
-	f.StringSlice("bench-tools-declaration", nil, "paths to tool declaration files for bench")
-}
-
-func runBench(cmd *cobra.Command, args []string) error {
-	addr, _ := cmd.Flags().GetString("addr")
-	dataDir, _ := cmd.Flags().GetString("data")
-	configsDir, _ := cmd.Flags().GetString("configs")
-	profilesDir, _ := cmd.Flags().GetString("profiles-dir")
-	docsDir, _ := cmd.Flags().GetString("docs")
-	sourceDir, _ := cmd.Flags().GetString("source")
-
-	if dataDir != "" {
-		if abs, err := filepath.Abs(dataDir); err == nil {
-			dataDir = abs
-		}
-	}
-	if configsDir != "" {
-		if abs, err := filepath.Abs(configsDir); err == nil {
-			configsDir = abs
-		}
-	}
-	if profilesDir != "" {
-		if abs, err := filepath.Abs(profilesDir); err == nil {
-			profilesDir = abs
-		}
-	}
-	if docsDir != "" {
-		if abs, err := filepath.Abs(docsDir); err == nil {
-			docsDir = abs
-		}
-	}
-	if sourceDir != "" {
-		if abs, err := filepath.Abs(sourceDir); err == nil {
-			sourceDir = abs
-		}
-	}
-
-	machineFile, _ := cmd.Flags().GetString("bench-machine")
-	if machineFile == "" {
-		machineFile = "configs/bench/machine.yaml"
-	}
-
-	toolsFile, _ := cmd.Flags().GetString("bench-tools")
-	if toolsFile == "" {
-		toolsFile = "configs/bench/tools.yaml"
-	}
-
-	declPaths, _ := cmd.Flags().GetStringSlice("bench-tools-declaration")
-	if len(declPaths) == 0 {
-		declPaths = []string{"configs/bench/serve_ui.yaml"}
-	}
-
-	declarations, err := stl.LoadToolDeclarations(declPaths)
-	if err != nil {
-		return fmt.Errorf("load bench tool declarations: %w", err)
-	}
-	selection, err := stl.LoadToolSelection(toolsFile)
-	if err != nil {
-		return fmt.Errorf("load bench tool selection: %w", err)
-	}
-	defs, err := stl.SelectTools(declarations, selection)
-	if err != nil {
-		return fmt.Errorf("select bench tools: %w", err)
-	}
-
-	cfg := bench.ServerConfig{
-		Addr:        addr,
-		DataDir:     dataDir,
-		ConfigsDir:  configsDir,
-		ProfilesDir: profilesDir,
-		DocsDir:     docsDir,
-		SourceDir:   sourceDir,
-		Assets:      benchui.Assets(),
-	}
-	bs := bench.NewBenchState(cfg)
-
-	reg := core.NewRegistry()
-	builtins := stl.NewBuiltinRegistry()
-
-	builtins.Register("serve_ui", bench.ServeUIFactory(bs))
-	builtins.Register("launch_eval", bench.LaunchEvalFactory(bs))
-
-	vars := map[string]string{}
-	if err := stl.RegisterUnifiedTools(reg, builtins, "", defs, vars); err != nil {
-		return fmt.Errorf("register bench tools: %w", err)
-	}
-
-	params := core.LoopParams{
-		MachineFile: machineFile,
-		AgentName:   "bench",
-		Trace:       tracing.NoopTracer{},
-		Budget: core.Budget{
-			MaxIterations: 10000,
-		},
-		Registry: reg,
-		Hooks: core.LoopHooks{
-			TerminalStatus: func(s core.State) core.RunStatus {
-				if s == core.State("Done") {
-					return core.StatusSucceeded
-				}
-				return core.StatusFailed
-			},
-		},
-	}
-
-	result, err := core.Loop(params, cmd.Context())
-	if err != nil {
-		return fmt.Errorf("bench loop: %w", err)
-	}
-
-	fmt.Fprintf(os.Stderr, "bench exited: %s\n", result.Status)
-	return nil
-}
 
 // agentState holds the shared state needed by builtin tool factories.
 // Created during run() initialization and captured by factory closures.
@@ -810,8 +517,11 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState) {
 	// create_issue, execute_task, check_result)
 	registerPipelineFactories(br, st)
 
-	// Eval tools (run_agent, check_results, collect_metrics)
+	// Eval tools (session + per-point)
 	registerEvalFactories(br, st)
+
+	// Bench tools (serve_ui, launch_eval)
+	registerBenchFactories(br)
 
 	// Validate spec tools (load_corpus, validate_specs, format_report)
 	registerValidateSpecFactories(br, st)
@@ -823,39 +533,56 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState) {
 func registerPipelineFactories(br *stl.BuiltinRegistry, st *agentState) {
 	var ps *pipeline.State
 
-	initPS := func() *pipeline.State {
+	initPS := func(def stl.ToolDef) *pipeline.State {
 		if ps != nil {
 			return ps
 		}
+
+		var execCfg execute.Config
+		if v, ok := def.Config["machine"].(string); ok && v != "" {
+			execCfg.Machine = v
+		}
+		if v, ok := def.Config["tools"].(string); ok && v != "" {
+			execCfg.Tools = v
+		}
+		if v, ok := def.Config["tools_declarations"].([]interface{}); ok {
+			for _, d := range v {
+				if s, ok := d.(string); ok {
+					execCfg.ToolDeclarations = append(execCfg.ToolDeclarations, s)
+				}
+			}
+		}
+
 		ps = &pipeline.State{
-			Directory: st.directory,
-			Tracer:    st.tracer,
-			Ctx:       st.ctx,
-			TaskDeps:  make(map[string]string),
+			Directory:  st.directory,
+			Tracer:     st.tracer,
+			Ctx:        st.ctx,
+			TaskDeps:   make(map[string]string),
+			ExecConfig: execCfg,
 		}
 		return ps
 	}
 
 	br.Register("extract_task", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.ExtractTaskBuilder{PS: initPS()}, nil
+		return &pipeline.ExtractTaskBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("extract_all", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.ExtractAllBuilder{PS: initPS()}, nil
+		return &pipeline.ExtractAllBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("assemble_prompt", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.AssemblePromptBuilder{PS: initPS()}, nil
+		return &pipeline.AssemblePromptBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("parse_plan", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.ParsePlanBuilder{PS: initPS()}, nil
+		return &pipeline.ParsePlanBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("create_issue", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.CreateIssueBuilder{PS: initPS()}, nil
+		return &pipeline.CreateIssueBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("execute_task", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.ExecuteTaskBuilder{PS: initPS()}, nil
+		return &pipeline.ExecuteTaskBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("check_result", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &pipeline.CheckResultBuilder{PS: initPS()}, nil
+		return &pipeline.CheckResultBuilder{PS: initPS(def)}, nil
 	})
 }
 
@@ -887,34 +614,119 @@ func registerValidateSpecFactories(br *stl.BuiltinRegistry, st *agentState) {
 }
 
 
-// registerEvalFactories registers factories for eval tools.
-// EvalState is lazily initialized on first factory call. The eval
-// session orchestrator sets ES.PC before each point's loop runs.
+// registerEvalFactories registers factories for both session-level
+// eval tools (load_suite, next_point, run_point, report_session) and
+// per-point eval tools (prepare_workspace, run_agent, etc.).
+// EvalSessionState is lazily initialized on first factory call.
 func registerEvalFactories(br *stl.BuiltinRegistry, st *agentState) {
-	var es *stl.EvalState
+	var ess *stl.EvalSessionState
 
-	initES := func() *stl.EvalState {
-		if es != nil {
-			return es
+	initESS := func() *stl.EvalSessionState {
+		if ess != nil {
+			return ess
 		}
-		es = &stl.EvalState{Ctx: st.ctx}
-		return es
+		ess = &stl.EvalSessionState{
+			EvalState: stl.EvalState{Ctx: st.ctx},
+			Stderr:    os.Stderr,
+			SuitePath: flagInput,
+			OutputDir: flagOutput,
+			OllamaURL: flagOllamaURL,
+		}
+		return ess
 	}
 
+	// Session-level tools
+	br.Register("load_suite", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		es := initESS()
+		factory := stl.LoadSuiteFactory(es)
+		return factory(def, vars)
+	})
+	br.Register("next_point", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		es := initESS()
+		factory := stl.NextPointFactory(es)
+		return factory(def, vars)
+	})
+	br.Register("run_point", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		es := initESS()
+		factory := stl.RunPointFactory(es, st.registry)
+		return factory(def, vars)
+	})
+	br.Register("report_session", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		es := initESS()
+		factory := stl.ReportSessionFactory(es)
+		return factory(def, vars)
+	})
+
+	// Per-point tools
 	br.Register("prepare_workspace", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.PrepareWorkspaceBuilder{ES: initES()}, nil
+		return &stl.PrepareWorkspaceBuilder{ES: &initESS().EvalState}, nil
 	})
 	br.Register("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.RunAgentBuilder{ES: initES()}, nil
+		return &stl.RunAgentBuilder{ES: &initESS().EvalState}, nil
 	})
 	br.Register("check_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.CheckResultsBuilder{ES: initES()}, nil
+		return &stl.CheckResultsBuilder{ES: &initESS().EvalState}, nil
 	})
 	br.Register("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.CollectMetricsBuilder{ES: initES()}, nil
+		return &stl.CollectMetricsBuilder{ES: &initESS().EvalState}, nil
 	})
 	br.Register("dump_config", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &stl.DumpConfigBuilder{ES: initES()}, nil
+		return &stl.DumpConfigBuilder{ES: &initESS().EvalState}, nil
+	})
+}
+
+// registerBenchFactories registers factories for bench tools (serve_ui,
+// launch_eval). BenchState is lazily initialized on first factory call,
+// pulling config from tool definition YAML.
+func registerBenchFactories(br *stl.BuiltinRegistry) {
+	var bs *bench.BenchState
+
+	initBS := func(def stl.ToolDef) *bench.BenchState {
+		if bs != nil {
+			return bs
+		}
+
+		str := func(key string) string {
+			if v, ok := def.Config[key].(string); ok {
+				return v
+			}
+			return ""
+		}
+
+		addr := str("addr")
+		dataDir := str("data_dir")
+		configsDir := str("configs_dir")
+		docsDir := str("docs_dir")
+		sourceDir := str("source_dir")
+		profilesDir := str("profiles_dir")
+
+		for _, p := range []*string{&dataDir, &configsDir, &docsDir, &sourceDir, &profilesDir} {
+			if *p != "" {
+				if abs, err := filepath.Abs(*p); err == nil {
+					*p = abs
+				}
+			}
+		}
+
+		cfg := bench.ServerConfig{
+			Addr:        addr,
+			DataDir:     dataDir,
+			ConfigsDir:  configsDir,
+			ProfilesDir: profilesDir,
+			DocsDir:     docsDir,
+			SourceDir:   sourceDir,
+			Assets:      benchui.Assets(),
+		}
+		bs = bench.NewBenchState(cfg)
+		return bs
+	}
+
+	br.Register("serve_ui", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &bench.ServeUIBuilder{BS: initBS(def)}, nil
+	})
+	br.Register("launch_eval", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		factory := bench.LaunchEvalFactory(initBS(def))
+		return factory(def, vars)
 	})
 }
 

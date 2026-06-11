@@ -161,6 +161,12 @@ tools:
     init: execute_task
     description: "Execute the current task via the code generator agent."
     visibility: internal
+    config:
+      machine: configs/generator/machine.yaml
+      tools: configs/generator/tools.yaml
+      tools_declarations:
+        - configs/tools/builtin.yaml
+        - configs/tools/exec.yaml
 
   - name: check_result
     type: builtin
@@ -168,7 +174,37 @@ tools:
     description: "Evaluate validation results and decide retry vs. advance vs. fail."
     visibility: internal
 
-  # --- evaluator tools ---
+  # --- evaluator session tools ---
+  - name: load_suite
+    type: builtin
+    init: load_suite
+    visibility: internal
+    description: "Load an evaluation suite YAML, discover samples, expand the grid, and create the session output directory."
+    config:
+      output_dir: eval-results
+      reps: 1
+
+  - name: next_point
+    type: builtin
+    init: next_point
+    visibility: internal
+    description: "Advance to the next evaluation point in the grid. Returns PointReady or AllPointsDone."
+
+  - name: run_point
+    type: builtin
+    init: run_point
+    visibility: internal
+    description: "Run the per-point evaluation pipeline via a nested core.Loop with the point machine."
+    config:
+      point_machine: configs/evaluator/point.yaml
+
+  - name: report_session
+    type: builtin
+    init: report_session
+    visibility: internal
+    description: "Print session summary with pass/fail/timeout counts and total duration."
+
+  # --- evaluator per-point tools ---
   - name: prepare_workspace
     type: builtin
     init: prepare_workspace
@@ -198,6 +234,30 @@ tools:
     init: dump_config
     visibility: internal
     description: "Serialize the full experiment configuration (harness, model, tools, prompts) into experiment.yaml."
+
+  # --- bench tools ---
+  - name: serve_ui
+    type: builtin
+    init: serve_ui
+    visibility: internal
+    description: "Start the bench web UI server and block waiting for user actions (bench equivalent of invoke_llm)."
+    config:
+      addr: ":8080"
+      data_dir: eval-results
+      configs_dir: configs
+      docs_dir: docs
+      profiles_dir: pkg/llm/profiles
+
+  - name: launch_eval
+    type: builtin
+    init: launch_eval
+    visibility: internal
+    description: "Spawn a child agent as a subprocess to run an experiment."
+    config:
+      machine: configs/evaluator/machine.yaml
+      tools: configs/evaluator/tools.yaml
+      tools_declarations:
+        - configs/tools/builtin.yaml
 
   # --- spec validation tools ---
   - name: load_corpus

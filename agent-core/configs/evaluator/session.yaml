@@ -1,0 +1,32 @@
+# Tool declarations for the evaluator session-level tools.
+# These tools drive the session machine (grid iteration, nested point loops).
+# Per-point tools (prepare_workspace, etc.) are declared in configs/tools/builtin.yaml.
+
+tools:
+  - name: load_suite
+    type: builtin
+    init: load_suite
+    visibility: internal
+    description: "Load an evaluation suite YAML, discover samples, expand the grid, and create the session output directory."
+    config:
+      output_dir: eval-results
+      reps: 1
+      point_machine: configs/evaluator/point.yaml
+
+  - name: next_point
+    type: builtin
+    init: next_point
+    visibility: internal
+    description: "Advance to the next evaluation point in the grid. Returns PointReady or AllPointsDone."
+
+  - name: run_point
+    type: builtin
+    init: run_point
+    visibility: internal
+    description: "Run the per-point evaluation pipeline via a nested core.Loop with the point machine."
+
+  - name: report_session
+    type: builtin
+    init: report_session
+    visibility: internal
+    description: "Print session summary with pass/fail/timeout counts and total duration."

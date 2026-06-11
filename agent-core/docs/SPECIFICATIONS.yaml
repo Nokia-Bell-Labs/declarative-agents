@@ -12,7 +12,7 @@ overview: |
   convention helpers, W3C traceparent support, LLM package extensions,
   and the CLI standard flag contract. Four use cases exercise the SRDs
   across two releases. One formal YAML test suite covers 51 acceptance
-  test cases for release 00.0; additional coverage comes from 554 Go
+  test cases for release 00.0; additional coverage comes from 514 Go
   test functions across 16 packages.
 
   SRD release assignments.
@@ -116,7 +116,7 @@ srd_index:
     path: docs/specs/software-requirements/srd019-eval-harness.yaml
   - id: srd020-bench-web-ui
     title: Bench Web UI
-    summary: HTTP server with embedded React frontend, REST API for sessions/points/traces/experiments, SPA routing, and dual-mode asset loading in cmd/bench.
+    summary: HTTP server with embedded React frontend, REST API for sessions/points/traces/experiments/docs/source, SPA routing, and dual-mode asset loading in pkg/bench.
     path: docs/specs/software-requirements/srd020-bench-web-ui.yaml
 
 use_case_index:
@@ -130,14 +130,17 @@ use_case_index:
     title: Generator agent solves Go coding tasks using YAML config
     release: "01.0"
     status: done
+    path: docs/specs/use-cases/rel01.0-uc001-generator-coding.yaml
   - id: rel01.0-uc002-evaluator-benchmark
     title: Evaluator runs generator across models and collects results
     release: "01.0"
     status: done
+    path: docs/specs/use-cases/rel01.0-uc002-evaluator-benchmark.yaml
   - id: rel01.0-uc003-bench-visualization
     title: Bench serves web UI for evaluation result exploration
     release: "01.0"
     status: done
+    path: docs/specs/use-cases/rel01.0-uc003-bench-visualization.yaml
 
 test_suite_index:
   - id: test-rel00.0
@@ -149,7 +152,7 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel00.0.yaml
 
 go_test_coverage:
-  total_test_functions: 554
+  total_test_functions: 514
   packages_with_tests: 16
   note: >
     Go test functions across all packages provide coverage beyond the
@@ -194,7 +197,7 @@ coverage_gaps: |
   The original eight core SRDs (srd001-srd008) have full use case
   touchpoints and formal YAML test suite coverage in release 00.0.
   SRDs srd009-srd018 cover additional packages and have Go test
-  coverage (554 test functions across 16 packages) but no formal
+  coverage (514 test functions across 16 packages) but no formal
   YAML test suites.
 
   Packages without SRDs:
@@ -210,9 +213,9 @@ coverage_gaps: |
     preparation, agent execution, result checking, metrics collection,
     convergence analysis, trace reading, and config dumping
   - cmd/agent — unified binary orchestration, tool registration, LLM
-    config loading, eval subcommand
-  - cmd/bench — web server with REST API, embedded React frontend,
-    SPA routing, session/point/trace/experiment visualization
+    config loading, session-level eval machine
+  - pkg/bench — state-machine-driven web UI with serve_ui and
+    launch_eval tools (configured via --machine configs/bench/machine.yaml)
 
   srd013 (STL) needs expansion to cover eval tools (prepare_workspace,
   run_agent, check_results, collect_metrics, dump_config), nudge_reread,
@@ -223,3 +226,4 @@ coverage_gaps: |
   - docs/specs/semantic-models/evaluator.yaml (sm-evaluator)
   - docs/specs/semantic-models/planner.yaml (sm-planner)
   - docs/specs/semantic-models/validator.yaml (sm-validator)
+  - docs/specs/semantic-models/bench.yaml (sm-bench)

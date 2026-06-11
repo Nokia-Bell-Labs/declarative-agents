@@ -4,11 +4,11 @@ title: Agent Core Architecture
 overview:
   summary: |
     A Go framework for building tool-augmented agentic loops. A single
-    unified binary (cmd/agent) drives four agent types — generator,
-    evaluator, planner, and validator — each defined entirely by YAML
-    configuration files (state machines, tool selections, LLM configs).
-    A companion binary (cmd/bench) serves an embedded web UI for
-    visualizing evaluation results.
+    unified binary (cmd/agent) drives five agent types — generator,
+    evaluator, planner, validator, and bench — each defined entirely by
+    YAML configuration files (state machines, tool selections, LLM
+    configs). The bench mode serves an embedded web UI for browsing
+    experiments, launching evaluations, and comparing results.
 
     The framework is organized in three layers:
 
@@ -57,7 +57,6 @@ overview:
 
       subgraph Binaries
         B1[agent]
-        B2[bench]
       end
 
       subgraph Domain
@@ -97,7 +96,8 @@ overview:
       B1 --> I2
       B1 --> I3
       B1 --> I4
-      B2 --> I3
+      B1 --> B1bench[bench]
+      B1bench --> I3
       D1 --> D2
       D1 --> D3
       D1 --> D7
@@ -186,8 +186,9 @@ overview:
     - pkg/subprocess depends on the Go standard library.
     - pkg/cli depends on the Go standard library.
     - cmd/agent imports pkg/core, pkg/stl, pkg/llm, pkg/prompt,
-      pkg/telemetry, pkg/cli, and pkg/pipeline.
-    - cmd/bench imports pkg/stl for evaluation result analysis.
+      pkg/telemetry, pkg/cli, pkg/pipeline, and pkg/bench.
+    - pkg/bench imports pkg/stl for evaluation result analysis and
+      pkg/core for the state machine loop.
 
 interfaces:
   - name: Tracer interface
@@ -455,9 +456,13 @@ technology_choices:
 project_structure:
   binaries:
     - path: cmd/agent/
-      role: Unified agent binary — generator, evaluator, planner, validator modes via YAML config
-    - path: cmd/bench/
-      role: Evaluation results web UI with embedded React frontend
+      role: Unified agent binary — generator, evaluator, planner, validator, bench modes via YAML config
+
+  bench:
+    - path: pkg/bench/
+      role: Bench server, API handlers, state machine tools (serve_ui, launch_eval)
+    - path: pkg/bench/ui/
+      role: Embedded React frontend for experiment browsing and launching
 
   engine:
     - path: pkg/core/
@@ -510,6 +515,8 @@ project_structure:
       role: Planner agent — machine.yaml (3 variants), tools.yaml, llm/*.yaml
     - path: configs/validate/
       role: Validation agent — machine.yaml, tools.yaml
+    - path: configs/bench/
+      role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
     - path: configs/tools/
       role: Shared tool declarations — builtin.yaml (26 tools), exec.yaml (16 tools)
     - path: pkg/llm/profiles/
@@ -538,14 +545,14 @@ implementation_status:
     - done: Agent execution (pkg/execute) — subprocess execution with process groups
     - done: Worktree management (pkg/worktree) — git worktree lifecycle
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
-    - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, validator
-    - done: Bench web UI (cmd/bench) — embedded React frontend for eval results
+    - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, validator, bench
+    - done: Bench agent (pkg/bench) — state-machine-driven web UI for experiment browsing and eval launching
     - done: YAML tool definitions — builtin.yaml (26 declared, 28 registered in Go), exec.yaml (16 tools)
     - done: Agent configurations — generator, evaluator, planner, validate machine/tools/llm
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats
     - done: cobbler-scaffold dependency removed
-    - done: 554 tests passing across 16 packages
+    - done: 514 tests passing across 16 packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd018)
 
 related_documents:

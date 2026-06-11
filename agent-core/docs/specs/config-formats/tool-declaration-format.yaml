@@ -165,11 +165,10 @@ declaration_files:
       model variant. See cfg-llm-config-format for details.
 
 inline_pattern: |
-  configs/validate/tools.yaml uses inline full declarations instead of
-  the declaration+selection split. Each tool is fully defined within the
-  file rather than referencing a name from a separate declaration file.
-  This pattern is used when the tool set is small and agent-specific,
-  avoiding the overhead of separate declaration and selection files.
+  All agents now use the declaration+selection split. Tool declarations
+  live in shared files (configs/tools/builtin.yaml, configs/tools/exec.yaml)
+  and each agent's tools.yaml contains only tool names (selection).
+  This ensures a single source of truth for tool schemas and config.
 
 related_documents:
   - srd013

@@ -2,53 +2,115 @@ id: sm-evaluator
 title: Evaluator Agent Semantic Model
 
 purpose: |
-  The evaluator orchestrates a single evaluation point: it prepares
-  a workspace, snapshots the experiment configuration, invokes the
-  generator agent as a subprocess, checks the results, and collects
-  metrics. The evaluator does NOT use an LLM — it is a deterministic
-  pipeline that sequences five tools.
+  The evaluator uses a two-level nested state machine architecture.
 
-  The eval subcommand of cmd/agent runs multiple evaluator instances
-  across a grid of (sample, model) pairs defined in a suite YAML.
+  The session-level machine (configs/evaluator/machine.yaml) iterates
+  over all combinations of (harness, model, sample, gridpoint, rep)
+  defined in a suite YAML. For each combination it invokes a nested
+  core.Loop that runs the per-point pipeline.
+
+  The point-level machine (configs/evaluator/point.yaml) orchestrates
+  a single evaluation point: it prepares a workspace, snapshots the
+  experiment configuration, invokes the generator agent as a subprocess,
+  checks the results, and collects metrics. It is a deterministic
+  pipeline that sequences five tools — no LLM calls.
+
+  The former `agent eval` subcommand has been removed. Evaluation is
+  now fully driven by `--machine configs/evaluator/machine.yaml`.
 
 configuration:
   machine: configs/evaluator/machine.yaml
+  point_machine: configs/evaluator/point.yaml
   tools: configs/evaluator/tools.yaml
-  llm_configs: configs/evaluator/llm/*.yaml
+  session_tools: configs/evaluator/session.yaml
   tool_declarations:
     - configs/tools/builtin.yaml
     - configs/tools/exec.yaml
 
-states:
+# --- Session-level machine ---
+
+session_states:
+  - name: Idle
+    meaning: Initial state before the suite is loaded.
+  - name: LoadingSuite
+    meaning: Parsing the suite YAML, discovering samples, expanding the grid.
+  - name: AdvancingPoint
+    meaning: Advancing the iterator to the next (harness, model, sample, gridpoint, rep).
+  - name: RunningPoint
+    meaning: Executing the per-point pipeline via a nested core.Loop.
+  - name: Reporting
+    meaning: Printing session summary (pass/fail/timeout counts, total duration).
+  - name: Done
+    meaning: Terminal. All points evaluated and reported.
+  - name: Failed
+    meaning: Terminal. Infrastructure error prevented evaluation.
+
+session_signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: SuiteLoaded
+    trigger: Suite YAML parsed and session directory created.
+  - name: PointReady
+    trigger: Iterator advanced to a new grid point.
+  - name: PointDone
+    trigger: Per-point pipeline completed (any outcome).
+  - name: AllPointsDone
+    trigger: Grid iterator exhausted.
+  - name: SessionReported
+    trigger: Summary printed.
+  - name: CommandError
+    trigger: Infrastructure-level error.
+
+session_lifecycle: |
+  1. Idle → LoadingSuite: load_suite
+  2. LoadingSuite → AdvancingPoint: next_point
+  3. AdvancingPoint → RunningPoint: run_point  (if PointReady)
+  4. RunningPoint → AdvancingPoint: next_point  (loop back)
+  5. AdvancingPoint → Reporting: report_session  (if AllPointsDone)
+  6. Reporting → Done
+
+session_diagram: |
+  ```mermaid
+  stateDiagram-v2
+    [*] --> Idle
+    Idle --> LoadingSuite: Seed / load_suite
+    LoadingSuite --> AdvancingPoint: SuiteLoaded / next_point
+    AdvancingPoint --> RunningPoint: PointReady / run_point
+    RunningPoint --> AdvancingPoint: PointDone / next_point
+    AdvancingPoint --> Reporting: AllPointsDone / report_session
+    Reporting --> Done: SessionReported
+    LoadingSuite --> Failed: CommandError
+    AdvancingPoint --> Failed: CommandError
+    RunningPoint --> Failed: CommandError
+  ```
+
+session_tools:
+  - load_suite
+  - next_point
+  - run_point
+  - report_session
+
+# --- Point-level machine ---
+
+point_states:
   - name: Idle
     meaning: Initial state before evaluation begins.
   - name: PreparingWorkspace
-    meaning: |
-      Creating a temporary directory, initializing git, and copying
-      sample files into the workspace.
+    meaning: Creating temporary directory, initializing git, copying sample files.
   - name: SnapshotConfig
-    meaning: |
-      Serializing the full experiment configuration (harness, model,
-      tools, tool declarations, LLM config, budget) into a single
-      experiment.yaml file in the point directory for reproducibility.
+    meaning: Serializing the full experiment configuration into experiment.yaml.
   - name: RunningAgent
-    meaning: |
-      The generator agent is running as a subprocess in the prepared
-      workspace. Waits for completion, failure, or timeout.
+    meaning: The generator agent is running as a subprocess.
   - name: CheckingResults
-    meaning: |
-      Examining the agent's exit code, test results, and trace output
-      to determine pass/fail/timeout status.
+    meaning: Examining exit code, test results, and trace output.
   - name: CollectingMetrics
-    meaning: |
-      Reading trace files to extract token counts, iteration counts,
-      duration, and tool progression data.
+    meaning: Reading trace files to extract token counts and durations.
   - name: Done
     meaning: Terminal. Evaluation point completed successfully.
   - name: Failed
     meaning: Terminal. An infrastructure error prevented evaluation.
 
-signals:
+point_signals:
   - name: Seed
     trigger: Loop initialization.
   - name: WorkspaceReady
@@ -68,7 +130,7 @@ signals:
   - name: CommandError
     trigger: Infrastructure-level error.
 
-lifecycle: |
+point_lifecycle: |
   1. Idle → PreparingWorkspace: prepare_workspace
   2. PreparingWorkspace → SnapshotConfig: dump_config
   3. SnapshotConfig → RunningAgent: run_agent
@@ -76,12 +138,7 @@ lifecycle: |
   5. CheckingResults → CollectingMetrics: collect_metrics
   6. CollectingMetrics → Done
 
-  This is a linear pipeline — no loops, no LLM calls, no branching
-  except for error handling. All three agent outcomes (finished,
-  failed, timed out) proceed to result checking. The config snapshot
-  step captures the full experiment configuration for reproducibility.
-
-pipeline_diagram: |
+point_diagram: |
   ```mermaid
   flowchart LR
     A[prepare_workspace] --> B[dump_config]
@@ -91,18 +148,20 @@ pipeline_diagram: |
   ```
 
 budget:
-  max_iterations: 10
+  session_max_iterations: 10000
+  point_max_iterations: 10
 
-tools_required:
-  builtin:
-    - prepare_workspace
-    - dump_config
-    - run_agent
-    - check_results
-    - collect_metrics
+point_tools:
+  - prepare_workspace
+  - dump_config
+  - run_agent
+  - check_results
+  - collect_metrics
 
 invariants:
   - The evaluator never calls an LLM directly
   - All agent outcomes (success, failure, timeout) proceed to check_results
   - The workspace is a fresh temporary directory for each evaluation point
   - Metrics are collected even when the agent fails or times out
+  - The session machine iterates sequentially through all grid points
+  - Both session and point machines are fully YAML-configurable

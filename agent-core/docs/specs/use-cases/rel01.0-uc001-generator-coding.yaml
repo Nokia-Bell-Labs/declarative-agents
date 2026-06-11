@@ -1,0 +1,71 @@
+id: rel01.0-uc001-generator-coding
+title: Generator agent solves Go coding tasks using YAML config
+
+summary: |
+  The generator agent runs as a subcommand of the unified agent binary,
+  configured entirely through YAML files. It loads a state machine from
+  configs/generator/machine.yaml, selects tools from tools.yaml, and
+  uses a per-model LLM config from llm/*.yaml. The agent iteratively
+  invokes an LLM, parses tool calls, executes file/build/test tools,
+  and converges on a solution that passes validation.
+
+actor: Developer invoking the agent binary
+
+trigger: |
+  The developer runs:
+    agent --machine configs/generator/machine.yaml \
+          --tools-declaration configs/tools/builtin.yaml \
+          --tools-declaration configs/tools/exec.yaml \
+          --tools-declaration configs/generator/llm/default.yaml \
+          --tools configs/generator/tools.yaml \
+          --directory <workspace>
+
+flow:
+  - F1: cmd/agent parses CLI flags and loads tool declarations from multiple YAML files, merging them into a single registry (srd013, srd018).
+  - F2: Tool selection filters the declarations to the subset listed in configs/generator/tools.yaml (cfg-tool-selection-format).
+  - F3: The invoke_llm tool definition provides model, provider URL, and system prompt. cmd/agent extracts this to configure the Ollama adapter (srd009, srd017).
+  - F4: LLM response profiles are loaded from pkg/llm/profiles/ to configure per-model parsing pipelines (srd017).
+  - F5: Builtin tool factories are registered (file tools, LLM tools, validate, done, etc.) and matched to their YAML declarations (srd013).
+  - F6: The state machine is loaded from configs/generator/machine.yaml and validated against the registered tools (srd006).
+  - F7: core.Loop drives the state machine. Idle → Composing via invoke_llm sends the task prompt to the LLM (srd005, srd009).
+  - F8: LLM response is parsed by parse_response. The $tool sentinel dispatches the extracted tool call (srd006, srd013).
+  - F9: Tool results feed back to the LLM. The Composing ↔ Parsing cycle repeats until the LLM calls done (sm-generator).
+  - F10: After done, the validate tool runs build/vet/lint/test. ValidationPassed → Succeeded, ValidationFailed → Failed (srd013).
+
+touchpoints:
+  - T1: "srd006-yaml-machine-config -- MachineSpec loading, $tool dispatch, transition validation"
+  - T2: "srd009-ollama-adapter -- Chat API invocation, model validation, tracing"
+  - T3: "srd013-standard-tool-library -- file tools, build tools, LLM commands, validate, done"
+  - T4: "srd017-llm-extensions -- model profiles, response parsing pipelines"
+  - T5: "srd018-cli-flag-contract -- flag constants, tools-declaration, machine flag"
+  - T6: "cfg-tool-declaration-format -- builtin.yaml, exec.yaml, llm/*.yaml declarations"
+  - T7: "cfg-tool-selection-format -- tools.yaml name-list filtering"
+  - T8: "sm-generator -- state machine states, signals, lifecycle"
+
+success_criteria:
+  - id: S1
+    criterion: Agent starts from YAML configs without any Go code changes.
+    traces:
+      - srd006-yaml-machine-config AC3
+  - id: S2
+    criterion: LLM is invoked with the configured model and system prompt.
+    traces:
+      - srd009-ollama-adapter AC1
+  - id: S3
+    criterion: Tool calls extracted from LLM responses are dispatched and results fed back.
+    traces:
+      - srd013-standard-tool-library AC1
+  - id: S4
+    criterion: The done tool triggers build/vet/lint/test validation before declaring success.
+    traces:
+      - srd013-standard-tool-library AC2
+  - id: S5
+    criterion: Per-model profiles customize response parsing without config changes.
+    traces:
+      - srd017-llm-extensions AC1
+
+out_of_scope:
+  - Multi-file project scaffolding beyond the workspace directory.
+  - Custom tool implementations not in builtin.yaml or exec.yaml.
+
+semantic_model: sm-generator

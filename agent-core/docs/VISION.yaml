@@ -35,10 +35,11 @@ problem: |
   framework provides the rest.
 
 what_this_does: |
-  Agent Core is a Go framework comprising library packages and two
-  standalone binaries (cmd/agent and cmd/bench). It provides a
-  layered set of packages that together implement a complete agentic
-  loop framework.
+  Agent Core is a Go framework comprising library packages and a
+  unified binary (cmd/agent). The binary drives five agent types —
+  generator, evaluator, planner, validator, and bench — each
+  defined by YAML configurations. It provides a layered set of
+  packages that together implement a complete agentic loop framework.
 
   Core Engine (pkg/core). The domain-agnostic loop machinery:
   - State Machine: static transition table mapping (State, Signal) to

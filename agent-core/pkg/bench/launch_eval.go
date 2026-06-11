@@ -13,9 +13,18 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 )
 
+// LaunchEvalConfig holds the child agent invocation parameters
+// for launch_eval, populated from tool declaration YAML config.
+type LaunchEvalConfig struct {
+	Machine          string
+	Tools            string
+	ToolDeclarations []string
+}
+
 // LaunchEvalBuilder creates launchEvalCmd instances.
 type LaunchEvalBuilder struct {
-	BS *BenchState
+	BS     *BenchState
+	Config LaunchEvalConfig
 }
 
 func (b *LaunchEvalBuilder) Build(res core.Result) core.Command {
@@ -23,17 +32,19 @@ func (b *LaunchEvalBuilder) Build(res core.Result) core.Command {
 		return &failCmd{err: fmt.Errorf("launch_eval: BenchState not initialized")}
 	}
 	return &launchEvalCmd{
-		bs:  b.BS,
-		res: res,
+		bs:     b.BS,
+		res:    res,
+		config: b.Config,
 	}
 }
 
-// launchEvalCmd spawns `agent eval <suite>` as a subprocess and
-// blocks until it completes. The suite path comes from the user
-// action config submitted through the web UI.
+// launchEvalCmd spawns the agent with a configured machine and tools
+// as a subprocess and blocks until it completes. The suite path
+// comes from the user action config submitted through the web UI.
 type launchEvalCmd struct {
-	bs  *BenchState
-	res core.Result
+	bs     *BenchState
+	res    core.Result
+	config LaunchEvalConfig
 }
 
 func (c *launchEvalCmd) Name() string { return "launch_eval" }
@@ -61,7 +72,15 @@ func (c *launchEvalCmd) Execute() core.Result {
 
 	agentBin := agentBinaryPath()
 
-	args := []string{"eval", suitePath}
+	args := []string{
+		"--machine", c.config.Machine,
+		"--tools", c.config.Tools,
+	}
+	for _, decl := range c.config.ToolDeclarations {
+		args = append(args, "--tools-declaration", decl)
+	}
+	args = append(args, "--input", suitePath)
+
 	if outputDir, ok := action.Config["output_dir"].(string); ok && outputDir != "" {
 		args = append(args, "--output", outputDir)
 	}
@@ -94,10 +113,32 @@ func agentBinaryPath() string {
 	return filepath.Join(filepath.Dir(exe), "agent")
 }
 
-// LaunchEvalFactory returns a BuiltinFactory that creates
-// LaunchEvalBuilder instances.
+// LaunchEvalFactory returns a BuiltinFactory that reads child agent
+// invocation parameters from tool declaration config.
 func LaunchEvalFactory(bs *BenchState) stl.BuiltinFactory {
 	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &LaunchEvalBuilder{BS: bs}, nil
+		cfg := LaunchEvalConfig{
+			Machine:          "configs/evaluator/machine.yaml",
+			Tools:            "configs/evaluator/tools.yaml",
+			ToolDeclarations: []string{"configs/tools/builtin.yaml"},
+		}
+		if v, ok := def.Config["machine"].(string); ok && v != "" {
+			cfg.Machine = v
+		}
+		if v, ok := def.Config["tools"].(string); ok && v != "" {
+			cfg.Tools = v
+		}
+		if v, ok := def.Config["tools_declarations"].([]interface{}); ok {
+			var decls []string
+			for _, d := range v {
+				if s, ok := d.(string); ok {
+					decls = append(decls, s)
+				}
+			}
+			if len(decls) > 0 {
+				cfg.ToolDeclarations = decls
+			}
+		}
+		return &LaunchEvalBuilder{BS: bs, Config: cfg}, nil
 	}
 }

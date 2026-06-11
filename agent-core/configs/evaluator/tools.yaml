@@ -1,5 +1,13 @@
 # Tool selection for the evaluator agent.
+# Includes both session-level tools (grid iteration) and
+# per-point tools (workspace prep, agent execution, metrics).
 tools:
+  # Session-level tools
+  - load_suite
+  - next_point
+  - run_point
+  - report_session
+  # Per-point tools (used by nested core.Loop with point.yaml)
   - prepare_workspace
   - dump_config
   - run_agent

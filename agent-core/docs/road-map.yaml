@@ -29,7 +29,7 @@ releases:
       original projects become configuration-only repositories.
 
       Key deliverables:
-      - Unified cmd/agent binary with run and eval subcommands
+      - Unified cmd/agent binary with machine-configurable modes (generate, eval, plan, bench)
       - YAML state machine configs for generator, evaluator, planner,
         and validator (configs/*/machine.yaml)
       - YAML tool declarations replacing Go tool implementations
@@ -41,9 +41,9 @@ releases:
       - Agent execution with process groups (pkg/execute)
       - Git worktree management (pkg/worktree)
       - Evaluator benchmark infrastructure (eval suites, result analysis)
-      - Bench web UI (cmd/bench) with embedded React frontend
+      - Bench agent (pkg/bench, configured via machine.yaml) with embedded React frontend
       - Native Mage build targets replacing cobbler-scaffold dependency
-      - 554 tests across 16 packages
+      - 514 tests across 16 packages
     status: done
     use_cases:
       - id: rel01.0-uc001-generator-coding

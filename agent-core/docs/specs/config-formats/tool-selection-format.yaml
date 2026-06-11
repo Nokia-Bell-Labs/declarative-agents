@@ -56,25 +56,34 @@ selection_files:
       pipeline tools for the LLM-driven coding loop.
 
   - file: configs/evaluator/tools.yaml
-    tool_count: 5
+    tool_count: 9
     description: |
-      Selects the minimal set needed for evaluation: prepare_workspace,
-      invoke_generator, score, report, and cleanup.
+      Selects session-level tools (load_suite, next_point, run_point,
+      report_session) and per-point pipeline tools (prepare_workspace,
+      dump_config, run_agent, check_results, collect_metrics).
 
   - file: configs/planner/tools.yaml
-    tool_count: 24
+    tool_count: 22
     description: |
-      Selects the broadest toolset including all generator tools plus
-      planning-specific tools (decompose, prioritize, estimate,
-      assign) for multi-step task orchestration.
+      Selects planning tools (extract_task, extract_all,
+      assemble_prompt, parse_plan, create_issue, execute_task,
+      check_result), LLM tools (invoke_llm, reset_history),
+      build/test tools, git tools, and issue tools.
 
   - file: configs/validate/tools.yaml
     tool_count: 3
     description: |
-      Contains 3 inline tool declarations (build, vet_lint, test)
-      rather than using the name-list selection format. This is the
-      legacy inline pattern; see cfg-tool-declaration-format for
-      details.
+      Contains 3 inline builtin declarations (load_corpus,
+      validate_specs, format_report) using the legacy combined
+      declaration+selection pattern rather than separate declaration
+      and selection files.
+
+  - file: configs/bench/tools.yaml
+    tool_count: 2
+    description: |
+      Selects the two bench agent tools: serve_ui (blocks on
+      user input via web UI) and launch_eval (spawns the evaluator
+      session machine subprocess). Declarations are in configs/bench/serve_ui.yaml.
 
 related_documents:
   - cfg-tool-declaration-format

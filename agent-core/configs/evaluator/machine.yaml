@@ -1,19 +1,20 @@
-# State machine for a single evaluation point.
-# Sequences: prepare workspace → run agent → check results → collect metrics.
+# Session-level state machine for the evaluator.
+# Drives grid iteration over (harness, model, sample, rep) points.
+# Each point runs the per-point pipeline via a nested core.Loop
+# using configs/evaluator/point.yaml.
 
-name: evaluator
+name: evaluator-session
 initial_state: Idle
 
 budget:
-  max_iterations: 10
+  max_iterations: 10000
 
 states:
   - Idle
-  - PreparingWorkspace
-  - SnapshotConfig
-  - RunningAgent
-  - CheckingResults
-  - CollectingMetrics
+  - LoadingSuite
+  - AdvancingPoint
+  - RunningPoint
+  - Reporting
   - Done
   - Failed
 
@@ -24,71 +25,55 @@ terminal_states:
 signals:
   - Seed
   - CommandError
-  - WorkspaceReady
-  - ConfigDumped
-  - HarnessFinished
-  - HarnessFailed
-  - HarnessTimedOut
-  - ResultsCollected
-  - MetricsCollected
+  - SuiteLoaded
+  - PointReady
+  - PointDone
+  - AllPointsDone
+  - SessionReported
 
 transitions:
   - state: Idle
     signal: Seed
-    next: PreparingWorkspace
-    action: prepare_workspace
+    next: LoadingSuite
+    action: load_suite
 
-  - state: PreparingWorkspace
-    signal: WorkspaceReady
-    next: SnapshotConfig
-    action: dump_config
+  - state: LoadingSuite
+    signal: SuiteLoaded
+    next: AdvancingPoint
+    action: next_point
 
-  - state: SnapshotConfig
-    signal: ConfigDumped
-    next: RunningAgent
-    action: run_agent
+  - state: AdvancingPoint
+    signal: PointReady
+    next: RunningPoint
+    action: run_point
 
-  - state: RunningAgent
-    signal: HarnessFinished
-    next: CheckingResults
-    action: check_results
+  - state: RunningPoint
+    signal: PointDone
+    next: AdvancingPoint
+    action: next_point
 
-  - state: RunningAgent
-    signal: HarnessFailed
-    next: CheckingResults
-    action: check_results
+  - state: AdvancingPoint
+    signal: AllPointsDone
+    next: Reporting
+    action: report_session
 
-  - state: RunningAgent
-    signal: HarnessTimedOut
-    next: CheckingResults
-    action: check_results
-
-  - state: CheckingResults
-    signal: ResultsCollected
-    next: CollectingMetrics
-    action: collect_metrics
-
-  - state: CollectingMetrics
-    signal: MetricsCollected
+  - state: Reporting
+    signal: SessionReported
     next: Done
 
   # --- error handling ---
-  - state: PreparingWorkspace
+  - state: LoadingSuite
     signal: CommandError
     next: Failed
 
-  - state: SnapshotConfig
+  - state: AdvancingPoint
     signal: CommandError
     next: Failed
 
-  - state: RunningAgent
+  - state: RunningPoint
     signal: CommandError
     next: Failed
 
-  - state: CheckingResults
-    signal: CommandError
-    next: Failed
-
-  - state: CollectingMetrics
+  - state: Reporting
     signal: CommandError
     next: Failed
