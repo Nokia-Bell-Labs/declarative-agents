@@ -252,6 +252,91 @@ invariants:
   - Adding a new agent mode requires only new YAML files and (optionally)
     new Go builtin tool implementations registered in the BuiltinRegistry.
 
+engine_policy_audit:
+  fixed_engine_invariants:
+    - item: State machine interpretation
+      symbols: [core.Loop, core.StateMachine.Step, core.BuildTransitionTable]
+      rationale: |
+        The engine owns lookup, command dispatch, and routing on Result.Signal.
+        Agent behavior remains in MachineSpec transitions and selected tools.
+    - item: Budget and cancellation safety
+      symbols: [core.Budget, core.BudgetExhausted, core.LoopHooks.BudgetExceeded]
+      rationale: |
+        Iteration, token, wall-clock, and opt-in extra budget checks are
+        universal runtime safety controls. BudgetExhausted is routed through
+        the grammar, while context cancellation terminates as StatusCancelled.
+    - item: Dispatch accounting
+      symbols: [core.Dispatch, core.RunEvent, core.Cost]
+      rationale: |
+        Panic recovery, command timeout, tracing, event recording, and cost
+        accumulation are interpreter responsibilities, not mode behavior.
+
+  lifecycle_infrastructure:
+    - item: Pre-loop validation hook
+      symbols: [core.LoopHooks.ValidateParams]
+      rationale: |
+        Startup validation is infrastructure when it checks runtime wiring
+        before the registry freezes. Behavior-specific validation should remain
+        in machine/tool contract checks rather than become a new policy hook.
+    - item: Suspend checkpoints
+      symbols: [core.AwaitApproval, core.LoopHooks.SnapshotConversation, core.LoopHooks.SnapshotDomain]
+      rationale: |
+        A machine emits the lifecycle signal, then the runtime persists agent,
+        command/domain, and workspace references through lifecycle ports.
+        The hook surface only supplies domain-owned JSON snapshots.
+    - item: Resume seeding
+      symbols: [core.ResumeFromCheckpoint, core.LoopParams.InitialSignal, core.LoopParams.InitialRun]
+      rationale: |
+        Resume restores checkpoint layers and re-enters the same machine without
+        replaying bootstrap work. The default resume signal is an approval-gate
+        convention, not a separate agent mode.
+    - item: History and rollback CLI
+      symbols: [agent history, agent rollback]
+      rationale: |
+        Lifecycle subcommands operate on persisted checkpoint data and undo
+        mementos. They do not select generator, planner, evaluator, bench, or
+        validate behavior.
+
+  domain_policy_hooks:
+    - item: Terminal status mapping
+      symbols: [core.LoopHooks.TerminalStatus]
+      rationale: |
+        The default maps common terminal states, but custom success/failure
+        interpretation is domain policy and should stay narrow.
+    - item: Task summary capture
+      symbols: [core.LoopHooks.TaskCompletedSignal]
+      rationale: |
+        Selecting which grammar signal copies Result.Output into the summary is
+        agent semantics. Long term this can move into machine metadata.
+    - item: Factory-family registration gates
+      symbols: [registerBuiltinFactories, anyInitSelected]
+      rationale: |
+        cmd/agent registers builtin factory families based on selected tool
+        init names, not on mode names. This is acceptable configuration
+        infrastructure, though adding new factory families still requires
+        runtime wiring.
+
+  migration_candidates:
+    - item: Parse-error retry override
+      symbols: [core.LoopHooks.AfterDispatch, stl.ParseErrorPolicy, max_consecutive_parse_errors]
+      rationale: |
+        AfterDispatch can replace a tool-emitted signal before routing. The
+        current parse-error retry limit is useful behavior, but it is a grammar
+        policy enforced through a post-dispatch signal override; it should move
+        toward explicit internal words, signals, or machine metadata.
+    - item: Result accumulator mutation
+      symbols: [core.LoopHooks.OnResult]
+      rationale: |
+        OnResult can mutate the run accumulator outside visible grammar
+        transitions. It has no production cmd/agent use today and should remain
+        test-only or be replaced by explicit words/domain state when needed.
+    - item: LLM manifest-state fallback
+      symbols: [extractLLMConfig, manifest_state]
+      rationale: |
+        The fallback state name Composing is generator-shaped. Agent configs
+        should declare manifest_state explicitly so the universal runtime does
+        not encode a domain state name.
+
 related_documents:
   - cfg-machine-format
   - cfg-tool-declaration-format
