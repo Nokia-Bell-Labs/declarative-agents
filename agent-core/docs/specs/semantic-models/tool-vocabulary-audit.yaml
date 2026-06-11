@@ -43,7 +43,7 @@ overall_findings:
     problem, goals, non_goals, output.schema, structured side_effects,
     reversibility, undo, errors, and relationships.
   - Several evaluator and planner builtins are sentences, especially
-    load_suite and check_results.
+    load_suite.
   - validate is retained as a deprecated internal boundary aggregator for
     compatibility, but current generator validation is machine-declared.
   - Boundary tools need explicit classification so they are not mistaken
@@ -582,7 +582,7 @@ tools:
     role: boundary
     selected_by: [evaluator_point]
     inputs_from: [dump_config, point_context]
-    feeds_into: [check_results]
+    feeds_into: [run_oracle_check]
     side_effects: subprocess, workspace_mutation, trace_file_write
     output_contract: missing
     undo: workspace_restore
@@ -593,37 +593,77 @@ tools:
       - external subprocess boundary with workspace effects
     migration_priority: high
 
-  - name: check_results
-    role: sentence
+  - name: run_oracle_check
+    role: word
     selected_by: [evaluator_point]
     inputs_from: [run_agent]
-    feeds_into: [collect_metrics]
-    side_effects: point_context_mutation
-    output_contract: missing
+    feeds_into: [collect_trace_tokens]
+    side_effects: point_context_test_result_mutation
+    output_contract: declared_by_signal
+    undo: restore_point_context
+    overlaps:
+      - tool: test
+        difference: run_oracle_check runs the point workspace oracle after agent execution; test is a general workspace validation exec tool
+    issues:
+      - output.schema still needs full structured result contract
+    migration_priority: medium
+
+  - name: collect_trace_tokens
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [run_oracle_check, trace_ndjson]
+    feeds_into: [check_agent_version]
+    side_effects: point_context_token_mutation
+    output_contract: declared_by_signal
     undo: restore_point_context
     overlaps:
       - tool: collect_metrics
-        difference: check_results computes test/token data; collect_metrics persists metadata
+        difference: collect_trace_tokens extracts token state; collect_metrics persists meta.json
     issues:
-      - runs oracle check, parses trace tokens, and checks version mismatch in one tool
-    split_recommendation:
-      - run_oracle_check
-      - collect_trace_tokens
-      - check_agent_version
-      - summarize_point_results
-    migration_priority: high
+      - output.schema still needs full structured token summary
+    migration_priority: medium
+
+  - name: check_agent_version
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [collect_trace_tokens, trace_ndjson, harness_config]
+    feeds_into: [summarize_point_results]
+    side_effects: point_context_version_mutation_and_warning_output
+    output_contract: declared_by_signal
+    undo: restore_point_context
+    overlaps: []
+    issues:
+      - version mismatch is a warning signal that continues the point sequence
+    migration_priority: medium
+
+  - name: summarize_point_results
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [run_oracle_check, collect_trace_tokens, check_agent_version]
+    feeds_into: [collect_metrics]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: collect_metrics
+        difference: summarize_point_results emits aggregate status; collect_metrics writes meta.json
+    issues:
+      - output.schema still needs full structured point summary
+    migration_priority: medium
 
   - name: collect_metrics
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [check_results]
+    inputs_from: [summarize_point_results]
     feeds_into: [terminal]
     side_effects: filesystem_write
     output_contract: missing
     undo: workspace_restore
     overlaps:
-      - tool: check_results
-        difference: collect_metrics writes meta.json; check_results computes result fields
+      - tool: collect_trace_tokens
+        difference: collect_metrics writes meta.json; collect_trace_tokens computes token state
+      - tool: summarize_point_results
+        difference: collect_metrics persists metadata; summarize_point_results emits aggregate status
     issues:
       - needs output.schema for meta path and summary fields
     migration_priority: medium
@@ -891,17 +931,6 @@ sentence_tools:
         - expand_eval_grid
         - init_eval_session
         - report_suite_summary
-    - tool: check_results
-      reason: combines oracle execution, trace parsing, and version checking
-      proposed_machine_sequence:
-        - run_oracle_check
-        - collect_trace_tokens
-        - check_agent_version
-        - summarize_point_results
-    - tool: validate
-      reason: deprecated compatibility aggregator now superseded by machine-declared validation transitions
-      recommendation: retain only as internal boundary aggregator for old machines
-
 boundary_tools_requiring_contracts:
   - invoke_llm
   - run_point

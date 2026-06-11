@@ -10,5 +10,8 @@ tools:
   - commit_workspace_baseline
   - dump_config
   - run_agent
-  - check_results
+  - run_oracle_check
+  - collect_trace_tokens
+  - check_agent_version
+  - summarize_point_results
   - collect_metrics

@@ -99,16 +99,52 @@ func (b *RunAgentBuilder) Build(_ core.Result) core.Command {
 	}
 }
 
-// CheckResultsBuilder creates checkResultsCmd instances.
-type CheckResultsBuilder struct {
+// RunOracleCheckBuilder creates runOracleCheckCmd instances.
+type RunOracleCheckBuilder struct {
 	ES *EvalState
 }
 
-func (b *CheckResultsBuilder) Build(_ core.Result) core.Command {
+func (b *RunOracleCheckBuilder) Build(_ core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
-		return &failCmd{err: fmt.Errorf("check_results: EvalState.PC not initialized")}
+		return &failCmd{err: fmt.Errorf("run_oracle_check: EvalState.PC not initialized")}
 	}
-	return &checkResultsCmd{pc: b.ES.PC}
+	return &runOracleCheckCmd{pc: b.ES.PC}
+}
+
+// CollectTraceTokensBuilder creates collectTraceTokensCmd instances.
+type CollectTraceTokensBuilder struct {
+	ES *EvalState
+}
+
+func (b *CollectTraceTokensBuilder) Build(_ core.Result) core.Command {
+	if b.ES == nil || b.ES.PC == nil {
+		return &failCmd{err: fmt.Errorf("collect_trace_tokens: EvalState.PC not initialized")}
+	}
+	return &collectTraceTokensCmd{pc: b.ES.PC}
+}
+
+// CheckAgentVersionBuilder creates checkAgentVersionCmd instances.
+type CheckAgentVersionBuilder struct {
+	ES *EvalState
+}
+
+func (b *CheckAgentVersionBuilder) Build(_ core.Result) core.Command {
+	if b.ES == nil || b.ES.PC == nil {
+		return &failCmd{err: fmt.Errorf("check_agent_version: EvalState.PC not initialized")}
+	}
+	return &checkAgentVersionCmd{pc: b.ES.PC}
+}
+
+// SummarizePointResultsBuilder creates summarizePointResultsCmd instances.
+type SummarizePointResultsBuilder struct {
+	ES *EvalState
+}
+
+func (b *SummarizePointResultsBuilder) Build(_ core.Result) core.Command {
+	if b.ES == nil || b.ES.PC == nil {
+		return &failCmd{err: fmt.Errorf("summarize_point_results: EvalState.PC not initialized")}
+	}
+	return &summarizePointResultsCmd{pc: b.ES.PC}
 }
 
 // CollectMetricsBuilder creates collectMetricsCmd instances.

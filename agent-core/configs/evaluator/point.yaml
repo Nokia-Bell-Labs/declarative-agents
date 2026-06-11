@@ -1,6 +1,7 @@
 # State machine for a single evaluation point.
 # Sequences: create point dir → copy workspace/docs → git baseline →
-# dump config → run agent → check results → collect metrics.
+# dump config → run agent → oracle check → trace tokens → version check
+# → summarize results → collect metrics.
 
 name: evaluator
 initial_state: Idle
@@ -18,7 +19,10 @@ states:
   - CommittingWorkspaceBaseline
   - SnapshotConfig
   - RunningAgent
-  - CheckingResults
+  - RunningOracleCheck
+  - CollectingTraceTokens
+  - CheckingAgentVersion
+  - SummarizingPointResults
   - CollectingMetrics
   - Done
   - Failed
@@ -40,6 +44,11 @@ signals:
   - HarnessFinished
   - HarnessFailed
   - HarnessTimedOut
+  - OracleCheckPassed
+  - OracleCheckFailed
+  - TraceTokensCollected
+  - AgentVersionChecked
+  - AgentVersionMismatch
   - ResultsCollected
   - MetricsCollected
 
@@ -86,20 +95,45 @@ transitions:
 
   - state: RunningAgent
     signal: HarnessFinished
-    next: CheckingResults
-    action: check_results
+    next: RunningOracleCheck
+    action: run_oracle_check
 
   - state: RunningAgent
     signal: HarnessFailed
-    next: CheckingResults
-    action: check_results
+    next: RunningOracleCheck
+    action: run_oracle_check
 
   - state: RunningAgent
     signal: HarnessTimedOut
-    next: CheckingResults
-    action: check_results
+    next: RunningOracleCheck
+    action: run_oracle_check
 
-  - state: CheckingResults
+  - state: RunningOracleCheck
+    signal: OracleCheckPassed
+    next: CollectingTraceTokens
+    action: collect_trace_tokens
+
+  - state: RunningOracleCheck
+    signal: OracleCheckFailed
+    next: CollectingTraceTokens
+    action: collect_trace_tokens
+
+  - state: CollectingTraceTokens
+    signal: TraceTokensCollected
+    next: CheckingAgentVersion
+    action: check_agent_version
+
+  - state: CheckingAgentVersion
+    signal: AgentVersionChecked
+    next: SummarizingPointResults
+    action: summarize_point_results
+
+  - state: CheckingAgentVersion
+    signal: AgentVersionMismatch
+    next: SummarizingPointResults
+    action: summarize_point_results
+
+  - state: SummarizingPointResults
     signal: ResultsCollected
     next: CollectingMetrics
     action: collect_metrics
@@ -141,7 +175,19 @@ transitions:
     signal: CommandError
     next: Failed
 
-  - state: CheckingResults
+  - state: RunningOracleCheck
+    signal: CommandError
+    next: Failed
+
+  - state: CollectingTraceTokens
+    signal: CommandError
+    next: Failed
+
+  - state: CheckingAgentVersion
+    signal: CommandError
+    next: Failed
+
+  - state: SummarizingPointResults
     signal: CommandError
     next: Failed
 

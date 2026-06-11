@@ -57,8 +57,11 @@ requirements:
       - R3.1.6: commit_workspace_baseline SHALL create the baseline commit for the point workspace.
       - R3.2: dump_config serializes the resolved configuration (machine, tools, tool declarations, LLM config, model, budget) into experiment.yaml.
       - R3.3: run_agent executes the harness binary as a subprocess with flag propagation, timeout, and OTel context.
-      - R3.4: check_results runs oracle tests and parses trace files for token counts and version verification.
-      - R3.5: collect_metrics writes meta.json with exit code, duration, test results, token counts, and convergence data.
+      - R3.4: run_oracle_check runs oracle tests and records pass/fail output independently from trace parsing.
+      - R3.5: collect_trace_tokens parses trace files for token counts and treats a missing trace as a successful zero-token result.
+      - R3.6: check_agent_version compares configured harness version with traced agent version and emits a warning signal on mismatch.
+      - R3.7: summarize_point_results emits ResultsCollected after oracle, trace, and version fields are populated.
+      - R3.8: collect_metrics writes meta.json with exit code, duration, test results, token counts, and convergence data.
 
   R4:
     title: Result analysis
@@ -92,7 +95,7 @@ acceptance_criteria:
 
   - id: AC2
     criterion: Each evaluation point creates an isolated workspace with git baseline, experiment.yaml config snapshot, trace.ndjson, and meta.json.
-    traces: [R3.1, R3.1.1, R3.1.2, R3.1.3, R3.1.4, R3.1.5, R3.1.6, R3.2, R3.3, R3.4, R3.5]
+    traces: [R3.1, R3.1.1, R3.1.2, R3.1.3, R3.1.4, R3.1.5, R3.1.6, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
 
   - id: AC3
     criterion: ComputeModelStats and ComputeDetailed produce accurate statistics from session results.

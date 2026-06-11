@@ -94,8 +94,14 @@ real_undo_pending:
     - command: run_point
       reason: "records point result after nested machine execution"
       target_strategy: evaluator_session_restore_and_workspace_restore
-    - command: check_results
-      reason: "mutates point test output, token count, and result flags"
+    - command: run_oracle_check
+      reason: "mutates point test output and result flags"
+      target_strategy: point_context_restore
+    - command: collect_trace_tokens
+      reason: "mutates point token count"
+      target_strategy: point_context_restore
+    - command: check_agent_version
+      reason: "mutates point trace version and version mismatch fields"
       target_strategy: point_context_restore
     - command: report_session
       reason: "finalizes session duration"

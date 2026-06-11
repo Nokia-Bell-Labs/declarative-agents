@@ -173,38 +173,146 @@ func copyDir(src, dst string) error {
 	return nil
 }
 
-// checkResultsCmd runs the oracle test and parses token usage from the trace.
-type checkResultsCmd struct {
+// runOracleCheckCmd runs the sample's oracle tests and records pass/fail output.
+type runOracleCheckCmd struct {
 	pc *PointContext
 }
 
-func (c *checkResultsCmd) Name() string      { return "check_results" }
-func (c *checkResultsCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *runOracleCheckCmd) Name() string      { return "run_oracle_check" }
+func (c *runOracleCheckCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 
-func (c *checkResultsCmd) Execute() core.Result {
+func (c *runOracleCheckCmd) Execute() core.Result {
 	pc := c.pc
-
 	pc.TestsPassed, pc.TestOutput = runOracleCheck(pc.PointDir)
 
-	if _, err := os.Stat(pc.TracePath); err == nil {
-		if spans, parseErr := ReadTraceFile(pc.TracePath); parseErr == nil {
-			for _, s := range spans {
-				pc.Tokens += IntAttr(s, "gen_ai.usage.input_tokens")
-				pc.Tokens += IntAttr(s, "gen_ai.usage.output_tokens")
+	signal := SigOracleCheckPassed
+	if !pc.TestsPassed {
+		signal = SigOracleCheckFailed
+	}
+	return core.Result{
+		CommandName: c.Name(),
+		Signal:      signal,
+		Output:      pc.TestOutput,
+	}
+}
+
+// collectTraceTokensCmd extracts token usage from the point trace file.
+type collectTraceTokensCmd struct {
+	pc *PointContext
+}
+
+func (c *collectTraceTokensCmd) Name() string      { return "collect_trace_tokens" }
+func (c *collectTraceTokensCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+
+func (c *collectTraceTokensCmd) Execute() core.Result {
+	pc := c.pc
+	if _, err := os.Stat(pc.TracePath); err != nil {
+		if os.IsNotExist(err) {
+			pc.Tokens = 0
+			return core.Result{
+				CommandName: c.Name(),
+				Signal:      SigTraceTokensCollected,
+				Output:      "trace file not found; tokens=0",
 			}
-			if pc.Harness.Version != "" {
-				if traceVer := AgentVersion(spans); traceVer != "" && traceVer != pc.Harness.Version {
-					fmt.Fprintf(pc.Stderr, "  WARN: version mismatch: config=%s trace=%s\n",
-						pc.Harness.Version, traceVer)
-				}
+		}
+		return pointToolError(c.Name(), fmt.Errorf("stat trace: %w", err))
+	}
+
+	spans, err := ReadTraceFile(pc.TracePath)
+	if err != nil {
+		return pointToolError(c.Name(), err)
+	}
+
+	total := 0
+	for _, s := range spans {
+		total += IntAttr(s, "gen_ai.usage.input_tokens")
+		total += IntAttr(s, "gen_ai.usage.output_tokens")
+	}
+	pc.Tokens = total
+
+	return core.Result{
+		CommandName: c.Name(),
+		Signal:      SigTraceTokensCollected,
+		Output:      fmt.Sprintf("collected %d trace tokens", pc.Tokens),
+		Cost:        core.Cost{TokensIn: pc.Tokens},
+	}
+}
+
+// checkAgentVersionCmd compares configured and traced agent versions.
+type checkAgentVersionCmd struct {
+	pc *PointContext
+}
+
+func (c *checkAgentVersionCmd) Name() string      { return "check_agent_version" }
+func (c *checkAgentVersionCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+
+func (c *checkAgentVersionCmd) Execute() core.Result {
+	pc := c.pc
+	if pc.Harness.Version == "" {
+		return core.Result{
+			CommandName: c.Name(),
+			Signal:      SigAgentVersionChecked,
+			Output:      "no harness version configured",
+		}
+	}
+	if _, err := os.Stat(pc.TracePath); err != nil {
+		if os.IsNotExist(err) {
+			return core.Result{
+				CommandName: c.Name(),
+				Signal:      SigAgentVersionChecked,
+				Output:      "trace file not found; version check skipped",
 			}
+		}
+		return pointToolError(c.Name(), fmt.Errorf("stat trace: %w", err))
+	}
+
+	spans, err := ReadTraceFile(pc.TracePath)
+	if err != nil {
+		return pointToolError(c.Name(), err)
+	}
+	pc.TraceVersion = AgentVersion(spans)
+	if pc.TraceVersion != "" && pc.TraceVersion != pc.Harness.Version {
+		pc.VersionMismatch = true
+		msg := fmt.Sprintf("version mismatch: config=%s trace=%s", pc.Harness.Version, pc.TraceVersion)
+		if pc.Stderr != nil {
+			fmt.Fprintf(pc.Stderr, "  WARN: %s\n", msg)
+		}
+		return core.Result{
+			CommandName: c.Name(),
+			Signal:      SigAgentVersionMismatch,
+			Output:      msg,
 		}
 	}
 
 	return core.Result{
 		CommandName: c.Name(),
+		Signal:      SigAgentVersionChecked,
+		Output:      fmt.Sprintf("agent version checked: config=%s trace=%s", pc.Harness.Version, pc.TraceVersion),
+	}
+}
+
+// summarizePointResultsCmd emits the aggregate point result after prior words
+// have populated oracle, trace, and version state.
+type summarizePointResultsCmd struct {
+	pc *PointContext
+}
+
+func (c *summarizePointResultsCmd) Name() string      { return "summarize_point_results" }
+func (c *summarizePointResultsCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+
+func (c *summarizePointResultsCmd) Execute() core.Result {
+	pc := c.pc
+	output := fmt.Sprintf("tests_passed=%t tokens=%d", pc.TestsPassed, pc.Tokens)
+	if pc.VersionMismatch {
+		output += fmt.Sprintf(" version_mismatch=config:%s trace:%s", pc.Harness.Version, pc.TraceVersion)
+	}
+	if pc.TestOutput != "" {
+		output += "\n" + pc.TestOutput
+	}
+	return core.Result{
+		CommandName: c.Name(),
 		Signal:      SigResultsCollected,
-		Output:      pc.TestOutput,
+		Output:      output,
 		Cost:        core.Cost{TokensIn: pc.Tokens},
 	}
 }

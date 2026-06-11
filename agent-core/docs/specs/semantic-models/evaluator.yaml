@@ -128,8 +128,14 @@ point_states:
     meaning: Serializing the full experiment configuration into experiment.yaml.
   - name: RunningAgent
     meaning: The generator agent is running as a subprocess.
-  - name: CheckingResults
-    meaning: Examining exit code, test results, and trace output.
+  - name: RunningOracleCheck
+    meaning: Running deterministic oracle tests in the point workspace.
+  - name: CollectingTraceTokens
+    meaning: Reading trace.ndjson and extracting token usage.
+  - name: CheckingAgentVersion
+    meaning: Comparing configured harness version against trace metadata.
+  - name: SummarizingPointResults
+    meaning: Emitting aggregate result status from populated point context fields.
   - name: CollectingMetrics
     meaning: Writing evaluation metadata (exit code, duration, test results, tokens, convergence data) to meta.json.
   - name: Done
@@ -160,8 +166,18 @@ point_signals:
     trigger: The generator agent exited with a non-zero exit code.
   - name: HarnessTimedOut
     trigger: The generator agent exceeded its time budget.
+  - name: OracleCheckPassed
+    trigger: Oracle tests passed.
+  - name: OracleCheckFailed
+    trigger: Oracle tests failed as a domain result, not an infrastructure error.
+  - name: TraceTokensCollected
+    trigger: Trace token extraction completed, including the missing-trace zero-token case.
+  - name: AgentVersionChecked
+    trigger: Configured and traced agent versions are compatible or version check was skipped.
+  - name: AgentVersionMismatch
+    trigger: Trace metadata reported an agent version different from the configured harness version.
   - name: ResultsCollected
-    trigger: Result checking completed.
+    trigger: Point result summary completed.
   - name: MetricsCollected
     trigger: Metrics extraction completed.
   - name: CommandError
@@ -176,9 +192,12 @@ point_lifecycle: |
   6. StagingWorkspaceBaseline → CommittingWorkspaceBaseline: commit_workspace_baseline
   7. CommittingWorkspaceBaseline → SnapshotConfig: dump_config
   8. SnapshotConfig → RunningAgent: run_agent
-  9. RunningAgent → CheckingResults: check_results (on any outcome)
-  10. CheckingResults → CollectingMetrics: collect_metrics
-  11. CollectingMetrics → Done
+  9. RunningAgent → RunningOracleCheck: run_oracle_check (on any harness outcome)
+  10. RunningOracleCheck → CollectingTraceTokens: collect_trace_tokens (on pass or fail)
+  11. CollectingTraceTokens → CheckingAgentVersion: check_agent_version
+  12. CheckingAgentVersion → SummarizingPointResults: summarize_point_results (checked or mismatch)
+  13. SummarizingPointResults → CollectingMetrics: collect_metrics
+  14. CollectingMetrics → Done
 
 point_diagram: |
   ```mermaid
@@ -190,8 +209,11 @@ point_diagram: |
     E --> F[commit_workspace_baseline]
     F --> G[dump_config]
     G --> H[run_agent]
-    H -->|any outcome| I[check_results]
-    I --> J[collect_metrics]
+    H -->|any outcome| I[run_oracle_check]
+    I --> J[collect_trace_tokens]
+    J --> K[check_agent_version]
+    K --> L[summarize_point_results]
+    L --> M[collect_metrics]
   ```
 
 budget:
@@ -207,12 +229,16 @@ point_tools:
   - commit_workspace_baseline
   - dump_config
   - run_agent
-  - check_results
+  - run_oracle_check
+  - collect_trace_tokens
+  - check_agent_version
+  - summarize_point_results
   - collect_metrics
 
 invariants:
   - The evaluator never calls an LLM directly
-  - All agent outcomes (success, failure, timeout) proceed to check_results
+  - All agent outcomes (success, failure, timeout) proceed to run_oracle_check
+  - Oracle failures are domain results and still proceed through trace, version, summary, and metrics collection
   - The workspace is a fresh temporary directory for each evaluation point
   - Metrics are collected even when the agent fails or times out
   - The session machine iterates sequentially through all grid points

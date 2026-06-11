@@ -111,8 +111,11 @@ requirements:
       - R10.1.6: commit_workspace_baseline creates the baseline git commit.
       - R10.2: dump_config serializes the full experiment configuration (harness, model, tools, tool declarations, LLM config, budget) into experiment.yaml.
       - R10.3: run_agent executes the generator binary as a subprocess with flag propagation and collects exit code, timing, and output.
-      - R10.4: check_results runs oracle tests and parses trace files to extract token usage and version information.
-      - R10.5: collect_metrics writes evaluation metadata (exit code, duration, test results, tokens) to meta.json.
+      - R10.4: run_oracle_check runs oracle tests and records PointContext.TestsPassed and PointContext.TestOutput, using OracleCheckPassed or OracleCheckFailed to distinguish domain failure from CommandError.
+      - R10.5: collect_trace_tokens parses trace files to extract token usage into PointContext.Tokens; a missing trace file is a successful zero-token result.
+      - R10.6: check_agent_version compares configured harness version against trace metadata and emits AgentVersionMismatch as a warning signal when they differ.
+      - R10.7: summarize_point_results emits ResultsCollected from already-populated oracle, trace, and version state.
+      - R10.8: collect_metrics writes evaluation metadata (exit code, duration, test results, tokens) to meta.json.
 
 non_goals:
   - Domain-specific tools (those are registered by individual agents).
@@ -153,8 +156,8 @@ acceptance_criteria:
     traces: [R8.1, R8.2, R8.3, R8.4, R9.1, R9.2]
 
   - id: AC9
-    criterion: Evaluation harness tools orchestrate a complete evaluation point lifecycle with machine-declared atomic workspace setup, workspace isolation, and config snapshotting.
-    traces: [R10.1, R10.1.1, R10.1.2, R10.1.3, R10.1.4, R10.1.5, R10.1.6, R10.2, R10.3, R10.4, R10.5]
+    criterion: Evaluation harness tools orchestrate a complete evaluation point lifecycle with machine-declared atomic workspace setup, workspace isolation, config snapshotting, oracle checking, trace token extraction, version checking, result summarization, and metrics persistence.
+    traces: [R10.1, R10.1.1, R10.1.2, R10.1.3, R10.1.4, R10.1.5, R10.1.6, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8]
 
 depends_on:
   - srd_id: srd001-core-types

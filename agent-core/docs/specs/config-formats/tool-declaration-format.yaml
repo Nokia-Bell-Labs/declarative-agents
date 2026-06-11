@@ -265,9 +265,9 @@ parameter_extensions:
 
 declaration_files:
   - file: configs/tools/builtin.yaml
-    tool_count: 37
+    tool_count: 40
     description: |
-      37 builtin tool declarations covering file operations (read,
+      40 builtin tool declarations covering file operations (read,
       write, edit, find, list_files), the LLM pipeline (parse_response,
       report_parse_error, reset_history), completion (done),
       compatibility aggregate validation (validate),
@@ -277,7 +277,8 @@ declaration_files:
       next_point, run_point, report_session), evaluator per-point tools
       (create_point_dir, copy_sample_workspace, copy_sample_docs,
       init_workspace_repo, stage_workspace_baseline,
-      commit_workspace_baseline, dump_config, run_agent, check_results,
+      commit_workspace_baseline, dump_config, run_agent, run_oracle_check,
+      collect_trace_tokens, check_agent_version, summarize_point_results,
       collect_metrics), bench tools (serve_ui, launch_eval), and spec
       validation tools (load_corpus, validate_specs, format_report).
       Note: invoke_llm is declared per-agent in configs/*/llm/*.yaml,

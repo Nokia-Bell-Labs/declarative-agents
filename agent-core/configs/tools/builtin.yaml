@@ -425,12 +425,59 @@ tools:
     emits: [HarnessFinished, HarnessFailed, HarnessTimedOut, CommandError]
     description: "Run the agent binary on the prepared workspace and collect exit code, timing, and output."
 
-  - name: check_results
+  - name: run_oracle_check
     type: builtin
-    init: check_results
+    init: run_oracle_check
+    visibility: internal
+    emits: [OracleCheckPassed, OracleCheckFailed, CommandError]
+    description: "Run the point workspace oracle tests and record pass/fail output."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: test_result_recorded
+        description: "Sets PointContext.TestsPassed and PointContext.TestOutput from go test ./... in the point workspace."
+
+  - name: collect_trace_tokens
+    type: builtin
+    init: collect_trace_tokens
+    visibility: internal
+    emits: [TraceTokensCollected, CommandError]
+    description: "Read the point trace file and record total GenAI input/output token usage."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: trace_tokens_recorded
+        description: "Sets PointContext.Tokens from gen_ai.usage input and output token attributes in the trace file."
+
+  - name: check_agent_version
+    type: builtin
+    init: check_agent_version
+    visibility: internal
+    emits: [AgentVersionChecked, AgentVersionMismatch, CommandError]
+    description: "Compare the configured harness agent version with the version reported in the point trace."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: agent_version_checked
+        description: "Sets PointContext.TraceVersion and PointContext.VersionMismatch when a traced version differs from the harness config."
+      - kind: stderr_write
+        target: evaluator_output
+        description: "Writes a warning when the configured and traced agent versions differ."
+
+  - name: summarize_point_results
+    type: builtin
+    init: summarize_point_results
     visibility: internal
     emits: [ResultsCollected, CommandError]
-    description: "Validate agent output against expected results (run oracle tests, parse trace tokens)."
+    description: "Summarize previously collected point oracle, trace, and version state."
+    category: word
+    side_effects:
+      - kind: state_read
+        target: point_context
+        description: "Reads PointContext test, token, and version fields without mutating them."
 
   - name: collect_metrics
     type: builtin

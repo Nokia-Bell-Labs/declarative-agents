@@ -24,8 +24,10 @@ type EvalFactoryDeps struct {
 // (session-level: load_suite, next_point, run_point, report_session;
 // per-point: create_point_dir, copy_sample_workspace, copy_sample_docs,
 // init_workspace_repo, stage_workspace_baseline, commit_workspace_baseline,
-// dump_config, run_agent, check_results, collect_metrics) into the provided
-// BuiltinRegistry. Session state is lazily initialized on first factory call.
+// dump_config, run_agent, run_oracle_check, collect_trace_tokens,
+// check_agent_version, summarize_point_results, collect_metrics) into the
+// provided BuiltinRegistry. Session state is lazily initialized on first
+// factory call.
 func RegisterEvalFactories(br *BuiltinRegistry, deps EvalFactoryDeps) {
 	var ess *EvalSessionState
 
@@ -89,8 +91,17 @@ func RegisterEvalFactories(br *BuiltinRegistry, deps EvalFactoryDeps) {
 	br.Register("run_agent", func(def ToolDef, vars map[string]string) (core.Builder, error) {
 		return &RunAgentBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("check_results", func(def ToolDef, vars map[string]string) (core.Builder, error) {
-		return &CheckResultsBuilder{ES: &initESS().EvalState}, nil
+	br.Register("run_oracle_check", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		return &RunOracleCheckBuilder{ES: &initESS().EvalState}, nil
+	})
+	br.Register("collect_trace_tokens", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		return &CollectTraceTokensBuilder{ES: &initESS().EvalState}, nil
+	})
+	br.Register("check_agent_version", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		return &CheckAgentVersionBuilder{ES: &initESS().EvalState}, nil
+	})
+	br.Register("summarize_point_results", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		return &SummarizePointResultsBuilder{ES: &initESS().EvalState}, nil
 	})
 	br.Register("collect_metrics", func(def ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CollectMetricsBuilder{ES: &initESS().EvalState}, nil

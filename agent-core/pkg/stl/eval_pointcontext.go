@@ -11,8 +11,13 @@ import (
 
 // Signals emitted by the per-point evaluation commands.
 const (
-	SigResultsCollected core.Signal = "ResultsCollected"
-	SigMetricsCollected core.Signal = "MetricsCollected"
+	SigOracleCheckPassed    core.Signal = "OracleCheckPassed"
+	SigOracleCheckFailed    core.Signal = "OracleCheckFailed"
+	SigTraceTokensCollected core.Signal = "TraceTokensCollected"
+	SigAgentVersionChecked  core.Signal = "AgentVersionChecked"
+	SigAgentVersionMismatch core.Signal = "AgentVersionMismatch"
+	SigResultsCollected     core.Signal = "ResultsCollected"
+	SigMetricsCollected     core.Signal = "MetricsCollected"
 )
 
 // Signals emitted by the CLI tool.
@@ -38,13 +43,15 @@ type PointContext struct {
 	Stderr     io.Writer
 
 	// Populated during execution
-	PointDir    string
-	TracePath   string
-	ResultPath  string
-	Tokens      int
-	TestsPassed bool
-	TestOutput  string
-	TimedOut    bool
-	ExitCode    int
-	Duration    time.Duration
+	PointDir        string
+	TracePath       string
+	ResultPath      string
+	Tokens          int
+	TestsPassed     bool
+	TestOutput      string
+	TraceVersion    string
+	VersionMismatch bool
+	TimedOut        bool
+	ExitCode        int
+	Duration        time.Duration
 }

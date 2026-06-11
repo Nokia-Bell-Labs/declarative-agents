@@ -527,7 +527,8 @@ func TestEvaluatorConfig_PointTransitionTable(t *testing.T) {
 		"create_point_dir", "copy_sample_workspace", "copy_sample_docs",
 		"init_workspace_repo", "stage_workspace_baseline", "commit_workspace_baseline",
 		"dump_config",
-		"run_agent", "check_results", "collect_metrics",
+		"run_agent", "run_oracle_check", "collect_trace_tokens",
+		"check_agent_version", "summarize_point_results", "collect_metrics",
 	})
 	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)

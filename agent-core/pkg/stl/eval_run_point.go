@@ -140,8 +140,14 @@ func buildPointRegistry(es *EvalState, selectionPath string) (*core.Registry, er
 			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &DumpConfigBuilder{ES: es})
 		case "run_agent":
 			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &RunAgentBuilder{ES: es})
-		case "check_results":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CheckResultsBuilder{ES: es})
+		case "run_oracle_check":
+			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &RunOracleCheckBuilder{ES: es})
+		case "collect_trace_tokens":
+			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CollectTraceTokensBuilder{ES: es})
+		case "check_agent_version":
+			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CheckAgentVersionBuilder{ES: es})
+		case "summarize_point_results":
+			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &SummarizePointResultsBuilder{ES: es})
 		case "collect_metrics":
 			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CollectMetricsBuilder{ES: es})
 		default:
