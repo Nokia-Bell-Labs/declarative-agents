@@ -1,0 +1,205 @@
+id: test-rel02.0-lifecycle
+title: Test Suite for Release 02.0 Rollback Lifecycle
+release: "02.0"
+
+traces:
+  - rel02.0-uc001-approval-suspend-resume
+  - rel02.0-uc002-history-rollback
+
+preconditions:
+  - Lifecycle features can be configured with nil stores for disabled-mode scenarios.
+  - A temporary FileStore root is available for StateStore round-trip scenarios.
+  - A temporary git repository top-level is available for GitWorkspace scenarios.
+  - Test commands can model no-op, command/domain restore, workspace restore, and compensating-action undo behavior.
+
+test_cases:
+  - use_case: rel02.0-uc001-approval-suspend-resume
+    name: Disabled lifecycle preserves existing loop behavior
+    description: |
+      Run a simple machine with StateStore, Workspace, and CheckpointPolicy unset.
+      The run should complete without checkpoint writes, history persistence, or
+      workspace ref mutations.
+    inputs:
+      lifecycle: disabled
+      machine: simple_success
+      state_store: nil
+      workspace: nil
+      checkpoint_policy: nil
+    expected:
+      status: succeeded
+      checkpoint_writes: 0
+      persisted_history_entries: 0
+      workspace_checkpoint_calls: 0
+    traces:
+      - srd025-rollback-lifecycle AC6
+
+  - use_case: rel02.0-uc001-approval-suspend-resume
+    name: FileStore persists and lists checkpoint JSON
+    description: |
+      Save a checkpoint through FileStore, load it by key, list it by prefix,
+      and verify the JSON agent snapshot and domain snapshot are preserved.
+    inputs:
+      store: FileStore
+      key: checkpoint/run-001
+      prefix: checkpoint/
+    expected:
+      save: ok
+      load: same_checkpoint_json
+      list_contains: checkpoint/run-001
+      error_context: key_and_store_location_available
+    traces:
+      - srd025-rollback-lifecycle AC2
+
+  - use_case: rel02.0-uc001-approval-suspend-resume
+    name: Checkpoint separates StateStore JSON from Workspace ref
+    description: |
+      Build a checkpoint with AgentSnapshot, command/domain JSON, and a
+      GitWorkspace ref. Verify the workspace ref is referenced but agent state
+      is not serialized into git.
+    inputs:
+      state_layers: [agent_state, command_domain_state, workspace_environment_state]
+      workspace: GitWorkspace
+    expected:
+      checkpoint_contains_agent_snapshot: true
+      checkpoint_contains_domain_json: true
+      checkpoint_contains_workspace_ref: true
+      git_ref_contains_agent_json: false
+    traces:
+      - srd025-rollback-lifecycle AC1
+      - srd025-rollback-lifecycle AC2
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: GitWorkspace checkpoints and restores repository state
+    description: |
+      In a temporary git repository top-level, mutate files, create a
+      GitWorkspace checkpoint, mutate again, restore the checkpoint ref, and
+      verify the filesystem returns to the checkpointed state.
+    inputs:
+      workspace: GitWorkspace
+      repo_location: git_top_level
+      mutations: [write_file_before_checkpoint, write_file_after_checkpoint]
+    expected:
+      checkpoint_ref: commit_sha
+      current_ref: commit_sha
+      restore: filesystem_matches_checkpoint
+      non_top_level_config: rejected
+    traces:
+      - srd025-rollback-lifecycle AC2
+      - srd025-rollback-lifecycle AC4
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: Command undo categories restore owned state
+    description: |
+      Execute representative commands for each undo category, then invoke
+      Undo. No-op commands return ToolDone without mutation; conversation and
+      domain commands restore snapshots; workspace commands restore refs; and
+      compensating commands report their compensating action.
+    inputs:
+      commands:
+        - read_only_noop
+        - conversation_append
+        - domain_state_mutation
+        - workspace_file_write
+        - external_compensating_action
+    expected:
+      noop_undo_signal: ToolDone
+      conversation_restored: true
+      domain_state_restored: true
+      workspace_ref_restored: true
+      compensating_action_reported: true
+    traces:
+      - srd025-rollback-lifecycle AC3
+      - srd025-rollback-lifecycle AC6
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: History records dispatch entries for rollback target selection
+    description: |
+      Execute a multi-step machine with history enabled. Verify each
+      HistoryEntry includes iteration, timestamp, command name, from/to state,
+      input signal, result signal, result summary, and optional workspace ref.
+    inputs:
+      history_recording: enabled
+      commands: [read, edit, test]
+    expected:
+      history_order: dispatch_order
+      entries_include_required_fields: true
+      target_iteration_can_be_selected: true
+    traces:
+      - srd025-rollback-lifecycle AC3
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: Rollback traverses history backward to target iteration
+    description: |
+      Given a recorded history with command/domain and workspace mutations,
+      roll back from the current iteration to a target iteration. The runtime
+      should call Command.Undo in reverse dispatch order and restore Workspace
+      to the target ref.
+    inputs:
+      current_iteration: 5
+      target_iteration: 2
+      history: five_entries_with_workspace_refs
+    expected:
+      undo_order: [iteration_5, iteration_4, iteration_3]
+      workspace_restored_to: iteration_2_ref
+      returned_state: iteration_2_to_state
+    traces:
+      - srd025-rollback-lifecycle AC4
+
+  - use_case: rel02.0-uc001-approval-suspend-resume
+    name: Approval gate suspends and resumes from checkpoint
+    description: |
+      Route a machine through an approval-gate tool that emits a suspend
+      signal. Verify the run exits as suspended after persisting a checkpoint,
+      then resumes after an approved signal by restoring StateStore and
+      Workspace state.
+    inputs:
+      machine_state: AwaitingApproval
+      approval_outcome: approved
+      checkpoint_store: FileStore
+      workspace: GitWorkspace
+    expected:
+      first_run_status: suspended
+      checkpoint_saved: true
+      resume_validates_machine_and_tools: true
+      workspace_restored_before_resume: true
+      resumed_signal: approved
+    traces:
+      - srd024-blocking-input-tools AC2
+      - srd025-rollback-lifecycle AC5
+
+  - use_case: rel02.0-uc001-approval-suspend-resume
+    name: Resume reports checkpoint and restore failure classes
+    description: |
+      Attempt resume with missing checkpoint, incompatible checkpoint,
+      command/domain restore failure, and workspace restore failure. Each
+      failure class should be reported distinctly.
+    inputs:
+      resume_failures:
+        - missing_checkpoint
+        - incompatible_checkpoint
+        - domain_restore_failure
+        - workspace_restore_failure
+    expected:
+      missing_checkpoint_error: explicit
+      incompatible_checkpoint_error: explicit
+      domain_restore_error: explicit
+      workspace_restore_error: explicit
+    traces:
+      - srd025-rollback-lifecycle AC5
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: Partial rollback reports remaining state after failure
+    description: |
+      Force a Command.Undo failure during rollback. The rollback report should
+      identify the failing command, whether workspace restore was attempted,
+      and what state remains for operator recovery.
+    inputs:
+      failing_undo_iteration: 4
+      target_iteration: 2
+    expected:
+      status: partial_rollback_failed
+      failing_component: command_undo
+      command_name_reported: true
+      remaining_state_reported: true
+    traces:
+      - srd025-rollback-lifecycle AC4

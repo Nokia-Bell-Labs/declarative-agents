@@ -1,5 +1,45 @@
 # Tool Definition Prompt
 
+> Status: historical design note.
+>
+> This prompt was the design input for the official tool language and tool
+> authoring documentation. Do not treat it as the source of truth for
+> requirements. Future changes should update the canonical documents below and
+> use this file only for background rationale and wording history.
+
+## Canonical Documents
+
+- Tool authoring standard: `docs/specs/config-formats/tool-authoring-standard.yaml`
+- Tool language semantic model: `docs/specs/semantic-models/tool-language.yaml`
+- Tool vocabulary audit: `docs/specs/semantic-models/tool-vocabulary-audit.yaml`
+- Builtin tool requirements: `docs/specs/software-requirements/srd022-builtin-tools.yaml`
+- CLI/exec tool requirements: `docs/specs/software-requirements/srd023-cli-exec-tools.yaml`
+- Blocking/boundary tool requirements: `docs/specs/software-requirements/srd024-blocking-input-tools.yaml`
+- Rollback lifecycle requirements for undo/reversibility: `docs/specs/software-requirements/srd025-rollback-lifecycle.yaml`
+- New tool authoring use case: `docs/specs/use-cases/rel02.0-uc003-tool-authoring.yaml`
+- Sentence-tool migration use case: `docs/specs/use-cases/rel02.0-uc004-sentence-tool-migration.yaml`
+- Tool contract formal tests: `docs/specs/test-suites/test-rel02.0-tool-contracts.yaml`
+
+## Coverage Map
+
+- The "tool is a word, not a sentence" rule is canonicalized in
+  `cfg-tool-authoring-standard.principle` and `sm-tool-language.language_model`.
+- Tool categories (`word`, `stateful_internal`, `boundary`, `sentence`) are
+  canonicalized in `cfg-tool-authoring-standard.tool_categories` and
+  `sm-tool-language.tool_categories`.
+- Required contract sections (`problem`, `goals`, `requirements`, `non_goals`,
+  `output`, `side_effects`, `reversibility`, `undo`, `errors`,
+  `relationships`) are canonicalized in
+  `cfg-tool-authoring-standard.required_contract_sections`.
+- Side effects, reversibility, undo, irreversible confirmation, and rollback
+  relationships are canonicalized in `srd025` R11 and
+  `test-rel02.0-tool-contracts`.
+- Sentence-shaped tool migration into `machine.yaml` transitions is
+  canonicalized in `sm-tool-language.migration_states` and
+  `rel02.0-uc004-sentence-tool-migration`.
+
+---
+
 You are designing a tool for an agent. A tool is a word in a language the agent speaks. The agent is a state machine. Its behavior is a sequence of words — each word is a CLI command that does one thing deterministically.
 
 ## How to think about tools

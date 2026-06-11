@@ -1,5 +1,40 @@
 # Externalized State, Checkpointing, and Agent Lifecycle
 
+> Status: historical design note.
+>
+> This note was the design input for the official rollback/lifecycle
+> specification set. Do not treat it as the source of truth for requirements.
+> Future changes should update the canonical documents below and use this file
+> only for background rationale.
+
+## Canonical Documents
+
+- Requirements: `docs/specs/software-requirements/srd025-rollback-lifecycle.yaml`
+- Semantic model: `docs/specs/semantic-models/rollback-lifecycle.yaml`
+- Command undo audit: `docs/specs/semantic-models/command-undo-audit.yaml`
+- Approval/suspend/resume use case: `docs/specs/use-cases/rel02.0-uc001-approval-suspend-resume.yaml`
+- History/rollback use case: `docs/specs/use-cases/rel02.0-uc002-history-rollback.yaml`
+- Lifecycle formal tests: `docs/specs/test-suites/test-rel02.0-lifecycle.yaml`
+- Tool contract formal tests that cover rollback metadata: `docs/specs/test-suites/test-rel02.0-tool-contracts.yaml`
+
+## Coverage Map
+
+- Three independent state layers are canonicalized in `srd025` R1 and
+  `sm-rollback-lifecycle.state_layers`.
+- `StateStore`, `FileStore`, `Workspace`, and `GitWorkspace` are canonicalized
+  in `srd025` R2/R3 and the lifecycle formal tests.
+- `Command.Undo`, undo categories, and command-owned state restoration are
+  canonicalized in `srd025` R4, `sm-command-undo-audit`, and
+  `test-rel02.0-lifecycle`.
+- `HistoryEntry`, rollback traversal, partial rollback failure handling, and
+  target iteration semantics are canonicalized in `srd025` R5/R7 and
+  `rel02.0-uc002-history-rollback`.
+- `Checkpoint`, `CheckpointPolicy`, suspend, resume, approval gates, feature
+  flags, and zero-overhead disabled behavior are canonicalized in `srd025`
+  R6/R8/R9/R10 and `rel02.0-uc001-approval-suspend-resume`.
+
+---
+
 ## Three concepts
 
 1. **Externalized state** -- the agent's internal state and the environment's

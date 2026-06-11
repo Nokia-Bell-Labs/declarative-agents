@@ -158,8 +158,10 @@ acceptance_criteria:
     traces: [R10.1, R10.2, R10.3, R10.4, R11.1, R11.2, R11.3, R11.4, R11.5]
 
 test_trace_plan:
-  - future_test_suite: agent-core-docs.4
+  - test_suite: test-rel02.0-lifecycle
     covers: [AC1, AC2, AC3, AC4, AC5, AC6]
+  - test_suite: test-rel02.0-tool-contracts
+    covers: [AC6]
   - existing_go_tests:
       - pkg/core/checkpoint_test.go
       - pkg/core/git_workspace_test.go

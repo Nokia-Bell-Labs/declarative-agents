@@ -1,17 +1,24 @@
 id: agent-core
-title: "Agent Core: Framework for Building Agentic Coding Tools"
+title: "Agent Core: Framework for Declarative Tool-Language Agents"
 
 executive_summary: |
-  Agent Core is a Go framework for building tool-augmented agentic loops.
-  It provides the state machine, command dispatch, tool registry, budget
-  tracking, event recording, tracing, LLM integration, prompt assembly,
-  a standard tool library, and a CLI flags package.
+  Agent Core is a Go framework for building agents as declarative programs.
+  A program is a state machine wired to a vocabulary of tools. The machine
+  owns sequencing. Tools are contract-bearing words: typed inputs, typed
+  outputs, declared side effects, explicit failure semantics, and a rollback
+  story.
+
+  The framework provides the runtime that interprets those programs: state
+  machine execution, command dispatch, tool registry, budget tracking, event
+  recording, tracing, LLM integration, prompt assembly, a standard tool
+  library, lifecycle state ports, and a unified binary that loads YAML
+  programs.
 
   The core engine (pkg/core) remains domain-agnostic: it drives the loop
-  without knowing what tools exist or what LLM is in use. Higher-level
-  packages (pkg/llm, pkg/stl, pkg/prompt) build on the engine
-  to provide reusable infrastructure that domain agents compose into
-  complete systems.
+  without knowing what tools exist, what LLM is in use, or what workflow the
+  machine expresses. Higher-level packages (pkg/llm, pkg/stl, pkg/prompt,
+  pkg/telemetry, pkg/spec) provide reusable infrastructure that configured
+  agents compose into complete systems.
 
 problem: |
   The agentic loop pattern -- observe, decide, act, validate, repeat --
@@ -23,16 +30,79 @@ problem: |
   OpenTelemetry tracing, tool manifest filtering, LLM invocation,
   prompt assembly, and standard file/build/subprocess tools.
 
-  When this machinery is coupled to a specific domain, it cannot be
-  reused. Building a new agent means reimplementing the same loop
-  plumbing plus LLM and tool boilerplate. Bugs fixed in one agent
-  stay unfixed in another. Improvements to budget tracking, tracing,
-  or LLM handling require changes in every agent.
+  When this machinery is coupled to a specific domain, it cannot be reused.
+  Building a new agent means reimplementing the same loop plumbing plus LLM
+  and tool boilerplate. Bugs fixed in one agent stay unfixed in another.
+  Improvements to budget tracking, tracing, or LLM handling require changes
+  in every agent.
 
-  Agent Core extracts the loop engine and its supporting infrastructure
-  into a standalone Go library. Domain agents become thin wrappers that
-  register additional tools, define states, and supply hooks. The
-  framework provides the rest.
+  There is a second problem: procedural tool wiring hides program structure.
+  If a tool secretly performs a workflow, the machine cannot show the sequence,
+  validation cannot reason about intermediate signals, and rollback cannot see
+  which state layer changed. A tool that writes files without declaring the
+  effect, mutates conversation state without undo, or invokes a child program
+  without boundary metadata is not a reliable vocabulary word.
+
+  Agent Core extracts the loop engine and its supporting infrastructure into a
+  standalone Go library, then makes the configured machine and selected tools
+  the program. Domain agents become declarative machines plus tool
+  declarations. Go packages provide reusable vocabulary and runtime services.
+
+vision_model_diagram: |
+  ```mermaid
+  flowchart TD
+    U[User task or scheduler] --> CFG[Configured Agent Program]
+
+    subgraph Program[Agent Program]
+      M[MachineSpec: states, signals, transitions]
+      TS[Tool selection]
+      TD[ToolDef vocabulary contracts]
+      LLM[LLM config and prompt]
+    end
+
+    M -->|names actions| TS
+    TS -->|selects| TD
+    CFG --> Program
+    Program --> R[Loop runtime interpreter]
+    R --> REG[Registry and Builders]
+    REG --> C[Command instance]
+    C -->|Result.Signal| R
+    R -->|next transition| M
+
+    TD --> LC[Lifecycle model: side effects, undo, rollback]
+    C --> W[Workspace and command/domain state]
+    LC --> W
+  ```
+
+tool_language_diagram: |
+  ```mermaid
+  flowchart LR
+    subgraph Vocabulary
+      A[ToolDef: read]
+      B[ToolDef: edit]
+      C[ToolDef: build]
+      D[Boundary ToolDef: invoke_llm]
+    end
+
+    subgraph Grammar
+      M[MachineSpec]
+      S1[Composing]
+      S2[Parsing]
+      S3[ValidatingBuild]
+      S4[ValidatingTest]
+    end
+
+    M --> S1
+    S1 -->|LLMResponded| S2
+    S2 -->|ToolDone via selected word| S1
+    S2 -->|TaskCompleted| S3
+    S3 -->|ToolDone| S4
+
+    A --> M
+    B --> M
+    C --> M
+    D --> M
+  ```
 
 what_this_does: |
   Agent Core is a Go framework comprising library packages and a
@@ -40,6 +110,15 @@ what_this_does: |
   generator, evaluator, planner, validator, and bench — each
   defined by YAML configurations. It provides a layered set of
   packages that together implement a complete agentic loop framework.
+
+  Declarative Program Model. Agent behavior is defined by:
+  - MachineSpec: states, signals, terminal states, and transitions.
+  - Tool declarations: vocabulary contracts for builtin, exec, boundary,
+    and internal tools.
+  - Tool selection: the subset of vocabulary available to a configured agent.
+  - LLM config and prompt config: model behavior and tool manifest context.
+  - Lifecycle config: optional StateStore, Workspace, CheckpointPolicy, and
+    rollback/suspend/resume behavior.
 
   Core Engine (pkg/core). The domain-agnostic loop machinery:
   - State Machine: static transition table mapping (State, Signal) to
@@ -53,7 +132,8 @@ what_this_does: |
   - YAML Machine Config: declarative state machine definition with
     referential integrity validation and $tool dynamic dispatch.
   - Types: Command, Result (with ToolMetrics), Signal, Cost, Builder,
-    CommandResolver, SpanOverride.
+    CommandResolver, SpanOverride, rollback foundation interfaces, and
+    Command.Undo.
 
   LLM Integration (pkg/llm). Client interface with concrete Ollama
   adapter, Conversation management, message types, model profiles,
@@ -66,7 +146,8 @@ what_this_does: |
   Standard Tool Library (pkg/stl). Reusable tool implementations:
   file tools, build tools, LLM invoke/parse commands, subprocess
   execution with process group management, workspace tools, and
-  tool metrics extraction.
+  tool metrics extraction. These tools are expected to behave as vocabulary
+  words or explicitly documented boundaries, not hidden workflows.
 
   CLI Flags (pkg/cli). Utility library for CLI flag constants and
   argument propagation. Not imported by cmd/agent directly.
@@ -83,8 +164,12 @@ what_this_does: |
   Specification Tooling (pkg/spec). SRD/UC/TS YAML parsing, dependency
   graph construction, cross-artifact validation, and corpus management.
 
+  Lifecycle and Rollback Foundations. Optional StateStore, Workspace, and
+  CheckpointPolicy ports let agents record state and recover from bad actions
+  without changing normal behavior when disabled.
+
 why_we_build_this: |
-  Three reasons.
+  Five reasons.
 
   First, to enable multiple agent types within the agentic-loop project.
   The generator (coding agent) was the first agent built on this engine.
@@ -97,10 +182,20 @@ why_we_build_this: |
   agent. Centralizing them in agent-core avoids duplication and ensures
   consistent behavior across agents.
 
-  Third, to accumulate improvements in one place. Better tracing,
+  Third, to make agent programs inspectable. A machine.yaml file should show
+  the workflow. Tool declarations should show what each word means, what it
+  emits, what it changes, and how it can be reversed or compensated. This lets
+  humans review the program and lets validation tooling reason about it.
+
+  Fourth, to keep vocabulary and grammar separate. Tools should be reusable
+  words with clear contracts. Machines compose those words into sentences.
+  This prevents workflow-shaped tools from hiding decisions, failure paths, and
+  rollback boundaries inside Go code.
+
+  Fifth, to accumulate improvements in one place. Better tracing,
   smarter budget checks, more robust panic recovery, improved LLM
-  parsing, and new tool implementations benefit every agent that imports
-  agent-core.
+  parsing, new tool implementations, contract validation, and lifecycle
+  recovery benefit every agent that imports agent-core.
 
 success_criteria:
   engine_agnosticism: |
@@ -113,6 +208,23 @@ success_criteria:
     of State and Signal constants, a TransitionTable (or YAML machine
     file), tool Builders registered in a Registry, a TerminalFunc, and
     optional LoopHooks. No subclassing, no code generation.
+  declarative_programs: |
+    Agent behavior is visible in YAML: machine.yaml owns workflow sequencing,
+    tool selections identify available vocabulary, and tool declarations define
+    the meaning and contract of each word.
+  tool_contract_completeness: |
+    New tools declare problem, goals, requirements, non-goals, typed input and
+    output contracts, emitted signals, side effects, reversibility, undo,
+    errors, and relationships to neighboring tools.
+  explicit_boundaries: |
+    Tools that cross model, human, child-process, nested-machine, external API,
+    or workspace boundaries are classified and documented as boundary tools
+    rather than mistaken for ordinary deterministic words.
+  lifecycle_readiness: |
+    Runtime and tool contracts preserve the separation between agent state,
+    command/domain state, and workspace/environment state so checkpoint,
+    suspend, resume, and rollback behavior can be enabled without changing
+    disabled-mode execution.
   reusable_infrastructure: |
     LLM integration (pkg/llm), prompt assembly (pkg/prompt), standard
     tools (pkg/stl), and tracing (pkg/tracing) are shared across agents.
@@ -135,6 +247,24 @@ not:
   - We do not define deployment, packaging, or container images.
   - Domain-specific behavior is defined in YAML configurations, not in
     Go code within the library packages.
+  - We do not treat tool declarations as mere wrapper metadata; they are
+    vocabulary contracts.
+  - We do not hide new workflows inside ordinary tools. Workflows belong in
+    machine.yaml unless the tool is explicitly a documented boundary.
+  - We do not require lifecycle persistence or workspace checkpointing when
+    those ports are disabled.
+
+canonical_documents:
+  - docs/specs/config-formats/tool-authoring-standard.yaml
+  - docs/specs/semantic-models/tool-language.yaml
+  - docs/specs/semantic-models/rollback-lifecycle.yaml
+  - docs/specs/software-requirements/srd022-builtin-tools.yaml
+  - docs/specs/software-requirements/srd023-cli-exec-tools.yaml
+  - docs/specs/software-requirements/srd024-blocking-input-tools.yaml
+  - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+  - docs/specs/use-cases/rel02.0-uc003-tool-authoring.yaml
+  - docs/specs/use-cases/rel02.0-uc004-sentence-tool-migration.yaml
+  - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
 
 dependencies:
   direct:

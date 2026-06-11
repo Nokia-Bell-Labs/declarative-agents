@@ -10,7 +10,7 @@ overview:
     configs). The bench mode serves an embedded web UI for browsing
     experiments, launching evaluations, and comparing results.
 
-    The framework is organized in three layers:
+    The framework is organized in four cooperating layers:
 
     Engine layer (pkg/core). Domain-agnostic loop machinery: types,
     state machine, command dispatch, tool registry, agentic loop, and
@@ -38,76 +38,106 @@ overview:
     - pkg/worktree — git worktree lifecycle management
     - pkg/spec — specification corpus parsing and validation
 
-    Configuration layer (configs/). YAML files defining each agent's
+    Configuration layer (configs/ and docs/specs/). YAML files defining each agent's
     behavior: state machines (machine.yaml), tool selections (tools.yaml),
     tool declarations (configs/tools/), and per-model LLM configurations
-    (configs/*/llm/*.yaml). The configurations ARE the agents — no Go
-    code changes are needed to modify agent behavior.
+    (configs/*/llm/*.yaml). Specification YAML documents define the
+    requirements, semantic models, use cases, and formal tests that explain
+    those agents. The configurations ARE the agents -- no Go code changes are
+    needed to modify agent behavior.
 
   layer_diagram: |
     ```mermaid
-    graph TD
-      subgraph Configuration
-        C1[generator]
-        C2[evaluator]
-        C3[planner]
-        C4[validator]
-        C5[tools]
+    flowchart TB
+      subgraph Config["Configuration and Specifications"]
+        MACH[configs/*/machine.yaml]
+        SEL[configs/*/tools.yaml]
+        DEF[configs/tools/*.yaml]
+        LLMCFG[configs/*/llm/*.yaml]
+        SPECS[docs/specs/*.yaml]
       end
 
-      subgraph Binaries
-        B1[agent]
+      subgraph Binary["Unified Binary"]
+        AGENT[cmd/agent]
       end
 
-      subgraph Domain
-        D1[pipeline]
-        D2[plan]
-        D3[extract]
-        D4[graph]
-        D5[execute]
-        D6[worktree]
-        D7[materialize]
-        D8[spec]
+      subgraph Domain["Domain Workflow Packages"]
+        PIPE[pkg/pipeline]
+        PLAN[pkg/plan]
+        EXTRACT[pkg/extract]
+        REQGRAPH[pkg/graph]
+        MAT[pkg/materialize]
+        EXEC[pkg/execute]
+        WORKTREE[pkg/worktree]
+        SPEC[pkg/spec]
+        BENCH[pkg/bench]
       end
 
-      subgraph Infrastructure
-        I1[llm]
-        I2[prompt]
-        I3[stl]
-        I4[telemetry]
-        I5[tracing]
-        I6[cli]
-        I7[subprocess]
+      subgraph Infra["Reusable Infrastructure"]
+        LLM[pkg/llm and pkg/llm/ollama]
+        PROMPT[pkg/prompt]
+        STL[pkg/stl]
+        TELE[pkg/telemetry]
+        TRACE[pkg/tracing]
+        CLI[pkg/cli]
+        SUB[pkg/subprocess]
       end
 
-      subgraph Engine
-        E1[core]
+      subgraph Engine["Engine"]
+        CORE[pkg/core]
       end
 
-      C1 --> B1
-      C2 --> B1
-      C3 --> B1
-      C4 --> B1
-      C5 --> B1
-      B1 --> D1
-      B1 --> D5
-      B1 --> D6
-      B1 --> I1
-      B1 --> I2
-      B1 --> I3
-      B1 --> I4
-      B1 --> B1bench[bench]
-      B1bench --> I3
-      D1 --> D2
-      D1 --> D3
-      D1 --> D7
-      D3 --> D4
-      D5 --> I7
-      D5 --> I6
-      I1 --> E1
-      I3 --> E1
-      I4 --> I5
-      E1 --> I5
+      Config --> AGENT
+      AGENT --> CORE
+      AGENT --> Domain
+      AGENT --> Infra
+      PIPE --> PLAN
+      PIPE --> EXTRACT
+      PIPE --> MAT
+      EXTRACT --> REQGRAPH
+      EXEC --> SUB
+      EXEC --> CLI
+      BENCH --> STL
+      STL --> CORE
+      LLM --> CORE
+      TELE --> TRACE
+      CORE --> TRACE
+    ```
+
+  system_context_diagram: |
+    ```mermaid
+    flowchart LR
+      DEV[Developer or operator] --> AGENT[cmd/agent]
+      AGENT --> CFG[Machine, tool, LLM YAML]
+      AGENT --> LOOP[pkg/core Loop]
+      LOOP --> TOOLS[Registered tools]
+      TOOLS --> FS[Workspace filesystem]
+      TOOLS --> MODEL[LLM provider]
+      TOOLS --> CHILD[Child agent or external CLI]
+      LOOP --> OTEL[Telemetry exporters]
+      LOOP --> STORE[Optional StateStore]
+      LOOP --> WORK[Optional Workspace]
+      SPEC[docs/specs and pkg/spec] --> CFG
+    ```
+
+  config_dataflow_diagram: |
+    ```mermaid
+    flowchart TD
+      MF[machine.yaml] --> MS[MachineSpec]
+      TSF[tools.yaml] --> SELECT[Tool selection]
+      TDF[tool declaration YAML] --> TD[ToolDef]
+      LLMF[llm config YAML] --> LCFG[LLM config]
+
+      TD --> SELECTED[Selected ToolDefs]
+      SELECT --> SELECTED
+      SELECTED --> SPEC[ToolSpec metadata]
+      SELECTED --> BUILDER[Builder factory]
+      SPEC --> REG[Registry]
+      BUILDER --> REG
+      MS --> TABLE[TransitionTable]
+      REG --> TABLE
+      TABLE --> LOOP[core.Loop]
+      LCFG --> LOOP
     ```
 
   lifecycle: |
@@ -147,6 +177,184 @@ overview:
       I --> D
       L --> M[Return RunResult]
     ```
+
+  runtime_sequence: |
+    ```mermaid
+    sequenceDiagram
+      participant A as cmd/agent
+      participant CFG as YAML config
+      participant R as Registry
+      participant M as MachineSpec
+      participant L as core.Loop
+      participant SM as StateMachine
+      participant D as Dispatch
+      participant C as Command
+      participant T as Tracer
+
+      A->>CFG: load machine, tool selection, declarations, LLM config
+      A->>R: register selected ToolSpec and Builder pairs
+      A->>M: parse and validate machine.yaml
+      A->>L: call Loop with registry, table, hooks, budget
+      L->>R: freeze registry
+      L->>SM: Step(current state, previous signal)
+      SM-->>L: next state and Command
+      L->>D: Dispatch(Command)
+      D->>T: start execute_tool span
+      D->>C: Execute()
+      C-->>D: Result
+      D-->>L: Result with Signal, Cost, Metrics
+      L->>SM: next Step uses Result.Signal
+    ```
+
+  dispatch_tracing_sequence: |
+    ```mermaid
+    sequenceDiagram
+      participant L as Loop
+      participant D as Dispatch
+      participant C as Command
+      participant T as Tracer
+
+      L->>D: Dispatch(ctx, command, timeout, tracer)
+      D->>T: Push execute_tool span
+      D->>C: Execute()
+      alt command succeeds
+        C-->>D: Result.Signal
+        D->>T: SetAttributes cost and command metadata
+      else command panics or times out
+        D->>T: RecordError
+        D-->>L: CommandError Result
+      end
+      D-->>L: Result with duration filled
+    ```
+
+  tool_language_architecture:
+    summary: |
+      Agent Core treats tools as vocabulary and machine.yaml as grammar. A tool
+      should be a reusable word with a declared contract. A workflow is a
+      sentence, and sentences belong in MachineSpec transitions where states,
+      signals, and actions are visible, validated, traced, and eventually
+      recoverable.
+
+      This separation keeps the program auditable. If a workflow is hidden in a
+      Go command, startup validation cannot see intermediate signals, telemetry
+      cannot explain the real sequence, and rollback cannot reliably identify
+      which command/domain or workspace state changed. If the workflow is in
+      machine.yaml, each tool can stay small while the machine owns order,
+      branching, retries, validation, and approval gates.
+
+    categories:
+      word: |
+        A normal vocabulary word is a single deterministic verb with typed
+        input, typed output, declared side effects, explicit errors, and a
+        rollback story. Examples include read, edit, build, run_oracle_check,
+        and collect_trace_tokens.
+      stateful_internal: |
+        A stateful internal word mutates agent or command/domain state rather
+        than visible workspace state. Examples include report_parse_error,
+        reset_history, nudge_reread, parse_suite_config, and next_point. These
+        are usually machine actions, not LLM-visible manifest entries.
+      boundary: |
+        A boundary tool intentionally crosses into a model, human, child
+        process, nested machine, external CLI, external API, or workspace. It
+        is still a word from the parent machine's point of view, but its
+        contract must make the boundary, emitted signals, side effects, and
+        undo/compensation explicit. Examples include invoke_llm, serve_ui,
+        run_agent, run_point, launch_eval, and self_invoke.
+      sentence: |
+        A sentence tool hides multiple observable verbs behind one name. New
+        tools should not use this category except to mark legacy compatibility.
+        Sentence tools migrate by identifying each verb, declaring word tools,
+        and moving sequencing into machine.yaml.
+
+    composition_rules:
+      - machine.yaml owns workflows, ordering, branching, retries, validation sequences, and approval gates.
+      - ToolDef owns the meaning of one word: problem, parameters, output, emits, side effects, reversibility, undo, errors, and relationships.
+      - ToolSpec is runtime metadata derived from selected ToolDefs and used to register or expose tools.
+      - Builder turns prior Result state or parsed tool input into a Command.
+      - Command.Execute performs the word; Result.Signal returns control to the machine.
+      - LLM $tool dispatch selects one vocabulary word dynamically; it does not license hidden workflows inside the selected tool.
+
+    machine_composes_words_diagram: |
+      ```mermaid
+      flowchart TD
+        subgraph Machine["machine.yaml sentence"]
+          A[State: Parsing]
+          B[State: ValidatingBuild]
+          C[State: ValidatingLint]
+          D[State: ValidatingTest]
+          E[State: Succeeded]
+        end
+
+        subgraph Words["tool vocabulary"]
+          W1[done]
+          W2[build]
+          W3[lint]
+          W4[test]
+        end
+
+        A -->|TaskCompleted / action build| B
+        B -->|ToolDone / action lint| C
+        C -->|ToolDone / action test| D
+        D -->|ToolDone| E
+
+        W1 -. emits TaskCompleted .-> A
+        W2 -. emits ToolDone or ToolFailed .-> B
+        W3 -. emits ToolDone or ToolFailed .-> C
+        W4 -. emits ToolDone or ToolFailed .-> D
+      ```
+
+    tool_contract_pipeline_diagram: |
+      ```mermaid
+      sequenceDiagram
+        participant YAML as ToolDef YAML
+        participant Select as Tool selection
+        participant Reg as Registry
+        participant Build as Builder
+        participant Cmd as Command
+        participant Loop as Loop
+        participant Machine as MachineSpec
+
+        YAML->>Select: available vocabulary
+        Select->>Reg: selected ToolSpec and factory config
+        Machine->>Loop: action name from transition
+        Loop->>Reg: Resolve(action)
+        Reg-->>Loop: Builder
+        Loop->>Build: Build(previous Result)
+        Build-->>Loop: Command
+        Loop->>Cmd: Execute()
+        Cmd-->>Loop: Result.Signal
+        Loop->>Machine: transition on signal
+      ```
+
+    boundary_tool_diagram: |
+      ```mermaid
+      flowchart LR
+        P[Parent MachineSpec] -->|action run_agent| B[Boundary ToolDef]
+        B --> C[Command]
+        C --> X[Child process or nested machine]
+        X --> C
+        C -->|declared Result.Signal| P
+        C -->|declared side effects| L[Lifecycle and rollback model]
+        L --> W[Workspace restore or compensation]
+        L --> S[Command/domain state restore]
+      ```
+
+    sentence_tool_migration_diagram: |
+      ```mermaid
+      flowchart LR
+        A[Legacy sentence tool] --> B[Name observable verbs]
+        B --> C[Declare one ToolDef per verb]
+        C --> D[Add emits and side effects]
+        D --> E[Wire sequence in machine.yaml]
+        E --> F[Validate transitions]
+        F --> G[Mark aggregate deprecated compatibility]
+      ```
+
+    references:
+      - docs/specs/config-formats/tool-authoring-standard.yaml
+      - docs/specs/semantic-models/tool-language.yaml
+      - docs/specs/semantic-models/tool-vocabulary-audit.yaml
+      - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
 
   coordination_pattern: |
     Work flows through the state machine. The loop holds the current
@@ -204,10 +412,11 @@ interfaces:
   - name: Command interface
     summary: |
       Single interface for all executable units of work (pkg/core).
-      Two methods: Name() string, Execute() Result. Both internal
-      commands (LLM invoke, response parsing) and external tools (file
-      I/O, build, test) implement Command. The loop dispatches them
-      uniformly through Dispatch.
+      Three methods: Name() string, Execute() Result, and Undo() Result.
+      Both internal commands (LLM invoke, response parsing) and external
+      tools (file I/O, build, test) implement Command. The loop dispatches
+      them uniformly through Dispatch. Undo gives every command an explicit
+      rollback contract, even when the current implementation is a no-op.
 
   - name: Builder interface
     summary: |
@@ -230,17 +439,20 @@ components:
       Core type definitions shared across all components. Defines
       State (string), Signal (string), Command interface, Result
       struct, Cost struct, ToolMetrics struct, Builder interface,
-      CommandResolver interface, and SpanOverride interface. Defines
+      CommandResolver interface, SpanOverride interface, and rollback
+      foundation interfaces for StateStore, Workspace, CheckpointPolicy,
+      Checkpoint, and GitWorkspace. Defines
       generic signals (Seed, BudgetExhausted, CommandError), standard
       tool signals (ToolDone, ToolFailed, EditDone), and LLM signals
       (LLMResponded, ParseFailed, TaskCompleted).
     capabilities:
       - Define the State and Signal string types
-      - Define the Command interface (Name, Execute)
+      - Define the Command interface (Name, Execute, Undo)
       - Define Result, Cost, and ToolMetrics structs for command output
       - Define ToolMetrics for structured success/failure tracking on Result
       - Define Builder and CommandResolver interfaces
       - Define SpanOverride interface for custom dispatch span naming
+      - Define StateStore, Workspace, CheckpointPolicy, Checkpoint, and GitWorkspace
       - Define generic signals (Seed, BudgetExhausted, CommandError)
       - Define standard tool signals (ToolDone, ToolFailed, EditDone)
       - Define LLM signals (LLMResponded, ParseFailed, TaskCompleted)
@@ -334,11 +546,11 @@ design_decisions:
   - id: 1
     title: Domain-agnostic engine
     decision: |
-      The engine defines only State, Signal, Command, and Budget as
-      abstract types. All domain-specific states, signals, tools, and
-      budget dimensions are supplied by the importing agent. No import
-      in agent-core references coding tools, LLMs, file systems, or
-      any specific domain.
+      The engine defines State, Signal, Command, Budget, Result, registry,
+      state machine, loop, dispatch, and lifecycle ports as abstract runtime
+      concepts. All domain-specific states, signals, tools, and budget
+      dimensions are supplied by the configured agent. No import in pkg/core
+      references coding tools, LLM providers, or any specific domain.
     benefits:
       - Multiple agent types share one loop engine
       - Engine improvements propagate to all agents
@@ -392,7 +604,7 @@ design_decisions:
     decision: |
       Complex workflows (e.g. "stage all then commit") are NOT encoded
       as compound Go tools. Instead, each atomic verb is a separate
-      YAML-defined tool (stage_all, commit), and the machine.yaml
+      declared tool (stage_all, commit), and the machine.yaml
       wires them together via state transitions:
 
         - state: Staging
@@ -519,7 +731,7 @@ project_structure:
     - path: configs/bench/
       role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
     - path: configs/tools/
-      role: Shared tool declarations — builtin.yaml (26 tools), exec.yaml (16 tools)
+      role: Shared tool declarations — builtin.yaml and exec.yaml
     - path: pkg/llm/profiles/
       role: Embedded LLM response profiles (9 model families)
 
@@ -548,14 +760,24 @@ implementation_status:
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, validator, bench
     - done: Bench agent (pkg/bench) — state-machine-driven web UI for experiment browsing and eval launching
-    - done: YAML tool definitions — builtin.yaml (32 declared, 34 registered in Go), exec.yaml (16 tools)
+    - done: YAML tool definitions — shared builtin and exec declarations plus mode-local overrides
     - done: Agent configurations — generator, evaluator, planner, validate machine/tools/llm
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats
     - done: cobbler-scaffold dependency removed
     - done: 522 tests passing across 16 packages
-    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd020)
+    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd025)
 
 related_documents:
   - doc: docs/VISION.yaml
     purpose: What we build and why; success criteria and boundaries
+  - doc: docs/SPECIFICATIONS.yaml
+    purpose: Canonical specification index for SRDs, use cases, semantic models, and test suites
+  - doc: docs/specs/config-formats/tool-authoring-standard.yaml
+    purpose: Tool vocabulary authoring contract used by tool declarations
+  - doc: docs/specs/semantic-models/tool-language.yaml
+    purpose: Semantic model for MachineSpec composition, ToolDef vocabulary, boundaries, and sentence-tool migration
+  - doc: docs/specs/semantic-models/rollback-lifecycle.yaml
+    purpose: Semantic model for checkpoint, suspend/resume, rollback traversal, and state layer ownership
+  - doc: docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+    purpose: Requirements for lifecycle state, history, rollback, suspend, resume, and approval gates

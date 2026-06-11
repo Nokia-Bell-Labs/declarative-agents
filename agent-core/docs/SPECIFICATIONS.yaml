@@ -13,8 +13,8 @@ overview: |
   the CLI standard flag contract, the agent CLI as an exec tool, builtin
   tool declaration/factory contracts, CLI/exec tool declarations, blocking
   input tools, and rollback/checkpoint lifecycle behavior. Eight use cases exercise the SRDs across three
-  releases. One formal YAML test suite covers 51 acceptance
-  test cases for release 00.0; additional coverage comes from 522 Go
+  releases. Three formal YAML test suites cover 72 acceptance
+  test cases across releases 00.0 and 02.0; additional coverage comes from 522 Go
   test functions across 16 packages.
 
   SRD release assignments.
@@ -29,6 +29,13 @@ overview: |
     srd021 (agent CLI as exec tool), srd022 (builtin tools),
     srd023 (CLI/exec tools), srd024 (blocking input tools),
     srd025 (rollback lifecycle)
+
+  Source-of-truth note.
+  - roll-backs.md and tools-as-dsl.md are historical design notes. Their
+    requirements have been consolidated into srd025, cfg-tool-authoring-standard,
+    sm-rollback-lifecycle, sm-tool-language, release 02.0 use cases, and release
+    02.0 formal test suites. Future requirements changes should update those
+    canonical documents first.
 
 roadmap_summary:
   - version: "00.0"
@@ -252,14 +259,32 @@ test_suite_index:
       - rel00.0-uc001-domain-agent-integration
     formal_test_cases: 51
     path: docs/specs/test-suites/test-rel00.0.yaml
+  - id: test-rel02.0-lifecycle
+    title: Test Suite for Release 02.0 Rollback Lifecycle
+    release: "02.0"
+    traces:
+      - rel02.0-uc001-approval-suspend-resume
+      - rel02.0-uc002-history-rollback
+    formal_test_cases: 10
+    path: docs/specs/test-suites/test-rel02.0-lifecycle.yaml
+  - id: test-rel02.0-tool-contracts
+    title: Test Suite for Release 02.0 Tool Contracts
+    release: "02.0"
+    traces:
+      - rel02.0-uc003-tool-authoring
+      - rel02.0-uc004-sentence-tool-migration
+    formal_test_cases: 11
+    path: docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
 
 go_test_coverage:
   total_test_functions: 522
   packages_with_tests: 16
   note: >
     Go test functions across all packages provide coverage beyond the
-    formal YAML test suite. The YAML suite (51 cases) covers srd001-srd008;
-    package tests cover srd009-srd018 and domain packages.
+    formal YAML test suites. The release 00.0 YAML suite (51 cases) covers
+    srd001-srd008; release 02.0 YAML suites (21 cases) cover rollback
+    lifecycle and tool contract requirements. Package tests cover srd009-srd018
+    and domain packages.
 
 srd_to_use_case_mapping:
   - use_case: rel00.0-uc001-domain-agent-integration
@@ -300,8 +325,8 @@ coverage_gaps: |
   touchpoints and formal YAML test suite coverage in release 00.0.
   SRDs srd009-srd024 cover additional packages and have Go test
   coverage (522 test functions across 16 packages) but no formal
-  YAML test suites. srd025 defines planned lifecycle requirements with
-  formal test coverage to be added under agent-core-docs.4.
+  YAML test suites. srd025 has planned lifecycle coverage in the release
+  02.0 formal YAML test suites.
 
   Packages without SRDs:
   - pkg/execute — agent subprocess execution with process groups
