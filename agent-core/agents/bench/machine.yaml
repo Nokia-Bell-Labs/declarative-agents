@@ -1,67 +1,106 @@
-# State machine for the bench agent.
-# Serves a web UI and orchestrates experiment launches.
-# serve_ui blocks waiting for human input — the bench equivalent of invoke_llm.
-
 name: bench
-initial_state: Idle
+purpose: |-
+  The bench is an interactive agent that serves a web UI for browsing
+  experiment results, launching new evaluations, and comparing model
+  performance across harness/LLM combinations. Unlike other agents,
+  its input source is a human operator via HTTP rather than an LLM.
 
+  serve_ui is the bench equivalent of invoke_llm — it blocks waiting
+  for human input through the web UI. The state machine routes the
+  user's action signal identically to how the generator routes LLM
+  response signals.
+configuration:
+  machine: agents/bench/machine.yaml
+  tools: agents/bench/tools.yaml
+  tool_declarations:
+  - agents/bench/serve_ui.yaml
+  - tools/builtin.yaml
+invariants:
+- The bench never calls an LLM directly
+- The HTTP server persists across serve_ui invocations (goroutine in BenchState)
+- User actions are the only input source — serve_ui is the human equivalent of invoke_llm
+- The web UI remains accessible during experiment execution for progress monitoring
+- All experiment execution reuses the evaluator session machine pipeline
+lifecycle: |-
+  1. Idle → Serving (Seed): serve_ui starts the HTTP server and blocks
+  2. Serving → Launching (ExperimentRequested): launch_eval spawns evaluator session machine
+  3. Launching → Serving (EvalCompleted/EvalFailed): return to serve_ui
+  4. Serving → Done (Shutdown): clean exit
+
+  The agent loops between Serving and Launching. Each cycle:
+  serve_ui blocks → user acts → state machine routes → tool executes →
+  result feeds back to serve_ui. Same loop as the generator's
+  invoke_llm → parse → tool → invoke_llm cycle.
+pipeline_diagram: |-
+  ```mermaid
+  flowchart TD
+    A[Idle] -->|Seed| B[Serving]
+    B -->|ExperimentRequested| C[Launching]
+    C -->|EvalCompleted| B
+    C -->|EvalFailed| B
+    B -->|Shutdown| D[Done]
+    C -->|CommandError| E[Failed]
+  ```
+initial_state: Idle
 budget:
   max_iterations: 10000
-
 states:
-  - Idle
-  - Serving
-  - Launching
-  - Done
-  - Failed
-
+- name: Idle
+  meaning: Initial state before the web server starts.
+- name: Serving
+  meaning: |
+    The web UI is running and waiting for user input. serve_ui
+    blocks on an action channel until the user triggers an action
+    (launch experiment, shutdown, etc.). This is the main resting
+    state — the agent returns here after each completed action.
+- name: Launching
+  meaning: |
+    An experiment is being executed. launch_eval has spawned
+    the evaluator session machine as a subprocess and is blocking until it completes.
+    The web UI remains accessible for monitoring progress.
+- name: Done
+  meaning: Terminal. The user requested shutdown.
+- name: Failed
+  meaning: Terminal. An infrastructure error occurred during experiment launch.
 terminal_states:
-  - Done
-  - Failed
-
+- Done
+- Failed
 signals:
-  - Seed
-  - ExperimentRequested
-  - Shutdown
-  - EvalCompleted
-  - EvalFailed
-  - CommandError
-
+- name: Seed
+  trigger: Agent startup.
+- name: ExperimentRequested
+  trigger: User clicked Launch in the web UI.
+- name: Shutdown
+  trigger: User requested shutdown or Ctrl+C.
+- name: EvalCompleted
+  trigger: The evaluator session machine subprocess exited successfully.
+- name: EvalFailed
+  trigger: The evaluator session machine subprocess exited with an error.
+- name: CommandError
+  trigger: Infrastructure-level error.
 transitions:
-  # Start: launch the web UI
-  - state: Idle
-    signal: Seed
-    next: Serving
-    action: serve_ui
-
-  # User requested an experiment: launch eval
-  - state: Serving
-    signal: ExperimentRequested
-    next: Launching
-    action: launch_eval
-
-  # User requested shutdown
-  - state: Serving
-    signal: Shutdown
-    next: Done
-
-  - state: Serving
-    signal: CommandError
-    next: Failed
-
-  # Eval completed: return to serving
-  - state: Launching
-    signal: EvalCompleted
-    next: Serving
-    action: serve_ui
-
-  # Eval failed: return to serving (non-fatal)
-  - state: Launching
-    signal: EvalFailed
-    next: Serving
-    action: serve_ui
-
-  # Infrastructure error during launch
-  - state: Launching
-    signal: CommandError
-    next: Failed
+- state: Idle
+  signal: Seed
+  next: Serving
+  action: serve_ui
+- state: Serving
+  signal: ExperimentRequested
+  next: Launching
+  action: launch_eval
+- state: Serving
+  signal: Shutdown
+  next: Done
+- state: Serving
+  signal: CommandError
+  next: Failed
+- state: Launching
+  signal: EvalCompleted
+  next: Serving
+  action: serve_ui
+- state: Launching
+  signal: EvalFailed
+  next: Serving
+  action: serve_ui
+- state: Launching
+  signal: CommandError
+  next: Failed

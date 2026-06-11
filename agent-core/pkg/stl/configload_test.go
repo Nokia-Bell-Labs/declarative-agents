@@ -38,6 +38,40 @@ func sharedToolDecl(t *testing.T, cd, name string) string {
 	return filepath.Join(repoRootFromConfigDir(cd), "tools", name)
 }
 
+func TestAgentMachineSemanticMetadataMerged(t *testing.T) {
+	cd := configDir(t)
+	cases := []string{
+		"generator/machine.yaml",
+		"evaluator/machine.yaml",
+		"evaluator/point.yaml",
+		"planner/machine.yaml",
+		"planner/machine-passthrough.yaml",
+		"planner/machine-plan-only.yaml",
+		"validate/machine.yaml",
+		"bench/machine.yaml",
+	}
+
+	for _, rel := range cases {
+		t.Run(rel, func(t *testing.T) {
+			spec, err := core.LoadMachineSpec(filepath.Join(cd, rel))
+			require.NoError(t, err)
+			require.NotEmpty(t, spec.Purpose, "purpose should be merged into %s", rel)
+			require.NotEmpty(t, spec.Configuration, "configuration should be merged into %s", rel)
+			require.NotEmpty(t, spec.Invariants, "invariants should be merged into %s", rel)
+			require.NotEmpty(t, spec.Lifecycle, "lifecycle should be merged into %s", rel)
+			for _, state := range spec.States {
+				require.NotEmpty(t, state.Name, "state name in %s", rel)
+				require.NotEmpty(t, state.Meaning, "state %s in %s should have meaning", state.Name, rel)
+			}
+			for _, signal := range spec.Signals {
+				require.NotEmpty(t, signal.Name, "signal name in %s", rel)
+				require.NotEmpty(t, signal.Trigger, "signal %s in %s should have trigger", signal.Name, rel)
+			}
+			require.Empty(t, core.DiagnoseMachineSpec(spec), "diagnostics for %s", rel)
+		})
+	}
+}
+
 // loadTestDefs loads shared tool declarations, mode-local overrides,
 // per-agent LLM defaults, and applies the agent's selection file.
 func loadTestDefs(t *testing.T, cd, agent string) []stl.ToolDef {

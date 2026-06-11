@@ -1,123 +1,187 @@
-# Session-level state machine for the evaluator.
-# Drives grid iteration over (harness, model, sample, rep) points.
-# Each point runs the per-point pipeline via a nested core.Loop
-# using agents/evaluator/point.yaml.
-
 name: evaluator-session
-initial_state: Idle
+purpose: |-
+  The evaluator uses a two-level nested state machine architecture.
 
+  The session-level machine (agents/evaluator/machine.yaml) iterates
+  over all combinations of (harness, model, sample, gridpoint, rep)
+  defined in a suite YAML. For each combination it invokes a nested
+  core.Loop that runs the per-point pipeline.
+
+  The point-level machine (agents/evaluator/point.yaml) orchestrates
+  a single evaluation point: it creates a point directory, copies the
+  sample workspace/docs, initializes and commits a git baseline, snapshots
+  the experiment configuration, invokes the generator agent as a subprocess,
+  checks the results, and collects metrics. It is a deterministic
+  pipeline that sequences atomic tools — no LLM calls.
+
+  The former `agent eval` subcommand has been removed. Evaluation is
+  now fully driven by `--machine agents/evaluator/machine.yaml`.
+
+  This file is the evaluator session-level machine.
+configuration:
+  machine: agents/evaluator/machine.yaml
+  point_machine: agents/evaluator/point.yaml
+  session_tools: agents/evaluator/tools.yaml
+  point_tools: agents/evaluator/tools-point.yaml
+  tool_declarations:
+  - tools/builtin.yaml
+  - agents/evaluator/builtin.yaml
+invariants:
+- The evaluator never calls an LLM directly
+- All agent outcomes (success, failure, timeout) proceed to run_oracle_check
+- Oracle failures are domain results and still proceed through trace, version, summary, and metrics collection
+- The workspace is a fresh temporary directory for each evaluation point
+- Metrics are collected even when the agent fails or times out
+- The session machine iterates sequentially through all grid points
+- Session and point machines have separate tool selections
+- run_point builds the nested point registry from agents/evaluator/tools-point.yaml
+lifecycle: |-
+  1. Idle → ParsingSuiteConfig: parse_suite_config
+  2. ParsingSuiteConfig → DiscoveringSuiteSamples: discover_suite_samples
+  3. DiscoveringSuiteSamples → ExpandingEvalGrid: expand_eval_grid
+  4. ExpandingEvalGrid → InitializingEvalSession: init_eval_session
+  5. InitializingEvalSession → ReportingSuiteSummary: report_suite_summary
+  6. ReportingSuiteSummary → AdvancingPoint: next_point
+  7. AdvancingPoint → RunningPoint: run_point  (if PointReady)
+  8. RunningPoint → AdvancingPoint: next_point  (loop back)
+  9. AdvancingPoint → Reporting: report_session  (if AllPointsDone)
+  10. Reporting → Done
+pipeline_diagram: |-
+  ```mermaid
+  stateDiagram-v2
+    [*] --> Idle
+    Idle --> ParsingSuiteConfig: Seed / parse_suite_config
+    ParsingSuiteConfig --> DiscoveringSuiteSamples: SuiteConfigParsed / discover_suite_samples
+    DiscoveringSuiteSamples --> ExpandingEvalGrid: SuiteSamplesDiscovered / expand_eval_grid
+    ExpandingEvalGrid --> InitializingEvalSession: EvalGridExpanded / init_eval_session
+    InitializingEvalSession --> ReportingSuiteSummary: EvalSessionInitialized / report_suite_summary
+    ReportingSuiteSummary --> AdvancingPoint: SuiteLoaded / next_point
+    AdvancingPoint --> RunningPoint: PointReady / run_point
+    RunningPoint --> AdvancingPoint: PointDone / next_point
+    AdvancingPoint --> Reporting: AllPointsDone / report_session
+    Reporting --> Done: SessionReported
+    ParsingSuiteConfig --> Failed: CommandError
+    DiscoveringSuiteSamples --> Failed: CommandError
+    ExpandingEvalGrid --> Failed: CommandError
+    InitializingEvalSession --> Failed: CommandError
+    ReportingSuiteSummary --> Failed: CommandError
+    AdvancingPoint --> Failed: CommandError
+    RunningPoint --> Failed: CommandError
+    Reporting --> Failed: CommandError
+  ```
+initial_state: Idle
 budget:
   max_iterations: 10000
-
 states:
-  - Idle
-  - ParsingSuiteConfig
-  - DiscoveringSuiteSamples
-  - ExpandingEvalGrid
-  - InitializingEvalSession
-  - ReportingSuiteSummary
-  - AdvancingPoint
-  - RunningPoint
-  - Reporting
-  - Done
-  - Failed
-
+- name: Idle
+  meaning: Initial state before the suite is loaded.
+- name: ParsingSuiteConfig
+  meaning: Reading and validating suite YAML metadata.
+- name: DiscoveringSuiteSamples
+  meaning: Discovering samples from the resolved suite samples directory.
+- name: ExpandingEvalGrid
+  meaning: Expanding suite grid parameters into concrete grid points.
+- name: InitializingEvalSession
+  meaning: Creating the session output directory and resolving runtime defaults.
+- name: ReportingSuiteSummary
+  meaning: Reporting suite point counts before iteration begins.
+- name: AdvancingPoint
+  meaning: Advancing the iterator to the next (harness, model, sample, gridpoint, rep).
+- name: RunningPoint
+  meaning: Executing the per-point pipeline via a nested core.Loop.
+- name: Reporting
+  meaning: Printing session summary (pass/fail/timeout counts, total duration).
+- name: Done
+  meaning: Terminal. All points evaluated and reported.
+- name: Failed
+  meaning: Terminal. Infrastructure error prevented evaluation.
 terminal_states:
-  - Done
-  - Failed
-
+- Done
+- Failed
 signals:
-  - Seed
-  - CommandError
-  - SuiteConfigParsed
-  - SuiteSamplesDiscovered
-  - EvalGridExpanded
-  - EvalSessionInitialized
-  - SuiteLoaded
-  - PointReady
-  - PointDone
-  - AllPointsDone
-  - SessionReported
-
+- name: Seed
+  trigger: Loop initialization.
+- name: CommandError
+  trigger: Infrastructure-level error.
+- name: SuiteConfigParsed
+  trigger: Suite YAML metadata parsed and validated.
+- name: SuiteSamplesDiscovered
+  trigger: Suite samples discovered.
+- name: EvalGridExpanded
+  trigger: Suite grid expanded into concrete grid points.
+- name: EvalSessionInitialized
+  trigger: Session output directory and runtime defaults initialized.
+- name: SuiteLoaded
+  trigger: Suite setup summary reported.
+- name: PointReady
+  trigger: Iterator advanced to a new grid point.
+- name: PointDone
+  trigger: Per-point pipeline completed (any outcome).
+- name: AllPointsDone
+  trigger: Grid iterator exhausted.
+- name: SessionReported
+  trigger: Summary printed.
 transitions:
-  - state: Idle
-    signal: Seed
-    next: ParsingSuiteConfig
-    action: parse_suite_config
-
-  - state: ParsingSuiteConfig
-    signal: SuiteConfigParsed
-    next: DiscoveringSuiteSamples
-    action: discover_suite_samples
-
-  - state: DiscoveringSuiteSamples
-    signal: SuiteSamplesDiscovered
-    next: ExpandingEvalGrid
-    action: expand_eval_grid
-
-  - state: ExpandingEvalGrid
-    signal: EvalGridExpanded
-    next: InitializingEvalSession
-    action: init_eval_session
-
-  - state: InitializingEvalSession
-    signal: EvalSessionInitialized
-    next: ReportingSuiteSummary
-    action: report_suite_summary
-
-  - state: ReportingSuiteSummary
-    signal: SuiteLoaded
-    next: AdvancingPoint
-    action: next_point
-
-  - state: AdvancingPoint
-    signal: PointReady
-    next: RunningPoint
-    action: run_point
-
-  - state: RunningPoint
-    signal: PointDone
-    next: AdvancingPoint
-    action: next_point
-
-  - state: AdvancingPoint
-    signal: AllPointsDone
-    next: Reporting
-    action: report_session
-
-  - state: Reporting
-    signal: SessionReported
-    next: Done
-
-  # --- error handling ---
-  - state: ParsingSuiteConfig
-    signal: CommandError
-    next: Failed
-
-  - state: DiscoveringSuiteSamples
-    signal: CommandError
-    next: Failed
-
-  - state: ExpandingEvalGrid
-    signal: CommandError
-    next: Failed
-
-  - state: InitializingEvalSession
-    signal: CommandError
-    next: Failed
-
-  - state: ReportingSuiteSummary
-    signal: CommandError
-    next: Failed
-
-  - state: AdvancingPoint
-    signal: CommandError
-    next: Failed
-
-  - state: RunningPoint
-    signal: CommandError
-    next: Failed
-
-  - state: Reporting
-    signal: CommandError
-    next: Failed
+- state: Idle
+  signal: Seed
+  next: ParsingSuiteConfig
+  action: parse_suite_config
+- state: ParsingSuiteConfig
+  signal: SuiteConfigParsed
+  next: DiscoveringSuiteSamples
+  action: discover_suite_samples
+- state: DiscoveringSuiteSamples
+  signal: SuiteSamplesDiscovered
+  next: ExpandingEvalGrid
+  action: expand_eval_grid
+- state: ExpandingEvalGrid
+  signal: EvalGridExpanded
+  next: InitializingEvalSession
+  action: init_eval_session
+- state: InitializingEvalSession
+  signal: EvalSessionInitialized
+  next: ReportingSuiteSummary
+  action: report_suite_summary
+- state: ReportingSuiteSummary
+  signal: SuiteLoaded
+  next: AdvancingPoint
+  action: next_point
+- state: AdvancingPoint
+  signal: PointReady
+  next: RunningPoint
+  action: run_point
+- state: RunningPoint
+  signal: PointDone
+  next: AdvancingPoint
+  action: next_point
+- state: AdvancingPoint
+  signal: AllPointsDone
+  next: Reporting
+  action: report_session
+- state: Reporting
+  signal: SessionReported
+  next: Done
+- state: ParsingSuiteConfig
+  signal: CommandError
+  next: Failed
+- state: DiscoveringSuiteSamples
+  signal: CommandError
+  next: Failed
+- state: ExpandingEvalGrid
+  signal: CommandError
+  next: Failed
+- state: InitializingEvalSession
+  signal: CommandError
+  next: Failed
+- state: ReportingSuiteSummary
+  signal: CommandError
+  next: Failed
+- state: AdvancingPoint
+  signal: CommandError
+  next: Failed
+- state: RunningPoint
+  signal: CommandError
+  next: Failed
+- state: Reporting
+  signal: CommandError
+  next: Failed
