@@ -87,16 +87,19 @@ startup_sequence:
   - step: 5
     name: Run the loop
     description: |
-      core.Loop loads the machine spec from --machine via initFromMachine,
-      then builds the transition table mapping (state, signal) pairs to
-      (next_state, Builder). Named actions are resolved from the registry;
-      $tool resolves to a dynamic dispatch function. The loop then enters
-      the initial state with a Seed signal and executes the run-to-completion
-      finite state machine. Each transition fires its action's
+      cmd/agent passes the already-loaded MachineSpec to core.Loop, and
+      core.Loop builds the transition table mapping (state, signal) pairs
+      to (next_state, Builder). Named actions are resolved from the registry;
+      $tool resolves to a dynamic dispatch function. Path-only callers may
+      still set MachineFile and let Loop load the spec itself, but the agent
+      binary's startup path owns the single read used for budget defaults,
+      emits validation, parse-error policy, and transition-table building.
+      The loop then enters the initial state with a Seed signal and executes
+      the run-to-completion finite state machine. Each transition fires its action's
       Builder.Build(result).Execute(), producing a new Result with a Signal
       that drives the next transition. The loop terminates when a terminal
       state is reached or a budget limit is exceeded.
-    implementation: core.Loop, core.LoadMachineSpec, core.BuildTransitionTable
+    implementation: core.Loop, core.LoopParams.MachineSpec, core.BuildTransitionTable
 
 tool_parametrization: |
   Tool behavior is configured through the "config" block in tool

@@ -307,6 +307,7 @@ func run(cmd *cobra.Command, args []string) error {
 	// Run the loop
 	params := core.LoopParams{
 		MachineFile:  flagMachine,
+		MachineSpec:  &machineSpec,
 		AgentName:    "agent",
 		ModelName:    llmCfg.Model,
 		ProviderName: "ollama",

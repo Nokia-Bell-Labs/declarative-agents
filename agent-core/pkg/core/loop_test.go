@@ -449,6 +449,45 @@ transitions:
 	require.Contains(t, err.Error(), "nonexistent")
 }
 
+func TestLoop_DeclarativeInit_UsesPreloadedMachineSpec(t *testing.T) {
+	t.Parallel()
+
+	spec := MachineSpec{
+		Name:           "test",
+		InitialState:   "S",
+		States:         []string{"S", "F"},
+		TerminalStates: []string{"F"},
+		Signals:        []string{"Seed", "Done"},
+		Transitions: []TransitionSpec{
+			{State: "S", Signal: "Seed", Next: "F", Action: "step"},
+		},
+	}
+	params := LoopParams{
+		Prompt:      "test",
+		MachineFile: "/definitely/not/read/machine.yaml",
+		MachineSpec: &spec,
+		Trace:       &loopRecorder{},
+		Budget:      Budget{MaxIterations: 10},
+		InitFunc: func(reg *Registry) error {
+			reg.Register(ToolSpec{Name: "step", Visibility: Internal}, &fakeBuilder{name: "step", signal: Signal("Done")})
+			return nil
+		},
+		Hooks: LoopHooks{
+			TerminalStatus: func(s State) RunStatus {
+				if s == "F" {
+					return StatusSucceeded
+				}
+				return StatusFailed
+			},
+		},
+	}
+
+	rr, err := Loop(params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, State("F"), rr.FinalState)
+	require.Equal(t, StatusSucceeded, rr.Status)
+}
+
 func TestLoop_DeclarativeInit_InitFuncError(t *testing.T) {
 	t.Parallel()
 

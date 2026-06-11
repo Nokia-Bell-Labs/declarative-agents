@@ -45,8 +45,9 @@ requirements:
   R4:
     title: LoopParams
     items:
-      - R4.1: "LoopParams bundles: InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, CommandTimeout, ModelName, Directory, Hooks, AgentName, AgentVersion, ProviderName."
+      - R4.1: "LoopParams bundles: InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, CommandTimeout, ModelName, Directory, Hooks, AgentName, AgentVersion, ProviderName, MachineFile, MachineSpec, InitFunc, and ToolAction."
       - R4.2: AgentName, AgentVersion, and ProviderName supply agent identity for OTel GenAI semantic conventions.
+      - R4.3: Declarative initialization SHALL accept either MachineFile for path-based loading or MachineSpec for an already-loaded machine, using MachineSpec without rereading MachineFile when both are provided.
 
   R5:
     title: Loop function
@@ -88,8 +89,8 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
 
   - id: AC4
-    criterion: LoopParams bundles all inputs for Loop including AgentName, AgentVersion, and ProviderName for GenAI semconv.
-    traces: [R4.1, R4.2]
+    criterion: LoopParams bundles all inputs for Loop including AgentName, AgentVersion, and ProviderName for GenAI semconv, and supports path-based or preloaded declarative machine initialization.
+    traces: [R4.1, R4.2, R4.3]
 
   - id: AC5
     criterion: Loop drives state machine from InitialState to terminal, checking budget and context, dispatching commands, accumulating cost, recording events, and emitting OTel spans.

@@ -36,27 +36,27 @@ type Budget struct {
 
 // RunEvent records one command dispatch.
 type RunEvent struct {
-	Iteration   int           `json:"iteration"`
-	Timestamp   time.Time     `json:"timestamp"`
-	CommandName string        `json:"command_name"`
-	Signal      Signal        `json:"signal"`
-	Cost        Cost          `json:"cost"`
-	FromState   State         `json:"from_state"`
-	ToState     State         `json:"to_state"`
+	Iteration   int       `json:"iteration"`
+	Timestamp   time.Time `json:"timestamp"`
+	CommandName string    `json:"command_name"`
+	Signal      Signal    `json:"signal"`
+	Cost        Cost      `json:"cost"`
+	FromState   State     `json:"from_state"`
+	ToState     State     `json:"to_state"`
 }
 
 // RunResult carries the outcome of a complete run.
 type RunResult struct {
-	Status        RunStatus     `json:"status"`
-	Iterations    int           `json:"iterations"`
-	TokensIn      int           `json:"tokens_in"`
-	TokensOut     int           `json:"tokens_out"`
-	Duration      time.Duration `json:"-"`
-	TotalCost     float64       `json:"total_cost"`
-	FinalState    State         `json:"final_state"`
-	LastError     error         `json:"-"`
-	Summary       string        `json:"summary"`
-	Events        []RunEvent    `json:"events"`
+	Status     RunStatus     `json:"status"`
+	Iterations int           `json:"iterations"`
+	TokensIn   int           `json:"tokens_in"`
+	TokensOut  int           `json:"tokens_out"`
+	Duration   time.Duration `json:"-"`
+	TotalCost  float64       `json:"total_cost"`
+	FinalState State         `json:"final_state"`
+	LastError  error         `json:"-"`
+	Summary    string        `json:"summary"`
+	Events     []RunEvent    `json:"events"`
 }
 
 // MarshalJSON implements custom JSON serialization for RunResult.
@@ -120,11 +120,12 @@ type LoopHooks struct {
 //
 // Manual mode (existing): caller sets Registry, Table, IsTerminal.
 //
-// Declarative mode (new): caller sets MachineFile (and optionally
-// InitFunc to register tools). Loop loads the machine, validates
-// actions against the registry, and builds the transition table.
+// Declarative mode (new): caller sets MachineFile or MachineSpec (and
+// optionally InitFunc to register tools). Loop loads or reuses the
+// machine, validates actions against the registry, and builds the
+// transition table.
 //
-// When MachineFile is set, Table and IsTerminal are ignored and
+// When MachineFile or MachineSpec is set, Table and IsTerminal are ignored and
 // built internally. InitialState is derived from the machine spec.
 type LoopParams struct {
 	InitialState   State
@@ -140,15 +141,18 @@ type LoopParams struct {
 	Hooks          LoopHooks
 
 	// Agent identity for OTel GenAI semantic conventions.
-	AgentName     string // e.g. "generator", "planner"
-	AgentVersion  string // e.g. "v0.20260605.0"
-	ProviderName  string // e.g. "ollama"
+	AgentName    string // e.g. "generator", "planner"
+	AgentVersion string // e.g. "v0.20260605.0"
+	ProviderName string // e.g. "ollama"
 
 	// Declarative initialization: Loop loads the machine from YAML,
 	// validates that every action resolves to a registered tool, and
 	// builds the transition table. Requires Registry to be populated
 	// (either by the caller or via InitFunc).
 	MachineFile string
+	// MachineSpec optionally provides an already-loaded and validated machine
+	// spec. When set, Loop uses it instead of reading MachineFile.
+	MachineSpec *MachineSpec
 
 	// InitFunc is called before the machine is loaded. Use it to
 	// register tools with the registry (e.g. load from YAML, register
@@ -165,10 +169,10 @@ type LoopParams struct {
 // from InitialState to a terminal state, dispatching Commands through
 // Dispatch, tracking budget, and collecting events.
 //
-// When MachineFile is set, Loop owns initialization:
+// When MachineFile or MachineSpec is set, Loop owns initialization:
 //  1. Create registry if nil
 //  2. Call InitFunc to register tools
-//  3. Load machine YAML
+//  3. Load machine YAML, unless MachineSpec was provided
 //  4. BuildTransitionTable (validates all actions resolve)
 //  5. Freeze registry and enter the loop
 func Loop(params LoopParams, ctx context.Context) (RunResult, error) {
@@ -414,11 +418,12 @@ func emitIterationSpan(tr tracing.Tracer, iter int, res Result, from, to State) 
 	)
 }
 
-// initFromMachine handles declarative initialization when MachineFile is set.
-// It creates the registry, calls InitFunc, loads the machine, validates
-// actions, and populates Table/IsTerminal/InitialState on params.
+// initFromMachine handles declarative initialization when MachineFile or
+// MachineSpec is set. It creates the registry, calls InitFunc, loads or reuses
+// the machine, validates actions, and populates Table/IsTerminal/InitialState
+// on params.
 func initFromMachine(params *LoopParams) error {
-	if params.MachineFile == "" {
+	if params.MachineFile == "" && params.MachineSpec == nil {
 		return nil
 	}
 
@@ -432,9 +437,15 @@ func initFromMachine(params *LoopParams) error {
 		}
 	}
 
-	spec, err := LoadMachineSpec(params.MachineFile)
-	if err != nil {
-		return err
+	var spec MachineSpec
+	if params.MachineSpec != nil {
+		spec = *params.MachineSpec
+	} else {
+		loaded, err := LoadMachineSpec(params.MachineFile)
+		if err != nil {
+			return err
+		}
+		spec = loaded
 	}
 
 	table, isTerminal, err := BuildTransitionTable(spec, params.Registry, params.ToolAction)
