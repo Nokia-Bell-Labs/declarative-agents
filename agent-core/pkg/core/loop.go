@@ -26,12 +26,12 @@ const (
 )
 
 // Budget controls iteration, token, and wall-clock limits for a run.
-// Domain agents extend budget checking via LoopHooks.BudgetExceeded.
+// Domain agents extend budget checking via LoopHooks.BudgetExceeded
+// and LoopHooks.AfterDispatch for domain-specific policies.
 type Budget struct {
-	MaxIterations            int
-	MaxTokens                int
-	MaxDuration              time.Duration
-	MaxConsecutiveParseErrors int
+	MaxIterations int
+	MaxTokens     int
+	MaxDuration   time.Duration
 }
 
 // RunEvent records one command dispatch.
@@ -102,6 +102,12 @@ type LoopHooks struct {
 	// The domain can update its own tracking (e.g., failure counters).
 	// The returned RunResult replaces the current accumulator.
 	OnResult func(rr RunResult, res Result) RunResult
+
+	// AfterDispatch is called after each command dispatch with the
+	// command and result. It may return a replacement signal (e.g. to
+	// enforce domain-specific budget policies like consecutive parse
+	// error limits). Return an empty signal to keep the original.
+	AfterDispatch func(cmd Command, res Result) Signal
 
 	// TaskCompletedSignal is the signal that indicates the task is done
 	// and the summary should be captured. Defaults to "TaskCompleted".
@@ -238,7 +244,6 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 
 	var rr RunResult
 	var iteration int
-	var consecutiveParseErrors int
 
 	for {
 		if ctx.Err() != nil {
@@ -304,18 +309,10 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 		res = Dispatch(cmd, tr, p.CommandTimeout)
 		sig = res.Signal
 
-		if sig == ParseFailed {
-			consecutiveParseErrors++
-		} else if sig != ToolDone || (cmd.Name() != "report_parse_error" && cmd.Name() != "invoke_llm") {
-			consecutiveParseErrors = 0
-		}
-
-		if p.Budget.MaxConsecutiveParseErrors > 0 && consecutiveParseErrors >= p.Budget.MaxConsecutiveParseErrors {
-			tr.Event("budget_exhausted.parse_errors",
-				attribute.Int("consecutive_parse_errors", consecutiveParseErrors),
-				attribute.Int("max_consecutive_parse_errors", p.Budget.MaxConsecutiveParseErrors),
-			)
-			sig = BudgetExhausted
+		if p.Hooks.AfterDispatch != nil {
+			if override := p.Hooks.AfterDispatch(cmd, res); override != "" {
+				sig = override
+			}
 		}
 
 		accumulateCost(&rr, res)

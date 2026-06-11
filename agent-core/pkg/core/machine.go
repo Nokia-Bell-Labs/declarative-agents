@@ -43,9 +43,6 @@ func (bs *BudgetSpec) ToBudget(defaults Budget) Budget {
 	if bs.MaxTokens > 0 {
 		b.MaxTokens = bs.MaxTokens
 	}
-	if bs.MaxConsecutiveParseErrors > 0 {
-		b.MaxConsecutiveParseErrors = bs.MaxConsecutiveParseErrors
-	}
 	if bs.MaxDuration != "" {
 		if d, err := time.ParseDuration(bs.MaxDuration); err == nil {
 			b.MaxDuration = d

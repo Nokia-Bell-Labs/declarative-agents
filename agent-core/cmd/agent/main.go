@@ -282,8 +282,7 @@ func run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	budgetDefaults := core.Budget{
-		MaxIterations:             100,
-		MaxConsecutiveParseErrors: 5,
+		MaxIterations: 100,
 	}
 	budget := machineSpec.BudgetSpec.ToBudget(budgetDefaults)
 	if llmCfg.MaxTime > 0 {
@@ -291,6 +290,11 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	if llmCfg.MaxTokens > 0 {
 		budget.MaxTokens = llmCfg.MaxTokens
+	}
+
+	maxParseErrors := 5
+	if machineSpec.BudgetSpec != nil && machineSpec.BudgetSpec.MaxConsecutiveParseErrors > 0 {
+		maxParseErrors = machineSpec.BudgetSpec.MaxConsecutiveParseErrors
 	}
 
 	// Run the loop
@@ -304,6 +308,9 @@ func run(cmd *cobra.Command, args []string) error {
 		ToolAction:   toolAction,
 		Registry:     reg,
 		Directory:    flagDirectory,
+		Hooks: core.LoopHooks{
+			AfterDispatch: stl.ParseErrorPolicy(maxParseErrors),
+		},
 	}
 
 	result, err := core.Loop(params, context.Background())
