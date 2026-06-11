@@ -39,6 +39,13 @@ const (
 	TaskCompleted Signal = "TaskCompleted"
 )
 
+// Lifecycle signals used by suspend/resume approval gates.
+const (
+	AwaitApproval Signal = "AwaitApproval"
+	Approved      Signal = "Approved"
+	Rejected      Signal = "Rejected"
+)
+
 // Validation signals used by the STL validate orchestrator.
 const (
 	ValidationPassed Signal = "ValidationPassed"

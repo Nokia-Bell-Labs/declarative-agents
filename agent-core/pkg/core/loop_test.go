@@ -269,6 +269,57 @@ func TestLoop_HistoryBudgetAndCancelBehavior(t *testing.T) {
 	})
 }
 
+func TestLoop_SuspendSignalPersistsCheckpointAndStopsCleanly(t *testing.T) {
+	t.Parallel()
+	store := &memoryStateStore{}
+	params := suspendLoopParams(&loopRecorder{}, &fakeBuilder{name: "suspend", signal: AwaitApproval})
+	params.StateStore = store
+	params.Workspace = refWorkspace{ref: "workspace-ref"}
+	params.CheckpointPolicy = alwaysCheckpointPolicy{}
+
+	rr, err := Loop(params, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusSuspended, rr.Status)
+	require.Equal(t, State("AwaitingApproval"), rr.FinalState)
+	keys, err := store.List(context.Background(), "checkpoint/")
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	data, err := store.Load(context.Background(), keys[0])
+	require.NoError(t, err)
+	var cp Checkpoint
+	require.NoError(t, json.Unmarshal(data, &cp))
+	require.Equal(t, State("AwaitingApproval"), cp.AgentState.State)
+	require.Equal(t, AwaitApproval, cp.AgentState.Signal)
+	require.Equal(t, 1, cp.AgentState.Iteration)
+	require.Equal(t, "workspace-ref", cp.WorkspaceRef)
+	require.Len(t, cp.History, 1)
+}
+
+func TestLoop_SuspendWithoutStateStoreIsExplicitNoop(t *testing.T) {
+	t.Parallel()
+	params := suspendLoopParams(&loopRecorder{}, &fakeBuilder{name: "suspend", signal: AwaitApproval})
+
+	rr, err := Loop(params, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusSuspended, rr.Status)
+	require.Equal(t, State("AwaitingApproval"), rr.FinalState)
+	require.NoError(t, rr.LastError)
+}
+
+func TestLoop_SuspendCommandErrorFailsWhenToolRequiresStateStore(t *testing.T) {
+	t.Parallel()
+	params := suspendLoopParams(&loopRecorder{}, &staticBuilder{cmd: &errorCmd{name: "suspend", err: fmt.Errorf("suspend requires StateStore")}})
+
+	rr, err := Loop(params, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusFailed, rr.Status)
+	require.Equal(t, State("Failed"), rr.FinalState)
+	require.ErrorContains(t, rr.LastError, "suspend requires StateStore")
+}
+
 func TestRunResultJSONOmitsHistoryWhenDisabled(t *testing.T) {
 	t.Parallel()
 	params := simpleLoopParams(&loopRecorder{})
@@ -559,6 +610,43 @@ transitions:
 	require.Equal(t, 2, rr.Iterations)
 }
 
+func TestLoop_DeclarativeSuspendAction(t *testing.T) {
+	t.Parallel()
+
+	machineYAML := `
+name: suspend-machine
+initial_state: Start
+states: [Start, AwaitingApproval, Failed]
+terminal_states: [Failed]
+signals: [Seed, AwaitApproval]
+transitions:
+  - state: Start
+    signal: Seed
+    next: AwaitingApproval
+    action: suspend
+`
+	dir := t.TempDir()
+	machineFile := dir + "/machine.yaml"
+	require.NoError(t, os.WriteFile(machineFile, []byte(machineYAML), 0o644))
+
+	params := LoopParams{
+		Prompt:      "test",
+		MachineFile: machineFile,
+		Trace:       &loopRecorder{},
+		Budget:      Budget{MaxIterations: 10},
+		InitFunc: func(reg *Registry) error {
+			reg.Register(ToolSpec{Name: "suspend", Visibility: Internal}, &fakeBuilder{name: "suspend", signal: AwaitApproval})
+			return nil
+		},
+	}
+
+	rr, err := Loop(params, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusSuspended, rr.Status)
+	require.Equal(t, State("AwaitingApproval"), rr.FinalState)
+}
+
 func TestLoop_DeclarativeInit_MissingTool(t *testing.T) {
 	t.Parallel()
 
@@ -687,6 +775,28 @@ type staticBuilder struct {
 }
 
 func (s *staticBuilder) Build(_ Result) Command { return s.cmd }
+
+func suspendLoopParams(tr tracing.Tracer, builder Builder) LoopParams {
+	reg := NewRegistry()
+	reg.Register(ToolSpec{Name: "suspend", Visibility: Internal}, builder)
+	b, _ := reg.Resolve("suspend")
+	return LoopParams{
+		InitialState: "Start",
+		Registry:     reg,
+		Table: TransitionTable{
+			{State: "Start", Signal: Seed}: {
+				NextState: "AwaitingApproval",
+				Action:    func(r Result) Command { return b.Build(r) },
+			},
+			{State: "AwaitingApproval", Signal: CommandError}: {
+				NextState: "Failed",
+			},
+		},
+		IsTerminal: func(s State) bool { return s == "Failed" },
+		Trace:      tr,
+		Budget:     Budget{MaxIterations: 10},
+	}
+}
 
 type errorCmd struct {
 	name string

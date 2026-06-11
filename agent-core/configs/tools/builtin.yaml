@@ -258,6 +258,17 @@ tools:
     emits: [TaskCompleted]
     description: "Signal that the generation task is complete."
 
+  - name: suspend
+    type: builtin
+    init: suspend
+    visibility: internal
+    emits: [AwaitApproval, CommandError]
+    description: "Suspend the run at an approval gate. The loop persists a checkpoint when StateStore is configured."
+    config:
+      label: approval
+      reason: "awaiting approval"
+      require_checkpoint: false
+
   # --- pipeline/planner tools ---
   - name: extract_task
     type: builtin

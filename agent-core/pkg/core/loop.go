@@ -23,6 +23,7 @@ const (
 	StatusFailed         RunStatus = "failed"
 	StatusBudgetExceeded RunStatus = "budget_exceeded"
 	StatusCancelled      RunStatus = "cancelled"
+	StatusSuspended      RunStatus = "suspended"
 )
 
 // Budget controls iteration, token, and wall-clock limits for a run.
@@ -361,6 +362,22 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 		}
 
 		emitIterationSpan(tr, iteration, res, fromState, state)
+
+		if sig == AwaitApproval {
+			if err := persistSuspendCheckpoint(ctx, p, tr, &rr, state, sig, iteration); err != nil {
+				rr.Status = StatusFailed
+				rr.FinalState = state
+				rr.LastError = err
+				break
+			}
+			tr.Event("run.suspended",
+				attribute.String("state", string(state)),
+				attribute.Int("iteration", iteration),
+			)
+			rr.Status = StatusSuspended
+			rr.FinalState = state
+			break
+		}
 	}
 
 	rr.Iterations = iteration
@@ -414,6 +431,8 @@ func mapRunStatusToFinishReason(s RunStatus) string {
 		return "length"
 	case StatusCancelled:
 		return "cancelled"
+	case StatusSuspended:
+		return "stop"
 	default:
 		return "error"
 	}
@@ -467,6 +486,76 @@ func digestResult(res Result) ResultDigest {
 	}
 	if res.Err != nil {
 		digest.Error = res.Err.Error()
+	}
+	return digest
+}
+
+func persistSuspendCheckpoint(ctx context.Context, p LoopParams, tr tracing.Tracer, rr *RunResult, state State, sig Signal, iteration int) error {
+	if p.StateStore == nil {
+		tr.Event("suspend.checkpoint_skipped",
+			attribute.String("reason", "state_store_not_configured"),
+			attribute.Int("iteration", iteration),
+		)
+		return nil
+	}
+	workspaceRef := latestWorkspaceRef(rr.History)
+	if workspaceRef == "" && p.Workspace != nil {
+		workspaceRef = captureWorkspaceRef(p, tr, ctx, iteration, "suspend")
+	}
+	cp := Checkpoint{
+		ID:        fmt.Sprintf("suspend-%d-%d", iteration, time.Now().UTC().UnixNano()),
+		Iteration: iteration,
+		Timestamp: time.Now().UTC(),
+		AgentState: AgentSnapshot{
+			State:     state,
+			Signal:    sig,
+			Iteration: iteration,
+			TokensIn:  rr.TokensIn,
+			TokensOut: rr.TokensOut,
+			TotalCost: rr.TotalCost,
+		},
+		WorkspaceRef: workspaceRef,
+		History:      historyDigest(rr.History),
+	}
+	data, err := json.Marshal(cp)
+	if err != nil {
+		return fmt.Errorf("suspend checkpoint marshal: %w", err)
+	}
+	key := "checkpoint/" + cp.ID
+	if err := p.StateStore.Save(ctx, key, data); err != nil {
+		return fmt.Errorf("suspend checkpoint save %s: %w", key, err)
+	}
+	tr.Event("suspend.checkpoint_saved",
+		attribute.String("checkpoint_id", cp.ID),
+		attribute.String("checkpoint_key", key),
+		attribute.Int("iteration", iteration),
+	)
+	return nil
+}
+
+func latestWorkspaceRef(history History) string {
+	for i := len(history) - 1; i >= 0; i-- {
+		if history[i].WorkspaceRef != "" {
+			return history[i].WorkspaceRef
+		}
+	}
+	return ""
+}
+
+func historyDigest(history History) []HistoryDigest {
+	if len(history) == 0 {
+		return nil
+	}
+	digest := make([]HistoryDigest, 0, len(history))
+	for _, entry := range history {
+		digest = append(digest, HistoryDigest{
+			Iteration:    entry.Iteration,
+			CommandName:  entry.CommandName,
+			FromState:    entry.FromState,
+			ToState:      entry.ToState,
+			Signal:       entry.Result.Signal,
+			WorkspaceRef: entry.WorkspaceRef,
+		})
 	}
 	return digest
 }

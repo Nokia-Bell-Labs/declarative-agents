@@ -566,6 +566,11 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected 
 			return stl.DoneBuilder{}, nil
 		})
 	}
+	if selected["suspend"] {
+		stl.RegisterLifecycleFactories(br, stl.LifecycleFactoryDeps{
+			Tracer: st.tracer,
+		})
+	}
 	if selected["validate"] {
 		br.Register("validate", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 			return &stl.ValidateBuilder{
