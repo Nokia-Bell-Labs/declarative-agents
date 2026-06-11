@@ -223,6 +223,82 @@ acceptance_tests_for_authors:
   - "Can similar tools be distinguished from the relationships.overlaps entries?"
 
 examples:
+  readonly_noop_word:
+    name: read
+    category: word
+    problem: "The machine needs a deterministic word that returns file contents without changing agent, command, or workspace state."
+    emits: [ToolDone, CommandError]
+    side_effects:
+      - kind: none
+        description: "Read-only filesystem access; no state changes beyond Result.Output."
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: "There is no effect to reverse because the word only observes state."
+    why_good:
+      - "The verb is singular and deterministic."
+      - "No-op undo is justified by an explicit side_effects: none contract."
+
+  reversible_state_word:
+    name: report_parse_error
+    category: stateful_internal
+    problem: "The generator grammar needs a word that turns parse errors into feedback and tracks consecutive retry count."
+    emits: [ToolDone, BudgetExhausted]
+    side_effects:
+      - kind: command_state
+        target: parse_retry_counter
+        description: "Increments the retry counter and may emit BudgetExhausted at the configured limit."
+    reversibility:
+      classification: reversible
+      undo: parse_retry_counter_restore
+    undo:
+      strategy: parse_retry_counter_restore
+      description: "Restore the retry counter snapshot captured before the word executed."
+    why_good:
+      - "The retry policy is grammar-visible through ParseFailed -> report_parse_error."
+      - "The command-owned state mutation has a concrete undo strategy."
+
+  compensatable_boundary:
+    name: create_issue
+    category: boundary
+    problem: "The planner needs a word that materializes an accepted plan into an issue tracker item."
+    emits: [Materialized, MaterializeFailed, CommandError]
+    side_effects:
+      - kind: external_service_write
+        target: issue_tracker
+        description: "Creates an issue outside the agent workspace."
+    reversibility:
+      classification: compensatable
+      undo: close_or_mark_superseded
+    undo:
+      strategy: compensating_action
+      description: "Close the created issue or mark it superseded; external audit history cannot be erased."
+    why_good:
+      - "The boundary and external side effect are named directly."
+      - "The contract does not pretend the external write is perfectly reversible."
+
+  irreversible_confirmation:
+    name: publish_release
+    category: boundary
+    problem: "A release machine may need a word that publishes an immutable artifact to external users."
+    emits: [Published, PublishFailed, CommandError]
+    side_effects:
+      - kind: external_service_write
+        target: release_registry
+        description: "Publishes an artifact that downstream users may consume immediately."
+    reversibility:
+      classification: irreversible
+      requires_confirmation: true
+      undo: none
+    undo:
+      strategy: none
+      description: "The artifact may be deprecated later, but publication cannot be undone safely."
+    why_good:
+      - "The irreversible effect is explicit before the tool is selected."
+      - "Human or policy confirmation is required before affecting external users."
+
   good_word:
     name: collect_trace_tokens
     category: word
@@ -268,6 +344,9 @@ examples:
       - init_workspace_repo
       - stage_workspace_baseline
       - commit_workspace_baseline
+    why_replacement_is_better:
+      - "Each intermediate filesystem or git side effect has its own emitted signal."
+      - "Rollback can restore or compensate the exact word that failed."
 
 migration_guidance:
   - "When a legacy tool is a sentence, first classify it honestly as sentence or deprecated boundary."
@@ -280,12 +359,15 @@ related_documents:
   - cfg-tool-declaration-format
   - cfg-tool-selection-format
   - cfg-machine-format
+  - lifecycle-rollback.md
+  - tools-as-dsl.md
   - srd001-core-types
   - srd005-agentic-loop
   - srd021-agent-cli-exec-tool
   - srd022-builtin-tools
   - srd023-cli-exec-tools
   - srd024-blocking-input-tools
+  - srd025-rollback-lifecycle
 
 implementation:
   - tools/builtin.yaml
