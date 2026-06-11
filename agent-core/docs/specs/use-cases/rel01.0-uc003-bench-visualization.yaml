@@ -14,15 +14,17 @@ trigger: |
   The developer runs:
     agent --machine configs/bench/machine.yaml \
           --tools configs/bench/tools.yaml \
-          --tools-declaration configs/tools/builtin.yaml \
-          --data ../experiments --configs configs --docs docs \
-          --source . --addr :8080
+          --tools-declaration configs/tools/builtin.yaml
+
+  The serve_ui tool reads data_dir, configs_dir, docs_dir, source_dir,
+  and addr from its config block in builtin.yaml (or an additional
+  --tools-declaration file that overrides those values).
 
 flow:
   - F1: The agent parses CLI flags and loads tool declarations including bench tools from configs/tools/builtin.yaml (srd018).
   - F2: The bench state machine is loaded from configs/bench/machine.yaml (srd006).
   - F3: BenchState is initialized with ServerConfig (data dir, configs dir, docs dir, source dir, UI assets) (srd020).
-  - F4: serve_ui and launch_eval builtin factories are registered. CLI flag values take precedence over YAML config defaults (srd013).
+  - F4: serve_ui and launch_eval builtin factories are registered. Tool config values come from the config block in the tool declaration YAML (srd013).
   - F5: core.Loop drives the bench state machine. Idle → Serving via serve_ui starts the HTTP server in a goroutine and blocks on the action channel (srd005, sm-bench).
   - F6: The React SPA loads in the browser. The user browses sessions, inspects traces, views documentation, and reads source code via REST APIs (srd020).
   - F7: GET /api/v1/sessions returns experiment sessions with pass/fail/timeout counts. The user drills into session details, point traces, and experiment configs (srd020).

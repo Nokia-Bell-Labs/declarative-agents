@@ -2,10 +2,10 @@ id: cfg-machine-format
 title: Machine Configuration Format (machine.yaml)
 
 purpose: |
-  Defines the MachineSpec YAML schema used by all four agents (generator,
-  evaluator, planner, validator). Each machine.yaml declares the finite
-  state machine that drives an agent's execution loop: its states,
-  signals, transitions, actions, and budget constraints.
+  Defines the MachineSpec YAML schema used by all five agent modes
+  (generator, evaluator, planner, validator, bench). Each machine.yaml
+  declares the finite state machine that drives an agent's execution
+  loop: its states, signals, transitions, actions, and budget constraints.
 
 schema:
   - field: name
@@ -26,26 +26,30 @@ schema:
     type: object
     required: false
     description: |
-      Resource limits that bound the agent's execution. When any
-      budget limit is reached, the machine transitions via the
-      BudgetExhausted signal.
+      Resource limits that bound the agent's execution.
     sub_fields:
       - field: max_iterations
         type: int
-        description: Maximum number of state transitions before halting.
+        description: |
+          Maximum number of state transitions before halting. When
+          exceeded, the machine transitions via the BudgetExhausted
+          signal.
       - field: max_tokens
         type: int
-        description: Maximum total tokens consumed across all LLM calls.
+        description: |
+          Maximum total tokens consumed across all LLM calls. When
+          exceeded, transitions via BudgetExhausted.
       - field: max_duration
         type: duration string
         description: |
-          Wall-clock time limit (e.g. "5m0s"). The machine is halted
-          when this duration elapses.
+          Wall-clock time limit (e.g. "5m0s"). Enforced via
+          context.WithTimeout — when elapsed, the loop terminates
+          with StatusCancelled (not BudgetExhausted).
       - field: max_consecutive_parse_errors
         type: int
         description: |
           Maximum consecutive LLM parse failures before the machine
-          gives up and transitions to a terminal state.
+          transitions via BudgetExhausted.
 
   - field: states
     type: "[]string"
@@ -113,14 +117,17 @@ action_semantics:
       BudgetExceeded).
 
 validation_rules: |
-  BuildTransitionTable in pkg/core/machine.go performs the following
-  validation at startup:
+  Validation occurs in two phases at startup:
 
-  - Every state referenced in transitions must exist in the states list
-  - Every signal referenced in transitions must exist in the signals list
+  Phase 1 — validateSpec() during ParseMachineSpec():
+  - Every state in transitions must exist in the states list
+  - Every signal in transitions must exist in the signals list
   - initial_state must be a member of states
   - terminal_states must be a subset of states
+
+  Phase 2 — BuildTransitionTable():
   - Named actions (not $tool, not empty) must resolve to a registered tool
+  - $tool requires a non-nil ToolAction callback
 
   Validation failures cause the agent to abort before processing any input.
 
@@ -140,9 +147,10 @@ examples:
 
   - file: configs/evaluator/point.yaml
     description: |
-      5 states, linear pipeline with no LLM interaction. Walks
-      through workspace preparation, agent execution, and scoring
-      steps in a fixed sequence.
+      8 states, 9 signals, 13 transitions. Linear pipeline with no
+      LLM interaction. Walks through workspace preparation, config
+      snapshot, agent execution, result checking, and metrics
+      collection in a fixed sequence with error handling.
 
   - file: configs/planner/machine.yaml
     description: |
@@ -167,5 +175,6 @@ related_documents:
   - sm-evaluator
   - sm-planner
   - sm-validator
+  - sm-bench
 
 implementation: pkg/core/machine.go

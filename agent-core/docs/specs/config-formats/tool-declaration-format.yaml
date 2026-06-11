@@ -26,21 +26,23 @@ schema:
 
   - field: description
     type: string
-    required: true
+    required: false
     description: |
       Human-readable description of the tool's purpose and behavior.
       Included in the tool schema sent to the LLM so it can decide
-      when and how to use the tool.
+      when and how to use the tool. Recommended but not enforced by
+      validateToolDefs.
 
   - field: parameters
     type: object
-    required: true
+    required: false
     description: |
       JSON Schema describing the tool's input parameters. This schema
       is sent to the LLM for function-calling and is used for input
-      validation at runtime. Exec tools may include parameter
-      extensions (see parameter_extensions) that are stripped before
-      sending to the LLM.
+      validation at runtime. Omitted for builtin tools that take no
+      parameters (e.g. parse_response, done). Exec tools may include
+      parameter extensions (see parameter_extensions) that are stripped
+      before sending to the LLM.
 
   - field: visibility
     type: string
@@ -107,9 +109,12 @@ exec_fields:
   - field: includes
     type: string
     required: false
+    scope: file-level (not per-tool)
     description: |
-      Path to another tool file whose declarations are merged into
-      this file. Used for composing tool sets from shared definitions.
+      A file-level field on the tool declarations file (not on
+      individual tool entries). Specifies a path to another tool
+      file whose declarations are merged before the current file's
+      tools. Used for composing tool sets from shared definitions.
 
 parameter_extensions:
   description: |
@@ -132,10 +137,11 @@ parameter_extensions:
         argument rather than a named flag.
 
     - field: bool_flag
-      type: string
+      type: bool
       description: |
-        Boolean flag mapping. When the parameter value is true, this
-        flag is included in the command (e.g. "--recursive").
+        Boolean flag marker. When true and the parameter value is
+        true, the CLI flag from the "flag" field is included in the
+        command (e.g. flag: "--all", bool_flag: true).
 
     - field: default
       type: string
@@ -145,17 +151,28 @@ parameter_extensions:
 
 declaration_files:
   - file: configs/tools/builtin.yaml
+    tool_count: 32
     description: |
-      26 builtin tool declarations covering file operations (read,
-      write, edit, find, list_files), the LLM pipeline (invoke_llm,
-      parse_response, report_parse_error, reset_history), validation
-      (validate, done), and internal control tools.
+      32 builtin tool declarations covering file operations (read,
+      write, edit, find, list_files), the LLM pipeline (parse_response,
+      report_parse_error, reset_history), validation (validate, done),
+      control (nudge_reread, self_invoke), planner tools (extract_task,
+      extract_all, assemble_prompt, parse_plan, create_issue,
+      execute_task, check_result), evaluator session tools (load_suite,
+      next_point, run_point, report_session), evaluator per-point tools
+      (prepare_workspace, dump_config, run_agent, check_results,
+      collect_metrics), bench tools (serve_ui, launch_eval), and spec
+      validation tools (load_corpus, validate_specs, format_report).
+      Note: invoke_llm is declared per-agent in configs/*/llm/*.yaml,
+      not in this file.
 
   - file: configs/tools/exec.yaml
+    tool_count: 16
     description: |
       16 exec tool declarations for Go build tools (build, vet, lint,
-      test), git operations (git_diff, git_status, git_commit),
-      filesystem utilities (find, grep), and bd issue management.
+      test), git operations (stage_all, workspace_status, commit,
+      rev_parse, diff_stat, log_oneline, git_init), and bd issue
+      management (issue_create, issue_close, issue_list).
 
   - file: "configs/*/llm/*.yaml"
     description: |
@@ -178,4 +195,4 @@ related_documents:
 
 implementation:
   - pkg/stl/exectool.go
-  - pkg/stl/builtin.go
+  - pkg/stl/builtintool.go

@@ -2,7 +2,8 @@
 
 // Command agent is the unified agentic-loop binary. It loads a state machine
 // and tools from YAML configuration, then runs core.Loop. Different modes
-// (generate, pipeline, eval) are selected entirely by config files.
+// (generator, planner, evaluator, bench, validate) are selected entirely
+// by config files.
 //
 // Usage:
 //

@@ -41,7 +41,7 @@ requirements:
     title: LLM tools
     items:
       - R3.1: invoke_llm assembles messages via PromptAssembler, calls Chat, and appends the response to the conversation.
-      - R3.2: parse_response extracts tool calls from LLM output using a ResponseParser. The "done" tool name is recognised inside parse_response to signal TaskCompleted; it is not a separate Command.
+      - R3.2: parse_response extracts tool calls from LLM output using a ResponseParser. The "done" tool call is recognised inside parse_response at the LLM pipeline level to signal TaskCompleted. DoneBuilder also exists as a standalone builtin (see R9.2).
       - R3.3: report_parse_error feeds parse failure feedback back to the LLM, classifying the error via ClassifyParseError.
       - R3.4: reset_history clears the Conversation for a fresh LLM context, emitting the previous message count as a span attribute.
       - R3.5: invoke_llm checks ContextLimit; if estimated tokens exceed the limit it returns CommandError before calling Chat.
@@ -69,7 +69,7 @@ requirements:
       - R5.1: BuiltinRegistry maps tool init names to factory functions that produce core.Builder instances.
       - R5.2: Tool declaration YAML files (builtin.yaml, exec.yaml) define tool metadata (name, type, init, visibility, description, parameters).
       - R5.3: RegisterSingleBuiltin resolves a ToolDef against the BuiltinRegistry and registers the resulting Builder in the core.Registry.
-      - R5.4: LoadToolDefs parses YAML tool declaration files and returns ToolDef slices.
+      - R5.4: LoadToolDefs parses YAML tool declaration files and returns ToolDef slices. This is the legacy path; production uses LoadToolDeclarations + LoadToolSelection + SelectTools.
       - R5.5: Legacy RegisterFileTools, RegisterBuildTools, and RegisterAll helpers remain for programmatic use.
 
   R6:
@@ -113,7 +113,7 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4]
 
   - id: AC3
-    criterion: LLM tools (invoke_llm, parse_response, report_parse_error, reset_history) integrate with Conversation, ResponseParser, and PromptAssembler. invoke_llm enforces ContextLimit, CallTimeout, and NumCtx. "done" is a tool name recognised in parse_response.
+    criterion: LLM tools (invoke_llm, parse_response, report_parse_error, reset_history) integrate with Conversation, ResponseParser, and PromptAssembler. invoke_llm enforces ContextLimit, CallTimeout, and NumCtx. The "done" tool call is handled by parse_response at the LLM pipeline level; DoneBuilder exists as a standalone builtin.
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7]
 
   - id: AC4
@@ -125,7 +125,7 @@ acceptance_criteria:
     traces: [R7.1, R7.2]
 
   - id: AC5
-    criterion: BuiltinRegistry maps init names to factory functions. YAML tool declarations are loaded via LoadToolDefs and registered via RegisterSingleBuiltin. Legacy Register* helpers remain available.
+    criterion: BuiltinRegistry maps init names to factory functions. YAML tool declarations are loaded via LoadToolDeclarations + LoadToolSelection + SelectTools (production path) or the legacy LoadToolDefs, and registered via RegisterSingleBuiltin. Legacy Register* helpers remain available.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
 
   - id: AC8

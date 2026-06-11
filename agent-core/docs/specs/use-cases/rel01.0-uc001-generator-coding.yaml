@@ -2,8 +2,8 @@ id: rel01.0-uc001-generator-coding
 title: Generator agent solves Go coding tasks using YAML config
 
 summary: |
-  The generator agent runs as a subcommand of the unified agent binary,
-  configured entirely through YAML files. It loads a state machine from
+  The generator agent is configured entirely through YAML files passed
+  to the unified agent binary. It loads a state machine from
   configs/generator/machine.yaml, selects tools from tools.yaml, and
   uses a per-model LLM config from llm/*.yaml. The agent iteratively
   invokes an LLM, parses tool calls, executes file/build/test tools,
@@ -24,7 +24,7 @@ flow:
   - F1: cmd/agent parses CLI flags and loads tool declarations from multiple YAML files, merging them into a single registry (srd013, srd018).
   - F2: Tool selection filters the declarations to the subset listed in configs/generator/tools.yaml (cfg-tool-selection-format).
   - F3: The invoke_llm tool definition provides model, provider URL, and system prompt. cmd/agent extracts this to configure the Ollama adapter (srd009, srd017).
-  - F4: LLM response profiles are loaded from pkg/llm/profiles/ to configure per-model parsing pipelines (srd017).
+  - F4: LLM response profiles are loaded from embedded defaults (or --profiles-dir override) to configure per-model parsing pipelines (srd017).
   - F5: Builtin tool factories are registered (file tools, LLM tools, validate, done, etc.) and matched to their YAML declarations (srd013).
   - F6: The state machine is loaded from configs/generator/machine.yaml and validated against the registered tools (srd006).
   - F7: core.Loop drives the state machine. Idle → Composing via invoke_llm sends the task prompt to the LLM (srd005, srd009).

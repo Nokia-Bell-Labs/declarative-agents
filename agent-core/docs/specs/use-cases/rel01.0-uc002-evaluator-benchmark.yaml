@@ -19,7 +19,7 @@ trigger: |
           --tools configs/evaluator/tools.yaml \
           --tools-declaration configs/tools/builtin.yaml \
           --input suites/my-suite.yaml \
-          --output eval-results --reps 3
+          --output eval-results
 
 flow:
   - F1: The session machine enters LoadingSuite; load_suite parses the suite YAML, discovers samples, expands the grid, and creates the session output directory (srd019).
@@ -29,10 +29,10 @@ flow:
   - F5: dump_config serializes the full experiment configuration into experiment.yaml for reproducibility (srd019).
   - F6: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation (srd016, srd019).
   - F7: check_results examines exit code and test output to classify the outcome as pass/fail/timeout (srd019).
-  - F8: collect_metrics reads the trace file to extract token counts, iteration counts, and tool progression (srd019).
+  - F8: collect_metrics writes meta.json with point metadata, duration, and outcome classification (srd019).
   - F9: The nested loop completes; control returns to the session machine which loops back to next_point.
   - F10: When the grid is exhausted, next_point emits AllPointsDone; report_session prints the summary.
-  - F11: Results are written to eval-results/<suite>/<timestamp>/<point-id>/ with meta.json and trace.ndjson (srd019).
+  - F11: Results are written to eval-results/<suite>/<timestamp>/<point-id>/ with meta.json, trace.ndjson, and experiment.yaml (srd019).
 
 touchpoints:
   - T1: "srd005-agentic-loop -- Loop drives both session and point state machines"

@@ -81,7 +81,7 @@ lifecycle: |
   The agent loops between Composing and Parsing, making tool calls
   (read, write, edit, find, list_files, build, test, lint) until
   the LLM calls done. After done, validation determines success.
-  CommandError in any state transitions to Failed.
+  CommandError in Composing, Parsing, or ValidatingBuild transitions to Failed.
 
 pipeline_diagram: |
   ```mermaid
@@ -90,7 +90,7 @@ pipeline_diagram: |
     B -->|LLMResponded| C[Parsing]
     C -->|ToolDone| D[Dispatch Tool]
     D --> B
-    C -->|EditDone| E[Nudge Reread]
+    B -->|EditDone| E[Nudge Reread]
     E --> B
     C -->|ParseFailed| F[Report Error]
     F --> B

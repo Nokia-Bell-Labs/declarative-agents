@@ -45,10 +45,14 @@ signals:
     trigger: Infrastructure-level error.
 
 lifecycle: |
-  1. Idle → Loading: load_corpus from project directory
-  2. Loading → Validating: validate_specs
-  3. Validating → Reporting: format_report (both pass and fail paths)
-  4. Reporting → Passed/Failed: based on report output
+  1. Idle → Loading (Seed): load_corpus from project directory
+  2. Loading → Validating (ToolDone): validate_specs
+  3. Validating → Reporting (ValidationPassed): format_report
+  3a. Validating → Reporting (ValidationFailed): format_report
+  4. Reporting → Passed (ToolDone): validation completed successfully
+  4a. Reporting → Failed (ToolFailed): report indicates errors
+  5. Loading → Failed (CommandError): infrastructure error
+  5a. Reporting → Failed (CommandError): infrastructure error
 
   This is a linear pipeline with no loops or LLM calls.
 

@@ -16,7 +16,7 @@ requirements:
   R1:
     title: YAML schema (MachineSpec)
     items:
-      - R1.1: "Top-level fields: name (string), initial_state (string), states (list), terminal_states (list), signals (list), transitions (list of TransitionSpec)."
+      - R1.1: "Top-level fields: name (string), initial_state (string), states (list), terminal_states (list), signals (list), transitions (list of TransitionSpec), budget (optional BudgetSpec)."
       - R1.2: "TransitionSpec fields: state (string), signal (string), next (string), action (string, optional)."
       - R1.3: "action is either a tool name resolvable from the Registry, the special sentinel $tool for dynamic dispatch, or empty for terminal transitions."
       - R1.4: "$tool is resolved using a caller-supplied ActionFunc for runtime tool lookup."

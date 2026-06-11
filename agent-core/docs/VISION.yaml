@@ -9,7 +9,7 @@ executive_summary: |
 
   The core engine (pkg/core) remains domain-agnostic: it drives the loop
   without knowing what tools exist or what LLM is in use. Higher-level
-  packages (pkg/llm, pkg/stl, pkg/prompt, pkg/cli) build on the engine
+  packages (pkg/llm, pkg/stl, pkg/prompt) build on the engine
   to provide reusable infrastructure that domain agents compose into
   complete systems.
 
@@ -68,8 +68,8 @@ what_this_does: |
   execution with process group management, workspace tools, and
   tool metrics extraction.
 
-  CLI Flags (pkg/cli). Common CLI flag definitions for agents that
-  expose a command-line interface.
+  CLI Flags (pkg/cli). Utility library for CLI flag constants and
+  argument propagation. Not imported by cmd/agent directly.
 
   Tracing (pkg/tracing). Tracer port interface (Push, Event,
   SetAttributes, RecordError, Context) decoupling the engine from
@@ -115,7 +115,7 @@ success_criteria:
     optional LoopHooks. No subclassing, no code generation.
   reusable_infrastructure: |
     LLM integration (pkg/llm), prompt assembly (pkg/prompt), standard
-    tools (pkg/stl), and CLI flags (pkg/cli) are shared across agents.
+    tools (pkg/stl), and tracing (pkg/tracing) are shared across agents.
     Domain agents compose these packages without reimplementing them.
   budget_enforcement: |
     Iteration, token, and wall-clock-time limits are enforced by the

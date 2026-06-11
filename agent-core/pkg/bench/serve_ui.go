@@ -50,8 +50,7 @@ func (c *serveUICmd) Execute() core.Result {
 // declaration YAML to configure the server.
 func ServeUIFactory(bs *BenchState) stl.BuiltinFactory {
 	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		// YAML config values are defaults — only apply when the field
-		// wasn't already set by CLI flags via ServerConfig.
+		// Apply YAML config defaults for fields not yet set.
 		if bs.Addr == "" {
 			if addr, ok := def.Config["addr"].(string); ok && addr != "" {
 				bs.Addr = addr

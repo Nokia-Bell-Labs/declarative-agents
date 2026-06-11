@@ -82,6 +82,7 @@ session_diagram: |
     LoadingSuite --> Failed: CommandError
     AdvancingPoint --> Failed: CommandError
     RunningPoint --> Failed: CommandError
+    Reporting --> Failed: CommandError
   ```
 
 session_tools:
@@ -104,7 +105,7 @@ point_states:
   - name: CheckingResults
     meaning: Examining exit code, test results, and trace output.
   - name: CollectingMetrics
-    meaning: Reading trace files to extract token counts and durations.
+    meaning: Writing evaluation metadata (exit code, duration, test results, tokens, convergence data) to meta.json.
   - name: Done
     meaning: Terminal. Evaluation point completed successfully.
   - name: Failed
@@ -149,7 +150,7 @@ point_diagram: |
 
 budget:
   session_max_iterations: 10000
-  point_max_iterations: 10
+  point_max_iterations: 20
 
 point_tools:
   - prepare_workspace

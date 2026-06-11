@@ -34,18 +34,12 @@ invocation: |
     --ollama-url         Override LLM provider URL.
     --directory          Workspace root for file tools and exec tools.
     --profiles-dir       Directory with model profile YAML overrides.
+    --verbose-trace      Record LLM input/output in OTel traces.
     --otel-log-file      OTel trace output file.
     --otel-parent-span   W3C traceparent for distributed tracing.
 
 startup_sequence:
   - step: 1
-    name: Load machine spec
-    description: |
-      Parse the --machine YAML into a MachineSpec (name, states,
-      signals, transitions, budget). Validated immediately.
-    implementation: core.LoadMachineSpec
-
-  - step: 2
     name: Load tool definitions
     description: |
       If --tools-declaration is provided, load declarations from those
@@ -54,14 +48,17 @@ startup_sequence:
       as a full declaration file. Result: []ToolDef.
     implementation: stl.LoadToolDeclarations, stl.LoadToolSelection, stl.SelectTools
 
-  - step: 3
-    name: Extract LLM config
+  - step: 2
+    name: Extract LLM config and set up provider
     description: |
       Scan tool definitions for invoke_llm config blocks. Extract
-      model, provider, endpoint, and system prompt settings.
-    implementation: extractLLMConfig
+      model, provider, endpoint, system prompt, num_ctx, llm_timeout,
+      max_tokens, and max_time settings. Create the Ollama adapter.
+      If a model profile has a MachineName, --machine is rewritten
+      to use the profile's machine file.
+    implementation: extractLLMConfig, llm.LoadProfiles
 
-  - step: 4
+  - step: 3
     name: Register tool factories
     description: |
       For each ToolDef, resolve and register a Builder in the
@@ -71,25 +68,20 @@ startup_sequence:
       declaration YAML is passed to factories for parametrization.
     implementation: stl.RegisterUnifiedTools
 
-  - step: 5
-    name: Build transition table
+  - step: 4
+    name: Run the loop (includes machine loading)
     description: |
-      Map each (state, signal) pair from the MachineSpec to a
-      (next_state, Builder) pair. Named actions are resolved from
-      the registry; $tool resolves to a dynamic dispatch function.
-      Unknown action names cause a startup error.
-    implementation: core.BuildTransitionTable
-
-  - step: 6
-    name: Run the loop
-    description: |
-      Enter the initial state with a Seed signal and execute the
-      run-to-completion finite state machine. Each transition fires
-      its action's Builder.Build(result).Execute(), producing a new
-      Result with a Signal that drives the next transition. The loop
-      terminates when a terminal state is reached or a budget limit
-      is exceeded.
-    implementation: core.Loop
+      core.Loop loads and validates the machine spec from --machine
+      via initFromMachine, then builds the transition table mapping
+      (state, signal) pairs to (next_state, Builder). Named actions
+      are resolved from the registry; $tool resolves to a dynamic
+      dispatch function. The loop then enters the initial state with
+      a Seed signal and executes the run-to-completion finite state
+      machine. Each transition fires its action's
+      Builder.Build(result).Execute(), producing a new Result with
+      a Signal that drives the next transition. The loop terminates
+      when a terminal state is reached or a budget limit is exceeded.
+    implementation: core.Loop, core.LoadMachineSpec, core.BuildTransitionTable
 
 tool_parametrization: |
   Tool behavior is configured through the "config" block in tool
@@ -157,7 +149,9 @@ config_file_layout: |
 invariants:
   - Every agent mode uses the same binary with the same startup sequence.
   - No mode-specific CLI subcommands exist.
-  - All tool configuration lives in YAML config blocks, not CLI flags.
+  - Mode-specific tool configuration lives in YAML config blocks. A small
+    set of universal CLI flags (--input, --output, --model, --ollama-url)
+    serve as overrides applicable to any mode.
   - Machine files reference tools by name; tools are resolved from the registry.
   - Nested machine paths are declarative (read from tool config).
   - The transition table is fully validated at startup before any work begins.

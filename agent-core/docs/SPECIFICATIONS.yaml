@@ -12,7 +12,7 @@ overview: |
   convention helpers, W3C traceparent support, LLM package extensions,
   and the CLI standard flag contract. Four use cases exercise the SRDs
   across two releases. One formal YAML test suite covers 51 acceptance
-  test cases for release 00.0; additional coverage comes from 514 Go
+  test cases for release 00.0; additional coverage comes from 522 Go
   test functions across 16 packages.
 
   SRD release assignments.
@@ -152,7 +152,7 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel00.0.yaml
 
 go_test_coverage:
-  total_test_functions: 514
+  total_test_functions: 522
   packages_with_tests: 16
   note: >
     Go test functions across all packages provide coverage beyond the
@@ -196,8 +196,8 @@ srd_to_use_case_mapping:
 coverage_gaps: |
   The original eight core SRDs (srd001-srd008) have full use case
   touchpoints and formal YAML test suite coverage in release 00.0.
-  SRDs srd009-srd018 cover additional packages and have Go test
-  coverage (514 test functions across 16 packages) but no formal
+  SRDs srd009-srd020 cover additional packages and have Go test
+  coverage (522 test functions across 16 packages) but no formal
   YAML test suites.
 
   Packages without SRDs:

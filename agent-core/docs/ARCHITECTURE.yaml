@@ -25,7 +25,7 @@ overview:
     - pkg/llm/ollama — Ollama adapter satisfying llm.Client
     - pkg/prompt — prompt schema, YAML loading, system template
     - pkg/stl — standard tool library (file, build, LLM, eval tools)
-    - pkg/cli — standard CLI flag constants and argument propagation
+    - pkg/cli — CLI flag constants and argument propagation (library; not imported by cmd/agent)
     - pkg/subprocess — subprocess execution utilities
 
     Domain layer. Packages supporting specific agent workflows:
@@ -175,7 +175,7 @@ overview:
       pkg/telemetry/genai, pkg/execute, and pkg/subprocess.
     - pkg/pipeline depends on pkg/core, pkg/plan, pkg/extract,
       pkg/materialize, and pkg/stl.
-    - pkg/execute depends on pkg/subprocess and pkg/cli.
+    - pkg/execute depends on pkg/subprocess, pkg/llm, and pkg/tracing.
     - pkg/plan depends on gopkg.in/yaml.v3.
     - pkg/extract depends on pkg/graph and pkg/plan.
     - pkg/graph depends on gopkg.in/yaml.v3.
@@ -186,7 +186,8 @@ overview:
     - pkg/subprocess depends on the Go standard library.
     - pkg/cli depends on the Go standard library.
     - cmd/agent imports pkg/core, pkg/stl, pkg/llm, pkg/prompt,
-      pkg/telemetry, pkg/cli, pkg/pipeline, and pkg/bench.
+      pkg/telemetry, pkg/pipeline, pkg/bench, pkg/execute, and
+      pkg/tracing.
     - pkg/bench imports pkg/stl for evaluation result analysis and
       pkg/core for the state machine loop.
 
@@ -547,13 +548,13 @@ implementation_status:
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, validator, bench
     - done: Bench agent (pkg/bench) — state-machine-driven web UI for experiment browsing and eval launching
-    - done: YAML tool definitions — builtin.yaml (26 declared, 28 registered in Go), exec.yaml (16 tools)
+    - done: YAML tool definitions — builtin.yaml (32 declared, 34 registered in Go), exec.yaml (16 tools)
     - done: Agent configurations — generator, evaluator, planner, validate machine/tools/llm
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats
     - done: cobbler-scaffold dependency removed
-    - done: 514 tests passing across 16 packages
-    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd018)
+    - done: 522 tests passing across 16 packages
+    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd020)
 
 related_documents:
   - doc: docs/VISION.yaml

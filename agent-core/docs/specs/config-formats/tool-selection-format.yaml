@@ -44,16 +44,18 @@ cli_mapping:
       description: |
         When no --tools-declaration flag is provided, the --tools
         file is treated as a legacy full-definition file containing
-        both declarations and selections inline. This supports the
-        configs/validate/tools.yaml pattern.
+        both declarations and selections inline. All current agents
+        use the declaration+selection split.
 
 selection_files:
   - file: configs/generator/tools.yaml
-    tool_count: 17
+    tool_count: 16
     description: |
       Selects file operations (read, write, edit, find, list_files),
-      build tools (build, vet, lint, test), git tools, and internal
-      pipeline tools for the LLM-driven coding loop.
+      build tools (build, vet, lint, test), and internal pipeline
+      tools for the LLM-driven coding loop (invoke_llm,
+      parse_response, report_parse_error, reset_history, validate,
+      nudge_reread, done).
 
   - file: configs/evaluator/tools.yaml
     tool_count: 9
@@ -68,22 +70,24 @@ selection_files:
       Selects planning tools (extract_task, extract_all,
       assemble_prompt, parse_plan, create_issue, execute_task,
       check_result), LLM tools (invoke_llm, reset_history),
-      build/test tools, git tools, and issue tools.
+      build/test tools (build, vet, lint, test), git tools
+      (stage_all, workspace_status, commit, rev_parse, diff_stat,
+      log_oneline), and issue tools (issue_create, issue_close,
+      issue_list).
 
   - file: configs/validate/tools.yaml
     tool_count: 3
     description: |
-      Contains 3 inline builtin declarations (load_corpus,
-      validate_specs, format_report) using the legacy combined
-      declaration+selection pattern rather than separate declaration
-      and selection files.
+      Name-only selection of 3 tools (load_corpus, validate_specs,
+      format_report). Declarations live in configs/tools/builtin.yaml.
 
   - file: configs/bench/tools.yaml
     tool_count: 2
     description: |
       Selects the two bench agent tools: serve_ui (blocks on
       user input via web UI) and launch_eval (spawns the evaluator
-      session machine subprocess). Declarations are in configs/bench/serve_ui.yaml.
+      session machine subprocess). Declarations are in
+      configs/tools/builtin.yaml.
 
 related_documents:
   - cfg-tool-declaration-format

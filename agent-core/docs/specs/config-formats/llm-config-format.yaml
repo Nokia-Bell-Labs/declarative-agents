@@ -91,9 +91,37 @@ schema:
           type: int
           required: false
           description: |
-            Maximum response time in seconds. If the model does not
-            respond within this limit, the call is cancelled and
-            treated as a failure.
+            Maximum run time in seconds. Sets the budget.MaxDuration
+            for the entire agent run (not per-call). When elapsed,
+            the context is cancelled and the loop terminates.
+
+        - field: num_ctx
+          type: int
+          required: false
+          description: |
+            Context window size passed to the Ollama provider.
+            Controls how many tokens the model can consider.
+
+        - field: llm_timeout
+          type: int
+          required: false
+          description: |
+            Per-LLM-call timeout in seconds. Individual calls that
+            exceed this limit are cancelled and retried.
+
+        - field: max_tokens
+          type: int
+          required: false
+          description: |
+            Maximum total tokens for the agent run budget. When
+            exceeded, triggers BudgetExhausted.
+
+        - field: ollama_url
+          type: string
+          required: false
+          description: |
+            Alias for provider_url. If both are set, provider_url
+            takes precedence.
 
 per_model_pattern: |
   Each file under an agent's llm/ directory configures a different
@@ -112,17 +140,18 @@ config_files:
     variant_count: 9
     description: |
       Model variants for the generator agent: default, deepseek,
-      devstral, gemma4, gemma3, qwen3, codellama, mistral, and
-      llama3. Each configures a different local model via Ollama
+      devstral, gemma4, glm, granite, laguna, mistral-small, and
+      nemotron. Each configures a different local model via Ollama
       with generator-specific system prompts.
 
   - directory: configs/evaluator/llm/
     variant_count: 10
     description: |
-      Model variants for the evaluator's benchmark grid. Includes
-      the same models as the generator plus additional variants.
-      The evaluator iterates over all files in this directory to
-      build the evaluation matrix.
+      Model variants for the evaluator's benchmark grid:
+      deepseek-16b, devstral, gemma4, glm, granite, laguna,
+      mistral-small, nemotron, qwen3-8b, and qwen3-35b. These
+      are harness profiles used by child generator processes, not
+      by the evaluator state machine itself.
 
   - directory: configs/planner/llm/
     variant_count: 1

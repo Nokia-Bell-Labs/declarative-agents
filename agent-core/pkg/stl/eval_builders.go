@@ -10,8 +10,8 @@ import (
 )
 
 // EvalState holds shared mutable state for eval tools, analogous to
-// pipeline.State for pipeline tools. The eval session orchestrator
-// sets PC before each point's loop runs.
+// pipeline.State for pipeline tools. The run_point tool sets PC
+// before each point's nested loop runs.
 type EvalState struct {
 	PC  *PointContext
 	Ctx context.Context

@@ -29,7 +29,7 @@ requirements:
   R2:
     title: Evaluation session execution
     items:
-      - R2.1: RunSession iterates the grid of (harness, model, gridPoint, sample, repetition) and runs each point through core.Loop.
+      - R2.1: The session state machine (configs/evaluator/machine.yaml) iterates the grid of (harness, model, gridPoint, sample, repetition) via tools load_suite, next_point, run_point, and report_session, running each point through a nested core.Loop.
       - R2.2: PointContext holds per-point mutable state (directories, trace path, tokens, results, timing).
       - R2.3: EvalState is the shared state container whose PC field is updated before each point's loop run.
       - R2.4: SessionResult and PointResult capture aggregate and per-point outcomes.
@@ -66,7 +66,7 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: RunSession executes all grid points and produces SessionResult with correct pass/fail/timeout counts.
+    criterion: The session state machine executes all grid points and produces SessionResult with correct pass/fail/timeout counts.
     traces: [R2.1, R2.2, R2.3, R2.4]
 
   - id: AC2

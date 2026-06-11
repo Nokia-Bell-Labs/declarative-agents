@@ -28,7 +28,7 @@ type ServerConfig struct {
 
 // Server implements the bench HTTP server. When driven by the
 // serve_ui tool, user actions from the frontend are sent over
-// ActionCh; when used standalone (cmd/bench serve), ActionCh is nil.
+// ActionCh.
 type Server struct {
 	dataDir     string
 	configsDir  string

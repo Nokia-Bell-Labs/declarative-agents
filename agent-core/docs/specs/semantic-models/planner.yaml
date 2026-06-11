@@ -57,6 +57,44 @@ states:
   - name: Failed
     meaning: Terminal. An unrecoverable error occurred.
 
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: TaskExtracted
+    trigger: A task was extracted from the requirement graph.
+  - name: AllDone
+    trigger: All tasks in the graph are done.
+  - name: Blocked
+    trigger: Remaining tasks are blocked by failed dependencies.
+  - name: BatchLimitReached
+    trigger: Batch limit reached — resume later.
+  - name: ToolDone
+    trigger: A tool executed successfully.
+  - name: ToolFailed
+    trigger: A tool executed but reported failure.
+  - name: LLMResponded
+    trigger: The LLM returned a response.
+  - name: PlanReady
+    trigger: The LLM response was parsed as a valid implementation plan.
+  - name: ParseFailed
+    trigger: The LLM response could not be parsed as a valid plan.
+  - name: Materialized
+    trigger: An issue was created from the plan.
+  - name: MaterializeFailed
+    trigger: Issue creation failed.
+  - name: ExecutionDone
+    trigger: The generator agent completed successfully.
+  - name: ExecutionFailed
+    trigger: The generator agent failed.
+  - name: ValidationPassed
+    trigger: Build/vet/test validation passed.
+  - name: RetryAvailable
+    trigger: Retries remain for the current task.
+  - name: RetriesExhausted
+    trigger: All retries consumed for the current task.
+  - name: CommandError
+    trigger: Infrastructure-level error.
+
 lifecycle: |
   1. Idle → Extracting: extract_task from requirement graph
   2. Extracting → Resetting: task extracted, clear LLM history
@@ -103,7 +141,12 @@ tools_required:
     - check_result
     - reset_history
   exec:
-    - vet, build, test
+    - build, vet, lint, test
+  git:
+    - stage_all, workspace_status, commit
+    - rev_parse, diff_stat, log_oneline
+  issues:
+    - issue_create, issue_close, issue_list
 
 invariants:
   - Conversation history is reset between tasks
