@@ -89,6 +89,28 @@ test_cases:
       - srd005-agentic-loop AC3
 
   - use_case: rel00.0-uc001-domain-agent-integration
+    name: Core source contains no mode-specific tool policy literals
+    go_test: TestCoreSourceDoesNotEmbedModeOrToolPolicyNames
+    inputs:
+      source: "pkg/core/*.go excluding tests"
+      forbidden_literals: "agent mode names and workflow tool init names"
+    expected:
+      policy_boundary: "workflow behavior stays in MachineSpec and tool config"
+    traces:
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Agent runtime does not branch on agent mode names
+    go_test: TestMainRuntimeDoesNotBranchOnAgentModeNames
+    inputs:
+      source: "cmd/agent/main.go"
+      forbidden_branches: "if/switch comparisons against generator, planner, evaluator, bench, validate"
+    expected:
+      bootstrap_boundary: "selected tool init gates are allowed; mode branches are not"
+    traces:
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
     name: Token counts are accumulated in RunResult
     go_test: TestLoop_AccumulatesTokens
     inputs:

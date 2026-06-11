@@ -6,6 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +21,63 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
+
+func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
+	t.Parallel()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current file")
+	}
+	path := filepath.Join(filepath.Dir(currentFile), "main.go")
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse main.go: %v", err)
+	}
+
+	modeNames := map[string]struct{}{
+		"generator": {},
+		"planner":   {},
+		"evaluator": {},
+		"bench":     {},
+		"validate":  {},
+	}
+	isModeLiteral := func(expr ast.Expr) (string, bool) {
+		lit, ok := expr.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return "", false
+		}
+		value, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			t.Fatalf("unquote %s: %v", lit.Value, err)
+		}
+		_, isMode := modeNames[value]
+		return value, isMode
+	}
+
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.BinaryExpr:
+			if node.Op != token.EQL && node.Op != token.NEQ {
+				return true
+			}
+			if value, ok := isModeLiteral(node.X); ok {
+				t.Fatalf("cmd/agent must not branch on agent mode literal %q at %s; select behavior through machine/tools YAML", value, fset.Position(node.Pos()))
+			}
+			if value, ok := isModeLiteral(node.Y); ok {
+				t.Fatalf("cmd/agent must not branch on agent mode literal %q at %s; select behavior through machine/tools YAML", value, fset.Position(node.Pos()))
+			}
+		case *ast.CaseClause:
+			for _, expr := range node.List {
+				if value, ok := isModeLiteral(expr); ok {
+					t.Fatalf("cmd/agent must not switch on agent mode literal %q at %s; selected tool init gates are the allowed bootstrap boundary", value, fset.Position(expr.Pos()))
+				}
+			}
+		}
+		return true
+	})
+}
 
 func TestFormatCheckpointHistory(t *testing.T) {
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
