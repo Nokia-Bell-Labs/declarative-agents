@@ -13,9 +13,9 @@ import (
 func TestValidateToolEmitsValid(t *testing.T) {
 	spec := core.MachineSpec{
 		Name:           "test",
-		States:         []string{"Idle", "Running", "Done", "Failed"},
+		States:         core.StateSpecsFromNames("Idle", "Running", "Done", "Failed"),
 		TerminalStates: []string{"Done", "Failed"},
-		Signals:        []string{"Seed", "Ready", "CommandError"},
+		Signals:        core.SignalSpecsFromNames("Seed", "Ready", "CommandError"),
 		Transitions: []core.TransitionSpec{
 			{State: "Idle", Signal: "Seed", Next: "Running", Action: "start"},
 			{State: "Running", Signal: "Ready", Next: "Done"},
@@ -32,9 +32,9 @@ func TestValidateToolEmitsValid(t *testing.T) {
 func TestValidateToolEmitsUnknownSignal(t *testing.T) {
 	spec := core.MachineSpec{
 		Name:           "test",
-		States:         []string{"Idle", "Running", "Done"},
+		States:         core.StateSpecsFromNames("Idle", "Running", "Done"),
 		TerminalStates: []string{"Done"},
-		Signals:        []string{"Seed", "Ready"},
+		Signals:        core.SignalSpecsFromNames("Seed", "Ready"),
 		Transitions: []core.TransitionSpec{
 			{State: "Idle", Signal: "Seed", Next: "Running", Action: "start"},
 			{State: "Running", Signal: "Ready", Next: "Done"},
@@ -52,9 +52,9 @@ func TestValidateToolEmitsUnknownSignal(t *testing.T) {
 func TestValidateToolEmitsMissingFollowupTransition(t *testing.T) {
 	spec := core.MachineSpec{
 		Name:           "test",
-		States:         []string{"Idle", "Running", "Done"},
+		States:         core.StateSpecsFromNames("Idle", "Running", "Done"),
 		TerminalStates: []string{"Done"},
-		Signals:        []string{"Seed", "Ready", "CommandError"},
+		Signals:        core.SignalSpecsFromNames("Seed", "Ready", "CommandError"),
 		Transitions: []core.TransitionSpec{
 			{State: "Idle", Signal: "Seed", Next: "Running", Action: "start"},
 			{State: "Running", Signal: "Ready", Next: "Done"},
@@ -72,9 +72,9 @@ func TestValidateToolEmitsMissingFollowupTransition(t *testing.T) {
 func TestValidateToolEmitsTerminalTargetSkipsFollowup(t *testing.T) {
 	spec := core.MachineSpec{
 		Name:           "test",
-		States:         []string{"Idle", "Done"},
+		States:         core.StateSpecsFromNames("Idle", "Done"),
 		TerminalStates: []string{"Done"},
-		Signals:        []string{"Seed", "Ignored"},
+		Signals:        core.SignalSpecsFromNames("Seed", "Ignored"),
 		Transitions: []core.TransitionSpec{
 			{State: "Idle", Signal: "Seed", Next: "Done", Action: "finish"},
 		},
@@ -89,9 +89,9 @@ func TestValidateToolEmitsTerminalTargetSkipsFollowup(t *testing.T) {
 func TestValidateToolEmitsDynamicToolMissingFollowupTransition(t *testing.T) {
 	spec := core.MachineSpec{
 		Name:           "grammar",
-		States:         []string{"Parsing", "Composing", "Done"},
+		States:         core.StateSpecsFromNames("Parsing", "Composing", "Done"),
 		TerminalStates: []string{"Done"},
-		Signals:        []string{"ToolReady", "ToolDone", "ToolFailed", "InternalOnly"},
+		Signals:        core.SignalSpecsFromNames("ToolReady", "ToolDone", "ToolFailed", "InternalOnly"),
 		Transitions: []core.TransitionSpec{
 			{State: "Parsing", Signal: "ToolReady", Next: "Composing", Action: "$tool"},
 			{State: "Composing", Signal: "ToolDone", Next: "Done"},
@@ -113,9 +113,9 @@ func TestValidateToolEmitsDynamicToolMissingFollowupTransition(t *testing.T) {
 func TestValidateToolEmitsDynamicToolHandlesExternalVocabulary(t *testing.T) {
 	spec := core.MachineSpec{
 		Name:           "grammar",
-		States:         []string{"Parsing", "Composing", "Done", "Failed"},
+		States:         core.StateSpecsFromNames("Parsing", "Composing", "Done", "Failed"),
 		TerminalStates: []string{"Done", "Failed"},
-		Signals:        []string{"ToolReady", "ToolDone", "ToolFailed"},
+		Signals:        core.SignalSpecsFromNames("ToolReady", "ToolDone", "ToolFailed"),
 		Transitions: []core.TransitionSpec{
 			{State: "Parsing", Signal: "ToolReady", Next: "Composing", Action: "$tool"},
 			{State: "Composing", Signal: "ToolDone", Next: "Done"},

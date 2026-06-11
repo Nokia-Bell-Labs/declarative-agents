@@ -148,9 +148,9 @@ func TestResumeFromCheckpointValidatesMachineBeforeLoop(t *testing.T) {
 			MachineSpec: &MachineSpec{
 				Name:           "bad",
 				InitialState:   "Start",
-				States:         []string{"Start", "AwaitingApproval", "Finished"},
+				States:         StateSpecsFromNames("Start", "AwaitingApproval", "Finished"),
 				TerminalStates: []string{"Finished"},
-				Signals:        []string{"Approved"},
+				Signals:        SignalSpecsFromNames("Approved"),
 				Transitions: []TransitionSpec{{
 					State: "AwaitingApproval", Signal: "Approved", Next: "Finished", Action: "missing",
 				}},

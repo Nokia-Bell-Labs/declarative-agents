@@ -123,9 +123,9 @@ func GenerateLinearMachine(gen GenerateSpec) MachineSpec {
 	return MachineSpec{
 		Name:           gen.Name,
 		InitialState:   initial,
-		States:         states,
+		States:         StateSpecsFromNames(states...),
 		TerminalStates: terminalStates,
-		Signals:        signals,
+		Signals:        SignalSpecsFromNames(signals...),
 		Transitions:    allTransitions,
 	}
 }

@@ -771,9 +771,9 @@ func TestLoop_DeclarativeInit_UsesPreloadedMachineSpec(t *testing.T) {
 	spec := MachineSpec{
 		Name:           "test",
 		InitialState:   "S",
-		States:         []string{"S", "F"},
+		States:         StateSpecsFromNames("S", "F"),
 		TerminalStates: []string{"F"},
-		Signals:        []string{"Seed", "Done"},
+		Signals:        SignalSpecsFromNames("Seed", "Done"),
 		Transitions: []TransitionSpec{
 			{State: "S", Signal: "Seed", Next: "F", Action: "step"},
 		},
@@ -812,9 +812,9 @@ func TestLoop_DeclarativeInit_MachineNameDoesNotChangeEngineBehavior(t *testing.
 		spec := MachineSpec{
 			Name:           machineName,
 			InitialState:   "Start",
-			States:         []string{"Start", "Working", "Finished"},
+			States:         StateSpecsFromNames("Start", "Working", "Finished"),
 			TerminalStates: []string{"Finished"},
-			Signals:        []string{"Seed", "Done", "TaskCompleted"},
+			Signals:        SignalSpecsFromNames("Seed", "Done", "TaskCompleted"),
 			Transitions: []TransitionSpec{
 				{State: "Start", Signal: "Seed", Next: "Working", Action: "step_a"},
 				{State: "Working", Signal: "Done", Next: "Working", Action: "step_b"},

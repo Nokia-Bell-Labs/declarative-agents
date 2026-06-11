@@ -13,13 +13,114 @@ import (
 
 // MachineSpec is the YAML schema for a declarative state machine.
 type MachineSpec struct {
-	Name           string           `yaml:"name"`
-	InitialState   string           `yaml:"initial_state"`
-	States         []string         `yaml:"states"`
-	TerminalStates []string         `yaml:"terminal_states"`
-	Signals        []string         `yaml:"signals"`
-	Transitions    []TransitionSpec `yaml:"transitions"`
-	BudgetSpec     *BudgetSpec      `yaml:"budget,omitempty"`
+	Name            string           `yaml:"name"`
+	Purpose         string           `yaml:"purpose,omitempty"`
+	Invariants      []string         `yaml:"invariants,omitempty"`
+	Lifecycle       string           `yaml:"lifecycle,omitempty"`
+	Configuration   map[string]any   `yaml:"configuration,omitempty"`
+	PipelineDiagram string           `yaml:"pipeline_diagram,omitempty"`
+	InitialState    string           `yaml:"initial_state"`
+	States          StateSpecs       `yaml:"states"`
+	TerminalStates  []string         `yaml:"terminal_states"`
+	Signals         SignalSpecs      `yaml:"signals"`
+	Transitions     []TransitionSpec `yaml:"transitions"`
+	BudgetSpec      *BudgetSpec      `yaml:"budget,omitempty"`
+}
+
+// StateSpec describes a state and optional semantic metadata.
+type StateSpec struct {
+	Name    string `yaml:"name"`
+	Meaning string `yaml:"meaning,omitempty"`
+}
+
+// StateSpecs accepts both legacy scalar state lists and rich state objects.
+type StateSpecs []StateSpec
+
+func (s *StateSpecs) UnmarshalYAML(value *yaml.Node) error {
+	specs, err := unmarshalNamedSpecs[StateSpec](value, "state")
+	if err != nil {
+		return err
+	}
+	*s = specs
+	return nil
+}
+
+func (s StateSpecs) Names() []string {
+	names := make([]string, 0, len(s))
+	for _, spec := range s {
+		names = append(names, spec.Name)
+	}
+	return names
+}
+
+func StateSpecsFromNames(names ...string) StateSpecs {
+	specs := make(StateSpecs, 0, len(names))
+	for _, name := range names {
+		specs = append(specs, StateSpec{Name: name})
+	}
+	return specs
+}
+
+// SignalSpec describes a signal and optional semantic metadata.
+type SignalSpec struct {
+	Name    string `yaml:"name"`
+	Trigger string `yaml:"trigger,omitempty"`
+}
+
+// SignalSpecs accepts both legacy scalar signal lists and rich signal objects.
+type SignalSpecs []SignalSpec
+
+func (s *SignalSpecs) UnmarshalYAML(value *yaml.Node) error {
+	specs, err := unmarshalNamedSpecs[SignalSpec](value, "signal")
+	if err != nil {
+		return err
+	}
+	*s = specs
+	return nil
+}
+
+func (s SignalSpecs) Names() []string {
+	names := make([]string, 0, len(s))
+	for _, spec := range s {
+		names = append(names, spec.Name)
+	}
+	return names
+}
+
+func SignalSpecsFromNames(names ...string) SignalSpecs {
+	specs := make(SignalSpecs, 0, len(names))
+	for _, name := range names {
+		specs = append(specs, SignalSpec{Name: name})
+	}
+	return specs
+}
+
+func unmarshalNamedSpecs[T interface{ StateSpec | SignalSpec }](value *yaml.Node, label string) ([]T, error) {
+	if value.Kind != yaml.SequenceNode {
+		return nil, fmt.Errorf("%s specs must be a sequence", label)
+	}
+	specs := make([]T, 0, len(value.Content))
+	for i, item := range value.Content {
+		var spec T
+		switch item.Kind {
+		case yaml.ScalarNode:
+			name := item.Value
+			switch p := any(&spec).(type) {
+			case *StateSpec:
+				p.Name = name
+			case *SignalSpec:
+				p.Name = name
+			}
+		case yaml.MappingNode:
+			if err := item.Decode(&spec); err != nil {
+				return nil, fmt.Errorf("%s[%d]: %w", label, i, err)
+			}
+		default:
+			return nil, fmt.Errorf("%s[%d]: expected scalar or mapping", label, i)
+		}
+		specs = append(specs, spec)
+	}
+	return specs, nil
 }
 
 // BudgetSpec is the optional budget block in machine YAML.
@@ -116,8 +217,13 @@ func validateSpec(spec MachineSpec) error {
 		errs = append(errs, "at least one transition is required")
 	}
 
+	stateNames := spec.States.Names()
 	stateSet := make(map[string]bool)
-	for _, s := range spec.States {
+	for i, s := range stateNames {
+		if s == "" {
+			errs = append(errs, fmt.Sprintf("states[%d]: name is required", i))
+			continue
+		}
 		stateSet[s] = true
 	}
 
@@ -130,8 +236,13 @@ func validateSpec(spec MachineSpec) error {
 		}
 	}
 
+	signalNames := spec.Signals.Names()
 	signalSet := make(map[string]bool)
-	for _, s := range spec.Signals {
+	for i, s := range signalNames {
+		if s == "" {
+			errs = append(errs, fmt.Sprintf("signals[%d]: name is required", i))
+			continue
+		}
 		signalSet[s] = true
 	}
 
@@ -165,7 +276,7 @@ func DiagnoseMachineSpec(spec MachineSpec) []MachineDiagnostic {
 	}
 
 	var diagnostics []MachineDiagnostic
-	for _, state := range spec.States {
+	for _, state := range spec.States.Names() {
 		if state == spec.InitialState {
 			continue
 		}
@@ -203,7 +314,7 @@ func DiagnoseMachineSpec(spec MachineSpec) []MachineDiagnostic {
 		}
 	}
 
-	for _, signal := range spec.Signals {
+	for _, signal := range spec.Signals.Names() {
 		if !usedSignals[signal] {
 			diagnostics = append(diagnostics, MachineDiagnostic{
 				Severity: MachineDiagnosticWarning,

@@ -18,7 +18,7 @@ import (
 // emitted signal.
 func ValidateToolEmits(spec core.MachineSpec, defs []ToolDef) error {
 	signalSet := make(map[string]bool, len(spec.Signals))
-	for _, sig := range spec.Signals {
+	for _, sig := range spec.Signals.Names() {
 		signalSet[sig] = true
 	}
 

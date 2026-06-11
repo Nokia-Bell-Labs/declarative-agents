@@ -48,6 +48,125 @@ func TestParseMachineSpec_Valid(t *testing.T) {
 	}
 }
 
+func TestParseMachineSpec_RichStateAndSignalMetadata(t *testing.T) {
+	yaml := `
+name: rich
+purpose: Coordinate a review workflow.
+invariants:
+  - terminal states do not dispatch commands
+lifecycle: approval-gated
+configuration:
+  owner: qa
+pipeline_diagram: Start -> Working -> Done
+initial_state: Start
+states:
+  - name: Start
+    meaning: Ready to dispatch first command.
+  - Working
+  - name: Done
+    meaning: Terminal success state.
+terminal_states: [Done]
+signals:
+  - name: Seed
+    trigger: Engine bootstrap.
+  - ToolDone
+transitions:
+  - state: Start
+    signal: Seed
+    next: Working
+    action: step
+  - state: Working
+    signal: ToolDone
+    next: Done
+`
+	spec, err := ParseMachineSpec([]byte(yaml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if spec.Purpose != "Coordinate a review workflow." {
+		t.Fatalf("purpose = %q", spec.Purpose)
+	}
+	if len(spec.Invariants) != 1 {
+		t.Fatalf("invariants = %#v", spec.Invariants)
+	}
+	if spec.Lifecycle != "approval-gated" {
+		t.Fatalf("lifecycle = %q", spec.Lifecycle)
+	}
+	if spec.Configuration["owner"] != "qa" {
+		t.Fatalf("configuration = %#v", spec.Configuration)
+	}
+	if spec.PipelineDiagram == "" {
+		t.Fatal("pipeline_diagram should parse")
+	}
+	if got := spec.States.Names(); strings.Join(got, ",") != "Start,Working,Done" {
+		t.Fatalf("state names = %#v", got)
+	}
+	if spec.States[0].Meaning == "" || spec.States[2].Meaning == "" {
+		t.Fatalf("state metadata not preserved: %#v", spec.States)
+	}
+	if got := spec.Signals.Names(); strings.Join(got, ",") != "Seed,ToolDone" {
+		t.Fatalf("signal names = %#v", got)
+	}
+	if spec.Signals[0].Trigger == "" {
+		t.Fatalf("signal metadata not preserved: %#v", spec.Signals)
+	}
+
+	reg := NewRegistry()
+	reg.Register(ToolSpec{Name: "step"}, &dummyBuilder{name: "step"})
+	_, isTerminal, err := BuildTransitionTable(spec, reg, nil)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if !isTerminal("Done") {
+		t.Fatal("Done should be terminal")
+	}
+
+	data, err := MarshalMachineSpec(spec)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	reparsed, err := ParseMachineSpec(data)
+	if err != nil {
+		t.Fatalf("reparse: %v\n%s", err, data)
+	}
+	if reparsed.Purpose != spec.Purpose || reparsed.Lifecycle != spec.Lifecycle || len(reparsed.Invariants) != len(spec.Invariants) {
+		t.Fatalf("metadata did not round-trip: %#v", reparsed)
+	}
+}
+
+func TestParseMachineSpec_RichValidationErrorsUseNames(t *testing.T) {
+	yaml := `
+name: rich-bad
+initial_state: Start
+states:
+  - name: Start
+  - {}
+terminal_states: [Missing]
+signals:
+  - name: Seed
+  - {}
+transitions:
+  - state: Start
+    signal: MissingSignal
+    next: Missing
+`
+	_, err := ParseMachineSpec([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	for _, want := range []string{
+		"states[1]: name is required",
+		"signals[1]: name is required",
+		`terminal_state "Missing" not in states list`,
+		`signal "MissingSignal" not in signals list`,
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q missing %q", err.Error(), want)
+		}
+	}
+}
+
 func TestParseMachineSpec_MissingInitialState(t *testing.T) {
 	yaml := `
 name: bad
@@ -176,6 +295,39 @@ transitions:
 	assertMachineDiagnostic(t, diagnostics, "unreachable_state", "Orphan", "", 0)
 	assertMachineDiagnostic(t, diagnostics, "unreachable_transition", "Orphan", "ToolDone", 2)
 	assertMachineDiagnostic(t, diagnostics, "terminal_transition", "TerminalWithTransition", "ToolDone", 3)
+	assertMachineDiagnostic(t, diagnostics, "unused_signal", "", "Unused", 0)
+}
+
+func TestDiagnoseMachineSpecUsesRichNames(t *testing.T) {
+	yaml := `
+name: diagnostics-rich
+initial_state: Start
+states:
+  - name: Start
+    meaning: Entry point.
+  - name: Done
+    meaning: Terminal state.
+  - name: Orphan
+    meaning: Unreachable branch.
+terminal_states: [Done]
+signals:
+  - name: Seed
+    trigger: Engine bootstrap.
+  - name: Unused
+    trigger: Never emitted.
+transitions:
+  - state: Start
+    signal: Seed
+    next: Done
+`
+	spec, err := ParseMachineSpec([]byte(yaml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	diagnostics := DiagnoseMachineSpec(spec)
+
+	assertMachineDiagnostic(t, diagnostics, "unreachable_state", "Orphan", "", 0)
 	assertMachineDiagnostic(t, diagnostics, "unused_signal", "", "Unused", 0)
 }
 
