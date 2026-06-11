@@ -8,9 +8,13 @@ purpose: |
   epic; it does not change runtime behavior.
 
 current_contract: |
-  Every core.Command implementation exposes Undo() Result. For this migration
-  step, Undo implementations return core.NoopUndo unless a later issue replaces
-  them with command-specific rollback logic.
+  Every core.Command implementation exposes Undo() Result. Undo coverage is now
+  mixed: read-only words intentionally return core.NoopUndo, LLM and several
+  planner words have mechanical in-memory restore, and many state-mutating
+  workspace, evaluator, validation, exec, and boundary commands still return
+  core.NoopUndo pending follow-up implementation. No production command yet
+  implements UndoMementoProvider, so persisted rollback from checkpoint history
+  still needs serialized mementos before non-noop undo can work after resume.
 
 noop_contract:
   signal: ToolDone
@@ -18,134 +22,238 @@ noop_contract:
   command_name: "the command being undone"
 
 real_undo_pending:
-  conversation_state:
-    - command: invoke_llm
-      reason: "appends user and assistant messages to conversation history"
-      target_strategy: conversation_truncate
-    - command: reset_history
-      reason: "clears conversation history"
-      target_strategy: conversation_restore
-    - command: nudge_reread
-      reason: "adds a re-read instruction to the conversation path"
-      target_strategy: conversation_truncate
+  undo_mementos:
+    follow_up: agent-core-gm-rollback.5
+    reason: "mechanical Undo() is not enough for persisted rollback from checkpoint history"
+    commands:
+      - command: invoke_llm
+        current_undo: conversation_truncate
+        target_strategy: conversation_truncate
+      - command: reset_history
+        current_undo: conversation_restore
+        target_strategy: conversation_restore
+      - command: parse_response
+        current_undo: parse_retry_counter_restore_when_tracker_enabled
+        target_strategy: parse_retry_counter_restore
+      - command: report_parse_error
+        current_undo: parse_retry_counter_restore_when_tracker_enabled
+        target_strategy: parse_retry_counter_restore
+      - command: extract_task
+        current_undo: pipeline_state_restore
+        target_strategy: reversible_memento_with_pipeline_snapshot
+      - command: extract_all
+        current_undo: pipeline_state_restore
+        target_strategy: reversible_memento_with_pipeline_snapshot
+      - command: parse_plan
+        current_undo: pipeline_state_restore
+        target_strategy: reversible_memento_with_pipeline_snapshot
+      - command: check_result
+        current_undo: pipeline_state_restore
+        target_strategy: reversible_memento_with_pipeline_snapshot
 
   planner_state:
-    - command: extract_task
-      reason: "mutates CurrentTask and retry counter"
-      target_strategy: pipeline_state_restore
-    - command: extract_all
-      reason: "mutates CurrentTask and retry counter"
-      target_strategy: pipeline_state_restore
-    - command: parse_plan
-      reason: "mutates CurrentPlan"
-      target_strategy: pipeline_state_restore
     - command: create_issue
-      reason: "mutates IssueID and task dependency mapping; also creates a bd issue"
-      target_strategy: pipeline_state_restore_and_issue_compensation
-    - command: check_result
-      reason: "mutates retry counter"
-      target_strategy: retry_counter_restore
+      current_undo: pipeline_state_restore_only
+      gap: "external bd issue creation is not compensated"
+      target_strategy: compensatable_memento_with_issue_id
+      follow_up: agent-core-gm-rollback.8
 
   workspace_state:
-    - command: write
-      reason: "creates or overwrites files"
-      target_strategy: workspace_restore
-    - command: edit
-      reason: "modifies files"
-      target_strategy: workspace_restore
-    - command: ExecCmd
-      reason: "some exec declarations mutate filesystem, git, or issue tracker state"
-      target_strategy: declaration_specific_workspace_or_compensation
-    - command: create_point_dir
-      reason: "creates evaluator point directory and mutates PointContext paths"
-      target_strategy: workspace_restore_and_point_context_restore
-    - command: copy_sample_workspace
-      reason: "copies sample files into point workspace"
-      target_strategy: workspace_restore
-    - command: copy_sample_docs
-      reason: "copies optional sample docs into point workspace"
-      target_strategy: workspace_restore
-    - command: init_workspace_repo
-      reason: "creates .git metadata in point workspace"
-      target_strategy: workspace_restore
-    - command: stage_workspace_baseline
-      reason: "mutates git index"
-      target_strategy: workspace_restore_or_git_index_restore
-    - command: commit_workspace_baseline
-      reason: "creates baseline commit in point workspace"
-      target_strategy: workspace_restore
-    - command: dump_config
-      reason: "writes experiment.yaml"
-      target_strategy: workspace_restore
-    - command: run_agent
-      reason: "runs child process that mutates point workspace and writes trace/result artifacts"
-      target_strategy: workspace_restore
-    - command: collect_metrics
-      reason: "writes meta.json"
-      target_strategy: workspace_restore
+    follow_up: agent-core-gm-rollback.6
+    commands:
+      - command: write
+        reason: "creates or overwrites files"
+        target_strategy: workspace_restore
+      - command: edit
+        reason: "modifies files"
+        target_strategy: workspace_restore
+      - command: ExecCmd
+        reason: "some exec declarations mutate filesystem, git, or issue tracker state"
+        target_strategy: declaration_specific_workspace_or_compensation
+        mutating_exec_tools: [copy_dir, make_dir, git_init, stage_all, commit, issue_create, issue_close]
+      - command: create_point_dir
+        reason: "creates evaluator point directory and mutates PointContext paths"
+        target_strategy: workspace_restore_and_point_context_restore
+      - command: copy_sample_workspace
+        reason: "copies sample files into point workspace"
+        target_strategy: workspace_restore
+      - command: copy_sample_docs
+        reason: "copies optional sample docs into point workspace"
+        target_strategy: workspace_restore
+      - command: init_workspace_repo
+        reason: "creates .git metadata in point workspace"
+        target_strategy: workspace_restore
+      - command: stage_workspace_baseline
+        reason: "mutates git index"
+        target_strategy: workspace_restore_or_git_index_restore
+      - command: commit_workspace_baseline
+        reason: "creates baseline commit in point workspace"
+        target_strategy: workspace_restore
+      - command: dump_config
+        reason: "writes experiment.yaml"
+        target_strategy: workspace_restore
+      - command: run_agent
+        reason: "runs child process that mutates point workspace and writes trace/result artifacts"
+        target_strategy: workspace_restore
+      - command: collect_metrics
+        reason: "writes meta.json"
+        target_strategy: workspace_restore
 
   evaluator_state:
-    - command: parse_suite_config
-      reason: "mutates suite metadata state"
-      target_strategy: evaluator_session_restore
-    - command: discover_suite_samples
-      reason: "mutates suite sample state"
-      target_strategy: evaluator_session_restore
-    - command: expand_eval_grid
-      reason: "mutates grid point iterator input"
-      target_strategy: evaluator_session_restore
-    - command: init_eval_session
-      reason: "creates session directory and mutates runtime defaults"
-      target_strategy: evaluator_session_restore_and_workspace_restore
-    - command: next_point
-      reason: "mutates point iterator and current PointContext"
-      target_strategy: evaluator_iterator_restore
-    - command: run_point
-      reason: "records point result after nested machine execution"
-      target_strategy: evaluator_session_restore_and_workspace_restore
-    - command: run_oracle_check
-      reason: "mutates point test output and result flags"
-      target_strategy: point_context_restore
-    - command: collect_trace_tokens
-      reason: "mutates point token count"
-      target_strategy: point_context_restore
-    - command: check_agent_version
-      reason: "mutates point trace version and version mismatch fields"
-      target_strategy: point_context_restore
-    - command: report_session
-      reason: "finalizes session duration"
-      target_strategy: evaluator_session_restore
+    follow_up: agent-core-gm-rollback.7
+    commands:
+      - command: parse_suite_config
+        reason: "mutates suite metadata state"
+        target_strategy: evaluator_session_restore
+      - command: discover_suite_samples
+        reason: "mutates suite sample state"
+        target_strategy: evaluator_session_restore
+      - command: expand_eval_grid
+        reason: "mutates grid point iterator input"
+        target_strategy: evaluator_session_restore
+      - command: init_eval_session
+        reason: "creates session directory and mutates runtime defaults"
+        target_strategy: evaluator_session_restore_and_workspace_restore
+      - command: next_point
+        reason: "mutates point iterator and current PointContext"
+        target_strategy: evaluator_iterator_restore
+      - command: run_point
+        reason: "records point result after nested machine execution"
+        target_strategy: evaluator_session_restore_and_workspace_restore
+      - command: run_oracle_check
+        reason: "mutates point test output and result flags"
+        target_strategy: point_context_restore
+      - command: collect_trace_tokens
+        reason: "mutates point token count"
+        target_strategy: point_context_restore
+      - command: check_agent_version
+        reason: "mutates point trace version and version mismatch fields"
+        target_strategy: point_context_restore
+      - command: report_session
+        reason: "finalizes session duration"
+        target_strategy: evaluator_session_restore
+        declaration_gap: "tools/builtin.yaml currently declares noop"
+
+  validation_state:
+    follow_up: agent-core-gm-rollback.7
+    commands:
+      - command: load_corpus
+        reason: "mutates ValidateSpecState corpus"
+        target_strategy: validate_state_restore
+      - command: validate_specs
+        reason: "mutates ValidateSpecState graph and findings"
+        target_strategy: validate_state_restore
 
   boundary_or_compensation:
-    - command: execute_task
-      reason: "spawns child generator that can mutate workspace"
-      target_strategy: child_workspace_restore
-    - command: self_invoke
-      reason: "spawns child agent process"
-      target_strategy: child_workspace_restore_or_compensation
-    - command: launch_eval
-      reason: "spawns evaluator child process and can create eval artifacts"
-      target_strategy: artifact_compensation
-    - command: serve_ui
-      reason: "blocks on user input and mutates bench UI state"
-      target_strategy: bench_state_restore
+    follow_up: agent-core-gm-rollback.8
+    commands:
+      - command: execute_task
+        reason: "spawns child generator that can mutate workspace"
+        target_strategy: child_workspace_restore
+      - command: self_invoke
+        reason: "spawns child agent process"
+        target_strategy: child_workspace_restore_or_compensation
+      - command: launch_eval
+        reason: "spawns evaluator child process and can create eval artifacts"
+        target_strategy: artifact_compensation
+      - command: serve_ui
+        reason: "blocks on user input and mutates bench UI state"
+        target_strategy: bench_state_restore
+      - command: run_agent
+        reason: "spawns a child agent and mutates point context/workspace artifacts"
+        target_strategy: child_workspace_restore_or_compensation
+      - command: run_point
+        reason: "runs a nested point machine and records point result"
+        target_strategy: nested_machine_checkpoint_or_session_restore
+      - command: suspend
+        reason: "lifecycle boundary word; undo semantics are resume/checkpoint scoped"
+        target_strategy: lifecycle_checkpoint_compensation
+      - command: validate
+        reason: "replays child validation words and aggregates result"
+        target_strategy: child_command_undo_or_workspace_restore
 
 expected_noop_long_term:
   - read
   - find
   - list_files
-  - parse_response
-  - report_parse_error
   - done
   - assemble_prompt
-  - validate
-  - load_corpus
-  - validate_specs
+  - nudge_reread
   - format_report
+  - summarize_point_results
+  - report_suite_summary
+  - read_only_exec_tools:
+      - build
+      - vet
+      - lint
+      - test
+      - workspace_status
+      - rev_parse
+      - diff_stat
+      - log_oneline
+      - issue_list
   - FailedParamCmd
   - failCmd
 
+implemented_mechanical_undo:
+  conversation_and_retry_state:
+    - command: invoke_llm
+      strategy: conversation_truncate
+      memento: missing
+    - command: reset_history
+      strategy: conversation_restore
+      memento: missing
+    - command: parse_response
+      strategy: parse_retry_counter_restore_when_tracker_enabled
+      memento: missing
+    - command: report_parse_error
+      strategy: parse_retry_counter_restore_when_tracker_enabled
+      memento: missing
+  planner_state:
+    - command: extract_task
+      strategy: pipeline_state_restore
+      memento: missing
+    - command: extract_all
+      strategy: pipeline_state_restore
+      memento: missing
+    - command: parse_plan
+      strategy: pipeline_state_restore
+      memento: missing
+    - command: check_result
+      strategy: pipeline_state_restore
+      memento: missing
+    - command: create_issue
+      strategy: pipeline_state_restore_only
+      memento: missing
+
+declaration_mismatches:
+  - command: write
+    declaration: workspace_restore
+    implementation: NoopUndo
+    follow_up: agent-core-gm-rollback.6
+  - command: edit
+    declaration: workspace_restore
+    implementation: NoopUndo
+    follow_up: agent-core-gm-rollback.6
+  - command: evaluator_and_point_tools
+    declaration: session_state_restore_or_workspace_restore
+    implementation: NoopUndo
+    follow_up: agent-core-gm-rollback.7
+  - command: report_session
+    declaration: noop
+    implementation: mutates_session_duration_then_NoopUndo
+    follow_up: agent-core-gm-rollback.7
+  - command: boundary_tools
+    declaration: compensating_action_or_child_command_undo
+    implementation: NoopUndo
+    follow_up: agent-core-gm-rollback.8
+  - command: exec_tools
+    declaration: missing_undo_metadata
+    implementation: ExecCmd_NoopUndo
+    follow_up: agent-core-gm-rollback.6
+
 related_issues:
-  - agent-core-tundo.3
-  - agent-core-tundo.5
-  - agent-core-tundo.6
+  - agent-core-gm-rollback.5
+  - agent-core-gm-rollback.6
+  - agent-core-gm-rollback.7
+  - agent-core-gm-rollback.8
