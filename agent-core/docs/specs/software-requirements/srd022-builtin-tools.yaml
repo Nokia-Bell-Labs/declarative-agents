@@ -1,0 +1,103 @@
+id: srd022-builtin-tools
+title: Builtin Tool Declarations and Factories
+
+problem: |
+  Builtin tools are Go-implemented capabilities exposed to declarative
+  state machines through YAML tool declarations. Without a focused contract
+  for builtin tools, reusable tool identity, factory wiring, tool-specific
+  configuration, and emitted signal behavior can drift into ad hoc
+  procedural code. A builtin tool should be an opaque capability: the
+  machine knows its name and possible signals, while Go owns the
+  implementation behind a declared factory.
+
+goals:
+  - G1: Define the YAML contract for type: builtin tool declarations.
+  - G2: Define the BuiltinRegistry factory lookup and registration lifecycle.
+  - G3: Define expectations for typed builtin config validation.
+  - G4: Define how builtin tools relate to state-machine actions and dynamic $tool dispatch.
+  - G5: Distinguish reusable builtin declarations from mode-specific config overrides.
+
+requirements:
+  R1:
+    title: Builtin declaration schema
+    items:
+      - R1.1: A builtin tool declaration SHALL set type to builtin.
+      - R1.2: A builtin tool declaration SHALL provide name, the registry-visible tool name.
+      - R1.3: A builtin tool declaration SHALL provide init, the BuiltinRegistry factory key.
+      - R1.4: A builtin tool declaration MAY provide visibility, with internal tools hidden from LLM manifests.
+      - R1.5: A builtin tool declaration MAY provide parameters as JSON Schema for LLM-visible or externally supplied inputs.
+      - R1.6: A builtin tool declaration MAY provide config for tool-specific runtime configuration.
+
+  R2:
+    title: BuiltinRegistry factory resolution
+    items:
+      - R2.1: BuiltinRegistry SHALL map init names to factory functions that produce core.Builder instances.
+      - R2.2: RegisterSingleBuiltin SHALL resolve a ToolDef init name through BuiltinRegistry before registering with core.Registry.
+      - R2.3: Registration SHALL fail if a selected builtin tool has no matching factory.
+      - R2.4: Factory functions SHALL receive the full ToolDef and runtime vars so they can configure Builders from YAML and runtime context.
+
+  R3:
+    title: Builtin config validation
+    items:
+      - R3.1: Builtin factories SHOULD validate tool-specific config types at registration time.
+      - R3.2: Required behavior-shaping config such as nested machine paths, tool selection paths, artifact paths, or server addresses SHOULD be explicit and validated.
+      - R3.3: Config validation errors SHALL include the tool name and invalid key.
+      - R3.4: Defaults MAY exist for backwards compatibility, but defaults that change program behavior SHALL be documented.
+
+  R4:
+    title: State-machine integration
+    items:
+      - R4.1: A machine transition action MAY reference a builtin tool by its declared name.
+      - R4.2: BuildTransitionTable SHALL fail if a named builtin action is not registered in the core.Registry.
+      - R4.3: Dynamic $tool dispatch MAY resolve to builtin tools selected for the current agent.
+      - R4.4: Builtin tools SHALL return core.Result values whose Signal drives the next state-machine transition.
+      - R4.5: Builtin tools SHOULD declare their possible emitted signals once the tool signal contract is implemented.
+
+  R5:
+    title: Reusable declarations and mode-local overrides
+    items:
+      - R5.1: Shared builtin declarations SHOULD describe reusable tool identity, parameters, visibility, and init keys.
+      - R5.2: Mode-specific configuration SHOULD live in mode-local declaration or override files when it binds a tool to a specific program.
+      - R5.3: Shared declarations SHOULD NOT require editing when adding a new machine configuration that reuses an existing builtin tool.
+      - R5.4: Mode-local overrides SHALL preserve the same builtin name/init pair unless intentionally replacing the capability.
+
+non_goals:
+  - Defining external CLI/exec tools; see the CLI/exec tool SRD work.
+  - Defining every builtin tool's internal algorithm.
+  - Replacing core.Registry or ToolSpec.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Builtin YAML declarations provide name, type: builtin, init, optional visibility, optional parameters, and optional config.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
+
+  - id: AC2
+    criterion: BuiltinRegistry resolves init names to factories and registration fails for selected builtin tools without a factory.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC3
+    criterion: Builtin tool config is validated early, with clear errors for missing or mistyped behavior-shaping config.
+    traces: [R3.1, R3.2, R3.3, R3.4]
+
+  - id: AC4
+    criterion: Builtin tools can be referenced by machine actions or dynamic $tool dispatch and return signals that drive transitions.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+
+  - id: AC5
+    criterion: Reusable builtin declarations are separated from mode-local config overrides.
+    traces: [R5.1, R5.2, R5.3, R5.4]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Builder, Command, Result, Signal]
+  - srd_id: srd004-tool-registry
+    symbols_used: [Registry, ToolSpec]
+  - srd_id: srd006-yaml-machine-config
+    symbols_used: [BuildTransitionTable]
+  - srd_id: srd013-standard-tool-library
+    symbols_used: [BuiltinRegistry, RegisterSingleBuiltin, ToolDef]
+
+implementation:
+  - configs/tools/builtin.yaml
+  - pkg/stl/builtintool.go
+  - pkg/stl/exectool.go
