@@ -73,11 +73,17 @@ func TestCheckpointContractsCompileAndRoundTrip(t *testing.T) {
 		DomainState:     json.RawMessage(`{"conversation_len":3}`),
 		WorkspaceRef:    "abc123",
 		History: []HistoryDigest{{
-			Iteration:    2,
-			CommandName:  "write",
-			FromState:    State("Composing"),
-			ToState:      State("Parsing"),
-			Signal:       Signal("ToolDone"),
+			Iteration:   2,
+			CommandName: "write",
+			FromState:   State("Composing"),
+			ToState:     State("Parsing"),
+			Signal:      Signal("ToolDone"),
+			Undo: &UndoMemento{
+				Version:     UndoMementoVersion,
+				Kind:        UndoMementoReversible,
+				CommandName: "write",
+				Payload:     json.RawMessage(`{"path":"file.txt","before_ref":"abc123"}`),
+			},
 			WorkspaceRef: "abc123",
 		}},
 	}
@@ -93,6 +99,7 @@ func TestCheckpointContractsCompileAndRoundTrip(t *testing.T) {
 	require.JSONEq(t, string(cp.ConversationLog), string(got.ConversationLog))
 	require.JSONEq(t, string(cp.DomainState), string(got.DomainState))
 	require.Len(t, got.History, 1)
+	require.NoError(t, ValidateUndoMemento(*got.History[0].Undo))
 }
 
 func TestNoopUndoReturnsSuccessfulResult(t *testing.T) {

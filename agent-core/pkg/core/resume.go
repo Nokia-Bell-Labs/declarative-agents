@@ -127,6 +127,7 @@ func historyFromDigest(digest []HistoryDigest) History {
 			FromState:    entry.FromState,
 			ToState:      entry.ToState,
 			Result:       ResultDigest{Signal: entry.Signal},
+			Undo:         cloneUndoMemento(entry.Undo),
 			WorkspaceRef: entry.WorkspaceRef,
 		})
 	}

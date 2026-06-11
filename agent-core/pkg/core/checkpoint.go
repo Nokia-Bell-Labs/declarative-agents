@@ -64,12 +64,13 @@ type AgentSnapshot struct {
 // Full command undo data remains command-owned; this digest is for inspection,
 // resume summaries, and future rollback traversal.
 type HistoryDigest struct {
-	Iteration    int    `json:"iteration"`
-	CommandName  string `json:"command_name"`
-	FromState    State  `json:"from_state"`
-	ToState      State  `json:"to_state"`
-	Signal       Signal `json:"signal"`
-	WorkspaceRef string `json:"workspace_ref,omitempty"`
+	Iteration    int          `json:"iteration"`
+	CommandName  string       `json:"command_name"`
+	FromState    State        `json:"from_state"`
+	ToState      State        `json:"to_state"`
+	Signal       Signal       `json:"signal"`
+	Undo         *UndoMemento `json:"undo,omitempty"`
+	WorkspaceRef string       `json:"workspace_ref,omitempty"`
 }
 
 // History is the rollback-oriented record of dispatched commands in a loop run.
@@ -89,6 +90,7 @@ type HistoryEntry struct {
 	ToState      State        `json:"to_state"`
 	Signal       Signal       `json:"signal"`
 	Result       ResultDigest `json:"result"`
+	Undo         *UndoMemento `json:"undo,omitempty"`
 	WorkspaceRef string       `json:"workspace_ref,omitempty"`
 }
 

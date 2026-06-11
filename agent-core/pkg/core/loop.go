@@ -581,6 +581,7 @@ func historyDigest(history History) []HistoryDigest {
 			FromState:    entry.FromState,
 			ToState:      entry.ToState,
 			Signal:       entry.Result.Signal,
+			Undo:         cloneUndoMemento(entry.Undo),
 			WorkspaceRef: entry.WorkspaceRef,
 		})
 	}
