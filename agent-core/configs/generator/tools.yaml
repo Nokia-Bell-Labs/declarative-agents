@@ -1,5 +1,6 @@
 # Tool selection for the generator agent.
-# Lists the subset of declared tools this agent uses.
+# All tools are either direct transition actions or reachable via $tool
+# dynamic dispatch (LLM-invoked).
 #
 # Usage:
 #   agent --tools-declaration configs/tools/builtin.yaml \
@@ -8,23 +9,27 @@
 #         --machine configs/generator/machine.yaml
 
 tools:
-  # file tools
+  # File tools — LLM-invoked via $tool dispatch
   - read
   - write
   - edit
   - find
   - list_files
-  # LLM tools
-  - invoke_llm
-  - parse_response
-  - report_parse_error
-  - reset_history
-  # validation
-  - validate
-  - nudge_reread
-  # completion
+
+  # LLM tools — direct transition actions
+  - invoke_llm           # action: Composing→Parsing
+  - parse_response       # action: Parsing→(dispatch)
+  - report_parse_error   # action: ParseFailed→Composing
+  - reset_history        # action: (available for budget recovery)
+
+  # Validation — direct transition action
+  - validate             # action: invokes build, lint, test internally
+  - nudge_reread         # action: after edits
+
+  # Completion — emits TaskCompleted via parse_response
   - done
-  # build/test (used by validate)
+
+  # Build/test — indirect via validate, also $tool-reachable
   - build
   - vet
   - lint

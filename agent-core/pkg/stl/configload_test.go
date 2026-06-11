@@ -236,8 +236,6 @@ func TestPlannerConfig_ToolsLoad(t *testing.T) {
 		"extract_task", "extract_all", "assemble_prompt", "parse_plan",
 		"create_issue", "execute_task", "invoke_llm", "reset_history",
 		"check_result", "vet", "build", "test",
-		"stage_all", "workspace_status", "commit", "rev_parse",
-		"diff_stat", "log_oneline", "issue_create", "issue_close", "issue_list",
 	})
 }
 

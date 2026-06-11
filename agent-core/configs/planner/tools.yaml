@@ -1,5 +1,6 @@
 # Tool selection for the planner agent.
-# Lists the subset of declared tools this agent uses.
+# Shared across all planner machine variants (full, passthrough, plan-only).
+# Each tool is a direct transition action in at least one variant.
 #
 # Usage:
 #   agent --tools-declaration configs/tools/builtin.yaml \
@@ -9,31 +10,22 @@
 #         --machine configs/planner/machine.yaml
 
 tools:
-  # planning tools
-  - extract_task
-  - extract_all
-  - assemble_prompt
-  - parse_plan
-  - create_issue
-  # execution
-  - execute_task
-  - check_result
-  # LLM tools
-  - invoke_llm
-  - reset_history
-  # build/test (used by check_result validation)
+  # Planning phase (plan-only + full)
+  - extract_task         # action: full, plan-only
+  - extract_all          # action: passthrough
+  - assemble_prompt      # action: full, plan-only
+  - parse_plan           # action: full, plan-only
+  - create_issue         # action: full, plan-only
+
+  # Execution phase (full + passthrough)
+  - execute_task         # action: full, passthrough
+  - check_result         # action: full, passthrough
+
+  # LLM (full, plan-only)
+  - invoke_llm           # action: full, plan-only
+  - reset_history        # action: full, plan-only
+
+  # Build/test — direct transition actions in full + passthrough
   - build
   - vet
-  - lint
   - test
-  # git tools
-  - stage_all
-  - workspace_status
-  - commit
-  - rev_parse
-  - diff_stat
-  - log_oneline
-  # issue tools
-  - issue_create
-  - issue_close
-  - issue_list
