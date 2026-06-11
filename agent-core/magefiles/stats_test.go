@@ -9,7 +9,7 @@ func TestDocsYAMLCategory(t *testing.T) {
 	tests := map[string]string{
 		"docs/ARCHITECTURE.yaml":                                   "top_level",
 		"docs/specs/config-formats/machine-format.yaml":            "config_formats",
-		"docs/specs/semantic-models/generator.yaml":                "semantic_models",
+		"docs/specs/semantic-models/tool-language.yaml":            "semantic_models",
 		"docs/specs/software-requirements/srd001-core-types.yaml":  "software_requirements",
 		"docs/specs/use-cases/rel01.0-uc001-generator-coding.yaml": "use_cases",
 		"docs/specs/test-suites/test-rel00.0.yaml":                 "test_suites",

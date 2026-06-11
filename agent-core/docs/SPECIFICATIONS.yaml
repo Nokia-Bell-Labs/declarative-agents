@@ -177,26 +177,6 @@ config_format_index:
     path: docs/specs/config-formats/tool-declaration-format.yaml
 
 semantic_model_index:
-  - id: sm-generator
-    title: Generator Agent Semantic Model
-    summary: Semantic model for the generator coding agent state machine, signals, validation flow, tools, and invariants.
-    path: docs/specs/semantic-models/generator.yaml
-  - id: sm-evaluator
-    title: Evaluator Agent Semantic Model
-    summary: Semantic model for evaluator session and point execution over suites, grids, workspaces, agent runs, and metrics.
-    path: docs/specs/semantic-models/evaluator.yaml
-  - id: sm-planner
-    title: Planner Agent Semantic Model
-    summary: Semantic model for planner pipeline task extraction, prompt assembly, plan parsing, issue creation, and retry behavior.
-    path: docs/specs/semantic-models/planner.yaml
-  - id: sm-validator
-    title: Validator Agent Semantic Model
-    summary: Semantic model for specification corpus loading, validation, report formatting, and validation result states.
-    path: docs/specs/semantic-models/validator.yaml
-  - id: sm-bench
-    title: Bench Semantic Model
-    summary: Semantic model for the bench web UI state machine, experiment launch lifecycle, session browsing, and shutdown.
-    path: docs/specs/semantic-models/bench.yaml
   - id: sm-command-undo-audit
     title: Command Undo Audit
     summary: Migration checklist for commands that need real undo implementations versus long-term no-op undo behavior.
@@ -359,11 +339,11 @@ coverage_gaps: |
   run_agent, point result tools, collect_metrics, dump_config, nudge_reread,
   validate, done as standalone builtin, and YAML-based tool registration.
 
-  Agent configurations and architectural models are documented as semantic models:
-  - docs/specs/semantic-models/generator.yaml (sm-generator)
-  - docs/specs/semantic-models/evaluator.yaml (sm-evaluator)
-  - docs/specs/semantic-models/planner.yaml (sm-planner)
-  - docs/specs/semantic-models/validator.yaml (sm-validator)
-  - docs/specs/semantic-models/bench.yaml (sm-bench)
+  Agent configurations and architectural models are documented in enriched machine configs and cross-cutting semantic models:
+  - agents/generator/machine.yaml (generator machine semantics)
+  - agents/evaluator/machine.yaml and agents/evaluator/point.yaml (evaluator machine semantics)
+  - agents/planner/machine.yaml and variants (planner machine semantics)
+  - agents/validate/machine.yaml (validator machine semantics)
+  - agents/bench/machine.yaml (bench machine semantics)
   - docs/specs/semantic-models/rollback-lifecycle.yaml (sm-rollback-lifecycle)
   - docs/specs/semantic-models/tool-language.yaml (sm-tool-language)

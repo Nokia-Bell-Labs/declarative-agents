@@ -173,7 +173,5 @@ config_files:
 related_documents:
   - cfg-tool-declaration-format
   - srd017
-  - sm-generator
-  - sm-evaluator
 
 implementation: pkg/llm/ollama

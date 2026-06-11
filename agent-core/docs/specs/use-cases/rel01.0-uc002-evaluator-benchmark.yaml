@@ -24,7 +24,7 @@ trigger: |
 flow:
   - F1: The session machine runs parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary to prepare suite input and create the session output directory (srd019).
   - F2: The session machine enters AdvancingPoint; next_point returns the first (harness, model, sample, gridpoint, rep) combination (srd019).
-  - F3: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (agents/evaluator/point.yaml) (srd005, sm-evaluator).
+  - F3: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (agents/evaluator/point.yaml) (srd005, agents/evaluator/machine.yaml, agents/evaluator/point.yaml).
   - F4: The point machine runs create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline to prepare an isolated workspace (srd019).
   - F5: dump_config serializes the full experiment configuration into experiment.yaml for reproducibility (srd019).
   - F6: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation (srd016, srd019).
@@ -39,7 +39,7 @@ touchpoints:
   - T2: "srd006-yaml-machine-config -- session and point machine.yaml loading"
   - T3: "srd016-traceparent -- W3C traceparent propagation to subprocess"
   - T4: "srd019-eval-harness -- suite parsing, grid eval, all eval tools, result analysis"
-  - T5: "sm-evaluator -- two-level state machine: session states, point states, signals, lifecycle"
+  - T5: "agents/evaluator/*.yaml -- two-level state machine: session states, point states, signals, lifecycle"
 
 success_criteria:
   - id: S1
@@ -69,11 +69,13 @@ success_criteria:
   - id: S7
     criterion: Session summary correctly reports total, passed, failed, and timed-out counts.
     traces:
-      - sm-evaluator session_lifecycle
+      - agents/evaluator/machine.yaml lifecycle
 
 out_of_scope:
   - Real-time progress streaming during evaluation.
   - Parallel grid point execution (points run sequentially).
   - Result visualization (handled by bench, see rel01.0-uc003).
 
-semantic_model: sm-evaluator
+machine_configs:
+  - agents/evaluator/machine.yaml
+  - agents/evaluator/point.yaml

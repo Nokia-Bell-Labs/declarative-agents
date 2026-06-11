@@ -29,7 +29,7 @@ flow:
   - F6: The state machine is loaded from agents/generator/machine.yaml and validated against the registered tools (srd006).
   - F7: core.Loop drives the state machine. Idle → Composing via invoke_llm sends the task prompt to the LLM (srd005, srd009).
   - F8: LLM response is parsed by parse_response. The $tool sentinel dispatches the extracted tool call (srd006, srd013).
-  - F9: Tool results feed back to the LLM. The Composing ↔ Parsing cycle repeats until the LLM calls done (sm-generator).
+  - F9: Tool results feed back to the LLM. The Composing ↔ Parsing cycle repeats until the LLM calls done (agents/generator/machine.yaml).
   - F10: After done, machine-declared validation runs build → lint → test. ToolDone after the final test transitions to Succeeded; ToolFailed in any validation state transitions to Failed (srd006, srd013).
 
 touchpoints:
@@ -40,7 +40,7 @@ touchpoints:
   - T5: "srd018-cli-flag-contract -- flag constants, tools-declaration, machine flag"
   - T6: "cfg-tool-declaration-format -- builtin.yaml, exec.yaml, llm/*.yaml declarations"
   - T7: "cfg-tool-selection-format -- tools.yaml name-list filtering"
-  - T8: "sm-generator -- state machine states, signals, lifecycle"
+  - T8: "agents/generator/machine.yaml -- state machine states, signals, lifecycle"
 
 success_criteria:
   - id: S1
@@ -68,4 +68,4 @@ out_of_scope:
   - Multi-file project scaffolding beyond the workspace directory.
   - Custom tool implementations not in builtin.yaml or exec.yaml.
 
-semantic_model: sm-generator
+machine_config: agents/generator/machine.yaml

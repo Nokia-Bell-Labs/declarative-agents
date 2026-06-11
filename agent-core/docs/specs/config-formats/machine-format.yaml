@@ -174,10 +174,5 @@ examples:
 
 related_documents:
   - srd006
-  - sm-generator
-  - sm-evaluator
-  - sm-planner
-  - sm-validator
-  - sm-bench
 
 implementation: pkg/core/machine.go
