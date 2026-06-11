@@ -69,8 +69,9 @@ func TestCheckpointContractsCompileAndRoundTrip(t *testing.T) {
 			TokensOut: 5,
 			TotalCost: 0.25,
 		},
-		DomainState:  json.RawMessage(`{"conversation_len":3}`),
-		WorkspaceRef: "abc123",
+		ConversationLog: json.RawMessage(`[{"role":"user","content":"hello"}]`),
+		DomainState:     json.RawMessage(`{"conversation_len":3}`),
+		WorkspaceRef:    "abc123",
 		History: []HistoryDigest{{
 			Iteration:    2,
 			CommandName:  "write",
@@ -89,6 +90,7 @@ func TestCheckpointContractsCompileAndRoundTrip(t *testing.T) {
 	require.Equal(t, cp.ID, got.ID)
 	require.Equal(t, cp.AgentState.State, got.AgentState.State)
 	require.Equal(t, cp.WorkspaceRef, got.WorkspaceRef)
+	require.JSONEq(t, string(cp.ConversationLog), string(got.ConversationLog))
 	require.JSONEq(t, string(cp.DomainState), string(got.DomainState))
 	require.Len(t, got.History, 1)
 }

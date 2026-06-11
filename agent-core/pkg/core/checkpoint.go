@@ -40,13 +40,14 @@ type CheckpointPolicy interface {
 //   - command/domain state: optional JSON owned by commands or domains
 //   - environment state: an opaque Workspace ref such as a git commit
 type Checkpoint struct {
-	ID           string          `json:"id"`
-	Iteration    int             `json:"iteration"`
-	Timestamp    time.Time       `json:"timestamp"`
-	AgentState   AgentSnapshot   `json:"agent_state"`
-	DomainState  json.RawMessage `json:"domain_state,omitempty"`
-	WorkspaceRef string          `json:"workspace_ref,omitempty"`
-	History      []HistoryDigest `json:"history,omitempty"`
+	ID              string          `json:"id"`
+	Iteration       int             `json:"iteration"`
+	Timestamp       time.Time       `json:"timestamp"`
+	AgentState      AgentSnapshot   `json:"agent_state"`
+	ConversationLog json.RawMessage `json:"conversation,omitempty"`
+	DomainState     json.RawMessage `json:"domain_state,omitempty"`
+	WorkspaceRef    string          `json:"workspace_ref,omitempty"`
+	History         []HistoryDigest `json:"history,omitempty"`
 }
 
 // AgentSnapshot is the serializable loop-owned portion of a checkpoint.
