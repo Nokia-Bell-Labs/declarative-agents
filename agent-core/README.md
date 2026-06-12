@@ -63,7 +63,7 @@ mage docker
 
 `mage docker` discovers the latest remote release tag from GitLab, passes it to
 the Dockerfile as `AGENT_CORE_REF`, and builds `agent-core:latest`. The target
-uses Podman when available, falls back to Docker, and prints the image, release
+uses Docker when available, falls back to Podman, and prints the image, release
 ref, and engine before building.
 
 Common overrides:

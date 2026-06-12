@@ -2,128 +2,166 @@
 
 This inventory records documentation drift found by comparing the current source
 tree, agent configuration, and audit output. It is a planning artifact for
-`agent-core-5zdu`; follow-up issues should update the referenced docs or audit
-rules without changing runtime behavior unless noted.
+`agent-core-9ilp`; follow-up issues should update documentation without changing
+runtime behavior unless a follow-up explicitly calls out a source correction.
 
 ## Verification Baseline
 
-- `go test ./...` passes.
+- Current worktree includes uncommitted Docker preference changes that make
+  `mage docker` prefer Docker over Podman when both are installed.
 - `go list ./...` reports 29 Go packages.
-- `mage stats` runs and reports 21,026 Go source lines, 14,873 Go test lines,
-  and 188 YAML files.
-- `mage audit` runs successfully with no hard validation errors; remaining
-  findings are warning-level coverage and audit cleanup items.
+- `git ls-files '*.yaml'` reports 189 tracked YAML files.
+- `mage docker` has built a slim runtime image from remote release
+  `v0.20260612.1`; the Docker-built check image reports 77.9 MB and the
+  Podman-built `agent-core:latest` reports 54.6 MB.
+- Full `mage audit` was not rerun for this inventory issue; it belongs to the
+  verification follow-up after documentation edits.
 
-## Runtime Invocation And Profiles
-
-Source evidence:
-- `cmd/agent/main.go` defines `--profile` as the replacement for `--machine`,
-  `--tools`, and `--tools-declaration`.
-- `cmd/agent/main.go` warns when legacy flags `--machine`, `--tools`,
-  `--tools-declaration`, `--model`, and `--ollama-url` are explicitly used.
-- `internal/tools/stl/profile.go` resolves `machine`, `tools`,
-  `tool_declarations`, `tool_config_dirs`, and `directory` relative to the
-  profile file.
-- `internal/tools/stl/exectool.go` supports repeatable tool selection files,
-  repeatable tool declaration files, and declaration loading from directories.
-
-Documentation drift:
-- `docs/specs/config-formats/runtime-contract.yaml` still presents
-  `--machine`, `--tools`, and `--tools-declaration` as the primary invocation
-  contract, with `--model` and `--ollama-url` as ordinary universal flags.
-- `docs/specs/use-cases/rel01.0-uc001-generator-coding.yaml` and
-  `docs/specs/use-cases/rel01.0-uc003-bench-visualization.yaml` show legacy
-  flag-based invocations as the happy path even though profiles exist for those
-  agents.
-- Runtime docs do not fully document `tool_config_dirs` directory discovery or
-  profile-relative path resolution.
-
-Follow-up: `agent-core-5zdu.2`.
-
-## Evaluator Suite Profiles
+## README Runtime Positioning
 
 Source evidence:
-- `internal/evaluation/eval_session.go` documents and implements two suite
-  formats: profile-based `profiles: [...]` as preferred, and legacy
-  `harnesses` plus `models`.
-- `internal/evaluation/eval_session.go` rejects suites that mix profiles with
-  harnesses or models.
-- `internal/evaluation/eval_clitool.go` invokes child agents with `--profile`
-  when `PointContext.ProfilePath` is set; legacy mode falls back to `--model`
-  and harness flags.
-- `testdata/integration/uc002-evaluator-benchmark/suite.yaml` uses generator
-  profiles for Qwen 3.6 35B and 27B.
+- `cmd/agent/main.go` is the unified binary entry point; generator, planner,
+  evaluator, bench, and constitution-auditor behavior is selected through YAML
+  profiles and tool declarations.
+- `agents/*/profile.yaml` files are the normal runtime entry points.
+- `docs/ARCHITECTURE.yaml` now describes the system as a single binary driving
+  configured agents.
 
 Documentation drift:
-- `docs/specs/software-requirements/srd019-eval-harness.yaml` defines the
-  primary suite contract in terms of harnesses and models, and says the session
-  iterates `(harness, model, gridPoint, sample, repetition)`.
-- `docs/specs/use-cases/rel01.0-uc002-evaluator-benchmark.yaml` describes the
-  suite as a grid of harness/model combinations and uses legacy evaluator
-  invocation flags.
-- UC002 success criterion `S7` traces only to `agents/evaluator/machine.yaml`
-  and is reported by `mage audit` as an untraced success criterion.
+- `README.md` still opens as "A Go framework for building tool-augmented
+  agentic loops" and says "Domain agents import agent-core". That no longer
+  captures the primary usage model: a universal `agent` runtime plus YAML agent
+  profiles.
+- The README package table is useful but does not orient readers around the
+  active agents (`agents/generator`, `agents/evaluator`, `agents/planner`,
+  `agents/bench`, `agents/constitution-auditor`) or profile-first startup.
 
-Follow-up: `agent-core-5zdu.3`.
+Recommended edits:
+- Refresh the README introduction around Agent Core as a declarative runtime.
+- Keep package information concise, but add a current "Agent Profiles" or
+  "Runtime Configuration" section that points at active profile files.
+- Keep legacy flags out of the happy path and mention them only as
+  compatibility behavior when needed.
 
-## Audit Vocabulary And Config Validation
+Follow-up: `agent-core-9ilp.3`.
+
+## Docker And Mage Release Image Workflow
 
 Source evidence:
-- `pkg/spec/types.go` defines the canonical `KnownSideEffectKinds` vocabulary.
-  It includes `child_process` and `nested_machine_execution`, but not
-  `subprocess` or `nested_machine`.
-- `agents/planner/builtin.yaml` and `agents/bench/builtin.yaml` currently use
-  `kind: subprocess`.
-- `agents/evaluator/builtin.yaml` currently uses `kind: nested_machine`.
-- `agents/generator/profile.yaml` and `agents/planner/profile.yaml` include
-  agent-local LLM declarations, but `mage audit` reports selected `invoke_llm`
-  tools as undeclared for generator and planner.
-- `agents/evaluator/machine.yaml` is named `evaluator-session`, while the
-  directory/profile are named `evaluator`.
-
-Audit findings:
-- `machine-name-mismatch`: evaluator directory name vs machine spec name.
-- `machine-unresolved-action`: generator dynamic `$tool` transition is treated
-  as an unresolved selected action.
-- `tool-selection-undeclared`: generator and planner select `invoke_llm` even
-  though profile-local declarations provide it.
-- `tool-unknown-side-effect-kind`: `subprocess` and `nested_machine` do not
-  match the canonical vocabulary.
-
-Follow-up: `agent-core-5zdu.4`.
-
-## Traceability And Coverage
-
-Source/audit evidence:
-- `mage audit` reports many `uncovered-req-item` and `uncovered-ac` findings.
-- The largest source of current drift is around SRDs that describe LLM
-  conversation/prompt behavior, evaluator harness behavior, bench UI behavior,
-  and newer tool contracts.
-- Several SRDs are reported as orphaned from use-case touchpoints.
+- `Dockerfile` is a two-stage build: Go source, tests, and build dependencies
+  stay in the builder; the runtime stage is Alpine with `agent`, git/Unix
+  utilities, and selected YAML config under `/opt/agent-core`.
+- `magefiles/docker.go` resolves the latest remote release tag by default,
+  passes it as `AGENT_CORE_REF`, uses Docker when installed and Podman as
+  fallback, defaults the build secret to repository-local `.netrc`, and prints a
+  transparent build settings block plus the exact command.
+- `.gitignore` ignores `.netrc`, `podman-build-secret-*`, and
+  `magefiles/mage_output_file.go`.
 
 Documentation drift:
-- Some requirements appear to describe current source behavior but lack
-  acceptance criteria or test-suite traces.
-- Some older requirements appear to describe legacy behavior and should be
-  revised or explicitly scoped as compatibility behavior.
+- `README.md` contains the only Docker/Mage release-image documentation. The
+  broader docs set does not yet mention the containerized runtime packaging,
+  release-ref selection, or `/opt/agent-core` shared config asset layout.
+- README examples still contain a concrete release ref
+  (`v0.20260612.1`). That is useful as a verification note but should not look
+  like a permanent recommended version; current source resolves the latest
+  remote release dynamically.
+- The current runtime image intentionally does not include Go or
+  `golangci-lint`, but active exec declarations include `build`, `vet`, `test`,
+  and `lint` commands. Documentation should explain whether the container image
+  is a minimal agent runtime only, or whether language/toolchain images are
+  expected to extend it for code-generation validation.
 
-Follow-up: `agent-core-5zdu.5`.
+Recommended edits:
+- Update README Docker wording after the current Docker-preference change lands.
+- Add a docs/ architecture or runtime-contract note for the release image and
+  `/opt/agent-core` asset layout.
+- Clarify the minimal runtime image versus language/toolchain requirements for
+  exec tools.
 
-## Package Inventory And Counts
+Follow-up: `agent-core-9ilp.2`, `agent-core-9ilp.3`.
+
+## Bench Launch Documentation
 
 Source evidence:
-- `go list ./...` now shows public code under `pkg/spec` only; implementation
-  code lives under `internal/runtime`, `internal/tools`, `internal/evaluation`,
-  `internal/model`, `internal/planning`, `internal/observability`, and
-  `internal/support`.
-- `mage stats` reports current line and YAML counts after the internal package
-  migration.
+- `agents/bench/builtin.yaml` configures `launch_eval` as a boundary word that
+  runs the configured evaluator profile and propagates profile/trace settings.
+- `docs/specs/config-formats/runtime-contract.yaml` says `launch_eval` reads
+  `config.profile` and invokes the child evaluator with `--profile`.
+- `agents/bench/machine.yaml` already says experiment execution launches the
+  evaluator profile.
 
 Documentation drift:
-- Package path references were mostly updated in the previous cleanup, but
-  generated counts and package inventory sections still need one source-backed
-  refresh against `go list ./...` and `mage stats`.
-- Historical notes can mention former paths, but active architecture and spec
-  claims should use current paths.
+- `docs/specs/use-cases/rel01.0-uc003-bench-visualization.yaml` still says
+  `launch_eval` "spawns the evaluator session machine as a subprocess" in the
+  summary, flow, and success criteria. The current boundary is profile-first:
+  it spawns an evaluator child agent configured by profile, whose profile owns
+  the session machine.
 
-Follow-up: `agent-core-5zdu.6`.
+Recommended edits:
+- Replace "evaluator session machine subprocess" phrasing with "evaluator
+  profile child process" or equivalent, while still noting that the evaluator
+  profile runs the session machine internally.
+
+Follow-up: `agent-core-9ilp.2`.
+
+## Tool Declaration File Layout
+
+Source evidence:
+- Active profiles use `tool_config_dirs` pointing at individual declaration
+  directories such as `tools/builtin/` and `tools/exec/`.
+- Aggregate files such as `tools/builtin.yaml` and `tools/exec.yaml` remain in
+  the repository as compatibility or historical aggregate inputs.
+
+Documentation drift:
+- Several docs still present `tools/builtin.yaml` and `tools/exec.yaml` as the
+  primary declaration files (`tool-selection-format.yaml`,
+  `tool-declaration-format.yaml`, `tool-vocabulary-audit.yaml`, older comments
+  in agent tool selection files). Those references should distinguish active
+  profile directory loading from compatibility aggregate files.
+
+Recommended edits:
+- Update active config-format docs to prefer `tool_config_dirs` and individual
+  declaration directories.
+- Keep aggregate YAML references only where explicitly describing compatibility,
+  migration history, or historical examples.
+
+Follow-up: `agent-core-9ilp.2`.
+
+## Package And Metrics Counts
+
+Source evidence:
+- `go list ./...` reports 29 Go packages.
+- `git ls-files '*.yaml'` reports 189 tracked YAML files.
+- `package-layout.md` currently lists 29 Go packages and still matches the
+  package count.
+
+Documentation drift:
+- The old verification baseline in this inventory listed 188 YAML files and
+  referred to `agent-core-5zdu`.
+- Other generated count references should be refreshed only if `mage stats`
+  changes after the current README/docs updates.
+
+Recommended edits:
+- Keep `package-layout.md` unless `go list ./...` changes.
+- Refresh generated counts in docs that quote YAML or stats totals during the
+  verification follow-up.
+
+Follow-up: `agent-core-9ilp.4`.
+
+## User-Facing CLI Help Note
+
+Source evidence:
+- `cmd/agent/main.go` top-level `Long` help still says modes are selected by
+  `--machine` and `--tools`, while current docs and source behavior prefer
+  `--profile`.
+
+Documentation drift:
+- This is source user-facing help rather than a docs/ file, so it is outside
+  the "align documentation to source code" follow-up unless the team treats CLI
+  help as documentation.
+
+Recommended follow-up:
+- Consider a source/documentation cleanup issue to update CLI help to the
+  profile-first wording. Do not block the docs-only alignment epic on it unless
+  the scope expands to user-facing strings in source.

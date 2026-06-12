@@ -72,11 +72,11 @@ func containerEngine(override string, lookPath lookPathFunc) (string, error) {
 	if engine := strings.TrimSpace(override); engine != "" {
 		return engine, nil
 	}
-	if _, err := lookPath("podman"); err == nil {
-		return "podman", nil
-	}
 	if _, err := lookPath("docker"); err == nil {
 		return "docker", nil
+	}
+	if _, err := lookPath("podman"); err == nil {
+		return "podman", nil
 	}
 	return "", fmt.Errorf("no container engine found; set %s to podman or docker", envContainerEngine)
 }

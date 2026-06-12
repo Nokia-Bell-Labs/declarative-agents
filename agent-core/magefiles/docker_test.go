@@ -23,28 +23,13 @@ func TestContainerEngineUsesOverride(t *testing.T) {
 	}
 }
 
-func TestContainerEnginePrefersPodman(t *testing.T) {
+func TestContainerEnginePrefersDocker(t *testing.T) {
 	got, err := containerEngine("", func(name string) (string, error) {
+		if name == "docker" {
+			return "/usr/bin/docker", nil
+		}
 		if name == "podman" {
 			return "/usr/bin/podman", nil
-		}
-		if name == "docker" {
-			return "/usr/bin/docker", nil
-		}
-		return "", errors.New("missing")
-	})
-	if err != nil {
-		t.Fatalf("containerEngine returned error: %v", err)
-	}
-	if got != "podman" {
-		t.Fatalf("containerEngine = %q, want podman", got)
-	}
-}
-
-func TestContainerEngineFallsBackToDocker(t *testing.T) {
-	got, err := containerEngine("", func(name string) (string, error) {
-		if name == "docker" {
-			return "/usr/bin/docker", nil
 		}
 		return "", errors.New("missing")
 	})
@@ -53,6 +38,21 @@ func TestContainerEngineFallsBackToDocker(t *testing.T) {
 	}
 	if got != "docker" {
 		t.Fatalf("containerEngine = %q, want docker", got)
+	}
+}
+
+func TestContainerEngineFallsBackToPodman(t *testing.T) {
+	got, err := containerEngine("", func(name string) (string, error) {
+		if name == "podman" {
+			return "/usr/bin/podman", nil
+		}
+		return "", errors.New("missing")
+	})
+	if err != nil {
+		t.Fatalf("containerEngine returned error: %v", err)
+	}
+	if got != "podman" {
+		t.Fatalf("containerEngine = %q, want podman", got)
 	}
 }
 
