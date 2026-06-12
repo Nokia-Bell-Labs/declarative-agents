@@ -238,15 +238,36 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 
 		toolsPath := filepath.Join(agentsPath, agentName, "tools.yaml")
 		if data, err := os.ReadFile(toolsPath); err == nil {
-			var sel ToolSelection
-			if err := yaml.Unmarshal(data, &sel); err == nil {
-				toolSel[agentName] = sel.Tools
+			if tools := parseToolSelection(data); len(tools) > 0 {
+				toolSel[agentName] = tools
+			}
+		}
+		for key, value := range ms.Configuration {
+			if !strings.Contains(strings.ToLower(key), "tools") {
+				continue
+			}
+			path, ok := value.(string)
+			if !ok || path == "" {
+				continue
+			}
+			if data, err := os.ReadFile(resolveRootPath(rootDir, filepath.Dir(machPath), path)); err == nil {
+				if tools := parseToolSelection(data); len(tools) > 0 {
+					toolSel[agentName+":"+key] = tools
+				}
 			}
 		}
 	}
 
 	sort.Strings(order)
 	return machines, toolSel, order, nil
+}
+
+func parseToolSelection(data []byte) []string {
+	var sel ToolSelection
+	if err := yaml.Unmarshal(data, &sel); err != nil {
+		return nil
+	}
+	return sel.Tools
 }
 
 func discoverAndParseDocSpecs(rootDir string) (map[string]DocSpec, error) {
@@ -368,6 +389,17 @@ func declarationFilesFromProfile(path string) []string {
 func resolveProfilePath(base, p string) string {
 	if filepath.IsAbs(p) {
 		return p
+	}
+	return filepath.Join(base, p)
+}
+
+func resolveRootPath(rootDir, base, p string) string {
+	if filepath.IsAbs(p) {
+		return p
+	}
+	rootPath := filepath.Join(rootDir, p)
+	if _, err := os.Stat(rootPath); err == nil {
+		return rootPath
 	}
 	return filepath.Join(base, p)
 }

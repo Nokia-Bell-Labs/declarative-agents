@@ -38,6 +38,7 @@ func Validate(g *Graph, corpus *Corpus) []Finding {
 	all = append(all, checkMachineSignalMetadata(corpus)...)
 	all = append(all, checkMachineNameConsistency(corpus)...)
 	all = append(all, checkToolSelectionDeclared(corpus)...)
+	all = append(all, checkSelectedToolContractCompleteness(corpus)...)
 	all = append(all, checkToolEmitsSignalSet(corpus)...)
 	all = append(all, checkToolUndoConsistency(corpus)...)
 	all = append(all, checkToolSideEffectVocab(corpus)...)
@@ -404,7 +405,7 @@ func checkMachineSignalMetadata(corpus *Corpus) []Finding {
 // has a corresponding declaration.
 func checkToolSelectionDeclared(corpus *Corpus) []Finding {
 	var findings []Finding
-	for _, agentName := range corpus.MachineOrder {
+	for _, agentName := range sortedToolSelectionKeys(corpus.ToolSelections) {
 		selected := corpus.ToolSelections[agentName]
 		for _, toolName := range selected {
 			if _, ok := corpus.ToolDeclarations[toolName]; !ok {
@@ -417,6 +418,108 @@ func checkToolSelectionDeclared(corpus *Corpus) []Finding {
 		}
 	}
 	return findings
+}
+
+// checkSelectedToolContractCompleteness enforces the Grammar Machine word
+// contract for tools that are selected by active machine/profile configuration.
+func checkSelectedToolContractCompleteness(corpus *Corpus) []Finding {
+	consumers := selectedToolConsumers(corpus)
+	var findings []Finding
+	for _, toolName := range sortedKeys(consumers) {
+		td, ok := corpus.ToolDeclarations[toolName]
+		if !ok {
+			continue
+		}
+		missing := missingToolContractFields(td)
+		if len(missing) == 0 {
+			continue
+		}
+		level := "error"
+		if td.Contract == "legacy" {
+			level = "warning"
+		}
+		findings = append(findings, Finding{
+			Check: "tool-contract-incomplete",
+			Level: level,
+			Message: fmt.Sprintf(
+				"selected tool %q from %s used by %s is missing contract fields: %s",
+				toolName,
+				sourceOrUnknown(td.SourceFile),
+				strings.Join(consumers[toolName], ", "),
+				strings.Join(missing, ", "),
+			),
+		})
+	}
+	return findings
+}
+
+func selectedToolConsumers(corpus *Corpus) map[string][]string {
+	consumers := make(map[string][]string)
+	for _, selectionName := range sortedToolSelectionKeys(corpus.ToolSelections) {
+		seenInSelection := make(map[string]bool)
+		for _, toolName := range corpus.ToolSelections[selectionName] {
+			if toolName == "" || seenInSelection[toolName] {
+				continue
+			}
+			seenInSelection[toolName] = true
+			consumers[toolName] = append(consumers[toolName], selectionName)
+		}
+	}
+	return consumers
+}
+
+func missingToolContractFields(td ToolDeclaration) []string {
+	checks := []struct {
+		field   string
+		present bool
+	}{
+		{"category", td.Category != ""},
+		{"problem", td.Problem != ""},
+		{"goals", len(td.Goals) > 0},
+		{"requirements.input", len(td.Requirements.Input) > 0},
+		{"requirements.output", len(td.Requirements.Output) > 0},
+		{"requirements.errors", len(td.Requirements.Errors) > 0},
+		{"non_goals", len(td.NonGoals) > 0},
+		{"emits", len(td.Emits) > 0},
+		{"output.schema", len(td.Output.Schema) > 0},
+		{"side_effects", len(td.SideEffects.Items) > 0},
+		{"reversibility.classification", td.Reversibility.Classification != ""},
+		{"undo.strategy", td.Undo.Strategy != ""},
+		{"errors", len(td.Errors) > 0},
+		{"relationships", len(td.Relationships.Before) > 0 || len(td.Relationships.After) > 0 || len(td.Relationships.Overlaps) > 0},
+	}
+	missing := make([]string, 0, len(checks))
+	for _, check := range checks {
+		if !check.present {
+			missing = append(missing, check.field)
+		}
+	}
+	return missing
+}
+
+func sortedToolSelectionKeys(selections map[string][]string) []string {
+	keys := make([]string, 0, len(selections))
+	for key := range selections {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedKeys(values map[string][]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sourceOrUnknown(source string) string {
+	if source == "" {
+		return "<unknown source>"
+	}
+	return source
 }
 
 // checkToolEmitsSignalSet verifies that tool emits signals are valid
