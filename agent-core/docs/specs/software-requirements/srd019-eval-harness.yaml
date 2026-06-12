@@ -11,7 +11,7 @@ problem: |
 
 goals:
   - G1: Provide a deterministic evaluation pipeline driven by the core state machine.
-  - G2: Support grid evaluation across models, samples, grid parameters, and repetitions.
+  - G2: Support grid evaluation across agent profiles, samples, grid parameters, and repetitions.
   - G3: Capture full experiment configuration alongside results for reproducibility.
   - G4: Produce structured metrics (meta.json) and trace data (trace.ndjson) per evaluation point.
   - G5: Analyze results with convergence tracking, model statistics, and detailed breakdowns.
@@ -23,23 +23,24 @@ requirements:
       - R0.1: The evaluator program SHALL be defined by agents/evaluator/machine.yaml, agents/evaluator/point.yaml, agents/evaluator/tools.yaml, and tool declarations.
       - R0.2: Suite YAML SHALL be treated as input data to evaluator tools, not as a third program-definition mechanism.
       - R0.3: parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary SHALL parse and validate suite input data before the evaluator session can iterate points.
-      - R0.4: run_agent SHALL consume each suite harness as subprocess input data (binary plus flags) for the current evaluation point.
-      - R0.5: dump_config SHALL snapshot the resolved suite/harness/tool configuration into experiment.yaml for reproducibility.
+      - R0.4: run_agent SHALL consume each resolved suite profile as subprocess input data for the current evaluation point and SHALL invoke the child agent with --profile when ProfilePath is set.
+      - R0.5: dump_config SHALL snapshot the resolved suite profile, model, harness label, and point configuration into experiment.yaml for reproducibility.
 
   R1:
     title: Suite configuration
     items:
-      - R1.1: SuiteConfig defines name, harnesses, models, grid parameters, samples directory, timeout, and repetitions.
-      - R1.2: Harness specifies a binary, flag templates, and optional grid parameter interpolation via ${param} syntax.
+      - R1.1: SuiteConfig defines name, profiles, grid parameters, samples directory, timeout, and repetitions. Profile paths are the preferred suite dimension.
+      - R1.2: SuiteProfile resolves each profile path relative to the suite file, loads the AgentProfile, derives a display name and model from the profile-selected invoke_llm declaration, and uses the agent binary as the harness process.
       - R1.3: DiscoverSamples scans a directory for subdirectories containing workspace/ and prompt.yaml files.
       - R1.4: LoadSuite reads a YAML suite file and resolves samples relative to the suite's base directory.
       - R1.5: expandGrid generates the Cartesian product of all grid parameter values.
-      - R1.6: Suite parsing SHALL reject missing harnesses, harnesses without name or binary, and missing models.
+      - R1.6: Suite parsing SHALL reject suites that mix profiles with harnesses/models, suites with neither profiles nor harnesses, legacy harnesses without name or binary, and legacy harness suites without models.
+      - R1.7: Legacy harnesses/models fields remain supported only for compatibility. Harness specifies a binary, flag templates, and optional grid parameter interpolation via ${param} syntax.
 
   R2:
     title: Evaluation session execution
     items:
-      - R2.1: The session state machine (agents/evaluator/machine.yaml) initializes the suite via parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary, then iterates the grid of (harness, model, gridPoint, sample, repetition) via next_point, run_point, and report_session, running each point through a nested core.Loop.
+      - R2.1: The session state machine (agents/evaluator/machine.yaml) initializes the suite via parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary, then iterates profile suites in (profile, gridPoint, sample, repetition) order via next_point, run_point, and report_session, running each point through a nested core.Loop. Legacy suites iterate (harness, model, gridPoint, sample, repetition).
       - R2.2: PointContext holds per-point mutable state (directories, trace path, tokens, results, timing).
       - R2.3: EvalState is the shared state container whose PC field is updated before each point's loop run.
       - R2.4: SessionResult and PointResult capture aggregate and per-point outcomes.
@@ -55,8 +56,8 @@ requirements:
       - R3.1.4: init_workspace_repo SHALL initialize git only in PointContext.PointDir.
       - R3.1.5: stage_workspace_baseline SHALL stage all current point workspace files.
       - R3.1.6: commit_workspace_baseline SHALL create the baseline commit for the point workspace.
-      - R3.2: dump_config serializes the resolved configuration (machine, tools, tool declarations, LLM config, model, budget) into experiment.yaml.
-      - R3.3: run_agent executes the harness binary as a subprocess with flag propagation, timeout, and OTel context.
+      - R3.2: dump_config serializes the resolved profile path, harness label, model, timeout, repetition, sample, and legacy machine/tools/tool declarations when present into experiment.yaml.
+      - R3.3: run_agent executes the harness binary as a subprocess with flag propagation, timeout, and OTel context. Profile points pass --profile <path>; legacy points pass --model plus harness flags.
       - R3.4: run_oracle_check runs oracle tests and records pass/fail output independently from trace parsing.
       - R3.5: collect_trace_tokens parses trace files for token counts and treats a missing trace as a successful zero-token result.
       - R3.6: check_agent_version compares configured harness version with traced agent version and emits a warning signal on mismatch.
@@ -91,7 +92,7 @@ acceptance_criteria:
 
   - id: AC0
     criterion: Suite YAML is documented and validated as evaluator tool input data, with session setup/run_agent/dump_config boundaries clear.
-    traces: [R0.1, R0.2, R0.3, R0.4, R0.5, R1.6]
+    traces: [R0.1, R0.2, R0.3, R0.4, R0.5, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
     criterion: Each evaluation point creates an isolated workspace with git baseline, experiment.yaml config snapshot, trace.ndjson, and meta.json.
