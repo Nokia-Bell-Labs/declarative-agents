@@ -31,6 +31,42 @@ func TestLoadCorpus_Valid(t *testing.T) {
 	assert.Len(t, c.SpecIndex.SRDIndex, 3)
 }
 
+func TestLoadCorpus_Machines(t *testing.T) {
+	c, err := LoadCorpus(filepath.Join("testdata", "valid"))
+	require.NoError(t, err)
+
+	require.Contains(t, c.Machines, "test-agent")
+	ms := c.Machines["test-agent"]
+	assert.Equal(t, "test-agent", ms.Name)
+	assert.Equal(t, "Idle", ms.InitialState)
+	assert.Len(t, ms.States, 4)
+	assert.Len(t, ms.Signals, 3)
+	assert.Len(t, ms.Transitions, 3)
+
+	require.Contains(t, c.ToolSelections, "test-agent")
+	assert.Equal(t, []string{"do_work"}, c.ToolSelections["test-agent"])
+
+	assert.Contains(t, c.MachineOrder, "test-agent")
+}
+
+func TestLoadCorpus_NoAgentsDir(t *testing.T) {
+	tmp := t.TempDir()
+	setupTestCorpus(t, tmp)
+	writeTestSRD(t, tmp, "srd001-ok.yaml", `id: srd-ok
+title: OK
+problem: test
+requirements:
+  R1:
+    title: Stuff
+    items:
+      - R1.1: Do something.
+`)
+
+	c, err := LoadCorpus(tmp)
+	require.NoError(t, err)
+	assert.Empty(t, c.Machines, "no agents dir should produce empty machines map")
+}
+
 func TestLoadCorpus_NoDocsDir(t *testing.T) {
 	_, err := LoadCorpus(t.TempDir())
 	require.Error(t, err)

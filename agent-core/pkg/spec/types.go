@@ -187,6 +187,12 @@ type TestSuiteEntry struct {
 	Path          string   `yaml:"path"`
 }
 
+// ToolSelection is a parsed agents/*/tools.yaml file listing the tool
+// names selected for a particular agent mode.
+type ToolSelection struct {
+	Tools []string `yaml:"tools"`
+}
+
 // SRDIDs returns all SRD IDs from the spec index.
 func (si *SpecIndex) SRDIDs() []string {
 	ids := make([]string, len(si.SRDIndex))

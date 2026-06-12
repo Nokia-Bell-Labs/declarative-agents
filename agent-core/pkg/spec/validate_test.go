@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
 
 func loadTestGraphAndCorpus(t *testing.T) (*Graph, *Corpus) {
@@ -133,6 +135,153 @@ func TestValidate_ErrorsAndWarnings(t *testing.T) {
 	}
 	assert.Len(t, Errors(findings), 2)
 	assert.Len(t, Warnings(findings), 1)
+}
+
+func TestValidate_MachineNodesInGraph(t *testing.T) {
+	g, c := loadTestGraphAndCorpus(t)
+
+	require.Contains(t, c.Machines, "test-agent", "test fixture should have a test-agent machine")
+
+	machineNodes := g.NodesByKind(KindMachine)
+	require.NotEmpty(t, machineNodes, "graph should contain machine nodes")
+
+	var found bool
+	for _, n := range machineNodes {
+		if n.Machine == "test-agent" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "graph should contain test-agent machine node")
+
+	stateNodes := g.NodesByKind(KindMachineState)
+	assert.GreaterOrEqual(t, len(stateNodes), 4, "test-agent has 4 states")
+
+	signalNodes := g.NodesByKind(KindMachineSignal)
+	assert.GreaterOrEqual(t, len(signalNodes), 3, "test-agent has 3 signals")
+
+	transitionNodes := g.NodesByKind(KindMachineTransition)
+	assert.GreaterOrEqual(t, len(transitionNodes), 3, "test-agent has 3 transitions")
+}
+
+func TestValidate_MachineContainsEdges(t *testing.T) {
+	g, _ := loadTestGraphAndCorpus(t)
+
+	outgoing := g.OutgoingByRel("machine:test-agent", RelContains)
+	assert.GreaterOrEqual(t, len(outgoing), 10, "machine should contain states + signals + transitions")
+}
+
+func TestValidate_MachineActionResolution(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"good": {
+				Name:         "good",
+				InitialState: "Idle",
+				States:       core.StateSpecs{{Name: "Idle"}, {Name: "Done"}},
+				Signals:      core.SignalSpecs{{Name: "Seed"}},
+				Transitions: []core.TransitionSpec{
+					{State: "Idle", Signal: "Seed", Next: "Done", Action: "work"},
+				},
+				TerminalStates: []string{"Done"},
+			},
+			"bad": {
+				Name:         "bad",
+				InitialState: "Idle",
+				States:       core.StateSpecs{{Name: "Idle"}, {Name: "Done"}},
+				Signals:      core.SignalSpecs{{Name: "Seed"}},
+				Transitions: []core.TransitionSpec{
+					{State: "Idle", Signal: "Seed", Next: "Done", Action: "missing_tool"},
+				},
+				TerminalStates: []string{"Done"},
+			},
+		},
+		ToolSelections: map[string][]string{
+			"good": {"work"},
+			"bad":  {"other_tool"},
+		},
+		MachineOrder: []string{"bad", "good"},
+	}
+
+	findings := checkMachineActionResolution(corpus)
+
+	var messages []string
+	for _, f := range findings {
+		messages = append(messages, f.Message)
+		assert.Equal(t, "error", f.Level)
+	}
+	assert.Len(t, findings, 1, "only 'bad' should have an unresolved action")
+	assert.Contains(t, findings[0].Message, "missing_tool")
+}
+
+func TestValidate_MachineSignalCoverage(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"sig-test": {
+				Name:         "sig-test",
+				InitialState: "Idle",
+				States:       core.StateSpecs{{Name: "Idle"}, {Name: "Done"}},
+				Signals: core.SignalSpecs{
+					{Name: "Seed"},
+					{Name: "Orphan"},
+				},
+				Transitions: []core.TransitionSpec{
+					{State: "Idle", Signal: "Seed", Next: "Done"},
+				},
+				TerminalStates: []string{"Done"},
+			},
+		},
+		MachineOrder: []string{"sig-test"},
+	}
+
+	findings := checkMachineSignalCoverage(corpus)
+	require.Len(t, findings, 1)
+	assert.Contains(t, findings[0].Message, "Orphan")
+	assert.Equal(t, "warning", findings[0].Level)
+}
+
+func TestValidate_MachineStateMetadata(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"partial": {
+				Name:         "partial",
+				InitialState: "Idle",
+				States: core.StateSpecs{
+					{Name: "Idle", Meaning: "start"},
+					{Name: "Done"},
+				},
+				Signals:        core.SignalSpecs{{Name: "Seed"}},
+				Transitions:    []core.TransitionSpec{{State: "Idle", Signal: "Seed", Next: "Done"}},
+				TerminalStates: []string{"Done"},
+			},
+		},
+		MachineOrder: []string{"partial"},
+	}
+
+	findings := checkMachineStateMetadata(corpus)
+	require.Len(t, findings, 1)
+	assert.Contains(t, findings[0].Message, "Done")
+	assert.Equal(t, "warning", findings[0].Level)
+}
+
+func TestValidate_MachineNameConsistency(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"dir-name": {
+				Name:           "wrong-name",
+				InitialState:   "Idle",
+				States:         core.StateSpecs{{Name: "Idle"}},
+				Signals:        core.SignalSpecs{{Name: "Seed"}},
+				Transitions:    []core.TransitionSpec{{State: "Idle", Signal: "Seed", Next: "Idle"}},
+				TerminalStates: []string{"Idle"},
+			},
+		},
+		MachineOrder: []string{"dir-name"},
+	}
+
+	findings := checkMachineNameConsistency(corpus)
+	require.Len(t, findings, 1)
+	assert.Equal(t, "error", findings[0].Level)
+	assert.Contains(t, findings[0].Message, "wrong-name")
 }
 
 func contains(s, sub string) bool {

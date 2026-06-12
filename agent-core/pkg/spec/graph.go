@@ -14,14 +14,18 @@ import (
 type Kind string
 
 const (
-	KindRelease   Kind = "release"
-	KindSRD       Kind = "srd"
-	KindReqGroup  Kind = "req-group"
-	KindReqItem   Kind = "req-item"
-	KindAC        Kind = "ac"
-	KindUseCase   Kind = "use-case"
-	KindTestSuite Kind = "test-suite"
-	KindTestCase  Kind = "test-case"
+	KindRelease           Kind = "release"
+	KindSRD               Kind = "srd"
+	KindReqGroup          Kind = "req-group"
+	KindReqItem           Kind = "req-item"
+	KindAC                Kind = "ac"
+	KindUseCase           Kind = "use-case"
+	KindTestSuite         Kind = "test-suite"
+	KindTestCase          Kind = "test-case"
+	KindMachine           Kind = "machine"
+	KindMachineState      Kind = "machine-state"
+	KindMachineSignal     Kind = "machine-signal"
+	KindMachineTransition Kind = "machine-transition"
 )
 
 // Edge relationship labels.
@@ -48,6 +52,7 @@ type Node struct {
 	Text    string `yaml:"text,omitempty"`
 	Weight  int    `yaml:"weight,omitempty"`
 	Release string `yaml:"release,omitempty"`
+	Machine string `yaml:"machine,omitempty"`
 }
 
 // Edge is a labeled directed edge.
@@ -86,6 +91,9 @@ func BuildGraph(corpus *Corpus) (*Graph, error) {
 	if err := g.addTestSuiteNodes(corpus); err != nil {
 		return nil, err
 	}
+	if err := g.addMachineNodes(corpus); err != nil {
+		return nil, err
+	}
 
 	if err := g.addReleaseEdges(corpus); err != nil {
 		return nil, err
@@ -109,6 +117,9 @@ func BuildGraph(corpus *Corpus) (*Graph, error) {
 		return nil, err
 	}
 	if err := g.addTestCaseEdges(corpus); err != nil {
+		return nil, err
+	}
+	if err := g.addMachineContainsEdges(corpus); err != nil {
 		return nil, err
 	}
 
@@ -196,6 +207,35 @@ func (g *Graph) addTestSuiteNodes(corpus *Corpus) error {
 			tcID := ts.ID + ":" + tc.Name
 			if err := g.addNode(&Node{ID: tcID, Kind: KindTestCase, Text: tc.Description}); err != nil {
 				return fmt.Errorf("add test-case node %s: %w", tcID, err)
+			}
+		}
+	}
+	return nil
+}
+
+func (g *Graph) addMachineNodes(corpus *Corpus) error {
+	for _, agentName := range corpus.MachineOrder {
+		ms := corpus.Machines[agentName]
+		machineID := "machine:" + agentName
+		if err := g.addNode(&Node{ID: machineID, Kind: KindMachine, Machine: agentName, Text: ms.Purpose}); err != nil {
+			return fmt.Errorf("add machine node %s: %w", machineID, err)
+		}
+		for _, st := range ms.States {
+			stateID := "machine-state:" + agentName + ":" + st.Name
+			if err := g.addNode(&Node{ID: stateID, Kind: KindMachineState, Machine: agentName, Text: st.Meaning}); err != nil {
+				return fmt.Errorf("add machine-state node %s: %w", stateID, err)
+			}
+		}
+		for _, sig := range ms.Signals {
+			sigID := "machine-signal:" + agentName + ":" + sig.Name
+			if err := g.addNode(&Node{ID: sigID, Kind: KindMachineSignal, Machine: agentName, Text: sig.Trigger}); err != nil {
+				return fmt.Errorf("add machine-signal node %s: %w", sigID, err)
+			}
+		}
+		for _, tr := range ms.Transitions {
+			trID := "machine-transition:" + agentName + ":" + tr.State + "+" + tr.Signal
+			if err := g.addNode(&Node{ID: trID, Kind: KindMachineTransition, Machine: agentName, Text: tr.Action}); err != nil {
+				return fmt.Errorf("add machine-transition node %s: %w", trID, err)
 			}
 		}
 	}
@@ -374,6 +414,32 @@ func (g *Graph) addTestCaseEdges(corpus *Corpus) error {
 		for _, ucID := range ts.Traces {
 			if _, ok := g.nodes[ucID]; ok {
 				_ = g.addEdge(ts.ID, ucID, RelCovers)
+			}
+		}
+	}
+	return nil
+}
+
+func (g *Graph) addMachineContainsEdges(corpus *Corpus) error {
+	for _, agentName := range corpus.MachineOrder {
+		ms := corpus.Machines[agentName]
+		machineID := "machine:" + agentName
+		for _, st := range ms.States {
+			stateID := "machine-state:" + agentName + ":" + st.Name
+			if err := g.addEdge(machineID, stateID, RelContains); err != nil {
+				return fmt.Errorf("machine contains state: %w", err)
+			}
+		}
+		for _, sig := range ms.Signals {
+			sigID := "machine-signal:" + agentName + ":" + sig.Name
+			if err := g.addEdge(machineID, sigID, RelContains); err != nil {
+				return fmt.Errorf("machine contains signal: %w", err)
+			}
+		}
+		for _, tr := range ms.Transitions {
+			trID := "machine-transition:" + agentName + ":" + tr.State + "+" + tr.Signal
+			if err := g.addEdge(machineID, trID, RelContains); err != nil {
+				return fmt.Errorf("machine contains transition: %w", err)
 			}
 		}
 	}

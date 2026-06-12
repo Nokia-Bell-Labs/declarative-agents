@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gopkg.in/yaml.v3"
 )
 
 // Spec corpus layout paths. These define the expected directory
@@ -23,6 +26,7 @@ const (
 	TSGlob      = "test-*.yaml"
 	RoadmapFile = "docs/road-map.yaml"
 	SpecFile    = "docs/SPECIFICATIONS.yaml"
+	AgentsDir   = "agents"
 )
 
 // Corpus holds all parsed specification artifacts for a project.
@@ -33,8 +37,12 @@ type Corpus struct {
 	Roadmap    Roadmap
 	SpecIndex  SpecIndex
 
-	SRDOrder  []string
-	UCOrder   []string
+	Machines       map[string]core.MachineSpec
+	ToolSelections map[string][]string
+
+	SRDOrder     []string
+	UCOrder      []string
+	MachineOrder []string
 }
 
 // LoadCorpus discovers, parses, and validates all specification artifacts
@@ -72,14 +80,22 @@ func LoadCorpus(rootDir string) (*Corpus, error) {
 		return nil, err
 	}
 
+	machines, toolSel, machineOrder, err := discoverAndParseMachines(rootDir)
+	if err != nil {
+		return nil, err
+	}
+
 	c := &Corpus{
-		SRDs:       srds,
-		UseCases:   ucs,
-		TestSuites: tss,
-		Roadmap:    rm,
-		SpecIndex:  si,
-		SRDOrder:   srdOrder,
-		UCOrder:    ucOrder,
+		SRDs:           srds,
+		UseCases:       ucs,
+		TestSuites:     tss,
+		Roadmap:        rm,
+		SpecIndex:      si,
+		Machines:       machines,
+		ToolSelections: toolSel,
+		SRDOrder:       srdOrder,
+		UCOrder:        ucOrder,
+		MachineOrder:   machineOrder,
 	}
 
 	if err := c.validate(); err != nil {
@@ -169,6 +185,49 @@ func discoverAndParseTestSuites(rootDir string) (map[string]TestSuite, error) {
 		tss[ts.ID] = ts
 	}
 	return tss, nil
+}
+
+func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[string][]string, []string, error) {
+	agentsPath := filepath.Join(rootDir, AgentsDir)
+	entries, err := os.ReadDir(agentsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil, nil, nil
+		}
+		return nil, nil, nil, fmt.Errorf("read agents dir: %w", err)
+	}
+
+	machines := make(map[string]core.MachineSpec)
+	toolSel := make(map[string][]string)
+	var order []string
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		agentName := entry.Name()
+		machPath := filepath.Join(agentsPath, agentName, "machine.yaml")
+		if _, err := os.Stat(machPath); err != nil {
+			continue
+		}
+		ms, err := core.LoadMachineSpec(machPath)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("parse machine %s: %w", machPath, err)
+		}
+		machines[agentName] = ms
+		order = append(order, agentName)
+
+		toolsPath := filepath.Join(agentsPath, agentName, "tools.yaml")
+		if data, err := os.ReadFile(toolsPath); err == nil {
+			var sel ToolSelection
+			if err := yaml.Unmarshal(data, &sel); err == nil {
+				toolSel[agentName] = sel.Tools
+			}
+		}
+	}
+
+	sort.Strings(order)
+	return machines, toolSel, order, nil
 }
 
 func (c *Corpus) validate() error {

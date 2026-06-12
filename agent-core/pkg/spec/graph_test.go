@@ -35,7 +35,8 @@ func TestBuildGraph_NodeCounts(t *testing.T) {
 func TestBuildGraph_TotalNodeCount(t *testing.T) {
 	g := loadTestGraph(t)
 	// 2 releases + 3 SRDs + 4 groups + 8 items + 4 ACs + 1 UC + 1 TS + 2 TC = 25
-	assert.Equal(t, 25, g.NodeCount())
+	// + 1 machine + 4 states + 3 signals + 3 transitions = 36
+	assert.Equal(t, 36, g.NodeCount())
 }
 
 func TestBuildGraph_ReleaseOrdering(t *testing.T) {
