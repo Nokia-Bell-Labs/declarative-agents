@@ -165,13 +165,34 @@ func ReadToolSpec() core.ToolSpec {
 // --- write tool ---
 
 type writeCmd struct {
-	root    string
-	path    string
-	content string
+	root        string
+	path        string
+	content     string
+	snapshot    fileSnapshot
+	hasSnapshot bool
 }
 
-func (w *writeCmd) Name() string      { return "write" }
-func (w *writeCmd) Undo() core.Result { return core.NoopUndo(w.Name()) }
+type fileSnapshot struct {
+	Path    string
+	Exists  bool
+	Content []byte
+	Mode    os.FileMode
+}
+
+type workspaceUndoPayload struct {
+	WorkspaceRestore struct {
+		Paths []string `json:"paths"`
+	} `json:"workspace_restore"`
+}
+
+func (w *writeCmd) Name() string { return "write" }
+func (w *writeCmd) Undo() core.Result {
+	return undoFileSnapshot(w.Name(), w.root, w.snapshot, w.hasSnapshot)
+}
+
+func (w *writeCmd) UndoMemento() (core.UndoMemento, error) {
+	return fileWorkspaceMemento(w.Name(), w.snapshot, w.hasSnapshot)
+}
 
 func (w *writeCmd) Execute() core.Result {
 	resolved, err := ValidatePath(w.root, w.path)
@@ -191,6 +212,15 @@ func (w *writeCmd) Execute() core.Result {
 		resolved = joined
 	}
 
+	snapshot, err := snapshotFile(w.root, resolved)
+	if err != nil {
+		return core.Result{
+			Signal:      core.CommandError,
+			Err:         fmt.Errorf("write snapshot %s: %w", w.path, err),
+			CommandName: "write",
+		}
+	}
+
 	if err := os.MkdirAll(filepath.Dir(resolved), 0o755); err != nil {
 		return core.Result{
 			Signal:      core.CommandError,
@@ -206,6 +236,8 @@ func (w *writeCmd) Execute() core.Result {
 			CommandName: "write",
 		}
 	}
+	w.snapshot = snapshot
+	w.hasSnapshot = true
 
 	relPath := RelPath(w.root, resolved)
 	return core.Result{
@@ -245,14 +277,22 @@ func WriteToolSpec() core.ToolSpec {
 // --- edit tool ---
 
 type editCmd struct {
-	root      string
-	path      string
-	oldString string
-	newString string
+	root        string
+	path        string
+	oldString   string
+	newString   string
+	snapshot    fileSnapshot
+	hasSnapshot bool
 }
 
-func (e *editCmd) Name() string      { return "edit" }
-func (e *editCmd) Undo() core.Result { return core.NoopUndo(e.Name()) }
+func (e *editCmd) Name() string { return "edit" }
+func (e *editCmd) Undo() core.Result {
+	return undoFileSnapshot(e.Name(), e.root, e.snapshot, e.hasSnapshot)
+}
+
+func (e *editCmd) UndoMemento() (core.UndoMemento, error) {
+	return fileWorkspaceMemento(e.Name(), e.snapshot, e.hasSnapshot)
+}
 
 func (e *editCmd) Execute() core.Result {
 	resolved, err := ValidatePath(e.root, e.path)
@@ -305,6 +345,14 @@ func (e *editCmd) Execute() core.Result {
 		}
 	}
 
+	snapshot, err := snapshotFile(e.root, resolved)
+	if err != nil {
+		return core.Result{
+			Signal:      core.CommandError,
+			Err:         fmt.Errorf("edit snapshot %s: %w", e.path, err),
+			CommandName: "edit",
+		}
+	}
 	replaced := strings.Replace(content, e.oldString, e.newString, 1)
 	if err := os.WriteFile(resolved, []byte(replaced), 0o644); err != nil {
 		return core.Result{
@@ -313,6 +361,8 @@ func (e *editCmd) Execute() core.Result {
 			CommandName: "edit",
 		}
 	}
+	e.snapshot = snapshot
+	e.hasSnapshot = true
 
 	return core.Result{
 		Output:      fmt.Sprintf("replacement applied in %s", relPath),
@@ -351,6 +401,64 @@ func EditToolSpec() core.ToolSpec {
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"File path relative to workspace root"},"old_string":{"type":"string","description":"Exact text to find"},"new_string":{"type":"string","description":"Replacement text"}},"required":["path","old_string","new_string"]}`),
 		Visibility:  core.External,
 	}
+}
+
+func snapshotFile(root, resolved string) (fileSnapshot, error) {
+	snap := fileSnapshot{Path: RelPath(root, resolved)}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return snap, nil
+		}
+		return fileSnapshot{}, err
+	}
+	if info.IsDir() {
+		return fileSnapshot{}, fmt.Errorf("%s is a directory", snap.Path)
+	}
+	data, err := os.ReadFile(resolved)
+	if err != nil {
+		return fileSnapshot{}, err
+	}
+	snap.Exists = true
+	snap.Content = append([]byte(nil), data...)
+	snap.Mode = info.Mode().Perm()
+	return snap, nil
+}
+
+func undoFileSnapshot(commandName, root string, snap fileSnapshot, ok bool) core.Result {
+	if !ok {
+		err := fmt.Errorf("undo %s: no file snapshot recorded", commandName)
+		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+	}
+	resolved, err := ValidatePath(root, snap.Path)
+	if err != nil {
+		if !strings.Contains(err.Error(), "not found") {
+			return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+		}
+		resolved = filepath.Join(root, filepath.FromSlash(snap.Path))
+	}
+	if !snap.Exists {
+		if err := os.Remove(resolved); err != nil && !os.IsNotExist(err) {
+			return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+		}
+		return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: fmt.Sprintf("undo: removed created file %s", snap.Path)}
+	}
+	if err := os.MkdirAll(filepath.Dir(resolved), 0o755); err != nil {
+		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+	}
+	if err := os.WriteFile(resolved, snap.Content, snap.Mode); err != nil {
+		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+	}
+	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: fmt.Sprintf("undo: restored %s", snap.Path)}
+}
+
+func fileWorkspaceMemento(commandName string, snap fileSnapshot, ok bool) (core.UndoMemento, error) {
+	if !ok {
+		return core.UndoMemento{}, fmt.Errorf("%w: no file snapshot recorded for %s", core.ErrUndoMementoMissing, commandName)
+	}
+	payload := workspaceUndoPayload{}
+	payload.WorkspaceRestore.Paths = []string{snap.Path}
+	return core.NewUndoMemento(commandName, core.UndoMementoReversible, payload)
 }
 
 // --- list_files tool ---

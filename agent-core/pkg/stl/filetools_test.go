@@ -92,6 +92,20 @@ func TestWrite_NewFile(t *testing.T) {
 	assert.Equal(t, "package foo\n", string(data))
 }
 
+func TestWrite_UndoRemovesCreatedFile(t *testing.T) {
+	root := t.TempDir()
+	b := &WriteBuilder{Root: root}
+	cmd := b.Build(toolReq(`{"path":"new.txt","content":"created"}`))
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+
+	undo := cmd.Undo()
+
+	require.Equal(t, core.ToolDone, undo.Signal)
+	_, err := os.Stat(filepath.Join(root, "new.txt"))
+	require.True(t, os.IsNotExist(err))
+}
+
 func TestWrite_Overwrite(t *testing.T) {
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "exist.txt"), []byte("old"), 0o644)
@@ -103,6 +117,44 @@ func TestWrite_Overwrite(t *testing.T) {
 
 	data, _ := os.ReadFile(filepath.Join(root, "exist.txt"))
 	assert.Equal(t, "new", string(data))
+}
+
+func TestWrite_UndoRestoresOverwrittenFile(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "exist.txt"), []byte("old"), 0o600))
+
+	b := &WriteBuilder{Root: root}
+	cmd := b.Build(toolReq(`{"path":"exist.txt","content":"new"}`))
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+
+	undo := cmd.Undo()
+
+	require.Equal(t, core.ToolDone, undo.Signal)
+	data, err := os.ReadFile(filepath.Join(root, "exist.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "old", string(data))
+	info, err := os.Stat(filepath.Join(root, "exist.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+func TestWrite_UndoMementoDeclaresWorkspaceRestore(t *testing.T) {
+	root := t.TempDir()
+	b := &WriteBuilder{Root: root}
+	cmd := b.Build(toolReq(`{"path":"new.txt","content":"created"}`))
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+
+	provider, ok := cmd.(core.UndoMementoProvider)
+	require.True(t, ok)
+	memento, err := provider.UndoMemento()
+
+	require.NoError(t, err)
+	require.Equal(t, core.UndoMementoReversible, memento.Kind)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+	assert.Contains(t, string(memento.Payload), `"workspace_restore"`)
+	assert.Contains(t, string(memento.Payload), `"new.txt"`)
 }
 
 func TestWrite_MissingParams(t *testing.T) {
@@ -125,6 +177,23 @@ func TestEdit_SingleMatch(t *testing.T) {
 
 	data, _ := os.ReadFile(filepath.Join(root, "e.txt"))
 	assert.Equal(t, "goodbye world", string(data))
+}
+
+func TestEdit_UndoRestoresOriginalFile(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("hello world"), 0o644))
+
+	b := &EditBuilder{Root: root}
+	cmd := b.Build(toolReq(`{"path":"e.txt","old_string":"hello","new_string":"goodbye"}`))
+	res := cmd.Execute()
+	require.Equal(t, core.EditDone, res.Signal)
+
+	undo := cmd.Undo()
+
+	require.Equal(t, core.ToolDone, undo.Signal)
+	data, err := os.ReadFile(filepath.Join(root, "e.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "hello world", string(data))
 }
 
 func TestEdit_NoMatch(t *testing.T) {

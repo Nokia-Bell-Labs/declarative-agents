@@ -471,8 +471,64 @@ type ExecCmd struct {
 	params map[string]string
 }
 
-func (c *ExecCmd) Name() string      { return c.def.Name }
-func (c *ExecCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *ExecCmd) Name() string { return c.def.Name }
+func (c *ExecCmd) Undo() core.Result {
+	switch c.def.Undo.Strategy {
+	case "", "noop":
+		return core.NoopUndo(c.Name())
+	case "workspace_restore":
+		return core.Result{
+			Signal:      core.ToolDone,
+			CommandName: c.Name(),
+			Output:      "undo: workspace restore is handled by the rollback workspace layer",
+		}
+	case "compensating_action":
+		err := fmt.Errorf("undo %s requires compensating action: %s", c.Name(), c.def.Undo.Description)
+		return core.Result{
+			Signal:      core.CommandError,
+			CommandName: c.Name(),
+			Output:      err.Error(),
+			Err:         err,
+		}
+	default:
+		err := fmt.Errorf("undo %s: unsupported undo strategy %q", c.Name(), c.def.Undo.Strategy)
+		return core.Result{
+			Signal:      core.CommandError,
+			CommandName: c.Name(),
+			Output:      err.Error(),
+			Err:         err,
+		}
+	}
+}
+
+func (c *ExecCmd) UndoMemento() (core.UndoMemento, error) {
+	switch c.def.Undo.Strategy {
+	case "", "noop":
+		return core.NoopUndoMemento(c.Name()), nil
+	case "workspace_restore":
+		return core.NewUndoMemento(c.Name(), core.UndoMementoReversible, workspaceRestorePayload(c.def))
+	case "compensating_action":
+		memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, workspaceRestorePayload(c.def))
+		if err != nil {
+			return core.UndoMemento{}, err
+		}
+		memento.Description = c.def.Undo.Description
+		return memento, nil
+	default:
+		return core.UndoMemento{}, fmt.Errorf("%w: unsupported undo strategy %q for %s", core.ErrUndoMementoIncompatible, c.def.Undo.Strategy, c.Name())
+	}
+}
+
+func workspaceRestorePayload(def ToolDef) workspaceUndoPayload {
+	payload := workspaceUndoPayload{}
+	for _, effect := range def.SideEffects.Items {
+		payload.WorkspaceRestore.Paths = append(payload.WorkspaceRestore.Paths, effect.Paths...)
+	}
+	if len(payload.WorkspaceRestore.Paths) == 0 {
+		payload.WorkspaceRestore.Paths = []string{"."}
+	}
+	return payload
+}
 
 func (c *ExecCmd) Execute() core.Result {
 	dir := c.root

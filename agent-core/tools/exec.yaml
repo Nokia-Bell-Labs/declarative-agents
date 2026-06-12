@@ -60,7 +60,18 @@ tools:
     binary: cp
     args: [-a]
     description: "Copy a directory tree. Provide source and destination paths."
-    side_effects: "creates files in the destination directory"
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: workspace_directory
+        description: "Creates or overwrites files in the destination directory."
+    reversibility:
+      classification: reversible
+      undo: workspace_restore
+    undo:
+      strategy: workspace_restore
+      description: "Restore the workspace ref captured before the copy."
+      requires: [Workspace]
     parameters:
       type: object
       properties:
@@ -79,7 +90,18 @@ tools:
     binary: mkdir
     args: [-p]
     description: "Create a directory and any missing parent directories."
-    side_effects: "creates directories on disk"
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: workspace_directory
+        description: "Creates a directory and any missing parent directories."
+    reversibility:
+      classification: reversible
+      undo: workspace_restore
+    undo:
+      strategy: workspace_restore
+      description: "Restore the workspace ref captured before directory creation."
+      requires: [Workspace]
     parameters:
       type: object
       properties:
@@ -91,17 +113,42 @@ tools:
 
   # --- git tools ---
   - name: git_init
+    type: exec
     binary: git
     args: [init]
     description: "Initialize a new git repository in the current directory."
-    side_effects: "creates .git directory"
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: workspace_git_metadata
+        paths: [.git]
+        description: "Creates .git metadata in the workspace."
+    reversibility:
+      classification: reversible
+      undo: workspace_restore
+    undo:
+      strategy: workspace_restore
+      description: "Restore the workspace ref captured before git init."
+      requires: [Workspace]
 
   - name: stage_all
+    type: exec
     binary: git
     args: [add, -A]
     description: "Stage all changes including untracked files (git add -A)."
     precondition: git_repo
-    side_effects: "moves all working tree changes to the index"
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: git_index
+        description: "Moves working tree changes into the Git index."
+    reversibility:
+      classification: reversible
+      undo: workspace_restore
+    undo:
+      strategy: workspace_restore
+      description: "Restore the workspace ref and index captured before staging."
+      requires: [Workspace]
 
   - name: workspace_status
     binary: git
@@ -127,11 +174,23 @@ tools:
         required: [clean, files]
 
   - name: commit
+    type: exec
     binary: git
     args: [commit]
     description: "Create a git commit from staged changes. Fails if nothing is staged."
     precondition: git_repo
-    side_effects: "creates a commit object on the current branch"
+    category: boundary
+    side_effects:
+      - kind: filesystem_write
+        target: git_repository
+        description: "Creates a commit object and moves the current branch ref."
+    reversibility:
+      classification: compensatable
+      undo: workspace_restore_or_revert_commit
+    undo:
+      strategy: compensating_action
+      description: "Restore the workspace ref when checkpointed; otherwise compensate with an explicit revert/reset policy."
+      requires: [Workspace, git_ref]
     parameters:
       type: object
       properties:
@@ -161,10 +220,23 @@ tools:
 
   # --- issue tools (bd CLI) ---
   - name: issue_create
+    type: exec
     binary: bd
     args: [create, --json]
     description: "Create a new beads issue. Returns the issue ID."
-    side_effects: "writes to .beads/issues.jsonl and .beads/interactions.jsonl"
+    category: boundary
+    side_effects:
+      - kind: filesystem_write
+        target: beads_store
+        paths: [.beads]
+        description: "Writes issue and interaction records into the Beads store."
+    reversibility:
+      classification: compensatable
+      undo: close_or_delete_created_issue
+    undo:
+      strategy: compensating_action
+      description: "Capture the created issue ID and compensate by closing/deleting it or restoring the workspace ref."
+      requires: [created_issue_id]
     parameters:
       type: object
       properties:
@@ -191,10 +263,23 @@ tools:
       required: [title]
 
   - name: issue_close
+    type: exec
     binary: bd
     args: [close]
     description: "Close an issue by ID."
-    side_effects: "sets issue status to closed in .beads/issues.jsonl"
+    category: boundary
+    side_effects:
+      - kind: filesystem_write
+        target: beads_store
+        paths: [.beads]
+        description: "Changes issue status in the Beads store."
+    reversibility:
+      classification: compensatable
+      undo: reopen_issue_or_workspace_restore
+    undo:
+      strategy: compensating_action
+      description: "Capture the previous issue status and compensate by reopening it or restoring the workspace ref."
+      requires: [issue_id, previous_issue_status]
     parameters:
       type: object
       properties:

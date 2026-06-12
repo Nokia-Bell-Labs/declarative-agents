@@ -419,6 +419,52 @@ func TestExecCmd_BuildArgs_FlagParams(t *testing.T) {
 	assert.NotContains(t, args, "--body")
 }
 
+func TestExecCmdUndoWorkspaceRestoreIsHandledByWorkspaceLayer(t *testing.T) {
+	cmd := &ExecCmd{def: ToolDef{
+		Name: "copy_dir",
+		Undo: ToolUndoContract{Strategy: "workspace_restore"},
+	}}
+
+	res := cmd.Undo()
+
+	require.Equal(t, core.ToolDone, res.Signal)
+	assert.Contains(t, res.Output, "workspace restore")
+}
+
+func TestExecCmdUndoCompensatingActionReportsGap(t *testing.T) {
+	cmd := &ExecCmd{def: ToolDef{
+		Name: "issue_create",
+		Undo: ToolUndoContract{
+			Strategy:    "compensating_action",
+			Description: "close created issue",
+		},
+	}}
+
+	res := cmd.Undo()
+
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Error(t, res.Err)
+	assert.Contains(t, res.Output, "requires compensating action")
+}
+
+func TestExecCmdUndoMementoUsesDeclaredStrategy(t *testing.T) {
+	cmd := &ExecCmd{def: ToolDef{
+		Name: "copy_dir",
+		SideEffects: ToolSideEffects{Items: []ToolSideEffect{{
+			Kind:  "filesystem_write",
+			Paths: []string{"out"},
+		}}},
+		Undo: ToolUndoContract{Strategy: "workspace_restore"},
+	}}
+
+	memento, err := cmd.UndoMemento()
+
+	require.NoError(t, err)
+	require.Equal(t, core.UndoMementoReversible, memento.Kind)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+	assert.Contains(t, string(memento.Payload), `"out"`)
+}
+
 func TestExecCmd_Execute_Success(t *testing.T) {
 	def := ToolDef{
 		Name:   "greet",

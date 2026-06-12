@@ -30,18 +30,8 @@ real_undo_pending:
       follow_up: agent-core-gm-rollback.8
 
   workspace_state:
-    follow_up: agent-core-gm-rollback.6
+    follow_up: agent-core-gm-rollback.7
     commands:
-      - command: write
-        reason: "creates or overwrites files"
-        target_strategy: workspace_restore
-      - command: edit
-        reason: "modifies files"
-        target_strategy: workspace_restore
-      - command: ExecCmd
-        reason: "some exec declarations mutate filesystem, git, or issue tracker state"
-        target_strategy: declaration_specific_workspace_or_compensation
-        mutating_exec_tools: [copy_dir, make_dir, git_init, stage_all, commit, issue_create, issue_close]
       - command: create_point_dir
         reason: "creates evaluator point directory and mutates PointContext paths"
         target_strategy: workspace_restore_and_point_context_restore
@@ -196,16 +186,39 @@ implemented_memento_undo:
     - command: create_issue
       strategy: pipeline_state_restore_only
       memento: compensatable_pipeline_snapshot
+  workspace_state:
+    - command: write
+      strategy: file_snapshot_restore_and_workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: edit
+      strategy: file_snapshot_restore_and_workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: copy_dir
+      strategy: workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: make_dir
+      strategy: workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: git_init
+      strategy: workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: stage_all
+      strategy: workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: commit
+      strategy: compensating_action
+      memento: compensatable_workspace_restore_paths
+      follow_up: agent-core-gm-rollback.8
+    - command: issue_create
+      strategy: compensating_action
+      memento: compensatable_workspace_restore_paths
+      follow_up: agent-core-gm-rollback.8
+    - command: issue_close
+      strategy: compensating_action
+      memento: compensatable_workspace_restore_paths
+      follow_up: agent-core-gm-rollback.8
 
 declaration_mismatches:
-  - command: write
-    declaration: workspace_restore
-    implementation: NoopUndo
-    follow_up: agent-core-gm-rollback.6
-  - command: edit
-    declaration: workspace_restore
-    implementation: NoopUndo
-    follow_up: agent-core-gm-rollback.6
   - command: evaluator_and_point_tools
     declaration: session_state_restore_or_workspace_restore
     implementation: NoopUndo
@@ -218,10 +231,6 @@ declaration_mismatches:
     declaration: compensating_action_or_child_command_undo
     implementation: NoopUndo
     follow_up: agent-core-gm-rollback.8
-  - command: exec_tools
-    declaration: missing_undo_metadata
-    implementation: ExecCmd_NoopUndo
-    follow_up: agent-core-gm-rollback.6
 
 related_issues:
   - agent-core-gm-rollback.5
