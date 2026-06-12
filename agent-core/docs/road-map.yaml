@@ -16,6 +16,25 @@ releases:
       LLM commands, subprocess), pkg/spec (graph loader, validator),
       and pkg/cli (standard flag constants, PropagateArgs).
     status: done
+    srds:
+      - srd001-core-types
+      - srd002-state-machine
+      - srd003-command-dispatch
+      - srd004-tool-registry
+      - srd005-agentic-loop
+      - srd006-yaml-machine-config
+      - srd007-tracer-interface
+      - srd008-telemetry
+      - srd009-ollama-adapter
+      - srd010-conversation
+      - srd011-prompt-schema
+      - srd012-system-prompt-template
+      - srd013-standard-tool-library
+      - srd014-spec-graph
+      - srd015-genai-semconv
+      - srd016-traceparent
+      - srd017-llm-extensions
+      - srd018-cli-flag-contract
     use_cases:
       - id: rel00.0-uc001-domain-agent-integration
         summary: Domain agent imports agent-core and runs an agentic loop
@@ -45,6 +64,13 @@ releases:
       - Native Mage build targets replacing cobbler-scaffold dependency
       - Comprehensive Go test suite across all packages
     status: done
+    srds:
+      - srd019-eval-harness
+      - srd020-bench-web-ui
+      - srd021-agent-cli-exec-tool
+      - srd022-builtin-tools
+      - srd023-cli-exec-tools
+      - srd024-blocking-input-tools
     use_cases:
       - id: rel01.0-uc001-generator-coding
         summary: Generator agent solves Go coding tasks using YAML config
@@ -55,3 +81,26 @@ releases:
       - id: rel01.0-uc003-bench-visualization
         summary: Bench serves web UI for evaluation result exploration
         status: done
+
+  - version: "02.0"
+    name: Rollback lifecycle and tool language documentation
+    description: |
+      Checkpoint, suspend, resume, and rollback lifecycle behavior.
+      Tool-as-vocabulary authoring standard and sentence-to-word
+      migration guidance.
+    status: planned
+    srds:
+      - srd025-rollback-lifecycle
+    use_cases:
+      - id: rel02.0-uc001-approval-suspend-resume
+        summary: Agent suspends at approval gate and resumes from checkpoint
+        status: planned
+      - id: rel02.0-uc002-history-rollback
+        summary: User inspects history and rolls back after a bad tool action
+        status: planned
+      - id: rel02.0-uc003-tool-authoring
+        summary: Developer authors a new tool as a vocabulary word
+        status: planned
+      - id: rel02.0-uc004-sentence-tool-migration
+        summary: Developer migrates a sentence-shaped tool into machine-composed words
+        status: planned
