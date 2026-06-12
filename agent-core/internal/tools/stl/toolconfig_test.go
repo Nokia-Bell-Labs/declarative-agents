@@ -13,6 +13,7 @@ func TestDecodeToolConfigBasic(t *testing.T) {
 	def := ToolDef{
 		Name: "test_tool",
 		Config: map[string]interface{}{
+			"profile": "agents/gen/profile.yaml",
 			"machine": "agents/gen/machine.yaml",
 			"tools":   "agents/gen/tools.yaml",
 			"tools_declarations": []interface{}{
@@ -23,6 +24,7 @@ func TestDecodeToolConfigBasic(t *testing.T) {
 	}
 	var cfg ChildAgentConfig
 	require.NoError(t, DecodeToolConfig(def, &cfg))
+	assert.Equal(t, "agents/gen/profile.yaml", cfg.Profile)
 	assert.Equal(t, "agents/gen/machine.yaml", cfg.Machine)
 	assert.Equal(t, "agents/gen/tools.yaml", cfg.Tools)
 	assert.Equal(t, []string{"tools/builtin.yaml", "tools/exec.yaml"}, cfg.ToolDeclarations)

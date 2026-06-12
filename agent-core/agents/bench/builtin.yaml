@@ -99,12 +99,12 @@ tools:
 
     '
   goals:
-  - Run the configured evaluator machine for the experiment requested by serve_ui.
-  - Propagate machine, tool selection, tool declaration, and trace configuration into the child agent invocation.
+  - Run the configured evaluator profile for the experiment requested by serve_ui.
+  - Propagate profile and trace configuration into the child agent invocation.
   - Return evaluator completion status to the bench UI loop.
   requirements:
     input:
-    - must require machine, tools, and tools_declarations in config
+    - must require profile in config, or legacy machine/tools/tools_declarations for compatibility-only declarations
     - must consume the experiment request emitted by serve_ui
     output:
     - must emit EvalCompleted when the evaluator child exits successfully
@@ -184,8 +184,4 @@ tools:
     - tool: run_point
       difference: run_point runs one point inside evaluator; launch_eval starts the evaluator process.
   config:
-    machine: agents/evaluator/machine.yaml
-    tools: agents/evaluator/tools.yaml
-    tools_declarations:
-    - tools/builtin.yaml
-    - agents/evaluator/builtin.yaml
+    profile: agents/evaluator/profile.yaml

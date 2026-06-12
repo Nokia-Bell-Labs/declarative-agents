@@ -21,6 +21,7 @@ type BoundaryCompensation struct {
 	Requires           []string `json:"requires,omitempty"`
 	WorkspacePaths     []string `json:"workspace_paths,omitempty"`
 	ArtifactPaths      []string `json:"artifact_paths,omitempty"`
+	ChildProfile       string   `json:"child_profile,omitempty"`
 	ChildMachine       string   `json:"child_machine,omitempty"`
 	ChildTools         string   `json:"child_tools,omitempty"`
 	ChildRunID         string   `json:"child_run_id,omitempty"`

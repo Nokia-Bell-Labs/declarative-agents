@@ -28,6 +28,7 @@ func DecodeToolConfig(def ToolDef, target interface{}) error {
 // ChildAgentConfig holds child agent invocation parameters read from
 // a tool's config block. Used by launch_eval and execute_task.
 type ChildAgentConfig struct {
+	Profile          string   `json:"profile"`
 	Machine          string   `json:"machine"`
 	Tools            string   `json:"tools"`
 	ToolDeclarations []string `json:"tools_declarations"`
