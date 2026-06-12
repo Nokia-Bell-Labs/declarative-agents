@@ -43,6 +43,7 @@ var (
 	flagMachine             string
 	flagTools               []string
 	flagToolDeclarations    []string
+	flagToolConfigDirs      []string
 	flagOTelLog             string
 	flagOTelParent          string
 	flagDirectory           string
@@ -108,6 +109,7 @@ func init() {
 	f.StringVar(&flagMachine, "machine", "", "path to state machine YAML (required unless --profile)")
 	f.StringArrayVar(&flagTools, "tools", nil, "path to tool selection YAML (repeatable, required unless --profile)")
 	f.StringArrayVar(&flagToolDeclarations, "tools-declaration", nil, "path to tool declaration YAML (repeatable)")
+	f.StringArrayVar(&flagToolConfigDirs, "tool-config-dir", nil, "directory of tool declaration YAMLs (repeatable)")
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
@@ -458,11 +460,20 @@ func run(cmd *cobra.Command, args []string) error {
 	// Load tool definitions: either declaration+selection or legacy single file
 	var defs []stl.ToolDef
 	var err error
-	if len(flagToolDeclarations) > 0 {
+	if len(flagToolDeclarations) > 0 || len(flagToolConfigDirs) > 0 {
 		var declarations []stl.ToolDef
-		declarations, err = stl.LoadToolDeclarations(flagToolDeclarations)
-		if err != nil {
-			return fmt.Errorf("load tool declarations: %w", err)
+		if len(flagToolConfigDirs) > 0 {
+			declarations, err = stl.LoadToolDeclarationsFromDirs(flagToolConfigDirs)
+			if err != nil {
+				return fmt.Errorf("load tool config dirs: %w", err)
+			}
+		}
+		if len(flagToolDeclarations) > 0 {
+			explicit, err := stl.LoadToolDeclarations(flagToolDeclarations)
+			if err != nil {
+				return fmt.Errorf("load tool declarations: %w", err)
+			}
+			declarations = stl.MergeToolDefs(declarations, explicit)
 		}
 		var selection []string
 		selection, err = stl.LoadToolSelections(flagTools)
@@ -1082,6 +1093,9 @@ func applyProfile(path string) error {
 	}
 	if len(flagToolDeclarations) == 0 {
 		flagToolDeclarations = p.ToolDeclarations
+	}
+	if len(flagToolConfigDirs) == 0 {
+		flagToolConfigDirs = p.ToolConfigDirs
 	}
 	if flagDirectory == "" && p.Directory != "" {
 		flagDirectory = p.Directory

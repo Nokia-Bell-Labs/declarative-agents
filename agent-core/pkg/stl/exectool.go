@@ -239,6 +239,26 @@ func LoadToolDeclarations(paths []string) ([]ToolDef, error) {
 	return all, nil
 }
 
+// LoadToolDeclarationsFromDirs scans directories for *.yaml files and
+// loads them as tool declarations. Files are sorted by name within each
+// directory. Results are merged with later directories overriding earlier ones.
+func LoadToolDeclarationsFromDirs(dirs []string) ([]ToolDef, error) {
+	var paths []string
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return nil, fmt.Errorf("scan tool config dir %s: %w", dir, err)
+		}
+		for _, e := range entries {
+			if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
+				continue
+			}
+			paths = append(paths, filepath.Join(dir, e.Name()))
+		}
+	}
+	return LoadToolDeclarations(paths)
+}
+
 // SelectTools filters a set of declarations to only those named in the
 // selection list. Returns an error if any selected name is not declared.
 func SelectTools(declarations []ToolDef, selection []string) ([]ToolDef, error) {

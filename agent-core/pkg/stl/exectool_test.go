@@ -5,6 +5,7 @@ package stl
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -727,6 +728,36 @@ func TestLoadToolSelections_Single(t *testing.T) {
 	names, err := LoadToolSelections([]string{dir + "/tools.yaml"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"read", "write"}, names)
+}
+
+func TestLoadToolDeclarationsFromDirs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "read.yaml"), `tools:
+  - name: read
+    type: builtin
+    init: file_read
+    description: Read a file
+`)
+	writeFile(t, filepath.Join(dir, "write.yaml"), `tools:
+  - name: write
+    type: builtin
+    init: file_write
+    description: Write a file
+`)
+	writeFile(t, filepath.Join(dir, "not-yaml.txt"), "ignored")
+	os.Mkdir(filepath.Join(dir, "subdir"), 0o755)
+
+	defs, err := LoadToolDeclarationsFromDirs([]string{dir})
+	require.NoError(t, err)
+	require.Len(t, defs, 2)
+	assert.Equal(t, "read", defs[0].Name)
+	assert.Equal(t, "write", defs[1].Name)
+}
+
+func TestLoadToolDeclarationsFromDirs_MissingDir(t *testing.T) {
+	_, err := LoadToolDeclarationsFromDirs([]string{"/nonexistent/dir"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "scan tool config dir")
 }
 
 func TestSelectTools(t *testing.T) {
