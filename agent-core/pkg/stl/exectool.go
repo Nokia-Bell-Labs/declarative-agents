@@ -205,6 +205,26 @@ func LoadToolSelection(path string) ([]string, error) {
 	return sel.Tools, nil
 }
 
+// LoadToolSelections reads multiple tool selection YAML files and merges
+// their tool name lists, deduplicating entries.
+func LoadToolSelections(paths []string) ([]string, error) {
+	seen := map[string]bool{}
+	var merged []string
+	for _, p := range paths {
+		names, err := LoadToolSelection(p)
+		if err != nil {
+			return nil, err
+		}
+		for _, n := range names {
+			if !seen[n] {
+				seen[n] = true
+				merged = append(merged, n)
+			}
+		}
+	}
+	return merged, nil
+}
+
 // LoadToolDeclarations loads multiple declaration files and merges them.
 // Later files override earlier ones with the same tool name.
 func LoadToolDeclarations(paths []string) ([]ToolDef, error) {

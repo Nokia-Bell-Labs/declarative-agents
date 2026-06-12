@@ -11,7 +11,7 @@ harnesses:
         - agents/generator/llm/default.yaml
 models:
   - qwen3.6:35b-mlx
-  - gemma4:31b-mlx
+  - qwen3.6:27b-mlx
 samples_dir: samples
 timeout: 10m
 repetitions: 1

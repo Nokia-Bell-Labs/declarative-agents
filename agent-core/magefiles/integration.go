@@ -116,7 +116,7 @@ func (Integration) Uc002() error {
 	if err := requireModel(qwen35b); err != nil {
 		return skipUC("uc002", err.Error())
 	}
-	if err := requireModel(gemma31b); err != nil {
+	if err := requireModel(qwen27b); err != nil {
 		return skipUC("uc002", err.Error())
 	}
 
@@ -173,7 +173,7 @@ func (Integration) Uc003() error {
 
 const (
 	qwen35b         = "qwen3.6:35b-mlx"
-	gemma31b        = "gemma4:31b-mlx"
+	qwen27b         = "qwen3.6:27b-mlx"
 	generatorSample = "testdata/integration/uc001-generator-coding"
 	evaluatorSuite  = "testdata/integration/uc002-evaluator-benchmark/suite.yaml"
 )

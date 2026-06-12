@@ -12,7 +12,7 @@ summary: |
   for analysis by the bench UI or CLI reporting tools.
 
   The integration test (mage integration:uc002) exercises this end-to-end
-  with two models (Qwen 3.6 35b and Gemma 4 31b), using the same sample
+  with two models (Qwen 3.6 35b and Qwen 3.6 27b), using the same sample
   workspace as the generator integration test (uc001).
 
 actor: Developer benchmarking model performance
@@ -28,7 +28,7 @@ trigger: |
 
 preconditions:
   - Ollama is running at localhost:11434
-  - Both qwen3.6:35b-mlx and gemma4:31b-mlx models are pulled
+  - Both qwen3.6:35b-mlx and qwen3.6:27b-mlx models are pulled
   - The agent binary is built (bin/agent)
   - The sample workspace from uc001 is available
 

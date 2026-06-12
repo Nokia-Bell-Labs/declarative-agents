@@ -709,6 +709,26 @@ func TestLoadToolSelection(t *testing.T) {
 	assert.Equal(t, []string{"read", "write", "build"}, names)
 }
 
+func TestLoadToolSelections(t *testing.T) {
+	dir := t.TempDir()
+
+	writeFile(t, dir+"/a.yaml", "tools:\n  - read\n  - write\n")
+	writeFile(t, dir+"/b.yaml", "tools:\n  - build\n  - write\n")
+
+	names, err := LoadToolSelections([]string{dir + "/a.yaml", dir + "/b.yaml"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"read", "write", "build"}, names)
+}
+
+func TestLoadToolSelections_Single(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir+"/tools.yaml", "tools:\n  - read\n  - write\n")
+
+	names, err := LoadToolSelections([]string{dir + "/tools.yaml"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"read", "write"}, names)
+}
+
 func TestSelectTools(t *testing.T) {
 	decls := []ToolDef{
 		{Name: "read", Type: "builtin", Init: "file_read", Description: "Read files"},

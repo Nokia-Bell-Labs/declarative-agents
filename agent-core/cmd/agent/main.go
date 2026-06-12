@@ -40,7 +40,7 @@ import (
 
 var (
 	flagMachine             string
-	flagTools               string
+	flagTools               []string
 	flagToolDeclarations    []string
 	flagOTelLog             string
 	flagOTelParent          string
@@ -104,7 +104,7 @@ Examples:
 func init() {
 	f := rootCmd.PersistentFlags()
 	f.StringVar(&flagMachine, "machine", "", "path to state machine YAML (required)")
-	f.StringVar(&flagTools, "tools", "", "path to tool selection YAML (required)")
+	f.StringArrayVar(&flagTools, "tools", nil, "path to tool selection YAML (repeatable, required)")
 	f.StringArrayVar(&flagToolDeclarations, "tools-declaration", nil, "path to tool declaration YAML (repeatable)")
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
@@ -431,7 +431,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if flagMachine == "" {
 		return fmt.Errorf("--machine is required")
 	}
-	if flagTools == "" {
+	if len(flagTools) == 0 {
 		return fmt.Errorf("--tools is required")
 	}
 
@@ -458,7 +458,7 @@ func run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("load tool declarations: %w", err)
 		}
 		var selection []string
-		selection, err = stl.LoadToolSelection(flagTools)
+		selection, err = stl.LoadToolSelections(flagTools)
 		if err != nil {
 			return fmt.Errorf("load tool selection: %w", err)
 		}
@@ -467,7 +467,10 @@ func run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("select tools: %w", err)
 		}
 	} else {
-		defs, err = stl.LoadToolDefs(flagTools)
+		if len(flagTools) > 1 {
+			return fmt.Errorf("multiple --tools files require --tools-declaration")
+		}
+		defs, err = stl.LoadToolDefs(flagTools[0])
 		if err != nil {
 			return fmt.Errorf("load tools: %w", err)
 		}
