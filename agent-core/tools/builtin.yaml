@@ -680,12 +680,16 @@ tools:
       - kind: stderr_write
         target: evaluator_output
         description: "Prints evaluator session summary."
+      - kind: state_mutation
+        target: eval_session_state
+        state: session_duration_finalized
+        description: "Sets the final session duration on EvalSessionState.Result."
     reversibility:
       classification: reversible
-      undo: "noop"
+      undo: "evaluator_session_restore"
     undo:
-      strategy: noop
-      description: "Reporting writes only diagnostic output and has no state to restore."
+      strategy: session_state_restore
+      description: "Restore evaluator session state to the snapshot before finalizing session duration."
 
   # --- evaluator per-point tools ---
   - name: create_point_dir

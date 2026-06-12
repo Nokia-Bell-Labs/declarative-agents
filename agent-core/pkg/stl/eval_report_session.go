@@ -19,13 +19,22 @@ func (b *ReportSessionBuilder) Build(_ core.Result) core.Command {
 }
 
 type reportSessionCmd struct {
-	es *EvalSessionState
+	es          *EvalSessionState
+	snapshot    evalSessionSnapshot
+	hasSnapshot bool
 }
 
-func (c *reportSessionCmd) Name() string      { return "report_session" }
-func (c *reportSessionCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *reportSessionCmd) Name() string { return "report_session" }
+func (c *reportSessionCmd) Undo() core.Result {
+	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+}
+func (c *reportSessionCmd) UndoMemento() (core.UndoMemento, error) {
+	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *reportSessionCmd) Execute() core.Result {
+	c.snapshot = snapshotEvalSession(c.es)
+	c.hasSnapshot = true
 	c.es.FinalizeSession()
 	r := &c.es.Result
 

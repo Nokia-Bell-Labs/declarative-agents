@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
 
 func TestRunOracleCheckPassesAndFailsWithDomainSignals(t *testing.T) {
@@ -46,6 +48,27 @@ func TestCollectTraceTokensParsesTraceUsage(t *testing.T) {
 	requireSignal(t, res, SigTraceTokensCollected)
 	require.Equal(t, 150, pc.Tokens)
 	require.Equal(t, 150, res.Cost.TokensIn)
+}
+
+func TestCollectTraceTokensUndoRestoresPointContext(t *testing.T) {
+	pc := pointResultFixture(t, "func TestPass(t *testing.T) {}\n")
+	pc.PointID = "point-1"
+	pc.Tokens = 7
+	require.NoError(t, os.WriteFile(pc.TracePath, sampleNDJSON, 0o644))
+
+	cmd := &collectTraceTokensCmd{pc: pc}
+	requireSignal(t, cmd.Execute(), SigTraceTokensCollected)
+	require.Equal(t, 150, pc.Tokens)
+
+	undo := cmd.Undo()
+	requireSignal(t, undo, core.ToolDone)
+	require.Equal(t, 7, pc.Tokens)
+
+	memento, err := cmd.UndoMemento()
+	require.NoError(t, err)
+	require.Equal(t, core.UndoMementoReversible, memento.Kind)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+	require.Contains(t, string(memento.Payload), `"point_id"`)
 }
 
 func TestCheckAgentVersionReportsMismatchWarning(t *testing.T) {

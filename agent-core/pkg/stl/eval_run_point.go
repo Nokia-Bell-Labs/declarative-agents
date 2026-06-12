@@ -25,10 +25,23 @@ type runPointCmd struct {
 	es            *EvalSessionState
 	pointRegistry *core.Registry
 	config        RunPointConfig
+	snapshot      evalSessionSnapshot
+	hasSnapshot   bool
 }
 
-func (c *runPointCmd) Name() string      { return "run_point" }
-func (c *runPointCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *runPointCmd) Name() string { return "run_point" }
+func (c *runPointCmd) Undo() core.Result {
+	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+}
+func (c *runPointCmd) UndoMemento() (core.UndoMemento, error) {
+	memento, err := evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
+	if err != nil {
+		return core.UndoMemento{}, err
+	}
+	memento.Kind = core.UndoMementoCompensatable
+	memento.Description = "restores evaluator session state; nested point machine effects may require child rollback or workspace compensation"
+	return memento, nil
+}
 
 func (c *runPointCmd) Execute() core.Result {
 	pc := c.es.PC
@@ -40,6 +53,8 @@ func (c *runPointCmd) Execute() core.Result {
 			CommandName: "run_point",
 		}
 	}
+	c.snapshot = snapshotEvalSession(c.es)
+	c.hasSnapshot = true
 
 	agentName := c.config.AgentName
 	if agentName == "" {

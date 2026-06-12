@@ -125,6 +125,40 @@ ollama_url: http://suite.example
 	require.Contains(t, stderr.String(), "4 points")
 }
 
+func TestNextPointUndoRestoresEvaluatorSessionCursor(t *testing.T) {
+	base := suiteFixture(t)
+	suitePath := filepath.Join(base, "suite.yaml")
+	require.NoError(t, os.WriteFile(suitePath, []byte(`
+name: smoke
+harnesses:
+  - name: agent
+    binary: agent
+models: [qwen3]
+samples_dir: samples
+`), 0o644))
+
+	es := &EvalSessionState{SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{}}
+	requireSignal(t, (&parseSuiteConfigCmd{es: es}).Execute(), SigSuiteConfigParsed)
+	requireSignal(t, (&discoverSuiteSamplesCmd{es: es}).Execute(), SigSuiteSamplesDiscovered)
+	requireSignal(t, (&expandEvalGridCmd{es: es}).Execute(), SigEvalGridExpanded)
+	requireSignal(t, (&initEvalSessionCmd{es: es}).Execute(), SigEvalSessionInitialized)
+
+	cmd := &nextPointCmd{es: es}
+	requireSignal(t, cmd.Execute(), SigPointReady)
+	require.NotNil(t, es.PC)
+	require.True(t, es.started)
+
+	undo := cmd.Undo()
+	requireSignal(t, undo, core.ToolDone)
+	require.Nil(t, es.PC)
+	require.False(t, es.started)
+
+	memento, err := cmd.UndoMemento()
+	require.NoError(t, err)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+	require.Contains(t, string(memento.Payload), `"domain_state"`)
+}
+
 func TestDiscoverSuiteSamplesReportsCommandError(t *testing.T) {
 	es := &EvalSessionState{Suite: SuiteConfig{Name: "broken", SamplesDir: filepath.Join(t.TempDir(), "missing")}}
 	res := (&discoverSuiteSamplesCmd{es: es}).Execute()

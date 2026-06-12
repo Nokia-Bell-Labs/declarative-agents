@@ -21,11 +21,18 @@ func (b *ParseSuiteConfigBuilder) Build(_ core.Result) core.Command {
 }
 
 type parseSuiteConfigCmd struct {
-	es *EvalSessionState
+	es          *EvalSessionState
+	snapshot    evalSessionSnapshot
+	hasSnapshot bool
 }
 
-func (c *parseSuiteConfigCmd) Name() string      { return "parse_suite_config" }
-func (c *parseSuiteConfigCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *parseSuiteConfigCmd) Name() string { return "parse_suite_config" }
+func (c *parseSuiteConfigCmd) Undo() core.Result {
+	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+}
+func (c *parseSuiteConfigCmd) UndoMemento() (core.UndoMemento, error) {
+	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *parseSuiteConfigCmd) Execute() core.Result {
 	if c.es.SuitePath == "" {
@@ -57,6 +64,8 @@ func (c *parseSuiteConfigCmd) Execute() core.Result {
 		}
 	}
 
+	c.snapshot = snapshotEvalSession(c.es)
+	c.hasSnapshot = true
 	c.es.Suite = suite
 	return core.Result{
 		Signal:      SigSuiteConfigParsed,
@@ -75,11 +84,18 @@ func (b *DiscoverSuiteSamplesBuilder) Build(_ core.Result) core.Command {
 }
 
 type discoverSuiteSamplesCmd struct {
-	es *EvalSessionState
+	es          *EvalSessionState
+	snapshot    evalSessionSnapshot
+	hasSnapshot bool
 }
 
-func (c *discoverSuiteSamplesCmd) Name() string      { return "discover_suite_samples" }
-func (c *discoverSuiteSamplesCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *discoverSuiteSamplesCmd) Name() string { return "discover_suite_samples" }
+func (c *discoverSuiteSamplesCmd) Undo() core.Result {
+	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+}
+func (c *discoverSuiteSamplesCmd) UndoMemento() (core.UndoMemento, error) {
+	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *discoverSuiteSamplesCmd) Execute() core.Result {
 	samples, err := DiscoverSamples(c.es.Suite.SamplesDir)
@@ -91,6 +107,8 @@ func (c *discoverSuiteSamplesCmd) Execute() core.Result {
 			CommandName: c.Name(),
 		}
 	}
+	c.snapshot = snapshotEvalSession(c.es)
+	c.hasSnapshot = true
 	c.es.Suite.Samples = samples
 	return core.Result{
 		Signal:      SigSuiteSamplesDiscovered,
@@ -109,13 +127,22 @@ func (b *ExpandEvalGridBuilder) Build(_ core.Result) core.Command {
 }
 
 type expandEvalGridCmd struct {
-	es *EvalSessionState
+	es          *EvalSessionState
+	snapshot    evalSessionSnapshot
+	hasSnapshot bool
 }
 
-func (c *expandEvalGridCmd) Name() string      { return "expand_eval_grid" }
-func (c *expandEvalGridCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *expandEvalGridCmd) Name() string { return "expand_eval_grid" }
+func (c *expandEvalGridCmd) Undo() core.Result {
+	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+}
+func (c *expandEvalGridCmd) UndoMemento() (core.UndoMemento, error) {
+	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *expandEvalGridCmd) Execute() core.Result {
+	c.snapshot = snapshotEvalSession(c.es)
+	c.hasSnapshot = true
 	c.es.ExpandGrid()
 	return core.Result{
 		Signal:      SigEvalGridExpanded,
@@ -134,11 +161,18 @@ func (b *InitEvalSessionBuilder) Build(_ core.Result) core.Command {
 }
 
 type initEvalSessionCmd struct {
-	es *EvalSessionState
+	es          *EvalSessionState
+	snapshot    evalSessionSnapshot
+	hasSnapshot bool
 }
 
-func (c *initEvalSessionCmd) Name() string      { return "init_eval_session" }
-func (c *initEvalSessionCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *initEvalSessionCmd) Name() string { return "init_eval_session" }
+func (c *initEvalSessionCmd) Undo() core.Result {
+	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+}
+func (c *initEvalSessionCmd) UndoMemento() (core.UndoMemento, error) {
+	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *initEvalSessionCmd) Execute() core.Result {
 	reps := c.es.Reps
@@ -156,6 +190,8 @@ func (c *initEvalSessionCmd) Execute() core.Result {
 		ollamaURL = c.es.Suite.OllamaURL
 	}
 
+	c.snapshot = snapshotEvalSession(c.es)
+	c.hasSnapshot = true
 	if err := c.es.InitSession(c.es.OutputDir, reps, timeout, ollamaURL, 0); err != nil {
 		return core.Result{
 			Signal:      core.CommandError,

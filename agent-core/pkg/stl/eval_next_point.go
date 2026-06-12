@@ -18,13 +18,22 @@ func (b *NextPointBuilder) Build(_ core.Result) core.Command {
 }
 
 type nextPointCmd struct {
-	es *EvalSessionState
+	es          *EvalSessionState
+	snapshot    evalSessionSnapshot
+	hasSnapshot bool
 }
 
-func (c *nextPointCmd) Name() string      { return "next_point" }
-func (c *nextPointCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *nextPointCmd) Name() string { return "next_point" }
+func (c *nextPointCmd) Undo() core.Result {
+	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+}
+func (c *nextPointCmd) UndoMemento() (core.UndoMemento, error) {
+	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *nextPointCmd) Execute() core.Result {
+	c.snapshot = snapshotEvalSession(c.es)
+	c.hasSnapshot = true
 	pc, ok := c.es.NextPoint()
 	if !ok {
 		return core.Result{

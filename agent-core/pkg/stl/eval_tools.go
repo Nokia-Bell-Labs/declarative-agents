@@ -24,13 +24,22 @@ const (
 // createPointDirCmd creates the per-point directory and records paths that
 // later point tools consume.
 type createPointDirCmd struct {
-	pc *PointContext
+	pc          *PointContext
+	snapshot    pointContextSnapshot
+	hasSnapshot bool
 }
 
-func (c *createPointDirCmd) Name() string      { return "create_point_dir" }
-func (c *createPointDirCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *createPointDirCmd) Name() string { return "create_point_dir" }
+func (c *createPointDirCmd) Undo() core.Result {
+	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+}
+func (c *createPointDirCmd) UndoMemento() (core.UndoMemento, error) {
+	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *createPointDirCmd) Execute() core.Result {
+	c.snapshot = snapshotPointContext(c.pc)
+	c.hasSnapshot = true
 	pointDir := filepath.Join(c.pc.SessionDir, c.pc.PointID)
 	if err := os.MkdirAll(pointDir, 0o755); err != nil {
 		return pointToolError(c.Name(), fmt.Errorf("mkdir point dir: %w", err))
@@ -175,14 +184,23 @@ func copyDir(src, dst string) error {
 
 // runOracleCheckCmd runs the sample's oracle tests and records pass/fail output.
 type runOracleCheckCmd struct {
-	pc *PointContext
+	pc          *PointContext
+	snapshot    pointContextSnapshot
+	hasSnapshot bool
 }
 
-func (c *runOracleCheckCmd) Name() string      { return "run_oracle_check" }
-func (c *runOracleCheckCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *runOracleCheckCmd) Name() string { return "run_oracle_check" }
+func (c *runOracleCheckCmd) Undo() core.Result {
+	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+}
+func (c *runOracleCheckCmd) UndoMemento() (core.UndoMemento, error) {
+	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *runOracleCheckCmd) Execute() core.Result {
 	pc := c.pc
+	c.snapshot = snapshotPointContext(pc)
+	c.hasSnapshot = true
 	pc.TestsPassed, pc.TestOutput = runOracleCheck(pc.PointDir)
 
 	signal := SigOracleCheckPassed
@@ -198,14 +216,23 @@ func (c *runOracleCheckCmd) Execute() core.Result {
 
 // collectTraceTokensCmd extracts token usage from the point trace file.
 type collectTraceTokensCmd struct {
-	pc *PointContext
+	pc          *PointContext
+	snapshot    pointContextSnapshot
+	hasSnapshot bool
 }
 
-func (c *collectTraceTokensCmd) Name() string      { return "collect_trace_tokens" }
-func (c *collectTraceTokensCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *collectTraceTokensCmd) Name() string { return "collect_trace_tokens" }
+func (c *collectTraceTokensCmd) Undo() core.Result {
+	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+}
+func (c *collectTraceTokensCmd) UndoMemento() (core.UndoMemento, error) {
+	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *collectTraceTokensCmd) Execute() core.Result {
 	pc := c.pc
+	c.snapshot = snapshotPointContext(pc)
+	c.hasSnapshot = true
 	if _, err := os.Stat(pc.TracePath); err != nil {
 		if os.IsNotExist(err) {
 			pc.Tokens = 0
@@ -240,14 +267,23 @@ func (c *collectTraceTokensCmd) Execute() core.Result {
 
 // checkAgentVersionCmd compares configured and traced agent versions.
 type checkAgentVersionCmd struct {
-	pc *PointContext
+	pc          *PointContext
+	snapshot    pointContextSnapshot
+	hasSnapshot bool
 }
 
-func (c *checkAgentVersionCmd) Name() string      { return "check_agent_version" }
-func (c *checkAgentVersionCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *checkAgentVersionCmd) Name() string { return "check_agent_version" }
+func (c *checkAgentVersionCmd) Undo() core.Result {
+	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+}
+func (c *checkAgentVersionCmd) UndoMemento() (core.UndoMemento, error) {
+	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *checkAgentVersionCmd) Execute() core.Result {
 	pc := c.pc
+	c.snapshot = snapshotPointContext(pc)
+	c.hasSnapshot = true
 	if pc.Harness.Version == "" {
 		return core.Result{
 			CommandName: c.Name(),

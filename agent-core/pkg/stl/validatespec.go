@@ -28,11 +28,18 @@ func (b *LoadCorpusBuilder) Build(_ core.Result) core.Command {
 }
 
 type loadCorpusCmd struct {
-	vs *ValidateSpecState
+	vs          *ValidateSpecState
+	snapshot    validateSpecSnapshot
+	hasSnapshot bool
 }
 
-func (c *loadCorpusCmd) Name() string      { return "load_corpus" }
-func (c *loadCorpusCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *loadCorpusCmd) Name() string { return "load_corpus" }
+func (c *loadCorpusCmd) Undo() core.Result {
+	return undoValidateSpecSnapshot(c.Name(), c.vs, c.snapshot, c.hasSnapshot)
+}
+func (c *loadCorpusCmd) UndoMemento() (core.UndoMemento, error) {
+	return validateSpecMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *loadCorpusCmd) Execute() core.Result {
 	corpus, err := spec.LoadCorpus(c.vs.Directory)
@@ -44,6 +51,8 @@ func (c *loadCorpusCmd) Execute() core.Result {
 			CommandName: "load_corpus",
 		}
 	}
+	c.snapshot = snapshotValidateSpec(c.vs)
+	c.hasSnapshot = true
 	c.vs.Corpus = corpus
 	return core.Result{
 		Signal: core.ToolDone,
@@ -63,13 +72,22 @@ func (b *ValidateSpecsBuilder) Build(_ core.Result) core.Command {
 }
 
 type validateSpecsCmd struct {
-	vs *ValidateSpecState
+	vs          *ValidateSpecState
+	snapshot    validateSpecSnapshot
+	hasSnapshot bool
 }
 
-func (c *validateSpecsCmd) Name() string      { return "validate_specs" }
-func (c *validateSpecsCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *validateSpecsCmd) Name() string { return "validate_specs" }
+func (c *validateSpecsCmd) Undo() core.Result {
+	return undoValidateSpecSnapshot(c.Name(), c.vs, c.snapshot, c.hasSnapshot)
+}
+func (c *validateSpecsCmd) UndoMemento() (core.UndoMemento, error) {
+	return validateSpecMemento(c.Name(), c.snapshot, c.hasSnapshot)
+}
 
 func (c *validateSpecsCmd) Execute() core.Result {
+	c.snapshot = snapshotValidateSpec(c.vs)
+	c.hasSnapshot = true
 	g, err := spec.BuildGraph(c.vs.Corpus)
 	if err != nil {
 		return core.Result{
