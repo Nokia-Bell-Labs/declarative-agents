@@ -71,6 +71,26 @@ test_cases:
       - srd023-cli-exec-tools AC2
 
   - use_case: rel02.0-uc003-tool-authoring
+    name: Deterministic result schemas are compatible with next action parameters
+    description: |
+      Given a machine edge where one named action emits a signal that selects
+      another named action, compare the producer output.schema with the
+      consumer parameters schema. Missing required fields should be reported
+      clearly, while dynamic $tool dispatch should be documented as an
+      info-level limitation.
+    inputs:
+      producer_output_schema: object_with_plan_id
+      consumer_parameters_schema: object_requiring_plan_id
+      dynamic_dispatch_edge: parse_response_to_tool_request
+    expected:
+      compatible_chain_findings: []
+      missing_required_field_severity: error_in_strict_mode
+      dynamic_dispatch_limitation: info
+    traces:
+      - srd022-builtin-tools AC1
+      - srd023-cli-exec-tools AC2
+
+  - use_case: rel02.0-uc003-tool-authoring
     name: Side effects and undo strategy are required for mutating tools
     description: |
       Validate a filesystem-mutating tool and a command/domain-state-mutating

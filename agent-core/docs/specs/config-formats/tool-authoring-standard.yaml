@@ -348,6 +348,24 @@ examples:
       - "Each intermediate filesystem or git side effect has its own emitted signal."
       - "Rollback can restore or compensate the exact word that failed."
 
+result_schema_compatibility:
+  status: prototype
+  implementation: ValidateResultSchemaCompatibility
+  purpose: |
+    Check deterministic machine edges where one named action emits a signal
+    that selects another named action. The producer's output.schema is compared
+    with the consumer's parameters schema so obvious Result.Output data-flow
+    mismatches are caught during authoring.
+  checks:
+    - "Both producer output.schema and consumer parameters must be structured JSON object schemas."
+    - "Every consumer required field must be present in the producer output properties."
+    - "Simple JSON Schema type values must match for required fields when both sides declare a type."
+  limitations:
+    - "Prose Result.Output values are reported as info-level limitations rather than rejected."
+    - "Dynamic $tool dispatch is not statically checked because the next tool is selected from the parsed LLM response at runtime."
+    - "LLM boundary words can declare raw response schemas, but deterministic compatibility with downstream parsers still depends on prompt/profile behavior."
+    - "The prototype does not evaluate oneOf, anyOf, arrays, enums, formats, or semantic constraints."
+
 migration_guidance:
   - "When a legacy tool is a sentence, first classify it honestly as sentence or deprecated boundary."
   - "Split the highest-risk side effects first: filesystem writes, child processes, and domain state mutation."

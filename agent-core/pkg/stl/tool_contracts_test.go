@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
 
 func TestValidateToolContractsReportsMissingFields(t *testing.T) {
@@ -185,6 +187,118 @@ func TestAuditToolContractsCanSkipInternalTools(t *testing.T) {
 
 	require.Len(t, audit, 1)
 	assert.Equal(t, "read", audit[0].ToolName)
+}
+
+func TestValidateResultSchemaCompatibilityAcceptsDeterministicChain(t *testing.T) {
+	spec := schemaCompatibilityMachine()
+	defs := []ToolDef{
+		{
+			Name:  "produce_plan",
+			Emits: []string{"PlanReady"},
+			Output: ToolOutputContract{Schema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"plan_id": map[string]interface{}{"type": "string"},
+					"title":   map[string]interface{}{"type": "string"},
+				},
+				"required": []interface{}{"plan_id"},
+			}},
+		},
+		{
+			Name: "materialize_plan",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"plan_id": map[string]interface{}{"type": "string"},
+				},
+				"required": []interface{}{"plan_id"},
+			},
+		},
+	}
+
+	findings := ValidateResultSchemaCompatibility(spec, defs, ContractValidationOptions{})
+
+	assert.Empty(t, findings)
+}
+
+func TestValidateResultSchemaCompatibilityReportsRequiredFieldMismatch(t *testing.T) {
+	spec := schemaCompatibilityMachine()
+	defs := []ToolDef{
+		{
+			Name:  "produce_plan",
+			Emits: []string{"PlanReady"},
+			Output: ToolOutputContract{Schema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"title": map[string]interface{}{"type": "string"},
+				},
+			}},
+		},
+		{
+			Name: "materialize_plan",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"plan_id": map[string]interface{}{"type": "string"},
+				},
+				"required": []interface{}{"plan_id"},
+			},
+		},
+	}
+
+	findings := ValidateResultSchemaCompatibility(spec, defs, ContractValidationOptions{Strict: true})
+
+	require.Len(t, findings, 1)
+	assert.Equal(t, "produce_plan", findings[0].ToolName)
+	assert.Equal(t, "schema_compatibility", findings[0].Category)
+	assert.Equal(t, ContractSeverityError, findings[0].Severity)
+	assert.Contains(t, findings[0].Message, `does not provide required field "plan_id"`)
+	assert.Contains(t, findings[0].Message, `materialize_plan`)
+}
+
+func TestValidateResultSchemaCompatibilityDocumentsDynamicDispatchLimitation(t *testing.T) {
+	spec := core.MachineSpec{
+		Name:           "dynamic",
+		States:         core.StateSpecsFromNames("Start", "Selecting", "Done"),
+		TerminalStates: []string{"Done"},
+		Signals:        core.SignalSpecsFromNames("Seed", "ToolReady", "ToolDone"),
+		Transitions: []core.TransitionSpec{
+			{State: "Start", Signal: "Seed", Next: "Selecting", Action: "parse_response"},
+			{State: "Selecting", Signal: "ToolReady", Next: "Selecting", Action: "$tool"},
+			{State: "Selecting", Signal: "ToolDone", Next: "Done"},
+		},
+	}
+	defs := []ToolDef{{
+		Name:  "parse_response",
+		Emits: []string{"ToolReady"},
+		Output: ToolOutputContract{Schema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"tool":       map[string]interface{}{"type": "string"},
+				"parameters": map[string]interface{}{"type": "object"},
+			},
+		}},
+	}}
+
+	findings := ValidateResultSchemaCompatibility(spec, defs, ContractValidationOptions{})
+
+	require.Len(t, findings, 1)
+	assert.Equal(t, ContractSeverityInfo, findings[0].Severity)
+	assert.Equal(t, "dynamic_dispatch", findings[0].Field)
+	assert.Contains(t, findings[0].Message, "dynamic $tool dispatch")
+}
+
+func schemaCompatibilityMachine() core.MachineSpec {
+	return core.MachineSpec{
+		Name:           "schema-chain",
+		States:         core.StateSpecsFromNames("Start", "Planning", "Done"),
+		TerminalStates: []string{"Done"},
+		Signals:        core.SignalSpecsFromNames("Seed", "PlanReady", "Materialized"),
+		Transitions: []core.TransitionSpec{
+			{State: "Start", Signal: "Seed", Next: "Planning", Action: "produce_plan"},
+			{State: "Planning", Signal: "PlanReady", Next: "Done", Action: "materialize_plan"},
+		},
+	}
 }
 
 func completeToolDef(name string) ToolDef {
