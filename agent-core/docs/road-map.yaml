@@ -81,12 +81,6 @@ releases:
       - id: rel01.0-uc003-bench-visualization
         summary: Bench serves web UI for evaluation result exploration
         status: done
-      - id: rel01.0-uc004-qwen36-generator
-        summary: Generator solves a Go coding task with Qwen 3.6
-        status: done
-      - id: rel01.0-uc005-qwen36-evaluator
-        summary: Evaluator benchmarks Qwen 3.6 across 8b and 35b parameter sizes
-        status: done
 
   - version: "02.0"
     name: Rollback lifecycle and tool language documentation

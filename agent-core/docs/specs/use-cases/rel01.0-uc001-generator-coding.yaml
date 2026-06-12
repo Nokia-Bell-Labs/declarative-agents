@@ -9,10 +9,15 @@ summary: |
   invokes an LLM, parses tool calls, executes file/build/test tools,
   and converges on a solution that passes validation.
 
+  The integration test (mage integration:uc001) exercises this end-to-end
+  with Qwen 3.6 (35b), validating the Qwen-specific parsing pipeline
+  (thinking-block stripping, [tool_call] envelope extraction) and the
+  full Composing/Parsing loop through build/lint/test validation.
+
 actor: Developer invoking the agent binary
 
 trigger: |
-  The developer runs:
+  The developer (or mage integration:uc001) runs:
     agent --machine agents/generator/machine.yaml \
           --tools-declaration tools/builtin.yaml \
           --tools-declaration tools/exec.yaml \
@@ -20,27 +25,36 @@ trigger: |
           --tools agents/generator/tools.yaml \
           --directory <workspace>
 
+preconditions:
+  - Ollama is running at localhost:11434
+  - The qwen3.6:35b-mlx model (or equivalent qwen3.6 variant) is pulled
+  - The workspace contains go.mod, an SRD, a source stub, and oracle tests
+
 flow:
   - F1: cmd/agent parses CLI flags and loads tool declarations from multiple YAML files, merging them into a single registry (srd013, srd018).
   - F2: Tool selection filters the declarations to the subset listed in agents/generator/tools.yaml (cfg-tool-selection-format).
   - F3: The invoke_llm tool definition provides model, provider URL, and system prompt. cmd/agent extracts this to configure the Ollama adapter (srd009, srd017).
   - F4: LLM response profiles are loaded from embedded defaults (or --profiles-dir override) to configure per-model parsing pipelines (srd017).
-  - F5: Builtin and exec tool factories are registered (file tools, LLM tools, build/lint/test, done, etc.) and matched to their YAML declarations (srd013).
-  - F6: The state machine is loaded from agents/generator/machine.yaml and validated against the registered tools (srd006).
-  - F7: core.Loop drives the state machine. Idle → Composing via invoke_llm sends the task prompt to the LLM (srd005, srd009).
-  - F8: LLM response is parsed by parse_response. The $tool sentinel dispatches the extracted tool call (srd006, srd013).
-  - F9: Tool results feed back to the LLM. The Composing ↔ Parsing cycle repeats until the LLM calls done (agents/generator/machine.yaml).
-  - F10: After done, machine-declared validation runs build → lint → test. ToolDone after the final test transitions to Succeeded; ToolFailed in any validation state transitions to Failed (srd006, srd013).
+  - F5: The LLM profile registry matches the "qwen" prefix and selects the qwen profile with [tool_call] envelope and strip_thinking_blocks pipeline (srd017, pkg/llm/profiles/qwen.yaml).
+  - F6: Builtin and exec tool factories are registered (file tools, LLM tools, build/lint/test, done, etc.) and matched to their YAML declarations (srd013).
+  - F7: The state machine is loaded from agents/generator/machine.yaml and validated against the registered tools (srd006).
+  - F8: core.Loop drives the state machine. Idle → Composing via invoke_llm sends the task prompt to the LLM (srd005, srd009).
+  - F9: Qwen 3.6 responds with a <think>...</think> block followed by a [tool_call]...[/tool_call] envelope containing a JSON tool call.
+  - F10: parse_response runs the qwen extraction pipeline — strip_thinking_blocks removes <think> content, extract_envelope isolates the tool call JSON (srd017).
+  - F11: The extracted tool call dispatches via $tool to file tools (read, write, edit) for code changes (srd013, agents/generator/machine.yaml).
+  - F12: The Composing ↔ Parsing cycle repeats until the LLM calls done (agents/generator/machine.yaml).
+  - F13: After done, machine-declared validation runs build → lint → test. All oracle tests pass, transitioning to Succeeded (srd006, srd013).
 
 touchpoints:
   - T1: "srd006-yaml-machine-config -- MachineSpec loading, $tool dispatch, transition validation"
-  - T2: "srd009-ollama-adapter -- Chat API invocation, model validation, tracing"
+  - T2: "srd009-ollama-adapter -- Qwen 3.6 model invocation via Ollama Chat API"
   - T3: "srd013-standard-tool-library -- file tools, build tools, LLM commands, done"
-  - T4: "srd017-llm-extensions -- model profiles, response parsing pipelines"
+  - T4: "srd017-llm-extensions -- qwen profile resolution, thinking-block stripping, envelope extraction"
   - T5: "srd018-cli-flag-contract -- flag constants, tools-declaration, machine flag"
   - T6: "cfg-tool-declaration-format -- builtin.yaml, exec.yaml, llm/*.yaml declarations"
   - T7: "cfg-tool-selection-format -- tools.yaml name-list filtering"
   - T8: "agents/generator/machine.yaml -- state machine states, signals, lifecycle"
+  - T9: "pkg/llm/profiles/qwen.yaml -- model-specific parsing pipeline"
 
 success_criteria:
   - id: S1
@@ -52,20 +66,40 @@ success_criteria:
     traces:
       - srd009-ollama-adapter AC1
   - id: S3
+    criterion: The qwen profile is selected automatically from the model name prefix.
+    traces:
+      - srd017-llm-extensions AC1
+  - id: S4
+    criterion: Thinking blocks (<think>...</think>) are stripped before tool call extraction.
+    traces:
+      - srd017-llm-extensions AC2
+  - id: S5
+    criterion: Tool calls are extracted from the [tool_call]...[/tool_call] envelope.
+    traces:
+      - srd017-llm-extensions AC3
+  - id: S6
     criterion: Tool calls extracted from LLM responses are dispatched and results fed back.
     traces:
       - srd013-standard-tool-library AC1
-  - id: S4
+  - id: S7
     criterion: The done tool triggers build/vet/lint/test validation before declaring success.
     traces:
       - srd013-standard-tool-library AC2
-  - id: S5
-    criterion: Per-model profiles customize response parsing without config changes.
+  - id: S8
+    criterion: The agent reaches the Succeeded terminal state after passing build/lint/test validation.
     traces:
-      - srd017-llm-extensions AC1
+      - srd006-yaml-machine-config AC3
+  - id: S9
+    criterion: Oracle tests in the sample workspace pass without modification.
+    traces:
+      - srd013-standard-tool-library AC2
+
+integration_test: mage integration:uc001
+test_data: testdata/integration/uc001-generator-coding
 
 out_of_scope:
   - Multi-file project scaffolding beyond the workspace directory.
   - Custom tool implementations not in builtin.yaml or exec.yaml.
+  - Comparison with other model families (handled by the evaluator use case).
 
 machine_config: agents/generator/machine.yaml

@@ -28,8 +28,6 @@ func (i Integration) All() error {
 		{"uc001", i.Uc001},
 		{"uc002", i.Uc002},
 		{"uc003", i.Uc003},
-		{"uc004", i.Uc004},
-		{"uc005", i.Uc005},
 	}
 
 	var passed, failed, skipped int
@@ -66,35 +64,13 @@ func (i Integration) All() error {
 
 var skippedUCs = map[string]bool{}
 
-// Uc001 runs rel01.0-uc001: Generator agent solves Go coding tasks using YAML config.
+// Uc001 runs rel01.0-uc001: Generator agent solves a Go coding task with Qwen 3.6.
 func (Integration) Uc001() error {
-	return skipUC("uc001", "generator coding — requires a sample coding workspace and Ollama with a pulled model")
-}
-
-// Uc002 runs rel01.0-uc002: Evaluator runs generator across models and collects results.
-func (Integration) Uc002() error {
-	return skipUC("uc002", "evaluator benchmark — requires a suite YAML, sample workspaces, and Ollama")
-}
-
-// Uc003 runs rel01.0-uc003: Bench serves web UI for evaluation result exploration.
-func (Integration) Uc003() error {
-	return skipUC("uc003", "bench visualization — requires eval-results directory and a free port")
-}
-
-const (
-	qwen35b          = "qwen3.6:35b-mlx"
-	gemma31b         = "gemma4:31b-mlx"
-	generatorSample  = "testdata/integration/uc004-qwen-generator"
-	evaluatorSuite   = "testdata/integration/uc005-qwen-evaluator/suite.yaml"
-)
-
-// Uc004 runs rel01.0-uc004: Generator agent solves a Go coding task with Qwen 3.6.
-func (Integration) Uc004() error {
 	if err := requireOllama(); err != nil {
-		return skipUC("uc004", err.Error())
+		return skipUC("uc001", err.Error())
 	}
 	if err := requireModel(qwen35b); err != nil {
-		return skipUC("uc004", err.Error())
+		return skipUC("uc001", err.Error())
 	}
 
 	binary, err := buildIfNeeded()
@@ -104,11 +80,11 @@ func (Integration) Uc004() error {
 
 	workDir, cleanup, err := tempWorkspace(generatorSample)
 	if err != nil {
-		return fmt.Errorf("uc004: prepare workspace: %w", err)
+		return fmt.Errorf("uc001: prepare workspace: %w", err)
 	}
 	defer cleanup()
 
-	fmt.Printf("uc004: workspace at %s\n", workDir)
+	fmt.Printf("uc001: workspace at %s\n", workDir)
 
 	rootDir, err := os.Getwd()
 	if err != nil {
@@ -125,23 +101,23 @@ func (Integration) Uc004() error {
 	}
 
 	if err := runAgent(binary, args); err != nil {
-		return fmt.Errorf("uc004: agent failed: %w", err)
+		return fmt.Errorf("uc001: agent failed: %w", err)
 	}
 
-	fmt.Println("uc004: PASS — generator reached Succeeded with Qwen 3.6")
+	fmt.Println("uc001: PASS — generator reached Succeeded with Qwen 3.6")
 	return nil
 }
 
-// Uc005 runs rel01.0-uc005: Evaluator benchmarks Qwen 3.6 across parameter sizes.
-func (Integration) Uc005() error {
+// Uc002 runs rel01.0-uc002: Evaluator benchmarks generator across models.
+func (Integration) Uc002() error {
 	if err := requireOllama(); err != nil {
-		return skipUC("uc005", err.Error())
+		return skipUC("uc002", err.Error())
 	}
 	if err := requireModel(qwen35b); err != nil {
-		return skipUC("uc005", err.Error())
+		return skipUC("uc002", err.Error())
 	}
 	if err := requireModel(gemma31b); err != nil {
-		return skipUC("uc005", err.Error())
+		return skipUC("uc002", err.Error())
 	}
 
 	binary, err := buildIfNeeded()
@@ -156,11 +132,11 @@ func (Integration) Uc005() error {
 
 	outputDir, err := os.MkdirTemp("", "eval-results-*")
 	if err != nil {
-		return fmt.Errorf("uc005: create output dir: %w", err)
+		return fmt.Errorf("uc002: create output dir: %w", err)
 	}
 	defer os.RemoveAll(outputDir)
 
-	fmt.Printf("uc005: output at %s\n", outputDir)
+	fmt.Printf("uc002: output at %s\n", outputDir)
 
 	binAbs, err := filepath.Abs(binDir)
 	if err != nil {
@@ -178,17 +154,29 @@ func (Integration) Uc005() error {
 	}
 
 	if err := runAgent(binary, args); err != nil {
-		return fmt.Errorf("uc005: evaluator failed: %w", err)
+		return fmt.Errorf("uc002: evaluator failed: %w", err)
 	}
 
 	entries, err := os.ReadDir(outputDir)
 	if err != nil || len(entries) == 0 {
-		return fmt.Errorf("uc005: no results in output dir %s", outputDir)
+		return fmt.Errorf("uc002: no results in output dir %s", outputDir)
 	}
 
-	fmt.Printf("uc005: PASS — evaluator completed with %d result entries\n", len(entries))
+	fmt.Printf("uc002: PASS — evaluator completed with %d result entries\n", len(entries))
 	return nil
 }
+
+// Uc003 runs rel01.0-uc003: Bench serves web UI for evaluation result exploration.
+func (Integration) Uc003() error {
+	return skipUC("uc003", "bench visualization — requires eval-results directory and a free port")
+}
+
+const (
+	qwen35b         = "qwen3.6:35b-mlx"
+	gemma31b        = "gemma4:31b-mlx"
+	generatorSample = "testdata/integration/uc001-generator-coding"
+	evaluatorSuite  = "testdata/integration/uc002-evaluator-benchmark/suite.yaml"
+)
 
 func tempWorkspace(sampleDir string) (string, func(), error) {
 	tmpDir, err := os.MkdirTemp("", "integration-*")

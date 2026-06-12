@@ -7,7 +7,7 @@ overview: |
   across three releases: 18 SRDs in release 00.0 (core engine,
   telemetry, LLM, prompt, STL, spec graph, CLI), 6 SRDs in release
   01.0 (eval harness, bench UI, tool declarations, exec tools, blocking
-  input), and 1 SRD in release 02.0 (rollback lifecycle). Ten use
+  input), and 1 SRD in release 02.0 (rollback lifecycle). Eight use
   cases exercise the SRDs across the three releases. Three formal YAML
   test suites cover 72 acceptance test cases across releases 00.0 and
   02.0; additional coverage comes from Go test functions across all
@@ -41,8 +41,8 @@ roadmap_summary:
     status: done
   - version: "01.0"
     name: Unified agent binary and configuration-driven architecture
-    use_cases_done: 5
-    use_cases_total: 5
+    use_cases_done: 3
+    use_cases_total: 3
     status: done
   - version: "02.0"
     name: Rollback lifecycle and tool language documentation
@@ -228,16 +228,6 @@ use_case_index:
     release: "01.0"
     status: done
     path: docs/specs/use-cases/rel01.0-uc003-bench-visualization.yaml
-  - id: rel01.0-uc004-qwen36-generator
-    title: Generator agent solves a Go coding task with Qwen 3.6
-    release: "01.0"
-    status: done
-    path: docs/specs/use-cases/rel01.0-uc004-qwen36-generator.yaml
-  - id: rel01.0-uc005-qwen36-evaluator
-    title: Evaluator benchmarks Qwen 3.6 across parameter sizes
-    release: "01.0"
-    status: done
-    path: docs/specs/use-cases/rel01.0-uc005-qwen36-evaluator.yaml
   - id: rel02.0-uc001-approval-suspend-resume
     title: Agent suspends at approval gate and resumes from checkpoint
     release: "02.0"

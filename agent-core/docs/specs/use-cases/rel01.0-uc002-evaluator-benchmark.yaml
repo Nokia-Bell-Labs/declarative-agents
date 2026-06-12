@@ -6,20 +6,31 @@ summary: |
   (agents/evaluator/machine.yaml), loads a suite YAML that defines a
   grid of (harness, model, sample, gridpoint, rep) combinations. A
   session-level state machine iterates over the grid; for each point,
-  a nested core.Loop runs the 5-step per-point pipeline: prepare
-  workspace, dump config, run the generator as a subprocess, check
-  results, and collect metrics. Results are written to a structured
-  directory tree for analysis by the bench UI or CLI reporting tools.
+  a nested core.Loop runs the per-point pipeline: prepare workspace,
+  dump config, run the generator as a subprocess, check results, and
+  collect metrics. Results are written to a structured directory tree
+  for analysis by the bench UI or CLI reporting tools.
+
+  The integration test (mage integration:uc002) exercises this end-to-end
+  with two models (Qwen 3.6 35b and Gemma 4 31b), using the same sample
+  workspace as the generator integration test (uc001).
 
 actor: Developer benchmarking model performance
 
 trigger: |
-  The developer runs:
+  The developer (or mage integration:uc002) runs:
     agent --machine agents/evaluator/machine.yaml \
           --tools agents/evaluator/tools.yaml \
           --tools-declaration tools/builtin.yaml \
+          --tools-declaration agents/evaluator/builtin.yaml \
           --input suites/my-suite.yaml \
           --output eval-results
+
+preconditions:
+  - Ollama is running at localhost:11434
+  - Both qwen3.6:35b-mlx and gemma4:31b-mlx models are pulled
+  - The agent binary is built (bin/agent)
+  - The sample workspace from uc001 is available
 
 flow:
   - F1: The session machine runs parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary to prepare suite input and create the session output directory (srd019).
@@ -47,7 +58,7 @@ success_criteria:
     traces:
       - srd019-eval-harness AC1
   - id: S2
-    criterion: Each grid point runs the 5-step per-point pipeline to completion via nested core.Loop.
+    criterion: Each grid point runs the per-point pipeline to completion via nested core.Loop.
     traces:
       - srd019-eval-harness AC2
   - id: S3
@@ -70,11 +81,19 @@ success_criteria:
     criterion: Session summary correctly reports total, passed, failed, and timed-out counts.
     traces:
       - agents/evaluator/machine.yaml lifecycle
+  - id: S8
+    criterion: Result directory contains meta.json and experiment.yaml for each point.
+    traces:
+      - srd019-eval-harness AC3
+
+integration_test: mage integration:uc002
+test_data: testdata/integration/uc002-evaluator-benchmark
 
 out_of_scope:
   - Real-time progress streaming during evaluation.
   - Parallel grid point execution (points run sequentially).
   - Result visualization (handled by bench, see rel01.0-uc003).
+  - Performance regression analysis.
 
 machine_configs:
   - agents/evaluator/machine.yaml
