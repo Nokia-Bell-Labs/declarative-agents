@@ -7,7 +7,7 @@ traces:
 
 preconditions:
   - Go toolchain installed (go 1.26+)
-  - internal/runtime/core, pkg/tracing, and pkg/telemetry packages buildable
+  - internal/runtime/core, internal/observability/tracing, and internal/observability/telemetry packages buildable
 
 test_cases:
   - use_case: rel00.0-uc001-domain-agent-integration
@@ -476,10 +476,10 @@ test_cases:
       - srd007-tracer-interface AC1
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: pkg/tracing depends only on otel/attribute
+    name: internal/observability/tracing depends only on otel/attribute
     go_test: TestLoop_RunsToCompletion
     inputs:
-      imports: "pkg/tracing imports only go.opentelemetry.io/otel/attribute"
+      imports: "internal/observability/tracing imports only go.opentelemetry.io/otel/attribute"
     expected:
       no_sdk_import: true
     traces:

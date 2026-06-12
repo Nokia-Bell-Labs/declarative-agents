@@ -18,24 +18,24 @@ overview:
     and Commands but not about coding tools, LLMs, or file systems.
 
     Infrastructure layer. Shared packages consumed by all agent types:
-    - pkg/tracing — Tracer port interface (5 methods) and NoopTracer
-    - pkg/telemetry — concrete OTel implementation, traceparent, replay
-    - pkg/telemetry/genai — GenAI semantic convention helpers
+    - internal/observability/tracing — Tracer port interface (5 methods) and NoopTracer
+    - internal/observability/telemetry — concrete OTel implementation, traceparent, replay
+    - internal/observability/telemetry/genai — GenAI semantic convention helpers
     - internal/model/llm — LLM client, conversation, profiles, parsing utilities
     - internal/model/llm/ollama — Ollama adapter satisfying llm.Client
     - internal/model/prompt — prompt schema, YAML loading, system template
     - internal/tools/stl — standard tool library (file, build, LLM, eval tools)
-    - pkg/cli — CLI flag constants and argument propagation (library; not imported by cmd/agent)
-    - pkg/subprocess — subprocess execution utilities
+    - internal/support/cli — CLI flag constants and argument propagation (library; not imported by cmd/agent)
+    - internal/support/subprocess — subprocess execution utilities
 
     Domain layer. Packages supporting specific agent workflows:
-    - pkg/execute — agent subprocess execution with process groups
+    - internal/support/execute — agent subprocess execution with process groups
     - internal/planning/pipeline — planner pipeline tools (extract, assemble, parse)
     - internal/planning/plan — implementation plan parsing and prompt assembly
     - internal/planning/extract — task extraction from requirement graphs
     - internal/planning/graph — requirement DAG construction and traversal
     - internal/planning/materialize — plan-to-issue materialization
-    - pkg/worktree — git worktree lifecycle management
+    - internal/support/worktree — git worktree lifecycle management
     - pkg/spec — specification corpus parsing and validation
 
     Configuration layer (agents/, tools/, and docs/specs/). YAML files defining each agent's
@@ -67,8 +67,8 @@ overview:
         EXTRACT[internal/planning/extract]
         REQGRAPH[internal/planning/graph]
         MAT[internal/planning/materialize]
-        EXEC[pkg/execute]
-        WORKTREE[pkg/worktree]
+        EXEC[internal/support/execute]
+        WORKTREE[internal/support/worktree]
         SPEC[pkg/spec]
         BENCH[internal/evaluation/bench]
       end
@@ -77,10 +77,10 @@ overview:
         LLM[internal/model/llm and internal/model/llm/ollama]
         PROMPT[internal/model/prompt]
         STL[internal/tools/stl]
-        TELE[pkg/telemetry]
-        TRACE[pkg/tracing]
-        CLI[pkg/cli]
-        SUB[pkg/subprocess]
+        TELE[internal/observability/telemetry]
+        TRACE[internal/observability/tracing]
+        CLI[internal/support/cli]
+        SUB[internal/support/subprocess]
       end
 
       subgraph Engine["Engine"]
@@ -515,43 +515,43 @@ overview:
     - Optional LoopHooks for domain-specific budget, status, and result processing
 
     Dependency rules:
-    - internal/runtime/core depends on pkg/tracing, pkg/telemetry/genai, the Go
+    - internal/runtime/core depends on internal/observability/tracing, internal/observability/telemetry/genai, the Go
       standard library, go.opentelemetry.io/otel/attribute, and
       gopkg.in/yaml.v3.
-    - pkg/tracing depends on go.opentelemetry.io/otel/attribute and
+    - internal/observability/tracing depends on go.opentelemetry.io/otel/attribute and
       context.
-    - pkg/telemetry depends on pkg/tracing, the OTel SDK, gRPC, and
-      protobuf. It imports pkg/tracing but not internal/runtime/core.
-    - pkg/telemetry/genai depends only on go.opentelemetry.io/otel/attribute.
-    - internal/model/llm depends on internal/runtime/core, internal/model/prompt, and pkg/tracing.
-    - internal/tools/stl depends on internal/runtime/core, internal/model/llm, pkg/tracing,
-      pkg/telemetry/genai, pkg/execute, and pkg/subprocess.
+    - internal/observability/telemetry depends on internal/observability/tracing, the OTel SDK, gRPC, and
+      protobuf. It imports internal/observability/tracing but not internal/runtime/core.
+    - internal/observability/telemetry/genai depends only on go.opentelemetry.io/otel/attribute.
+    - internal/model/llm depends on internal/runtime/core, internal/model/prompt, and internal/observability/tracing.
+    - internal/tools/stl depends on internal/runtime/core, internal/model/llm, internal/observability/tracing,
+      internal/observability/telemetry/genai, internal/support/execute, and internal/support/subprocess.
     - internal/planning/pipeline depends on internal/runtime/core, internal/planning/plan, internal/planning/extract,
       internal/planning/materialize, and internal/tools/stl.
-    - pkg/execute depends on pkg/subprocess, internal/model/llm, and pkg/tracing.
+    - internal/support/execute depends on internal/support/subprocess, internal/model/llm, and internal/observability/tracing.
     - internal/planning/plan depends on gopkg.in/yaml.v3.
     - internal/planning/extract depends on internal/planning/graph and internal/planning/plan.
     - internal/planning/graph depends on gopkg.in/yaml.v3.
     - internal/planning/materialize depends on internal/planning/plan.
-    - pkg/worktree depends on os/exec.
+    - internal/support/worktree depends on os/exec.
     - pkg/spec depends on the Go standard library, gopkg.in/yaml.v3,
       and a graph library.
-    - pkg/subprocess depends on the Go standard library.
-    - pkg/cli depends on the Go standard library.
+    - internal/support/subprocess depends on the Go standard library.
+    - internal/support/cli depends on the Go standard library.
     - cmd/agent imports internal/runtime/core, internal/tools/stl, internal/model/llm, internal/model/prompt,
-      pkg/telemetry, internal/planning/pipeline, internal/evaluation/bench, pkg/execute, and
-      pkg/tracing.
+      internal/observability/telemetry, internal/planning/pipeline, internal/evaluation/bench, internal/support/execute, and
+      internal/observability/tracing.
     - internal/evaluation/bench imports internal/tools/stl for evaluation result analysis and
       internal/runtime/core for the state machine loop.
 
 interfaces:
   - name: Tracer interface
     summary: |
-      Port interface for OpenTelemetry tracing (pkg/tracing). Five
+      Port interface for OpenTelemetry tracing (internal/observability/tracing). Five
       methods: Push (child span), Event (span event), SetAttributes
       (span metadata), RecordError (error recording with status),
       Context (span context access). The engine imports this interface;
-      the concrete implementation lives in pkg/telemetry (TraceAdapter).
+      the concrete implementation lives in internal/observability/telemetry (TraceAdapter).
       A NoopTracer is provided for tests and optional tracing paths.
 
   - name: Command interface
@@ -827,11 +827,11 @@ project_structure:
       role: Generic agentic loop engine (types, state machine, dispatch, registry, loop, machine config)
 
   infrastructure:
-    - path: pkg/tracing/
+    - path: internal/observability/tracing/
       role: Tracer port interface for OpenTelemetry (5 methods) and NoopTracer
-    - path: pkg/telemetry/
+    - path: internal/observability/telemetry/
       role: Concrete OTel implementation (providers, exporters, adapter, traceparent, replay)
-    - path: pkg/telemetry/genai/
+    - path: internal/observability/telemetry/genai/
       role: OTel GenAI semantic convention constants, span name builders, attribute helpers
     - path: internal/model/llm/
       role: LLM client, conversation, profiles, parse utilities, domain interfaces
@@ -841,13 +841,13 @@ project_structure:
       role: Prompt struct, YAML loading, system prompt template, and manifest serialization
     - path: internal/tools/stl/
       role: Standard tool library (file, build, LLM, eval tools, config loading, subprocess)
-    - path: pkg/cli/
+    - path: internal/support/cli/
       role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
-    - path: pkg/subprocess/
+    - path: internal/support/subprocess/
       role: Subprocess execution utilities (Run, EnvVar)
 
   domain:
-    - path: pkg/execute/
+    - path: internal/support/execute/
       role: Agent subprocess execution with process groups and timeouts
     - path: internal/planning/pipeline/
       role: Planner pipeline tools (extract, assemble, parse, create issue, execute, check)
@@ -859,7 +859,7 @@ project_structure:
       role: Requirement DAG construction, traversal, and persistence
     - path: internal/planning/materialize/
       role: Plan-to-issue materialization (bd create)
-    - path: pkg/worktree/
+    - path: internal/support/worktree/
       role: Git worktree lifecycle management
     - path: pkg/spec/
       role: Specification corpus parsing, graph construction, and cross-artifact validation
@@ -890,18 +890,18 @@ implementation_status:
   current_focus: Documentation accuracy and agent configuration documentation
   progress:
     - done: Core engine (internal/runtime/core) — types, state machine, dispatch, registry, loop, machine config
-    - done: Tracing port (pkg/tracing) — 5-method Tracer interface with NoopTracer
-    - done: Telemetry (pkg/telemetry) — OTel providers, exporters, adapter, traceparent, replay
-    - done: GenAI semconv (pkg/telemetry/genai) — constants, span builders, attribute helpers
+    - done: Tracing port (internal/observability/tracing) — 5-method Tracer interface with NoopTracer
+    - done: Telemetry (internal/observability/telemetry) — OTel providers, exporters, adapter, traceparent, replay
+    - done: GenAI semconv (internal/observability/telemetry/genai) — constants, span builders, attribute helpers
     - done: LLM integration (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
     - done: Ollama adapter (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
     - done: Standard tool library (internal/tools/stl) — file, build, LLM, eval tools, config loading
-    - done: CLI flags (pkg/cli) — standard flag constants, PropagateArgs, RemainingBudget
-    - done: Subprocess (pkg/subprocess) — process execution utilities
+    - done: CLI flags (internal/support/cli) — standard flag constants, PropagateArgs, RemainingBudget
+    - done: Subprocess (internal/support/subprocess) — process execution utilities
     - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph, internal/planning/materialize)
-    - done: Agent execution (pkg/execute) — subprocess execution with process groups
-    - done: Worktree management (pkg/worktree) — git worktree lifecycle
+    - done: Agent execution (internal/support/execute) — subprocess execution with process groups
+    - done: Worktree management (internal/support/worktree) — git worktree lifecycle
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, constitution-auditor, bench
     - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching

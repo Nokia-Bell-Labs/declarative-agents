@@ -17,7 +17,7 @@ trigger: |
   and hooks.
 
 flow:
-  - F1: Domain agent imports internal/runtime/core for types, state machine, dispatch, registry, and loop. Imports pkg/tracing for the Tracer interface (srd001, srd007).
+  - F1: Domain agent imports internal/runtime/core for types, state machine, dispatch, registry, and loop. Imports internal/observability/tracing for the Tracer interface (srd001, srd007).
   - F2: Agent creates a Registry via NewRegistry and registers ToolSpec-Builder pairs for its domain tools (srd004).
   - F3: Agent defines a TransitionTable either programmatically or by loading a YAML MachineSpec via ParseMachineSpec and BuildTransitionTable (srd002, srd006).
   - F4: Agent sets up telemetry via telemetry.NewRoot with an ExporterConfig, receiving a Trace and shutdown function. Wraps Trace in a TraceAdapter to satisfy the Tracer interface (srd008, srd007).
@@ -73,7 +73,7 @@ success_criteria:
       - srd006-yaml-machine-config AC2
       - srd006-yaml-machine-config AC4
   - id: S8
-    criterion: Tracer interface is satisfied by TraceAdapter from pkg/telemetry.
+    criterion: Tracer interface is satisfied by TraceAdapter from internal/observability/telemetry.
     traces:
       - srd007-tracer-interface AC1
       - srd008-telemetry AC8

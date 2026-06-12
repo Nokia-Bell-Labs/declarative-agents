@@ -17,7 +17,7 @@ executive_summary: |
   The core engine (internal/runtime/core) remains domain-agnostic: it drives the loop
   without knowing what tools exist, what LLM is in use, or what workflow the
   machine expresses. Higher-level packages (internal/model/llm, internal/tools/stl, internal/model/prompt,
-  pkg/telemetry, pkg/spec) provide reusable infrastructure that configured
+  internal/observability/telemetry, pkg/spec) provide reusable infrastructure that configured
   agents compose into complete systems.
 
 problem: |
@@ -149,14 +149,14 @@ what_this_does: |
   tool metrics extraction. These tools are expected to behave as vocabulary
   words or explicitly documented boundaries, not hidden workflows.
 
-  CLI Flags (pkg/cli). Utility library for CLI flag constants and
+  CLI Flags (internal/support/cli). Utility library for CLI flag constants and
   argument propagation. Not imported by cmd/agent directly.
 
-  Tracing (pkg/tracing). Tracer port interface (Push, Event,
+  Tracing (internal/observability/tracing). Tracer port interface (Push, Event,
   SetAttributes, RecordError, Context) decoupling the engine from
   OpenTelemetry internals. Includes NoopTracer for testing.
 
-  Telemetry (pkg/telemetry). Concrete OpenTelemetry implementation:
+  Telemetry (internal/observability/telemetry). Concrete OpenTelemetry implementation:
   provider setup, exporter config (file + OTLP), root span lifecycle,
   TraceAdapter satisfying the Tracer port, GenAI semantic convention
   helpers, W3C traceparent parsing, and offline trace replay.
@@ -201,7 +201,7 @@ success_criteria:
   engine_agnosticism: |
     The core engine (internal/runtime/core) does not import LLM providers, file
     system operations, or domain-specific tool implementations. It
-    depends only on pkg/tracing, pkg/telemetry/genai, the Go standard
+    depends only on internal/observability/tracing, internal/observability/telemetry/genai, the Go standard
     library, OTel attributes, and a YAML parser.
   composability: |
     A domain agent can build a working agentic loop by supplying: a set
@@ -227,7 +227,7 @@ success_criteria:
     disabled-mode execution.
   reusable_infrastructure: |
     LLM integration (internal/model/llm), prompt assembly (internal/model/prompt), standard
-    tools (internal/tools/stl), and tracing (pkg/tracing) are shared across agents.
+    tools (internal/tools/stl), and tracing (internal/observability/tracing) are shared across agents.
     Domain agents compose these packages without reimplementing them.
   budget_enforcement: |
     Iteration, token, and wall-clock-time limits are enforced by the

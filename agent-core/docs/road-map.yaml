@@ -8,13 +8,13 @@ releases:
       Import the generic agentic loop engine from the generator project
       and expand with LLM, prompt, STL, and spec packages. Establishes
       internal/runtime/core (types, state machine, dispatch, registry, loop, machine
-      config), pkg/tracing (5-method Tracer port interface with
-      NoopTracer), pkg/telemetry (OTel setup, GenAI semconv helpers,
+      config), internal/observability/tracing (5-method Tracer port interface with
+      NoopTracer), internal/observability/telemetry (OTel setup, GenAI semconv helpers,
       traceparent), internal/model/llm (Client, Conversation, Ollama adapter,
       parseutil, profile, interfaces), internal/model/prompt (Prompt, loading,
       template, SerializeManifest), internal/tools/stl (file tools, build tools,
       LLM commands, subprocess), pkg/spec (graph loader, validator),
-      and pkg/cli (standard flag constants, PropagateArgs).
+      and internal/support/cli (standard flag constants, PropagateArgs).
     status: done
     srds:
       - srd001-core-types
@@ -57,8 +57,8 @@ releases:
       - LLM response profiles for 9 model families (internal/model/llm/profiles/)
       - Planner pipeline packages (internal/planning/pipeline, internal/planning/plan, internal/planning/extract,
         internal/planning/graph, internal/planning/materialize)
-      - Agent execution with process groups (pkg/execute)
-      - Git worktree management (pkg/worktree)
+      - Agent execution with process groups (internal/support/execute)
+      - Git worktree management (internal/support/worktree)
       - Evaluator benchmark infrastructure (eval suites, result analysis)
       - Bench agent (internal/evaluation/bench, configured via machine.yaml) with embedded React frontend
       - Native Mage build targets replacing cobbler-scaffold dependency
