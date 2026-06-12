@@ -75,19 +75,31 @@ AGENT_CORE_CONTAINER_ENGINE=docker mage docker
 AGENT_CORE_REPO=https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git mage docker
 ```
 
-For private HTTPS GitLab access, the target uses `$HOME/.netrc` automatically
-when present. Override the path with `AGENT_CORE_NETRC`:
+For private HTTPS GitLab access, put a build-only `.netrc` in the repository
+root. It is ignored by git and passed only to the container build:
 
 ```bash
-AGENT_CORE_NETRC=/path/to/netrc mage docker
+mage docker
 ```
 
-The `.netrc` should contain credentials for the GitLab host:
+The repository-local `.netrc` should contain credentials for the GitLab host:
 
 ```text
 machine gitlabe1.ext.net.nokia.com
   login <username>
   password <token-or-password>
+```
+
+Set restrictive permissions on the build-only file:
+
+```bash
+chmod 600 .netrc
+```
+
+Override the path if needed:
+
+```bash
+AGENT_CORE_NETRC=/path/to/netrc mage docker
 ```
 
 Podman builds default to `--tls-verify=false` for environments where the
@@ -103,7 +115,7 @@ The equivalent lower-level Podman command is:
 ```bash
 podman build \
   --tls-verify=false \
-  --secret id=git_credentials,src="$HOME/.netrc" \
+  --secret id=git_credentials,src=.netrc \
   --build-arg AGENT_CORE_REF=v0.20260612.1 \
   -t agent-core:latest .
 ```
@@ -112,7 +124,7 @@ The equivalent lower-level Docker command is:
 
 ```bash
 DOCKER_BUILDKIT=1 docker build \
-  --secret id=git_credentials,src="$HOME/.netrc" \
+  --secret id=git_credentials,src=.netrc \
   --build-arg AGENT_CORE_REF=v0.20260612.1 \
   -t agent-core:latest .
 ```

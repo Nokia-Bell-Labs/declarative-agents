@@ -3,6 +3,7 @@
 .dolt/
 *.db
 .beads-credential-key
+.netrc
 /agent
 /eval-analyze
 
@@ -10,6 +11,7 @@
 pkg/bench/ui/dist/
 pkg/bench/ui/node_modules/
 bin/
+magefiles/mage_output_file.go
 
 # Podman may leave this behind if an interrupted build used --secret.
 podman-build-secret-*
