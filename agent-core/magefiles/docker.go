@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 )
 
 const (
 	defaultContainerImage = "agent-core:latest"
+	defaultContainerNetRC = ".netrc"
 
 	envContainerEngine = "AGENT_CORE_CONTAINER_ENGINE"
 	envContainerImage  = "AGENT_CORE_IMAGE"
@@ -61,7 +61,7 @@ func dockerBuildOptionsFromEnv(ref string) (dockerBuildOptions, error) {
 		Image:     envOrDefault(envContainerImage, defaultContainerImage),
 		Ref:       ref,
 		Repo:      strings.TrimSpace(os.Getenv(agentCoreRepoEnvVar)),
-		NetRC:     netrcPath(os.Getenv(envContainerNetRC), os.Getenv("HOME"), os.Stat),
+		NetRC:     envOrDefault(envContainerNetRC, defaultContainerNetRC),
 		TLSVerify: tlsVerifyForEngine(engine, os.Getenv(envTLSVerify)),
 	}, nil
 }
@@ -160,22 +160,6 @@ func shellQuote(arg string) string {
 		return arg
 	}
 	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
-}
-
-type statFunc func(string) (os.FileInfo, error)
-
-func netrcPath(override, home string, stat statFunc) string {
-	if path := strings.TrimSpace(override); path != "" {
-		return path
-	}
-	if home == "" {
-		return ""
-	}
-	path := filepath.Join(home, ".netrc")
-	if _, err := stat(path); err == nil {
-		return path
-	}
-	return ""
 }
 
 func tlsVerifyForEngine(engine, override string) string {

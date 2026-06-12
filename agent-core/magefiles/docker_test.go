@@ -5,7 +5,6 @@ package main
 
 import (
 	"errors"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -175,28 +174,6 @@ func TestShellQuoteEscapesSingleQuote(t *testing.T) {
 	want := "'repo'\\''s'"
 	if got != want {
 		t.Fatalf("shellQuote = %q, want %q", got, want)
-	}
-}
-
-func TestNetrcPathUsesOverride(t *testing.T) {
-	got := netrcPath(" /tmp/custom.netrc ", "/home/user", func(path string) (os.FileInfo, error) {
-		t.Fatalf("stat called for override %q", path)
-		return nil, nil
-	})
-	if got != "/tmp/custom.netrc" {
-		t.Fatalf("netrcPath = %q, want /tmp/custom.netrc", got)
-	}
-}
-
-func TestNetrcPathUsesDefaultWhenPresent(t *testing.T) {
-	got := netrcPath("", "/home/user", func(path string) (os.FileInfo, error) {
-		if path != "/home/user/.netrc" {
-			t.Fatalf("stat path = %q, want /home/user/.netrc", path)
-		}
-		return nil, nil
-	})
-	if got != "/home/user/.netrc" {
-		t.Fatalf("netrcPath = %q, want /home/user/.netrc", got)
 	}
 }
 
