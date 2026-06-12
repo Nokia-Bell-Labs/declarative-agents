@@ -14,8 +14,8 @@ import (
 
 // GraphState is the serializable representation of a Graph.
 type GraphState struct {
-	Nodes []Node   `yaml:"nodes"`
-	Edges []Edge   `yaml:"edges"`
+	Nodes []Node `yaml:"nodes"`
+	Edges []Edge `yaml:"edges"`
 }
 
 // Edge is a serializable directed edge.

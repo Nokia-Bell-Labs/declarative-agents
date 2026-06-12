@@ -43,10 +43,10 @@ const (
 	AttrUsageOutputTokens = attribute.Key("gen_ai.usage.output_tokens")
 
 	// Request parameters.
-	AttrRequestTemperature     = attribute.Key("gen_ai.request.temperature")
-	AttrRequestTopP            = attribute.Key("gen_ai.request.top_p")
-	AttrRequestMaxTokens       = attribute.Key("gen_ai.request.max_tokens")
-	AttrRequestStopSequences   = attribute.Key("gen_ai.request.stop_sequences")
+	AttrRequestTemperature      = attribute.Key("gen_ai.request.temperature")
+	AttrRequestTopP             = attribute.Key("gen_ai.request.top_p")
+	AttrRequestMaxTokens        = attribute.Key("gen_ai.request.max_tokens")
+	AttrRequestStopSequences    = attribute.Key("gen_ai.request.stop_sequences")
 	AttrRequestFrequencyPenalty = attribute.Key("gen_ai.request.frequency_penalty")
 	AttrRequestPresencePenalty  = attribute.Key("gen_ai.request.presence_penalty")
 

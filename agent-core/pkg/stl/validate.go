@@ -10,9 +10,9 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
 // ToolTracker records which external tool names have been dispatched

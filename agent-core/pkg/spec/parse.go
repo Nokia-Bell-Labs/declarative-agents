@@ -20,14 +20,14 @@ func ParseSRD(path string) (SRD, error) {
 
 // rawSRD is the intermediate representation for YAML unmarshalling.
 type rawSRD struct {
-	ID                 string               `yaml:"id"`
-	Title              string               `yaml:"title"`
-	Problem            string               `yaml:"problem"`
-	Goals              yaml.Node            `yaml:"goals"`
-	Requirements       yaml.Node            `yaml:"requirements"`
-	NonGoals           yaml.Node            `yaml:"non_goals"`
+	ID                 string                `yaml:"id"`
+	Title              string                `yaml:"title"`
+	Problem            string                `yaml:"problem"`
+	Goals              yaml.Node             `yaml:"goals"`
+	Requirements       yaml.Node             `yaml:"requirements"`
+	NonGoals           yaml.Node             `yaml:"non_goals"`
 	AcceptanceCriteria []AcceptanceCriterion `yaml:"acceptance_criteria"`
-	DependsOn          []Dependency         `yaml:"depends_on"`
+	DependsOn          []Dependency          `yaml:"depends_on"`
 }
 
 func parseSRDBytes(data []byte, source string) (SRD, error) {
@@ -59,8 +59,8 @@ func parseSRDBytes(data []byte, source string) (SRD, error) {
 
 // parseTaggedList handles YAML lists of the form:
 //
-//	- G1: Some text.
-//	- G2: More text.
+//   - G1: Some text.
+//   - G2: More text.
 func parseTaggedList(node *yaml.Node) []string {
 	if node == nil || node.Kind == 0 {
 		return nil

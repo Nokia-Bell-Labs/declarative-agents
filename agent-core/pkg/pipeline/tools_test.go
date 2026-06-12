@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/extract"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/graph"
@@ -17,7 +18,6 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/plan"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
 const validRawPlan = `title: Implement config parser

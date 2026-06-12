@@ -35,15 +35,18 @@ intentionally supported as a public Go API.
 - `internal/audit`: constitution-auditor orchestration and audit-specific tool
   glue. Shared specification parsing and validation remain in `pkg/spec`.
 - `internal/observability`: tracing ports, OpenTelemetry adapters, GenAI span
-  helpers, and trace replay support.
-- `internal/support`: temporary landing area for private process, workspace, and
-  CLI helper code until a narrower domain owns it.
+  helpers, and trace replay support. This domain currently contains the former
+  `pkg/tracing` and `pkg/telemetry` packages.
+- `internal/support`: private process, workspace, and CLI helper code. This
+  domain currently contains the former `pkg/execute`, `pkg/subprocess`,
+  `pkg/worktree`, and `pkg/cli` packages.
 
 ## Migration Order
 
 1. Introduce the `internal/` skeleton and this ownership document.
 2. Move observability first or alongside runtime, because runtime depends on
-   tracing and telemetry types.
+   tracing and telemetry types. Done: observability and support utilities now
+   live under `internal/observability` and `internal/support`.
 3. Move runtime/core packages under `internal/runtime`.
 4. Move LLM and prompt packages under `internal/model`.
 5. Move planning pipeline packages under `internal/planning`.

@@ -8,8 +8,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry/genai"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry/genai"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 )
 
 // Dispatch wraps Command.Execute with tracing, timeout, panic

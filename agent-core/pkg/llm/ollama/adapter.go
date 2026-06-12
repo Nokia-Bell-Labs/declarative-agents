@@ -18,9 +18,9 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry/genai"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry/genai"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
 // chatReq is the JSON body sent to Ollama POST /api/chat.

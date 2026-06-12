@@ -16,9 +16,9 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"gopkg.in/yaml.v3"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/plan"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
 var testPlan = plan.ImplementationPlan{

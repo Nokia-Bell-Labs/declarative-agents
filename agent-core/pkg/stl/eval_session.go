@@ -14,8 +14,8 @@ import (
 // SuiteConfig defines a complete evaluation suite.
 type SuiteConfig struct {
 	Name       string           `yaml:"name"`
-	Harnesses  []Harness        `yaml:"harnesses"`  // Deprecated: use Profiles
-	Models     []string         `yaml:"models"`      // Deprecated: use Profiles
+	Harnesses  []Harness        `yaml:"harnesses"` // Deprecated: use Profiles
+	Models     []string         `yaml:"models"`    // Deprecated: use Profiles
 	Profiles   []SuiteProfile   `yaml:"-"`
 	Grid       map[string][]any `yaml:"grid,omitempty"`
 	SamplesDir string           `yaml:"-"`

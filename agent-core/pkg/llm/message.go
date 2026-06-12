@@ -33,9 +33,9 @@ type ChatOptions struct {
 
 // ChatResponse is the result of a single LLM chat call.
 type ChatResponse struct {
-	Content  string `json:"content"`
-	TokensIn int    `json:"tokens_in"`
-	TokensOut int   `json:"tokens_out"`
+	Content   string `json:"content"`
+	TokensIn  int    `json:"tokens_in"`
+	TokensOut int    `json:"tokens_out"`
 }
 
 // ToolRequest is the intermediate representation of a parsed tool call.

@@ -37,10 +37,10 @@ func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
 	}
 
 	modeNames := map[string]struct{}{
-		"generator": {},
-		"planner":   {},
-		"evaluator": {},
-		"bench":     {},
+		"generator":            {},
+		"planner":              {},
+		"evaluator":            {},
+		"bench":                {},
 		"constitution-auditor": {},
 	}
 	isModeLiteral := func(expr ast.Expr) (string, bool) {

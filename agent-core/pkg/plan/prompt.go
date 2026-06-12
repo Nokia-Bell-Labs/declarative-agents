@@ -43,7 +43,7 @@ type DepItem struct {
 type promptData struct {
 	Task       TaskContext
 	SRD        SRDContext
-	DepContext  []DepItem
+	DepContext []DepItem
 	FailureCtx []string
 }
 
@@ -58,7 +58,7 @@ func AssemblePrompt(task TaskContext, srd SRDContext, depContext []DepItem, fail
 	data := promptData{
 		Task:       task,
 		SRD:        srd,
-		DepContext:  depContext,
+		DepContext: depContext,
 		FailureCtx: failureCtx,
 	}
 

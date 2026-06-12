@@ -25,10 +25,10 @@ type Harness struct {
 // SuiteProfile is a resolved profile entry in a suite configuration.
 // It bundles the profile path with derived metadata for labeling.
 type SuiteProfile struct {
-	Path    string `yaml:"path"`
-	Name    string `yaml:"-"`
-	Model   string `yaml:"-"`
-	Binary  string `yaml:"-"`
+	Path    string       `yaml:"path"`
+	Name    string       `yaml:"-"`
+	Model   string       `yaml:"-"`
+	Binary  string       `yaml:"-"`
 	Profile AgentProfile `yaml:"-"`
 }
 

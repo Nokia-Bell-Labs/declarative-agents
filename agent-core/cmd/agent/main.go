@@ -26,17 +26,17 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench"
 	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench/ui"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm/ollama"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/pipeline"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/prompt"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
 var (

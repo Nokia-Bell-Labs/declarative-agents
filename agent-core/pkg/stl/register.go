@@ -68,4 +68,3 @@ func RegisterAll(reg *core.Registry, root string) error {
 	RegisterFileTools(reg, root)
 	return RegisterExecTools(reg, root)
 }
-

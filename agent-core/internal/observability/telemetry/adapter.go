@@ -7,7 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 )
 
 // TraceAdapter wraps a concrete Trace to satisfy tracing.Tracer.

@@ -19,10 +19,12 @@ transition tables.
 | `pkg/llm/ollama` | Ollama adapter satisfying `llm.Client` |
 | `pkg/prompt` | Prompt loading from YAML, system template rendering, manifest serialization |
 | `pkg/stl` | Standard tool library: file tools, build tools, LLM commands, subprocess, process groups |
-| `pkg/cli` | Common CLI flag definitions for agent binaries |
-| `pkg/tracing` | Tracer port interface (5 methods) decoupling engine from OTel internals |
-| `pkg/telemetry` | Concrete OTel implementation: providers, exporters, trace adapter, replay |
 | `pkg/spec` | Specification graph loader and cross-artifact validator |
+
+Private implementation packages are grouped under `internal/`. See
+`package-layout.md` for the migration map and ownership rules. Current internal
+domains include `internal/observability` for tracing and telemetry, and
+`internal/support` for process, workspace, and CLI helper code.
 
 ## Lifecycle Operations
 
@@ -34,39 +36,9 @@ tools and workspace restore.
 
 ## Quick Start
 
-```go
-package main
-
-import (
-    "context"
-    "time"
-
-    "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
-    "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
-)
-
-func main() {
-    reg := core.NewRegistry()
-    reg.Register(core.ToolSpec{Name: "my_tool"}, myBuilder{})
-
-    table := core.TransitionTable{
-        {State: "init", Signal: core.Seed}:     {Next: "acting", Action: buildAction},
-        {State: "acting", Signal: core.ToolDone}: {Next: "done", Action: nil},
-    }
-
-    result, err := core.Loop(core.LoopParams{
-        InitialState:   "init",
-        Registry:       reg,
-        Table:          table,
-        IsTerminal:     func(s core.State) bool { return s == "done" },
-        Trace:          tracing.NoopTracer{},
-        Budget:         core.Budget{MaxIterations: 50, MaxDuration: 5 * time.Minute},
-        CommandTimeout:  30 * time.Second,
-    }, context.Background())
-
-    _ = result
-    _ = err
-}
+```bash
+mage build
+bin/agent --profile agents/generator/profile.yaml --directory "$PWD"
 ```
 
 ## Installation

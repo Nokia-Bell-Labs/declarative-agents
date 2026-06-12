@@ -19,7 +19,7 @@ type SRD struct {
 	Goals              []string                    `yaml:"-"`
 	Requirements       map[string]RequirementGroup `yaml:"-"`
 	NonGoals           []string                    `yaml:"-"`
-	AcceptanceCriteria []AcceptanceCriterion        `yaml:"acceptance_criteria"`
+	AcceptanceCriteria []AcceptanceCriterion       `yaml:"acceptance_criteria"`
 	DependsOn          []Dependency                `yaml:"depends_on"`
 
 	OrderedGroups []string `yaml:"-"`

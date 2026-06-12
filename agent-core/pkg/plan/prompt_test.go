@@ -146,10 +146,10 @@ func TestRel00_1_UC001_PromptDeterministic(t *testing.T) {
 func TestRel00_1_UC001_PromptSections(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name       string
-		deps       []DepItem
-		failures   []string
-		mustHave   []string
+		name        string
+		deps        []DepItem
+		failures    []string
+		mustHave    []string
 		mustNotHave []string
 	}{
 		{
@@ -176,16 +176,16 @@ func TestRel00_1_UC001_PromptSections(t *testing.T) {
 			},
 		},
 		{
-			name:     "deps only",
-			deps:     []DepItem{{ID: "R0.1", Files: []string{"a.go"}}},
-			failures: nil,
+			name:        "deps only",
+			deps:        []DepItem{{ID: "R0.1", Files: []string{"a.go"}}},
+			failures:    nil,
 			mustHave:    []string{"Already Implemented"},
 			mustNotHave: []string{"Retry Context"},
 		},
 		{
-			name:     "failures only",
-			deps:     nil,
-			failures: []string{"test failed"},
+			name:        "failures only",
+			deps:        nil,
+			failures:    []string{"test failed"},
 			mustHave:    []string{"Retry Context"},
 			mustNotHave: []string{"Already Implemented"},
 		},

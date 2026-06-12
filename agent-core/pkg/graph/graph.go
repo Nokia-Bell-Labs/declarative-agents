@@ -77,8 +77,8 @@ func buildSRDReleaseMap(corpus *spec.Corpus) map[string]string {
 // parseReleaseAssignments extracts SRD-to-release mappings from the
 // SPECIFICATIONS.yaml overview text. It looks for patterns like:
 //
-//	- 00.0: srd001 (...), srd002 (...)
-//	- 00.1: srd003 (...)
+//   - 00.0: srd001 (...), srd002 (...)
+//   - 00.1: srd003 (...)
 func parseReleaseAssignments(overview string, m map[string]string) {
 	lines := splitLines(overview)
 	for _, line := range lines {

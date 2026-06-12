@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 )
 
 func initTestRepo(t *testing.T) string {

@@ -6,10 +6,10 @@ import (
 	"context"
 	"fmt"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/materialize"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/plan"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
 )
 
 // DoParsePlan calls plan.ParsePlan and returns the parsed plan plus a

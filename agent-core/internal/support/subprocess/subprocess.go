@@ -16,7 +16,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
 )
 
 const defaultWaitDelay = 3 * time.Second

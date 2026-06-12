@@ -44,7 +44,7 @@ type graphTransition struct {
 
 type profileEntry struct {
 	Name          string      `json:"name"`
-	MatchPrefixes []string   `json:"matchPrefixes"`
+	MatchPrefixes []string    `json:"matchPrefixes"`
 	Envelope      interface{} `json:"envelope,omitempty"`
 	StrictFormat  bool        `json:"strictFormat"`
 	Pipeline      []string    `json:"pipeline,omitempty"`

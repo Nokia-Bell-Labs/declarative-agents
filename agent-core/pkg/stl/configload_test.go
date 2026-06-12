@@ -15,7 +15,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/tracing"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 )
 
 // configDir resolves the absolute path to the top-level agents/ directory.

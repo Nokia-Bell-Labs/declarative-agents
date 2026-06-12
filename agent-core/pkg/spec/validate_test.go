@@ -269,7 +269,7 @@ func TestValidate_ToolSelectionDeclared(t *testing.T) {
 			"agent": {
 				Name: "agent", InitialState: "Idle",
 				States: core.StateSpecs{{Name: "Idle"}}, Signals: core.SignalSpecs{{Name: "Seed"}},
-				Transitions: []core.TransitionSpec{{State: "Idle", Signal: "Seed", Next: "Idle"}},
+				Transitions:    []core.TransitionSpec{{State: "Idle", Signal: "Seed", Next: "Idle"}},
 				TerminalStates: []string{"Idle"},
 			},
 		},

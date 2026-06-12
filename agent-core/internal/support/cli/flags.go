@@ -8,33 +8,33 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/telemetry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
 )
 
 // Standard flag names used across all agent CLIs.
 const (
-	FlagOTelLogFile   = "otel-log-file"
-	FlagOTelParent    = "otel-parent-span"
-	FlagModel         = "model"
-	FlagDirectory     = "directory"
-	FlagMaxTime       = "max-time"
-	FlagLLMTimeout    = "llm-timeout"
-	FlagPrompt        = "prompt"
-	FlagOllamaURL     = "ollama-url"
+	FlagOTelLogFile = "otel-log-file"
+	FlagOTelParent  = "otel-parent-span"
+	FlagModel       = "model"
+	FlagDirectory   = "directory"
+	FlagMaxTime     = "max-time"
+	FlagLLMTimeout  = "llm-timeout"
+	FlagPrompt      = "prompt"
+	FlagOllamaURL   = "ollama-url"
 )
 
 // PropagateArgs builds CLI flags for invoking a child agent process.
 // It serialises the parent's current span as a traceparent and computes
 // the remaining time budget so the child can manage its own shutdown.
 type PropagateArgs struct {
-	SpanContext  trace.SpanContext // current span to propagate
-	TraceFile    string           // --otel-log-file for child
-	Model        string
-	Directory    string
-	Prompt       string
-	OllamaURL    string
-	MaxTime      time.Duration // remaining wall-clock budget; 0 = omit
-	LLMTimeout   time.Duration // per-LLM-call timeout; 0 = omit
+	SpanContext trace.SpanContext // current span to propagate
+	TraceFile   string            // --otel-log-file for child
+	Model       string
+	Directory   string
+	Prompt      string
+	OllamaURL   string
+	MaxTime     time.Duration // remaining wall-clock budget; 0 = omit
+	LLMTimeout  time.Duration // per-LLM-call timeout; 0 = omit
 }
 
 // Build returns the flag slice ready for exec.Command.
