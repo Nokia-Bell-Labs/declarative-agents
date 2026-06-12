@@ -560,31 +560,12 @@ func checkToolUndoConsistency(corpus *Corpus) []Finding {
 		rev := td.Reversibility.Classification
 		strat := td.Undo.Strategy
 		if rev != "" && strat != "" {
-			switch rev {
-			case "irreversible":
-				if strat != "irreversible" {
-					findings = append(findings, Finding{
-						Check:   "tool-undo-mismatch",
-						Level:   "warning",
-						Message: fmt.Sprintf("tool %q reversibility is %q but undo strategy is %q", name, rev, strat),
-					})
-				}
-			case "reversible":
-				if strat != "noop" && strat != "reversible" && strat != "snapshot_restore" {
-					findings = append(findings, Finding{
-						Check:   "tool-undo-mismatch",
-						Level:   "warning",
-						Message: fmt.Sprintf("tool %q reversibility is %q but undo strategy is %q", name, rev, strat),
-					})
-				}
-			case "compensatable":
-				if strat != "compensatable" && strat != "boundary_compensation" {
-					findings = append(findings, Finding{
-						Check:   "tool-undo-mismatch",
-						Level:   "warning",
-						Message: fmt.Sprintf("tool %q reversibility is %q but undo strategy is %q", name, rev, strat),
-					})
-				}
+			if !undoStrategyAllowed(rev, strat) {
+				findings = append(findings, Finding{
+					Check:   "tool-undo-mismatch",
+					Level:   "warning",
+					Message: fmt.Sprintf("tool %q reversibility is %q but undo strategy is %q", name, rev, strat),
+				})
 			}
 		}
 		if td.Undo.Payload != "" && len(td.Undo.Captures) == 0 {
@@ -596,6 +577,51 @@ func checkToolUndoConsistency(corpus *Corpus) []Finding {
 		}
 	}
 	return findings
+}
+
+func undoStrategyAllowed(reversibility, strategy string) bool {
+	allowed, ok := undoStrategiesByReversibility[reversibility]
+	if !ok {
+		return true
+	}
+	return allowed[strategy]
+}
+
+var undoStrategiesByReversibility = map[string]map[string]bool{
+	"irreversible": {
+		"irreversible": true,
+	},
+	"reversible": {
+		"noop":              true,
+		"reversible":        true,
+		"snapshot_restore":  true,
+		"workspace_restore": true,
+		"file_snapshot_restore_and_workspace_restore":      true,
+		"session_state_restore":                            true,
+		"conversation_truncate":                            true,
+		"conversation_restore":                             true,
+		"parse_retry_counter_restore":                      true,
+		"parse_retry_counter_restore_when_tracker_enabled": true,
+		"pipeline_state_restore":                           true,
+		"evaluator_session_restore":                        true,
+		"point_context_restore":                            true,
+		"validation_state_restore":                         true,
+	},
+	"compensatable": {
+		"compensatable":                                          true,
+		"boundary_compensation":                                  true,
+		"compensating_action":                                    true,
+		"child_command_undo":                                     true,
+		"workspace_restore":                                      true,
+		"pipeline_state_restore_only":                            true,
+		"child_agent_workspace_restore":                          true,
+		"child_eval_artifact_compensation":                       true,
+		"close_or_delete_created_issue":                          true,
+		"nested_machine_rollback":                                true,
+		"point_workspace_restore_and_child_process_compensation": true,
+		"resume_or_checkpoint_rollback":                          true,
+		"server_shutdown_or_user_action_compensation":            true,
+	},
 }
 
 // checkToolSideEffectVocab verifies that side_effects kind values use

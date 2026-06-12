@@ -446,6 +446,44 @@ tools:
 	require.Contains(t, decls, "read")
 }
 
+func TestDiscoverToolDeclarationsKeepsAgentLocalOverrides(t *testing.T) {
+	root := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "agents", "bench"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "tools", "builtin"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "bench", "profile.yaml"), []byte(`
+name: bench
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_config_dirs:
+  - ../../tools/builtin
+tool_declarations:
+  - builtin.yaml
+`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "bench", "builtin.yaml"), []byte(`
+tools:
+  - name: serve_ui
+    type: builtin
+    init: serve_ui
+    problem: local override
+`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tools", "builtin", "serve-ui.yaml"), []byte(`
+tools:
+  - name: serve_ui
+    type: builtin
+    init: serve_ui
+    problem: shared compatibility declaration
+`), 0o644))
+
+	decls, err := discoverAndParseToolDeclarations(root)
+
+	require.NoError(t, err)
+	require.Contains(t, decls, "serve_ui")
+	assert.Equal(t, "agents/bench/builtin.yaml", decls["serve_ui"].SourceFile)
+	assert.Equal(t, "local override", decls["serve_ui"].Problem)
+}
+
 func TestDiscoverMachinesIncludesConfiguredToolSelections(t *testing.T) {
 	root := t.TempDir()
 
@@ -507,32 +545,71 @@ func TestValidate_ToolEmitsSignalSet(t *testing.T) {
 }
 
 func TestValidate_ToolUndoConsistency(t *testing.T) {
-	corpus := &Corpus{
-		ToolDeclarations: map[string]ToolDeclaration{
-			"good": {
-				Name:          "good",
-				Reversibility: ToolDeclReversibility{Classification: "reversible"},
-				Undo:          ToolDeclUndo{Strategy: "noop"},
-			},
-			"bad": {
-				Name:          "bad",
-				Reversibility: ToolDeclReversibility{Classification: "irreversible"},
-				Undo:          ToolDeclUndo{Strategy: "compensatable"},
-			},
-			"payload-no-captures": {
-				Name: "payload-no-captures",
-				Undo: ToolDeclUndo{Strategy: "compensatable", Payload: "boundary_compensation"},
-			},
+	decls := map[string]ToolDeclaration{
+		"invalid-irreversible": {
+			Name:          "invalid-irreversible",
+			Reversibility: ToolDeclReversibility{Classification: "irreversible"},
+			Undo:          ToolDeclUndo{Strategy: "compensating_action"},
+		},
+		"payload-no-captures": {
+			Name: "payload-no-captures",
+			Undo: ToolDeclUndo{Strategy: "compensating_action", Payload: "boundary_compensation"},
 		},
 	}
+	for _, strategy := range []string{
+		"noop",
+		"workspace_restore",
+		"session_state_restore",
+		"conversation_truncate",
+		"conversation_restore",
+		"parse_retry_counter_restore",
+		"pipeline_state_restore",
+		"evaluator_session_restore",
+		"point_context_restore",
+		"validation_state_restore",
+	} {
+		decls["reversible-"+strategy] = ToolDeclaration{
+			Name:          "reversible-" + strategy,
+			Reversibility: ToolDeclReversibility{Classification: "reversible"},
+			Undo:          ToolDeclUndo{Strategy: strategy},
+		}
+	}
+	for _, strategy := range []string{
+		"compensating_action",
+		"child_command_undo",
+		"workspace_restore",
+		"child_agent_workspace_restore",
+		"nested_machine_rollback",
+		"point_workspace_restore_and_child_process_compensation",
+		"child_eval_artifact_compensation",
+		"server_shutdown_or_user_action_compensation",
+	} {
+		decls["compensatable-"+strategy] = ToolDeclaration{
+			Name:          "compensatable-" + strategy,
+			Reversibility: ToolDeclReversibility{Classification: "compensatable"},
+			Undo:          ToolDeclUndo{Strategy: strategy},
+		}
+	}
+
+	corpus := &Corpus{ToolDeclarations: decls}
 
 	findings := checkToolUndoConsistency(corpus)
 	var checks []string
 	for _, f := range findings {
 		checks = append(checks, f.Check)
 	}
-	assert.Contains(t, checks, "tool-undo-mismatch")
+	assert.Equal(t, 1, countFindings(checks, "tool-undo-mismatch"))
 	assert.Contains(t, checks, "tool-undo-payload-no-captures")
+}
+
+func countFindings(checks []string, check string) int {
+	count := 0
+	for _, candidate := range checks {
+		if candidate == check {
+			count++
+		}
+	}
+	return count
 }
 
 func TestValidate_ToolSideEffectVocab(t *testing.T) {
