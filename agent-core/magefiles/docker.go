@@ -33,6 +33,7 @@ func Docker() error {
 
 	args := containerBuildArgs(opts)
 	fmt.Printf("building %s from %s with %s\n", opts.Image, opts.Ref, opts.Engine)
+	fmt.Printf("command: %s\n", shellCommand(append([]string{opts.Engine}, args...)))
 	cmd := exec.Command(opts.Engine, args...)
 	if opts.Engine == "docker" {
 		cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
@@ -97,6 +98,29 @@ func containerBuildArgs(opts dockerBuildOptions) []string {
 	}
 	args = append(args, "-t", opts.Image, ".")
 	return args
+}
+
+func shellCommand(args []string) string {
+	quoted := make([]string, 0, len(args))
+	for _, arg := range args {
+		quoted = append(quoted, shellQuote(arg))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func shellQuote(arg string) string {
+	if arg == "" {
+		return "''"
+	}
+	if strings.IndexFunc(arg, func(r rune) bool {
+		return !((r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') ||
+			strings.ContainsRune("@%_+=:,./-", r))
+	}) == -1 {
+		return arg
+	}
+	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
 }
 
 type statFunc func(string) (os.FileInfo, error)
