@@ -69,7 +69,7 @@ cd <subdir> && bd update <issue-id> --claim
 Follow the writing style rules from the generator's do-work (short sentences, lists over prose, no filler, active voice, no em-dashes). Write to the exact output path inside the subdirectory. Validate with:
 
 ```bash
-cd <subdir> && mage analyze
+cd <subdir> && mage audit
 ```
 
 ### 4-C. Implement the code
@@ -80,7 +80,7 @@ cd <subdir> && mage analyze
    ```bash
    cd <subdir> && go build ./... && go vet ./... && mage lint && go test ./...
    ```
-4. If you touched docs, also run `mage analyze`.
+4. If you touched docs, also run `mage audit`.
 
 ## 5. De-AI quality gate (documentation issues only)
 
@@ -125,4 +125,4 @@ Fix every hit. Re-run until clean (max 3 iterations).
 - Do not call `git push` automatically.
 - For code: do not modify files outside the issue's file list (article E3).
 - For code: respect function-size (40 LOC), file-size (500 LOC), DRY-threshold (two) limits.
-- If `mage analyze` fails on artifacts you did not touch, open a new issue with `bd create` and finish your current one.
+- If `mage audit` fails on artifacts you did not touch, open a new issue with `bd create` and finish your current one.
