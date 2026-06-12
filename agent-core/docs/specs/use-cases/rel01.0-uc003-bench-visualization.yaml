@@ -6,7 +6,9 @@ summary: |
   state-machine-driven web server for browsing experiment results, viewing
   documentation, inspecting source code, and launching new evaluations. The serve_ui tool blocks
   on user input via HTTP (analogous to invoke_llm blocking on LLM
-  responses), and the launch_eval tool spawns the evaluator session machine as a subprocess.
+  responses), and the launch_eval tool spawns the configured evaluator profile
+  as a child agent process. The evaluator profile owns the session machine it
+  runs.
 
 actor: Developer analyzing benchmark results
 
@@ -26,7 +28,7 @@ flow:
   - F6: The React SPA loads in the browser. The user browses sessions, inspects traces, views documentation, and reads source code via REST APIs (srd020).
   - F7: GET /api/v1/sessions returns experiment sessions with pass/fail/timeout counts. The user drills into session details, point traces, and experiment configs (srd020).
   - F8: The user navigates to the Launch page and submits an experiment configuration. POST /api/v1/actions sends an ExperimentRequested action (srd020).
-  - F9: serve_ui unblocks with the action. The state machine transitions Serving → Launching, and launch_eval spawns the evaluator session machine as a subprocess (agents/bench/machine.yaml).
+  - F9: serve_ui unblocks with the action. The state machine transitions Serving → Launching, and launch_eval spawns the configured evaluator profile as a child agent process (agents/bench/machine.yaml, agents/bench/builtin.yaml).
   - F10: When the subprocess completes, EvalCompleted transitions Launching → Serving. serve_ui blocks again, waiting for the next user action (agents/bench/machine.yaml).
 
 touchpoints:
@@ -55,7 +57,7 @@ success_criteria:
     traces:
       - srd020-bench-web-ui AC4
   - id: S5
-    criterion: Launching an experiment spawns the evaluator session machine and returns to serving on completion.
+    criterion: Launching an experiment spawns the evaluator profile child process and returns to serving on completion.
     traces:
       - srd020-bench-web-ui AC4
 

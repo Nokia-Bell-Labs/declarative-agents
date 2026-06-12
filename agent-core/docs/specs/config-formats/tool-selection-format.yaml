@@ -14,24 +14,41 @@ schema:
     required: true
     description: |
       List of tool names to make available to the agent. Each name
-      must match a tool declared in the loaded tool declaration files
-      (builtin.yaml, exec.yaml, or llm/*.yaml). Unknown names cause
-      a startup error.
+      must match a tool declared by the selected profile's
+      tool_config_dirs and tool_declarations, or by compatibility
+      declaration flags. Unknown names cause a startup error.
 
 cli_mapping:
   description: |
-    Tool files are loaded through CLI flags that separate declaration
-    from selection. The flag mapping determines how the agent resolves
-    its available tool set at startup.
+    Preferred startup uses an agent profile. The profile points at one
+    or more tools.yaml selection files, tool_config_dirs containing
+    individual declaration YAML files, and optional explicit
+    tool_declarations such as agent-local LLM or override files.
+    Compatibility startup can still pass the equivalent paths through
+    CLI flags.
   flags:
+    - flag: --profile
+      repeatable: false
+      description: |
+        Preferred agent entry point. The profile supplies tool selection
+        files, declaration directories, and explicit declaration files.
+        Relative paths are resolved from the profile file.
+
+    - flag: --tool-config-dir
+      repeatable: true
+      description: |
+        Compatibility flag for directories such as tools/builtin/ and
+        tools/exec/. The loader scans *.yaml files in name order and
+        merges them with explicit declarations.
+
     - flag: --tools-declaration
       repeatable: true
       description: |
-        Paths to tool declaration files (e.g. tools/builtin.yaml,
-        tools/exec.yaml, agents/generator/llm/default.yaml).
-        Can be specified multiple times to load declarations from
-        multiple files. All declarations are merged into a single
-        registry.
+        Compatibility flag for explicit declaration files such as
+        agents/generator/llm/default.yaml or agent-local builtin
+        override files. Legacy aggregate files such as tools/builtin.yaml
+        and tools/exec.yaml may still be loaded this way, but current
+        profiles prefer individual declaration directories.
 
     - flag: --tools
       repeatable: false
@@ -89,15 +106,17 @@ selection_files:
     tool_count: 3
     description: |
       Name-only selection of 3 tools (load_corpus, validate_specs,
-      format_report). Declarations live in tools/builtin.yaml.
+      format_report). Declarations are loaded from the profile's
+      shared builtin declaration directory.
 
   - file: agents/bench/tools.yaml
     tool_count: 2
     description: |
       Selects the two bench agent tools: serve_ui (blocks on
-      user input via web UI) and launch_eval (spawns the evaluator
-      session machine subprocess). Declarations are in
-      tools/builtin.yaml.
+      user input via web UI) and launch_eval (spawns the configured
+      evaluator profile as a child process). Shared declarations are
+      loaded from tools/builtin/ and bench-specific config comes from
+      agents/bench/builtin.yaml.
 
 related_documents:
   - cfg-tool-declaration-format

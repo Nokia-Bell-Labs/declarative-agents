@@ -309,6 +309,37 @@ config_file_layout: |
       machine.yaml          # Spec validation pipeline and semantics
       tools.yaml            # load_corpus + validate_specs + format_report
 
+container_runtime_layout: |
+  The release image packages the same profile-first runtime contract. The
+  multi-stage Dockerfile builds and tests the `agent` binary in a Go builder
+  stage, then copies only the binary, common Unix utilities, and shared YAML
+  assets into a slim Alpine runtime image.
+
+  Shared image assets are installed under /opt/agent-core:
+
+    /opt/agent-core/tools/
+    /opt/agent-core/agents/generator/
+    /opt/agent-core/agents/evaluator/
+
+  External evaluation repositories mount local suites, samples, and
+  configuration into /work. Their profiles may reference the shared image
+  declaration directories or generator profiles using absolute paths under
+  /opt/agent-core, while keeping repository-specific suites and outputs under
+  /work.
+
+  The image intentionally excludes the Go toolchain, source checkout, test
+  dependencies, and golangci-lint from the final runtime stage. Exec tools that
+  need those binaries require a mounted workspace that provides them, a derived
+  image, or another container/host provisioning step. The base release image is
+  the portable Agent Core runtime plus common shell and git utilities, not a
+  complete language build environment.
+
+  `mage docker` is the canonical build wrapper. It resolves the latest remote
+  release tag unless AGENT_CORE_REF overrides it, passes AGENT_CORE_REF to the
+  Dockerfile, defaults build credentials to a repository-local .netrc BuildKit
+  secret, prefers Docker when available and Podman as fallback, and prints the
+  exact build command before execution.
+
 invariants:
   - Every agent mode uses the same binary with the same startup sequence.
   - No mode-specific run subcommands exist; lifecycle subcommands operate on

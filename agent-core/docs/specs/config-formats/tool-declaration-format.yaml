@@ -1,5 +1,5 @@
 id: cfg-tool-declaration-format
-title: Tool Declaration Format (builtin.yaml / exec.yaml)
+title: Tool Declaration Format (tool_config_dirs and declaration YAML)
 
 purpose: |
   Defines the YAML schema for declaring tools that agents can use.
@@ -326,36 +326,29 @@ parameter_extensions:
         before CLI argument construction.
 
 declaration_files:
-  - file: tools/builtin.yaml
+  - file: tools/builtin/
     description: |
-      Builtin tool declarations covering file operations (read,
-      write, edit, find, list_files), the LLM pipeline (parse_response,
-      report_parse_error, reset_history), completion and control
-      (done, suspend, nudge_reread, self_invoke), compatibility
-      aggregate validation (validate), planner tools (extract_task,
-      extract_all, assemble_prompt, parse_plan, create_issue,
-      execute_task, check_result), evaluator session tools
-      (parse_suite_config, discover_suite_samples, expand_eval_grid,
-      init_eval_session, report_suite_summary, next_point, run_point,
-      report_session), evaluator per-point tools
-      (create_point_dir, copy_sample_workspace, copy_sample_docs,
-      init_workspace_repo, stage_workspace_baseline,
-      commit_workspace_baseline, dump_config, run_agent, run_oracle_check,
-      collect_trace_tokens, check_agent_version, summarize_point_results,
-      collect_metrics), bench tools (serve_ui, launch_eval), and spec
-      validation tools (load_corpus, validate_specs, format_report).
-      Note: invoke_llm is declared per-agent in agents/*/llm/*.yaml,
-      not in this file. The tool count evolves with the codebase;
-      consult the file directly for the current set.
+      Directory of individual shared builtin tool declarations loaded by
+      current profiles through tool_config_dirs. The declarations cover
+      file operations (read, write, edit, find, list_files), the LLM
+      pipeline (parse_response, report_parse_error, reset_history),
+      completion and control (done, suspend, nudge_reread, self_invoke),
+      compatibility aggregate validation (validate), planner tools,
+      evaluator session and point tools, bench tools, and spec validation
+      tools. Note: invoke_llm is declared per-agent in agents/*/llm/*.yaml,
+      not in this directory. The tool count evolves with the codebase;
+      consult the directory directly for the current set.
 
-  - file: tools/exec.yaml
+  - file: tools/exec/
     description: |
-      Exec tool declarations for Go build tools (build, vet, lint,
-      test), filesystem utilities (copy_dir, make_dir), git operations
-      (git_init, stage_all, workspace_status, commit, rev_parse,
-      diff_stat, log_oneline), and bd issue management (issue_create,
-      issue_close, issue_list). The tool count evolves with the
-      codebase; consult the file directly for the current set.
+      Directory of individual shared exec tool declarations loaded by
+      current profiles through tool_config_dirs. The declarations cover
+      Go build tools (build, vet, lint, test), filesystem utilities
+      (copy_dir, make_dir), git operations (git_init, stage_all,
+      workspace_status, commit, rev_parse, diff_stat, log_oneline), and
+      bd issue management (issue_create, issue_close, issue_list). The
+      tool count evolves with the codebase; consult the directory
+      directly for the current set.
 
   - file: "agents/*/llm/*.yaml"
     description: |
@@ -392,10 +385,13 @@ boundary_compensation_example: |
   issue_create, issue_close.
 
 inline_pattern: |
-  All agents now use the declaration+selection split. Tool declarations
-  live in shared files (tools/builtin.yaml, tools/exec.yaml)
-  and each agent's tools.yaml contains only tool names (selection).
-  This ensures a single source of truth for tool schemas and config.
+  All agents now use the declaration+selection split. Current profiles
+  load shared declarations from directories such as tools/builtin/ and
+  tools/exec/ through tool_config_dirs, then load agent-local explicit
+  declarations such as LLM configs or mode-specific builtin overrides.
+  Each agent's tools.yaml contains only tool names (selection). This
+  ensures a single source of truth for tool schemas and config while
+  keeping active profiles on individual declaration files.
 
 contract_validation: |
   Tool vocabulary contract fields are validated incrementally. During
@@ -426,23 +422,28 @@ structured_output_strategy: |
 
 mode_local_overrides: |
   Some agents have mode-local builtin override files that add config
-  blocks to tools declared in tools/builtin.yaml. These are loaded after
-  the shared declaration via a second --tools-declaration flag:
+  blocks to tools declared in tools/builtin/. These are loaded after
+  the shared declaration directory through profile tool_declarations
+  or, in compatibility startup, via a second --tools-declaration flag:
 
     agents/bench/builtin.yaml — bench-specific config (serve_ui, launch_eval)
     agents/evaluator/builtin.yaml — evaluator-specific config (suite/point tools)
     agents/planner/builtin.yaml — planner-specific config (child agent, issue tools)
 
   The generator and constitution-auditor agents do not have mode-local overrides;
-  they use tools/builtin.yaml directly.
+  they use the shared builtin declaration directory directly.
 
 legacy_artifacts: |
-  internal/tools/stl/tools.yaml is a legacy exec tool declaration file that predates
-  tools/exec.yaml. It is NOT loaded at runtime and is not referenced by
-  any code or configuration. It contains additional tools (branch_create,
+  tools/builtin.yaml and tools/exec.yaml are legacy aggregate declaration
+  files retained for compatibility examples and historical migration context;
+  active profiles prefer tools/builtin/ and tools/exec/ directories. The
+  internal/tools/stl/tools.yaml file is an older exec declaration file that
+  predates tools/exec.yaml. It is NOT loaded at runtime and is not referenced
+  by any code or configuration. It contains additional tools (branch_create,
   branch_delete, branch_list, branch_current, worktree_add, worktree_remove,
-  worktree_list, issue_claim) that are not yet migrated to tools/exec.yaml.
-  Retained as a reference for tools that may be promoted to the canonical set.
+  worktree_list, issue_claim) that are not yet migrated to the canonical exec
+  declarations. Retained as a reference for tools that may be promoted to the
+  canonical set.
 
 related_documents:
   - cfg-tool-authoring-standard

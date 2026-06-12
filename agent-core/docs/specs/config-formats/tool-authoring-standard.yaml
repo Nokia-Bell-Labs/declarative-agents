@@ -388,7 +388,7 @@ related_documents:
   - srd025-rollback-lifecycle
 
 implementation:
-  - tools/builtin.yaml
-  - tools/exec.yaml
+  - tools/builtin/
+  - tools/exec/
   - internal/tools/stl/exectool.go
   - internal/tools/stl/tool_contracts.go
