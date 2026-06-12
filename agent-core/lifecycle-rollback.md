@@ -38,7 +38,9 @@ summary data. It is stored in `Checkpoint.agent_state`.
 Command and domain state is command-owned JSON or in-memory undo state:
 conversation history, planner state, evaluator session state, graph state, and
 other mutable state that is not a filesystem tree. Commands that mutate this
-layer must implement `Command.Undo()` or provide explicit restore hooks.
+layer must implement `Command.Undo()` for in-memory rollback and, when the state
+must survive checkpoint persistence, provide an `UndoMemento()` payload that can
+be written into history.
 
 Workspace state is environment state: files and directories changed by file
 tools, exec tools, child agents, or external processes. It is tracked by a
@@ -126,27 +128,27 @@ signals:
   - CommandError
 
 transitions:
-  - from: Planning
-    on: Seed
-    to: AwaitingApproval
+  - state: Planning
+    signal: Seed
+    next: AwaitingApproval
     action: suspend_for_approval
 
-  - from: AwaitingApproval
-    on: AwaitApproval
-    to: AwaitingApproval
+  - state: AwaitingApproval
+    signal: AwaitApproval
+    next: AwaitingApproval
 
-  - from: AwaitingApproval
-    on: Approved
-    to: Applying
+  - state: AwaitingApproval
+    signal: Approved
+    next: Applying
     action: apply_change
 
-  - from: AwaitingApproval
-    on: Rejected
-    to: Rejected
+  - state: AwaitingApproval
+    signal: Rejected
+    next: Rejected
 
-  - from: Applying
-    on: TaskCompleted
-    to: Done
+  - state: Applying
+    signal: TaskCompleted
+    next: Done
 ```
 
 Tool selection must include a `suspend` tool declaration. The shared builtin
@@ -162,7 +164,8 @@ agent history --state-store-dir .agent-state --checkpoint latest
 ```
 
 Pick the last known-good iteration from the digest. Each row includes iteration,
-command name, state transition, signal, and optional workspace ref.
+command name, state transition, signal, undo memento status, and optional
+workspace ref.
 
 Create a rollback checkpoint:
 
@@ -190,6 +193,29 @@ agent \
 The resume path validates the current machine and tool declarations before
 re-entering the loop. If the current config is incompatible with the checkpoint,
 resume refuses to continue.
+
+## Undo Mementos
+
+Checkpoint history stores `HistoryDigest` rows, not live `Command` objects.
+Commands that need persisted rollback implement `UndoMementoProvider`; the loop
+captures that versioned JSON memento after command execution and stores it in
+the history digest.
+
+Memento kinds tell rollback what is possible:
+
+- `noop` means the command has no rollback-managed state.
+- `reversible` carries enough JSON to restore command/domain state or identify
+  workspace paths for restore.
+- `compensatable` carries the metadata needed for child command undo, workspace
+  restore, or explicit operator/API compensation.
+- `irreversible` records why rollback cannot safely undo the effect.
+
+Current reversible mementos cover conversation/retry state, planner pipeline
+state, file/workspace paths, evaluator session state, point context, and
+validation state. Boundary tools such as `execute_task`, `self_invoke`,
+`run_point`, `run_agent`, `launch_eval`, `serve_ui`, `suspend`, and issue tools
+record `boundary_compensation` payloads with child run IDs, artifact paths,
+issue IDs, server/user-action details, or nested-machine context.
 
 ## Operational Safety
 

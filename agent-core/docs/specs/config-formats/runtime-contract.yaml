@@ -107,7 +107,9 @@ startup_sequence:
       disabled. When present, cmd/agent creates a FileStore and passes it to
       LoopParams.StateStore and lifecycle-aware builtin factories. Suspend
       checkpoints can include AgentSnapshot, conversation JSON from
-      LoopHooks.SnapshotConversation, optional WorkspaceRef, and HistoryDigest.
+      LoopHooks.SnapshotConversation, optional DomainState JSON, optional
+      WorkspaceRef, and HistoryDigest entries. Each HistoryDigest can carry an
+      UndoMemento captured from commands that implement UndoMementoProvider.
       Resume requires --state-store-dir and --resume-checkpoint; it loads the
       checkpoint, restores configured state layers, validates the current
       machine/tools, then re-enters core.Loop with resume seed fields.
@@ -190,9 +192,18 @@ lifecycle: |
   State layers remain independent:
     - agent state is JSON loop bookkeeping in Checkpoint.agent_state;
     - command/domain state is command-owned undo state or JSON snapshots such
-      as conversation logs;
+      as conversation logs, pipeline snapshots, evaluator session state, point
+      context, validation state, or boundary compensation payloads;
     - workspace state is represented by Workspace refs, usually GitWorkspace
       commits, and is not stored in StateStore.
+
+  Undo memento kinds:
+    - noop means the command has no rollback-managed state;
+    - reversible carries enough JSON to restore command/domain state or point
+      rollback at workspace refs;
+    - compensatable carries metadata for effects that need child command undo,
+      workspace restore, or explicit operator/API compensation;
+    - irreversible records why rollback cannot safely undo the effect.
 
   Safety rules:
     - disabled lifecycle ports preserve existing runtime behavior;
@@ -204,11 +215,19 @@ lifecycle: |
 
 history_and_rollback_cli: |
   agent history reads a persisted checkpoint and prints a stable digest:
-  iteration, command, from state, to state, result signal, and workspace ref.
-  agent rollback resolves a checkpoint, targets an iteration, traverses the
-  persisted history digest through the rollback path, writes a new rollback
-  checkpoint, and restores the target workspace ref only when --directory
-  identifies a managed GitWorkspace.
+  iteration, command, from state, to state, result signal, undo memento status,
+  and workspace ref. agent rollback resolves a checkpoint, targets an
+  iteration, traverses the persisted history digest through the rollback path,
+  restores supported UndoMemento payloads into the new checkpoint, writes a new
+  rollback checkpoint, and restores the target workspace ref only when
+  --directory identifies a managed GitWorkspace.
+
+  Persisted rollback currently restores conversation and domain-state payloads
+  recorded in mementos and reports missing, irreversible, or compensatable
+  payloads explicitly. Boundary compensation payloads preserve child run IDs,
+  artifact paths, issue IDs, server/user-action details, or nested-machine
+  context for a follow-up compensating action instead of silently treating those
+  effects as reversible.
 
 config_file_layout: |
   tools/

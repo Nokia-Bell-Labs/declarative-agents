@@ -2,60 +2,54 @@ id: sm-command-undo-audit
 title: Command Undo Audit
 
 purpose: |
-  Tracks which commands currently satisfy the mechanical Command.Undo
-  contract with an explicit no-op and which commands still need real undo
-  implementations. This document is a migration checklist for the rollback
-  epic; it does not change runtime behavior.
+  Tracks which commands satisfy the mechanical Command.Undo contract and which
+  commands also provide persisted UndoMemento payloads for checkpoint rollback.
+  It documents the current rollback coverage and the remaining places where
+  external compensation is explicit rather than automatic.
 
 current_contract: |
-  Every core.Command implementation exposes Undo() Result. Undo coverage is now
-  mixed: read-only words intentionally return core.NoopUndo, LLM and several
-  planner words have mechanical in-memory restore, and many state-mutating
-  workspace, evaluator, validation, exec, and boundary commands still return
-  core.NoopUndo pending follow-up implementation. No production command yet
-  implements UndoMementoProvider, so persisted rollback from checkpoint history
-  still needs serialized mementos before non-noop undo can work after resume.
+  Every core.Command implementation exposes Undo() Result. Read-only words
+  intentionally return core.NoopUndo. State-mutating words now use in-memory
+  snapshots where the command owns enough state to restore directly: LLM
+  conversation/retry state, planner pipeline state, file snapshots, evaluator
+  session state, point context, and validation state.
+
+  Persisted rollback is driven by HistoryDigest.Undo. Commands that implement
+  core.UndoMementoProvider write serializable undo payloads into checkpoint
+  history so rollback after restart can distinguish reversible state restore,
+  workspace restore, compensatable boundary effects, no-op words, and
+  irreversible gaps without serializing live Command objects.
 
 noop_contract:
   signal: ToolDone
   output: "undo: no-op"
   command_name: "the command being undone"
 
-real_undo_pending:
-  planner_state:
+compensation_boundaries:
+  description: |
+    These commands have persisted compensatable mementos. Rollback can preserve
+    the child run, artifact, issue, workspace, or approval metadata needed for
+    operator or higher-level compensation, but it does not pretend external
+    audit history, subprocess behavior, or human/model decisions can be erased.
+  commands:
     - command: create_issue
-      current_undo: compensatable_memento_with_pipeline_snapshot
-      gap: "external bd issue creation is not compensated"
-      target_strategy: compensatable_memento_with_issue_id
-      follow_up: agent-core-gm-rollback.8
-
-  boundary_or_compensation:
-    follow_up: agent-core-gm-rollback.8
-    commands:
-      - command: execute_task
-        reason: "spawns child generator that can mutate workspace"
-        target_strategy: child_workspace_restore
-      - command: self_invoke
-        reason: "spawns child agent process"
-        target_strategy: child_workspace_restore_or_compensation
-      - command: launch_eval
-        reason: "spawns evaluator child process and can create eval artifacts"
-        target_strategy: artifact_compensation
-      - command: serve_ui
-        reason: "blocks on user input and mutates bench UI state"
-        target_strategy: bench_state_restore
-      - command: run_agent
-        reason: "spawns a child agent and mutates point context/workspace artifacts"
-        target_strategy: child_workspace_restore_or_compensation
-      - command: run_point
-        reason: "runs a nested point machine and records point result"
-        target_strategy: nested_machine_checkpoint_or_session_restore
-      - command: suspend
-        reason: "lifecycle boundary word; undo semantics are resume/checkpoint scoped"
-        target_strategy: lifecycle_checkpoint_compensation
-      - command: validate
-        reason: "replays child validation words and aggregates result"
-        target_strategy: child_command_undo_or_workspace_restore
+      compensation_payload: issue_id_and_pipeline_snapshot
+    - command: execute_task
+      compensation_payload: child_task_and_workspace_paths
+    - command: self_invoke
+      compensation_payload: child_run_id_machine_tools_and_trace_artifact
+    - command: launch_eval
+      compensation_payload: suite_output_dir_child_machine_and_tools
+    - command: serve_ui
+      compensation_payload: server_addr_and_user_action
+    - command: run_agent
+      compensation_payload: point_context_workspace_and_artifact_paths
+    - command: run_point
+      compensation_payload: eval_session_snapshot_and_nested_machine
+    - command: suspend
+      compensation_payload: approval_reason_and_checkpoint_requirement
+    - command: validate
+      compensation_payload: ran_child_tools
 
 expected_noop_long_term:
   - read
