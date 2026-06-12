@@ -53,39 +53,31 @@ GitLab during the build, runs `go test ./...`, builds `agent`, and packages a
 runtime image with Go, git, `golangci-lint`, common Unix utilities, and shared
 YAML assets under `/opt/agent-core`.
 
+The preferred build path is the Mage target:
+
 ```bash
-DOCKER_BUILDKIT=1 docker build \
-  --build-arg AGENT_CORE_REF=main \
-  -t agent-core:latest .
+mage docker
 ```
 
-For private HTTPS GitLab access, pass a `.netrc` as a BuildKit secret:
+`mage docker` discovers the latest remote release tag from GitLab, passes it to
+the Dockerfile as `AGENT_CORE_REF`, and builds `agent-core:latest`. The target
+uses Podman when available, falls back to Docker, and prints the image, release
+ref, and engine before building.
+
+Common overrides:
 
 ```bash
-DOCKER_BUILDKIT=1 docker build \
-  --secret id=git_credentials,src="$HOME/.netrc" \
-  -t agent-core:latest .
+AGENT_CORE_REF=v0.20260612.1 mage docker
+AGENT_CORE_IMAGE=registry.example/agent-core:v0.20260612.1 mage docker
+AGENT_CORE_CONTAINER_ENGINE=docker mage docker
+AGENT_CORE_REPO=https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git mage docker
 ```
 
-The same image can be built with Podman. In environments where the registry
-certificate chain is managed outside Podman's trust store, pass
-`--tls-verify=false`:
+For private HTTPS GitLab access, the target uses `$HOME/.netrc` automatically
+when present. Override the path with `AGENT_CORE_NETRC`:
 
 ```bash
-podman build \
-  --tls-verify=false \
-  --build-arg AGENT_CORE_REF=main \
-  -t agent-core:latest .
-```
-
-For private HTTPS GitLab access with Podman, pass a `.netrc` as a build
-secret:
-
-```bash
-podman build \
-  --tls-verify=false \
-  --secret id=git_credentials,src="$HOME/.netrc" \
-  -t agent-core:latest .
+AGENT_CORE_NETRC=/path/to/netrc mage docker
 ```
 
 The `.netrc` should contain credentials for the GitLab host:
@@ -94,6 +86,33 @@ The `.netrc` should contain credentials for the GitLab host:
 machine gitlabe1.ext.net.nokia.com
   login <username>
   password <token-or-password>
+```
+
+Podman builds default to `--tls-verify=false` for environments where the
+registry certificate chain is managed outside Podman's trust store. Override
+that behavior with:
+
+```bash
+AGENT_CORE_TLS_VERIFY=true mage docker
+```
+
+The equivalent lower-level Podman command is:
+
+```bash
+podman build \
+  --tls-verify=false \
+  --secret id=git_credentials,src="$HOME/.netrc" \
+  --build-arg AGENT_CORE_REF=v0.20260612.1 \
+  -t agent-core:latest .
+```
+
+The equivalent lower-level Docker command is:
+
+```bash
+DOCKER_BUILDKIT=1 docker build \
+  --secret id=git_credentials,src="$HOME/.netrc" \
+  --build-arg AGENT_CORE_REF=v0.20260612.1 \
+  -t agent-core:latest .
 ```
 
 An external evaluation repository can mount its local suites, samples, and
@@ -118,6 +137,10 @@ absolute paths such as `/opt/agent-core/tools/builtin`,
 If mounted output permissions matter, add `--user "$(id -u):$(id -g)"`;
 the image keeps Go caches under `/tmp` so arbitrary user IDs can still run Go
 validation commands.
+
+Current verification baseline: `mage docker` built `agent-core:latest` from
+remote release `v0.20260612.1`, and `podman run --rm agent-core:latest --help`
+started the packaged `agent` binary successfully.
 
 ## Installation
 
