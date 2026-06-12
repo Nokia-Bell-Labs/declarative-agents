@@ -190,6 +190,8 @@ tools:
     undo:
       strategy: compensating_action
       description: "Restore the workspace ref when checkpointed; otherwise compensate with an explicit revert/reset policy."
+      payload: boundary_compensation
+      captures: [workspace_paths, git_ref]
       requires: [Workspace, git_ref]
     parameters:
       type: object
@@ -236,6 +238,8 @@ tools:
     undo:
       strategy: compensating_action
       description: "Capture the created issue ID and compensate by closing/deleting it or restoring the workspace ref."
+      payload: boundary_compensation
+      captures: [created_issue_id, workspace_paths]
       requires: [created_issue_id]
     parameters:
       type: object
@@ -279,6 +283,8 @@ tools:
     undo:
       strategy: compensating_action
       description: "Capture the previous issue status and compensate by reopening it or restoring the workspace ref."
+      payload: boundary_compensation
+      captures: [issue_id, previous_issue_status, workspace_paths]
       requires: [issue_id, previous_issue_status]
     parameters:
       type: object

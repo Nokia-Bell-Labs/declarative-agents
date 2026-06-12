@@ -3,6 +3,7 @@
 package stl
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -75,6 +76,28 @@ func TestValidateCmd_AllPass(t *testing.T) {
 	require.Contains(t, res.Output, "build")
 	require.Contains(t, res.Output, "lint")
 	require.Contains(t, res.Output, "test")
+}
+
+func TestValidateCmdUndoMementoCapturesChildCommands(t *testing.T) {
+	t.Parallel()
+	cmd := &validateCmd{
+		skipped: []string{"build", "lint"},
+		builders: map[string]core.Builder{
+			"build": &valStubBuilder{signal: core.ToolDone},
+			"lint":  &valStubBuilder{signal: core.ToolDone},
+		},
+	}
+	res := cmd.Execute()
+	require.Equal(t, core.ValidationPassed, res.Signal)
+
+	memento, err := cmd.UndoMemento()
+	require.NoError(t, err)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+
+	var payload BoundaryCompensationPayload
+	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
+	require.Equal(t, "child_command_undo", payload.BoundaryCompensation.Strategy)
+	require.Equal(t, []string{"build", "lint"}, payload.BoundaryCompensation.Requires)
 }
 
 func TestValidateCmd_BuildFails_ShortCircuits(t *testing.T) {

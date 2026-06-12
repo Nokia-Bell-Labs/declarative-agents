@@ -60,10 +60,22 @@ type validateCmd struct {
 	builders map[string]core.Builder
 	tracer   tracing.Tracer
 	verbose  bool
+	ran      []string
 }
 
-func (v *validateCmd) Name() string      { return "validate" }
-func (v *validateCmd) Undo() core.Result { return core.NoopUndo(v.Name()) }
+func (v *validateCmd) Name() string { return "validate" }
+func (v *validateCmd) Undo() core.Result {
+	return boundaryCompensationUndo(v.Name(), "undo or compensate validation child commands and any workspace effects they produced")
+}
+func (v *validateCmd) UndoMemento() (core.UndoMemento, error) {
+	return boundaryCompensationMemento(v.Name(), BoundaryCompensationPayload{
+		BoundaryCompensation: BoundaryCompensation{
+			Strategy: "child_command_undo",
+			Reason:   "aggregate validation replays child tools",
+			Requires: append([]string(nil), v.ran...),
+		},
+	}, "undo is delegated to the validation child commands captured in the payload")
+}
 
 func (v *validateCmd) Execute() core.Result {
 	if len(v.skipped) == 0 {
@@ -80,6 +92,7 @@ func (v *validateCmd) Execute() core.Result {
 	start := time.Now()
 	var totalCost core.Cost
 	var ran []string
+	v.ran = nil
 
 	for _, toolName := range v.skipped {
 		builder, ok := v.builders[toolName]
@@ -113,6 +126,7 @@ func (v *validateCmd) Execute() core.Result {
 
 		totalCost.Duration += res.Cost.Duration
 		ran = append(ran, toolName)
+		v.ran = append(v.ran, toolName)
 
 		if res.Signal == core.CommandError {
 			return core.Result{

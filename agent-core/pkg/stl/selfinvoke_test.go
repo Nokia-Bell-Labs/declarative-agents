@@ -4,10 +4,12 @@ package stl
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/execute"
@@ -109,6 +111,30 @@ func TestSelfInvokeBuilder_ExtraArgs(t *testing.T) {
 	assert.Equal(t, core.ToolDone, result.Signal)
 	assert.Contains(t, result.Output, "--directory")
 	assert.Contains(t, result.Output, "/workspace")
+}
+
+func TestSelfInvokeUndoMementoCapturesChildRunMetadata(t *testing.T) {
+	t.Parallel()
+	cmd := (&SelfInvokeBuilder{
+		Config: execute.Config{
+			Machine: "machine.yaml",
+			Tools:   "tools.yaml",
+			OTelDir: t.TempDir(),
+		},
+		Ctx: context.Background(),
+	}).Build(core.Result{Output: `{"parameters":{"run_id":"child-1"}}`})
+
+	provider, ok := cmd.(core.UndoMementoProvider)
+	require.True(t, ok)
+	memento, err := provider.UndoMemento()
+	require.NoError(t, err)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+
+	var payload BoundaryCompensationPayload
+	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
+	require.Equal(t, "child_agent_workspace_restore", payload.BoundaryCompensation.Strategy)
+	require.Equal(t, "child-1", payload.BoundaryCompensation.ChildRunID)
+	require.Equal(t, "machine.yaml", payload.BoundaryCompensation.ChildMachine)
 }
 
 func TestSelfInvokeToolSpec(t *testing.T) {

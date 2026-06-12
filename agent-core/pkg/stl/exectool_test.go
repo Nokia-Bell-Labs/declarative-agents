@@ -465,6 +465,34 @@ func TestExecCmdUndoMementoUsesDeclaredStrategy(t *testing.T) {
 	assert.Contains(t, string(memento.Payload), `"out"`)
 }
 
+func TestExecCmdUndoMementoUsesBoundaryCompensationPayload(t *testing.T) {
+	cmd := &ExecCmd{
+		def: ToolDef{
+			Name: "issue_close",
+			SideEffects: ToolSideEffects{Items: []ToolSideEffect{{
+				Kind:  "filesystem_write",
+				Paths: []string{".beads"},
+			}}},
+			Undo: ToolUndoContract{
+				Strategy:    "compensating_action",
+				Description: "reopen closed issue",
+				Payload:     "boundary_compensation",
+				Requires:    []string{"issue_id", "previous_issue_status"},
+			},
+		},
+		params: map[string]string{"id": "agent-core-123"},
+	}
+
+	memento, err := cmd.UndoMemento()
+
+	require.NoError(t, err)
+	require.Equal(t, core.UndoMementoCompensatable, memento.Kind)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+	assert.Contains(t, string(memento.Payload), `"boundary_compensation"`)
+	assert.Contains(t, string(memento.Payload), `"issue_id":"agent-core-123"`)
+	assert.Contains(t, string(memento.Payload), `".beads"`)
+}
+
 func TestExecCmd_Execute_Success(t *testing.T) {
 	def := ToolDef{
 		Name:   "greet",

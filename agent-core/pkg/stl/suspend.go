@@ -48,8 +48,20 @@ type suspendCmd struct {
 	tracer     tracing.Tracer
 }
 
-func (s *suspendCmd) Name() string      { return "suspend" }
-func (s *suspendCmd) Undo() core.Result { return core.NoopUndo(s.Name()) }
+func (s *suspendCmd) Name() string { return "suspend" }
+func (s *suspendCmd) Undo() core.Result {
+	return boundaryCompensationUndo(s.Name(), "resume with an explicit approval/rejection signal or roll back to an earlier checkpoint")
+}
+func (s *suspendCmd) UndoMemento() (core.UndoMemento, error) {
+	return boundaryCompensationMemento(s.Name(), BoundaryCompensationPayload{
+		BoundaryCompensation: BoundaryCompensation{
+			Strategy:           "resume_or_checkpoint_rollback",
+			Reason:             s.config.Reason,
+			Requires:           []string{"approval_decision", "checkpoint_id"},
+			CheckpointRequired: s.config.RequireCheckpoint,
+		},
+	}, "resume with an explicit approval/rejection signal or roll back to an earlier checkpoint")
+}
 
 func (s *suspendCmd) Execute() core.Result {
 	if s.config.RequireCheckpoint && s.stateStore == nil {

@@ -90,6 +90,15 @@ type pipelineUndoPayload struct {
 	DomainState pipelineSnapshotPayload `json:"domain_state"`
 }
 
+type BoundaryCompensationInfo struct {
+	Strategy       string   `json:"strategy"`
+	Reason         string   `json:"reason,omitempty"`
+	Requires       []string `json:"requires,omitempty"`
+	WorkspacePaths []string `json:"workspace_paths,omitempty"`
+	IssueID        string   `json:"issue_id,omitempty"`
+	ChildRunID     string   `json:"child_run_id,omitempty"`
+}
+
 func snapshotPipelineState(ps *State) pipelineSnapshot {
 	snap := pipelineSnapshot{
 		currentTask: cloneTask(ps.CurrentTask),
@@ -111,6 +120,17 @@ func mementoPipelineSnapshot(commandName string, snap pipelineSnapshot, ok bool,
 	if !ok {
 		return core.UndoMemento{}, fmt.Errorf("%w: no pipeline snapshot recorded for %s", core.ErrUndoMementoMissing, commandName)
 	}
+	memento, err := core.NewUndoMemento(commandName, kind, pipelineUndoPayload{DomainState: pipelineSnapshotToPayload(snap)})
+	if err != nil {
+		return core.UndoMemento{}, err
+	}
+	if kind == core.UndoMementoCompensatable {
+		memento.Description = "restores planner state snapshot; external side effects require compensation"
+	}
+	return memento, nil
+}
+
+func pipelineSnapshotToPayload(snap pipelineSnapshot) pipelineSnapshotPayload {
 	payload := pipelineSnapshotPayload{
 		CurrentTask: cloneTask(snap.currentTask),
 		CurrentPlan: clonePlan(snap.currentPlan),
@@ -124,14 +144,7 @@ func mementoPipelineSnapshot(commandName string, snap pipelineSnapshot, ok bool,
 			payload.NodeStates[id] = pipelineNodeStateSnapshot{Status: ns.status, Retries: ns.retries}
 		}
 	}
-	memento, err := core.NewUndoMemento(commandName, kind, pipelineUndoPayload{DomainState: payload})
-	if err != nil {
-		return core.UndoMemento{}, err
-	}
-	if kind == core.UndoMementoCompensatable {
-		memento.Description = "restores planner state snapshot; external side effects require compensation"
-	}
-	return memento, nil
+	return payload
 }
 
 func (s pipelineSnapshot) restore(ps *State) {
@@ -454,6 +467,7 @@ type createIssueCmd struct {
 	ps          *State
 	snapshot    pipelineSnapshot
 	hasSnapshot bool
+	issueID     string
 }
 
 func (c *createIssueCmd) Name() string { return "create_issue" }
@@ -462,7 +476,30 @@ func (c *createIssueCmd) Undo() core.Result {
 }
 
 func (c *createIssueCmd) UndoMemento() (core.UndoMemento, error) {
-	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoCompensatable)
+	memento, err := mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoCompensatable)
+	if err != nil {
+		return core.UndoMemento{}, err
+	}
+	if c.issueID == "" {
+		return memento, nil
+	}
+	memento, err = core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, struct {
+		DomainState          pipelineSnapshotPayload  `json:"domain_state"`
+		BoundaryCompensation BoundaryCompensationInfo `json:"boundary_compensation"`
+	}{
+		DomainState: pipelineSnapshotToPayload(c.snapshot),
+		BoundaryCompensation: BoundaryCompensationInfo{
+			Strategy: "close_or_delete_created_issue",
+			Reason:   "planner materialized a Beads issue",
+			Requires: []string{"issue_id"},
+			IssueID:  c.issueID,
+		},
+	})
+	if err != nil {
+		return core.UndoMemento{}, err
+	}
+	memento.Description = "restore planner state and compensate created issue"
+	return memento, nil
 }
 
 func (c *createIssueCmd) Execute() core.Result {
@@ -482,6 +519,7 @@ func (c *createIssueCmd) Execute() core.Result {
 	}
 
 	c.ps.IssueID = issueID
+	c.issueID = issueID
 	if c.ps.CurrentTask != nil {
 		if c.ps.TaskDeps == nil {
 			c.ps.TaskDeps = make(map[string]string)
@@ -506,8 +544,37 @@ type executeTaskCmd struct {
 	ps *State
 }
 
-func (c *executeTaskCmd) Name() string      { return "execute_task" }
-func (c *executeTaskCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *executeTaskCmd) Name() string { return "execute_task" }
+func (c *executeTaskCmd) Undo() core.Result {
+	return core.Result{
+		Signal:      core.CommandError,
+		CommandName: c.Name(),
+		Output:      "undo execute_task requires child agent history or workspace compensation",
+		Err:         fmt.Errorf("undo execute_task requires child agent history or workspace compensation"),
+	}
+}
+func (c *executeTaskCmd) UndoMemento() (core.UndoMemento, error) {
+	currentTaskID := ""
+	if c.ps.CurrentTask != nil {
+		currentTaskID = c.ps.CurrentTask.ID
+	}
+	memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, struct {
+		BoundaryCompensation BoundaryCompensationInfo `json:"boundary_compensation"`
+	}{
+		BoundaryCompensation: BoundaryCompensationInfo{
+			Strategy:       "child_agent_workspace_restore",
+			Reason:         "execute_task runs the generator agent for a planner task",
+			Requires:       []string{"child_history", "Workspace"},
+			WorkspacePaths: []string{c.ps.Directory},
+			ChildRunID:     currentTaskID,
+		},
+	})
+	if err != nil {
+		return core.UndoMemento{}, err
+	}
+	memento.Description = "restore or compensate child generator workspace effects"
+	return memento, nil
+}
 
 func (c *executeTaskCmd) Execute() core.Result {
 	if c.ps.CurrentTask == nil || c.ps.CurrentPlan == nil {

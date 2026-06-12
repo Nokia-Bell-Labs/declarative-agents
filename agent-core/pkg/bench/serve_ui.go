@@ -29,8 +29,26 @@ type serveUICmd struct {
 	bs *BenchState
 }
 
-func (c *serveUICmd) Name() string      { return "serve_ui" }
-func (c *serveUICmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *serveUICmd) Name() string { return "serve_ui" }
+func (c *serveUICmd) Undo() core.Result {
+	err := fmt.Errorf("undo serve_ui requires server shutdown or compensation for the submitted user action")
+	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
+}
+func (c *serveUICmd) UndoMemento() (core.UndoMemento, error) {
+	payload := stl.BoundaryCompensationPayload{BoundaryCompensation: stl.BoundaryCompensation{
+		Strategy:   "server_shutdown_or_user_action_compensation",
+		Reason:     "serve_ui waits on a live HTTP server and human action",
+		Requires:   []string{"server_addr", "last_user_action"},
+		ServerAddr: c.bs.Addr,
+		UserAction: c.bs.LastAction.Type,
+	}}
+	memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, payload)
+	if err != nil {
+		return core.UndoMemento{}, err
+	}
+	memento.Description = "stop the UI server or compensate work triggered by the submitted action"
+	return memento, nil
+}
 
 func (c *serveUICmd) Execute() core.Result {
 	c.bs.EnsureRunning()

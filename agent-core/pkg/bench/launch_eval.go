@@ -35,13 +35,35 @@ func (b *LaunchEvalBuilder) Build(res core.Result) core.Command {
 // as a subprocess and blocks until it completes. The suite path
 // comes from the user action config submitted through the web UI.
 type launchEvalCmd struct {
-	bs     *BenchState
-	res    core.Result
-	config execute.Config
+	bs        *BenchState
+	res       core.Result
+	config    execute.Config
+	suitePath string
+	outputDir string
 }
 
-func (c *launchEvalCmd) Name() string      { return "launch_eval" }
-func (c *launchEvalCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *launchEvalCmd) Name() string { return "launch_eval" }
+func (c *launchEvalCmd) Undo() core.Result {
+	err := fmt.Errorf("undo launch_eval requires child evaluator artifact compensation")
+	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
+}
+func (c *launchEvalCmd) UndoMemento() (core.UndoMemento, error) {
+	payload := stl.BoundaryCompensationPayload{BoundaryCompensation: stl.BoundaryCompensation{
+		Strategy:       "child_eval_artifact_compensation",
+		Reason:         "launch_eval spawns an evaluator child agent",
+		Requires:       []string{"child_history", "artifact_dir"},
+		ChildMachine:   c.config.Machine,
+		ChildTools:     c.config.Tools,
+		ArtifactPaths:  []string{c.outputDir},
+		WorkspacePaths: []string{c.suitePath},
+	}}
+	memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, payload)
+	if err != nil {
+		return core.UndoMemento{}, err
+	}
+	memento.Description = "compensate evaluator child artifacts or restore child workspace"
+	return memento, nil
+}
 
 func (c *launchEvalCmd) Execute() core.Result {
 	var action UserAction
@@ -55,6 +77,7 @@ func (c *launchEvalCmd) Execute() core.Result {
 	}
 
 	suitePath, _ := action.Config["suite"].(string)
+	c.suitePath = suitePath
 	if suitePath == "" {
 		return core.Result{
 			Signal:      EvalFailed,
@@ -67,6 +90,7 @@ func (c *launchEvalCmd) Execute() core.Result {
 	var extraArgs []string
 	extraArgs = append(extraArgs, "--input", suitePath)
 	if outputDir, ok := action.Config["output_dir"].(string); ok && outputDir != "" {
+		c.outputDir = outputDir
 		extraArgs = append(extraArgs, "--output", outputDir)
 	}
 

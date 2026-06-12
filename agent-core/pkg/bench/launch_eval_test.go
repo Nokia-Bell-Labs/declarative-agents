@@ -3,10 +3,13 @@
 package bench
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 )
 
@@ -25,4 +28,23 @@ func TestLaunchEvalFactoryRequiresChildAgentConfig(t *testing.T) {
 		},
 	}, nil)
 	require.ErrorContains(t, err, "requires tools_declarations")
+}
+
+func TestLaunchEvalUndoMementoCapturesChildEvalCompensation(t *testing.T) {
+	t.Parallel()
+	cmd := &launchEvalCmd{
+		config:    execute.Config{Machine: "machines/eval.yaml", Tools: "tools/eval.yaml"},
+		suitePath: "suites/basic.yaml",
+		outputDir: "out/eval",
+	}
+
+	memento, err := cmd.UndoMemento()
+	require.NoError(t, err)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+
+	var payload stl.BoundaryCompensationPayload
+	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
+	require.Equal(t, "child_eval_artifact_compensation", payload.BoundaryCompensation.Strategy)
+	require.Equal(t, []string{"out/eval"}, payload.BoundaryCompensation.ArtifactPaths)
+	require.Equal(t, "machines/eval.yaml", payload.BoundaryCompensation.ChildMachine)
 }

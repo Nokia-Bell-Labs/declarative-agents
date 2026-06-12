@@ -131,16 +131,13 @@ implemented_memento_undo:
       memento: reversible_workspace_restore_paths
     - command: commit
       strategy: compensating_action
-      memento: compensatable_workspace_restore_paths
-      follow_up: agent-core-gm-rollback.8
+      memento: compensatable_boundary_compensation
     - command: issue_create
       strategy: compensating_action
-      memento: compensatable_workspace_restore_paths
-      follow_up: agent-core-gm-rollback.8
+      memento: compensatable_boundary_compensation
     - command: issue_close
       strategy: compensating_action
-      memento: compensatable_workspace_restore_paths
-      follow_up: agent-core-gm-rollback.8
+      memento: compensatable_boundary_compensation
   evaluator_state:
     - command: parse_suite_config
       strategy: evaluator_session_restore
@@ -160,7 +157,6 @@ implemented_memento_undo:
     - command: run_point
       strategy: evaluator_session_restore
       memento: compensatable_eval_session_snapshot
-      follow_up: agent-core-gm-rollback.8
     - command: report_session
       strategy: evaluator_session_restore
       memento: reversible_eval_session_snapshot
@@ -183,16 +179,45 @@ implemented_memento_undo:
     - command: validate_specs
       strategy: validation_state_restore
       memento: reversible_validation_state_snapshot
+  boundary_compensation:
+    - command: validate
+      strategy: child_command_undo
+      memento: compensatable_boundary_compensation
+      captures: [ran_child_tools]
+    - command: suspend
+      strategy: resume_or_checkpoint_rollback
+      memento: compensatable_boundary_compensation
+      captures: [reason, checkpoint_required]
+    - command: create_issue
+      strategy: close_or_delete_created_issue
+      memento: compensatable_pipeline_snapshot_and_boundary_compensation
+      captures: [issue_id, pipeline_state_snapshot]
+    - command: execute_task
+      strategy: child_agent_workspace_restore
+      memento: compensatable_boundary_compensation
+      captures: [child_run_id, workspace_paths]
+    - command: self_invoke
+      strategy: child_agent_workspace_restore
+      memento: compensatable_boundary_compensation
+      captures: [child_run_id, child_machine, child_tools, trace_artifact]
+    - command: run_point
+      strategy: nested_machine_rollback
+      memento: compensatable_eval_session_snapshot_and_boundary_compensation
+      captures: [eval_session_snapshot, nested_machine_history, child_machine]
+    - command: run_agent
+      strategy: point_workspace_restore_and_child_process_compensation
+      memento: compensatable_boundary_compensation
+      captures: [point_context_snapshot, workspace_paths, artifact_paths]
+    - command: launch_eval
+      strategy: child_eval_artifact_compensation
+      memento: compensatable_boundary_compensation
+      captures: [suite_path, output_dir, child_machine, child_tools]
+    - command: serve_ui
+      strategy: server_shutdown_or_user_action_compensation
+      memento: compensatable_boundary_compensation
+      captures: [server_addr, user_action]
 
-declaration_mismatches:
-  - command: evaluator_and_point_tools
-    declaration: workspace_restore_or_compensation
-    implementation: remaining_workspace_or_boundary_compensation
-    follow_up: agent-core-gm-rollback.8
-  - command: boundary_tools
-    declaration: compensating_action_or_child_command_undo
-    implementation: NoopUndo
-    follow_up: agent-core-gm-rollback.8
+declaration_mismatches: []
 
 related_issues:
   - agent-core-gm-rollback.5

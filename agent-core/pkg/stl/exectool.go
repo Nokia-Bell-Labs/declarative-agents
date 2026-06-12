@@ -139,6 +139,8 @@ type ToolReversibility struct {
 type ToolUndoContract struct {
 	Strategy    string   `yaml:"strategy,omitempty"`
 	Description string   `yaml:"description,omitempty"`
+	Payload     string   `yaml:"payload,omitempty"`
+	Captures    []string `yaml:"captures,omitempty"`
 	Requires    []string `yaml:"requires,omitempty"`
 }
 
@@ -508,7 +510,11 @@ func (c *ExecCmd) UndoMemento() (core.UndoMemento, error) {
 	case "workspace_restore":
 		return core.NewUndoMemento(c.Name(), core.UndoMementoReversible, workspaceRestorePayload(c.def))
 	case "compensating_action":
-		memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, workspaceRestorePayload(c.def))
+		payload := any(workspaceRestorePayload(c.def))
+		if c.def.Undo.Payload == "boundary_compensation" {
+			payload = execBoundaryCompensationPayload(c.def, c.params)
+		}
+		memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, payload)
 		if err != nil {
 			return core.UndoMemento{}, err
 		}
@@ -517,6 +523,18 @@ func (c *ExecCmd) UndoMemento() (core.UndoMemento, error) {
 	default:
 		return core.UndoMemento{}, fmt.Errorf("%w: unsupported undo strategy %q for %s", core.ErrUndoMementoIncompatible, c.def.Undo.Strategy, c.Name())
 	}
+}
+
+func execBoundaryCompensationPayload(def ToolDef, params map[string]string) BoundaryCompensationPayload {
+	workspacePayload := workspaceRestorePayload(def)
+	compensation := BoundaryCompensation{
+		Strategy:       def.Undo.Strategy,
+		Reason:         def.Undo.Description,
+		Requires:       append([]string(nil), def.Undo.Requires...),
+		WorkspacePaths: append([]string(nil), workspacePayload.WorkspaceRestore.Paths...),
+		IssueID:        params["id"],
+	}
+	return BoundaryCompensationPayload{BoundaryCompensation: compensation}
 }
 
 func workspaceRestorePayload(def ToolDef) workspaceUndoPayload {

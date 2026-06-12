@@ -313,6 +313,8 @@ tools:
     undo:
       strategy: child_command_undo
       description: "Undo is delegated to the commands validate executed; validate has no independent state to reverse."
+      payload: boundary_compensation
+      captures: [ran_child_tools]
     errors:
       - signal: ValidationFailed
         condition: "A replayed validation tool returned ToolFailed."
@@ -394,6 +396,8 @@ tools:
     undo:
       strategy: compensating_action
       description: "Resume with an explicit approval/rejection signal or roll back to an earlier checkpoint."
+      payload: boundary_compensation
+      captures: [reason, checkpoint_required]
 
   # --- pipeline/planner tools ---
   - name: extract_task
@@ -491,6 +495,8 @@ tools:
     undo:
       strategy: compensating_action
       description: "Restore pipeline state; issue tracker side effects require explicit close/delete compensation."
+      payload: boundary_compensation
+      captures: [issue_id, pipeline_state_snapshot]
 
   - name: execute_task
     type: builtin
@@ -512,6 +518,8 @@ tools:
     undo:
       strategy: compensating_action
       description: "Rely on child agent history, command undo, and workspace restore for side effects."
+      payload: boundary_compensation
+      captures: [child_run_id, child_workspace_ref]
       requires: [Workspace]
 
   - name: check_result
@@ -668,6 +676,8 @@ tools:
     undo:
       strategy: child_command_undo
       description: "Use nested point machine history and workspace refs to roll back point effects."
+      payload: boundary_compensation
+      captures: [eval_session_snapshot, nested_machine_history]
 
   - name: report_session
     type: builtin
@@ -836,6 +846,8 @@ tools:
     undo:
       strategy: compensating_action
       description: "Restore point context and workspace refs; external child process effects may require compensation."
+      payload: boundary_compensation
+      captures: [point_context_snapshot, point_workspace, trace_path, result_path]
       requires: [Workspace]
 
   - name: run_oracle_check
@@ -977,6 +989,8 @@ tools:
     undo:
       strategy: compensating_action
       description: "Stop the server or issue a shutdown signal; completed user-triggered work requires its own rollback."
+      payload: boundary_compensation
+      captures: [server_addr, user_action]
 
   - name: launch_eval
     type: builtin
@@ -998,6 +1012,8 @@ tools:
     undo:
       strategy: compensating_action
       description: "Use evaluator output cleanup, child history, or workspace restore for generated artifacts."
+      payload: boundary_compensation
+      captures: [suite_path, output_dir, child_machine, child_tools]
       requires: [Workspace]
 
   # --- spec validation tools ---

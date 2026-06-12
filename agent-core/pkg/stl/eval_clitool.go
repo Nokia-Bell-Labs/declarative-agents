@@ -16,15 +16,38 @@ import (
 // runAgentCmd executes a harness binary as a subprocess with flag
 // propagation from the parent's span context and budget.
 type runAgentCmd struct {
-	pc  *PointContext
-	ctx context.Context
+	pc          *PointContext
+	ctx         context.Context
+	snapshot    pointContextSnapshot
+	hasSnapshot bool
 }
 
-func (c *runAgentCmd) Name() string      { return "run_agent" }
-func (c *runAgentCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *runAgentCmd) Name() string { return "run_agent" }
+func (c *runAgentCmd) Undo() core.Result {
+	undo := undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+	if undo.Signal != core.ToolDone {
+		return undo
+	}
+	return boundaryCompensationUndo(c.Name(), "restore point workspace artifacts and compensate the harness child process")
+}
+func (c *runAgentCmd) UndoMemento() (core.UndoMemento, error) {
+	if !c.hasSnapshot {
+		return core.UndoMemento{}, fmt.Errorf("%w: no point context snapshot recorded for %s", core.ErrUndoMementoMissing, c.Name())
+	}
+	return boundaryCompensationMemento(c.Name(), BoundaryCompensationPayload{BoundaryCompensation: BoundaryCompensation{
+		Strategy:       "point_workspace_restore_and_child_process_compensation",
+		Reason:         "runs the harness agent in the point workspace",
+		Requires:       []string{"Workspace", "point_context_snapshot"},
+		WorkspacePaths: []string{c.snapshot.point.PointDir},
+		ArtifactPaths:  []string{c.snapshot.point.TracePath, c.snapshot.point.ResultPath},
+		ChildRunID:     c.snapshot.point.PointID,
+	}}, "restore point workspace artifacts and compensate the harness child process")
+}
 
 func (c *runAgentCmd) Execute() core.Result {
 	pc := c.pc
+	c.snapshot = snapshotPointContext(pc)
+	c.hasSnapshot = true
 
 	absTrace, _ := filepath.Abs(pc.TracePath)
 	args := []string{

@@ -41,10 +41,27 @@ type selfInvokeCmd struct {
 	ctx       context.Context
 	tracer    tracing.Tracer
 	runID     string
+	tracePath string
 }
 
-func (c *selfInvokeCmd) Name() string      { return "self_invoke" }
-func (c *selfInvokeCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *selfInvokeCmd) Name() string { return "self_invoke" }
+func (c *selfInvokeCmd) Undo() core.Result {
+	return boundaryCompensationUndo(c.Name(), "restore child workspace/artifacts or compensate the child agent run")
+}
+func (c *selfInvokeCmd) UndoMemento() (core.UndoMemento, error) {
+	payload := BoundaryCompensationPayload{BoundaryCompensation: BoundaryCompensation{
+		Strategy:     "child_agent_workspace_restore",
+		Reason:       "self-invocation runs a child agent process",
+		Requires:     []string{"child_workspace_ref", "child_trace"},
+		ChildMachine: c.config.Machine,
+		ChildTools:   c.config.Tools,
+		ChildRunID:   c.runID,
+	}}
+	if c.tracePath != "" {
+		payload.BoundaryCompensation.ArtifactPaths = []string{c.tracePath}
+	}
+	return boundaryCompensationMemento(c.Name(), payload, "restore child workspace/artifacts or compensate the child agent run")
+}
 
 func (c *selfInvokeCmd) Execute() core.Result {
 	cfg := c.config
@@ -55,6 +72,7 @@ func (c *selfInvokeCmd) Execute() core.Result {
 	extra := append([]string{}, c.extraArgs...)
 	if cfg.OTelDir != "" {
 		tracePath := fmt.Sprintf("%s/child-%s.otel.json", cfg.OTelDir, c.runID)
+		c.tracePath = tracePath
 		extra = append(extra, "--otel-log-file", tracePath)
 	}
 

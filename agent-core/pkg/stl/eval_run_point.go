@@ -34,11 +34,45 @@ func (c *runPointCmd) Undo() core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
 }
 func (c *runPointCmd) UndoMemento() (core.UndoMemento, error) {
-	memento, err := evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
+	if !c.hasSnapshot {
+		return core.UndoMemento{}, fmt.Errorf("%w: no evaluator session snapshot recorded for %s", core.ErrUndoMementoMissing, c.Name())
+	}
+	memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, struct {
+		DomainState struct {
+			SuiteName   string `json:"suite_name,omitempty"`
+			SessionDir  string `json:"session_dir,omitempty"`
+			TotalPoints int    `json:"total_points"`
+			GridPoints  int    `json:"grid_points"`
+			Started     bool   `json:"started"`
+			Exhausted   bool   `json:"exhausted"`
+		} `json:"domain_state"`
+		BoundaryCompensation BoundaryCompensation `json:"boundary_compensation"`
+	}{
+		DomainState: struct {
+			SuiteName   string `json:"suite_name,omitempty"`
+			SessionDir  string `json:"session_dir,omitempty"`
+			TotalPoints int    `json:"total_points"`
+			GridPoints  int    `json:"grid_points"`
+			Started     bool   `json:"started"`
+			Exhausted   bool   `json:"exhausted"`
+		}{
+			SuiteName:   c.snapshot.suite.Name,
+			SessionDir:  c.snapshot.sessionDir,
+			TotalPoints: c.snapshot.result.TotalPoints,
+			GridPoints:  len(c.snapshot.gridPoints),
+			Started:     c.snapshot.started,
+			Exhausted:   c.snapshot.exhausted,
+		},
+		BoundaryCompensation: BoundaryCompensation{
+			Strategy:     "nested_machine_rollback",
+			Reason:       "run_point executes a nested evaluator point machine",
+			Requires:     []string{"nested_machine_history", "Workspace"},
+			ChildMachine: c.es.PointMachine,
+		},
+	})
 	if err != nil {
 		return core.UndoMemento{}, err
 	}
-	memento.Kind = core.UndoMementoCompensatable
 	memento.Description = "restores evaluator session state; nested point machine effects may require child rollback or workspace compensation"
 	return memento, nil
 }
