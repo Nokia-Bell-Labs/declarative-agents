@@ -12,7 +12,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/prompt"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/prompt"
 )
 
 //go:embed profiles/*.yaml

@@ -10,8 +10,8 @@ releases:
       pkg/core (types, state machine, dispatch, registry, loop, machine
       config), pkg/tracing (5-method Tracer port interface with
       NoopTracer), pkg/telemetry (OTel setup, GenAI semconv helpers,
-      traceparent), pkg/llm (Client, Conversation, Ollama adapter,
-      parseutil, profile, interfaces), pkg/prompt (Prompt, loading,
+      traceparent), internal/model/llm (Client, Conversation, Ollama adapter,
+      parseutil, profile, interfaces), internal/model/prompt (Prompt, loading,
       template, SerializeManifest), pkg/stl (file tools, build tools,
       LLM commands, subprocess), pkg/spec (graph loader, validator),
       and pkg/cli (standard flag constants, PropagateArgs).
@@ -54,7 +54,7 @@ releases:
       - YAML tool declarations replacing Go tool implementations
         (tools/builtin.yaml with 32 tools, exec.yaml with 16)
       - Per-model LLM tool configurations (agents/*/llm/*.yaml)
-      - LLM response profiles for 9 model families (pkg/llm/profiles/)
+      - LLM response profiles for 9 model families (internal/model/llm/profiles/)
       - Planner pipeline packages (internal/planning/pipeline, internal/planning/plan, internal/planning/extract,
         internal/planning/graph, internal/planning/materialize)
       - Agent execution with process groups (pkg/execute)

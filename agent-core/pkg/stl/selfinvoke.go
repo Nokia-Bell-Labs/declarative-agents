@@ -9,10 +9,10 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
 )
 
 // SelfInvokeBuilder constructs self-invocation commands as a builtin factory.

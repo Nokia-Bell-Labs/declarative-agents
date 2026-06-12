@@ -5,7 +5,7 @@ package stl
 import (
 	"testing"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
 )
 
 func TestConversationStore_GetCreatesNew(t *testing.T) {

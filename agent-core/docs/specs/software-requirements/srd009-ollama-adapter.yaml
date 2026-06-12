@@ -14,7 +14,7 @@ problem: |
   model discovery) out of the box.
 
 goals:
-  - G1: Provide a production-ready Ollama adapter in pkg/llm/ollama satisfying llm.Client.
+  - G1: Provide a production-ready Ollama adapter in internal/model/llm/ollama satisfying llm.Client.
   - G2: Validate model availability at construction time (fail-fast).
   - G3: Support optional tracing via the pkg/tracing.Tracer interface.
   - G4: Replace generator's internal/llm/adapter.go and planner's cmd/planner/ollama.go.
@@ -95,7 +95,7 @@ acceptance_criteria:
     traces: [R1.3, R1.5]
 
   - id: AC6
-    criterion: Generator imports pkg/llm/ollama and deletes internal/llm/adapter.go. Planner imports pkg/llm/ollama and deletes cmd/planner/ollama.go.
+    criterion: Generator imports internal/model/llm/ollama and deletes internal/llm/adapter.go. Planner imports internal/model/llm/ollama and deletes cmd/planner/ollama.go.
     traces: [R3.3]
 
 depends_on:

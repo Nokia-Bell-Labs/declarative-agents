@@ -21,9 +21,9 @@ overview:
     - pkg/tracing — Tracer port interface (5 methods) and NoopTracer
     - pkg/telemetry — concrete OTel implementation, traceparent, replay
     - pkg/telemetry/genai — GenAI semantic convention helpers
-    - pkg/llm — LLM client, conversation, profiles, parsing utilities
-    - pkg/llm/ollama — Ollama adapter satisfying llm.Client
-    - pkg/prompt — prompt schema, YAML loading, system template
+    - internal/model/llm — LLM client, conversation, profiles, parsing utilities
+    - internal/model/llm/ollama — Ollama adapter satisfying llm.Client
+    - internal/model/prompt — prompt schema, YAML loading, system template
     - pkg/stl — standard tool library (file, build, LLM, eval tools)
     - pkg/cli — CLI flag constants and argument propagation (library; not imported by cmd/agent)
     - pkg/subprocess — subprocess execution utilities
@@ -74,8 +74,8 @@ overview:
       end
 
       subgraph Infra["Reusable Infrastructure"]
-        LLM[pkg/llm and pkg/llm/ollama]
-        PROMPT[pkg/prompt]
+        LLM[internal/model/llm and internal/model/llm/ollama]
+        PROMPT[internal/model/prompt]
         STL[pkg/stl]
         TELE[pkg/telemetry]
         TRACE[pkg/tracing]
@@ -523,12 +523,12 @@ overview:
     - pkg/telemetry depends on pkg/tracing, the OTel SDK, gRPC, and
       protobuf. It imports pkg/tracing but not pkg/core.
     - pkg/telemetry/genai depends only on go.opentelemetry.io/otel/attribute.
-    - pkg/llm depends on pkg/core, pkg/prompt, and pkg/tracing.
-    - pkg/stl depends on pkg/core, pkg/llm, pkg/tracing,
+    - internal/model/llm depends on pkg/core, internal/model/prompt, and pkg/tracing.
+    - pkg/stl depends on pkg/core, internal/model/llm, pkg/tracing,
       pkg/telemetry/genai, pkg/execute, and pkg/subprocess.
     - internal/planning/pipeline depends on pkg/core, internal/planning/plan, internal/planning/extract,
       internal/planning/materialize, and pkg/stl.
-    - pkg/execute depends on pkg/subprocess, pkg/llm, and pkg/tracing.
+    - pkg/execute depends on pkg/subprocess, internal/model/llm, and pkg/tracing.
     - internal/planning/plan depends on gopkg.in/yaml.v3.
     - internal/planning/extract depends on internal/planning/graph and internal/planning/plan.
     - internal/planning/graph depends on gopkg.in/yaml.v3.
@@ -538,7 +538,7 @@ overview:
       and a graph library.
     - pkg/subprocess depends on the Go standard library.
     - pkg/cli depends on the Go standard library.
-    - cmd/agent imports pkg/core, pkg/stl, pkg/llm, pkg/prompt,
+    - cmd/agent imports pkg/core, pkg/stl, internal/model/llm, internal/model/prompt,
       pkg/telemetry, internal/planning/pipeline, pkg/bench, pkg/execute, and
       pkg/tracing.
     - pkg/bench imports pkg/stl for evaluation result analysis and
@@ -833,11 +833,11 @@ project_structure:
       role: Concrete OTel implementation (providers, exporters, adapter, traceparent, replay)
     - path: pkg/telemetry/genai/
       role: OTel GenAI semantic convention constants, span name builders, attribute helpers
-    - path: pkg/llm/
+    - path: internal/model/llm/
       role: LLM client, conversation, profiles, parse utilities, domain interfaces
-    - path: pkg/llm/ollama/
+    - path: internal/model/llm/ollama/
       role: Ollama LLM adapter satisfying llm.Client
-    - path: pkg/prompt/
+    - path: internal/model/prompt/
       role: Prompt struct, YAML loading, system prompt template, and manifest serialization
     - path: pkg/stl/
       role: Standard tool library (file, build, LLM, eval tools, config loading, subprocess)
@@ -877,7 +877,7 @@ project_structure:
       role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
     - path: tools/
       role: Shared tool declarations — builtin.yaml and exec.yaml
-    - path: pkg/llm/profiles/
+    - path: internal/model/llm/profiles/
       role: Embedded LLM response profiles (9 model families)
 
   build:
@@ -893,9 +893,9 @@ implementation_status:
     - done: Tracing port (pkg/tracing) — 5-method Tracer interface with NoopTracer
     - done: Telemetry (pkg/telemetry) — OTel providers, exporters, adapter, traceparent, replay
     - done: GenAI semconv (pkg/telemetry/genai) — constants, span builders, attribute helpers
-    - done: LLM integration (pkg/llm) — Client, Conversation, profiles, parseutil, interfaces
-    - done: Ollama adapter (pkg/llm/ollama) — Chat, ListModels, model validation, tracing
-    - done: Prompt assembly (pkg/prompt) — Prompt struct, YAML loading, system template
+    - done: LLM integration (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
+    - done: Ollama adapter (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
+    - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
     - done: Standard tool library (pkg/stl) — file, build, LLM, eval tools, config loading
     - done: CLI flags (pkg/cli) — standard flag constants, PropagateArgs, RemainingBudget
     - done: Subprocess (pkg/subprocess) — process execution utilities

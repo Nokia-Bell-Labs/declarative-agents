@@ -26,6 +26,9 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm/ollama"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/prompt"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/pipeline"
@@ -33,9 +36,6 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench"
 	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench/ui"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm/ollama"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/prompt"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 )
 

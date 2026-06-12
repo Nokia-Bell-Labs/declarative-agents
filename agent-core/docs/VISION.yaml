@@ -16,7 +16,7 @@ executive_summary: |
 
   The core engine (pkg/core) remains domain-agnostic: it drives the loop
   without knowing what tools exist, what LLM is in use, or what workflow the
-  machine expresses. Higher-level packages (pkg/llm, pkg/stl, pkg/prompt,
+  machine expresses. Higher-level packages (internal/model/llm, pkg/stl, internal/model/prompt,
   pkg/telemetry, pkg/spec) provide reusable infrastructure that configured
   agents compose into complete systems.
 
@@ -135,11 +135,11 @@ what_this_does: |
     CommandResolver, SpanOverride, rollback foundation interfaces, and
     Command.Undo.
 
-  LLM Integration (pkg/llm). Client interface with concrete Ollama
+  LLM Integration (internal/model/llm). Client interface with concrete Ollama
   adapter, Conversation management, message types, model profiles,
   response parsing utilities, and ChatOptions.
 
-  Prompt Assembly (pkg/prompt). Prompt struct with YAML loading,
+  Prompt Assembly (internal/model/prompt). Prompt struct with YAML loading,
   system prompt Go template, and tool manifest serialization for
   LLM context injection.
 
@@ -226,7 +226,7 @@ success_criteria:
     suspend, resume, and rollback behavior can be enabled without changing
     disabled-mode execution.
   reusable_infrastructure: |
-    LLM integration (pkg/llm), prompt assembly (pkg/prompt), standard
+    LLM integration (internal/model/llm), prompt assembly (internal/model/prompt), standard
     tools (pkg/stl), and tracing (pkg/tracing) are shared across agents.
     Domain agents compose these packages without reimplementing them.
   budget_enforcement: |

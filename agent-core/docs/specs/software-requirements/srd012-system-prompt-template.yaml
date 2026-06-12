@@ -9,12 +9,12 @@ problem: |
   prompt. Both live in generator's internal/llm package.
 
   Without sharing these, every new agent reimplements template rendering
-  and manifest serialization. Moving them to agent-core pkg/prompt
+  and manifest serialization. Moving them to agent-core internal/model/prompt
   alongside the Prompt struct and loading functions (srd011) provides a
   complete prompt assembly pipeline usable by any agent.
 
 goals:
-  - G1: Embedded Go text/template for the system prompt in pkg/prompt.
+  - G1: Embedded Go text/template for the system prompt in internal/model/prompt.
   - G2: PromptData struct carrying all template parameters.
   - G3: SerializeManifest converting []core.ToolSpec to prompt text.
   - G4: Customizable template for agents with different layouts.

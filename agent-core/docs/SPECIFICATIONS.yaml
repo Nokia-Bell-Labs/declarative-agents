@@ -95,7 +95,7 @@ srd_index:
     path: docs/specs/software-requirements/srd008-telemetry.yaml
   - id: srd009-ollama-adapter
     title: Ollama LLM Adapter
-    summary: Production-ready Ollama adapter in pkg/llm/ollama satisfying llm.Client. Model validation, tracing, model discovery.
+    summary: Production-ready Ollama adapter in internal/model/llm/ollama satisfying llm.Client. Model validation, tracing, model discovery.
     path: docs/specs/software-requirements/srd009-ollama-adapter.yaml
   - id: srd010-conversation
     title: Conversation Management
@@ -127,7 +127,7 @@ srd_index:
     path: docs/specs/software-requirements/srd016-traceparent.yaml
   - id: srd017-llm-extensions
     title: LLM Package Extensions
-    summary: Parse utilities (parseutil), YAML model profiles, and domain interfaces (ResponseParser, PromptAssembler) in pkg/llm.
+    summary: Parse utilities (parseutil), YAML model profiles, and domain interfaces (ResponseParser, PromptAssembler) in internal/model/llm.
     path: docs/specs/software-requirements/srd017-llm-extensions.yaml
   - id: srd018-cli-flag-contract
     title: CLI Standard Flag Contract

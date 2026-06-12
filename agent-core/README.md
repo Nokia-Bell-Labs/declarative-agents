@@ -15,9 +15,9 @@ transition tables.
 | Package | Description |
 |---------|-------------|
 | `pkg/core` | State machine, command dispatch, tool registry, agentic loop, YAML machine config |
-| `pkg/llm` | LLM client interface, conversation management, message types, model profiles |
-| `pkg/llm/ollama` | Ollama adapter satisfying `llm.Client` |
-| `pkg/prompt` | Prompt loading from YAML, system template rendering, manifest serialization |
+| `internal/model/llm` | LLM client interface, conversation management, message types, model profiles |
+| `internal/model/llm/ollama` | Ollama adapter satisfying `llm.Client` |
+| `internal/model/prompt` | Prompt loading from YAML, system template rendering, manifest serialization |
 | `pkg/stl` | Standard tool library: file tools, build tools, LLM commands, subprocess, process groups |
 | `pkg/spec` | Specification graph loader and cross-artifact validator |
 

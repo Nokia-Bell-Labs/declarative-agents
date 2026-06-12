@@ -18,7 +18,7 @@ goals:
   - G2: YAML schema supporting both structured and simple prompt files.
   - G3: LoadPrompt function with mode detection, defaults, and validation.
   - G4: Assembly contract producing the system-role message text.
-  - G5: Replace generator's internal/prompt package with agent-core pkg/prompt.
+  - G5: Replace generator's internal/prompt package with agent-core internal/model/prompt.
 
 requirements:
   R1:

@@ -3,7 +3,7 @@
 package stl
 
 import (
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/llm"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
 )
 
 // ConversationStore manages named conversation histories so that

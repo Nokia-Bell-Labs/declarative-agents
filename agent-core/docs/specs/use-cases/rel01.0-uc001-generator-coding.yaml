@@ -35,7 +35,7 @@ flow:
   - F2: Tool selection filters the declarations to the subset listed in agents/generator/tools.yaml (cfg-tool-selection-format).
   - F3: The invoke_llm tool definition provides model, provider URL, and system prompt. cmd/agent extracts this to configure the Ollama adapter (srd009, srd017).
   - F4: LLM response profiles are loaded from embedded defaults (or --profiles-dir override) to configure per-model parsing pipelines (srd017).
-  - F5: The LLM profile registry matches the "qwen" prefix and selects the qwen profile with [tool_call] envelope and strip_thinking_blocks pipeline (srd017, pkg/llm/profiles/qwen.yaml).
+  - F5: The LLM profile registry matches the "qwen" prefix and selects the qwen profile with [tool_call] envelope and strip_thinking_blocks pipeline (srd017, internal/model/llm/profiles/qwen.yaml).
   - F6: Builtin and exec tool factories are registered (file tools, LLM tools, build/lint/test, done, etc.) and matched to their YAML declarations (srd013).
   - F7: The state machine is loaded from agents/generator/machine.yaml and validated against the registered tools (srd006).
   - F8: core.Loop drives the state machine. Idle → Composing via invoke_llm sends the task prompt to the LLM (srd005, srd009).
@@ -54,7 +54,7 @@ touchpoints:
   - T6: "cfg-tool-declaration-format -- builtin.yaml, exec.yaml, llm/*.yaml declarations"
   - T7: "cfg-tool-selection-format -- tools.yaml name-list filtering"
   - T8: "agents/generator/machine.yaml -- state machine states, signals, lifecycle"
-  - T9: "pkg/llm/profiles/qwen.yaml -- model-specific parsing pipeline"
+  - T9: "internal/model/llm/profiles/qwen.yaml -- model-specific parsing pipeline"
 
 success_criteria:
   - id: S1
