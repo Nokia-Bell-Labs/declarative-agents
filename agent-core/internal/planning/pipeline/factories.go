@@ -65,6 +65,7 @@ func RegisterFactories(br *stl.BuiltinRegistry, deps FactoryDeps) {
 		}
 		ps := initPS(def)
 		ps.ExecConfig = execute.Config{
+			Profile:          childCfg.Profile,
 			Machine:          childCfg.Machine,
 			Tools:            childCfg.Tools,
 			ToolDeclarations: childCfg.ToolDeclarations,

@@ -32,11 +32,12 @@ const (
 // Config holds execution engine settings.
 type Config struct {
 	Binary           string        // Agent binary path. Default: "agent" (resolved from PATH).
-	Machine          string        // --machine flag for child agent.
-	Tools            string        // --tools flag for child agent.
-	ToolDeclarations []string      // --tools-declaration flags for child agent.
-	Model            string        // LLM model name passed via --model.
-	OllamaURL        string        // Ollama server URL passed via --ollama-url.
+	Profile          string        // --profile flag for child agent. Preferred over legacy machine/tools flags.
+	Machine          string        // Compatibility-only --machine flag when Profile is empty.
+	Tools            string        // Compatibility-only --tools flag when Profile is empty.
+	ToolDeclarations []string      // Compatibility-only --tools-declaration flags when Profile is empty.
+	Model            string        // Compatibility-only LLM model override passed via --model.
+	OllamaURL        string        // Compatibility-only Ollama server URL passed via --ollama-url.
 	Timeout          time.Duration // Per-invocation timeout. Default: 10 minutes.
 	OTelDir          string        // Directory for temporary OTel log files.
 }
@@ -59,14 +60,18 @@ func (c *Config) timeout() time.Duration {
 // Callers append runtime-specific args (e.g. --directory, --input) after.
 func (c *Config) BuildArgs() []string {
 	var args []string
-	if c.Machine != "" {
-		args = append(args, "--machine", c.Machine)
-	}
-	if c.Tools != "" {
-		args = append(args, "--tools", c.Tools)
-	}
-	for _, decl := range c.ToolDeclarations {
-		args = append(args, "--tools-declaration", decl)
+	if c.Profile != "" {
+		args = append(args, "--profile", c.Profile)
+	} else {
+		if c.Machine != "" {
+			args = append(args, "--machine", c.Machine)
+		}
+		if c.Tools != "" {
+			args = append(args, "--tools", c.Tools)
+		}
+		for _, decl := range c.ToolDeclarations {
+			args = append(args, "--tools-declaration", decl)
+		}
 	}
 	if c.Model != "" {
 		args = append(args, "--model", c.Model)

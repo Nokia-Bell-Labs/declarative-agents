@@ -204,6 +204,24 @@ func TestBuildArgs_AllFields(t *testing.T) {
 	}, args)
 }
 
+func TestBuildArgs_ProfileSuppressesLegacyProgramFlags(t *testing.T) {
+	cfg := Config{
+		Profile:          "agents/generator/profile.yaml",
+		Machine:          "machine.yaml",
+		Tools:            "tools.yaml",
+		ToolDeclarations: []string{"builtin.yaml"},
+		Model:            "legacy-model",
+		OllamaURL:        "http://localhost:11434",
+	}
+
+	args := cfg.BuildArgs()
+	assert.Equal(t, []string{
+		"--profile", "agents/generator/profile.yaml",
+		"--model", "legacy-model",
+		"--ollama-url", "http://localhost:11434",
+	}, args)
+}
+
 func TestBuildArgs_Empty(t *testing.T) {
 	cfg := Config{}
 	args := cfg.BuildArgs()
@@ -230,12 +248,13 @@ func TestRunAgent_Success(t *testing.T) {
 func TestRunAgent_ExtraArgs(t *testing.T) {
 	result := RunAgent(context.Background(), Config{
 		Binary:  "echo",
-		Machine: "m.yaml",
+		Profile: "agents/generator/profile.yaml",
 		Timeout: 5 * time.Second,
 	}, "--directory", "/workspace")
 
 	assert.Equal(t, 0, result.ExitCode)
-	assert.Contains(t, result.Stdout, "--machine")
+	assert.Contains(t, result.Stdout, "--profile")
+	assert.Contains(t, result.Stdout, "agents/generator/profile.yaml")
 	assert.Contains(t, result.Stdout, "--directory")
 	assert.Contains(t, result.Stdout, "/workspace")
 }

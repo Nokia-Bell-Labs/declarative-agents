@@ -980,7 +980,11 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected 
 			if err := stl.DecodeToolConfig(def, &parsed); err != nil {
 				return nil, err
 			}
+			if err := stl.ValidateChildAgentConfig(def.Name, parsed); err != nil {
+				return nil, err
+			}
 			cfg := execute.Config{
+				Profile:          parsed.Profile,
 				Machine:          parsed.Machine,
 				Tools:            parsed.Tools,
 				ToolDeclarations: parsed.ToolDeclarations,

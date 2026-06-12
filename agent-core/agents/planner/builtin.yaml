@@ -19,11 +19,11 @@ tools:
       can mutate the workspace.
     goals:
       - "Run the configured generator machine for exactly the current planner task."
-      - "Propagate machine, tool selection, tool declaration, and trace configuration into the child agent invocation."
+      - "Propagate profile and trace configuration into the child agent invocation."
       - "Return enough execution status for the planner to decide retry, advance, or fail."
     requirements:
       input:
-        - "must require machine, tools, and tools_declarations in config"
+        - "must require profile in config, or legacy machine/tools/tools_declarations for compatibility-only declarations"
         - "must consume the current planner task and workspace directory from pipeline state"
       output:
         - "must emit ExecutionDone when the child agent exits successfully"
@@ -96,8 +96,4 @@ tools:
         - tool: run_point
           difference: "run_point invokes an in-process nested machine; execute_task spawns a child agent process."
     config:
-      machine: agents/generator/machine.yaml
-      tools: agents/generator/tools.yaml
-      tools_declarations:
-        - tools/builtin.yaml
-        - tools/exec.yaml
+      profile: agents/generator/profile.yaml

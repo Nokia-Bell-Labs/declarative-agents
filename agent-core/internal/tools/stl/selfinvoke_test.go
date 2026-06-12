@@ -20,8 +20,7 @@ func TestSelfInvokeBuilder_Build(t *testing.T) {
 	builder := &SelfInvokeBuilder{
 		Config: execute.Config{
 			Binary:  "echo",
-			Machine: "test.yaml",
-			Tools:   "tools.yaml",
+			Profile: "agents/generator/profile.yaml",
 		},
 		Ctx: context.Background(),
 	}
@@ -96,7 +95,7 @@ func TestSelfInvokeBuilder_ExtraArgs(t *testing.T) {
 	builder := &SelfInvokeBuilder{
 		Config: execute.Config{
 			Binary:  "echo",
-			Machine: "m.yaml",
+			Profile: "agents/generator/profile.yaml",
 			Timeout: 5 * time.Second,
 		},
 		ExtraArgs: []string{"--directory", "/workspace"},
@@ -117,6 +116,7 @@ func TestSelfInvokeUndoMementoCapturesChildRunMetadata(t *testing.T) {
 	t.Parallel()
 	cmd := (&SelfInvokeBuilder{
 		Config: execute.Config{
+			Profile: "agents/generator/profile.yaml",
 			Machine: "machine.yaml",
 			Tools:   "tools.yaml",
 			OTelDir: t.TempDir(),
@@ -134,6 +134,7 @@ func TestSelfInvokeUndoMementoCapturesChildRunMetadata(t *testing.T) {
 	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
 	require.Equal(t, "child_agent_workspace_restore", payload.BoundaryCompensation.Strategy)
 	require.Equal(t, "child-1", payload.BoundaryCompensation.ChildRunID)
+	require.Equal(t, "agents/generator/profile.yaml", payload.BoundaryCompensation.ChildProfile)
 	require.Equal(t, "machine.yaml", payload.BoundaryCompensation.ChildMachine)
 }
 

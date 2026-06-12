@@ -7,8 +7,11 @@ import "fmt"
 // ValidateChildAgentConfig checks the declarative fields required to invoke a
 // child agent through the agent CLI.
 func ValidateChildAgentConfig(toolName string, cfg ChildAgentConfig) error {
+	if cfg.Profile != "" {
+		return nil
+	}
 	if cfg.Machine == "" {
-		return fmt.Errorf("tool %q config requires machine", toolName)
+		return fmt.Errorf("tool %q config requires profile or legacy machine", toolName)
 	}
 	if cfg.Tools == "" {
 		return fmt.Errorf("tool %q config requires tools", toolName)

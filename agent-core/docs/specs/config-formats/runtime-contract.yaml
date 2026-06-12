@@ -178,14 +178,15 @@ tool_parametrization: |
   at registration time (step 4). Factories read config values with
   typed config structs, making tools reusable across modes. Program-
   shaping child and nested invocation config is required and validated
-  at registration time; missing machine/tool-selection/declaration
-  fields fail startup instead of falling back to hardcoded paths.
+  at registration time; child-agent boundaries prefer profile config,
+  while machine/tool-selection/declaration fields are compatibility-only
+  fallback config for older declarations.
 
   Examples:
-    - launch_eval reads "machine", "tools", and "tools_declarations"
-      from its config to know which child agent to spawn.
-    - execute_task reads the same keys to pass --machine/--tools to
-      child agent processes.
+    - launch_eval reads "profile" from its config and invokes the child
+      evaluator with --profile.
+    - execute_task reads "profile" from its config and invokes the child
+      generator with --profile.
     - parse_suite_config and evaluator session setup tools read "output_dir",
       "reps", and "timeout" from config.
     - run_point reads "point_machine" and "point_tools" to locate the
@@ -217,11 +218,15 @@ nested_machines: |
     → core.Loop(LoopParams{MachineFile: ..., Registry: pointRegistry})
 
   Child process:
-    launch_eval reads config.machine, config.tools, config.tools_declarations
-    → subprocess.Run("agent", "--machine", ..., "--tools", ...)
+    launch_eval reads config.profile
+    → subprocess.Run("agent", "--profile", ...)
 
-    execute_task reads config.machine, config.tools, config.tools_declarations
-    → subprocess.Run with the same flags
+    execute_task reads config.profile
+    → subprocess.Run with the same flag
+
+    Compatibility-only declarations may omit profile and instead provide
+    config.machine, config.tools, and config.tools_declarations. In that case
+    execute.Config falls back to --machine/--tools/--tools-declaration.
 
   This design allows swapping nested machines by changing YAML config
   without recompiling the binary.

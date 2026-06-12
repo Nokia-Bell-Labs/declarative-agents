@@ -467,7 +467,7 @@ func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
 	require.True(t, ok)
 
 	_, err := factory(stl.ToolDef{Name: "execute_task", Init: "execute_task"}, nil)
-	require.ErrorContains(t, err, "requires machine")
+	require.ErrorContains(t, err, "requires profile or legacy machine")
 
 	_, err = factory(stl.ToolDef{
 		Name: "execute_task",
@@ -478,6 +478,28 @@ func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
 		},
 	}, nil)
 	require.ErrorContains(t, err, "requires tools_declarations")
+}
+
+func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
+	t.Parallel()
+	br := stl.NewBuiltinRegistry()
+	RegisterFactories(br, FactoryDeps{Ctx: context.Background()})
+
+	factory, ok := br.Resolve("execute_task")
+	require.True(t, ok)
+
+	builder, err := factory(stl.ToolDef{
+		Name: "execute_task",
+		Init: "execute_task",
+		Config: map[string]interface{}{
+			"profile": "agents/generator/profile.yaml",
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	execBuilder, ok := builder.(*ExecuteTaskBuilder)
+	require.True(t, ok)
+	require.Equal(t, "agents/generator/profile.yaml", execBuilder.PS.ExecConfig.Profile)
 }
 
 var _ llm.PromptAssembler = (*PlannerAssembler)(nil)
