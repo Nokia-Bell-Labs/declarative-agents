@@ -1,17 +1,7 @@
 name: qwen36-integration
-harnesses:
-  - name: agent
-    binary: agent
-    flags:
-      machine: agents/generator/machine.yaml
-      tools: agents/generator/tools.yaml
-      tools-declaration:
-        - tools/builtin.yaml
-        - tools/exec.yaml
-        - agents/generator/llm/default.yaml
-models:
-  - qwen3.6:35b-mlx
-  - qwen3.6:27b-mlx
+profiles:
+  - ../../../agents/generator/profile-qwen35b.yaml
+  - ../../../agents/generator/profile-qwen27b.yaml
 samples_dir: samples
 timeout: 10m
 repetitions: 1

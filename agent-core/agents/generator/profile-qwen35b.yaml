@@ -1,0 +1,9 @@
+name: generator-qwen35b
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_config_dirs:
+  - ../../tools/builtin
+  - ../../tools/exec
+tool_declarations:
+  - llm/default.yaml
