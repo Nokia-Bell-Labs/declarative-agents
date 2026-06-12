@@ -204,13 +204,34 @@ type ToolDeclaration struct {
 	Name          string                `yaml:"name"`
 	Type          string                `yaml:"type,omitempty"`
 	Category      string                `yaml:"category,omitempty"`
+	Contract      string                `yaml:"contract,omitempty"`
 	Init          string                `yaml:"init,omitempty"`
+	Problem       string                `yaml:"problem,omitempty"`
+	Goals         []string              `yaml:"goals,omitempty"`
+	Requirements  ToolDeclRequirements  `yaml:"requirements,omitempty"`
+	NonGoals      []string              `yaml:"non_goals,omitempty"`
 	Emits         []string              `yaml:"emits,omitempty"`
+	Output        ToolDeclOutput        `yaml:"output,omitempty"`
 	Visibility    string                `yaml:"visibility,omitempty"`
 	Reversibility ToolDeclReversibility `yaml:"reversibility,omitempty"`
 	Undo          ToolDeclUndo          `yaml:"undo,omitempty"`
 	SideEffects   ToolDeclSideEffects   `yaml:"side_effects,omitempty"`
+	Errors        []ToolDeclError       `yaml:"errors,omitempty"`
+	Relationships ToolDeclRelationships `yaml:"relationships,omitempty"`
 	SourceFile    string                `yaml:"-"`
+}
+
+// ToolDeclRequirements captures observable behavior requirements used by the
+// audit without importing the runtime STL package.
+type ToolDeclRequirements struct {
+	Input  []string `yaml:"input,omitempty"`
+	Output []string `yaml:"output,omitempty"`
+	Errors []string `yaml:"errors,omitempty"`
+}
+
+// ToolDeclOutput captures the declared machine-readable result shape.
+type ToolDeclOutput struct {
+	Schema map[string]any `yaml:"schema,omitempty"`
 }
 
 // ToolDeclReversibility captures the reversibility classification.
@@ -233,6 +254,23 @@ type ToolDeclSideEffects struct {
 // ToolDeclSideEffect captures one structured side-effect entry.
 type ToolDeclSideEffect struct {
 	Kind string `yaml:"kind"`
+}
+
+// ToolDeclError captures a declared failure mode.
+type ToolDeclError struct {
+	Signal string `yaml:"signal,omitempty"`
+}
+
+// ToolDeclRelationships captures sequencing and overlap documentation.
+type ToolDeclRelationships struct {
+	Before   []string                  `yaml:"before,omitempty"`
+	After    []string                  `yaml:"after,omitempty"`
+	Overlaps []ToolDeclRelationshipRef `yaml:"overlaps,omitempty"`
+}
+
+// ToolDeclRelationshipRef captures one related tool reference.
+type ToolDeclRelationshipRef struct {
+	Tool string `yaml:"tool,omitempty"`
 }
 
 func (s *ToolDeclSideEffects) UnmarshalYAML(value *yaml.Node) error {

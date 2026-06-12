@@ -310,6 +310,107 @@ func TestValidate_ToolSelectionDeclared(t *testing.T) {
 	assert.Contains(t, findings[0].Message, "missing")
 }
 
+func TestValidate_SelectedToolContractCompletenessErrorsForActiveMigratedTool(t *testing.T) {
+	corpus := &Corpus{
+		ToolSelections: map[string][]string{
+			"agent": {"sparse"},
+		},
+		ToolDeclarations: map[string]ToolDeclaration{
+			"sparse": {
+				Name:     "sparse",
+				Contract: "migrated",
+				Emits:    []string{"ToolDone"},
+			},
+		},
+	}
+
+	findings := checkSelectedToolContractCompleteness(corpus)
+
+	require.Len(t, findings, 1)
+	assert.Equal(t, "tool-contract-incomplete", findings[0].Check)
+	assert.Equal(t, "error", findings[0].Level)
+	assert.Contains(t, findings[0].Message, "sparse")
+	assert.Contains(t, findings[0].Message, "problem")
+	assert.Contains(t, findings[0].Message, "output.schema")
+}
+
+func TestValidate_SelectedToolContractCompletenessKeepsLegacyWarningOnly(t *testing.T) {
+	corpus := &Corpus{
+		ToolSelections: map[string][]string{
+			"agent": {"legacy"},
+		},
+		ToolDeclarations: map[string]ToolDeclaration{
+			"legacy": {
+				Name:     "legacy",
+				Contract: "legacy",
+				Emits:    []string{"ToolDone"},
+			},
+		},
+	}
+
+	findings := checkSelectedToolContractCompleteness(corpus)
+
+	require.Len(t, findings, 1)
+	assert.Equal(t, "warning", findings[0].Level)
+	assert.Contains(t, findings[0].Message, "legacy")
+}
+
+func TestValidate_SelectedToolContractCompletenessIgnoresUnselectedTool(t *testing.T) {
+	corpus := &Corpus{
+		ToolSelections: map[string][]string{
+			"agent": {"complete"},
+		},
+		ToolDeclarations: map[string]ToolDeclaration{
+			"complete": completeToolDeclaration("complete"),
+			"sparse":   {Name: "sparse"},
+		},
+	}
+
+	findings := checkSelectedToolContractCompleteness(corpus)
+
+	require.Empty(t, findings)
+}
+
+func TestValidate_SelectedToolContractCompletenessPassesCompleteTool(t *testing.T) {
+	corpus := &Corpus{
+		ToolSelections: map[string][]string{
+			"agent":       {"complete"},
+			"agent:point": {"complete"},
+		},
+		ToolDeclarations: map[string]ToolDeclaration{
+			"complete": completeToolDeclaration("complete"),
+		},
+	}
+
+	findings := checkSelectedToolContractCompleteness(corpus)
+
+	require.Empty(t, findings)
+}
+
+func completeToolDeclaration(name string) ToolDeclaration {
+	return ToolDeclaration{
+		Name:     name,
+		Category: "word",
+		Problem:  "The machine needs a complete word contract for audit validation.",
+		Goals:    []string{"Run as a declared machine word."},
+		Requirements: ToolDeclRequirements{
+			Input:  []string{"must accept declared input"},
+			Output: []string{"must return declared output"},
+			Errors: []string{"must report declared errors"},
+		},
+		NonGoals: []string{"Does not choose the next machine state."},
+		Emits:    []string{"ToolDone"},
+		Output: ToolDeclOutput{Schema: map[string]any{
+			"type": "object",
+		}},
+		SideEffects:   ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "filesystem_read"}}},
+		Reversibility: ToolDeclReversibility{Classification: "reversible"},
+		Undo:          ToolDeclUndo{Strategy: "noop"},
+		Errors:        []ToolDeclError{{Signal: "CommandError"}},
+		Relationships: ToolDeclRelationships{After: []string{"next_word"}},
+	}
+}
+
 func TestDiscoverToolDeclarationsIncludesProfileFilesAndDirs(t *testing.T) {
 	root := t.TempDir()
 
@@ -343,6 +444,43 @@ tools:
 	require.NoError(t, err)
 	require.Contains(t, decls, "invoke_llm")
 	require.Contains(t, decls, "read")
+}
+
+func TestDiscoverMachinesIncludesConfiguredToolSelections(t *testing.T) {
+	root := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "agents", "evaluator"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "evaluator", "machine.yaml"), []byte(`
+name: evaluator
+initial_state: Idle
+terminal_states: [Done]
+configuration:
+  point_tools: agents/evaluator/tools-point.yaml
+states:
+  - Idle
+  - Done
+signals:
+  - name: Seed
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Done
+`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "evaluator", "tools.yaml"), []byte(`
+tools:
+  - parse_suite_config
+`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "evaluator", "tools-point.yaml"), []byte(`
+tools:
+  - create_point_dir
+  - run_agent
+`), 0o644))
+
+	_, selections, _, err := discoverAndParseMachines(root)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"parse_suite_config"}, selections["evaluator"])
+	assert.Equal(t, []string{"create_point_dir", "run_agent"}, selections["evaluator:point_tools"])
 }
 
 func TestValidate_ToolEmitsSignalSet(t *testing.T) {
