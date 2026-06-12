@@ -1,0 +1,9 @@
+name: planner
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - ../../tools/builtin.yaml
+  - ../../tools/exec.yaml
+  - builtin.yaml
+  - llm/default.yaml

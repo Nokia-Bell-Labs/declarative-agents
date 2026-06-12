@@ -98,9 +98,7 @@ func Audit() error {
 	}
 
 	cmd := exec.Command(binary,
-		"--machine", filepath.Join(rootDir, "agents/constitution-auditor/machine.yaml"),
-		"--tools-declaration", filepath.Join(rootDir, "tools/builtin.yaml"),
-		"--tools", filepath.Join(rootDir, "agents/constitution-auditor/tools.yaml"),
+		"--profile", filepath.Join(rootDir, "agents/constitution-auditor/profile.yaml"),
 		"--directory", rootDir,
 	)
 	cmd.Stdout = os.Stdout

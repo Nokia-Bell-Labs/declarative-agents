@@ -1,0 +1,8 @@
+name: generator
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - ../../tools/builtin.yaml
+  - ../../tools/exec.yaml
+  - llm/default.yaml

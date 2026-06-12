@@ -92,11 +92,7 @@ func (Integration) Uc001() error {
 	}
 
 	args := []string{
-		"--machine", filepath.Join(rootDir, "agents/generator/machine.yaml"),
-		"--tools-declaration", filepath.Join(rootDir, "tools/builtin.yaml"),
-		"--tools-declaration", filepath.Join(rootDir, "tools/exec.yaml"),
-		"--tools-declaration", filepath.Join(rootDir, "agents/generator/llm/default.yaml"),
-		"--tools", filepath.Join(rootDir, "agents/generator/tools.yaml"),
+		"--profile", filepath.Join(rootDir, "agents/generator/profile.yaml"),
 		"--directory", workDir,
 	}
 
@@ -145,10 +141,7 @@ func (Integration) Uc002() error {
 	os.Setenv("PATH", binAbs+":"+os.Getenv("PATH"))
 
 	args := []string{
-		"--machine", filepath.Join(rootDir, "agents/evaluator/machine.yaml"),
-		"--tools", filepath.Join(rootDir, "agents/evaluator/tools.yaml"),
-		"--tools-declaration", filepath.Join(rootDir, "tools/builtin.yaml"),
-		"--tools-declaration", filepath.Join(rootDir, "agents/evaluator/builtin.yaml"),
+		"--profile", filepath.Join(rootDir, "agents/evaluator/profile.yaml"),
 		"--input", filepath.Join(rootDir, evaluatorSuite),
 		"--output", outputDir,
 	}

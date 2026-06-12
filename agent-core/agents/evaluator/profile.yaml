@@ -1,0 +1,7 @@
+name: evaluator
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - ../../tools/builtin.yaml
+  - builtin.yaml
