@@ -198,7 +198,7 @@ type ToolSelection struct {
 }
 
 // ToolDeclaration captures tool contract fields needed for corpus
-// validation. This is a subset of the full ToolDef in pkg/stl, defined
+// validation. This is a subset of the full ToolDef in internal/tools/stl, defined
 // here to avoid a circular dependency.
 type ToolDeclaration struct {
 	Name          string                `yaml:"name"`

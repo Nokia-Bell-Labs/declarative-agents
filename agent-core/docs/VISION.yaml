@@ -16,7 +16,7 @@ executive_summary: |
 
   The core engine (internal/runtime/core) remains domain-agnostic: it drives the loop
   without knowing what tools exist, what LLM is in use, or what workflow the
-  machine expresses. Higher-level packages (internal/model/llm, pkg/stl, internal/model/prompt,
+  machine expresses. Higher-level packages (internal/model/llm, internal/tools/stl, internal/model/prompt,
   pkg/telemetry, pkg/spec) provide reusable infrastructure that configured
   agents compose into complete systems.
 
@@ -143,7 +143,7 @@ what_this_does: |
   system prompt Go template, and tool manifest serialization for
   LLM context injection.
 
-  Standard Tool Library (pkg/stl). Reusable tool implementations:
+  Standard Tool Library (internal/tools/stl). Reusable tool implementations:
   file tools, build tools, LLM invoke/parse commands, subprocess
   execution with process group management, workspace tools, and
   tool metrics extraction. These tools are expected to behave as vocabulary
@@ -227,7 +227,7 @@ success_criteria:
     disabled-mode execution.
   reusable_infrastructure: |
     LLM integration (internal/model/llm), prompt assembly (internal/model/prompt), standard
-    tools (pkg/stl), and tracing (pkg/tracing) are shared across agents.
+    tools (internal/tools/stl), and tracing (pkg/tracing) are shared across agents.
     Domain agents compose these packages without reimplementing them.
   budget_enforcement: |
     Iteration, token, and wall-clock-time limits are enforced by the

@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package evaluation
 
 import (
 	"fmt"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
@@ -53,9 +54,9 @@ func (c *nextPointCmd) Execute() core.Result {
 	}
 }
 
-// NextPointFactory creates a BuiltinFactory for next_point.
-func NextPointFactory(es *EvalSessionState) BuiltinFactory {
-	return func(def ToolDef, vars map[string]string) (core.Builder, error) {
+// NextPointFactory creates a stl.BuiltinFactory for next_point.
+func NextPointFactory(es *EvalSessionState) stl.BuiltinFactory {
+	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &NextPointBuilder{ES: es}, nil
 	}
 }

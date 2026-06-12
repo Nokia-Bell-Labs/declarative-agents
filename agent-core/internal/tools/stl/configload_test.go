@@ -12,17 +12,17 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
 // configDir resolves the absolute path to the top-level agents/ directory.
 func configDir(t *testing.T) string {
 	t.Helper()
 	_, thisFile, _, _ := runtime.Caller(0)
-	abs := filepath.Join(filepath.Dir(thisFile), "..", "..", "agents")
+	abs := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "agents")
 	info, err := os.Stat(abs)
 	require.NoError(t, err, "agents directory must exist at %s", abs)
 	require.True(t, info.IsDir())

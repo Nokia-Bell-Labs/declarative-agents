@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package evaluation
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/subprocess"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
 // runAgentCmd executes a harness binary as a subprocess with flag
@@ -28,13 +29,13 @@ func (c *runAgentCmd) Undo() core.Result {
 	if undo.Signal != core.ToolDone {
 		return undo
 	}
-	return boundaryCompensationUndo(c.Name(), "restore point workspace artifacts and compensate the harness child process")
+	return stl.BoundaryCompensationUndo(c.Name(), "restore point workspace artifacts and compensate the harness child process")
 }
 func (c *runAgentCmd) UndoMemento() (core.UndoMemento, error) {
 	if !c.hasSnapshot {
 		return core.UndoMemento{}, fmt.Errorf("%w: no point context snapshot recorded for %s", core.ErrUndoMementoMissing, c.Name())
 	}
-	return boundaryCompensationMemento(c.Name(), BoundaryCompensationPayload{BoundaryCompensation: BoundaryCompensation{
+	return stl.BoundaryCompensationMemento(c.Name(), stl.BoundaryCompensationPayload{BoundaryCompensation: stl.BoundaryCompensation{
 		Strategy:       "point_workspace_restore_and_child_process_compensation",
 		Reason:         "runs the harness agent in the point workspace",
 		Requires:       []string{"Workspace", "point_context_snapshot"},

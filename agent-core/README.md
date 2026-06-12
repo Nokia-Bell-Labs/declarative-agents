@@ -18,7 +18,7 @@ transition tables.
 | `internal/model/llm` | LLM client interface, conversation management, message types, model profiles |
 | `internal/model/llm/ollama` | Ollama adapter satisfying `llm.Client` |
 | `internal/model/prompt` | Prompt loading from YAML, system template rendering, manifest serialization |
-| `pkg/stl` | Standard tool library: file tools, build tools, LLM commands, subprocess, process groups |
+| `internal/tools/stl` | Standard tool library: file tools, build tools, LLM commands, subprocess, process groups |
 | `pkg/spec` | Specification graph loader and cross-artifact validator |
 
 Private implementation packages are grouped under `internal/`. See

@@ -105,4 +105,4 @@ related_documents:
   - srd022
   - srd023
 
-implementation: pkg/stl/exectool.go
+implementation: internal/tools/stl/exectool.go

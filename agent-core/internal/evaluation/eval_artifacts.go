@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package evaluation
 
 // Evaluator artifact file names. These form a contract between the
 // evaluator (which writes them) and the bench API (which reads them).

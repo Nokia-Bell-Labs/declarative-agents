@@ -121,5 +121,5 @@ related_documents:
   - cfg-tool-authoring-standard
 
 implementation_examples:
-  - pkg/stl/llmtools.go
+  - internal/tools/stl/llmtools.go
   - pkg/bench/serve_ui.go

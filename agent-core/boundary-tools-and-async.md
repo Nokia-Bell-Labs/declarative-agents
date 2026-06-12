@@ -1246,7 +1246,7 @@ data I can display."
 ## Migration Path from Current Bench
 
 1. **Extract generic UIServerState** from `BenchState` — the server, action
-   channel, and view management become `pkg/stl` or a new `pkg/ui` package.
+   channel, and view management become `internal/tools/stl` or a new `pkg/ui` package.
 
 2. **Move action-to-signal mapping to YAML** — delete the `Signal()` switch
    in `state.go`, replace with config-driven lookup.

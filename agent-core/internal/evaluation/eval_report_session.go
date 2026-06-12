@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package evaluation
 
 import (
 	"fmt"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 	"time"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
@@ -48,9 +49,9 @@ func (c *reportSessionCmd) Execute() core.Result {
 	}
 }
 
-// ReportSessionFactory creates a BuiltinFactory for report_session.
-func ReportSessionFactory(es *EvalSessionState) BuiltinFactory {
-	return func(def ToolDef, vars map[string]string) (core.Builder, error) {
+// ReportSessionFactory creates a stl.BuiltinFactory for report_session.
+func ReportSessionFactory(es *EvalSessionState) stl.BuiltinFactory {
+	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &ReportSessionBuilder{ES: es}, nil
 	}
 }

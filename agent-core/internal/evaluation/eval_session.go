@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package evaluation
 
 import (
 	"fmt"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 	"os"
 	"path/filepath"
 	"time"
@@ -254,7 +255,7 @@ func resolveSuiteProfiles(paths []string, baseDir string) ([]SuiteProfile, error
 		if !filepath.IsAbs(p) {
 			p = filepath.Join(baseDir, p)
 		}
-		profile, err := LoadProfile(p)
+		profile, err := stl.LoadProfile(p)
 		if err != nil {
 			return nil, fmt.Errorf("load profile %s: %w", p, err)
 		}
@@ -274,7 +275,7 @@ func resolveSuiteProfiles(paths []string, baseDir string) ([]SuiteProfile, error
 
 // extractModelFromProfile reads the model name from the first invoke_llm
 // tool declaration in the profile's tool declarations and config dirs.
-func extractModelFromProfile(p AgentProfile) string {
+func extractModelFromProfile(p stl.AgentProfile) string {
 	var paths []string
 	paths = append(paths, p.ToolDeclarations...)
 
@@ -291,7 +292,7 @@ func extractModelFromProfile(p AgentProfile) string {
 	}
 
 	for _, path := range paths {
-		defs, err := LoadToolDefs(path)
+		defs, err := stl.LoadToolDefs(path)
 		if err != nil {
 			continue
 		}
@@ -299,8 +300,8 @@ func extractModelFromProfile(p AgentProfile) string {
 			if td.Init != "invoke_llm" {
 				continue
 			}
-			var cfg LLMToolConfig
-			if err := DecodeToolConfig(td, &cfg); err == nil && cfg.Model != "" {
+			var cfg stl.LLMToolConfig
+			if err := stl.DecodeToolConfig(td, &cfg); err == nil && cfg.Model != "" {
 				return cfg.Model
 			}
 		}

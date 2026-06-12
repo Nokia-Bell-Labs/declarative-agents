@@ -124,11 +124,11 @@ depends_on:
 implementation:
   - tools/builtin.yaml
   - pkg/execute/execute.go
-  - pkg/stl/builtintool.go
-  - pkg/stl/exectool.go
-  - pkg/stl/selfinvoke.go
-  - pkg/stl/tool_emits.go
-  - pkg/stl/toolconfig.go
+  - internal/tools/stl/builtintool.go
+  - internal/tools/stl/exectool.go
+  - internal/tools/stl/selfinvoke.go
+  - internal/tools/stl/tool_emits.go
+  - internal/tools/stl/toolconfig.go
 
 related_documents:
   - cfg-tool-authoring-standard

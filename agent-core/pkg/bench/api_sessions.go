@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation"
 	"gopkg.in/yaml.v3"
 )
 
@@ -160,7 +160,7 @@ func scanSession(suite, ts, dir string) sessionSummary {
 		if !e.IsDir() {
 			continue
 		}
-		metaPath := filepath.Join(dir, e.Name(), stl.ArtifactMeta)
+		metaPath := filepath.Join(dir, e.Name(), evaluation.ArtifactMeta)
 		data, err := os.ReadFile(metaPath)
 		if err != nil {
 			continue
@@ -200,14 +200,14 @@ func (s *Server) handleGetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groups, err := stl.LoadMultiple([]string{dir})
+	groups, err := evaluation.LoadMultiple([]string{dir})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load session")
 		return
 	}
 
-	modelStats := stl.ComputeModelStats(groups)
-	sampleStats := stl.ComputeDetailed(groups)
+	modelStats := evaluation.ComputeModelStats(groups)
+	sampleStats := evaluation.ComputeDetailed(groups)
 
 	detail := sessionDetail{
 		ID:          suite + "/" + ts,
@@ -233,7 +233,7 @@ func (s *Server) handleGetSession(w http.ResponseWriter, r *http.Request) {
 	writeData(w, detail)
 }
 
-func convertModelStats(stats []stl.ModelStats) []modelStatJSON {
+func convertModelStats(stats []evaluation.ModelStats) []modelStatJSON {
 	out := make([]modelStatJSON, len(stats))
 	for i, s := range stats {
 		out[i] = modelStatJSON{
@@ -253,7 +253,7 @@ func convertModelStats(stats []stl.ModelStats) []modelStatJSON {
 	return out
 }
 
-func convertSampleStats(rows []stl.SampleModelRow) []sampleStatJSON {
+func convertSampleStats(rows []evaluation.SampleModelRow) []sampleStatJSON {
 	out := make([]sampleStatJSON, len(rows))
 	for i, r := range rows {
 		out[i] = sampleStatJSON{
@@ -283,16 +283,16 @@ func (s *Server) handleListPoints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groups, err := stl.LoadMultiple([]string{dir})
+	groups, err := evaluation.LoadMultiple([]string{dir})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load session")
 		return
 	}
 
-	runIndex := make(map[string]stl.EvalRunResult)
+	runIndex := make(map[string]evaluation.EvalRunResult)
 	for _, runs := range groups {
 		for _, run := range runs {
-			key := stl.EvalPointID(run.Sample, "", run.Model, nil, run.Repetition)
+			key := evaluation.EvalPointID(run.Sample, "", run.Model, nil, run.Repetition)
 			runIndex[key] = run
 		}
 	}
@@ -308,7 +308,7 @@ func (s *Server) handleListPoints(w http.ResponseWriter, r *http.Request) {
 		if !e.IsDir() {
 			continue
 		}
-		metaPath := filepath.Join(dir, e.Name(), stl.ArtifactMeta)
+		metaPath := filepath.Join(dir, e.Name(), evaluation.ArtifactMeta)
 		if _, err := os.Stat(metaPath); err != nil {
 			continue
 		}
@@ -317,7 +317,7 @@ func (s *Server) handleListPoints(w http.ResponseWriter, r *http.Request) {
 		p := pointJSON{PointID: pid}
 
 		if run, ok := findRun(runIndex, groups, pid); ok {
-			conv := string(stl.NoData)
+			conv := string(evaluation.NoData)
 			if run.Progression != nil {
 				conv = string(run.Progression.Overall)
 			}
@@ -343,19 +343,19 @@ func (s *Server) handleListPoints(w http.ResponseWriter, r *http.Request) {
 	writeData(w, points)
 }
 
-func findRun(index map[string]stl.EvalRunResult, groups map[stl.GroupKey][]stl.EvalRunResult, dirName string) (stl.EvalRunResult, bool) {
+func findRun(index map[string]evaluation.EvalRunResult, groups map[evaluation.GroupKey][]evaluation.EvalRunResult, dirName string) (evaluation.EvalRunResult, bool) {
 	if r, ok := index[dirName]; ok {
 		return r, true
 	}
 	for _, runs := range groups {
 		for _, r := range runs {
-			candidate := stl.EvalPointID(r.Sample, "", r.Model, nil, r.Repetition)
+			candidate := evaluation.EvalPointID(r.Sample, "", r.Model, nil, r.Repetition)
 			if candidate == dirName {
 				return r, true
 			}
 		}
 	}
-	return stl.EvalRunResult{}, false
+	return evaluation.EvalRunResult{}, false
 }
 
 func (s *Server) handleGetTrace(w http.ResponseWriter, r *http.Request) {
@@ -375,19 +375,19 @@ func (s *Server) handleGetTrace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tracePath := filepath.Join(dir, cleanPoint, stl.ArtifactTrace)
+	tracePath := filepath.Join(dir, cleanPoint, evaluation.ArtifactTrace)
 	if _, err := os.Stat(tracePath); os.IsNotExist(err) {
 		writeError(w, http.StatusNotFound, "trace not found")
 		return
 	}
 
-	spans, err := stl.ReadTraceFile(tracePath)
+	spans, err := evaluation.ReadTraceFile(tracePath)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to read trace")
 		return
 	}
 
-	snapshots := stl.ExtractToolSnapshots(spans)
+	snapshots := evaluation.ExtractToolSnapshots(spans)
 
 	trace := traceJSON{
 		PointID:   pointID,
@@ -398,7 +398,7 @@ func (s *Server) handleGetTrace(w http.ResponseWriter, r *http.Request) {
 	writeData(w, trace)
 }
 
-func convertSpans(spans []*stl.Span) []spanJSON {
+func convertSpans(spans []*evaluation.Span) []spanJSON {
 	out := make([]spanJSON, len(spans))
 	for i, s := range spans {
 		dur := s.EndTime.Sub(s.StartTime)
@@ -407,16 +407,16 @@ func convertSpans(spans []*stl.Span) []spanJSON {
 			StartTime:  s.StartTime.Format("2006-01-02T15:04:05Z07:00"),
 			EndTime:    s.EndTime.Format("2006-01-02T15:04:05Z07:00"),
 			DurationMs: float64(dur.Milliseconds()),
-			ToolName:   stl.StrAttr(s, "command.name"),
-			Signal:     stl.StrAttr(s, "command.signal"),
-			TokensIn:   stl.IntAttr(s, "gen_ai.usage.input_tokens"),
-			TokensOut:  stl.IntAttr(s, "gen_ai.usage.output_tokens"),
+			ToolName:   evaluation.StrAttr(s, "command.name"),
+			Signal:     evaluation.StrAttr(s, "command.signal"),
+			TokensIn:   evaluation.IntAttr(s, "gen_ai.usage.input_tokens"),
+			TokensOut:  evaluation.IntAttr(s, "gen_ai.usage.output_tokens"),
 		}
 	}
 	return out
 }
 
-func convertSnapshots(snaps []stl.ToolSnapshot) []snapshotJSON {
+func convertSnapshots(snaps []evaluation.ToolSnapshot) []snapshotJSON {
 	out := make([]snapshotJSON, len(snaps))
 	for i, s := range snaps {
 		out[i] = snapshotJSON{
@@ -445,7 +445,7 @@ func (s *Server) handleGetExperiment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expPath := filepath.Join(dir, cleanPoint, stl.ArtifactExperiment)
+	expPath := filepath.Join(dir, cleanPoint, evaluation.ArtifactExperiment)
 	data, err := os.ReadFile(expPath)
 	if err != nil {
 		if os.IsNotExist(err) {

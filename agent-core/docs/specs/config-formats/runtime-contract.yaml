@@ -406,5 +406,5 @@ implementation:
   - cmd/agent/main.go
   - internal/runtime/core/loop.go
   - internal/runtime/core/machine.go
-  - pkg/stl/register.go
-  - pkg/stl/tool_emits.go
+  - internal/tools/stl/register.go
+  - internal/tools/stl/tool_emits.go

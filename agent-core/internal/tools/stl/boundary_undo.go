@@ -31,6 +31,10 @@ type BoundaryCompensation struct {
 }
 
 func boundaryCompensationMemento(commandName string, payload BoundaryCompensationPayload, description string) (core.UndoMemento, error) {
+	return BoundaryCompensationMemento(commandName, payload, description)
+}
+
+func BoundaryCompensationMemento(commandName string, payload BoundaryCompensationPayload, description string) (core.UndoMemento, error) {
 	if payload.BoundaryCompensation.Strategy == "" {
 		return core.UndoMemento{}, fmt.Errorf("%w: missing boundary compensation strategy for %s", core.ErrUndoMementoIncompatible, commandName)
 	}
@@ -43,6 +47,10 @@ func boundaryCompensationMemento(commandName string, payload BoundaryCompensatio
 }
 
 func boundaryCompensationUndo(commandName, description string) core.Result {
+	return BoundaryCompensationUndo(commandName, description)
+}
+
+func BoundaryCompensationUndo(commandName, description string) core.Result {
 	err := fmt.Errorf("undo %s requires boundary compensation: %s", commandName, description)
 	return core.Result{
 		Signal:      core.CommandError,

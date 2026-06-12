@@ -12,7 +12,7 @@ releases:
       NoopTracer), pkg/telemetry (OTel setup, GenAI semconv helpers,
       traceparent), internal/model/llm (Client, Conversation, Ollama adapter,
       parseutil, profile, interfaces), internal/model/prompt (Prompt, loading,
-      template, SerializeManifest), pkg/stl (file tools, build tools,
+      template, SerializeManifest), internal/tools/stl (file tools, build tools,
       LLM commands, subprocess), pkg/spec (graph loader, validator),
       and pkg/cli (standard flag constants, PropagateArgs).
     status: done

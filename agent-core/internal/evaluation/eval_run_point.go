@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package evaluation
 
 import (
 	"fmt"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 	"time"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
@@ -14,7 +15,7 @@ import (
 type RunPointBuilder struct {
 	ES            *EvalSessionState
 	PointRegistry *core.Registry
-	Config        RunPointConfig
+	Config        stl.RunPointConfig
 }
 
 func (b *RunPointBuilder) Build(_ core.Result) core.Command {
@@ -24,7 +25,7 @@ func (b *RunPointBuilder) Build(_ core.Result) core.Command {
 type runPointCmd struct {
 	es            *EvalSessionState
 	pointRegistry *core.Registry
-	config        RunPointConfig
+	config        stl.RunPointConfig
 	snapshot      evalSessionSnapshot
 	hasSnapshot   bool
 }
@@ -46,7 +47,7 @@ func (c *runPointCmd) UndoMemento() (core.UndoMemento, error) {
 			Started     bool   `json:"started"`
 			Exhausted   bool   `json:"exhausted"`
 		} `json:"domain_state"`
-		BoundaryCompensation BoundaryCompensation `json:"boundary_compensation"`
+		BoundaryCompensation stl.BoundaryCompensation `json:"boundary_compensation"`
 	}{
 		DomainState: struct {
 			SuiteName   string `json:"suite_name,omitempty"`
@@ -63,7 +64,7 @@ func (c *runPointCmd) UndoMemento() (core.UndoMemento, error) {
 			Started:     c.snapshot.started,
 			Exhausted:   c.snapshot.exhausted,
 		},
-		BoundaryCompensation: BoundaryCompensation{
+		BoundaryCompensation: stl.BoundaryCompensation{
 			Strategy:     "nested_machine_rollback",
 			Reason:       "run_point executes a nested evaluator point machine",
 			Requires:     []string{"nested_machine_history", "Workspace"},
@@ -144,16 +145,16 @@ func (c *runPointCmd) Execute() core.Result {
 	}
 }
 
-// RunPointFactory creates a BuiltinFactory for run_point.
+// RunPointFactory creates a stl.BuiltinFactory for run_point.
 // Nested loop parameters (point_machine, point_tools, agent_name,
 // max_iterations, success_state) are read from the tool declaration config block.
-func RunPointFactory(es *EvalSessionState) BuiltinFactory {
-	return func(def ToolDef, vars map[string]string) (core.Builder, error) {
-		var cfg RunPointConfig
-		if err := DecodeToolConfig(def, &cfg); err != nil {
+func RunPointFactory(es *EvalSessionState) stl.BuiltinFactory {
+	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+		var cfg stl.RunPointConfig
+		if err := stl.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		if err := ValidateRunPointConfig(def.Name, cfg); err != nil {
+		if err := stl.ValidateRunPointConfig(def.Name, cfg); err != nil {
 			return nil, err
 		}
 		es.PointMachine = cfg.PointMachine
@@ -166,7 +167,7 @@ func RunPointFactory(es *EvalSessionState) BuiltinFactory {
 }
 
 func buildPointRegistry(es *EvalState, selectionPath string) (*core.Registry, error) {
-	selection, err := LoadToolSelection(selectionPath)
+	selection, err := stl.LoadToolSelection(selectionPath)
 	if err != nil {
 		return nil, err
 	}

@@ -437,7 +437,7 @@ mode_local_overrides: |
   they use tools/builtin.yaml directly.
 
 legacy_artifacts: |
-  pkg/stl/tools.yaml is a legacy exec tool declaration file that predates
+  internal/tools/stl/tools.yaml is a legacy exec tool declaration file that predates
   tools/exec.yaml. It is NOT loaded at runtime and is not referenced by
   any code or configuration. It contains additional tools (branch_create,
   branch_delete, branch_list, branch_current, worktree_add, worktree_remove,
@@ -456,8 +456,8 @@ related_documents:
   - cfg-llm-config-format
 
 implementation:
-  - pkg/stl/exectool.go
-  - pkg/stl/tool_contracts.go
-  - pkg/stl/tool_emits.go
-  - pkg/stl/toolconfig.go
-  - pkg/stl/builtintool.go
+  - internal/tools/stl/exectool.go
+  - internal/tools/stl/tool_contracts.go
+  - internal/tools/stl/tool_emits.go
+  - internal/tools/stl/toolconfig.go
+  - internal/tools/stl/builtintool.go

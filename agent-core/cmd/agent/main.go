@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm/ollama"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/prompt"
@@ -34,9 +35,9 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/pipeline"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench"
 	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/bench/ui"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/stl"
 )
 
 var (
@@ -1018,7 +1019,7 @@ func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected 
 		"check_agent_version", "summarize_point_results", "collect_metrics",
 		"dump_config",
 	) {
-		stl.RegisterEvalFactories(br, stl.EvalFactoryDeps{
+		evaluation.RegisterEvalFactories(br, evaluation.EvalFactoryDeps{
 			Ctx:       st.ctx,
 			Registry:  st.registry,
 			Stderr:    os.Stderr,

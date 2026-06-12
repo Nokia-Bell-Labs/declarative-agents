@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package evaluation
 
 import (
 	"context"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 	"io"
 	"os"
 
@@ -28,9 +29,9 @@ type EvalFactoryDeps struct {
 // init_workspace_repo, stage_workspace_baseline, commit_workspace_baseline,
 // dump_config, run_agent, run_oracle_check, collect_trace_tokens,
 // check_agent_version, summarize_point_results, collect_metrics) into the
-// provided BuiltinRegistry. Session state is lazily initialized on first
+// provided stl.BuiltinRegistry. Session state is lazily initialized on first
 // factory call.
-func RegisterEvalFactories(br *BuiltinRegistry, deps EvalFactoryDeps) {
+func RegisterEvalFactories(br *stl.BuiltinRegistry, deps EvalFactoryDeps) {
 	var ess *EvalSessionState
 
 	initESS := func() *EvalSessionState {
@@ -51,94 +52,94 @@ func RegisterEvalFactories(br *BuiltinRegistry, deps EvalFactoryDeps) {
 		return ess
 	}
 
-	br.Register("parse_suite_config", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("parse_suite_config", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		es := initESS()
 		factory := evaluatorSessionConfigFactory(es, func(es *EvalSessionState) core.Builder {
 			return &ParseSuiteConfigBuilder{ES: es}
 		})
 		return factory(def, vars)
 	})
-	br.Register("discover_suite_samples", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("discover_suite_samples", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		es := initESS()
 		factory := evaluatorSessionConfigFactory(es, func(es *EvalSessionState) core.Builder {
 			return &DiscoverSuiteSamplesBuilder{ES: es}
 		})
 		return factory(def, vars)
 	})
-	br.Register("expand_eval_grid", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("expand_eval_grid", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		es := initESS()
 		factory := evaluatorSessionConfigFactory(es, func(es *EvalSessionState) core.Builder {
 			return &ExpandEvalGridBuilder{ES: es}
 		})
 		return factory(def, vars)
 	})
-	br.Register("init_eval_session", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("init_eval_session", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		es := initESS()
 		factory := evaluatorSessionConfigFactory(es, func(es *EvalSessionState) core.Builder {
 			return &InitEvalSessionBuilder{ES: es}
 		})
 		return factory(def, vars)
 	})
-	br.Register("report_suite_summary", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("report_suite_summary", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		es := initESS()
 		factory := evaluatorSessionConfigFactory(es, func(es *EvalSessionState) core.Builder {
 			return &ReportSuiteSummaryBuilder{ES: es}
 		})
 		return factory(def, vars)
 	})
-	br.Register("next_point", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("next_point", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		es := initESS()
 		factory := NextPointFactory(es)
 		return factory(def, vars)
 	})
-	br.Register("run_point", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("run_point", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		es := initESS()
 		factory := RunPointFactory(es)
 		return factory(def, vars)
 	})
-	br.Register("report_session", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("report_session", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		es := initESS()
 		factory := ReportSessionFactory(es)
 		return factory(def, vars)
 	})
 
-	br.Register("create_point_dir", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("create_point_dir", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CreatePointDirBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("copy_sample_workspace", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("copy_sample_workspace", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CopySampleWorkspaceBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("copy_sample_docs", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("copy_sample_docs", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CopySampleDocsBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("init_workspace_repo", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("init_workspace_repo", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &InitWorkspaceRepoBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("stage_workspace_baseline", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("stage_workspace_baseline", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &StageWorkspaceBaselineBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("commit_workspace_baseline", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("commit_workspace_baseline", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CommitWorkspaceBaselineBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("run_agent", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("run_agent", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &RunAgentBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("run_oracle_check", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("run_oracle_check", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &RunOracleCheckBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("collect_trace_tokens", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("collect_trace_tokens", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CollectTraceTokensBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("check_agent_version", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("check_agent_version", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CheckAgentVersionBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("summarize_point_results", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("summarize_point_results", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &SummarizePointResultsBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("collect_metrics", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("collect_metrics", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CollectMetricsBuilder{ES: &initESS().EvalState}, nil
 	})
-	br.Register("dump_config", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("dump_config", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &DumpConfigBuilder{ES: &initESS().EvalState}, nil
 	})
 }

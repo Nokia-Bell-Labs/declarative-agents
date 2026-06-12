@@ -112,8 +112,8 @@ depends_on:
 
 implementation:
   - tools/exec.yaml
-  - pkg/stl/exectool.go
-  - pkg/stl/tool_emits.go
+  - internal/tools/stl/exectool.go
+  - internal/tools/stl/tool_emits.go
 
 related_documents:
   - cfg-tool-authoring-standard

@@ -24,7 +24,7 @@ overview:
     - internal/model/llm — LLM client, conversation, profiles, parsing utilities
     - internal/model/llm/ollama — Ollama adapter satisfying llm.Client
     - internal/model/prompt — prompt schema, YAML loading, system template
-    - pkg/stl — standard tool library (file, build, LLM, eval tools)
+    - internal/tools/stl — standard tool library (file, build, LLM, eval tools)
     - pkg/cli — CLI flag constants and argument propagation (library; not imported by cmd/agent)
     - pkg/subprocess — subprocess execution utilities
 
@@ -76,7 +76,7 @@ overview:
       subgraph Infra["Reusable Infrastructure"]
         LLM[internal/model/llm and internal/model/llm/ollama]
         PROMPT[internal/model/prompt]
-        STL[pkg/stl]
+        STL[internal/tools/stl]
         TELE[pkg/telemetry]
         TRACE[pkg/tracing]
         CLI[pkg/cli]
@@ -524,10 +524,10 @@ overview:
       protobuf. It imports pkg/tracing but not internal/runtime/core.
     - pkg/telemetry/genai depends only on go.opentelemetry.io/otel/attribute.
     - internal/model/llm depends on internal/runtime/core, internal/model/prompt, and pkg/tracing.
-    - pkg/stl depends on internal/runtime/core, internal/model/llm, pkg/tracing,
+    - internal/tools/stl depends on internal/runtime/core, internal/model/llm, pkg/tracing,
       pkg/telemetry/genai, pkg/execute, and pkg/subprocess.
     - internal/planning/pipeline depends on internal/runtime/core, internal/planning/plan, internal/planning/extract,
-      internal/planning/materialize, and pkg/stl.
+      internal/planning/materialize, and internal/tools/stl.
     - pkg/execute depends on pkg/subprocess, internal/model/llm, and pkg/tracing.
     - internal/planning/plan depends on gopkg.in/yaml.v3.
     - internal/planning/extract depends on internal/planning/graph and internal/planning/plan.
@@ -538,10 +538,10 @@ overview:
       and a graph library.
     - pkg/subprocess depends on the Go standard library.
     - pkg/cli depends on the Go standard library.
-    - cmd/agent imports internal/runtime/core, pkg/stl, internal/model/llm, internal/model/prompt,
+    - cmd/agent imports internal/runtime/core, internal/tools/stl, internal/model/llm, internal/model/prompt,
       pkg/telemetry, internal/planning/pipeline, pkg/bench, pkg/execute, and
       pkg/tracing.
-    - pkg/bench imports pkg/stl for evaluation result analysis and
+    - pkg/bench imports internal/tools/stl for evaluation result analysis and
       internal/runtime/core for the state machine loop.
 
 interfaces:
@@ -839,7 +839,7 @@ project_structure:
       role: Ollama LLM adapter satisfying llm.Client
     - path: internal/model/prompt/
       role: Prompt struct, YAML loading, system prompt template, and manifest serialization
-    - path: pkg/stl/
+    - path: internal/tools/stl/
       role: Standard tool library (file, build, LLM, eval tools, config loading, subprocess)
     - path: pkg/cli/
       role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
@@ -896,7 +896,7 @@ implementation_status:
     - done: LLM integration (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
     - done: Ollama adapter (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
-    - done: Standard tool library (pkg/stl) — file, build, LLM, eval tools, config loading
+    - done: Standard tool library (internal/tools/stl) — file, build, LLM, eval tools, config loading
     - done: CLI flags (pkg/cli) — standard flag constants, PropagateArgs, RemainingBudget
     - done: Subprocess (pkg/subprocess) — process execution utilities
     - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph, internal/planning/materialize)

@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package evaluation
 
 import (
 	"fmt"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 	"os"
 	"path/filepath"
 	"time"
@@ -245,8 +246,8 @@ func (c *reportSuiteSummaryCmd) Execute() core.Result {
 }
 
 // Config keys: input, output_dir, reps, timeout, ollama_url.
-func evaluatorSessionConfigFactory(es *EvalSessionState, build func(*EvalSessionState) core.Builder) BuiltinFactory {
-	return func(def ToolDef, vars map[string]string) (core.Builder, error) {
+func evaluatorSessionConfigFactory(es *EvalSessionState, build func(*EvalSessionState) core.Builder) stl.BuiltinFactory {
+	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		if err := applyLoadSuiteConfig(es, def); err != nil {
 			return nil, err
 		}
@@ -254,9 +255,9 @@ func evaluatorSessionConfigFactory(es *EvalSessionState, build func(*EvalSession
 	}
 }
 
-func applyLoadSuiteConfig(es *EvalSessionState, def ToolDef) error {
-	var cfg LoadSuiteConfig
-	if err := DecodeToolConfig(def, &cfg); err != nil {
+func applyLoadSuiteConfig(es *EvalSessionState, def stl.ToolDef) error {
+	var cfg stl.LoadSuiteConfig
+	if err := stl.DecodeToolConfig(def, &cfg); err != nil {
 		return err
 	}
 	if es.SuitePath == "" && cfg.Input != "" {
