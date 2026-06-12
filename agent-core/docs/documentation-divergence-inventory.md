@@ -7,8 +7,7 @@ runtime behavior unless a follow-up explicitly calls out a source correction.
 
 ## Verification Baseline
 
-- Current worktree includes uncommitted Docker preference changes that make
-  `mage docker` prefer Docker over Podman when both are installed.
+- `mage docker` prefers Docker over Podman when both are installed.
 - `go list ./...` reports 29 Go packages.
 - `git ls-files '*.yaml'` reports 189 tracked YAML files.
 - `mage docker` has built a slim runtime image from remote release
@@ -79,7 +78,10 @@ Recommended edits:
 - Clarify the minimal runtime image versus language/toolchain requirements for
   exec tools.
 
-Follow-up: `agent-core-9ilp.2`, `agent-core-9ilp.3`.
+Status:
+- docs/ release-image and `/opt/agent-core` layout coverage addressed by
+  `agent-core-9ilp.2`.
+- README wording and examples remain in `agent-core-9ilp.3`.
 
 ## Bench Launch Documentation
 
@@ -103,7 +105,7 @@ Recommended edits:
   profile child process" or equivalent, while still noting that the evaluator
   profile runs the session machine internally.
 
-Follow-up: `agent-core-9ilp.2`.
+Status: addressed by `agent-core-9ilp.2`.
 
 ## Tool Declaration File Layout
 
@@ -126,7 +128,7 @@ Recommended edits:
 - Keep aggregate YAML references only where explicitly describing compatibility,
   migration history, or historical examples.
 
-Follow-up: `agent-core-9ilp.2`.
+Status: addressed by `agent-core-9ilp.2`.
 
 ## Package And Metrics Counts
 

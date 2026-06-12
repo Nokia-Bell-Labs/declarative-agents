@@ -9,8 +9,8 @@ purpose: |
 
 scope:
   shared_declarations:
-    - tools/builtin.yaml
-    - tools/exec.yaml
+    - tools/builtin/
+    - tools/exec/
   mode_declarations:
     - agents/*/builtin.yaml
     - agents/*/llm/*.yaml
@@ -48,8 +48,8 @@ overall_findings:
   - |
     All boundary tools now have UndoMementoProvider implementations that emit
     compensatable mementos with boundary_compensation payloads. Undo contracts
-    are declared in tools/builtin.yaml and tools/exec.yaml with payload and
-    captures fields.
+    are declared in tools/builtin/ and tools/exec/ declaration files with
+    payload and captures fields.
   - The remaining high-priority sentence-shaped tools are now mostly planner
     or lifecycle follow-ups; evaluator session and point workflows have been
     split into machine-composed words.

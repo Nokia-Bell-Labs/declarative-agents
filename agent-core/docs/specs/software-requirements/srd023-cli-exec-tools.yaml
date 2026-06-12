@@ -111,7 +111,7 @@ depends_on:
     symbols_used: [BuiltinRegistry]
 
 implementation:
-  - tools/exec.yaml
+  - tools/exec/
   - internal/tools/stl/exectool.go
   - internal/tools/stl/tool_emits.go
 

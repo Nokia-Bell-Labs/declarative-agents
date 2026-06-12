@@ -366,6 +366,30 @@ overview:
       - docs/specs/semantic-models/tool-vocabulary-audit.yaml
       - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
 
+  container_runtime_architecture:
+    summary: |
+      The release container packages Agent Core as an installed runtime for
+      external configuration repositories. The Dockerfile is multi-stage: the
+      builder stage clones the selected GitLab ref, downloads Go dependencies,
+      runs the test suite, and builds the `agent` binary; the final Alpine
+      runtime stage copies only the binary, common Unix utilities, and shared
+      YAML assets needed by profiles and tool declarations.
+
+      Runtime images place shared assets under `/opt/agent-core`, including
+      `tools/`, `agents/generator/`, and `agents/evaluator/`. External
+      evaluation repositories mount their local suites, samples, and profile
+      overrides into `/work` and can reference shared image assets by absolute
+      path. The Go toolchain, source checkout, and test dependencies are not
+      copied into the final image. Exec tools that require Go, golangci-lint,
+      or project-specific CLIs therefore need those tools supplied by the
+      mounted workspace, a derived image, or the host/container environment.
+
+      The `mage docker` target is the canonical release-image build wrapper. It
+      resolves the latest remote release tag unless `AGENT_CORE_REF` overrides
+      it, passes repository-local `.netrc` credentials as a BuildKit secret
+      when present, chooses Docker when available and Podman as fallback, and
+      prints the exact build command before running it.
+
   rollback_lifecycle_architecture:
     status: |
       The architecture defines the lifecycle ports and model now, while parts of
@@ -922,11 +946,12 @@ implementation_status:
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, constitution-auditor, bench
     - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching
     - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
-    - done: YAML tool definitions — 45 shared builtin declarations, 16 shared exec declarations, plus agent-local overrides
+    - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
     - done: Agent profiles and configurations — generator, evaluator, planner, constitution-auditor, bench profiles with machine/tools/llm selections
     - done: Grammar Machine alignment — selected-tool contract enforcement, rollback strategy vocabulary, profile-first child boundaries, and centralized builtin factory catalog
     - done: LLM profiles — 9 model families with extraction pipelines
-    - done: Mage build targets — build, lint, install, clean, tag, stats
+    - done: Mage build targets — build, lint, install, clean, tag, stats, docker
+    - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
     - done: cobbler-scaffold dependency removed
     - done: Comprehensive Go test suite across all packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd025)
