@@ -10,7 +10,7 @@ problem: |
   bespoke builtin rather than a reusable declarative capability.
 
 goals:
-  - G1: Define the YAML contract for type: exec tool declarations.
+  - "G1": "Define the YAML contract for type: exec tool declarations."
   - G2: Define JSON Schema parameter mapping extensions used to build argv.
   - G3: Define subprocess execution, output capture, cancellation, and signal mapping.
   - G4: Define declaration includes, declaration loading, and selection behavior for exec tools.
@@ -54,7 +54,7 @@ requirements:
       - R3.5: Non-zero exit or execution failure SHALL map to ToolFailed unless the failure prevents command construction, which SHALL map to CommandError.
       - R3.6: Output SHALL be capped when output_cap is configured.
       - R3.7: Parent context cancellation SHALL stop the subprocess.
-      - R3.8: Exec tools used as named machine actions SHOULD declare emits: [ToolDone, ToolFailed] unless they implement a more specific signal mapping.
+      - "R3.8": "Exec tools used as named machine actions SHOULD declare emits: [ToolDone, ToolFailed] unless they implement a more specific signal mapping."
 
   R4:
     title: Declaration loading and selection

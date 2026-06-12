@@ -23,7 +23,7 @@ flow:
   - F4: The developer declares emits so named MachineSpec actions can validate returned signals (srd022 R4, srd023 R3).
   - F5: The developer declares side_effects, reversibility, undo, errors, and state_after_failure using the three-layer rollback model (srd025 R11).
   - F6: If the tool is irreversible or compensatable, the developer documents confirmation or compensation behavior before selecting it in user-affecting workflows (srd025 R11).
-  - F7: The developer documents relationships: likely preceding tools, likely consumers, and overlaps with similar words (cfg-tool-authoring-standard).
+  - "F7": "The developer documents relationships: likely preceding tools, likely consumers, and overlaps with similar words (cfg-tool-authoring-standard)."
   - F8: The developer wires the tool into machine.yaml as one action in a visible sequence rather than embedding sequencing inside the tool (srd006, sm-tool-language).
 
 touchpoints:

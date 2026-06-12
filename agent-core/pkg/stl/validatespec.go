@@ -4,6 +4,8 @@ package stl
 
 import (
 	"fmt"
+	"io"
+	"os"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
@@ -12,10 +14,18 @@ import (
 // ValidateSpecState holds shared state across the validate spec tools.
 type ValidateSpecState struct {
 	Directory string
+	Stderr    io.Writer
 	Corpus    *spec.Corpus
 	Graph     *spec.Graph
 	Findings  []spec.Finding
 	HasErrors bool
+}
+
+func (vs *ValidateSpecState) stderr() io.Writer {
+	if vs.Stderr != nil {
+		return vs.Stderr
+	}
+	return os.Stderr
 }
 
 // LoadCorpusBuilder loads spec artifacts from the project directory.
@@ -145,15 +155,19 @@ func (c *formatReportCmd) Execute() core.Result {
 
 	if c.vs.HasErrors {
 		errs := spec.Errors(c.vs.Findings)
+		output := fmt.Sprintf("%s\nvalidate: %s — %d error(s)", report, summary, len(errs))
+		fmt.Fprintln(c.vs.stderr(), output)
 		return core.Result{
 			Signal:      core.ToolFailed,
-			Output:      fmt.Sprintf("%s\nvalidate: %s — %d error(s)", report, summary, len(errs)),
+			Output:      output,
 			CommandName: "format_report",
 		}
 	}
+	output := fmt.Sprintf("%s\nvalidate: %s — OK", report, summary)
+	fmt.Fprintln(c.vs.stderr(), output)
 	return core.Result{
 		Signal:      core.ToolDone,
-		Output:      fmt.Sprintf("%s\nvalidate: %s — OK", report, summary),
+		Output:      output,
 		CommandName: "format_report",
 	}
 }

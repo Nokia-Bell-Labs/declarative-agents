@@ -79,6 +79,35 @@ func runInDir(dir string, name string, args ...string) error {
 	return cmd.Run()
 }
 
+// Audit runs the constitution-auditor agent against the project documentation.
+func Audit() error {
+	binary, err := filepath.Abs(filepath.Join(binDir, "agent"))
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(binary); err != nil {
+		fmt.Println("building agent binary...")
+		if err := Build(); err != nil {
+			return fmt.Errorf("build agent: %w", err)
+		}
+	}
+
+	rootDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command(binary,
+		"--machine", filepath.Join(rootDir, "agents/constitution-auditor/machine.yaml"),
+		"--tools-declaration", filepath.Join(rootDir, "tools/builtin.yaml"),
+		"--tools", filepath.Join(rootDir, "agents/constitution-auditor/tools.yaml"),
+		"--directory", rootDir,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 // Lint runs golangci-lint on the project.
 func Lint() error {
 	return sh.Run("golangci-lint", "run", "./...")

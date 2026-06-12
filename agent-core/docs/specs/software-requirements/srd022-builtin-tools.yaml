@@ -11,7 +11,7 @@ problem: |
   implementation behind a declared factory.
 
 goals:
-  - G1: Define the YAML contract for type: builtin tool declarations.
+  - "G1": "Define the YAML contract for type: builtin tool declarations."
   - G2: Define the BuiltinRegistry factory lookup and registration lifecycle.
   - G3: Define expectations for typed builtin config validation.
   - G4: Define how builtin tools relate to state-machine actions and dynamic $tool dispatch.
@@ -88,7 +88,7 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Builtin YAML declarations provide name, type: builtin, init, optional visibility, optional parameters, optional config, and optional emits.
+    criterion: "Builtin YAML declarations provide name, type: builtin, init, optional visibility, optional parameters, optional config, and optional emits."
     traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2

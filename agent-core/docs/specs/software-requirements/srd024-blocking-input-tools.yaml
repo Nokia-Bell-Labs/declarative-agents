@@ -30,7 +30,7 @@ requirements:
     items:
       - R1.1: A blocking input tool SHALL implement core.Command and block inside Execute until input arrives, the context is cancelled, or a configured timeout/shutdown condition occurs.
       - R1.2: A blocking input tool SHALL keep ownership of the external wait mechanism inside the tool, not inside core.Loop.
-      - R1.3: core.Loop SHALL continue to treat the blocking tool like any other command: dispatch once, receive one core.Result, then transition on the returned Signal.
+      - "R1.3": "core.Loop SHALL continue to treat the blocking tool like any other command: dispatch once, receive one core.Result, then transition on the returned Signal."
       - R1.4: Blocking behavior SHALL be visible in tool documentation and tool declaration descriptions.
 
   R2:

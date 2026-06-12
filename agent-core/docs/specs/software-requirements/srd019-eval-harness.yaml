@@ -48,7 +48,7 @@ requirements:
   R3:
     title: Evaluation tools
     items:
-      - R3.1: agents/evaluator/point.yaml SHALL express workspace preparation as separate tools: create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline.
+      - "R3.1": "agents/evaluator/point.yaml SHALL express workspace preparation as separate tools: create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline."
       - R3.1.1: create_point_dir SHALL create the point directory and set PointContext.PointDir and PointContext.TracePath.
       - R3.1.2: copy_sample_workspace SHALL copy only sample workspace files into PointContext.PointDir.
       - R3.1.3: copy_sample_docs SHALL copy sample docs into PointContext.PointDir/doc when docs exist and SHALL no-op successfully when they do not.

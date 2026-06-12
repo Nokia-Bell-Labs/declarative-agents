@@ -222,7 +222,7 @@ acceptance_tests_for_authors:
   - "Can rollback machinery find all state layers the tool changed?"
   - "Can similar tools be distinguished from the relationships.overlaps entries?"
 
-examples:
+example_tools:
   readonly_noop_word:
     name: read
     category: word
