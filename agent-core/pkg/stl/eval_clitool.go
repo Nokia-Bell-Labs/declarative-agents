@@ -53,26 +53,30 @@ func (c *runAgentCmd) Execute() core.Result {
 	args := []string{
 		"--directory", pc.PointDir,
 		"--otel-log-file", absTrace,
-		"--model", pc.Model,
 	}
 
-	for flag, val := range pc.Harness.Flags {
-		switch v := val.(type) {
-		case string:
-			resolved := resolveTemplate(v, pc.GridPoint)
-			if resolved != "" {
-				args = append(args, "--"+flag, resolved)
-			} else {
-				args = append(args, "--"+flag)
+	if pc.ProfilePath != "" {
+		args = append(args, "--profile", pc.ProfilePath)
+	} else {
+		args = append(args, "--model", pc.Model)
+		for flag, val := range pc.Harness.Flags {
+			switch v := val.(type) {
+			case string:
+				resolved := resolveTemplate(v, pc.GridPoint)
+				if resolved != "" {
+					args = append(args, "--"+flag, resolved)
+				} else {
+					args = append(args, "--"+flag)
+				}
+			case []interface{}:
+				for _, elem := range v {
+					s := fmt.Sprintf("%v", elem)
+					resolved := resolveTemplate(s, pc.GridPoint)
+					args = append(args, "--"+flag, resolved)
+				}
+			default:
+				args = append(args, "--"+flag, fmt.Sprintf("%v", val))
 			}
-		case []interface{}:
-			for _, elem := range v {
-				s := fmt.Sprintf("%v", elem)
-				resolved := resolveTemplate(s, pc.GridPoint)
-				args = append(args, "--"+flag, resolved)
-			}
-		default:
-			args = append(args, "--"+flag, fmt.Sprintf("%v", val))
 		}
 	}
 

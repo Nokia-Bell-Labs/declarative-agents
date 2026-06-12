@@ -4,6 +4,7 @@ package stl
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -46,7 +47,7 @@ samples_dir: samples
 `), base)
 
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "missing harnesses")
+	require.Contains(t, err.Error(), "missing profiles or harnesses")
 }
 
 func TestParseSuiteRejectsMissingHarnessBinary(t *testing.T) {
@@ -157,6 +158,118 @@ samples_dir: samples
 	require.NoError(t, err)
 	require.NoError(t, core.ValidateUndoMemento(memento))
 	require.Contains(t, string(memento.Payload), `"domain_state"`)
+}
+
+func TestParseSuiteWithProfiles(t *testing.T) {
+	base := suiteFixture(t)
+
+	profileDir := filepath.Join(base, "profiles")
+	require.NoError(t, os.MkdirAll(profileDir, 0o755))
+
+	machineDir := filepath.Join(base, "machines")
+	require.NoError(t, os.MkdirAll(machineDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(machineDir, "machine.yaml"), []byte("states: [Init]\n"), 0o644))
+
+	toolsDir := filepath.Join(base, "tools")
+	require.NoError(t, os.MkdirAll(toolsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(toolsDir, "tools.yaml"), []byte("tools: [read]\n"), 0o644))
+
+	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "fast.yaml"), []byte(fmt.Sprintf(`
+name: fast-model
+machine: %s/machine.yaml
+tools:
+  - %s/tools.yaml
+`, machineDir, toolsDir)), 0o644))
+
+	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "slow.yaml"), []byte(fmt.Sprintf(`
+name: slow-model
+machine: %s/machine.yaml
+tools:
+  - %s/tools.yaml
+`, machineDir, toolsDir)), 0o644))
+
+	suite, err := ParseSuite([]byte(fmt.Sprintf(`
+name: profile-test
+profiles:
+  - %s/fast.yaml
+  - %s/slow.yaml
+samples_dir: samples
+`, profileDir, profileDir)), base)
+
+	require.NoError(t, err)
+	require.Equal(t, "profile-test", suite.Name)
+	require.Len(t, suite.Profiles, 2)
+	require.Equal(t, "fast-model", suite.Profiles[0].Name)
+	require.Equal(t, "slow-model", suite.Profiles[1].Name)
+	require.Empty(t, suite.Harnesses)
+	require.Empty(t, suite.Models)
+	require.Len(t, suite.Samples, 1)
+}
+
+func TestParseSuiteRejectsProfilesWithHarnesses(t *testing.T) {
+	base := suiteFixture(t)
+	_, err := ParseSuite([]byte(`
+name: conflict
+profiles: [a.yaml]
+harnesses:
+  - name: agent
+    binary: agent
+samples_dir: samples
+`), base)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "mutually exclusive")
+}
+
+func TestNextPointIteratesProfiles(t *testing.T) {
+	base := suiteFixture(t)
+
+	profileDir := filepath.Join(base, "profiles")
+	require.NoError(t, os.MkdirAll(profileDir, 0o755))
+
+	machineDir := filepath.Join(base, "machines")
+	require.NoError(t, os.MkdirAll(machineDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(machineDir, "machine.yaml"), []byte("states: [Init]\n"), 0o644))
+
+	toolsDir := filepath.Join(base, "tools")
+	require.NoError(t, os.MkdirAll(toolsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(toolsDir, "tools.yaml"), []byte("tools: [read]\n"), 0o644))
+
+	for _, name := range []string{"alpha", "beta"} {
+		require.NoError(t, os.WriteFile(filepath.Join(profileDir, name+".yaml"), []byte(fmt.Sprintf(`
+name: %s
+machine: %s/machine.yaml
+tools:
+  - %s/tools.yaml
+`, name, machineDir, toolsDir)), 0o644))
+	}
+
+	suitePath := filepath.Join(base, "suite.yaml")
+	require.NoError(t, os.WriteFile(suitePath, []byte(fmt.Sprintf(`
+name: iter-test
+profiles:
+  - %s/alpha.yaml
+  - %s/beta.yaml
+samples_dir: samples
+`, profileDir, profileDir)), 0o644))
+
+	es := &EvalSessionState{SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{}}
+	requireSignal(t, (&parseSuiteConfigCmd{es: es}).Execute(), SigSuiteConfigParsed)
+	requireSignal(t, (&discoverSuiteSamplesCmd{es: es}).Execute(), SigSuiteSamplesDiscovered)
+	requireSignal(t, (&expandEvalGridCmd{es: es}).Execute(), SigEvalGridExpanded)
+	requireSignal(t, (&initEvalSessionCmd{es: es}).Execute(), SigEvalSessionInitialized)
+
+	var points []string
+	for {
+		pc, ok := es.NextPoint()
+		if !ok {
+			break
+		}
+		points = append(points, pc.Harness.Name+"_"+pc.Sample.Name)
+		require.NotEmpty(t, pc.ProfilePath)
+	}
+
+	require.Equal(t, []string{"alpha_hello", "beta_hello"}, points)
 }
 
 func TestDiscoverSuiteSamplesReportsCommandError(t *testing.T) {

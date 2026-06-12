@@ -40,6 +40,10 @@ func (c *dumpConfigCmd) Execute() core.Result {
 		},
 	}
 
+	if pc.ProfilePath != "" {
+		exp.Profile = pc.ProfilePath
+	}
+
 	if v, ok := pc.GridPoint["rep"]; ok {
 		exp.Repetition = fmt.Sprintf("%v", v)
 	}
@@ -86,6 +90,7 @@ func (c *dumpConfigCmd) Execute() core.Result {
 
 type experimentConfig struct {
 	AgentCommit string            `yaml:"agent_commit,omitempty"`
+	Profile     string            `yaml:"profile,omitempty"`
 	Harness     experimentHarness `yaml:"harness"`
 	Model       string            `yaml:"model"`
 	OllamaURL   string            `yaml:"ollama_url,omitempty"`

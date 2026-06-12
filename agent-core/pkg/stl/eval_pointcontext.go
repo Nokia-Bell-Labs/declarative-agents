@@ -30,17 +30,18 @@ const (
 // PointContext holds shared mutable state for a single evaluation point.
 // All per-point commands read and write through this struct.
 type PointContext struct {
-	SessionDir string
-	PointID    string
-	Sample     Sample
-	Harness    Harness
-	Model      string
-	GridPoint  GridPoint
-	Rep        int
-	Timeout    time.Duration
-	LLMTimeout time.Duration
-	OllamaURL  string
-	Stderr     io.Writer
+	SessionDir  string
+	PointID     string
+	Sample      Sample
+	Harness     Harness
+	Model       string
+	ProfilePath string
+	GridPoint   GridPoint
+	Rep         int
+	Timeout     time.Duration
+	LLMTimeout  time.Duration
+	OllamaURL   string
+	Stderr      io.Writer
 
 	// Populated during execution
 	PointDir        string

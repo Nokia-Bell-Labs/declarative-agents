@@ -13,12 +13,23 @@ type Sample struct {
 }
 
 // Harness defines a harness binary and its flag template.
+// Deprecated: use SuiteProfile with --profile instead.
 type Harness struct {
 	Name    string                 `yaml:"name"`
 	Binary  string                 `yaml:"binary"`
 	Module  string                 `yaml:"module"`
 	Version string                 `yaml:"version"`
 	Flags   map[string]interface{} `yaml:"flags"`
+}
+
+// SuiteProfile is a resolved profile entry in a suite configuration.
+// It bundles the profile path with derived metadata for labeling.
+type SuiteProfile struct {
+	Path    string `yaml:"path"`
+	Name    string `yaml:"-"`
+	Model   string `yaml:"-"`
+	Binary  string `yaml:"-"`
+	Profile AgentProfile `yaml:"-"`
 }
 
 // GridPoint is a single point in the parameter space.

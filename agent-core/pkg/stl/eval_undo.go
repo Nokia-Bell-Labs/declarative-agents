@@ -26,6 +26,7 @@ type evalSessionSnapshot struct {
 	gIdx         int
 	sIdx         int
 	rIdx         int
+	pIdx         int
 	started      bool
 	exhausted    bool
 	startUnixNS  int64
@@ -48,6 +49,7 @@ func snapshotEvalSession(es *EvalSessionState) evalSessionSnapshot {
 		gIdx:         es.gIdx,
 		sIdx:         es.sIdx,
 		rIdx:         es.rIdx,
+		pIdx:         es.pIdx,
 		started:      es.started,
 		exhausted:    es.exhausted,
 	}
@@ -69,6 +71,7 @@ func (s evalSessionSnapshot) restore(es *EvalSessionState) {
 	es.ollamaURL = s.ollamaURL
 	es.llmTimeout = time.Duration(s.llmTimeout)
 	es.hIdx, es.mIdx, es.gIdx, es.sIdx, es.rIdx = s.hIdx, s.mIdx, s.gIdx, s.sIdx, s.rIdx
+	es.pIdx = s.pIdx
 	es.started = s.started
 	es.exhausted = s.exhausted
 	if s.startUnixNS == 0 {
@@ -227,6 +230,7 @@ func cloneSuiteConfig(in SuiteConfig) SuiteConfig {
 	out := in
 	out.Harnesses = append([]Harness(nil), in.Harnesses...)
 	out.Models = append([]string(nil), in.Models...)
+	out.Profiles = append([]SuiteProfile(nil), in.Profiles...)
 	out.Samples = append([]Sample(nil), in.Samples...)
 	if in.Grid != nil {
 		out.Grid = make(map[string][]any, len(in.Grid))

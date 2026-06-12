@@ -14,8 +14,9 @@ import (
 // SuiteConfig defines a complete evaluation suite.
 type SuiteConfig struct {
 	Name       string           `yaml:"name"`
-	Harnesses  []Harness        `yaml:"harnesses"`
-	Models     []string         `yaml:"models"`
+	Harnesses  []Harness        `yaml:"harnesses"`  // Deprecated: use Profiles
+	Models     []string         `yaml:"models"`      // Deprecated: use Profiles
+	Profiles   []SuiteProfile   `yaml:"-"`
 	Grid       map[string][]any `yaml:"grid,omitempty"`
 	SamplesDir string           `yaml:"-"`
 	Samples    []Sample         `yaml:"-"`
@@ -167,9 +168,14 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 // ParseSuiteConfig parses suite YAML and validates metadata without discovering
 // samples. Runtime evaluator machines compose sample discovery as a separate
 // word after this parser.
+//
+// The suite YAML supports two formats:
+//   - Profile-based (preferred): profiles: [path1, path2]
+//   - Legacy: harnesses: [...] + models: [...]
 func ParseSuiteConfig(data []byte, baseDir string) (SuiteConfig, error) {
 	var raw struct {
 		Name       string           `yaml:"name"`
+		Profiles   []string         `yaml:"profiles"`
 		Harnesses  []Harness        `yaml:"harnesses"`
 		Models     []string         `yaml:"models"`
 		Grid       map[string][]any `yaml:"grid,omitempty"`
@@ -186,20 +192,6 @@ func ParseSuiteConfig(data []byte, baseDir string) (SuiteConfig, error) {
 	if raw.Name == "" {
 		return SuiteConfig{}, fmt.Errorf("suite: missing name")
 	}
-	if len(raw.Harnesses) == 0 {
-		return SuiteConfig{}, fmt.Errorf("suite %q: missing harnesses", raw.Name)
-	}
-	for i, h := range raw.Harnesses {
-		if h.Name == "" {
-			return SuiteConfig{}, fmt.Errorf("suite %q: harness[%d]: missing name", raw.Name, i)
-		}
-		if h.Binary == "" {
-			return SuiteConfig{}, fmt.Errorf("suite %q: harness %q: missing binary", raw.Name, h.Name)
-		}
-	}
-	if len(raw.Models) == 0 {
-		return SuiteConfig{}, fmt.Errorf("suite %q: missing models", raw.Name)
-	}
 
 	samplesDir := raw.SamplesDir
 	if samplesDir == "" {
@@ -214,14 +206,104 @@ func ParseSuiteConfig(data []byte, baseDir string) (SuiteConfig, error) {
 		timeout, _ = time.ParseDuration(raw.Timeout)
 	}
 
-	return SuiteConfig{
+	suite := SuiteConfig{
 		Name:       raw.Name,
-		Harnesses:  raw.Harnesses,
-		Models:     raw.Models,
 		Grid:       raw.Grid,
 		SamplesDir: samplesDir,
 		Timeout:    timeout,
 		OllamaURL:  raw.OllamaURL,
 		Reps:       raw.Reps,
-	}, nil
+	}
+
+	if len(raw.Profiles) > 0 {
+		if len(raw.Harnesses) > 0 || len(raw.Models) > 0 {
+			return SuiteConfig{}, fmt.Errorf("suite %q: profiles and harnesses/models are mutually exclusive", raw.Name)
+		}
+		profiles, err := resolveSuiteProfiles(raw.Profiles, baseDir)
+		if err != nil {
+			return SuiteConfig{}, fmt.Errorf("suite %q: %w", raw.Name, err)
+		}
+		suite.Profiles = profiles
+	} else {
+		if len(raw.Harnesses) == 0 {
+			return SuiteConfig{}, fmt.Errorf("suite %q: missing profiles or harnesses", raw.Name)
+		}
+		for i, h := range raw.Harnesses {
+			if h.Name == "" {
+				return SuiteConfig{}, fmt.Errorf("suite %q: harness[%d]: missing name", raw.Name, i)
+			}
+			if h.Binary == "" {
+				return SuiteConfig{}, fmt.Errorf("suite %q: harness %q: missing binary", raw.Name, h.Name)
+			}
+		}
+		if len(raw.Models) == 0 {
+			return SuiteConfig{}, fmt.Errorf("suite %q: missing models", raw.Name)
+		}
+		suite.Harnesses = raw.Harnesses
+		suite.Models = raw.Models
+	}
+
+	return suite, nil
+}
+
+// resolveSuiteProfiles loads each profile path (relative to baseDir),
+// extracts name and model, and resolves the harness binary.
+func resolveSuiteProfiles(paths []string, baseDir string) ([]SuiteProfile, error) {
+	var result []SuiteProfile
+	for _, p := range paths {
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(baseDir, p)
+		}
+		profile, err := LoadProfile(p)
+		if err != nil {
+			return nil, fmt.Errorf("load profile %s: %w", p, err)
+		}
+
+		sp := SuiteProfile{
+			Path:    p,
+			Name:    profile.Name,
+			Binary:  "agent",
+			Profile: profile,
+		}
+
+		sp.Model = extractModelFromProfile(profile)
+		result = append(result, sp)
+	}
+	return result, nil
+}
+
+// extractModelFromProfile reads the model name from the first invoke_llm
+// tool declaration in the profile's tool declarations and config dirs.
+func extractModelFromProfile(p AgentProfile) string {
+	var paths []string
+	paths = append(paths, p.ToolDeclarations...)
+
+	for _, dir := range p.ToolConfigDirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() && filepath.Ext(e.Name()) == ".yaml" {
+				paths = append(paths, filepath.Join(dir, e.Name()))
+			}
+		}
+	}
+
+	for _, path := range paths {
+		defs, err := LoadToolDefs(path)
+		if err != nil {
+			continue
+		}
+		for _, td := range defs {
+			if td.Init != "invoke_llm" {
+				continue
+			}
+			var cfg LLMToolConfig
+			if err := DecodeToolConfig(td, &cfg); err == nil && cfg.Model != "" {
+				return cfg.Model
+			}
+		}
+	}
+	return "unknown"
 }

@@ -226,9 +226,16 @@ func (c *reportSuiteSummaryCmd) Undo() core.Result { return core.NoopUndo(c.Name
 
 func (c *reportSuiteSummaryCmd) Execute() core.Result {
 	suite := c.es.Suite
-	total := len(suite.Harnesses) * len(suite.Models) * len(c.es.gridPoints) * len(suite.Samples) * c.es.reps
-	fmt.Fprintf(c.es.Stderr, "Suite %q: %d harnesses x %d models x %d samples x %d reps = %d points\n",
-		suite.Name, len(suite.Harnesses), len(suite.Models), len(suite.Samples), c.es.reps, total)
+	var total int
+	if len(suite.Profiles) > 0 {
+		total = len(suite.Profiles) * len(c.es.gridPoints) * len(suite.Samples) * c.es.reps
+		fmt.Fprintf(c.es.Stderr, "Suite %q: %d profiles x %d samples x %d reps = %d points\n",
+			suite.Name, len(suite.Profiles), len(suite.Samples), c.es.reps, total)
+	} else {
+		total = len(suite.Harnesses) * len(suite.Models) * len(c.es.gridPoints) * len(suite.Samples) * c.es.reps
+		fmt.Fprintf(c.es.Stderr, "Suite %q: %d harnesses x %d models x %d samples x %d reps = %d points\n",
+			suite.Name, len(suite.Harnesses), len(suite.Models), len(suite.Samples), c.es.reps, total)
+	}
 
 	return core.Result{
 		Signal:      SigSuiteLoaded,
