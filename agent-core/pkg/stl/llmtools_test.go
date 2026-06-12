@@ -54,6 +54,10 @@ func noopTracer() tracing.Tracer {
 	return tracing.NoopTracer{}
 }
 
+type alwaysCheckpointPolicy struct{}
+
+func (alwaysCheckpointPolicy) ShouldCheckpoint(core.CheckpointEvent) bool { return true }
+
 // --- invoke_llm tests ---
 
 func TestInvokeLLM_Success(t *testing.T) {
@@ -112,6 +116,66 @@ func TestInvokeLLM_UndoRestoresPreviousHistoryLength(t *testing.T) {
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 1, history.Len())
 	require.Equal(t, "existing", history.History()[0].Content)
+}
+
+func TestInvokeLLM_HistoryCapturesUndoMemento(t *testing.T) {
+	client := &stubClient{
+		response: llm.ChatResponse{Content: "assistant response"},
+	}
+	history := llm.NewConversation(nil, "", llm.ChatOptions{})
+	history.Append(llm.Message{Role: llm.User, Content: "existing"})
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "invoke_llm", Visibility: core.Internal}, &InvokeLLMBuilder{
+		Client:    client,
+		History:   history,
+		Registry:  reg,
+		Assembler: &stubAssembler{},
+		Model:     "test-model",
+		Tracer:    noopTracer(),
+		Ctx:       context.Background(),
+	})
+
+	spec := core.MachineSpec{
+		Name:           "llm-memento-test",
+		InitialState:   "Start",
+		States:         core.StateSpecsFromNames("Start", "Working", "Finished"),
+		TerminalStates: []string{"Finished"},
+		Signals:        core.SignalSpecsFromNames("Seed", "LLMResponded"),
+		Transitions: []core.TransitionSpec{
+			{State: "Start", Signal: "Seed", Next: "Working", Action: "invoke_llm"},
+			{State: "Working", Signal: "LLMResponded", Next: "Finished"},
+		},
+	}
+
+	rr, err := core.Loop(core.LoopParams{
+		MachineSpec:      &spec,
+		Registry:         reg,
+		Trace:            noopTracer(),
+		Budget:           core.Budget{MaxIterations: 10},
+		CheckpointPolicy: alwaysCheckpointPolicy{},
+		Hooks: core.LoopHooks{
+			TerminalStatus: func(s core.State) core.RunStatus {
+				if s == "Finished" {
+					return core.StatusSucceeded
+				}
+				return core.StatusFailed
+			},
+		},
+	}, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, rr.Status)
+	require.Len(t, rr.History, 1)
+	require.NotNil(t, rr.History[0].Undo)
+	require.Equal(t, core.UndoMementoReversible, rr.History[0].Undo.Kind)
+	require.NoError(t, core.ValidateUndoMemento(*rr.History[0].Undo))
+
+	var payload struct {
+		Conversation []llm.Message `json:"conversation"`
+	}
+	require.NoError(t, json.Unmarshal(rr.History[0].Undo.Payload, &payload))
+	require.Len(t, payload.Conversation, 1)
+	require.Equal(t, "existing", payload.Conversation[0].Content)
 }
 
 func TestInvokeLLM_UndoRestoresUserMessageAfterError(t *testing.T) {

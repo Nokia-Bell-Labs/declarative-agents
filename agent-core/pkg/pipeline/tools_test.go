@@ -4,6 +4,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -101,6 +102,32 @@ func TestExtractTaskBuilder_UndoRestoresPipelineState(t *testing.T) {
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
 	require.Equal(t, 3, ps.retryCount)
+}
+
+func TestExtractTaskBuilder_UndoMementoCapturesPipelineSnapshot(t *testing.T) {
+	t.Parallel()
+	ps := minimalState(t)
+	ps.retryCount = 3
+
+	builder := &ExtractTaskBuilder{PS: ps}
+	cmd := builder.Build(core.Result{})
+	result := cmd.Execute()
+	require.Equal(t, SigTaskExtracted, result.Signal)
+
+	provider, ok := cmd.(core.UndoMementoProvider)
+	require.True(t, ok)
+	memento, err := provider.UndoMemento()
+	require.NoError(t, err)
+	require.Equal(t, core.UndoMementoReversible, memento.Kind)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+
+	var payload struct {
+		DomainState pipelineSnapshotPayload `json:"domain_state"`
+	}
+	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
+	require.Equal(t, 3, payload.DomainState.RetryCount)
+	require.Nil(t, payload.DomainState.CurrentTask)
+	require.NotEmpty(t, payload.DomainState.NodeStates)
 }
 
 func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {

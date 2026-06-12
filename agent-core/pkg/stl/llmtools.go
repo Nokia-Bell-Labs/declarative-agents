@@ -38,6 +38,7 @@ type invokeLLMCmd struct {
 	ctx          context.Context
 	callTimeout  time.Duration
 	prevLen      int
+	prevMessages []llm.Message
 	hasSnapshot  bool
 }
 
@@ -62,6 +63,17 @@ func (c *invokeLLMCmd) Undo() core.Result {
 	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: fmt.Sprintf("undo: restored conversation to %d messages", c.prevLen)}
 }
 
+func (c *invokeLLMCmd) UndoMemento() (core.UndoMemento, error) {
+	if !c.hasSnapshot {
+		return core.UndoMemento{}, fmt.Errorf("%w: no conversation snapshot recorded for %s", core.ErrUndoMementoMissing, c.Name())
+	}
+	return core.NewUndoMemento(c.Name(), core.UndoMementoReversible, struct {
+		Conversation []llm.Message `json:"conversation"`
+	}{
+		Conversation: c.prevMessages,
+	})
+}
+
 // SpanName implements core.SpanOverride so Dispatch emits a semconv
 // inference span instead of execute_tool.
 func (c *invokeLLMCmd) SpanName() string {
@@ -82,6 +94,7 @@ func (c *invokeLLMCmd) Execute() core.Result {
 	tr := c.tracer
 
 	c.prevLen = c.history.Len()
+	c.prevMessages = c.history.Snapshot()
 	c.hasSnapshot = true
 	c.history.Append(llm.Message{Role: llm.User, Content: c.userMessage})
 	tr.Event("history.user_appended",
@@ -257,6 +270,24 @@ func (p *parseResponseCmd) Undo() core.Result {
 	}
 	p.retry.Restore(p.prevRetries)
 	return core.Result{Signal: core.ToolDone, CommandName: p.Name(), Output: fmt.Sprintf("undo: restored parse retry counter to %d", p.prevRetries)}
+}
+
+func (p *parseResponseCmd) UndoMemento() (core.UndoMemento, error) {
+	if p.retry == nil {
+		return core.NoopUndoMemento(p.Name()), nil
+	}
+	if !p.hasSnapshot {
+		return core.UndoMemento{}, fmt.Errorf("%w: no retry counter snapshot recorded for %s", core.ErrUndoMementoMissing, p.Name())
+	}
+	return core.NewUndoMemento(p.Name(), core.UndoMementoReversible, struct {
+		DomainState struct {
+			ParseRetryCounter int `json:"parse_retry_counter"`
+		} `json:"domain_state"`
+	}{
+		DomainState: struct {
+			ParseRetryCounter int `json:"parse_retry_counter"`
+		}{ParseRetryCounter: p.prevRetries},
+	})
 }
 
 func (p *parseResponseCmd) Execute() core.Result {
@@ -438,6 +469,24 @@ func (r *reportParseErrorCmd) Undo() core.Result {
 	return core.Result{Signal: core.ToolDone, CommandName: r.Name(), Output: fmt.Sprintf("undo: restored parse retry counter to %d", r.prevRetries)}
 }
 
+func (r *reportParseErrorCmd) UndoMemento() (core.UndoMemento, error) {
+	if r.retry == nil {
+		return core.NoopUndoMemento(r.Name()), nil
+	}
+	if !r.hasSnapshot {
+		return core.UndoMemento{}, fmt.Errorf("%w: no retry counter snapshot recorded for %s", core.ErrUndoMementoMissing, r.Name())
+	}
+	return core.NewUndoMemento(r.Name(), core.UndoMementoReversible, struct {
+		DomainState struct {
+			ParseRetryCounter int `json:"parse_retry_counter"`
+		} `json:"domain_state"`
+	}{
+		DomainState: struct {
+			ParseRetryCounter int `json:"parse_retry_counter"`
+		}{ParseRetryCounter: r.prevRetries},
+	})
+}
+
 func (r *reportParseErrorCmd) Execute() core.Result {
 	if r.retry != nil {
 		r.prevRetries = r.retry.Snapshot()
@@ -496,6 +545,17 @@ func (r *resetHistoryCmd) Undo() core.Result {
 	}
 	r.history.Restore(r.prevMessages)
 	return core.Result{Signal: core.ToolDone, CommandName: r.Name(), Output: fmt.Sprintf("undo: restored %d conversation messages", len(r.prevMessages))}
+}
+
+func (r *resetHistoryCmd) UndoMemento() (core.UndoMemento, error) {
+	if !r.hasSnapshot {
+		return core.UndoMemento{}, fmt.Errorf("%w: no conversation snapshot recorded for %s", core.ErrUndoMementoMissing, r.Name())
+	}
+	return core.NewUndoMemento(r.Name(), core.UndoMementoReversible, struct {
+		Conversation []llm.Message `json:"conversation"`
+	}{
+		Conversation: r.prevMessages,
+	})
 }
 
 func (r *resetHistoryCmd) Execute() core.Result {

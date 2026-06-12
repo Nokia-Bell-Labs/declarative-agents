@@ -119,6 +119,38 @@ func TestRollbackCheckpointToIteration(t *testing.T) {
 	require.True(t, strings.HasPrefix(rolledBack.ID, "rollback-cp-1-to-1-"))
 }
 
+func TestRollbackCheckpointToIterationRestoresConversationMemento(t *testing.T) {
+	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
+	cp.History[1].CommandName = "invoke_llm"
+	cp.History[1].Undo = &core.UndoMemento{
+		Version:     core.UndoMementoVersion,
+		Kind:        core.UndoMementoReversible,
+		CommandName: "invoke_llm",
+		Payload:     json.RawMessage(`{"conversation":[{"role":"user","content":"before"}]}`),
+	}
+
+	rolledBack, _, err := rollbackCheckpointToIteration(cp, 1)
+
+	require.NoError(t, err)
+	require.JSONEq(t, `[{"role":"user","content":"before"}]`, string(rolledBack.ConversationLog))
+}
+
+func TestRollbackCheckpointToIterationRestoresPipelineDomainMemento(t *testing.T) {
+	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
+	cp.History[1].CommandName = "parse_plan"
+	cp.History[1].Undo = &core.UndoMemento{
+		Version:     core.UndoMementoVersion,
+		Kind:        core.UndoMementoReversible,
+		CommandName: "parse_plan",
+		Payload:     json.RawMessage(`{"domain_state":{"retry_count":3,"issue_id":"old"}}`),
+	}
+
+	rolledBack, _, err := rollbackCheckpointToIteration(cp, 1)
+
+	require.NoError(t, err)
+	require.JSONEq(t, `{"retry_count":3,"issue_id":"old"}`, string(rolledBack.DomainState))
+}
+
 func TestRollbackCheckpointToIterationReportsMissingUndoMemento(t *testing.T) {
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 	cp.History[1].Undo = nil

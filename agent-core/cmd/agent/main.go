@@ -301,6 +301,9 @@ func rollbackCheckpointToIteration(cp core.Checkpoint, target int) (core.Checkpo
 	out.AgentState.State = targetState
 	out.AgentState.Signal = core.Approved
 	out.WorkspaceRef = targetRef
+	if restorer.conversationLog != nil {
+		out.ConversationLog = restorer.conversationLog
+	}
 	if restorer.domainState != nil {
 		out.DomainState = restorer.domainState
 	}
@@ -354,11 +357,13 @@ func (p persistedHistoryCommand) Undo() core.Result {
 }
 
 type persistedRollbackRestorer struct {
-	domainState json.RawMessage
+	conversationLog json.RawMessage
+	domainState     json.RawMessage
 }
 
 type persistedUndoPayload struct {
-	DomainState json.RawMessage `json:"domain_state,omitempty"`
+	ConversationLog json.RawMessage `json:"conversation,omitempty"`
+	DomainState     json.RawMessage `json:"domain_state,omitempty"`
 }
 
 func (p *persistedRollbackRestorer) Restore(entry core.HistoryDigest) error {
@@ -390,6 +395,9 @@ func (p *persistedRollbackRestorer) restorePayload(entry core.HistoryDigest) err
 	}
 	if len(payload.DomainState) > 0 {
 		p.domainState = append(json.RawMessage(nil), payload.DomainState...)
+	}
+	if len(payload.ConversationLog) > 0 {
+		p.conversationLog = append(json.RawMessage(nil), payload.ConversationLog...)
 	}
 	return nil
 }

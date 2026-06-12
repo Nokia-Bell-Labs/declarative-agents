@@ -72,6 +72,24 @@ type nodeSnapshot struct {
 	retries int
 }
 
+type pipelineSnapshotPayload struct {
+	CurrentTask *extract.Task                        `json:"current_task,omitempty"`
+	CurrentPlan *plan.ImplementationPlan             `json:"current_plan,omitempty"`
+	IssueID     string                               `json:"issue_id,omitempty"`
+	TaskDeps    map[string]string                    `json:"task_deps,omitempty"`
+	RetryCount  int                                  `json:"retry_count"`
+	NodeStates  map[string]pipelineNodeStateSnapshot `json:"node_states,omitempty"`
+}
+
+type pipelineNodeStateSnapshot struct {
+	Status  graph.Status `json:"status"`
+	Retries int          `json:"retries"`
+}
+
+type pipelineUndoPayload struct {
+	DomainState pipelineSnapshotPayload `json:"domain_state"`
+}
+
 func snapshotPipelineState(ps *State) pipelineSnapshot {
 	snap := pipelineSnapshot{
 		currentTask: cloneTask(ps.CurrentTask),
@@ -87,6 +105,33 @@ func snapshotPipelineState(ps *State) pipelineSnapshot {
 		}
 	}
 	return snap
+}
+
+func mementoPipelineSnapshot(commandName string, snap pipelineSnapshot, ok bool, kind core.UndoMementoKind) (core.UndoMemento, error) {
+	if !ok {
+		return core.UndoMemento{}, fmt.Errorf("%w: no pipeline snapshot recorded for %s", core.ErrUndoMementoMissing, commandName)
+	}
+	payload := pipelineSnapshotPayload{
+		CurrentTask: cloneTask(snap.currentTask),
+		CurrentPlan: clonePlan(snap.currentPlan),
+		IssueID:     snap.issueID,
+		TaskDeps:    cloneStringMap(snap.taskDeps),
+		RetryCount:  snap.retryCount,
+	}
+	if len(snap.nodeStates) > 0 {
+		payload.NodeStates = make(map[string]pipelineNodeStateSnapshot, len(snap.nodeStates))
+		for id, ns := range snap.nodeStates {
+			payload.NodeStates[id] = pipelineNodeStateSnapshot{Status: ns.status, Retries: ns.retries}
+		}
+	}
+	memento, err := core.NewUndoMemento(commandName, kind, pipelineUndoPayload{DomainState: payload})
+	if err != nil {
+		return core.UndoMemento{}, err
+	}
+	if kind == core.UndoMementoCompensatable {
+		memento.Description = "restores planner state snapshot; external side effects require compensation"
+	}
+	return memento, nil
 }
 
 func (s pipelineSnapshot) restore(ps *State) {
@@ -186,6 +231,10 @@ func (c *extractTaskCmd) Undo() core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
 }
 
+func (c *extractTaskCmd) UndoMemento() (core.UndoMemento, error) {
+	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoReversible)
+}
+
 func (c *extractTaskCmd) Execute() core.Result {
 	c.snapshot = snapshotPipelineState(c.ps)
 	c.hasSnapshot = true
@@ -235,6 +284,10 @@ type extractAllCmd struct {
 func (c *extractAllCmd) Name() string { return "extract_all" }
 func (c *extractAllCmd) Undo() core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+}
+
+func (c *extractAllCmd) UndoMemento() (core.UndoMemento, error) {
+	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoReversible)
 }
 
 func (c *extractAllCmd) Execute() core.Result {
@@ -362,6 +415,10 @@ func (c *parsePlanCmd) Undo() core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
 }
 
+func (c *parsePlanCmd) UndoMemento() (core.UndoMemento, error) {
+	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoReversible)
+}
+
 func (c *parsePlanCmd) Execute() core.Result {
 	c.snapshot = snapshotPipelineState(c.ps)
 	c.hasSnapshot = true
@@ -402,6 +459,10 @@ type createIssueCmd struct {
 func (c *createIssueCmd) Name() string { return "create_issue" }
 func (c *createIssueCmd) Undo() core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+}
+
+func (c *createIssueCmd) UndoMemento() (core.UndoMemento, error) {
+	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoCompensatable)
 }
 
 func (c *createIssueCmd) Execute() core.Result {
@@ -514,6 +575,10 @@ type checkResultCmd struct {
 func (c *checkResultCmd) Name() string { return "check_result" }
 func (c *checkResultCmd) Undo() core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+}
+
+func (c *checkResultCmd) UndoMemento() (core.UndoMemento, error) {
+	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoReversible)
 }
 
 func (c *checkResultCmd) Execute() core.Result {

@@ -22,38 +22,9 @@ noop_contract:
   command_name: "the command being undone"
 
 real_undo_pending:
-  undo_mementos:
-    follow_up: agent-core-gm-rollback.5
-    reason: "mechanical Undo() is not enough for persisted rollback from checkpoint history"
-    commands:
-      - command: invoke_llm
-        current_undo: conversation_truncate
-        target_strategy: conversation_truncate
-      - command: reset_history
-        current_undo: conversation_restore
-        target_strategy: conversation_restore
-      - command: parse_response
-        current_undo: parse_retry_counter_restore_when_tracker_enabled
-        target_strategy: parse_retry_counter_restore
-      - command: report_parse_error
-        current_undo: parse_retry_counter_restore_when_tracker_enabled
-        target_strategy: parse_retry_counter_restore
-      - command: extract_task
-        current_undo: pipeline_state_restore
-        target_strategy: reversible_memento_with_pipeline_snapshot
-      - command: extract_all
-        current_undo: pipeline_state_restore
-        target_strategy: reversible_memento_with_pipeline_snapshot
-      - command: parse_plan
-        current_undo: pipeline_state_restore
-        target_strategy: reversible_memento_with_pipeline_snapshot
-      - command: check_result
-        current_undo: pipeline_state_restore
-        target_strategy: reversible_memento_with_pipeline_snapshot
-
   planner_state:
     - command: create_issue
-      current_undo: pipeline_state_restore_only
+      current_undo: compensatable_memento_with_pipeline_snapshot
       gap: "external bd issue creation is not compensated"
       target_strategy: compensatable_memento_with_issue_id
       follow_up: agent-core-gm-rollback.8
@@ -195,36 +166,36 @@ expected_noop_long_term:
   - FailedParamCmd
   - failCmd
 
-implemented_mechanical_undo:
+implemented_memento_undo:
   conversation_and_retry_state:
     - command: invoke_llm
       strategy: conversation_truncate
-      memento: missing
+      memento: reversible_conversation_snapshot
     - command: reset_history
       strategy: conversation_restore
-      memento: missing
+      memento: reversible_conversation_snapshot
     - command: parse_response
       strategy: parse_retry_counter_restore_when_tracker_enabled
-      memento: missing
+      memento: reversible_parse_retry_counter_snapshot
     - command: report_parse_error
       strategy: parse_retry_counter_restore_when_tracker_enabled
-      memento: missing
+      memento: reversible_parse_retry_counter_snapshot
   planner_state:
     - command: extract_task
       strategy: pipeline_state_restore
-      memento: missing
+      memento: reversible_pipeline_snapshot
     - command: extract_all
       strategy: pipeline_state_restore
-      memento: missing
+      memento: reversible_pipeline_snapshot
     - command: parse_plan
       strategy: pipeline_state_restore
-      memento: missing
+      memento: reversible_pipeline_snapshot
     - command: check_result
       strategy: pipeline_state_restore
-      memento: missing
+      memento: reversible_pipeline_snapshot
     - command: create_issue
       strategy: pipeline_state_restore_only
-      memento: missing
+      memento: compensatable_pipeline_snapshot
 
 declaration_mismatches:
   - command: write
