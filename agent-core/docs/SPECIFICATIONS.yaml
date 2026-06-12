@@ -357,7 +357,7 @@ coverage_gaps: |
   - agents/generator/machine.yaml (generator machine semantics)
   - agents/evaluator/machine.yaml and agents/evaluator/point.yaml (evaluator machine semantics)
   - agents/planner/machine.yaml and variants (planner machine semantics)
-  - agents/validate/machine.yaml (validator machine semantics)
+  - agents/constitution-auditor/machine.yaml (constitution auditor machine semantics)
   - agents/bench/machine.yaml (bench machine semantics)
   - docs/specs/semantic-models/rollback-lifecycle.yaml (sm-rollback-lifecycle)
   - docs/specs/semantic-models/tool-language.yaml (sm-tool-language)

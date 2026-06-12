@@ -1,12 +1,12 @@
-name: validate
+name: constitution-auditor
 purpose: |-
   The validator is a deterministic agent that loads a specification
   corpus, builds a labeled property graph of inter-document
   references, runs consistency checks, and produces a validation
   report. It does NOT use an LLM — it is a tool pipeline.
 configuration:
-  machine: agents/validate/machine.yaml
-  tools: agents/validate/tools.yaml
+  machine: agents/constitution-auditor/machine.yaml
+  tools: agents/constitution-auditor/tools.yaml
 invariants:
 - The validator never calls an LLM
 - Both pass and fail outcomes produce a formatted report

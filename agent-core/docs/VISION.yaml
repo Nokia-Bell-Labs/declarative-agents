@@ -107,7 +107,7 @@ tool_language_diagram: |
 what_this_does: |
   Agent Core is a Go framework comprising library packages and a
   unified binary (cmd/agent). The binary drives five agent types —
-  generator, evaluator, planner, validator, and bench — each
+  generator, evaluator, planner, constitution-auditor, and bench — each
   defined by YAML configurations. It provides a layered set of
   packages that together implement a complete agentic loop framework.
 

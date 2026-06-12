@@ -20,7 +20,7 @@ scope:
     - agents/evaluator/tools.yaml
     - agents/evaluator/tools-point.yaml
     - agents/bench/tools.yaml
-    - agents/validate/tools.yaml
+    - agents/constitution-auditor/tools.yaml
 
 role_legend:
   word: |

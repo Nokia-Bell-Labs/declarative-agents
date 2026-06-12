@@ -41,7 +41,7 @@ func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
 		"planner":   {},
 		"evaluator": {},
 		"bench":     {},
-		"validate":  {},
+		"constitution-auditor": {},
 	}
 	isModeLiteral := func(expr ast.Expr) (string, bool) {
 		lit, ok := expr.(*ast.BasicLit)

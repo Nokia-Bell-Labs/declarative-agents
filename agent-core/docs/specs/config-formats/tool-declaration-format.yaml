@@ -433,7 +433,7 @@ mode_local_overrides: |
     agents/evaluator/builtin.yaml — evaluator-specific config (suite/point tools)
     agents/planner/builtin.yaml — planner-specific config (child agent, issue tools)
 
-  The generator and validate agents do not have mode-local overrides;
+  The generator and constitution-auditor agents do not have mode-local overrides;
   they use tools/builtin.yaml directly.
 
 legacy_artifacts: |

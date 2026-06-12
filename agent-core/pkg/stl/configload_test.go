@@ -47,7 +47,7 @@ func TestAgentMachineSemanticMetadataMerged(t *testing.T) {
 		"planner/machine.yaml",
 		"planner/machine-passthrough.yaml",
 		"planner/machine-plan-only.yaml",
-		"validate/machine.yaml",
+		"constitution-auditor/machine.yaml",
 		"bench/machine.yaml",
 	}
 
@@ -207,7 +207,7 @@ func TestToolContractsWarnOnlyReport(t *testing.T) {
 		{name: "evaluator-session", agent: "evaluator", selectionPath: filepath.Join(cd, "evaluator", "tools.yaml")},
 		{name: "evaluator-point", agent: "evaluator", selectionPath: filepath.Join(cd, "evaluator", "tools-point.yaml")},
 		{name: "bench", agent: "bench", selectionPath: filepath.Join(cd, "bench", "tools.yaml")},
-		{name: "validate", agent: "validate", selectionPath: filepath.Join(cd, "validate", "tools.yaml")},
+		{name: "constitution-auditor", agent: "constitution-auditor", selectionPath: filepath.Join(cd, "constitution-auditor", "tools.yaml")},
 	}
 
 	total := 0
@@ -680,15 +680,15 @@ func TestBenchConfig_TransitionTable(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Validate config tests
+// Constitution-auditor config tests
 // ---------------------------------------------------------------------------
 
-func TestValidateConfig_MachineLoads(t *testing.T) {
-	path := filepath.Join(configDir(t), "validate", "machine.yaml")
+func TestConstitutionAuditorConfig_MachineLoads(t *testing.T) {
+	path := filepath.Join(configDir(t), "constitution-auditor", "machine.yaml")
 	spec, err := core.LoadMachineSpec(path)
 	require.NoError(t, err)
 
-	require.Equal(t, "validate", spec.Name)
+	require.Equal(t, "constitution-auditor", spec.Name)
 	require.Equal(t, "Idle", spec.InitialState)
 	require.Contains(t, spec.TerminalStates, "Passed")
 	require.Contains(t, spec.TerminalStates, "Failed")
@@ -696,9 +696,9 @@ func TestValidateConfig_MachineLoads(t *testing.T) {
 	require.NotEmpty(t, spec.Transitions)
 }
 
-func TestValidateConfig_ToolsLoad(t *testing.T) {
+func TestConstitutionAuditorConfig_ToolsLoad(t *testing.T) {
 	cd := configDir(t)
-	defs := loadTestDefs(t, cd, "validate")
+	defs := loadTestDefs(t, cd, "constitution-auditor")
 	require.NotEmpty(t, defs)
 
 	assertToolNames(t, defs, []string{
@@ -706,12 +706,12 @@ func TestValidateConfig_ToolsLoad(t *testing.T) {
 	})
 }
 
-func TestValidateConfig_TransitionTable(t *testing.T) {
+func TestConstitutionAuditorConfig_TransitionTable(t *testing.T) {
 	cd := configDir(t)
-	spec, err := core.LoadMachineSpec(filepath.Join(cd, "validate", "machine.yaml"))
+	spec, err := core.LoadMachineSpec(filepath.Join(cd, "constitution-auditor", "machine.yaml"))
 	require.NoError(t, err)
 
-	defs := loadTestDefs(t, cd, "validate")
+	defs := loadTestDefs(t, cd, "constitution-auditor")
 	assertToolEmits(t, spec, defs)
 	reg := buildRegistryForDefs(t, defs)
 

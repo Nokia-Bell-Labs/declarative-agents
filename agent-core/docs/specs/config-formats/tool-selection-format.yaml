@@ -85,7 +85,7 @@ selection_files:
       check_result), LLM tools (invoke_llm, reset_history),
       and direct build/test transition tools (build, vet, test).
 
-  - file: agents/validate/tools.yaml
+  - file: agents/constitution-auditor/tools.yaml
     tool_count: 3
     description: |
       Name-only selection of 3 tools (load_corpus, validate_specs,
