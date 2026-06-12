@@ -2,10 +2,9 @@ id: rel01.0-uc001-generator-coding
 title: Generator agent solves Go coding tasks using YAML config
 
 summary: |
-  The generator agent is configured entirely through YAML files passed
-  to the unified agent binary. It loads a state machine from
-  agents/generator/machine.yaml, selects tools from tools.yaml, and
-  uses a per-model LLM config from llm/*.yaml. The agent iteratively
+  The generator agent is configured through agents/generator/profile.yaml,
+  which points to its machine, tool selection, shared tool declarations, and
+  per-model LLM tool declaration. The agent iteratively
   invokes an LLM, parses tool calls, executes file/build/test tools,
   and converges on a solution that passes validation.
 
@@ -18,11 +17,7 @@ actor: Developer invoking the agent binary
 
 trigger: |
   The developer (or mage integration:uc001) runs:
-    agent --machine agents/generator/machine.yaml \
-          --tools-declaration tools/builtin.yaml \
-          --tools-declaration tools/exec.yaml \
-          --tools-declaration agents/generator/llm/default.yaml \
-          --tools agents/generator/tools.yaml \
+    agent --profile agents/generator/profile.yaml \
           --directory <workspace>
 
 preconditions:
@@ -31,8 +26,8 @@ preconditions:
   - The workspace contains go.mod, an SRD, a source stub, and oracle tests
 
 flow:
-  - F1: cmd/agent parses CLI flags and loads tool declarations from multiple YAML files, merging them into a single registry (srd013, srd018).
-  - F2: Tool selection filters the declarations to the subset listed in agents/generator/tools.yaml (cfg-tool-selection-format).
+  - F1: cmd/agent parses CLI flags and loads agents/generator/profile.yaml, resolving machine, tool selection, tool declaration files, and tool config directories relative to the profile file (cfg-runtime-contract, srd013).
+  - F2: Tool declarations are loaded from explicit profile files and configured directories; tool selection filters the declarations to the subset listed in agents/generator/tools.yaml (cfg-tool-selection-format).
   - F3: The invoke_llm tool definition provides model, provider URL, and system prompt. cmd/agent extracts this to configure the Ollama adapter (srd009, srd017).
   - F4: LLM response profiles are loaded from embedded defaults (or --profiles-dir override) to configure per-model parsing pipelines (srd017).
   - F5: The LLM profile registry matches the "qwen" prefix and selects the qwen profile with [tool_call] envelope and strip_thinking_blocks pipeline (srd017, internal/model/llm/profiles/qwen.yaml).
@@ -50,11 +45,12 @@ touchpoints:
   - T2: "srd009-ollama-adapter -- Qwen 3.6 model invocation via Ollama Chat API"
   - T3: "srd013-standard-tool-library -- file tools, build tools, LLM commands, done"
   - T4: "srd017-llm-extensions -- qwen profile resolution, thinking-block stripping, envelope extraction"
-  - T5: "srd018-cli-flag-contract -- flag constants, tools-declaration, machine flag"
-  - T6: "cfg-tool-declaration-format -- builtin.yaml, exec.yaml, llm/*.yaml declarations"
+  - T5: "cfg-runtime-contract -- profile-first invocation and compatibility flags"
+  - T6: "cfg-tool-declaration-format -- builtin, exec, and llm tool declarations"
   - T7: "cfg-tool-selection-format -- tools.yaml name-list filtering"
   - T8: "agents/generator/machine.yaml -- state machine states, signals, lifecycle"
   - T9: "internal/model/llm/profiles/qwen.yaml -- model-specific parsing pipeline"
+  - T10: "agents/generator/profile.yaml -- profile-relative runtime entry point"
 
 success_criteria:
   - id: S1

@@ -89,9 +89,7 @@ agent rollback \
   --directory "$PWD"
 
 agent \
-  --machine agents/generator/machine.yaml \
-  --tools agents/generator/tools.yaml \
-  --tools-declaration tools/builtin.yaml \
+  --profile agents/generator/profile.yaml \
   --state-store-dir .agent-state \
   --resume-checkpoint rollback-suspend-4-1780000000000000000-to-2-1780000000000000001 \
   --resume-signal Approved \
@@ -181,9 +179,7 @@ Resume from the rollback checkpoint printed by the command:
 
 ```bash
 agent \
-  --machine <machine.yaml> \
-  --tools <tools.yaml> \
-  --tools-declaration tools/builtin.yaml \
+  --profile agents/<agent>/profile.yaml \
   --state-store-dir .agent-state \
   --resume-checkpoint <rollback-checkpoint-id> \
   --resume-signal Approved \
