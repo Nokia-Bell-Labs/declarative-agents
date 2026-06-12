@@ -1,9 +1,8 @@
 # Package Layout
 
-This repository is moving toward a domain-oriented Go package layout. The
-current `pkg/` tree grew as a flat set of implementation packages; new work
-should use `internal/` for application-private code unless a package is
-intentionally supported as a public Go API.
+This repository uses a domain-oriented Go package layout. Application-private
+code lives under `internal/`; `pkg/` is reserved for intentionally supported
+public Go APIs.
 
 ## Ownership Rules
 
@@ -40,6 +39,42 @@ intentionally supported as a public Go API.
   helpers, and trace replay support.
 - `internal/support`: private process, workspace, and CLI helper code. This
   domain contains process execution, subprocess, worktree, and CLI utilities.
+
+## Current Go Package Inventory
+
+Generated from `go list ./...` after the internal package migration:
+
+- `cmd/agent`
+- `internal/audit`
+- `internal/evaluation`
+- `internal/evaluation/bench`
+- `internal/evaluation/bench/ui`
+- `internal/model`
+- `internal/model/llm`
+- `internal/model/llm/ollama`
+- `internal/model/prompt`
+- `internal/observability`
+- `internal/observability/telemetry`
+- `internal/observability/telemetry/genai`
+- `internal/observability/tracing`
+- `internal/planning`
+- `internal/planning/extract`
+- `internal/planning/graph`
+- `internal/planning/materialize`
+- `internal/planning/pipeline`
+- `internal/planning/plan`
+- `internal/runtime`
+- `internal/runtime/core`
+- `internal/support`
+- `internal/support/cli`
+- `internal/support/execute`
+- `internal/support/subprocess`
+- `internal/support/worktree`
+- `internal/tools`
+- `internal/tools/stl`
+- `pkg/spec`
+
+`pkg/spec` is the only current public `pkg/` package.
 
 ## Migration Order
 

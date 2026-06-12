@@ -8,8 +8,11 @@ rules without changing runtime behavior unless noted.
 ## Verification Baseline
 
 - `go test ./...` passes.
-- `mage stats` runs and reports 30 Go packages, 35,782 Go lines, and 188 YAML files.
-- `mage audit` runs but the constitution-auditor reports 48 validation errors.
+- `go list ./...` reports 29 Go packages.
+- `mage stats` runs and reports 21,026 Go source lines, 14,873 Go test lines,
+  and 188 YAML files.
+- `mage audit` runs successfully with no hard validation errors; remaining
+  findings are warning-level coverage and audit cleanup items.
 
 ## Runtime Invocation And Profiles
 

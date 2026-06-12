@@ -16,7 +16,7 @@ tools:
       data_dir: eval-results
       configs_dir: agents
       docs_dir: docs
-      profiles_dir: pkg/llm/profiles
+      profiles_dir: internal/model/llm/profiles
 
   - name: launch_eval
     type: builtin

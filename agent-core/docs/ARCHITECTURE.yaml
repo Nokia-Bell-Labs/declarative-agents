@@ -24,7 +24,8 @@ overview:
     - internal/model/llm — LLM client, conversation, profiles, parsing utilities
     - internal/model/llm/ollama — Ollama adapter satisfying llm.Client
     - internal/model/prompt — prompt schema, YAML loading, system template
-    - internal/tools/stl — standard tool library (file, build, LLM, eval tools)
+    - internal/tools/stl — standard tool library (file, build, LLM, lifecycle, config loading)
+    - internal/evaluation — evaluator session/point runtime, result artifacts, metrics, and trace analysis
     - internal/support/cli — CLI flag constants and argument propagation (library; not imported by cmd/agent)
     - internal/support/subprocess — subprocess execution utilities
 
@@ -526,6 +527,8 @@ overview:
     - internal/model/llm depends on internal/runtime/core, internal/model/prompt, and internal/observability/tracing.
     - internal/tools/stl depends on internal/runtime/core, internal/model/llm, internal/observability/tracing,
       internal/observability/telemetry/genai, internal/support/execute, and internal/support/subprocess.
+    - internal/evaluation depends on internal/runtime/core and internal/tools/stl for evaluator machines,
+      workspace preparation, profile-based agent execution, result analysis, and trace utilities.
     - internal/planning/pipeline depends on internal/runtime/core, internal/planning/plan, internal/planning/extract,
       internal/planning/materialize, and internal/tools/stl.
     - internal/support/execute depends on internal/support/subprocess, internal/model/llm, and internal/observability/tracing.
@@ -541,8 +544,8 @@ overview:
     - cmd/agent imports internal/runtime/core, internal/tools/stl, internal/model/llm, internal/model/prompt,
       internal/observability/telemetry, internal/planning/pipeline, internal/evaluation/bench, internal/support/execute, and
       internal/observability/tracing.
-    - internal/evaluation/bench imports internal/tools/stl for evaluation result analysis and
-      internal/runtime/core for the state machine loop.
+    - internal/evaluation/bench imports internal/evaluation for evaluation result analysis,
+      internal/tools/stl for shared tool/config helpers, and internal/runtime/core for the state machine loop.
 
 interfaces:
   - name: Tracer interface
@@ -817,6 +820,8 @@ project_structure:
       role: Unified agent binary — generator, evaluator, planner, constitution-auditor, bench modes via YAML config
 
   bench:
+    - path: internal/evaluation/
+      role: Evaluator session/point runtime, result artifacts, metrics, convergence, and trace analysis
     - path: internal/evaluation/bench/
       role: Bench server, API handlers, state machine tools (serve_ui, launch_eval)
     - path: internal/evaluation/bench/ui/
@@ -840,11 +845,13 @@ project_structure:
     - path: internal/model/prompt/
       role: Prompt struct, YAML loading, system prompt template, and manifest serialization
     - path: internal/tools/stl/
-      role: Standard tool library (file, build, LLM, eval tools, config loading, subprocess)
+      role: Standard tool library (file, build, LLM, lifecycle, config loading, subprocess)
     - path: internal/support/cli/
       role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
     - path: internal/support/subprocess/
       role: Subprocess execution utilities (Run, EnvVar)
+    - path: internal/audit/
+      role: Constitution-auditor orchestration and audit-specific tool glue
 
   domain:
     - path: internal/support/execute/
@@ -896,7 +903,7 @@ implementation_status:
     - done: LLM integration (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
     - done: Ollama adapter (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
-    - done: Standard tool library (internal/tools/stl) — file, build, LLM, eval tools, config loading
+    - done: Standard tool library (internal/tools/stl) — file, build, LLM, lifecycle, config loading
     - done: CLI flags (internal/support/cli) — standard flag constants, PropagateArgs, RemainingBudget
     - done: Subprocess (internal/support/subprocess) — process execution utilities
     - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph, internal/planning/materialize)
@@ -905,7 +912,8 @@ implementation_status:
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, constitution-auditor, bench
     - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching
-    - done: YAML tool definitions — shared builtin and exec declarations plus mode-local overrides
+    - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
+    - done: YAML tool definitions — 45 shared builtin declarations, 16 shared exec declarations, plus agent-local overrides
     - done: Agent configurations — generator, evaluator, planner, constitution-auditor machine/tools/llm
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats
