@@ -15,7 +15,7 @@ import (
 const binDir = "bin"
 
 // Build compiles all cmd/ binaries into bin/.
-// If any embedded UI directories are found (pkg/bench/ui/, etc.),
+// If any embedded UI directories are found (internal/evaluation/bench/ui/, etc.),
 // their frontends are built first and Go is compiled with -tags
 // production to embed the assets.
 func Build() error {
@@ -63,7 +63,7 @@ func Build() error {
 }
 
 var embeddedUIDirs = []string{
-	"pkg/bench/ui",
+	"internal/evaluation/bench/ui",
 }
 
 func hasUI(uiDir string) bool {

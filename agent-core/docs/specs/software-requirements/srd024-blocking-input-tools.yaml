@@ -122,4 +122,4 @@ related_documents:
 
 implementation_examples:
   - internal/tools/stl/llmtools.go
-  - pkg/bench/serve_ui.go
+  - internal/evaluation/bench/serve_ui.go

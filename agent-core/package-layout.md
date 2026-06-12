@@ -29,8 +29,9 @@ intentionally supported as a public Go API.
   currently contains the former standard tool library under
   `internal/tools/stl`.
 - `internal/evaluation`: evaluator session/point runtime, result artifacts,
-  metrics, convergence, and trace analysis. Bench orchestration and UI/server
-  code are still under `pkg/bench` until the evaluation migration is completed.
+  metrics, convergence, trace analysis, and bench orchestration/UI support.
+  This domain contains the former `pkg/bench` package under
+  `internal/evaluation/bench`.
 - `internal/model`: LLM clients, provider adapters, prompt rendering, model
   profiles, and tool manifest assembly.
 - `internal/planning`: task extraction, spec graphs used for planning,
@@ -57,7 +58,9 @@ intentionally supported as a public Go API.
    model-specific tool implementations. Done: generic STL code now lives under
    `internal/tools/stl`, and evaluator session/point/result code lives under
    `internal/evaluation`.
-7. Move the remaining bench runtime under `internal/evaluation`.
+7. Move the remaining bench runtime under `internal/evaluation`. Done: bench
+   server, UI support, and bench-specific tools now live under
+   `internal/evaluation/bench`.
 8. Keep shared specification parsing and validation in `pkg/spec`; move only
    constitution-auditor-specific orchestration under `internal/audit`.
 9. Update docs, build scripts, audit rules, and remove empty old package paths.
