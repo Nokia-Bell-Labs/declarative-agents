@@ -1,0 +1,13 @@
+name: qwen36-integration
+harnesses:
+  - name: agent
+    binary: agent
+    flags:
+      machine: agents/generator/machine.yaml
+      tools: agents/generator/tools.yaml
+models:
+  - qwen3.6:8b-mlx
+  - qwen3.6:35b-mlx
+samples_dir: samples
+timeout: 10m
+repetitions: 1

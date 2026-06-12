@@ -1,0 +1,74 @@
+id: rel01.0-uc004-qwen36-generator
+title: Generator agent solves a Go coding task with Qwen 3.6
+
+summary: |
+  The generator agent, configured with Qwen 3.6 (35b) as the LLM,
+  solves a minimal Go coding task end-to-end. This validates the
+  Qwen-specific parsing pipeline (thinking-block stripping,
+  [tool_call] envelope extraction) and the full Composing/Parsing
+  loop through build/lint/test validation.
+
+actor: Developer or CI invoking the agent binary
+
+trigger: |
+  The developer (or mage integration:uc004) runs:
+    agent --machine agents/generator/machine.yaml \
+          --tools-declaration tools/builtin.yaml \
+          --tools-declaration tools/exec.yaml \
+          --tools-declaration agents/generator/llm/default.yaml \
+          --tools agents/generator/tools.yaml \
+          --directory <workspace>
+
+  The workspace contains a Go module with an SRD, a stub source file,
+  and oracle tests that define the expected behavior.
+
+preconditions:
+  - Ollama is running at localhost:11434
+  - The qwen3.6:35b-mlx model (or equivalent qwen3.6 variant) is pulled
+  - The workspace contains go.mod, an SRD, a source stub, and oracle tests
+
+flow:
+  - F1: cmd/agent loads tool declarations and resolves the invoke_llm config to qwen3.6:35b-mlx via the Ollama provider (srd009, srd017).
+  - F2: The LLM profile registry matches the "qwen" prefix and selects the qwen profile with [tool_call] envelope and strip_thinking_blocks pipeline (srd017, pkg/llm/profiles/qwen.yaml).
+  - F3: core.Loop enters Composing; invoke_llm sends the task prompt to Qwen 3.6 (srd005, srd009).
+  - F4: Qwen 3.6 responds with a <think>...</think> block followed by a [tool_call]...[/tool_call] envelope containing a JSON tool call.
+  - F5: parse_response runs the qwen extraction pipeline — strip_thinking_blocks removes <think> content, extract_envelope isolates the tool call JSON from the [tool_call] envelope (srd017).
+  - F6: The extracted tool call dispatches via $tool to file tools (read, write, edit) for code changes (srd013, agents/generator/machine.yaml).
+  - F7: The Composing/Parsing cycle repeats until the LLM calls done (agents/generator/machine.yaml).
+  - F8: After done, the machine runs build → lint → test validation. All oracle tests pass, transitioning to Succeeded (srd006, srd013).
+
+touchpoints:
+  - T1: "srd009-ollama-adapter -- Qwen 3.6 model invocation via Ollama Chat API"
+  - T2: "srd017-llm-extensions -- qwen profile resolution, thinking-block stripping, envelope extraction"
+  - T3: "srd013-standard-tool-library -- file tools, build/lint/test, done"
+  - T4: "srd006-yaml-machine-config -- generator machine lifecycle"
+  - T5: "pkg/llm/profiles/qwen.yaml -- model-specific parsing pipeline"
+
+success_criteria:
+  - id: S1
+    criterion: The qwen profile is selected automatically from the model name prefix.
+    traces:
+      - srd017-llm-extensions AC1
+  - id: S2
+    criterion: Thinking blocks (<think>...</think>) are stripped before tool call extraction.
+    traces:
+      - srd017-llm-extensions AC2
+  - id: S3
+    criterion: Tool calls are extracted from the [tool_call]...[/tool_call] envelope.
+    traces:
+      - srd017-llm-extensions AC3
+  - id: S4
+    criterion: The agent reaches the Succeeded terminal state after passing build/lint/test validation.
+    traces:
+      - srd006-yaml-machine-config AC3
+  - id: S5
+    criterion: Oracle tests in the sample workspace pass without modification.
+    traces:
+      - srd013-standard-tool-library AC2
+
+out_of_scope:
+  - Multi-file or large-scale coding tasks.
+  - Comparison with other model families.
+  - Performance benchmarking (handled by the evaluator use case).
+
+machine_config: agents/generator/machine.yaml
