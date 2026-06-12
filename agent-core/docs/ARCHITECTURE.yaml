@@ -70,7 +70,7 @@ overview:
         EXEC[pkg/execute]
         WORKTREE[pkg/worktree]
         SPEC[pkg/spec]
-        BENCH[pkg/bench]
+        BENCH[internal/evaluation/bench]
       end
 
       subgraph Infra["Reusable Infrastructure"]
@@ -539,9 +539,9 @@ overview:
     - pkg/subprocess depends on the Go standard library.
     - pkg/cli depends on the Go standard library.
     - cmd/agent imports internal/runtime/core, internal/tools/stl, internal/model/llm, internal/model/prompt,
-      pkg/telemetry, internal/planning/pipeline, pkg/bench, pkg/execute, and
+      pkg/telemetry, internal/planning/pipeline, internal/evaluation/bench, pkg/execute, and
       pkg/tracing.
-    - pkg/bench imports internal/tools/stl for evaluation result analysis and
+    - internal/evaluation/bench imports internal/tools/stl for evaluation result analysis and
       internal/runtime/core for the state machine loop.
 
 interfaces:
@@ -817,9 +817,9 @@ project_structure:
       role: Unified agent binary — generator, evaluator, planner, constitution-auditor, bench modes via YAML config
 
   bench:
-    - path: pkg/bench/
+    - path: internal/evaluation/bench/
       role: Bench server, API handlers, state machine tools (serve_ui, launch_eval)
-    - path: pkg/bench/ui/
+    - path: internal/evaluation/bench/ui/
       role: Embedded React frontend for experiment browsing and launching
 
   engine:
@@ -904,7 +904,7 @@ implementation_status:
     - done: Worktree management (pkg/worktree) — git worktree lifecycle
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, constitution-auditor, bench
-    - done: Bench agent (pkg/bench) — state-machine-driven web UI for experiment browsing and eval launching
+    - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching
     - done: YAML tool definitions — shared builtin and exec declarations plus mode-local overrides
     - done: Agent configurations — generator, evaluator, planner, constitution-auditor machine/tools/llm
     - done: LLM profiles — 9 model families with extraction pipelines

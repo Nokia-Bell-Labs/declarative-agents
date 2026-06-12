@@ -60,7 +60,7 @@ releases:
       - Agent execution with process groups (pkg/execute)
       - Git worktree management (pkg/worktree)
       - Evaluator benchmark infrastructure (eval suites, result analysis)
-      - Bench agent (pkg/bench, configured via machine.yaml) with embedded React frontend
+      - Bench agent (internal/evaluation/bench, configured via machine.yaml) with embedded React frontend
       - Native Mage build targets replacing cobbler-scaffold dependency
       - Comprehensive Go test suite across all packages
     status: done

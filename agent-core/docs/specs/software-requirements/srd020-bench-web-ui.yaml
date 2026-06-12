@@ -53,8 +53,8 @@ requirements:
   R5:
     title: Build integration
     items:
-      - R5.1: Mage Build target builds the frontend in pkg/bench/ui/ and compiles cmd/agent with -tags production.
-      - R5.2: Production binary is compiled with -tags production to embed frontend assets from pkg/bench/ui/dist/.
+      - R5.1: Mage Build target builds the frontend in internal/evaluation/bench/ui/ and compiles cmd/agent with -tags production.
+      - R5.2: Production binary is compiled with -tags production to embed frontend assets from internal/evaluation/bench/ui/dist/.
 
   R6:
     title: Docs API

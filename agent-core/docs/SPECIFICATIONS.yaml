@@ -139,7 +139,7 @@ srd_index:
     path: docs/specs/software-requirements/srd019-eval-harness.yaml
   - id: srd020-bench-web-ui
     title: Bench Web UI
-    summary: HTTP server with embedded React frontend, REST API for sessions/points/traces/experiments/docs/source, SPA routing, and dual-mode asset loading in pkg/bench.
+    summary: HTTP server with embedded React frontend, REST API for sessions/points/traces/experiments/docs/source, SPA routing, and dual-mode asset loading in internal/evaluation/bench.
     path: docs/specs/software-requirements/srd020-bench-web-ui.yaml
   - id: srd021-agent-cli-exec-tool
     title: Agent CLI as an Exec Tool
@@ -343,7 +343,7 @@ coverage_gaps: |
     convergence analysis, trace reading, and config dumping
   - cmd/agent — unified binary orchestration, tool registration, LLM
     config loading, session-level eval machine
-  - pkg/bench — state-machine-driven web UI with serve_ui and
+  - internal/evaluation/bench — state-machine-driven web UI with serve_ui and
     launch_eval tools (configured via --machine agents/bench/machine.yaml)
 
   srd013 (STL) needs expansion to cover evaluator point tools,
