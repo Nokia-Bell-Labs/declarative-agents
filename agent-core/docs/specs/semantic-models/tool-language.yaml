@@ -117,6 +117,9 @@ machine_composition:
     A boundary tool may run a child process or nested machine, but the boundary
     must be explicit in ToolDef. The parent MachineSpec sees one boundary word
     and declared Signals; the child MachineSpec owns the nested sentence.
+    Child-agent boundaries prefer config.profile and invoke children with
+    --profile. Legacy machine/tools/tool_declarations triples are compatibility
+    fallback only.
   validation_sequence: |
     Validation is a visible sentence in machine.yaml. A compatibility aggregate
     such as validate is a deprecated boundary aggregator, not the preferred
@@ -194,9 +197,10 @@ invariants:
   - Tools do not hide workflows; workflows are MachineSpec transitions over tool words.
   - A word has one primary semantic action even if its implementation has multiple internal statements.
   - Boundary tools are allowed only when the boundary is explicit and the parent machine sees declared signals.
-  - New tools declare side effects, reversibility, undo, errors, and relationships.
+  - Active selected tools declare side effects, reversibility, undo, errors, and relationships; missing selected-tool contract fields are audit errors unless a declaration is explicitly legacy.
   - Irreversible tools require explicit documentation and should require confirmation before affecting user data or shared infrastructure.
   - Tool output should be structured enough for the next machine step or tool to consume without LLM interpretation.
+  - Child-agent boundaries are profile-first; machine/tools flags remain compatibility paths, not the canonical actor configuration.
   - Legacy sentence tools migrate by splitting verbs and preserving behavior in machine.yaml.
 
 non_goals:

@@ -2,7 +2,7 @@ name: planner
 purpose: |-
   The planner is a pipeline agent that decomposes a requirement graph
   into tasks, generates implementation plans via LLM, materializes
-  them as issues, executes them by invoking the generator agent, and
+  them as issues, executes them by invoking the generator profile, and
   validates the results. It loops over the requirement graph until
   all tasks are done, all are blocked, or a batch limit is reached.
 configuration:
@@ -28,7 +28,7 @@ lifecycle: |-
   4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
   5. PlanInvoking → PlanParsing: parse_plan from LLM response
   6. PlanParsing → Materializing: create_issue (bd create)
-  7. Materializing → Executing: execute_task (run generator agent)
+  7. Materializing → Executing: execute_task (run generator profile)
   8. Executing → Vetting → Building → Testing: validation pipeline
   9. Testing → CheckingResult: evaluate pass/fail
   10. CheckingResult → Extracting: success or retries exhausted, next task
@@ -75,7 +75,7 @@ states:
 - name: Materializing
   meaning: Creating an issue (bd create) from the parsed plan.
 - name: Executing
-  meaning: Running the generator agent to implement the task.
+  meaning: Running the generator profile to implement the task.
 - name: Vetting
   meaning: Running go vet on the workspace.
 - name: Building
