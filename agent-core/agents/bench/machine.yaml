@@ -20,10 +20,10 @@ invariants:
 - The HTTP server persists across serve_ui invocations (goroutine in BenchState)
 - User actions are the only input source — serve_ui is the human equivalent of invoke_llm
 - The web UI remains accessible during experiment execution for progress monitoring
-- All experiment execution reuses the evaluator session machine pipeline
+- All experiment execution launches the evaluator profile, which owns the session machine pipeline
 lifecycle: |-
   1. Idle → Serving (Seed): serve_ui starts the HTTP server and blocks
-  2. Serving → Launching (ExperimentRequested): launch_eval spawns evaluator session machine
+  2. Serving → Launching (ExperimentRequested): launch_eval spawns the evaluator profile
   3. Launching → Serving (EvalCompleted/EvalFailed): return to serve_ui
   4. Serving → Done (Shutdown): clean exit
 
@@ -56,7 +56,7 @@ states:
 - name: Launching
   meaning: |
     An experiment is being executed. launch_eval has spawned
-    the evaluator session machine as a subprocess and is blocking until it completes.
+    the evaluator profile as a subprocess and is blocking until it completes.
     The web UI remains accessible for monitoring progress.
 - name: Done
   meaning: Terminal. The user requested shutdown.

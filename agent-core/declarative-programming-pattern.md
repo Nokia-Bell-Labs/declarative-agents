@@ -277,13 +277,19 @@ This principle applies at every level:
 - **Grammar** dispatches **words** (transition table)
 - **Words** interpret their **configuration** (tool declaration YAML)
 - **Boundary words** interpret their **actor configuration** (LLM config,
-  UI config, harness config)
+  UI config, child-agent profile, harness config)
 
 The compiled code provides **capability** — the generic ability to serve
 HTTP, invoke an LLM, execute a shell command, manage files. Configuration
 provides **specificity** — what to serve, which model, what command, which
 files. One binary serves N agents. One word implementation serves M tools.
 The combinatorial space lives in configuration, not code.
+
+In Agent Core, child-agent boundaries are profile-first: boundary words such
+as `execute_task`, `launch_eval`, and `self_invoke` configure child programs
+with `profile` and invoke the child with `--profile`. Legacy
+machine/tools/tool-declaration triples may remain as compatibility fallback,
+but they are no longer the canonical boundary actor configuration.
 
 A well-designed word implementation should never be specific to a single
 agent. If it is, the agent-specific knowledge belongs in configuration, not
@@ -315,6 +321,11 @@ The engine loop is identical for all workflows. It never contains
 domain-specific logic. Different behaviors come from different grammars
 and different lexicons. If you find yourself adding conditionals to the
 engine, the logic belongs in a word or in the grammar.
+
+Composition roots may still contain explicit factory catalogs that map
+selected tool init names to Go builder registration functions. That catalog is
+runtime wiring, not grammar policy: selected ToolDefs choose which catalog
+entries are active, and machine transitions still choose the workflow.
 
 ### Dynamic dispatch is a grammar feature, not an engine feature
 
@@ -375,12 +386,13 @@ Three actor types:
 |---|---|---|---|
 | Model | `invoke_llm` | `llm/*.yaml` (model, profile, temperature) | System prompt + tool manifest |
 | Human | `serve_ui` | UI config (assets, routes, action map) | The interface presented |
-| Agent | `run_agent` | Harness config (binary, flags, machine) | The child grammar + tools |
+| Agent | `run_agent` | Profile or harness config (binary, flags, profile) | The child profile |
 
 In each case, the actor configuration is how you shape what the external
 actor sees and what responses it can give. For a model, that's the prompt.
-For a human, that's the UI. For a child agent, that's its grammar and
-lexicon. All three are YAML-configured, not compiled. The same Go
+For a human, that's the UI. For a child agent, that's its profile, which
+selects the grammar, lexicon, and tool declaration roots. All three are
+YAML-configured, not compiled. The same Go
 implementation serves different actors by loading different configuration.
 
 ### Undo is a word-level concern
@@ -398,6 +410,12 @@ network call), the engine or a static analyzer can reason about them
 without executing anything: which words need environment checkpointing,
 which words are read-only and can be skipped during rollback, which words
 conflict with each other.
+
+Contract checks are part of this static reasoning. Active selected tools must
+declare category, problem/goals/non-goals, requirements, emits, output schema,
+structured side effects, reversibility, undo, errors, and relationships. Tools
+that are intentionally kept only for compatibility should say so explicitly
+with legacy contract metadata rather than silently omitting the contract.
 
 ## Known uses
 

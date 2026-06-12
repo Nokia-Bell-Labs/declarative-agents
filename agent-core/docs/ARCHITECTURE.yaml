@@ -243,6 +243,15 @@ overview:
       machine.yaml, each tool can stay small while the machine owns order,
       branching, retries, validation, and approval gates.
 
+      The current runtime enforces this split for active selected tools through
+      the normal spec audit path. Selected declarations must include complete
+      Grammar Machine contract metadata unless explicitly marked legacy. Child
+      agent boundaries are profile-first (`profile` -> `--profile`), with
+      machine/tools/tool-declaration triples retained only as compatibility
+      fallback. cmd/agent wires builtin capabilities through a centralized
+      factory catalog keyed by selected init names rather than repeated
+      mode-specific branches.
+
     categories:
       word: |
         A normal vocabulary word is a single deterministic verb with typed
@@ -914,7 +923,8 @@ implementation_status:
     - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching
     - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
     - done: YAML tool definitions — 45 shared builtin declarations, 16 shared exec declarations, plus agent-local overrides
-    - done: Agent configurations — generator, evaluator, planner, constitution-auditor machine/tools/llm
+    - done: Agent profiles and configurations — generator, evaluator, planner, constitution-auditor, bench profiles with machine/tools/llm selections
+    - done: Grammar Machine alignment — selected-tool contract enforcement, rollback strategy vocabulary, profile-first child boundaries, and centralized builtin factory catalog
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats
     - done: cobbler-scaffold dependency removed

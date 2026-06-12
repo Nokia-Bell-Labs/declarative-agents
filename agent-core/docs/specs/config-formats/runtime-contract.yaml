@@ -412,12 +412,12 @@ engine_policy_audit:
         Selecting which grammar signal copies Result.Output into the summary is
         agent semantics. Long term this can move into machine metadata.
     - item: Factory-family registration gates
-      symbols: [registerBuiltinFactories, anyInitSelected]
+      symbols: [registerBuiltinFactories, builtinFactoryCatalog]
       rationale: |
-        cmd/agent registers builtin factory families based on selected tool
-        init names, not on mode names. This is acceptable configuration
-        infrastructure, though adding new factory families still requires
-        runtime wiring.
+        cmd/agent registers builtin factory families through a centralized
+        catalog keyed by selected tool init names, not by mode names. This is
+        configuration infrastructure: ToolDef selection activates catalog
+        entries, while machine.yaml still defines the workflow.
 
   migration_candidates:
     - item: Parse-error retry fallback
