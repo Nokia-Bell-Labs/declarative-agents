@@ -27,6 +27,8 @@ const (
 	RoadmapFile = "docs/road-map.yaml"
 	SpecFile    = "docs/SPECIFICATIONS.yaml"
 	AgentsDir   = "agents"
+	SMSubdir    = "docs/specs/semantic-models"
+	CFSubdir    = "docs/specs/config-formats"
 )
 
 // Corpus holds all parsed specification artifacts for a project.
@@ -42,6 +44,7 @@ type Corpus struct {
 	Machines         map[string]core.MachineSpec
 	ToolSelections   map[string][]string
 	ToolDeclarations map[string]ToolDeclaration
+	DocSpecs         map[string]DocSpec
 
 	SRDOrder     []string
 	UCOrder      []string
@@ -93,6 +96,11 @@ func LoadCorpus(rootDir string) (*Corpus, error) {
 		return nil, err
 	}
 
+	docSpecs, err := discoverAndParseDocSpecs(rootDir)
+	if err != nil {
+		return nil, err
+	}
+
 	c := &Corpus{
 		RootDir:          rootDir,
 		SRDs:             srds,
@@ -103,6 +111,7 @@ func LoadCorpus(rootDir string) (*Corpus, error) {
 		Machines:         machines,
 		ToolSelections:   toolSel,
 		ToolDeclarations: toolDecls,
+		DocSpecs:         docSpecs,
 		SRDOrder:         srdOrder,
 		UCOrder:          ucOrder,
 		MachineOrder:     machineOrder,
@@ -238,6 +247,40 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 
 	sort.Strings(order)
 	return machines, toolSel, order, nil
+}
+
+func discoverAndParseDocSpecs(rootDir string) (map[string]DocSpec, error) {
+	specs := make(map[string]DocSpec)
+	dirs := []string{
+		filepath.Join(rootDir, SMSubdir),
+		filepath.Join(rootDir, CFSubdir),
+	}
+	for _, dir := range dirs {
+		matches, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
+		if err != nil {
+			return nil, fmt.Errorf("glob doc specs in %s: %w", dir, err)
+		}
+		for _, path := range matches {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil, fmt.Errorf("read doc spec %s: %w", path, err)
+			}
+			var ds DocSpec
+			if err := yaml.Unmarshal(data, &ds); err != nil {
+				return nil, fmt.Errorf("parse doc spec %s: %w", path, err)
+			}
+			if ds.ID == "" {
+				continue
+			}
+			relPath, _ := filepath.Rel(rootDir, path)
+			if relPath == "" {
+				relPath = path
+			}
+			ds.SourceFile = relPath
+			specs[ds.ID] = ds
+		}
+	}
+	return specs, nil
 }
 
 func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaration, error) {

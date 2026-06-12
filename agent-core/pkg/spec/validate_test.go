@@ -509,6 +509,108 @@ func TestValidate_FixtureIndexConsistency(t *testing.T) {
 	_ = g
 }
 
+func TestValidate_DocSpecsLoaded(t *testing.T) {
+	_, c := loadTestGraphAndCorpus(t)
+
+	require.Contains(t, c.DocSpecs, "sm-test-model")
+	require.Contains(t, c.DocSpecs, "cfg-test-format")
+
+	sm := c.DocSpecs["sm-test-model"]
+	assert.Equal(t, "Test Semantic Model", sm.Title)
+	assert.Len(t, sm.RequirementsSource.Canonical, 1)
+	assert.Contains(t, sm.RelatedDocuments, "cfg-test-format")
+
+	cf := c.DocSpecs["cfg-test-format"]
+	assert.Len(t, cf.Implementation.Paths, 1)
+	assert.Len(t, cf.Examples, 1)
+}
+
+func TestValidate_DocSpecRequirementsSources(t *testing.T) {
+	corpus := &Corpus{
+		RootDir: t.TempDir(),
+		DocSpecs: map[string]DocSpec{
+			"bad": {
+				ID: "bad",
+				RequirementsSource: DocSpecSources{
+					Canonical: []string{"docs/nonexistent.yaml"},
+				},
+			},
+		},
+	}
+	findings := checkDocSpecRequirementsSources(corpus)
+	require.Len(t, findings, 1)
+	assert.Equal(t, "docspec-broken-requirement-source", findings[0].Check)
+}
+
+func TestValidate_DocSpecRequirementsSources_Fixture(t *testing.T) {
+	_, c := loadTestGraphAndCorpus(t)
+	findings := checkDocSpecRequirementsSources(c)
+	assert.Empty(t, findings, "fixture canonical sources should exist")
+}
+
+func TestValidate_DocSpecRelatedDocuments(t *testing.T) {
+	corpus := &Corpus{
+		SRDs: map[string]SRD{"srd001-auth": {ID: "srd001-auth"}},
+		DocSpecs: map[string]DocSpec{
+			"spec-a": {
+				ID:               "spec-a",
+				RelatedDocuments: []string{"srd001-auth", "unknown-ref"},
+			},
+		},
+	}
+	findings := checkDocSpecRelatedDocuments(corpus)
+	require.Len(t, findings, 1)
+	assert.Contains(t, findings[0].Message, "unknown-ref")
+}
+
+func TestValidate_DocSpecRelatedDocuments_Fixture(t *testing.T) {
+	_, c := loadTestGraphAndCorpus(t)
+	findings := checkDocSpecRelatedDocuments(c)
+	assert.Empty(t, findings, "fixture related documents should all resolve")
+}
+
+func TestValidate_DocSpecImplementationPaths(t *testing.T) {
+	corpus := &Corpus{
+		RootDir: t.TempDir(),
+		DocSpecs: map[string]DocSpec{
+			"bad": {
+				ID:             "bad",
+				Implementation: DocSpecImpl{Paths: []string{"pkg/nonexistent.go"}},
+			},
+		},
+	}
+	findings := checkDocSpecImplementationPaths(corpus)
+	require.Len(t, findings, 1)
+	assert.Equal(t, "docspec-broken-implementation-path", findings[0].Check)
+}
+
+func TestValidate_DocSpecImplementationPaths_Fixture(t *testing.T) {
+	_, c := loadTestGraphAndCorpus(t)
+	findings := checkDocSpecImplementationPaths(c)
+	assert.Empty(t, findings, "fixture implementation paths should exist")
+}
+
+func TestValidate_DocSpecExamplePaths(t *testing.T) {
+	corpus := &Corpus{
+		RootDir: t.TempDir(),
+		DocSpecs: map[string]DocSpec{
+			"bad": {
+				ID:       "bad",
+				Examples: []DocSpecExample{{File: "nonexistent/file.yaml"}},
+			},
+		},
+	}
+	findings := checkDocSpecExamplePaths(corpus)
+	require.Len(t, findings, 1)
+	assert.Equal(t, "docspec-broken-example-path", findings[0].Check)
+}
+
+func TestValidate_DocSpecExamplePaths_Fixture(t *testing.T) {
+	_, c := loadTestGraphAndCorpus(t)
+	findings := checkDocSpecExamplePaths(c)
+	assert.Empty(t, findings, "fixture example paths should exist")
+}
+
 func TestValidate_MachineNameConsistency(t *testing.T) {
 	corpus := &Corpus{
 		Machines: map[string]core.MachineSpec{

@@ -1,0 +1,13 @@
+id: cfg-test-format
+title: Test Config Format
+
+purpose: A test config format spec for corpus validation.
+
+implementation: tools/builtin.yaml
+
+examples:
+  - file: agents/test-agent/machine.yaml
+
+related_documents:
+  - sm-test-model
+  - srd002-api

@@ -46,6 +46,10 @@ func Validate(g *Graph, corpus *Corpus) []Finding {
 	all = append(all, checkUseCaseTestSuiteReciprocity(corpus)...)
 	all = append(all, checkTestCaseUseCaseRefs(corpus)...)
 	all = append(all, checkSpecIndexPaths(corpus)...)
+	all = append(all, checkDocSpecRequirementsSources(corpus)...)
+	all = append(all, checkDocSpecRelatedDocuments(corpus)...)
+	all = append(all, checkDocSpecImplementationPaths(corpus)...)
+	all = append(all, checkDocSpecExamplePaths(corpus)...)
 	return all
 }
 
@@ -694,6 +698,102 @@ func checkSpecIndexPaths(corpus *Corpus) []Finding {
 					Check:   "index-broken-path",
 					Level:   "error",
 					Message: fmt.Sprintf("test_suite_index entry %s path %q does not exist", entry.ID, entry.Path),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+// checkDocSpecRequirementsSources verifies that canonical requirement
+// source paths in doc specs point to existing files.
+func checkDocSpecRequirementsSources(corpus *Corpus) []Finding {
+	if corpus.RootDir == "" {
+		return nil
+	}
+	var findings []Finding
+	for id, ds := range corpus.DocSpecs {
+		for _, path := range ds.RequirementsSource.Canonical {
+			if _, err := os.Stat(filepath.Join(corpus.RootDir, path)); err != nil {
+				findings = append(findings, Finding{
+					Check:   "docspec-broken-requirement-source",
+					Level:   "error",
+					Message: fmt.Sprintf("doc spec %s canonical requirements_source %q does not exist", id, path),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+// checkDocSpecRelatedDocuments verifies that related_documents IDs
+// resolve to known SRDs or doc specs.
+func checkDocSpecRelatedDocuments(corpus *Corpus) []Finding {
+	knownIDs := make(map[string]bool)
+	for srdID := range corpus.SRDs {
+		knownIDs[srdID] = true
+		parts := strings.SplitN(srdID, "-", 2)
+		if len(parts) > 0 {
+			knownIDs[parts[0]] = true
+		}
+	}
+	for dsID := range corpus.DocSpecs {
+		knownIDs[dsID] = true
+	}
+
+	var findings []Finding
+	for id, ds := range corpus.DocSpecs {
+		for _, ref := range ds.RelatedDocuments {
+			if !knownIDs[ref] {
+				findings = append(findings, Finding{
+					Check:   "docspec-broken-related-document",
+					Level:   "warning",
+					Message: fmt.Sprintf("doc spec %s related_documents references %q which is not a known SRD or spec", id, ref),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+// checkDocSpecImplementationPaths verifies that implementation file
+// paths in doc specs exist on disk.
+func checkDocSpecImplementationPaths(corpus *Corpus) []Finding {
+	if corpus.RootDir == "" {
+		return nil
+	}
+	var findings []Finding
+	for id, ds := range corpus.DocSpecs {
+		for _, path := range ds.Implementation.Paths {
+			if _, err := os.Stat(filepath.Join(corpus.RootDir, path)); err != nil {
+				findings = append(findings, Finding{
+					Check:   "docspec-broken-implementation-path",
+					Level:   "error",
+					Message: fmt.Sprintf("doc spec %s implementation path %q does not exist", id, path),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+// checkDocSpecExamplePaths verifies that example file paths in doc specs
+// exist on disk.
+func checkDocSpecExamplePaths(corpus *Corpus) []Finding {
+	if corpus.RootDir == "" {
+		return nil
+	}
+	var findings []Finding
+	for id, ds := range corpus.DocSpecs {
+		for _, ex := range ds.Examples {
+			if ex.File == "" {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(corpus.RootDir, ex.File)); err != nil {
+				findings = append(findings, Finding{
+					Check:   "docspec-broken-example-path",
+					Level:   "warning",
+					Message: fmt.Sprintf("doc spec %s example file %q does not exist", id, ex.File),
 				})
 			}
 		}
