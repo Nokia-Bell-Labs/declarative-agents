@@ -857,188 +857,199 @@ func selectedBuiltinInits(defs []stl.ToolDef) map[string]bool {
 	return selected
 }
 
-func anyInitSelected(selected map[string]bool, names ...string) bool {
-	for _, name := range names {
-		if selected[name] {
+// registerBuiltinFactories wires only the builtin factory families required by
+// the selected tool declarations. Program shape is still defined by machine and
+// tools YAML; this bootstrap only installs factories that selected init names
+// can resolve.
+func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected map[string]bool) {
+	for _, entry := range builtinFactoryCatalog(st) {
+		if entry.selectedBy(selected) {
+			entry.register(br)
+		}
+	}
+}
+
+type builtinFactoryCatalogEntry struct {
+	Name     string
+	Inits    []string
+	register func(*stl.BuiltinRegistry)
+}
+
+func (e builtinFactoryCatalogEntry) selectedBy(selected map[string]bool) bool {
+	for _, init := range e.Inits {
+		if selected[init] {
 			return true
 		}
 	}
 	return false
 }
 
-// registerBuiltinFactories wires only the builtin factory families required by
-// the selected tool declarations. Program shape is still defined by machine and
-// tools YAML; this bootstrap only installs factories that selected init names
-// can resolve.
-func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected map[string]bool) {
-	if selected["file_read"] {
-		br.Register("file_read", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &stl.ReadBuilder{Root: vars["directory"]}, nil
-		})
-	}
-	if selected["file_write"] {
-		br.Register("file_write", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &stl.WriteBuilder{Root: vars["directory"]}, nil
-		})
-	}
-	if selected["file_edit"] {
-		br.Register("file_edit", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &stl.EditBuilder{Root: vars["directory"]}, nil
-		})
-	}
-	if selected["file_find"] {
-		br.Register("file_find", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &stl.FindBuilder{Root: vars["directory"]}, nil
-		})
-	}
-	if selected["file_list"] {
-		br.Register("file_list", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &stl.ListFilesBuilder{Root: vars["directory"]}, nil
-		})
-	}
-
-	if selected["invoke_llm"] {
-		br.Register("invoke_llm", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			if st.adapter == nil {
-				return nil, fmt.Errorf("invoke_llm requires --model flag")
-			}
-			return &stl.InvokeLLMBuilder{
-				Client:       st.adapter,
-				History:      st.conversation,
-				Registry:     st.registry,
-				Assembler:    st.assembler,
-				State:        st.manifestState,
-				Model:        st.model,
-				ProviderName: st.providerName,
-				ServerAddr:   st.serverAddr,
-				Tracer:       st.tracer,
-				NumCtx:       st.numCtx,
-				CallTimeout:  st.callTimeout,
-				Verbose:      st.verbose,
-				Ctx:          st.ctx,
-			}, nil
-		})
-	}
-	if selected["parse_response"] {
-		br.Register("parse_response", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &stl.ParseResponseBuilder{
-				Registry: st.registry,
-				Parser:   st.parser,
-				Tracer:   st.tracer,
-				Verbose:  st.verbose,
-				Retry:    st.parseRetries,
-			}, nil
-		})
-	}
-	if selected["report_parse_error"] {
-		br.Register("report_parse_error", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &stl.ReportParseErrorBuilder{
-				Tracer: st.tracer,
-				Retry:  st.parseRetries,
-			}, nil
-		})
-	}
-	if selected["reset_history"] {
-		br.Register("reset_history", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &stl.ResetHistoryBuilder{
-				History: st.conversation,
-				Tracer:  st.tracer,
-			}, nil
-		})
-	}
-	if selected["nudge_reread"] {
-		br.Register("nudge_reread", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &stl.NudgeRereadBuilder{
-				Tracer: st.tracer,
-			}, nil
-		})
-	}
-	if selected["done"] {
-		br.Register("done", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return stl.DoneBuilder{}, nil
-		})
-	}
-	if selected["suspend"] {
-		stl.RegisterLifecycleFactories(br, stl.LifecycleFactoryDeps{
-			StateStore: st.stateStore,
-			Tracer:     st.tracer,
-		})
-	}
-	if selected["validate"] {
-		br.Register("validate", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &stl.ValidateBuilder{
-				Tracker:  st.tracker,
-				Registry: st.registry,
-				Tracer:   st.tracer,
-				Verbose:  st.verbose,
-			}, nil
-		})
-	}
-	if selected["self_invoke"] {
-		br.Register("self_invoke", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-			var parsed stl.ChildAgentConfig
-			if err := stl.DecodeToolConfig(def, &parsed); err != nil {
-				return nil, err
-			}
-			if err := stl.ValidateChildAgentConfig(def.Name, parsed); err != nil {
-				return nil, err
-			}
-			cfg := execute.Config{
-				Profile:          parsed.Profile,
-				Machine:          parsed.Machine,
-				Tools:            parsed.Tools,
-				ToolDeclarations: parsed.ToolDeclarations,
-				Model:            vars["model"],
-				OllamaURL:        vars["ollama_url"],
-			}
-			var extra []string
-			if dir := vars["directory"]; dir != "" {
-				extra = append(extra, "--directory", dir)
-			}
-			return &stl.SelfInvokeBuilder{
-				Config:    cfg,
-				ExtraArgs: extra,
-				Ctx:       st.ctx,
+func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
+	return []builtinFactoryCatalogEntry{
+		{Name: "file_read", Inits: []string{"file_read"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("file_read", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return &stl.ReadBuilder{Root: vars["directory"]}, nil
+			})
+		}},
+		{Name: "file_write", Inits: []string{"file_write"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("file_write", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return &stl.WriteBuilder{Root: vars["directory"]}, nil
+			})
+		}},
+		{Name: "file_edit", Inits: []string{"file_edit"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("file_edit", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return &stl.EditBuilder{Root: vars["directory"]}, nil
+			})
+		}},
+		{Name: "file_find", Inits: []string{"file_find"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("file_find", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return &stl.FindBuilder{Root: vars["directory"]}, nil
+			})
+		}},
+		{Name: "file_list", Inits: []string{"file_list"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("file_list", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return &stl.ListFilesBuilder{Root: vars["directory"]}, nil
+			})
+		}},
+		{Name: "invoke_llm", Inits: []string{"invoke_llm"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("invoke_llm", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				if st.adapter == nil {
+					return nil, fmt.Errorf("invoke_llm requires --model flag")
+				}
+				return &stl.InvokeLLMBuilder{
+					Client:       st.adapter,
+					History:      st.conversation,
+					Registry:     st.registry,
+					Assembler:    st.assembler,
+					State:        st.manifestState,
+					Model:        st.model,
+					ProviderName: st.providerName,
+					ServerAddr:   st.serverAddr,
+					Tracer:       st.tracer,
+					NumCtx:       st.numCtx,
+					CallTimeout:  st.callTimeout,
+					Verbose:      st.verbose,
+					Ctx:          st.ctx,
+				}, nil
+			})
+		}},
+		{Name: "parse_response", Inits: []string{"parse_response"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("parse_response", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return &stl.ParseResponseBuilder{
+					Registry: st.registry,
+					Parser:   st.parser,
+					Tracer:   st.tracer,
+					Verbose:  st.verbose,
+					Retry:    st.parseRetries,
+				}, nil
+			})
+		}},
+		{Name: "report_parse_error", Inits: []string{"report_parse_error"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("report_parse_error", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return &stl.ReportParseErrorBuilder{
+					Tracer: st.tracer,
+					Retry:  st.parseRetries,
+				}, nil
+			})
+		}},
+		{Name: "reset_history", Inits: []string{"reset_history"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("reset_history", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return &stl.ResetHistoryBuilder{
+					History: st.conversation,
+					Tracer:  st.tracer,
+				}, nil
+			})
+		}},
+		{Name: "nudge_reread", Inits: []string{"nudge_reread"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("nudge_reread", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return &stl.NudgeRereadBuilder{
+					Tracer: st.tracer,
+				}, nil
+			})
+		}},
+		{Name: "done", Inits: []string{"done"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("done", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return stl.DoneBuilder{}, nil
+			})
+		}},
+		{Name: "lifecycle", Inits: []string{"suspend"}, register: func(br *stl.BuiltinRegistry) {
+			stl.RegisterLifecycleFactories(br, stl.LifecycleFactoryDeps{
+				StateStore: st.stateStore,
+				Tracer:     st.tracer,
+			})
+		}},
+		{Name: "validate", Inits: []string{"validate"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("validate", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				return &stl.ValidateBuilder{
+					Tracker:  st.tracker,
+					Registry: st.registry,
+					Tracer:   st.tracer,
+					Verbose:  st.verbose,
+				}, nil
+			})
+		}},
+		{Name: "self_invoke", Inits: []string{"self_invoke"}, register: func(br *stl.BuiltinRegistry) {
+			br.Register("self_invoke", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+				var parsed stl.ChildAgentConfig
+				if err := stl.DecodeToolConfig(def, &parsed); err != nil {
+					return nil, err
+				}
+				if err := stl.ValidateChildAgentConfig(def.Name, parsed); err != nil {
+					return nil, err
+				}
+				cfg := execute.Config{
+					Profile:          parsed.Profile,
+					Machine:          parsed.Machine,
+					Tools:            parsed.Tools,
+					ToolDeclarations: parsed.ToolDeclarations,
+					Model:            vars["model"],
+					OllamaURL:        vars["ollama_url"],
+				}
+				var extra []string
+				if dir := vars["directory"]; dir != "" {
+					extra = append(extra, "--directory", dir)
+				}
+				return &stl.SelfInvokeBuilder{
+					Config:    cfg,
+					ExtraArgs: extra,
+					Ctx:       st.ctx,
+					Tracer:    st.tracer,
+				}, nil
+			})
+		}},
+		{Name: "planning", Inits: []string{
+			"extract_task", "extract_all", "assemble_prompt", "parse_plan",
+			"create_issue", "execute_task", "check_result",
+		}, register: func(br *stl.BuiltinRegistry) {
+			pipeline.RegisterFactories(br, pipeline.FactoryDeps{
+				Directory: st.directory,
 				Tracer:    st.tracer,
-			}, nil
-		})
-	}
-
-	if anyInitSelected(selected,
-		"extract_task", "extract_all", "assemble_prompt", "parse_plan",
-		"create_issue", "execute_task", "check_result",
-	) {
-		pipeline.RegisterFactories(br, pipeline.FactoryDeps{
-			Directory: st.directory,
-			Tracer:    st.tracer,
-			Ctx:       st.ctx,
-		})
-	}
-
-	if anyInitSelected(selected,
-		"parse_suite_config", "discover_suite_samples", "expand_eval_grid",
-		"init_eval_session", "report_suite_summary",
-		"next_point", "run_point", "report_session",
-		"run_agent", "run_oracle_check", "collect_trace_tokens",
-		"check_agent_version", "summarize_point_results", "collect_metrics",
-		"dump_config",
-	) {
-		evaluation.RegisterEvalFactories(br, evaluation.EvalFactoryDeps{
-			Ctx:       st.ctx,
-			Registry:  st.registry,
-			Stderr:    os.Stderr,
-			SuitePath: flagInput,
-			OutputDir: flagOutput,
-			OllamaURL: flagOllamaURL,
-		})
-	}
-
-	if anyInitSelected(selected, "serve_ui", "launch_eval") {
-		bench.RegisterFactories(br, benchui.Assets())
-	}
-
-	if anyInitSelected(selected, "load_corpus", "validate_specs", "format_report") {
-		stl.RegisterValidateFactories(br, st.directory)
+				Ctx:       st.ctx,
+			})
+		}},
+		{Name: "evaluation", Inits: []string{
+			"parse_suite_config", "discover_suite_samples", "expand_eval_grid",
+			"init_eval_session", "report_suite_summary",
+			"next_point", "run_point", "report_session",
+			"run_agent", "run_oracle_check", "collect_trace_tokens",
+			"check_agent_version", "summarize_point_results", "collect_metrics",
+			"dump_config",
+		}, register: func(br *stl.BuiltinRegistry) {
+			evaluation.RegisterEvalFactories(br, evaluation.EvalFactoryDeps{
+				Ctx:       st.ctx,
+				Registry:  st.registry,
+				Stderr:    os.Stderr,
+				SuitePath: flagInput,
+				OutputDir: flagOutput,
+				OllamaURL: flagOllamaURL,
+			})
+		}},
+		{Name: "bench", Inits: []string{"serve_ui", "launch_eval"}, register: func(br *stl.BuiltinRegistry) {
+			bench.RegisterFactories(br, benchui.Assets())
+		}},
+		{Name: "spec_validation", Inits: []string{"load_corpus", "validate_specs", "format_report"}, register: func(br *stl.BuiltinRegistry) {
+			stl.RegisterValidateFactories(br, st.directory)
+		}},
 	}
 }
 
