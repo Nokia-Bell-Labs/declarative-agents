@@ -2,9 +2,9 @@ id: rel01.0-uc003-bench-visualization
 title: Bench serves web UI for evaluation result exploration
 
 summary: |
-  The agent, configured with the bench machine, starts a state-machine-driven web server
-  for browsing experiment results, viewing documentation, inspecting
-  source code, and launching new evaluations. The serve_ui tool blocks
+  The agent, configured with agents/bench/profile.yaml, starts a
+  state-machine-driven web server for browsing experiment results, viewing
+  documentation, inspecting source code, and launching new evaluations. The serve_ui tool blocks
   on user input via HTTP (analogous to invoke_llm blocking on LLM
   responses), and the launch_eval tool spawns the evaluator session machine as a subprocess.
 
@@ -12,17 +12,14 @@ actor: Developer analyzing benchmark results
 
 trigger: |
   The developer runs:
-    agent --machine agents/bench/machine.yaml \
-          --tools agents/bench/tools.yaml \
-          --tools-declaration tools/builtin.yaml
+    agent --profile agents/bench/profile.yaml
 
   The serve_ui tool reads data_dir, configs_dir, docs_dir, source_dir,
-  and addr from its config block in builtin.yaml (or an additional
-  --tools-declaration file that overrides those values).
+  and addr from its config block in the profile-selected tool declarations.
 
 flow:
-  - F1: The agent parses CLI flags and loads tool declarations including bench tools from tools/builtin.yaml (srd018).
-  - F2: The bench state machine is loaded from agents/bench/machine.yaml (srd006).
+  - F1: The agent parses CLI flags and loads agents/bench/profile.yaml, resolving the bench machine, tool selection, and tool declarations relative to the profile file (cfg-runtime-contract).
+  - F2: The bench state machine is loaded from the profile-resolved agents/bench/machine.yaml path (srd006).
   - F3: BenchState is initialized with ServerConfig (data dir, configs dir, docs dir, source dir, UI assets) (srd020).
   - F4: serve_ui and launch_eval builtin factories are registered. Tool config values come from the config block in the tool declaration YAML (srd013).
   - F5: core.Loop drives the bench state machine. Idle → Serving via serve_ui starts the HTTP server in a goroutine and blocks on the action channel (srd005, agents/bench/machine.yaml).
@@ -38,6 +35,7 @@ touchpoints:
   - T3: "srd020-bench-web-ui -- HTTP server, REST APIs, SPA routing, embedded assets"
   - T4: "agents/bench/machine.yaml -- states, signals, serve_ui/launch_eval lifecycle"
   - T5: "srd019-eval-harness -- launch_eval reuses the eval pipeline"
+  - T6: "agents/bench/profile.yaml -- profile-relative bench runtime entry point"
 
 success_criteria:
   - id: S1

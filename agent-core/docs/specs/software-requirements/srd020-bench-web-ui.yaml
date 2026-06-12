@@ -18,7 +18,7 @@ requirements:
   R1:
     title: HTTP server and SPA routing
     items:
-      - R1.1: The bench web UI is started via `agent --machine agents/bench/machine.yaml --tools agents/bench/tools.yaml --tools-declaration tools/builtin.yaml`. The serve_ui tool starts the HTTP server with address and data directory configured in the tool YAML config block.
+      - R1.1: The bench web UI is started via `agent --profile agents/bench/profile.yaml`. The profile resolves the bench machine, selected tools, and tool declarations; the serve_ui tool starts the HTTP server with address and data directory configured in the tool YAML config block.
       - R1.2: API routes are namespaced under /api/v1/.
       - R1.3: Non-API routes serve the embedded frontend assets with SPA fallback to index.html (200 OK).
       - R1.4: Assets are loaded via Go build tags — os.DirFS in dev mode, embed.FS with -tags production.

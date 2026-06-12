@@ -10,37 +10,65 @@ purpose: |
   entirely by the config files it receives.
 
 invocation: |
-  agent --machine <machine.yaml> \
-        --tools <tools.yaml> \
-        --tools-declaration <decl1.yaml> [--tools-declaration <decl2.yaml> ...] \
-        [--input <file>] [--output <dir>] \
-        [--model <name>] [--ollama-url <url>] \
-        [--directory <path>] \
-        [--state-store-dir <dir>] \
-        [--resume-checkpoint <id>] [--resume-signal <signal>]
+  Preferred invocation:
+    agent --profile agents/<agent>/profile.yaml \
+          [--input <file>] [--output <dir>] \
+          [--directory <path>] \
+          [--state-store-dir <dir>] \
+          [--resume-checkpoint <id>] [--resume-signal <signal>]
+
+  Compatibility invocation:
+    agent --machine <machine.yaml> \
+          --tools <tools.yaml> [--tools <more-tools.yaml> ...] \
+          [--tools-declaration <decl.yaml> ...] \
+          [--tool-config-dir <dir> ...] \
+          [--input <file>] [--output <dir>] \
+          [--model <name>] [--ollama-url <url>] \
+          [--directory <path>] \
+          [--state-store-dir <dir>] \
+          [--resume-checkpoint <id>] [--resume-signal <signal>]
 
   Lifecycle subcommands:
     agent history --state-store-dir <dir> [--checkpoint <id|latest>]
     agent rollback --state-store-dir <dir> --to-iteration <n> \
           [--checkpoint <id|latest>] [--directory <path>]
 
-  Required flags:
-    --machine            Path to the state machine YAML (MachineSpec).
-    --tools              Path to the tool selection YAML (list of tool names).
+  Preferred agent configuration flag:
+    --profile            Path to an agent profile YAML. The profile supplies
+                         machine, tools, tool_declarations, tool_config_dirs,
+                         and optional directory. Relative paths are resolved
+                         against the profile file's directory.
 
-  Required when using declaration+selection split:
-    --tools-declaration  One or more paths to tool declaration YAML files.
-                         May be repeated. When provided, --tools is treated
-                         as a selection file (names only); otherwise it is
-                         parsed as a full declaration file.
+  Legacy configuration flags:
+    --machine            Path to the state machine YAML (MachineSpec).
+                         Deprecated for normal agent startup; use --profile.
+    --tools              Path to a tool selection YAML. May be repeated.
+                         Deprecated for normal agent startup; use --profile.
+    --tools-declaration  One or more explicit tool declaration YAML files.
+                         May be repeated. Deprecated for normal agent startup;
+                         use --profile.
+    --tool-config-dir    Directory containing individual tool declaration YAML
+                         files. May be repeated. Directories are scanned for
+                         *.yaml files and loaded in name order. Profiles should
+                         normally provide these directories via tool_config_dirs.
+
+  Legacy loading rules:
+    When --tools-declaration or --tool-config-dir is present, --tools is
+    treated as one or more name-only selection files and intersected with the
+    loaded declarations. Otherwise a single --tools file is parsed as a full
+    declaration file for backward compatibility.
 
   Optional universal flags:
     --input              Input file (e.g. suite YAML for evaluator).
     --output             Output directory (e.g. eval results).
-    --model              Override LLM model name.
-    --ollama-url         Override LLM provider URL.
+    --model              Legacy LLM model override. Deprecated; configure the
+                         model in the invoke_llm declaration selected by the
+                         profile.
+    --ollama-url         Legacy LLM provider URL override. Deprecated;
+                         configure provider_url/ollama_url in the invoke_llm
+                         declaration selected by the profile.
     --directory          Workspace root for file tools and exec tools.
-    --profiles-dir       Directory with model profile YAML overrides.
+    --profiles-dir       Directory with model response-profile YAML overrides.
     --verbose-trace      Record LLM input/output in OTel traces.
     --otel-log-file      OTel trace output file.
     --otel-parent-span   W3C traceparent for distributed tracing.
@@ -55,30 +83,41 @@ invocation: |
 
 startup_sequence:
   - step: 1
-    name: Load tool definitions
+    name: Apply profile
     description: |
-      If --tools-declaration is provided, load declarations from those
-      files, then load --tools as a name-only selection list, and
-      compute the intersection (SelectTools). Otherwise, load --tools
-      as a full declaration file. Result: []ToolDef.
-    implementation: stl.LoadToolDeclarations, stl.LoadToolSelection, stl.SelectTools
+      If --profile is provided, cmd/agent loads the AgentProfile and fills any
+      unset CLI configuration fields from it. The profile supplies machine,
+      tool selection files, explicit tool declarations, tool config
+      directories, and optional workspace directory. Explicit CLI flags still
+      take precedence, and deprecated legacy overrides emit warnings.
+    implementation: stl.LoadProfile, applyProfile
 
   - step: 2
+    name: Load tool definitions
+    description: |
+      If --tools-declaration or --tool-config-dir is provided, load
+      declarations from explicit files and directories, then load every --tools
+      path as a name-only selection list, and compute the intersection
+      (SelectTools). Otherwise, load the single --tools path as a full
+      declaration file. Result: []ToolDef.
+    implementation: stl.LoadToolDeclarations, stl.LoadToolDeclarationsFromDirs, stl.LoadToolSelections, stl.SelectTools
+
+  - step: 3
     name: Extract LLM config and set up provider
     description: |
       Scan tool definitions for invoke_llm config blocks. Extract
       model, provider, endpoint, manifest_state, system prompt, num_ctx,
       llm_timeout, max_tokens, and max_time settings. Validate the
       provider and create the provider adapter.
-      If a model profile has a MachineName, --machine is rewritten
+      If a model response profile has a MachineName, --machine is rewritten
       to use the profile's machine file (e.g. deepseek profile maps
       to deepseek-coding-agent.yaml). The resolved machine file is
       validated to exist at startup; a missing file fails immediately.
-      This is a declarative contract: profiles declare machine
-      affinity, the runtime validates and resolves it.
+      This model response profile system is separate from the agent profile
+      selected by --profile.
     implementation: extractLLMConfig, llm.LoadProfiles
 
-  - step: 3
+  - step: 4
     name: Register tool factories
     description: |
       For each ToolDef, resolve and register a Builder in the
@@ -88,10 +127,11 @@ startup_sequence:
       declaration YAML is passed to factories for parametrization.
     implementation: stl.RegisterUnifiedTools
 
-  - step: 4
+  - step: 5
     name: Load machine and validate tool signal contracts
     description: |
-      cmd/agent loads and validates the machine spec from --machine
+      cmd/agent loads and validates the machine spec from the resolved profile
+      machine path, or from legacy --machine when no profile is used,
       before entering the loop. This extracts budget defaults and validates
       declared tool emits metadata for tools used as named transition actions:
       emitted signals must be declared by the machine, and each emitted signal
@@ -99,7 +139,7 @@ startup_sequence:
       state is terminal.
     implementation: core.LoadMachineSpec, stl.ValidateToolEmits
 
-  - step: 5
+  - step: 6
     name: Configure lifecycle ports
     description: |
       Lifecycle behavior is opt-in. When --state-store-dir is absent,
@@ -115,7 +155,7 @@ startup_sequence:
       machine/tools, then re-enters core.Loop with resume seed fields.
     implementation: core.FileStore, core.ResumeFromCheckpoint, core.LoopHooks.SnapshotConversation
 
-  - step: 6
+  - step: 7
     name: Run the loop
     description: |
       cmd/agent passes the already-loaded MachineSpec to core.Loop, and
@@ -161,9 +201,10 @@ suite_input_contract: |
   current point. dump_config snapshots the resolved suite/harness/tool data
   into experiment.yaml for reproducibility.
 
-  CLI flags (--input, --output, --model, --ollama-url) serve as
-  universal overrides. Mode-specific parameters live exclusively in
-  tool config YAML, not as CLI flags.
+  CLI flags such as --input and --output serve as universal runtime inputs.
+  Model and provider selection should come from the invoke_llm declaration
+  selected by --profile. Legacy --model and --ollama-url overrides are retained
+  for compatibility and emit warnings when used directly.
 
 nested_machines: |
   Some tools spawn nested core.Loop instances (run_point) or child
@@ -177,7 +218,7 @@ nested_machines: |
 
   Child process:
     launch_eval reads config.machine, config.tools, config.tools_declarations
-    → exec.Command("agent", "--machine", ..., "--tools", ...)
+    → subprocess.Run("agent", "--machine", ..., "--tools", ...)
 
     execute_task reads config.machine, config.tools, config.tools_declarations
     → subprocess.Run with the same flags
@@ -231,28 +272,35 @@ history_and_rollback_cli: |
 
 config_file_layout: |
   tools/
-    builtin.yaml            # Shared builtin tool declarations
-    exec.yaml               # Shared exec tool declarations
+    builtin/                # Individual shared builtin tool declarations
+    exec/                   # Individual shared exec tool declarations
+    builtin.yaml            # Legacy aggregate builtin declarations
+    exec.yaml               # Legacy aggregate exec declarations
   agents/
     generator/
+      profile.yaml          # Preferred generator runtime entry point
       machine.yaml          # Generator state machine and semantics
       tools.yaml            # Tool selection (names only)
       llm/                  # Per-model LLM configs
     planner/
+      profile.yaml
       machine.yaml          # Full planner with execution
       machine-passthrough.yaml
       machine-plan-only.yaml
       tools.yaml
       llm/
     evaluator/
+      profile.yaml
       machine.yaml          # Session-level eval orchestration and semantics
       point.yaml            # Per-point eval pipeline and semantics
       tools.yaml            # Session-level tool selection
       tools-point.yaml      # Per-point tool selection loaded by run_point
     bench/
+      profile.yaml
       machine.yaml          # Interactive web UI loop and semantics
       tools.yaml            # serve_ui + launch_eval
-    validate/
+    constitution-auditor/
+      profile.yaml
       machine.yaml          # Spec validation pipeline and semantics
       tools.yaml            # load_corpus + validate_specs + format_report
 
@@ -260,9 +308,11 @@ invariants:
   - Every agent mode uses the same binary with the same startup sequence.
   - No mode-specific run subcommands exist; lifecycle subcommands operate on
     persisted checkpoint data and do not define agent behavior.
-  - Mode-specific tool configuration lives in YAML config blocks. A small
-    set of universal CLI flags (--input, --output, --model, --ollama-url)
-    serve as overrides applicable to any mode.
+  - Mode-specific tool configuration lives in YAML config blocks. A small set
+    of universal CLI flags such as --input, --output, --directory, and
+    lifecycle/telemetry flags serve as runtime inputs. Model/provider overrides
+    remain legacy compatibility flags and should normally be encoded in
+    profile-selected tool declarations.
   - Machine files reference tools by name; tools are resolved from the registry.
   - Named action tools may declare emitted signals with emits; declared emits
     are checked against the machine's signal and transition contract at startup.
