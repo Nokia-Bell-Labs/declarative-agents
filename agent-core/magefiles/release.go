@@ -14,9 +14,11 @@ import (
 )
 
 const (
-	tagPrefix          = "v0."
-	baseBranch         = "main"
-	agentCoreRefEnvVar = "AGENT_CORE_REF"
+	tagPrefix            = "v0."
+	baseBranch           = "main"
+	agentCoreRefEnvVar   = "AGENT_CORE_REF"
+	agentCoreRepoEnvVar  = "AGENT_CORE_REPO"
+	defaultAgentCoreRepo = "https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git"
 )
 
 // Tag creates a documentation release tag (v0.YYYYMMDD.N).
@@ -67,25 +69,43 @@ func nextRevision(date string) int {
 
 // containerReleaseRef returns the release ref used for container builds.
 func containerReleaseRef() (string, error) {
-	return resolveContainerReleaseRef(os.Getenv(agentCoreRefEnvVar), gitOutput)
+	return resolveContainerReleaseRef(os.Getenv(agentCoreRefEnvVar), os.Getenv(agentCoreRepoEnvVar), gitOutput)
 }
 
 type gitOutputFunc func(args ...string) (string, error)
 
-func resolveContainerReleaseRef(override string, git gitOutputFunc) (string, error) {
+func resolveContainerReleaseRef(override, repoOverride string, git gitOutputFunc) (string, error) {
 	if ref := strings.TrimSpace(override); ref != "" {
 		return ref, nil
 	}
 
-	out, err := git("tag", "--list", tagPrefix+"*")
-	if err != nil {
-		return "", fmt.Errorf("list release tags: %w", err)
+	repo := strings.TrimSpace(repoOverride)
+	if repo == "" {
+		repo = defaultAgentCoreRepo
 	}
-	tag, ok := latestReleaseTag(strings.Split(out, "\n"))
+	out, err := git("ls-remote", "--tags", "--refs", repo, tagPrefix+"*")
+	if err != nil {
+		return "", fmt.Errorf("list remote release tags from %s: %w", repo, err)
+	}
+	tag, ok := latestReleaseTag(remoteReleaseTagNames(out))
 	if !ok {
 		return "", fmt.Errorf("no release tags matching %sYYYYMMDD.N", tagPrefix)
 	}
 	return tag, nil
+}
+
+func remoteReleaseTagNames(out string) []string {
+	var tags []string
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			continue
+		}
+		if tag, ok := strings.CutPrefix(fields[1], "refs/tags/"); ok {
+			tags = append(tags, tag)
+		}
+	}
+	return tags
 }
 
 func latestReleaseTag(tags []string) (string, bool) {
