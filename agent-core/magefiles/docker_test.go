@@ -109,6 +109,34 @@ func TestContainerBuildArgsForDocker(t *testing.T) {
 	}
 }
 
+func TestShellCommand(t *testing.T) {
+	got := shellCommand([]string{
+		"podman",
+		"build",
+		"--secret",
+		"id=git_credentials,src=/Users/test user/.netrc",
+		"--build-arg",
+		"AGENT_CORE_REF=v0.20260612.1",
+		"--build-arg",
+		"AGENT_CORE_REPO=https://example.invalid/agent-core.git",
+		"-t",
+		"agent-core:latest",
+		".",
+	})
+	want := "podman build --secret 'id=git_credentials,src=/Users/test user/.netrc' --build-arg AGENT_CORE_REF=v0.20260612.1 --build-arg AGENT_CORE_REPO=https://example.invalid/agent-core.git -t agent-core:latest ."
+	if got != want {
+		t.Fatalf("shellCommand = %q, want %q", got, want)
+	}
+}
+
+func TestShellQuoteEscapesSingleQuote(t *testing.T) {
+	got := shellQuote("repo's")
+	want := "'repo'\\''s'"
+	if got != want {
+		t.Fatalf("shellQuote = %q, want %q", got, want)
+	}
+}
+
 func TestNetrcPathUsesOverride(t *testing.T) {
 	got := netrcPath(" /tmp/custom.netrc ", "/home/user", func(path string) (os.FileInfo, error) {
 		t.Fatalf("stat called for override %q", path)
