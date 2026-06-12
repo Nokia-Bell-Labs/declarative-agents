@@ -6,8 +6,7 @@ tools:
   emits:
   - ToolDone
   - ToolFailed
-  description: Create or overwrite a file. Provide the complete file content — this replaces the entire file. Parent directories
-    are created automatically.
+  description: "Create or overwrite a file. Provide the complete file content \u2014 this replaces the entire file. Parent directories are created automatically."
   output:
     description: Write result describing the file path and bytes written.
     schema:
@@ -46,3 +45,28 @@ tools:
     description: Restore the workspace to the ref captured before or after the file write.
     requires:
     - Workspace
+  problem: The machine needs a declared word for writing one workspace file without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the write action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'write: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
