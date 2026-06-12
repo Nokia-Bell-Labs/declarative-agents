@@ -79,6 +79,50 @@ func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
 	})
 }
 
+func TestBuiltinFactoryCatalogSelectsEntriesByInit(t *testing.T) {
+	t.Parallel()
+
+	catalog := builtinFactoryCatalog(&agentState{})
+	byName := make(map[string]builtinFactoryCatalogEntry, len(catalog))
+	for _, entry := range catalog {
+		byName[entry.Name] = entry
+	}
+
+	require.True(t, byName["planning"].selectedBy(map[string]bool{"execute_task": true}))
+	require.True(t, byName["evaluation"].selectedBy(map[string]bool{"run_point": true}))
+	require.True(t, byName["bench"].selectedBy(map[string]bool{"launch_eval": true}))
+	require.True(t, byName["spec_validation"].selectedBy(map[string]bool{"validate_specs": true}))
+	require.False(t, byName["planning"].selectedBy(map[string]bool{"launch_eval": true}))
+}
+
+func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
+	t.Parallel()
+
+	catalog := builtinFactoryCatalog(&agentState{})
+	covered := make(map[string]bool)
+	for _, entry := range catalog {
+		for _, init := range entry.Inits {
+			covered[init] = true
+		}
+	}
+
+	for _, init := range []string{
+		"file_read", "file_write", "file_edit", "file_find", "file_list",
+		"invoke_llm", "parse_response", "report_parse_error", "reset_history",
+		"nudge_reread", "done", "suspend", "validate", "self_invoke",
+		"extract_task", "extract_all", "assemble_prompt", "parse_plan",
+		"create_issue", "execute_task", "check_result",
+		"parse_suite_config", "discover_suite_samples", "expand_eval_grid",
+		"init_eval_session", "report_suite_summary", "next_point", "run_point",
+		"report_session", "run_agent", "run_oracle_check", "collect_trace_tokens",
+		"check_agent_version", "summarize_point_results", "collect_metrics",
+		"dump_config", "serve_ui", "launch_eval", "load_corpus", "validate_specs",
+		"format_report",
+	} {
+		require.True(t, covered[init], "catalog should cover init %q", init)
+	}
+}
+
 func TestFormatCheckpointHistory(t *testing.T) {
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 
