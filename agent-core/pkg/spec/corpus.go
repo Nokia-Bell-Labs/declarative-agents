@@ -31,6 +31,8 @@ const (
 
 // Corpus holds all parsed specification artifacts for a project.
 type Corpus struct {
+	RootDir string
+
 	SRDs       map[string]SRD
 	UseCases   map[string]UseCase
 	TestSuites map[string]TestSuite
@@ -92,6 +94,7 @@ func LoadCorpus(rootDir string) (*Corpus, error) {
 	}
 
 	c := &Corpus{
+		RootDir:          rootDir,
 		SRDs:             srds,
 		UseCases:         ucs,
 		TestSuites:       tss,

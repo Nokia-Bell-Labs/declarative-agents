@@ -4,6 +4,8 @@ package spec
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -38,6 +40,12 @@ func Validate(g *Graph, corpus *Corpus) []Finding {
 	all = append(all, checkToolUndoConsistency(corpus)...)
 	all = append(all, checkToolSideEffectVocab(corpus)...)
 	all = append(all, checkToolBoundaryCategory(corpus)...)
+	all = append(all, checkUseCaseIndexRefs(corpus)...)
+	all = append(all, checkTestSuiteIndexRefs(corpus)...)
+	all = append(all, checkRoadmapUseCaseRefs(corpus)...)
+	all = append(all, checkUseCaseTestSuiteReciprocity(corpus)...)
+	all = append(all, checkTestCaseUseCaseRefs(corpus)...)
+	all = append(all, checkSpecIndexPaths(corpus)...)
 	return all
 }
 
@@ -537,6 +545,157 @@ func checkMachineNameConsistency(corpus *Corpus) []Finding {
 				Level:   "error",
 				Message: fmt.Sprintf("machine %s directory name does not match spec name %q", agentName, ms.Name),
 			})
+		}
+	}
+	return findings
+}
+
+// checkUseCaseIndexRefs verifies that every use_case_index entry in
+// SPECIFICATIONS.yaml references a use case that exists in the corpus.
+func checkUseCaseIndexRefs(corpus *Corpus) []Finding {
+	var findings []Finding
+	for _, entry := range corpus.SpecIndex.UseCaseIndex {
+		if _, ok := corpus.UseCases[entry.ID]; !ok {
+			findings = append(findings, Finding{
+				Check:   "index-missing-use-case",
+				Level:   "error",
+				Message: fmt.Sprintf("SPECIFICATIONS.yaml use_case_index references %q which does not exist", entry.ID),
+			})
+		}
+	}
+	return findings
+}
+
+// checkTestSuiteIndexRefs verifies that every test_suite_index entry
+// references a test suite that exists in the corpus.
+func checkTestSuiteIndexRefs(corpus *Corpus) []Finding {
+	var findings []Finding
+	for _, entry := range corpus.SpecIndex.TestSuiteIndex {
+		if _, ok := corpus.TestSuites[entry.ID]; !ok {
+			findings = append(findings, Finding{
+				Check:   "index-missing-test-suite",
+				Level:   "error",
+				Message: fmt.Sprintf("SPECIFICATIONS.yaml test_suite_index references %q which does not exist", entry.ID),
+			})
+		}
+	}
+	return findings
+}
+
+// checkRoadmapUseCaseRefs verifies that use case IDs in roadmap releases
+// reference use cases that exist in the corpus.
+func checkRoadmapUseCaseRefs(corpus *Corpus) []Finding {
+	var findings []Finding
+	for _, rel := range corpus.Roadmap.Releases {
+		for _, ucRef := range rel.UseCases {
+			if _, ok := corpus.UseCases[ucRef.ID]; !ok {
+				findings = append(findings, Finding{
+					Check:   "roadmap-missing-use-case",
+					Level:   "warning",
+					Message: fmt.Sprintf("roadmap release %s references use case %q which does not exist", rel.Version, ucRef.ID),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+// checkUseCaseTestSuiteReciprocity verifies that use case test_suite
+// fields reference test suites that exist, and that those test suites
+// trace back to the use case.
+func checkUseCaseTestSuiteReciprocity(corpus *Corpus) []Finding {
+	var findings []Finding
+	for _, ucID := range corpus.UCOrder {
+		uc := corpus.UseCases[ucID]
+		if uc.TestSuite == "" {
+			continue
+		}
+		ts, ok := corpus.TestSuites[uc.TestSuite]
+		if !ok {
+			findings = append(findings, Finding{
+				Check:   "use-case-missing-test-suite",
+				Level:   "error",
+				Message: fmt.Sprintf("use case %s references test_suite %q which does not exist", ucID, uc.TestSuite),
+			})
+			continue
+		}
+		tracesUC := false
+		for _, trace := range ts.Traces {
+			if trace == ucID {
+				tracesUC = true
+				break
+			}
+		}
+		if !tracesUC {
+			findings = append(findings, Finding{
+				Check:   "test-suite-missing-uc-trace",
+				Level:   "warning",
+				Message: fmt.Sprintf("use case %s references test_suite %q but the suite does not trace back to it", ucID, uc.TestSuite),
+			})
+		}
+	}
+	return findings
+}
+
+// checkTestCaseUseCaseRefs verifies that test case use_case fields
+// reference use cases that exist in the corpus.
+func checkTestCaseUseCaseRefs(corpus *Corpus) []Finding {
+	var findings []Finding
+	for _, ts := range corpus.TestSuites {
+		for _, tc := range ts.TestCases {
+			if tc.UseCase == "" {
+				continue
+			}
+			if _, ok := corpus.UseCases[tc.UseCase]; !ok {
+				findings = append(findings, Finding{
+					Check:   "test-case-missing-use-case",
+					Level:   "warning",
+					Message: fmt.Sprintf("test case %s:%s references use_case %q which does not exist", ts.ID, tc.Name, tc.UseCase),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+// checkSpecIndexPaths verifies that path fields in spec index entries
+// point to existing files.
+func checkSpecIndexPaths(corpus *Corpus) []Finding {
+	if corpus.RootDir == "" {
+		return nil
+	}
+	var findings []Finding
+	for _, entry := range corpus.SpecIndex.SRDIndex {
+		if entry.Path != "" {
+			if _, err := os.Stat(filepath.Join(corpus.RootDir, entry.Path)); err != nil {
+				findings = append(findings, Finding{
+					Check:   "index-broken-path",
+					Level:   "error",
+					Message: fmt.Sprintf("srd_index entry %s path %q does not exist", entry.ID, entry.Path),
+				})
+			}
+		}
+	}
+	for _, entry := range corpus.SpecIndex.UseCaseIndex {
+		if entry.Path != "" {
+			if _, err := os.Stat(filepath.Join(corpus.RootDir, entry.Path)); err != nil {
+				findings = append(findings, Finding{
+					Check:   "index-broken-path",
+					Level:   "error",
+					Message: fmt.Sprintf("use_case_index entry %s path %q does not exist", entry.ID, entry.Path),
+				})
+			}
+		}
+	}
+	for _, entry := range corpus.SpecIndex.TestSuiteIndex {
+		if entry.Path != "" {
+			if _, err := os.Stat(filepath.Join(corpus.RootDir, entry.Path)); err != nil {
+				findings = append(findings, Finding{
+					Check:   "index-broken-path",
+					Level:   "error",
+					Message: fmt.Sprintf("test_suite_index entry %s path %q does not exist", entry.ID, entry.Path),
+				})
+			}
 		}
 	}
 	return findings
