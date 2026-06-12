@@ -347,11 +347,22 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 		}
 		for _, td := range file.Tools {
 			td.SourceFile = relPath
+			if existing, ok := decls[td.Name]; ok && keepExistingToolDeclaration(existing, td) {
+				continue
+			}
 			decls[td.Name] = td
 		}
 	}
 
 	return decls, nil
+}
+
+func keepExistingToolDeclaration(existing, candidate ToolDeclaration) bool {
+	return isAgentLocalToolDeclaration(existing.SourceFile) && !isAgentLocalToolDeclaration(candidate.SourceFile)
+}
+
+func isAgentLocalToolDeclaration(sourceFile string) bool {
+	return strings.HasPrefix(filepath.ToSlash(sourceFile), "agents/")
 }
 
 func yamlFilesInDir(dir string) []string {
