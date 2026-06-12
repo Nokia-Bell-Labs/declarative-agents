@@ -11,6 +11,10 @@ intentionally supported as a public Go API.
 - `internal/` contains private implementation packages for this repository.
 - `pkg/` is reserved for stable, documented library APIs. If a package remains
   under `pkg/`, the reason should be explicit in the migration issue.
+- `pkg/spec` is intentionally retained as a public package for the current
+  restructuring. It provides typed specification artifacts, parsing, corpus
+  loading, graph construction, validation, and formatted findings used by both
+  planning and audit flows.
 - `agents/`, `tools/`, `docs/`, and `testdata/` remain configuration,
   specification, and fixture directories rather than Go package domains.
 - Each migration should preserve behavior first. Rename symbols or redesign APIs
@@ -28,8 +32,8 @@ intentionally supported as a public Go API.
   profiles, and tool manifest assembly.
 - `internal/planning`: task extraction, spec graphs used for planning,
   implementation plans, issue materialization, and pipeline orchestration.
-- `internal/audit`: constitution-auditor support and spec corpus validation when
-  those APIs are not intentionally public.
+- `internal/audit`: constitution-auditor orchestration and audit-specific tool
+  glue. Shared specification parsing and validation remain in `pkg/spec`.
 - `internal/observability`: tracing ports, OpenTelemetry adapters, GenAI span
   helpers, and trace replay support.
 - `internal/support`: temporary landing area for private process, workspace, and
@@ -46,8 +50,8 @@ intentionally supported as a public Go API.
 6. Split the standard tool library by domain before moving evaluator, audit, or
    model-specific tool implementations.
 7. Move evaluator and bench runtime under `internal/evaluation`.
-8. Decide whether the spec audit package remains public under `pkg/spec` or
-   moves under `internal/audit`.
+8. Keep shared specification parsing and validation in `pkg/spec`; move only
+   constitution-auditor-specific orchestration under `internal/audit`.
 9. Update docs, build scripts, audit rules, and remove empty old package paths.
 
 ## Guardrails
