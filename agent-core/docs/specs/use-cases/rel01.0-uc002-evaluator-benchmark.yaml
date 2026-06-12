@@ -1,29 +1,28 @@
 id: rel01.0-uc002-evaluator-benchmark
-title: Evaluator runs generator across models and collects results
+title: Evaluator runs generator profiles and collects results
 
 summary: |
-  The agent binary, configured with the evaluator session machine
-  (agents/evaluator/machine.yaml), loads a suite YAML that defines a
-  grid of (harness, model, sample, gridpoint, rep) combinations. A
-  session-level state machine iterates over the grid; for each point,
+  The agent binary, configured with agents/evaluator/profile.yaml, loads a
+  suite YAML that defines generator profiles, samples, optional grid
+  parameters, and repetitions. A session-level state machine iterates over the
+  profile/grid/sample/repetition combinations; for each point,
   a nested core.Loop runs the per-point pipeline: prepare workspace,
   dump config, run the generator as a subprocess, check results, and
   collect metrics. Results are written to a structured directory tree
   for analysis by the bench UI or CLI reporting tools.
 
   The integration test (mage integration:uc002) exercises this end-to-end
-  with two models (Qwen 3.6 35b and Qwen 3.6 27b), using the same sample
-  workspace as the generator integration test (uc001).
+  with two generator profiles: agents/generator/profile-qwen35b.yaml
+  (qwen3.6:35b-mlx) and agents/generator/profile-qwen27b.yaml
+  (qwen3.6:27b-mlx), using the same sample workspace as the generator
+  integration test (uc001).
 
 actor: Developer benchmarking model performance
 
 trigger: |
   The developer (or mage integration:uc002) runs:
-    agent --machine agents/evaluator/machine.yaml \
-          --tools agents/evaluator/tools.yaml \
-          --tools-declaration tools/builtin.yaml \
-          --tools-declaration agents/evaluator/builtin.yaml \
-          --input suites/my-suite.yaml \
+    agent --profile agents/evaluator/profile.yaml \
+          --input testdata/integration/uc002-evaluator-benchmark/suite.yaml \
           --output eval-results
 
 preconditions:
@@ -34,16 +33,17 @@ preconditions:
 
 flow:
   - F1: The session machine runs parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary to prepare suite input and create the session output directory (srd019).
-  - F2: The session machine enters AdvancingPoint; next_point returns the first (harness, model, sample, gridpoint, rep) combination (srd019).
-  - F3: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (agents/evaluator/point.yaml) (srd005, agents/evaluator/machine.yaml, agents/evaluator/point.yaml).
-  - F4: The point machine runs create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline to prepare an isolated workspace (srd019).
-  - F5: dump_config serializes the full experiment configuration into experiment.yaml for reproducibility (srd019).
-  - F6: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation (srd016, srd019).
-  - F7: run_oracle_check, collect_trace_tokens, check_agent_version, and summarize_point_results classify the point outcome and collect trace-derived result state (srd019).
-  - F8: collect_metrics writes meta.json with point metadata, duration, and outcome classification (srd019).
-  - F9: The nested loop completes; control returns to the session machine which loops back to next_point.
-  - F10: When the grid is exhausted, next_point emits AllPointsDone; report_session prints the summary.
-  - F11: Results are written to eval-results/<suite>/<timestamp>/<point-id>/ with meta.json, trace.ndjson, and experiment.yaml (srd019).
+  - F2: parse_suite_config reads the suite's profiles list, resolves each profile relative to the suite file, and rejects suites that mix profiles with legacy harness/model fields (srd019).
+  - F3: The session machine enters AdvancingPoint; next_point returns the first (profile, gridpoint, sample, rep) combination. For the integration suite this means generator-qwen35b, then generator-qwen27b, over the discovered samples (srd019).
+  - F4: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (agents/evaluator/point.yaml) (srd005, agents/evaluator/machine.yaml, agents/evaluator/point.yaml).
+  - F5: The point machine runs create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline to prepare an isolated workspace (srd019).
+  - F6: dump_config serializes the resolved profile path, model, harness label, sample, timeout, and repetition into experiment.yaml for reproducibility (srd019).
+  - F7: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation and passes --profile for profile-based points (srd016, srd019).
+  - F8: run_oracle_check, collect_trace_tokens, check_agent_version, and summarize_point_results classify the point outcome and collect trace-derived result state (srd019).
+  - F9: collect_metrics writes meta.json with point metadata, duration, and outcome classification (srd019).
+  - F10: The nested loop completes; control returns to the session machine which loops back to next_point.
+  - F11: When the grid is exhausted, next_point emits AllPointsDone; report_session prints the summary.
+  - F12: Results are written to eval-results/<suite>/<timestamp>/<point-id>/ with meta.json, trace.ndjson, and experiment.yaml (srd019).
 
 touchpoints:
   - T1: "srd005-agentic-loop -- Loop drives both session and point state machines"
@@ -51,10 +51,12 @@ touchpoints:
   - T3: "srd016-traceparent -- W3C traceparent propagation to subprocess"
   - T4: "srd019-eval-harness -- suite parsing, grid eval, all eval tools, result analysis"
   - T5: "agents/evaluator/*.yaml -- two-level state machine: session states, point states, signals, lifecycle"
+  - T6: "testdata/integration/uc002-evaluator-benchmark/suite.yaml -- profile-based qwen35b/qwen27b integration suite"
+  - T7: "agents/generator/profile-qwen35b.yaml and profile-qwen27b.yaml -- generator profiles under evaluation"
 
 success_criteria:
   - id: S1
-    criterion: Suite YAML is parsed and expanded into a (harness, model, sample, gridpoint, rep) grid.
+    criterion: Suite YAML is parsed and expanded into a profile/gridpoint/sample/repetition grid.
     traces:
       - srd019-eval-harness AC1
   - id: S2
@@ -66,9 +68,9 @@ success_criteria:
     traces:
       - srd016-traceparent AC1
   - id: S4
-    criterion: Results include experiment.yaml config dump for reproducibility.
+    criterion: Results include experiment.yaml with the resolved profile path and model for reproducibility.
     traces:
-      - srd019-eval-harness AC3
+      - srd019-eval-harness AC2
   - id: S5
     criterion: Pass/fail/timeout classification is correct based on exit code and test output.
     traces:
@@ -76,15 +78,15 @@ success_criteria:
   - id: S6
     criterion: Metrics are collected even when the generator fails or times out.
     traces:
-      - srd019-eval-harness AC5
+      - srd019-eval-harness AC2
   - id: S7
     criterion: Session summary correctly reports total, passed, failed, and timed-out counts.
     traces:
-      - agents/evaluator/machine.yaml lifecycle
+      - srd019-eval-harness AC1
   - id: S8
     criterion: Result directory contains meta.json and experiment.yaml for each point.
     traces:
-      - srd019-eval-harness AC3
+      - srd019-eval-harness AC2
 
 integration_test: mage integration:uc002
 test_data: testdata/integration/uc002-evaluator-benchmark
