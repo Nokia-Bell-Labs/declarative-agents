@@ -323,6 +323,7 @@ var KnownSideEffectKinds = map[string]bool{
 	"child_process":            true,
 	"nested_machine_execution": true,
 	"external_api":             true,
+	"external_api_call":        true,
 	"human_boundary":           true,
 	"stderr_write":             true,
 	"none":                     true,

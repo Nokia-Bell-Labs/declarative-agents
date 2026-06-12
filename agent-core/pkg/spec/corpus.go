@@ -290,6 +290,8 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 		filepath.Join(rootDir, "tools", "builtin.yaml"),
 		filepath.Join(rootDir, "tools", "exec.yaml"),
 	}
+	declFiles = append(declFiles, yamlFilesInDir(filepath.Join(rootDir, "tools", "builtin"))...)
+	declFiles = append(declFiles, yamlFilesInDir(filepath.Join(rootDir, "tools", "exec"))...)
 
 	agentsPath := filepath.Join(rootDir, AgentsDir)
 	if entries, err := os.ReadDir(agentsPath); err == nil {
@@ -301,6 +303,8 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 			if _, err := os.Stat(override); err == nil {
 				declFiles = append(declFiles, override)
 			}
+			declFiles = append(declFiles, yamlFilesInDir(filepath.Join(agentsPath, entry.Name(), "llm"))...)
+			declFiles = append(declFiles, declarationFilesFromProfile(filepath.Join(agentsPath, entry.Name(), "profile.yaml"))...)
 		}
 	}
 
@@ -327,6 +331,45 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 	}
 
 	return decls, nil
+}
+
+func yamlFilesInDir(dir string) []string {
+	matches, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
+	if err != nil {
+		return nil
+	}
+	sort.Strings(matches)
+	return matches
+}
+
+func declarationFilesFromProfile(path string) []string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var profile struct {
+		ToolDeclarations []string `yaml:"tool_declarations"`
+		ToolConfigDirs   []string `yaml:"tool_config_dirs"`
+	}
+	if err := yaml.Unmarshal(data, &profile); err != nil {
+		return nil
+	}
+	base := filepath.Dir(path)
+	var files []string
+	for _, dir := range profile.ToolConfigDirs {
+		files = append(files, yamlFilesInDir(resolveProfilePath(base, dir))...)
+	}
+	for _, decl := range profile.ToolDeclarations {
+		files = append(files, resolveProfilePath(base, decl))
+	}
+	return files
+}
+
+func resolveProfilePath(base, p string) string {
+	if filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(base, p)
 }
 
 func (c *Corpus) validate() error {

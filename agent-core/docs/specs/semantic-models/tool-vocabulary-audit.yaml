@@ -40,7 +40,7 @@ role_legend:
 overall_findings:
   - Most file and simple exec tools are close to vocabulary words.
   - |
-    Tool declarations now include structured side_effects (13 kind values),
+    Tool declarations now include structured side_effects (14 kind values),
     reversibility classification, and undo strategy for most tools. Contract
     metadata (problem, goals, non_goals) is populated for many but not all
     tools. output.schema is declared for file tools and test but is not yet

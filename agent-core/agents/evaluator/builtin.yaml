@@ -76,7 +76,7 @@ tools:
       - kind: filesystem_write
         target: point_artifacts
         description: "Nested point tools may create workspaces and write evaluation artifacts."
-      - kind: nested_machine
+      - kind: nested_machine_execution
         target: core.Loop
         description: "Runs the configured point machine with its selected tools."
     reversibility:

@@ -298,6 +298,9 @@ func checkMachineActionResolution(corpus *Corpus) []Finding {
 			if tr.Action == "" {
 				continue
 			}
+			if tr.Action == "$tool" {
+				continue
+			}
 			if !toolSet[tr.Action] {
 				findings = append(findings, Finding{
 					Check:   "machine-unresolved-action",
@@ -518,6 +521,7 @@ func checkToolBoundaryCategory(corpus *Corpus) []Finding {
 		"child_process":            true,
 		"nested_machine_execution": true,
 		"external_api":             true,
+		"external_api_call":        true,
 		"human_boundary":           true,
 	}
 	var findings []Finding
@@ -546,7 +550,7 @@ func checkMachineNameConsistency(corpus *Corpus) []Finding {
 	var findings []Finding
 	for _, agentName := range corpus.MachineOrder {
 		ms := corpus.Machines[agentName]
-		if ms.Name != agentName {
+		if ms.Name != agentName && !strings.HasPrefix(ms.Name, agentName+"-") {
 			findings = append(findings, Finding{
 				Check:   "machine-name-mismatch",
 				Level:   "error",

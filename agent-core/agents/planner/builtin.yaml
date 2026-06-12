@@ -60,7 +60,7 @@ tools:
             type: string
         required: [exit_code]
     side_effects:
-      - kind: subprocess
+      - kind: child_agent_execution
         target: agent_cli
         description: "Starts the configured generator agent as a child process."
       - kind: filesystem_write

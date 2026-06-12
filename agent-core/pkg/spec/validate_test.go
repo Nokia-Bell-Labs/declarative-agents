@@ -3,6 +3,7 @@
 package spec
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -213,6 +214,31 @@ func TestValidate_MachineActionResolution(t *testing.T) {
 	assert.Contains(t, findings[0].Message, "missing_tool")
 }
 
+func TestValidate_MachineActionResolutionIgnoresDynamicTool(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"agent": {
+				Name:         "agent",
+				InitialState: "Idle",
+				States:       core.StateSpecs{{Name: "Idle"}, {Name: "Dispatching"}},
+				Signals:      core.SignalSpecs{{Name: "Seed"}, {Name: "ToolDone"}},
+				Transitions: []core.TransitionSpec{
+					{State: "Idle", Signal: "Seed", Next: "Dispatching", Action: "$tool"},
+					{State: "Dispatching", Signal: "ToolDone", Next: "Dispatching"},
+				},
+				TerminalStates: []string{"Dispatching"},
+			},
+		},
+		ToolSelections: map[string][]string{
+			"agent": {"read"},
+		},
+		MachineOrder: []string{"agent"},
+	}
+
+	findings := checkMachineActionResolution(corpus)
+	assert.Empty(t, findings, "$tool is dynamic dispatch and should not require a tool named $tool")
+}
+
 func TestValidate_MachineSignalCoverage(t *testing.T) {
 	corpus := &Corpus{
 		Machines: map[string]core.MachineSpec{
@@ -282,6 +308,41 @@ func TestValidate_ToolSelectionDeclared(t *testing.T) {
 	require.Len(t, findings, 1)
 	assert.Equal(t, "error", findings[0].Level)
 	assert.Contains(t, findings[0].Message, "missing")
+}
+
+func TestDiscoverToolDeclarationsIncludesProfileFilesAndDirs(t *testing.T) {
+	root := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "agents", "generator", "llm"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "tools", "builtin"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "generator", "profile.yaml"), []byte(`
+name: generator
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_config_dirs:
+  - ../../tools/builtin
+tool_declarations:
+  - llm/default.yaml
+`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "generator", "llm", "default.yaml"), []byte(`
+tools:
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tools", "builtin", "read.yaml"), []byte(`
+tools:
+  - name: read
+    type: builtin
+    init: file_read
+`), 0o644))
+
+	decls, err := discoverAndParseToolDeclarations(root)
+
+	require.NoError(t, err)
+	require.Contains(t, decls, "invoke_llm")
+	require.Contains(t, decls, "read")
 }
 
 func TestValidate_ToolEmitsSignalSet(t *testing.T) {
@@ -650,6 +711,14 @@ func TestValidate_MachineDiagnostics_Fixture(t *testing.T) {
 func TestValidate_MachineNameConsistency(t *testing.T) {
 	corpus := &Corpus{
 		Machines: map[string]core.MachineSpec{
+			"evaluator": {
+				Name:           "evaluator-session",
+				InitialState:   "Idle",
+				States:         core.StateSpecs{{Name: "Idle"}},
+				Signals:        core.SignalSpecs{{Name: "Seed"}},
+				Transitions:    []core.TransitionSpec{{State: "Idle", Signal: "Seed", Next: "Idle"}},
+				TerminalStates: []string{"Idle"},
+			},
 			"dir-name": {
 				Name:           "wrong-name",
 				InitialState:   "Idle",
@@ -659,7 +728,7 @@ func TestValidate_MachineNameConsistency(t *testing.T) {
 				TerminalStates: []string{"Idle"},
 			},
 		},
-		MachineOrder: []string{"dir-name"},
+		MachineOrder: []string{"evaluator", "dir-name"},
 	}
 
 	findings := checkMachineNameConsistency(corpus)
