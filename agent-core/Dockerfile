@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 ARG GO_IMAGE=golang:1.26-alpine
-ARG RUNTIME_IMAGE=golang:1.26-alpine
+ARG RUNTIME_IMAGE=alpine:3.22
 
 FROM ${GO_IMAGE} AS builder
 
@@ -25,7 +25,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o bin/agent ./cmd/agent
 RUN go test ./...
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/agent ./cmd/agent
-RUN GOBIN=/out go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
 FROM ${RUNTIME_IMAGE} AS runtime
 
@@ -48,7 +47,6 @@ RUN apk add --no-cache \
 WORKDIR /work
 
 COPY --from=builder /out/agent /usr/local/bin/agent
-COPY --from=builder /out/golangci-lint /usr/local/bin/golangci-lint
 
 # Runtime YAML assets used by profiles mounted from evaluation repositories.
 COPY --from=builder /src/tools /opt/agent-core/tools
@@ -57,15 +55,12 @@ COPY --from=builder /src/agents/evaluator /opt/agent-core/agents/evaluator
 
 RUN addgroup -S agent \
     && adduser -S agent -G agent \
-    && mkdir -p /tmp/go /tmp/go-build /work \
-    && chmod -R 1777 /tmp/go /tmp/go-build \
+    && mkdir -p /work \
     && chown -R agent:agent /work
 
 ENV AGENT_CORE_HOME=/opt/agent-core \
     HOME=/tmp \
-    GOPATH=/tmp/go \
-    GOCACHE=/tmp/go-build \
-    PATH=/tmp/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
+    PATH=/usr/local/bin:/usr/bin:/bin
 
 USER agent:agent
 

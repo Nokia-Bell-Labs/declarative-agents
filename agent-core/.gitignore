@@ -10,3 +10,6 @@
 pkg/bench/ui/dist/
 pkg/bench/ui/node_modules/
 bin/
+
+# Podman may leave this behind if an interrupted build used --secret.
+podman-build-secret-*

@@ -50,8 +50,10 @@ bin/agent --profile agents/generator/profile.yaml --directory "$PWD"
 
 The repository includes a multi-stage Dockerfile that clones Agent Core from
 GitLab during the build, runs `go test ./...`, builds `agent`, and packages a
-runtime image with Go, git, `golangci-lint`, common Unix utilities, and shared
-YAML assets under `/opt/agent-core`.
+runtime image with the `agent` binary, git, common Unix utilities, and shared
+YAML assets under `/opt/agent-core`. The Go toolchain, source checkout, and
+test dependencies stay in the builder stage and are not copied into the runtime
+image.
 
 The preferred build path is the Mage target:
 
@@ -134,9 +136,7 @@ Profiles inside the mounted repository can reference shared image assets with
 absolute paths such as `/opt/agent-core/tools/builtin`,
 `/opt/agent-core/tools/exec`, and
 `/opt/agent-core/agents/generator/profile-qwen27b.yaml`.
-If mounted output permissions matter, add `--user "$(id -u):$(id -g)"`;
-the image keeps Go caches under `/tmp` so arbitrary user IDs can still run Go
-validation commands.
+If mounted output permissions matter, add `--user "$(id -u):$(id -g)"`.
 
 Current verification baseline: `mage docker` built `agent-core:latest` from
 remote release `v0.20260612.1`, and `podman run --rm agent-core:latest --help`
