@@ -1,0 +1,34 @@
+tools:
+- name: copy_dir
+  type: exec
+  binary: cp
+  args:
+  - -a
+  description: Copy a directory tree. Provide source and destination paths.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: workspace_directory
+    description: Creates or overwrites files in the destination directory.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore the workspace ref captured before the copy.
+    requires:
+    - Workspace
+  parameters:
+    type: object
+    properties:
+      source:
+        type: string
+        description: Source directory path (appends /. for contents)
+        positional: true
+      destination:
+        type: string
+        description: Destination directory path
+        positional: true
+    required:
+    - source
+    - destination

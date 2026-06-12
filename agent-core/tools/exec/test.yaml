@@ -1,0 +1,36 @@
+tools:
+- name: test
+  type: exec
+  binary: go
+  args:
+  - test
+  - -count=1
+  emits:
+  - ToolDone
+  - ToolFailed
+  description: Run go test -count=1 on the workspace. Returns test output including pass/fail results.
+  output:
+    description: Go test result summary and raw command output.
+    schema:
+      type: object
+      properties:
+        package:
+          type: string
+        passed:
+          type: boolean
+        output:
+          type: string
+        exit_code:
+          type: integer
+      required:
+      - passed
+      - output
+  output_cap: 200
+  parameters:
+    type: object
+    properties:
+      package:
+        type: string
+        description: Go package path (default ./...)
+        positional: true
+        default: ./...

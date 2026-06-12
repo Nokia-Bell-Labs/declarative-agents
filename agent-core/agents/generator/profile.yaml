@@ -4,6 +4,6 @@ tools:
   - tools.yaml
 tool_config_dirs:
   - ../../tools/builtin
+  - ../../tools/exec
 tool_declarations:
-  - ../../tools/exec.yaml
   - llm/default.yaml

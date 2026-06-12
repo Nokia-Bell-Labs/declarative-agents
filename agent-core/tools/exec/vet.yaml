@@ -1,0 +1,11 @@
+tools:
+- name: vet
+  type: exec
+  binary: go
+  args:
+  - vet
+  - ./...
+  emits:
+  - ToolDone
+  - ToolFailed
+  description: Run go vet ./... on the workspace. Reports suspicious constructs.

@@ -1,0 +1,29 @@
+tools:
+- name: make_dir
+  type: exec
+  binary: mkdir
+  args:
+  - -p
+  description: Create a directory and any missing parent directories.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: workspace_directory
+    description: Creates a directory and any missing parent directories.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore the workspace ref captured before directory creation.
+    requires:
+    - Workspace
+  parameters:
+    type: object
+    properties:
+      path:
+        type: string
+        description: Directory path to create
+        positional: true
+    required:
+    - path

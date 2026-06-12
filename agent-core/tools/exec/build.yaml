@@ -1,0 +1,11 @@
+tools:
+- name: build
+  type: exec
+  binary: go
+  args:
+  - build
+  - ./...
+  emits:
+  - ToolDone
+  - ToolFailed
+  description: Compile all Go packages with go build ./... Returns compiler errors on failure.

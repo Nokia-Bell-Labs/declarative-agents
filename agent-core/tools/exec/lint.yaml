@@ -1,0 +1,11 @@
+tools:
+- name: lint
+  type: exec
+  binary: golangci-lint
+  args:
+  - run
+  - ./...
+  emits:
+  - ToolDone
+  - ToolFailed
+  description: Run golangci-lint run ./... on the Go workspace.
