@@ -6,8 +6,7 @@ tools:
   emits:
   - ToolDone
   - ToolFailed
-  description: Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths
-    first.
+  description: Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths first.
   output:
     description: Line-numbered text content from the requested file range.
     schema:
@@ -48,3 +47,28 @@ tools:
   undo:
     strategy: noop
     description: Read-only command has no effects to reverse.
+  problem: The machine needs a declared word for reading one workspace file without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the read action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'read: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor

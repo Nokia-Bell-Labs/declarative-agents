@@ -6,8 +6,7 @@ tools:
   emits:
   - ToolDone
   - ToolFailed
-  description: Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob — use \.go$ to find
-    Go files, not *.go. Returns matching lines with file paths and line numbers.
+  description: "Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob \u2014 use \\.go$ to find Go files, not *.go. Returns matching lines with file paths and line numbers."
   parameters:
     type: object
     properties:
@@ -29,3 +28,39 @@ tools:
   undo:
     strategy: noop
     description: Search is read-only and has no effects to reverse.
+  problem: The machine needs a declared word for searching workspace files without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the find action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'find: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: find command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

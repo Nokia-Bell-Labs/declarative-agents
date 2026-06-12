@@ -6,8 +6,7 @@ tools:
   emits:
   - ToolDone
   - ToolFailed
-  description: List files and directories in a tree format. Use this first to understand the workspace layout before reading
-    files.
+  description: List files and directories in a tree format. Use this first to understand the workspace layout before reading files.
   parameters:
     type: object
     properties:
@@ -27,3 +26,39 @@ tools:
   undo:
     strategy: noop
     description: Directory listing is read-only and has no effects to reverse.
+  problem: The machine needs a declared word for listing workspace files without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the list_files action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'list_files: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: list_files command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

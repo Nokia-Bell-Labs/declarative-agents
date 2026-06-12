@@ -6,8 +6,7 @@ tools:
   emits:
   - EditDone
   - ToolFailed
-  description: Replace the first occurrence of an exact string in a file. Use read first to see the current content, then
-    provide the exact old_string to match.
+  description: Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match.
   output:
     description: Edit result describing the changed file and replacement count.
     schema:
@@ -50,3 +49,28 @@ tools:
     description: Restore the workspace to the ref captured before or after the edit.
     requires:
     - Workspace
+  problem: The machine needs a declared word for editing one workspace file without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the edit action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'edit: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
