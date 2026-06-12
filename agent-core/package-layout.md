@@ -26,12 +26,10 @@ intentionally supported as a public Go API.
   checkpoints, rollback, and workspace refs.
 - `internal/tools`: tool contracts, tool config/profile loading, and generic
   file, exec, lifecycle, validation, and LLM tool implementations. This domain
-  currently contains the former standard tool library under
-  `internal/tools/stl`.
+  contains the standard tool library under `internal/tools/stl`.
 - `internal/evaluation`: evaluator session/point runtime, result artifacts,
   metrics, convergence, trace analysis, and bench orchestration/UI support.
-  This domain contains the former `pkg/bench` package under
-  `internal/evaluation/bench`.
+  Bench server, UI, and orchestration code live under `internal/evaluation/bench`.
 - `internal/model`: LLM clients, provider adapters, prompt rendering, model
   profiles, and tool manifest assembly.
 - `internal/planning`: task extraction, spec graphs used for planning,
@@ -39,11 +37,9 @@ intentionally supported as a public Go API.
 - `internal/audit`: constitution-auditor orchestration and audit-specific tool
   glue. Shared specification parsing and validation remain in `pkg/spec`.
 - `internal/observability`: tracing ports, OpenTelemetry adapters, GenAI span
-  helpers, and trace replay support. This domain currently contains the former
-  `pkg/tracing` and `pkg/telemetry` packages.
+  helpers, and trace replay support.
 - `internal/support`: private process, workspace, and CLI helper code. This
-  domain currently contains the former `pkg/execute`, `pkg/subprocess`,
-  `pkg/worktree`, and `pkg/cli` packages.
+  domain contains process execution, subprocess, worktree, and CLI utilities.
 
 ## Migration Order
 

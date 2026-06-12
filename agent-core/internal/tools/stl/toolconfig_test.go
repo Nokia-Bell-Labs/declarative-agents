@@ -119,7 +119,7 @@ func TestDecodeToolConfigServeUI(t *testing.T) {
 			"data_dir":     "eval-results",
 			"configs_dir":  "agents",
 			"docs_dir":     "docs",
-			"profiles_dir": "pkg/llm/profiles",
+			"profiles_dir": "internal/model/llm/profiles",
 		},
 	}
 	var cfg ServeUIToolConfig
@@ -128,6 +128,6 @@ func TestDecodeToolConfigServeUI(t *testing.T) {
 	assert.Equal(t, "eval-results", cfg.DataDir)
 	assert.Equal(t, "agents", cfg.ConfigsDir)
 	assert.Equal(t, "docs", cfg.DocsDir)
-	assert.Equal(t, "pkg/llm/profiles", cfg.ProfilesDir)
+	assert.Equal(t, "internal/model/llm/profiles", cfg.ProfilesDir)
 	assert.Empty(t, cfg.SourceDir)
 }

@@ -9,7 +9,7 @@ problem: |
 
 goals:
   - G1: Provide a ready-to-use OpenTelemetry setup for file and OTLP export.
-  - G2: Satisfy the pkg/tracing.Tracer interface with a concrete adapter.
+  - G2: Satisfy the internal/observability/tracing.Tracer interface with a concrete adapter.
   - G3: Support offline replay of recorded trace files.
 
 requirements:

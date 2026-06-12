@@ -63,7 +63,7 @@ func TestCoreSourceDoesNotEmbedModeOrToolPolicyNames(t *testing.T) {
 			}
 			if _, exists := forbidden[value]; exists {
 				pos := fset.Position(lit.Pos())
-				t.Fatalf("pkg/core must not embed mode/tool policy literal %q at %s; put workflow policy in machine/tool config", value, pos)
+				t.Fatalf("internal/runtime/core must not embed mode/tool policy literal %q at %s; put workflow policy in machine/tool config", value, pos)
 			}
 			return true
 		})

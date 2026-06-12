@@ -119,11 +119,11 @@ srd_index:
     path: docs/specs/software-requirements/srd014-spec-graph.yaml
   - id: srd015-genai-semconv
     title: GenAI Semantic Convention Helpers
-    summary: OTel GenAI semantic convention constants, span name builders, and attribute helpers in pkg/telemetry/genai.
+    summary: OTel GenAI semantic convention constants, span name builders, and attribute helpers in internal/observability/telemetry/genai.
     path: docs/specs/software-requirements/srd015-genai-semconv.yaml
   - id: srd016-traceparent
     title: W3C Traceparent Parse and Format
-    summary: W3C traceparent version-00 parser, formatter, and context builder in pkg/telemetry.
+    summary: W3C traceparent version-00 parser, formatter, and context builder in internal/observability/telemetry.
     path: docs/specs/software-requirements/srd016-traceparent.yaml
   - id: srd017-llm-extensions
     title: LLM Package Extensions
@@ -131,7 +131,7 @@ srd_index:
     path: docs/specs/software-requirements/srd017-llm-extensions.yaml
   - id: srd018-cli-flag-contract
     title: CLI Standard Flag Contract
-    summary: Canonical flag name constants in pkg/cli, PropagateArgs for child-process argument building, RemainingBudget, and FormatFlag.
+    summary: Canonical flag name constants in internal/support/cli, PropagateArgs for child-process argument building, RemainingBudget, and FormatFlag.
     path: docs/specs/software-requirements/srd018-cli-flag-contract.yaml
   - id: srd019-eval-harness
     title: Evaluation Harness Infrastructure
@@ -318,7 +318,7 @@ srd_to_use_case_mapping:
     coverage: Full. Covers AC1 and AC2 via SC8.
   - use_case: rel00.0-uc001-domain-agent-integration
     srd: srd008-telemetry
-    why_required: Domain agent uses pkg/telemetry to set up OTel providers, create root spans, and adapt Trace to the Tracer interface.
+    why_required: Domain agent uses internal/observability/telemetry to set up OTel providers, create root spans, and adapt Trace to the Tracer interface.
     coverage: Full. Covers AC1 through AC9 via SC8 and telemetry initialization.
 
 coverage_gaps: |
@@ -330,14 +330,14 @@ coverage_gaps: |
   formal YAML test suites.
 
   Packages without SRDs:
-  - pkg/execute — agent subprocess execution with process groups
+  - internal/support/execute — agent subprocess execution with process groups
   - internal/planning/extract — task extraction from requirement graphs
   - internal/planning/graph — requirement DAG construction and traversal
   - internal/planning/materialize — plan-to-issue materialization
   - internal/planning/pipeline — planner pipeline tools
   - internal/planning/plan — implementation plan parsing
-  - pkg/worktree — git worktree lifecycle
-  - pkg/subprocess — subprocess execution utilities
+  - internal/support/worktree — git worktree lifecycle
+  - internal/support/subprocess — subprocess execution utilities
   - internal/tools/stl eval harness — 14 eval_*.go files implementing workspace
     preparation, agent execution, result checking, metrics collection,
     convergence analysis, trace reading, and config dumping
