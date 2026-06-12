@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -437,6 +438,9 @@ func run(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
+
+	warnDeprecated(cmd)
+
 	if flagMachine == "" {
 		return fmt.Errorf("--machine is required (or use --profile)")
 	}
@@ -1076,6 +1080,26 @@ func (t *tracedToolCmd) Execute() core.Result {
 		attribute.String("tool.signal", string(res.Signal)),
 	)
 	return res
+}
+
+var osStderr io.Writer = os.Stderr
+
+func warnDeprecated(cmd *cobra.Command) {
+	deprecated := []struct {
+		flag    string
+		message string
+	}{
+		{"machine", "deprecated: use --profile instead of --machine"},
+		{"tools", "deprecated: use --profile instead of --tools"},
+		{"tools-declaration", "deprecated: use --profile instead of --tools-declaration"},
+		{"model", "deprecated: configure model in invoke_llm tool declaration via --profile"},
+		{"ollama-url", "deprecated: configure ollama_url in invoke_llm tool declaration via --profile"},
+	}
+	for _, d := range deprecated {
+		if cmd.Flags().Changed(d.flag) {
+			fmt.Fprintf(osStderr, "warning: --%s is %s\n", d.flag, d.message)
+		}
+	}
 }
 
 // applyProfile loads an agent profile and fills in any CLI flags that

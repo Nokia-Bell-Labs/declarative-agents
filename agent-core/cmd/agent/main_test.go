@@ -279,6 +279,31 @@ func saveAgentCheckpoint(t *testing.T, store core.StateStore, cp core.Checkpoint
 	require.NoError(t, store.Save(context.Background(), "checkpoint/"+cp.ID, data))
 }
 
+func TestWarnDeprecatedEmitsWarnings(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("machine", "", "")
+	cmd.Flags().StringArray("tools", nil, "")
+	cmd.Flags().String("model", "", "")
+	cmd.Flags().String("ollama-url", "", "")
+	cmd.Flags().StringArray("tools-declaration", nil, "")
+
+	_ = cmd.Flags().Set("machine", "m.yaml")
+	_ = cmd.Flags().Set("model", "qwen3")
+
+	var buf bytes.Buffer
+	old := osStderr
+	osStderr = &buf
+	defer func() { osStderr = old }()
+
+	warnDeprecated(cmd)
+
+	out := buf.String()
+	require.Contains(t, out, "--machine is deprecated")
+	require.Contains(t, out, "--model is deprecated")
+	require.NotContains(t, out, "--tools is deprecated")
+	require.NotContains(t, out, "--ollama-url is deprecated")
+}
+
 func resetLifecycleFlags() {
 	flagStateStoreDir = ""
 	flagHistoryCheckpoint = "latest"
