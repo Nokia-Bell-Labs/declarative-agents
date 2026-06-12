@@ -19,6 +19,53 @@ import (
 // Integration contains use-case integration tests invoked as mage integration:ucXXX.
 type Integration mg.Namespace
 
+// All runs every integration test and prints a summary.
+func (i Integration) All() error {
+	tests := []struct {
+		name string
+		fn   func() error
+	}{
+		{"uc001", i.Uc001},
+		{"uc002", i.Uc002},
+		{"uc003", i.Uc003},
+		{"uc004", i.Uc004},
+		{"uc005", i.Uc005},
+	}
+
+	var passed, failed, skipped int
+	results := make([]string, 0, len(tests))
+
+	for _, t := range tests {
+		fmt.Printf("\n=== %s ===\n", t.name)
+		err := t.fn()
+		switch {
+		case err != nil:
+			failed++
+			results = append(results, fmt.Sprintf("  FAIL  %s  %v", t.name, err))
+		case wasSkipped(t.name):
+			skipped++
+			results = append(results, fmt.Sprintf("  SKIP  %s", t.name))
+		default:
+			passed++
+			results = append(results, fmt.Sprintf("  PASS  %s", t.name))
+		}
+	}
+
+	fmt.Printf("\n%s\n", strings.Repeat("─", 40))
+	for _, r := range results {
+		fmt.Println(r)
+	}
+	fmt.Printf("%s\n", strings.Repeat("─", 40))
+	fmt.Printf("Total: %d passed, %d failed, %d skipped\n", passed, failed, skipped)
+
+	if failed > 0 {
+		return fmt.Errorf("%d integration test(s) failed", failed)
+	}
+	return nil
+}
+
+var skippedUCs = map[string]bool{}
+
 // Uc001 runs rel01.0-uc001: Generator agent solves Go coding tasks using YAML config.
 func (Integration) Uc001() error {
 	return skipUC("uc001", "generator coding — requires a sample coding workspace and Ollama with a pulled model")
@@ -180,8 +227,13 @@ func tempWorkspace(sampleDir string) (string, func(), error) {
 }
 
 func skipUC(id, reason string) error {
-	fmt.Printf("SKIP %s: %s (not yet implemented)\n", id, reason)
+	skippedUCs[id] = true
+	fmt.Printf("SKIP %s: %s\n", id, reason)
 	return nil
+}
+
+func wasSkipped(id string) bool {
+	return skippedUCs[id]
 }
 
 func buildIfNeeded() (string, error) {
