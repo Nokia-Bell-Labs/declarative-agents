@@ -83,7 +83,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: The agent, configured with the bench machine, serves the React frontend and API from a single binary with embedded assets.
-    traces: [R1.1, R1.2, R1.3, R1.4, R5.2]
+    traces: [R1.1, R1.2, R1.3, R1.4, R5.1, R5.2]
 
   - id: AC2
     criterion: Session, point, trace, and experiment API endpoints return correct data from the eval-results directory structure.
@@ -95,7 +95,7 @@ acceptance_criteria:
 
   - id: AC4
     criterion: Docs, source, and actions API endpoints function correctly.
-    traces: [R6.1, R6.2, R7.1, R7.2, R7.3, R8.1, R8.2]
+    traces: [R3.1, R3.2, R3.3, R6.1, R6.2, R7.1, R7.2, R7.3, R8.1, R8.2]
 
 depends_on:
   - srd_id: srd019-eval-harness

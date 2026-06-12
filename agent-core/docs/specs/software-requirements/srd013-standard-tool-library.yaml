@@ -135,7 +135,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: File tools (read, write, edit, find, list_files) operate within workspace root boundaries. ValidatePath rejects path escapes.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R6.1]
 
   - id: AC2
     criterion: Build tools (build, vet, lint, test) execute Go toolchain commands and return structured results.

@@ -91,19 +91,19 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: Append(msg) adds a message without calling Chat. Appended messages appear in History and AssembleMessages.
-    traces: [R4.1, R4.2, R4.3]
+    traces: [R1.1, R1.2, R1.3, R1.4, R4.1, R4.2, R4.3]
 
   - id: AC2
     criterion: Send and Append can be mixed. History preserves insertion order across both methods.
-    traces: [R4.4, R3.1]
+    traces: [R2.1, R2.2, R2.3, R3.1, R3.2, R3.3, R4.4]
 
   - id: AC3
     criterion: History and Messages return defensive copies. Mutations do not affect internal state.
-    traces: [R5.1, R5.2]
+    traces: [R5.1, R5.2, R5.3, R8.1, R8.2]
 
   - id: AC4
     criterion: AssembleMessages returns system prompt + history. Empty system prompt is omitted.
-    traces: [R5.4, R6.3]
+    traces: [R5.4, R6.1, R6.2, R6.3]
 
   - id: AC5
     criterion: Generator can replace ConversationHistory with Conversation using Append + History without behavior change.

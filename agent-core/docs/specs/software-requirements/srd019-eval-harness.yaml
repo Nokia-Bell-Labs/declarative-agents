@@ -88,7 +88,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: The session state machine executes all grid points and produces SessionResult with correct pass/fail/timeout counts.
-    traces: [R2.1, R2.2, R2.3, R2.4]
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
 
   - id: AC0
     criterion: Suite YAML is documented and validated as evaluator tool input data, with session setup/run_agent/dump_config boundaries clear.
@@ -100,7 +100,7 @@ acceptance_criteria:
 
   - id: AC3
     criterion: ComputeModelStats and ComputeDetailed produce accurate statistics from session results.
-    traces: [R4.1, R4.2, R4.3]
+    traces: [R4.1, R4.2, R4.3, R5.1, R5.2, R5.3, R5.4]
 
   - id: AC4
     criterion: ConvergenceTracker correctly classifies agent behavior patterns from trace data.

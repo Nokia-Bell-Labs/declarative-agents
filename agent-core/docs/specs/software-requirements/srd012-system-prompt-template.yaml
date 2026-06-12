@@ -77,11 +77,11 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: system.tmpl is embedded and parsed at init. RenderSystemPrompt renders the template with conditional sections.
-    traces: [R1.1, R1.2, R1.3, R4.1, R4.2]
+    traces: [R1.1, R1.2, R1.3, R4.1, R4.2, R4.3]
 
   - id: AC2
     criterion: PromptData has all seven fields. Envelope controls tag display. StrictFormat controls extra-text prohibition.
-    traces: [R2.1, R2.3, R2.4, R3.1]
+    traces: [R2.1, R2.2, R2.3, R2.4, R3.1, R4.4]
 
   - id: AC3
     criterion: Template error falls back to Role + Task. No trailing newlines.

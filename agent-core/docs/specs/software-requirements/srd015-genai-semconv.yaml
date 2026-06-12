@@ -68,7 +68,7 @@ acceptance_criteria:
 
   - id: AC2
     criterion: "Span name builders produce \"{operation} {name}\" format, falling back to bare operation name for empty input."
-    traces: [R4.1, R4.2, R4.3, R4.4]
+    traces: [R2.1, R4.1, R4.2, R4.3, R4.4]
 
   - id: AC3
     criterion: Attribute builders return correct attribute slices for inference, agent, tool, workflow, usage, and error spans.
