@@ -32,8 +32,7 @@ func Docker() error {
 	}
 
 	args := containerBuildArgs(opts)
-	fmt.Printf("building %s from %s with %s\n", opts.Image, opts.Ref, opts.Engine)
-	fmt.Printf("command: %s\n", shellCommand(append([]string{opts.Engine}, args...)))
+	fmt.Print(containerBuildSummary(opts, args))
 	cmd := exec.Command(opts.Engine, args...)
 	if opts.Engine == "docker" {
 		cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
@@ -87,6 +86,9 @@ func containerBuildArgs(opts dockerBuildOptions) []string {
 	if opts.Engine == "podman" && opts.TLSVerify != "" {
 		args = append(args, "--tls-verify="+opts.TLSVerify)
 	}
+	if opts.Engine == "docker" {
+		args = append(args, "--progress=plain")
+	}
 	if opts.NetRC != "" {
 		args = append(args, "--secret", "id=git_credentials,src="+opts.NetRC)
 	}
@@ -98,6 +100,43 @@ func containerBuildArgs(opts dockerBuildOptions) []string {
 	}
 	args = append(args, "-t", opts.Image, ".")
 	return args
+}
+
+func containerBuildSummary(opts dockerBuildOptions, args []string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "building %s from %s with %s\n", opts.Image, opts.Ref, opts.Engine)
+	fmt.Fprintln(&b, "build settings:")
+	fmt.Fprintf(&b, "  engine: %s\n", opts.Engine)
+	fmt.Fprintf(&b, "  image: %s\n", opts.Image)
+	fmt.Fprintf(&b, "  release ref: %s\n", opts.Ref)
+	if opts.Repo != "" {
+		fmt.Fprintf(&b, "  source repo: %s\n", opts.Repo)
+	} else {
+		fmt.Fprintf(&b, "  source repo: %s (Dockerfile default)\n", defaultAgentCoreRepo)
+	}
+	if opts.NetRC != "" {
+		fmt.Fprintf(&b, "  git credentials secret: %s\n", opts.NetRC)
+	} else {
+		fmt.Fprintln(&b, "  git credentials secret: (none)")
+	}
+	if opts.Engine == "podman" {
+		fmt.Fprintf(&b, "  podman tls verify: %s\n", opts.TLSVerify)
+	}
+	if opts.Engine == "docker" {
+		fmt.Fprintln(&b, "  docker buildkit: enabled")
+		fmt.Fprintln(&b, "  docker progress: plain")
+	}
+	fmt.Fprintln(&b, "  container output: streamed directly")
+	fmt.Fprintf(&b, "command: %s\n", displayBuildCommand(opts, args))
+	return b.String()
+}
+
+func displayBuildCommand(opts dockerBuildOptions, args []string) string {
+	cmd := append([]string{opts.Engine}, args...)
+	if opts.Engine == "docker" {
+		cmd = append([]string{"DOCKER_BUILDKIT=1"}, cmd...)
+	}
+	return shellCommand(cmd)
 }
 
 func shellCommand(args []string) string {

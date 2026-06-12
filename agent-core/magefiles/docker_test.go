@@ -100,12 +100,53 @@ func TestContainerBuildArgsForDocker(t *testing.T) {
 	})
 	want := []string{
 		"build",
+		"--progress=plain",
 		"--build-arg", "AGENT_CORE_REF=v0.20260612.2",
 		"-t", "agent-core:latest",
 		".",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("containerBuildArgs = %#v, want %#v", got, want)
+	}
+}
+
+func TestContainerBuildSummaryForPodman(t *testing.T) {
+	opts := dockerBuildOptions{
+		Engine:    "podman",
+		Image:     "agent-core:latest",
+		Ref:       "v0.20260612.1",
+		NetRC:     "/home/user/.netrc",
+		TLSVerify: "false",
+	}
+	args := containerBuildArgs(opts)
+	got := containerBuildSummary(opts, args)
+	for _, want := range []string{
+		"building agent-core:latest from v0.20260612.1 with podman",
+		"  engine: podman",
+		"  image: agent-core:latest",
+		"  release ref: v0.20260612.1",
+		"  source repo: https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git (Dockerfile default)",
+		"  git credentials secret: /home/user/.netrc",
+		"  podman tls verify: false",
+		"  container output: streamed directly",
+		"command: podman build --tls-verify=false --secret id=git_credentials,src=/home/user/.netrc --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core:latest .",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("containerBuildSummary missing %q in:\n%s", want, got)
+		}
+	}
+}
+
+func TestDisplayBuildCommandForDockerIncludesBuildkit(t *testing.T) {
+	opts := dockerBuildOptions{
+		Engine: "docker",
+		Image:  "agent-core:latest",
+		Ref:    "v0.20260612.1",
+	}
+	got := displayBuildCommand(opts, containerBuildArgs(opts))
+	want := "DOCKER_BUILDKIT=1 docker build --progress=plain --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core:latest ."
+	if got != want {
+		t.Fatalf("displayBuildCommand = %q, want %q", got, want)
 	}
 }
 
