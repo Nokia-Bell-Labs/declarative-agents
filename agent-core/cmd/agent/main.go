@@ -39,6 +39,7 @@ import (
 )
 
 var (
+	flagProfile             string
 	flagMachine             string
 	flagTools               []string
 	flagToolDeclarations    []string
@@ -103,8 +104,9 @@ Examples:
 
 func init() {
 	f := rootCmd.PersistentFlags()
-	f.StringVar(&flagMachine, "machine", "", "path to state machine YAML (required)")
-	f.StringArrayVar(&flagTools, "tools", nil, "path to tool selection YAML (repeatable, required)")
+	f.StringVar(&flagProfile, "profile", "", "path to agent profile YAML (replaces --machine/--tools/--tools-declaration)")
+	f.StringVar(&flagMachine, "machine", "", "path to state machine YAML (required unless --profile)")
+	f.StringArrayVar(&flagTools, "tools", nil, "path to tool selection YAML (repeatable, required unless --profile)")
 	f.StringArrayVar(&flagToolDeclarations, "tools-declaration", nil, "path to tool declaration YAML (repeatable)")
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
@@ -428,11 +430,16 @@ type agentState struct {
 }
 
 func run(cmd *cobra.Command, args []string) error {
+	if flagProfile != "" {
+		if err := applyProfile(flagProfile); err != nil {
+			return err
+		}
+	}
 	if flagMachine == "" {
-		return fmt.Errorf("--machine is required")
+		return fmt.Errorf("--machine is required (or use --profile)")
 	}
 	if len(flagTools) == 0 {
-		return fmt.Errorf("--tools is required")
+		return fmt.Errorf("--tools is required (or use --profile)")
 	}
 
 	// Set up OTel if configured
@@ -1058,4 +1065,26 @@ func (t *tracedToolCmd) Execute() core.Result {
 		attribute.String("tool.signal", string(res.Signal)),
 	)
 	return res
+}
+
+// applyProfile loads an agent profile and fills in any CLI flags that
+// were not explicitly set. Explicit CLI flags always take precedence.
+func applyProfile(path string) error {
+	p, err := stl.LoadProfile(path)
+	if err != nil {
+		return fmt.Errorf("load profile: %w", err)
+	}
+	if flagMachine == "" {
+		flagMachine = p.Machine
+	}
+	if len(flagTools) == 0 {
+		flagTools = p.Tools
+	}
+	if len(flagToolDeclarations) == 0 {
+		flagToolDeclarations = p.ToolDeclarations
+	}
+	if flagDirectory == "" && p.Directory != "" {
+		flagDirectory = p.Directory
+	}
+	return nil
 }
