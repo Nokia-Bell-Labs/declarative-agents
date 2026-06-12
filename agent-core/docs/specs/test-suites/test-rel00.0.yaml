@@ -7,7 +7,7 @@ traces:
 
 preconditions:
   - Go toolchain installed (go 1.26+)
-  - pkg/core, pkg/tracing, and pkg/telemetry packages buildable
+  - internal/runtime/core, pkg/tracing, and pkg/telemetry packages buildable
 
 test_cases:
   - use_case: rel00.0-uc001-domain-agent-integration
@@ -92,7 +92,7 @@ test_cases:
     name: Core source contains no mode-specific tool policy literals
     go_test: TestCoreSourceDoesNotEmbedModeOrToolPolicyNames
     inputs:
-      source: "pkg/core/*.go excluding tests"
+      source: "internal/runtime/core/*.go excluding tests"
       forbidden_literals: "agent mode names and workflow tool init names"
     expected:
       policy_boundary: "workflow behavior stays in MachineSpec and tool config"

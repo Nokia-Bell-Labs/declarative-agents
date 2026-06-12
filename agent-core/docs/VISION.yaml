@@ -14,7 +14,7 @@ executive_summary: |
   library, lifecycle state ports, and a unified binary that loads YAML
   programs.
 
-  The core engine (pkg/core) remains domain-agnostic: it drives the loop
+  The core engine (internal/runtime/core) remains domain-agnostic: it drives the loop
   without knowing what tools exist, what LLM is in use, or what workflow the
   machine expresses. Higher-level packages (internal/model/llm, pkg/stl, internal/model/prompt,
   pkg/telemetry, pkg/spec) provide reusable infrastructure that configured
@@ -120,7 +120,7 @@ what_this_does: |
   - Lifecycle config: optional StateStore, Workspace, CheckpointPolicy, and
     rollback/suspend/resume behavior.
 
-  Core Engine (pkg/core). The domain-agnostic loop machinery:
+  Core Engine (internal/runtime/core). The domain-agnostic loop machinery:
   - State Machine: static transition table mapping (State, Signal) to
     (NextState, ActionFunc). Domain supplies its own constants.
   - Command Dispatch: wraps Execute with OTel tracing, timeout, panic
@@ -199,7 +199,7 @@ why_we_build_this: |
 
 success_criteria:
   engine_agnosticism: |
-    The core engine (pkg/core) does not import LLM providers, file
+    The core engine (internal/runtime/core) does not import LLM providers, file
     system operations, or domain-specific tool implementations. It
     depends only on pkg/tracing, pkg/telemetry/genai, the Go standard
     library, OTel attributes, and a YAML parser.

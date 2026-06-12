@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 // ParseSuiteConfigBuilder creates parseSuiteConfigCmd instances.

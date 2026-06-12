@@ -304,4 +304,4 @@ examples:
 related_documents:
   - srd006
 
-implementation: pkg/core/machine.go
+implementation: internal/runtime/core/machine.go

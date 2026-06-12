@@ -7,7 +7,7 @@ releases:
     description: |
       Import the generic agentic loop engine from the generator project
       and expand with LLM, prompt, STL, and spec packages. Establishes
-      pkg/core (types, state machine, dispatch, registry, loop, machine
+      internal/runtime/core (types, state machine, dispatch, registry, loop, machine
       config), pkg/tracing (5-method Tracer port interface with
       NoopTracer), pkg/telemetry (OTel setup, GenAI semconv helpers,
       traceparent), internal/model/llm (Client, Conversation, Ollama adapter,

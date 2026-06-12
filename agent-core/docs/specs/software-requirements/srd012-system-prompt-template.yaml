@@ -71,7 +71,7 @@ requirements:
 non_goals:
   - Prompt struct fields or YAML loading (srd011-prompt-schema).
   - Conversation history management (srd010-conversation).
-  - Tool registry or manifest filtering (pkg/core).
+  - Tool registry or manifest filtering (internal/runtime/core).
   - Per-model profile definitions.
 
 acceptance_criteria:

@@ -3,7 +3,7 @@
 package stl
 
 import (
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 // doneCmd signals task completion. The parse_response command handles

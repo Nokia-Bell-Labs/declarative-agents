@@ -404,7 +404,7 @@ related_documents:
 
 implementation:
   - cmd/agent/main.go
-  - pkg/core/loop.go
-  - pkg/core/machine.go
+  - internal/runtime/core/loop.go
+  - internal/runtime/core/machine.go
   - pkg/stl/register.go
   - pkg/stl/tool_emits.go

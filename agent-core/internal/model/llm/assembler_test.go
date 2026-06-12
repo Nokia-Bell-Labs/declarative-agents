@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/prompt"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 func TestDefaultAssembler_NilParserUsesDefault(t *testing.T) {

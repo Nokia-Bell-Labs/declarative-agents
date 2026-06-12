@@ -18,8 +18,8 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/extract"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/graph"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/plan"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 

@@ -14,7 +14,7 @@ transition tables.
 
 | Package | Description |
 |---------|-------------|
-| `pkg/core` | State machine, command dispatch, tool registry, agentic loop, YAML machine config |
+| `internal/runtime/core` | State machine, command dispatch, tool registry, agentic loop, YAML machine config |
 | `internal/model/llm` | LLM client interface, conversation management, message types, model profiles |
 | `internal/model/llm/ollama` | Ollama adapter satisfying `llm.Client` |
 | `internal/model/prompt` | Prompt loading from YAML, system template rendering, manifest serialization |

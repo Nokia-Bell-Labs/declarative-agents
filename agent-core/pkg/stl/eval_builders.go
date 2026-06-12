@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 // EvalState holds shared mutable state for eval tools, analogous to

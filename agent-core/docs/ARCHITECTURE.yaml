@@ -12,7 +12,7 @@ overview:
 
     The framework is organized in four cooperating layers:
 
-    Engine layer (pkg/core). Domain-agnostic loop machinery: types,
+    Engine layer (internal/runtime/core). Domain-agnostic loop machinery: types,
     state machine, command dispatch, tool registry, agentic loop, and
     YAML machine configuration. The engine knows about States, Signals,
     and Commands but not about coding tools, LLMs, or file systems.
@@ -84,7 +84,7 @@ overview:
       end
 
       subgraph Engine["Engine"]
-        CORE[pkg/core]
+        CORE[internal/runtime/core]
       end
 
       Config --> AGENT
@@ -109,7 +109,7 @@ overview:
     flowchart LR
       DEV[Developer or operator] --> AGENT[cmd/agent]
       AGENT --> CFG[Machine, tool, LLM YAML]
-      AGENT --> LOOP[pkg/core Loop]
+      AGENT --> LOOP[internal/runtime/core Loop]
       LOOP --> TOOLS[Registered tools]
       TOOLS --> FS[Workspace filesystem]
       TOOLS --> MODEL[LLM provider]
@@ -515,18 +515,18 @@ overview:
     - Optional LoopHooks for domain-specific budget, status, and result processing
 
     Dependency rules:
-    - pkg/core depends on pkg/tracing, pkg/telemetry/genai, the Go
+    - internal/runtime/core depends on pkg/tracing, pkg/telemetry/genai, the Go
       standard library, go.opentelemetry.io/otel/attribute, and
       gopkg.in/yaml.v3.
     - pkg/tracing depends on go.opentelemetry.io/otel/attribute and
       context.
     - pkg/telemetry depends on pkg/tracing, the OTel SDK, gRPC, and
-      protobuf. It imports pkg/tracing but not pkg/core.
+      protobuf. It imports pkg/tracing but not internal/runtime/core.
     - pkg/telemetry/genai depends only on go.opentelemetry.io/otel/attribute.
-    - internal/model/llm depends on pkg/core, internal/model/prompt, and pkg/tracing.
-    - pkg/stl depends on pkg/core, internal/model/llm, pkg/tracing,
+    - internal/model/llm depends on internal/runtime/core, internal/model/prompt, and pkg/tracing.
+    - pkg/stl depends on internal/runtime/core, internal/model/llm, pkg/tracing,
       pkg/telemetry/genai, pkg/execute, and pkg/subprocess.
-    - internal/planning/pipeline depends on pkg/core, internal/planning/plan, internal/planning/extract,
+    - internal/planning/pipeline depends on internal/runtime/core, internal/planning/plan, internal/planning/extract,
       internal/planning/materialize, and pkg/stl.
     - pkg/execute depends on pkg/subprocess, internal/model/llm, and pkg/tracing.
     - internal/planning/plan depends on gopkg.in/yaml.v3.
@@ -538,11 +538,11 @@ overview:
       and a graph library.
     - pkg/subprocess depends on the Go standard library.
     - pkg/cli depends on the Go standard library.
-    - cmd/agent imports pkg/core, pkg/stl, internal/model/llm, internal/model/prompt,
+    - cmd/agent imports internal/runtime/core, pkg/stl, internal/model/llm, internal/model/prompt,
       pkg/telemetry, internal/planning/pipeline, pkg/bench, pkg/execute, and
       pkg/tracing.
     - pkg/bench imports pkg/stl for evaluation result analysis and
-      pkg/core for the state machine loop.
+      internal/runtime/core for the state machine loop.
 
 interfaces:
   - name: Tracer interface
@@ -556,7 +556,7 @@ interfaces:
 
   - name: Command interface
     summary: |
-      Single interface for all executable units of work (pkg/core).
+      Single interface for all executable units of work (internal/runtime/core).
       Three methods: Name() string, Execute() Result, and Undo() Result.
       Both internal commands (LLM invoke, response parsing) and external
       tools (file I/O, build, test) implement Command. The loop dispatches
@@ -566,14 +566,14 @@ interfaces:
   - name: Builder interface
     summary: |
       Stateless factory that constructs a ready-to-execute Command
-      from the previous Result (pkg/core). One method: Build(res
+      from the previous Result (internal/runtime/core). One method: Build(res
       Result) Command. Builders are registered in the Registry and
       resolved by name during state machine transitions and YAML
       machine config loading.
 
   - name: CommandResolver interface
     summary: |
-      Lookup interface satisfied by Registry (pkg/core). One method:
+      Lookup interface satisfied by Registry (internal/runtime/core). One method:
       Resolve(name string) (Builder, bool). Used by domain code that
       needs to resolve builders without depending on the full Registry
       type.
@@ -694,7 +694,7 @@ design_decisions:
       The engine defines State, Signal, Command, Budget, Result, registry,
       state machine, loop, dispatch, and lifecycle ports as abstract runtime
       concepts. All domain-specific states, signals, tools, and budget
-      dimensions are supplied by the configured agent. No import in pkg/core
+      dimensions are supplied by the configured agent. No import in internal/runtime/core
       references coding tools, LLM providers, or any specific domain.
     benefits:
       - Multiple agent types share one loop engine
@@ -823,7 +823,7 @@ project_structure:
       role: Embedded React frontend for experiment browsing and launching
 
   engine:
-    - path: pkg/core/
+    - path: internal/runtime/core/
       role: Generic agentic loop engine (types, state machine, dispatch, registry, loop, machine config)
 
   infrastructure:
@@ -889,7 +889,7 @@ project_structure:
 implementation_status:
   current_focus: Documentation accuracy and agent configuration documentation
   progress:
-    - done: Core engine (pkg/core) — types, state machine, dispatch, registry, loop, machine config
+    - done: Core engine (internal/runtime/core) — types, state machine, dispatch, registry, loop, machine config
     - done: Tracing port (pkg/tracing) — 5-method Tracer interface with NoopTracer
     - done: Telemetry (pkg/telemetry) — OTel providers, exporters, adapter, traceparent, replay
     - done: GenAI semconv (pkg/telemetry/genai) — constants, span builders, attribute helpers

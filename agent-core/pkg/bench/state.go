@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 // Bench-specific signals routed by the state machine.

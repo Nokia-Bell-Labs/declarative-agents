@@ -163,9 +163,9 @@ test_trace_plan:
   - test_suite: test-rel02.0-tool-contracts
     covers: [AC6]
   - existing_go_tests:
-      - pkg/core/checkpoint_test.go
-      - pkg/core/git_workspace_test.go
-      - pkg/core/loop_test.go
+      - internal/runtime/core/checkpoint_test.go
+      - internal/runtime/core/git_workspace_test.go
+      - internal/runtime/core/loop_test.go
 
 depends_on:
   - srd_id: srd001-core-types

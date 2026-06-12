@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 // SerializeManifest converts a slice of ToolSpec into prompt text.

@@ -6,7 +6,7 @@ import (
 	"embed"
 	"fmt"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 //go:embed tools.yaml

@@ -290,7 +290,7 @@ go_test_coverage:
 srd_to_use_case_mapping:
   - use_case: rel00.0-uc001-domain-agent-integration
     srd: srd001-core-types
-    why_required: Domain agent uses State, Signal, Command, Result, Cost, Builder types from pkg/core.
+    why_required: Domain agent uses State, Signal, Command, Result, Cost, Builder types from internal/runtime/core.
     coverage: Full. Covers AC1 through AC5 via SC1 through SC8.
   - use_case: rel00.0-uc001-domain-agent-integration
     srd: srd002-state-machine

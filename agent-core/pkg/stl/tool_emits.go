@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 // ValidateToolEmits checks declared tool output signals against a machine.
