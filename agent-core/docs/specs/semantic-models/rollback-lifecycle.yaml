@@ -8,8 +8,10 @@ purpose: |
   and restored by the mechanism that fits it.
 
 requirements_source:
-  - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
-  - roll-backs.md
+  canonical:
+    - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+  historical_background:
+    - roll-backs.md
 
 primary_entities:
   - name: Loop

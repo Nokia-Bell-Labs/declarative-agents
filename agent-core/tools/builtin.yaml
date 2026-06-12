@@ -3,7 +3,7 @@
 # Mode-specific config lives in per-mode override files (e.g.
 # agents/planner/builtin.yaml, agents/evaluator/builtin.yaml).
 # Pass via: agent --tools-declaration tools/builtin.yaml \
-#                 --tools-declaration configs/<mode>/builtin.yaml
+#                 --tools-declaration agents/<mode>/builtin.yaml
 
 tools:
   # --- file tools ---

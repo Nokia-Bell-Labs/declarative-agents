@@ -9,11 +9,13 @@ purpose: |
   words, boundary tools, and legacy sentence tools.
 
 requirements_source:
-  - docs/specs/config-formats/tool-authoring-standard.yaml
-  - docs/specs/software-requirements/srd022-builtin-tools.yaml
-  - docs/specs/software-requirements/srd023-cli-exec-tools.yaml
-  - docs/specs/software-requirements/srd024-blocking-input-tools.yaml
-  - tools-as-dsl.md
+  canonical:
+    - docs/specs/config-formats/tool-authoring-standard.yaml
+    - docs/specs/software-requirements/srd022-builtin-tools.yaml
+    - docs/specs/software-requirements/srd023-cli-exec-tools.yaml
+    - docs/specs/software-requirements/srd024-blocking-input-tools.yaml
+  historical_background:
+    - tools-as-dsl.md
 
 primary_entities:
   - name: ToolDef

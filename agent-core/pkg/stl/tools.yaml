@@ -1,3 +1,14 @@
+# LEGACY FILE — not loaded at runtime.
+#
+# This file is the original exec tool declaration set that predated the
+# current tools/exec.yaml. It contains additional tools (branch_*, worktree_*,
+# issue_claim) that are not yet migrated to tools/exec.yaml. The canonical
+# exec tool declarations are in tools/exec.yaml.
+#
+# Retained as a reference for tools that may be promoted to the canonical set.
+# See also: tools/builtin.yaml (canonical builtins), agents/*/tools.yaml
+# (per-agent tool selection).
+
 tools:
   # --- build tools ---
   - name: build

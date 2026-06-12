@@ -43,7 +43,7 @@ releases:
       - Evaluator benchmark infrastructure (eval suites, result analysis)
       - Bench agent (pkg/bench, configured via machine.yaml) with embedded React frontend
       - Native Mage build targets replacing cobbler-scaffold dependency
-      - 522 tests across 16 packages
+      - Comprehensive Go test suite across all packages
     status: done
     use_cases:
       - id: rel01.0-uc001-generator-coding

@@ -36,6 +36,14 @@ schema:
       internal tools as internal, external builtins as external_builtin,
       and exec tools as exec.
 
+  - field: contract
+    type: string
+    required: false
+    description: |
+      Short contract summary for the tool. A concise statement of
+      the tool's purpose as a grammar word. Used by authoring and
+      validation tooling; not sent to the LLM.
+
   - field: description
     type: string
     required: false
@@ -127,9 +135,22 @@ schema:
       The legacy scalar string form is still accepted for compatibility
       and may be appended to the LLM-visible description. New declarations
       should use the structured list form with entries containing kind,
-      target, paths, state, and description. Examples of kind include
-      filesystem_write, state_mutation, external_api_call, subprocess,
-      and none.
+      target, paths, state, and description.
+
+      Known side-effect kind vocabulary (from current declarations):
+        none — no side effects (pure read or computation).
+        filesystem_read — reads files but does not modify them.
+        filesystem_write — creates, modifies, or deletes files.
+        state_read — reads in-memory agent state without mutation.
+        state_mutation — mutates in-memory agent/domain state.
+        command_state — modifies command-local state carried across calls.
+        stderr_write — writes diagnostic output to stderr.
+        child_process — spawns an external process (exec tools).
+        child_agent_execution — spawns a child agent subprocess.
+        child_tool_execution — runs child commands within the same loop.
+        nested_machine_execution — runs a nested core.Loop state machine.
+        external_api — calls an external API or issue tracker.
+        human_boundary — blocks on human input (UI or approval).
 
   - field: reversibility
     type: object
@@ -145,10 +166,42 @@ schema:
     required: false
     description: |
       Contract field describing how to reverse or compensate for the
-      tool's effects. Contains strategy, description, and requires fields.
-      This complements reversibility by naming the concrete rollback
-      mechanism, such as noop, conversation_truncate, workspace_restore,
-      or compensating_action.
+      tool's effects. This complements reversibility by naming the
+      concrete rollback mechanism and what metadata the persisted
+      UndoMemento captures.
+    sub_fields:
+      - field: strategy
+        type: string
+        description: |
+          The undo strategy name. Known values: noop,
+          conversation_truncate, workspace_restore,
+          compensating_action, child_command_undo.
+      - field: description
+        type: string
+        description: |
+          Human-readable description of the rollback mechanism.
+      - field: payload
+        type: string
+        description: |
+          Memento payload type. When set to "boundary_compensation",
+          the UndoMemento carries a BoundaryCompensationPayload with
+          structured metadata about the external boundary crossed
+          (child process, issue system, nested machine, etc.).
+          Omitted for simple workspace_restore payloads.
+      - field: captures
+        type: "[]string"
+        description: |
+          Names of the runtime values captured in the UndoMemento
+          payload. These document what information is persisted for
+          later compensation or inspection. Examples include
+          ran_child_tools, issue_id, child_run_id, workspace_paths,
+          server_addr, and suite_path.
+      - field: requires
+        type: "[]string"
+        description: |
+          Names of external context needed to perform the undo.
+          For example, ["approval_decision", "checkpoint_id"] for
+          a suspend tool that requires re-obtaining approval state.
 
   - field: errors
     type: "[]object"
@@ -205,6 +258,14 @@ exec_fields:
     description: |
       Base arguments prepended to every invocation. Parameter values
       from the LLM's tool call are appended after these.
+
+  - field: dir
+    type: string
+    required: false
+    description: |
+      Working directory override for exec tool invocation. When set,
+      the external process runs in this directory instead of the
+      default workspace directory.
 
   - field: precondition
     type: string
@@ -266,13 +327,12 @@ parameter_extensions:
 
 declaration_files:
   - file: tools/builtin.yaml
-    tool_count: 44
     description: |
-      44 builtin tool declarations covering file operations (read,
+      Builtin tool declarations covering file operations (read,
       write, edit, find, list_files), the LLM pipeline (parse_response,
-      report_parse_error, reset_history), completion (done),
-      compatibility aggregate validation (validate),
-      control (nudge_reread, self_invoke), planner tools (extract_task,
+      report_parse_error, reset_history), completion and control
+      (done, suspend, nudge_reread, self_invoke), compatibility
+      aggregate validation (validate), planner tools (extract_task,
       extract_all, assemble_prompt, parse_plan, create_issue,
       execute_task, check_result), evaluator session tools
       (parse_suite_config, discover_suite_samples, expand_eval_grid,
@@ -285,15 +345,17 @@ declaration_files:
       collect_metrics), bench tools (serve_ui, launch_eval), and spec
       validation tools (load_corpus, validate_specs, format_report).
       Note: invoke_llm is declared per-agent in agents/*/llm/*.yaml,
-      not in this file.
+      not in this file. The tool count evolves with the codebase;
+      consult the file directly for the current set.
 
   - file: tools/exec.yaml
-    tool_count: 16
     description: |
-      16 exec tool declarations for Go build tools (build, vet, lint,
-      test), git operations (stage_all, workspace_status, commit,
-      rev_parse, diff_stat, log_oneline, git_init), and bd issue
-      management (issue_create, issue_close, issue_list).
+      Exec tool declarations for Go build tools (build, vet, lint,
+      test), filesystem utilities (copy_dir, make_dir), git operations
+      (git_init, stage_all, workspace_status, commit, rev_parse,
+      diff_stat, log_oneline), and bd issue management (issue_create,
+      issue_close, issue_list). The tool count evolves with the
+      codebase; consult the file directly for the current set.
 
   - file: "agents/*/llm/*.yaml"
     description: |
@@ -301,6 +363,33 @@ declaration_files:
       model name, provider, endpoint URL, and prompts. Each agent
       directory contains its own llm/ subdirectory with one file per
       model variant. See cfg-llm-config-format for details.
+
+boundary_compensation_example: |
+  Boundary tools that cross process, issue, or human boundaries declare
+  payload: boundary_compensation in their undo section. At runtime, the
+  tool's UndoMemento() method serializes a BoundaryCompensationPayload
+  containing the values named in captures. Example from launch_eval:
+
+    undo:
+      strategy: compensating_action
+      description: Requires child evaluator artifact cleanup.
+      payload: boundary_compensation
+      captures: [suite_path, output_dir, child_machine, child_tools]
+
+  The persisted UndoMemento carries:
+    {
+      "boundary_compensation": {
+        "strategy": "child_eval_artifact_compensation",
+        "child_machine": "agents/evaluator/machine.yaml",
+        "child_tools": "agents/evaluator/tools.yaml",
+        "workspace_paths": ["/tmp/eval-output-123"],
+        "artifact_paths": ["/path/to/suite.yaml"]
+      }
+    }
+
+  Tools with boundary_compensation: validate, suspend, create_issue,
+  execute_task, run_point, run_agent, serve_ui, launch_eval, commit,
+  issue_create, issue_close.
 
 inline_pattern: |
   All agents now use the declaration+selection split. Tool declarations
@@ -334,6 +423,26 @@ structured_output_strategy: |
   commands to a structured result field such as Result.Data. When Result.Data
   is added later, existing output.schema declarations should be reused rather
   than redesigned.
+
+mode_local_overrides: |
+  Some agents have mode-local builtin override files that add config
+  blocks to tools declared in tools/builtin.yaml. These are loaded after
+  the shared declaration via a second --tools-declaration flag:
+
+    agents/bench/builtin.yaml — bench-specific config (serve_ui, launch_eval)
+    agents/evaluator/builtin.yaml — evaluator-specific config (suite/point tools)
+    agents/planner/builtin.yaml — planner-specific config (child agent, issue tools)
+
+  The generator and validate agents do not have mode-local overrides;
+  they use tools/builtin.yaml directly.
+
+legacy_artifacts: |
+  pkg/stl/tools.yaml is a legacy exec tool declaration file that predates
+  tools/exec.yaml. It is NOT loaded at runtime and is not referenced by
+  any code or configuration. It contains additional tools (branch_create,
+  branch_delete, branch_list, branch_current, worktree_add, worktree_remove,
+  worktree_list, issue_claim) that are not yet migrated to tools/exec.yaml.
+  Retained as a reference for tools that may be promoted to the canonical set.
 
 related_documents:
   - cfg-tool-authoring-standard

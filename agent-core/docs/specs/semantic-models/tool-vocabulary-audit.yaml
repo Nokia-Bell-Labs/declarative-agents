@@ -40,16 +40,23 @@ role_legend:
 overall_findings:
   - Most file and simple exec tools are close to vocabulary words.
   - |
-    Tool declarations still lack complete contract metadata for most tools:
-    problem, goals, non_goals, output.schema, structured side_effects,
-    reversibility, undo, errors, and relationships.
+    Tool declarations now include structured side_effects (13 kind values),
+    reversibility classification, and undo strategy for most tools. Contract
+    metadata (problem, goals, non_goals) is populated for many but not all
+    tools. output.schema is declared for file tools and test but is not yet
+    broadly populated.
+  - |
+    All boundary tools now have UndoMementoProvider implementations that emit
+    compensatable mementos with boundary_compensation payloads. Undo contracts
+    are declared in tools/builtin.yaml and tools/exec.yaml with payload and
+    captures fields.
   - The remaining high-priority sentence-shaped tools are now mostly planner
     or lifecycle follow-ups; evaluator session and point workflows have been
     split into machine-composed words.
   - validate is retained as a deprecated internal boundary aggregator for
     compatibility, but current generator validation is machine-declared.
-  - Boundary tools need explicit classification so they are not mistaken
-    for deterministic primitive words.
+  - Boundary tools carry explicit category (boundary) classification in their
+    declarations.
   - Runtime output is still mostly human-readable core.Result.Output strings.
     Existing output.schema declarations are contract targets, not yet
     guaranteed serialized Result.Data.
@@ -149,9 +156,8 @@ tools:
     overlaps: []
     issues:
       - not deterministic despite temperature/seed controls
-      - should declare boundary category and undo contract
       - should declare output.schema for raw response plus token usage
-    migration_priority: high
+    migration_priority: medium
 
   - name: parse_response
     role: word
@@ -218,6 +224,34 @@ tools:
     overlaps: []
     issues:
       - needs output.schema for completion summary
+    migration_priority: low
+
+  - name: suspend
+    role: boundary
+    selected_by: []
+    inputs_from: [machine_transition]
+    feeds_into: [resume_or_checkpoint]
+    side_effects: state_mutation
+    output_contract: missing
+    undo: boundary_compensation (compensating_action, captures reason + checkpoint_required)
+    overlaps: []
+    issues:
+      - output.schema for suspension reason and checkpoint reference
+    migration_priority: low
+
+  - name: self_invoke
+    role: boundary
+    selected_by: []
+    inputs_from: [machine_transition]
+    feeds_into: [child_agent_result]
+    side_effects: child_agent_execution
+    output_contract: missing
+    undo: boundary_compensation (child_agent_workspace_restore, captures child_machine + child_tools + child_run_id + trace_path)
+    overlaps:
+      - tool: execute_task
+        difference: self_invoke re-invokes the agent binary directly; execute_task runs a configured child agent for planner
+    issues:
+      - output.schema for child agent result
     migration_priority: low
 
   # Validation and build exec tools
@@ -293,7 +327,7 @@ tools:
     feeds_into: [ValidationPassed, ValidationFailed]
     side_effects: child_tool_execution
     output_contract: declared
-    undo: delegated_to_child_commands
+    undo: boundary_compensation (child_command_undo, captures ran_child_tools)
     overlaps:
       - tool: build
         difference: validate aggregates multiple tools; build is one command
@@ -374,13 +408,13 @@ tools:
     feeds_into: [execute_task]
     side_effects: bd_database_write
     output_contract: missing
-    undo: compensatable_or_issue_close
+    undo: boundary_compensation (compensating_action, captures issue_id + pipeline_state_snapshot)
     overlaps:
       - tool: issue_create
         difference: create_issue uses parsed planner state; issue_create is direct bd CLI wrapper
     issues:
-      - should probably become an exec-tool-backed boundary or declare compensation
-    migration_priority: high
+      - output.schema for created issue ID and metadata
+    migration_priority: medium
 
   - name: execute_task
     role: boundary
@@ -389,13 +423,13 @@ tools:
     feeds_into: [check_result]
     side_effects: child_agent_process, workspace_mutation
     output_contract: missing
-    undo: child_workspace_rollback
+    undo: boundary_compensation (compensating_action, captures child_run_id + child_workspace_ref)
     overlaps:
       - tool: launch_eval
         difference: execute_task runs generator child for planner task; launch_eval runs evaluator child from bench
     issues:
-      - child agent invocation boundary needs explicit reversibility and workspace refs
-    migration_priority: high
+      - output.schema for execution result and workspace diff
+    migration_priority: medium
 
   - name: check_result
     role: stateful_internal
@@ -502,13 +536,13 @@ tools:
     feeds_into: [next_point]
     side_effects: nested_machine_execution, point_result_recording, filesystem_mutation
     output_contract: missing
-    undo: point_workspace_restore_and_session_result_remove
+    undo: boundary_compensation (child_command_undo, captures eval_session_snapshot + nested_machine_history)
     overlaps:
       - tool: execute_task
         difference: run_point invokes an in-process nested machine; execute_task spawns a child agent process
     issues:
-      - boundary tool should declare nested-machine contract and workspace refs
-    migration_priority: high
+      - output.schema for point result summary
+    migration_priority: medium
 
   - name: report_session
     role: word
@@ -636,13 +670,13 @@ tools:
     feeds_into: [run_oracle_check]
     side_effects: subprocess, workspace_mutation, trace_file_write
     output_contract: missing
-    undo: workspace_restore
+    undo: boundary_compensation (compensating_action, captures point_context_snapshot + point_workspace + trace_path + result_path)
     overlaps:
       - tool: execute_task
         difference: run_agent runs suite harness binary; execute_task runs configured child agent for planner
     issues:
-      - external subprocess boundary with workspace effects
-    migration_priority: high
+      - output.schema for agent exit code and trace path
+    migration_priority: medium
 
   - name: run_oracle_check
     role: word
@@ -727,12 +761,12 @@ tools:
     feeds_into: [launch_eval, terminal]
     side_effects: http_server, user_interaction_block
     output_contract: missing
-    undo: server_shutdown
+    undo: boundary_compensation (compensating_action, captures server_addr + user_action)
     overlaps:
       - tool: invoke_llm
         difference: serve_ui blocks on human UI actions; invoke_llm blocks on model response
     issues:
-      - event-source boundary should declare blocking behavior and shutdown semantics
+      - output.schema for user action type and parameters
     migration_priority: medium
 
   - name: launch_eval
@@ -742,13 +776,13 @@ tools:
     feeds_into: [serve_ui]
     side_effects: child_agent_process, eval_results_write
     output_contract: missing
-    undo: compensatable_by_deleting_or_marking_session
+    undo: boundary_compensation (compensating_action, captures suite_path + output_dir + child_machine + child_tools)
     overlaps:
       - tool: execute_task
         difference: launch_eval starts evaluator session; execute_task starts generator for planner task
     issues:
-      - should move toward configured agent CLI exec tool contract where possible
-    migration_priority: high
+      - output.schema for evaluator session result summary
+    migration_priority: medium
 
   # Spec validation tools
   - name: load_corpus
@@ -877,13 +911,13 @@ tools:
     feeds_into: [rev_parse, log_oneline]
     side_effects: git_commit_create
     output_contract: missing
-    undo: compensatable_by_revert_or_reset_if_unpushed
+    undo: boundary_compensation (compensating_action, captures workspace_paths + git_ref)
     overlaps:
       - tool: issue_close
         difference: commit mutates git history; issue_close mutates bd issue state
     issues:
-      - should be irreversible/confirmation-gated under rollback policy
-    migration_priority: high
+      - output.schema for commit hash
+    migration_priority: medium
 
   - name: rev_parse
     role: word
@@ -938,13 +972,13 @@ tools:
     feeds_into: [issue_list, issue_close]
     side_effects: bd_database_write
     output_contract: missing
-    undo: compensatable_by_issue_close
+    undo: boundary_compensation (compensating_action, captures created_issue_id + workspace_paths)
     overlaps:
       - tool: create_issue
         difference: issue_create is raw bd CLI wrapper; create_issue consumes planner state
     issues:
-      - side effects should be structured and reversibility should be compensatable
-    migration_priority: medium
+      - output.schema for created issue ID
+    migration_priority: low
 
   - name: issue_close
     role: boundary
@@ -953,11 +987,11 @@ tools:
     feeds_into: [issue_list]
     side_effects: bd_database_write
     output_contract: missing
-    undo: compensatable_by_reopen
+    undo: boundary_compensation (compensating_action, captures issue_id + previous_issue_status + workspace_paths)
     overlaps: []
     issues:
-      - needs reversibility and output.schema
-    migration_priority: medium
+      - output.schema for closed issue confirmation
+    migration_priority: low
 
   - name: issue_list
     role: word
@@ -976,19 +1010,26 @@ tools:
 
 sentence_tools:
   highest_priority: []
-boundary_tools_requiring_contracts:
-  - invoke_llm
-  - run_point
-  - run_agent
-  - execute_task
-  - launch_eval
-  - serve_ui
-  - create_issue
-  - issue_create
-  - issue_close
-  - commit
 
-missing_contract_summary:
+boundary_tools_with_compensation:
+  note: |
+    All boundary tools now implement UndoMementoProvider and declare
+    payload: boundary_compensation with captures in their tool YAML.
+  tools:
+    - validate
+    - suspend
+    - self_invoke
+    - create_issue
+    - execute_task
+    - run_point
+    - run_agent
+    - serve_ui
+    - launch_eval
+    - commit
+    - issue_create
+    - issue_close
+
+remaining_contract_gaps:
   typed_outputs:
     declared:
       - read
@@ -1007,11 +1048,18 @@ missing_contract_summary:
       - spec validation tools
       - most exec tools
   structured_side_effects:
-    status: mostly_missing
-    note: legacy scalar side_effects exists for several exec tools, but structured entries are not broadly populated.
+    status: partially_populated
+    note: |
+      Structured side_effects entries (kind/target/description) are populated
+      for many tools. Some exec tools still use legacy scalar form.
   undo_metadata:
-    status: missing
-    note: rollback strategy is implied by roll-backs.md but not yet encoded on declarations.
+    status: populated
+    note: |
+      All boundary tools declare undo strategy, payload, and captures in their
+      YAML declarations. UndoMementoProvider is implemented for boundary tools
+      and workspace-mutating builtins. Simple read-only tools use noop.
   relationships:
-    status: missing
-    note: relationships are documented in this audit but not yet migrated into each ToolDef.
+    status: partially_populated
+    note: |
+      Composition relationships are documented in this audit. Migration into
+      individual ToolDef entries is incremental.
