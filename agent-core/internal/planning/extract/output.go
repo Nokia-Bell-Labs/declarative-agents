@@ -10,7 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/graph"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/graph"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 

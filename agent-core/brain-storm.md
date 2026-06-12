@@ -179,7 +179,7 @@ doesn't track cost at the tool level.
 
 #### 9. Spec-driven agent generation
 
-Already have `pkg/spec` (SRD corpus) and `pkg/graph` (requirement DAG). Close
+Already have `pkg/spec` (SRD corpus) and `internal/planning/graph` (requirement DAG). Close
 the loop: given a spec corpus, automatically generate the machine YAML, tool
 selection, and system prompt. `agent generate-machine --spec <corpus-dir>`.
 

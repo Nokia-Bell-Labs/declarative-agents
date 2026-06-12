@@ -15,7 +15,7 @@ import (
 
 func loadTestCorpus(t *testing.T) *spec.Corpus {
 	t.Helper()
-	c, err := spec.LoadCorpus(filepath.Join("..", "spec", "testdata", "valid"))
+	c, err := spec.LoadCorpus(filepath.Join("..", "..", "..", "pkg", "spec", "testdata", "valid"))
 	require.NoError(t, err)
 	return c
 }

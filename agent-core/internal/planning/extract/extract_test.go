@@ -10,14 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/graph"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/graph"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
 func buildTestGraph(t *testing.T) *graph.Graph {
 	t.Helper()
 	corpus, err := spec.LoadCorpus(
-		filepath.Join("..", "spec", "testdata", "valid"))
+		filepath.Join("..", "..", "..", "pkg", "spec", "testdata", "valid"))
 	require.NoError(t, err)
 	g, err := graph.BuildGraph(corpus)
 	require.NoError(t, err)

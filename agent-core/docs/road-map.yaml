@@ -55,8 +55,8 @@ releases:
         (tools/builtin.yaml with 32 tools, exec.yaml with 16)
       - Per-model LLM tool configurations (agents/*/llm/*.yaml)
       - LLM response profiles for 9 model families (pkg/llm/profiles/)
-      - Planner pipeline packages (pkg/pipeline, pkg/plan, pkg/extract,
-        pkg/graph, pkg/materialize)
+      - Planner pipeline packages (internal/planning/pipeline, internal/planning/plan, internal/planning/extract,
+        internal/planning/graph, internal/planning/materialize)
       - Agent execution with process groups (pkg/execute)
       - Git worktree management (pkg/worktree)
       - Evaluator benchmark infrastructure (eval suites, result analysis)

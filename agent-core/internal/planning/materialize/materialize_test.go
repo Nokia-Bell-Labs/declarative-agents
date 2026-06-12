@@ -18,7 +18,7 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/plan"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/plan"
 )
 
 var testPlan = plan.ImplementationPlan{

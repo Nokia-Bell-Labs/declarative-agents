@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/graph"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/graph"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
@@ -32,7 +32,7 @@ func extractAllTasks(t *testing.T, g *graph.Graph) []*Task {
 
 func TestBuildOutputTasks(t *testing.T) {
 	corpus, err := spec.LoadCorpus(
-		filepath.Join("..", "spec", "testdata", "valid"))
+		filepath.Join("..", "..", "..", "pkg", "spec", "testdata", "valid"))
 	require.NoError(t, err)
 
 	g, err := graph.BuildGraph(corpus)
@@ -55,7 +55,7 @@ func TestBuildOutputTasks(t *testing.T) {
 
 func TestBuildOutputTasks_Dependencies(t *testing.T) {
 	corpus, err := spec.LoadCorpus(
-		filepath.Join("..", "spec", "testdata", "valid"))
+		filepath.Join("..", "..", "..", "pkg", "spec", "testdata", "valid"))
 	require.NoError(t, err)
 
 	g, err := graph.BuildGraph(corpus)
@@ -77,7 +77,7 @@ func TestBuildOutputTasks_Dependencies(t *testing.T) {
 
 func TestWriteReadTasks_RoundTrip(t *testing.T) {
 	corpus, err := spec.LoadCorpus(
-		filepath.Join("..", "spec", "testdata", "valid"))
+		filepath.Join("..", "..", "..", "pkg", "spec", "testdata", "valid"))
 	require.NoError(t, err)
 
 	g, err := graph.BuildGraph(corpus)
@@ -124,7 +124,7 @@ func TestReadTasks_EmptyTasks(t *testing.T) {
 
 func TestOutputTask_ItemIDs(t *testing.T) {
 	corpus, err := spec.LoadCorpus(
-		filepath.Join("..", "spec", "testdata", "valid"))
+		filepath.Join("..", "..", "..", "pkg", "spec", "testdata", "valid"))
 	require.NoError(t, err)
 
 	g, err := graph.BuildGraph(corpus)

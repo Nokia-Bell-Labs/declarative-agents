@@ -331,11 +331,11 @@ coverage_gaps: |
 
   Packages without SRDs:
   - pkg/execute — agent subprocess execution with process groups
-  - pkg/extract — task extraction from requirement graphs
-  - pkg/graph — requirement DAG construction and traversal
-  - pkg/materialize — plan-to-issue materialization
-  - pkg/pipeline — planner pipeline tools
-  - pkg/plan — implementation plan parsing
+  - internal/planning/extract — task extraction from requirement graphs
+  - internal/planning/graph — requirement DAG construction and traversal
+  - internal/planning/materialize — plan-to-issue materialization
+  - internal/planning/pipeline — planner pipeline tools
+  - internal/planning/plan — implementation plan parsing
   - pkg/worktree — git worktree lifecycle
   - pkg/subprocess — subprocess execution utilities
   - pkg/stl eval harness — 14 eval_*.go files implementing workspace

@@ -30,11 +30,11 @@ overview:
 
     Domain layer. Packages supporting specific agent workflows:
     - pkg/execute — agent subprocess execution with process groups
-    - pkg/pipeline — planner pipeline tools (extract, assemble, parse)
-    - pkg/plan — implementation plan parsing and prompt assembly
-    - pkg/extract — task extraction from requirement graphs
-    - pkg/graph — requirement DAG construction and traversal
-    - pkg/materialize — plan-to-issue materialization
+    - internal/planning/pipeline — planner pipeline tools (extract, assemble, parse)
+    - internal/planning/plan — implementation plan parsing and prompt assembly
+    - internal/planning/extract — task extraction from requirement graphs
+    - internal/planning/graph — requirement DAG construction and traversal
+    - internal/planning/materialize — plan-to-issue materialization
     - pkg/worktree — git worktree lifecycle management
     - pkg/spec — specification corpus parsing and validation
 
@@ -62,11 +62,11 @@ overview:
       end
 
       subgraph Domain["Domain Workflow Packages"]
-        PIPE[pkg/pipeline]
-        PLAN[pkg/plan]
-        EXTRACT[pkg/extract]
-        REQGRAPH[pkg/graph]
-        MAT[pkg/materialize]
+        PIPE[internal/planning/pipeline]
+        PLAN[internal/planning/plan]
+        EXTRACT[internal/planning/extract]
+        REQGRAPH[internal/planning/graph]
+        MAT[internal/planning/materialize]
         EXEC[pkg/execute]
         WORKTREE[pkg/worktree]
         SPEC[pkg/spec]
@@ -526,20 +526,20 @@ overview:
     - pkg/llm depends on pkg/core, pkg/prompt, and pkg/tracing.
     - pkg/stl depends on pkg/core, pkg/llm, pkg/tracing,
       pkg/telemetry/genai, pkg/execute, and pkg/subprocess.
-    - pkg/pipeline depends on pkg/core, pkg/plan, pkg/extract,
-      pkg/materialize, and pkg/stl.
+    - internal/planning/pipeline depends on pkg/core, internal/planning/plan, internal/planning/extract,
+      internal/planning/materialize, and pkg/stl.
     - pkg/execute depends on pkg/subprocess, pkg/llm, and pkg/tracing.
-    - pkg/plan depends on gopkg.in/yaml.v3.
-    - pkg/extract depends on pkg/graph and pkg/plan.
-    - pkg/graph depends on gopkg.in/yaml.v3.
-    - pkg/materialize depends on pkg/plan.
+    - internal/planning/plan depends on gopkg.in/yaml.v3.
+    - internal/planning/extract depends on internal/planning/graph and internal/planning/plan.
+    - internal/planning/graph depends on gopkg.in/yaml.v3.
+    - internal/planning/materialize depends on internal/planning/plan.
     - pkg/worktree depends on os/exec.
     - pkg/spec depends on the Go standard library, gopkg.in/yaml.v3,
       and a graph library.
     - pkg/subprocess depends on the Go standard library.
     - pkg/cli depends on the Go standard library.
     - cmd/agent imports pkg/core, pkg/stl, pkg/llm, pkg/prompt,
-      pkg/telemetry, pkg/pipeline, pkg/bench, pkg/execute, and
+      pkg/telemetry, internal/planning/pipeline, pkg/bench, pkg/execute, and
       pkg/tracing.
     - pkg/bench imports pkg/stl for evaluation result analysis and
       pkg/core for the state machine loop.
@@ -849,15 +849,15 @@ project_structure:
   domain:
     - path: pkg/execute/
       role: Agent subprocess execution with process groups and timeouts
-    - path: pkg/pipeline/
+    - path: internal/planning/pipeline/
       role: Planner pipeline tools (extract, assemble, parse, create issue, execute, check)
-    - path: pkg/plan/
+    - path: internal/planning/plan/
       role: Implementation plan parsing and prompt assembly
-    - path: pkg/extract/
+    - path: internal/planning/extract/
       role: Task extraction from requirement graphs
-    - path: pkg/graph/
+    - path: internal/planning/graph/
       role: Requirement DAG construction, traversal, and persistence
-    - path: pkg/materialize/
+    - path: internal/planning/materialize/
       role: Plan-to-issue materialization (bd create)
     - path: pkg/worktree/
       role: Git worktree lifecycle management
@@ -899,7 +899,7 @@ implementation_status:
     - done: Standard tool library (pkg/stl) — file, build, LLM, eval tools, config loading
     - done: CLI flags (pkg/cli) — standard flag constants, PropagateArgs, RemainingBudget
     - done: Subprocess (pkg/subprocess) — process execution utilities
-    - done: Planner pipeline (pkg/pipeline, pkg/plan, pkg/extract, pkg/graph, pkg/materialize)
+    - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph, internal/planning/materialize)
     - done: Agent execution (pkg/execute) — subprocess execution with process groups
     - done: Worktree management (pkg/worktree) — git worktree lifecycle
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
