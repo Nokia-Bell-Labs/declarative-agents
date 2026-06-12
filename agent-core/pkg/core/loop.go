@@ -438,7 +438,7 @@ func resolveTerminalStatus(hooks LoopHooks, s State) RunStatus {
 
 func defaultTerminalStatus(s State) RunStatus {
 	switch s {
-	case State("Succeeded"):
+	case State("Succeeded"), State("Done"):
 		return StatusSucceeded
 	case State("BudgetExceeded"):
 		return StatusBudgetExceeded

@@ -5,9 +5,13 @@ harnesses:
     flags:
       machine: agents/generator/machine.yaml
       tools: agents/generator/tools.yaml
+      tools-declaration:
+        - tools/builtin.yaml
+        - tools/exec.yaml
+        - agents/generator/llm/default.yaml
 models:
-  - qwen3.6:8b-mlx
   - qwen3.6:35b-mlx
+  - gemma4:31b-mlx
 samples_dir: samples
 timeout: 10m
 repetitions: 1

@@ -82,9 +82,8 @@ func (Integration) Uc003() error {
 }
 
 const (
-	qwenModel        = "qwen3.6"
-	qwen8b           = "qwen3.6:8b-mlx"
 	qwen35b          = "qwen3.6:35b-mlx"
+	gemma31b         = "gemma4:31b-mlx"
 	generatorSample  = "testdata/integration/uc004-qwen-generator"
 	evaluatorSuite   = "testdata/integration/uc005-qwen-evaluator/suite.yaml"
 )
@@ -94,7 +93,7 @@ func (Integration) Uc004() error {
 	if err := requireOllama(); err != nil {
 		return skipUC("uc004", err.Error())
 	}
-	if err := requireModel(qwenModel); err != nil {
+	if err := requireModel(qwen35b); err != nil {
 		return skipUC("uc004", err.Error())
 	}
 
@@ -138,10 +137,10 @@ func (Integration) Uc005() error {
 	if err := requireOllama(); err != nil {
 		return skipUC("uc005", err.Error())
 	}
-	if err := requireModel(qwen8b); err != nil {
+	if err := requireModel(qwen35b); err != nil {
 		return skipUC("uc005", err.Error())
 	}
-	if err := requireModel(qwen35b); err != nil {
+	if err := requireModel(gemma31b); err != nil {
 		return skipUC("uc005", err.Error())
 	}
 
@@ -162,6 +161,12 @@ func (Integration) Uc005() error {
 	defer os.RemoveAll(outputDir)
 
 	fmt.Printf("uc005: output at %s\n", outputDir)
+
+	binAbs, err := filepath.Abs(binDir)
+	if err != nil {
+		return err
+	}
+	os.Setenv("PATH", binAbs+":"+os.Getenv("PATH"))
 
 	args := []string{
 		"--machine", filepath.Join(rootDir, "agents/evaluator/machine.yaml"),
@@ -280,13 +285,14 @@ func requireModel(model string) error {
 		return fmt.Errorf("decode ollama models: %w", err)
 	}
 
-	base := strings.Split(model, ":")[0]
+	var names []string
 	for _, m := range result.Models {
-		if m.Name == model || strings.Split(m.Name, ":")[0] == base {
+		if m.Name == model {
 			return nil
 		}
+		names = append(names, m.Name)
 	}
-	return fmt.Errorf("model %q not found in ollama (pulled models: %d)", model, len(result.Models))
+	return fmt.Errorf("model %q not found in ollama; available: %s", model, strings.Join(names, ", "))
 }
 
 func runAgent(binary string, args []string) error {
