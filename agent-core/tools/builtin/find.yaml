@@ -1,0 +1,31 @@
+tools:
+- name: find
+  type: builtin
+  category: word
+  init: file_find
+  emits:
+  - ToolDone
+  - ToolFailed
+  description: Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob — use \.go$ to find
+    Go files, not *.go. Returns matching lines with file paths and line numbers.
+  parameters:
+    type: object
+    properties:
+      query:
+        type: string
+        description: 'Regex pattern (ripgrep syntax, not glob). Example: \.go$ for Go files, func main for function search'
+      path:
+        type: string
+        description: Subdirectory to scope the search (optional)
+    required:
+    - query
+  side_effects:
+  - kind: filesystem_read
+    target: workspace_tree
+    description: Reads matching file paths and lines from the workspace without mutating state.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Search is read-only and has no effects to reverse.

@@ -1,0 +1,24 @@
+tools:
+- name: extract_task
+  type: builtin
+  init: extract_task
+  description: Extract the next unblocked task from the dependency graph.
+  visibility: internal
+  emits:
+  - TaskExtracted
+  - AllDone
+  - Blocked
+  - BatchLimitReached
+  - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: current_task_selected
+    description: Updates the current task cursor and graph task status.
+  reversibility:
+    classification: reversible
+    undo: pipeline_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore the pipeline state snapshot captured before extraction.

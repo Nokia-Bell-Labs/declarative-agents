@@ -1,0 +1,24 @@
+tools:
+- name: report_session
+  type: builtin
+  init: report_session
+  visibility: internal
+  emits:
+  - SessionReported
+  - CommandError
+  description: Print session summary with pass/fail/timeout counts and total duration.
+  category: word
+  side_effects:
+  - kind: stderr_write
+    target: evaluator_output
+    description: Prints evaluator session summary.
+  - kind: state_mutation
+    target: eval_session_state
+    state: session_duration_finalized
+    description: Sets the final session duration on EvalSessionState.Result.
+  reversibility:
+    classification: reversible
+    undo: evaluator_session_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore evaluator session state to the snapshot before finalizing session duration.

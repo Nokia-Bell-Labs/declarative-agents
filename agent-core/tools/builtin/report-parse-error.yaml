@@ -1,0 +1,19 @@
+tools:
+- name: report_parse_error
+  type: builtin
+  init: report_parse_error
+  visibility: internal
+  emits:
+  - ToolDone
+  - BudgetExhausted
+  description: Report a parse error back to the LLM for correction.
+  category: word
+  side_effects:
+  - kind: command_state
+    description: Increments the parse retry counter and emits BudgetExhausted when the configured retry limit is reached.
+  reversibility:
+    classification: reversible
+    undo: parse_retry_counter_restore
+  undo:
+    strategy: parse_retry_counter_restore
+    description: Restores the parse retry counter snapshot captured before reporting the parse error.

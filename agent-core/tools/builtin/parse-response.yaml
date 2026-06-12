@@ -1,0 +1,22 @@
+tools:
+- name: parse_response
+  type: builtin
+  contract: legacy
+  init: parse_response
+  visibility: internal
+  emits:
+  - ToolDone
+  - TaskCompleted
+  - ParseFailed
+  - CommandError
+  description: Parse raw LLM output into a tool call or task-completed signal.
+  category: word
+  side_effects:
+  - kind: command_state
+    description: Parses the prior command output and may reset the parse retry counter after a non-ParseFailed result.
+  reversibility:
+    classification: reversible
+    undo: parse_retry_counter_restore
+  undo:
+    strategy: parse_retry_counter_restore
+    description: Restores the parse retry counter snapshot captured before parsing.

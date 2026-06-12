@@ -1,0 +1,21 @@
+tools:
+- name: reset_history
+  type: builtin
+  init: reset_history
+  visibility: internal
+  emits:
+  - ToolDone
+  - CommandError
+  description: Clear the conversation history and restart the LLM context.
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: conversation_history
+    state: reset_to_empty
+    description: Clears the in-memory LLM conversation history.
+  reversibility:
+    classification: reversible
+    undo: conversation_restore
+  undo:
+    strategy: conversation_restore
+    description: Restore the conversation snapshot captured before clearing history.

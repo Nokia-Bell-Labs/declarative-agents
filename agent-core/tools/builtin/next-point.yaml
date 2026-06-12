@@ -1,0 +1,22 @@
+tools:
+- name: next_point
+  type: builtin
+  init: next_point
+  visibility: internal
+  emits:
+  - PointReady
+  - AllPointsDone
+  - CommandError
+  description: Advance to the next evaluation point in the grid. Returns PointReady or AllPointsDone.
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: eval_session_state
+    state: current_point_advanced
+    description: Advances the evaluator session cursor to the next grid point.
+  reversibility:
+    classification: reversible
+    undo: session_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore the evaluator session cursor from a prior snapshot.

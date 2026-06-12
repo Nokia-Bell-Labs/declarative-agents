@@ -1,0 +1,22 @@
+tools:
+- name: commit_workspace_baseline
+  type: builtin
+  init: commit_workspace_baseline
+  visibility: internal
+  emits:
+  - WorkspaceBaselineCommitted
+  - CommandError
+  description: Create the baseline git commit for the current point workspace.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: point_workspace_git_history
+    paths:
+    - .git
+    description: Creates the baseline commit in the point workspace repository.
+  reversibility:
+    classification: compensatable
+    undo: reset_or_recreate_workspace_repo
+  undo:
+    strategy: compensating_action
+    description: Reset the point repository to the intended baseline or recreate the point workspace.

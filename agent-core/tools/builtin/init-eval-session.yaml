@@ -1,0 +1,26 @@
+tools:
+- name: init_eval_session
+  type: builtin
+  init: init_eval_session
+  visibility: internal
+  emits:
+  - EvalSessionInitialized
+  - CommandError
+  description: Create the evaluator session output directory and resolve runtime defaults.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: evaluator_session_dir
+    description: Creates the evaluator session output directory.
+  - kind: state_mutation
+    target: eval_session_state
+    state: eval_session_initialized
+    description: Sets session directory, reps, timeout, Ollama URL, and iteration start time.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore_and_session_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore evaluator session state and workspace artifacts from the prior checkpoint.
+    requires:
+    - Workspace

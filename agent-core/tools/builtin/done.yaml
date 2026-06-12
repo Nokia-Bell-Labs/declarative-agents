@@ -1,0 +1,18 @@
+tools:
+- name: done
+  type: builtin
+  init: done
+  visibility: internal
+  emits:
+  - TaskCompleted
+  description: Signal that the generation task is complete.
+  category: word
+  side_effects:
+  - kind: none
+    description: Emits TaskCompleted and does not mutate state.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Completion signaling has no effects to reverse.

@@ -1,0 +1,21 @@
+tools:
+- name: collect_trace_tokens
+  type: builtin
+  init: collect_trace_tokens
+  visibility: internal
+  emits:
+  - TraceTokensCollected
+  - CommandError
+  description: Read the point trace file and record total GenAI input/output token usage.
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: trace_tokens_recorded
+    description: Sets PointContext.Tokens from gen_ai.usage input and output token attributes in the trace file.
+  reversibility:
+    classification: reversible
+    undo: point_context_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore PointContext token fields from the prior snapshot.

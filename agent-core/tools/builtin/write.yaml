@@ -1,0 +1,48 @@
+tools:
+- name: write
+  type: builtin
+  category: word
+  init: file_write
+  emits:
+  - ToolDone
+  - ToolFailed
+  description: Create or overwrite a file. Provide the complete file content — this replaces the entire file. Parent directories
+    are created automatically.
+  output:
+    description: Write result describing the file path and bytes written.
+    schema:
+      type: object
+      properties:
+        path:
+          type: string
+        bytes_written:
+          type: integer
+        created_parent_dirs:
+          type: boolean
+      required:
+      - path
+      - bytes_written
+  parameters:
+    type: object
+    properties:
+      path:
+        type: string
+        description: File path relative to workspace root
+      content:
+        type: string
+        description: Full file content to write
+    required:
+    - path
+    - content
+  side_effects:
+  - kind: filesystem_write
+    target: workspace_file
+    description: Creates or overwrites one workspace file and may create parent directories.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore the workspace to the ref captured before or after the file write.
+    requires:
+    - Workspace

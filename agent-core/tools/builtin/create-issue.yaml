@@ -1,0 +1,29 @@
+tools:
+- name: create_issue
+  type: builtin
+  init: create_issue
+  description: Create a bd issue from the parsed implementation plan.
+  visibility: internal
+  emits:
+  - Materialized
+  - MaterializeFailed
+  - CommandError
+  category: boundary
+  side_effects:
+  - kind: external_api
+    target: beads_issue_tracker
+    description: Materializes the parsed plan as a bd issue and records the issue ID in pipeline state.
+  - kind: state_mutation
+    target: pipeline_state
+    state: issue_id_recorded
+    description: Stores the materialized issue ID for downstream task execution.
+  reversibility:
+    classification: compensatable
+    undo: pipeline_state_restore_and_issue_compensation
+  undo:
+    strategy: compensating_action
+    description: Restore pipeline state; issue tracker side effects require explicit close/delete compensation.
+    payload: boundary_compensation
+    captures:
+    - issue_id
+    - pipeline_state_snapshot

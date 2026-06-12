@@ -1,0 +1,22 @@
+tools:
+- name: copy_sample_workspace
+  type: builtin
+  init: copy_sample_workspace
+  visibility: internal
+  emits:
+  - SampleWorkspaceCopied
+  - CommandError
+  description: Copy the sample workspace contents into the current point directory.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: point_workspace
+    description: Copies sample workspace files into PointContext.PointDir.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore point workspace files from a previous workspace ref.
+    requires:
+    - Workspace

@@ -1,0 +1,20 @@
+tools:
+- name: format_report
+  type: builtin
+  init: format_report
+  visibility: internal
+  emits:
+  - ToolDone
+  - ToolFailed
+  - CommandError
+  description: Format the validation results as a human-readable report.
+  category: word
+  side_effects:
+  - kind: none
+    description: Formats validation state into command output without mutating state.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Report formatting has no effects to reverse.

@@ -1,0 +1,23 @@
+tools:
+- name: extract_all
+  type: builtin
+  init: extract_all
+  description: Extract all requirements as a single task group (passthrough mode).
+  visibility: internal
+  emits:
+  - TaskExtracted
+  - AllDone
+  - Blocked
+  - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: passthrough_task_group_selected
+    description: Updates the current task to represent the full requirement group.
+  reversibility:
+    classification: reversible
+    undo: pipeline_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore the pipeline state snapshot captured before extraction.

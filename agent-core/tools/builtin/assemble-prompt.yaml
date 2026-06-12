@@ -1,0 +1,19 @@
+tools:
+- name: assemble_prompt
+  type: builtin
+  init: assemble_prompt
+  description: Assemble the LLM prompt from task context and SRD requirements.
+  visibility: internal
+  emits:
+  - ToolDone
+  - CommandError
+  category: word
+  side_effects:
+  - kind: none
+    description: Formats prompt text from current pipeline context without mutating state.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Prompt assembly has no effects to reverse.

@@ -1,0 +1,20 @@
+tools:
+- name: report_suite_summary
+  type: builtin
+  init: report_suite_summary
+  visibility: internal
+  emits:
+  - SuiteLoaded
+  - CommandError
+  description: Report suite point count after config parsing, sample discovery, grid expansion, and session initialization.
+  category: word
+  side_effects:
+  - kind: stderr_write
+    target: evaluator_output
+    description: Prints suite summary to evaluator stderr.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Summary reporting writes only diagnostic output and has no state to restore.

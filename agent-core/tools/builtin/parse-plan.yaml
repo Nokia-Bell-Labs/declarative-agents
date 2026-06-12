@@ -1,0 +1,22 @@
+tools:
+- name: parse_plan
+  type: builtin
+  init: parse_plan
+  description: Parse the LLM YAML response into an ImplementationPlan.
+  visibility: internal
+  emits:
+  - PlanReady
+  - ParseFailed
+  - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: current_plan_parsed
+    description: Sets the parsed implementation plan on pipeline state.
+  reversibility:
+    classification: reversible
+    undo: pipeline_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore the pipeline state snapshot captured before parsing.

@@ -2,5 +2,5 @@ name: constitution-auditor
 machine: machine.yaml
 tools:
   - tools.yaml
-tool_declarations:
-  - ../../tools/builtin.yaml
+tool_config_dirs:
+  - ../../tools/builtin

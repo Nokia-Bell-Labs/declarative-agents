@@ -1,0 +1,21 @@
+tools:
+- name: expand_eval_grid
+  type: builtin
+  init: expand_eval_grid
+  visibility: internal
+  emits:
+  - EvalGridExpanded
+  - CommandError
+  description: Expand evaluator suite grid parameters into concrete grid points.
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: eval_session_state
+    state: eval_grid_expanded
+    description: Sets the EvalSessionState grid point iterator input.
+  reversibility:
+    classification: reversible
+    undo: session_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore evaluator session state to the snapshot before expanding the grid.

@@ -1,0 +1,22 @@
+tools:
+- name: validate_specs
+  type: builtin
+  init: validate_specs
+  visibility: internal
+  emits:
+  - ValidationPassed
+  - ValidationFailed
+  - CommandError
+  description: Run consistency checks on the loaded specification corpus.
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: validation_state
+    state: validation_results_recorded
+    description: Records validation findings in validation state.
+  reversibility:
+    classification: reversible
+    undo: validation_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore validation state to the snapshot before running checks.

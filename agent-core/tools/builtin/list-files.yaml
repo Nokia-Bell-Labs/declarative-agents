@@ -1,0 +1,29 @@
+tools:
+- name: list_files
+  type: builtin
+  category: word
+  init: file_list
+  emits:
+  - ToolDone
+  - ToolFailed
+  description: List files and directories in a tree format. Use this first to understand the workspace layout before reading
+    files.
+  parameters:
+    type: object
+    properties:
+      path:
+        type: string
+        description: 'Subdirectory to list (default: workspace root)'
+      max_depth:
+        type: integer
+        description: 'Maximum directory depth to traverse (default: 4)'
+  side_effects:
+  - kind: filesystem_read
+    target: workspace_tree
+    description: Reads workspace directory entries without mutating state.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Directory listing is read-only and has no effects to reverse.

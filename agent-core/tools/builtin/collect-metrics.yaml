@@ -1,0 +1,24 @@
+tools:
+- name: collect_metrics
+  type: builtin
+  init: collect_metrics
+  visibility: internal
+  emits:
+  - MetricsCollected
+  - CommandError
+  description: Write evaluation metadata (exit code, duration, test results, tokens) to meta.json.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: point_metrics
+    paths:
+    - meta.json
+    description: Writes point metadata to meta.json.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore point artifact files to a previous workspace ref.
+    requires:
+    - Workspace

@@ -2,7 +2,8 @@ name: generator
 machine: machine.yaml
 tools:
   - tools.yaml
+tool_config_dirs:
+  - ../../tools/builtin
 tool_declarations:
-  - ../../tools/builtin.yaml
   - ../../tools/exec.yaml
   - llm/default.yaml

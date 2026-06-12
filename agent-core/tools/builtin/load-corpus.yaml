@@ -1,0 +1,21 @@
+tools:
+- name: load_corpus
+  type: builtin
+  init: load_corpus
+  visibility: internal
+  emits:
+  - ToolDone
+  - CommandError
+  description: Load the specification corpus from the project directory.
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: validation_state
+    state: corpus_loaded
+    description: Loads specification documents into validation state.
+  reversibility:
+    classification: reversible
+    undo: validation_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore validation state to the snapshot before loading the corpus.

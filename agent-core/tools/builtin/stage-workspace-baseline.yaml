@@ -1,0 +1,23 @@
+tools:
+- name: stage_workspace_baseline
+  type: builtin
+  init: stage_workspace_baseline
+  visibility: internal
+  emits:
+  - WorkspaceBaselineStaged
+  - CommandError
+  description: Stage all current point workspace files for the baseline commit.
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: git_index
+    state: all_changes_staged
+    description: Stages all files in the point workspace git index.
+  reversibility:
+    classification: reversible
+    undo: git_index_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore the point workspace git index from a previous workspace ref.
+    requires:
+    - Workspace

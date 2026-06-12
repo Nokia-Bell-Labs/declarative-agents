@@ -1,0 +1,26 @@
+tools:
+- name: create_point_dir
+  type: builtin
+  init: create_point_dir
+  visibility: internal
+  emits:
+  - PointDirCreated
+  - CommandError
+  description: Create the per-point evaluation directory and record trace artifact paths.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: point_artifacts
+    description: Creates the point output directory under the evaluator session directory.
+  - kind: state_mutation
+    target: point_context
+    state: point_dir_and_trace_path_set
+    description: Sets PointContext.PointDir and PointContext.TracePath for later point tools.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore_and_point_context_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore point context and artifact workspace state from the prior checkpoint.
+    requires:
+    - Workspace

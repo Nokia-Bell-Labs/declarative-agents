@@ -1,0 +1,24 @@
+tools:
+- name: run_point
+  type: builtin
+  init: run_point
+  visibility: internal
+  emits:
+  - PointDone
+  - CommandError
+  description: Run the per-point evaluation pipeline via a nested core.Loop with the point machine.
+  category: boundary
+  side_effects:
+  - kind: nested_machine_execution
+    target: evaluator_point_machine
+    description: Runs a nested point machine that may mutate point state and workspace artifacts.
+  reversibility:
+    classification: compensatable
+    undo: nested_machine_rollback
+  undo:
+    strategy: child_command_undo
+    description: Use nested point machine history and workspace refs to roll back point effects.
+    payload: boundary_compensation
+    captures:
+    - eval_session_snapshot
+    - nested_machine_history

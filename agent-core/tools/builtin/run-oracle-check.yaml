@@ -1,0 +1,22 @@
+tools:
+- name: run_oracle_check
+  type: builtin
+  init: run_oracle_check
+  visibility: internal
+  emits:
+  - OracleCheckPassed
+  - OracleCheckFailed
+  - CommandError
+  description: Run the point workspace oracle tests and record pass/fail output.
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: test_result_recorded
+    description: Sets PointContext.TestsPassed and PointContext.TestOutput from go test ./... in the point workspace.
+  reversibility:
+    classification: reversible
+    undo: point_context_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore PointContext test result fields from the prior snapshot.

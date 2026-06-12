@@ -1,0 +1,23 @@
+tools:
+- name: check_result
+  type: builtin
+  init: check_result
+  description: Evaluate validation results and decide retry vs. advance vs. fail.
+  visibility: internal
+  emits:
+  - ValidationPassed
+  - RetryAvailable
+  - RetriesExhausted
+  - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: retry_count_or_task_status_updated
+    description: Updates retry counters and task status based on execution result.
+  reversibility:
+    classification: reversible
+    undo: pipeline_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore the pipeline state snapshot captured before result evaluation.

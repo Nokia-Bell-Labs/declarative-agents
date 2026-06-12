@@ -1,0 +1,18 @@
+tools:
+- name: nudge_reread
+  type: builtin
+  init: nudge_reread
+  visibility: internal
+  emits:
+  - ToolDone
+  description: Append a re-read instruction after file edits to prompt the model to verify changes.
+  category: word
+  side_effects:
+  - kind: none
+    description: Formats the previous edit result with a re-read instruction without mutating state.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: The nudge only changes the command output passed to the next transition.

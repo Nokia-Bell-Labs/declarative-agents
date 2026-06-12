@@ -1,0 +1,50 @@
+tools:
+- name: read
+  type: builtin
+  category: word
+  init: file_read
+  emits:
+  - ToolDone
+  - ToolFailed
+  description: Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths
+    first.
+  output:
+    description: Line-numbered text content from the requested file range.
+    schema:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+        start_line:
+          type: integer
+        end_line:
+          type: integer
+      required:
+      - path
+      - content
+  parameters:
+    type: object
+    properties:
+      path:
+        type: string
+        description: File path relative to workspace root (must be a file, not a directory)
+      start_line:
+        type: integer
+        description: Start line (1-indexed, inclusive)
+      end_line:
+        type: integer
+        description: End line (1-indexed, inclusive)
+    required:
+    - path
+  side_effects:
+  - kind: filesystem_read
+    target: workspace_file
+    description: Reads file contents from the configured workspace without mutating state.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Read-only command has no effects to reverse.

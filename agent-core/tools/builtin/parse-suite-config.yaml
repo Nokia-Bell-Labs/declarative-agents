@@ -1,0 +1,21 @@
+tools:
+- name: parse_suite_config
+  type: builtin
+  init: parse_suite_config
+  visibility: internal
+  emits:
+  - SuiteConfigParsed
+  - CommandError
+  description: Read and validate evaluator suite YAML metadata without discovering samples or creating session artifacts.
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: eval_session_state
+    state: suite_config_parsed
+    description: Sets EvalSessionState.Suite with suite metadata and resolved samples directory.
+  reversibility:
+    classification: reversible
+    undo: session_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore evaluator session state to the snapshot before parsing suite config.

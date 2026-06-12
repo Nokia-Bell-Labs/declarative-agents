@@ -1,0 +1,20 @@
+tools:
+- name: summarize_point_results
+  type: builtin
+  init: summarize_point_results
+  visibility: internal
+  emits:
+  - ResultsCollected
+  - CommandError
+  description: Summarize previously collected point oracle, trace, and version state.
+  category: word
+  side_effects:
+  - kind: state_read
+    target: point_context
+    description: Reads PointContext test, token, and version fields without mutating them.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Summarization is read-only and has no effects to reverse.

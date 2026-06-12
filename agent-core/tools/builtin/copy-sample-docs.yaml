@@ -1,0 +1,24 @@
+tools:
+- name: copy_sample_docs
+  type: builtin
+  init: copy_sample_docs
+  visibility: internal
+  emits:
+  - SampleDocsCopied
+  - CommandError
+  description: Copy optional sample docs into the current point directory, or no-op when the sample has no docs.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: point_docs
+    paths:
+    - doc
+    description: Copies sample docs into PointContext.PointDir/doc when docs exist.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore copied point documentation from a previous workspace ref.
+    requires:
+    - Workspace

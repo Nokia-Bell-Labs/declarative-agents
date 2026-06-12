@@ -1,0 +1,24 @@
+tools:
+- name: dump_config
+  type: builtin
+  init: dump_config
+  visibility: internal
+  emits:
+  - ConfigDumped
+  - CommandError
+  description: Serialize the full experiment configuration (harness, model, tools, prompts) into experiment.yaml.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: experiment_config
+    paths:
+    - experiment.yaml
+    description: Writes resolved experiment configuration for reproducibility.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore experiment artifacts to a previous workspace ref.
+    requires:
+    - Workspace

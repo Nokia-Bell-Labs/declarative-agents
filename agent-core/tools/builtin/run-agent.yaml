@@ -1,0 +1,37 @@
+tools:
+- name: run_agent
+  type: builtin
+  init: run_agent
+  visibility: internal
+  emits:
+  - HarnessFinished
+  - HarnessFailed
+  - HarnessTimedOut
+  - CommandError
+  description: Run the agent binary on the prepared workspace and collect exit code, timing, and output.
+  category: boundary
+  side_effects:
+  - kind: child_process
+    target: harness_agent
+    description: Runs the configured agent binary for the current point.
+  - kind: filesystem_write
+    target: point_workspace
+    description: The harness agent may mutate files in the point workspace.
+  - kind: state_mutation
+    target: point_context
+    state: harness_result_recorded
+    description: Records exit code, timing, stdout, stderr, timeout, and trace path.
+  reversibility:
+    classification: compensatable
+    undo: workspace_restore_and_point_context_restore
+  undo:
+    strategy: compensating_action
+    description: Restore point context and workspace refs; external child process effects may require compensation.
+    payload: boundary_compensation
+    captures:
+    - point_context_snapshot
+    - point_workspace
+    - trace_path
+    - result_path
+    requires:
+    - Workspace

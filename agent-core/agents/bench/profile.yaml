@@ -2,6 +2,7 @@ name: bench
 machine: machine.yaml
 tools:
   - tools.yaml
+tool_config_dirs:
+  - ../../tools/builtin
 tool_declarations:
-  - ../../tools/builtin.yaml
   - builtin.yaml
