@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/core"
 )
 
 // Finding represents a single validation result.
@@ -50,6 +52,7 @@ func Validate(g *Graph, corpus *Corpus) []Finding {
 	all = append(all, checkDocSpecRelatedDocuments(corpus)...)
 	all = append(all, checkDocSpecImplementationPaths(corpus)...)
 	all = append(all, checkDocSpecExamplePaths(corpus)...)
+	all = append(all, checkMachineDiagnostics(corpus)...)
 	return all
 }
 
@@ -796,6 +799,27 @@ func checkDocSpecExamplePaths(corpus *Corpus) []Finding {
 					Message: fmt.Sprintf("doc spec %s example file %q does not exist", id, ex.File),
 				})
 			}
+		}
+	}
+	return findings
+}
+
+// checkMachineDiagnostics runs core.DiagnoseMachineSpec on each loaded
+// machine and surfaces its diagnostics as findings.
+func checkMachineDiagnostics(corpus *Corpus) []Finding {
+	var findings []Finding
+	for _, agentName := range corpus.MachineOrder {
+		ms := corpus.Machines[agentName]
+		for _, diag := range core.DiagnoseMachineSpec(ms) {
+			level := "warning"
+			if diag.Severity == core.MachineDiagnosticWarning {
+				level = "warning"
+			}
+			findings = append(findings, Finding{
+				Check:   "machine-diagnostic-" + diag.Code,
+				Level:   level,
+				Message: fmt.Sprintf("machine %s: %s", agentName, diag.Message),
+			})
 		}
 	}
 	return findings

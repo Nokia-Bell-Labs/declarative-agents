@@ -611,6 +611,42 @@ func TestValidate_DocSpecExamplePaths_Fixture(t *testing.T) {
 	assert.Empty(t, findings, "fixture example paths should exist")
 }
 
+func TestValidate_MachineDiagnostics(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"diag-test": {
+				Name:         "diag-test",
+				InitialState: "Idle",
+				States:       core.StateSpecs{{Name: "Idle"}, {Name: "Done"}, {Name: "Orphan"}},
+				Signals: core.SignalSpecs{
+					{Name: "Seed"},
+					{Name: "Unused"},
+				},
+				Transitions: []core.TransitionSpec{
+					{State: "Idle", Signal: "Seed", Next: "Done"},
+				},
+				TerminalStates: []string{"Done"},
+			},
+		},
+		MachineOrder: []string{"diag-test"},
+	}
+	findings := checkMachineDiagnostics(corpus)
+	require.NotEmpty(t, findings)
+
+	var codes []string
+	for _, f := range findings {
+		codes = append(codes, f.Check)
+	}
+	assert.Contains(t, codes, "machine-diagnostic-unreachable_state")
+	assert.Contains(t, codes, "machine-diagnostic-unused_signal")
+}
+
+func TestValidate_MachineDiagnostics_Fixture(t *testing.T) {
+	_, c := loadTestGraphAndCorpus(t)
+	findings := checkMachineDiagnostics(c)
+	assert.Empty(t, findings, "fixture machines should have no diagnostics")
+}
+
 func TestValidate_MachineNameConsistency(t *testing.T) {
 	corpus := &Corpus{
 		Machines: map[string]core.MachineSpec{
