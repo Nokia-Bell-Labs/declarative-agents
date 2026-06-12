@@ -1,14 +1,21 @@
 # agent-core
 
-A Go framework for building tool-augmented agentic loops.
+A profile-driven runtime for declarative, tool-augmented agents.
 
 ## What It Provides
 
-agent-core gives you the machinery every agentic system needs: a state machine,
-command dispatch with tracing and panic recovery, a tool registry, budget
-enforcement, LLM integration, prompt assembly, and a standard tool library.
-Domain agents import agent-core and supply their own states, signals, tools, and
-transition tables.
+Agent Core packages a single `agent` binary that runs different agents from
+YAML configuration. A profile selects the state machine, tool selections, tool
+declaration directories, agent-local declarations, and optional workspace
+directory. The same runtime drives the generator, evaluator, planner, bench,
+and constitution-auditor agents.
+
+The runtime provides the shared machinery those agents need: state-machine
+execution, command dispatch with tracing and panic recovery, tool registration,
+budget enforcement, LLM integration, prompt assembly, lifecycle checkpointing,
+and a standard tool library. Agent behavior lives in `agents/`, `tools/`, and
+`docs/specs/`; changing behavior should usually mean changing YAML rather than
+adding mode-specific Go code.
 
 ## Packages
 
@@ -31,6 +38,24 @@ Private implementation packages are grouped under `internal/`. See
 domains include `internal/observability` for tracing and telemetry, and
 `internal/support` for process, workspace, and CLI helper code.
 
+## Agent Profiles
+
+Profiles are the normal runtime entry points:
+
+| Profile | Purpose |
+|---------|---------|
+| `agents/generator/profile.yaml` | Run the coding generator loop. |
+| `agents/evaluator/profile.yaml` | Run evaluator suites over generator profiles. |
+| `agents/planner/profile.yaml` | Run planning and task execution workflows. |
+| `agents/bench/profile.yaml` | Serve the bench web UI and launch evaluations. |
+| `agents/constitution-auditor/profile.yaml` | Validate the spec corpus. |
+
+Profiles resolve relative paths from their own directory. Current profiles load
+shared tool declarations from directories such as `tools/builtin/` and
+`tools/exec/`, then add agent-local declarations such as LLM configs or builtin
+config overrides. Legacy `--machine`, `--tools`, and `--tools-declaration`
+startup remains compatibility behavior; prefer `--profile` for new usage.
+
 ## Lifecycle Operations
 
 Checkpointing, suspend/resume, approval gates, history, and rollback are
@@ -48,12 +73,16 @@ bin/agent --profile agents/generator/profile.yaml --directory "$PWD"
 
 ## Docker Runtime
 
-The repository includes a multi-stage Dockerfile that clones Agent Core from
-GitLab during the build, runs `go test ./...`, builds `agent`, and packages a
-runtime image with the `agent` binary, git, common Unix utilities, and shared
-YAML assets under `/opt/agent-core`. The Go toolchain, source checkout, and
-test dependencies stay in the builder stage and are not copied into the runtime
-image.
+The repository includes a multi-stage Dockerfile for building a release runtime
+image. The builder stage clones Agent Core from GitLab, runs `go test ./...`,
+and builds `agent`. The final Alpine runtime image contains only the `agent`
+binary, git, common Unix utilities, and shared YAML assets under
+`/opt/agent-core`.
+
+The runtime image intentionally excludes the Go toolchain, source checkout,
+test dependencies, and `golangci-lint`. Exec tools such as `build`, `vet`,
+`lint`, and `test` require those binaries to come from a mounted workspace, a
+derived image, or another container/host provisioning step.
 
 The preferred build path is the Mage target:
 
@@ -62,15 +91,15 @@ mage docker
 ```
 
 `mage docker` discovers the latest remote release tag from GitLab, passes it to
-the Dockerfile as `AGENT_CORE_REF`, and builds `agent-core:latest`. The target
-uses Docker when available, falls back to Podman, and prints the image, release
-ref, and engine before building.
+the Dockerfile as `AGENT_CORE_REF`, and builds `agent-core:latest`. It uses
+Docker when available, falls back to Podman, and prints the resolved build
+settings plus the exact Docker/Podman command before building.
 
 Common overrides:
 
 ```bash
-AGENT_CORE_REF=v0.20260612.1 mage docker
-AGENT_CORE_IMAGE=registry.example/agent-core:v0.20260612.1 mage docker
+AGENT_CORE_REF=v0.20260612.N mage docker
+AGENT_CORE_IMAGE=registry.example/agent-core:v0.20260612.N mage docker
 AGENT_CORE_CONTAINER_ENGINE=docker mage docker
 AGENT_CORE_REPO=https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git mage docker
 ```
@@ -116,7 +145,7 @@ The equivalent lower-level Podman command is:
 podman build \
   --tls-verify=false \
   --secret id=git_credentials,src=.netrc \
-  --build-arg AGENT_CORE_REF=v0.20260612.1 \
+  --build-arg AGENT_CORE_REF=v0.20260612.N \
   -t agent-core:latest .
 ```
 
@@ -124,8 +153,9 @@ The equivalent lower-level Docker command is:
 
 ```bash
 DOCKER_BUILDKIT=1 docker build \
+  --progress=plain \
   --secret id=git_credentials,src=.netrc \
-  --build-arg AGENT_CORE_REF=v0.20260612.1 \
+  --build-arg AGENT_CORE_REF=v0.20260612.N \
   -t agent-core:latest .
 ```
 
@@ -150,9 +180,9 @@ absolute paths such as `/opt/agent-core/tools/builtin`,
 `/opt/agent-core/agents/generator/profile-qwen27b.yaml`.
 If mounted output permissions matter, add `--user "$(id -u):$(id -g)"`.
 
-Current verification baseline: `mage docker` built `agent-core:latest` from
-remote release `v0.20260612.1`, and `podman run --rm agent-core:latest --help`
-started the packaged `agent` binary successfully.
+Recent verification: `mage docker` built `agent-core:latest` from a remote
+release, and `podman run --rm agent-core:latest --help` started the packaged
+`agent` binary successfully.
 
 ## Installation
 

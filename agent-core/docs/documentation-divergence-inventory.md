@@ -42,7 +42,7 @@ Recommended edits:
 - Keep legacy flags out of the happy path and mention them only as
   compatibility behavior when needed.
 
-Follow-up: `agent-core-9ilp.3`.
+Status: addressed by `agent-core-9ilp.3`.
 
 ## Docker And Mage Release Image Workflow
 
@@ -81,7 +81,7 @@ Recommended edits:
 Status:
 - docs/ release-image and `/opt/agent-core` layout coverage addressed by
   `agent-core-9ilp.2`.
-- README wording and examples remain in `agent-core-9ilp.3`.
+- README wording and examples addressed by `agent-core-9ilp.3`.
 
 ## Bench Launch Documentation
 
