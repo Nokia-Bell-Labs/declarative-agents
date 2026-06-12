@@ -46,6 +46,79 @@ mage build
 bin/agent --profile agents/generator/profile.yaml --directory "$PWD"
 ```
 
+## Docker Runtime
+
+The repository includes a multi-stage Dockerfile that clones Agent Core from
+GitLab during the build, runs `go test ./...`, builds `agent`, and packages a
+runtime image with Go, git, `golangci-lint`, common Unix utilities, and shared
+YAML assets under `/opt/agent-core`.
+
+```bash
+DOCKER_BUILDKIT=1 docker build \
+  --build-arg AGENT_CORE_REF=main \
+  -t agent-core:latest .
+```
+
+For private HTTPS GitLab access, pass a `.netrc` as a BuildKit secret:
+
+```bash
+DOCKER_BUILDKIT=1 docker build \
+  --secret id=git_credentials,src="$HOME/.netrc" \
+  -t agent-core:latest .
+```
+
+The same image can be built with Podman. In environments where the registry
+certificate chain is managed outside Podman's trust store, pass
+`--tls-verify=false`:
+
+```bash
+podman build \
+  --tls-verify=false \
+  --build-arg AGENT_CORE_REF=main \
+  -t agent-core:latest .
+```
+
+For private HTTPS GitLab access with Podman, pass a `.netrc` as a build
+secret:
+
+```bash
+podman build \
+  --tls-verify=false \
+  --secret id=git_credentials,src="$HOME/.netrc" \
+  -t agent-core:latest .
+```
+
+The `.netrc` should contain credentials for the GitLab host:
+
+```text
+machine gitlabe1.ext.net.nokia.com
+  login <username>
+  password <token-or-password>
+```
+
+An external evaluation repository can mount its local suites, samples, and
+evaluator config into `/work` while reusing shared runtime files from the
+image:
+
+```bash
+podman run --rm \
+  -v "$PWD:/work" \
+  -w /work \
+  agent-core:latest \
+  --profile agents/evaluator/profile.yaml \
+  --input suites/suite.yaml \
+  --output eval-results \
+  --directory /work
+```
+
+Profiles inside the mounted repository can reference shared image assets with
+absolute paths such as `/opt/agent-core/tools/builtin`,
+`/opt/agent-core/tools/exec`, and
+`/opt/agent-core/agents/generator/profile-qwen27b.yaml`.
+If mounted output permissions matter, add `--user "$(id -u):$(id -g)"`;
+the image keeps Go caches under `/tmp` so arbitrary user IDs can still run Go
+validation commands.
+
 ## Installation
 
 ```bash
