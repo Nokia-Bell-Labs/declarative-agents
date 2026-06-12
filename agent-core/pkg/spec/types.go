@@ -5,7 +5,11 @@
 // graph for cross-artifact validation.
 package spec
 
-import "sort"
+import (
+	"sort"
+
+	"gopkg.in/yaml.v3"
+)
 
 // SRD represents a parsed Software Requirements Document.
 type SRD struct {
@@ -191,6 +195,75 @@ type TestSuiteEntry struct {
 // names selected for a particular agent mode.
 type ToolSelection struct {
 	Tools []string `yaml:"tools"`
+}
+
+// ToolDeclaration captures tool contract fields needed for corpus
+// validation. This is a subset of the full ToolDef in pkg/stl, defined
+// here to avoid a circular dependency.
+type ToolDeclaration struct {
+	Name          string                `yaml:"name"`
+	Type          string                `yaml:"type,omitempty"`
+	Category      string                `yaml:"category,omitempty"`
+	Init          string                `yaml:"init,omitempty"`
+	Emits         []string              `yaml:"emits,omitempty"`
+	Visibility    string                `yaml:"visibility,omitempty"`
+	Reversibility ToolDeclReversibility `yaml:"reversibility,omitempty"`
+	Undo          ToolDeclUndo          `yaml:"undo,omitempty"`
+	SideEffects   ToolDeclSideEffects   `yaml:"side_effects,omitempty"`
+	SourceFile    string                `yaml:"-"`
+}
+
+// ToolDeclReversibility captures the reversibility classification.
+type ToolDeclReversibility struct {
+	Classification string `yaml:"classification,omitempty"`
+}
+
+// ToolDeclUndo captures the undo contract.
+type ToolDeclUndo struct {
+	Strategy string   `yaml:"strategy,omitempty"`
+	Payload  string   `yaml:"payload,omitempty"`
+	Captures []string `yaml:"captures,omitempty"`
+}
+
+// ToolDeclSideEffects handles both structured and legacy side_effects.
+type ToolDeclSideEffects struct {
+	Items []ToolDeclSideEffect
+}
+
+// ToolDeclSideEffect captures one structured side-effect entry.
+type ToolDeclSideEffect struct {
+	Kind string `yaml:"kind"`
+}
+
+func (s *ToolDeclSideEffects) UnmarshalYAML(value *yaml.Node) error {
+	var items []ToolDeclSideEffect
+	if err := value.Decode(&items); err == nil {
+		s.Items = items
+		return nil
+	}
+	return nil
+}
+
+// ToolDeclFile is the top-level YAML structure for a tool declaration file.
+type ToolDeclFile struct {
+	Tools []ToolDeclaration `yaml:"tools"`
+}
+
+// KnownSideEffectKinds is the canonical vocabulary for side_effects kind values.
+var KnownSideEffectKinds = map[string]bool{
+	"filesystem_read":          true,
+	"filesystem_write":         true,
+	"command_state":            true,
+	"state_mutation":           true,
+	"state_read":               true,
+	"child_tool_execution":     true,
+	"child_agent_execution":    true,
+	"child_process":            true,
+	"nested_machine_execution": true,
+	"external_api":             true,
+	"human_boundary":           true,
+	"stderr_write":             true,
+	"none":                     true,
 }
 
 // SRDIDs returns all SRD IDs from the spec index.

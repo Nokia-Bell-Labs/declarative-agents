@@ -56,8 +56,8 @@ func (c *loadCorpusCmd) Execute() core.Result {
 	c.vs.Corpus = corpus
 	return core.Result{
 		Signal: core.ToolDone,
-		Output: fmt.Sprintf("loaded %d SRDs, %d use cases, %d test suites, %d machines",
-			len(corpus.SRDs), len(corpus.UseCases), len(corpus.TestSuites), len(corpus.Machines)),
+		Output: fmt.Sprintf("loaded %d SRDs, %d use cases, %d test suites, %d machines, %d tool declarations",
+			len(corpus.SRDs), len(corpus.UseCases), len(corpus.TestSuites), len(corpus.Machines), len(corpus.ToolDeclarations)),
 		CommandName: "load_corpus",
 	}
 }
@@ -138,9 +138,9 @@ func (c *formatReportCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 func (c *formatReportCmd) Execute() core.Result {
 	report := spec.FormatFindings(c.vs.Findings)
 
-	summary := fmt.Sprintf("%d SRDs, %d use cases, %d test suites, %d machines, %d nodes, %d edges",
+	summary := fmt.Sprintf("%d SRDs, %d use cases, %d test suites, %d machines, %d tool declarations, %d nodes, %d edges",
 		len(c.vs.Corpus.SRDs), len(c.vs.Corpus.UseCases), len(c.vs.Corpus.TestSuites),
-		len(c.vs.Corpus.Machines),
+		len(c.vs.Corpus.Machines), len(c.vs.Corpus.ToolDeclarations),
 		c.vs.Graph.NodeCount(), len(c.vs.Graph.Edges()))
 
 	if c.vs.HasErrors {

@@ -263,6 +263,146 @@ func TestValidate_MachineStateMetadata(t *testing.T) {
 	assert.Equal(t, "warning", findings[0].Level)
 }
 
+func TestValidate_ToolSelectionDeclared(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"agent": {
+				Name: "agent", InitialState: "Idle",
+				States: core.StateSpecs{{Name: "Idle"}}, Signals: core.SignalSpecs{{Name: "Seed"}},
+				Transitions: []core.TransitionSpec{{State: "Idle", Signal: "Seed", Next: "Idle"}},
+				TerminalStates: []string{"Idle"},
+			},
+		},
+		ToolSelections:   map[string][]string{"agent": {"exists", "missing"}},
+		ToolDeclarations: map[string]ToolDeclaration{"exists": {Name: "exists"}},
+		MachineOrder:     []string{"agent"},
+	}
+
+	findings := checkToolSelectionDeclared(corpus)
+	require.Len(t, findings, 1)
+	assert.Equal(t, "error", findings[0].Level)
+	assert.Contains(t, findings[0].Message, "missing")
+}
+
+func TestValidate_ToolEmitsSignalSet(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"agent": {
+				Name: "agent", InitialState: "Idle",
+				States:         core.StateSpecs{{Name: "Idle"}},
+				Signals:        core.SignalSpecs{{Name: "Seed"}, {Name: "ToolDone"}},
+				Transitions:    []core.TransitionSpec{{State: "Idle", Signal: "Seed", Next: "Idle"}},
+				TerminalStates: []string{"Idle"},
+			},
+		},
+		ToolSelections: map[string][]string{"agent": {"work"}},
+		ToolDeclarations: map[string]ToolDeclaration{
+			"work": {Name: "work", Emits: []string{"ToolDone", "UnknownSignal"}},
+		},
+		MachineOrder: []string{"agent"},
+	}
+
+	findings := checkToolEmitsSignalSet(corpus)
+	require.Len(t, findings, 1)
+	assert.Contains(t, findings[0].Message, "UnknownSignal")
+}
+
+func TestValidate_ToolUndoConsistency(t *testing.T) {
+	corpus := &Corpus{
+		ToolDeclarations: map[string]ToolDeclaration{
+			"good": {
+				Name:          "good",
+				Reversibility: ToolDeclReversibility{Classification: "reversible"},
+				Undo:          ToolDeclUndo{Strategy: "noop"},
+			},
+			"bad": {
+				Name:          "bad",
+				Reversibility: ToolDeclReversibility{Classification: "irreversible"},
+				Undo:          ToolDeclUndo{Strategy: "compensatable"},
+			},
+			"payload-no-captures": {
+				Name: "payload-no-captures",
+				Undo: ToolDeclUndo{Strategy: "compensatable", Payload: "boundary_compensation"},
+			},
+		},
+	}
+
+	findings := checkToolUndoConsistency(corpus)
+	var checks []string
+	for _, f := range findings {
+		checks = append(checks, f.Check)
+	}
+	assert.Contains(t, checks, "tool-undo-mismatch")
+	assert.Contains(t, checks, "tool-undo-payload-no-captures")
+}
+
+func TestValidate_ToolSideEffectVocab(t *testing.T) {
+	corpus := &Corpus{
+		ToolDeclarations: map[string]ToolDeclaration{
+			"good": {
+				Name:        "good",
+				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "filesystem_read"}}},
+			},
+			"bad": {
+				Name:        "bad",
+				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "invented_kind"}}},
+			},
+		},
+	}
+
+	findings := checkToolSideEffectVocab(corpus)
+	require.Len(t, findings, 1)
+	assert.Equal(t, "error", findings[0].Level)
+	assert.Contains(t, findings[0].Message, "invented_kind")
+}
+
+func TestValidate_ToolBoundaryCategory(t *testing.T) {
+	corpus := &Corpus{
+		ToolDeclarations: map[string]ToolDeclaration{
+			"correct": {
+				Name:        "correct",
+				Category:    "boundary",
+				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "child_agent_execution"}}},
+			},
+			"wrong": {
+				Name:        "wrong",
+				Category:    "word",
+				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "external_api"}}},
+			},
+		},
+	}
+
+	findings := checkToolBoundaryCategory(corpus)
+	require.Len(t, findings, 1)
+	assert.Contains(t, findings[0].Message, "wrong")
+	assert.Contains(t, findings[0].Message, "boundary")
+}
+
+func TestValidate_ToolDeclNodesInGraph(t *testing.T) {
+	g, c := loadTestGraphAndCorpus(t)
+
+	require.Contains(t, c.ToolDeclarations, "do_work")
+
+	declNodes := g.NodesByKind(KindToolDecl)
+	require.NotEmpty(t, declNodes)
+
+	var found bool
+	for _, n := range declNodes {
+		if n.ID == "tool-decl:do_work" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "graph should contain tool-decl:do_work node")
+}
+
+func TestValidate_ActionResolvesEdges(t *testing.T) {
+	g, _ := loadTestGraphAndCorpus(t)
+
+	resolvesEdges := g.EdgesByRel(RelResolves)
+	assert.NotEmpty(t, resolvesEdges, "transition actions should resolve to tool declarations")
+}
+
 func TestValidate_MachineNameConsistency(t *testing.T) {
 	corpus := &Corpus{
 		Machines: map[string]core.MachineSpec{

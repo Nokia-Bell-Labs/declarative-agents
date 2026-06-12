@@ -37,8 +37,9 @@ type Corpus struct {
 	Roadmap    Roadmap
 	SpecIndex  SpecIndex
 
-	Machines       map[string]core.MachineSpec
-	ToolSelections map[string][]string
+	Machines         map[string]core.MachineSpec
+	ToolSelections   map[string][]string
+	ToolDeclarations map[string]ToolDeclaration
 
 	SRDOrder     []string
 	UCOrder      []string
@@ -85,17 +86,23 @@ func LoadCorpus(rootDir string) (*Corpus, error) {
 		return nil, err
 	}
 
+	toolDecls, err := discoverAndParseToolDeclarations(rootDir)
+	if err != nil {
+		return nil, err
+	}
+
 	c := &Corpus{
-		SRDs:           srds,
-		UseCases:       ucs,
-		TestSuites:     tss,
-		Roadmap:        rm,
-		SpecIndex:      si,
-		Machines:       machines,
-		ToolSelections: toolSel,
-		SRDOrder:       srdOrder,
-		UCOrder:        ucOrder,
-		MachineOrder:   machineOrder,
+		SRDs:             srds,
+		UseCases:         ucs,
+		TestSuites:       tss,
+		Roadmap:          rm,
+		SpecIndex:        si,
+		Machines:         machines,
+		ToolSelections:   toolSel,
+		ToolDeclarations: toolDecls,
+		SRDOrder:         srdOrder,
+		UCOrder:          ucOrder,
+		MachineOrder:     machineOrder,
 	}
 
 	if err := c.validate(); err != nil {
@@ -228,6 +235,52 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 
 	sort.Strings(order)
 	return machines, toolSel, order, nil
+}
+
+func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaration, error) {
+	decls := make(map[string]ToolDeclaration)
+
+	declFiles := []string{
+		filepath.Join(rootDir, "tools", "builtin.yaml"),
+		filepath.Join(rootDir, "tools", "exec.yaml"),
+	}
+
+	agentsPath := filepath.Join(rootDir, AgentsDir)
+	if entries, err := os.ReadDir(agentsPath); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			override := filepath.Join(agentsPath, entry.Name(), "builtin.yaml")
+			if _, err := os.Stat(override); err == nil {
+				declFiles = append(declFiles, override)
+			}
+		}
+	}
+
+	for _, path := range declFiles {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("read tool declarations %s: %w", path, err)
+		}
+		var file ToolDeclFile
+		if err := yaml.Unmarshal(data, &file); err != nil {
+			return nil, fmt.Errorf("parse tool declarations %s: %w", path, err)
+		}
+		relPath, _ := filepath.Rel(rootDir, path)
+		if relPath == "" {
+			relPath = path
+		}
+		for _, td := range file.Tools {
+			td.SourceFile = relPath
+			decls[td.Name] = td
+		}
+	}
+
+	return decls, nil
 }
 
 func (c *Corpus) validate() error {

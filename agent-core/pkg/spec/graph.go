@@ -26,6 +26,7 @@ const (
 	KindMachineState      Kind = "machine-state"
 	KindMachineSignal     Kind = "machine-signal"
 	KindMachineTransition Kind = "machine-transition"
+	KindToolDecl          Kind = "tool-decl"
 )
 
 // Edge relationship labels.
@@ -39,6 +40,7 @@ const (
 	RelAssigns   = "assigns"
 	RelOrders    = "orders"
 	RelSucceeds  = "succeeds"
+	RelResolves  = "resolves"
 )
 
 // Node is a vertex in the labeled property graph.
@@ -94,6 +96,9 @@ func BuildGraph(corpus *Corpus) (*Graph, error) {
 	if err := g.addMachineNodes(corpus); err != nil {
 		return nil, err
 	}
+	if err := g.addToolDeclNodes(corpus); err != nil {
+		return nil, err
+	}
 
 	if err := g.addReleaseEdges(corpus); err != nil {
 		return nil, err
@@ -120,6 +125,9 @@ func BuildGraph(corpus *Corpus) (*Graph, error) {
 		return nil, err
 	}
 	if err := g.addMachineContainsEdges(corpus); err != nil {
+		return nil, err
+	}
+	if err := g.addActionResolvesEdges(corpus); err != nil {
 		return nil, err
 	}
 
@@ -237,6 +245,22 @@ func (g *Graph) addMachineNodes(corpus *Corpus) error {
 			if err := g.addNode(&Node{ID: trID, Kind: KindMachineTransition, Machine: agentName, Text: tr.Action}); err != nil {
 				return fmt.Errorf("add machine-transition node %s: %w", trID, err)
 			}
+		}
+	}
+	return nil
+}
+
+func (g *Graph) addToolDeclNodes(corpus *Corpus) error {
+	names := make([]string, 0, len(corpus.ToolDeclarations))
+	for name := range corpus.ToolDeclarations {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		td := corpus.ToolDeclarations[name]
+		nodeID := "tool-decl:" + name
+		if err := g.addNode(&Node{ID: nodeID, Kind: KindToolDecl, Text: td.Category}); err != nil {
+			return fmt.Errorf("add tool-decl node %s: %w", nodeID, err)
 		}
 	}
 	return nil
@@ -440,6 +464,23 @@ func (g *Graph) addMachineContainsEdges(corpus *Corpus) error {
 			trID := "machine-transition:" + agentName + ":" + tr.State + "+" + tr.Signal
 			if err := g.addEdge(machineID, trID, RelContains); err != nil {
 				return fmt.Errorf("machine contains transition: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func (g *Graph) addActionResolvesEdges(corpus *Corpus) error {
+	for _, agentName := range corpus.MachineOrder {
+		ms := corpus.Machines[agentName]
+		for _, tr := range ms.Transitions {
+			if tr.Action == "" {
+				continue
+			}
+			trID := "machine-transition:" + agentName + ":" + tr.State + "+" + tr.Signal
+			declID := "tool-decl:" + tr.Action
+			if _, ok := g.nodes[declID]; ok {
+				_ = g.addEdge(trID, declID, RelResolves)
 			}
 		}
 	}

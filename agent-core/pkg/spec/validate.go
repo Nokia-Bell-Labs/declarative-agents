@@ -33,6 +33,11 @@ func Validate(g *Graph, corpus *Corpus) []Finding {
 	all = append(all, checkMachineStateMetadata(corpus)...)
 	all = append(all, checkMachineSignalMetadata(corpus)...)
 	all = append(all, checkMachineNameConsistency(corpus)...)
+	all = append(all, checkToolSelectionDeclared(corpus)...)
+	all = append(all, checkToolEmitsSignalSet(corpus)...)
+	all = append(all, checkToolUndoConsistency(corpus)...)
+	all = append(all, checkToolSideEffectVocab(corpus)...)
+	all = append(all, checkToolBoundaryCategory(corpus)...)
 	return all
 }
 
@@ -371,6 +376,149 @@ func checkMachineSignalMetadata(corpus *Corpus) []Finding {
 				Check:   "machine-incomplete-signal-metadata",
 				Level:   "warning",
 				Message: fmt.Sprintf("machine %s has %d/%d signals with trigger; missing: %s", agentName, withTrigger, len(ms.Signals), strings.Join(missing, ", ")),
+			})
+		}
+	}
+	return findings
+}
+
+// checkToolSelectionDeclared verifies that every tool in a selection file
+// has a corresponding declaration.
+func checkToolSelectionDeclared(corpus *Corpus) []Finding {
+	var findings []Finding
+	for _, agentName := range corpus.MachineOrder {
+		selected := corpus.ToolSelections[agentName]
+		for _, toolName := range selected {
+			if _, ok := corpus.ToolDeclarations[toolName]; !ok {
+				findings = append(findings, Finding{
+					Check:   "tool-selection-undeclared",
+					Level:   "error",
+					Message: fmt.Sprintf("agent %s selects tool %q which has no declaration", agentName, toolName),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+// checkToolEmitsSignalSet verifies that tool emits signals are valid
+// signal names in the machine that uses the tool.
+func checkToolEmitsSignalSet(corpus *Corpus) []Finding {
+	var findings []Finding
+	for _, agentName := range corpus.MachineOrder {
+		ms := corpus.Machines[agentName]
+		signalSet := make(map[string]bool, len(ms.Signals))
+		for _, sig := range ms.Signals {
+			signalSet[sig.Name] = true
+		}
+		selected := corpus.ToolSelections[agentName]
+		for _, toolName := range selected {
+			td, ok := corpus.ToolDeclarations[toolName]
+			if !ok {
+				continue
+			}
+			for _, emitted := range td.Emits {
+				if !signalSet[emitted] {
+					findings = append(findings, Finding{
+						Check:   "tool-emits-unknown-signal",
+						Level:   "warning",
+						Message: fmt.Sprintf("agent %s tool %q emits signal %q not in machine signal set", agentName, toolName, emitted),
+					})
+				}
+			}
+		}
+	}
+	return findings
+}
+
+// checkToolUndoConsistency verifies that undo strategy aligns with
+// reversibility classification.
+func checkToolUndoConsistency(corpus *Corpus) []Finding {
+	var findings []Finding
+	for name, td := range corpus.ToolDeclarations {
+		rev := td.Reversibility.Classification
+		strat := td.Undo.Strategy
+		if rev != "" && strat != "" {
+			switch rev {
+			case "irreversible":
+				if strat != "irreversible" {
+					findings = append(findings, Finding{
+						Check:   "tool-undo-mismatch",
+						Level:   "warning",
+						Message: fmt.Sprintf("tool %q reversibility is %q but undo strategy is %q", name, rev, strat),
+					})
+				}
+			case "reversible":
+				if strat != "noop" && strat != "reversible" && strat != "snapshot_restore" {
+					findings = append(findings, Finding{
+						Check:   "tool-undo-mismatch",
+						Level:   "warning",
+						Message: fmt.Sprintf("tool %q reversibility is %q but undo strategy is %q", name, rev, strat),
+					})
+				}
+			case "compensatable":
+				if strat != "compensatable" && strat != "boundary_compensation" {
+					findings = append(findings, Finding{
+						Check:   "tool-undo-mismatch",
+						Level:   "warning",
+						Message: fmt.Sprintf("tool %q reversibility is %q but undo strategy is %q", name, rev, strat),
+					})
+				}
+			}
+		}
+		if td.Undo.Payload != "" && len(td.Undo.Captures) == 0 {
+			findings = append(findings, Finding{
+				Check:   "tool-undo-payload-no-captures",
+				Level:   "warning",
+				Message: fmt.Sprintf("tool %q has undo payload %q but no captures listed", name, td.Undo.Payload),
+			})
+		}
+	}
+	return findings
+}
+
+// checkToolSideEffectVocab verifies that side_effects kind values use
+// the known vocabulary.
+func checkToolSideEffectVocab(corpus *Corpus) []Finding {
+	var findings []Finding
+	for name, td := range corpus.ToolDeclarations {
+		for _, se := range td.SideEffects.Items {
+			if se.Kind != "" && !KnownSideEffectKinds[se.Kind] {
+				findings = append(findings, Finding{
+					Check:   "tool-unknown-side-effect-kind",
+					Level:   "error",
+					Message: fmt.Sprintf("tool %q side_effects kind %q not in known vocabulary", name, se.Kind),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+// checkToolBoundaryCategory verifies that tools with boundary-class
+// side effects declare category: boundary.
+func checkToolBoundaryCategory(corpus *Corpus) []Finding {
+	boundaryKinds := map[string]bool{
+		"child_agent_execution":    true,
+		"child_process":            true,
+		"nested_machine_execution": true,
+		"external_api":             true,
+		"human_boundary":           true,
+	}
+	var findings []Finding
+	for name, td := range corpus.ToolDeclarations {
+		hasBoundarySE := false
+		for _, se := range td.SideEffects.Items {
+			if boundaryKinds[se.Kind] {
+				hasBoundarySE = true
+				break
+			}
+		}
+		if hasBoundarySE && td.Category != "boundary" {
+			findings = append(findings, Finding{
+				Check:   "tool-boundary-category-missing",
+				Level:   "warning",
+				Message: fmt.Sprintf("tool %q has boundary side effects but category is %q, expected %q", name, td.Category, "boundary"),
 			})
 		}
 	}

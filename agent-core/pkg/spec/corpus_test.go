@@ -49,6 +49,21 @@ func TestLoadCorpus_Machines(t *testing.T) {
 	assert.Contains(t, c.MachineOrder, "test-agent")
 }
 
+func TestLoadCorpus_ToolDeclarations(t *testing.T) {
+	c, err := LoadCorpus(filepath.Join("testdata", "valid"))
+	require.NoError(t, err)
+
+	require.Contains(t, c.ToolDeclarations, "do_work")
+	td := c.ToolDeclarations["do_work"]
+	assert.Equal(t, "word", td.Category)
+	assert.Equal(t, []string{"ToolDone", "CommandError"}, td.Emits)
+	assert.Equal(t, "noop", td.Undo.Strategy)
+	assert.Equal(t, "reversible", td.Reversibility.Classification)
+	assert.Len(t, td.SideEffects.Items, 1)
+	assert.Equal(t, "state_mutation", td.SideEffects.Items[0].Kind)
+	assert.Equal(t, "tools/builtin.yaml", td.SourceFile)
+}
+
 func TestLoadCorpus_NoAgentsDir(t *testing.T) {
 	tmp := t.TempDir()
 	setupTestCorpus(t, tmp)

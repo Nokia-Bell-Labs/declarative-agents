@@ -1,0 +1,16 @@
+tools:
+  - name: do_work
+    type: builtin
+    category: word
+    init: do_work
+    emits: [ToolDone, CommandError]
+    visibility: internal
+    side_effects:
+      - kind: state_mutation
+        description: "Mutates internal state."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "Stateless tool."
