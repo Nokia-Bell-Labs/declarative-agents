@@ -135,7 +135,7 @@ srd_index:
     path: docs/specs/software-requirements/srd018-cli-flag-contract.yaml
   - id: srd019-eval-harness
     title: Evaluation Harness Infrastructure
-    summary: Suite configuration, grid evaluation, session execution, atomic point workspace tools, dump_config, run_agent, oracle/trace/version point result tools, collect_metrics, result analysis, and convergence tracking in internal/tools/stl.
+    summary: Suite configuration, grid evaluation, session execution, atomic point workspace tools, dump_config, run_agent, oracle/trace/version point result tools, collect_metrics, result analysis, and convergence tracking in internal/evaluation.
     path: docs/specs/software-requirements/srd019-eval-harness.yaml
   - id: srd020-bench-web-ui
     title: Bench Web UI
@@ -338,17 +338,17 @@ coverage_gaps: |
   - internal/planning/plan — implementation plan parsing
   - internal/support/worktree — git worktree lifecycle
   - internal/support/subprocess — subprocess execution utilities
-  - internal/tools/stl eval harness — 14 eval_*.go files implementing workspace
-    preparation, agent execution, result checking, metrics collection,
-    convergence analysis, trace reading, and config dumping
+  - internal/evaluation — evaluator session and point runtime, profile suite
+    parsing, workspace preparation, agent execution, result checking, metrics
+    collection, convergence analysis, trace reading, and config dumping
   - cmd/agent — unified binary orchestration, tool registration, LLM
     config loading, session-level eval machine
   - internal/evaluation/bench — state-machine-driven web UI with serve_ui and
-    launch_eval tools (configured via --machine agents/bench/machine.yaml)
+    launch_eval tools (configured via agents/bench/profile.yaml)
 
-  srd013 (STL) needs expansion to cover evaluator point tools,
-  run_agent, point result tools, collect_metrics, dump_config, nudge_reread,
-  validate, done as standalone builtin, and YAML-based tool registration.
+  srd013 (STL) delegates evaluator behavior to srd019 and focuses on shared
+  file/build/LLM/lifecycle/config-loading tools, including nudge_reread,
+  validate, done as a standalone builtin, and YAML-based tool registration.
 
   Agent configurations and architectural models are documented in enriched machine configs and cross-cutting semantic models:
   - agents/generator/machine.yaml (generator machine semantics)

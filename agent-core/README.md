@@ -19,6 +19,11 @@ transition tables.
 | `internal/model/llm/ollama` | Ollama adapter satisfying `llm.Client` |
 | `internal/model/prompt` | Prompt loading from YAML, system template rendering, manifest serialization |
 | `internal/tools/stl` | Standard tool library: file tools, build tools, LLM commands, subprocess, process groups |
+| `internal/evaluation` | Evaluator session/point runtime, result artifacts, metrics, convergence, trace analysis |
+| `internal/evaluation/bench` | Bench server, UI support, and evaluation launch orchestration |
+| `internal/planning` | Planner extraction, graph, materialization, plan parsing, and pipeline orchestration |
+| `internal/observability` | Tracing ports, OpenTelemetry adapters, GenAI span helpers, and replay support |
+| `internal/support` | CLI, process execution, subprocess, and worktree helper packages |
 | `pkg/spec` | Specification graph loader and cross-artifact validator |
 
 Private implementation packages are grouped under `internal/`. See
