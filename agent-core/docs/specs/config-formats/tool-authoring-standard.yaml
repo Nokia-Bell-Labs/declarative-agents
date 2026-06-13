@@ -70,7 +70,7 @@ good_tool_rules:
     test: "Filesystem writes, state mutations, subprocesses, external APIs, stderr output, and human/model calls are listed."
   - id: GT5
     rule: "A tool states its rollback story."
-    test: "The declaration says whether effects are reversible, compensatable, irreversible, or no-op."
+    test: "The declaration classifies effects as reversible, compensatable, irreversible, or no-op."
   - id: GT6
     rule: "A tool fails loudly and specifically."
     test: "Failures use declared signals and explain the state left behind."
@@ -117,7 +117,7 @@ required_contract_sections:
     errors: "How the tool fails, which signal it emits, and what state remains."
 
   non_goals: |
-    Specific things the tool deliberately does not do. Non-goals prevent
+    Specific things the tool does not do. Non-goals prevent
     one word from being misused as a hidden workflow.
 
   output_schema: |
@@ -136,7 +136,7 @@ required_contract_sections:
     that affect external systems or user data.
 
   undo: |
-    Name the concrete strategy. Common strategies are noop,
+    Name the exact strategy. Common strategies are noop,
     conversation_truncate, session_state_restore, point_context_restore,
     workspace_restore, child_command_undo, or compensating_action.
 
@@ -258,7 +258,7 @@ example_tools:
       description: "Restore the retry counter snapshot captured before the word executed."
     why_good:
       - "The retry policy is grammar-visible through ParseFailed -> report_parse_error."
-      - "The command-owned state mutation has a concrete undo strategy."
+      - "The command-owned state mutation has an exact undo strategy."
 
   compensatable_boundary:
     name: create_issue
@@ -367,18 +367,20 @@ result_schema_compatibility:
     - "The prototype does not evaluate oneOf, anyOf, arrays, enums, formats, or semantic constraints."
 
 migration_guidance:
-  - "When a legacy tool is a sentence, first classify it honestly as sentence or deprecated boundary."
+  - "When a legacy tool is a sentence, first classify it as sentence or deprecated boundary."
   - "Split the highest-risk side effects first: filesystem writes, child processes, and domain state mutation."
   - "Move sequencing into machine.yaml and update emits on each new word."
   - "Keep compatibility shims only when a shipped machine still selects the old tool; mark them internal and deprecated."
   - "Update semantic-model audits and SRDs in the same change as the declaration or machine change."
 
+historical_background:
+  - lifecycle-rollback.md
+  - tools-as-dsl.md
+
 related_documents:
   - cfg-tool-declaration-format
   - cfg-tool-selection-format
   - cfg-machine-format
-  - lifecycle-rollback.md
-  - tools-as-dsl.md
   - srd001-core-types
   - srd005-agentic-loop
   - srd021-agent-cli-exec-tool

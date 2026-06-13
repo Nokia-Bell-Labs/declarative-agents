@@ -493,6 +493,11 @@ engine_policy_audit:
         should declare manifest_state explicitly so the universal runtime does
         not encode a domain state name.
 
+historical_background:
+  - lifecycle-rollback.md
+  - roll-backs.md
+  - tools-as-dsl.md
+
 related_documents:
   - cfg-machine-format
   - cfg-tool-declaration-format
@@ -506,9 +511,6 @@ related_documents:
   - srd024
   - srd025-rollback-lifecycle
   - srd026-lifecycle-tools
-  - lifecycle-rollback.md
-  - roll-backs.md
-  - tools-as-dsl.md
 
 implementation:
   - cmd/agent/main.go
