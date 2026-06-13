@@ -27,7 +27,7 @@ overview:
     - internal/model/llm — model-boundary client, conversation, profiles, parsing utilities
     - internal/model/llm/ollama — Ollama client implementation used by model boundary tools
     - internal/model/prompt — prompt schema, YAML loading, system template
-    - internal/tools/stl — standard tool library (file, build, model boundary, lifecycle, config loading)
+    - internal/tools/stl — standard tool library (file, build, model boundary, lifecycle adapters, config loading)
     - internal/evaluation — evaluator session/point runtime, result artifacts, metrics, and trace analysis
     - internal/support/cli — CLI flag constants and argument propagation (library; not imported by cmd/agent)
     - internal/support/subprocess — subprocess execution utilities
@@ -310,10 +310,10 @@ overview:
         C -->|ToolDone / action test| D
         D -->|ToolDone| E
 
-        W1 -. emits TaskCompleted .-> A
-        W2 -. emits ToolDone or ToolFailed .-> B
-        W3 -. emits ToolDone or ToolFailed .-> C
-        W4 -. emits ToolDone or ToolFailed .-> D
+        W1 -. returns TaskCompleted .-> A
+        W2 -. returns ToolDone or ToolFailed .-> B
+        W3 -. yields ToolDone or ToolFailed .-> C
+        W4 -. reports ToolDone or ToolFailed .-> D
       ```
 
     tool_contract_pipeline_diagram: |
@@ -421,6 +421,11 @@ overview:
       default filesystem implementation. A Checkpoint references all relevant
       layers without pretending one layer can serialize another.
 
+      Lifecycle history and rollback follow the same profile-first runtime
+      path as other configured programs. Lifecycle profiles select their
+      MachineSpec, tools.yaml selection, and builtin ToolDefs. The selected STL
+      lifecycle tools call reusable core checkpoint operations.
+
     state_layer_diagram: |
       ```mermaid
       flowchart TB
@@ -505,6 +510,22 @@ overview:
         H --> I[Return resumable agent state]
       ```
 
+    profile_first_lifecycle_diagram: |
+      ```mermaid
+      flowchart LR
+        P[agents/lifecycle/*/profile.yaml] --> M[Lifecycle MachineSpec]
+        P --> S[tools.yaml selection]
+        P --> D[ToolDef declarations]
+        S --> D
+        D --> R[Registry and BuiltinRegistry]
+        M -->|action checkpoint_history| H[STL checkpoint_history]
+        M -->|action checkpoint_rollback| RB[STL checkpoint_rollback]
+        H --> C[core checkpoint operations]
+        RB --> C
+        C --> STORE[StateStore]
+        C --> WORK[Workspace]
+      ```
+
     tool_effects_to_lifecycle_diagram: |
       ```mermaid
       flowchart LR
@@ -533,6 +554,7 @@ overview:
 
     references:
       - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+      - docs/specs/software-requirements/srd026-lifecycle-tools.yaml
       - docs/specs/semantic-models/rollback-lifecycle.yaml
       - docs/specs/test-suites/test-rel02.0-lifecycle.yaml
       - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
@@ -561,10 +583,10 @@ overview:
       The engine knows nothing about CLI flags, Cobra commands, or Mage targets.
       Adapters are thin wiring layers that parse external input and call core:
 
-        CLI adapter (cmd/agent)   →  core.Loop / core.ResumeFromCheckpoint
-        CLI history subcommand    →  core.FormatCheckpointHistory
-        CLI rollback subcommand   →  core.RollbackFromCheckpoint
-        Mage audit target         →  runs agent binary with --profile
+        Profile runtime (cmd/agent)       -> core.Loop / core.ResumeFromCheckpoint
+        checkpoint_history STL adapter    -> core.FormatCheckpointHistory
+        checkpoint_rollback STL adapter   -> core.RollbackFromCheckpoint
+        Mage audit target                 -> runs agent binary with --profile
 
       Resume and rollback have different dependency requirements:
       - Resume needs the full engine stack (machine spec, tool definitions,
@@ -572,14 +594,17 @@ overview:
       - Rollback is a pure checkpoint operation: it only needs a StateStore
         and optionally a Workspace. No grammar or lexicon is loaded.
 
-      This dependency boundary is why they remain separate CLI entry points
-      rather than a unified --resume path.
+      This dependency boundary is why the lifecycle profiles dispatch separate
+      tool adapters instead of forcing rollback through the resume path. Hidden
+      history or rollback CLI subcommands are migration adapters only.
 
     source_files:
       - internal/runtime/core/checkpoint_ops.go
       - internal/runtime/core/checkpoint_ops_test.go
       - internal/runtime/core/resume.go
       - internal/runtime/core/rollback.go
+      - internal/tools/stl/checkpoint_lifecycle.go
+      - internal/tools/stl/checkpoint_lifecycle_test.go
 
   coordination_pattern: |
     Work flows through the state machine. The loop holds the current
@@ -924,7 +949,7 @@ project_structure:
     - path: internal/model/prompt/
       role: Prompt struct, YAML loading, system prompt template, and manifest serialization
     - path: internal/tools/stl/
-      role: Standard tool library (file, build, model boundary, lifecycle, config loading, subprocess)
+      role: Standard tool library (file, build, model boundary, lifecycle adapters, config loading, subprocess)
     - path: internal/support/cli/
       role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
     - path: internal/support/subprocess/
@@ -961,6 +986,8 @@ project_structure:
       role: Validation agent — machine.yaml, tools.yaml
     - path: agents/bench/
       role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
+    - path: agents/lifecycle/
+      role: Lifecycle configured programs — history and rollback profiles, machines, and tool selection
     - path: tools/
       role: Shared tool declarations — builtin.yaml and exec.yaml
     - path: internal/model/llm/profiles/
@@ -982,7 +1009,7 @@ implementation_status:
     - done: Model boundary support (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
     - done: Ollama client implementation (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
-    - done: Standard tool library (internal/tools/stl) — file, build, model boundary, lifecycle, config loading
+    - done: Standard tool library (internal/tools/stl) — file, build, model boundary, lifecycle adapters, config loading
     - done: CLI flags (internal/support/cli) — standard flag constants, PropagateArgs, RemainingBudget
     - done: Subprocess (internal/support/subprocess) — process execution utilities
     - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph, internal/planning/materialize)
@@ -1000,7 +1027,7 @@ implementation_status:
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
-    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd025)
+    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd026)
 
 related_documents:
   - doc: docs/VISION.yaml
@@ -1015,3 +1042,5 @@ related_documents:
     purpose: Semantic model for checkpoint, suspend/resume, rollback traversal, and state layer ownership
   - doc: docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
     purpose: Requirements for lifecycle state, history, rollback, suspend, resume, and approval gates
+  - doc: docs/specs/software-requirements/srd026-lifecycle-tools.yaml
+    purpose: Requirements for lifecycle tool adapters and their core checkpoint operation boundary

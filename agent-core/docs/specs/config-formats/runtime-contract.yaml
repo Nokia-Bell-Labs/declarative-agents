@@ -27,10 +27,15 @@ invocation: |
           [--state-store-dir <dir>] \
           [--resume-checkpoint <id>] [--resume-signal <signal>]
 
-  Lifecycle subcommands:
-    agent history --state-store-dir <dir> [--checkpoint <id|latest>]
-    agent rollback --state-store-dir <dir> --to-iteration <n> \
-          [--checkpoint <id|latest>] [--directory <path>]
+  Lifecycle profile invocations:
+    agent --profile agents/lifecycle/history/profile.yaml \
+          --state-store-dir <dir> \
+          --input requests/history.yaml
+
+    agent --profile agents/lifecycle/rollback/profile.yaml \
+          --state-store-dir <dir> \
+          --directory <workspace> \
+          --input requests/rollback.yaml
 
   Preferred agent configuration flag:
     --profile            Path to an agent profile YAML. The profile supplies
@@ -70,9 +75,11 @@ invocation: |
     --resume-signal      Signal used for the first resumed transition
                          (default: Approved).
 
-  Lifecycle subcommand flags:
-    --checkpoint         Checkpoint ID or latest for history/rollback.
-    --to-iteration       Target history iteration for rollback.
+  Lifecycle request input:
+    History and rollback targets are lifecycle tool input data. A request file
+    can name checkpoint: <id|latest>, to_iteration: <n>, and
+    restore_workspace: true. The active lifecycle profile and ToolDef decide
+    how that input maps to checkpoint_history or checkpoint_rollback config.
 
 startup_sequence:
   - step: 1
@@ -133,7 +140,10 @@ startup_sequence:
       Lifecycle behavior is opt-in. When --state-store-dir is absent,
       cmd/agent does not create a FileStore and checkpoint persistence is
       disabled. When present, cmd/agent creates a FileStore and passes it to
-      LoopParams.StateStore and lifecycle-aware builtin factories. Suspend
+      LoopParams.StateStore and lifecycle-aware builtin factories. Lifecycle
+      history and rollback profiles use the same StateStore path and register
+      checkpoint_history or checkpoint_rollback through the normal builtin
+      factory flow. Suspend
       checkpoints can include AgentSnapshot, conversation JSON from
       LoopHooks.SnapshotConversation, optional DomainState JSON, optional
       WorkspaceRef, and HistoryDigest entries. Each HistoryDigest can carry an
@@ -222,7 +232,10 @@ nested_machines: |
 
 lifecycle: |
   Lifecycle features are runtime ports around the same machine contract, not a
-  separate programming model. See lifecycle-rollback.md for operator examples.
+  separate programming model. History and rollback are ordinary lifecycle
+  profiles: their MachineSpec files dispatch checkpoint_history or
+  checkpoint_rollback, their tools.yaml files select those tools, and their
+  ToolDef declarations bind typed config and emitted signals.
 
   State layers remain independent:
     - agent state is JSON loop bookkeeping in Checkpoint.agent_state;
@@ -248,14 +261,16 @@ lifecycle: |
       reversibility, undo strategy, and confirmation requirements in the tool
       contract.
 
-history_and_rollback_cli: |
-  agent history reads a persisted checkpoint and prints a stable digest:
-  iteration, command, from state, to state, result signal, undo memento status,
-  and workspace ref. agent rollback resolves a checkpoint, targets an
-  iteration, traverses the persisted history digest through the rollback path,
-  restores supported UndoMemento payloads into the new checkpoint, writes a new
-  rollback checkpoint, and restores the target workspace ref only when
-  --directory identifies a managed GitWorkspace.
+history_and_rollback_profiles: |
+  checkpoint_history reads a persisted checkpoint through core checkpoint
+  operations and prints a stable digest: iteration, command, from state, to
+  state, result signal, undo memento status, and workspace ref.
+
+  checkpoint_rollback resolves a checkpoint, targets an iteration, traverses the
+  persisted history digest through core rollback operations, restores supported
+  UndoMemento payloads into the new checkpoint, writes a rollback checkpoint,
+  and restores the target workspace ref only when --directory identifies a
+  managed GitWorkspace.
 
   Persisted rollback currently restores conversation and domain-state payloads
   recorded in mementos and reports missing, irreversible, or compensatable
@@ -263,6 +278,9 @@ history_and_rollback_cli: |
   artifact paths, issue IDs, server/user-action details, or nested-machine
   context for a follow-up compensating action instead of silently treating those
   effects as reversible.
+
+  Hidden history and rollback subcommands are migration compatibility paths
+  only. New operator flows should invoke lifecycle profiles.
 
 config_file_layout: |
   tools/
@@ -297,6 +315,12 @@ config_file_layout: |
       profile.yaml
       machine.yaml          # Spec validation pipeline and semantics
       tools.yaml            # load_corpus + validate_specs + format_report
+    lifecycle/
+      history/profile.yaml  # Lifecycle history configured program
+      history.yaml          # History MachineSpec
+      rollback/profile.yaml # Lifecycle rollback configured program
+      rollback.yaml         # Rollback MachineSpec
+      tools.yaml            # checkpoint_history + checkpoint_rollback selection
 
 container_runtime_layout: |
   The release image packages the same profile-first runtime contract. The
@@ -331,8 +355,9 @@ container_runtime_layout: |
 
 invariants:
   - Every agent mode uses the same binary with the same startup sequence.
-  - No mode-specific run subcommands exist; lifecycle subcommands operate on
-    persisted checkpoint data and do not define agent behavior.
+  - No mode-specific run subcommands exist; lifecycle history and rollback run
+    through the same profile, machine, tool-selection, and builtin registration
+    flow as other configured programs.
   - Mode-specific tool configuration lives in YAML config blocks. A small set
     of universal CLI flags such as --input, --output, --directory, and
     lifecycle/telemetry flags serve as runtime inputs. Model/provider settings
@@ -365,8 +390,10 @@ runtime_safety_boundary: |
   Lifecycle suspension is a runtime boundary around an explicit grammar signal.
   A machine or tool emits AwaitApproval; the engine then persists checkpoint
   state, marks the run suspended, and stops. Resume, history, and rollback
-  commands operate on checkpoints and undo mementos, not on mode-specific
-  branches. Disabled lifecycle ports preserve the normal no-persistence runtime.
+  operate on checkpoints and undo mementos, not on mode-specific branches.
+  History and rollback are lifecycle profile runs that dispatch declared
+  lifecycle tools. Disabled lifecycle ports preserve the normal no-persistence
+  runtime.
 
   Domain behavior remains in YAML and tool declarations: states, signals,
   transitions, selected words, per-tool config, emitted-signal contracts, and
@@ -412,12 +439,13 @@ engine_policy_audit:
         Resume restores checkpoint layers and re-enters the same machine without
         replaying bootstrap work. The default resume signal is an approval-gate
         convention, not a separate agent mode.
-    - item: History and rollback CLI
-      symbols: [agent history, agent rollback]
+    - item: Lifecycle history and rollback tools
+      symbols: [checkpoint_history, checkpoint_rollback, core.RollbackFromCheckpoint, core.FormatCheckpointHistory]
       rationale: |
-        Lifecycle subcommands operate on persisted checkpoint data and undo
-        mementos. They do not select generator, planner, evaluator, bench, or
-        validate behavior.
+        Lifecycle profiles dispatch declared builtin tools. The tools operate
+        on persisted checkpoint data and undo mementos, then delegate checkpoint
+        selection, formatting, traversal, and rewriting to core operations.
+        Hidden CLI subcommands are transitional compatibility only.
 
   domain_policy_hooks:
     - item: Terminal status mapping
@@ -472,6 +500,7 @@ related_documents:
   - srd023
   - srd024
   - srd025-rollback-lifecycle
+  - srd026-lifecycle-tools
   - lifecycle-rollback.md
   - roll-backs.md
   - tools-as-dsl.md
@@ -480,5 +509,7 @@ implementation:
   - cmd/agent/main.go
   - internal/runtime/core/loop.go
   - internal/runtime/core/machine.go
+  - internal/runtime/core/checkpoint_ops.go
+  - internal/tools/stl/checkpoint_lifecycle.go
   - internal/tools/stl/register.go
   - internal/tools/stl/tool_emits.go
