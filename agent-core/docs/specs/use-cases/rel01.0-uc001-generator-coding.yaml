@@ -2,21 +2,23 @@ id: rel01.0-uc001-generator-coding
 title: Generator agent solves Go coding tasks using YAML config
 
 summary: |
-  The generator agent is configured through agents/generator/profile.yaml,
-  which points to its machine, tool selection, shared tool declarations, and
-  per-model LLM tool declaration. The agent iteratively
-  invokes an LLM, parses tool calls, executes file/build/test tools,
-  and converges on a solution that passes validation.
+  agents/generator/profile.yaml configures the generator agent. It points to
+  the machine, tool selection, shared tool declarations, and per-model LLM tool
+  declaration. During a run, the agent invokes an LLM, parses tool calls,
+  executes file/build/test tools, and stops after validation passes. The same
+  profile-first path keeps the generator workflow in YAML instead of
+  mode-specific Go branches, so the integration target checks runtime wiring as
+  well as task completion.
 
-  The integration test (mage integration:uc001) exercises this end-to-end
-  with Qwen 3.6 (35b), validating the Qwen-specific parsing pipeline
-  (thinking-block stripping, [tool_call] envelope extraction) and the
-  full Composing/Parsing loop through build/lint/test validation.
+  mage integration:uc001 exercises the path with Qwen 3.6 (35b). That target
+  validates the Qwen parsing pipeline, including thinking-block stripping,
+  [tool_call] envelope extraction, and the Composing/Parsing loop through
+  build/lint/test validation.
 
 actor: Developer invoking the agent binary
 
 trigger: |
-  The developer (or mage integration:uc001) runs:
+  A developer, or mage integration:uc001, runs:
     agent --profile agents/generator/profile.yaml \
           --directory <workspace>
 
@@ -92,6 +94,7 @@ success_criteria:
 
 integration_test: mage integration:uc001
 test_data: testdata/integration/uc001-generator-coding
+test_suite_trace: test-rel01.0
 
 out_of_scope:
   - Multi-file project scaffolding beyond the workspace directory.
