@@ -4,8 +4,7 @@ title: Tool Selection Format (tools.yaml)
 purpose: |
   Defines the simple name-list format used by each agent's tools.yaml
   to select which declared tools are available to that agent. This
-  separates tool declaration (what a tool is and how it works) from
-  tool selection (which tools a specific agent can use), enabling
+  separates tool declaration semantics from per-agent availability, enabling
   tool reuse across agents with different toolsets.
 
 schema:
@@ -117,6 +116,39 @@ selection_files:
       evaluator profile as a child process). Shared declarations are
       loaded from tools/builtin/ and bench-specific config comes from
       agents/bench/builtin.yaml.
+
+grouped_declaration_loading:
+  status: planned
+  rule: |
+    Tool selection files stay name-only during and after the declaration
+    grouping migration. A selection file never names tools/builtin/*,
+    tools/exec/*, or bundle files. Profiles and CLI flags choose declaration
+    sources; tools.yaml chooses tool names from those sources.
+  compatibility:
+    - Existing profiles must keep loading while declarations move into grouped files.
+    - tools/builtin.yaml and tools/exec.yaml remain compatibility bundles for direct CLI startup.
+    - Profile-local tool_declarations continue to load after shared groups so local config can override shared identity.
+    - A selected name must resolve after all shared groups, bundles, and local overrides are merged.
+  agent_selection_intent: |
+    Generator profiles load builtin/filesystem, builtin/llm, and exec/go shared
+    groups, then load agents/generator/llm/*.yaml for model-boundary config.
+    The build, lint, and test order remains in machine.yaml.
+
+    Planner profiles load builtin/planner, builtin/llm, and exec/go groups.
+    They add agents/planner/builtin.yaml for child-agent config and
+    agents/planner/llm/*.yaml for model config.
+
+    Evaluator profiles load builtin/evaluator-session and
+    builtin/evaluator-point declarations. The agent-local
+    agents/evaluator/builtin.yaml file supplies suite and point-machine config,
+    and run_point loads agents/evaluator/tools-point.yaml for the nested point
+    machine.
+
+    Bench profiles load builtin/bench declarations and keep evaluator child
+    profile config in agents/bench/builtin.yaml. Jurist profiles load only
+    builtin/spec-validation. Lifecycle history and rollback profiles load
+    builtin/lifecycle; approval profiles add suspend and done through their own
+    tools.yaml.
 
 related_documents:
   - cfg-tool-declaration-format
