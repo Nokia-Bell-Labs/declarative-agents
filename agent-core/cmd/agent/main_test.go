@@ -126,7 +126,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 func TestFormatCheckpointHistory(t *testing.T) {
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 
-	out := formatCheckpointHistory(cp)
+	out := core.FormatCheckpointHistory(cp)
 
 	require.Contains(t, out, "checkpoint: cp-1")
 	require.Contains(t, out, "iteration: 2")
@@ -141,7 +141,7 @@ func TestResolveCheckpointIDLatest(t *testing.T) {
 	saveAgentCheckpoint(t, store, sampleCheckpoint("older", time.Unix(100, 0).UTC()))
 	saveAgentCheckpoint(t, store, sampleCheckpoint("newer", time.Unix(200, 0).UTC()))
 
-	id, err := resolveCheckpointID(ctx, store, "latest")
+	id, err := core.ResolveLatestCheckpointID(ctx, store, "latest")
 
 	require.NoError(t, err)
 	require.Equal(t, "newer", id)
@@ -150,17 +150,17 @@ func TestResolveCheckpointIDLatest(t *testing.T) {
 func TestRollbackCheckpointToIteration(t *testing.T) {
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 
-	rolledBack, ref, err := rollbackCheckpointToIteration(cp, 1)
+	result, err := core.RollbackCheckpoint(cp, 1)
 
 	require.NoError(t, err)
-	require.Equal(t, "ref-1", ref)
-	require.Equal(t, 1, rolledBack.Iteration)
-	require.Equal(t, 1, rolledBack.AgentState.Iteration)
-	require.Equal(t, core.State("Reading"), rolledBack.AgentState.State)
-	require.Equal(t, "ref-1", rolledBack.WorkspaceRef)
-	require.Len(t, rolledBack.History, 1)
-	require.JSONEq(t, `{"conversation_len":1}`, string(rolledBack.DomainState))
-	require.True(t, strings.HasPrefix(rolledBack.ID, "rollback-cp-1-to-1-"))
+	require.Equal(t, "ref-1", result.WorkspaceRef)
+	require.Equal(t, 1, result.Checkpoint.Iteration)
+	require.Equal(t, 1, result.Checkpoint.AgentState.Iteration)
+	require.Equal(t, core.State("Reading"), result.Checkpoint.AgentState.State)
+	require.Equal(t, "ref-1", result.Checkpoint.WorkspaceRef)
+	require.Len(t, result.Checkpoint.History, 1)
+	require.JSONEq(t, `{"conversation_len":1}`, string(result.Checkpoint.DomainState))
+	require.True(t, strings.HasPrefix(result.Checkpoint.ID, "rollback-cp-1-to-1-"))
 }
 
 func TestRollbackCheckpointToIterationRestoresConversationMemento(t *testing.T) {
@@ -173,10 +173,10 @@ func TestRollbackCheckpointToIterationRestoresConversationMemento(t *testing.T) 
 		Payload:     json.RawMessage(`{"conversation":[{"role":"user","content":"before"}]}`),
 	}
 
-	rolledBack, _, err := rollbackCheckpointToIteration(cp, 1)
+	result, err := core.RollbackCheckpoint(cp, 1)
 
 	require.NoError(t, err)
-	require.JSONEq(t, `[{"role":"user","content":"before"}]`, string(rolledBack.ConversationLog))
+	require.JSONEq(t, `[{"role":"user","content":"before"}]`, string(result.Checkpoint.ConversationLog))
 }
 
 func TestRollbackCheckpointToIterationRestoresPipelineDomainMemento(t *testing.T) {
@@ -189,17 +189,17 @@ func TestRollbackCheckpointToIterationRestoresPipelineDomainMemento(t *testing.T
 		Payload:     json.RawMessage(`{"domain_state":{"retry_count":3,"issue_id":"old"}}`),
 	}
 
-	rolledBack, _, err := rollbackCheckpointToIteration(cp, 1)
+	result, err := core.RollbackCheckpoint(cp, 1)
 
 	require.NoError(t, err)
-	require.JSONEq(t, `{"retry_count":3,"issue_id":"old"}`, string(rolledBack.DomainState))
+	require.JSONEq(t, `{"retry_count":3,"issue_id":"old"}`, string(result.Checkpoint.DomainState))
 }
 
 func TestRollbackCheckpointToIterationReportsMissingUndoMemento(t *testing.T) {
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 	cp.History[1].Undo = nil
 
-	_, _, err := rollbackCheckpointToIteration(cp, 1)
+	_, err := core.RollbackCheckpoint(cp, 1)
 
 	require.Contains(t, err.Error(), "rollback command restore")
 	require.Contains(t, err.Error(), core.ErrUndoMementoMissing.Error())
@@ -211,7 +211,7 @@ func TestRollbackCheckpointToIterationReportsIrreversibleUndoMemento(t *testing.
 	irreversible := core.IrreversibleUndoMemento("write", "already published externally")
 	cp.History[1].Undo = &irreversible
 
-	_, _, err := rollbackCheckpointToIteration(cp, 1)
+	_, err := core.RollbackCheckpoint(cp, 1)
 
 	require.Contains(t, err.Error(), core.ErrUndoMementoIncompatible.Error())
 	require.Contains(t, err.Error(), "irreversible")
