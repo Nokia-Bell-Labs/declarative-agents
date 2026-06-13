@@ -126,6 +126,66 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 	}
 }
 
+func TestRootCommandHasNoLifecycleSubcommands(t *testing.T) {
+	t.Parallel()
+
+	for _, cmd := range rootCmd.Commands() {
+		require.NotContains(t, []string{"history", "rollback"}, cmd.Name())
+	}
+	assertMainDeclsAbsent(t, map[string]bool{
+		"historyCmd":     true,
+		"rollbackCmd":    true,
+		"runHistory":     true,
+		"runRollback":    true,
+		"lifecycleStore": true,
+	})
+}
+
+func TestRootCommandHasNoLifecycleOnlyFlags(t *testing.T) {
+	t.Parallel()
+
+	for _, flag := range []string{"checkpoint", "to-iteration"} {
+		require.Nil(t, rootCmd.PersistentFlags().Lookup(flag), "lifecycle-only flag %q must not be universal", flag)
+	}
+	for _, flag := range []string{"profile", "state-store-dir", "resume-checkpoint", "resume-signal", "directory", "input"} {
+		require.NotNil(t, rootCmd.PersistentFlags().Lookup(flag), "universal flag %q should remain", flag)
+	}
+	assertMainDeclsAbsent(t, map[string]bool{
+		"flagHistoryCheckpoint":   true,
+		"flagRollbackCheckpoint":  true,
+		"flagRollbackToIteration": true,
+	})
+}
+
+func assertMainDeclsAbsent(t *testing.T, forbidden map[string]bool) {
+	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(filepath.Dir(currentFile), "main.go"), nil, 0)
+	require.NoError(t, err)
+	for _, decl := range parsed.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			require.False(t, forbidden[d.Name.Name], "main.go must not declare %s", d.Name.Name)
+		case *ast.GenDecl:
+			assertGenDeclNamesAbsent(t, d, forbidden)
+		}
+	}
+}
+
+func assertGenDeclNamesAbsent(t *testing.T, decl *ast.GenDecl, forbidden map[string]bool) {
+	t.Helper()
+	for _, spec := range decl.Specs {
+		value, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			continue
+		}
+		for _, name := range value.Names {
+			require.False(t, forbidden[name.Name], "main.go must not declare %s", name.Name)
+		}
+	}
+}
+
 func TestFormatCheckpointHistory(t *testing.T) {
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 
@@ -221,65 +281,6 @@ func TestRollbackCheckpointToIterationReportsIrreversibleUndoMemento(t *testing.
 	require.Contains(t, err.Error(), "already published externally")
 }
 
-func TestRunHistoryPrintsCheckpointHistory(t *testing.T) {
-	stateStoreDir := t.TempDir()
-	store := core.NewFileStore(stateStoreDir)
-	saveAgentCheckpoint(t, store, sampleCheckpoint("cp-1", time.Unix(100, 0).UTC()))
-	flagStateStoreDir = stateStoreDir
-	flagHistoryCheckpoint = "cp-1"
-	t.Cleanup(resetLifecycleFlags)
-
-	var out bytes.Buffer
-	cmd := &cobra.Command{}
-	cmd.SetOut(&out)
-
-	err := runHistory(cmd, nil)
-
-	require.NoError(t, err)
-	require.Contains(t, out.String(), "checkpoint: cp-1")
-	require.Contains(t, out.String(), "history:")
-}
-
-func TestRunRollbackRefusesWorkspaceRestoreWithoutDirectory(t *testing.T) {
-	stateStoreDir := t.TempDir()
-	store := core.NewFileStore(stateStoreDir)
-	saveAgentCheckpoint(t, store, sampleCheckpoint("cp-1", time.Unix(100, 0).UTC()))
-	flagStateStoreDir = stateStoreDir
-	flagRollbackCheckpoint = "cp-1"
-	flagRollbackToIteration = 1
-	flagDirectory = ""
-	t.Cleanup(resetLifecycleFlags)
-
-	err := runRollback(&cobra.Command{}, nil)
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "--directory is required")
-}
-
-func TestRunRollbackPersistsNewCheckpointWithoutWorkspaceRestore(t *testing.T) {
-	stateStoreDir := t.TempDir()
-	store := core.NewFileStore(stateStoreDir)
-	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
-	cp.History[0].WorkspaceRef = ""
-	saveAgentCheckpoint(t, store, cp)
-	flagStateStoreDir = stateStoreDir
-	flagRollbackCheckpoint = "cp-1"
-	flagRollbackToIteration = 1
-	flagDirectory = ""
-	t.Cleanup(resetLifecycleFlags)
-
-	var out bytes.Buffer
-	cmd := &cobra.Command{}
-	cmd.SetOut(&out)
-	err := runRollback(cmd, nil)
-
-	require.NoError(t, err)
-	require.Contains(t, out.String(), "new checkpoint:")
-	keys, err := store.List(context.Background(), "checkpoint/")
-	require.NoError(t, err)
-	require.Len(t, keys, 2)
-}
-
 func sampleCheckpoint(id string, ts time.Time) core.Checkpoint {
 	return core.Checkpoint{
 		ID:        id,
@@ -344,12 +345,4 @@ func TestWarnDeprecatedEmitsWarnings(t *testing.T) {
 	out := buf.String()
 	require.Contains(t, out, "--machine is deprecated")
 	require.NotContains(t, out, "--tools is deprecated")
-}
-
-func resetLifecycleFlags() {
-	flagStateStoreDir = ""
-	flagHistoryCheckpoint = "latest"
-	flagRollbackCheckpoint = "latest"
-	flagRollbackToIteration = -1
-	flagDirectory = ""
 }
