@@ -10,7 +10,7 @@ overview: |
   input), and 2 SRDs in release 02.0 (rollback lifecycle and lifecycle
   tool adapters). Eight use
   cases exercise the SRDs across the three releases. Three formal YAML
-  test suites cover 72 acceptance test cases across releases 00.0 and
+  test suites cover 81 acceptance test cases across releases 00.0 and
   02.0; additional coverage comes from Go test functions across all
   packages (run `go test ./... -v` for current counts).
 
@@ -272,7 +272,7 @@ test_suite_index:
     traces:
       - rel02.0-uc001-approval-suspend-resume
       - rel02.0-uc002-history-rollback
-    formal_test_cases: 10
+    formal_test_cases: 17
     path: docs/specs/test-suites/test-rel02.0-lifecycle.yaml
   - id: test-rel02.0-tool-contracts
     title: Test Suite for Release 02.0 Tool Contracts
@@ -280,14 +280,14 @@ test_suite_index:
     traces:
       - rel02.0-uc003-tool-authoring
       - rel02.0-uc004-sentence-tool-migration
-    formal_test_cases: 11
+    formal_test_cases: 13
     path: docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
 
 go_test_coverage:
   note: >
     Go test functions across all packages provide coverage beyond the
     formal YAML test suites. The release 00.0 YAML suite (51 cases) covers
-    srd001-srd008; release 02.0 YAML suites (21 cases) cover rollback
+    srd001-srd008; release 02.0 YAML suites (30 cases) cover rollback
     lifecycle, lifecycle tool adapter, and tool contract requirements. Package tests cover srd009-srd018
     and domain packages. Run `go test ./... -v | grep -c '=== RUN'` for the
     current test function count.
