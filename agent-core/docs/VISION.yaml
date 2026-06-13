@@ -17,9 +17,9 @@ executive_summary: |
   The core engine (internal/runtime/core) remains domain-agnostic: it drives the loop
   without knowing what tools exist, which model boundary a machine calls, or what
   workflow the machine expresses. Higher-level packages (internal/model/llm,
-  internal/tools/stl, internal/model/prompt, internal/observability/telemetry,
-  pkg/spec) provide reusable infrastructure that configured agents compose into
-  complete systems.
+  internal/model/prompt, internal/observability/telemetry, pkg/spec, and the
+  internal/tools package family) provide reusable infrastructure that
+  configured agents compose into complete systems.
 
 problem: |
   The agentic loop pattern -- observe, decide, act, validate, repeat --
@@ -144,11 +144,16 @@ what_this_does: |
   system prompt Go template, and tool manifest serialization for
   LLM context injection.
 
-  Standard Tool Library (internal/tools/stl). Reusable tool implementations:
-  file tools, build tools, model-boundary invoke/parse commands, subprocess
-  execution with process group management, workspace tools, and tool metrics
-  extraction. Tools in this package should behave as vocabulary words or
-  documented boundaries, not hidden workflows.
+  Standard Tool Library (internal/tools package family). Reusable tool
+  implementations cover file tools, build tools, model-boundary invoke/parse
+  commands, subprocess execution, workspace tools, lifecycle adapters, and
+  tool metrics extraction. The current internal/tools/stl package is a
+  compatibility facade while target packages such as internal/tools/catalog,
+  internal/tools/registry, internal/tools/exec, internal/tools/filesystem,
+  internal/tools/llm, internal/tools/lifecycle, internal/tools/control,
+  internal/tools/validation, and internal/tools/undo take ownership. Tools in
+  these packages should behave as vocabulary words or documented boundaries,
+  not hidden workflows.
 
   CLI Flags (internal/support/cli). Utility library for CLI flag constants and
   argument propagation. Not imported by cmd/agent directly.
@@ -227,9 +232,11 @@ success_criteria:
     suspend, resume, and rollback behavior can be enabled without changing
     disabled-mode execution.
   reusable_infrastructure: |
-    Model boundary support (internal/model/llm), prompt assembly (internal/model/prompt),
-    standard tools (internal/tools/stl), and tracing (internal/observability/tracing) are shared
-    across agents. Domain agents compose these packages without reimplementing them.
+    Model boundary support (internal/model/llm), prompt assembly
+    (internal/model/prompt), standard tools (internal/tools/* with a temporary
+    internal/tools/stl facade), and tracing (internal/observability/tracing)
+    are shared across agents. Domain agents compose these packages without
+    reimplementing them.
   budget_enforcement: |
     Iteration, token, and wall-clock-time limits are enforced by the
     generic loop. Domain-specific limits (e.g., max build failures)

@@ -8,7 +8,11 @@ problem: |
   configuration, and emitted signal behavior can drift into ad hoc
   procedural code. A builtin tool should be an opaque capability: the
   machine knows its name and possible signals, while Go owns the
-  implementation behind a declared factory.
+  implementation behind a declared factory. The current implementation lives
+  in internal/tools/stl. The target layout moves declaration contracts to
+  internal/tools/catalog, factory wiring to internal/tools/registry, tool
+  builtin packages to their focused internal/tools/* homes, and keeps
+  internal/tools/stl only as a temporary facade.
 
 goals:
   - "G1": "Define the YAML contract for type: builtin tool declarations."
@@ -16,6 +20,7 @@ goals:
   - G3: Define expectations for typed builtin config validation.
   - G4: Define how builtin tools relate to state-machine actions and dynamic $tool dispatch.
   - G5: Distinguish reusable builtin declarations from mode-specific config overrides.
+  - G6: Define the package split for builtin declaration contracts, registry wiring, and tool implementations.
 
 requirements:
   R0:
@@ -29,8 +34,8 @@ requirements:
     items:
       - R1.1: A builtin tool declaration SHALL set type to builtin.
       - R1.2: A builtin tool declaration SHALL provide name, the registry-visible tool name.
-      - R1.3: A builtin tool declaration SHALL provide init, the BuiltinRegistry factory key.
-      - R1.4: A builtin tool declaration MAY provide visibility, with internal tools hidden from LLM manifests.
+      - R1.3: A builtin tool declaration SHALL provide init, the BuiltinRegistry factory name.
+      - R1.4: A builtin tool declaration MAY provide visibility, with internal tools hidden from LLM tool lists.
       - R1.5: A builtin tool declaration MAY provide parameters as JSON Schema for LLM-visible or externally supplied inputs.
       - R1.6: A builtin tool declaration MAY provide config for tool-specific runtime configuration.
       - R1.7: A builtin tool declaration MAY provide emits, the set of Result.Signal values the tool can return.
@@ -66,7 +71,7 @@ requirements:
   R5:
     title: Reusable declarations and mode-local overrides
     items:
-      - R5.1: Shared builtin declarations SHOULD describe reusable tool identity, parameters, visibility, and init keys.
+      - R5.1: Shared builtin declarations SHOULD describe reusable tool identity, parameters, visibility, and init names.
       - R5.2: Mode-specific configuration SHOULD live in mode-local declaration or override files when it binds a tool to a specific program.
       - R5.3: Shared declarations SHOULD NOT require editing when adding a new machine configuration that reuses an existing builtin tool.
       - R5.4: Mode-local overrides SHALL preserve the same builtin name/init pair unless intentionally replacing the capability.
@@ -80,6 +85,14 @@ requirements:
       - R6.4: Child agent invocations SHALL propagate OTel tracing via subprocess.Run with PropagateOTel enabled.
       - R6.5: YAML-declared child agent config (profile, or compatibility-only machine/tools/tools_declarations) SHALL be decoded via ChildAgentConfig and mapped to execute.Config at registration time.
       - R6.6: Child agent builtin factories SHALL fail registration when required ChildAgentConfig fields are missing; they SHALL NOT substitute behavior-shaping hardcoded profile, machine, tools, or tools_declarations paths.
+
+package_ownership:
+  status: planned
+  notes:
+    - Builtin declaration structs and config decoding move to internal/tools/catalog.
+    - BuiltinRegistry, RegisterSingleBuiltin, RegisterUnifiedTools, and selected-init factory catalog behavior move to internal/tools/registry.
+    - Builtin implementations move to filesystem, llm, lifecycle, control, validation, exec, and undo packages.
+    - internal/tools/stl exposes only thin aliases or wrappers during migration and is not the long-term builtin implementation package.
 
 non_goals:
   - Defining external CLI/exec tools; see the CLI/exec tool SRD work.
@@ -124,11 +137,15 @@ depends_on:
 implementation:
   - tools/builtin/
   - internal/support/execute/execute.go
-  - internal/tools/stl/builtintool.go
-  - internal/tools/stl/exectool.go
-  - internal/tools/stl/selfinvoke.go
-  - internal/tools/stl/tool_emits.go
-  - internal/tools/stl/toolconfig.go
+  - internal/tools/catalog/ (planned ToolDef and config decoding)
+  - internal/tools/registry/ (planned BuiltinRegistry and factory catalog)
+  - internal/tools/control/ (planned child-agent boundary tools)
+  - internal/tools/filesystem/ (planned file builtin tools)
+  - internal/tools/llm/ (planned model-boundary builtin tools)
+  - internal/tools/lifecycle/ (planned lifecycle builtin tools)
+  - internal/tools/validation/ (planned validation builtin tools)
+  - internal/tools/undo/ (planned undo payload helpers)
+  - internal/tools/stl/ (temporary compatibility facade)
 
 related_documents:
   - cfg-tool-authoring-standard

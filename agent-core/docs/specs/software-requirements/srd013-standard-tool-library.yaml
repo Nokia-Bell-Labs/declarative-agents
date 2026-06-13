@@ -9,8 +9,10 @@ problem: |
   with inconsistent interfaces and behavior. The STL provides production-
   ready implementations that any agent can import and register.
 
-  This SRD is the overview for the shared STL package. Focused tool
-  architecture contracts live in:
+  This SRD is the overview for the shared standard tool library. The current
+  internal/tools/stl package is a compatibility facade during migration. The
+  long-term implementation is split across focused packages under
+  internal/tools. Focused tool architecture contracts live in:
   - srd021-agent-cli-exec-tool for treating agent as a configured CLI tool
   - srd022-builtin-tools for builtin declarations and factories
   - srd023-cli-exec-tools for external CLI/exec tool declarations
@@ -25,6 +27,7 @@ goals:
   - G6: Evaluation harness tools for atomic point workspace setup, config dumping, agent execution, result checking, and metrics collection.
   - G7: Machine-declared validation sequences using atomic build, lint, and test tools; validate remains only as an internal compatibility aggregator.
   - G8: Cross-reference focused tool SRDs rather than duplicating their detailed architectural contracts.
+  - G9: Split long-term tool implementations into focused internal/tools packages while keeping internal/tools/stl as a temporary facade.
 
 requirements:
   R1:
@@ -90,7 +93,7 @@ requirements:
     items:
       - R8.1: Final generator validation SHOULD be declared in machine.yaml as explicit tool transitions (for example build → lint → test), not hidden inside a composite Go tool.
       - R8.2: validate MAY run an explicitly supplied validation tool sequence and emit ValidationPassed or ValidationFailed only for compatibility machines that explicitly select aggregate validation.
-      - R8.3: validate SHALL be internal-only and SHALL NOT appear in LLM tool manifests.
+      - R8.3: validate SHALL be internal-only and SHALL NOT appear in LLM tool lists.
       - R8.4: validate SHALL be documented as a boundary aggregator, not a normal vocabulary word.
 
   R9:
@@ -105,7 +108,7 @@ requirements:
       - R10.0: The evaluator session machine uses atomic suite setup tools rather than a composite load_suite tool.
       - R10.0.1: parse_suite_config reads and validates suite YAML metadata and resolves the samples directory.
       - R10.0.2: discover_suite_samples discovers sample workspaces and docs from the resolved samples directory.
-      - R10.0.3: expand_eval_grid expands suite grid parameters into concrete grid points.
+      - R10.0.3: expand_eval_grid expands suite grid parameters into specific grid points.
       - R10.0.4: init_eval_session creates the evaluator session output directory and resolves runtime defaults.
       - R10.0.5: report_suite_summary reports suite dimensions and total point count.
       - R10.1: The evaluator point machine uses atomic workspace preparation tools rather than a composite prepare_workspace tool.
@@ -122,6 +125,20 @@ requirements:
       - R10.6: check_agent_version compares configured harness version against trace metadata and emits AgentVersionMismatch as a warning signal when they differ.
       - R10.7: summarize_point_results emits ResultsCollected from already-populated oracle, trace, and version state.
       - R10.8: collect_metrics writes evaluation metadata (exit code, duration, test results, tokens) to meta.json.
+
+target_package_layout:
+  status: planned
+  notes:
+    - Tool declaration loading, selection, ToolDef contracts, ToolSpec conversion, and config decoding move to internal/tools/catalog.
+    - BuiltinRegistry, RegisterSingleBuiltin, RegisterUnifiedTools, selected init discovery, and standard factory catalog wiring move to internal/tools/registry.
+    - ExecBuilder, ExecCmd, parameter-to-argv mapping, output caps, preconditions, and exec undo mementos move to internal/tools/exec.
+    - read, write, edit, find, list_files, path validation, file snapshots, and workspace restore mementos move to internal/tools/filesystem.
+    - invoke_llm, parse_response, report_parse_error, reset_history, nudge_reread, done, and conversation undo mementos move to internal/tools/llm.
+    - suspend, checkpoint_history, checkpoint_rollback, and lifecycle checkpoint adapters move to internal/tools/lifecycle.
+    - self_invoke and other child-agent or loop-control boundary tools move to internal/tools/control.
+    - validate compatibility aggregation and spec audit commands move to internal/tools/validation.
+    - Shared UndoMemento payloads, workspace restore payloads, and boundary compensation helpers move to internal/tools/undo.
+    - internal/tools/stl remains only as a temporary compatibility facade while callers migrate.
 
 non_goals:
   - Domain-specific tools (those are registered by individual agents).

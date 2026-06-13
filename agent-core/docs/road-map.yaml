@@ -12,8 +12,8 @@ releases:
       NoopTracer), internal/observability/telemetry (OTel setup, GenAI semconv helpers,
       traceparent), internal/model/llm (Client, Conversation, Ollama adapter,
       parseutil, profile, interfaces), internal/model/prompt (Prompt, loading,
-      template, SerializeManifest), internal/tools/stl (file tools, build tools,
-      LLM commands, subprocess), pkg/spec (graph loader, validator),
+      template, SerializeManifest), initial internal/tools/stl standard tools
+      (file tools, build tools, LLM commands, subprocess), pkg/spec (graph loader, validator),
       and internal/support/cli (standard flag constants, PropagateArgs).
     status: done
     srds:
@@ -90,7 +90,9 @@ releases:
       implemented in the runtime. Lifecycle profiles expose checkpoint history
       and rollback through first-class STL builtin tools. Tool-as-vocabulary
       authoring and sentence-to-word migration guidance are specified, with
-      remaining work tracked as documentation and reference-profile follow-up.
+      remaining work tracked as documentation, reference-profile follow-up, and
+      a planned internal/tools package split that leaves internal/tools/stl as a
+      temporary compatibility facade.
     status: in_progress
     srds:
       - srd025-rollback-lifecycle
@@ -108,3 +110,7 @@ releases:
       - id: rel02.0-uc004-sentence-tool-migration
         summary: Developer migrates a sentence-shaped tool into machine-composed words
         status: planned
+    follow_up:
+      - id: agent-core-vk8j
+        summary: Reorganize standard tool library packages and tool declarations
+        status: in_progress
