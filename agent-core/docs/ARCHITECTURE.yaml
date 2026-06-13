@@ -594,9 +594,9 @@ overview:
       - Rollback is a pure checkpoint operation: it only needs a StateStore
         and optionally a Workspace. No grammar or lexicon is loaded.
 
-      This dependency boundary is why the lifecycle profiles dispatch separate
-      tool adapters instead of forcing rollback through the resume path. Hidden
-      history or rollback CLI subcommands are migration adapters only.
+      This dependency boundary is why lifecycle profiles dispatch separate tool
+      adapters instead of forcing rollback through the resume path. History and
+      rollback are machine actions selected by profiles, not CLI subcommands.
 
     source_files:
       - internal/runtime/core/checkpoint_ops.go

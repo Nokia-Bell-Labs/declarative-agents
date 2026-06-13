@@ -37,6 +37,9 @@ invocation: |
           --directory <workspace> \
           --input requests/rollback.yaml
 
+  There is no lifecycle subcommand syntax. History and rollback behavior is
+  selected by the profile's machine, tool selection, and builtin declarations.
+
   Preferred agent configuration flag:
     --profile            Path to an agent profile YAML. The profile supplies
                          machine, tools, tool_declarations, tool_config_dirs,
@@ -279,8 +282,10 @@ history_and_rollback_profiles: |
   context for a follow-up compensating action instead of silently treating those
   effects as reversible.
 
-  Hidden history and rollback subcommands are migration compatibility paths
-  only. New operator flows should invoke lifecycle profiles.
+  History and rollback are profile-selected machine actions. Operators pass
+  checkpoint, target iteration, and workspace restore choices through request
+  input or typed tool config. The binary no longer exposes history or rollback
+  compatibility aliases.
 
 config_file_layout: |
   tools/

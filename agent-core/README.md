@@ -56,7 +56,8 @@ Profiles are the normal runtime entry points. Use
 Lifecycle operators use the same profile path. Use
 `agents/lifecycle/history/profile.yaml` to inspect checkpoint history through
 `checkpoint_history`. Use `agents/lifecycle/rollback/profile.yaml` to roll back
-a checkpoint through `checkpoint_rollback`.
+a checkpoint through `checkpoint_rollback`. The removed `agent history` and
+`agent rollback` aliases are not part of the runtime surface.
 
 Profiles resolve relative paths from their own directory. Current profiles load
 shared tool declarations from directories such as `tools/builtin/` and
@@ -71,6 +72,23 @@ opt-in lifecycle features. See `lifecycle-rollback.md` for the operator guide,
 including lifecycle profile examples, `--state-store-dir`,
 `--resume-checkpoint`, request input files, the three-layer state model, and
 safety rules for irreversible tools and workspace restore.
+
+History and rollback use the universal runtime flags:
+
+```bash
+bin/agent --profile agents/lifecycle/history/profile.yaml \
+  --state-store-dir "$STATE_DIR" \
+  --input requests/history.yaml
+
+bin/agent --profile agents/lifecycle/rollback/profile.yaml \
+  --state-store-dir "$STATE_DIR" \
+  --directory "$WORKSPACE" \
+  --input requests/rollback.yaml
+```
+
+The request file carries lifecycle tool input such as `checkpoint: latest` or
+`to_iteration: 3`. The binary does not expose lifecycle-only subcommands or
+checkpoint flags.
 
 ## Quick Start
 
