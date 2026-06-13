@@ -92,6 +92,8 @@ func TestBuiltinFactoryCatalogSelectsEntriesByInit(t *testing.T) {
 	require.True(t, byName["evaluation"].selectedBy(map[string]bool{"run_point": true}))
 	require.True(t, byName["bench"].selectedBy(map[string]bool{"launch_eval": true}))
 	require.True(t, byName["spec_validation"].selectedBy(map[string]bool{"validate_specs": true}))
+	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_history": true}))
+	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_rollback": true}))
 	require.False(t, byName["planning"].selectedBy(map[string]bool{"launch_eval": true}))
 }
 
@@ -109,7 +111,8 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 	for _, init := range []string{
 		"file_read", "file_write", "file_edit", "file_find", "file_list",
 		"invoke_llm", "parse_response", "report_parse_error", "reset_history",
-		"nudge_reread", "done", "suspend", "validate", "self_invoke",
+		"nudge_reread", "done", "suspend", "checkpoint_history",
+		"checkpoint_rollback", "validate", "self_invoke",
 		"extract_task", "extract_all", "assemble_prompt", "parse_plan",
 		"create_issue", "execute_task", "check_result",
 		"parse_suite_config", "discover_suite_samples", "expand_eval_grid",

@@ -281,9 +281,33 @@ func doneFactory() StandardFactoryCatalogEntry {
 }
 
 func lifecycleFactory(deps StandardFactoryDeps) StandardFactoryCatalogEntry {
-	return StandardFactoryCatalogEntry{Name: "lifecycle", Inits: []string{"suspend"}, register: func(br *BuiltinRegistry) {
+	return StandardFactoryCatalogEntry{Name: "lifecycle", Inits: []string{"suspend", "checkpoint_history", "checkpoint_rollback"}, register: func(br *BuiltinRegistry) {
 		RegisterLifecycleFactories(br, LifecycleFactoryDeps{StateStore: deps.StateStore, Tracer: deps.Tracer})
+		registerCheckpointLifecycleFactories(br, deps)
 	}}
+}
+
+func registerCheckpointLifecycleFactories(br *BuiltinRegistry, deps StandardFactoryDeps) {
+	br.Register("checkpoint_history", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		var cfg CheckpointHistoryConfig
+		if err := DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		return &CheckpointHistoryBuilder{Config: cfg, StateStore: deps.StateStore, Ctx: deps.Ctx}, nil
+	})
+	br.Register("checkpoint_rollback", func(def ToolDef, vars map[string]string) (core.Builder, error) {
+		var cfg CheckpointRollbackConfig
+		if err := DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		return &CheckpointRollbackBuilder{
+			Config:     cfg,
+			StateStore: deps.StateStore,
+			Directory:  deps.Directory,
+			Tracer:     deps.Tracer,
+			Ctx:        deps.Ctx,
+		}, nil
+	})
 }
 
 func validateFactory(deps StandardFactoryDeps) StandardFactoryCatalogEntry {
