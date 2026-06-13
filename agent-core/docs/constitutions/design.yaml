@@ -1,0 +1,240 @@
+# Documentation Design Constitution
+
+id: design
+title: Documentation Design Constitution
+purpose: 'We use this constitution when creating or changing VISION, ARCHITECTURE,
+
+  SRDs, use cases, test suites, semantic models, config-format specs, and
+
+  other project documentation. The goal is a spec corpus that humans can read
+
+  and tools can validate.
+
+  '
+articles:
+- id: D1
+  title: Specification-driven development
+  rule: 'Specifications lead implementation. New behavior starts with a SRD, use
+
+    case, test suite, or explicit documentation issue before code changes.
+
+    Code changes should point back to the requirement or design artifact they
+
+    implement.
+
+    '
+- id: D2
+  title: YAML-first structured docs
+  rule: 'Use YAML for structured project artifacts. This includes VISION,
+
+    ARCHITECTURE, SPECIFICATIONS, road-map, SRDs, use cases, test suites,
+
+    semantic models, config-format specs, and constitutions. Use Markdown for
+
+    prose-heavy operator guides and historical design notes.
+
+    '
+- id: D3
+  title: Traceability
+  rule: 'Vision explains goals and boundaries. Architecture explains components
+
+    and flows. SRDs define numbered requirements. Use cases exercise SRDs
+
+    through touchpoints. Test suites validate use cases and SRD acceptance
+
+    criteria. Code and config changes should keep that chain intact.
+
+    '
+- id: D4
+  title: Profile-first runtime docs
+  rule: 'Agent Core behavior is profile-driven. Documentation should describe
+
+    profiles, machine.yaml, tools.yaml, tool declarations, and boundary-tool
+
+    config as the agent program. Do not describe generator, evaluator,
+
+    planner, jurist, bench, history, or rollback as separate Go binaries.
+
+    '
+- id: D5
+  title: Tool language boundary
+  rule: 'MachineSpec owns workflow sequencing. ToolDef owns one vocabulary word:
+
+    input, output, emitted signals, side effects, errors, and undo or
+
+    compensation. Documentation must call out boundary tools when they cross
+
+    a model, human, child process, external API, nested machine, or workspace.
+
+    '
+documentation_standards:
+  style: 'Write short, exact sentences. Use active voice. Remove filler. Prefer
+
+    exact paths, symbols, and commands over broad claims.
+
+    '
+  voice: 'Use "we" for project behavior and obligations. Use present tense for
+
+    current behavior. Use planned status only when implementation or tests are
+
+    missing.
+
+    '
+  diction: 'Avoid hype, vague intensifiers, stock transitions, and claims that do not
+
+    name a behavior, file, command, or contract.
+
+    '
+  formatting:
+    prose: 'Use paragraph form for explanation. Use lists for fields, steps, and
+
+      checklists. Keep table content short when tables are useful.
+
+      '
+    yaml: 'Use lowercase snake_case field names. Use block literals for multi-sentence
+
+      prose. Keep IDs stable once referenced.
+
+      '
+    diagrams: 'Use Mermaid in multiline YAML strings for diagrams. Do not add generated
+
+      image files.
+
+      '
+document_types:
+  vision:
+    location: docs/VISION.yaml
+    required_fields:
+    - id
+    - title
+    - executive_summary
+    - problem
+    - what_this_does
+    - why_we_build_this
+    - success_criteria
+    - not
+    purpose: Defines what Agent Core is, why it exists, and what it excludes.
+  architecture:
+    location: docs/ARCHITECTURE.yaml
+    required_fields:
+    - id
+    - title
+    - overview
+    - interfaces
+    - components
+    - design_decisions
+    - technology_choices
+    - project_structure
+    - implementation_status
+    - related_documents
+    purpose: Defines layers, components, flows, decisions, and source layout.
+  specifications:
+    location: docs/SPECIFICATIONS.yaml
+    required_fields:
+    - id
+    - title
+    - overview
+    - roadmap_summary
+    - foundation_document_index
+    - srd_index
+    - config_format_index
+    - semantic_model_index
+    - use_case_index
+    - test_suite_index
+    - coverage_gaps
+    purpose: Indexes the specification corpus and records known coverage gaps.
+  roadmap:
+    location: docs/road-map.yaml
+    required_fields:
+    - id
+    - title
+    - releases
+    purpose: Assigns SRDs and use cases to releases and status values.
+  srd:
+    location: docs/specs/software-requirements/srdNNN-short-name.yaml
+    required_fields:
+    - id
+    - title
+    - problem
+    - goals
+    - requirements
+    - non_goals
+    - acceptance_criteria
+    numbering:
+      goals: G1, G2, G3
+      requirement_groups: R1, R2, R3
+      requirement_items: R1.1, R1.2, R2.1
+      acceptance_criteria: AC1, AC2, AC3
+    purpose: Defines product or runtime requirements with checkable criteria.
+  use_case:
+    location: docs/specs/use-cases/relNN.N-ucNNN-short-name.yaml
+    required_fields:
+    - id
+    - title
+    - summary
+    - actor
+    - trigger
+    - flow
+    - touchpoints
+    - success_criteria
+    - out_of_scope
+    numbering:
+      flow_steps: F1, F2, F3
+      touchpoints: T1, T2, T3
+      success_criteria: S1, S2, S3
+    purpose: Describes one end-to-end path through the architecture.
+  test_suite:
+    location: docs/specs/test-suites/test-relNN.N.yaml
+    required_fields:
+    - id
+    - title
+    - release
+    - traces
+    - preconditions
+    - test_cases
+    purpose: Maps release use cases and SRD criteria to named tests.
+  semantic_model:
+    location: docs/specs/semantic-models/name.yaml
+    required_fields:
+    - id
+    - title
+    - purpose
+    purpose: Defines vocabulary, state ownership, or cross-cutting concepts.
+  config_format:
+    location: docs/specs/config-formats/name.yaml
+    required_fields:
+    - id
+    - title
+    - purpose
+    purpose: Defines machine-readable YAML formats used by the runtime.
+  constitution:
+    location: docs/constitutions/name.yaml
+    required_fields:
+    - id
+    - title
+    - purpose
+    purpose: Defines rules for agents and contributors working in this repo.
+naming_conventions:
+  srd: srdNNN-short-name.yaml
+  use_case: relNN.N-ucNNN-short-name.yaml
+  test_suite: test-relNN.N.yaml
+  config_format: kebab-case.yaml
+  semantic_model: kebab-case.yaml
+  constitution: kebab-case.yaml
+completeness_checks:
+- id: C1
+  check: YAML parses.
+- id: C2
+  check: IDs match filenames or existing corpus conventions.
+- id: C3
+  check: New use cases trace to SRDs and a test suite.
+- id: C4
+  check: New SRD requirements trace to acceptance criteria.
+- id: C5
+  check: mage audit reports no new warnings for touched docs.
+references:
+- docs/VISION.yaml
+- docs/ARCHITECTURE.yaml
+- docs/SPECIFICATIONS.yaml
+- docs/specs/semantic-models/tool-language.yaml
+- docs/specs/semantic-models/rollback-lifecycle.yaml

@@ -1,0 +1,151 @@
+# Work Execution Constitution
+
+id: execution
+title: Work Execution Constitution
+purpose: 'We use this constitution when completing one Beads issue end-to-end. It
+
+  governs issue selection, scope, reading order, quality gates, Beads updates,
+
+  and commits inside the selected project directory.
+
+  '
+articles:
+- id: E1
+  title: Work from Beads
+  rule: 'Use bd for task tracking. Start with bd ready, read the selected issue,
+
+    then claim it with bd update <issue-id> --claim. Do not use markdown TODO
+
+    lists as the system of record.
+
+    '
+- id: E2
+  title: Read first
+  rule: 'Before editing, read the issue, this constitution set, and every
+
+    required_reading path named by the issue. For code work, read the relevant
+
+    SRDs, architecture sections, test-suite YAML, and source files. For
+
+    documentation work, read the governing document type in design.yaml.
+
+    '
+- id: E3
+  title: Stay in scope
+  rule: 'Touch only files listed by the issue unless the issue requirement cannot
+
+    be satisfied without a related metadata update. When that happens, keep
+
+    the extra edit minimal and mention it in the close comment.
+
+    '
+- id: E4
+  title: Preserve user changes
+  rule: 'The working tree may already contain user changes. Do not revert changes
+
+    you did not make. If a user change touches the same file, read it and work
+
+    with it.
+
+    '
+- id: E5
+  title: Keep specs and code aligned
+  rule: 'Code implements documented contracts. Documentation describes current
+
+    code, config, and known gaps. Do not mark planned behavior as done unless
+
+    code and tests support it.
+
+    '
+- id: E6
+  title: Quality gates
+  rule: 'Verify every acceptance criterion. For code, run go build ./..., go vet
+
+    ./..., mage lint, and go test ./... unless the issue narrows the gate.
+
+    For documentation, run mage audit. If a gate fails because of unrelated
+
+    existing drift, file a follow-up Beads issue and close the current issue
+
+    only when its own changes are valid.
+
+    '
+- id: E7
+  title: Documentation de-AI gate
+  rule: 'For documentation issues, run the lexical and structural de-AI scripts on
+
+    each created or changed documentation file. Fix reported issues up to
+
+    three passes unless the flagged text is a formal requirement that should
+
+    not be rewritten.
+
+    '
+- id: E8
+  title: Function size limit
+  rule: 'Keep Go functions at or below 40 lines unless existing code already
+
+    exceeds the limit and the issue does not touch that function. Split new
+
+    logic by validation, parsing, formatting, I/O, or branch-specific work.
+
+    '
+- id: E9
+  title: File size limit
+  rule: 'Keep Go files near or below 500 lines of production code. Split by
+
+    concern when adding new behavior to a large file. Do not create files
+
+    named helpers.go, utils.go, or types.go.
+
+    '
+- id: E10
+  title: Duplication limit
+  rule: 'The duplication threshold is two. If a second copy of logic appears,
+
+    extract a shared function, method, table, or config helper.
+
+    '
+workflows:
+  documentation:
+    steps:
+    - Read design.yaml and the issue required_reading.
+    - Identify the output path, document type, required fields, and naming rule.
+    - Write the document in valid YAML or Markdown as required.
+    - Run mage audit.
+    - Run de-AI lexical and structural checks on touched docs.
+    - Add a stats comment, close the issue, and commit work plus Beads metadata.
+  code:
+    steps:
+    - Read the relevant SRD, ARCHITECTURE section, test suite, source files, and issue.
+    - Implement only the listed files.
+    - Run go build ./...
+    - Run go vet ./...
+    - Run mage lint
+    - Run go test ./...
+    - Run mage audit if docs changed.
+    - Add a stats comment, close the issue, and commit work plus Beads metadata.
+beads:
+  ready: bd ready
+  show: bd show <issue-id>
+  claim: bd update <issue-id> --claim
+  comment: 'bd comment <issue-id> "stats: ..."'
+  close: bd close <issue-id> --reason "..."
+  notes:
+  - Run bd commands inside the selected subdirectory.
+  - Commit .beads changes with the work.
+  - Do not run bd sync.
+  - Do not edit .beads files by hand.
+git:
+  commit_per_issue: true
+  push_automatically: false
+  commit_message: 'Use a concise message that names the outcome and, when applicable, the
+
+    issue ID or SRD. Do not batch unrelated issues into one commit.
+
+    '
+references:
+- docs/constitutions/design.yaml
+- docs/constitutions/go-style.yaml
+- docs/constitutions/testing.yaml
+- AGENTS.md
