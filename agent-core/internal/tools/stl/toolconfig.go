@@ -34,8 +34,8 @@ type ChildAgentConfig struct {
 	ToolDeclarations []string `json:"tools_declarations"`
 }
 
-// LLMToolConfig holds LLM-related settings from an invoke_llm tool's
-// config block. Replaces ad-hoc map reads in extractLLMConfig.
+// LLMToolConfig holds model-boundary settings from an invoke_llm tool's
+// config block.
 type LLMToolConfig struct {
 	Model         string `json:"model"`
 	Provider      string `json:"provider"`

@@ -6,12 +6,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm/ollama"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/prompt"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry/genai"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
@@ -216,6 +220,154 @@ type InvokeLLMBuilder struct {
 	CallTimeout  time.Duration // per-call deadline; 0 = no limit
 	Verbose      bool
 	Ctx          context.Context
+}
+
+// InvokeLLMFactoryDeps are process-local ports that the invoke_llm boundary
+// tool needs while constructing its configured command builder.
+type InvokeLLMFactoryDeps struct {
+	History     *llm.Conversation
+	Registry    *core.Registry
+	Tracer      tracing.Tracer
+	ProfilesDir string
+	Verbose     bool
+	Ctx         context.Context
+	OnResolved  func(InvokeLLMResolvedConfig)
+}
+
+// InvokeLLMResolvedConfig exposes non-provider metadata needed by neighboring
+// tools such as parse_response and by run-level trace attributes.
+type InvokeLLMResolvedConfig struct {
+	Model        string
+	ProviderName string
+	Parser       llm.ResponseParser
+	MaxTime      time.Duration
+	MaxTokens    int
+}
+
+// NewInvokeLLMBuilder decodes invoke_llm config, creates the configured
+// model-boundary client, and returns the command builder for the selected tool.
+func NewInvokeLLMBuilder(def ToolDef, deps InvokeLLMFactoryDeps) (*InvokeLLMBuilder, error) {
+	cfg, err := DecodeInvokeLLMConfig(def)
+	if err != nil {
+		return nil, err
+	}
+	parser, err := resolveLLMParser(cfg.Model, deps.ProfilesDir)
+	if err != nil {
+		return nil, err
+	}
+	client, serverAddr, err := newLLMClient(cfg, deps.Tracer)
+	if err != nil {
+		return nil, err
+	}
+	if deps.OnResolved != nil {
+		deps.OnResolved(resolvedLLMConfig(cfg, parser))
+	}
+	return &InvokeLLMBuilder{
+		Client:       client,
+		History:      deps.History,
+		Registry:     deps.Registry,
+		Assembler:    newLLMAssembler(cfg, parser),
+		State:        core.State(cfg.ManifestState),
+		Model:        cfg.Model,
+		ProviderName: cfg.Provider,
+		ServerAddr:   serverAddr,
+		Tracer:       deps.Tracer,
+		NumCtx:       cfg.NumCtx,
+		CallTimeout:  durationSeconds(cfg.LLMTimeout),
+		Verbose:      deps.Verbose,
+		Ctx:          deps.Ctx,
+	}, nil
+}
+
+func DecodeInvokeLLMConfig(def ToolDef) (LLMToolConfig, error) {
+	cfg := LLMToolConfig{
+		Provider:      "ollama",
+		ProviderURL:   "http://localhost:11434",
+		ManifestState: "Composing",
+	}
+	if err := DecodeToolConfig(def, &cfg); err != nil {
+		return LLMToolConfig{}, err
+	}
+	if cfg.ProviderURL == "" {
+		cfg.ProviderURL = cfg.OllamaURL
+	}
+	if cfg.Model == "" {
+		return LLMToolConfig{}, fmt.Errorf("invoke_llm config requires model")
+	}
+	if cfg.ManifestState == "" {
+		return LLMToolConfig{}, fmt.Errorf("invoke_llm config requires manifest_state")
+	}
+	return cfg, nil
+}
+
+func resolveLLMParser(model, profilesDir string) (llm.ResponseParser, error) {
+	reg, err := llm.DefaultProfileRegistry()
+	if profilesDir != "" {
+		reg, err = llm.LoadProfiles(profilesDir)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load profiles: %w", err)
+	}
+	return reg.ResolveProfile(model), nil
+}
+
+func newLLMClient(cfg LLMToolConfig, tracer tracing.Tracer) (llm.Client, string, error) {
+	switch cfg.Provider {
+	case "ollama":
+		if cfg.ProviderURL == "" {
+			return nil, "", fmt.Errorf("invoke_llm config provider %q requires provider_url", cfg.Provider)
+		}
+		client, err := ollama.NewAdapter(cfg.ProviderURL, cfg.Model,
+			ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
+			ollama.WithTracer(tracer),
+		)
+		return client, serverAddr(cfg.ProviderURL), err
+	default:
+		return nil, "", fmt.Errorf("unsupported invoke_llm provider %q", cfg.Provider)
+	}
+}
+
+func newLLMAssembler(cfg LLMToolConfig, parser llm.ResponseParser) llm.PromptAssembler {
+	return &llm.DefaultAssembler{
+		Prompt: prompt.Prompt{
+			Role:         cfg.SystemPrompt,
+			OutputFormat: cfg.ToolPrompt,
+		},
+		Parser: parser,
+	}
+}
+
+func resolvedLLMConfig(cfg LLMToolConfig, parser llm.ResponseParser) InvokeLLMResolvedConfig {
+	return InvokeLLMResolvedConfig{
+		Model:        cfg.Model,
+		ProviderName: cfg.Provider,
+		Parser:       parser,
+		MaxTime:      durationSeconds(cfg.MaxTime),
+		MaxTokens:    cfg.MaxTokens,
+	}
+}
+
+func httpTimeout(cfg LLMToolConfig) time.Duration {
+	timeout := 5 * time.Minute
+	if maxTime := durationSeconds(cfg.MaxTime); maxTime > timeout {
+		timeout = maxTime
+	}
+	return timeout
+}
+
+func durationSeconds(seconds int) time.Duration {
+	if seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func serverAddr(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
 
 func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
