@@ -1,0 +1,74 @@
+tools:
+- name: checkpoint_history
+  type: builtin
+  contract: migrated
+  init: checkpoint_history
+  visibility: internal
+  emits:
+  - ToolDone
+  - CommandError
+  description: Render checkpoint history for a checkpoint through the lifecycle runtime.
+  category: stateful_internal
+  problem: |
+    Operators need checkpoint history as a machine action, not as a special
+    root command path.
+  goals:
+  - Read one checkpoint history digest.
+  - Return ToolDone when the digest is printed.
+  - Return CommandError when the checkpoint cannot be resolved or loaded.
+  requirements:
+    input:
+    - must receive a configured StateStore.
+    - must receive a checkpoint id or use latest.
+    output:
+    - must print the checkpoint history digest.
+    side_effects:
+    - must not mutate checkpoint state.
+    undo:
+    - must be a no-op.
+    errors:
+    - must fail when the checkpoint cannot be resolved or loaded.
+  non_goals:
+  - Does not roll back checkpoint state.
+  - Does not resume execution.
+  parameters:
+    type: object
+    properties:
+      checkpoint:
+        type: string
+        description: Checkpoint ID, or latest.
+        default: latest
+  output:
+    description: Human-readable checkpoint history digest.
+    schema:
+      type: object
+      properties:
+        checkpoint:
+          type: string
+        history:
+          type: string
+      required:
+      - history
+  side_effects:
+  - kind: state_read
+    target: checkpoint_store
+    description: Reads checkpoint JSON from the configured StateStore.
+  reversibility:
+    classification: reversible
+    undo: noop
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: History inspection does not mutate state.
+  errors:
+  - signal: CommandError
+    condition: checkpoint cannot be resolved or loaded
+    message_shape: "no checkpoints found | load checkpoint <id>: <error>"
+    state_after_failure: checkpoint store unchanged
+  relationships:
+    before: []
+    after:
+    - checkpoint_rollback
+    overlaps:
+    - tool: checkpoint_rollback
+      difference: "checkpoint_history reads checkpoint history; checkpoint_rollback rewrites checkpoint state."
