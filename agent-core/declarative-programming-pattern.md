@@ -322,6 +322,28 @@ domain-specific logic. Different behaviors come from different grammars
 and different lexicons. If you find yourself adding conditionals to the
 engine, the logic belongs in a word or in the grammar.
 
+### Engine operations are core, adapters are thin
+
+The engine exposes four domain operations:
+
+| Operation | Core function | What it needs |
+|---|---|---|
+| **Run** | `core.Loop` | Full engine stack: grammar, lexicon, LLM adapter |
+| **Resume** | `core.ResumeFromCheckpoint` | Full engine stack + persisted checkpoint |
+| **Rollback** | `core.RollbackFromCheckpoint` | StateStore, checkpoint ID, target iteration, optional Workspace |
+| **History** | `core.FormatCheckpointHistory` | A loaded Checkpoint struct |
+
+These operations live in `internal/runtime/core` and know nothing about
+CLI flags, Cobra commands, or Mage targets. External entry points (CLI
+subcommands, build targets, future APIs) are thin adapters that parse
+input and delegate to a core function.
+
+Resume and Rollback have different dependency requirements: Resume
+re-enters the loop and needs the full grammar and lexicon; Rollback is a
+pure checkpoint operation that walks the sentence backward through each
+word's Undo memento without loading a grammar. This difference justifies
+separate adapter entry points rather than a unified path.
+
 Composition roots may still contain explicit factory catalogs that map
 selected tool init names to Go builder registration functions. That catalog is
 runtime wiring, not grammar policy: selected ToolDefs choose which catalog

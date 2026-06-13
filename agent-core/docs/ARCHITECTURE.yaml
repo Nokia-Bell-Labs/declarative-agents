@@ -13,9 +13,12 @@ overview:
     The framework is organized in four cooperating layers:
 
     Engine layer (internal/runtime/core). Domain-agnostic loop machinery: types,
-    state machine, command dispatch, tool registry, agentic loop, and
-    YAML machine configuration. The engine knows about States, Signals,
-    and Commands but not about coding tools, LLMs, or file systems.
+    state machine, command dispatch, tool registry, agentic loop, checkpoint
+    lifecycle operations, and YAML machine configuration. The engine exposes
+    four core operations — Run (Loop), Resume (ResumeFromCheckpoint), Rollback
+    (RollbackFromCheckpoint), and History (FormatCheckpointHistory) — that
+    adapters call without embedding domain logic. The engine knows about States,
+    Signals, and Commands but not about coding tools, LLMs, or file systems.
 
     Infrastructure layer. Shared packages consumed by all agent types:
     - internal/observability/tracing — Tracer port interface (5 methods) and NoopTracer
@@ -534,6 +537,49 @@ overview:
       - docs/specs/test-suites/test-rel02.0-lifecycle.yaml
       - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
       - roll-backs.md
+
+  engine_operations:
+    summary: |
+      The engine core (internal/runtime/core) exposes four domain operations.
+      These are the state machine's capabilities, independent of any CLI or
+      build system adapter:
+
+      - Run: execute a grammar from its initial state (core.Loop).
+      - Resume: load a suspended checkpoint and re-enter the loop with an
+        Approved/Rejected signal (core.ResumeFromCheckpoint).
+      - Rollback: rewrite a checkpoint to a target iteration by walking the
+        sentence backward through each word's Undo memento
+        (core.RollbackCheckpoint, core.RollbackFromCheckpoint).
+      - History: query a persisted checkpoint and format it as a human-readable
+        execution digest (core.FormatCheckpointHistory).
+
+      Supporting operations:
+      - core.ResolveLatestCheckpointID resolves "latest" to a concrete ID.
+      - core.LoadCheckpoint deserializes a checkpoint from a StateStore.
+
+    hexagonal_view: |
+      The engine knows nothing about CLI flags, Cobra commands, or Mage targets.
+      Adapters are thin wiring layers that parse external input and call core:
+
+        CLI adapter (cmd/agent)   →  core.Loop / core.ResumeFromCheckpoint
+        CLI history subcommand    →  core.FormatCheckpointHistory
+        CLI rollback subcommand   →  core.RollbackFromCheckpoint
+        Mage audit target         →  runs agent binary with --profile
+
+      Resume and rollback have different dependency requirements:
+      - Resume needs the full engine stack (machine spec, tool definitions,
+        LLM adapter) because it re-enters core.Loop.
+      - Rollback is a pure checkpoint operation: it only needs a StateStore
+        and optionally a Workspace. No grammar or lexicon is loaded.
+
+      This dependency boundary is why they remain separate CLI entry points
+      rather than a unified --resume path.
+
+    source_files:
+      - internal/runtime/core/checkpoint_ops.go
+      - internal/runtime/core/checkpoint_ops_test.go
+      - internal/runtime/core/resume.go
+      - internal/runtime/core/rollback.go
 
   coordination_pattern: |
     Work flows through the state machine. The loop holds the current
