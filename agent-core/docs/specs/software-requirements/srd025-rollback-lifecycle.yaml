@@ -210,10 +210,12 @@ depends_on:
   - srd_id: srd022-builtin-tools
     symbols_used: [ToolDef]
 
-related_documents:
-  - cfg-tool-authoring-standard
+historical_background:
   - roll-backs.md
   - tools-as-dsl.md
+
+related_documents:
+  - cfg-tool-authoring-standard
 
 implementation_status:
   done:
