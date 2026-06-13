@@ -36,8 +36,7 @@ type Config struct {
 	Machine          string        // Compatibility-only --machine flag when Profile is empty.
 	Tools            string        // Compatibility-only --tools flag when Profile is empty.
 	ToolDeclarations []string      // Compatibility-only --tools-declaration flags when Profile is empty.
-	Model            string        // Compatibility-only LLM model override passed via --model.
-	OllamaURL        string        // Compatibility-only Ollama server URL passed via --ollama-url.
+	Model            string        // Deprecated compatibility field; not emitted as a runtime flag.
 	Timeout          time.Duration // Per-invocation timeout. Default: 10 minutes.
 	OTelDir          string        // Directory for temporary OTel log files.
 }
@@ -73,12 +72,6 @@ func (c *Config) BuildArgs() []string {
 			args = append(args, "--tools-declaration", decl)
 		}
 	}
-	if c.Model != "" {
-		args = append(args, "--model", c.Model)
-	}
-	if c.OllamaURL != "" {
-		args = append(args, "--ollama-url", c.OllamaURL)
-	}
 	return args
 }
 
@@ -103,7 +96,6 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 	child, done := tracer.Push(spanExecute,
 		attribute.String("task.id", taskID),
 		attribute.String("generator.binary", cfg.binary()),
-		attribute.String("generator.model", cfg.Model),
 		attribute.String("generator.timeout", cfg.timeout().String()),
 	)
 	defer done()

@@ -37,11 +37,11 @@ func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
 	}
 
 	modeNames := map[string]struct{}{
-		"generator":            {},
-		"planner":              {},
-		"evaluator":            {},
-		"bench":                {},
-		"jurist": {},
+		"generator": {},
+		"planner":   {},
+		"evaluator": {},
+		"bench":     {},
+		"jurist":    {},
 	}
 	isModeLiteral := func(expr ast.Expr) (string, bool) {
 		lit, ok := expr.(*ast.BasicLit)
@@ -327,12 +327,9 @@ func TestWarnDeprecatedEmitsWarnings(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.Flags().String("machine", "", "")
 	cmd.Flags().StringArray("tools", nil, "")
-	cmd.Flags().String("model", "", "")
-	cmd.Flags().String("ollama-url", "", "")
 	cmd.Flags().StringArray("tools-declaration", nil, "")
 
 	_ = cmd.Flags().Set("machine", "m.yaml")
-	_ = cmd.Flags().Set("model", "qwen3")
 
 	var buf bytes.Buffer
 	old := osStderr
@@ -343,9 +340,7 @@ func TestWarnDeprecatedEmitsWarnings(t *testing.T) {
 
 	out := buf.String()
 	require.Contains(t, out, "--machine is deprecated")
-	require.Contains(t, out, "--model is deprecated")
 	require.NotContains(t, out, "--tools is deprecated")
-	require.NotContains(t, out, "--ollama-url is deprecated")
 }
 
 func resetLifecycleFlags() {

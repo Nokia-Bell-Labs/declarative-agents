@@ -34,7 +34,6 @@ var (
 	flagDirectory           string
 	flagProfilesDir         string
 	flagVerboseTrace        bool
-	flagModel               string
 	flagInput               string
 	flagOutput              string
 	flagStateStoreDir       string
@@ -82,7 +81,6 @@ func init() {
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
 	f.StringVar(&flagProfilesDir, "profiles-dir", "", "directory with model profile YAML files (overrides embedded)")
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
-	f.StringVar(&flagModel, "model", "", "override LLM model name")
 	f.StringVar(&flagInput, "input", "", "input file (e.g. suite YAML for evaluator mode)")
 	f.StringVar(&flagOutput, "output", "", "output directory for eval results (default: eval-results)")
 	f.StringVar(&flagStateStoreDir, "state-store-dir", "", "directory for lifecycle checkpoints")
@@ -248,7 +246,6 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	vars := map[string]string{
-		"model":     flagModel,
 		"directory": flagDirectory,
 	}
 
@@ -458,7 +455,6 @@ func warnDeprecated(cmd *cobra.Command) {
 		{"machine", "deprecated: use --profile instead of --machine"},
 		{"tools", "deprecated: use --profile instead of --tools"},
 		{"tools-declaration", "deprecated: use --profile instead of --tools-declaration"},
-		{"model", "deprecated: configure model in invoke_llm tool declaration via --profile"},
 	}
 	for _, d := range deprecated {
 		if cmd.Flags().Changed(d.flag) {

@@ -190,7 +190,6 @@ func TestBuildArgs_AllFields(t *testing.T) {
 		Tools:            "tools.yaml",
 		ToolDeclarations: []string{"builtin.yaml", "exec.yaml"},
 		Model:            "qwen3-8b",
-		OllamaURL:        "http://localhost:11434",
 	}
 
 	args := cfg.BuildArgs()
@@ -199,8 +198,6 @@ func TestBuildArgs_AllFields(t *testing.T) {
 		"--tools", "tools.yaml",
 		"--tools-declaration", "builtin.yaml",
 		"--tools-declaration", "exec.yaml",
-		"--model", "qwen3-8b",
-		"--ollama-url", "http://localhost:11434",
 	}, args)
 }
 
@@ -211,14 +208,11 @@ func TestBuildArgs_ProfileSuppressesLegacyProgramFlags(t *testing.T) {
 		Tools:            "tools.yaml",
 		ToolDeclarations: []string{"builtin.yaml"},
 		Model:            "legacy-model",
-		OllamaURL:        "http://localhost:11434",
 	}
 
 	args := cfg.BuildArgs()
 	assert.Equal(t, []string{
 		"--profile", "agents/generator/profile.yaml",
-		"--model", "legacy-model",
-		"--ollama-url", "http://localhost:11434",
 	}, args)
 }
 
