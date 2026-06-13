@@ -351,35 +351,45 @@ coverage_gaps: |
   srd025-srd026 (02.0) have formal YAML coverage in the release 02.0
   lifecycle and tool-contract test suites. Core checkpoint, history, resume,
   rollback, lifecycle profile, and lifecycle STL adapter behavior is implemented
-  and tested. The approval-gate reference agent and tool-language migration
-  proofs remain planned follow-up work.
+  and tested. The approval-gate reference profile is implemented and tested.
+  Tool-language migration proofs remain planned follow-up work.
 
-  Packages without SRDs:
-  - internal/support/execute — agent subprocess execution with process groups
-  - internal/planning/extract — task extraction from requirement graphs
-  - internal/planning/graph — requirement DAG construction and traversal
-  - internal/planning/materialize — plan-to-issue materialization
-  - internal/planning/pipeline — planner pipeline tools
-  - internal/planning/plan — implementation plan parsing
-  - internal/support/worktree — git worktree lifecycle
-  - internal/support/subprocess — subprocess execution utilities
-  - internal/evaluation — evaluator session and point runtime, profile suite
-    parsing, workspace preparation, agent execution, result checking, metrics
-    collection, convergence analysis, trace reading, and config dumping
-  - cmd/agent — unified binary orchestration, tool registration, LLM
-    config loading, session-level eval machine
-  - internal/evaluation/bench — state-machine-driven web UI with serve_ui and
-    launch_eval tools (configured via agents/bench/profile.yaml)
+  Package coverage follows the current `go list ./...` output. Direct SRD
+  coverage is clear for runtime core through srd001-srd006 and srd025.
+  Tracing, telemetry, GenAI conventions, model-boundary code, prompt assembly,
+  STL adapters, CLI flags, and spec graph packages map to srd007-srd018 plus
+  srd022-srd024 and srd026. Those direct mappings cover
+  internal/observability, internal/model, internal/tools/stl,
+  internal/support/cli, and pkg/spec behavior.
 
-  srd013 (STL) delegates evaluator behavior to srd019 and focuses on shared
-  file/build/LLM/lifecycle/config-loading tools, including nudge_reread,
-  validate, done as a standalone builtin, and YAML-based tool registration.
+  Release use cases and formal suites cover package groups that implement
+  configured agent behavior. The cmd/agent package is covered by
+  cfg-runtime-contract,
+  release 01.0 use cases, test-rel01.0, lifecycle use cases, and Go tests.
+  Evaluation packages are covered by srd019, srd020, rel01.0-uc002,
+  rel01.0-uc003, test-rel01.0, and package tests. Agent subprocess execution
+  is covered by srd021, srd022 AC6, rel01.0-uc002, test-rel01.0, and Go tests.
 
-  Agent configurations and architectural models are documented in enriched machine configs and cross-cutting semantic models:
-  - agents/generator/machine.yaml (generator machine semantics)
-  - agents/evaluator/machine.yaml and agents/evaluator/point.yaml (evaluator machine semantics)
-  - agents/planner/machine.yaml and variants (planner machine semantics)
-  - agents/jurist/machine.yaml (jurist machine semantics)
-  - agents/bench/machine.yaml (bench machine semantics)
-  - docs/specs/semantic-models/rollback-lifecycle.yaml (sm-rollback-lifecycle)
-  - docs/specs/semantic-models/tool-language.yaml (sm-tool-language)
+  Semantic models cover cross-cutting packages that do not need separate SRDs
+  today. The internal/planning packages are covered by planner machine configs,
+  sm-tool-language, sm-tool-vocabulary-audit, and planning tests.
+  internal/support/worktree is covered by release 01.0 workspace architecture,
+  sm-rollback-lifecycle, and Go tests. internal/support/subprocess is covered
+  by srd013 STL delegation, srd021 child-agent execution, and execute or STL
+  integration tests.
+
+  Package roots and assets are not specification gaps. internal/model,
+  internal/observability, internal/planning, internal/runtime, internal/support,
+  and internal/tools are package roots or documentation stubs with no standalone
+  runtime behavior. internal/evaluation/bench/ui embeds React assets; srd020
+  and bench integration cover the served API and asset boundary. internal/audit
+  is Mage and audit glue governed by docs/constitutions plus mage audit behavior.
+
+  Residual mage audit warnings are known follow-up work. Release 01.0
+  touchpoints should cite R-groups instead of bare SRD IDs. Historical
+  roll-backs.md, tools-as-dsl.md, and lifecycle-rollback.md references should
+  be normalized to canonical spec IDs. Orphaned SRD and uncovered-AC warnings
+  track missing formal YAML test cases for packages that already have Go tests.
+  Browser-level bench UI proof can become an integration target when a browser
+  harness joins the quality gate. Planner package SRDs are optional unless
+  planner behavior becomes a stable product surface outside profile configs.
