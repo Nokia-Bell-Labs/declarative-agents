@@ -581,10 +581,10 @@ func (g *Graph) OutgoingByRel(sourceID, rel string) []string {
 // --- Touchpoint/trace parsing helpers ---
 
 // parseTouchpoint extracts the SRD ID and cited R-groups from a touchpoint string.
-// Format: "srd005-cli-entry-point R1, R2, R3 -- description"
+// Formats: "srd005-cli R1 -- description" or "T1: srd005-cli R1 -- description".
 func parseTouchpoint(tp string) (string, []string) {
 	desc := strings.SplitN(tp, "--", 2)
-	refs := strings.TrimSpace(desc[0])
+	refs := trimTouchpointTag(desc[0])
 
 	parts := strings.Fields(refs)
 	if len(parts) == 0 {
@@ -604,6 +604,27 @@ func parseTouchpoint(tp string) (string, []string) {
 		}
 	}
 	return srdID, groups
+}
+
+func trimTouchpointTag(refs string) string {
+	refs = strings.TrimSpace(refs)
+	label, rest, ok := strings.Cut(refs, ":")
+	if !ok || !isTouchpointLabel(label) {
+		return refs
+	}
+	return strings.TrimSpace(rest)
+}
+
+func isTouchpointLabel(label string) bool {
+	if len(label) < 2 || label[0] != 'T' {
+		return false
+	}
+	for _, r := range label[1:] {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // parseACTrace extracts SRD ID and AC ID from a trace string.

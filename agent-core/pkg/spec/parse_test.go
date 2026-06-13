@@ -3,6 +3,7 @@
 package spec
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -66,6 +67,27 @@ func TestParseUseCase(t *testing.T) {
 	assert.Equal(t, "test-rel00.0", uc.TestSuite)
 }
 
+func TestParseUseCase_TaggedTouchpoints(t *testing.T) {
+	path := writeUseCaseFile(t, `id: rel00.0-uc999-tagged
+title: Tagged touchpoint
+summary: Tagged touchpoint parsing.
+actor: Tester
+trigger: Parse use case.
+flow:
+  - F1: Parse the file.
+touchpoints:
+  - T1: "srd001-auth R1, R2 -- authentication flow"
+success_criteria: []
+out_of_scope: []
+test_suite: test-rel00.0
+`)
+
+	uc, err := ParseUseCase(path)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"T1: srd001-auth R1, R2 -- authentication flow"}, uc.Touchpoints)
+}
+
 func TestParseTestSuite(t *testing.T) {
 	ts, err := ParseTestSuite(filepath.Join("testdata", "valid", "docs", "specs",
 		"test-suites", "test-rel00.0.yaml"))
@@ -76,6 +98,13 @@ func TestParseTestSuite(t *testing.T) {
 	assert.Len(t, ts.TestCases, 2)
 	assert.Equal(t, "TestLogin_ValidCredentials", ts.TestCases[0].Name)
 	assert.Equal(t, []string{"srd001-auth AC1"}, ts.TestCases[0].Traces)
+}
+
+func writeUseCaseFile(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "use-case.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	return path
 }
 
 func TestParseSRD_FileNotFound(t *testing.T) {

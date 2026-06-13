@@ -202,6 +202,11 @@ func TestParseTouchpoint(t *testing.T) {
 		wantGroup []string
 	}{
 		{"srd005-cli R1, R2, R3 -- description", "srd005-cli", []string{"R1", "R2", "R3"}},
+		{"T1: srd005-cli R1, R2 -- description", "srd005-cli", []string{"R1", "R2"}},
+		{"T12: srd026-lifecycle-tools R1 -- lifecycle tools", "srd026-lifecycle-tools", []string{"R1"}},
+		{"T1 srd005-cli R1 -- malformed tag", "", nil},
+		{"TA: srd005-cli R1 -- malformed tag", "", nil},
+		{"T1: srd999-missing R1 -- unknown SRD stays parseable", "srd999-missing", []string{"R1"}},
 		{"srd001-auth R1 -- desc", "srd001-auth", []string{"R1"}},
 		{"agent-core telemetry -- something", "", nil},
 		{"", "", nil},
