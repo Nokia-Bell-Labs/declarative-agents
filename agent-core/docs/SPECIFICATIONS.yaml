@@ -47,9 +47,9 @@ roadmap_summary:
     status: done
   - version: "02.0"
     name: Rollback lifecycle and tool language documentation
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 4
-    status: planned
+    status: in_progress
 
 foundation_document_index:
   - id: agent-core
@@ -242,7 +242,7 @@ use_case_index:
   - id: rel02.0-uc002-history-rollback
     title: User inspects history and rolls back after a bad tool action
     release: "02.0"
-    status: planned
+    status: done
     test_suite: test-rel02.0-lifecycle
     path: docs/specs/use-cases/rel02.0-uc002-history-rollback.yaml
   - id: rel02.0-uc003-tool-authoring
@@ -331,8 +331,11 @@ coverage_gaps: |
   touchpoints and formal YAML test suite coverage in release 00.0.
   SRDs srd009-srd018 (remaining 00.0 SRDs) and srd019-srd024
   (01.0 SRDs) have Go test coverage but no formal YAML test suites.
-  srd025-srd026 (02.0) have planned lifecycle coverage in the release
-  02.0 formal YAML test suites.
+  srd025-srd026 (02.0) have formal YAML coverage in the release 02.0
+  lifecycle and tool-contract test suites. Core checkpoint, history, resume,
+  rollback, lifecycle profile, and lifecycle STL adapter behavior is implemented
+  and tested. The approval-gate reference agent and tool-language migration
+  proofs remain planned follow-up work.
 
   Packages without SRDs:
   - internal/support/execute — agent subprocess execution with process groups

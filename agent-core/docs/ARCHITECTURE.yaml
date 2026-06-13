@@ -395,12 +395,13 @@ overview:
 
   rollback_lifecycle_architecture:
     status: |
-      The architecture defines the lifecycle ports and model now, while parts of
-      the full operational feature set are implemented by the follow-up
-      tundo/tlife epics. Disabled-mode behavior remains the default: when
+      Core lifecycle ports, checkpoint operations, history recording, resume,
+      rollback traversal, lifecycle STL adapters, and history/rollback profiles
+      are implemented. Disabled-mode behavior remains the default: when
       StateStore, Workspace, and CheckpointPolicy are nil or disabled, existing
       machines run without checkpoint persistence, full history recording, or
-      workspace restore behavior.
+      workspace restore behavior. The remaining release 02.0 proof is an
+      approval-gate reference agent that exercises suspend and resume end to end.
 
     summary: |
       Rollback and lifecycle support is architectural because agent programs
@@ -1000,7 +1001,7 @@ project_structure:
       role: Documentation, specifications, and roadmap
 
 implementation_status:
-  current_focus: Documentation accuracy and agent configuration documentation
+  current_focus: Release 02.0 documentation accuracy and remaining lifecycle reference proofs
   progress:
     - done: Core engine (internal/runtime/core) — types, state machine, dispatch, registry, loop, machine config
     - done: Tracing port (internal/observability/tracing) — 5-method Tracer interface with NoopTracer
@@ -1022,6 +1023,8 @@ implementation_status:
     - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
     - done: Agent profiles and configurations — generator, evaluator, planner, jurist, bench profiles with machine/tools/llm selections
     - done: Grammar Machine alignment — selected-tool contract enforcement, rollback strategy vocabulary, profile-first child boundaries, and centralized builtin factory catalog
+    - done: Rollback lifecycle core operations — StateStore, FileStore, Workspace, GitWorkspace, checkpoints, history, resume, and rollback traversal
+    - done: Lifecycle STL adapters and profiles — checkpoint_history and checkpoint_rollback selected by agents/lifecycle profiles
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats, docker
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
