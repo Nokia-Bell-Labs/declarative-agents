@@ -9,6 +9,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -157,6 +158,40 @@ func TestRootCommandHasNoLifecycleOnlyFlags(t *testing.T) {
 	})
 }
 
+func TestApprovalLifecycleProfileSuspendsAndResumesApproved(t *testing.T) {
+	restore := snapshotAgentFlags()
+	t.Cleanup(func() { restoreAgentFlags(restore) })
+
+	profilePath := filepath.Join(repoRootFromTest(t), "agents", "lifecycle", "approval", "profile.yaml")
+	storeDir := t.TempDir()
+
+	clearAgentFlags()
+	flagProfile = profilePath
+	flagStateStoreDir = storeDir
+	firstStderr, err := captureStderr(t, func() error {
+		return run(rootCmd, nil)
+	})
+	require.NoError(t, err)
+	require.Contains(t, firstStderr, "terminal state: suspended")
+
+	store := core.NewFileStore(storeDir)
+	keys, err := store.List(context.Background(), "checkpoint/")
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	checkpointID := strings.TrimPrefix(keys[0], "checkpoint/")
+
+	clearAgentFlags()
+	flagProfile = profilePath
+	flagStateStoreDir = storeDir
+	flagResumeCheckpoint = checkpointID
+	flagResumeSignal = string(core.Approved)
+	secondStderr, err := captureStderr(t, func() error {
+		return run(rootCmd, nil)
+	})
+	require.NoError(t, err)
+	require.Contains(t, secondStderr, "terminal state: succeeded")
+}
+
 func assertMainDeclsAbsent(t *testing.T, forbidden map[string]bool) {
 	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)
@@ -184,6 +219,90 @@ func assertGenDeclNamesAbsent(t *testing.T, decl *ast.GenDecl, forbidden map[str
 			require.False(t, forbidden[name.Name], "main.go must not declare %s", name.Name)
 		}
 	}
+}
+
+type agentFlagSnapshot struct {
+	profile          string
+	machine          string
+	tools            []string
+	toolDeclarations []string
+	toolConfigDirs   []string
+	otelLog          string
+	otelParent       string
+	directory        string
+	profilesDir      string
+	verboseTrace     bool
+	input            string
+	output           string
+	stateStoreDir    string
+	resumeCheckpoint string
+	resumeSignal     string
+}
+
+func snapshotAgentFlags() agentFlagSnapshot {
+	return agentFlagSnapshot{
+		profile:          flagProfile,
+		machine:          flagMachine,
+		tools:            append([]string(nil), flagTools...),
+		toolDeclarations: append([]string(nil), flagToolDeclarations...),
+		toolConfigDirs:   append([]string(nil), flagToolConfigDirs...),
+		otelLog:          flagOTelLog,
+		otelParent:       flagOTelParent,
+		directory:        flagDirectory,
+		profilesDir:      flagProfilesDir,
+		verboseTrace:     flagVerboseTrace,
+		input:            flagInput,
+		output:           flagOutput,
+		stateStoreDir:    flagStateStoreDir,
+		resumeCheckpoint: flagResumeCheckpoint,
+		resumeSignal:     flagResumeSignal,
+	}
+}
+
+func restoreAgentFlags(s agentFlagSnapshot) {
+	flagProfile = s.profile
+	flagMachine = s.machine
+	flagTools = append([]string(nil), s.tools...)
+	flagToolDeclarations = append([]string(nil), s.toolDeclarations...)
+	flagToolConfigDirs = append([]string(nil), s.toolConfigDirs...)
+	flagOTelLog = s.otelLog
+	flagOTelParent = s.otelParent
+	flagDirectory = s.directory
+	flagProfilesDir = s.profilesDir
+	flagVerboseTrace = s.verboseTrace
+	flagInput = s.input
+	flagOutput = s.output
+	flagStateStoreDir = s.stateStoreDir
+	flagResumeCheckpoint = s.resumeCheckpoint
+	flagResumeSignal = s.resumeSignal
+}
+
+func clearAgentFlags() {
+	restoreAgentFlags(agentFlagSnapshot{resumeSignal: string(core.Approved)})
+}
+
+func repoRootFromTest(t *testing.T) string {
+	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+}
+
+func captureStderr(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+	old := os.Stderr
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stderr = w
+	defer func() { os.Stderr = old }()
+
+	runErr := fn()
+	require.NoError(t, w.Close())
+	var buf bytes.Buffer
+	_, readErr := buf.ReadFrom(r)
+	require.NoError(t, readErr)
+	require.NoError(t, r.Close())
+	return buf.String(), runErr
 }
 
 func TestFormatCheckpointHistory(t *testing.T) {

@@ -1,0 +1,6 @@
+name: lifecycle-approval
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_config_dirs:
+  - ../../../tools/builtin
