@@ -2,12 +2,13 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Twenty-five SRDs
+  Specification index for the agent-core framework. Twenty-six SRDs
   define the generic agentic loop engine and its supporting packages
   across three releases: 18 SRDs in release 00.0 (core engine,
   telemetry, LLM, prompt, STL, spec graph, CLI), 6 SRDs in release
   01.0 (eval harness, bench UI, tool declarations, exec tools, blocking
-  input), and 1 SRD in release 02.0 (rollback lifecycle). Eight use
+  input), and 2 SRDs in release 02.0 (rollback lifecycle and lifecycle
+  tool adapters). Eight use
   cases exercise the SRDs across the three releases. Three formal YAML
   test suites cover 72 acceptance test cases across releases 00.0 and
   02.0; additional coverage comes from Go test functions across all
@@ -24,7 +25,7 @@ overview: |
   - 01.0: srd019 (eval harness), srd020 (bench web UI),
     srd021 (agent CLI as exec tool), srd022 (builtin tools),
     srd023 (CLI/exec tools), srd024 (blocking input tools)
-  - 02.0: srd025 (rollback lifecycle)
+  - 02.0: srd025 (rollback lifecycle), srd026 (lifecycle tool adapters)
 
   Source-of-truth note.
   - roll-backs.md and tools-as-dsl.md are historical design notes. Their
@@ -91,7 +92,7 @@ srd_index:
     path: docs/specs/software-requirements/srd007-tracer-interface.yaml
   - id: srd008-telemetry
     title: Telemetry Implementation
-    summary: Concrete OTel setup with Trace, TraceAdapter, NewRoot, ExporterConfig, file/OTLP exporters, and ReplayFile.
+    summary: OTel setup with Trace, TraceAdapter, NewRoot, ExporterConfig, file/OTLP exporters, and ReplayFile.
     path: docs/specs/software-requirements/srd008-telemetry.yaml
   - id: srd009-ollama-adapter
     title: Ollama LLM Adapter
@@ -161,6 +162,10 @@ srd_index:
     title: Rollback, Checkpoint, Suspend, and Resume Lifecycle
     summary: Requirements for three-layer state, StateStore/FileStore, Workspace/GitWorkspace, history, checkpoints, rollback traversal, suspend, resume, approval gates, and opt-in lifecycle behavior.
     path: docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+  - id: srd026-lifecycle-tools
+    title: Lifecycle Tool Adapters
+    summary: Requirements for checkpoint_history and checkpoint_rollback as STL builtin adapters around core checkpoint operations, selected by ToolDef declarations and MachineSpec transitions.
+    path: docs/specs/software-requirements/srd026-lifecycle-tools.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -283,7 +288,7 @@ go_test_coverage:
     Go test functions across all packages provide coverage beyond the
     formal YAML test suites. The release 00.0 YAML suite (51 cases) covers
     srd001-srd008; release 02.0 YAML suites (21 cases) cover rollback
-    lifecycle and tool contract requirements. Package tests cover srd009-srd018
+    lifecycle, lifecycle tool adapter, and tool contract requirements. Package tests cover srd009-srd018
     and domain packages. Run `go test ./... -v | grep -c '=== RUN'` for the
     current test function count.
 
@@ -302,7 +307,7 @@ srd_to_use_case_mapping:
     coverage: Full. Covers AC1 through AC3 via SC6 and test cases.
   - use_case: rel00.0-uc001-domain-agent-integration
     srd: srd004-tool-registry
-    why_required: Domain agent registers tools in a Registry and generates manifests.
+    why_required: Domain agent registers tools in a Registry and generates tool lists.
     coverage: Full. Covers AC1 through AC5 via SC1 and test cases.
   - use_case: rel00.0-uc001-domain-agent-integration
     srd: srd005-agentic-loop
@@ -314,7 +319,7 @@ srd_to_use_case_mapping:
     coverage: Full. Covers AC1 through AC4 via SC2, SC7 and test cases.
   - use_case: rel00.0-uc001-domain-agent-integration
     srd: srd007-tracer-interface
-    why_required: Domain agent supplies a concrete Tracer implementation satisfying the port interface.
+    why_required: Domain agent supplies a Tracer implementation satisfying the port interface.
     coverage: Full. Covers AC1 and AC2 via SC8.
   - use_case: rel00.0-uc001-domain-agent-integration
     srd: srd008-telemetry
@@ -326,8 +331,8 @@ coverage_gaps: |
   touchpoints and formal YAML test suite coverage in release 00.0.
   SRDs srd009-srd018 (remaining 00.0 SRDs) and srd019-srd024
   (01.0 SRDs) have Go test coverage but no formal YAML test suites.
-  srd025 (02.0) has planned lifecycle coverage in the release 02.0
-  formal YAML test suites.
+  srd025-srd026 (02.0) have planned lifecycle coverage in the release
+  02.0 formal YAML test suites.
 
   Packages without SRDs:
   - internal/support/execute — agent subprocess execution with process groups
