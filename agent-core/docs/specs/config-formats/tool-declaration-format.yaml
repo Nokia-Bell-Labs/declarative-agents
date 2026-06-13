@@ -3,8 +3,8 @@ title: Tool Declaration Format (tool_config_dirs and declaration YAML)
 
 purpose: |
   Defines the YAML schema for declaring tools that agents can use.
-  Tool declarations describe what a tool does, how it is invoked, and
-  what parameters it accepts. Two tool types exist: builtin tools
+  Tool declarations describe purpose, invocation, parameters, and
+  runtime contract. Two tool types exist: builtin tools
   (compiled into the agent binary) and exec tools (external executables).
 
 schema:
@@ -81,7 +81,7 @@ schema:
     type: "[]string"
     required: false
     description: |
-      Contract field listing behavior this tool deliberately does
+      Contract field listing behavior this tool intentionally does
       not provide. Non-goals help the agent choose between overlapping
       tools and avoid using one word as a hidden workflow.
 
@@ -167,7 +167,7 @@ schema:
     description: |
       Contract field describing how to reverse or compensate for the
       tool's effects. This complements reversibility by naming the
-      concrete rollback mechanism and what metadata the persisted
+      specific rollback mechanism and metadata the persisted
       UndoMemento captures.
     sub_fields:
       - field: strategy
@@ -192,7 +192,7 @@ schema:
         type: "[]string"
         description: |
           Names of the runtime values captured in the UndoMemento
-          payload. These document what information is persisted for
+          payload. These document the information persisted for
           later compensation or inspection. Examples include
           ran_child_tools, issue_id, child_run_id, workspace_paths,
           server_addr, and suite_path.
@@ -283,14 +283,15 @@ exec_fields:
       Excess lines are truncated to keep LLM context manageable.
 
   - field: includes
-    type: string
+    type: "[]string"
     required: false
     scope: file-level (not per-tool)
     description: |
       A file-level field on the tool declarations file (not on
-      individual tool entries). Specifies a path to another tool
-      file whose declarations are merged before the current file's
-      tools. Used for composing tool sets from shared definitions.
+      individual tool entries). Specifies paths to other tool files
+      whose declarations are merged before the current file's tools.
+      Included files load first. The including file may override a
+      tool with the same name.
 
 parameter_extensions:
   description: |
@@ -444,6 +445,92 @@ legacy_artifacts: |
   worktree_list, issue_claim) that are not yet migrated to the canonical exec
   declarations. Retained as a reference for tools that may be promoted to the
   canonical set.
+
+target_grouped_layout:
+  status: planned
+  rule: |
+    Current profiles load flat declaration directories. The next YAML move
+    groups shared declarations by tool family while keeping compatibility
+    bundle files loadable through existing profile and CLI paths.
+  builtin_groups:
+    - path: tools/builtin/filesystem/
+      owns: [read, write, edit, find, list_files]
+      kind: shared
+    - path: tools/builtin/llm/
+      owns: [parse_response, report_parse_error, reset_history, nudge_reread, done]
+      kind: shared
+      note: invoke_llm remains agent-local under agents/*/llm/*.yaml because its config binds model, provider, prompt, and profile behavior.
+    - path: tools/builtin/lifecycle/
+      owns: [suspend, checkpoint_history, checkpoint_rollback]
+      kind: shared
+    - path: tools/builtin/control/
+      owns: [self_invoke]
+      kind: shared
+    - path: tools/builtin/validation/
+      owns: [validate]
+      kind: shared compatibility
+    - path: tools/builtin/planner/
+      owns: [extract_task, extract_all, assemble_prompt, parse_plan, create_issue, execute_task, check_result]
+      kind: shared planner-family declarations
+    - path: tools/builtin/evaluator-session/
+      owns: [parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, report_suite_summary, next_point, run_point, report_session]
+      kind: shared evaluator-session declarations
+    - path: tools/builtin/evaluator-point/
+      owns: [create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, commit_workspace_baseline, dump_config, run_agent, run_oracle_check, collect_trace_tokens, check_agent_version, summarize_point_results, collect_metrics]
+      kind: shared evaluator-point declarations
+    - path: tools/builtin/bench/
+      owns: [serve_ui, launch_eval]
+      kind: shared bench declarations
+    - path: tools/builtin/spec-validation/
+      owns: [load_corpus, validate_specs, format_report]
+      kind: shared jurist declarations
+  exec_groups:
+    - path: tools/exec/go/
+      owns: [build, vet, lint, test]
+      kind: shared
+    - path: tools/exec/workspace/
+      owns: [copy_dir, make_dir]
+      kind: shared
+    - path: tools/exec/git/
+      owns: [git_init, stage_all, workspace_status, commit, rev_parse, diff_stat, log_oneline]
+      kind: shared
+    - path: tools/exec/beads/
+      owns: [issue_create, issue_close, issue_list]
+      kind: shared
+  compatibility_bundles:
+    - path: tools/builtin.yaml
+      role: Compatibility bundle that includes every shared builtin group needed by existing direct --tools-declaration startup.
+    - path: tools/exec.yaml
+      role: Compatibility bundle that includes every shared exec group needed by existing direct --tools-declaration startup.
+    - path: tools/builtin/all.yaml
+      role: Planned explicit bundle for profiles or tests that need the full builtin declaration set.
+    - path: tools/exec/all.yaml
+      role: Planned explicit bundle for profiles or tests that need the full exec declaration set.
+    - path: tools/builtin/generator.yaml
+      role: Planned optional bundle for generator shared builtins; profiles may instead load the needed groups directly.
+    - path: tools/builtin/planner.yaml
+      role: Planned optional bundle for planner shared builtins; agent-local overrides still live under agents/planner/.
+    - path: tools/builtin/evaluator.yaml
+      role: Planned optional bundle for evaluator session and point builtins; agent-local config still lives under agents/evaluator/.
+    - path: tools/builtin/bench.yaml
+      role: Planned optional bundle for bench builtins; agent-local config still lives under agents/bench/.
+    - path: tools/builtin/jurist.yaml
+      role: Planned optional bundle for spec validation builtins.
+    - path: tools/builtin/lifecycle.yaml
+      role: Planned optional bundle for lifecycle builtins.
+  include_rules:
+    - Includes are relative to the file that declares them.
+    - Included files load before local tools.
+    - Later declarations with the same tool name override earlier declarations.
+    - Shared group files define reusable identity, parameters, visibility, emits, and contracts.
+    - Agent-local files define behavior-shaping config for one profile or mode.
+    - Agent-local overrides preserve the same name and init unless they intentionally replace a capability.
+    - tools.yaml selection files remain name-only and do not include declaration paths.
+  migration_rules:
+    - Move declarations into grouped files only after this format contract is in place.
+    - Keep tools/builtin.yaml and tools/exec.yaml loadable as compatibility bundles during the move.
+    - Keep active profiles loadable through current tool_config_dirs and tool_declarations until code supports narrower group paths.
+    - Do not move invoke_llm into a shared group; keep model-boundary declarations agent-local.
 
 related_documents:
   - cfg-tool-authoring-standard

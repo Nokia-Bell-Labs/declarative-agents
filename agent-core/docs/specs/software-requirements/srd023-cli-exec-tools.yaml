@@ -87,6 +87,22 @@ package_ownership:
     - Exec undo memento payload helpers use internal/tools/undo.
     - internal/tools/stl exposes only thin aliases or wrappers during migration and is not the long-term exec implementation package.
 
+declaration_layout:
+  status: planned
+  shared_groups:
+    - tools/exec/go/
+    - tools/exec/workspace/
+    - tools/exec/git/
+    - tools/exec/beads/
+  compatibility_bundles:
+    - tools/exec.yaml
+    - tools/exec/all.yaml
+  rules:
+    - Shared groups own reusable exec identity, argv mapping, output caps, side effects, undo, and emits.
+    - tools/exec.yaml remains a compatibility bundle while existing startup paths migrate.
+    - tools/exec/all.yaml is the planned explicit full exec bundle.
+    - Agent tools.yaml files keep selecting exec tools by name only.
+
 non_goals:
   - Defining every external command used by the repository.
   - Defining builtin factory config validation; see srd022.
@@ -126,7 +142,13 @@ depends_on:
     symbols_used: [BuiltinRegistry]
 
 implementation:
-  - tools/exec/
+  - tools/exec/ (current flat shared exec declarations)
+  - tools/exec/go/ (planned grouped declarations)
+  - tools/exec/workspace/ (planned grouped declarations)
+  - tools/exec/git/ (planned grouped declarations)
+  - tools/exec/beads/ (planned grouped declarations)
+  - tools/exec.yaml (compatibility bundle)
+  - tools/exec/all.yaml (planned compatibility bundle)
   - internal/tools/catalog/ (planned ToolDef, declaration loading, and selection)
   - internal/tools/exec/ (planned ExecBuilder and ExecCmd)
   - internal/tools/undo/ (planned shared undo payload helpers)

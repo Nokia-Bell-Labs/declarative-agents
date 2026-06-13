@@ -94,6 +94,39 @@ package_ownership:
     - Builtin implementations move to filesystem, llm, lifecycle, control, validation, exec, and undo packages.
     - internal/tools/stl exposes only thin aliases or wrappers during migration and is not the long-term builtin implementation package.
 
+declaration_layout:
+  status: planned
+  shared_groups:
+    - tools/builtin/filesystem/
+    - tools/builtin/llm/
+    - tools/builtin/lifecycle/
+    - tools/builtin/control/
+    - tools/builtin/validation/
+    - tools/builtin/planner/
+    - tools/builtin/evaluator-session/
+    - tools/builtin/evaluator-point/
+    - tools/builtin/bench/
+    - tools/builtin/spec-validation/
+  compatibility_bundles:
+    - tools/builtin.yaml
+    - tools/builtin/all.yaml
+    - tools/builtin/generator.yaml
+    - tools/builtin/planner.yaml
+    - tools/builtin/evaluator.yaml
+    - tools/builtin/bench.yaml
+    - tools/builtin/jurist.yaml
+    - tools/builtin/lifecycle.yaml
+  mode_local_overrides:
+    - agents/planner/builtin.yaml
+    - agents/evaluator/builtin.yaml
+    - agents/bench/builtin.yaml
+    - agents/*/llm/*.yaml
+  rules:
+    - Shared groups own reusable builtin identity, parameters, visibility, emits, and contract fields.
+    - Mode-local overrides own config that binds a shared tool to one agent profile.
+    - Compatibility bundles include shared groups so existing profile and direct CLI startup keep working during migration.
+    - Tool selection files remain name-only.
+
 non_goals:
   - Defining external CLI/exec tools; see the CLI/exec tool SRD work.
   - Defining every builtin tool's internal algorithm.
@@ -135,7 +168,19 @@ depends_on:
     symbols_used: [BuiltinRegistry, RegisterSingleBuiltin, ToolDef]
 
 implementation:
-  - tools/builtin/
+  - tools/builtin/ (current flat shared builtin declarations)
+  - tools/builtin/filesystem/ (planned grouped declarations)
+  - tools/builtin/llm/ (planned grouped declarations)
+  - tools/builtin/lifecycle/ (planned grouped declarations)
+  - tools/builtin/control/ (planned grouped declarations)
+  - tools/builtin/validation/ (planned grouped declarations)
+  - tools/builtin/planner/ (planned grouped declarations)
+  - tools/builtin/evaluator-session/ (planned grouped declarations)
+  - tools/builtin/evaluator-point/ (planned grouped declarations)
+  - tools/builtin/bench/ (planned grouped declarations)
+  - tools/builtin/spec-validation/ (planned grouped declarations)
+  - tools/builtin.yaml (compatibility bundle)
+  - tools/builtin/all.yaml (planned compatibility bundle)
   - internal/support/execute/execute.go
   - internal/tools/catalog/ (planned ToolDef and config decoding)
   - internal/tools/registry/ (planned BuiltinRegistry and factory catalog)

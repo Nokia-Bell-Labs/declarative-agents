@@ -112,7 +112,7 @@ srd_index:
     path: docs/specs/software-requirements/srd012-system-prompt-template.yaml
   - id: srd013-standard-tool-library
     title: Standard Tool Library (STL)
-    summary: Overview of shared standard tools, the planned internal/tools package split, and the temporary internal/tools/stl facade.
+    summary: Overview of shared standard tools, planned internal/tools package split, grouped declaration layout, and temporary compatibility facades.
     path: docs/specs/software-requirements/srd013-standard-tool-library.yaml
   - id: srd014-spec-graph
     title: Specification Graph Loader and Validator
@@ -148,11 +148,11 @@ srd_index:
     path: docs/specs/software-requirements/srd021-agent-cli-exec-tool.yaml
   - id: srd022-builtin-tools
     title: Builtin Tool Declarations and Factories
-    summary: Requirements for builtin declarations, target catalog and registry package ownership, typed config validation, state-machine integration, and mode-local overrides.
+    summary: Requirements for builtin declarations, grouped builtin declaration paths, target catalog and registry package ownership, typed config validation, state-machine integration, and mode-local overrides.
     path: docs/specs/software-requirements/srd022-builtin-tools.yaml
   - id: srd023-cli-exec-tools
     title: CLI and Exec Tool Declarations
-    summary: Requirements for declaring external CLIs as exec tools, mapping JSON parameters to argv, subprocess execution, output capture, declaration selection, and target exec package ownership.
+    summary: Requirements for declaring external CLIs as exec tools, grouped exec declaration paths, JSON-to-argv mapping, subprocess execution, output capture, declaration selection, and target exec package ownership.
     path: docs/specs/software-requirements/srd023-cli-exec-tools.yaml
   - id: srd024-blocking-input-tools
     title: Blocking Input Tools
@@ -178,15 +178,15 @@ config_format_index:
     path: docs/specs/config-formats/runtime-contract.yaml
   - id: cfg-tool-authoring-standard
     title: Tool Definition Authoring Standard
-    summary: Source-of-truth guidance for authoring tools as vocabulary words with typed contracts, declared side effects, reversibility, undo, errors, and machine-composed workflows.
+    summary: Source-of-truth guidance for authoring tools as vocabulary words with typed contracts, declaration placement, side effects, reversibility, undo, errors, and machine-composed workflows.
     path: docs/specs/config-formats/tool-authoring-standard.yaml
   - id: cfg-tool-declaration-format
     title: Tool Declaration Format
-    summary: YAML schema for builtin and exec tool declarations.
+    summary: YAML schema for builtin and exec tool declarations, grouped declaration files, include ordering, local overrides, and compatibility bundles.
     path: docs/specs/config-formats/tool-declaration-format.yaml
   - id: cfg-tool-selection-format
     title: Tool Selection Format
-    summary: Name-only tools.yaml selection format used to choose available vocabulary from shared declaration files.
+    summary: Name-only tools.yaml selection format used to choose available vocabulary from shared grouped declaration files and local overrides.
     path: docs/specs/config-formats/tool-selection-format.yaml
   - id: cfg-llm-config-format
     title: LLM Configuration Format

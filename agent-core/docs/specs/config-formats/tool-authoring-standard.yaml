@@ -214,6 +214,63 @@ authoring_workflow:
     name: add_tests
     instruction: "Test success, domain failure, command error, side effects, and important undo/reversibility behavior."
 
+declaration_placement:
+  status: planned
+  rule: |
+    Place a tool declaration in the smallest shared group that owns its
+    vocabulary family. Keep behavior-shaping profile config in agent-local
+    declarations. Keep tools.yaml files name-only.
+  placement_steps:
+    - Classify the tool as builtin or exec.
+    - Classify the tool as shared reusable declaration, agent-local override, or compatibility bundle member.
+    - Choose the group that matches the tool's primary vocabulary family.
+    - Add profile-specific config only in agents/<agent>/builtin.yaml or agents/<agent>/llm/*.yaml.
+    - Add the tool name to the agent tools.yaml selection only when that agent should use it.
+    - Keep workflow order in machine.yaml transitions.
+  shared_builtin_groups:
+    filesystem: tools/builtin/filesystem/
+    llm: tools/builtin/llm/
+    lifecycle: tools/builtin/lifecycle/
+    control: tools/builtin/control/
+    validation: tools/builtin/validation/
+    planner: tools/builtin/planner/
+    evaluator_session: tools/builtin/evaluator-session/
+    evaluator_point: tools/builtin/evaluator-point/
+    bench: tools/builtin/bench/
+    spec_validation: tools/builtin/spec-validation/
+  shared_exec_groups:
+    go: tools/exec/go/
+    workspace: tools/exec/workspace/
+    git: tools/exec/git/
+    beads: tools/exec/beads/
+  compatibility_bundles:
+    - tools/builtin.yaml
+    - tools/exec.yaml
+    - tools/builtin/all.yaml
+    - tools/exec/all.yaml
+  override_rules:
+    - Shared declarations define the stable vocabulary word and reusable contract.
+    - Agent-local overrides define profile-bound config such as child profile, server address, prompt, suite paths, or model.
+    - Agent-local overrides keep the same name and init unless the change intentionally replaces the capability.
+    - Includes load first; local declarations override included declarations with the same tool name.
+    - Compatibility bundles include grouped files and do not become the source of new tool contracts.
+  examples:
+    - tool: read
+      placement: tools/builtin/filesystem/
+      reason: Shared file word with no agent-local config.
+    - tool: invoke_llm
+      placement: agents/<agent>/llm/*.yaml
+      reason: Model, provider, prompt, and manifest state are profile-bound config.
+    - tool: execute_task
+      placement: tools/builtin/planner/ plus agents/planner/builtin.yaml
+      reason: Shared child-agent boundary word with planner-local child profile config.
+    - tool: build
+      placement: tools/exec/go/
+      reason: Shared Go CLI word.
+    - tool: issue_create
+      placement: tools/exec/beads/
+      reason: Shared Beads CLI boundary word.
+
 acceptance_tests_for_authors:
   - "Could a developer implement the tool without asking what it should do?"
   - "Could the agent decide when not to use this tool from problem, goals, and non_goals?"
