@@ -123,6 +123,8 @@ test_trace_plan:
     covers: [AC1, AC2, AC3, AC4, AC5, AC6]
   - existing_go_tests:
       - internal/tools/stl/checkpoint_lifecycle_test.go
+      - internal/runtime/core/checkpoint_ops_test.go
+      - internal/runtime/core/rollback_test.go
 
 depends_on:
   - srd_id: srd001-core-types
@@ -145,3 +147,10 @@ implementation:
   - internal/tools/stl/checkpoint_lifecycle.go
   - internal/tools/stl/toolconfig.go
   - internal/runtime/core/checkpoint_ops.go
+
+implementation_status:
+  done:
+    - checkpoint_history is implemented as a builtin STL adapter around core checkpoint loading and formatting.
+    - checkpoint_rollback is implemented as a builtin STL adapter around core rollback traversal.
+    - agents/lifecycle/history/profile.yaml and agents/lifecycle/rollback/profile.yaml select the lifecycle machines and builtin tool declarations.
+    - Hidden lifecycle subcommands have been removed from cmd/agent; lifecycle operations use the universal profile-first runtime path.

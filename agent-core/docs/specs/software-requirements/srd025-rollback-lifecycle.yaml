@@ -15,9 +15,8 @@ problem: |
   machine actions that dispatch first-class lifecycle tools. Core checkpoint
   functions remain reusable algorithms. STL lifecycle tools adapt those
   functions into Commands with typed config and declared contracts. Agent
-  profiles select the lifecycle machines and tool declarations. Hidden Cobra
-  subcommands are compatibility adapters during migration, not the target
-  programming model.
+  profiles select the lifecycle machines and tool declarations. The runtime no
+  longer exposes hidden lifecycle subcommands as the operator path.
 
 goals:
   - G1: Define the three-layer state model for rollback and lifecycle features.
@@ -194,8 +193,12 @@ test_trace_plan:
     covers: [AC6, AC7]
   - existing_go_tests:
       - internal/runtime/core/checkpoint_test.go
+      - internal/runtime/core/checkpoint_ops_test.go
       - internal/runtime/core/git_workspace_test.go
       - internal/runtime/core/loop_test.go
+      - internal/runtime/core/resume_test.go
+      - internal/runtime/core/rollback_test.go
+      - internal/tools/stl/checkpoint_lifecycle_test.go
 
 depends_on:
   - srd_id: srd001-core-types
@@ -212,6 +215,12 @@ related_documents:
   - roll-backs.md
   - tools-as-dsl.md
 
-implementation_follow_up:
-  - issue: agent-core-tundo
-  - issue: agent-core-tlife
+implementation_status:
+  done:
+    - StateStore and FileStore persistence.
+    - Workspace and GitWorkspace checkpoint and restore behavior.
+    - Loop history recording with disabled-mode nil defaults.
+    - Checkpoint creation, loading, formatting, resume, and rollback traversal.
+    - Lifecycle history and rollback profiles backed by STL builtin adapters.
+  remaining_gaps:
+    - Approval-gate reference agent for suspend and resume is tracked by agent-core-6xm3.

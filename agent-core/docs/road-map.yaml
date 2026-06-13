@@ -86,12 +86,12 @@ releases:
   - version: "02.0"
     name: Rollback lifecycle and tool language documentation
     description: |
-      Checkpoint, suspend, resume, and rollback lifecycle behavior.
-      Lifecycle tool adapters for checkpoint history and rollback as
-      first-class STL builtin tools.
-      Tool-as-vocabulary authoring standard and sentence-to-word
-      migration guidance.
-    status: planned
+      Checkpoint, suspend, resume, and rollback lifecycle foundations are
+      implemented in the runtime. Lifecycle profiles expose checkpoint history
+      and rollback through first-class STL builtin tools. Tool-as-vocabulary
+      authoring and sentence-to-word migration guidance are specified, with
+      remaining work tracked as documentation and reference-profile follow-up.
+    status: in_progress
     srds:
       - srd025-rollback-lifecycle
       - srd026-lifecycle-tools
@@ -101,7 +101,7 @@ releases:
         status: planned
       - id: rel02.0-uc002-history-rollback
         summary: User inspects history and rolls back after a bad tool action
-        status: planned
+        status: done
       - id: rel02.0-uc003-tool-authoring
         summary: Developer authors a new tool as a vocabulary word
         status: planned
