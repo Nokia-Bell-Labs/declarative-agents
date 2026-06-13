@@ -7,6 +7,8 @@ import (
 	"fmt"
 )
 
+const defaultCheckpointSelector = "latest"
+
 // DecodeToolConfig decodes a ToolDef's Config map into a typed struct.
 // Uses JSON marshal/unmarshal for type coercion (YAML numbers, nested
 // slices, etc. are handled by the JSON layer). Returns an error
@@ -32,6 +34,42 @@ type ChildAgentConfig struct {
 	Machine          string   `json:"machine"`
 	Tools            string   `json:"tools"`
 	ToolDeclarations []string `json:"tools_declarations"`
+}
+
+// CheckpointHistoryConfig holds config for the checkpoint_history lifecycle tool.
+type CheckpointHistoryConfig struct {
+	Checkpoint string `json:"checkpoint"`
+	Input      string `json:"input"`
+}
+
+// SelectedCheckpoint returns the configured checkpoint ID or latest.
+func (c CheckpointHistoryConfig) SelectedCheckpoint() string {
+	if c.Checkpoint == "" {
+		return defaultCheckpointSelector
+	}
+	return c.Checkpoint
+}
+
+// CheckpointRollbackConfig holds config for the checkpoint_rollback lifecycle tool.
+type CheckpointRollbackConfig struct {
+	Checkpoint       string `json:"checkpoint"`
+	ToIteration      *int   `json:"to_iteration"`
+	Input            string `json:"input"`
+	Directory        string `json:"directory"`
+	RestoreWorkspace bool   `json:"restore_workspace"`
+}
+
+// SelectedCheckpoint returns the configured checkpoint ID or latest.
+func (c CheckpointRollbackConfig) SelectedCheckpoint() string {
+	if c.Checkpoint == "" {
+		return defaultCheckpointSelector
+	}
+	return c.Checkpoint
+}
+
+// HasTargetIteration reports whether rollback received an explicit target.
+func (c CheckpointRollbackConfig) HasTargetIteration() bool {
+	return c.ToIteration != nil
 }
 
 // LLMToolConfig holds model-boundary settings from an invoke_llm tool's
