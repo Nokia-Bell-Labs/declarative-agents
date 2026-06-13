@@ -49,6 +49,8 @@ func TestAgentMachineSemanticMetadataMerged(t *testing.T) {
 		"planner/machine-plan-only.yaml",
 		"jurist/machine.yaml",
 		"bench/machine.yaml",
+		"lifecycle/history.yaml",
+		"lifecycle/rollback.yaml",
 	}
 
 	for _, rel := range cases {
@@ -97,6 +99,19 @@ func loadTestDefsForSelection(t *testing.T, cd, agent, selectionPath string) []s
 	selection, err := stl.LoadToolSelection(selectionPath)
 	require.NoError(t, err)
 	defs, err := stl.SelectTools(declarations, selection)
+	require.NoError(t, err)
+	return defs
+}
+
+func loadProfileTestDefs(t *testing.T, profile stl.AgentProfile) []stl.ToolDef {
+	t.Helper()
+	declarations, err := stl.LoadToolDeclarations(profile.ToolDeclarations)
+	require.NoError(t, err)
+	dirDeclarations, err := stl.LoadToolDeclarationsFromDirs(profile.ToolConfigDirs)
+	require.NoError(t, err)
+	selection, err := stl.LoadToolSelections(profile.Tools)
+	require.NoError(t, err)
+	defs, err := stl.SelectTools(stl.MergeToolDefs(declarations, dirDeclarations), selection)
 	require.NoError(t, err)
 	return defs
 }
@@ -720,6 +735,69 @@ func TestJuristConfig_TransitionTable(t *testing.T) {
 	require.NotEmpty(t, table)
 	require.True(t, isTerminal(core.State("Passed")))
 	require.True(t, isTerminal(core.State("Failed")))
+	require.False(t, isTerminal(core.State("Idle")))
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle config tests
+// ---------------------------------------------------------------------------
+
+func TestLifecycleProfilesValidateMachineWiring(t *testing.T) {
+	cd := configDir(t)
+	cases := []struct {
+		name       string
+		profile    string
+		machine    string
+		action     string
+		actionNext string
+		doneState  string
+	}{
+		{
+			name:       "history",
+			profile:    filepath.Join(cd, "lifecycle", "history", "profile.yaml"),
+			machine:    filepath.Join(cd, "lifecycle", "history.yaml"),
+			action:     "checkpoint_history",
+			actionNext: "ReadingHistory",
+			doneState:  "Done",
+		},
+		{
+			name:       "rollback",
+			profile:    filepath.Join(cd, "lifecycle", "rollback", "profile.yaml"),
+			machine:    filepath.Join(cd, "lifecycle", "rollback.yaml"),
+			action:     "checkpoint_rollback",
+			actionNext: "RollingBack",
+			doneState:  "Done",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assertLifecycleProfileWiring(t, cd, tc.profile, tc.machine, tc.action, tc.actionNext, tc.doneState)
+		})
+	}
+}
+
+func assertLifecycleProfileWiring(t *testing.T, cd, profilePath, machinePath, action, actionNext, doneState string) {
+	t.Helper()
+	profile, err := stl.LoadProfile(profilePath)
+	require.NoError(t, err)
+	require.Equal(t, machinePath, profile.Machine)
+	require.Equal(t, []string{filepath.Join(cd, "lifecycle", "tools.yaml")}, profile.Tools)
+	require.Equal(t, []string{sharedToolDecl(t, cd, "builtin")}, profile.ToolConfigDirs)
+
+	spec, err := core.LoadMachineSpec(profile.Machine)
+	require.NoError(t, err)
+	require.Empty(t, core.DiagnoseMachineSpec(spec))
+	defs := loadProfileTestDefs(t, profile)
+	assertToolNames(t, defs, []string{action})
+	assertToolEmits(t, spec, defs)
+	assertTransition(t, spec, "Idle", "Seed", actionNext, action)
+
+	reg := buildRegistryForDefs(t, defs)
+	table, isTerminal, err := core.BuildTransitionTable(spec, reg, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, table)
+	require.True(t, isTerminal(core.State(doneState)))
 	require.False(t, isTerminal(core.State("Idle")))
 }
 
