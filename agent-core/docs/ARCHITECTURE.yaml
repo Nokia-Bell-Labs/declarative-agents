@@ -988,7 +988,7 @@ project_structure:
     - path: agents/bench/
       role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
     - path: agents/lifecycle/
-      role: Lifecycle configured programs — history and rollback profiles, machines, and tool selection
+      role: Lifecycle configured programs — approval, history, and rollback profiles, machines, and tool selection
     - path: tools/
       role: Shared tool declarations — builtin.yaml and exec.yaml
     - path: internal/model/llm/profiles/
@@ -999,6 +999,38 @@ project_structure:
       role: Mage build targets (build, lint, install, clean, tag, stats)
     - path: docs/
       role: Documentation, specifications, and roadmap
+
+package_specification_coverage: |
+  The current Go package set comes from `go list ./...`. Coverage is layered
+  by design. Engine, telemetry, model, prompt, STL, CLI, and spec graph packages
+  map directly to srd001-srd018, srd022-srd026, or both. That direct mapping
+  covers internal/runtime/core, internal/observability, internal/model,
+  internal/tools/stl, internal/support/cli, and pkg/spec behavior.
+
+  Configured-agent packages are covered at the release layer. cmd/agent is
+  governed by cfg-runtime-contract, release 01.0 use cases, lifecycle use cases,
+  test-rel01.0, and Go tests. internal/evaluation and internal/evaluation/bench
+  are covered by srd019, srd020, rel01.0 evaluator and bench use cases,
+  test-rel01.0, and package tests. internal/support/execute is covered by
+  srd021, srd022 AC6, evaluator use cases, and child-agent tests.
+
+  Planning, worktree, and subprocess packages are cross-cutting support
+  packages. Planner packages are covered by planner machine configs,
+  sm-tool-language, sm-tool-vocabulary-audit, and package tests.
+  internal/support/worktree is covered by release 01.0 workspace architecture,
+  sm-rollback-lifecycle, and Go tests. internal/support/subprocess is covered
+  by STL delegation, child-agent execution, and execute or STL integration tests.
+
+  Package roots such as internal/model, internal/observability,
+  internal/planning, internal/runtime, internal/support, and internal/tools do
+  not define standalone runtime behavior. internal/evaluation/bench/ui embeds
+  React assets behind the bench API. internal/audit is Mage and audit glue
+  governed by constitutions and mage audit behavior.
+
+  Remaining gaps are narrow. Browser-level bench UI proof remains manual or
+  skipped until an automated browser harness joins the quality gate. Planner
+  SRDs are optional unless planner behavior becomes a stable product surface
+  outside profile configs.
 
 implementation_status:
   current_focus: Release 02.0 documentation accuracy and remaining lifecycle reference proofs
