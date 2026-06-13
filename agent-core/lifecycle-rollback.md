@@ -4,28 +4,25 @@ This guide explains how to turn on lifecycle features, how to operate approval
 gates, and what rollback can and cannot make safe.
 
 The design requirements live in
-`docs/specs/software-requirements/srd025-rollback-lifecycle.yaml`. The tool
-authoring contract for side effects, reversibility, undo, and confirmation lives
-in `docs/specs/config-formats/tool-authoring-standard.yaml`. The historical
-design note in `roll-backs.md` is useful background, but the spec files are the
-source of truth.
+`docs/specs/software-requirements/srd025-rollback-lifecycle.yaml`.
+Lifecycle tool adapter requirements live in
+`docs/specs/software-requirements/srd026-lifecycle-tools.yaml`. The tool
+authoring contract for side effects, reversibility, undo, and confirmation
+lives in `docs/specs/config-formats/tool-authoring-standard.yaml`. The
+historical design note in `roll-backs.md` is useful background, but the spec
+files are the source of truth.
 
 ## Defaults
 
-Lifecycle behavior is opt-in. A normal agent run without lifecycle flags keeps
-the existing runtime behavior:
+Lifecycle behavior is opt-in. A normal agent run without lifecycle runtime
+inputs creates no checkpoint directory, persists no checkpoint JSON, restores no
+resume state, attempts no workspace restore, and keeps history minimal unless
+the runtime is configured with a `CheckpointPolicy`.
 
-- no checkpoint directory is created;
-- no checkpoint JSON is persisted;
-- no resume state is restored;
-- no workspace restore is attempted;
-- history stays minimal unless the runtime is configured with a
-  `CheckpointPolicy`.
-
-The main CLI enables local checkpoint persistence with `--state-store-dir`.
-Without that flag, suspend can still emit lifecycle signals, but checkpoint
-persistence is unavailable. Tools that set `require_checkpoint: true` fail
-explicitly when no `StateStore` is configured.
+The universal runtime enables local checkpoint persistence with
+`--state-store-dir`. Without that flag, suspend can still emit lifecycle
+signals, but checkpoint persistence is unavailable. Tools that set
+`require_checkpoint: true` fail explicitly when no `StateStore` is configured.
 
 ## State Model
 
@@ -50,43 +47,53 @@ serialized agent state; they point at a filesystem snapshot.
 Do not store workspace trees in `StateStore`, and do not use git commits as the
 serialization format for agent or conversation state.
 
-## Runtime Flags
+## Runtime Inputs
 
-Use these flags on the main `agent` command:
+Use universal flags on the main `agent` command. `--state-store-dir <dir>`
+enables the local `FileStore` for lifecycle checkpoints, stored as JSON under
+paths like `checkpoint/<id>`. `--resume-checkpoint <id>` loads a persisted
+checkpoint before entering the loop again and requires `--state-store-dir`.
+`--resume-signal <signal>` supplies the first resumed transition signal, with
+`Approved` as the default. `--directory <path>` sets the workspace root for file
+tools and workspace restore. When rollback or resume needs to restore a
+workspace ref, this path must be a managed git repository root accepted by
+`GitWorkspace`.
 
-- `--state-store-dir <dir>` enables the local `FileStore` for lifecycle
-  checkpoints. Checkpoints are stored as JSON under keys like
-  `checkpoint/<id>`.
-- `--resume-checkpoint <id>` loads a persisted checkpoint before entering the
-  loop again. It requires `--state-store-dir`.
-- `--resume-signal <signal>` supplies the signal that drives the first
-  transition after resume. The default is `Approved`.
-- `--directory <path>` sets the workspace root for file tools and workspace
-  restore. When rollback or resume needs to restore a workspace ref, this path
-  must be a managed git repository root accepted by `GitWorkspace`.
-
-Use these lifecycle subcommands:
-
-- `agent history --state-store-dir <dir> --checkpoint latest` prints the
-  checkpoint history digest. Use an explicit checkpoint ID instead of `latest`
-  when you need reproducibility.
-- `agent rollback --state-store-dir <dir> --checkpoint <id> --to-iteration N`
-  creates a new rollback checkpoint at the target iteration.
-- Add `--directory <path>` to `agent rollback` when the target history entry has
-  a workspace ref. The command refuses unmanaged workspace restore without it.
+History and rollback targets come from lifecycle request files. The profile
+selects the MachineSpec and ToolDef. In the request, `checkpoint` selects a
+checkpoint ID or `latest`, `to_iteration` is required for rollback, and
+`restore_workspace` tells rollback to restore the target workspace ref.
+Workspace root remains the universal `--directory` input.
 
 Examples:
 
-```bash
-agent history \
-  --state-store-dir .agent-state \
-  --checkpoint latest
+History request:
 
-agent rollback \
+```yaml
+checkpoint: latest
+```
+
+Rollback request:
+
+```yaml
+checkpoint: suspend-4-1780000000000000000
+to_iteration: 2
+restore_workspace: true
+```
+
+Lifecycle profile invocations:
+
+```bash
+agent \
+  --profile agents/lifecycle/history/profile.yaml \
   --state-store-dir .agent-state \
-  --checkpoint suspend-4-1780000000000000000 \
-  --to-iteration 2 \
-  --directory "$PWD"
+  --input requests/history.yaml
+
+agent \
+  --profile agents/lifecycle/rollback/profile.yaml \
+  --state-store-dir .agent-state \
+  --directory "$PWD" \
+  --input requests/rollback.yaml
 
 agent \
   --profile agents/generator/profile.yaml \
@@ -157,8 +164,17 @@ configuration such as `reason` and `require_checkpoint`.
 
 Use history before rollback:
 
+`requests/history.yaml`:
+
+```yaml
+checkpoint: latest
+```
+
 ```bash
-agent history --state-store-dir .agent-state --checkpoint latest
+agent \
+  --profile agents/lifecycle/history/profile.yaml \
+  --state-store-dir .agent-state \
+  --input requests/history.yaml
 ```
 
 Pick the last known-good iteration from the digest. Each row includes iteration,
@@ -167,15 +183,23 @@ workspace ref.
 
 Create a rollback checkpoint:
 
-```bash
-agent rollback \
-  --state-store-dir .agent-state \
-  --checkpoint latest \
-  --to-iteration 7 \
-  --directory "$PWD"
+`requests/rollback.yaml`:
+
+```yaml
+checkpoint: latest
+to_iteration: 7
+restore_workspace: true
 ```
 
-Resume from the rollback checkpoint printed by the command:
+```bash
+agent \
+  --profile agents/lifecycle/rollback/profile.yaml \
+  --state-store-dir .agent-state \
+  --directory "$PWD" \
+  --input requests/rollback.yaml
+```
+
+Resume from the rollback checkpoint printed by the lifecycle tool:
 
 ```bash
 agent \
@@ -197,14 +221,12 @@ Commands that need persisted rollback implement `UndoMementoProvider`; the loop
 captures that versioned JSON memento after command execution and stores it in
 the history digest.
 
-Memento kinds tell rollback what is possible:
-
-- `noop` means the command has no rollback-managed state.
-- `reversible` carries enough JSON to restore command/domain state or identify
-  workspace paths for restore.
-- `compensatable` carries the metadata needed for child command undo, workspace
-  restore, or explicit operator/API compensation.
-- `irreversible` records why rollback cannot safely undo the effect.
+Memento kinds tell rollback what is possible. `noop` means the command has no
+rollback-managed state. `reversible` carries enough JSON to restore
+command/domain state or identify workspace paths for restore. `compensatable`
+carries the metadata needed for child command undo, workspace restore, or
+explicit operator/API compensation. `irreversible` records why rollback cannot
+safely undo the effect.
 
 Current reversible mementos cover conversation/retry state, planner pipeline
 state, file/workspace paths, evaluator session state, point context, and
@@ -215,7 +237,7 @@ issue IDs, server/user-action details, or nested-machine context.
 
 ## Operational Safety
 
-Rollback is not a time machine for every side effect. It is a coordinated
+Rollback is not a time machine for every side effect. Instead, it coordinates
 best-effort restore across the three state layers.
 
 Use `GitWorkspace` only on a workspace that can tolerate reset-style restore.
@@ -241,14 +263,28 @@ If rollback reports a partial failure, stop and inspect the details before
 resuming. A partial rollback can mean command/domain state, workspace state, or
 checkpoint persistence did not fully restore.
 
+## Migration Notes
+
+Hidden `agent history` and `agent rollback` commands may exist during the
+migration from Cobra wiring to declarative lifecycle machines. Treat them as
+compatibility paths only. New operator flows should use
+`agent --profile agents/lifecycle/history/profile.yaml` and
+`agent --profile agents/lifecycle/rollback/profile.yaml`.
+
+The compatibility commands are planned for removal after the lifecycle profiles
+select `checkpoint_history` and `checkpoint_rollback` as builtin STL tools.
+Runtime inputs stay on the universal `agent` command. Checkpoint selection and
+target iteration stay in request data or typed tool config.
+
 ## Related Documents
 
-- `docs/specs/software-requirements/srd025-rollback-lifecycle.yaml`
-- `docs/specs/semantic-models/rollback-lifecycle.yaml`
-- `docs/specs/semantic-models/command-undo-audit.yaml`
-- `docs/specs/config-formats/runtime-contract.yaml`
-- `docs/specs/config-formats/tool-authoring-standard.yaml`
-- `docs/specs/use-cases/rel02.0-uc001-approval-suspend-resume.yaml`
-- `docs/specs/use-cases/rel02.0-uc002-history-rollback.yaml`
-- `roll-backs.md`
-- `tools-as-dsl.md`
+Canonical requirements live in
+`docs/specs/software-requirements/srd025-rollback-lifecycle.yaml` and
+`docs/specs/software-requirements/srd026-lifecycle-tools.yaml`. Runtime and tool
+contracts live in `docs/specs/config-formats/runtime-contract.yaml` and
+`docs/specs/config-formats/tool-authoring-standard.yaml`. Semantic detail lives
+in `docs/specs/semantic-models/rollback-lifecycle.yaml` and
+`docs/specs/semantic-models/command-undo-audit.yaml`. Operator scenarios live in
+`docs/specs/use-cases/rel02.0-uc001-approval-suspend-resume.yaml` and
+`docs/specs/use-cases/rel02.0-uc002-history-rollback.yaml`. Historical notes
+remain in `roll-backs.md` and `tools-as-dsl.md`.
