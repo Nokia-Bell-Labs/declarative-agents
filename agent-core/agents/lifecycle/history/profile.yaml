@@ -1,0 +1,6 @@
+name: lifecycle-history
+machine: ../history.yaml
+tools:
+  - ../tools.yaml
+tool_config_dirs:
+  - ../../../tools/builtin
