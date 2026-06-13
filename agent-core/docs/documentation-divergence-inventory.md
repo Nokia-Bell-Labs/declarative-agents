@@ -10,11 +10,18 @@ runtime behavior unless a follow-up explicitly calls out a source correction.
 - `mage docker` prefers Docker over Podman when both are installed.
 - `go list ./...` reports 29 Go packages.
 - `git ls-files '*.yaml'` reports 189 tracked YAML files.
+- `mage stats` reports 21,265 Go source lines, 15,197 Go test lines, and
+  188 YAML files in its project docs/config/other categories.
+- `mage audit` passes. Remaining findings are warning-only pre-existing
+  coverage/traceability categories: `docspec-broken-related-document`,
+  `orphaned-srd`, `release-without-test-suite`, and `uncovered-ac`.
+- `git diff --check` passes.
+- Focused Docker Mage helper tests pass with
+  `go test magefiles/docker.go magefiles/release.go magefiles/docker_test.go magefiles/release_test.go`.
+- IDE lints are clean for the touched README and inventory files.
 - `mage docker` has built a slim runtime image from remote release
   `v0.20260612.1`; the Docker-built check image reports 77.9 MB and the
   Podman-built `agent-core:latest` reports 54.6 MB.
-- Full `mage audit` was not rerun for this inventory issue; it belongs to the
-  verification follow-up after documentation edits.
 
 ## README Runtime Positioning
 
@@ -149,7 +156,8 @@ Recommended edits:
 - Refresh generated counts in docs that quote YAML or stats totals during the
   verification follow-up.
 
-Follow-up: `agent-core-9ilp.4`.
+Status: verified by `agent-core-9ilp.4`; `package-layout.md` remains aligned
+with the 29-package `go list ./...` result.
 
 ## User-Facing CLI Help Note
 
