@@ -112,7 +112,7 @@ srd_index:
     path: docs/specs/software-requirements/srd012-system-prompt-template.yaml
   - id: srd013-standard-tool-library
     title: Standard Tool Library (STL)
-    summary: Overview of shared STL tools and helpers, with focused tool architecture contracts delegated to srd021-srd024.
+    summary: Overview of shared standard tools, the planned internal/tools package split, and the temporary internal/tools/stl facade.
     path: docs/specs/software-requirements/srd013-standard-tool-library.yaml
   - id: srd014-spec-graph
     title: Specification Graph Loader and Validator
@@ -148,11 +148,11 @@ srd_index:
     path: docs/specs/software-requirements/srd021-agent-cli-exec-tool.yaml
   - id: srd022-builtin-tools
     title: Builtin Tool Declarations and Factories
-    summary: Requirements for builtin tool declarations, BuiltinRegistry factory resolution, typed config validation, state-machine integration, and mode-local overrides.
+    summary: Requirements for builtin declarations, target catalog and registry package ownership, typed config validation, state-machine integration, and mode-local overrides.
     path: docs/specs/software-requirements/srd022-builtin-tools.yaml
   - id: srd023-cli-exec-tools
     title: CLI and Exec Tool Declarations
-    summary: Requirements for declaring external CLIs as exec tools, mapping JSON parameters to argv, subprocess execution, output capture, and declaration selection.
+    summary: Requirements for declaring external CLIs as exec tools, mapping JSON parameters to argv, subprocess execution, output capture, declaration selection, and target exec package ownership.
     path: docs/specs/software-requirements/srd023-cli-exec-tools.yaml
   - id: srd024-blocking-input-tools
     title: Blocking Input Tools
@@ -357,10 +357,11 @@ coverage_gaps: |
   Package coverage follows the current `go list ./...` output. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.
   Tracing, telemetry, GenAI conventions, model-boundary code, prompt assembly,
-  STL adapters, CLI flags, and spec graph packages map to srd007-srd018 plus
-  srd022-srd024 and srd026. Those direct mappings cover
-  internal/observability, internal/model, internal/tools/stl,
-  internal/support/cli, and pkg/spec behavior.
+  standard tool adapters, CLI flags, and spec graph packages map to
+  srd007-srd018 plus srd022-srd024 and srd026. Those direct mappings cover
+  internal/observability, internal/model, the planned internal/tools package
+  family with the temporary internal/tools/stl facade, internal/support/cli,
+  and pkg/spec behavior.
 
   Release use cases and formal suites cover package groups that implement
   configured agent behavior. The cmd/agent package is covered by

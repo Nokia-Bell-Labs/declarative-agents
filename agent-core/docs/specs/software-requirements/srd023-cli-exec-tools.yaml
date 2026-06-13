@@ -7,7 +7,13 @@ problem: |
   YAML declares the binary, base arguments, parameter-to-argv mapping,
   working directory behavior, output limits, and side effects. Without a
   focused contract for exec tools, each external command risks becoming a
-  bespoke builtin rather than a reusable declarative capability.
+  bespoke builtin instead of a reusable declarative capability.
+
+  The current ExecBuilder and ToolDef implementation lives in
+  internal/tools/stl. The target layout moves ToolDef and parameter schema
+  contracts to internal/tools/catalog, moves exec command construction to
+  internal/tools/exec, shares undo payload helpers through internal/tools/undo,
+  and keeps internal/tools/stl only as a temporary facade.
 
 goals:
   - "G1": "Define the YAML contract for type: exec tool declarations."
@@ -15,13 +21,14 @@ goals:
   - G3: Define subprocess execution, output capture, cancellation, and signal mapping.
   - G4: Define declaration includes, declaration loading, and selection behavior for exec tools.
   - G5: Clarify how exec tools differ from builtin tools.
+  - G6: Define the target package ownership for exec declarations, command construction, and undo helpers.
 
 requirements:
   R0:
     title: Tool authoring standard
     items:
       - R0.1: Exec tool declarations SHOULD follow cfg-tool-authoring-standard for vocabulary category, problem, goals, requirements, non-goals, output, side effects, reversibility, undo, errors, and relationships.
-      - R0.2: Exec tools SHOULD model one external CLI verb; multi-step workflows SHOULD be represented by machine.yaml transitions over multiple exec or builtin tools.
+      - R0.2: Exec tools SHOULD model one external CLI verb; multi-step workflows SHOULD be represented by machine.yaml transitions that use multiple exec or builtin tools.
 
   R1:
     title: Exec declaration schema
@@ -72,6 +79,14 @@ requirements:
       - R5.3: A CLI SHOULD be modeled as an exec tool before introducing a bespoke builtin wrapper.
       - R5.4: Agent subprogram invocation SHOULD use the agent CLI exec tool contract when possible.
 
+package_ownership:
+  status: planned
+  notes:
+    - Exec ToolDef schema and declaration selection move to internal/tools/catalog.
+    - ExecBuilder, ExecCmd, parameter extraction, argv construction, precondition checks, output caps, and subprocess result mapping move to internal/tools/exec.
+    - Exec undo memento payload helpers use internal/tools/undo.
+    - internal/tools/stl exposes only thin aliases or wrappers during migration and is not the long-term exec implementation package.
+
 non_goals:
   - Defining every external command used by the repository.
   - Defining builtin factory config validation; see srd022.
@@ -112,8 +127,10 @@ depends_on:
 
 implementation:
   - tools/exec/
-  - internal/tools/stl/exectool.go
-  - internal/tools/stl/tool_emits.go
+  - internal/tools/catalog/ (planned ToolDef, declaration loading, and selection)
+  - internal/tools/exec/ (planned ExecBuilder and ExecCmd)
+  - internal/tools/undo/ (planned shared undo payload helpers)
+  - internal/tools/stl/ (temporary compatibility facade)
 
 related_documents:
   - cfg-tool-authoring-standard
