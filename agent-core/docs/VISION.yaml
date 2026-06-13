@@ -10,15 +10,16 @@ executive_summary: |
 
   The framework provides the runtime that interprets those programs: state
   machine execution, command dispatch, tool registry, budget tracking, event
-  recording, tracing, LLM integration, prompt assembly, a standard tool
+  recording, tracing, boundary tool support, prompt assembly, a standard tool
   library, lifecycle state ports, and a unified binary that loads YAML
   programs.
 
   The core engine (internal/runtime/core) remains domain-agnostic: it drives the loop
-  without knowing what tools exist, what LLM is in use, or what workflow the
-  machine expresses. Higher-level packages (internal/model/llm, internal/tools/stl, internal/model/prompt,
-  internal/observability/telemetry, pkg/spec) provide reusable infrastructure that configured
-  agents compose into complete systems.
+  without knowing what tools exist, which model boundary a machine calls, or what
+  workflow the machine expresses. Higher-level packages (internal/model/llm,
+  internal/tools/stl, internal/model/prompt, internal/observability/telemetry,
+  pkg/spec) provide reusable infrastructure that configured agents compose into
+  complete systems.
 
 problem: |
   The agentic loop pattern -- observe, decide, act, validate, repeat --
@@ -27,14 +28,14 @@ problem: |
   loops until subtasks complete. Each embeds the same machinery:
   state transitions, budget enforcement, command dispatch with
   timeout and panic recovery, cost tracking, event logging,
-  OpenTelemetry tracing, tool manifest filtering, LLM invocation,
+  OpenTelemetry tracing, tool manifest filtering, model boundary calls,
   prompt assembly, and standard file/build/subprocess tools.
 
   When this machinery is coupled to a specific domain, it cannot be reused.
-  Building a new agent means reimplementing the same loop plumbing plus LLM
-  and tool boilerplate. Bugs fixed in one agent stay unfixed in another.
-  Improvements to budget tracking, tracing, or LLM handling require changes
-  in every agent.
+  Building a new agent means reimplementing the same loop plumbing plus
+  boundary-tool and vocabulary boilerplate. Bugs fixed in one agent stay
+  unfixed in another. Improvements to budget tracking, tracing, or model
+  boundary handling require changes in every agent.
 
   There is a second problem: procedural tool wiring hides program structure.
   If a tool secretly performs a workflow, the machine cannot show the sequence,
@@ -57,7 +58,7 @@ vision_model_diagram: |
       M[MachineSpec: states, signals, transitions]
       TS[Tool selection]
       TD[ToolDef vocabulary contracts]
-      LLM[LLM config and prompt]
+      BOUNDARY[Boundary tool config and prompt]
     end
 
     M -->|names actions| TS
@@ -116,7 +117,7 @@ what_this_does: |
   - Tool declarations: vocabulary contracts for builtin, exec, boundary,
     and internal tools.
   - Tool selection: the subset of vocabulary available to a configured agent.
-  - LLM config and prompt config: model behavior and tool manifest context.
+  - Boundary tool config and prompt config: model behavior and tool manifest context.
   - Lifecycle config: optional StateStore, Workspace, CheckpointPolicy, and
     rollback/suspend/resume behavior.
 
@@ -125,7 +126,7 @@ what_this_does: |
     (NextState, ActionFunc). Domain supplies its own constants.
   - Command Dispatch: wraps Execute with OTel tracing, timeout, panic
     recovery, duration measurement, and signal normalization.
-  - Tool Registry: ToolSpec + Builder pairs, state-filtered manifests,
+  - Tool Registry: ToolSpec + Builder pairs, state-filtered tool listings,
     freeze-before-run semantics.
   - Agentic Loop: budget-tracked iteration driving the state machine
     with LoopHooks for domain injection.
@@ -135,19 +136,19 @@ what_this_does: |
     CommandResolver, SpanOverride, rollback foundation interfaces, and
     Command.Undo.
 
-  LLM Integration (internal/model/llm). Client interface with concrete Ollama
-  adapter, Conversation management, message types, model profiles,
-  response parsing utilities, and ChatOptions.
+  Model Boundary Support (internal/model/llm). Client interface, Ollama
+  implementation, conversation management, message types, model profiles,
+  response parsing utilities, and ChatOptions used by boundary tools.
 
   Prompt Assembly (internal/model/prompt). Prompt struct with YAML loading,
   system prompt Go template, and tool manifest serialization for
   LLM context injection.
 
   Standard Tool Library (internal/tools/stl). Reusable tool implementations:
-  file tools, build tools, LLM invoke/parse commands, subprocess
-  execution with process group management, workspace tools, and
-  tool metrics extraction. These tools are expected to behave as vocabulary
-  words or explicitly documented boundaries, not hidden workflows.
+  file tools, build tools, model-boundary invoke/parse commands, subprocess
+  execution with process group management, workspace tools, and tool metrics
+  extraction. Tools in this package should behave as vocabulary words or
+  documented boundaries, not hidden workflows.
 
   CLI Flags (internal/support/cli). Utility library for CLI flag constants and
   argument propagation. Not imported by cmd/agent directly.
@@ -156,7 +157,7 @@ what_this_does: |
   SetAttributes, RecordError, Context) decoupling the engine from
   OpenTelemetry internals. Includes NoopTracer for testing.
 
-  Telemetry (internal/observability/telemetry). Concrete OpenTelemetry implementation:
+  Telemetry (internal/observability/telemetry). OpenTelemetry implementation:
   provider setup, exporter config (file + OTLP), root span lifecycle,
   TraceAdapter satisfying the Tracer port, GenAI semantic convention
   helpers, W3C traceparent parsing, and offline trace replay.
@@ -177,8 +178,8 @@ why_we_build_this: |
   testing agent -- reuse the same loop machinery without reimplementing
   state machines, dispatch, or budget tracking.
 
-  Second, to provide shared infrastructure above the engine layer. LLM
-  integration, prompt assembly, and standard tools are needed by every
+  Second, to provide shared infrastructure above the engine layer. Model
+  boundary tools, prompt assembly, and standard tools are needed by every
   agent. Centralizing them in agent-core avoids duplication and ensures
   consistent behavior across agents.
 
@@ -193,14 +194,14 @@ why_we_build_this: |
   rollback boundaries inside Go code.
 
   Fifth, to accumulate improvements in one place. Better tracing,
-  smarter budget checks, more robust panic recovery, improved LLM
+  smarter budget checks, safer panic recovery, improved response
   parsing, new tool implementations, contract validation, and lifecycle
   recovery benefit every agent that imports agent-core.
 
 success_criteria:
   engine_agnosticism: |
-    The core engine (internal/runtime/core) does not import LLM providers, file
-    system operations, or domain-specific tool implementations. It
+    The core engine (internal/runtime/core) does not import model-boundary
+    implementations, file system operations, or domain-specific tool implementations. It
     depends only on internal/observability/tracing, internal/observability/telemetry/genai, the Go standard
     library, OTel attributes, and a YAML parser.
   composability: |
@@ -226,9 +227,9 @@ success_criteria:
     suspend, resume, and rollback behavior can be enabled without changing
     disabled-mode execution.
   reusable_infrastructure: |
-    LLM integration (internal/model/llm), prompt assembly (internal/model/prompt), standard
-    tools (internal/tools/stl), and tracing (internal/observability/tracing) are shared across agents.
-    Domain agents compose these packages without reimplementing them.
+    Model boundary support (internal/model/llm), prompt assembly (internal/model/prompt),
+    standard tools (internal/tools/stl), and tracing (internal/observability/tracing) are shared
+    across agents. Domain agents compose these packages without reimplementing them.
   budget_enforcement: |
     Iteration, token, and wall-clock-time limits are enforced by the
     generic loop. Domain-specific limits (e.g., max build failures)

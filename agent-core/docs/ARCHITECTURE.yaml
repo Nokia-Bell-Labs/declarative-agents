@@ -6,8 +6,8 @@ overview:
     A Go framework for building declarative tool-language agents. A single
     unified binary (cmd/agent) drives five agent types — generator,
     evaluator, planner, jurist, and bench — each defined entirely by
-    YAML configuration files (state machines, tool selections, LLM
-    configs). The bench mode serves an embedded web UI for browsing
+    YAML configuration files (state machines, tool selections, and
+    boundary-tool configs). The bench mode serves an embedded web UI for browsing
     experiments, launching evaluations, and comparing results.
 
     The framework is organized in four cooperating layers:
@@ -22,12 +22,12 @@ overview:
 
     Infrastructure layer. Shared packages consumed by all agent types:
     - internal/observability/tracing — Tracer port interface (5 methods) and NoopTracer
-    - internal/observability/telemetry — concrete OTel implementation, traceparent, replay
+    - internal/observability/telemetry — OTel implementation, traceparent, replay
     - internal/observability/telemetry/genai — GenAI semantic convention helpers
-    - internal/model/llm — LLM client, conversation, profiles, parsing utilities
-    - internal/model/llm/ollama — Ollama adapter satisfying llm.Client
+    - internal/model/llm — model-boundary client, conversation, profiles, parsing utilities
+    - internal/model/llm/ollama — Ollama client implementation used by model boundary tools
     - internal/model/prompt — prompt schema, YAML loading, system template
-    - internal/tools/stl — standard tool library (file, build, LLM, lifecycle, config loading)
+    - internal/tools/stl — standard tool library (file, build, model boundary, lifecycle, config loading)
     - internal/evaluation — evaluator session/point runtime, result artifacts, metrics, and trace analysis
     - internal/support/cli — CLI flag constants and argument propagation (library; not imported by cmd/agent)
     - internal/support/subprocess — subprocess execution utilities
@@ -44,7 +44,7 @@ overview:
 
     Configuration layer (agents/, tools/, and docs/specs/). YAML files defining each agent's
     behavior: state machines (machine.yaml), tool selections (tools.yaml),
-    tool declarations (tools/), and per-model LLM configurations
+    tool declarations (tools/), and per-model boundary tool configurations
     (agents/*/llm/*.yaml). Specification YAML documents define the
     requirements, semantic models, use cases, and formal tests that explain
     those agents. The configurations ARE the agents -- no Go code changes are
@@ -57,7 +57,7 @@ overview:
         MACH[agents/*/machine.yaml]
         SEL[agents/*/tools.yaml]
         DEF[tools/*.yaml]
-        LLMCFG[agents/*/llm/*.yaml]
+        BCFG[agents/*/llm/*.yaml boundary tool configs]
         SPECS[docs/specs/*.yaml]
       end
 
@@ -78,7 +78,7 @@ overview:
       end
 
       subgraph Infra["Reusable Infrastructure"]
-        LLM[internal/model/llm and internal/model/llm/ollama]
+        MODEL[internal/model/llm and internal/model/llm/ollama]
         PROMPT[internal/model/prompt]
         STL[internal/tools/stl]
         TELE[internal/observability/telemetry]
@@ -103,7 +103,7 @@ overview:
       EXEC --> CLI
       BENCH --> STL
       STL --> CORE
-      LLM --> CORE
+      MODEL --> CORE
       TELE --> TRACE
       CORE --> TRACE
     ```
@@ -112,11 +112,11 @@ overview:
     ```mermaid
     flowchart LR
       DEV[Developer or operator] --> AGENT[cmd/agent]
-      AGENT --> CFG[Machine, tool, LLM YAML]
+      AGENT --> CFG[Machine and tool YAML]
       AGENT --> LOOP[internal/runtime/core Loop]
       LOOP --> TOOLS[Registered tools]
       TOOLS --> FS[Workspace filesystem]
-      TOOLS --> MODEL[LLM provider]
+      TOOLS --> MODEL_BOUNDARY[Model boundary]
       TOOLS --> CHILD[Child agent or external CLI]
       LOOP --> OTEL[Telemetry exporters]
       LOOP --> STORE[Optional StateStore]
@@ -130,7 +130,7 @@ overview:
       MF[machine.yaml] --> MS[MachineSpec]
       TSF[tools.yaml] --> SELECT[Tool selection]
       TDF[tool declaration YAML] --> TD[ToolDef]
-      LLMF[llm config YAML] --> LCFG[LLM config]
+      BCF[boundary tool config YAML] --> BCFG[Boundary tool config]
 
       TD --> SELECTED[Selected ToolDefs]
       SELECT --> SELECTED
@@ -141,7 +141,7 @@ overview:
       MS --> TABLE[TransitionTable]
       REG --> TABLE
       TABLE --> LOOP[core.Loop]
-      LCFG --> LOOP
+      BCFG --> BUILDER
     ```
 
   lifecycle: |
@@ -195,7 +195,7 @@ overview:
       participant C as Command
       participant T as Tracer
 
-      A->>CFG: load machine, tool selection, declarations, LLM config
+      A->>CFG: load machine, tool selection, declarations
       A->>R: register selected ToolSpec and Builder pairs
       A->>M: parse and validate machine.yaml
       A->>L: call Loop with registry, table, hooks, budget
@@ -252,7 +252,7 @@ overview:
       agent boundaries are profile-first (`profile` -> `--profile`), with
       machine/tools/tool-declaration triples retained only as compatibility
       fallback. cmd/agent wires builtin capabilities through a centralized
-      factory catalog keyed by selected init names rather than repeated
+      factory catalog selected by init names rather than repeated
       mode-specific branches.
 
     categories:
@@ -285,7 +285,7 @@ overview:
       - ToolSpec is runtime metadata derived from selected ToolDefs and used to register or expose tools.
       - Builder turns prior Result state or parsed tool input into a Command.
       - Command.Execute performs the word; Result.Signal returns control to the machine.
-      - LLM $tool dispatch selects one vocabulary word dynamically; it does not license hidden workflows inside the selected tool.
+      - Dynamic $tool dispatch selects one vocabulary word dynamically; it does not license hidden workflows inside the selected tool.
 
     machine_composes_words_diagram: |
       ```mermaid
@@ -467,7 +467,7 @@ overview:
         participant W as Workspace
         participant S as StateStore
 
-        L->>P: consider lifecycle event
+        L->>P: inspect lifecycle event
         P-->>L: checkpoint enabled
         L->>L: build AgentSnapshot
         L->>C: collect command/domain snapshot
@@ -554,7 +554,7 @@ overview:
         execution digest (core.FormatCheckpointHistory).
 
       Supporting operations:
-      - core.ResolveLatestCheckpointID resolves "latest" to a concrete ID.
+      - core.ResolveLatestCheckpointID resolves "latest" to an exact ID.
       - core.LoadCheckpoint deserializes a checkpoint from a StateStore.
 
     hexagonal_view: |
@@ -620,7 +620,7 @@ overview:
       and a graph library.
     - internal/support/subprocess depends on the Go standard library.
     - internal/support/cli depends on the Go standard library.
-    - cmd/agent imports internal/runtime/core, internal/tools/stl, internal/model/llm, internal/model/prompt,
+    - cmd/agent imports internal/runtime/core, internal/tools/stl,
       internal/observability/telemetry, internal/planning/pipeline, internal/evaluation/bench, internal/support/execute, and
       internal/observability/tracing.
     - internal/evaluation/bench imports internal/evaluation for evaluation result analysis,
@@ -633,14 +633,14 @@ interfaces:
       methods: Push (child span), Event (span event), SetAttributes
       (span metadata), RecordError (error recording with status),
       Context (span context access). The engine imports this interface;
-      the concrete implementation lives in internal/observability/telemetry (TraceAdapter).
+      the implementation lives in internal/observability/telemetry (TraceAdapter).
       A NoopTracer is provided for tests and optional tracing paths.
 
   - name: Command interface
     summary: |
       Single interface for all executable units of work (internal/runtime/core).
       Three methods: Name() string, Execute() Result, and Undo() Result.
-      Both internal commands (LLM invoke, response parsing) and external
+      Both internal commands (model-boundary invoke, response parsing) and external
       tools (file I/O, build, test) implement Command. The loop dispatches
       them uniformly through Dispatch. Undo gives every command an explicit
       rollback contract, even when the current implementation is a no-op.
@@ -723,7 +723,7 @@ components:
       - Freeze the registry to prevent further registration
       - Resolve a Builder by name
       - Look up a ToolSpec by name
-      - Generate state-filtered manifests of external tools
+      - Generate state-filtered tool listings
       - Report all tool names or external-only tool names
 
   - name: Loop
@@ -758,7 +758,7 @@ components:
 
   - name: Telemetry
     responsibility: |
-      Concrete OpenTelemetry implementation satisfying the Tracer port
+      OpenTelemetry implementation satisfying the Tracer port
       interface. Sets up trace and metric providers, manages root span
       lifecycle, handles file and OTLP export, and provides offline
       trace replay.
@@ -777,7 +777,7 @@ design_decisions:
       state machine, loop, dispatch, and lifecycle ports as abstract runtime
       concepts. All domain-specific states, signals, tools, and budget
       dimensions are supplied by the configured agent. No import in internal/runtime/core
-      references coding tools, LLM providers, or any specific domain.
+      references coding tools, model-boundary implementations, or any specific domain.
     benefits:
       - Multiple agent types share one loop engine
       - Engine improvements propagate to all agents
@@ -914,17 +914,17 @@ project_structure:
     - path: internal/observability/tracing/
       role: Tracer port interface for OpenTelemetry (5 methods) and NoopTracer
     - path: internal/observability/telemetry/
-      role: Concrete OTel implementation (providers, exporters, adapter, traceparent, replay)
+      role: OTel implementation (providers, exporters, adapter, traceparent, replay)
     - path: internal/observability/telemetry/genai/
       role: OTel GenAI semantic convention constants, span name builders, attribute helpers
     - path: internal/model/llm/
-      role: LLM client, conversation, profiles, parse utilities, domain interfaces
+      role: Model-boundary client, conversation, profiles, parse utilities, domain interfaces
     - path: internal/model/llm/ollama/
-      role: Ollama LLM adapter satisfying llm.Client
+      role: Ollama client implementation used by model boundary tools
     - path: internal/model/prompt/
       role: Prompt struct, YAML loading, system prompt template, and manifest serialization
     - path: internal/tools/stl/
-      role: Standard tool library (file, build, LLM, lifecycle, config loading, subprocess)
+      role: Standard tool library (file, build, model boundary, lifecycle, config loading, subprocess)
     - path: internal/support/cli/
       role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
     - path: internal/support/subprocess/
@@ -952,11 +952,11 @@ project_structure:
 
   configuration:
     - path: agents/generator/
-      role: Generator agent — machine.yaml, tools.yaml, llm/*.yaml
+      role: Generator agent — machine.yaml, tools.yaml, model-boundary configs
     - path: agents/evaluator/
-      role: Evaluator agent — machine.yaml, tools.yaml, llm/*.yaml
+      role: Evaluator agent — machine.yaml, tools.yaml, model-boundary configs
     - path: agents/planner/
-      role: Planner agent — machine.yaml (3 variants), tools.yaml, llm/*.yaml
+      role: Planner agent — machine.yaml variants, tools.yaml, model-boundary configs
     - path: agents/jurist/
       role: Validation agent — machine.yaml, tools.yaml
     - path: agents/bench/
@@ -979,10 +979,10 @@ implementation_status:
     - done: Tracing port (internal/observability/tracing) — 5-method Tracer interface with NoopTracer
     - done: Telemetry (internal/observability/telemetry) — OTel providers, exporters, adapter, traceparent, replay
     - done: GenAI semconv (internal/observability/telemetry/genai) — constants, span builders, attribute helpers
-    - done: LLM integration (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
-    - done: Ollama adapter (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
+    - done: Model boundary support (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
+    - done: Ollama client implementation (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
-    - done: Standard tool library (internal/tools/stl) — file, build, LLM, lifecycle, config loading
+    - done: Standard tool library (internal/tools/stl) — file, build, model boundary, lifecycle, config loading
     - done: CLI flags (internal/support/cli) — standard flag constants, PropagateArgs, RemainingBudget
     - done: Subprocess (internal/support/subprocess) — process execution utilities
     - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph, internal/planning/materialize)
@@ -999,7 +999,7 @@ implementation_status:
     - done: Mage build targets — build, lint, install, clean, tag, stats, docker
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
     - done: cobbler-scaffold dependency removed
-    - done: Comprehensive Go test suite across all packages
+    - done: Go test suite across all packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd025)
 
 related_documents:
