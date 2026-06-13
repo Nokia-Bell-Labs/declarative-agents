@@ -10,28 +10,34 @@ declaration directories, agent-local declarations, and optional workspace
 directory. The same runtime drives the generator, evaluator, planner, bench,
 and jurist agents.
 
-The runtime provides the shared machinery those agents need: state-machine
-execution, command dispatch with tracing and panic recovery, tool registration,
-budget enforcement, LLM integration, prompt assembly, lifecycle checkpointing,
-and a standard tool library. Agent behavior lives in `agents/`, `tools/`, and
-`docs/specs/`; changing behavior should usually mean changing YAML rather than
-adding mode-specific Go code.
+Shared runtime machinery includes state-machine execution, command dispatch
+with tracing and panic recovery, tool registration, budget enforcement, LLM
+integration, prompt assembly, lifecycle checkpointing, and a standard tool
+library. Agent behavior lives in `agents/`, `tools/`, and `docs/specs/`;
+changing behavior should usually mean changing YAML rather than adding
+mode-specific Go code.
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| `internal/runtime/core` | State machine, command dispatch, tool registry, agentic loop, YAML machine config |
-| `internal/model/llm` | LLM client interface, conversation management, message types, model profiles |
-| `internal/model/llm/ollama` | Ollama adapter satisfying `llm.Client` |
-| `internal/model/prompt` | Prompt loading from YAML, system template rendering, manifest serialization |
-| `internal/tools/stl` | Standard tool library: file tools, build tools, LLM commands, subprocess, process groups |
-| `internal/evaluation` | Evaluator session/point runtime, result artifacts, metrics, convergence, trace analysis |
-| `internal/evaluation/bench` | Bench server, UI support, and evaluation launch orchestration |
-| `internal/planning` | Planner extraction, graph, materialization, plan parsing, and pipeline orchestration |
-| `internal/observability` | Tracing ports, OpenTelemetry adapters, GenAI span helpers, and replay support |
-| `internal/support` | CLI, process execution, subprocess, and worktree helper packages |
-| `pkg/spec` | Specification graph loader and cross-artifact validator |
+Core runtime code lives in `internal/runtime/core`. It owns the state machine,
+command dispatch, tool registry, agentic loop, and YAML machine config.
+
+Model code lives in `internal/model/llm` and `internal/model/llm/ollama`. Those
+packages provide the LLM client interface, conversation types, model profiles,
+and the Ollama adapter.
+
+Prompt and tool vocabulary code lives in `internal/model/prompt` and
+`internal/tools/stl`. Prompt code loads YAML templates and serializes tool
+lists. The STL package provides file tools, build tools, LLM commands,
+subprocess tools, process groups, and lifecycle adapters.
+
+Evaluation, planning, and observability code lives in `internal/evaluation`,
+`internal/evaluation/bench`, `internal/planning`, and `internal/observability`.
+Those packages support evaluator runs, the bench UI, planner workflows, tracing
+ports, OpenTelemetry adapters, GenAI spans, and replay.
+
+Support code lives in `internal/support`. Specification graph loading and
+cross-artifact validation live in `pkg/spec`.
 
 Private implementation packages are grouped under `internal/`. See
 `package-layout.md` for the migration map and ownership rules. Current internal
@@ -40,15 +46,17 @@ domains include `internal/observability` for tracing and telemetry, and
 
 ## Agent Profiles
 
-Profiles are the normal runtime entry points:
+Profiles are the normal runtime entry points. Use
+`agents/generator/profile.yaml` for the coding generator loop,
+`agents/evaluator/profile.yaml` for evaluator suites,
+`agents/planner/profile.yaml` for planning and task execution,
+`agents/bench/profile.yaml` for the bench web UI, and
+`agents/jurist/profile.yaml` for spec validation.
 
-| Profile | Purpose |
-|---------|---------|
-| `agents/generator/profile.yaml` | Run the coding generator loop. |
-| `agents/evaluator/profile.yaml` | Run evaluator suites over generator profiles. |
-| `agents/planner/profile.yaml` | Run planning and task execution workflows. |
-| `agents/bench/profile.yaml` | Serve the bench web UI and launch evaluations. |
-| `agents/jurist/profile.yaml` | Validate the spec corpus. |
+Lifecycle operators use the same profile path. Use
+`agents/lifecycle/history/profile.yaml` to inspect checkpoint history through
+`checkpoint_history`. Use `agents/lifecycle/rollback/profile.yaml` to roll back
+a checkpoint through `checkpoint_rollback`.
 
 Profiles resolve relative paths from their own directory. Current profiles load
 shared tool declarations from directories such as `tools/builtin/` and
@@ -60,9 +68,9 @@ startup remains compatibility behavior; prefer `--profile` for new usage.
 
 Checkpointing, suspend/resume, approval gates, history, and rollback are
 opt-in lifecycle features. See `lifecycle-rollback.md` for the operator guide,
-including `--state-store-dir`, `--resume-checkpoint`, `agent history`,
-`agent rollback`, the three-layer state model, and safety rules for irreversible
-tools and workspace restore.
+including lifecycle profile examples, `--state-store-dir`,
+`--resume-checkpoint`, request input files, the three-layer state model, and
+safety rules for irreversible tools and workspace restore.
 
 ## Quick Start
 
@@ -73,18 +81,18 @@ bin/agent --profile agents/generator/profile.yaml --directory "$PWD"
 
 ## Docker Runtime
 
-The repository includes a multi-stage Dockerfile for building a release runtime
-image. The builder stage clones Agent Core from GitLab, runs `go test ./...`,
-and builds `agent`. The final Alpine runtime image contains only the `agent`
-binary, git, common Unix utilities, and shared YAML assets under
+Repository builds use a multi-stage Dockerfile for the release runtime image.
+During the builder stage, the image clones Agent Core from GitLab, runs
+`go test ./...`, and builds `agent`. The final Alpine runtime image contains
+only the `agent` binary, git, common Unix utilities, and shared YAML assets under
 `/opt/agent-core`.
 
-The runtime image intentionally excludes the Go toolchain, source checkout,
+Runtime images intentionally exclude the Go toolchain, source checkout,
 test dependencies, and `golangci-lint`. Exec tools such as `build`, `vet`,
 `lint`, and `test` require those binaries to come from a mounted workspace, a
 derived image, or another container/host provisioning step.
 
-The preferred build path is the Mage target:
+Build through the Mage target:
 
 ```bash
 mage docker
