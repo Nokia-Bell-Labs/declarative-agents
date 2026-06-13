@@ -14,6 +14,8 @@ requirements_source:
     - docs/specs/software-requirements/srd022-builtin-tools.yaml
     - docs/specs/software-requirements/srd023-cli-exec-tools.yaml
     - docs/specs/software-requirements/srd024-blocking-input-tools.yaml
+    - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+    - docs/specs/software-requirements/srd026-lifecycle-tools.yaml
   historical_background:
     - tools-as-dsl.md
 
@@ -51,6 +53,12 @@ primary_entities:
   - name: Checkpoint
     kind: lifecycle_record
     responsibility: Records tool effects across agent, command/domain, and workspace state when lifecycle features are enabled.
+  - name: LifecycleProfile
+    kind: configured_program
+    responsibility: Selects lifecycle MachineSpec, ToolDef declarations, and runtime lifecycle ports through the normal profile contract.
+  - name: LifecycleToolAdapter
+    kind: executable_tool_instance
+    responsibility: Exposes core lifecycle operations as declared STL builtin Commands selected by MachineSpec actions.
 
 language_model:
   vocabulary_word: |
@@ -75,12 +83,12 @@ tool_categories:
     undo_model: noop for read-only words; workspace_restore or command-specific undo for mutating words.
   stateful_internal:
     definition: Internal machine action that mutates agent or command/domain state rather than user-visible workspace state.
-    examples: [invoke_llm, report_parse_error, reset_history, nudge_reread, next_point]
-    composition: named internal MachineSpec action; usually hidden from LLM manifests.
+    examples: [invoke_llm, report_parse_error, reset_history, nudge_reread, next_point, checkpoint_history]
+    composition: named internal MachineSpec action; usually hidden from LLM tool lists.
     undo_model: command/domain restore, such as conversation_truncate or evaluator_session_restore.
   boundary:
     definition: Tool that crosses a program, model, human, nested-machine, child-process, external-API, or workspace boundary.
-    examples: [agent, serve_ui, validate, self_invoke, launch_eval, run_agent]
+    examples: [agent, serve_ui, validate, self_invoke, launch_eval, run_agent, checkpoint_rollback]
     composition: allowed as a word only when the boundary and emitted signals are explicit.
     undo_model: workspace_restore, compensation, child-workspace restore, or irreversible confirmation.
   sentence:
@@ -91,7 +99,7 @@ tool_categories:
 
 relationships:
   ToolDef_to_ToolSpec:
-    meaning: ToolDef is parsed and selected into ToolSpec metadata for runtime registration and manifests.
+    meaning: ToolDef is parsed and selected into ToolSpec metadata for runtime registration and tool lists.
     invariant: LLM-visible ToolSpec schemas omit implementation-only argv mapping extensions.
   ToolSpec_to_Command:
     meaning: Registry and Builder use selected ToolSpec/config to build executable Commands.
@@ -105,6 +113,12 @@ relationships:
   ToolDef_to_lifecycle:
     meaning: ToolDef side_effects, reversibility, undo, and errors tell rollback lifecycle code how to reason about effects.
     invariant: Undeclared side effects are documentation bugs.
+  LifecycleProfile_to_LifecycleToolAdapter:
+    meaning: A lifecycle profile selects the lifecycle machine and the checkpoint_history or checkpoint_rollback ToolDefs.
+    invariant: Lifecycle behavior is still a configured program, not a hidden CLI workflow.
+  LifecycleToolAdapter_to_CoreCheckpointOperations:
+    meaning: Lifecycle adapters execute one declared tool action and delegate checkpoint algorithms to internal/runtime/core.
+    invariant: The adapter owns ToolDef config and Result signals; core owns traversal and checkpoint data rules.
 
 machine_composition:
   static_actions: |
@@ -120,6 +134,11 @@ machine_composition:
     Child-agent boundaries prefer config.profile and invoke children with
     --profile. Legacy machine/tools/tool_declarations triples are compatibility
     fallback only.
+  lifecycle_profiles: |
+    Lifecycle history and rollback are ordinary configured programs. A profile
+    selects a lifecycle MachineSpec and lifecycle ToolDefs. The machine invokes
+    checkpoint_history or checkpoint_rollback by name. Legacy exec wrappers or
+    hidden Cobra subcommands are migration artifacts only.
   validation_sequence: |
     Validation is a visible sentence in machine.yaml. A compatibility aggregate
     such as validate is a deprecated boundary aggregator, not the preferred
@@ -140,7 +159,10 @@ migration_states:
     next_action: split into words and move order into MachineSpec.
   deprecated_compatibility:
     meaning: Tool remains for old machines but should not be used for new workflows.
-    next_action: hide from LLM manifests, document replacement sequence, and remove when callers migrate.
+    next_action: hide from LLM tool lists, document replacement sequence, and remove when callers migrate.
+  transitional_cli_adapter:
+    meaning: Command-line entry point remains only to bridge users to profile-first lifecycle programs.
+    next_action: replace with lifecycle profiles and first-class lifecycle ToolDefs.
 
 diagrams:
   machine_as_sentence_composer: |
@@ -192,6 +214,17 @@ diagrams:
       D --> E[Move sequence to machine.yaml]
       E --> F[Mark aggregate deprecated]
     ```
+  lifecycle_adapter_word: |
+    ```mermaid
+    flowchart LR
+      P[LifecycleProfile] --> M[MachineSpec]
+      M -->|action checkpoint_history| H[LifecycleToolAdapter]
+      M -->|action checkpoint_rollback| R[LifecycleToolAdapter]
+      H --> C[Core checkpoint operations]
+      R --> C
+      H -->|Result.Signal| M
+      R -->|Result.Signal| M
+    ```
 
 invariants:
   - Tools do not hide workflows; workflows are MachineSpec transitions over tool words.
@@ -201,6 +234,9 @@ invariants:
   - Irreversible tools require explicit documentation and should require confirmation before affecting user data or shared infrastructure.
   - Tool output should be structured enough for the next machine step or tool to consume without LLM interpretation.
   - Child-agent boundaries are profile-first; machine/tools flags remain compatibility paths, not the canonical actor configuration.
+  - Lifecycle history and rollback boundaries are profile-first; hidden Cobra commands and exec wrappers are compatibility paths only.
+  - checkpoint_history is an internal lifecycle word with no side effect beyond Result.Output.
+  - checkpoint_rollback is a lifecycle boundary word because it can rewrite checkpoint state and restore workspace state.
   - Legacy sentence tools migrate by splitting verbs and preserving behavior in machine.yaml.
 
 non_goals:
@@ -216,3 +252,5 @@ related_documents:
   - srd022-builtin-tools
   - srd023-cli-exec-tools
   - srd024-blocking-input-tools
+  - srd025-rollback-lifecycle
+  - srd026-lifecycle-tools

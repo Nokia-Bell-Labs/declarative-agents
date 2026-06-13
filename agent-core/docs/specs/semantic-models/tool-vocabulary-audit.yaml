@@ -21,6 +21,7 @@ scope:
     - agents/evaluator/tools-point.yaml
     - agents/bench/tools.yaml
     - agents/jurist/tools.yaml
+    - agents/lifecycle/tools.yaml
 
 role_legend:
   word: |
@@ -53,6 +54,10 @@ overall_findings:
   - The remaining high-priority sentence-shaped tools are now mostly planner
     or lifecycle follow-ups; evaluator session and point workflows have been
     split into machine-composed words.
+  - |
+    The desired lifecycle history and rollback tools are first-class STL
+    builtin adapters selected by lifecycle profiles. Legacy exec wrappers and
+    hidden Cobra history/rollback commands are migration artifacts only.
   - validate is retained as a deprecated internal boundary aggregator for
     compatibility, but current generator validation is machine-declared.
   - Boundary tools carry explicit category (boundary) classification in their
@@ -238,6 +243,43 @@ tools:
     issues:
       - output.schema for suspension reason and checkpoint reference
     migration_priority: low
+
+  - name: checkpoint_history
+    role: stateful_internal
+    status: desired_lifecycle_adapter
+    selected_by: [lifecycle_history]
+    inputs_from: [lifecycle_profile, checkpoint_selector, StateStore]
+    feeds_into: [history_machine_terminal, operator_review]
+    side_effects: none
+    output_contract: declared_by_srd026
+    undo: noop
+    overlaps:
+      - tool: legacy_history_exec_wrapper
+        difference: checkpoint_history calls core checkpoint operations directly; the legacy wrapper shells through compatibility CLI behavior
+      - tool: checkpoint_rollback
+        difference: checkpoint_history inspects checkpoint history without rewriting checkpoint or workspace state
+    issues:
+      - ToolDef declaration still needs to replace legacy exec wrapper in lifecycle config
+    migration_priority: high
+
+  - name: checkpoint_rollback
+    role: boundary
+    status: desired_lifecycle_adapter
+    selected_by: [lifecycle_rollback]
+    inputs_from: [lifecycle_profile, checkpoint_selector, to_iteration, StateStore, Workspace]
+    feeds_into: [rollback_machine_terminal, resume_decision]
+    side_effects: checkpoint_state_rewrite, workspace_restore
+    output_contract: declared_by_srd026
+    undo: boundary_compensation (operator_checkpoint_selection, captures checkpoint_id + operator_decision)
+    overlaps:
+      - tool: legacy_rollback_exec_wrapper
+        difference: checkpoint_rollback calls core rollback operations directly; the legacy wrapper shells through compatibility CLI behavior
+      - tool: checkpoint_history
+        difference: checkpoint_rollback mutates checkpoint state and may restore workspace state
+    issues:
+      - ToolDef declaration still needs to replace legacy exec wrapper in lifecycle config
+      - Requires lifecycle profile wiring before it is the desired operator path
+    migration_priority: high
 
   - name: self_invoke
     role: boundary
@@ -688,7 +730,7 @@ tools:
     undo: restore_point_context
     overlaps:
       - tool: test
-        difference: run_oracle_check runs the point workspace oracle after agent execution; test is a general workspace validation exec tool
+        difference: run_oracle_check executes the point workspace oracle after agent execution; generic test runs workspace validation
     issues:
       - output.schema still needs full structured result contract
     migration_priority: medium
@@ -1018,6 +1060,7 @@ boundary_tools_with_compensation:
   tools:
     - validate
     - suspend
+    - checkpoint_rollback
     - self_invoke
     - create_issue
     - execute_task
@@ -1042,6 +1085,8 @@ remaining_contract_gaps:
       - list_files
       - invoke_llm
       - parse_response
+      - checkpoint_history
+      - checkpoint_rollback
       - planner tools
       - evaluator session tools
       - evaluator point tools
