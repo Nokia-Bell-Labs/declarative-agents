@@ -23,7 +23,6 @@ invocation: |
           [--tools-declaration <decl.yaml> ...] \
           [--tool-config-dir <dir> ...] \
           [--input <file>] [--output <dir>] \
-          [--model <name>] [--ollama-url <url>] \
           [--directory <path>] \
           [--state-store-dir <dir>] \
           [--resume-checkpoint <id>] [--resume-signal <signal>]
@@ -61,15 +60,9 @@ invocation: |
   Optional universal flags:
     --input              Input file (e.g. suite YAML for evaluator).
     --output             Output directory (e.g. eval results).
-    --model              Legacy LLM model override. Deprecated; configure the
-                         model in the invoke_llm declaration selected by the
-                         profile.
-    --ollama-url         Legacy LLM provider URL override. Deprecated;
-                         configure provider_url/ollama_url in the invoke_llm
-                         declaration selected by the profile.
     --directory          Workspace root for file tools and exec tools.
     --profiles-dir       Directory with model response-profile YAML overrides.
-    --verbose-trace      Record LLM input/output in OTel traces.
+    --verbose-trace      Record boundary-tool input/output in OTel traces.
     --otel-log-file      OTel trace output file.
     --otel-parent-span   W3C traceparent for distributed tracing.
     --state-store-dir    Local FileStore root for lifecycle checkpoints.
@@ -103,26 +96,21 @@ startup_sequence:
     implementation: stl.LoadToolDeclarations, stl.LoadToolDeclarationsFromDirs, stl.LoadToolSelections, stl.SelectTools
 
   - step: 3
-    name: Extract LLM config and set up provider
+    name: Preserve tool-owned boundary config
     description: |
-      Scan tool definitions for invoke_llm config blocks. Extract
-      model, provider, endpoint, manifest_state, system prompt, num_ctx,
-      llm_timeout, max_tokens, and max_time settings. Validate the
-      provider and create the provider adapter.
-      If a model response profile has a MachineName, --machine is rewritten
-      to use the profile's machine file (e.g. deepseek profile maps
-      to deepseek-coding-agent.yaml). The resolved machine file is
-      validated to exist at startup; a missing file fails immediately.
-      This model response profile system is separate from the agent profile
-      selected by --profile.
-    implementation: extractLLMConfig, llm.LoadProfiles
+      Tool definitions keep their config blocks until the selected factory
+      decodes them. Boundary tools such as invoke_llm own model, endpoint,
+      prompt, timeout, manifest_state, and provider-specific settings. The
+      agent binary does not interpret those settings and does not create model
+      clients as a startup step.
+    implementation: stl.ToolDef, stl.DecodeToolConfig
 
   - step: 4
     name: Register tool factories
     description: |
       For each ToolDef, resolve and register a Builder in the
       core.Registry. Builtin tools are resolved via BuiltinRegistry
-      (Go factories keyed by the "init" field). Exec tools are
+      (Go factories selected by the "init" field). Exec tools are
       wrapped as ExecBuilder instances. Tool config from the
       declaration YAML is passed to factories for parametrization.
     implementation: stl.RegisterUnifiedTools
@@ -174,7 +162,7 @@ startup_sequence:
 
 tool_parametrization: |
   Tool behavior is configured through the "config" block in tool
-  declaration YAML. This config map is passed to the BuiltinFactory
+  declaration YAML. The config map is passed to the BuiltinFactory
   at registration time (step 4). Factories read config values with
   typed config structs, making tools reusable across modes. Program-
   shaping child and nested invocation config is required and validated
@@ -183,6 +171,8 @@ tool_parametrization: |
   fallback config for older declarations.
 
   Examples:
+    - invoke_llm reads "model", "provider_url", prompt fields, timeout fields,
+      and manifest_state from its own config.
     - launch_eval reads "profile" from its config and invokes the child
       evaluator with --profile.
     - execute_task reads "profile" from its config and invokes the child
@@ -203,9 +193,8 @@ suite_input_contract: |
   into experiment.yaml for reproducibility.
 
   CLI flags such as --input and --output serve as universal runtime inputs.
-  Model and provider selection should come from the invoke_llm declaration
-  selected by --profile. Legacy --model and --ollama-url overrides are retained
-  for compatibility and emit warnings when used directly.
+  Model and provider selection comes from the selected boundary tool
+  declaration, not from the agent binary.
 
 nested_machines: |
   Some tools spawn nested core.Loop instances (run_point) or child
@@ -286,7 +275,7 @@ config_file_layout: |
       profile.yaml          # Preferred generator runtime entry point
       machine.yaml          # Generator state machine and semantics
       tools.yaml            # Tool selection (names only)
-      llm/                  # Per-model LLM configs
+      llm/                  # Per-model boundary tool configs
     planner/
       profile.yaml
       machine.yaml          # Full planner with execution
@@ -346,9 +335,8 @@ invariants:
     persisted checkpoint data and do not define agent behavior.
   - Mode-specific tool configuration lives in YAML config blocks. A small set
     of universal CLI flags such as --input, --output, --directory, and
-    lifecycle/telemetry flags serve as runtime inputs. Model/provider overrides
-    remain legacy compatibility flags and should normally be encoded in
-    profile-selected tool declarations.
+    lifecycle/telemetry flags serve as runtime inputs. Model/provider settings
+    are boundary-tool config.
   - Machine files reference tools by name; tools are resolved from the registry.
   - Named action tools may declare emitted signals with emits; declared emits
     are checked against the machine's signal and transition contract at startup.
@@ -446,7 +434,7 @@ engine_policy_audit:
       symbols: [registerBuiltinFactories, builtinFactoryCatalog]
       rationale: |
         cmd/agent registers builtin factory families through a centralized
-        catalog keyed by selected tool init names, not by mode names. This is
+        catalog selected by tool init names, not by mode names. This is
         configuration infrastructure: ToolDef selection activates catalog
         entries, while machine.yaml still defines the workflow.
 
@@ -465,8 +453,8 @@ engine_policy_audit:
         OnResult can mutate the run accumulator outside visible grammar
         transitions. It has no production cmd/agent use today and should remain
         test-only or be replaced by explicit words/domain state when needed.
-    - item: LLM manifest-state fallback
-      symbols: [extractLLMConfig, manifest_state]
+    - item: Boundary tool manifest-state fallback
+      symbols: [manifest_state]
       rationale: |
         The fallback state name Composing is generator-shaped. Agent configs
         should declare manifest_state explicitly so the universal runtime does
