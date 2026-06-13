@@ -78,11 +78,6 @@ func TestValidate_UncoveredACs(t *testing.T) {
 
 	findings := checkUncoveredACs(g)
 
-	var uncoveredIDs []string
-	for _, f := range findings {
-		uncoveredIDs = append(uncoveredIDs, f.Message)
-	}
-
 	for _, f := range findings {
 		assert.NotContains(t, f.Message, "srd001-auth:AC1",
 			"AC1 and AC2 are covered by test cases")
@@ -205,9 +200,7 @@ func TestValidate_MachineActionResolution(t *testing.T) {
 
 	findings := checkMachineActionResolution(corpus)
 
-	var messages []string
 	for _, f := range findings {
-		messages = append(messages, f.Message)
 		assert.Equal(t, "error", f.Level)
 	}
 	assert.Len(t, findings, 1, "only 'bad' should have an unresolved action")

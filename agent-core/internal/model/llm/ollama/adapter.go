@@ -196,8 +196,8 @@ func (a *Adapter) chatSpan(ctx context.Context, model string) (tracing.Tracer, f
 	attrs := genai.InferenceAttrs(genai.ProviderOllama, model, serverAddr)
 	if u, err := url.Parse(a.baseURL); err == nil && u.Port() != "" {
 		port := 0
-		fmt.Sscanf(u.Port(), "%d", &port)
-		if port > 0 {
+		n, err := fmt.Sscanf(u.Port(), "%d", &port)
+		if err == nil && n == 1 && port > 0 {
 			attrs = append(attrs, genai.AttrServerPort.Int(port))
 		}
 	}

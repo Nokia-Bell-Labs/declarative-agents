@@ -22,7 +22,7 @@ func resolveDir(t *testing.T) string {
 func TestValidatePath_InsideWorkspace(t *testing.T) {
 	root := resolveDir(t)
 	f := filepath.Join(root, "hello.txt")
-	os.WriteFile(f, []byte("hi"), 0o644)
+	require.NoError(t, os.WriteFile(f, []byte("hi"), 0o644))
 
 	resolved, err := ValidatePath(root, "hello.txt")
 	require.NoError(t, err)
@@ -32,7 +32,7 @@ func TestValidatePath_InsideWorkspace(t *testing.T) {
 func TestValidatePath_AbsolutePath(t *testing.T) {
 	root := resolveDir(t)
 	f := filepath.Join(root, "abs.txt")
-	os.WriteFile(f, []byte("hi"), 0o644)
+	require.NoError(t, os.WriteFile(f, []byte("hi"), 0o644))
 
 	resolved, err := ValidatePath(root, f)
 	require.NoError(t, err)

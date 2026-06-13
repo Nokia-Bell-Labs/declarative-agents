@@ -14,7 +14,7 @@ import (
 func TestLoadProfile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.yaml")
-	os.WriteFile(path, []byte(`
+	require.NoError(t, os.WriteFile(path, []byte(`
 name: generator
 machine: machine.yaml
 tools:
@@ -22,7 +22,7 @@ tools:
 tool_declarations:
   - ../../tools/builtin.yaml
   - llm/default.yaml
-`), 0o644)
+`), 0o644))
 
 	p, err := LoadProfile(path)
 	require.NoError(t, err)
@@ -38,12 +38,12 @@ tool_declarations:
 func TestLoadProfile_AbsolutePaths(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.yaml")
-	os.WriteFile(path, []byte(`
+	require.NoError(t, os.WriteFile(path, []byte(`
 name: test
 machine: /absolute/machine.yaml
 tools:
   - /absolute/tools.yaml
-`), 0o644)
+`), 0o644))
 
 	p, err := LoadProfile(path)
 	require.NoError(t, err)
@@ -54,11 +54,11 @@ tools:
 func TestLoadProfile_MissingMachine(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.yaml")
-	os.WriteFile(path, []byte(`
+	require.NoError(t, os.WriteFile(path, []byte(`
 name: bad
 tools:
   - tools.yaml
-`), 0o644)
+`), 0o644))
 
 	_, err := LoadProfile(path)
 	require.Error(t, err)
@@ -68,10 +68,10 @@ tools:
 func TestLoadProfile_MissingTools(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.yaml")
-	os.WriteFile(path, []byte(`
+	require.NoError(t, os.WriteFile(path, []byte(`
 name: bad
 machine: machine.yaml
-`), 0o644)
+`), 0o644))
 
 	_, err := LoadProfile(path)
 	require.Error(t, err)
@@ -81,13 +81,13 @@ machine: machine.yaml
 func TestLoadProfile_Directory(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.yaml")
-	os.WriteFile(path, []byte(`
+	require.NoError(t, os.WriteFile(path, []byte(`
 name: test
 machine: machine.yaml
 tools:
   - tools.yaml
 directory: ../workspace
-`), 0o644)
+`), 0o644))
 
 	p, err := LoadProfile(path)
 	require.NoError(t, err)
