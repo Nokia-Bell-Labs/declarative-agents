@@ -44,6 +44,17 @@ func (s *lifecycleMemoryStore) Delete(_ context.Context, key string) error {
 	return nil
 }
 
+type lifecycleWorkspace struct {
+	restored string
+}
+
+func (w *lifecycleWorkspace) Checkpoint(context.Context, string) (string, error) { return "head", nil }
+func (w *lifecycleWorkspace) CurrentRef(context.Context) (string, error)         { return "head", nil }
+func (w *lifecycleWorkspace) Restore(_ context.Context, ref string) error {
+	w.restored = ref
+	return nil
+}
+
 func TestCheckpointHistoryExecuteFormatsLatestCheckpoint(t *testing.T) {
 	t.Parallel()
 	store := &lifecycleMemoryStore{}
@@ -112,6 +123,125 @@ func TestCheckpointHistoryUndoMementoIsNoop(t *testing.T) {
 	require.Equal(t, core.ToolDone, cmd.Undo().Signal)
 }
 
+func TestCheckpointRollbackExecutePersistsNewCheckpoint(t *testing.T) {
+	t.Parallel()
+	target := 1
+	store := &lifecycleMemoryStore{}
+	saveLifecycleCheckpoint(t, store, lifecycleRollbackCheckpoint("cp-1", ""))
+
+	cmd := (&CheckpointRollbackBuilder{
+		Config:     CheckpointRollbackConfig{Checkpoint: "cp-1", ToIteration: &target},
+		StateStore: store,
+	}).Build(core.Result{})
+	res := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.Contains(t, res.Output, "rolled back checkpoint cp-1 to iteration 1")
+	require.Contains(t, res.Output, "new checkpoint: rollback-cp-1-to-1-")
+	keys, err := store.List(context.Background(), "checkpoint/")
+	require.NoError(t, err)
+	require.Len(t, keys, 2)
+}
+
+func TestCheckpointRollbackExecuteRestoresWorkspace(t *testing.T) {
+	t.Parallel()
+	target := 1
+	store := &lifecycleMemoryStore{}
+	saveLifecycleCheckpoint(t, store, lifecycleRollbackCheckpoint("cp-1", "ref-1"))
+	workspace := &lifecycleWorkspace{}
+
+	cmd := (&CheckpointRollbackBuilder{
+		Config:     CheckpointRollbackConfig{Checkpoint: "cp-1", ToIteration: &target},
+		StateStore: store,
+		Workspace:  workspace,
+	}).Build(core.Result{})
+	res := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.Equal(t, "ref-1", workspace.restored)
+	require.Contains(t, res.Output, "workspace ref: ref-1")
+}
+
+func TestCheckpointRollbackExecuteRequiresTargetIteration(t *testing.T) {
+	t.Parallel()
+	cmd := (&CheckpointRollbackBuilder{StateStore: &lifecycleMemoryStore{}}).Build(core.Result{})
+
+	res := cmd.Execute()
+
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Error(t, res.Err)
+	require.Contains(t, res.Output, "requires to_iteration")
+}
+
+func TestCheckpointRollbackExecuteRequiresStateStore(t *testing.T) {
+	t.Parallel()
+	target := 1
+	cmd := (&CheckpointRollbackBuilder{
+		Config: CheckpointRollbackConfig{ToIteration: &target},
+	}).Build(core.Result{})
+
+	res := cmd.Execute()
+
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Error(t, res.Err)
+	require.Contains(t, res.Output, "requires StateStore")
+}
+
+func TestCheckpointRollbackExecuteReportsRollbackFailure(t *testing.T) {
+	t.Parallel()
+	target := 99
+	store := &lifecycleMemoryStore{}
+	saveLifecycleCheckpoint(t, store, lifecycleRollbackCheckpoint("cp-1", ""))
+
+	cmd := (&CheckpointRollbackBuilder{
+		Config:     CheckpointRollbackConfig{Checkpoint: "cp-1", ToIteration: &target},
+		StateStore: store,
+	}).Build(core.Result{})
+	res := cmd.Execute()
+
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Error(t, res.Err)
+	require.Contains(t, res.Output, "target iteration 99")
+}
+
+func TestCheckpointRollbackExecuteRequiresManagedWorkspaceForRef(t *testing.T) {
+	t.Parallel()
+	target := 1
+	store := &lifecycleMemoryStore{}
+	saveLifecycleCheckpoint(t, store, lifecycleRollbackCheckpoint("cp-1", "ref-1"))
+
+	cmd := (&CheckpointRollbackBuilder{
+		Config:     CheckpointRollbackConfig{Checkpoint: "cp-1", ToIteration: &target},
+		StateStore: store,
+	}).Build(core.Result{})
+	res := cmd.Execute()
+
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Error(t, res.Err)
+	require.Contains(t, res.Output, "directory is required")
+	keys, err := store.List(context.Background(), "checkpoint/")
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+}
+
+func TestCheckpointRollbackUndoMementoIsCompensatable(t *testing.T) {
+	t.Parallel()
+	cmd := (&CheckpointRollbackBuilder{}).Build(core.Result{})
+	provider, ok := cmd.(core.UndoMementoProvider)
+	require.True(t, ok)
+
+	memento, err := provider.UndoMemento()
+
+	require.NoError(t, err)
+	require.Equal(t, core.UndoMementoCompensatable, memento.Kind)
+	require.Equal(t, "checkpoint_rollback", memento.CommandName)
+	require.Equal(t, core.CommandError, cmd.Undo().Signal)
+	var payload BoundaryCompensationPayload
+	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
+	require.Equal(t, "operator_checkpoint_selection", payload.BoundaryCompensation.Strategy)
+	require.Contains(t, payload.BoundaryCompensation.Requires, "checkpoint_id")
+}
+
 func lifecycleCheckpoint(id string, ts time.Time) core.Checkpoint {
 	return core.Checkpoint{
 		ID:        id,
@@ -129,6 +259,24 @@ func lifecycleCheckpoint(id string, ts time.Time) core.Checkpoint {
 			ToState:     "Reading",
 			Signal:      core.ToolDone,
 		}},
+	}
+}
+
+func lifecycleRollbackCheckpoint(id, targetRef string) core.Checkpoint {
+	noop := core.NoopUndoMemento("write")
+	return core.Checkpoint{
+		ID:        id,
+		Iteration: 2,
+		Timestamp: time.Unix(100, 0).UTC(),
+		AgentState: core.AgentSnapshot{
+			State:     "Working",
+			Signal:    core.ToolDone,
+			Iteration: 2,
+		},
+		History: []core.HistoryDigest{
+			{Iteration: 1, CommandName: "read", FromState: "Idle", ToState: "Reading", Signal: core.ToolDone, WorkspaceRef: targetRef},
+			{Iteration: 2, CommandName: "write", FromState: "Reading", ToState: "Working", Signal: core.ToolDone, Undo: &noop},
+		},
 	}
 }
 
