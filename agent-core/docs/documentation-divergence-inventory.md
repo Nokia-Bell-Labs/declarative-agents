@@ -27,7 +27,7 @@ runtime behavior unless a follow-up explicitly calls out a source correction.
 
 Source evidence:
 - `cmd/agent/main.go` is the unified binary entry point; generator, planner,
-  evaluator, bench, and constitution-auditor behavior is selected through YAML
+  evaluator, bench, and jurist behavior is selected through YAML
   profiles and tool declarations.
 - `agents/*/profile.yaml` files are the normal runtime entry points.
 - `docs/ARCHITECTURE.yaml` now describes the system as a single binary driving
@@ -40,7 +40,7 @@ Documentation drift:
   profiles.
 - The README package table is useful but does not orient readers around the
   active agents (`agents/generator`, `agents/evaluator`, `agents/planner`,
-  `agents/bench`, `agents/constitution-auditor`) or profile-first startup.
+  `agents/bench`, `agents/jurist`) or profile-first startup.
 
 Recommended edits:
 - Refresh the README introduction around Agent Core as a declarative runtime.

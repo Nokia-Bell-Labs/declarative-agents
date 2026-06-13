@@ -79,7 +79,7 @@ func runInDir(dir string, name string, args ...string) error {
 	return cmd.Run()
 }
 
-// Audit runs the constitution-auditor agent against the project documentation.
+// Audit runs the jurist agent against the project documentation.
 func Audit() error {
 	binary, err := filepath.Abs(filepath.Join(binDir, "agent"))
 	if err != nil {
@@ -98,7 +98,7 @@ func Audit() error {
 	}
 
 	cmd := exec.Command(binary,
-		"--profile", filepath.Join(rootDir, "agents/constitution-auditor/profile.yaml"),
+		"--profile", filepath.Join(rootDir, "agents/jurist/profile.yaml"),
 		"--directory", rootDir,
 	)
 	cmd.Stdout = os.Stdout

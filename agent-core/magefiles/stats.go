@@ -142,7 +142,7 @@ func configsYAMLCategory(path string) string {
 		return "configs_other"
 	}
 	switch parts[1] {
-	case "generator", "planner", "evaluator", "bench", "constitution-auditor":
+	case "generator", "planner", "evaluator", "bench", "jurist":
 		return parts[1]
 	default:
 		return "configs_other"

@@ -5,7 +5,7 @@ overview:
   summary: |
     A Go framework for building declarative tool-language agents. A single
     unified binary (cmd/agent) drives five agent types — generator,
-    evaluator, planner, constitution-auditor, and bench — each defined entirely by
+    evaluator, planner, jurist, and bench — each defined entirely by
     YAML configuration files (state machines, tool selections, LLM
     configs). The bench mode serves an embedded web UI for browsing
     experiments, launching evaluations, and comparing results.
@@ -850,7 +850,7 @@ technology_choices:
 project_structure:
   binaries:
     - path: cmd/agent/
-      role: Unified agent binary — generator, evaluator, planner, constitution-auditor, bench modes via YAML config
+      role: Unified agent binary — generator, evaluator, planner, jurist, bench modes via YAML config
 
   bench:
     - path: internal/evaluation/
@@ -911,7 +911,7 @@ project_structure:
       role: Evaluator agent — machine.yaml, tools.yaml, llm/*.yaml
     - path: agents/planner/
       role: Planner agent — machine.yaml (3 variants), tools.yaml, llm/*.yaml
-    - path: agents/constitution-auditor/
+    - path: agents/jurist/
       role: Validation agent — machine.yaml, tools.yaml
     - path: agents/bench/
       role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
@@ -943,11 +943,11 @@ implementation_status:
     - done: Agent execution (internal/support/execute) — subprocess execution with process groups
     - done: Worktree management (internal/support/worktree) — git worktree lifecycle
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
-    - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, constitution-auditor, bench
+    - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, jurist, bench
     - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching
     - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
     - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
-    - done: Agent profiles and configurations — generator, evaluator, planner, constitution-auditor, bench profiles with machine/tools/llm selections
+    - done: Agent profiles and configurations — generator, evaluator, planner, jurist, bench profiles with machine/tools/llm selections
     - done: Grammar Machine alignment — selected-tool contract enforcement, rollback strategy vocabulary, profile-first child boundaries, and centralized builtin factory catalog
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats, docker

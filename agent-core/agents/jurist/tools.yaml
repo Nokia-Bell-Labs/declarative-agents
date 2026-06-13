@@ -1,5 +1,5 @@
 # Tool selection for the validate state machine.
-# Used with: agent --machine agents/constitution-auditor/machine.yaml --tools agents/constitution-auditor/tools.yaml
+# Used with: agent --machine agents/jurist/machine.yaml --tools agents/jurist/tools.yaml
 # Declarations live in tools/builtin.yaml.
 
 tools:

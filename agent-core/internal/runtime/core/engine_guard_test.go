@@ -22,7 +22,7 @@ func TestCoreSourceDoesNotEmbedModeOrToolPolicyNames(t *testing.T) {
 		"planner":              {},
 		"evaluator":            {},
 		"bench":                {},
-		"constitution-auditor": {},
+		"jurist": {},
 		"invoke_llm":           {},
 		"parse_response":       {},
 		"report_parse_error":   {},

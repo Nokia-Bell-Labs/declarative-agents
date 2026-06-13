@@ -3,7 +3,7 @@ title: Machine Configuration Format (machine.yaml)
 
 purpose: |
   Defines the MachineSpec YAML schema used by all five agent modes
-  (generator, evaluator, planner, constitution-auditor, bench). Each machine.yaml
+  (generator, evaluator, planner, jurist, bench). Each machine.yaml
   declares the finite state machine that drives an agent's execution
   loop: its states, signals, transitions, actions, and budget constraints.
 
@@ -293,9 +293,9 @@ examples:
       invoke_llm. Rich state/signal metadata with purpose and
       invariants.
 
-  - file: agents/constitution-auditor/machine.yaml
+  - file: agents/jurist/machine.yaml
     description: |
-      6 states, linear 3-tool pipeline. The constitution auditor
+      6 states, linear 3-tool pipeline. The jurist
       loads the specification corpus, runs consistency checks across
       SRDs, machine grammars, and tool declarations, and formats the
       report. No LLM calls. Rich state/signal metadata with purpose,
