@@ -745,7 +745,7 @@ func TestLoadToolDeclarationsFromDirs(t *testing.T) {
     description: Write a file
 `)
 	writeFile(t, filepath.Join(dir, "not-yaml.txt"), "ignored")
-	os.Mkdir(filepath.Join(dir, "subdir"), 0o755)
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "subdir"), 0o755))
 
 	defs, err := LoadToolDeclarationsFromDirs([]string{dir})
 	require.NoError(t, err)

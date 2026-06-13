@@ -27,7 +27,7 @@ func TestReadBuilder_MissingParam(t *testing.T) {
 
 func TestRead_Success(t *testing.T) {
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "hello.go"), []byte("package main\n\nfunc main() {}\n"), 0o644)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "hello.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 
 	b := &ReadBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"hello.go"}`))
@@ -39,7 +39,7 @@ func TestRead_Success(t *testing.T) {
 
 func TestRead_LineRange(t *testing.T) {
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "lines.txt"), []byte("a\nb\nc\nd\ne\n"), 0o644)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "lines.txt"), []byte("a\nb\nc\nd\ne\n"), 0o644))
 
 	b := &ReadBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"lines.txt","start_line":2,"end_line":4}`))
@@ -52,7 +52,7 @@ func TestRead_LineRange(t *testing.T) {
 
 func TestRead_Directory(t *testing.T) {
 	root := t.TempDir()
-	os.Mkdir(filepath.Join(root, "subdir"), 0o755)
+	require.NoError(t, os.Mkdir(filepath.Join(root, "subdir"), 0o755))
 
 	b := &ReadBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"subdir"}`))
@@ -63,7 +63,7 @@ func TestRead_Directory(t *testing.T) {
 
 func TestRead_Binary(t *testing.T) {
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "bin"), []byte{0x00, 0x01, 0x02}, 0o644)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "bin"), []byte{0x00, 0x01, 0x02}, 0o644))
 
 	b := &ReadBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"bin"}`))
@@ -108,14 +108,15 @@ func TestWrite_UndoRemovesCreatedFile(t *testing.T) {
 
 func TestWrite_Overwrite(t *testing.T) {
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "exist.txt"), []byte("old"), 0o644)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "exist.txt"), []byte("old"), 0o644))
 
 	b := &WriteBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"exist.txt","content":"new"}`))
 	res := cmd.Execute()
 	assert.Equal(t, core.ToolDone, res.Signal)
 
-	data, _ := os.ReadFile(filepath.Join(root, "exist.txt"))
+	data, err := os.ReadFile(filepath.Join(root, "exist.txt"))
+	require.NoError(t, err)
 	assert.Equal(t, "new", string(data))
 }
 
@@ -167,7 +168,7 @@ func TestWrite_MissingParams(t *testing.T) {
 
 func TestEdit_SingleMatch(t *testing.T) {
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "e.txt"), []byte("hello world"), 0o644)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("hello world"), 0o644))
 
 	b := &EditBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"e.txt","old_string":"hello","new_string":"goodbye"}`))
@@ -175,7 +176,8 @@ func TestEdit_SingleMatch(t *testing.T) {
 	assert.Equal(t, core.EditDone, res.Signal)
 	assert.Contains(t, res.Output, "replacement applied")
 
-	data, _ := os.ReadFile(filepath.Join(root, "e.txt"))
+	data, err := os.ReadFile(filepath.Join(root, "e.txt"))
+	require.NoError(t, err)
 	assert.Equal(t, "goodbye world", string(data))
 }
 
@@ -198,7 +200,7 @@ func TestEdit_UndoRestoresOriginalFile(t *testing.T) {
 
 func TestEdit_NoMatch(t *testing.T) {
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "e.txt"), []byte("hello"), 0o644)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("hello"), 0o644))
 
 	b := &EditBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"e.txt","old_string":"xyz","new_string":"abc"}`))
@@ -211,7 +213,7 @@ func TestEdit_NoMatch(t *testing.T) {
 
 func TestEdit_NoMatchIncludesNumberedLines(t *testing.T) {
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "e.txt"), []byte("line1\nline2\nline3"), 0o644)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("line1\nline2\nline3"), 0o644))
 
 	b := &EditBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"e.txt","old_string":"missing","new_string":"abc"}`))
@@ -224,7 +226,7 @@ func TestEdit_NoMatchIncludesNumberedLines(t *testing.T) {
 
 func TestEdit_AmbiguousMatch(t *testing.T) {
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "e.txt"), []byte("aaa"), 0o644)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("aaa"), 0o644))
 
 	b := &EditBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"e.txt","old_string":"a","new_string":"b"}`))
@@ -235,9 +237,9 @@ func TestEdit_AmbiguousMatch(t *testing.T) {
 
 func TestListFiles_Basic(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "sub"), 0o755)
-	os.WriteFile(filepath.Join(root, "top.txt"), []byte("x"), 0o644)
-	os.WriteFile(filepath.Join(root, "sub", "deep.txt"), []byte("y"), 0o644)
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "sub"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "top.txt"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "deep.txt"), []byte("y"), 0o644))
 
 	b := &ListFilesBuilder{Root: root}
 	cmd := b.Build(toolReq(`{}`))
@@ -250,8 +252,8 @@ func TestListFiles_Basic(t *testing.T) {
 
 func TestListFiles_SubPath(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "a", "b"), 0o755)
-	os.WriteFile(filepath.Join(root, "a", "b", "c.txt"), []byte("z"), 0o644)
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "a", "b"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "a", "b", "c.txt"), []byte("z"), 0o644))
 
 	b := &ListFilesBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"a"}`))

@@ -90,9 +90,9 @@ func TestLoadCorpus_NoDocsDir(t *testing.T) {
 
 func TestLoadCorpus_NoSRDFiles(t *testing.T) {
 	tmp := t.TempDir()
-	os.MkdirAll(filepath.Join(tmp, "docs", "specs", "software-requirements"), 0o755)
-	os.WriteFile(filepath.Join(tmp, "docs", "road-map.yaml"), []byte("id: test\n"), 0o644)
-	os.WriteFile(filepath.Join(tmp, "docs", "SPECIFICATIONS.yaml"), []byte("id: test\n"), 0o644)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "docs", "specs", "software-requirements"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "docs", "road-map.yaml"), []byte("id: test\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "docs", "SPECIFICATIONS.yaml"), []byte("id: test\n"), 0o644))
 
 	_, err := LoadCorpus(tmp)
 	require.Error(t, err)
@@ -146,12 +146,12 @@ func setupTestCorpus(t *testing.T, root string) {
 		filepath.Join("docs", "specs", "use-cases"),
 		filepath.Join("docs", "specs", "test-suites"),
 	} {
-		os.MkdirAll(filepath.Join(root, d), 0o755)
+		require.NoError(t, os.MkdirAll(filepath.Join(root, d), 0o755))
 	}
-	os.WriteFile(filepath.Join(root, "docs", "road-map.yaml"),
-		[]byte("id: test\ntitle: Test\nreleases: []\n"), 0o644)
-	os.WriteFile(filepath.Join(root, "docs", "SPECIFICATIONS.yaml"),
-		[]byte("id: test\ntitle: Test\n"), 0o644)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "docs", "road-map.yaml"),
+		[]byte("id: test\ntitle: Test\nreleases: []\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "docs", "SPECIFICATIONS.yaml"),
+		[]byte("id: test\ntitle: Test\n"), 0o644))
 }
 
 func writeTestSRD(t *testing.T, root, filename, data string) {

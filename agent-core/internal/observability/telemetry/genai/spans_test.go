@@ -100,7 +100,7 @@ func TestErrorAttrs(t *testing.T) {
 func attrMap(attrs []attribute.KeyValue) map[string]string {
 	m := make(map[string]string)
 	for _, a := range attrs {
-		m[string(a.Key)] = a.Value.Emit()
+		m[string(a.Key)] = a.Value.String()
 	}
 	return m
 }

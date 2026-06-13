@@ -39,8 +39,6 @@ func GenerateLinearMachine(gen GenerateSpec) MachineSpec {
 		signals     = []string{"Seed", "ToolDone", "ToolFailed"}
 	)
 
-	prevLast := ""
-
 	for i, point := range gen.Points {
 		pointStates := make([]string, 0, len(point.Steps))
 		for j := range point.Steps {
@@ -75,13 +73,6 @@ func GenerateLinearMachine(gen GenerateSpec) MachineSpec {
 				Next:   nextPointOrDone,
 				Action: "",
 			})
-		}
-
-		if prevLast != "" {
-			// Already handled via ToolDone in previous point's last step
-		}
-		if len(pointStates) > 0 {
-			prevLast = pointStates[len(pointStates)-1]
 		}
 	}
 
