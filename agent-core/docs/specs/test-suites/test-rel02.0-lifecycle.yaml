@@ -17,7 +17,7 @@ test_cases:
     name: Disabled lifecycle preserves existing loop behavior
     description: |
       Run a simple machine with StateStore, Workspace, and CheckpointPolicy unset.
-      The run should complete without checkpoint writes, history persistence, or
+      Expected behavior is completion without checkpoint writes, history persistence, or
       workspace ref mutations.
     inputs:
       lifecycle: disabled
@@ -36,17 +36,17 @@ test_cases:
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: FileStore persists and lists checkpoint JSON
     description: |
-      Save a checkpoint through FileStore, load it by key, list it by prefix,
+      Save a checkpoint through FileStore, load it by store path, list it by prefix,
       and verify the JSON agent snapshot and domain snapshot are preserved.
     inputs:
       store: FileStore
-      key: checkpoint/run-001
+      store_path: checkpoint/run-001
       prefix: checkpoint/
     expected:
       save: ok
       load: same_checkpoint_json
       list_contains: checkpoint/run-001
-      error_context: key_and_store_location_available
+      error_context: store_path_and_store_location_available
     traces:
       - srd025-rollback-lifecycle AC2
 
@@ -131,7 +131,7 @@ test_cases:
     name: Rollback traverses history backward to target iteration
     description: |
       Given a recorded history with command/domain and workspace mutations,
-      roll back from the current iteration to a target iteration. The runtime
+      roll back from the current iteration to a target iteration. Runtime
       should call Command.Undo in reverse dispatch order and restore Workspace
       to the target ref.
     inputs:
@@ -190,7 +190,7 @@ test_cases:
   - use_case: rel02.0-uc002-history-rollback
     name: Partial rollback reports remaining state after failure
     description: |
-      Force a Command.Undo failure during rollback. The rollback report should
+      Force a Command.Undo failure during rollback. Rollback reporting should
       identify the failing command, whether workspace restore was attempted,
       and what state remains for operator recovery.
     inputs:
@@ -203,3 +203,154 @@ test_cases:
       remaining_state_reported: true
     traces:
       - srd025-rollback-lifecycle AC4
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: Lifecycle history profile dispatches checkpoint_history
+    description: |
+      Invoke the history lifecycle program through its profile. Confirm the
+      profile loads the lifecycle MachineSpec, selects checkpoint_history, and
+      registers the builtin adapter before the machine dispatches the action.
+    inputs:
+      profile: agents/lifecycle/history/profile.yaml
+      tool_selection: agents/lifecycle/tools.yaml
+      selected_tool: checkpoint_history
+      state_store: FileStore
+    expected:
+      profile_loaded: true
+      machine_action: checkpoint_history
+      selected_as_builtin: true
+      hidden_cli_subcommand_used: false
+    traces:
+      - srd025-rollback-lifecycle AC7
+      - srd026-lifecycle-tools AC1
+      - srd026-lifecycle-tools AC5
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: Lifecycle rollback profile dispatches checkpoint_rollback
+    description: |
+      Run the rollback lifecycle program through its profile. Confirm the
+      profile loads the rollback MachineSpec, selects checkpoint_rollback, and
+      registers the builtin adapter before the machine dispatches the action.
+    inputs:
+      profile: agents/lifecycle/rollback/profile.yaml
+      tool_selection: agents/lifecycle/tools.yaml
+      selected_tool: checkpoint_rollback
+      state_store: FileStore
+      workspace: GitWorkspace
+    expected:
+      profile_loaded: true
+      machine_action: checkpoint_rollback
+      selected_as_builtin: true
+      hidden_cli_subcommand_used: false
+    traces:
+      - srd025-rollback-lifecycle AC7
+      - srd026-lifecycle-tools AC1
+      - srd026-lifecycle-tools AC5
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: checkpoint_history formats selected checkpoint history
+    description: |
+      With a FileStore containing an older checkpoint and a newer checkpoint,
+      call checkpoint_history with the default latest selector. It
+      should resolve the latest checkpoint, load it, format the digest, and
+      return ToolDone.
+    inputs:
+      tool: checkpoint_history
+      checkpoint_selector: latest
+      state_store: FileStore
+      checkpoints: [older, newer]
+    expected:
+      signal: ToolDone
+      resolved_checkpoint: newer
+      output_contains_history_digest: true
+      side_effects: none
+      undo: noop
+    traces:
+      - srd025-rollback-lifecycle AC7
+      - srd026-lifecycle-tools AC2
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: checkpoint_history reports missing StateStore
+    description: |
+      Call checkpoint_history without a StateStore. Expected behavior should
+      return CommandError and leave checkpoint and workspace state unchanged.
+    inputs:
+      tool: checkpoint_history
+      state_store: nil
+    expected:
+      signal: CommandError
+      error_class: missing_state_store
+      checkpoint_mutation: none
+      workspace_restore_attempted: false
+    traces:
+      - srd026-lifecycle-tools AC2
+      - srd026-lifecycle-tools AC6
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: checkpoint_rollback creates rollback checkpoint
+    description: |
+      Use a persisted checkpoint with history entries and run
+      checkpoint_rollback with a target iteration. Adapter behavior should delegate
+      traversal to core rollback operations, persist a new checkpoint, and
+      return a summary with the original checkpoint, target iteration, and new
+      checkpoint ID.
+    inputs:
+      tool: checkpoint_rollback
+      checkpoint_selector: latest
+      to_iteration: 2
+      state_store: FileStore
+      workspace: nil
+    expected:
+      signal: ToolDone
+      rollback_delegated_to_core: true
+      new_checkpoint_written: true
+      output_names_original_and_new_checkpoint: true
+      undo: compensatable
+    traces:
+      - srd025-rollback-lifecycle AC4
+      - srd025-rollback-lifecycle AC7
+      - srd026-lifecycle-tools AC3
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: checkpoint_rollback reports missing target iteration
+    description: |
+      Omit to_iteration when running checkpoint_rollback. Validation should
+      reject the request before traversal and return CommandError.
+    inputs:
+      tool: checkpoint_rollback
+      checkpoint_selector: latest
+      to_iteration: null
+      state_store: FileStore
+    expected:
+      signal: CommandError
+      error_class: missing_target_iteration
+      rollback_traversal_started: false
+      new_checkpoint_written: false
+    traces:
+      - srd026-lifecycle-tools AC3
+      - srd026-lifecycle-tools AC4
+      - srd026-lifecycle-tools AC6
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: checkpoint_rollback refuses unmanaged workspace ref
+    description: |
+      Submit checkpoint data that names a
+      WorkspaceRef while no managed workspace directory is configured. This
+      adapter should refuse the rollback rather than skip workspace restore.
+    inputs:
+      tool: checkpoint_rollback
+      checkpoint_selector: latest
+      to_iteration: 2
+      state_store: FileStore
+      workspace_ref_present: true
+      workspace: nil
+    expected:
+      signal: CommandError
+      error_class: unmanaged_workspace_ref
+      workspace_restore_skipped_as_success: false
+      new_checkpoint_written: false
+    traces:
+      - srd025-rollback-lifecycle AC2
+      - srd025-rollback-lifecycle AC4
+      - srd026-lifecycle-tools AC3
+      - srd026-lifecycle-tools AC6

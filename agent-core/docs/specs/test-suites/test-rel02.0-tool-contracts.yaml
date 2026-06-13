@@ -16,9 +16,8 @@ test_cases:
   - use_case: rel02.0-uc003-tool-authoring
     name: Tool definition includes all required contract sections
     description: |
-      Load a new builtin ToolDef and verify it includes problem, goals,
-      requirements, non_goals, output.schema, side_effects, reversibility,
-      undo, errors, and relationships.
+      Load a new builtin ToolDef and verify it includes every required
+      authoring section named in cfg-tool-authoring-standard.
     inputs:
       tool_category: word
       declaration: complete_builtin_tooldef
@@ -93,8 +92,8 @@ test_cases:
   - use_case: rel02.0-uc003-tool-authoring
     name: Side effects and undo strategy are required for mutating tools
     description: |
-      Validate a filesystem-mutating tool and a command/domain-state-mutating
-      tool. Each must declare side_effects, reversibility, undo strategy, and
+      Check a filesystem-mutating tool and a command/domain-state-mutating
+      tool. Both must declare their rollback contract and
       state_after_failure error semantics.
     inputs:
       tools:
@@ -110,7 +109,7 @@ test_cases:
   - use_case: rel02.0-uc003-tool-authoring
     name: Irreversible tools require confirmation or compensation
     description: |
-      Validate a boundary tool that affects external user data. If its effects
+      Assess a boundary tool that affects external user data. If its effects
       are irreversible or compensatable, the ToolDef must declare confirmation
       or a compensating action before it is selected by a user-facing machine.
     inputs:
@@ -144,8 +143,8 @@ test_cases:
     name: Sentence tool migration creates replacement word declarations
     description: |
       Given a legacy aggregate tool, identify each observable verb and create
-      one ToolDef per word. Each replacement declaration must include emits,
-      side effects, reversibility, undo, errors, and relationships.
+      one ToolDef per word. Replacement declarations must include the
+      required contract metadata.
     inputs:
       legacy_tool: load_suite
       identified_words:
@@ -184,7 +183,7 @@ test_cases:
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Boundary and nested-machine tools declare their boundary effects
     description: |
-      Validate a tool that invokes a child process, nested machine, model, or
+      Exercise a tool that invokes a child process, nested machine, model, or
       human actor. The declaration must classify it as boundary and describe
       the external state and workspace effects rollback may need to compensate.
     inputs:
@@ -205,7 +204,7 @@ test_cases:
     name: Deprecated compatibility aggregate is hidden from new workflows
     description: |
       Keep a legacy aggregate only as deprecated compatibility. It should be
-      hidden from LLM manifests when internal-only, documented as a boundary or
+      hidden from LLM tool lists when internal-only, documented as a boundary or
       deprecated compatibility tool, and excluded from new machine selections.
     inputs:
       legacy_aggregate: validate
@@ -236,3 +235,49 @@ test_cases:
     traces:
       - srd006-yaml-machine-config AC3
       - srd013-standard-tool-library AC9
+
+  - use_case: rel02.0-uc003-tool-authoring
+    name: Lifecycle builtin declarations expose full adapter contracts
+    description: |
+      Inspect the checkpoint_history and checkpoint_rollback ToolDefs. Both
+      declarations should expose the required adapter contract fields and the
+      correct builtin init value.
+    inputs:
+      lifecycle_tools:
+        - checkpoint_history
+        - checkpoint_rollback
+    expected:
+      type_builtin: true
+      init_present: true
+      emits_present: true
+      output_present: true
+      side_effects_present: true
+      reversibility_present: true
+      undo_present: true
+      errors_present: true
+      relationships_present: true
+    traces:
+      - srd022-builtin-tools AC1
+      - srd025-rollback-lifecycle AC6
+      - srd026-lifecycle-tools AC5
+
+  - use_case: rel02.0-uc003-tool-authoring
+    name: Lifecycle tool contracts reject exec-wrapper behavior
+    description: |
+      Check lifecycle ToolDefs for hidden shelling into the agent binary. Desired
+      declarations should be builtin adapters, selected by lifecycle
+      profiles, and invoked by MachineSpec actions.
+    inputs:
+      lifecycle_tools:
+        - checkpoint_history
+        - checkpoint_rollback
+      forbidden_shape: exec_wrapper_around_agent_binary
+    expected:
+      shells_into_agent_binary: false
+      selected_by_lifecycle_profile: true
+      machine_action_visible: true
+      core_operation_boundary_documented: true
+    traces:
+      - srd025-rollback-lifecycle AC7
+      - srd026-lifecycle-tools AC1
+      - srd026-lifecycle-tools AC5
