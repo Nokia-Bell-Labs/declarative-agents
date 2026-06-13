@@ -1,0 +1,143 @@
+# Testing Constitution
+
+id: testing
+title: Testing Constitution
+purpose: 'We use this constitution to keep YAML test suites, Go tests, integration
+
+  targets, and Beads acceptance criteria aligned.
+
+  '
+articles:
+- id: T1
+  title: Test the contract
+  rule: 'Tests should validate observable behavior, public contracts, and
+
+    specification promises. Do not couple tests to private implementation
+
+    details unless the package is itself the implementation boundary.
+
+    '
+- id: T2
+  title: Trace YAML suites to Go tests
+  rule: 'Every formal YAML test case should name a Go test, mage target, or
+
+    integration target that covers it. Every release use case should either
+
+    point to a formal test suite or explain why Go-only coverage is the
+
+    current state.
+
+    '
+- id: T3
+  title: Preserve release coverage
+  rule: 'Adding a use case requires adding or updating the release test suite.
+
+    Closing a release requires matching SPECIFICATIONS.yaml counts, use case
+
+    status, and test-suite entries.
+
+    '
+- id: T4
+  title: Keep tests isolated
+  rule: 'Tests write only to t.TempDir unless a fixture path is read-only. Tests
+
+    that change process state, environment, current directory, global
+
+    variables, or shared files must not run in parallel.
+
+    '
+- id: T5
+  title: Gate by task risk
+  rule: 'Code issues run the full code gate unless the issue states a narrower
+
+    gate. Documentation issues run mage audit and de-AI checks on touched
+
+    docs. Integration targets run when the issue changes profile behavior,
+
+    machine routing, evaluator flow, bench behavior, lifecycle operations, or
+
+    model-boundary config.
+
+    '
+go_test_style:
+  table_driven_tests:
+    rule: Use named rows and t.Run for repeated cases.
+    example: "tests := []struct {\n  name string\n  input string\n  want string\n}{\n  {name: \"empty\", input: \"\", want:\
+      \ \"\"},\n}\nfor _, tc := range tests {\n  t.Run(tc.name, func(t *testing.T) {\n    t.Parallel()\n    require.Equal(t,\
+      \ tc.want, transform(tc.input))\n  })\n}\n"
+  parallelism:
+    use_t_parallel_when:
+    - The test uses only local values.
+    - The test writes only to its own t.TempDir.
+    - The test does not mutate global state.
+    - The test does not call os.Chdir.
+    do_not_parallelize_when:
+    - The test changes process working directory.
+    - The test mutates environment variables without isolated cleanup.
+    - The test uses shared package state.
+    - The test binds a fixed network port.
+  helpers:
+    rules:
+    - Every helper calls t.Helper() first.
+    - Helpers create clear failure messages.
+    - Shared fixtures should be read-only.
+    - Use t.Cleanup for temporary process or filesystem state.
+  assertions:
+    rules:
+    - Use require for setup failures and fatal preconditions.
+    - Use assert for independent checks after setup succeeds.
+    - Check error messages when the contract promises specific context.
+yaml_test_suites:
+  required_fields:
+  - id
+  - title
+  - release
+  - traces
+  - preconditions
+  - test_cases
+  test_case_fields:
+  - use_case
+  - name
+  - go_test
+  - inputs
+  - expected
+  - traces
+  trace_formats:
+    srd_acceptance: srdNNN-name ACN
+    srd_requirement: srdNNN-name RN.N
+    use_case_success: relNN.N-ucNNN-name SN
+mage_targets:
+  unit: go test ./...
+  build: go build ./...
+  vet: go vet ./...
+  lint: mage lint
+  audit: mage audit
+  integration:
+  - mage integration:uc001
+  - mage integration:uc002
+  - mage integration:uc003
+  - mage integration:all
+quality_gates:
+  code:
+  - go build ./...
+  - go vet ./...
+  - mage lint
+  - go test ./...
+  documentation:
+  - mage audit
+  - bash .cursor/skills/de-ai/scripts/detect-lexical.sh <touched-doc>
+  - python3 .cursor/skills/de-ai/scripts/detect-structural.py <touched-doc>
+  config_or_profile:
+  - mage audit
+  - go test ./...
+  - relevant mage integration target when profile behavior changes
+coverage_notes:
+- Release 00.0 has formal YAML coverage through test-rel00.0.
+- Release 01.0 currently relies on Go and integration tests until a formal suite is added.
+- Release 02.0 has formal lifecycle and tool-contract suites, plus Go tests for implemented runtime pieces.
+references:
+- docs/SPECIFICATIONS.yaml
+- docs/specs/test-suites/test-rel00.0.yaml
+- docs/specs/test-suites/test-rel02.0-lifecycle.yaml
+- docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
+- docs/constitutions/go-style.yaml
