@@ -19,8 +19,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -138,7 +136,7 @@ func runHistory(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	checkpointID, err := resolveCheckpointID(cmd.Context(), store, flagHistoryCheckpoint)
+	checkpointID, err := core.ResolveLatestCheckpointID(cmd.Context(), store, flagHistoryCheckpoint)
 	if err != nil {
 		return err
 	}
@@ -146,7 +144,7 @@ func runHistory(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprint(cmd.OutOrStdout(), formatCheckpointHistory(cp))
+	fmt.Fprint(cmd.OutOrStdout(), core.FormatCheckpointHistory(cp))
 	return nil
 }
 
@@ -158,42 +156,30 @@ func runRollback(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	checkpointID, err := resolveCheckpointID(cmd.Context(), store, flagRollbackCheckpoint)
-	if err != nil {
-		return err
-	}
-	cp, err := core.LoadCheckpoint(cmd.Context(), store, checkpointID)
-	if err != nil {
-		return err
-	}
-	rolledBack, targetRef, err := rollbackCheckpointToIteration(cp, flagRollbackToIteration)
-	if err != nil {
-		return err
-	}
-	if targetRef != "" {
-		if flagDirectory == "" {
-			return fmt.Errorf("rollback target has workspace ref %q; --directory is required for managed workspace restore", targetRef)
-		}
-		ws, err := core.NewGitWorkspace(flagDirectory)
+	var ws core.Workspace
+	if flagDirectory != "" {
+		ws, err = core.NewGitWorkspace(flagDirectory)
 		if err != nil {
 			return fmt.Errorf("rollback workspace %q: %w", flagDirectory, err)
 		}
-		if err := ws.Restore(cmd.Context(), targetRef); err != nil {
-			return fmt.Errorf("rollback restore workspace to %s: %w", targetRef, err)
-		}
 	}
-	key := "checkpoint/" + rolledBack.ID
-	data, err := json.Marshal(rolledBack)
+	result, err := core.RollbackFromCheckpoint(core.RollbackFromCheckpointOptions{
+		Store:           store,
+		Workspace:       ws,
+		CheckpointID:    flagRollbackCheckpoint,
+		TargetIteration: flagRollbackToIteration,
+		Ctx:             cmd.Context(),
+	})
 	if err != nil {
-		return fmt.Errorf("rollback checkpoint marshal: %w", err)
+		return err
 	}
-	if err := store.Save(cmd.Context(), key, data); err != nil {
-		return fmt.Errorf("rollback checkpoint save %s: %w", key, err)
+	if result.WorkspaceRef != "" && ws == nil {
+		return fmt.Errorf("rollback target has workspace ref %q; --directory is required for managed workspace restore", result.WorkspaceRef)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "rolled back checkpoint %s to iteration %d\n", cp.ID, flagRollbackToIteration)
-	fmt.Fprintf(cmd.OutOrStdout(), "new checkpoint: %s\n", rolledBack.ID)
-	if targetRef != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "workspace ref: %s\n", targetRef)
+	fmt.Fprintf(cmd.OutOrStdout(), "rolled back checkpoint %s to iteration %d\n", result.Original.ID, flagRollbackToIteration)
+	fmt.Fprintf(cmd.OutOrStdout(), "new checkpoint: %s\n", result.Checkpoint.ID)
+	if result.WorkspaceRef != "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "workspace ref: %s\n", result.WorkspaceRef)
 	}
 	return nil
 }
@@ -205,208 +191,6 @@ func lifecycleStore() (core.StateStore, error) {
 	return core.NewFileStore(flagStateStoreDir), nil
 }
 
-func resolveCheckpointID(ctx context.Context, store core.StateStore, requested string) (string, error) {
-	if requested != "" && requested != "latest" {
-		return requested, nil
-	}
-	keys, err := store.List(ctx, "checkpoint/")
-	if err != nil {
-		return "", fmt.Errorf("list checkpoints: %w", err)
-	}
-	if len(keys) == 0 {
-		return "", fmt.Errorf("no checkpoints found")
-	}
-	sort.Strings(keys)
-	var latest core.Checkpoint
-	var latestID string
-	for _, key := range keys {
-		id := strings.TrimPrefix(key, "checkpoint/")
-		cp, err := core.LoadCheckpoint(ctx, store, id)
-		if err != nil {
-			continue
-		}
-		if latestID == "" || cp.Timestamp.After(latest.Timestamp) || (cp.Timestamp.Equal(latest.Timestamp) && id > latestID) {
-			latest = cp
-			latestID = id
-		}
-	}
-	if latestID == "" {
-		return "", fmt.Errorf("no readable checkpoints found")
-	}
-	return latestID, nil
-}
-
-func formatCheckpointHistory(cp core.Checkpoint) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "checkpoint: %s\n", cp.ID)
-	fmt.Fprintf(&b, "iteration: %d\n", cp.Iteration)
-	fmt.Fprintf(&b, "state: %s\n", cp.AgentState.State)
-	if cp.WorkspaceRef != "" {
-		fmt.Fprintf(&b, "workspace_ref: %s\n", cp.WorkspaceRef)
-	}
-	if len(cp.History) == 0 {
-		b.WriteString("history: <empty>\n")
-		return b.String()
-	}
-	b.WriteString("history:\n")
-	for _, entry := range cp.History {
-		fmt.Fprintf(&b, "  %d  %s  %s -> %s  signal=%s", entry.Iteration, entry.CommandName, entry.FromState, entry.ToState, entry.Signal)
-		if entry.WorkspaceRef != "" {
-			fmt.Fprintf(&b, "  workspace=%s", entry.WorkspaceRef)
-		}
-		b.WriteByte('\n')
-	}
-	return b.String()
-}
-
-func rollbackCheckpointToIteration(cp core.Checkpoint, target int) (core.Checkpoint, string, error) {
-	if target < 0 {
-		return core.Checkpoint{}, "", fmt.Errorf("target iteration must be >= 0, got %d", target)
-	}
-	restorer := &persistedRollbackRestorer{}
-	rollbackResult, err := core.RollbackTo(core.RollbackOptions{
-		History:         checkpointHistoryWithPersistedCommands(cp.History, restorer),
-		TargetIteration: target,
-	})
-	if err != nil {
-		return core.Checkpoint{}, "", fmt.Errorf("rollback command restore: %w", err)
-	}
-
-	out := cp
-	out.ID = fmt.Sprintf("rollback-%s-to-%d-%d", cp.ID, target, time.Now().UTC().UnixNano())
-	out.Timestamp = time.Now().UTC()
-	out.Iteration = target
-	out.AgentState.Iteration = target
-	targetState := rollbackResult.State
-	targetRef := rollbackResult.WorkspaceRef
-	switch {
-	case target == 0:
-		out.History = nil
-	case target == cp.AgentState.Iteration && len(cp.History) == 0:
-		targetState = cp.AgentState.State
-		targetRef = cp.WorkspaceRef
-	default:
-		found := false
-		history := make([]core.HistoryDigest, 0, len(cp.History))
-		for _, entry := range cp.History {
-			if entry.Iteration <= target {
-				history = append(history, entry)
-			}
-			if entry.Iteration == target {
-				found = true
-			}
-		}
-		if !found {
-			return core.Checkpoint{}, "", fmt.Errorf("target iteration %d not found in checkpoint %s", target, cp.ID)
-		}
-		out.History = history
-	}
-	if targetState == "" {
-		targetState = cp.AgentState.State
-	}
-	out.AgentState.State = targetState
-	out.AgentState.Signal = core.Approved
-	out.WorkspaceRef = targetRef
-	if restorer.conversationLog != nil {
-		out.ConversationLog = restorer.conversationLog
-	}
-	if restorer.domainState != nil {
-		out.DomainState = restorer.domainState
-	}
-	return out, targetRef, nil
-}
-
-func checkpointHistoryWithPersistedCommands(digest []core.HistoryDigest, restorer *persistedRollbackRestorer) core.History {
-	if len(digest) == 0 {
-		return nil
-	}
-	history := make(core.History, 0, len(digest))
-	for _, entry := range digest {
-		history = append(history, core.HistoryEntry{
-			Iteration:    entry.Iteration,
-			CommandName:  entry.CommandName,
-			Command:      persistedHistoryCommand{entry: entry, restorer: restorer},
-			FromState:    entry.FromState,
-			ToState:      entry.ToState,
-			Result:       core.ResultDigest{Signal: entry.Signal},
-			Undo:         entry.Undo,
-			UndoError:    entry.UndoError,
-			WorkspaceRef: entry.WorkspaceRef,
-		})
-	}
-	return history
-}
-
-type persistedHistoryCommand struct {
-	entry    core.HistoryDigest
-	restorer *persistedRollbackRestorer
-}
-
-func (p persistedHistoryCommand) Name() string {
-	return p.entry.CommandName
-}
-
-func (p persistedHistoryCommand) Execute() core.Result {
-	return core.Result{Signal: core.ToolDone, CommandName: p.Name()}
-}
-
-func (p persistedHistoryCommand) Undo() core.Result {
-	if err := p.restorer.Restore(p.entry); err != nil {
-		return core.Result{
-			Signal:      core.CommandError,
-			CommandName: p.Name(),
-			Output:      err.Error(),
-			Err:         err,
-		}
-	}
-	return core.NoopUndo(p.Name())
-}
-
-type persistedRollbackRestorer struct {
-	conversationLog json.RawMessage
-	domainState     json.RawMessage
-}
-
-type persistedUndoPayload struct {
-	ConversationLog json.RawMessage `json:"conversation,omitempty"`
-	DomainState     json.RawMessage `json:"domain_state,omitempty"`
-}
-
-func (p *persistedRollbackRestorer) Restore(entry core.HistoryDigest) error {
-	if entry.UndoError != "" {
-		return fmt.Errorf("%w: %s", core.ErrUndoMementoIncompatible, entry.UndoError)
-	}
-	if entry.Undo == nil {
-		return fmt.Errorf("%w: command %s at iteration %d", core.ErrUndoMementoMissing, entry.CommandName, entry.Iteration)
-	}
-	if err := core.ValidateUndoMemento(*entry.Undo); err != nil {
-		return err
-	}
-	switch entry.Undo.Kind {
-	case core.UndoMementoNoop:
-		return nil
-	case core.UndoMementoIrreversible:
-		return fmt.Errorf("%w: command %s is irreversible: %s", core.ErrUndoMementoIncompatible, entry.CommandName, entry.Undo.Description)
-	case core.UndoMementoReversible, core.UndoMementoCompensatable:
-		return p.restorePayload(entry)
-	default:
-		return fmt.Errorf("%w: unsupported undo kind %s", core.ErrUndoMementoIncompatible, entry.Undo.Kind)
-	}
-}
-
-func (p *persistedRollbackRestorer) restorePayload(entry core.HistoryDigest) error {
-	var payload persistedUndoPayload
-	if err := json.Unmarshal(entry.Undo.Payload, &payload); err != nil {
-		return fmt.Errorf("%w: decode payload for %s: %v", core.ErrUndoMementoIncompatible, entry.CommandName, err)
-	}
-	if len(payload.DomainState) > 0 {
-		p.domainState = append(json.RawMessage(nil), payload.DomainState...)
-	}
-	if len(payload.ConversationLog) > 0 {
-		p.conversationLog = append(json.RawMessage(nil), payload.ConversationLog...)
-	}
-	return nil
-}
 
 // agentState holds the shared state needed by builtin tool factories.
 // Created during run() initialization and captured by factory closures.
