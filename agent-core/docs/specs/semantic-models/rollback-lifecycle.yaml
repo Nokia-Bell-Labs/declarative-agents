@@ -10,10 +10,16 @@ purpose: |
 requirements_source:
   canonical:
     - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+    - docs/specs/software-requirements/srd026-lifecycle-tools.yaml
   historical_background:
     - roll-backs.md
 
 primary_entities:
+  - name: CoreCheckpointOperations
+    kind: core_algorithm
+    responsibility: Owns checkpoint selection, history formatting, rollback traversal, checkpoint rewriting, and workspace restore coordination.
+    owns: [checkpoint_algorithm]
+    not_responsible_for: [Cobra flags, ToolDef declarations, profile loading]
   - name: Loop
     kind: runtime
     responsibility: Drives MachineSpec transitions, dispatches Command values, records RunResult and optional History.
@@ -33,7 +39,7 @@ primary_entities:
     owns: [serialized_agent_state, serialized_command_domain_state]
   - name: FileStore
     kind: storage_adapter
-    responsibility: Stores StateStore keys as JSON files under a configured root.
+    responsibility: Stores StateStore paths as JSON files under a configured root.
     implements: StateStore
   - name: Workspace
     kind: environment_port
@@ -58,12 +64,29 @@ primary_entities:
   - name: MachineSpec
     kind: declarative_program
     responsibility: Defines states, signals, and actions; expresses approval/suspend routing.
+  - name: LifecycleProfile
+    kind: configured_program
+    responsibility: Selects a lifecycle MachineSpec, lifecycle tool selection, and lifecycle tool declarations through the normal profile contract.
+  - name: CheckpointHistoryTool
+    kind: stl_lifecycle_tool
+    responsibility: Adapts core checkpoint loading and history formatting into a checkpoint_history Command.
+    owns: [history_inspection_result]
+    calls: [CoreCheckpointOperations]
+  - name: CheckpointRollbackTool
+    kind: stl_lifecycle_tool
+    responsibility: Adapts core rollback traversal into a checkpoint_rollback Command with typed config and compensatable undo metadata.
+    owns: [rollback_command_result]
+    calls: [CoreCheckpointOperations]
   - name: ToolDef
     kind: tool_contract
     responsibility: Declares tool side effects, reversibility, undo, errors, and relationships.
   - name: ToolSpec
     kind: runtime_manifest_entry
     responsibility: Exposes selected tool metadata and parameters to runtime/LLM-visible callers.
+  - name: CompatibilityCLI
+    kind: migration_adapter
+    responsibility: Provides temporary command-line access to lifecycle behavior while profiles and tools become the desired interface.
+    not_responsible_for: [checkpoint_algorithm, lifecycle_tool_contract]
 
 state_layers:
   agent_state:
@@ -106,6 +129,17 @@ data_flow:
   normal_execution: |
     Loop steps MachineSpec, dispatches Command, receives Result, appends
     RunResult event and optional HistoryEntry, then transitions on Result.Signal.
+  profile_first_history: |
+    A LifecycleProfile selects the history MachineSpec and checkpoint_history
+    ToolDef. The machine dispatches CheckpointHistoryTool. The tool resolves
+    and loads the checkpoint through core operations, formats history, then
+    returns a declared Result.Signal.
+  profile_first_rollback: |
+    A LifecycleProfile selects the rollback MachineSpec and checkpoint_rollback
+    ToolDef. The machine dispatches CheckpointRollbackTool. The tool validates
+    typed config, delegates traversal and checkpoint rewriting to core
+    operations, restores Workspace when required, then returns a declared
+    Result.Signal.
   checkpoint_capture: |
     CheckpointPolicy approves a lifecycle event. Loop builds AgentSnapshot,
     commands/domains provide optional JSON state, Workspace supplies optional
@@ -113,6 +147,11 @@ data_flow:
   rollback_traversal: |
     Rollback walks History backward, calls Command.Undo for command/domain
     state, and restores Workspace to the target workspace ref.
+  compatibility_cli: |
+    Hidden history or rollback subcommands are transitional adapters. They may
+    parse operator input, but they do not define the desired lifecycle program.
+    New lifecycle behavior belongs in profiles, MachineSpec transitions, and
+    lifecycle ToolDefs.
   resume_restore: |
     Resume loads Checkpoint from StateStore, validates MachineSpec/tool
     compatibility, restores command/domain state, restores Workspace, and
@@ -170,6 +209,17 @@ lifecycle_diagrams:
       B -- yes --> G[Restore Workspace target ref]
       G --> H[Return resumable agent state]
     ```
+  declarative_lifecycle_boundary: |
+    ```mermaid
+    flowchart LR
+      P[LifecycleProfile] --> M[MachineSpec]
+      P --> D[ToolDef selection]
+      M -->|action checkpoint_history| H[STL lifecycle tool]
+      M -->|action checkpoint_rollback| R[STL lifecycle tool]
+      H --> C[CoreCheckpointOperations]
+      R --> C
+      CLI[CompatibilityCLI] -. transitional .-> P
+    ```
   failure_handling: |
     ```mermaid
     flowchart LR
@@ -178,7 +228,7 @@ lifecycle_diagrams:
       B --> D[Command Undo error]
       B --> E[Workspace restore error]
       B --> F[Checkpoint incompatibility]
-      C --> G[Report key and backing store]
+      C --> G[Report store path and backing store]
       D --> H[Report command and remaining state]
       E --> I[Report ref and workspace path]
       F --> J[Refuse resume or rollback]
@@ -192,14 +242,20 @@ invariants:
   - Command.Undo restores command/domain state; Workspace.Restore restores workspace/environment state.
   - Lifecycle features are opt-in and preserve existing behavior when StateStore, Workspace, and CheckpointPolicy are disabled.
   - Approval gates and suspend paths are visible as MachineSpec transitions and signals.
+  - History and rollback are desired-state lifecycle machine actions, not hidden Cobra workflows.
+  - Core checkpoint operations do not import ToolDef, profile, or CLI concepts.
+  - STL lifecycle tools are adapter words that call core operations and return declared signals.
+  - Lifecycle profiles select lifecycle tools the same way other configured programs select vocabulary.
 
 non_goals:
-  - Defining concrete CLI syntax for history, rollback, or resume commands.
+  - Defining exact CLI syntax for history, rollback, or resume commands.
+  - Treating hidden lifecycle subcommands as the desired programming model.
   - Requiring every existing command to have specialized Undo before lifecycle infrastructure lands.
   - Treating git as the storage layer for conversation or state-machine position.
   - Hiding approval or suspend routing inside a composite tool.
 
 related_documents:
   - srd025-rollback-lifecycle
+  - srd026-lifecycle-tools
   - sm-command-undo-audit
   - cfg-tool-authoring-standard
