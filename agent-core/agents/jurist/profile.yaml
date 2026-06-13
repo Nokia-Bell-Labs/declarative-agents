@@ -1,4 +1,4 @@
-name: constitution-auditor
+name: jurist
 machine: machine.yaml
 tools:
   - tools.yaml

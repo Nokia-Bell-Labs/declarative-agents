@@ -8,7 +8,7 @@ Agent Core packages a single `agent` binary that runs different agents from
 YAML configuration. A profile selects the state machine, tool selections, tool
 declaration directories, agent-local declarations, and optional workspace
 directory. The same runtime drives the generator, evaluator, planner, bench,
-and constitution-auditor agents.
+and jurist agents.
 
 The runtime provides the shared machinery those agents need: state-machine
 execution, command dispatch with tracing and panic recovery, tool registration,
@@ -48,7 +48,7 @@ Profiles are the normal runtime entry points:
 | `agents/evaluator/profile.yaml` | Run evaluator suites over generator profiles. |
 | `agents/planner/profile.yaml` | Run planning and task execution workflows. |
 | `agents/bench/profile.yaml` | Serve the bench web UI and launch evaluations. |
-| `agents/constitution-auditor/profile.yaml` | Validate the spec corpus. |
+| `agents/jurist/profile.yaml` | Validate the spec corpus. |
 
 Profiles resolve relative paths from their own directory. Current profiles load
 shared tool declarations from directories such as `tools/builtin/` and

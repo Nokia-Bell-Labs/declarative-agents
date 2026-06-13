@@ -50,7 +50,7 @@ releases:
       Key deliverables:
       - Unified cmd/agent binary with machine-configurable modes (generate, eval, plan, bench)
       - YAML state machine configs for generator, evaluator, planner,
-        and constitution-auditor (agents/*/machine.yaml)
+        and jurist (agents/*/machine.yaml)
       - YAML tool declarations replacing Go tool implementations
         (45 shared builtin declarations under tools/builtin/, 16 shared exec
         declarations under tools/exec/, plus agent-local overrides)

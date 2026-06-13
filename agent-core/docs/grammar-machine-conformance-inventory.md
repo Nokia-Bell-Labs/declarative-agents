@@ -18,7 +18,7 @@ This inventory records the conformance audit that produced
   - `agents/planner/profile.yaml`
   - `agents/evaluator/profile.yaml`
   - `agents/bench/profile.yaml`
-  - `agents/constitution-auditor/profile.yaml`
+  - `agents/jurist/profile.yaml`
 
 ## Pattern Requirements Used As Audit Criteria
 

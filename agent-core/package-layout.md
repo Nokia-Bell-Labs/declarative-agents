@@ -33,7 +33,7 @@ public Go APIs.
   profiles, and tool manifest assembly.
 - `internal/planning`: task extraction, spec graphs used for planning,
   implementation plans, issue materialization, and pipeline orchestration.
-- `internal/audit`: constitution-auditor orchestration and audit-specific tool
+- `internal/audit`: jurist orchestration and audit-specific tool
   glue. Shared specification parsing and validation remain in `pkg/spec`.
 - `internal/observability`: tracing ports, OpenTelemetry adapters, GenAI span
   helpers, and trace replay support.
@@ -93,7 +93,7 @@ Generated from `go list ./...` after the internal package migration:
    server, UI support, and bench-specific tools now live under
    `internal/evaluation/bench`.
 8. Keep shared specification parsing and validation in `pkg/spec`; move only
-   constitution-auditor-specific orchestration under `internal/audit`.
+   jurist-specific orchestration under `internal/audit`.
 9. Update docs, build scripts, audit rules, and remove empty old package paths.
 
 ## Guardrails
