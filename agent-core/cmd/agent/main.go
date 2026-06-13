@@ -15,10 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -28,8 +25,6 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation/bench"
 	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation/bench/ui"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm/ollama"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/prompt"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/pipeline"
@@ -50,7 +45,6 @@ var (
 	flagProfilesDir         string
 	flagVerboseTrace        bool
 	flagModel               string
-	flagOllamaURL           string
 	flagInput               string
 	flagOutput              string
 	flagStateStoreDir       string
@@ -116,7 +110,6 @@ func init() {
 	f.StringVar(&flagProfilesDir, "profiles-dir", "", "directory with model profile YAML files (overrides embedded)")
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
 	f.StringVar(&flagModel, "model", "", "override LLM model name")
-	f.StringVar(&flagOllamaURL, "ollama-url", "", "override Ollama server URL")
 	f.StringVar(&flagInput, "input", "", "input file (e.g. suite YAML for evaluator mode)")
 	f.StringVar(&flagOutput, "output", "", "output directory for eval results (default: eval-results)")
 	f.StringVar(&flagStateStoreDir, "state-store-dir", "", "directory for lifecycle checkpoints")
@@ -191,14 +184,10 @@ func lifecycleStore() (core.StateStore, error) {
 	return core.NewFileStore(flagStateStoreDir), nil
 }
 
-
 // agentState holds the shared state needed by builtin tool factories.
 // Created during run() initialization and captured by factory closures.
 type agentState struct {
-	adapter       llm.Client
-	profileReg    *llm.ProfileRegistry
 	parser        llm.ResponseParser
-	assembler     llm.PromptAssembler
 	conversation  *llm.Conversation
 	conversations *stl.ConversationStore
 	tracker       *stl.ToolTracker
@@ -206,11 +195,9 @@ type agentState struct {
 	tracer        tracing.Tracer
 	model         string
 	providerName  string
-	serverAddr    string
-	manifestState core.State
 	parseRetries  *stl.ParseErrorRetryTracker
-	numCtx        int
-	callTimeout   time.Duration
+	maxDuration   time.Duration
+	maxTokens     int
 	verbose       bool
 	ctx           context.Context
 	directory     string
@@ -283,88 +270,8 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	llmCfg := extractLLMConfig(defs)
-	if flagModel != "" {
-		llmCfg.Model = flagModel
-	}
-	if flagOllamaURL != "" {
-		llmCfg.OllamaURL = flagOllamaURL
-	}
-	if err := validateLLMConfig(llmCfg); err != nil {
-		return err
-	}
-
-	var agentPrompt prompt.Prompt
-	if sp := llmCfg.SystemPrompt; sp != "" {
-		agentPrompt = prompt.Prompt{
-			Role:         sp,
-			OutputFormat: llmCfg.ToolPrompt,
-		}
-	}
-
-	// Create Ollama adapter (only if model is configured)
-	var adapter llm.Client
-	var serverAddr string
-	var profileReg *llm.ProfileRegistry
-	var parser llm.ResponseParser
-	if llmCfg.Model != "" {
-		httpTimeout := 5 * time.Minute
-		if llmCfg.MaxTime > httpTimeout {
-			httpTimeout = llmCfg.MaxTime
-		}
-		adapter, err = createLLMAdapter(llmCfg, httpTimeout, tracer)
-		if err != nil {
-			return fmt.Errorf("llm adapter: %w", err)
-		}
-		if u, err := url.Parse(llmCfg.OllamaURL); err == nil {
-			serverAddr = u.Host
-		}
-		tracer.Event("setup.adapter_ready",
-			attribute.String("ollama.url", llmCfg.OllamaURL),
-			attribute.String("llm.model", llmCfg.Model),
-		)
-
-		if flagProfilesDir != "" {
-			profileReg, err = llm.LoadProfiles(flagProfilesDir)
-		} else {
-			profileReg, err = llm.DefaultProfileRegistry()
-		}
-		if err != nil {
-			return fmt.Errorf("load profiles: %w", err)
-		}
-		parser = profileReg.ResolveProfile(llmCfg.Model)
-
-		profileSpec := profileReg.ResolveProfileSpec(llmCfg.Model)
-		tracer.Event("setup.model_profile",
-			attribute.String("profile.name", profileSpec.ProfileName),
-		)
-		if profileSpec.MachineName != "" {
-			resolved := filepath.Join(filepath.Dir(flagMachine), profileSpec.MachineName+".yaml")
-			if _, err := os.Stat(resolved); err != nil {
-				return fmt.Errorf("profile %q references machine %q but %s does not exist: %w",
-					profileSpec.ProfileName, profileSpec.MachineName, resolved, err)
-			}
-			flagMachine = resolved
-			tracer.Event("setup.machine_from_profile",
-				attribute.String("machine.resolved_path", flagMachine),
-			)
-		}
-	}
-
-	// Create assembler
-	var assembler llm.PromptAssembler
-	if agentPrompt.Role != "" || agentPrompt.Task != "" {
-		assembler = &llm.DefaultAssembler{
-			Prompt: agentPrompt,
-			Parser: parser,
-		}
-	}
-
 	// Create conversation and tracker
-	conversation := llm.NewConversation(adapter, "", llm.ChatOptions{
-		Model:  llmCfg.Model,
-		NumCtx: llmCfg.NumCtx,
-	})
+	conversation := llm.NewConversation(nil, "", llm.ChatOptions{})
 	conversations := stl.NewConversationStore()
 	tracker := stl.NewToolTracker()
 	var stateStore core.StateStore
@@ -373,9 +280,8 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	vars := map[string]string{
-		"model":      llmCfg.Model,
-		"directory":  flagDirectory,
-		"ollama_url": llmCfg.OllamaURL,
+		"model":     flagModel,
+		"directory": flagDirectory,
 	}
 
 	// Load the machine before tool registration so machine-scoped policy
@@ -391,12 +297,6 @@ func run(cmd *cobra.Command, args []string) error {
 		MaxIterations: 100,
 	}
 	budget := machineSpec.BudgetSpec.ToBudget(budgetDefaults)
-	if llmCfg.MaxTime > 0 {
-		budget.MaxDuration = llmCfg.MaxTime
-	}
-	if llmCfg.MaxTokens > 0 {
-		budget.MaxTokens = llmCfg.MaxTokens
-	}
 
 	selectedInits := selectedBuiltinInits(defs)
 	parseErrorLimit := 0
@@ -417,22 +317,12 @@ func run(cmd *cobra.Command, args []string) error {
 	reg := core.NewRegistry()
 	builtins := stl.NewBuiltinRegistry()
 	st := &agentState{
-		adapter:       adapter,
-		profileReg:    profileReg,
-		parser:        parser,
-		assembler:     assembler,
 		conversation:  conversation,
 		conversations: conversations,
 		tracker:       tracker,
 		registry:      reg,
 		tracer:        tracer,
-		model:         llmCfg.Model,
-		providerName:  llmCfg.Provider,
-		serverAddr:    serverAddr,
-		manifestState: core.State(llmCfg.ManifestState),
 		parseRetries:  parseRetries,
-		numCtx:        llmCfg.NumCtx,
-		callTimeout:   llmCfg.LLMTimeout,
 		verbose:       flagVerboseTrace,
 		ctx:           cmd.Context(),
 		directory:     flagDirectory,
@@ -444,6 +334,12 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := stl.RegisterUnifiedTools(reg, builtins, flagDirectory, defs, vars); err != nil {
 		return fmt.Errorf("register tools: %w", err)
 	}
+	if st.maxDuration > 0 {
+		budget.MaxDuration = st.maxDuration
+	}
+	if st.maxTokens > 0 {
+		budget.MaxTokens = st.maxTokens
+	}
 
 	// Build $tool action (dynamic tool dispatch from parse_response output)
 	toolAction := buildToolAction(st, reg)
@@ -453,8 +349,8 @@ func run(cmd *cobra.Command, args []string) error {
 		MachineFile:  flagMachine,
 		MachineSpec:  &machineSpec,
 		AgentName:    "agent",
-		ModelName:    llmCfg.Model,
-		ProviderName: "ollama",
+		ModelName:    st.model,
+		ProviderName: st.providerName,
 		Trace:        tracer,
 		Budget:       budget,
 		ToolAction:   toolAction,
@@ -532,105 +428,6 @@ func buildToolAction(st *agentState, reg *core.Registry) core.ActionFunc {
 	}
 }
 
-// llmConfig holds LLM-related settings resolved from the invoke_llm
-// tool definition's config block.
-type llmConfig struct {
-	Model         string
-	Provider      string
-	OllamaURL     string
-	ManifestState string
-	SystemPrompt  string
-	ToolPrompt    string
-	NumCtx        int
-	LLMTimeout    time.Duration
-	MaxTime       time.Duration
-	MaxTokens     int
-}
-
-// extractLLMConfig scans tool definitions for an invoke_llm tool and
-// extracts LLM settings from its config block.
-func extractLLMConfig(defs []stl.ToolDef) llmConfig {
-	cfg := llmConfig{
-		Provider:      "ollama",
-		OllamaURL:     "http://localhost:11434",
-		ManifestState: "Composing",
-	}
-	for _, td := range defs {
-		if td.Init != "invoke_llm" {
-			continue
-		}
-		var tc stl.LLMToolConfig
-		if err := stl.DecodeToolConfig(td, &tc); err != nil {
-			break
-		}
-		if tc.Model != "" {
-			cfg.Model = tc.Model
-		}
-		if tc.Provider != "" {
-			cfg.Provider = tc.Provider
-		}
-		if tc.OllamaURL != "" {
-			cfg.OllamaURL = tc.OllamaURL
-		}
-		if tc.ProviderURL != "" {
-			cfg.OllamaURL = tc.ProviderURL
-		}
-		if tc.ManifestState != "" {
-			cfg.ManifestState = tc.ManifestState
-		}
-		if tc.SystemPrompt != "" {
-			cfg.SystemPrompt = tc.SystemPrompt
-		}
-		if tc.ToolPrompt != "" {
-			cfg.ToolPrompt = tc.ToolPrompt
-		}
-		if tc.NumCtx > 0 {
-			cfg.NumCtx = tc.NumCtx
-		}
-		if tc.LLMTimeout > 0 {
-			cfg.LLMTimeout = time.Duration(tc.LLMTimeout) * time.Second
-		}
-		if tc.MaxTime > 0 {
-			cfg.MaxTime = time.Duration(tc.MaxTime) * time.Second
-		}
-		if tc.MaxTokens > 0 {
-			cfg.MaxTokens = tc.MaxTokens
-		}
-		break
-	}
-	return cfg
-}
-
-func validateLLMConfig(cfg llmConfig) error {
-	if cfg.Model == "" {
-		return nil
-	}
-	if cfg.ManifestState == "" {
-		return fmt.Errorf("invoke_llm config requires manifest_state when model is set")
-	}
-	switch cfg.Provider {
-	case "ollama":
-		if cfg.OllamaURL == "" {
-			return fmt.Errorf("invoke_llm config provider %q requires provider_url or ollama_url", cfg.Provider)
-		}
-		return nil
-	default:
-		return fmt.Errorf("unsupported invoke_llm provider %q", cfg.Provider)
-	}
-}
-
-func createLLMAdapter(cfg llmConfig, httpTimeout time.Duration, tracer tracing.Tracer) (llm.Client, error) {
-	switch cfg.Provider {
-	case "ollama":
-		return ollama.NewAdapter(cfg.OllamaURL, cfg.Model,
-			ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout}),
-			ollama.WithTracer(tracer),
-		)
-	default:
-		return nil, fmt.Errorf("unsupported provider %q", cfg.Provider)
-	}
-}
-
 func selectedBuiltinInits(defs []stl.ToolDef) map[string]bool {
 	selected := make(map[string]bool)
 	for _, def := range defs {
@@ -697,24 +494,21 @@ func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
 		}},
 		{Name: "invoke_llm", Inits: []string{"invoke_llm"}, register: func(br *stl.BuiltinRegistry) {
 			br.Register("invoke_llm", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				if st.adapter == nil {
-					return nil, fmt.Errorf("invoke_llm requires --model flag")
-				}
-				return &stl.InvokeLLMBuilder{
-					Client:       st.adapter,
-					History:      st.conversation,
-					Registry:     st.registry,
-					Assembler:    st.assembler,
-					State:        st.manifestState,
-					Model:        st.model,
-					ProviderName: st.providerName,
-					ServerAddr:   st.serverAddr,
-					Tracer:       st.tracer,
-					NumCtx:       st.numCtx,
-					CallTimeout:  st.callTimeout,
-					Verbose:      st.verbose,
-					Ctx:          st.ctx,
-				}, nil
+				return stl.NewInvokeLLMBuilder(def, stl.InvokeLLMFactoryDeps{
+					History:     st.conversation,
+					Registry:    st.registry,
+					Tracer:      st.tracer,
+					ProfilesDir: flagProfilesDir,
+					Verbose:     st.verbose,
+					Ctx:         st.ctx,
+					OnResolved: func(cfg stl.InvokeLLMResolvedConfig) {
+						st.parser = cfg.Parser
+						st.model = cfg.Model
+						st.providerName = cfg.ProviderName
+						st.maxDuration = cfg.MaxTime
+						st.maxTokens = cfg.MaxTokens
+					},
+				})
 			})
 		}},
 		{Name: "parse_response", Inits: []string{"parse_response"}, register: func(br *stl.BuiltinRegistry) {
@@ -787,7 +581,6 @@ func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
 					Tools:            parsed.Tools,
 					ToolDeclarations: parsed.ToolDeclarations,
 					Model:            vars["model"],
-					OllamaURL:        vars["ollama_url"],
 				}
 				var extra []string
 				if dir := vars["directory"]; dir != "" {
@@ -825,7 +618,6 @@ func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
 				Stderr:    os.Stderr,
 				SuitePath: flagInput,
 				OutputDir: flagOutput,
-				OllamaURL: flagOllamaURL,
 			})
 		}},
 		{Name: "bench", Inits: []string{"serve_ui", "launch_eval"}, register: func(br *stl.BuiltinRegistry) {
@@ -893,7 +685,6 @@ func warnDeprecated(cmd *cobra.Command) {
 		{"tools", "deprecated: use --profile instead of --tools"},
 		{"tools-declaration", "deprecated: use --profile instead of --tools-declaration"},
 		{"model", "deprecated: configure model in invoke_llm tool declaration via --profile"},
-		{"ollama-url", "deprecated: configure ollama_url in invoke_llm tool declaration via --profile"},
 	}
 	for _, d := range deprecated {
 		if cmd.Flags().Changed(d.flag) {
