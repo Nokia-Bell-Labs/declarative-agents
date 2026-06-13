@@ -24,24 +24,21 @@ import (
 )
 
 var (
-	flagProfile             string
-	flagMachine             string
-	flagTools               []string
-	flagToolDeclarations    []string
-	flagToolConfigDirs      []string
-	flagOTelLog             string
-	flagOTelParent          string
-	flagDirectory           string
-	flagProfilesDir         string
-	flagVerboseTrace        bool
-	flagInput               string
-	flagOutput              string
-	flagStateStoreDir       string
-	flagResumeCheckpoint    string
-	flagResumeSignal        string
-	flagHistoryCheckpoint   string
-	flagRollbackCheckpoint  string
-	flagRollbackToIteration int
+	flagProfile          string
+	flagMachine          string
+	flagTools            []string
+	flagToolDeclarations []string
+	flagToolConfigDirs   []string
+	flagOTelLog          string
+	flagOTelParent       string
+	flagDirectory        string
+	flagProfilesDir      string
+	flagVerboseTrace     bool
+	flagInput            string
+	flagOutput           string
+	flagStateStoreDir    string
+	flagResumeCheckpoint string
+	flagResumeSignal     string
 )
 
 func main() {
@@ -55,22 +52,6 @@ var rootCmd = &cobra.Command{
 	Short:        "Unified agentic-loop binary",
 	SilenceUsage: true,
 	RunE:         run,
-}
-
-var historyCmd = &cobra.Command{
-	Use:        "history",
-	Short:      "Show checkpoint history",
-	Hidden:     true,
-	Deprecated: "use agents/lifecycle/history.yaml with agents/lifecycle/tools.yaml",
-	RunE:       runHistory,
-}
-
-var rollbackCmd = &cobra.Command{
-	Use:        "rollback",
-	Short:      "Roll back a checkpoint to a target iteration",
-	Hidden:     true,
-	Deprecated: "use agents/lifecycle/rollback.yaml with agents/lifecycle/tools.yaml",
-	RunE:       runRollback,
 }
 
 func init() {
@@ -91,72 +72,7 @@ func init() {
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
 	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
 
-	historyCmd.Flags().StringVar(&flagHistoryCheckpoint, "checkpoint", "latest", "checkpoint ID or latest")
-	rollbackCmd.Flags().StringVar(&flagRollbackCheckpoint, "checkpoint", "latest", "checkpoint ID or latest")
-	rollbackCmd.Flags().IntVar(&flagRollbackToIteration, "to-iteration", -1, "target iteration to roll back to")
-	rootCmd.AddCommand(historyCmd, rollbackCmd)
-
 	rootCmd.Version = "v0.0.0-dev"
-}
-
-func runHistory(cmd *cobra.Command, args []string) error {
-	store, err := lifecycleStore()
-	if err != nil {
-		return err
-	}
-	checkpointID, err := core.ResolveLatestCheckpointID(cmd.Context(), store, flagHistoryCheckpoint)
-	if err != nil {
-		return err
-	}
-	cp, err := core.LoadCheckpoint(cmd.Context(), store, checkpointID)
-	if err != nil {
-		return err
-	}
-	fmt.Fprint(cmd.OutOrStdout(), core.FormatCheckpointHistory(cp))
-	return nil
-}
-
-func runRollback(cmd *cobra.Command, args []string) error {
-	if flagRollbackToIteration < 0 {
-		return fmt.Errorf("--to-iteration is required and must be >= 0")
-	}
-	store, err := lifecycleStore()
-	if err != nil {
-		return err
-	}
-	var ws core.Workspace
-	if flagDirectory != "" {
-		ws, err = core.NewGitWorkspace(flagDirectory)
-		if err != nil {
-			return fmt.Errorf("rollback workspace %q: %w", flagDirectory, err)
-		}
-	}
-	result, err := core.RollbackFromCheckpoint(core.RollbackFromCheckpointOptions{
-		Store:           store,
-		Workspace:       ws,
-		CheckpointID:    flagRollbackCheckpoint,
-		TargetIteration: flagRollbackToIteration,
-		Ctx:             cmd.Context(),
-	})
-	if err != nil {
-		return err
-	}
-	if result.WorkspaceRef != "" && ws == nil {
-		return fmt.Errorf("rollback target has workspace ref %q; --directory is required for managed workspace restore", result.WorkspaceRef)
-	}
-	fmt.Fprintf(cmd.OutOrStdout(), "rolled back checkpoint %s to iteration %d\n", result.Original.ID, flagRollbackToIteration)
-	fmt.Fprintf(cmd.OutOrStdout(), "new checkpoint: %s\n", result.Checkpoint.ID)
-	if result.WorkspaceRef != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "workspace ref: %s\n", result.WorkspaceRef)
-	}
-	return nil
-}
-
-func lifecycleStore() (core.StateStore, error) {
-	if flagStateStoreDir == "" {
-		return nil, fmt.Errorf("--state-store-dir is required")
-	}
-	return core.NewFileStore(flagStateStoreDir), nil
 }
 
 type agentState struct {
@@ -251,6 +167,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	vars := map[string]string{
 		"directory": flagDirectory,
+		"input":     flagInput,
 	}
 
 	machineSpec, err := core.LoadMachineSpec(flagMachine)
