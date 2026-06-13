@@ -27,7 +27,7 @@ flow:
   - F5: core.Loop drives the bench state machine. Idle → Serving via serve_ui starts the HTTP server in a goroutine and blocks on the action channel (srd005, agents/bench/machine.yaml).
   - F6: The React SPA loads in the browser. The user browses sessions, inspects traces, views documentation, and reads source code via REST APIs (srd020).
   - F7: GET /api/v1/sessions returns experiment sessions with pass/fail/timeout counts. The user drills into session details, point traces, and experiment configs (srd020).
-  - F8: The user navigates to the Launch page and submits an experiment configuration. POST /api/v1/actions sends an ExperimentRequested action (srd020).
+  - F8: The user opens the Launch page and submits an experiment configuration. POST /api/v1/actions sends an ExperimentRequested action (srd020).
   - F9: serve_ui unblocks with the action. The state machine transitions Serving → Launching, and launch_eval spawns the configured evaluator profile as a child agent process (agents/bench/machine.yaml, agents/bench/builtin.yaml).
   - F10: When the subprocess completes, EvalCompleted transitions Launching → Serving. serve_ui blocks again, waiting for the next user action (agents/bench/machine.yaml).
 
@@ -67,3 +67,4 @@ out_of_scope:
   - Real-time streaming of in-progress evaluations.
 
 machine_config: agents/bench/machine.yaml
+test_suite_trace: test-rel01.0

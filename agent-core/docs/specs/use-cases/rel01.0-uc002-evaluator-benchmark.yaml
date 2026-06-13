@@ -2,25 +2,24 @@ id: rel01.0-uc002-evaluator-benchmark
 title: Evaluator runs generator profiles and collects results
 
 summary: |
-  The agent binary, configured with agents/evaluator/profile.yaml, loads a
-  suite YAML that defines generator profiles, samples, optional grid
-  parameters, and repetitions. A session-level state machine iterates over the
-  profile/grid/sample/repetition combinations; for each point,
-  a nested core.Loop runs the per-point pipeline: prepare workspace,
-  dump config, run the generator as a subprocess, check results, and
-  collect metrics. Results are written to a structured directory tree
-  for analysis by the bench UI or CLI reporting tools.
+  agents/evaluator/profile.yaml configures the agent binary to load a suite
+  YAML with generator profiles, samples, optional grid parameters, and
+  repetitions, then a session-level state machine walks the
+  profile/grid/sample/rep combinations. For each point, a nested core.Loop
+  prepares the workspace, dumps config, runs the generator as a subprocess,
+  checks results, and collects metrics. Result files are written to a structured
+  directory tree for the bench UI and CLI reporting tools. Artifacts remain
+  inspectable after the run.
 
-  The integration test (mage integration:uc002) exercises this end-to-end
-  with two generator profiles: agents/generator/profile-qwen35b.yaml
-  (qwen3.6:35b-mlx) and agents/generator/profile-qwen27b.yaml
-  (qwen3.6:27b-mlx), using the same sample workspace as the generator
-  integration test (uc001).
+  mage integration:uc002 exercises this path with two generator profiles:
+  agents/generator/profile-qwen35b.yaml (qwen3.6:35b-mlx) and
+  agents/generator/profile-qwen27b.yaml (qwen3.6:27b-mlx). It reuses the same
+  sample workspace as the generator integration target.
 
 actor: Developer benchmarking model performance
 
 trigger: |
-  The developer (or mage integration:uc002) runs:
+  A developer, or mage integration:uc002, runs:
     agent --profile agents/evaluator/profile.yaml \
           --input testdata/integration/uc002-evaluator-benchmark/suite.yaml \
           --output eval-results
@@ -80,7 +79,7 @@ success_criteria:
     traces:
       - srd019-eval-harness AC2
   - id: S7
-    criterion: Session summary correctly reports total, passed, failed, and timed-out counts.
+    criterion: Session summary reports total, passed, failed, and timed-out counts.
     traces:
       - srd019-eval-harness AC1
   - id: S8
@@ -90,6 +89,7 @@ success_criteria:
 
 integration_test: mage integration:uc002
 test_data: testdata/integration/uc002-evaluator-benchmark
+test_suite_trace: test-rel01.0
 
 out_of_scope:
   - Real-time progress streaming during evaluation.
