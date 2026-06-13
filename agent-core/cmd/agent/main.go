@@ -58,15 +58,19 @@ var rootCmd = &cobra.Command{
 }
 
 var historyCmd = &cobra.Command{
-	Use:   "history",
-	Short: "Show checkpoint history",
-	RunE:  runHistory,
+	Use:        "history",
+	Short:      "Show checkpoint history",
+	Hidden:     true,
+	Deprecated: "use agents/lifecycle/history.yaml with agents/lifecycle/tools.yaml",
+	RunE:       runHistory,
 }
 
 var rollbackCmd = &cobra.Command{
-	Use:   "rollback",
-	Short: "Roll back a checkpoint to a target iteration",
-	RunE:  runRollback,
+	Use:        "rollback",
+	Short:      "Roll back a checkpoint to a target iteration",
+	Hidden:     true,
+	Deprecated: "use agents/lifecycle/rollback.yaml with agents/lifecycle/tools.yaml",
+	RunE:       runRollback,
 }
 
 func init() {
