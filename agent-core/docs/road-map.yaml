@@ -47,7 +47,7 @@ releases:
       binary (cmd/agent) driven entirely by YAML configurations. The
       original projects become configuration-only repositories.
 
-      Key deliverables:
+      Deliverables:
       - Unified cmd/agent binary with machine-configurable modes (generate, eval, plan, bench)
       - YAML state machine configs for generator, evaluator, planner,
         and jurist (agents/*/machine.yaml)
@@ -63,7 +63,7 @@ releases:
       - Evaluator benchmark infrastructure (eval suites, result analysis)
       - Bench agent (internal/evaluation/bench, configured via machine.yaml) with embedded React frontend
       - Native Mage build targets replacing cobbler-scaffold dependency
-      - Comprehensive Go test suite across all packages
+      - Go test suite across all packages
     status: done
     srds:
       - srd019-eval-harness
@@ -87,11 +87,14 @@ releases:
     name: Rollback lifecycle and tool language documentation
     description: |
       Checkpoint, suspend, resume, and rollback lifecycle behavior.
+      Lifecycle tool adapters for checkpoint history and rollback as
+      first-class STL builtin tools.
       Tool-as-vocabulary authoring standard and sentence-to-word
       migration guidance.
     status: planned
     srds:
       - srd025-rollback-lifecycle
+      - srd026-lifecycle-tools
     use_cases:
       - id: rel02.0-uc001-approval-suspend-resume
         summary: Agent suspends at approval gate and resumes from checkpoint
