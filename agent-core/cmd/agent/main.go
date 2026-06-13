@@ -1,13 +1,5 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-// Command agent is the unified agentic-loop binary. It loads a state machine
-// and tools from YAML configuration, then runs core.Loop. Different modes
-// (generator, planner, evaluator, bench, validate) are selected entirely
-// by config files.
-//
-// Usage:
-//
-//	agent --machine <machine.yaml> --tools <tools.yaml> [flags]
 package main
 
 import (
@@ -19,7 +11,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/otel/attribute"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation/bench"
@@ -29,7 +20,6 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/pipeline"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
@@ -62,12 +52,8 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "agent",
-	Short: "Unified agentic-loop binary",
-	Long: `agent loads a state machine and tools from YAML config and runs core.Loop.
-
-Different modes (generate, pipeline, eval, bench) are selected entirely
-by which --machine and --tools files you pass.`,
+	Use:          "agent",
+	Short:        "Unified agentic-loop binary",
 	SilenceUsage: true,
 	RunE:         run,
 }
@@ -75,26 +61,13 @@ by which --machine and --tools files you pass.`,
 var historyCmd = &cobra.Command{
 	Use:   "history",
 	Short: "Show checkpoint history",
-	Long: `Show a checkpoint history digest.
-
-Examples:
-  agent history --state-store-dir .agent-state --checkpoint latest
-  agent history --state-store-dir .agent-state --checkpoint suspend-1-123`,
-	RunE: runHistory,
+	RunE:  runHistory,
 }
 
 var rollbackCmd = &cobra.Command{
 	Use:   "rollback",
 	Short: "Roll back a checkpoint to a target iteration",
-	Long: `Roll back a persisted checkpoint to a target iteration.
-
-The command rewrites checkpoint state to the target history position and
-restores the target workspace ref when one is present. A workspace restore
-requires --directory so the workspace can be verified as a managed git root.
-
-Examples:
-  agent rollback --state-store-dir .agent-state --checkpoint latest --to-iteration 2 --directory "$PWD"`,
-	RunE: runRollback,
+	RunE:  runRollback,
 }
 
 func init() {
@@ -184,8 +157,6 @@ func lifecycleStore() (core.StateStore, error) {
 	return core.NewFileStore(flagStateStoreDir), nil
 }
 
-// agentState holds the shared state needed by builtin tool factories.
-// Created during run() initialization and captured by factory closures.
 type agentState struct {
 	parser        llm.ResponseParser
 	conversation  *llm.Conversation
@@ -220,7 +191,6 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--tools is required (or use --profile)")
 	}
 
-	// Set up OTel if configured
 	var tracer tracing.Tracer = tracing.NoopTracer{}
 	if flagOTelLog != "" {
 		parentCtx, _ := telemetry.ParseParentSpan(flagOTelParent)
@@ -233,7 +203,6 @@ func run(cmd *cobra.Command, args []string) error {
 		tracer = telemetry.TraceAdapter{T: t}
 	}
 
-	// Load tool definitions: either declaration+selection or legacy single file
 	var defs []stl.ToolDef
 	var err error
 	if len(flagToolDeclarations) > 0 || len(flagToolConfigDirs) > 0 {
@@ -270,7 +239,6 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Create conversation and tracker
 	conversation := llm.NewConversation(nil, "", llm.ChatOptions{})
 	conversations := stl.NewConversationStore()
 	tracker := stl.NewToolTracker()
@@ -284,8 +252,6 @@ func run(cmd *cobra.Command, args []string) error {
 		"directory": flagDirectory,
 	}
 
-	// Load the machine before tool registration so machine-scoped policy
-	// metadata can parameterize explicit grammar words such as report_parse_error.
 	machineSpec, err := core.LoadMachineSpec(flagMachine)
 	if err != nil {
 		return fmt.Errorf("load machine spec for budget: %w", err)
@@ -313,7 +279,6 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build registries
 	reg := core.NewRegistry()
 	builtins := stl.NewBuiltinRegistry()
 	st := &agentState{
@@ -341,10 +306,13 @@ func run(cmd *cobra.Command, args []string) error {
 		budget.MaxTokens = st.maxTokens
 	}
 
-	// Build $tool action (dynamic tool dispatch from parse_response output)
-	toolAction := buildToolAction(st, reg)
+	toolAction := stl.BuildDynamicToolAction(stl.DynamicToolActionDeps{
+		Registry: reg,
+		Tracker:  tracker,
+		Tracer:   tracer,
+		Verbose:  flagVerboseTrace,
+	})
 
-	// Run the loop
 	params := core.LoopParams{
 		MachineFile:  flagMachine,
 		MachineSpec:  &machineSpec,
@@ -400,278 +368,84 @@ func run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// buildToolAction creates the ActionFunc for $tool dynamic dispatch.
-// It unmarshals the ToolRequest from parse_response output, resolves
-// the builder from the registry, records the tool in the tracker,
-// and dispatches.
-func buildToolAction(st *agentState, reg *core.Registry) core.ActionFunc {
-	return func(r core.Result) core.Command {
-		var treq llm.ToolRequest
-		if err := json.Unmarshal([]byte(r.Output), &treq); err != nil {
-			return &failCmd{err: fmt.Errorf("failed to unmarshal ToolRequest: %w", err)}
-		}
-		builder, ok := reg.Resolve(treq.ToolName)
-		if !ok {
-			return &failCmd{err: fmt.Errorf("no builder for tool %q", treq.ToolName)}
-		}
-		st.tracker.Record(treq.ToolName)
-		cmd := builder.Build(core.Result{Output: r.Output})
-		if st.verbose {
-			return &tracedToolCmd{
-				inner:    cmd,
-				tracer:   st.tracer,
-				toolName: treq.ToolName,
-				params:   string(treq.Params),
-			}
-		}
-		return cmd
-	}
-}
-
 func selectedBuiltinInits(defs []stl.ToolDef) map[string]bool {
-	selected := make(map[string]bool)
-	for _, def := range defs {
-		if def.Type == "builtin" && def.Init != "" {
-			selected[def.Init] = true
-		}
-	}
-	return selected
+	return stl.SelectedBuiltinInits(defs)
 }
 
-// registerBuiltinFactories wires only the builtin factory families required by
-// the selected tool declarations. Program shape is still defined by machine and
-// tools YAML; this bootstrap only installs factories that selected init names
-// can resolve.
 func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected map[string]bool) {
-	for _, entry := range builtinFactoryCatalog(st) {
-		if entry.selectedBy(selected) {
-			entry.register(br)
-		}
-	}
+	stl.RegisterStandardBuiltinFactories(br, selected, standardFactoryDeps(st))
 }
 
 type builtinFactoryCatalogEntry struct {
-	Name     string
-	Inits    []string
-	register func(*stl.BuiltinRegistry)
+	Name  string
+	Inits []string
 }
 
 func (e builtinFactoryCatalogEntry) selectedBy(selected map[string]bool) bool {
-	for _, init := range e.Inits {
-		if selected[init] {
-			return true
-		}
-	}
-	return false
+	return stl.StandardFactoryCatalogEntry{Name: e.Name, Inits: e.Inits}.SelectedBy(selected)
 }
 
 func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
-	return []builtinFactoryCatalogEntry{
-		{Name: "file_read", Inits: []string{"file_read"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("file_read", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return &stl.ReadBuilder{Root: vars["directory"]}, nil
-			})
-		}},
-		{Name: "file_write", Inits: []string{"file_write"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("file_write", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return &stl.WriteBuilder{Root: vars["directory"]}, nil
-			})
-		}},
-		{Name: "file_edit", Inits: []string{"file_edit"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("file_edit", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return &stl.EditBuilder{Root: vars["directory"]}, nil
-			})
-		}},
-		{Name: "file_find", Inits: []string{"file_find"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("file_find", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return &stl.FindBuilder{Root: vars["directory"]}, nil
-			})
-		}},
-		{Name: "file_list", Inits: []string{"file_list"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("file_list", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return &stl.ListFilesBuilder{Root: vars["directory"]}, nil
-			})
-		}},
-		{Name: "invoke_llm", Inits: []string{"invoke_llm"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("invoke_llm", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return stl.NewInvokeLLMBuilder(def, stl.InvokeLLMFactoryDeps{
-					History:     st.conversation,
-					Registry:    st.registry,
-					Tracer:      st.tracer,
-					ProfilesDir: flagProfilesDir,
-					Verbose:     st.verbose,
-					Ctx:         st.ctx,
-					OnResolved: func(cfg stl.InvokeLLMResolvedConfig) {
-						st.parser = cfg.Parser
-						st.model = cfg.Model
-						st.providerName = cfg.ProviderName
-						st.maxDuration = cfg.MaxTime
-						st.maxTokens = cfg.MaxTokens
-					},
-				})
-			})
-		}},
-		{Name: "parse_response", Inits: []string{"parse_response"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("parse_response", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return &stl.ParseResponseBuilder{
-					Registry: st.registry,
-					Parser:   st.parser,
-					Tracer:   st.tracer,
-					Verbose:  st.verbose,
-					Retry:    st.parseRetries,
-				}, nil
-			})
-		}},
-		{Name: "report_parse_error", Inits: []string{"report_parse_error"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("report_parse_error", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return &stl.ReportParseErrorBuilder{
-					Tracer: st.tracer,
-					Retry:  st.parseRetries,
-				}, nil
-			})
-		}},
-		{Name: "reset_history", Inits: []string{"reset_history"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("reset_history", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return &stl.ResetHistoryBuilder{
-					History: st.conversation,
-					Tracer:  st.tracer,
-				}, nil
-			})
-		}},
-		{Name: "nudge_reread", Inits: []string{"nudge_reread"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("nudge_reread", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return &stl.NudgeRereadBuilder{
-					Tracer: st.tracer,
-				}, nil
-			})
-		}},
-		{Name: "done", Inits: []string{"done"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("done", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return stl.DoneBuilder{}, nil
-			})
-		}},
-		{Name: "lifecycle", Inits: []string{"suspend"}, register: func(br *stl.BuiltinRegistry) {
-			stl.RegisterLifecycleFactories(br, stl.LifecycleFactoryDeps{
-				StateStore: st.stateStore,
-				Tracer:     st.tracer,
-			})
-		}},
-		{Name: "validate", Inits: []string{"validate"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("validate", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				return &stl.ValidateBuilder{
-					Tracker:  st.tracker,
-					Registry: st.registry,
-					Tracer:   st.tracer,
-					Verbose:  st.verbose,
-				}, nil
-			})
-		}},
-		{Name: "self_invoke", Inits: []string{"self_invoke"}, register: func(br *stl.BuiltinRegistry) {
-			br.Register("self_invoke", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-				var parsed stl.ChildAgentConfig
-				if err := stl.DecodeToolConfig(def, &parsed); err != nil {
-					return nil, err
-				}
-				if err := stl.ValidateChildAgentConfig(def.Name, parsed); err != nil {
-					return nil, err
-				}
-				cfg := execute.Config{
-					Profile:          parsed.Profile,
-					Machine:          parsed.Machine,
-					Tools:            parsed.Tools,
-					ToolDeclarations: parsed.ToolDeclarations,
-					Model:            vars["model"],
-				}
-				var extra []string
-				if dir := vars["directory"]; dir != "" {
-					extra = append(extra, "--directory", dir)
-				}
-				return &stl.SelfInvokeBuilder{
-					Config:    cfg,
-					ExtraArgs: extra,
-					Ctx:       st.ctx,
-					Tracer:    st.tracer,
-				}, nil
-			})
-		}},
-		{Name: "planning", Inits: []string{
-			"extract_task", "extract_all", "assemble_prompt", "parse_plan",
-			"create_issue", "execute_task", "check_result",
-		}, register: func(br *stl.BuiltinRegistry) {
-			pipeline.RegisterFactories(br, pipeline.FactoryDeps{
-				Directory: st.directory,
-				Tracer:    st.tracer,
-				Ctx:       st.ctx,
-			})
-		}},
-		{Name: "evaluation", Inits: []string{
-			"parse_suite_config", "discover_suite_samples", "expand_eval_grid",
-			"init_eval_session", "report_suite_summary",
-			"next_point", "run_point", "report_session",
-			"run_agent", "run_oracle_check", "collect_trace_tokens",
-			"check_agent_version", "summarize_point_results", "collect_metrics",
-			"dump_config",
-		}, register: func(br *stl.BuiltinRegistry) {
-			evaluation.RegisterEvalFactories(br, evaluation.EvalFactoryDeps{
-				Ctx:       st.ctx,
-				Registry:  st.registry,
-				Stderr:    os.Stderr,
-				SuitePath: flagInput,
-				OutputDir: flagOutput,
-			})
-		}},
-		{Name: "bench", Inits: []string{"serve_ui", "launch_eval"}, register: func(br *stl.BuiltinRegistry) {
-			bench.RegisterFactories(br, benchui.Assets())
-		}},
-		{Name: "spec_validation", Inits: []string{"load_corpus", "validate_specs", "format_report"}, register: func(br *stl.BuiltinRegistry) {
-			stl.RegisterValidateFactories(br, st.directory)
-		}},
+	entries := stl.StandardFactoryCatalog(standardFactoryDeps(st))
+	out := make([]builtinFactoryCatalogEntry, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, builtinFactoryCatalogEntry{Name: entry.Name, Inits: entry.Inits})
+	}
+	return out
+}
+
+func standardFactoryDeps(st *agentState) stl.StandardFactoryDeps {
+	return stl.StandardFactoryDeps{
+		Conversation: st.conversation,
+		Registry:     st.registry,
+		Parser:       func() llm.ResponseParser { return st.parser },
+		Tracer:       st.tracer,
+		ProfilesDir:  flagProfilesDir,
+		Verbose:      st.verbose,
+		Ctx:          st.ctx,
+		Directory:    st.directory,
+		StateStore:   st.stateStore,
+		Tracker:      st.tracker,
+		ParseRetries: st.parseRetries,
+		OnModelResolved: func(cfg stl.InvokeLLMResolvedConfig) {
+			st.parser = cfg.Parser
+			st.model = cfg.Model
+			st.providerName = cfg.ProviderName
+			st.maxDuration = cfg.MaxTime
+			st.maxTokens = cfg.MaxTokens
+		},
+		RegisterPlanning:   registerPlanningFactories(st),
+		RegisterEvaluation: registerEvaluationFactories(st),
+		RegisterBench:      registerBenchFactories(),
 	}
 }
 
-// failCmd immediately returns CommandError with the given error.
-type failCmd struct {
-	err error
-}
-
-func (f *failCmd) Name() string      { return "fail" }
-func (f *failCmd) Undo() core.Result { return core.NoopUndo(f.Name()) }
-
-func (f *failCmd) Execute() core.Result {
-	return core.Result{
-		Signal:      core.CommandError,
-		Err:         f.err,
-		Output:      f.err.Error(),
-		CommandName: "fail",
+func registerPlanningFactories(st *agentState) func(*stl.BuiltinRegistry) {
+	return func(br *stl.BuiltinRegistry) {
+		pipeline.RegisterFactories(br, pipeline.FactoryDeps{
+			Directory: st.directory,
+			Tracer:    st.tracer,
+			Ctx:       st.ctx,
+		})
 	}
 }
 
-// tracedToolCmd wraps a tool command to record its input parameters
-// and output in the trace when verbose tracing is enabled.
-type tracedToolCmd struct {
-	inner    core.Command
-	tracer   tracing.Tracer
-	toolName string
-	params   string
+func registerEvaluationFactories(st *agentState) func(*stl.BuiltinRegistry) {
+	return func(br *stl.BuiltinRegistry) {
+		evaluation.RegisterEvalFactories(br, evaluation.EvalFactoryDeps{
+			Ctx:       st.ctx,
+			Registry:  st.registry,
+			Stderr:    os.Stderr,
+			SuitePath: flagInput,
+			OutputDir: flagOutput,
+		})
+	}
 }
 
-func (t *tracedToolCmd) Name() string      { return t.inner.Name() }
-func (t *tracedToolCmd) Undo() core.Result { return t.inner.Undo() }
-
-func (t *tracedToolCmd) Execute() core.Result {
-	child, done := t.tracer.Push("dispatch/"+t.toolName,
-		attribute.String("tool.name", t.toolName),
-		attribute.String("tool.params", t.params),
-	)
-	defer done()
-
-	res := t.inner.Execute()
-
-	child.SetAttributes(
-		attribute.String("tool.output", llm.Truncate(res.Output, 8192)),
-		attribute.String("tool.signal", string(res.Signal)),
-	)
-	return res
+func registerBenchFactories() func(*stl.BuiltinRegistry) {
+	return func(br *stl.BuiltinRegistry) {
+		bench.RegisterFactories(br, benchui.Assets())
+	}
 }
 
 var osStderr io.Writer = os.Stderr
