@@ -64,12 +64,11 @@ invocation: |
     how that request maps to checkpoint_history or checkpoint_rollback config.
 
   Lifecycle state store default:
-    The documented default for agent-core-94su.7 is <directory>/.agent-state
-    when --directory is set and --state-store-dir is absent. This hidden
-    directory is owned by the agent runtime and stores FileStore JSON paths such
-    as checkpoint/<id>. Use --state-store-dir only for shared operator storage,
-    external artifact retention, or tests that need an isolated store outside
-    the workspace.
+    cmd/agent uses <directory>/.agent-state when --directory is set and
+    --state-store-dir is absent. The agent runtime owns that hidden directory
+    and stores FileStore JSON paths such as checkpoint/<id>. Use
+    --state-store-dir only for shared operator storage, external artifact
+    retention, or tests that need an isolated store outside the workspace.
 
 startup_sequence:
   - step: 1
@@ -125,11 +124,11 @@ startup_sequence:
   - step: 6
     name: Configure lifecycle ports
     description: |
-      Lifecycle behavior is opt-in. The target contract for agent-core-94su.7
-      resolves StateStore from --state-store-dir when present, otherwise from
-      <directory>/.agent-state when --directory is set. When neither directory
-      nor state-store override is available, checkpoint persistence stays
-      disabled. The FileStore is passed to LoopParams.StateStore and
+      Lifecycle behavior is opt-in. cmd/agent resolves StateStore from
+      --state-store-dir when present, otherwise from <directory>/.agent-state
+      when --directory is set. When neither directory nor state-store override
+      is available, checkpoint persistence stays disabled. The FileStore is
+      passed to LoopParams.StateStore and
       lifecycle-aware builtin factories. Lifecycle history and rollback
       profiles use the same StateStore path and register checkpoint_history or
       checkpoint_rollback through the normal builtin factory flow. Suspend
@@ -165,9 +164,9 @@ tool_parametrization: |
   at registration time (step 4). Factories read config values with
   typed config structs, making tools reusable across modes. Program-
   shaping child and nested invocation config is required and validated
-  at registration time; child-agent boundaries prefer profile config,
-  while machine/tool-selection/declaration fields are compatibility-only
-  fallback config for older declarations.
+  at registration time. Child-agent boundaries require profile config.
+  Nested in-process machines still use explicit point_machine and point_tools
+  config because they do not spawn a child agent process.
 
   Examples:
     - invoke_llm reads "model", "provider_url", prompt fields, timeout fields,
@@ -201,7 +200,7 @@ suite_input_contract: |
 llm_parser_ownership: |
   LLM response parsing is boundary-tool configuration. The selected agent
   profile loads an invoke_llm ToolDef from agents/*/llm/*.yaml. That ToolDef
-  owns model, provider_url, prompt fields, manifest_state, and the planned
+  owns model, provider_url, prompt fields, manifest_state, and the
   response_profile parser selector.
 
   response_profile names a parser profile from internal/model/llm/profiles/.
@@ -238,8 +237,6 @@ nested_machines: |
 
   Child agent process boundaries do not take child machine, tools, or tool
   declaration paths directly. The child profile owns those paths.
-  Compatibility-only declarations may still exist until planned removal.
-  They should not be copied into new docs or new ToolDef config.
 
   This design allows swapping nested machines by changing YAML config
   without recompiling the binary.
@@ -256,15 +253,9 @@ child_agent_boundaries: |
   default directory. Parent tools do not pass those program-shaping paths as
   process flags.
 
-  Current implementation drift remains in internal/support/execute.Config,
-  which still has Machine, Tools, and ToolDeclarations compatibility fields.
-  internal/tools/catalog.ChildAgentConfig still decodes machine, tools, and
-  tools_declarations. internal/planning/pipeline, internal/evaluation/bench,
-  and the planned internal/tools/control package are the affected child agent
-  factory sites.
-
-  The follow-up code issue removes the compatibility fields and requires
-  profile at registration time for child agent boundary tools.
+  internal/support/execute.Config and internal/tools/catalog.ChildAgentConfig
+  are profile-only for child agent process boundaries. execute_task,
+  self_invoke, and launch_eval require profile at registration time.
 
 lifecycle: |
   Lifecycle features are runtime ports around the same machine contract, not a

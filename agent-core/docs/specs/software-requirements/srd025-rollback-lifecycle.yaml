@@ -228,4 +228,3 @@ implementation_status:
     - Lifecycle history and rollback profiles backed by STL builtin adapters.
   remaining_gaps:
     - Approval-gate reference agent for suspend and resume is tracked by agent-core-6xm3.
-    - Workspace-local default StateStore resolution at <directory>/.agent-state is tracked by agent-core-94su.7.

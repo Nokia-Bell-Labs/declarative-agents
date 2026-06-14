@@ -457,8 +457,7 @@ structured_output_strategy: |
 mode_local_overrides: |
   Some agents have mode-local builtin override files that add config
   blocks to tools declared in tools/builtin/. These are loaded after
-  the shared declaration directory through profile tool_declarations
-  or, in compatibility startup, via a second --tools-declaration flag:
+  the shared declaration directory through profile tool_declarations:
 
     agents/bench/builtin.yaml — bench-specific config (serve_ui, launch_eval)
     agents/evaluator/builtin.yaml — evaluator-specific config (suite/point tools)
@@ -484,7 +483,7 @@ target_grouped_layout:
   rule: |
     Current profiles load flat declaration directories. The next YAML move
     groups shared declarations by tool family while keeping compatibility
-    bundle files loadable through existing profile and CLI paths.
+    bundle files loadable through profile-owned declaration paths and tests.
   builtin_groups:
     - path: tools/builtin/filesystem/
       owns: [read, write, edit, find, list_files]
@@ -532,9 +531,9 @@ target_grouped_layout:
       kind: shared
   compatibility_bundles:
     - path: tools/builtin.yaml
-      role: Compatibility bundle that includes every shared builtin group needed by existing direct --tools-declaration startup.
+      role: Compatibility bundle that includes every shared builtin group needed by profiles or tests that load the aggregate declaration file.
     - path: tools/exec.yaml
-      role: Compatibility bundle that includes every shared exec group needed by existing direct --tools-declaration startup.
+      role: Compatibility bundle that includes every shared exec group needed by profiles or tests that load the aggregate declaration file.
     - path: tools/builtin/all.yaml
       role: Planned explicit bundle for profiles or tests that need the full builtin declaration set.
     - path: tools/exec/all.yaml
