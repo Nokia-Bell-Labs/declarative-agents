@@ -4,11 +4,12 @@ package evaluation
 
 import (
 	"context"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 	"io"
 	"os"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
 // EvalFactoryDeps holds the dependencies needed by evaluator tool factories.
@@ -29,9 +30,9 @@ type EvalFactoryDeps struct {
 // init_workspace_repo, stage_workspace_baseline, commit_workspace_baseline,
 // dump_config, run_agent, run_oracle_check, collect_trace_tokens,
 // check_agent_version, summarize_point_results, collect_metrics) into the
-// provided stl.BuiltinRegistry. Session state is lazily initialized on first
+// provided registry.BuiltinRegistry. Session state is lazily initialized on first
 // factory call.
-func RegisterEvalFactories(br *stl.BuiltinRegistry, deps EvalFactoryDeps) {
+func RegisterEvalFactories(br *toolregistry.BuiltinRegistry, deps EvalFactoryDeps) {
 	var ess *EvalSessionState
 
 	initESS := func() *EvalSessionState {

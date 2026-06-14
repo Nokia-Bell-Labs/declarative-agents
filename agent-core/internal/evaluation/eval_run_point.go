@@ -9,6 +9,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
@@ -146,10 +147,10 @@ func (c *runPointCmd) Execute() core.Result {
 	}
 }
 
-// RunPointFactory creates a stl.BuiltinFactory for run_point.
+// RunPointFactory creates a registry.BuiltinFactory for run_point.
 // Nested loop parameters (point_machine, point_tools, agent_name,
 // max_iterations, success_state) are read from the tool declaration config block.
-func RunPointFactory(es *EvalSessionState) stl.BuiltinFactory {
+func RunPointFactory(es *EvalSessionState) toolregistry.BuiltinFactory {
 	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		var cfg catalog.RunPointConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
