@@ -1,0 +1,210 @@
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package rest
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+)
+
+func TestRESTServer_LaunchRegistersRoutes(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "control")
+
+	result := getJSON(t, baseURL+"/health")
+	require.Equal(t, "ok", result["status"])
+	require.Equal(t, "control", getJSON(t, baseURL+"/metadata")["server"])
+}
+
+func TestRESTServer_AwaitInboundSignals(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "control")
+
+	postStatus(t, baseURL+"/approve/123", `{}`, http.StatusAccepted)
+	requireAwaitSignal(t, state, "control", "Approved")
+
+	postStatus(t, baseURL+"/domain?signal=DomainEventReceived", `{}`, http.StatusAccepted)
+	requireAwaitSignal(t, state, "control", "DomainEventReceived")
+
+	postStatus(t, baseURL+"/domain?signal=Hidden", `{}`, http.StatusBadRequest)
+	requireAwaitSignal(t, state, "control", "AwaitTimedOut")
+}
+
+func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("drains queued events", func(t *testing.T) {
+		state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+		postStatus(t, baseURL+"/approve/1", `{}`, http.StatusAccepted)
+		postStatus(t, baseURL+"/approve/2", `{}`, http.StatusAccepted)
+		result := stopRESTServer(t, state, "control")
+		require.Equal(t, float64(2), result["drained_events"])
+		require.Equal(t, float64(0), result["dropped_events"])
+	})
+
+	t.Run("unblocks await", func(t *testing.T) {
+		server := namedControlServer("blocking")
+		server.Queue.Timeout = "1s"
+		state, _ := launchRESTServer(t, server, LimitProfile{})
+		results := make(chan core.Result, 1)
+		go func() { results <- awaitCommand(state, "blocking").Execute() }()
+		time.Sleep(20 * time.Millisecond)
+		require.Equal(t, "stopped", stopRESTServer(t, state, "blocking")["status"])
+		require.Equal(t, core.Signal("ServerStopped"), (<-results).Signal)
+	})
+}
+
+func TestRESTServer_RequestValidationFailures(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, validationServer(), LimitProfile{MaxRequestBytes: 12})
+	defer stopRESTServer(t, state, "validation")
+
+	postStatus(t, baseURL+"/approve/1", `{}`, http.StatusAccepted)
+	postStatus(t, baseURL+"/approve/2", `{}`, http.StatusTooManyRequests)
+	requestStatus(t, http.MethodGet, baseURL+"/approve/3", "", http.StatusMethodNotAllowed)
+	postStatus(t, baseURL+"/typed", `{"name": 42}`, http.StatusBadRequest)
+	postStatus(t, baseURL+"/typed", `{"name":"too large"}`, http.StatusRequestEntityTooLarge)
+	postStatus(t, baseURL+"/handler", `{}`, http.StatusNotImplemented)
+
+	requireAwaitSignal(t, state, "validation", "Approved")
+	requireAwaitSignal(t, state, "validation", "AwaitTimedOut")
+}
+
+func launchRESTServer(t *testing.T, server Server, limits LimitProfile) (*ServerState, string) {
+	t.Helper()
+	state := NewServerState()
+	def := ServerDefinition{Name: serverName(server), Server: server, Limits: limits}
+	result := ServerBuilder{
+		ToolName: "rest_server_launch", Init: InitServerLaunch, Server: def, State: state,
+	}.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("ServerLaunched"), result.Signal)
+	var output map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	return state, "http://" + output["address"].(string)
+}
+
+func stopRESTServer(t *testing.T, state *ServerState, name string) map[string]interface{} {
+	t.Helper()
+	result := stopCommand(state, name).Execute()
+	require.Equal(t, core.Signal("ServerStopped"), result.Signal, result.Output)
+	var output map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	return output
+}
+
+func requireAwaitSignal(t *testing.T, state *ServerState, name, signal string) {
+	t.Helper()
+	result := awaitCommand(state, name).Execute()
+	require.Equal(t, core.Signal(signal), result.Signal, result.Output)
+}
+
+func awaitCommand(state *ServerState, name string) core.Command {
+	return ServerBuilder{
+		ToolName: "rest_server_await", Init: InitServerAwait,
+		Server: ServerDefinition{Name: name, Server: namedControlServer(name)}, State: state,
+	}.Build(core.Result{})
+}
+
+func stopCommand(state *ServerState, name string) core.Command {
+	return ServerBuilder{
+		ToolName: "rest_server_stop", Init: InitServerStop,
+		Server: ServerDefinition{Name: name, Server: namedControlServer(name)}, State: state,
+	}.Build(core.Result{})
+}
+
+func postStatus(t *testing.T, url, body string, want int) {
+	t.Helper()
+	requestStatus(t, http.MethodPost, url, body, want)
+}
+
+func requestStatus(t *testing.T, method, url, body string, want int) {
+	t.Helper()
+	req, err := http.NewRequest(method, url, bytes.NewBufferString(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	require.Equal(t, want, resp.StatusCode)
+}
+
+func getJSON(t *testing.T, url string) map[string]interface{} {
+	t.Helper()
+	resp, err := http.Get(url)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	var output map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&output))
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	return output
+}
+
+func controlServer() Server {
+	return namedControlServer("control")
+}
+
+func namedControlServer(name string) Server {
+	return Server{
+		Address:  "127.0.0.1:0",
+		Queue:    QueueConfig{Name: name, Capacity: 8, Timeout: "20ms"},
+		Shutdown: ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain_then_stop"},
+		Endpoints: map[string]Endpoint{
+			"approve":  signalEndpoint("POST", "/approve/{id}", "Approved"),
+			"domain":   dynamicEndpoint("POST", "/domain"),
+			"health":   {Method: "GET", Path: "/health", Binding: bindingHealth},
+			"metadata": {Method: "GET", Path: "/metadata", Binding: bindingStaticMetadata},
+		},
+	}
+}
+
+func validationServer() Server {
+	server := namedControlServer("validation")
+	server.Queue = QueueConfig{Name: "validation", Capacity: 1, Timeout: "20ms"}
+	server.Endpoints["typed"] = Endpoint{
+		Method: "POST", Path: "/typed", Binding: bindingEmitSignal, Signal: "Typed",
+		Request: RequestBinding{BodySchema: bodySchemaWithRequired("name")},
+	}
+	server.Endpoints["handler"] = Endpoint{
+		Method: "POST", Path: "/handler", Binding: "invoke_handler",
+	}
+	return server
+}
+
+func signalEndpoint(method, path, signal string) Endpoint {
+	return Endpoint{Method: method, Path: path, Binding: bindingEmitSignal, Signal: signal}
+}
+
+func dynamicEndpoint(method, path string) Endpoint {
+	return Endpoint{
+		Method: method, Path: path, Binding: bindingDynamicSignal,
+		AllowedSignals: []string{"DomainEventReceived"},
+	}
+}
+
+func bodySchemaWithRequired(field string) map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object", "required": []interface{}{field},
+		"properties": map[string]interface{}{field: map[string]interface{}{"type": "string"}},
+	}
+}
+
+func serverName(server Server) string {
+	if server.Queue.Name != "" {
+		return server.Queue.Name
+	}
+	return "control"
+}
