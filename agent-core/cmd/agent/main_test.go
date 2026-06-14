@@ -244,6 +244,63 @@ func TestApprovalLifecycleProfileSuspendsAndResumesApproved(t *testing.T) {
 	require.Contains(t, secondStderr, "terminal state: succeeded")
 }
 
+func TestApprovalLifecycleProfileUsesWorkspaceLocalStateStore(t *testing.T) {
+	restore := snapshotAgentFlags()
+	t.Cleanup(func() { restoreAgentFlags(restore) })
+
+	profilePath := filepath.Join(repoRootFromTest(t), "agents", "lifecycle", "approval", "profile.yaml")
+	workspace := t.TempDir()
+
+	clearAgentFlags()
+	flagProfile = profilePath
+	flagDirectory = workspace
+	firstStderr, err := captureStderr(t, func() error {
+		return run(rootCmd, nil)
+	})
+	require.NoError(t, err)
+	require.Contains(t, firstStderr, "terminal state: suspended")
+
+	store := core.NewFileStore(filepath.Join(workspace, defaultStateStoreDirName))
+	keys, err := store.List(context.Background(), "checkpoint/")
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	checkpointID := strings.TrimPrefix(keys[0], "checkpoint/")
+
+	clearAgentFlags()
+	flagProfile = profilePath
+	flagDirectory = workspace
+	flagResumeCheckpoint = checkpointID
+	flagResumeSignal = string(core.Approved)
+	secondStderr, err := captureStderr(t, func() error {
+		return run(rootCmd, nil)
+	})
+	require.NoError(t, err)
+	require.Contains(t, secondStderr, "terminal state: succeeded")
+}
+
+func TestStateStoreDirOverridesWorkspaceLocalDefault(t *testing.T) {
+	cfg := runtimeConfig{
+		Directory:     filepath.Join("workspace"),
+		StateStoreDir: filepath.Join("operator", "state"),
+	}
+
+	require.Equal(t, filepath.Join("operator", "state"), resolveStateStoreRoot(cfg))
+}
+
+func TestResumeCheckpointRequiresResolvableStateStore(t *testing.T) {
+	restore := snapshotAgentFlags()
+	t.Cleanup(func() { restoreAgentFlags(restore) })
+
+	clearAgentFlags()
+	flagProfile = filepath.Join(repoRootFromTest(t), "agents", "lifecycle", "approval", "profile.yaml")
+	flagResumeCheckpoint = "missing"
+
+	_, err := captureStderr(t, func() error {
+		return run(rootCmd, nil)
+	})
+	require.ErrorContains(t, err, "--resume-checkpoint requires --directory or --state-store-dir")
+}
+
 func assertMainDeclsAbsent(t *testing.T, forbidden map[string]bool) {
 	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)
