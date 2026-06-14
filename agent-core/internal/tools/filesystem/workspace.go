@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-// Package stl provides the standard tool library — shared file, build,
-// and subprocess tool implementations that any agent can import.
-// All tools implement core.Command / core.Builder.
-package stl
+package filesystem
 
 import (
 	"fmt"
@@ -12,9 +9,7 @@ import (
 	"strings"
 )
 
-// ValidatePath normalizes requested against the workspace root, resolves
-// symlinks, and confirms the result stays inside root.
-// Returns the resolved absolute path on success.
+// ValidatePath normalizes requested against the workspace root and rejects escapes.
 func ValidatePath(root, requested string) (string, error) {
 	joined := requested
 	if !filepath.IsAbs(requested) {
@@ -41,12 +36,9 @@ func ValidatePath(root, requested string) (string, error) {
 	if !strings.HasPrefix(resolved, resolvedRoot+string(filepath.Separator)) && resolved != resolvedRoot {
 		return "", fmt.Errorf("path %s is outside the workspace", requested)
 	}
-
 	return resolved, nil
 }
 
-// pathWouldBeInside checks whether a cleaned (but unresolved) path would
-// land inside root by walking up to the deepest existing ancestor.
 func pathWouldBeInside(cleaned, resolvedRoot string) bool {
 	dir := cleaned
 	for {
@@ -64,8 +56,7 @@ func pathWouldBeInside(cleaned, resolvedRoot string) bool {
 	return false
 }
 
-// RelPath returns the path of resolved relative to root, using forward
-// slashes regardless of OS.
+// RelPath returns resolved relative to root with forward slashes.
 func RelPath(root, resolved string) string {
 	rel, err := filepath.Rel(root, resolved)
 	if err != nil {
