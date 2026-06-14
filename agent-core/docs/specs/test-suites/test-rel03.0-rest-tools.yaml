@@ -7,6 +7,7 @@ traces:
   - rel03.0-uc002-rest-client-async
   - rel03.0-uc003-rest-server-signals
   - rel03.0-uc004-openapi-import
+  - rel03.0-uc005-ollama-openapi-model-listing
 
 preconditions:
   - internal/tools/rest contains the REST runtime and executable Go coverage for this suite.
@@ -14,6 +15,7 @@ preconditions:
   - HTTP client tests can use httptest.Server with local-only addresses.
   - HTTP server tests can bind listener port 0 and use per-test queues.
   - Redaction tests can use synthetic credentials and payload fields.
+  - Live Ollama E2E coverage requires Ollama on 127.0.0.1:11434 and a Qwen 3 family model.
 
 test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
@@ -556,6 +558,46 @@ test_cases:
       - srd027-rest-tool-runtime AC7
       - srd029-rest-server-tools AC8
       - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc005-ollama-openapi-model-listing
+    name: Qwen agent lists Ollama models through OpenAPI REST tool
+    go_test: mage integration:uc005
+    status: planned
+    description: |
+      Run the Ollama REST profile with a Qwen 3 family model and the
+      ollama_list_models tool selected. Ask the agent to list local Ollama
+      models. The integration target must prove that the model invoked the REST
+      tool, that the REST tool called GET /api/tags through the imported
+      listOllamaModels operation, and that the final answer contains model
+      names returned by /api/tags.
+    inputs:
+      profile: agents/rest/ollama-profile.yaml
+      model_family: qwen3
+      openapi_document: agents/rest/openapi/ollama.yaml
+      operation_id: listOllamaModels
+      tool_name: ollama_list_models
+      live_endpoint: http://127.0.0.1:11434/api/tags
+      prompt: List the local Ollama models available on this machine.
+    expected:
+      selected_tool_manifest_contains:
+        - ollama_list_models
+      selected_tool_manifest_excludes_mutating_ollama_tools: true
+      rest_tool_invoked: true
+      rest_operation_called: listOllamaModels
+      final_answer_contains_api_model_names: true
+      final_answer_excludes_absent_model_names: true
+    traces:
+      - rel03.0-uc005-ollama-openapi-model-listing S1
+      - rel03.0-uc005-ollama-openapi-model-listing S2
+      - rel03.0-uc005-ollama-openapi-model-listing S3
+      - rel03.0-uc005-ollama-openapi-model-listing S4
+      - srd009-ollama-adapter AC1
+      - srd024-blocking-input-tools AC1
+      - srd024-blocking-input-tools AC2
+      - srd027-rest-tool-runtime AC2
+      - srd027-rest-tool-runtime AC3
+      - srd028-rest-client-tools AC4
+      - srd028-rest-client-tools AC7
 
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST observability redacts secrets and reports failure stages
