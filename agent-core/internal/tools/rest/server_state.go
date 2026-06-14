@@ -208,6 +208,18 @@ func (r *serverRuntime) bindingKinds() []string {
 	return bindings
 }
 
+func (r *serverRuntime) incrementStreams() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.activeStreams++
+}
+
+func (r *serverRuntime) decrementStreams() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.activeStreams--
+}
+
 func queueCapacity(queue QueueConfig) int {
 	if queue.Capacity > 0 {
 		return queue.Capacity

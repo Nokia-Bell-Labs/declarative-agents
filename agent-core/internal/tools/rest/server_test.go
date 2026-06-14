@@ -77,10 +77,37 @@ func TestRESTServer_RequestValidationFailures(t *testing.T) {
 	requestStatus(t, http.MethodGet, baseURL+"/approve/3", "", http.StatusMethodNotAllowed)
 	postStatus(t, baseURL+"/typed", `{"name": 42}`, http.StatusBadRequest)
 	postStatus(t, baseURL+"/typed", `{"name":"too large"}`, http.StatusRequestEntityTooLarge)
-	postStatus(t, baseURL+"/handler", `{}`, http.StatusNotImplemented)
+	postStatus(t, baseURL+"/handler", `{}`, http.StatusInternalServerError)
 
 	requireAwaitSignal(t, state, "validation", "Approved")
 	requireAwaitSignal(t, state, "validation", "AwaitTimedOut")
+}
+
+func TestRESTServer_InvokeHandlerBindings(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, handlerServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "handler")
+
+	result := postJSON(t, baseURL+"/handle", `{"name":"alice"}`, http.StatusOK)
+	require.Equal(t, true, result["handled"])
+	require.Equal(t, "alice", result["name"])
+
+	postStatus(t, baseURL+"/handle-signal", `{}`, http.StatusOK)
+	requireAwaitSignal(t, state, "handler", "Handled")
+}
+
+func TestRESTServer_StreamEvents(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, streamServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "stream")
+
+	postStatus(t, baseURL+"/approve/123", `{}`, http.StatusAccepted)
+	body := requestBody(t, http.MethodGet, baseURL+"/events", "", http.StatusOK)
+	require.Contains(t, body, "event: message")
+	require.Contains(t, body, `"signal":"Approved"`)
+	require.Contains(t, body, `"route":"approve"`)
 }
 
 func launchRESTServer(t *testing.T, server Server, limits LimitProfile) (*ServerState, string) {
@@ -142,6 +169,28 @@ func requestStatus(t *testing.T, method, url, body string, want int) {
 	require.Equal(t, want, resp.StatusCode)
 }
 
+func requestBody(t *testing.T, method, url, body string, want int) string {
+	t.Helper()
+	req, err := http.NewRequest(method, url, bytes.NewBufferString(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, want, resp.StatusCode, string(data))
+	return string(data)
+}
+
+func postJSON(t *testing.T, url, body string, want int) map[string]interface{} {
+	t.Helper()
+	data := requestBody(t, http.MethodPost, url, body, want)
+	var output map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(data), &output))
+	return output
+}
+
 func getJSON(t *testing.T, url string) map[string]interface{} {
 	t.Helper()
 	resp, err := http.Get(url)
@@ -181,6 +230,30 @@ func validationServer() Server {
 	server.Endpoints["handler"] = Endpoint{
 		Method: "POST", Path: "/handler", Binding: "invoke_handler",
 	}
+	return server
+}
+
+func handlerServer() Server {
+	return Server{
+		Address: "127.0.0.1:0",
+		Queue:   QueueConfig{Name: "handler", Capacity: 8, Timeout: "20ms"},
+		Endpoints: map[string]Endpoint{
+			"handle": {
+				Method: "POST", Path: "/handle", Binding: bindingInvokeHandler,
+				Request:  RequestBinding{BodySchema: bodySchemaWithRequired("name")},
+				Response: ResponseMapping{Output: map[string]string{"handled": "true", "name": "$.name"}},
+			},
+			"handle_signal": {
+				Method: "POST", Path: "/handle-signal", Binding: bindingInvokeHandler,
+				Signal: "Handled", Response: ResponseMapping{Output: map[string]string{"accepted": "true"}},
+			},
+		},
+	}
+}
+
+func streamServer() Server {
+	server := namedControlServer("stream")
+	server.Endpoints["events"] = Endpoint{Method: "GET", Path: "/events", Binding: bindingStreamEvents}
 	return server
 }
 

@@ -8,19 +8,17 @@ No code moved.
 
 ## Verdict
 
-Client paths work. Async paths work. Inbound signal paths work. OpenAPI import paths work. Code follows the profile-first tool language model for those paths. One non-blocking gap remains. `agent-core-usbz.1` covers `invoke_handler` and `stream_events` endpoint bindings from `srd029-rest-server-tools`. Listener side-effect vocabulary alignment is resolved by `agent-core-usbz.2`.
+Client paths work. Async paths work. Inbound signal paths work. OpenAPI import paths work. Code follows the profile-first tool language model for those paths. No non-blocking REST endpoint binding gap remains. `agent-core-usbz.1` added `invoke_handler` and `stream_events` endpoint bindings from `srd029-rest-server-tools`, and `agent-core-usbz.2` resolved listener side-effect vocabulary alignment. Release 03.0 now has executable coverage for the endpoint binding work that kept it in progress. Its status moves to `done` through `agent-core-usbz.1`, not through the original audit alone.
 
-Release 03.0 should stay `in_progress` until `agent-core-usbz.1` closes or the affected scope moves out of release 03.0.
+Release readiness is aligned.
 
-No status is upgraded to `done` by this audit.
-
-Release readiness is close. Care remains. A REST tool is not one feature; it is a contract among specs and profile assets, ToolDefs and builders, HTTP behavior and machine transitions. Status changes are valid only when those artifacts agree. Client flows have that agreement. Inbound signal receipt has it too. Shutdown and OpenAPI import also have it. For the remaining server binding names, code currently returns an unimplemented handler response instead of executing configured behavior. Listener effects now use SRD language that the contract audit accepts. The remaining mismatch is small enough to track separately, but it is a real release criterion.
+A REST tool is not one feature; it is a contract among specs and profile assets, ToolDefs and builders, HTTP behavior and machine transitions. Status changes are valid only when those artifacts agree. Client flows have that agreement. Inbound signal receipt has it too. Shutdown, OpenAPI import, handler invocation, event streaming, and listener side effects now have it.
 
 ## Design Constitution
 
 ### D1 Specification-Driven Development
 
-D1 passes. Implementation follows the three REST SRDs and `test-rel03.0-rest-tools`. Go evidence exists in REST client tests, async tests, server tests, and OpenAPI tests under `internal/tools/rest/`, which gives the release suite executable proof across outbound calls, async state, inbound queues, and import compilation. Those tests cover the core REST flows named by the release suite. Remaining endpoint binding work is tracked in `agent-core-usbz.1`.
+D1 passes. Implementation follows the three REST SRDs and `test-rel03.0-rest-tools`. Go evidence exists in REST client tests, async tests, server tests, and OpenAPI tests under `internal/tools/rest/`, which gives the release suite executable proof across outbound calls, async state, inbound queues, and import compilation. Those tests cover the REST flows named by the release suite, including the server endpoint bindings completed by `agent-core-usbz.1`.
 
 ### D2 YAML-First Structured Docs
 
@@ -28,7 +26,7 @@ D2 passes. Sample YAML lives under `agents/rest/`. It covers profile setup and m
 
 ### D3 Traceability
 
-D3 passes with follow-up. `docs/SPECIFICATIONS.yaml` links release 03.0 to `test-rel03.0-rest-tools` and leaves the release in progress. Named Go tests exist in `internal/tools/rest/`. The SRD029 binding gap is `agent-core-usbz.1`. Side-effect vocabulary alignment is resolved by `agent-core-usbz.2`.
+D3 passes. `docs/SPECIFICATIONS.yaml` links release 03.0 to `test-rel03.0-rest-tools` and marks the release done. Named Go tests exist in `internal/tools/rest/`. The SRD029 binding gap is resolved by `agent-core-usbz.1`. Side-effect vocabulary alignment is resolved by `agent-core-usbz.2`.
 
 ### D4 Profile-First Runtime Docs
 
@@ -36,7 +34,7 @@ D4 passes. `agents/rest/profile.yaml` loads REST definitions through the profile
 
 ### D5 Tool Language Boundary
 
-D5 passes with one follow-up. ToolDefs in `tools/builtin/rest/all.yaml` and `agents/rest/declarations.yaml` declare the contract metadata required by the tool language. Sequencing for the sample payment flow lives in `agents/rest/machine.yaml`, not in Go command code. Shared REST ToolDefs can keep explicit listener effects after `agent-core-usbz.2`.
+D5 passes. ToolDefs in `tools/builtin/rest/all.yaml` and `agents/rest/declarations.yaml` declare the contract metadata required by the tool language. Sequencing for the sample payment flow lives in `agents/rest/machine.yaml`, not in Go command code. Shared REST ToolDefs can keep explicit listener effects after `agent-core-usbz.2`.
 
 ## Execution And Go Style
 
@@ -54,7 +52,7 @@ Workflow ownership passes. Client send and await are separate words in `client_c
 
 ### Validation And Safety
 
-Validation passes with one follow-up. The runtime rejects undeclared params and runtime authority overrides. Config-policy checks cover auth and redirects. They also cover public listener policy, async retry rules, and OpenAPI operation IDs. Route handling checks HTTP method and body limits. It also checks simple body schema types and queue capacity. `invoke_handler` and `stream_events` are not configured bindings yet; `agent-core-usbz.1` tracks that work.
+Validation passes. The runtime rejects undeclared params and runtime authority overrides. Config-policy checks cover auth and redirects. They also cover public listener policy, async retry rules, and OpenAPI operation IDs. Route handling checks HTTP method and body limits. It also checks simple body schema types, queue capacity, configured handler responses, and SSE event streaming.
 
 ## REST ToolDefs
 
@@ -64,8 +62,12 @@ Sample REST ToolDefs pass. `agents/rest/declarations.yaml` loads through the nor
 
 ## Quality Gates
 
-Code and documentation gates passed through the standard Go and Mage checks. The de-AI gate passed after wording and structure cleanup.
+Code and documentation gates passed through the standard Go and Mage checks. The current issue added `TestRESTServer_InvokeHandlerBindings` and `TestRESTServer_StreamEvents`; existing server tests still cover launch, await, stop, validation, queue overflow, method rejection, and simple schema checks. The broader package evidence also includes client sync tests, async send and await tests, OpenAPI import tests, contract loading tests, and tracing or redaction tests. That spread matters because REST behavior crosses config loading, runtime validation, HTTP I/O, event queues, and release metadata. A green server-only test would not prove the release by itself. Here, `go build ./...`, `go vet ./...`, `mage lint`, `go test ./...`, and `mage audit` pass with the updated release suite count.
+
+No drift remains.
 
 ## Follow-Up Issues
 
-`agent-core-usbz.1` covers remaining REST server endpoint bindings or release scope narrowing. `agent-core-usbz.2` covers completed REST side-effect vocabulary alignment with the contract audit.
+`agent-core-usbz.1` covers completed REST server endpoint binding work. `agent-core-usbz.2` covers completed REST side-effect vocabulary alignment with the contract audit.
+
+No further REST follow-up remains from this audit.
