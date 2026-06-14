@@ -62,15 +62,21 @@ a checkpoint through `checkpoint_rollback`. The removed `agent history` and
 Profiles resolve relative paths from their own directory. Current profiles load
 shared tool declarations from directories such as `tools/builtin/` and
 `tools/exec/`, then add agent-local declarations such as LLM configs or builtin
-config overrides. Legacy `--machine`, `--tools`, and `--tools-declaration`
-startup remains compatibility behavior; prefer `--profile` for new usage.
+config overrides. `--profile` is the normal agent configuration flag; machine,
+tool selection, declaration, and tool-config paths belong in the profile.
+
+Runtime data stays outside the profile. Use `--directory` for the workspace,
+`--request` for per-run request files, and `--output` for artifacts. These flags
+do not identify the agent program. Current Go CLI still accepts older
+configuration flags and `--input` until the profile-only CLI follow-up removes
+the drift.
 
 ## Lifecycle Operations
 
 Checkpointing, suspend/resume, approval gates, history, and rollback are
 opt-in lifecycle features. See `lifecycle-rollback.md` for the operator guide,
 including lifecycle profile examples, `--state-store-dir`,
-`--resume-checkpoint`, request input files, the three-layer state model, and
+`--resume-checkpoint`, request files, the three-layer state model, and
 safety rules for irreversible tools and workspace restore.
 
 History and rollback use the universal runtime flags:
@@ -78,15 +84,15 @@ History and rollback use the universal runtime flags:
 ```bash
 bin/agent --profile agents/lifecycle/history/profile.yaml \
   --state-store-dir "$STATE_DIR" \
-  --input requests/history.yaml
+  --request requests/history.yaml
 
 bin/agent --profile agents/lifecycle/rollback/profile.yaml \
   --state-store-dir "$STATE_DIR" \
   --directory "$WORKSPACE" \
-  --input requests/rollback.yaml
+  --request requests/rollback.yaml
 ```
 
-The request file carries lifecycle tool input such as `checkpoint: latest` or
+Request files carry lifecycle tool data such as `checkpoint: latest` or
 `to_iteration: 3`. The binary does not expose lifecycle-only subcommands or
 checkpoint flags.
 
@@ -195,7 +201,7 @@ podman run --rm \
   -w /work \
   agent-core:latest \
   --profile agents/evaluator/profile.yaml \
-  --input suites/suite.yaml \
+  --request suites/suite.yaml \
   --output eval-results \
   --directory /work
 ```
