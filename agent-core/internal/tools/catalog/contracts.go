@@ -49,7 +49,9 @@ type ContractAuditEntry struct {
 	MigrationTarget string
 }
 
-// ValidateToolContracts reports missing or legacy contract metadata.
+// ValidateToolContracts reports missing or legacy contract metadata for loaded
+// runtime ToolDef declarations. Public spec-corpus validation mirrors only the
+// fields it needs in pkg/spec so pkg/spec does not import internal packages.
 func ValidateToolContracts(defs []ToolDef, opts ContractValidationOptions) []ContractFinding {
 	var findings []ContractFinding
 	for _, def := range defs {

@@ -197,9 +197,9 @@ type ToolSelection struct {
 	Tools []string `yaml:"tools"`
 }
 
-// ToolDeclaration captures tool contract fields needed for corpus
-// validation. This is a subset of the full ToolDef in internal/tools/stl, defined
-// here to avoid a circular dependency.
+// ToolDeclaration captures tool contract fields needed for public spec-corpus
+// validation. It mirrors the runtime ToolDef fields owned by
+// internal/tools/catalog without importing an internal package.
 type ToolDeclaration struct {
 	Name          string                `yaml:"name"`
 	Type          string                `yaml:"type,omitempty"`
