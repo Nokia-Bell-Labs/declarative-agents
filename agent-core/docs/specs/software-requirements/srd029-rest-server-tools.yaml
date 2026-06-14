@@ -1,0 +1,213 @@
+id: srd029-rest-server-tools
+title: REST Server Tools
+
+problem: |
+  Agent profiles need a declarative way to expose inbound HTTP endpoints from
+  an agent runtime. Some endpoints accept approvals or lifecycle control.
+  Others expose state reads, webhook events, or agent-to-agent signals. If Go
+  handlers decide the next workflow step, the machine no longer shows what
+  happens after an inbound request.
+
+  REST server tools should be boundary words. One word launches configured
+  routes. Another waits for inbound events. A third stops server state. The
+  HTTP handler validates requests and translates them into configured outputs;
+  MachineSpec still chooses the next action after each emitted signal.
+
+goals:
+  - G1: Define inbound REST server tools as first-class ToolDef vocabulary words.
+  - G2: Define rest_server_launch, rest_server_stop, and rest_server_await semantics.
+  - G3: Define endpoint binding kinds for signals, state reads, handlers, streams, health, and static metadata.
+  - G4: Define shared server lifecycle, event queueing, request validation, graceful shutdown, and blocking await behavior.
+  - G5: Define address binding, route registration, schemas, SSE/watch endpoints, backpressure, tracing, redaction, and undo rules.
+  - G6: Define how OpenAPI operation IDs bind to configured REST server handlers.
+
+requirements:
+  R1:
+    title: Server tool scope
+    items:
+      - R1.1: REST server tools SHALL be declared as type builtin ToolDefs with category boundary.
+      - R1.2: REST server tools SHALL expose configured HTTP endpoints from an agent runtime.
+      - R1.3: REST server tools SHALL use shared runtime rules from srd027-rest-tool-runtime.
+      - R1.4: REST server tools SHALL keep workflow order in MachineSpec transitions, not in HTTP handler code.
+      - R1.5: REST server tools SHALL use net/http through the planned internal/tools/rest package.
+
+  R2:
+    title: rest_server_launch
+    items:
+      - R2.1: rest_server_launch SHALL start or attach to shared server state by configured server name and address.
+      - R2.2: rest_server_launch input SHALL include or resolve server name, address, route set, endpoint bindings, schemas, limits, and shutdown policy from ToolDef config.
+      - R2.3: rest_server_launch SHALL register routes from configuration without blocking on inbound requests.
+      - R2.4: rest_server_launch SHALL emit ServerLaunched on success and CommandError on config, bind, route, or schema failure.
+      - R2.5: rest_server_launch output SHALL include server name, bound address, route count, active endpoint binding kinds, and correlation metadata.
+      - R2.6: rest_server_launch side effects SHALL include network_listen and server_state mutation.
+      - R2.7: rest_server_launch undo SHOULD use boundary compensation that calls rest_server_stop when it owns the launched server.
+
+  R3:
+    title: rest_server_await
+    items:
+      - R3.1: rest_server_await SHALL block until a matching inbound event arrives, the await timeout fires, the server shuts down, or context cancellation occurs.
+      - R3.2: rest_server_await input SHALL include or resolve server name, accepted event sources, optional route filters, timeout, and queue read policy.
+      - R3.3: rest_server_await SHALL read from shared server inbox state created by launched REST server routes.
+      - R3.4: rest_server_await SHALL emit the configured signal carried by the inbound event, AwaitTimedOut, ServerStopped, or CommandError.
+      - R3.5: rest_server_await output SHALL include event source, route, method, signal, validated payload, request ID, and redacted diagnostics.
+      - R3.6: rest_server_await side effects SHALL be limited to consuming queued server events and updating command/server state.
+      - R3.7: rest_server_await undo SHALL be noop unless the implementation supports returning an event to the queue.
+
+  R4:
+    title: rest_server_stop
+    items:
+      - R4.1: rest_server_stop SHALL gracefully stop configured server state by server name or address.
+      - R4.2: rest_server_stop input SHALL include or resolve server name, shutdown timeout, drain policy, and listener ownership policy.
+      - R4.3: rest_server_stop SHALL close listeners, reject new requests, and drain or fail queued events according to configuration.
+      - R4.4: rest_server_stop SHALL emit ServerStopped on success and CommandError on missing server, shutdown timeout, or cleanup failure.
+      - R4.5: rest_server_stop output SHALL include server name, address, drained event count, dropped event count, and shutdown status.
+      - R4.6: rest_server_stop side effects SHALL include network_listener shutdown and server_state mutation.
+      - R4.7: rest_server_stop undo SHALL be noop because the next MachineSpec action can launch the server again if needed.
+
+  R5:
+    title: Endpoint binding kinds
+    items:
+      - R5.1: emit_signal endpoints SHALL validate the request and enqueue a configured static signal with the validated payload.
+      - R5.2: emit_dynamic_signal endpoints SHALL validate that the request supplies one signal from a configured allowlist before enqueueing it.
+      - R5.3: read_state endpoints SHALL return configured runtime state without enqueueing a MachineSpec signal.
+      - R5.4: invoke_handler endpoints SHALL call a configured internal handler that returns a declared signal, response body, or structured error.
+      - R5.5: stream_events endpoints SHALL expose server-sent events or watch streams for configured runtime event sources.
+      - R5.6: health endpoints SHALL return liveness or readiness metadata without mutating machine state.
+      - R5.7: static_metadata endpoints SHALL return configured schema, route, machine, tool, or profile metadata.
+
+  R6:
+    title: Request validation and responses
+    items:
+      - R6.1: REST server routes SHALL validate method, path, headers, query, and body against configured schemas before accepting a request.
+      - R6.2: Invalid requests SHALL return configured HTTP error status and SHALL NOT enqueue grammar events.
+      - R6.3: Accepted signal-producing requests SHALL enqueue one server event with source, signal, payload, request metadata, and correlation ID.
+      - R6.4: REST server responses SHALL use configured success status, response schema, headers, and body mapping.
+      - R6.5: Request and response bodies SHALL obey configured size limits from srd027-rest-tool-runtime.
+      - R6.6: Server handlers SHALL not choose arbitrary MachineSpec actions; they may only enqueue configured signals or return configured state/metadata.
+
+  R7:
+    title: Lifecycle and shared server state
+    items:
+      - R7.1: Multiple REST server tools MAY share server state by configured server name and address.
+      - R7.2: Route registration SHALL reject conflicts unless configuration explicitly allows identical route replacement.
+      - R7.3: Shared server state SHALL track listeners, registered routes, active streams, event queues, queue limits, and ownership metadata.
+      - R7.4: Event queues SHALL support configured capacity, overflow behavior, and per-route backpressure responses.
+      - R7.5: Graceful shutdown SHALL close listeners and streams without leaking goroutines or sockets.
+      - R7.6: A stopped server SHALL unblock rest_server_await with ServerStopped or CommandError according to configuration.
+
+  R8:
+    title: OpenAPI server binding
+    items:
+      - R8.1: OpenAPI operation IDs MAY bind imported paths and methods to configured server endpoint bindings.
+      - R8.2: Operation ID binding SHALL fail when the OpenAPI operation is missing, duplicated, or incompatible with the configured handler.
+      - R8.3: OpenAPI request and response schemas SHALL compile into the same internal REST definition model as hand-authored server YAML.
+      - R8.4: Hand-authored server routes SHALL remain valid without OpenAPI.
+      - R8.5: OpenAPI imports SHALL NOT generate Go server code in the first implementation.
+
+  R9:
+    title: Observability and redaction
+    items:
+      - R9.1: REST server tools SHOULD trace launch, route registration, inbound request validation, event enqueue, await receipt, stream open, stream close, and stop events.
+      - R9.2: Traces SHOULD include server name, route ID, method, path template, binding kind, status code, queue depth, duration, and resulting signal.
+      - R9.3: REST server tools SHALL redact configured headers, query fields, body fields, credentials, and tokens from traces, logs, errors, and Result output.
+      - R9.4: Verbose request or response capture SHALL require explicit configuration and redaction rules.
+
+  R10:
+    title: Errors and recovery
+    items:
+      - R10.1: REST server errors SHALL distinguish config_decode, bind_failed, route_conflict, schema_invalid, request_invalid, queue_full, await_timeout, stream_failed, shutdown_failed, and handler_failed stages.
+      - R10.2: Error output SHALL include server name, route ID when known, failure stage, redacted message, and resulting signal.
+      - R10.3: Partial launch failures SHALL clean up listeners and routes registered during the failed launch.
+      - R10.4: Queue overflow SHALL return a configured HTTP status and SHALL NOT silently drop accepted events unless configuration declares drop behavior.
+      - R10.5: Handler failures SHALL map to configured HTTP status and a declared failure signal or structured non-signal response.
+
+non_goals:
+  - Defining outbound REST client tools; see srd028-rest-client-tools.
+  - Implementing internal/tools/rest in this issue.
+  - Defining a general web framework for arbitrary Go handlers.
+  - Allowing HTTP handlers to run hidden workflows outside MachineSpec.
+  - Generating Go server code from OpenAPI documents.
+  - Replacing existing bench UI behavior in this issue.
+
+tool_words:
+  - name: rest_server_launch
+    input: server name, address, route set, endpoint bindings, schemas, limits, shutdown policy.
+    output: server name, bound address, route count, binding kinds, correlation metadata.
+    signals: [ServerLaunched, CommandError]
+    side_effects: [network_listen, server_state]
+    errors: [config_decode, bind_failed, route_conflict, schema_invalid]
+    undo: boundary compensation through rest_server_stop when launch owns the listener.
+  - name: rest_server_await
+    input: server name, accepted event sources, optional route filters, timeout, queue read policy.
+    output: event source, route, method, signal, validated payload, request ID, redacted diagnostics.
+    signals: [configured_event_signal, AwaitTimedOut, ServerStopped, CommandError]
+    side_effects: [server_queue_consume, command_state]
+    errors: [missing_server, await_timeout, queue_closed, payload_decode]
+    undo: noop unless implementation supports returning an event to the queue.
+  - name: rest_server_stop
+    input: server name, shutdown timeout, drain policy, listener ownership policy.
+    output: server name, address, drained event count, dropped event count, shutdown status.
+    signals: [ServerStopped, CommandError]
+    side_effects: [network_listener_shutdown, server_state]
+    errors: [missing_server, shutdown_failed, drain_failed]
+    undo: noop; relaunch is a separate MachineSpec action.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: REST server tools are documented as first-class boundary ToolDef words that expose configured HTTP endpoints without moving workflow order into Go handlers.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+
+  - id: AC2
+    criterion: rest_server_launch requirements define inputs, outputs, signals, side effects, errors, shared server state, non-blocking route registration, and boundary compensation.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
+
+  - id: AC3
+    criterion: rest_server_await requirements define blocking event receipt, queue input, output payload, emitted signals, side effects, errors, timeout, and undo behavior.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7]
+
+  - id: AC4
+    criterion: rest_server_stop requirements define graceful shutdown, drain policy, output summary, emitted signals, side effects, errors, and noop undo behavior.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
+
+  - id: AC5
+    criterion: Endpoint binding requirements cover emit_signal, emit_dynamic_signal, read_state, invoke_handler, stream_events, health, and static_metadata responses.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7]
+
+  - id: AC6
+    criterion: Inbound HTTP requests become grammar-visible signals or state/metadata reads only through configured validation and response mapping.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6]
+
+  - id: AC7
+    criterion: Server lifecycle requirements cover shared server state, address binding, route conflicts, event queues, backpressure, graceful shutdown, and await unblocking.
+    traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6]
+
+  - id: AC8
+    criterion: OpenAPI operation IDs can bind configured server handlers, compile schemas into the internal model, and do not generate Go server code.
+    traces: [R8.1, R8.2, R8.3, R8.4, R8.5]
+
+  - id: AC9
+    criterion: Observability, redaction, error, and recovery requirements cover server launch, requests, streams, queues, awaits, stops, partial failures, and handler failures.
+    traces: [R9.1, R9.2, R9.3, R9.4, R10.1, R10.2, R10.3, R10.4, R10.5]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Command, Result, Signal, Builder]
+  - srd_id: srd005-agentic-loop
+    symbols_used: [Loop, MachineSpec]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry, ToolDef]
+  - srd_id: srd024-blocking-input-tools
+    symbols_used: [blocking input tool, backpressure]
+  - srd_id: srd027-rest-tool-runtime
+    symbols_used: [internal/tools/rest, OpenAPI import model, shared inbox]
+
+related_documents:
+  - docs/specs/semantic-models/tool-language.yaml
+  - boundary-tools-and-async.md
+  - rest-tool.md
+
+implementation_status:
+  planned:
+    - internal/tools/rest server state and server tool commands.
+    - tools/builtin/rest server tool declarations.
+    - OpenAPI operation ID binding to configured endpoint handlers.
