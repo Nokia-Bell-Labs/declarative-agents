@@ -590,6 +590,11 @@ format_examples:
               operations:
                 get:
                   method: GET
+                  params:
+                    path:
+                      owner: {type: string}
+                      repo: {type: string}
+                      number: {type: integer}
                   success: {status: [200], signal: RESTResourceRead}
                   failures:
                     - status: [404]
