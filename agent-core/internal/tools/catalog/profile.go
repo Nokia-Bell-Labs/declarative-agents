@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package catalog
 
 import (
 	"fmt"
@@ -10,8 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// AgentProfile bundles all configuration an agent needs into a single
-// file. All paths are resolved relative to the profile file's directory.
+// AgentProfile bundles all configuration an agent needs into a single file.
 type AgentProfile struct {
 	Name             string   `yaml:"name"`
 	Machine          string   `yaml:"machine"`
@@ -21,8 +20,7 @@ type AgentProfile struct {
 	Directory        string   `yaml:"directory,omitempty"`
 }
 
-// LoadProfile reads a profile YAML file and resolves all relative paths
-// against the profile file's directory.
+// LoadProfile reads a profile YAML file and resolves relative paths.
 func LoadProfile(path string) (AgentProfile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -32,7 +30,6 @@ func LoadProfile(path string) (AgentProfile, error) {
 	if err := yaml.Unmarshal(data, &p); err != nil {
 		return AgentProfile{}, fmt.Errorf("parse profile %s: %w", path, err)
 	}
-
 	if p.Machine == "" {
 		return AgentProfile{}, fmt.Errorf("profile %s: machine is required", path)
 	}

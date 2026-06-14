@@ -2,9 +2,11 @@
 
 package evaluation
 
-import stl "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+import (
+	"fmt"
 
-import "fmt"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+)
 
 // Sample represents a discovered evaluation sample.
 type Sample struct {
@@ -27,11 +29,11 @@ type Harness struct {
 // SuiteProfile is a resolved profile entry in a suite configuration.
 // It bundles the profile path with derived metadata for labeling.
 type SuiteProfile struct {
-	Path    string           `yaml:"path"`
-	Name    string           `yaml:"-"`
-	Model   string           `yaml:"-"`
-	Binary  string           `yaml:"-"`
-	Profile stl.AgentProfile `yaml:"-"`
+	Path    string               `yaml:"path"`
+	Name    string               `yaml:"-"`
+	Model   string               `yaml:"-"`
+	Binary  string               `yaml:"-"`
+	Profile catalog.AgentProfile `yaml:"-"`
 }
 
 // GridPoint is a single point in the parameter space.

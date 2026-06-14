@@ -20,6 +20,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/pipeline"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
@@ -121,29 +122,29 @@ func run(cmd *cobra.Command, args []string) error {
 		tracer = telemetry.TraceAdapter{T: t}
 	}
 
-	var defs []stl.ToolDef
+	var defs []catalog.ToolDef
 	var err error
 	if len(flagToolDeclarations) > 0 || len(flagToolConfigDirs) > 0 {
-		var declarations []stl.ToolDef
+		var declarations []catalog.ToolDef
 		if len(flagToolConfigDirs) > 0 {
-			declarations, err = stl.LoadToolDeclarationsFromDirs(flagToolConfigDirs)
+			declarations, err = catalog.LoadToolDeclarationsFromDirs(flagToolConfigDirs)
 			if err != nil {
 				return fmt.Errorf("load tool config dirs: %w", err)
 			}
 		}
 		if len(flagToolDeclarations) > 0 {
-			explicit, err := stl.LoadToolDeclarations(flagToolDeclarations)
+			explicit, err := catalog.LoadToolDeclarations(flagToolDeclarations)
 			if err != nil {
 				return fmt.Errorf("load tool declarations: %w", err)
 			}
-			declarations = stl.MergeToolDefs(declarations, explicit)
+			declarations = catalog.MergeToolDefs(declarations, explicit)
 		}
 		var selection []string
-		selection, err = stl.LoadToolSelections(flagTools)
+		selection, err = catalog.LoadToolSelections(flagTools)
 		if err != nil {
 			return fmt.Errorf("load tool selection: %w", err)
 		}
-		defs, err = stl.SelectTools(declarations, selection)
+		defs, err = catalog.SelectTools(declarations, selection)
 		if err != nil {
 			return fmt.Errorf("select tools: %w", err)
 		}
@@ -151,7 +152,7 @@ func run(cmd *cobra.Command, args []string) error {
 		if len(flagTools) > 1 {
 			return fmt.Errorf("multiple --tools files require --tools-declaration")
 		}
-		defs, err = stl.LoadToolDefs(flagTools[0])
+		defs, err = catalog.LoadToolDefs(flagTools[0])
 		if err != nil {
 			return fmt.Errorf("load tools: %w", err)
 		}
@@ -174,7 +175,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("load machine spec for budget: %w", err)
 	}
-	if err := stl.ValidateToolEmits(machineSpec, defs); err != nil {
+	if err := catalog.ValidateToolEmits(machineSpec, defs); err != nil {
 		return err
 	}
 	budgetDefaults := core.Budget{
@@ -286,7 +287,7 @@ func run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func selectedBuiltinInits(defs []stl.ToolDef) map[string]bool {
+func selectedBuiltinInits(defs []catalog.ToolDef) map[string]bool {
 	return stl.SelectedBuiltinInits(defs)
 }
 
@@ -387,7 +388,7 @@ func warnDeprecated(cmd *cobra.Command) {
 // applyProfile loads an agent profile and fills in any CLI flags that
 // were not explicitly set. Explicit CLI flags always take precedence.
 func applyProfile(path string) error {
-	p, err := stl.LoadProfile(path)
+	p, err := catalog.LoadProfile(path)
 	if err != nil {
 		return fmt.Errorf("load profile: %w", err)
 	}

@@ -4,18 +4,19 @@ package evaluation
 
 import (
 	"fmt"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 	"time"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
 // RunPointBuilder creates runPointCmd instances.
 type RunPointBuilder struct {
 	ES            *EvalSessionState
 	PointRegistry *core.Registry
-	Config        stl.RunPointConfig
+	Config        catalog.RunPointConfig
 }
 
 func (b *RunPointBuilder) Build(_ core.Result) core.Command {
@@ -25,7 +26,7 @@ func (b *RunPointBuilder) Build(_ core.Result) core.Command {
 type runPointCmd struct {
 	es            *EvalSessionState
 	pointRegistry *core.Registry
-	config        stl.RunPointConfig
+	config        catalog.RunPointConfig
 	snapshot      evalSessionSnapshot
 	hasSnapshot   bool
 }
@@ -150,11 +151,11 @@ func (c *runPointCmd) Execute() core.Result {
 // max_iterations, success_state) are read from the tool declaration config block.
 func RunPointFactory(es *EvalSessionState) stl.BuiltinFactory {
 	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		var cfg stl.RunPointConfig
-		if err := stl.DecodeToolConfig(def, &cfg); err != nil {
+		var cfg catalog.RunPointConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		if err := stl.ValidateRunPointConfig(def.Name, cfg); err != nil {
+		if err := catalog.ValidateRunPointConfig(def.Name, cfg); err != nil {
 			return nil, err
 		}
 		es.PointMachine = cfg.PointMachine
@@ -167,7 +168,7 @@ func RunPointFactory(es *EvalSessionState) stl.BuiltinFactory {
 }
 
 func buildPointRegistry(es *EvalState, selectionPath string) (*core.Registry, error) {
-	selection, err := stl.LoadToolSelection(selectionPath)
+	selection, err := catalog.LoadToolSelection(selectionPath)
 	if err != nil {
 		return nil, err
 	}

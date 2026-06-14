@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
@@ -69,8 +70,8 @@ func (c *serveUICmd) Execute() core.Result {
 // declaration YAML to configure the server.
 func ServeUIFactory(bs *BenchState) stl.BuiltinFactory {
 	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		var cfg stl.ServeUIToolConfig
-		if err := stl.DecodeToolConfig(def, &cfg); err != nil {
+		var cfg catalog.ServeUIToolConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
 		if bs.Addr == "" && cfg.Addr != "" {

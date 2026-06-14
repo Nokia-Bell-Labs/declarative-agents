@@ -292,7 +292,9 @@ func TestStripCLIExtensions(t *testing.T) {
 		"required": []interface{}{"msg"},
 	}
 
-	cleaned := stripCLIExtensions(schema)
+	td := ToolDef{Name: "clean", Binary: "true", Parameters: schema}
+	var cleaned map[string]interface{}
+	require.NoError(t, json.Unmarshal(td.ToToolSpec().InputSchema, &cleaned))
 
 	props := cleaned["properties"].(map[string]interface{})
 	msg := props["msg"].(map[string]interface{})
@@ -645,7 +647,7 @@ func TestDefaultToolDefs_CLIExtensionsStripped(t *testing.T) {
 			if !ok {
 				continue
 			}
-			for ext := range cliExtensionKeys {
+			for _, ext := range []string{"flag", "positional", "bool_flag", "default"} {
 				assert.NotContains(t, pMap, ext,
 					"tool %s property %s should not have CLI extension %q in LLM schema",
 					d.Name, pName, ext)

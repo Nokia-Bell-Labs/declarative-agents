@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
@@ -22,8 +23,8 @@ func RegisterFactories(br *stl.BuiltinRegistry, assets fs.FS) {
 			return bs
 		}
 
-		var tc stl.ServeUIToolConfig
-		_ = stl.DecodeToolConfig(def, &tc)
+		var tc catalog.ServeUIToolConfig
+		_ = catalog.DecodeToolConfig(def, &tc)
 
 		dirs := []*string{&tc.DataDir, &tc.ConfigsDir, &tc.DocsDir, &tc.SourceDir, &tc.ProfilesDir}
 		for _, p := range dirs {
