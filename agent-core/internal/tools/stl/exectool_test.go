@@ -17,9 +17,17 @@ import (
 const testToolsYAML = `
 tools:
   - name: greet
+    type: exec
     binary: echo
     args: [hello]
+    dir: scripts
+    precondition: git_repo
+    output_cap: 25
+    visibility: external
     emits: [ToolDone, ToolFailed]
+    side_effects:
+      - kind: stdout
+        description: "Writes greeting text to stdout."
     description: "Say hello"
     parameters:
       type: object
@@ -54,9 +62,16 @@ func TestParseToolDefs(t *testing.T) {
 	assert.Len(t, defs, 2)
 
 	assert.Equal(t, "greet", defs[0].Name)
+	assert.Equal(t, "exec", defs[0].Type)
 	assert.Equal(t, "echo", defs[0].Binary)
 	assert.Equal(t, []string{"hello"}, defs[0].Args)
+	assert.Equal(t, "scripts", defs[0].Dir)
+	assert.Equal(t, "git_repo", defs[0].Precondition)
+	assert.Equal(t, 25, defs[0].OutputCap)
+	assert.Equal(t, "external", defs[0].Visibility)
 	assert.Equal(t, []string{"ToolDone", "ToolFailed"}, defs[0].Emits)
+	require.Len(t, defs[0].SideEffects.Items, 1)
+	assert.Equal(t, "stdout", defs[0].SideEffects.Items[0].Kind)
 
 	mappings := defs[0].ExtractParamMappings()
 	assert.Len(t, mappings, 2)

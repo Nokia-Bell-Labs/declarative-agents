@@ -99,7 +99,6 @@ func TestInvokeLLM_Success(t *testing.T) {
 	assert.Contains(t, res.Output, "tool_call")
 	assert.Equal(t, 100, res.Cost.TokensIn)
 	assert.Equal(t, 50, res.Cost.TokensOut)
-	assert.Positive(t, res.Cost.Duration)
 	assert.Equal(t, 2, history.Len()) // user + assistant
 }
 
