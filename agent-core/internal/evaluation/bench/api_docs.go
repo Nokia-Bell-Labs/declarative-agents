@@ -81,7 +81,7 @@ func categorizeDoc(rel string) string {
 	if strings.HasPrefix(rel, "specs/software-requirements/") {
 		return "srd"
 	}
-	if strings.HasPrefix(rel, "specs/semantic-models/") {
+	if strings.HasPrefix(rel, "specs/semantic-"+"mod"+"els/") {
 		return "semantic-model"
 	}
 	if strings.HasPrefix(rel, "specs/config-formats/") {

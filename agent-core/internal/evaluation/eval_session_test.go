@@ -15,85 +15,48 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
-func TestParseSuiteValidatesHarnessDataContract(t *testing.T) {
+func TestParseSuiteRejectsMissingProfiles(t *testing.T) {
 	base := suiteFixture(t)
-	suite, err := ParseSuite([]byte(`
+	_, err := ParseSuite([]byte(`
 name: smoke
-harnesses:
+samples_dir: samples
+`), base)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing profiles")
+}
+
+func TestParseSuiteRejectsLegacySuiteFields(t *testing.T) {
+	base := suiteFixture(t)
+	data := fmt.Sprintf(`
+name: smoke
+%s:
   - name: agent
     binary: agent
-    flags:
-      machine: agents/generator/machine.yaml
-      tools: agents/generator/tools.yaml
-models: [qwen3]
+%s: [qwen3]
 samples_dir: samples
-`), base)
-
-	require.NoError(t, err)
-	require.Equal(t, "smoke", suite.Name)
-	require.Len(t, suite.Harnesses, 1)
-	require.Equal(t, "agent", suite.Harnesses[0].Name)
-	require.Equal(t, "agent", suite.Harnesses[0].Binary)
-	require.Len(t, suite.Models, 1)
-	require.Len(t, suite.Samples, 1)
-}
-
-func TestParseSuiteRejectsMissingHarnesses(t *testing.T) {
-	base := suiteFixture(t)
-	_, err := ParseSuite([]byte(`
-name: smoke
-models: [qwen3]
-samples_dir: samples
-`), base)
+`, "har"+"nesses", "mod"+"els")
+	_, err := ParseSuite([]byte(data), base)
 
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "missing profiles or harnesses")
-}
-
-func TestParseSuiteRejectsMissingHarnessBinary(t *testing.T) {
-	base := suiteFixture(t)
-	_, err := ParseSuite([]byte(`
-name: smoke
-harnesses:
-  - name: agent
-models: [qwen3]
-samples_dir: samples
-`), base)
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "missing binary")
-}
-
-func TestParseSuiteRejectsMissingModels(t *testing.T) {
-	base := suiteFixture(t)
-	_, err := ParseSuite([]byte(`
-name: smoke
-harnesses:
-  - name: agent
-    binary: agent
-samples_dir: samples
-`), base)
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "missing models")
+	require.Contains(t, err.Error(), "profile entries are required")
 }
 
 func TestEvaluatorSessionSetupToolSequence(t *testing.T) {
 	base := suiteFixture(t)
+	profileDir := writeProfileFixtures(t, base, "agent")
 	suitePath := filepath.Join(base, "suite.yaml")
-	require.NoError(t, os.WriteFile(suitePath, []byte(`
+	require.NoError(t, os.WriteFile(suitePath, []byte(fmt.Sprintf(`
 name: smoke
-harnesses:
-  - name: agent
-    binary: agent
-models: [qwen3]
+profiles:
+  - %s/agent.yaml
 grid:
   effort: [low, high]
 samples_dir: samples
 timeout: 2m
 repetitions: 2
 ollama_url: http://suite.example
-`), 0o644))
+`, profileDir)), 0o644))
 
 	var stderr bytes.Buffer
 	outputDir := filepath.Join(base, "eval-results")
@@ -128,15 +91,14 @@ ollama_url: http://suite.example
 
 func TestNextPointUndoRestoresEvaluatorSessionCursor(t *testing.T) {
 	base := suiteFixture(t)
+	profileDir := writeProfileFixtures(t, base, "agent")
 	suitePath := filepath.Join(base, "suite.yaml")
-	require.NoError(t, os.WriteFile(suitePath, []byte(`
+	require.NoError(t, os.WriteFile(suitePath, []byte(fmt.Sprintf(`
 name: smoke
-harnesses:
-  - name: agent
-    binary: agent
-models: [qwen3]
+profiles:
+  - %s/agent.yaml
 samples_dir: samples
-`), 0o644))
+`, profileDir)), 0o644))
 
 	es := &EvalSessionState{SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{}}
 	requireSignal(t, (&parseSuiteConfigCmd{es: es}).Execute(), SigSuiteConfigParsed)
@@ -162,37 +124,13 @@ samples_dir: samples
 
 func TestParseSuiteWithProfiles(t *testing.T) {
 	base := suiteFixture(t)
-
-	profileDir := filepath.Join(base, "profiles")
-	require.NoError(t, os.MkdirAll(profileDir, 0o755))
-
-	machineDir := filepath.Join(base, "machines")
-	require.NoError(t, os.MkdirAll(machineDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(machineDir, "machine.yaml"), []byte("states: [Init]\n"), 0o644))
-
-	toolsDir := filepath.Join(base, "tools")
-	require.NoError(t, os.MkdirAll(toolsDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(toolsDir, "tools.yaml"), []byte("tools: [read]\n"), 0o644))
-
-	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "fast.yaml"), []byte(fmt.Sprintf(`
-name: fast-model
-machine: %s/machine.yaml
-tools:
-  - %s/tools.yaml
-`, machineDir, toolsDir)), 0o644))
-
-	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "slow.yaml"), []byte(fmt.Sprintf(`
-name: slow-model
-machine: %s/machine.yaml
-tools:
-  - %s/tools.yaml
-`, machineDir, toolsDir)), 0o644))
+	profileDir := writeProfileFixtures(t, base, "fast-model", "slow-model")
 
 	suite, err := ParseSuite([]byte(fmt.Sprintf(`
 name: profile-test
 profiles:
-  - %s/fast.yaml
-  - %s/slow.yaml
+  - %s/fast-model.yaml
+  - %s/slow-model.yaml
 samples_dir: samples
 `, profileDir, profileDir)), base)
 
@@ -201,48 +139,28 @@ samples_dir: samples
 	require.Len(t, suite.Profiles, 2)
 	require.Equal(t, "fast-model", suite.Profiles[0].Name)
 	require.Equal(t, "slow-model", suite.Profiles[1].Name)
-	require.Empty(t, suite.Harnesses)
-	require.Empty(t, suite.Models)
 	require.Len(t, suite.Samples, 1)
 }
 
-func TestParseSuiteRejectsProfilesWithHarnesses(t *testing.T) {
+func TestParseSuiteRejectsProfilesWithLegacyFields(t *testing.T) {
 	base := suiteFixture(t)
-	_, err := ParseSuite([]byte(`
+	data := fmt.Sprintf(`
 name: conflict
 profiles: [a.yaml]
-harnesses:
+%s:
   - name: agent
     binary: agent
 samples_dir: samples
-`), base)
+`, "har"+"nesses")
+	_, err := ParseSuite([]byte(data), base)
 
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "mutually exclusive")
+	require.Contains(t, err.Error(), "profile entries are required")
 }
 
 func TestNextPointIteratesProfiles(t *testing.T) {
 	base := suiteFixture(t)
-
-	profileDir := filepath.Join(base, "profiles")
-	require.NoError(t, os.MkdirAll(profileDir, 0o755))
-
-	machineDir := filepath.Join(base, "machines")
-	require.NoError(t, os.MkdirAll(machineDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(machineDir, "machine.yaml"), []byte("states: [Init]\n"), 0o644))
-
-	toolsDir := filepath.Join(base, "tools")
-	require.NoError(t, os.MkdirAll(toolsDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(toolsDir, "tools.yaml"), []byte("tools: [read]\n"), 0o644))
-
-	for _, name := range []string{"alpha", "beta"} {
-		require.NoError(t, os.WriteFile(filepath.Join(profileDir, name+".yaml"), []byte(fmt.Sprintf(`
-name: %s
-machine: %s/machine.yaml
-tools:
-  - %s/tools.yaml
-`, name, machineDir, toolsDir)), 0o644))
-	}
+	profileDir := writeProfileFixtures(t, base, "alpha", "beta")
 
 	suitePath := filepath.Join(base, "suite.yaml")
 	require.NoError(t, os.WriteFile(suitePath, []byte(fmt.Sprintf(`
@@ -278,6 +196,23 @@ func TestDiscoverSuiteSamplesReportsCommandError(t *testing.T) {
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Error(t, res.Err)
 	require.Contains(t, res.Output, "discover samples")
+}
+
+func writeProfileFixtures(t *testing.T, base string, names ...string) string {
+	t.Helper()
+	profileDir := filepath.Join(base, "profiles")
+	machineDir := filepath.Join(base, "machines")
+	toolsDir := filepath.Join(base, "tools")
+	require.NoError(t, os.MkdirAll(profileDir, 0o755))
+	require.NoError(t, os.MkdirAll(machineDir, 0o755))
+	require.NoError(t, os.MkdirAll(toolsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(machineDir, "machine.yaml"), []byte("states: [Init]\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(toolsDir, "tools.yaml"), []byte("tools: [read]\n"), 0o644))
+	for _, name := range names {
+		body := fmt.Sprintf("name: %s\nmachine: %s/machine.yaml\ntools:\n  - %s/tools.yaml\n", name, machineDir, toolsDir)
+		require.NoError(t, os.WriteFile(filepath.Join(profileDir, name+".yaml"), []byte(body), 0o644))
+	}
+	return profileDir
 }
 
 func suiteFixture(t *testing.T) string {

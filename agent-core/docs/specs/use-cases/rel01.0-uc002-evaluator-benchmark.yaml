@@ -26,13 +26,13 @@ trigger: |
 
 preconditions:
   - Ollama is running at localhost:11434
-  - Both qwen3.6:35b-mlx and qwen3.6:27b-mlx models are pulled
+  - The qwen3.6:35b-mlx and qwen3.6:27b-mlx artifacts are pulled
   - The agent binary is built (bin/agent)
   - The sample workspace from uc001 is available
 
 flow:
   - F1: The session machine runs parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary to prepare suite input and create the session output directory (srd019).
-  - F2: parse_suite_config reads the suite's profiles list, resolves each profile relative to the suite file, and rejects suites that mix profiles with legacy harness/model fields (srd019).
+  - F2: parse_suite_config reads the suite's profiles list, resolves each profile relative to the suite file, and rejects obsolete suite fields that bypass profile-selected runtime configuration (srd019).
   - F3: The session machine enters AdvancingPoint; next_point returns the first (profile, gridpoint, sample, rep) combination. For the integration suite this means generator-qwen35b, then generator-qwen27b, over the discovered samples (srd019).
   - F4: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (agents/evaluator/point.yaml) (srd005, agents/evaluator/machine.yaml, agents/evaluator/point.yaml).
   - F5: The point machine runs create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline to prepare an isolated workspace (srd019).

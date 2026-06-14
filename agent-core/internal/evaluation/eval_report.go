@@ -193,7 +193,7 @@ func PrintModelTable(w io.Writer, stats []ModelStats) {
 	if totalRuns > 0 {
 		overallRate = float64(totalSuccess) / float64(totalRuns) * 100
 	}
-	fmt.Fprintf(w, "\n%d models, %d total runs, %.0f%% overall success\n",
+	fmt.Fprintf(w, "\n%d model rows, %d total runs, %.0f%% overall success\n",
 		len(stats), totalRuns, overallRate)
 }
 

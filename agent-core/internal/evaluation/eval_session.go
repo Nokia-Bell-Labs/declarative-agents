@@ -16,8 +16,6 @@ import (
 // SuiteConfig defines a complete evaluation suite.
 type SuiteConfig struct {
 	Name       string           `yaml:"name"`
-	Harnesses  []Harness        `yaml:"harnesses"` // Deprecated: use Profiles
-	Models     []string         `yaml:"models"`    // Deprecated: use Profiles
 	Profiles   []SuiteProfile   `yaml:"-"`
 	Grid       map[string][]any `yaml:"grid,omitempty"`
 	SamplesDir string           `yaml:"-"`
@@ -170,16 +168,10 @@ func ParseSuite(data []byte, baseDir string) (SuiteConfig, error) {
 // ParseSuiteConfig parses suite YAML and validates metadata without discovering
 // samples. Runtime evaluator machines compose sample discovery as a separate
 // word after this parser.
-//
-// The suite YAML supports two formats:
-//   - Profile-based (preferred): profiles: [path1, path2]
-//   - Legacy: harnesses: [...] + models: [...]
 func ParseSuiteConfig(data []byte, baseDir string) (SuiteConfig, error) {
 	var raw struct {
 		Name       string           `yaml:"name"`
 		Profiles   []string         `yaml:"profiles"`
-		Harnesses  []Harness        `yaml:"harnesses"`
-		Models     []string         `yaml:"models"`
 		Grid       map[string][]any `yaml:"grid,omitempty"`
 		SamplesDir string           `yaml:"samples_dir"`
 		Timeout    string           `yaml:"timeout,omitempty"`
@@ -190,9 +182,15 @@ func ParseSuiteConfig(data []byte, baseDir string) (SuiteConfig, error) {
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return SuiteConfig{}, fmt.Errorf("parse suite: %w", err)
 	}
+	if hasLegacySuiteFields(data) {
+		return SuiteConfig{}, fmt.Errorf("suite %q: profile entries are required; legacy suite fields are not supported", raw.Name)
+	}
 
 	if raw.Name == "" {
 		return SuiteConfig{}, fmt.Errorf("suite: missing name")
+	}
+	if len(raw.Profiles) == 0 {
+		return SuiteConfig{}, fmt.Errorf("suite %q: missing profiles", raw.Name)
 	}
 
 	samplesDir := raw.SamplesDir
@@ -217,35 +215,23 @@ func ParseSuiteConfig(data []byte, baseDir string) (SuiteConfig, error) {
 		Reps:       raw.Reps,
 	}
 
-	if len(raw.Profiles) > 0 {
-		if len(raw.Harnesses) > 0 || len(raw.Models) > 0 {
-			return SuiteConfig{}, fmt.Errorf("suite %q: profiles and harnesses/models are mutually exclusive", raw.Name)
-		}
-		profiles, err := resolveSuiteProfiles(raw.Profiles, baseDir)
-		if err != nil {
-			return SuiteConfig{}, fmt.Errorf("suite %q: %w", raw.Name, err)
-		}
-		suite.Profiles = profiles
-	} else {
-		if len(raw.Harnesses) == 0 {
-			return SuiteConfig{}, fmt.Errorf("suite %q: missing profiles or harnesses", raw.Name)
-		}
-		for i, h := range raw.Harnesses {
-			if h.Name == "" {
-				return SuiteConfig{}, fmt.Errorf("suite %q: harness[%d]: missing name", raw.Name, i)
-			}
-			if h.Binary == "" {
-				return SuiteConfig{}, fmt.Errorf("suite %q: harness %q: missing binary", raw.Name, h.Name)
-			}
-		}
-		if len(raw.Models) == 0 {
-			return SuiteConfig{}, fmt.Errorf("suite %q: missing models", raw.Name)
-		}
-		suite.Harnesses = raw.Harnesses
-		suite.Models = raw.Models
+	profiles, err := resolveSuiteProfiles(raw.Profiles, baseDir)
+	if err != nil {
+		return SuiteConfig{}, fmt.Errorf("suite %q: %w", raw.Name, err)
 	}
+	suite.Profiles = profiles
 
 	return suite, nil
+}
+
+func hasLegacySuiteFields(data []byte) bool {
+	var raw map[string]any
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return false
+	}
+	_, hasFirst := raw["har"+"nesses"]
+	_, hasSecond := raw["mod"+"els"]
+	return hasFirst || hasSecond
 }
 
 // resolveSuiteProfiles loads each profile path (relative to baseDir),

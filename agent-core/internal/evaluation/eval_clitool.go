@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/subprocess"
@@ -56,30 +55,11 @@ func (c *runAgentCmd) Execute() core.Result {
 		"--otel-log-file", absTrace,
 	}
 
-	if pc.ProfilePath != "" {
-		args = append(args, "--profile", pc.ProfilePath)
-	} else {
-		args = append(args, "--model", pc.Model)
-		for flag, val := range pc.Harness.Flags {
-			switch v := val.(type) {
-			case string:
-				resolved := resolveTemplate(v, pc.GridPoint)
-				if resolved != "" {
-					args = append(args, "--"+flag, resolved)
-				} else {
-					args = append(args, "--"+flag)
-				}
-			case []interface{}:
-				for _, elem := range v {
-					s := fmt.Sprintf("%v", elem)
-					resolved := resolveTemplate(s, pc.GridPoint)
-					args = append(args, "--"+flag, resolved)
-				}
-			default:
-				args = append(args, "--"+flag, fmt.Sprintf("%v", val))
-			}
-		}
+	if pc.ProfilePath == "" {
+		err := fmt.Errorf("run_agent: profile path is required")
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
 	}
+	args = append(args, "--profile", pc.ProfilePath)
 
 	spec := subprocess.Spec{
 		Binary:        pc.Harness.Binary,
@@ -108,12 +88,4 @@ func (c *runAgentCmd) Execute() core.Result {
 		Output:      r.Stdout,
 		Cost:        core.Cost{Duration: pc.Duration},
 	}
-}
-
-func resolveTemplate(template string, point GridPoint) string {
-	result := template
-	for name, val := range point {
-		result = strings.ReplaceAll(result, "${"+name+"}", fmt.Sprintf("%v", val))
-	}
-	return result
 }
