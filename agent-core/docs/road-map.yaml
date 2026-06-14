@@ -104,7 +104,7 @@ releases:
       OpenAPI 3 loading uses kin-openapi. Shared REST definitions and async
       inbox support are implemented, while generated Go clients and servers are
       excluded.
-    status: done
+    status: in_progress
     srds:
       - srd027-rest-tool-runtime
       - srd028-rest-client-tools
@@ -126,7 +126,10 @@ releases:
       - id: rel03.0-uc004-openapi-import
         summary: OpenAPI import defines REST operations and endpoint bindings
         status: done
+      - id: rel03.0-uc005-ollama-openapi-model-listing
+        summary: Qwen agent lists Ollama models through an OpenAPI REST tool
+        status: planned
     planned_test_suites:
       - id: test-rel03.0-rest-tools
-        summary: Formal tests for REST runtime, client tools, server tools, and OpenAPI import
-        status: done
+        summary: Formal tests for REST runtime, client tools, server tools, OpenAPI import, and planned Ollama E2E proof
+        status: in_progress
