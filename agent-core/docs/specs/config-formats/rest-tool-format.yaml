@@ -110,12 +110,12 @@ schema:
         description: Imported OpenAPI operation ID used to populate method, path, and schemas.
       - field: method
         type: string
-        required: true
-        description: HTTP method fixed by configuration.
+        required: unless_openapi_operation_id
+        description: HTTP method fixed by configuration or imported from OpenAPI.
       - field: path
         type: string
-        required: true
-        description: Path template. Absolute URLs are rejected unless network policy allows them.
+        required: unless_openapi_operation_id_or_resource_path
+        description: Path template. Resource operations may inherit the resource path. Absolute URLs are rejected unless network policy allows them.
       - field: params
         type: request_binding
         required: false
@@ -358,12 +358,12 @@ schema:
         description: Imported OpenAPI operation ID used to populate method, path, and schemas.
       - field: method
         type: string
-        required: true
-        description: HTTP method accepted by the endpoint.
+        required: unless_openapi_operation_id
+        description: HTTP method accepted by the endpoint or imported from OpenAPI.
       - field: path
         type: string
-        required: true
-        description: Route path template.
+        required: unless_openapi_operation_id
+        description: Route path template or imported OpenAPI path.
       - field: binding
         type: string
         required: true
@@ -598,6 +598,13 @@ format_examples:
                     output:
                       title: $.title
                       state: $.state
+                  side_effects:
+                    - kind: external_api
+                      target: github.issue
+                      state: read_only
+                  reversibility:
+                    classification: reversible
+                    undo: noop
                 set:
                   method: PATCH
                   params:
@@ -765,65 +772,97 @@ validation_rules:
 
 invalid_examples:
   ambiguous_resource_operation: |
-    clients:
-      crm:
-        resources:
-          account:
-            path: /accounts/{id}
-            operations:
-              approve:
-                method: POST
-                path: /accounts/{id}/approve
+    # Resource operations cannot define RPC-style verbs.
+    rest:
+      version: v1
+      clients:
+        crm:
+          base_url: https://crm.example
+          resources:
+            account:
+              path: /accounts/{id}
+              operations:
+                approve:
+                  method: POST
+                  path: /accounts/{id}/approve
+                  success: {status: [200], signal: RESTResponded}
+                  side_effects:
+                    - kind: external_api
+                      target: crm.account
+                      state: approval_requested
+                  reversibility:
+                    classification: compensatable
+                    undo: revokeApproval
 
     invalid_because:
       - approve is RPC-shaped and belongs under operations.
       - Resource operation names are limited to get, set, create, and delete.
 
   missing_schema_for_body: |
-    clients:
-      billing:
-        operations:
-          create_invoice:
-            method: POST
-            path: /invoices
-            body:
-              customer: "{{ params.customer }}"
-            success: {status: [201], signal: RESTResourceWritten}
+    # Body templates must reference declared runtime input.
+    rest:
+      version: v1
+      clients:
+        billing:
+          base_url: https://billing.example
+          operations:
+            create_invoice:
+              method: POST
+              path: /invoices
+              body:
+                customer: "{{ params.customer }}"
+              success: {status: [201], signal: RESTResourceWritten}
+              side_effects:
+                - kind: external_api
+                  target: billing.invoice
+                  state: invoice_created
+              reversibility:
+                classification: compensatable
+                undo: voidInvoice
 
     invalid_because:
       - body references params.customer without a declared body_schema or request binding.
 
   unsupported_auth: |
-    auth:
-      cloud:
-        type: magic_signature
-        token_ref: cloud_token
+    # Auth types are limited to the release 03.0 set.
+    rest:
+      version: v1
+      auth:
+        cloud:
+          type: magic_signature
+          token_ref: cloud_token
 
     invalid_because:
       - magic_signature is not a release 03.0 auth type.
 
   duplicate_openapi_operation: |
-    openapi:
-      service_a:
-        path: ./service-a.yaml
-        expose: [createThing]
-      service_b:
-        path: ./service-b.yaml
-        expose: [createThing]
+    # Imported operation IDs must remain unique in one REST definition.
+    rest:
+      version: v1
+      openapi:
+        service_a:
+          path: ./service-a.yaml
+          expose: [createThing]
+        service_b:
+          path: ./service-b.yaml
+          expose: [createThing]
 
     invalid_because:
       - createThing maps to two imported operations in the same REST definition scope.
 
   unsafe_server_binding: |
-    servers:
-      public_control:
-        address: 0.0.0.0:8080
-        endpoints:
-          inject:
-            method: POST
-            path: /inject
-            binding: emit_dynamic_signal
-            allowed_signals: [Approved, Rejected]
+    # Public listeners need an explicit network policy.
+    rest:
+      version: v1
+      servers:
+        public_control:
+          address: 0.0.0.0:8080
+          endpoints:
+            inject:
+              method: POST
+              path: /inject
+              binding: emit_dynamic_signal
+              allowed_signals: [Approved, Rejected]
 
     invalid_because:
       - Public listener binding needs explicit network policy.
