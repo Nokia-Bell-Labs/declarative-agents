@@ -987,3 +987,42 @@ test_cases:
       file_error_counts: true
     traces:
       - srd013-standard-tool-library AC7
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: SpanOverride customizes dispatch span
+    go_test: TestSpanOverrideCustomizesDispatchSpan
+    inputs:
+      command: spanOverrideCmd
+      span_name: custom-span
+      span_attr: custom.attr
+    expected:
+      command_signal: ToolDone
+      command_name_stamped: true
+      custom_span_name_used: true
+      custom_attrs_used: true
+    traces:
+      - srd001-core-types AC6
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: ToolMetrics JSON tags preserve structured counts
+    go_test: TestToolMetricsJSONTagsAndOmitEmptyDetails
+    inputs:
+      metrics: "total, passed, failed, details"
+    expected:
+      json_tags_match_contract: true
+      details_omitted_when_empty: true
+    traces:
+      - srd001-core-types AC7
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: NoopTracer satisfies and discards tracer operations
+    go_test: TestNoopTracerSatisfiesInterfaceAndDiscardsOperations
+    inputs:
+      operations: "Push, Event, SetAttributes, RecordError, Context"
+    expected:
+      compile_time_interface: true
+      child_tracer_noop: true
+      context_background: true
+      operations_do_not_panic: true
+    traces:
+      - srd007-tracer-interface AC3

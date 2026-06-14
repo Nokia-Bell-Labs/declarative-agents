@@ -10,7 +10,7 @@ overview: |
   Rollback lifecycle contracts belong to 02.0. Declarative REST runtime
   contracts belong to 03.0. REST client and server contracts sit in the same
   release. Twelve use cases exercise the SRDs across the
-  four releases. Five formal YAML test suites cover 170 acceptance test
+  four releases. Five formal YAML test suites cover 173 acceptance test
   cases across releases 00.0 through 03.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -309,7 +309,7 @@ test_suite_index:
     release: "00.0"
     traces:
       - rel00.0-uc001-domain-agent-integration
-    formal_test_cases: 89
+    formal_test_cases: 92
     path: docs/specs/test-suites/test-rel00.0.yaml
   - id: test-rel01.0
     title: Test Suite for Release 01.0 Unified Agent Runtime
@@ -350,7 +350,7 @@ test_suite_index:
 go_test_coverage:
   note: >
     Go test functions across all packages provide coverage beyond the
-    formal YAML test suites. Release 00.0 YAML coverage (89 cases) covers
+    formal YAML test suites. Release 00.0 YAML coverage (92 cases) covers
     srd001-srd018 where Go tests already prove behavior. For release 01.0,
     the YAML suite (36 cases) indexes generator and evaluator integration
     targets. It also covers bench integration targets plus Go tests for
@@ -406,15 +406,14 @@ coverage_gaps: |
   formal YAML test suite coverage in release 00.0. Release 00.0 now also has
   formal YAML cases for implemented conversation and prompt behavior. Spec
   graph behavior is covered too. GenAI, traceparent, CLI helper, and STL
-  behavior now have cases. Remaining release
-  00.0 uncovered criteria need narrower Go tests before they should be marked
-  covered. agent-core-ugn4 tracks srd001 AC6 and AC7. It also tracks srd007 AC3.
+  behavior now have cases. Core span override behavior, ToolMetrics JSON
+  structure, and the no-op tracer contract now have focused formal YAML cases
+  tied to dedicated Go tests in the owning packages.
   Ollama options and Ollama migration proof now have focused formal YAML cases.
   LLM extraction functions have a focused case as well. SRDs srd019-srd024 (01.0) now have formal YAML
   suite coverage tied to integration targets and package tests.
-  The remaining release 00.0 warnings are kept narrow so future work can add
-  only the missing proof, without reopening broad adapter or parser questions
-  that the current tests already answer.
+  The release 00.0 warning set is now narrower, without reopening broad adapter
+  or parser questions that the current tests already answer.
   srd025-srd026 (02.0) have formal YAML coverage in the release 02.0
   lifecycle and tool-contract test suites. Core checkpoint, history, resume,
   and rollback behavior is implemented and tested. Lifecycle profile and
@@ -436,7 +435,7 @@ coverage_gaps: |
   boundaries. They also cover tools, CLI support, and spec validation.
 
   Uncovered release 01.0 and 02.0 criteria are deferred for specific
-  follow-up. agent-core-ugn4 tracks missing core type and tracer coverage.
+  follow-up. Core type and tracer coverage now has focused YAML cases.
   Tool declaration coverage now has focused YAML cases for STL, builtin, and
   exec criteria. Ollama and LLM extraction coverage has focused cases too. CLI
   helper and evaluator statistics now have focused formal YAML cases. Bench API
