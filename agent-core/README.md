@@ -67,9 +67,7 @@ tool selection, declaration, and tool-config paths belong in the profile.
 
 Runtime data stays outside the profile. Use `--directory` for the workspace,
 `--request` for per-run request files, and `--output` for artifacts. These flags
-do not identify the agent program. Current Go CLI still accepts older
-configuration flags and `--input` until the profile-only CLI follow-up removes
-the drift.
+do not identify the agent program.
 
 ## Lifecycle Operations
 

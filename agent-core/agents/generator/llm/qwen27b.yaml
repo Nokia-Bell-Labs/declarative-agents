@@ -1,6 +1,5 @@
 # LLM tool declaration for the generator agent — Qwen 3.6 27B.
-# Loaded as a tool declaration:
-#   agent --tools-declaration agents/generator/llm/default.yaml ...
+# Loaded through a generator profile tool_declarations entry.
 
 tools:
   - name: invoke_llm
@@ -89,6 +88,7 @@ tools:
       provider: ollama
       provider_url: "http://localhost:11434"
       manifest_state: Composing
+      response_profile: qwen
       system_prompt: |
         You are a Go developer following specification-driven development. You
         read specifications before writing code. You make minimal, focused

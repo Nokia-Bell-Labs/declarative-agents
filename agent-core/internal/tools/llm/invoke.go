@@ -155,13 +155,12 @@ type InvokeLLMBuilder struct {
 
 // InvokeLLMFactoryDeps are process-local ports for invoke_llm construction.
 type InvokeLLMFactoryDeps struct {
-	History     *modelllm.Conversation
-	Registry    *core.Registry
-	Tracer      tracing.Tracer
-	ProfilesDir string
-	Verbose     bool
-	Ctx         context.Context
-	OnResolved  func(InvokeLLMResolvedConfig)
+	History    *modelllm.Conversation
+	Registry   *core.Registry
+	Tracer     tracing.Tracer
+	Verbose    bool
+	Ctx        context.Context
+	OnResolved func(InvokeLLMResolvedConfig)
 }
 
 // InvokeLLMResolvedConfig exposes metadata needed by neighboring tools.
@@ -179,7 +178,7 @@ func NewInvokeLLMBuilder(def catalog.ToolDef, deps InvokeLLMFactoryDeps) (*Invok
 	if err != nil {
 		return nil, err
 	}
-	parser, err := resolveLLMParser(cfg.Model, deps.ProfilesDir)
+	parser, err := resolveLLMParser(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -234,15 +233,19 @@ func newLLMClient(cfg catalog.LLMToolConfig, tracer tracing.Tracer) (modelllm.Cl
 	return client, serverAddr(cfg.ProviderURL), err
 }
 
-func resolveLLMParser(model, profilesDir string) (modelllm.ResponseParser, error) {
+func resolveLLMParser(cfg catalog.LLMToolConfig) (modelllm.ResponseParser, error) {
 	reg, err := modelllm.DefaultProfileRegistry()
-	if profilesDir != "" {
-		reg, err = modelllm.LoadProfiles(profilesDir)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("load profiles: %w", err)
 	}
-	return reg.ResolveProfile(model), nil
+	if cfg.ResponseProfile == "" {
+		return reg.ResolveProfile(cfg.Model), nil
+	}
+	parser, ok := reg.ResolveProfileName(cfg.ResponseProfile)
+	if !ok {
+		return nil, fmt.Errorf("invoke_llm response_profile %q not found", cfg.ResponseProfile)
+	}
+	return parser, nil
 }
 
 func resolvedLLMConfig(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser) InvokeLLMResolvedConfig {

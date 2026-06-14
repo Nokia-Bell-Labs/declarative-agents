@@ -31,7 +31,7 @@ flow:
   - F1: cmd/agent parses CLI flags and loads agents/generator/profile.yaml, resolving machine, tool selection, tool declaration files, and tool config directories relative to the profile file (cfg-runtime-contract, srd013).
   - F2: Tool declarations are loaded from explicit profile files and configured directories; tool selection filters the declarations to the subset listed in agents/generator/tools.yaml (cfg-tool-selection-format).
   - F3: The invoke_llm tool definition provides model, provider URL, and system prompt. cmd/agent extracts this to configure the Ollama adapter (srd009, srd017).
-  - F4: LLM response profiles are loaded from embedded defaults (or --profiles-dir override) to configure per-model parsing pipelines (srd017).
+  - F4: The invoke_llm config selects response_profile to configure per-model parsing pipelines (srd017).
   - F5: The LLM profile registry matches the "qwen" prefix and selects the qwen profile with [tool_call] envelope and strip_thinking_blocks pipeline (srd017, internal/model/llm/profiles/qwen.yaml).
   - F6: Builtin and exec tool factories are registered (file tools, LLM tools, build/lint/test, done, etc.) and matched to their YAML declarations (srd013).
   - F7: The state machine is loaded from agents/generator/machine.yaml and validated against the registered tools (srd006).

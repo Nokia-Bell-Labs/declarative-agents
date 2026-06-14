@@ -56,7 +56,7 @@ func (c *Config) timeout() time.Duration {
 }
 
 // BuildArgs constructs the CLI argument list from the config fields.
-// Callers append runtime-specific args (e.g. --directory, --input) after.
+// Callers append runtime-specific args (e.g. --directory, --request) after.
 func (c *Config) BuildArgs() []string {
 	var args []string
 	if c.Profile != "" {

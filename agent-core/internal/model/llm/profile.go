@@ -188,6 +188,19 @@ func (r *ProfileRegistry) ResolveProfile(model string) ResponseParser {
 	return newYAMLProfile(r.defaultSpec)
 }
 
+// ResolveProfileName returns a ResponseParser for a named parser profile.
+func (r *ProfileRegistry) ResolveProfileName(name string) (ResponseParser, bool) {
+	if name == r.defaultSpec.ProfileName {
+		return newYAMLProfile(r.defaultSpec), true
+	}
+	for _, spec := range r.profiles {
+		if spec.ProfileName == name {
+			return newYAMLProfile(spec), true
+		}
+	}
+	return nil, false
+}
+
 // ResolveProfileSpec returns the ProfileSpec for the given model.
 // Use this when you need the spec itself (e.g. for Machine()).
 func (r *ProfileRegistry) ResolveProfileSpec(model string) ProfileSpec {

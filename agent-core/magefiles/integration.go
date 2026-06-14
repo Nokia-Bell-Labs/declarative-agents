@@ -142,7 +142,7 @@ func (Integration) Uc002() error {
 
 	args := []string{
 		"--profile", filepath.Join(rootDir, "agents/evaluator/profile.yaml"),
-		"--input", filepath.Join(rootDir, evaluatorSuite),
+		"--request", filepath.Join(rootDir, evaluatorSuite),
 		"--output", outputDir,
 	}
 
