@@ -13,23 +13,28 @@ import (
 
 // ClientBuilder constructs synchronous REST client commands.
 type ClientBuilder struct {
-	ToolName  string
-	Init      string
-	Operation ClientOperationDefinition
+	ToolName   string
+	Init       string
+	Operation  ClientOperationDefinition
+	AsyncState *AsyncState
 }
 
 // Build creates one REST client boundary command.
 func (b ClientBuilder) Build(res core.Result) core.Command {
 	params, err := runtimeParams(res.Output)
-	return clientCmd{toolName: b.ToolName, init: b.Init, operation: b.Operation, params: params, buildErr: err}
+	return clientCmd{
+		toolName: b.ToolName, init: b.Init, operation: b.Operation,
+		params: params, asyncState: b.AsyncState, buildErr: err,
+	}
 }
 
 type clientCmd struct {
-	toolName  string
-	init      string
-	operation ClientOperationDefinition
-	params    map[string]interface{}
-	buildErr  error
+	toolName   string
+	init       string
+	operation  ClientOperationDefinition
+	params     map[string]interface{}
+	asyncState *AsyncState
+	buildErr   error
 }
 
 func (c clientCmd) Name() string { return c.toolName }
@@ -38,9 +43,15 @@ func (c clientCmd) Execute() core.Result {
 	if c.buildErr != nil {
 		return clientOperationError(c.toolName, "schema_validation", c.buildErr, c.operation)
 	}
+	if c.init == InitClientAwait {
+		return c.awaitAsync()
+	}
 	request, err := buildClientRequest(c.operation, c.params)
 	if err != nil {
 		return clientOperationError(c.toolName, "request_rendering", err, c.operation)
+	}
+	if c.init == InitClientSend {
+		return c.sendAsync(request)
 	}
 	return c.executeRequest(request)
 }

@@ -42,7 +42,7 @@ func ValidateDefinition(def Definition) error {
 	if err := validateOpenAPINameCollisions(def); err != nil {
 		return err
 	}
-	if err := validateClients(def.Clients); err != nil {
+	if err := validateClients(def.Clients, def.RetryPolicies); err != nil {
 		return err
 	}
 	return validateServers(def.Servers, def.Limits)
@@ -126,10 +126,10 @@ func addUnique(seen map[string]string, name, owner string) error {
 	return nil
 }
 
-func validateClients(clients map[string]Client) error {
+func validateClients(clients map[string]Client, retries map[string]RetryPolicy) error {
 	for clientName, client := range clients {
 		for resourceName, resource := range client.Resources {
-			if err := validateResource(clientName, resourceName, resource); err != nil {
+			if err := validateResource(clientName, resourceName, resource, retries[client.RetryRef]); err != nil {
 				return err
 			}
 		}
@@ -137,12 +137,15 @@ func validateClients(clients map[string]Client) error {
 			if err := validateOperation(operationName, operation, false); err != nil {
 				return err
 			}
+			if err := validateAsyncRetry(operationName, operation, retries[client.RetryRef]); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func validateResource(clientName, resourceName string, resource Resource) error {
+func validateResource(clientName, resourceName string, resource Resource, retry RetryPolicy) error {
 	for verb, operation := range resource.Operations {
 		if !isResourceVerb(verb) {
 			return fmt.Errorf("resource %s.%s uses unsupported operation %q", clientName, resourceName, verb)
@@ -151,6 +154,9 @@ func validateResource(clientName, resourceName string, resource Resource) error 
 			operation.Path = resource.Path
 		}
 		if err := validateOperation(resourceName+"."+verb, operation, isMutatingVerb(verb)); err != nil {
+			return err
+		}
+		if err := validateAsyncRetry(resourceName+"."+verb, operation, retry); err != nil {
 			return err
 		}
 	}
@@ -207,6 +213,23 @@ func validateAsyncOperation(name string, async AsyncClientConfig) error {
 		return fmt.Errorf("operation %q async config requires timeout", name)
 	}
 	return nil
+}
+
+func validateAsyncRetry(name string, operation Operation, retry RetryPolicy) error {
+	if operation.Async == nil || !retryRequiresIdempotency(retry) {
+		return nil
+	}
+	if operation.Async.IdempotencyToken == "" {
+		return fmt.Errorf("operation %q async retry requires idempotency metadata", name)
+	}
+	return nil
+}
+
+func retryRequiresIdempotency(retry RetryPolicy) bool {
+	if !retry.RequireIdempotency {
+		return false
+	}
+	return retry.Attempts > 1 || len(retry.RetryStatus) > 0 || retry.RetryNetworkErrors
 }
 
 func validateServers(servers map[string]Server, limits map[string]LimitProfile) error {
