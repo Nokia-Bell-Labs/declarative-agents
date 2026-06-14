@@ -11,8 +11,8 @@ executive_summary: |
   The framework provides the runtime that interprets those programs: state
   machine execution, command dispatch, tool registry, budget tracking, event
   recording, tracing, boundary tool support, prompt assembly, a standard tool
-  library, lifecycle state ports, and a unified binary that loads YAML
-  programs.
+  library, lifecycle state ports, REST client and server boundary tools, and a
+  unified binary that loads YAML programs.
 
   The core engine (internal/runtime/core) remains domain-agnostic: it drives the loop
   without knowing what tools exist, which model boundary a machine calls, or what
@@ -146,14 +146,14 @@ what_this_does: |
 
   Standard Tool Library (internal/tools package family). Reusable tool
   implementations cover file tools, build tools, model-boundary invoke/parse
-  commands, subprocess execution, workspace tools, lifecycle adapters, and
-  tool metrics extraction. The current internal/tools/stl package is a
-  compatibility facade while target packages such as internal/tools/catalog,
-  internal/tools/registry, internal/tools/exec, internal/tools/filesystem,
-  internal/tools/llm, internal/tools/lifecycle, internal/tools/control,
-  internal/tools/validation, and internal/tools/undo take ownership. Tools in
-  these packages should behave as vocabulary words or documented boundaries,
-  not hidden workflows.
+  commands, subprocess execution, workspace tools, lifecycle adapters, REST
+  client/server boundary tools, and tool metrics extraction. The current
+  internal/tools/stl package is a compatibility facade while target packages
+  such as internal/tools/catalog, internal/tools/registry, internal/tools/exec,
+  internal/tools/filesystem, internal/tools/llm, internal/tools/rest,
+  internal/tools/lifecycle, internal/tools/control, internal/tools/validation,
+  and internal/tools/undo take ownership. Tools in these packages should behave
+  as vocabulary words or documented boundaries, not hidden workflows.
 
   CLI Flags (internal/support/cli). Utility library for CLI flag constants and
   argument propagation. Not imported by cmd/agent directly.
@@ -226,6 +226,11 @@ success_criteria:
     Tools that cross model, human, child-process, nested-machine, external API,
     or workspace boundaries are classified and documented as boundary tools
     rather than mistaken for ordinary deterministic words.
+  rest_boundary_tools: |
+    Agent Core supports standalone REST client and REST server tools as
+    declarative boundary tool families. REST behavior is configured by trusted
+    agent/profile/tool YAML, not hard-coded into model-provider adapters or
+    hidden inside ordinary tools.
   lifecycle_readiness: |
     Runtime and tool contracts preserve the separation between agent state,
     command/domain state, and workspace/environment state so checkpoint,
@@ -261,6 +266,10 @@ not:
     machine.yaml unless the tool is explicitly a documented boundary.
   - We do not require lifecycle persistence or workspace checkpointing when
     those ports are disabled.
+  - We do not let models choose arbitrary REST URLs, methods, authentication,
+    or network destinations at runtime.
+  - We do not generate Go REST clients or servers for the first REST tool
+    implementation.
 
 canonical_documents:
   - docs/specs/config-formats/tool-authoring-standard.yaml
@@ -284,6 +293,8 @@ dependencies:
     - google.golang.org/protobuf (proto serialization)
     - gopkg.in/yaml.v3 (YAML parsing)
     - github.com/stretchr/testify (test assertions)
+  planned_direct:
+    - github.com/getkin/kin-openapi/openapi3 (OpenAPI 3 loading, resolution, and validation for REST tools)
   indirect:
     - github.com/dominikbraun/graph (spec dependency graphs)
     - github.com/google/uuid (trace IDs)
