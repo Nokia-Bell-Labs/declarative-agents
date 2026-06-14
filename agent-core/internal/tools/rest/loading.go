@@ -17,21 +17,35 @@ func LoadDefinition(path string) (Definition, error) {
 	if err != nil {
 		return Definition{}, fmt.Errorf("load REST definition %s: %w", path, err)
 	}
-	def, err := ParseDefinition(data)
+	def, err := parseDefinitionRaw(data)
 	if err != nil {
 		return Definition{}, fmt.Errorf("parse REST definition %s: %w", path, err)
+	}
+	if err := CompileOpenAPIImports(&def, filepath.Dir(path)); err != nil {
+		return Definition{}, fmt.Errorf("compile OpenAPI imports %s: %w", path, err)
+	}
+	if err := ValidateDefinition(def); err != nil {
+		return Definition{}, err
 	}
 	return def, nil
 }
 
 // ParseDefinition parses and validates REST definition YAML bytes.
 func ParseDefinition(data []byte) (Definition, error) {
+	def, err := parseDefinitionRaw(data)
+	if err != nil {
+		return Definition{}, err
+	}
+	if err := ValidateDefinition(def); err != nil {
+		return Definition{}, err
+	}
+	return def, nil
+}
+
+func parseDefinitionRaw(data []byte) (Definition, error) {
 	var file DefinitionFile
 	if err := yaml.Unmarshal(data, &file); err != nil {
 		return Definition{}, fmt.Errorf("parse REST definition: %w", err)
-	}
-	if err := ValidateDefinition(file.Rest); err != nil {
-		return Definition{}, err
 	}
 	return file.Rest, nil
 }
