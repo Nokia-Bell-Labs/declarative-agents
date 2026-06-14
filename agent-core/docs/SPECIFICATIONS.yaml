@@ -9,7 +9,7 @@ overview: |
   evaluator and bench contracts. Tool declarations also belong to that release.
   Rollback lifecycle contracts belong to 02.0. Declarative REST runtime
   contracts belong to 03.0. REST client and server contracts sit in the same
-  release. Twelve use cases exercise the SRDs across the
+  release. Thirteen use cases exercise the SRDs across the
   four releases. Five formal YAML test suites cover 173 acceptance test
   cases across releases 00.0 through 03.0; additional
   coverage comes from Go test functions across all packages (run
@@ -236,6 +236,12 @@ use_case_index:
     status: done
     test_suite: test-rel00.0
     path: docs/specs/use-cases/rel00.0-uc001-domain-agent-integration.yaml
+  - id: rel00.0-uc002-spec-corpus-validation
+    title: Maintainer validates the specification corpus graph
+    release: "00.0"
+    status: done
+    test_suite: test-rel00.0
+    path: docs/specs/use-cases/rel00.0-uc002-spec-corpus-validation.yaml
   - id: rel01.0-uc001-generator-coding
     title: Generator agent solves Go coding tasks using YAML config
     release: "01.0"
@@ -309,6 +315,7 @@ test_suite_index:
     release: "00.0"
     traces:
       - rel00.0-uc001-domain-agent-integration
+      - rel00.0-uc002-spec-corpus-validation
     formal_test_cases: 92
     path: docs/specs/test-suites/test-rel00.0.yaml
   - id: test-rel01.0

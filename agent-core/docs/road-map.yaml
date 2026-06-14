@@ -31,6 +31,9 @@ releases:
       - id: rel00.0-uc001-domain-agent-integration
         summary: Domain agent imports agent-core and runs an agentic loop
         status: done
+      - id: rel00.0-uc002-spec-corpus-validation
+        summary: Maintainer validates the specification corpus graph
+        status: done
 
   - version: "01.0"
     name: Unified agent binary and configuration-driven architecture

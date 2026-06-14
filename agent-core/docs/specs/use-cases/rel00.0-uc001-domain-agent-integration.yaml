@@ -21,11 +21,12 @@ flow:
   - F2: Agent creates a Registry via NewRegistry and registers ToolSpec-Builder pairs for its domain tools (srd004).
   - F3: Agent defines a TransitionTable either programmatically or by loading a YAML MachineSpec via ParseMachineSpec and BuildTransitionTable (srd002, srd006).
   - F4: Agent sets up telemetry via telemetry.NewRoot with an ExporterConfig, receiving a Trace and shutdown function. Wraps Trace in a TraceAdapter to satisfy the Tracer interface (srd008, srd007).
-  - F5: Agent constructs LoopParams with InitialState, Registry, Table, IsTerminal, Trace, Budget, and optional LoopHooks (srd005).
-  - F6: Agent calls Loop(params, ctx). Loop freezes the registry, creates OTel spans, and enters the iteration loop (srd005).
-  - F7: Each iteration checks context cancellation and budget, steps the state machine, dispatches the command via Dispatch with tracing and timeout (srd003, srd005).
-  - F8: Loop reaches a terminal state, resolves RunStatus, and returns RunResult with status, iterations, tokens, cost, events, and summary (srd005).
-  - F9: Agent calls the shutdown function to flush exporters, end the root span, and close files. Optionally replays recorded traces via ReplayFile (srd008).
+  - F5: Agent can use shared conversation and prompt packages to assemble model input with conversation history, prompt sections, system templates, and registered tool text (srd010, srd011, srd012).
+  - F6: Agent constructs LoopParams with InitialState, Registry, Table, IsTerminal, Trace, Budget, and optional LoopHooks (srd005).
+  - F7: Agent calls Loop(params, ctx). Loop freezes the registry, creates OTel spans, and enters the iteration loop (srd005, srd015).
+  - F8: Each iteration checks context cancellation and budget, steps the state machine, dispatches the command via Dispatch with tracing and timeout (srd003, srd005).
+  - F9: Loop reaches a terminal state, resolves RunStatus, and returns RunResult with status, iterations, tokens, cost, events, and summary (srd005).
+  - F10: Agent calls the shutdown function to flush exporters, end the root span, and close files. Optionally replays recorded traces via ReplayFile (srd008).
 
 touchpoints:
   - T1: "srd001-core-types R1, R2, R3, R4, R5 -- State, Signal, Command, Result, Cost, Builder, CommandResolver types"
@@ -36,6 +37,10 @@ touchpoints:
   - T6: "srd006-yaml-machine-config R1, R2, R3, R4 -- MachineSpec, validation, BuildTransitionTable, LoadMachineSpec"
   - T7: "srd007-tracer-interface R1, R2 -- Tracer interface, minimal dependencies"
   - T8: "srd008-telemetry R1, R2, R3, R4, R5, R6, R7 -- ExporterConfig, Trace, NewRoot, file/OTLP exporters, TraceAdapter, ReplayFile"
+  - T9: "srd010-conversation R1, R2, R4, R5, R6, R7 -- Message, Conversation, append-only history, assembly, system prompt, reset"
+  - T10: "srd011-prompt-schema R1, R2, R3, R4, R5, R6, R7 -- Prompt, YAML loading, defaults, validation, assembly"
+  - T11: "srd012-system-prompt-template R1, R2, R3, R4, R5, R6 -- embedded system template, PromptData, Envelope, rendering, manifest serialization"
+  - T12: "srd015-genai-semconv R1, R2, R3, R4, R5 -- GenAI attribute constants, operation names, providers, span names, attribute builders"
 
 success_criteria:
   - id: S1

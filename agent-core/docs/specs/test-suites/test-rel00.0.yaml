@@ -4,6 +4,7 @@ release: "00.0"
 
 traces:
   - rel00.0-uc001-domain-agent-integration
+  - rel00.0-uc002-spec-corpus-validation
 
 preconditions:
   - Go toolchain installed (go 1.26+)
@@ -790,7 +791,7 @@ test_cases:
     traces:
       - srd012-system-prompt-template AC6
 
-  - use_case: rel00.0-uc001-domain-agent-integration
+  - use_case: rel00.0-uc002-spec-corpus-validation
     name: Spec parsers load typed YAML artifacts
     go_test: TestParseSpecIndex
     inputs:
@@ -800,7 +801,7 @@ test_cases:
     traces:
       - srd014-spec-graph AC1
 
-  - use_case: rel00.0-uc001-domain-agent-integration
+  - use_case: rel00.0-uc002-spec-corpus-validation
     name: Spec graph builds node and edge relationships
     go_test: TestBuildGraph_NodeCounts
     inputs:
@@ -811,7 +812,7 @@ test_cases:
     traces:
       - srd014-spec-graph AC2
 
-  - use_case: rel00.0-uc001-domain-agent-integration
+  - use_case: rel00.0-uc002-spec-corpus-validation
     name: Spec validation reports graph findings
     go_test: TestValidate_ReturnsFindings
     inputs:
@@ -821,7 +822,7 @@ test_cases:
     traces:
       - srd014-spec-graph AC3
 
-  - use_case: rel00.0-uc001-domain-agent-integration
+  - use_case: rel00.0-uc002-spec-corpus-validation
     name: Spec corpus loader discovers standard docs layout
     go_test: TestLoadCorpus_Valid
     inputs:

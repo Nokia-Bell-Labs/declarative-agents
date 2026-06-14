@@ -37,7 +37,7 @@ flow:
   - F4: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (agents/evaluator/point.yaml) (srd005, agents/evaluator/machine.yaml, agents/evaluator/point.yaml).
   - F5: The point machine runs create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline to prepare an isolated workspace (srd019).
   - F6: dump_config serializes the resolved profile path, model, harness label, sample, timeout, and repetition into experiment.yaml for reproducibility (srd019).
-  - F7: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation and passes --profile for profile-based points (srd016, srd019).
+  - F7: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation and passes --profile for profile-based points (srd016, srd018, srd019).
   - F8: run_oracle_check, collect_trace_tokens, check_agent_version, and summarize_point_results classify the point outcome and collect trace-derived result state (srd019).
   - F9: collect_metrics writes meta.json with point metadata, duration, and outcome classification (srd019).
   - F10: The nested loop completes; control returns to the session machine which loops back to next_point.
@@ -52,6 +52,7 @@ touchpoints:
   - T5: "agents/evaluator/*.yaml -- two-level state machine: session states, point states, signals, lifecycle"
   - T6: "testdata/integration/uc002-evaluator-benchmark/suite.yaml -- profile-based qwen35b/qwen27b integration suite"
   - T7: "agents/generator/profile-qwen35b.yaml and profile-qwen27b.yaml -- generator profiles under evaluation"
+  - T8: "srd018-cli-flag-contract R1, R2, R3 -- standard flags, traceparent propagation, model/directory/runtime data, remaining budget"
 
 success_criteria:
   - id: S1

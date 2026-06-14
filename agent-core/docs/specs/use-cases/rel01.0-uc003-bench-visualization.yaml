@@ -28,7 +28,7 @@ flow:
   - F6: The React SPA loads in the browser. The user browses sessions, inspects traces, views documentation, and reads source code via REST APIs (srd020).
   - F7: GET /api/v1/sessions returns experiment sessions with pass/fail/timeout counts. The user drills into session details, point traces, and experiment configs (srd020).
   - F8: The user opens the Launch page and submits an experiment configuration. POST /api/v1/actions sends an ExperimentRequested action (srd020).
-  - F9: serve_ui unblocks with the action. The state machine transitions Serving → Launching, and launch_eval spawns the configured evaluator profile as a child agent process (agents/bench/machine.yaml, agents/bench/builtin.yaml).
+  - F9: serve_ui unblocks with the action. The state machine transitions Serving → Launching, and launch_eval spawns the configured evaluator profile as a child agent process (srd021, agents/bench/machine.yaml, agents/bench/builtin.yaml).
   - F10: When the subprocess completes, EvalCompleted transitions Launching → Serving. serve_ui blocks again, waiting for the next user action (agents/bench/machine.yaml).
 
 touchpoints:
@@ -38,6 +38,7 @@ touchpoints:
   - T4: "agents/bench/machine.yaml -- states, signals, serve_ui/launch_eval lifecycle"
   - T5: "srd019-eval-harness -- launch_eval reuses the eval pipeline"
   - T6: "agents/bench/profile.yaml -- profile-relative bench runtime entry point"
+  - T7: "srd021-agent-cli-exec-tool R1, R2, R3, R4 -- child agent profile invocation, trace propagation, process result mapping"
 
 success_criteria:
   - id: S1
