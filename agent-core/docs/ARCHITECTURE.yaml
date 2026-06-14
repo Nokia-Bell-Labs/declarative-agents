@@ -49,7 +49,7 @@ overview:
     - internal/planning/graph — requirement DAG construction and traversal
     - internal/planning/materialize — plan-to-issue materialization
     - internal/support/worktree — git worktree lifecycle management
-    - pkg/spec — specification corpus parsing and validation
+    - pkg/spec — public specification corpus parsing and validation; mirrors tool declaration fields for corpus audit without importing internal tool packages
 
     Configuration layer (agents/, tools/, and docs/specs/). YAML files defining each agent's
     behavior: state machines (machine.yaml), tool selections (tools.yaml),
@@ -171,7 +171,8 @@ overview:
         responsibility: |
           Own ToolDef, ToolDefsFile, ToolSelectionFile, declaration includes,
           declaration loading, selection filtering, ToolSpec conversion,
-          LLM-facing schema cleanup, and typed config decoding helpers.
+          LLM-facing schema cleanup, runtime ToolDef contract validation,
+          result-schema compatibility checks, and typed config decoding helpers.
         dependencies:
           may_depend_on:
             - internal/runtime/core for ToolSpec conversion
@@ -1204,7 +1205,7 @@ project_structure:
     - path: internal/support/worktree/
       role: Git worktree lifecycle management
     - path: pkg/spec/
-      role: Specification corpus parsing, graph construction, and cross-artifact validation
+      role: Public specification corpus parsing, graph construction, cross-artifact validation, and mirrored tool declaration completeness checks
 
   configuration:
     - path: agents/generator/

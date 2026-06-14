@@ -420,8 +420,9 @@ func checkToolSelectionDeclared(corpus *Corpus) []Finding {
 	return findings
 }
 
-// checkSelectedToolContractCompleteness enforces the Grammar Machine word
-// contract for tools that are selected by active machine/profile configuration.
+// checkSelectedToolContractCompleteness audits selected tool declarations in the
+// public spec corpus. Runtime ToolDef contract validation is owned by
+// internal/tools/catalog; this package keeps a public mirror for corpus files.
 func checkSelectedToolContractCompleteness(corpus *Corpus) []Finding {
 	consumers := selectedToolConsumers(corpus)
 	var findings []Finding

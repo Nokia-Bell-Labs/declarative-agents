@@ -15,6 +15,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
@@ -254,7 +255,7 @@ func TestToolContractsWarnOnlyReport(t *testing.T) {
 	byCategory := map[string]int{}
 	for _, tc := range cases {
 		defs := loadTestDefsForSelection(t, cd, tc.agent, tc.selectionPath)
-		findings := stl.ValidateToolContracts(defs, stl.ContractValidationOptions{
+		findings := catalog.ValidateToolContracts(defs, catalog.ContractValidationOptions{
 			IncludeInternal: true,
 		})
 		total += len(findings)
@@ -265,7 +266,7 @@ func TestToolContractsWarnOnlyReport(t *testing.T) {
 		t.Logf("%s: %d tool contract findings", tc.name, len(findings))
 	}
 
-	require.Zero(t, bySeverity[stl.ContractSeverityError])
+	require.Zero(t, bySeverity[catalog.ContractSeverityError])
 	t.Logf("tool contract findings by severity: %v", bySeverity)
 	t.Logf("tool contract findings by category: %v", byCategory)
 }
@@ -277,11 +278,11 @@ func TestBuiltinToolContractAuditClassifiesMigrationCoverage(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	audit := stl.AuditToolContracts(defs, stl.ContractValidationOptions{IncludeInternal: true})
+	audit := catalog.AuditToolContracts(defs, catalog.ContractValidationOptions{IncludeInternal: true})
 
 	require.NotEmpty(t, audit)
 	statusCounts := map[string]int{}
-	byTool := map[string]stl.ContractAuditEntry{}
+	byTool := map[string]catalog.ContractAuditEntry{}
 	for _, entry := range audit {
 		statusCounts[entry.Status]++
 		byTool[entry.ToolName] = entry
@@ -292,10 +293,10 @@ func TestBuiltinToolContractAuditClassifiesMigrationCoverage(t *testing.T) {
 			require.NotEmpty(t, entry.MigrationTarget, "stateful/boundary tool %s should name a migration target", entry.ToolName)
 		}
 	}
-	require.NotZero(t, statusCounts[stl.ContractAuditPartial], "audit should identify partial contracts")
-	require.Equal(t, stl.ContractAuditPartial, byTool["validate"].Status)
+	require.NotZero(t, statusCounts[catalog.ContractAuditPartial], "audit should identify partial contracts")
+	require.Equal(t, catalog.ContractAuditPartial, byTool["validate"].Status)
 	require.Contains(t, byTool["validate"].MigrationTarget, "boundary side effects")
-	require.Equal(t, stl.ContractAuditPartial, byTool["parse_response"].Status)
+	require.Equal(t, catalog.ContractAuditPartial, byTool["parse_response"].Status)
 	require.Contains(t, byTool["parse_response"].MissingFields, "output.schema")
 	t.Logf("builtin tool contract audit status counts: %v", statusCounts)
 }
@@ -308,13 +309,13 @@ func TestBuiltinMigratedContractsValidateAtErrorLevel(t *testing.T) {
 	require.NoError(t, err)
 
 	validate := requireToolDef(t, defs, "validate")
-	require.Equal(t, stl.ToolContractMigrated, validate.Contract)
+	require.Equal(t, catalog.ToolContractMigrated, validate.Contract)
 	parseResponse := requireToolDef(t, defs, "parse_response")
-	require.Equal(t, stl.ToolContractLegacy, parseResponse.Contract)
+	require.Equal(t, catalog.ToolContractLegacy, parseResponse.Contract)
 
-	findings := stl.ValidateToolContracts([]stl.ToolDef{validate, parseResponse}, stl.ContractValidationOptions{
+	findings := catalog.ValidateToolContracts([]catalog.ToolDef{validate, parseResponse}, catalog.ContractValidationOptions{
 		IncludeInternal: true,
-		MinimumLevel:    stl.ContractSeverityError,
+		MinimumLevel:    catalog.ContractSeverityError,
 	})
 	require.Empty(t, findings)
 }
