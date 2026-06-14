@@ -45,9 +45,9 @@ roadmap_summary:
     status: in_progress
   - version: "03.0"
     name: Declarative REST client and server tools
-    use_cases_done: 0
+    use_cases_done: 4
     use_cases_total: 4
-    status: planned
+    status: in_progress
 
 foundation_document_index:
   - id: agent-core
@@ -287,25 +287,25 @@ use_case_index:
   - id: rel03.0-uc001-rest-client-sync
     title: Grammar invokes synchronous REST client resource words
     release: "03.0"
-    status: planned
+    status: done
     test_suite: test-rel03.0-rest-tools
     path: docs/specs/use-cases/rel03.0-uc001-rest-client-sync.yaml
   - id: rel03.0-uc002-rest-client-async
     title: Grammar sends and awaits an asynchronous REST client operation
     release: "03.0"
-    status: planned
+    status: done
     test_suite: test-rel03.0-rest-tools
     path: docs/specs/use-cases/rel03.0-uc002-rest-client-async.yaml
   - id: rel03.0-uc003-rest-server-signals
     title: Grammar receives inbound REST server signals
     release: "03.0"
-    status: planned
+    status: done
     test_suite: test-rel03.0-rest-tools
     path: docs/specs/use-cases/rel03.0-uc003-rest-server-signals.yaml
   - id: rel03.0-uc004-openapi-import
     title: OpenAPI import defines REST operations and endpoint bindings
     release: "03.0"
-    status: planned
+    status: done
     test_suite: test-rel03.0-rest-tools
     path: docs/specs/use-cases/rel03.0-uc004-openapi-import.yaml
 
@@ -367,10 +367,9 @@ go_test_coverage:
     mage integration:uc003 target records a skipped/manual-precondition result,
     not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
-    The 03.0 YAML coverage (15 cases) names planned Go tests for REST
-    config loading and OpenAPI import. It also names planned tests for client
-    execution and async send/await behavior. Server signal handling and
-    redaction behavior remain planned there. Package tests cover srd009-srd018
+    The 03.0 YAML coverage (15 cases) now names implemented Go tests for REST
+    config loading, client execution, async send/await, server signal handling,
+    OpenAPI import, and redaction behavior. Package tests cover srd009-srd018
     and domain packages. Run
     `go test ./... -v | grep -c '=== RUN'` for the current test function count.
 
@@ -428,11 +427,11 @@ coverage_gaps: |
   reference profile is implemented and tested.
   Tool-language migration proofs remain planned follow-up work.
 
-  For 03.0, srd027-srd029 have formal planned YAML coverage in
-  test-rel03.0-rest-tools. REST implementation remains planned until code issues
-  implement internal/tools/rest and tools/builtin/rest declarations. Typed
-  config loading, OpenAPI import compilation, REST runtime tests, and profile
-  examples remain part of that implementation.
+  For 03.0, srd027-srd029 have formal YAML coverage in
+  test-rel03.0-rest-tools. internal/tools/rest, tools/builtin/rest declarations,
+  OpenAPI import compilation, REST runtime tests, and agents/rest profile
+  examples are implemented. Release 03.0 remains in progress until the REST
+  design audit closes the remaining verification work.
 
   Current `go list ./...` output defines package coverage. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.

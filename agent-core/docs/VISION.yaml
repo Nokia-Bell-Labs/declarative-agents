@@ -201,10 +201,10 @@ success_criteria:
     or workspace boundaries are classified and documented as boundary tools
     rather than mistaken for ordinary deterministic words.
   rest_boundary_tools: |
-    Release 03.0 specifies standalone REST client and REST server tools as
-    planned declarative boundary tool families. REST behavior will be configured
-    by trusted agent/profile/tool YAML, not hard-coded into model-provider
-    adapters or hidden inside ordinary tools.
+    Release 03.0 implements standalone REST client and REST server tools as
+    declarative boundary tool families. REST behavior is configured by trusted
+    agent/profile/tool YAML, not hard-coded into model-provider adapters or
+    hidden inside ordinary tools.
   lifecycle_readiness: |
     Runtime contracts preserve the separation between agent state,
     command/domain state, and workspace/environment state so checkpoint,
@@ -266,7 +266,6 @@ dependencies:
     - google.golang.org/protobuf for proto serialization
     - gopkg.in/yaml.v3 for YAML parsing
     - github.com/stretchr/testify for test assertions
-  planned_direct:
     - github.com/getkin/kin-openapi/openapi3 for OpenAPI 3 loading, resolution, and validation for REST tools
   indirect:
     - github.com/dominikbraun/graph for spec dependency graphs
