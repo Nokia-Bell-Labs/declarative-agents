@@ -2,30 +2,22 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Twenty-six SRDs
+  Specification index for the agent-core framework. Twenty-nine SRDs
   define the generic agentic loop engine and its supporting packages
-  across three releases: 18 SRDs in release 00.0 (core engine,
-  telemetry, LLM, prompt, STL, spec graph, CLI), 6 SRDs in release
-  01.0 (eval harness, bench UI, tool declarations, exec tools, blocking
-  input), and 2 SRDs in release 02.0 (rollback lifecycle and lifecycle
-  tool adapters). Eight use
-  cases exercise the SRDs across the three releases. Four formal YAML
-  test suites cover 99 acceptance test cases across releases 00.0, 01.0,
-  and 02.0; additional coverage comes from Go test functions across all
-  packages (run `go test ./... -v` for current counts).
+  across four releases. The 00.0 release owns the engine foundation and
+  its support packages. In 01.0, configured runtime behavior expands into
+  evaluator, bench, and tool declaration contracts. Rollback lifecycle
+  contracts belong to 02.0. Declarative REST runtime, client, and server
+  contracts belong to 03.0. Twelve use cases exercise the SRDs across the
+  four releases. Five formal YAML test suites cover 114 acceptance test
+  cases across releases 00.0 through 03.0; additional
+  coverage comes from Go test functions across all packages (run
+  `go test ./... -v` for current counts).
 
-  SRD release assignments.
-  - 00.0: srd001 (core types), srd002 (state machine), srd003 (command
-    dispatch), srd004 (tool registry), srd005 (agentic loop), srd006
-    (YAML machine config), srd007 (tracer interface), srd008 (telemetry),
-    srd009 (Ollama adapter), srd010 (conversation), srd011 (prompt
-    schema), srd012 (system prompt template), srd013 (STL), srd014
-    (spec graph), srd015 (GenAI semconv), srd016 (traceparent),
-    srd017 (LLM extensions), srd018 (CLI flag contract)
-  - 01.0: srd019 (eval harness), srd020 (bench web UI),
-    srd021 (agent CLI as exec tool), srd022 (builtin tools),
-    srd023 (CLI/exec tools), srd024 (blocking input tools)
-  - 02.0: srd025 (rollback lifecycle), srd026 (lifecycle tool adapters)
+  SRD release assignments are range based. Release 00.0 covers srd001
+  through srd018. Release 01.0 covers srd019 through srd024. Release
+  02.0 covers srd025 and srd026. Release 03.0 covers srd027 through
+  srd029.
 
   Source-of-truth note.
   - roll-backs.md and tools-as-dsl.md are historical design notes. Their
@@ -50,6 +42,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 4
     status: in_progress
+  - version: "03.0"
+    name: Declarative REST client and server tools
+    use_cases_done: 0
+    use_cases_total: 4
+    status: planned
 
 foundation_document_index:
   - id: agent-core
@@ -166,6 +163,18 @@ srd_index:
     title: Lifecycle Tool Adapters
     summary: Requirements for checkpoint_history and checkpoint_rollback as STL builtin adapters around core checkpoint operations, selected by ToolDef declarations and MachineSpec transitions.
     path: docs/specs/software-requirements/srd026-lifecycle-tools.yaml
+  - id: srd027-rest-tool-runtime
+    title: Declarative REST Tool Runtime
+    summary: Shared REST runtime requirements for declarative client and server boundary tools, OpenAPI imports, net/http execution, safety controls, observability, and rollback.
+    path: docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
+  - id: srd028-rest-client-tools
+    title: REST Client Tools
+    summary: Requirements for declarative outbound REST client words, resource operations, RPC-shaped invoke, async send/await, response shaping, retries, redaction, and compensation.
+    path: docs/specs/software-requirements/srd028-rest-client-tools.yaml
+  - id: srd029-rest-server-tools
+    title: REST Server Tools
+    summary: Requirements for declarative inbound REST server words, route launch, await, stop, endpoint bindings, queues, OpenAPI server binding, and request validation.
+    path: docs/specs/software-requirements/srd029-rest-server-tools.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -192,6 +201,10 @@ config_format_index:
     title: LLM Configuration Format
     summary: Per-agent invoke_llm declaration format for model/provider config, prompts, manifest state, response_profile parser selection, and time/token limits.
     path: docs/specs/config-formats/llm-config-format.yaml
+  - id: cfg-rest-tool-format
+    title: REST Tool Configuration Format
+    summary: Planned YAML format for declarative REST definitions, clients, servers, OpenAPI imports, auth profiles, limits, retry policies, response mappings, and validation rules.
+    path: docs/specs/config-formats/rest-tool-format.yaml
 
 semantic_model_index:
   - id: sm-command-undo-audit
@@ -210,6 +223,10 @@ semantic_model_index:
     title: Tool Language Semantic Model
     summary: Semantic model for tools as vocabulary words, MachineSpec composition, boundary tools, contracts, and legacy sentence migration.
     path: docs/specs/semantic-models/tool-language.yaml
+  - id: sm-rest-tool-language
+    title: REST Tool Language Semantic Model
+    summary: Semantic model for declarative REST client and server boundary words, REST definitions, async request state, inbound events, and OpenAPI import relationships.
+    path: docs/specs/semantic-models/rest-tool-language.yaml
 
 use_case_index:
   - id: rel00.0-uc001-domain-agent-integration
@@ -260,6 +277,30 @@ use_case_index:
     status: planned
     test_suite: test-rel02.0-tool-contracts
     path: docs/specs/use-cases/rel02.0-uc004-sentence-tool-migration.yaml
+  - id: rel03.0-uc001-rest-client-sync
+    title: Grammar invokes synchronous REST client resource words
+    release: "03.0"
+    status: planned
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc001-rest-client-sync.yaml
+  - id: rel03.0-uc002-rest-client-async
+    title: Grammar sends and awaits an asynchronous REST client operation
+    release: "03.0"
+    status: planned
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc002-rest-client-async.yaml
+  - id: rel03.0-uc003-rest-server-signals
+    title: Grammar receives inbound REST server signals
+    release: "03.0"
+    status: planned
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc003-rest-server-signals.yaml
+  - id: rel03.0-uc004-openapi-import
+    title: OpenAPI import defines REST operations and endpoint bindings
+    release: "03.0"
+    status: planned
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc004-openapi-import.yaml
 
 test_suite_index:
   - id: test-rel00.0
@@ -294,6 +335,16 @@ test_suite_index:
       - rel02.0-uc004-sentence-tool-migration
     formal_test_cases: 13
     path: docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
+  - id: test-rel03.0-rest-tools
+    title: Test Suite for Release 03.0 REST Tools
+    release: "03.0"
+    traces:
+      - rel03.0-uc001-rest-client-sync
+      - rel03.0-uc002-rest-client-async
+      - rel03.0-uc003-rest-server-signals
+      - rel03.0-uc004-openapi-import
+    formal_test_cases: 15
+    path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
 go_test_coverage:
   note: >
@@ -305,7 +356,10 @@ go_test_coverage:
     integration:uc003 records a skipped/manual-precondition target, not
     automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
-    Package tests cover srd009-srd018 and domain packages. Run
+    Release 03.0 YAML coverage (15 cases) names planned Go tests for REST
+    config loading, OpenAPI import, client execution, async send/await, server
+    signal handling, and redaction behavior. Package tests cover
+    srd009-srd018 and domain packages. Run
     `go test ./... -v | grep -c '=== RUN'` for the current test function count.
 
 srd_to_use_case_mapping:
@@ -354,14 +408,17 @@ coverage_gaps: |
   and tested. The approval-gate reference profile is implemented and tested.
   Tool-language migration proofs remain planned follow-up work.
 
+  SRDs srd027-srd029 (03.0) have formal planned YAML coverage in
+  test-rel03.0-rest-tools. REST implementation remains planned until code issues
+  implement internal/tools/rest, tools/builtin/rest declarations, typed config
+  loading, OpenAPI import compilation, REST runtime tests, and profile examples.
+
   Package coverage follows the current `go list ./...` output. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.
-  Tracing, telemetry, GenAI conventions, model-boundary code, prompt assembly,
-  standard tool adapters, CLI flags, and spec graph packages map to
-  srd007-srd018 plus srd022-srd024 and srd026. Those direct mappings cover
-  internal/observability, internal/model, the planned internal/tools package
-  family with the temporary internal/tools/stl facade, internal/support/cli,
-  and pkg/spec behavior.
+  Observability, model-boundary, prompt, tool adapter, CLI, and spec graph
+  packages map to srd007-srd018 plus srd022-srd024 and srd026. Those direct
+  mappings cover the implementation package families used by runtime support,
+  model boundaries, tools, CLI support, and spec validation.
 
   Release use cases and formal suites cover package groups that implement
   configured agent behavior. The cmd/agent package is covered by
