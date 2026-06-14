@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package lifecycle
 
 import (
 	"context"
@@ -9,25 +9,23 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
 
 // CheckpointHistoryBuilder constructs checkpoint_history commands.
 type CheckpointHistoryBuilder struct {
-	Config     CheckpointHistoryConfig
+	Config     catalog.CheckpointHistoryConfig
 	StateStore core.StateStore
 	Ctx        context.Context
 }
 
 func (b *CheckpointHistoryBuilder) Build(_ core.Result) core.Command {
-	return &checkpointHistoryCmd{
-		config:     b.Config,
-		stateStore: b.StateStore,
-		ctx:        b.Ctx,
-	}
+	return &checkpointHistoryCmd{config: b.Config, stateStore: b.StateStore, ctx: b.Ctx}
 }
 
 type checkpointHistoryCmd struct {
-	config     CheckpointHistoryConfig
+	config     catalog.CheckpointHistoryConfig
 	stateStore core.StateStore
 	ctx        context.Context
 }
@@ -36,34 +34,27 @@ func (c *checkpointHistoryCmd) Name() string { return "checkpoint_history" }
 
 func (c *checkpointHistoryCmd) Execute() core.Result {
 	if c.stateStore == nil {
-		return lifecycleCommandError(c.Name(), fmt.Errorf("checkpoint_history requires StateStore"))
+		return commandError(c.Name(), fmt.Errorf("checkpoint_history requires StateStore"))
 	}
 	checkpointID, err := core.ResolveLatestCheckpointID(c.context(), c.stateStore, c.config.SelectedCheckpoint())
 	if err != nil {
-		return lifecycleCommandError(c.Name(), err)
+		return commandError(c.Name(), err)
 	}
 	cp, err := core.LoadCheckpoint(c.context(), c.stateStore, checkpointID)
 	if err != nil {
-		return lifecycleCommandError(c.Name(), err)
+		return commandError(c.Name(), err)
 	}
-	return core.Result{
-		Signal:      core.ToolDone,
-		CommandName: c.Name(),
-		Output:      core.FormatCheckpointHistory(cp),
-	}
+	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: core.FormatCheckpointHistory(cp)}
 }
 
-func (c *checkpointHistoryCmd) Undo() core.Result {
-	return core.NoopUndo(c.Name())
-}
-
+func (c *checkpointHistoryCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
 func (c *checkpointHistoryCmd) UndoMemento() (core.UndoMemento, error) {
 	return core.NoopUndoMemento(c.Name()), nil
 }
 
 // CheckpointRollbackBuilder constructs checkpoint_rollback commands.
 type CheckpointRollbackBuilder struct {
-	Config     CheckpointRollbackConfig
+	Config     catalog.CheckpointRollbackConfig
 	StateStore core.StateStore
 	Workspace  core.Workspace
 	Directory  string
@@ -73,17 +64,13 @@ type CheckpointRollbackBuilder struct {
 
 func (b *CheckpointRollbackBuilder) Build(_ core.Result) core.Command {
 	return &checkpointRollbackCmd{
-		config:     b.Config,
-		stateStore: b.StateStore,
-		workspace:  b.Workspace,
-		directory:  b.Directory,
-		tracer:     b.Tracer,
-		ctx:        b.Ctx,
+		config: b.Config, stateStore: b.StateStore, workspace: b.Workspace,
+		directory: b.Directory, tracer: b.Tracer, ctx: b.Ctx,
 	}
 }
 
 type checkpointRollbackCmd struct {
-	config     CheckpointRollbackConfig
+	config     catalog.CheckpointRollbackConfig
 	stateStore core.StateStore
 	workspace  core.Workspace
 	directory  string
@@ -96,40 +83,28 @@ func (c *checkpointRollbackCmd) Name() string { return "checkpoint_rollback" }
 func (c *checkpointRollbackCmd) Execute() core.Result {
 	workspace, err := c.prepareRollback()
 	if err != nil {
-		return lifecycleCommandError(c.Name(), err)
+		return commandError(c.Name(), err)
 	}
 	result, err := core.RollbackFromCheckpoint(core.RollbackFromCheckpointOptions{
-		Store:           c.stateStore,
-		Workspace:       workspace,
-		CheckpointID:    c.config.SelectedCheckpoint(),
-		TargetIteration: *c.config.ToIteration,
-		Ctx:             c.context(),
+		Store: c.stateStore, Workspace: workspace, CheckpointID: c.config.SelectedCheckpoint(),
+		TargetIteration: *c.config.ToIteration, Ctx: c.context(),
 	})
 	if err != nil {
-		return lifecycleCommandError(c.Name(), err)
+		return commandError(c.Name(), err)
 	}
 	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: c.rollbackSummary(result)}
 }
 
 func (c *checkpointRollbackCmd) Undo() core.Result {
-	return boundaryCompensationUndo(c.Name(), "operator can resume from the original checkpoint or choose another rollback checkpoint")
+	return undo.BoundaryCompensationUndo(c.Name(), "operator can resume from the original checkpoint or choose another rollback checkpoint")
 }
-
 func (c *checkpointRollbackCmd) UndoMemento() (core.UndoMemento, error) {
-	return boundaryCompensationMemento(c.Name(), BoundaryCompensationPayload{
-		BoundaryCompensation: BoundaryCompensation{
-			Strategy: "operator_checkpoint_selection",
-			Reason:   "rollback rewrites checkpoint state and may restore workspace state",
-			Requires: []string{"checkpoint_id", "operator_decision"},
-		},
-	}, "operator can resume from the original checkpoint or choose another rollback checkpoint")
-}
-
-func (c *checkpointHistoryCmd) context() context.Context {
-	if c.ctx == nil {
-		return context.Background()
-	}
-	return c.ctx
+	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
+		Strategy: "operator_checkpoint_selection",
+		Reason:   "rollback rewrites checkpoint state and may restore workspace state",
+		Requires: []string{"checkpoint_id", "operator_decision"},
+	}}
+	return undo.BoundaryCompensationMemento(c.Name(), payload, "operator can resume from the original checkpoint or choose another rollback checkpoint")
 }
 
 func (c *checkpointRollbackCmd) prepareRollback() (core.Workspace, error) {
@@ -140,15 +115,10 @@ func (c *checkpointRollbackCmd) prepareRollback() (core.Workspace, error) {
 		return nil, fmt.Errorf("checkpoint_rollback requires to_iteration")
 	}
 	workspace, err := c.configuredWorkspace()
-	if err != nil {
-		return nil, err
+	if err != nil || workspace != nil {
+		return workspace, err
 	}
-	if workspace == nil {
-		if err := c.requireWorkspaceIfNeeded(); err != nil {
-			return nil, err
-		}
-	}
-	return workspace, nil
+	return nil, c.requireWorkspaceIfNeeded()
 }
 
 func (c *checkpointRollbackCmd) configuredWorkspace() (core.Workspace, error) {
@@ -167,11 +137,8 @@ func (c *checkpointRollbackCmd) configuredWorkspace() (core.Workspace, error) {
 
 func (c *checkpointRollbackCmd) requireWorkspaceIfNeeded() error {
 	result, err := c.previewRollback()
-	if err != nil {
+	if err != nil || result.WorkspaceRef == "" {
 		return err
-	}
-	if result.WorkspaceRef == "" {
-		return nil
 	}
 	return fmt.Errorf("rollback target has workspace ref %q; directory is required for managed workspace restore", result.WorkspaceRef)
 }
@@ -198,6 +165,13 @@ func (c *checkpointRollbackCmd) rollbackSummary(result core.RollbackFromCheckpoi
 	return b.String()
 }
 
+func (c *checkpointHistoryCmd) context() context.Context {
+	if c.ctx == nil {
+		return context.Background()
+	}
+	return c.ctx
+}
+
 func (c *checkpointRollbackCmd) context() context.Context {
 	if c.ctx == nil {
 		return context.Background()
@@ -205,11 +179,6 @@ func (c *checkpointRollbackCmd) context() context.Context {
 	return c.ctx
 }
 
-func lifecycleCommandError(commandName string, err error) core.Result {
-	return core.Result{
-		Signal:      core.CommandError,
-		CommandName: commandName,
-		Output:      err.Error(),
-		Err:         err,
-	}
+func commandError(commandName string, err error) core.Result {
+	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
 }

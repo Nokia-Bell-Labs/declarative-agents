@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package validation
 
 import (
 	"fmt"
@@ -9,15 +9,15 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
-type validateSpecSnapshot struct {
+type specSnapshot struct {
 	corpus    *spec.Corpus
 	graph     *spec.Graph
 	findings  []spec.Finding
 	hasErrors bool
 }
 
-func snapshotValidateSpec(vs *ValidateSpecState) validateSpecSnapshot {
-	return validateSpecSnapshot{
+func snapshotSpec(vs *SpecState) specSnapshot {
+	return specSnapshot{
 		corpus:    vs.Corpus,
 		graph:     vs.Graph,
 		findings:  append([]spec.Finding(nil), vs.Findings...),
@@ -25,14 +25,14 @@ func snapshotValidateSpec(vs *ValidateSpecState) validateSpecSnapshot {
 	}
 }
 
-func (s validateSpecSnapshot) restore(vs *ValidateSpecState) {
+func (s specSnapshot) restore(vs *SpecState) {
 	vs.Corpus = s.corpus
 	vs.Graph = s.graph
 	vs.Findings = append([]spec.Finding(nil), s.findings...)
 	vs.HasErrors = s.hasErrors
 }
 
-func undoValidateSpecSnapshot(commandName string, vs *ValidateSpecState, snap validateSpecSnapshot, ok bool) core.Result {
+func undoSpecSnapshot(commandName string, vs *SpecState, snap specSnapshot, ok bool) core.Result {
 	if !ok {
 		err := fmt.Errorf("undo %s: no validation state snapshot recorded", commandName)
 		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
@@ -41,28 +41,21 @@ func undoValidateSpecSnapshot(commandName string, vs *ValidateSpecState, snap va
 	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "undo: restored validation state"}
 }
 
-func validateSpecMemento(commandName string, snap validateSpecSnapshot, ok bool) (core.UndoMemento, error) {
+func specMemento(commandName string, snap specSnapshot, ok bool) (core.UndoMemento, error) {
 	if !ok {
 		return core.UndoMemento{}, fmt.Errorf("%w: no validation state snapshot recorded for %s", core.ErrUndoMementoMissing, commandName)
 	}
-	return core.NewUndoMemento(commandName, core.UndoMementoReversible, struct {
+	payload := struct {
 		DomainState struct {
 			CorpusLoaded bool `json:"corpus_loaded"`
 			GraphLoaded  bool `json:"graph_loaded"`
 			Findings     int  `json:"findings"`
 			HasErrors    bool `json:"has_errors"`
 		} `json:"domain_state"`
-	}{
-		DomainState: struct {
-			CorpusLoaded bool `json:"corpus_loaded"`
-			GraphLoaded  bool `json:"graph_loaded"`
-			Findings     int  `json:"findings"`
-			HasErrors    bool `json:"has_errors"`
-		}{
-			CorpusLoaded: snap.corpus != nil,
-			GraphLoaded:  snap.graph != nil,
-			Findings:     len(snap.findings),
-			HasErrors:    snap.hasErrors,
-		},
-	})
+	}{}
+	payload.DomainState.CorpusLoaded = snap.corpus != nil
+	payload.DomainState.GraphLoaded = snap.graph != nil
+	payload.DomainState.Findings = len(snap.findings)
+	payload.DomainState.HasErrors = snap.hasErrors
+	return core.NewUndoMemento(commandName, core.UndoMementoReversible, payload)
 }
