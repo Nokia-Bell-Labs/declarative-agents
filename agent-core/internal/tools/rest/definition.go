@@ -75,6 +75,17 @@ type AuthProfile struct {
 	Scheme      string `yaml:"scheme,omitempty"`
 }
 
+// CredentialResolver resolves trusted runtime credentials by reference.
+type CredentialResolver interface {
+	ResolveCredential(ref string) (string, error)
+}
+
+// StaticCredentials resolves credentials from an in-memory trusted map.
+type StaticCredentials map[string]string
+
+// EmptyCredentialResolver resolves no credential references.
+type EmptyCredentialResolver struct{}
+
 // LimitProfile defines timeout, size, redirect, and network limits.
 type LimitProfile struct {
 	Timeout          string         `yaml:"timeout,omitempty"`

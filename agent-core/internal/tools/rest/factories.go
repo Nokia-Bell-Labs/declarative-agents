@@ -31,9 +31,10 @@ var StandardInits = []string{
 
 // FactoryDeps holds REST factory dependencies.
 type FactoryDeps struct {
-	Definitions Collection
-	ServerState *ServerState
-	AsyncState  *AsyncState
+	Definitions        Collection
+	ServerState        *ServerState
+	AsyncState         *AsyncState
+	CredentialResolver CredentialResolver
 }
 
 // ClientToolConfig holds REST client ToolDef config.
@@ -87,7 +88,10 @@ func newClientBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 	if init == InitClientSend && operation.Operation.Async == nil {
 		return nil, fmt.Errorf("tool %q requires async REST operation", def.Name)
 	}
-	return ClientBuilder{ToolName: def.Name, Init: init, Operation: operation, AsyncState: deps.AsyncState}, nil
+	return ClientBuilder{
+		ToolName: def.Name, Init: init, Operation: operation,
+		AsyncState: deps.AsyncState, Credentials: deps.CredentialResolver,
+	}, nil
 }
 
 func newServerBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.Builder, error) {

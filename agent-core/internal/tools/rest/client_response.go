@@ -214,12 +214,22 @@ func clientOperationError(commandName, stage string, err error, def ClientOperat
 	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: jsonOutput(output), Err: err}
 }
 
-func redactError(err error, def ClientOperationDefinition) error {
+func redactError(err error, def ClientOperationDefinition, resolver CredentialResolver) error {
 	message := err.Error()
-	for _, secret := range []string{def.Auth.TokenRef, def.Auth.PasswordRef} {
+	for _, secret := range errorRedactionValues(def.Auth, resolver) {
 		if secret != "" {
 			message = strings.ReplaceAll(message, secret, "[REDACTED]")
 		}
 	}
 	return fmt.Errorf("%s", message)
+}
+
+func errorRedactionValues(auth AuthProfile, resolver CredentialResolver) []string {
+	values := []string{auth.TokenRef, auth.PasswordRef}
+	for _, ref := range []string{auth.UsernameRef, auth.PasswordRef, auth.TokenRef} {
+		if secret, err := resolveCredential(resolver, ref); err == nil {
+			values = append(values, secret)
+		}
+	}
+	return values
 }
