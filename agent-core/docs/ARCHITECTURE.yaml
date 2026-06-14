@@ -578,17 +578,17 @@ overview:
   rest_tool_runtime_architecture:
     status: planned
     summary: |
-      Release 03.0 adds declarative REST client and REST server tools as
-      boundary tool families. The planned package is internal/tools/rest.
-      This package sits beside internal/tools/llm, internal/tools/control, and
-      internal/tools/lifecycle rather than inside internal/tools/stl. The stl
-      package remains a temporary facade only and must not receive long-term
-      REST implementations.
+      Release 03.0 specifies planned declarative REST client and REST server
+      tools as boundary tool families. The planned package is
+      internal/tools/rest. This package sits beside internal/tools/llm,
+      internal/tools/control, and internal/tools/lifecycle rather than inside
+      internal/tools/stl. The stl package remains a temporary facade only and
+      must not receive long-term REST implementations.
 
-      REST client tools call configured upstreams. REST server tools are
-      launched by configured agent profiles and bind configured addresses.
-      OpenAPI documents and REST definitions live with agent/profile/tool
-      configuration, not compiled code.
+      Planned REST client tools call configured upstreams. Planned REST server
+      tools are launched by configured agent profiles and bind configured
+      addresses. OpenAPI documents and REST definitions live with
+      agent/profile/tool configuration, not compiled code.
 
       Client and server tools share REST definition types for operations,
       paths, schemas, auth references, status mapping, side effects, and
@@ -636,8 +636,10 @@ overview:
         - docs/specs/software-requirements/srd029-rest-server-tools.yaml
         - docs/specs/semantic-models/rest-tool-language.yaml
         - docs/specs/config-formats/rest-tool-format.yaml
-        - docs/specs/use-cases/rel03.0-uc001-rest-client-tool.yaml
-        - docs/specs/use-cases/rel03.0-uc002-rest-server-tool.yaml
+        - docs/specs/use-cases/rel03.0-uc001-rest-client-sync.yaml
+        - docs/specs/use-cases/rel03.0-uc002-rest-client-async.yaml
+        - docs/specs/use-cases/rel03.0-uc003-rest-server-signals.yaml
+        - docs/specs/use-cases/rel03.0-uc004-openapi-import.yaml
         - docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
   container_runtime_architecture:
