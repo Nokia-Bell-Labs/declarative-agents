@@ -1,8 +1,6 @@
 # Planner-local builtin overrides.
 # Adds mode-specific config to tools declared in tools/builtin.yaml.
-# Pass after the shared declaration:
-#   --tools-declaration tools/builtin.yaml \
-#   --tools-declaration agents/planner/builtin.yaml
+# Loaded through agents/planner/profile.yaml tool_declarations.
 
 tools:
   - name: execute_task
@@ -23,7 +21,7 @@ tools:
       - "Return enough execution status for the planner to decide retry, advance, or fail."
     requirements:
       input:
-        - "must require profile in config, or legacy machine/tools/tools_declarations for compatibility-only declarations"
+        - "must require profile in config"
         - "must consume the current planner task and workspace directory from pipeline state"
       output:
         - "must emit ExecutionDone when the child agent exits successfully"

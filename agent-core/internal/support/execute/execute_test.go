@@ -75,7 +75,6 @@ func TestTruncateViaAgentCore(t *testing.T) {
 func TestExecute_BinaryNotFound(t *testing.T) {
 	cfg := Config{
 		Binary:  "nonexistent-generator-binary-xyz",
-		Model:   "test-model",
 		Timeout: 5 * time.Second,
 		OTelDir: t.TempDir(),
 	}
@@ -94,7 +93,6 @@ func TestExecute_ScriptExitNonZero(t *testing.T) {
 
 	cfg := Config{
 		Binary:  script,
-		Model:   "test-model",
 		Timeout: 5 * time.Second,
 		OTelDir: dir,
 	}
@@ -116,7 +114,6 @@ func TestExecute_ScriptExitZero(t *testing.T) {
 
 	cfg := Config{
 		Binary:  script,
-		Model:   "test-model",
 		Timeout: 5 * time.Second,
 		OTelDir: dir,
 	}
@@ -136,7 +133,6 @@ func TestExecute_Timeout(t *testing.T) {
 
 	cfg := Config{
 		Binary:  script,
-		Model:   "test-model",
 		Timeout: 500 * time.Millisecond,
 		OTelDir: dir,
 	}
@@ -156,7 +152,6 @@ func TestExecute_TaskFileWritten(t *testing.T) {
 	worktree := t.TempDir()
 	cfg := Config{
 		Binary:  script,
-		Model:   "test-model",
 		Timeout: 5 * time.Second,
 		OTelDir: dir,
 	}
@@ -184,30 +179,9 @@ func TestResultSuccess(t *testing.T) {
 	assert.False(t, (&Result{ExitCode: -1}).Success())
 }
 
-func TestBuildArgs_AllFields(t *testing.T) {
+func TestBuildArgs_ProfileOnly(t *testing.T) {
 	cfg := Config{
-		Machine:          "machine.yaml",
-		Tools:            "tools.yaml",
-		ToolDeclarations: []string{"builtin.yaml", "exec.yaml"},
-		Model:            "qwen3-8b",
-	}
-
-	args := cfg.BuildArgs()
-	assert.Equal(t, []string{
-		"--machine", "machine.yaml",
-		"--tools", "tools.yaml",
-		"--tools-declaration", "builtin.yaml",
-		"--tools-declaration", "exec.yaml",
-	}, args)
-}
-
-func TestBuildArgs_ProfileSuppressesLegacyProgramFlags(t *testing.T) {
-	cfg := Config{
-		Profile:          "agents/generator/profile.yaml",
-		Machine:          "machine.yaml",
-		Tools:            "tools.yaml",
-		ToolDeclarations: []string{"builtin.yaml"},
-		Model:            "legacy-model",
+		Profile: "agents/generator/profile.yaml",
 	}
 
 	args := cfg.BuildArgs()
@@ -220,12 +194,6 @@ func TestBuildArgs_Empty(t *testing.T) {
 	cfg := Config{}
 	args := cfg.BuildArgs()
 	assert.Empty(t, args)
-}
-
-func TestBuildArgs_Partial(t *testing.T) {
-	cfg := Config{Machine: "m.yaml"}
-	args := cfg.BuildArgs()
-	assert.Equal(t, []string{"--machine", "m.yaml"}, args)
 }
 
 func TestRunAgent_Success(t *testing.T) {

@@ -468,17 +468,7 @@ func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
 	require.True(t, ok)
 
 	_, err := factory(catalog.ToolDef{Name: "execute_task", Init: "execute_task"}, nil)
-	require.ErrorContains(t, err, "requires profile or legacy machine")
-
-	_, err = factory(catalog.ToolDef{
-		Name: "execute_task",
-		Init: "execute_task",
-		Config: map[string]interface{}{
-			"machine": "agents/generator/machine.yaml",
-			"tools":   "agents/generator/tools.yaml",
-		},
-	}, nil)
-	require.ErrorContains(t, err, "requires tools_declarations")
+	require.ErrorContains(t, err, "requires profile")
 }
 
 func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {

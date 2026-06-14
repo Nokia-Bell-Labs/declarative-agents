@@ -31,14 +31,10 @@ const (
 
 // Config holds execution engine settings.
 type Config struct {
-	Binary           string        // Agent binary path. Default: "agent" (resolved from PATH).
-	Profile          string        // --profile flag for child agent. Preferred over legacy machine/tools flags.
-	Machine          string        // Compatibility-only --machine flag when Profile is empty.
-	Tools            string        // Compatibility-only --tools flag when Profile is empty.
-	ToolDeclarations []string      // Compatibility-only --tools-declaration flags when Profile is empty.
-	Model            string        // Deprecated compatibility field; not emitted as a runtime flag.
-	Timeout          time.Duration // Per-invocation timeout. Default: 10 minutes.
-	OTelDir          string        // Directory for temporary OTel log files.
+	Binary  string        // Agent binary path. Default: "agent" (resolved from PATH).
+	Profile string        // --profile flag for the child agent.
+	Timeout time.Duration // Per-invocation timeout. Default: 10 minutes.
+	OTelDir string        // Directory for temporary OTel log files.
 }
 
 func (c *Config) binary() string {
@@ -58,21 +54,10 @@ func (c *Config) timeout() time.Duration {
 // BuildArgs constructs the CLI argument list from the config fields.
 // Callers append runtime-specific args (e.g. --directory, --request) after.
 func (c *Config) BuildArgs() []string {
-	var args []string
-	if c.Profile != "" {
-		args = append(args, "--profile", c.Profile)
-	} else {
-		if c.Machine != "" {
-			args = append(args, "--machine", c.Machine)
-		}
-		if c.Tools != "" {
-			args = append(args, "--tools", c.Tools)
-		}
-		for _, decl := range c.ToolDeclarations {
-			args = append(args, "--tools-declaration", decl)
-		}
+	if c.Profile == "" {
+		return nil
 	}
-	return args
+	return []string{"--profile", c.Profile}
 }
 
 // Result captures the outcome of an agent invocation.

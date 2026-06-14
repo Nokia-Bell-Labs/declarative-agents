@@ -117,8 +117,6 @@ func TestSelfInvokeUndoMementoCapturesChildRunMetadata(t *testing.T) {
 	cmd := (&SelfInvokeBuilder{
 		Config: execute.Config{
 			Profile: "agents/generator/profile.yaml",
-			Machine: "machine.yaml",
-			Tools:   "tools.yaml",
 			OTelDir: t.TempDir(),
 		},
 		Ctx: context.Background(),
@@ -135,7 +133,6 @@ func TestSelfInvokeUndoMementoCapturesChildRunMetadata(t *testing.T) {
 	require.Equal(t, "child_agent_workspace_restore", payload.BoundaryCompensation.Strategy)
 	require.Equal(t, "child-1", payload.BoundaryCompensation.ChildRunID)
 	require.Equal(t, "agents/generator/profile.yaml", payload.BoundaryCompensation.ChildProfile)
-	require.Equal(t, "machine.yaml", payload.BoundaryCompensation.ChildMachine)
 }
 
 func TestSelfInvokeToolSpec(t *testing.T) {

@@ -9,19 +9,9 @@ import (
 )
 
 func TestValidateChildAgentConfigRequiresFields(t *testing.T) {
-	require.ErrorContains(t, ValidateChildAgentConfig("execute_task", ChildAgentConfig{}), "requires profile or legacy machine")
-	require.ErrorContains(t, ValidateChildAgentConfig("execute_task", ChildAgentConfig{Machine: "m.yaml"}), "requires tools")
-	require.ErrorContains(t, ValidateChildAgentConfig("execute_task", ChildAgentConfig{
-		Machine: "m.yaml",
-		Tools:   "tools.yaml",
-	}), "requires tools_declarations")
+	require.ErrorContains(t, ValidateChildAgentConfig("execute_task", ChildAgentConfig{}), "requires profile")
 	require.NoError(t, ValidateChildAgentConfig("execute_task", ChildAgentConfig{
 		Profile: "agents/generator/profile.yaml",
-	}))
-	require.NoError(t, ValidateChildAgentConfig("execute_task", ChildAgentConfig{
-		Machine:          "m.yaml",
-		Tools:            "tools.yaml",
-		ToolDeclarations: []string{"builtin.yaml"},
 	}))
 }
 

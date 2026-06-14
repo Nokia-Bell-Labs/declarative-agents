@@ -26,10 +26,7 @@ func DecodeToolConfig(def ToolDef, target interface{}) error {
 
 // ChildAgentConfig holds child agent invocation parameters.
 type ChildAgentConfig struct {
-	Profile          string   `json:"profile"`
-	Machine          string   `json:"machine"`
-	Tools            string   `json:"tools"`
-	ToolDeclarations []string `json:"tools_declarations"`
+	Profile string `json:"profile"`
 }
 
 // CheckpointHistoryConfig holds config for checkpoint_history.
@@ -114,17 +111,8 @@ type ServeUIToolConfig struct {
 
 // ValidateChildAgentConfig checks fields required to invoke a child agent.
 func ValidateChildAgentConfig(toolName string, cfg ChildAgentConfig) error {
-	if cfg.Profile != "" {
-		return nil
-	}
-	if cfg.Machine == "" {
-		return fmt.Errorf("tool %q config requires profile or legacy machine", toolName)
-	}
-	if cfg.Tools == "" {
-		return fmt.Errorf("tool %q config requires tools", toolName)
-	}
-	if len(cfg.ToolDeclarations) == 0 {
-		return fmt.Errorf("tool %q config requires tools_declarations", toolName)
+	if cfg.Profile == "" {
+		return fmt.Errorf("tool %q config requires profile", toolName)
 	}
 	return nil
 }
