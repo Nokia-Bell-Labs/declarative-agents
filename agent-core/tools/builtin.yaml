@@ -5,6 +5,10 @@
 # Pass via: agent --tools-declaration tools/builtin.yaml \
 #                 --tools-declaration agents/<mode>/builtin.yaml
 
+includes:
+  - builtin/checkpoint-history.yaml
+  - builtin/checkpoint-rollback.yaml
+
 tools:
   # --- file tools ---
   - name: read

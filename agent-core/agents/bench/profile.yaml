@@ -3,6 +3,6 @@ machine: machine.yaml
 tools:
   - tools.yaml
 tool_config_dirs:
-  - ../../tools/builtin
+  - ../../tools/builtin/bench
 tool_declarations:
   - builtin.yaml

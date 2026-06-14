@@ -1,0 +1,9 @@
+# Filesystem builtin declarations.
+includes:
+  - ../read.yaml
+  - ../write.yaml
+  - ../edit.yaml
+  - ../find.yaml
+  - ../list-files.yaml
+
+tools: []

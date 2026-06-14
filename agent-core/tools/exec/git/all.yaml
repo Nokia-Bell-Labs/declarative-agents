@@ -1,0 +1,11 @@
+# Git exec declarations.
+includes:
+  - ../git-init.yaml
+  - ../stage-all.yaml
+  - ../workspace-status.yaml
+  - ../commit.yaml
+  - ../rev-parse.yaml
+  - ../diff-stat.yaml
+  - ../log-oneline.yaml
+
+tools: []

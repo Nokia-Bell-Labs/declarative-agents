@@ -1,0 +1,8 @@
+# Go toolchain exec declarations.
+includes:
+  - ../build.yaml
+  - ../vet.yaml
+  - ../lint.yaml
+  - ../test.yaml
+
+tools: []

@@ -3,4 +3,4 @@ machine: machine.yaml
 tools:
   - tools.yaml
 tool_config_dirs:
-  - ../../tools/builtin
+  - ../../tools/builtin/spec-validation

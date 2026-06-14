@@ -1,0 +1,6 @@
+# Workspace filesystem exec declarations.
+includes:
+  - ../copy-dir.yaml
+  - ../make-dir.yaml
+
+tools: []

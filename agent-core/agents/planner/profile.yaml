@@ -3,8 +3,9 @@ machine: machine.yaml
 tools:
   - tools.yaml
 tool_config_dirs:
-  - ../../tools/builtin
-  - ../../tools/exec
+  - ../../tools/builtin/planner
+  - ../../tools/builtin/llm
+  - ../../tools/exec/go
 tool_declarations:
   - builtin.yaml
   - llm/default.yaml
