@@ -87,6 +87,47 @@ test_cases:
       - srd017-llm-extensions AC3
 
   - use_case: rel01.0-uc001-generator-coding
+    name: Ollama adapter validates model availability
+    go_test: TestNewAdapter_ModelFound
+    inputs:
+      ollama_tags: "model list with requested model and tag variants"
+    expected:
+      model_found: true
+      case_insensitive_match: true
+      missing_model_error_mentions_pull: true
+    traces:
+      - srd009-ollama-adapter AC2
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Ollama adapter emits tracing around check, list, and chat
+    go_test: TestChat_EmitsSemconvInferenceSpan
+    inputs:
+      tracer: "recording tracer"
+      chat_request: "non-streaming /api/chat"
+    expected:
+      check_model_events: true
+      list_models_events: true
+      inference_span_attrs: true
+      nil_tracer_safe: true
+    traces:
+      - srd009-ollama-adapter AC3
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Ollama adapter reports HTTP and JSON failures
+    go_test: TestChat_HTTPError
+    inputs:
+      failures:
+        - connection_refused
+        - bad_http_status
+        - malformed_json
+        - cancelled_context
+    expected:
+      distinct_errors: true
+      no_retry: true
+    traces:
+      - srd009-ollama-adapter AC4
+
+  - use_case: rel01.0-uc001-generator-coding
     name: Generator solves sample and passes validation
     go_test: mage integration:uc001
     inputs:
