@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Nokia. All rights reserved.
+
 // Package subprocess provides a unified interface for invoking the agent
 // binary (or other binaries) as a child process with OTel propagation,
 // timeout handling, environment variables, and process group management.
@@ -11,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 
@@ -42,6 +45,28 @@ type Spec struct {
 	Timeout time.Duration
 
 	PropagateOTel bool // append --otel-parent-span from ctx
+}
+
+// RunCLIOutput runs a CLI and returns stdout, using stderr as the error text
+// when the command fails.
+func RunCLIOutput(ctx context.Context, dir string, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	setProcGroup(cmd)
+
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		se := strings.TrimSpace(stderr.String())
+		if se != "" {
+			return "", fmt.Errorf("%s", se)
+		}
+		return "", err
+	}
+	return string(out), nil
 }
 
 // Run executes a subprocess with process-group management.

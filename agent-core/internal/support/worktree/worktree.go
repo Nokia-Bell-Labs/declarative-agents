@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/subprocess"
 )
 
 const (
@@ -118,11 +118,12 @@ func worktreeDir(repoDir, runID string) string {
 }
 
 func verifyGitRepo(dir string) error {
-	if err := stl.VerifyGitDir(dir); err != nil {
-		if _, statErr := os.Stat(filepath.Join(dir, ".git")); os.IsNotExist(statErr) {
+	gitPath := filepath.Join(dir, ".git")
+	if _, err := os.Stat(gitPath); err != nil {
+		if os.IsNotExist(err) {
 			return &NotAGitRepoError{Path: dir}
 		}
-		return err
+		return fmt.Errorf("checking git repo %s: %w", dir, err)
 	}
 	return nil
 }
@@ -136,7 +137,7 @@ func branchExists(repoDir, branch string) (bool, error) {
 }
 
 func runGit(repoDir string, args ...string) (string, error) {
-	out, err := stl.RunGit(context.Background(), repoDir, args...)
+	out, err := subprocess.RunCLIOutput(context.Background(), repoDir, "git", args...)
 	if err != nil {
 		return "", &GitError{
 			RepoDir: repoDir,
