@@ -52,7 +52,7 @@ requirements:
     title: Builtin config validation
     items:
       - R3.1: Builtin factories SHALL decode tool-specific config into typed structs via DecodeToolConfig at registration time.
-      - R3.2: Required behavior-shaping config such as nested machine paths, tool selection paths, artifact paths, or server addresses SHALL be explicit typed fields.
+      - R3.2: Required behavior-shaping config such as child profiles, nested machine paths, tool selection paths, artifact paths, or server addresses SHALL be explicit typed fields.
       - R3.3: Config decode errors SHALL include the tool name and type mismatch details.
       - R3.4: Defaults MAY exist for backwards compatibility, but defaults that change program behavior SHALL be documented.
       - R3.5: Typed config structs SHALL exist for each config shape (ChildAgentConfig, LLMToolConfig, LoadSuiteConfig, RunPointConfig, ServeUIToolConfig).
@@ -83,8 +83,10 @@ requirements:
       - R6.2: CLI argument construction SHALL be centralized in execute.Config.BuildArgs; callers SHALL NOT duplicate flag construction.
       - R6.3: execute.RunAgent SHALL be the shared entry point for child invocations that do not require task-file writing.
       - R6.4: Child agent invocations SHALL propagate OTel tracing via subprocess.Run with PropagateOTel enabled.
-      - R6.5: YAML-declared child agent config (profile, or compatibility-only machine/tools/tools_declarations) SHALL be decoded via ChildAgentConfig and mapped to execute.Config at registration time.
-      - R6.6: Child agent builtin factories SHALL fail registration when required ChildAgentConfig fields are missing; they SHALL NOT substitute behavior-shaping hardcoded profile, machine, tools, or tools_declarations paths.
+      - R6.5: YAML-declared child agent config SHALL provide profile, decode via ChildAgentConfig, and map to execute.Config at registration time.
+      - R6.6: Child agent builtin factories SHALL fail registration when profile is missing; they SHALL NOT substitute behavior-shaping hardcoded profile, machine, tools, or tools_declarations paths.
+      - R6.7: Legacy machine/tools/tools_declarations fields in ChildAgentConfig are implementation drift and SHALL be removed by the follow-up code issue.
+      - R6.8: The follow-up code issue SHALL update internal/support/execute, internal/tools/catalog, internal/tools/control, internal/planning/pipeline, and internal/evaluation/bench.
 
 package_ownership:
   status: planned
@@ -154,8 +156,8 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3, R5.4]
 
   - id: AC6
-    criterion: All child agent invocations share execute.Config and execute.BuildArgs/RunAgent with OTel propagation; no duplicated argument construction remains, profile config invokes children with --profile, and missing profile or compatibility-only machine/tools/tools_declarations config fails clearly at registration.
-    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6]
+    criterion: All child agent invocations share execute.Config and execute.BuildArgs/RunAgent with OTel propagation; no duplicated argument construction remains; profile config invokes children with --profile; missing profile fails clearly at registration; legacy child machine/tools/tools_declarations support is removed.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R6.8]
 
 depends_on:
   - srd_id: srd001-core-types
@@ -183,8 +185,10 @@ implementation:
   - tools/builtin/all.yaml (planned compatibility bundle)
   - internal/support/execute/execute.go
   - internal/tools/catalog/ (planned ToolDef and config decoding)
-  - internal/tools/registry/ (planned BuiltinRegistry and factory catalog)
   - internal/tools/control/ (planned child-agent boundary tools)
+  - internal/planning/pipeline/ (current execute_task factory)
+  - internal/evaluation/bench/ (current launch_eval factory)
+  - internal/tools/registry/ (planned BuiltinRegistry and factory catalog)
   - internal/tools/filesystem/ (planned file builtin tools)
   - internal/tools/llm/ (planned model-boundary builtin tools)
   - internal/tools/lifecycle/ (planned lifecycle builtin tools)

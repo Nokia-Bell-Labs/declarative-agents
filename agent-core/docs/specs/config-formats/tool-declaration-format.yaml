@@ -238,12 +238,46 @@ builtin_fields:
       Tool-specific configuration passed to the factory function.
       Decoded into typed Go structs via DecodeToolConfig at registration
       time. Type mismatches produce errors mentioning the tool name.
-      Structure varies per tool: ChildAgentConfig for launch_eval,
-      execute_task, and self_invoke (decoded into execute.Config at
-      runtime), LLMToolConfig for invoke_llm, LoadSuiteConfig for
-      parse_suite_config and evaluator session setup tools,
-      RunPointConfig for run_point, ServeUIToolConfig for
-      serve_ui. See cfg-llm-config-format for invoke_llm details.
+      Structure varies per tool. Boundary tools that spawn child agents use
+      profile-only child_agent_config for launch_eval, execute_task, and self_invoke.
+      LLMToolConfig configures invoke_llm. LoadSuiteConfig configures
+      parse_suite_config and evaluator session setup tools. RunPointConfig
+      configures run_point. ServeUIToolConfig configures serve_ui.
+      See cfg-llm-config-format for invoke_llm details.
+
+child_agent_config:
+  purpose: |
+    Defines config for builtin boundary tools that spawn another agent process.
+    This applies to execute_task, self_invoke, and launch_eval.
+  fields:
+    - field: profile
+      type: string
+      required: true
+      description: |
+        Path to the child agent profile YAML. The child process receives this
+        value as --profile. The profile owns the child's machine, tools.yaml,
+        tool_config_dirs, tool_declarations, and agent-local config.
+  legacy_fields:
+    status: planned_removal
+    fields:
+      - machine
+      - tools
+      - tools_declarations
+    rule: |
+      New declarations and examples must not use these fields. Existing Go
+      structs still decode them until the profile-only child invocation code
+      cleanup lands. Documentation should mention them only as implementation
+      drift.
+  examples:
+    execute_task: |
+      config:
+        profile: agents/generator/profile.yaml
+    launch_eval: |
+      config:
+        profile: agents/evaluator/profile.yaml
+    self_invoke: |
+      config:
+        profile: agents/generator/profile.yaml
 
 exec_fields:
   - field: binary
@@ -368,14 +402,13 @@ boundary_compensation_example: |
       strategy: compensating_action
       description: Requires child evaluator artifact cleanup.
       payload: boundary_compensation
-      captures: [suite_path, output_dir, child_machine, child_tools]
+      captures: [suite_path, output_dir, child_profile]
 
   The persisted UndoMemento carries:
     {
       "boundary_compensation": {
         "strategy": "child_eval_artifact_compensation",
-        "child_machine": "agents/evaluator/machine.yaml",
-        "child_tools": "agents/evaluator/tools.yaml",
+        "child_profile": "agents/evaluator/profile.yaml",
         "workspace_paths": ["/tmp/eval-output-123"],
         "artifact_paths": ["/path/to/suite.yaml"]
       }
