@@ -1,0 +1,83 @@
+openapi: 3.0.3
+info:
+  title: Payments Demo API
+  version: v1
+servers:
+  - url: https://payments.example.invalid
+paths:
+  /payments/{id}:
+    get:
+      operationId: getPayment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: Payment read.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, state]
+                properties:
+                  id: {type: string}
+                  state: {type: string}
+        "404":
+          description: Payment not found.
+    post:
+      operationId: createPayment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id, amount]
+              properties:
+                order_id: {type: string}
+                amount: {type: number}
+      responses:
+        "202":
+          description: Payment accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, correlation_id]
+                properties:
+                  id: {type: string}
+                  correlation_id: {type: string}
+  /payments/{id}/cancel:
+    post:
+      operationId: cancelPayment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "202":
+          description: Payment cancellation accepted.
+  /webhooks/payment:
+    post:
+      operationId: receivePaymentWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, state]
+              properties:
+                id: {type: string}
+                state: {type: string}
+      responses:
+        "202":
+          description: Webhook accepted.

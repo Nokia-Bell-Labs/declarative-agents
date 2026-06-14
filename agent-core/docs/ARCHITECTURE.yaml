@@ -576,19 +576,19 @@ overview:
       - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
 
   rest_tool_runtime_architecture:
-    status: planned
+    status: current
     summary: |
-      Release 03.0 specifies planned declarative REST client and REST server
-      tools as boundary tool families. The planned package is
-      internal/tools/rest. This package sits beside internal/tools/llm,
-      internal/tools/control, and internal/tools/lifecycle rather than inside
-      internal/tools/stl. The stl package remains a temporary facade only and
-      must not receive long-term REST implementations.
+      Release 03.0 implements declarative REST client and REST server tools as
+      boundary tool families. The runtime package is internal/tools/rest. This
+      package sits beside internal/tools/llm, internal/tools/control, and
+      internal/tools/lifecycle rather than inside internal/tools/stl. The stl
+      package remains a temporary facade only and must not receive long-term
+      REST implementations.
 
-      Planned REST client tools call configured upstreams. Planned REST server
-      tools are launched by configured agent profiles and bind configured
-      addresses. OpenAPI documents and REST definitions live with
-      agent/profile/tool configuration, not compiled code.
+      REST client tools call configured upstreams. REST server tools are
+      launched by configured agent profiles and bind configured addresses.
+      OpenAPI documents and REST definitions live with agent/profile/tool
+      configuration, not compiled code.
 
       Client and server tools share REST definition types for operations,
       paths, schemas, auth references, status mapping, side effects, and
@@ -629,8 +629,11 @@ overview:
       - Runtime credentials are referenced by configuration and resolved by the agent runtime.
       - Generated Go REST clients and servers are out of scope for the first implementation.
     source_files:
-      planned:
+      current:
         - internal/tools/rest/
+        - tools/builtin/rest/all.yaml
+        - agents/rest/
+        - testdata/integration/rel03-rest-tools/
         - docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
         - docs/specs/software-requirements/srd028-rest-client-tools.yaml
         - docs/specs/software-requirements/srd029-rest-server-tools.yaml
@@ -1297,7 +1300,7 @@ package_specification_coverage: |
   outside profile configs.
 
 implementation_status:
-  current_focus: Release 02.0 documentation accuracy and remaining lifecycle reference proofs
+  current_focus: Release 03.0 REST design audit and release documentation verification
   progress:
     - done: Core engine (internal/runtime/core) — types, state machine, dispatch, registry, loop, machine config
     - done: Tracing port (internal/observability/tracing) — 5-method Tracer interface with NoopTracer
@@ -1324,6 +1327,8 @@ implementation_status:
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats, docker
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
+    - done: REST runtime package — declarative client, async client, server, and OpenAPI import behavior in internal/tools/rest
+    - done: REST sample profile — agents/rest and testdata/integration/rel03-rest-tools fixtures for release 03.0 flows
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd026)
