@@ -585,6 +585,9 @@ func registerBenchFactories() toolregistry.FactoryRegistrar {
 
 func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
-		toolrest.RegisterFactories(br, toolrest.FactoryDeps{Definitions: st.restDefs})
+		toolrest.RegisterFactories(br, toolrest.FactoryDeps{
+			Definitions:        st.restDefs,
+			CredentialResolver: toolrest.EmptyCredentialResolver{},
+		})
 	}
 }

@@ -5,6 +5,7 @@ package rest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +13,19 @@ import (
 	"strings"
 )
 
-func buildClientRequest(def ClientOperationDefinition, input map[string]interface{}) (*http.Request, error) {
+type credentialResolutionError struct {
+	ref string
+}
+
+func (e credentialResolutionError) Error() string {
+	return fmt.Sprintf("credential ref %q is not resolved", e.ref)
+}
+
+func buildClientRequest(
+	def ClientOperationDefinition,
+	input map[string]interface{},
+	resolver CredentialResolver,
+) (*http.Request, error) {
 	params, err := normalizeRuntimeParams(input, def.Operation.Params)
 	if err != nil {
 		return nil, err
@@ -33,7 +46,7 @@ func buildClientRequest(def ClientOperationDefinition, input map[string]interfac
 		return renderRequestBody(def.Operation, params, def.Limits.MaxRequestBytes)
 	}
 	applyHeaders(req, def.Operation.Params.Headers, params)
-	return req, applyAuth(req, def.Auth)
+	return req, applyAuth(req, def.Auth, resolver)
 }
 
 func normalizeRuntimeParams(input map[string]interface{}, binding RequestBinding) (map[string]interface{}, error) {
@@ -190,22 +203,73 @@ func applyHeaders(req *http.Request, declared map[string]interface{}, params map
 	}
 }
 
-func applyAuth(req *http.Request, auth AuthProfile) error {
+func applyAuth(req *http.Request, auth AuthProfile, resolver CredentialResolver) error {
 	switch auth.Type {
 	case "", authNone:
 		return nil
 	case authBearer:
-		req.Header.Set("Authorization", "Bearer "+auth.TokenRef)
+		token, err := resolveCredential(resolver, auth.TokenRef)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", bearerValue(auth.Scheme, token))
 	case authHeaderToken:
-		req.Header.Set(auth.Header, auth.TokenRef)
+		token, err := resolveCredential(resolver, auth.TokenRef)
+		if err != nil {
+			return err
+		}
+		req.Header.Set(auth.Header, token)
 	case authQueryToken:
+		token, err := resolveCredential(resolver, auth.TokenRef)
+		if err != nil {
+			return err
+		}
 		query := req.URL.Query()
-		query.Set(auth.Query, auth.TokenRef)
+		query.Set(auth.Query, token)
 		req.URL.RawQuery = query.Encode()
 	case authBasic:
-		req.SetBasicAuth(auth.UsernameRef, auth.PasswordRef)
+		username, err := resolveCredential(resolver, auth.UsernameRef)
+		if err != nil {
+			return err
+		}
+		password, err := resolveCredential(resolver, auth.PasswordRef)
+		if err != nil {
+			return err
+		}
+		req.SetBasicAuth(username, password)
 	}
 	return nil
+}
+
+func bearerValue(scheme, token string) string {
+	if scheme == "" {
+		scheme = "Bearer"
+	}
+	return scheme + " " + token
+}
+
+func resolveCredential(resolver CredentialResolver, ref string) (string, error) {
+	if ref == "" || resolver == nil {
+		return "", credentialResolutionError{ref: ref}
+	}
+	return resolver.ResolveCredential(ref)
+}
+
+func (c StaticCredentials) ResolveCredential(ref string) (string, error) {
+	value, ok := c[ref]
+	if !ok {
+		return "", credentialResolutionError{ref: ref}
+	}
+	return value, nil
+}
+
+func (EmptyCredentialResolver) ResolveCredential(ref string) (string, error) {
+	return "", credentialResolutionError{ref: ref}
+}
+
+func isCredentialResolutionError(err error) bool {
+	var target credentialResolutionError
+	return errors.As(err, &target)
 }
 
 func validateNetwork(endpoint *url.URL, policy NetworkPolicy) error {

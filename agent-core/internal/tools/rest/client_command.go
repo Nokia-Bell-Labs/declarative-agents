@@ -13,10 +13,11 @@ import (
 
 // ClientBuilder constructs synchronous REST client commands.
 type ClientBuilder struct {
-	ToolName   string
-	Init       string
-	Operation  ClientOperationDefinition
-	AsyncState *AsyncState
+	ToolName    string
+	Init        string
+	Operation   ClientOperationDefinition
+	AsyncState  *AsyncState
+	Credentials CredentialResolver
 }
 
 // Build creates one REST client boundary command.
@@ -24,17 +25,18 @@ func (b ClientBuilder) Build(res core.Result) core.Command {
 	params, err := runtimeParams(res.Output)
 	return clientCmd{
 		toolName: b.ToolName, init: b.Init, operation: b.Operation,
-		params: params, asyncState: b.AsyncState, buildErr: err,
+		params: params, asyncState: b.AsyncState, credentials: b.Credentials, buildErr: err,
 	}
 }
 
 type clientCmd struct {
-	toolName   string
-	init       string
-	operation  ClientOperationDefinition
-	params     map[string]interface{}
-	asyncState *AsyncState
-	buildErr   error
+	toolName    string
+	init        string
+	operation   ClientOperationDefinition
+	params      map[string]interface{}
+	asyncState  *AsyncState
+	credentials CredentialResolver
+	buildErr    error
 }
 
 func (c clientCmd) Name() string { return c.toolName }
@@ -46,14 +48,21 @@ func (c clientCmd) Execute() core.Result {
 	if c.init == InitClientAwait {
 		return c.awaitAsync()
 	}
-	request, err := buildClientRequest(c.operation, c.params)
+	request, err := buildClientRequest(c.operation, c.params, c.credentials)
 	if err != nil {
-		return clientOperationError(c.toolName, "request_rendering", err, c.operation)
+		return clientOperationError(c.toolName, requestBuildFailureStage(err), err, c.operation)
 	}
 	if c.init == InitClientSend {
 		return c.sendAsync(request)
 	}
 	return c.executeRequest(request)
+}
+
+func requestBuildFailureStage(err error) string {
+	if isCredentialResolutionError(err) {
+		return "auth_resolution"
+	}
+	return "request_rendering"
 }
 
 func (c clientCmd) Undo() core.Result {
@@ -65,7 +74,7 @@ func (c clientCmd) executeRequest(request *http.Request) core.Result {
 	response, attempts, err := c.doWithRetry(request)
 	duration := time.Since(start)
 	if err != nil {
-		return clientOperationError(c.toolName, "network_io", redactError(err, c.operation), c.operation)
+		return clientOperationError(c.toolName, "network_io", redactError(err, c.operation, c.credentials), c.operation)
 	}
 	defer response.Body.Close()
 	result, err := mapClientResponse(c.toolName, c.operation, response, attempts, duration)

@@ -68,19 +68,20 @@ func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"title":"ok","secret":"token-value"}`))
+		_, _ = w.Write([]byte(`{"title":"ok","secret":"body-secret"}`))
 	}))
 	defer upstream.Close()
 	client := issueClient()
 	client.AuthRef = "token"
 	def := clientDefinition(t, upstream.URL, client)
 	def.Auth = map[string]AuthProfile{"token": {
-		Type: authHeaderToken, Header: "X-Token", TokenRef: "token-value",
+		Type: authHeaderToken, Header: "X-Token", TokenRef: "token_ref",
 	}}
 
-	result := clientCommand(def, InitClientGet, "get", params("1")).Execute()
+	result := clientCommandWithCredentials(def, InitClientGet, "get", params("1"), authCredentials()).Execute()
 	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal)
-	require.NotContains(t, result.Output, "token-value")
+	require.NotContains(t, result.Output, "synthetic-token")
+	require.NotContains(t, result.Output, "body-secret")
 	require.Contains(t, result.Output, "[REDACTED]")
 
 	badDef := clientDefinition(t, upstream.URL, issueClient())
@@ -90,6 +91,56 @@ func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
 	result = clientCommand(badDef, InitClientGet, "get", params("1")).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "status_mapping")
+}
+
+func TestRESTClient_ResolvesAuthCredentialRefs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		auth AuthProfile
+		want func(*http.Request) bool
+	}{
+		{name: "bearer", auth: AuthProfile{Type: authBearer, TokenRef: "github_token"}, want: bearerAuthSent},
+		{name: "header token", auth: AuthProfile{Type: authHeaderToken, Header: "X-Token", TokenRef: "github_token"}, want: headerTokenSent},
+		{name: "query token", auth: AuthProfile{Type: authQueryToken, Query: "access_token", TokenRef: "github_token"}, want: queryTokenSent},
+		{name: "basic", auth: AuthProfile{Type: authBasic, UsernameRef: "user_ref", PasswordRef: "password_ref"}, want: basicAuthSent},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var accepted bool
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				accepted = tc.want(req)
+				require.NotContains(t, req.Header.Get("Authorization"), "github_token")
+				writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok"})
+			}))
+			defer upstream.Close()
+			def := authenticatedDefinition(t, upstream.URL, tc.auth)
+
+			result := clientCommandWithCredentials(def, InitClientGet, "get", params("1"), authCredentials()).Execute()
+
+			require.Equal(t, core.Signal("RESTResourceRead"), result.Signal, result.Output)
+			require.True(t, accepted)
+			require.NotContains(t, result.Output, "synthetic-token")
+			require.NotContains(t, result.Output, "synthetic-password")
+		})
+	}
+}
+
+func TestRESTClient_MissingCredentialReferenceFailsAuthResolution(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests++ }))
+	defer upstream.Close()
+	def := authenticatedDefinition(t, upstream.URL, AuthProfile{Type: authBearer, TokenRef: "missing_token"})
+
+	result := clientCommandWithCredentials(def, InitClientGet, "get", params("1"), authCredentials()).Execute()
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "auth_resolution")
+	require.NotContains(t, result.Output, "synthetic-token")
+	require.Zero(t, requests)
 }
 
 func TestRESTClient_RedirectAllowlistPolicy(t *testing.T) {
@@ -157,13 +208,25 @@ func issueHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func clientCommand(def Definition, init, operation string, input map[string]interface{}) core.Command {
+	return clientCommandWithCredentials(def, init, operation, input, nil)
+}
+
+func clientCommandWithCredentials(
+	def Definition,
+	init string,
+	operation string,
+	input map[string]interface{},
+	credentials CredentialResolver,
+) core.Command {
 	collection := NewCollection()
 	_ = collection.Add(def)
 	resolved, _ := collection.ResolveClientOperation(ClientToolConfig{
 		RestRef: "github", Resource: "issue", Operation: operation,
 	})
 	params, _ := json.Marshal(map[string]interface{}{"tool": init, "parameters": input})
-	return ClientBuilder{ToolName: init, Init: init, Operation: resolved}.Build(core.Result{Output: string(params)})
+	return ClientBuilder{
+		ToolName: init, Init: init, Operation: resolved, Credentials: credentials,
+	}.Build(core.Result{Output: string(params)})
 }
 
 func requireClientSignal(t *testing.T, def Definition, init, operation string, input map[string]interface{}, signal string) {
@@ -197,6 +260,42 @@ func issueClient() Client {
 			"set": issueSetOperation(),
 		},
 	}}}
+}
+
+func authenticatedDefinition(t *testing.T, baseURL string, auth AuthProfile) Definition {
+	t.Helper()
+	def := clientDefinition(t, baseURL, issueClient())
+	client := def.Clients["github"]
+	client.AuthRef = "auth"
+	def.Clients["github"] = client
+	def.Auth = map[string]AuthProfile{"auth": auth}
+	return def
+}
+
+func authCredentials() StaticCredentials {
+	return StaticCredentials{
+		"github_token": "synthetic-token",
+		"user_ref":     "synthetic-user",
+		"password_ref": "synthetic-password",
+		"token_ref":    "synthetic-token",
+	}
+}
+
+func bearerAuthSent(req *http.Request) bool {
+	return req.Header.Get("Authorization") == "Bearer synthetic-token"
+}
+
+func headerTokenSent(req *http.Request) bool {
+	return req.Header.Get("X-Token") == "synthetic-token"
+}
+
+func queryTokenSent(req *http.Request) bool {
+	return req.URL.Query().Get("access_token") == "synthetic-token"
+}
+
+func basicAuthSent(req *http.Request) bool {
+	username, password, ok := req.BasicAuth()
+	return ok && username == "synthetic-user" && password == "synthetic-password"
 }
 
 func issueOperation(method, signal string) Operation {
