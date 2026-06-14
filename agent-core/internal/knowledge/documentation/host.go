@@ -41,6 +41,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/health", s.handleHealth)
 	mux.HandleFunc("GET /api/v1/docs", docs.List)
 	mux.HandleFunc("GET /api/v1/docs/{path...}", docs.Get)
+	mux.HandleFunc("POST /api/v1/docs/search", docs.Search)
+	mux.HandleFunc("POST /api/v1/docs/validate", docs.Validate)
+	mux.HandleFunc("POST /api/v1/docs/suggestions", docs.Suggest)
+	mux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/approve", docs.Approve)
+	mux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/reject", docs.Reject)
 	mux.Handle("/", spaHandler(s.assets))
 	return mux
 }

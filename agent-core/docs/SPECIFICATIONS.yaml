@@ -365,7 +365,7 @@ test_suite_index:
       - rel03.0-uc004-openapi-import
       - rel03.0-uc005-ollama-openapi-model-listing
       - rel03.0-uc006-documentation-curator
-    formal_test_cases: 23
+    formal_test_cases: 24
     path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
 go_test_coverage:
@@ -381,11 +381,11 @@ go_test_coverage:
     mage integration:uc003 target records a skipped/manual-precondition result,
     not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
-    The 03.0 YAML coverage (23 cases) now names implemented Go tests for REST
+    The 03.0 YAML coverage (24 cases) now names implemented Go tests for REST
     config loading, client execution, async send/await, server signal handling,
     OpenAPI import, credential resolution, redirect and size policies, server
     validation, redaction behavior, live Ollama OpenAPI model-listing, and
-    documentation-curator ownership. Package tests cover
+    documentation-curator ownership and curator validation workflows. Package tests cover
     srd009-srd018 and domain packages. Run
     `go test ./... -v | grep -c '=== RUN'` for the current test function count.
 

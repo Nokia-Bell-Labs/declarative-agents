@@ -656,6 +656,35 @@ test_cases:
       - srd024-blocking-input-tools AC1
       - srd027-rest-tool-runtime AC2
 
+  - use_case: rel03.0-uc006-documentation-curator
+    name: Documentation curator exposes validation and patch proposal workflow
+    go_test: TestHandlerServesCuratorSearchValidationAndPatchReview
+    status: done
+    description: |
+      Call the standalone documentation host APIs for search, validation,
+      suggestion generation, and patch review. The handler returns structured
+      findings and a pending patch proposal. Approval records the review
+      decision but does not write documentation files.
+    inputs:
+      routes:
+        - POST /api/v1/docs/search
+        - POST /api/v1/docs/validate
+        - POST /api/v1/docs/suggestions
+        - POST /api/v1/docs/patches/{patch_id}/approve
+      docs_fixture: temporary_docs_root
+      strict_validation: true
+    expected:
+      search_results_returned: true
+      validation_findings_structured: true
+      suggestion_status: pending_review
+      approval_recorded: true
+      documentation_write_applied: false
+    traces:
+      - rel03.0-uc006-documentation-curator S4
+      - srd027-rest-tool-runtime AC2
+      - srd028-rest-client-tools AC4
+      - srd028-rest-client-tools AC7
+
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST observability redacts secrets and reports failure stages
     go_test: TestRESTTools_TracingRedactionAndErrors
