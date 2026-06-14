@@ -47,6 +47,8 @@ requirements:
       - R2.4: FileStore SHALL store one JSON file per store path under a configured root directory.
       - R2.5: FileStore List SHALL support prefix filtering.
       - R2.6: StateStore and FileStore errors SHALL include the affected store path and backing store location when available.
+      - R2.7: When a workspace directory is configured and no explicit StateStore root is supplied, the runtime SHALL use <directory>/.agent-state as the default FileStore root.
+      - R2.8: An explicit --state-store-dir SHALL override the workspace-local default for shared operator storage, external artifact retention, and isolated tests.
 
   R3:
     title: Workspace and GitWorkspace
@@ -105,7 +107,7 @@ requirements:
     items:
       - R8.1: The runtime SHALL support a suspended run status when lifecycle features are enabled.
       - R8.2: A suspend or approval-gate tool SHALL emit a machine-declared signal that ends the run without failure.
-      - R8.3: Suspend SHALL persist a checkpoint before returning StatusSuspended when StateStore is configured.
+      - R8.3: Suspend SHALL persist a checkpoint before returning StatusSuspended when StateStore is configured explicitly or resolved from the workspace-local default.
       - R8.4: Approval gates SHALL be expressible as machine.yaml transitions to an internal tool.
       - R8.5: Missing StateStore behavior for suspend SHALL be documented and tested, either as CommandError or explicit no-op behavior.
       - R8.6: Approval outcomes such as approved and rejected SHALL map to explicit machine signals on resume or follow-up execution.
@@ -113,7 +115,7 @@ requirements:
   R9:
     title: Resume
     items:
-      - R9.1: Resume SHALL load a checkpoint by ID from StateStore.
+      - R9.1: Resume SHALL load a checkpoint by ID from StateStore, using the workspace-local default when --directory is available and --state-store-dir is absent.
       - R9.2: Resume SHALL restore agent state into LoopParams or equivalent runtime initialization.
       - R9.3: Resume SHALL restore command/domain state through explicit restore hooks or StateStore-backed snapshots.
       - R9.4: Resume SHALL restore Workspace to the checkpoint WorkspaceRef when one is present.
@@ -126,7 +128,7 @@ requirements:
       - R10.1: Rollback, checkpointing, suspend, resume, and approval-gate lifecycle behavior SHALL be opt-in.
       - R10.2: When StateStore, Workspace, and CheckpointPolicy are nil or disabled, existing machines SHALL run with unchanged behavior.
       - R10.3: Disabled lifecycle features SHALL not persist checkpoints, record full history, or mutate workspace refs.
-      - R10.4: Feature flags and required store/workspace configuration SHALL be documented for operators.
+      - R10.4: Feature flags and store/workspace resolution SHALL be documented for operators, including the <directory>/.agent-state default and the --state-store-dir override.
 
   R11:
     title: Tool contract integration
@@ -146,7 +148,7 @@ requirements:
       - R12.3: STL lifecycle tools SHALL adapt core checkpoint operations into Commands with typed config structs and Result signals.
       - R12.4: Lifecycle tool declarations SHALL be normal builtin ToolDefs selected by lifecycle profiles or tool-selection files.
       - R12.5: Lifecycle profiles SHALL select the lifecycle MachineSpec, lifecycle tool selection, and shared builtin declarations through the same runtime contract as other agents.
-      - R12.6: Universal runtime inputs such as StateStore directory, workspace directory, input request path, and resume checkpoint SHALL remain runtime inputs rather than lifecycle-specific hidden subcommand flags.
+      - R12.6: Universal runtime inputs such as StateStore override, workspace directory, request path, and resume checkpoint SHALL remain runtime inputs rather than lifecycle-specific hidden subcommand flags.
       - R12.7: Hidden lifecycle Cobra subcommands MAY exist only as temporary compatibility adapters and SHALL NOT be treated as the desired interface.
       - R12.8: Lifecycle tools SHALL NOT shell back into the agent binary to perform history or rollback.
 
@@ -163,8 +165,8 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
 
   - id: AC2
-    criterion: StateStore/FileStore and Workspace/GitWorkspace requirements cover persistence, listing, checkpoint, restore, current refs, git top-level safety, and clear error reporting.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+    criterion: StateStore/FileStore and Workspace/GitWorkspace requirements cover persistence, listing, checkpoint, restore, current refs, git top-level safety, default store resolution, override usage, and clear error reporting.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
 
   - id: AC3
     criterion: Command.Undo and History requirements support reverse traversal over command/domain state without conflating filesystem state with StateStore.
@@ -226,3 +228,4 @@ implementation_status:
     - Lifecycle history and rollback profiles backed by STL builtin adapters.
   remaining_gaps:
     - Approval-gate reference agent for suspend and resume is tracked by agent-core-6xm3.
+    - Workspace-local default StateStore resolution at <directory>/.agent-state is tracked by agent-core-94su.7.
