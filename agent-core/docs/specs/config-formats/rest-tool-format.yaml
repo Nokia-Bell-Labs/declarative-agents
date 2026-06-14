@@ -1,0 +1,619 @@
+id: cfg-rest-tool-format
+title: REST Tool Configuration Format
+
+purpose: |
+  Defines the planned YAML format for declarative REST definitions under a
+  top-level rest mapping. Agent profiles and tool declaration files use this
+  format to configure REST client and REST server boundary words.
+
+  The format keeps HTTP authority in trusted configuration. ToolDef config
+  references named clients, servers, resources, operations, and endpoints.
+  Runtime input supplies only declared request values.
+
+schema:
+  description: |
+    A REST definition file MAY live beside an agent profile, a tool declaration
+    file, or a future REST-specific config directory. Each file contains one
+    rest mapping. The runtime merges selected files through profile-owned
+    declaration paths.
+  fields:
+    - field: rest
+      type: object
+      required: true
+      description: |
+        Root mapping for all REST definitions in the file.
+      sub_fields:
+        - field: version
+          type: string
+          required: true
+          description: Format version. Initial value is "v1".
+        - field: clients
+          type: map[string]rest_client
+          required: false
+          description: Named outbound REST clients.
+        - field: servers
+          type: map[string]rest_server
+          required: false
+          description: Named inbound REST servers.
+        - field: openapi
+          type: map[string]openapi_import
+          required: false
+          description: Named OpenAPI 3 imports.
+        - field: auth
+          type: map[string]auth_profile
+          required: false
+          description: Named authentication profiles referenced by clients, operations, or servers.
+        - field: limits
+          type: map[string]limit_profile
+          required: false
+          description: Named timeout, size, redirect, and network limit profiles.
+        - field: retry_policies
+          type: map[string]retry_policy
+          required: false
+          description: Named retry policies for outbound operations.
+        - field: response_mappings
+          type: map[string]response_mapping
+          required: false
+          description: Reusable response mapping profiles.
+
+  rest_client:
+    fields:
+      - field: base_url
+        type: string
+        required: false
+        description: Base URL for relative operation paths. Runtime input cannot replace this value.
+      - field: auth_ref
+        type: string
+        required: false
+        description: Name of an auth profile.
+      - field: limits_ref
+        type: string
+        required: false
+        description: Name of a limit profile.
+      - field: retry_ref
+        type: string
+        required: false
+        description: Default retry policy for operations on this client.
+      - field: resources
+        type: map[string]resource
+        required: false
+        description: Resource-oriented operation groups.
+      - field: operations
+        type: map[string]operation
+        required: false
+        description: RPC-shaped or standalone outbound operations.
+
+  resource:
+    fields:
+      - field: path
+        type: string
+        required: true
+        description: Resource path template relative to the client base_url.
+      - field: operations
+        type: map[string]resource_operation
+        required: true
+        description: Allowed resource verbs. Valid names are get, set, create, and delete.
+      - field: id_field
+        type: string
+        required: false
+        description: Output field that carries the resource identifier.
+      - field: version_field
+        type: string
+        required: false
+        description: Output field that carries resource version or ETag data.
+
+  operation:
+    fields:
+      - field: method
+        type: string
+        required: true
+        description: HTTP method fixed by configuration.
+      - field: path
+        type: string
+        required: true
+        description: Path template. Absolute URLs are rejected unless network policy allows them.
+      - field: params
+        type: request_binding
+        required: false
+        description: Declared path, query, header, and body inputs.
+      - field: body
+        type: object
+        required: false
+        description: Request body template built from declared params.
+      - field: success
+        type: status_mapping
+        required: true
+        description: Successful HTTP status mapping and emitted signal.
+      - field: failures
+        type: "[]status_mapping"
+        required: false
+        description: Domain failure status mappings.
+      - field: response_ref
+        type: string
+        required: false
+        description: Reusable response mapping profile.
+      - field: response
+        type: response_mapping
+        required: false
+        description: Inline response mapping.
+      - field: side_effects
+        type: "[]object"
+        required: true
+        description: ToolDef-style side-effect declarations for the operation.
+      - field: reversibility
+        type: object
+        required: true
+        description: Reversible, compensatable, or irreversible classification.
+      - field: compensation
+        type: object
+        required: false
+        description: Configured compensating operation or cancellation path.
+      - field: async
+        type: async_client_config
+        required: false
+        description: Enables rest_client_send and rest_client_await for this operation.
+
+  rest_server:
+    fields:
+      - field: address
+        type: string
+        required: true
+        description: Listener address. Unsafe public binding is rejected unless policy allows it.
+      - field: limits_ref
+        type: string
+        required: false
+        description: Name of a limit profile.
+      - field: queue
+        type: queue_config
+        required: false
+        description: Default inbound queue behavior.
+      - field: endpoints
+        type: map[string]endpoint
+        required: true
+        description: Configured inbound routes.
+      - field: shutdown
+        type: shutdown_config
+        required: false
+        description: Graceful shutdown timeout and drain behavior.
+
+  endpoint:
+    fields:
+      - field: method
+        type: string
+        required: true
+        description: HTTP method accepted by the endpoint.
+      - field: path
+        type: string
+        required: true
+        description: Route path template.
+      - field: binding
+        type: string
+        required: true
+        description: Endpoint binding kind from srd029-rest-server-tools R5.
+      - field: signal
+        type: string
+        required: false
+        description: Static signal emitted by emit_signal endpoints.
+      - field: allowed_signals
+        type: "[]string"
+        required: false
+        description: Signal allowlist for emit_dynamic_signal endpoints.
+      - field: request
+        type: request_binding
+        required: false
+        description: Declared path, query, header, and body inputs.
+      - field: response
+        type: response_mapping
+        required: false
+        description: HTTP response mapping after validation or event enqueue.
+      - field: queue
+        type: queue_config
+        required: false
+        description: Endpoint-specific queue behavior.
+
+  request_binding:
+    fields:
+      - field: path
+        type: map[string]json_schema
+        required: false
+        description: Path variables accepted from runtime input.
+      - field: query
+        type: map[string]json_schema
+        required: false
+        description: Query parameters accepted from runtime input.
+      - field: headers
+        type: map[string]json_schema
+        required: false
+        description: Header parameters accepted from runtime input.
+      - field: body_schema
+        type: json_schema
+        required: false
+        description: Schema for runtime body input.
+      - field: body_source
+        type: string
+        required: false
+        description: One of params, previous_result, command_state, or none.
+
+  response_mapping:
+    fields:
+      - field: schema
+        type: json_schema
+        required: false
+        description: Expected response body schema.
+      - field: output
+        type: map[string]string
+        required: false
+        description: Field selectors copied into structured Result output.
+      - field: redact
+        type: "[]string"
+        required: false
+        description: Selectors removed from output, traces, logs, and errors.
+      - field: resource_id
+        type: string
+        required: false
+        description: Selector for created or updated resource identity.
+      - field: request_id
+        type: string
+        required: false
+        description: Selector for async request identity.
+
+  openapi_import:
+    fields:
+      - field: path
+        type: string
+        required: true
+        description: Local OpenAPI 3 file path or trusted URL.
+      - field: base_url
+        type: string
+        required: false
+        description: Override for OpenAPI server URL.
+      - field: expose
+        type: "[]string"
+        required: false
+        description: Operation IDs imported for REST client operations.
+      - field: bind
+        type: map[string]string
+        required: false
+        description: Operation ID to server endpoint name mapping.
+      - field: side_effects
+        type: map[string][]object
+        required: false
+        description: Side-effect metadata by operation ID.
+      - field: reversibility
+        type: map[string]object
+        required: false
+        description: Reversibility metadata by operation ID.
+
+  async_client_config:
+    fields:
+      - field: request_id
+        type: string
+        required: true
+        description: Selector or template that yields the async request ID.
+      - field: correlation
+        type: string
+        required: false
+        description: Selector or template for correlation data.
+      - field: idempotency_token
+        type: string
+        required: false
+        description: Template used for safe retries or duplicate suppression.
+      - field: await_operation
+        type: string
+        required: false
+        description: Operation used by rest_client_await when polling is required.
+      - field: timeout
+        type: duration string
+        required: false
+        description: Maximum await duration.
+      - field: state_retention
+        type: string
+        required: false
+        description: One of consume, keep, or expire.
+
+  queue_config:
+    fields:
+      - field: name
+        type: string
+        required: false
+        description: Queue or inbox source name.
+      - field: capacity
+        type: int
+        required: false
+        description: Maximum queued inbound events.
+      - field: overflow
+        type: string
+        required: false
+        description: One of reject, drop_oldest, or drop_newest.
+      - field: timeout
+        type: duration string
+        required: false
+        description: Default await timeout.
+      - field: payload_shape
+        type: json_schema
+        required: false
+        description: Shape of queued event payloads.
+
+format_examples:
+  hand_authored: |
+    rest:
+      version: v1
+      auth:
+        github_app:
+          type: bearer
+          token_ref: github_token
+      limits:
+        public_api:
+          timeout: 30s
+          max_request_bytes: 65536
+          max_response_bytes: 1048576
+          redirect:
+            mode: same_host
+      retry_policies:
+        safe_reads:
+          attempts: 3
+          backoff: exponential
+          retry_status: [429, 500, 502, 503]
+      clients:
+        github:
+          base_url: https://api.github.com
+          auth_ref: github_app
+          limits_ref: public_api
+          resources:
+            issue:
+              path: /repos/{owner}/{repo}/issues/{number}
+              operations:
+                get:
+                  method: GET
+                  success: {status: [200], signal: RESTResourceRead}
+                  failures:
+                    - status: [404]
+                      signal: RESTMissing
+                  response:
+                    output:
+                      title: $.title
+                      state: $.state
+                set:
+                  method: PATCH
+                  params:
+                    path:
+                      owner: {type: string}
+                      repo: {type: string}
+                      number: {type: integer}
+                    body_schema:
+                      type: object
+                      properties:
+                        title: {type: string}
+                        state: {type: string}
+                  success: {status: [200], signal: RESTResourceWritten}
+                  side_effects:
+                    - kind: external_api
+                      target: github.issue
+                      state: issue_updated
+                  reversibility:
+                    classification: compensatable
+                    undo: restore_previous_issue_fields
+          operations:
+            search_issues:
+              method: GET
+              path: /search/issues
+              params:
+                query:
+                  q: {type: string}
+              success: {status: [200], signal: RESTResponded}
+              side_effects:
+                - kind: external_api
+                  target: github.search
+                  state: read_only
+              reversibility:
+                classification: reversible
+                undo: noop
+
+  openapi_backed: |
+    rest:
+      version: v1
+      openapi:
+        payments:
+          path: ./openapi/payments.yaml
+          base_url: https://payments.internal
+          expose:
+            - getPayment
+            - createPayment
+            - cancelPayment
+          bind:
+            receivePaymentWebhook: payment_webhook
+          side_effects:
+            createPayment:
+              - kind: external_api
+                target: payments.payment
+                state: payment_created
+          reversibility:
+            createPayment:
+              classification: compensatable
+              undo: cancelPayment
+      clients:
+        payments:
+          base_url: https://payments.internal
+          operations:
+            create_payment:
+              openapi_operation_id: createPayment
+              success: {status: [202], signal: RESTAccepted}
+              async:
+                request_id: $.id
+                correlation: $.correlation_id
+                idempotency_token: "{{ params.order_id }}"
+                await_operation: getPayment
+                timeout: 2m
+                state_retention: consume
+              side_effects:
+                - kind: external_api
+                  target: payments.payment
+                  state: payment_submitted
+              reversibility:
+                classification: compensatable
+                undo: cancelPayment
+      servers:
+        payments_webhooks:
+          address: 127.0.0.1:9090
+          queue:
+            name: payments
+            capacity: 128
+            overflow: reject
+          endpoints:
+            payment_webhook:
+              openapi_operation_id: receivePaymentWebhook
+              binding: emit_signal
+              signal: PaymentWebhookReceived
+              queue:
+                name: payments
+              response:
+                output:
+                  accepted: "true"
+
+  tool_declarations: |
+    tools:
+      - name: get_issue
+        type: builtin
+        init: rest_client_get
+        category: boundary
+        emits: [RESTResourceRead, RESTMissing, RESTDomainFailed, CommandError]
+        config:
+          rest_ref: github
+          resource: issue
+          operation: get
+
+      - name: create_payment
+        type: builtin
+        init: rest_client_send
+        category: boundary
+        emits: [RESTAccepted, CommandError]
+        config:
+          rest_ref: payments
+          operation: create_payment
+
+      - name: await_payment
+        type: builtin
+        init: rest_client_await
+        category: boundary
+        emits: [RESTResponded, RESTDomainFailed, RESTMissing, RESTAwaitTimedOut, CommandError]
+        config:
+          rest_ref: payments
+          operation: create_payment
+
+      - name: launch_payment_webhooks
+        type: builtin
+        init: rest_server_launch
+        category: boundary
+        emits: [ServerLaunched, CommandError]
+        config:
+          rest_ref: payments_webhooks
+
+validation_rules:
+  - id: V1
+    rule: A REST config file MUST contain rest.version.
+  - id: V2
+    rule: Client operation names MUST be unique after OpenAPI imports and hand-authored definitions are merged.
+  - id: V3
+    rule: Server endpoint names MUST be unique after OpenAPI bind mappings are applied.
+  - id: V4
+    rule: Runtime input fields MUST be declared under request_binding before use in path, query, header, or body templates.
+  - id: V5
+    rule: Resource operations MUST use only get, set, create, or delete names.
+  - id: V6
+    rule: RPC-shaped operations MUST live under operations rather than resource operation maps.
+  - id: V7
+    rule: Mutating operations MUST declare side_effects and reversibility.
+  - id: V8
+    rule: Async operations MUST declare request_id and timeout when selected by rest_client_send.
+  - id: V9
+    rule: Server endpoints with emit_dynamic_signal MUST declare allowed_signals.
+  - id: V10
+    rule: Server endpoints that bind public addresses MUST declare an explicit network policy.
+  - id: V11
+    rule: Auth type values MUST be one of none, basic, bearer, header_token, or query_token for release 03.0.
+  - id: V12
+    rule: OpenAPI operation IDs in expose and bind MUST exist exactly once in the imported document.
+  - id: V13
+    rule: Redirect mode MUST be none, same_host, or allowlist.
+  - id: V14
+    rule: Redaction selectors MUST be valid for the configured response or request mapping syntax.
+
+invalid_examples:
+  ambiguous_resource_operation: |
+    clients:
+      crm:
+        resources:
+          account:
+            path: /accounts/{id}
+            operations:
+              approve:
+                method: POST
+                path: /accounts/{id}/approve
+
+    invalid_because:
+      - approve is RPC-shaped and belongs under operations.
+      - Resource operation names are limited to get, set, create, and delete.
+
+  missing_schema_for_body: |
+    clients:
+      billing:
+        operations:
+          create_invoice:
+            method: POST
+            path: /invoices
+            body:
+              customer: "{{ params.customer }}"
+            success: {status: [201], signal: RESTResourceWritten}
+
+    invalid_because:
+      - body references params.customer without a declared body_schema or request binding.
+
+  unsupported_auth: |
+    auth:
+      cloud:
+        type: magic_signature
+        token_ref: cloud_token
+
+    invalid_because:
+      - magic_signature is not a release 03.0 auth type.
+
+  duplicate_openapi_operation: |
+    openapi:
+      service_a:
+        path: ./service-a.yaml
+        expose: [createThing]
+      service_b:
+        path: ./service-b.yaml
+        expose: [createThing]
+
+    invalid_because:
+      - createThing maps to two imported operations in the same REST definition scope.
+
+  unsafe_server_binding: |
+    servers:
+      public_control:
+        address: 0.0.0.0:8080
+        endpoints:
+          inject:
+            method: POST
+            path: /inject
+            binding: emit_dynamic_signal
+            allowed_signals: [Approved, Rejected]
+
+    invalid_because:
+      - Public listener binding needs explicit network policy.
+      - Dynamic signal endpoints need authentication or another configured boundary control.
+
+related_documents:
+  - cfg-tool-declaration-format
+  - cfg-tool-authoring-standard
+  - sm-rest-tool-language
+  - srd027-rest-tool-runtime
+  - srd028-rest-client-tools
+  - srd029-rest-server-tools
+
+implementation_status:
+  planned:
+    - internal/tools/rest typed config structs.
+    - internal/tools/rest YAML loader.
+    - OpenAPI import compilation through github.com/getkin/kin-openapi/openapi3.
