@@ -1,0 +1,437 @@
+id: test-rel03.0-rest-tools
+title: Test Suite for Release 03.0 REST Tools
+release: "03.0"
+
+traces:
+  - rel03.0-uc001-rest-client-sync
+  - rel03.0-uc002-rest-client-async
+  - rel03.0-uc003-rest-server-signals
+  - rel03.0-uc004-openapi-import
+
+preconditions:
+  - internal/tools/rest does not exist yet; all Go tests in this suite are planned.
+  - Test fixtures can provide hand-authored REST config files and OpenAPI 3 documents.
+  - HTTP client tests can use httptest.Server with local-only addresses.
+  - HTTP server tests can bind listener port 0 and use per-test queues.
+  - Redaction tests can use synthetic credentials and payload fields.
+
+test_cases:
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST definitions load into boundary ToolDefs
+    go_test: TestRESTConfig_LoadsToolDefinitions
+    status: planned
+    description: |
+      After loading a REST config file and its tool declaration file, inspect
+      each REST ToolDef. It should name one boundary word and reference
+      configured REST definitions without embedding arbitrary transport
+      authority fields.
+    inputs:
+      config: rest_client_and_server_minimal
+      declarations:
+        - rest_client_get
+        - rest_client_set
+        - rest_server_launch
+    expected:
+      definitions_loaded: true
+      tooldefs_category_boundary: true
+      tooldefs_reference_named_rest_config: true
+      arbitrary_url_from_tool_input_allowed: false
+      package_layout: internal/tools/rest
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd027-rest-tool-runtime AC1
+      - srd027-rest-tool-runtime AC2
+      - srd027-rest-tool-runtime AC9
+      - srd028-rest-client-tools AC1
+      - srd028-rest-client-tools AC2
+      - srd028-rest-client-tools AC10
+      - srd029-rest-server-tools AC1
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: Synchronous resource words build configured requests
+    go_test: TestRESTClient_SyncResourceWords
+    status: planned
+    description: |
+      Against an httptest.Server, run rest_client_get and rest_client_set with
+      configured operations. net/http should receive the expected method and
+      path. Response mapping then produces structured output for MachineSpec.
+    inputs:
+      client: github_like_issue_client
+      operations: [get_issue, set_issue]
+      server_responses: [read_ok, update_ok, missing, domain_failed]
+    expected:
+      get_signal: ResourceRead
+      set_signal: ResourceUpdated
+      missing_signal: RESTMissing
+      domain_failure_signal: RESTFailed
+      command_error_signal: CommandError
+      output_contains_status_and_operation: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S2
+      - rel03.0-uc001-rest-client-sync S3
+      - rel03.0-uc001-rest-client-sync S4
+      - srd027-rest-tool-runtime AC4
+      - srd028-rest-client-tools AC3
+      - srd028-rest-client-tools AC6
+      - srd028-rest-client-tools AC7
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: Runtime input cannot override configured authority
+    go_test: TestRESTClient_RejectsAuthorityOverride
+    status: planned
+    description: |
+      A malicious input tries to replace transport authority at runtime. The
+      client rejects it before any HTTP request leaves the process.
+    inputs:
+      operation: get_issue
+      forbidden_runtime_fields:
+        - method
+        - url
+        - auth_ref
+        - redirect_policy
+        - host
+    expected:
+      signal: CommandError
+      failure_stage: schema_validation
+      request_sent: false
+      diagnostic_redacted: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd027-rest-tool-runtime AC2
+      - srd027-rest-tool-runtime AC6
+      - srd028-rest-client-tools AC2
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: Mutating REST operations declare effects and compensation
+    go_test: TestRESTClient_MutatingOperationsRequireEffects
+    status: planned
+    description: |
+      Review mutating resource operations beside an RPC-shaped invoke
+      operation. Each one must declare its side-effect contract and
+      reversibility before selection; compensation or confirmation metadata
+      completes the contract.
+    inputs:
+      operations:
+        - rest_client_create
+        - rest_client_set
+        - rest_client_delete
+        - rest_client_invoke
+      invalid_case: missing_reversibility
+    expected:
+      valid_mutations_accepted: true
+      missing_reversibility_rejected: true
+      irreversible_requires_confirmation: true
+      compensation_metadata_captured: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S3
+      - srd027-rest-tool-runtime AC8
+      - srd028-rest-client-tools AC3
+      - srd028-rest-client-tools AC4
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC10
+
+  - use_case: rel03.0-uc002-rest-client-async
+    name: Async send records request state and returns RESTAccepted
+    go_test: TestRESTClient_SendRecordsAsyncRequest
+    status: planned
+    description: |
+      Dispatch rest_client_send for an async operation and confirm the command
+      returns before final completion. AsyncRequest state is stored by request
+      ID, then RESTAccepted carries correlation metadata back to the grammar.
+    inputs:
+      operation: create_payment
+      async_config:
+        request_id: $.id
+        idempotency_token: "{{ params.order_id }}"
+        state_retention: consume
+    expected:
+      signal: RESTAccepted
+      request_state_written: true
+      request_id_present: true
+      idempotency_metadata_present: true
+      final_response_waited_for: false
+    traces:
+      - rel03.0-uc002-rest-client-async S1
+      - rel03.0-uc002-rest-client-async S2
+      - srd027-rest-tool-runtime AC5
+      - srd028-rest-client-tools AC5
+      - srd028-rest-client-tools AC8
+
+  - use_case: rel03.0-uc002-rest-client-async
+    name: Async await maps completion and timeout signals
+    go_test: TestRESTClient_AwaitAsyncRequest
+    status: planned
+    description: |
+      Begin with stored AsyncRequest state. Completion, domain failure,
+      absence, timeout, and missing state each map to a declared signal.
+    inputs:
+      request_state: pending_payment
+      outcomes:
+        - responded
+        - domain_failed
+        - missing
+        - timed_out
+        - async_state_missing
+    expected:
+      responded_signal: RESTResponded
+      domain_failed_signal: RESTFailed
+      missing_signal: RESTMissing
+      timeout_signal: RESTAwaitTimedOut
+      missing_state_signal: CommandError
+      state_retention_applied: true
+    traces:
+      - rel03.0-uc002-rest-client-async S1
+      - rel03.0-uc002-rest-client-async S3
+      - srd027-rest-tool-runtime AC5
+      - srd028-rest-client-tools AC5
+      - srd028-rest-client-tools AC6
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc002-rest-client-async
+    name: Async retry policy requires idempotency metadata
+    go_test: TestRESTClient_AsyncRetryPolicyValidation
+    status: planned
+    description: |
+      For async operations, check retry policy at config validation time.
+      Non-idempotent requests reject retry settings unless config declares
+      safe duplicate suppression.
+    inputs:
+      operation: create_payment
+      retry_policy: retry_on_429
+      invalid_case: retry_without_idempotency
+    expected:
+      safe_retry_accepted: true
+      unsafe_retry_rejected: true
+      retry_count_traced: true
+      idempotency_token_redacted: true
+    traces:
+      - rel03.0-uc002-rest-client-async S4
+      - srd027-rest-tool-runtime AC6
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server launch registers routes without blocking
+    go_test: TestRESTServer_LaunchRegistersRoutes
+    status: planned
+    description: |
+      Dispatch rest_server_launch with a listener on port 0. The command binds
+      the server, registers configured routes, records shared state, and
+      returns ServerLaunched without waiting for inbound requests.
+    inputs:
+      server: control_api
+      address: 127.0.0.1:0
+      endpoints:
+        - approve
+        - reject
+        - pause
+    expected:
+      signal: ServerLaunched
+      route_count: 3
+      shared_server_state_written: true
+      network_listen_side_effect_declared: true
+      blocks_for_inbound_request: false
+    traces:
+      - rel03.0-uc003-rest-server-signals S1
+      - srd027-rest-tool-runtime AC5
+      - srd029-rest-server-tools AC2
+      - srd029-rest-server-tools AC7
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server await emits queued inbound signals
+    go_test: TestRESTServer_AwaitInboundSignals
+    status: planned
+    description: |
+      Send validated inbound HTTP requests to signal-producing endpoints.
+      rest_server_await consumes queued events and returns the configured
+      signal to MachineSpec.
+    inputs:
+      server: control_api
+      endpoint_bindings:
+        - emit_signal
+        - emit_dynamic_signal
+      queued_events:
+        - Approved
+        - Rejected
+        - PauseRequested
+        - DomainEventReceived
+    expected:
+      approved_route_visible: true
+      rejected_route_visible: true
+      pause_route_visible: true
+      domain_event_route_visible: true
+      invalid_request_enqueued: false
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - rel03.0-uc003-rest-server-signals S3
+      - srd029-rest-server-tools AC3
+      - srd029-rest-server-tools AC5
+      - srd029-rest-server-tools AC6
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server stop drains queues and unblocks await
+    go_test: TestRESTServer_StopDrainsAndUnblocks
+    status: planned
+    description: |
+      Stop a launched server while events and await calls exist. Shutdown
+      follows configured drain policy, closes listeners, and unblocks await
+      with ServerStopped or CommandError.
+    inputs:
+      server: control_api
+      drain_policy: drain_then_stop
+      pending_events: 2
+      awaiting_call: true
+    expected:
+      signal: ServerStopped
+      drained_event_count: 2
+      listener_closed: true
+      await_unblocked: true
+      dropped_events_reported: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S4
+      - srd029-rest-server-tools AC4
+      - srd029-rest-server-tools AC7
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server validation rejects unsafe inbound traffic
+    go_test: TestRESTServer_RequestValidationFailures
+    status: planned
+    description: |
+      Bad inbound traffic reaches the configured routes. The server returns
+      configured HTTP errors and avoids hidden MachineSpec actions.
+    inputs:
+      invalid_requests:
+        - wrong_method
+        - schema_invalid
+        - body_too_large
+        - queue_full
+        - handler_failed
+    expected:
+      grammar_event_enqueued: false
+      configured_http_status_returned: true
+      queue_overflow_reported: true
+      handler_failure_signal_or_response_declared: true
+      diagnostics_redacted: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - srd027-rest-tool-runtime AC6
+      - srd029-rest-server-tools AC6
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc004-openapi-import
+    name: OpenAPI import exposes allowlisted operations
+    go_test: TestRESTOpenAPI_ImportAllowlist
+    status: planned
+    description: |
+      Load an OpenAPI 3 document with several operations, but import only the
+      allowlisted operation IDs. The import compiles them into RestDefinition
+      while ToolDef declarations stay explicit.
+    inputs:
+      openapi_document: payments_openapi
+      expose:
+        - getPayment
+        - createPayment
+      tooldefs:
+        - get_payment
+        - create_payment
+    expected:
+      imported_operations:
+        - getPayment
+        - createPayment
+      unlisted_operation_imported: false
+      tooldefs_explicit: true
+      generated_go_code: false
+    traces:
+      - rel03.0-uc004-openapi-import S1
+      - rel03.0-uc004-openapi-import S3
+      - rel03.0-uc004-openapi-import S4
+      - srd027-rest-tool-runtime AC3
+      - srd027-rest-tool-runtime AC9
+      - srd028-rest-client-tools AC1
+
+  - use_case: rel03.0-uc004-openapi-import
+    name: OpenAPI server bind maps operation IDs to endpoints
+    go_test: TestRESTOpenAPI_ServerBindMap
+    status: planned
+    description: |
+      Bind selected OpenAPI operation IDs to configured server endpoint names.
+      Imported paths and schemas attach to endpoint binding kinds while server
+      ToolDefs remain explicit vocabulary words.
+    inputs:
+      openapi_document: payments_openapi
+      bind:
+        receivePaymentWebhook: payment_webhook
+      endpoint_binding: emit_signal
+    expected:
+      endpoint_bound: payment_webhook
+      request_schema_compiled: true
+      response_schema_compiled: true
+      server_tooldef_explicit: true
+      generated_server_code: false
+    traces:
+      - rel03.0-uc004-openapi-import S2
+      - rel03.0-uc004-openapi-import S3
+      - rel03.0-uc004-openapi-import S4
+      - srd029-rest-server-tools AC8
+
+  - use_case: rel03.0-uc004-openapi-import
+    name: OpenAPI import reports invalid operation IDs
+    go_test: TestRESTOpenAPI_InvalidOperationIDs
+    status: planned
+    description: |
+      When an import names a missing or duplicated operation ID, validation
+      fails before ToolDefs register. An incompatible server binding fails the
+      same way, with document and operation context in the error.
+    inputs:
+      invalid_imports:
+        - missing_operation_id
+        - duplicate_operation_id
+        - incompatible_server_binding
+    expected:
+      import_rejected: true
+      source_document_reported: true
+      operation_identity_reported: true
+      schema_location_reported_when_available: true
+      no_partial_tooldefs_registered: true
+    traces:
+      - rel03.0-uc004-openapi-import S1
+      - rel03.0-uc004-openapi-import S2
+      - srd027-rest-tool-runtime AC3
+      - srd027-rest-tool-runtime AC7
+      - srd029-rest-server-tools AC8
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST observability redacts secrets and reports failure stages
+    go_test: TestRESTTools_TracingRedactionAndErrors
+    status: planned
+    description: |
+      Exercise client and server error paths with synthetic secret material.
+      Traces and Result output report identity, status, timing data, byte
+      counts, failure stage, and resulting signal. Configured secrets stay out.
+    inputs:
+      failures:
+        - auth_resolution
+        - network_io
+        - timeout
+        - response_mapping
+        - route_validation
+        - shutdown_failed
+      redaction_selectors:
+        - headers.authorization
+        - query.token
+        - body.secret
+    expected:
+      traces_include_operation_or_route: true
+      traces_include_status_and_timing: true
+      failure_stage_reported: true
+      secrets_redacted: true
+      verbose_body_capture_requires_config: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S2
+      - srd027-rest-tool-runtime AC7
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC9
+      - srd029-rest-server-tools AC9
