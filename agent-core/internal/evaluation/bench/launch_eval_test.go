@@ -18,17 +18,7 @@ func TestLaunchEvalFactoryRequiresChildAgentConfig(t *testing.T) {
 	factory := LaunchEvalFactory(NewBenchState(ServerConfig{}))
 
 	_, err := factory(catalog.ToolDef{Name: "launch_eval", Init: "launch_eval"}, nil)
-	require.ErrorContains(t, err, "requires profile or legacy machine")
-
-	_, err = factory(catalog.ToolDef{
-		Name: "launch_eval",
-		Init: "launch_eval",
-		Config: map[string]interface{}{
-			"machine": "agents/evaluator/machine.yaml",
-			"tools":   "agents/evaluator/tools.yaml",
-		},
-	}, nil)
-	require.ErrorContains(t, err, "requires tools_declarations")
+	require.ErrorContains(t, err, "requires profile")
 }
 
 func TestLaunchEvalFactoryAcceptsProfileConfig(t *testing.T) {
@@ -51,7 +41,7 @@ func TestLaunchEvalFactoryAcceptsProfileConfig(t *testing.T) {
 func TestLaunchEvalUndoMementoCapturesChildEvalCompensation(t *testing.T) {
 	t.Parallel()
 	cmd := &launchEvalCmd{
-		config:    execute.Config{Profile: "agents/evaluator/profile.yaml", Machine: "machines/eval.yaml", Tools: "tools/eval.yaml"},
+		config:    execute.Config{Profile: "agents/evaluator/profile.yaml"},
 		suitePath: "suites/basic.yaml",
 		outputDir: "out/eval",
 	}
@@ -65,5 +55,4 @@ func TestLaunchEvalUndoMementoCapturesChildEvalCompensation(t *testing.T) {
 	require.Equal(t, "child_eval_artifact_compensation", payload.BoundaryCompensation.Strategy)
 	require.Equal(t, []string{"out/eval"}, payload.BoundaryCompensation.ArtifactPaths)
 	require.Equal(t, "agents/evaluator/profile.yaml", payload.BoundaryCompensation.ChildProfile)
-	require.Equal(t, "machines/eval.yaml", payload.BoundaryCompensation.ChildMachine)
 }

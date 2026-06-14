@@ -104,7 +104,7 @@ tools:
   - Return evaluator completion status to the bench UI loop.
   requirements:
     input:
-    - must require profile in config, or legacy machine/tools/tools_declarations for compatibility-only declarations
+    - must require profile in config
     - must consume the experiment request emitted by serve_ui
     output:
     - must emit EvalCompleted when the evaluator child exits successfully

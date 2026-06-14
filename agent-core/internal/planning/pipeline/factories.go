@@ -66,10 +66,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		}
 		ps := initPS(def)
 		ps.ExecConfig = execute.Config{
-			Profile:          childCfg.Profile,
-			Machine:          childCfg.Machine,
-			Tools:            childCfg.Tools,
-			ToolDeclarations: childCfg.ToolDeclarations,
+			Profile: childCfg.Profile,
 		}
 		return &ExecuteTaskBuilder{PS: ps}, nil
 	})

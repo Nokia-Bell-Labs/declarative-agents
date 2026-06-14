@@ -487,7 +487,7 @@ func selfInvokeFactory(st *agentState) toolregistry.BuiltinFactory {
 			return nil, err
 		}
 		return &control.SelfInvokeBuilder{
-			Config:    childExecuteConfig(parsed, vars["model"]),
+			Config:    childExecuteConfig(parsed),
 			ExtraArgs: directoryArgs(vars["directory"]),
 			Ctx:       st.ctx,
 			Tracer:    st.tracer,
@@ -506,13 +506,9 @@ func decodeChildAgent(def catalog.ToolDef) (catalog.ChildAgentConfig, error) {
 	return parsed, nil
 }
 
-func childExecuteConfig(parsed catalog.ChildAgentConfig, model string) execute.Config {
+func childExecuteConfig(parsed catalog.ChildAgentConfig) execute.Config {
 	return execute.Config{
-		Profile:          parsed.Profile,
-		Machine:          parsed.Machine,
-		Tools:            parsed.Tools,
-		ToolDeclarations: parsed.ToolDeclarations,
-		Model:            model,
+		Profile: parsed.Profile,
 	}
 }
 

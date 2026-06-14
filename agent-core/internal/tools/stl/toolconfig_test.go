@@ -14,27 +14,18 @@ func TestDecodeToolConfigBasic(t *testing.T) {
 		Name: "test_tool",
 		Config: map[string]interface{}{
 			"profile": "agents/gen/profile.yaml",
-			"machine": "agents/gen/machine.yaml",
-			"tools":   "agents/gen/tools.yaml",
-			"tools_declarations": []interface{}{
-				"tools/builtin.yaml",
-				"tools/exec.yaml",
-			},
 		},
 	}
 	var cfg ChildAgentConfig
 	require.NoError(t, DecodeToolConfig(def, &cfg))
 	assert.Equal(t, "agents/gen/profile.yaml", cfg.Profile)
-	assert.Equal(t, "agents/gen/machine.yaml", cfg.Machine)
-	assert.Equal(t, "agents/gen/tools.yaml", cfg.Tools)
-	assert.Equal(t, []string{"tools/builtin.yaml", "tools/exec.yaml"}, cfg.ToolDeclarations)
 }
 
 func TestDecodeToolConfigNilConfig(t *testing.T) {
 	def := ToolDef{Name: "empty", Config: nil}
 	var cfg ChildAgentConfig
 	require.NoError(t, DecodeToolConfig(def, &cfg))
-	assert.Empty(t, cfg.Machine)
+	assert.Empty(t, cfg.Profile)
 }
 
 func TestDecodeToolConfigIntegers(t *testing.T) {
@@ -72,13 +63,13 @@ func TestDecodeToolConfigExtraFieldsIgnored(t *testing.T) {
 	def := ToolDef{
 		Name: "test",
 		Config: map[string]interface{}{
-			"machine":    "m.yaml",
+			"profile":    "agents/gen/profile.yaml",
 			"extra_junk": "ignored",
 		},
 	}
 	var cfg ChildAgentConfig
 	require.NoError(t, DecodeToolConfig(def, &cfg))
-	assert.Equal(t, "m.yaml", cfg.Machine)
+	assert.Equal(t, "agents/gen/profile.yaml", cfg.Profile)
 }
 
 func TestDecodeToolConfigLoadSuite(t *testing.T) {

@@ -55,8 +55,6 @@ func (c *launchEvalCmd) UndoMemento() (core.UndoMemento, error) {
 		Reason:         "launch_eval spawns an evaluator child agent",
 		Requires:       []string{"child_history", "artifact_dir"},
 		ChildProfile:   c.config.Profile,
-		ChildMachine:   c.config.Machine,
-		ChildTools:     c.config.Tools,
 		ArtifactPaths:  []string{c.outputDir},
 		WorkspacePaths: []string{c.suitePath},
 	}}
@@ -136,11 +134,8 @@ func LaunchEvalFactory(bs *BenchState) toolregistry.BuiltinFactory {
 			return nil, err
 		}
 		cfg := execute.Config{
-			Binary:           agentBinaryPath(),
-			Profile:          parsed.Profile,
-			Machine:          parsed.Machine,
-			Tools:            parsed.Tools,
-			ToolDeclarations: parsed.ToolDeclarations,
+			Binary:  agentBinaryPath(),
+			Profile: parsed.Profile,
 		}
 		return &LaunchEvalBuilder{BS: bs, Config: cfg}, nil
 	}

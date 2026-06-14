@@ -54,7 +54,7 @@ func (c *selfInvokeCmd) undoPayload() BoundaryCompensationPayload {
 	payload := BoundaryCompensationPayload{BoundaryCompensation: BoundaryCompensation{
 		Strategy: "child_agent_workspace_restore", Reason: "self-invocation runs a child agent process",
 		Requires: []string{"child_workspace_ref", "child_trace"}, ChildProfile: c.config.Profile,
-		ChildMachine: c.config.Machine, ChildTools: c.config.Tools, ChildRunID: c.runID,
+		ChildRunID: c.runID,
 	}}
 	if c.tracePath != "" {
 		payload.BoundaryCompensation.ArtifactPaths = []string{c.tracePath}
