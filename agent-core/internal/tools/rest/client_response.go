@@ -4,6 +4,7 @@ package rest
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,8 @@ import (
 
 const responseReadLimit = 1 << 20
 
+var errResponseTooLarge = errors.New("REST response exceeds configured max_response_bytes")
+
 func mapClientResponse(
 	commandName string,
 	def ClientOperationDefinition,
@@ -24,7 +27,7 @@ func mapClientResponse(
 ) (core.Result, error) {
 	body, err := readResponseBody(response, def.Limits.MaxResponseBytes)
 	if err != nil {
-		return clientOperationError(commandName, "response_mapping", err, def), err
+		return clientOperationError(commandName, responseFailureStage(err), err, def), err
 	}
 	payload := decodeResponsePayload(body)
 	mapping, signal, err := statusMapping(def, response.StatusCode)
@@ -44,7 +47,21 @@ func readResponseBody(response *http.Response, maxBytes int) ([]byte, error) {
 	if maxBytes > 0 {
 		limit = int64(maxBytes)
 	}
-	return io.ReadAll(io.LimitReader(response.Body, limit))
+	data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("%w: limit %d", errResponseTooLarge, limit)
+	}
+	return data, nil
+}
+
+func responseFailureStage(err error) string {
+	if errors.Is(err, errResponseTooLarge) {
+		return "size_limit"
+	}
+	return "response_mapping"
 }
 
 func decodeResponsePayload(body []byte) map[string]interface{} {

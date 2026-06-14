@@ -21,7 +21,7 @@ func buildClientRequest(def ClientOperationDefinition, input map[string]interfac
 	if err != nil {
 		return nil, err
 	}
-	body, err := renderRequestBody(def.Operation, params)
+	body, err := renderRequestBody(def.Operation, params, def.Limits.MaxRequestBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,9 @@ func buildClientRequest(def ClientOperationDefinition, input map[string]interfac
 	if err != nil {
 		return nil, err
 	}
-	req.GetBody = func() (io.ReadCloser, error) { return renderRequestBody(def.Operation, params) }
+	req.GetBody = func() (io.ReadCloser, error) {
+		return renderRequestBody(def.Operation, params, def.Limits.MaxRequestBytes)
+	}
 	applyHeaders(req, def.Operation.Params.Headers, params)
 	return req, applyAuth(req, def.Auth)
 }
@@ -109,7 +111,7 @@ func renderPath(path string, params map[string]interface{}) string {
 	return path
 }
 
-func renderRequestBody(operation Operation, params map[string]interface{}) (io.ReadCloser, error) {
+func renderRequestBody(operation Operation, params map[string]interface{}, maxBytes int) (io.ReadCloser, error) {
 	if len(operation.Body) == 0 {
 		return http.NoBody, nil
 	}
@@ -120,6 +122,9 @@ func renderRequestBody(operation Operation, params map[string]interface{}) (io.R
 	data, err := json.Marshal(rendered)
 	if err != nil {
 		return nil, err
+	}
+	if maxBytes > 0 && len(data) > maxBytes {
+		return nil, fmt.Errorf("request body exceeds max_request_bytes %d", maxBytes)
 	}
 	return io.NopCloser(bytes.NewReader(data)), nil
 }

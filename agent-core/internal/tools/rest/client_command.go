@@ -91,17 +91,24 @@ func (c clientCmd) doWithRetry(request *http.Request) (*http.Response, int, erro
 
 func httpClient(limits LimitProfile) *http.Client {
 	client := &http.Client{Timeout: parseDuration(limits.Timeout, 0)}
-	client.CheckRedirect = redirectPolicy(limits.Redirect)
+	client.CheckRedirect = redirectPolicy(limits)
 	return client
 }
 
-func redirectPolicy(policy RedirectPolicy) func(*http.Request, []*http.Request) error {
+func redirectPolicy(limits LimitProfile) func(*http.Request, []*http.Request) error {
 	return func(req *http.Request, via []*http.Request) error {
+		policy := limits.Redirect
 		if policy.Mode == redirectNone || policy.Mode == "" {
 			return http.ErrUseLastResponse
 		}
+		if err := validateNetwork(req.URL, limits.Network); err != nil {
+			return err
+		}
 		if policy.Mode == redirectSameHost && len(via) > 0 && req.URL.Host != via[0].URL.Host {
 			return http.ErrUseLastResponse
+		}
+		if policy.Mode == redirectAllowlist && !stringIn(req.URL.Hostname(), policy.AllowHosts) {
+			return fmt.Errorf("redirect host %q is not allowed", req.URL.Hostname())
 		}
 		if policy.MaxRedirects > 0 && len(via) >= policy.MaxRedirects {
 			return http.ErrUseLastResponse

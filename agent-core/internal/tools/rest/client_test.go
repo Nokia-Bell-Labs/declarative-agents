@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -91,6 +92,54 @@ func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
 	require.Contains(t, result.Output, "status_mapping")
 }
 
+func TestRESTClient_RedirectAllowlistPolicy(t *testing.T) {
+	t.Parallel()
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok"})
+	}))
+	defer target.Close()
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		http.Redirect(w, req, target.URL+"/repos/acme/agent-core/issues/1", http.StatusFound)
+	}))
+	defer redirect.Close()
+
+	def := clientDefinition(t, redirect.URL, issueClient())
+	setRedirectPolicy(def, RedirectPolicy{Mode: redirectAllowlist, AllowHosts: []string{targetURLHost(target)}})
+	requireClientSignal(t, def, InitClientGet, "get", params("1"), "RESTResourceRead")
+
+	blocked := clientDefinition(t, redirect.URL, issueClient())
+	setRedirectPolicy(blocked, RedirectPolicy{Mode: redirectAllowlist, AllowHosts: []string{"example.invalid"}})
+	result := clientCommand(blocked, InitClientGet, "get", params("1")).Execute()
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "network_io")
+}
+
+func TestRESTClient_RequestAndResponseSizeLimits(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		writeJSON(w, http.StatusOK, map[string]interface{}{"title": strings.Repeat("x", 32)})
+	}))
+	defer upstream.Close()
+
+	requestLimited := clientDefinition(t, upstream.URL, issueClient())
+	setRequestLimit(requestLimited, 8)
+	result := clientCommand(requestLimited, InitClientSet, "set", params("1", strings.Repeat("x", 32))).Execute()
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "request_rendering")
+	require.Zero(t, requests)
+
+	responseLimited := clientDefinition(t, upstream.URL, issueClient())
+	setResponseLimit(responseLimited, 8)
+	result = clientCommand(responseLimited, InitClientGet, "get", params("1")).Execute()
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "size_limit")
+	require.NotContains(t, result.Output, strings.Repeat("x", 16))
+}
+
 func issueHandler(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/repos/acme/agent-core/issues/boom" {
 		http.Error(w, "boom", http.StatusInternalServerError)
@@ -133,6 +182,7 @@ func clientDefinition(t *testing.T, baseURL string, client Client) Definition {
 		Auth: map[string]AuthProfile{
 			"none": {Type: authNone},
 		},
+		Limits:  map[string]LimitProfile{"test": {}},
 		Clients: map[string]Client{"github": client},
 	}
 	require.NoError(t, ValidateDefinition(def))
@@ -191,4 +241,30 @@ func mutatingDefinition(operation Operation) Definition {
 			}},
 		}},
 	}
+}
+
+func setRedirectPolicy(def Definition, policy RedirectPolicy) {
+	setClientLimit(def, func(limit *LimitProfile) { limit.Redirect = policy })
+}
+
+func setRequestLimit(def Definition, limit int) {
+	setClientLimit(def, func(profile *LimitProfile) { profile.MaxRequestBytes = limit })
+}
+
+func setResponseLimit(def Definition, limit int) {
+	setClientLimit(def, func(profile *LimitProfile) { profile.MaxResponseBytes = limit })
+}
+
+func setClientLimit(def Definition, mutate func(*LimitProfile)) {
+	profile := def.Limits["test"]
+	mutate(&profile)
+	def.Limits["test"] = profile
+	client := def.Clients["github"]
+	client.LimitsRef = "test"
+	def.Clients["github"] = client
+}
+
+func targetURLHost(server *httptest.Server) string {
+	req, _ := http.NewRequest(http.MethodGet, server.URL, nil)
+	return req.URL.Hostname()
 }
