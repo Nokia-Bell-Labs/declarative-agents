@@ -10,16 +10,17 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
 
 func TestLaunchEvalFactoryRequiresChildAgentConfig(t *testing.T) {
 	factory := LaunchEvalFactory(NewBenchState(ServerConfig{}))
 
-	_, err := factory(stl.ToolDef{Name: "launch_eval", Init: "launch_eval"}, nil)
+	_, err := factory(catalog.ToolDef{Name: "launch_eval", Init: "launch_eval"}, nil)
 	require.ErrorContains(t, err, "requires profile or legacy machine")
 
-	_, err = factory(stl.ToolDef{
+	_, err = factory(catalog.ToolDef{
 		Name: "launch_eval",
 		Init: "launch_eval",
 		Config: map[string]interface{}{
@@ -33,7 +34,7 @@ func TestLaunchEvalFactoryRequiresChildAgentConfig(t *testing.T) {
 func TestLaunchEvalFactoryAcceptsProfileConfig(t *testing.T) {
 	factory := LaunchEvalFactory(NewBenchState(ServerConfig{}))
 
-	builder, err := factory(stl.ToolDef{
+	builder, err := factory(catalog.ToolDef{
 		Name: "launch_eval",
 		Init: "launch_eval",
 		Config: map[string]interface{}{
@@ -59,7 +60,7 @@ func TestLaunchEvalUndoMementoCapturesChildEvalCompensation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, core.ValidateUndoMemento(memento))
 
-	var payload stl.BoundaryCompensationPayload
+	var payload undo.BoundaryCompensationPayload
 	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
 	require.Equal(t, "child_eval_artifact_compensation", payload.BoundaryCompensation.Strategy)
 	require.Equal(t, []string{"out/eval"}, payload.BoundaryCompensation.ArtifactPaths)

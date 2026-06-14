@@ -3,19 +3,20 @@
 package evaluation
 
 import (
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 )
 
 func TestRunPointFactoryRequiresNestedConfig(t *testing.T) {
 	factory := RunPointFactory(&EvalSessionState{})
 
-	_, err := factory(stl.ToolDef{Name: "run_point", Init: "run_point"}, nil)
+	_, err := factory(catalog.ToolDef{Name: "run_point", Init: "run_point"}, nil)
 	require.ErrorContains(t, err, "requires point_machine")
 
-	_, err = factory(stl.ToolDef{
+	_, err = factory(catalog.ToolDef{
 		Name: "run_point",
 		Init: "run_point",
 		Config: map[string]interface{}{

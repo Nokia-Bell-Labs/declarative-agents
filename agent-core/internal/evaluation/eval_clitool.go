@@ -11,7 +11,7 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/subprocess"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
 
 // runAgentCmd executes a harness binary as a subprocess with flag
@@ -25,17 +25,17 @@ type runAgentCmd struct {
 
 func (c *runAgentCmd) Name() string { return "run_agent" }
 func (c *runAgentCmd) Undo() core.Result {
-	undo := undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
-	if undo.Signal != core.ToolDone {
-		return undo
+	result := undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+	if result.Signal != core.ToolDone {
+		return result
 	}
-	return stl.BoundaryCompensationUndo(c.Name(), "restore point workspace artifacts and compensate the harness child process")
+	return undo.BoundaryCompensationUndo(c.Name(), "restore point workspace artifacts and compensate the harness child process")
 }
 func (c *runAgentCmd) UndoMemento() (core.UndoMemento, error) {
 	if !c.hasSnapshot {
 		return core.UndoMemento{}, fmt.Errorf("%w: no point context snapshot recorded for %s", core.ErrUndoMementoMissing, c.Name())
 	}
-	return stl.BoundaryCompensationMemento(c.Name(), stl.BoundaryCompensationPayload{BoundaryCompensation: stl.BoundaryCompensation{
+	return undo.BoundaryCompensationMemento(c.Name(), undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
 		Strategy:       "point_workspace_restore_and_child_process_compensation",
 		Reason:         "runs the harness agent in the point workspace",
 		Requires:       []string{"Workspace", "point_context_snapshot"},

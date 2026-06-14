@@ -11,7 +11,6 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
 // FactoryDeps holds the dependencies needed by pipeline tool factories.
@@ -28,7 +27,7 @@ type FactoryDeps struct {
 func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	var ps *State
 
-	initPS := func(def stl.ToolDef) *State {
+	initPS := func(def catalog.ToolDef) *State {
 		if ps != nil {
 			return ps
 		}
@@ -42,22 +41,22 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		return ps
 	}
 
-	br.Register("extract_task", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("extract_task", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &ExtractTaskBuilder{PS: initPS(def)}, nil
 	})
-	br.Register("extract_all", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("extract_all", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &ExtractAllBuilder{PS: initPS(def)}, nil
 	})
-	br.Register("assemble_prompt", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("assemble_prompt", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &AssemblePromptBuilder{PS: initPS(def)}, nil
 	})
-	br.Register("parse_plan", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("parse_plan", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &ParsePlanBuilder{PS: initPS(def)}, nil
 	})
-	br.Register("create_issue", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("create_issue", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CreateIssueBuilder{PS: initPS(def)}, nil
 	})
-	br.Register("execute_task", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("execute_task", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var childCfg catalog.ChildAgentConfig
 		if err := catalog.DecodeToolConfig(def, &childCfg); err != nil {
 			return nil, err
@@ -74,7 +73,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		}
 		return &ExecuteTaskBuilder{PS: ps}, nil
 	})
-	br.Register("check_result", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("check_result", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &CheckResultBuilder{PS: initPS(def)}, nil
 	})
 }
