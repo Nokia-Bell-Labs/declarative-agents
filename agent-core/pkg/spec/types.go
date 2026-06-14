@@ -351,20 +351,22 @@ type DocSpecExample struct {
 
 // KnownSideEffectKinds is the canonical vocabulary for side_effects kind values.
 var KnownSideEffectKinds = map[string]bool{
-	"filesystem_read":          true,
-	"filesystem_write":         true,
-	"command_state":            true,
-	"state_mutation":           true,
-	"state_read":               true,
-	"child_tool_execution":     true,
-	"child_agent_execution":    true,
-	"child_process":            true,
-	"nested_machine_execution": true,
-	"external_api":             true,
-	"external_api_call":        true,
-	"human_boundary":           true,
-	"stderr_write":             true,
-	"none":                     true,
+	"filesystem_read":           true,
+	"filesystem_write":          true,
+	"command_state":             true,
+	"state_mutation":            true,
+	"state_read":                true,
+	"child_tool_execution":      true,
+	"child_agent_execution":     true,
+	"child_process":             true,
+	"nested_machine_execution":  true,
+	"external_api":              true,
+	"external_api_call":         true,
+	"network_listen":            true,
+	"network_listener_shutdown": true,
+	"human_boundary":            true,
+	"stderr_write":              true,
+	"none":                      true,
 }
 
 // SRDIDs returns all SRD IDs from the spec index.
