@@ -28,6 +28,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
 	toollm "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/llm"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
+	toolrest "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/validation"
 )
 
@@ -92,6 +93,7 @@ type agentState struct {
 	request      string
 	output       string
 	stateStore   core.StateStore
+	restDefs     toolrest.Collection
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -115,6 +117,10 @@ func run(cmd *cobra.Command, args []string) error {
 	defs, err := loadProfileToolDefs(cfg)
 	if err != nil {
 		return err
+	}
+	restDefs, err := toolrest.LoadDefinitions(cfg.RestDefinitions, cfg.RestConfigDirs)
+	if err != nil {
+		return fmt.Errorf("load REST definitions: %w", err)
 	}
 
 	conversation := llm.NewConversation(nil, "", llm.ChatOptions{})
@@ -167,6 +173,7 @@ func run(cmd *cobra.Command, args []string) error {
 		request:      cfg.Request,
 		output:       cfg.Output,
 		stateStore:   stateStore,
+		restDefs:     restDefs,
 	}
 
 	registerBuiltinFactories(builtins, st, selectedInits)
@@ -248,6 +255,8 @@ type runtimeConfig struct {
 	Tools            []string
 	ToolDeclarations []string
 	ToolConfigDirs   []string
+	RestDefinitions  []string
+	RestConfigDirs   []string
 	Directory        string
 	Request          string
 	Output           string
@@ -276,6 +285,8 @@ func loadRuntimeConfig() (runtimeConfig, error) {
 		Tools:            append([]string(nil), p.Tools...),
 		ToolDeclarations: append([]string(nil), p.ToolDeclarations...),
 		ToolConfigDirs:   append([]string(nil), p.ToolConfigDirs...),
+		RestDefinitions:  append([]string(nil), p.RestDefinitions...),
+		RestConfigDirs:   append([]string(nil), p.RestConfigDirs...),
 		Directory:        directory,
 		Request:          flagRequest,
 		Output:           flagOutput,
@@ -367,6 +378,7 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterEvaluation:     registerEvaluationFactories(st),
 		RegisterBench:          registerBenchFactories(),
 		RegisterSpecValidation: registerSpecValidationFactories(st),
+		RegisterREST:           registerRESTFactories(st),
 	}
 }
 
@@ -568,5 +580,11 @@ func registerEvaluationFactories(st *agentState) toolregistry.FactoryRegistrar {
 func registerBenchFactories() toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		bench.RegisterFactories(br, benchui.Assets())
+	}
+}
+
+func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		toolrest.RegisterFactories(br, toolrest.FactoryDeps{Definitions: st.restDefs})
 	}
 }

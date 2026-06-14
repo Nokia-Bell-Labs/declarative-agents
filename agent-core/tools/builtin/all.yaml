@@ -10,4 +10,6 @@ includes:
   - bench/all.yaml
   - spec-validation/all.yaml
 
+# REST declarations live in rest/all.yaml and are selected explicitly by
+# profiles that load REST definition files.
 tools: []

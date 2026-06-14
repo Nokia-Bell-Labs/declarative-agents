@@ -17,6 +17,8 @@ type AgentProfile struct {
 	Tools            []string `yaml:"tools"`
 	ToolDeclarations []string `yaml:"tool_declarations"`
 	ToolConfigDirs   []string `yaml:"tool_config_dirs,omitempty"`
+	RestDefinitions  []string `yaml:"rest_definitions,omitempty"`
+	RestConfigDirs   []string `yaml:"rest_config_dirs,omitempty"`
 	Directory        string   `yaml:"directory,omitempty"`
 }
 
@@ -47,6 +49,12 @@ func LoadProfile(path string) (AgentProfile, error) {
 	}
 	for i, d := range p.ToolConfigDirs {
 		p.ToolConfigDirs[i] = resolveProfilePath(base, d)
+	}
+	for i, r := range p.RestDefinitions {
+		p.RestDefinitions[i] = resolveProfilePath(base, r)
+	}
+	for i, d := range p.RestConfigDirs {
+		p.RestConfigDirs[i] = resolveProfilePath(base, d)
 	}
 	if p.Directory != "" {
 		p.Directory = resolveProfilePath(base, p.Directory)
