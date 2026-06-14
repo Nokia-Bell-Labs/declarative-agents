@@ -104,6 +104,10 @@ schema:
 
   operation:
     fields:
+      - field: openapi_operation_id
+        type: string
+        required: false
+        description: Imported OpenAPI operation ID used to populate method, path, and schemas.
       - field: method
         type: string
         required: true
@@ -153,6 +157,176 @@ schema:
         required: false
         description: Enables rest_client_send and rest_client_await for this operation.
 
+  resource_operation:
+    alias_of: operation
+    description: |
+      A resource_operation uses the same fields as operation. It appears only
+      under resource.operations, where the operation name MUST be get, set, create, or
+      delete. Resource operations SHOULD omit path when the resource path is
+      sufficient. They MAY set path when a verb needs a relative subpath.
+
+  status_mapping:
+    fields:
+      - field: status
+        type: "[]int"
+        required: true
+        description: HTTP status codes that select this mapping.
+      - field: signal
+        type: string
+        required: true
+        description: Result signal emitted when one of the status codes matches.
+      - field: domain_error_code
+        type: string
+        required: false
+        description: Optional service-domain error code placed in Result output.
+      - field: response_ref
+        type: string
+        required: false
+        description: Name of a reusable response_mapping applied for this status.
+      - field: response
+        type: response_mapping
+        required: false
+        description: Inline response mapping applied for this status.
+
+  auth_profile:
+    description: |
+      Defines authentication material by reference. Secret values live outside
+      the REST config file. Release 03.0 supports none, basic, bearer,
+      header_token, and query_token.
+    fields:
+      - field: type
+        type: string
+        required: true
+        description: One of none, basic, bearer, header_token, or query_token.
+      - field: username_ref
+        type: string
+        required: by_type
+        description: Required for basic. Names the credential containing the username.
+      - field: password_ref
+        type: string
+        required: by_type
+        description: Required for basic. Names the credential containing the password.
+      - field: token_ref
+        type: string
+        required: by_type
+        description: Required for bearer, header_token, and query_token.
+      - field: header
+        type: string
+        required: by_type
+        description: Required for header_token. Names the outbound header.
+      - field: query
+        type: string
+        required: by_type
+        description: Required for query_token. Names the outbound query parameter.
+      - field: scheme
+        type: string
+        required: false
+        description: Optional bearer scheme override. Default is Bearer.
+
+  limit_profile:
+    fields:
+      - field: timeout
+        type: duration string
+        required: false
+        description: Overall request or route handling timeout.
+      - field: connect_timeout
+        type: duration string
+        required: false
+        description: Outbound connection timeout.
+      - field: read_timeout
+        type: duration string
+        required: false
+        description: Maximum duration for reading a response or inbound body.
+      - field: max_request_bytes
+        type: int
+        required: false
+        description: Maximum rendered outbound request body or accepted inbound body size.
+      - field: max_response_bytes
+        type: int
+        required: false
+        description: Maximum response body bytes read before CommandError.
+      - field: max_header_bytes
+        type: int
+        required: false
+        description: Maximum inbound header bytes for server listeners.
+      - field: redirect
+        type: redirect_policy
+        required: false
+        description: Outbound redirect behavior.
+      - field: network
+        type: network_policy
+        required: false
+        description: Allowed schemes, hosts, CIDRs, ports, and listener bindings.
+
+  redirect_policy:
+    fields:
+      - field: mode
+        type: string
+        required: true
+        description: One of none, same_host, or allowlist.
+      - field: allow_hosts
+        type: "[]string"
+        required: false
+        description: Host allowlist used when mode is allowlist.
+      - field: max_redirects
+        type: int
+        required: false
+        description: Maximum redirects followed by the client.
+
+  network_policy:
+    fields:
+      - field: schemes
+        type: "[]string"
+        required: false
+        description: Allowed URL schemes.
+      - field: hosts
+        type: "[]string"
+        required: false
+        description: Allowed destination or listener hostnames.
+      - field: cidrs
+        type: "[]string"
+        required: false
+        description: Allowed destination or listener CIDR ranges.
+      - field: ports
+        type: "[]int"
+        required: false
+        description: Allowed destination or listener ports.
+      - field: allow_public_listener
+        type: bool
+        required: false
+        description: Permits server addresses such as 0.0.0.0 when true.
+
+  retry_policy:
+    fields:
+      - field: attempts
+        type: int
+        required: true
+        description: Maximum attempts including the first try.
+      - field: backoff
+        type: string
+        required: false
+        description: One of none, fixed, or exponential.
+      - field: initial_delay
+        type: duration string
+        required: false
+        description: Delay before the first retry.
+      - field: max_delay
+        type: duration string
+        required: false
+        description: Maximum delay between retries.
+      - field: retry_status
+        type: "[]int"
+        required: false
+        description: HTTP status codes that permit retry.
+      - field: retry_network_errors
+        type: bool
+        required: false
+        description: Allows retry for temporary network I/O failures.
+      - field: require_idempotency
+        type: bool
+        required: false
+        description: Requires idempotency metadata before retrying mutating operations.
+
   rest_server:
     fields:
       - field: address
@@ -178,6 +352,10 @@ schema:
 
   endpoint:
     fields:
+      - field: openapi_operation_id
+        type: string
+        required: false
+        description: Imported OpenAPI operation ID used to populate method, path, and schemas.
       - field: method
         type: string
         required: true
@@ -210,6 +388,33 @@ schema:
         type: queue_config
         required: false
         description: Endpoint-specific queue behavior.
+
+  shutdown_config:
+    fields:
+      - field: timeout
+        type: duration string
+        required: false
+        description: Graceful shutdown timeout.
+      - field: drain_policy
+        type: string
+        required: false
+        description: One of drain, reject_new, drop_queued, or fail_queued.
+      - field: drain_timeout
+        type: duration string
+        required: false
+        description: Maximum time to drain queued events and streams.
+      - field: stop_listeners
+        type: bool
+        required: false
+        description: Closes owned listeners during rest_server_stop.
+      - field: queue_on_shutdown
+        type: string
+        required: false
+        description: One of keep, drop, or fail.
+      - field: unblock_await_signal
+        type: string
+        required: false
+        description: Signal emitted to blocked awaiters when the server stops.
 
   request_binding:
     fields:
@@ -333,6 +538,26 @@ schema:
         type: json_schema
         required: false
         description: Shape of queued event payloads.
+
+  json_schema:
+    description: |
+      Embedded JSON Schema-compatible content. The value is a YAML mapping that
+      follows JSON Schema object structure. The runtime preserves it as raw
+      schema data for validation and for OpenAPI schema interop.
+    allowed_fields:
+      - type
+      - properties
+      - required
+      - items
+      - enum
+      - format
+      - minimum
+      - maximum
+      - min_length
+      - max_length
+      - pattern
+      - additional_properties
+      - description
 
 format_examples:
   hand_authored: |
