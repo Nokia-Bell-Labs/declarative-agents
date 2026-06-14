@@ -84,9 +84,6 @@ func ServeUIFactory(bs *BenchState) toolregistry.BuiltinFactory {
 		if bs.Srv.configsDir == "" && cfg.ConfigsDir != "" {
 			bs.Srv.configsDir = cfg.ConfigsDir
 		}
-		if bs.Srv.docsDir == "" && cfg.DocsDir != "" {
-			bs.Srv.docsDir = cfg.DocsDir
-		}
 		if bs.Srv.profilesDir == "" && cfg.ProfilesDir != "" {
 			bs.Srv.profilesDir = cfg.ProfilesDir
 		}

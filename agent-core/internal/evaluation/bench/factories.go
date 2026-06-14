@@ -26,7 +26,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, assets fs.FS) {
 		var tc catalog.ServeUIToolConfig
 		_ = catalog.DecodeToolConfig(def, &tc)
 
-		dirs := []*string{&tc.DataDir, &tc.ConfigsDir, &tc.DocsDir, &tc.SourceDir, &tc.ProfilesDir}
+		dirs := []*string{&tc.DataDir, &tc.ConfigsDir, &tc.SourceDir, &tc.ProfilesDir}
 		for _, p := range dirs {
 			if *p != "" {
 				if abs, err := filepath.Abs(*p); err == nil {
@@ -40,7 +40,6 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, assets fs.FS) {
 			DataDir:     tc.DataDir,
 			ConfigsDir:  tc.ConfigsDir,
 			ProfilesDir: tc.ProfilesDir,
-			DocsDir:     tc.DocsDir,
 			SourceDir:   tc.SourceDir,
 			Assets:      assets,
 		}

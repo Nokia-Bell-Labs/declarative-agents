@@ -2,7 +2,7 @@
 
 // Package bench provides the HTTP server and builtin tools for the
 // bench agent. The server serves the web UI, experiment results,
-// configs, docs, and profiles. The serve_ui tool blocks on a channel
+// configs, source, and profiles. The serve_ui tool blocks on a channel
 // waiting for user actions from the web UI, making it the bench
 // equivalent of invoke_llm.
 package bench
@@ -20,7 +20,6 @@ type ServerConfig struct {
 	Addr        string
 	DataDir     string
 	ConfigsDir  string
-	DocsDir     string
 	ProfilesDir string
 	SourceDir   string
 	Assets      fs.FS
@@ -33,7 +32,6 @@ type Server struct {
 	dataDir     string
 	configsDir  string
 	profilesDir string
-	docsDir     string
 	sourceDir   string
 	assets      fs.FS
 	ActionCh    chan UserAction
@@ -46,7 +44,6 @@ func NewServer(cfg ServerConfig, actionCh chan UserAction) *Server {
 		dataDir:     cfg.DataDir,
 		configsDir:  cfg.ConfigsDir,
 		profilesDir: cfg.ProfilesDir,
-		docsDir:     cfg.DocsDir,
 		sourceDir:   cfg.SourceDir,
 		assets:      cfg.Assets,
 		ActionCh:    actionCh,
@@ -68,9 +65,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/configs/{path...}", s.handleGetConfig)
 	mux.HandleFunc("GET /api/v1/profiles", s.handleListProfiles)
 
-	mux.HandleFunc("GET /api/v1/docs", s.handleListDocs)
-	mux.HandleFunc("GET /api/v1/docs/{path...}", s.handleGetDoc)
-
 	mux.HandleFunc("GET /api/v1/source/{path...}", s.handleGetSource)
 
 	if s.ActionCh != nil {
@@ -86,8 +80,8 @@ func (s *Server) Handler() http.Handler {
 
 // ListenAndServe starts the HTTP server on the given address.
 func (s *Server) ListenAndServe(addr string) error {
-	log.Printf("bench listening on %s (data=%s, configs=%s, profiles=%s, docs=%s, source=%s)",
-		addr, s.dataDir, s.configsDir, s.profilesDir, s.docsDir, s.sourceDir)
+	log.Printf("bench listening on %s (data=%s, configs=%s, profiles=%s, source=%s)",
+		addr, s.dataDir, s.configsDir, s.profilesDir, s.sourceDir)
 	return http.ListenAndServe(addr, s.Handler())
 }
 
