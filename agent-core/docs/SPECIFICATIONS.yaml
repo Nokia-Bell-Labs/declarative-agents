@@ -128,7 +128,7 @@ srd_index:
     path: docs/specs/software-requirements/srd016-traceparent.yaml
   - id: srd017-llm-extensions
     title: LLM Package Extensions
-    summary: Parse utilities (parseutil), YAML model profiles, and domain interfaces (ResponseParser, PromptAssembler) in internal/model/llm.
+    summary: Parse utilities, response parser profiles, invoke_llm parser selection, and domain interfaces in internal/model/llm.
     path: docs/specs/software-requirements/srd017-llm-extensions.yaml
   - id: srd018-cli-flag-contract
     title: CLI Standard Flag Contract
@@ -174,7 +174,7 @@ config_format_index:
     path: docs/specs/config-formats/machine-format.yaml
   - id: cfg-runtime-contract
     title: Machine + Tools Runtime Contract
-    summary: Universal agent binary startup contract for machine, tool selection, declarations, LLM config, lifecycle ports, nested machines, and rollback CLI.
+    summary: Universal profile-first startup contract for runtime data flags, tool declarations, LLM boundary config, lifecycle ports, and nested machines.
     path: docs/specs/config-formats/runtime-contract.yaml
   - id: cfg-tool-authoring-standard
     title: Tool Definition Authoring Standard
@@ -190,7 +190,7 @@ config_format_index:
     path: docs/specs/config-formats/tool-selection-format.yaml
   - id: cfg-llm-config-format
     title: LLM Configuration Format
-    summary: Per-agent invoke_llm declaration format for model/provider config, prompts, manifest state, parse profiles, and time/token limits.
+    summary: Per-agent invoke_llm declaration format for model/provider config, prompts, manifest state, response_profile parser selection, and time/token limits.
     path: docs/specs/config-formats/llm-config-format.yaml
 
 semantic_model_index:

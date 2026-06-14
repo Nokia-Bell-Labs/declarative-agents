@@ -49,16 +49,15 @@ invocation: |
                          (default: Approved).
 
   Diagnostic flags:
-    --profiles-dir       Directory with model response-profile YAML overrides.
     --verbose-trace      Record boundary-tool input/output in OTel traces.
     --otel-log-file      OTel trace output file.
     --otel-parent-span   W3C traceparent for distributed tracing.
 
   Implementation drift:
     Current cmd/agent still parses --machine, --tools, --tools-declaration,
-    --tool-config-dir, and --input until the profile-only CLI change lands.
-    Do not use those flags as normal startup guidance. The planned runtime
-    surface is --profile plus runtime data and diagnostics.
+    --tool-config-dir, --profiles-dir, and --input until the profile-only CLI
+    change lands. Do not use those flags as normal startup guidance. The
+    planned runtime surface is --profile plus runtime data and diagnostics.
 
   Lifecycle request data:
     History and rollback targets are lifecycle tool request data. A request file
@@ -91,9 +90,9 @@ startup_sequence:
     description: |
       Tool definitions keep their config blocks until the selected factory
       decodes them. Boundary tools such as invoke_llm own model, endpoint,
-      prompt, timeout, manifest_state, and provider-specific settings. The
-      agent binary does not interpret those settings and does not create model
-      clients as a startup step.
+      response_profile, prompt, timeout, manifest_state, and provider-specific
+      settings. The agent binary does not interpret those settings and does not
+      create model clients as a startup step.
     implementation: catalog.ToolDef, catalog.DecodeToolConfig
 
   - step: 4
@@ -165,7 +164,7 @@ tool_parametrization: |
 
   Examples:
     - invoke_llm reads "model", "provider_url", prompt fields, timeout fields,
-      and manifest_state from its own config.
+      manifest_state, and response_profile from its own config.
     - launch_eval reads "profile" from its config and invokes the child
       evaluator with --profile.
     - execute_task reads "profile" from its config and invokes the child
@@ -189,6 +188,24 @@ suite_input_contract: |
   channels. The profile decides which tool interprets the request file.
   Model and provider selection comes from the selected boundary tool
   declaration, not from the agent binary.
+
+llm_parser_ownership: |
+  LLM response parsing is boundary-tool configuration. The selected agent
+  profile loads an invoke_llm ToolDef from agents/*/llm/*.yaml. That ToolDef
+  owns model, provider_url, prompt fields, manifest_state, and the planned
+  response_profile parser selector.
+
+  response_profile names a parser profile from internal/model/llm/profiles/.
+  Parser profiles are not agent profiles. They describe model-output
+  extraction with match_prefixes, envelope, strict_format, and
+  extraction_pipeline. Agent profiles live under agents/*/profile.yaml and
+  select the configured program.
+
+  Current code still accepts --profiles-dir and resolves parser behavior from
+  model-name prefixes through ProfileRegistry. That is implementation drift
+  until the profile-only CLI follow-up moves parser selection fully into the
+  invoke_llm config. Custom parser behavior should be added as a parser profile
+  YAML and referenced by response_profile from the agent-local LLM declaration.
 
 nested_machines: |
   Some tools spawn nested core.Loop instances (run_point) or child
