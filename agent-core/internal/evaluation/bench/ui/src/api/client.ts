@@ -98,18 +98,6 @@ export interface ExperimentConfig {
   sample: { name: string }
 }
 
-export interface DocEntry {
-  path: string
-  name: string
-  category: string
-}
-
-export interface DocDetail {
-  path: string
-  content: Record<string, unknown>
-  raw: string
-}
-
 export interface ConfigFile {
   path: string
   name: string
@@ -139,8 +127,6 @@ export interface SourceDetail {
   size: number
 }
 
-export const listDocs = () => fetchJSON<DocEntry[]>('/docs')
-export const getDoc = (path: string) => fetchJSON<DocDetail>(`/docs/${path}`)
 export const listConfigs = () => fetchJSON<ConfigCategory[]>('/configs')
 export const getConfig = (path: string) => fetchJSON<ConfigDetail>(`/configs/${path}`)
 export const getSource = (path: string) => fetchJSON<SourceDetail>(`/source/${path}`)
