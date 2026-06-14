@@ -486,3 +486,44 @@ test_cases:
       timeout_handled: true
     traces:
       - srd023-cli-exec-tools AC3
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Ollama adapter options configure client and skip check
+    go_test: TestNewAdapter_OptionsConfigureClientAndSkipModelCheck
+    inputs:
+      http_client_timeout: 37s
+      model_check: skipped
+    expected:
+      custom_client_used: true
+      startup_model_check_skipped: true
+    traces:
+      - srd009-ollama-adapter AC5
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Ollama migration removes legacy adapter paths
+    go_test: TestOllamaMigrationRemovesLegacyAdapterPaths
+    inputs:
+      legacy_paths:
+        - internal/llm/adapter.go
+        - cmd/planner/ollama.go
+      import_path: internal/model/llm/ollama
+    expected:
+      legacy_generator_adapter_absent: true
+      legacy_planner_adapter_absent: true
+      current_invoke_imports_adapter: true
+    traces:
+      - srd009-ollama-adapter AC6
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: LLM extraction functions handle fences and native tokens
+    go_test: go test ./internal/model/llm -run 'Test(StripCodeFences|ExtractWithEnvelope|StripThinkingBlocks|ExtractBraces|MakeNativeTokenExtractor)'
+    inputs:
+      extraction_inputs: "code fences, envelopes, thinking blocks, braces, native tokens"
+    expected:
+      code_fences_removed: true
+      envelope_extracted: true
+      thinking_blocks_stripped: true
+      braces_extracted: true
+      native_token_extracted: true
+    traces:
+      - srd017-llm-extensions AC4
