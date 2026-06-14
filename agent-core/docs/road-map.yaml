@@ -114,3 +114,41 @@ releases:
       - id: agent-core-vk8j
         summary: Reorganize standard tool library packages and tool declarations
         status: in_progress
+
+  - version: "03.0"
+    name: Declarative REST client and server tools
+    description: |
+      Add REST client and REST server tools as declarative boundary tool
+      families. REST client tools call configured upstreams. REST server tools
+      are launched by configured agent profiles and bind configured addresses.
+      OpenAPI documents and REST definitions live with agent/profile/tool
+      configuration rather than compiled code.
+
+      Deliverables:
+      - internal/tools/rest as the planned REST runtime package
+      - net/http based client and server behavior
+      - OpenAPI 3 loading, resolution, and validation through
+        github.com/getkin/kin-openapi/openapi3
+      - shared REST client/server definitions and config format
+      - async inbox support for server events and long-running REST calls
+      - no generated Go clients or servers in the first implementation
+    status: planned
+    srds:
+      - srd027-rest-tool-runtime
+      - srd028-rest-client-tools
+      - srd029-rest-server-tools
+    semantic_models:
+      - sm-rest-tool-language
+    config_formats:
+      - cfg-rest-tool-format
+    planned_use_cases:
+      - id: rel03.0-uc001-rest-client-tool
+        summary: Agent calls a configured upstream REST operation
+        status: planned
+      - id: rel03.0-uc002-rest-server-tool
+        summary: Agent profile launches a configured REST server tool
+        status: planned
+    planned_test_suites:
+      - id: test-rel03.0-rest-tools
+        summary: Planned formal tests for REST runtime, client tools, and server tools
+        status: planned

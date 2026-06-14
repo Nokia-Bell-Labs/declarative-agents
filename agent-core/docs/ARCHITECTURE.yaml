@@ -32,6 +32,7 @@ overview:
     - internal/tools/exec — CLI/exec tool builder and subprocess command adapters
     - internal/tools/filesystem — file, path, search, list, and workspace snapshot tools
     - internal/tools/llm — model-boundary and conversation tools
+    - internal/tools/rest — planned REST client/server boundary tools
     - internal/tools/lifecycle — lifecycle tool adapters around core checkpoint operations
     - internal/tools/control — loop-control and child-agent boundary tools
     - internal/tools/validation — validation and audit tool adapters
@@ -246,6 +247,24 @@ overview:
             - cmd/agent
             - internal/evaluation
             - internal/planning
+      - path: internal/tools/rest/
+        responsibility: |
+          Planned package for declarative REST client and REST server boundary
+          tools. It owns configured REST operation definitions, OpenAPI 3
+          loading and validation, request rendering, response mapping, runtime
+          HTTP client behavior, runtime HTTP server binding, async inbox
+          integration, and shared client/server REST definition types.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/tools/catalog
+            - internal/tools/undo
+            - Go standard library net/http
+            - github.com/getkin/kin-openapi/openapi3
+          must_not_depend_on:
+            - cmd/agent
+            - internal/evaluation
+            - internal/planning
       - path: internal/tools/lifecycle/
         responsibility: |
           Own suspend, checkpoint_history, checkpoint_rollback, lifecycle
@@ -314,6 +333,7 @@ overview:
             - internal/tools/exec
             - internal/tools/filesystem
             - internal/tools/llm
+            - internal/tools/rest
             - internal/tools/lifecycle
             - internal/tools/control
             - internal/tools/validation
@@ -329,6 +349,7 @@ overview:
       - cmd/agent imports target tool packages or registration packages, not the stl facade.
       - internal/evaluation and internal/planning may import target tool packages only for tool builders they own or reuse. They must not depend on the stl facade.
       - internal/model/llm remains the model-boundary client package. internal/tools/llm depends on it; internal/model/llm does not depend on tools.
+      - internal/tools/rest owns REST transport behavior. Model-provider HTTP calls may use REST definitions, but model semantics stay in internal/tools/llm.
     migration_sequence:
       - step: M1
         work: Extract internal/tools/catalog first so ToolDef, declaration loading, selection, and config decoding have one source of truth.
@@ -342,6 +363,8 @@ overview:
         work: Move LLM and control tools to internal/tools/llm and internal/tools/control.
       - step: M6
         work: Move lifecycle, validation, and undo helpers to their target packages.
+      - step: M6a
+        work: Add internal/tools/rest for configured REST client/server tools without adding new long-term behavior to internal/tools/stl.
       - step: M7
         work: Move callers from internal/tools/stl to target packages in cmd/agent, internal/evaluation, internal/planning, internal/model/llm integration points, and internal/runtime/core tests where needed.
       - step: M8
@@ -576,6 +599,71 @@ overview:
       - docs/specs/semantic-models/tool-language.yaml
       - docs/specs/semantic-models/tool-vocabulary-audit.yaml
       - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
+
+  rest_tool_runtime_architecture:
+    status: planned
+    summary: |
+      Release 03.0 adds declarative REST client and REST server tools as
+      boundary tool families. The planned package is internal/tools/rest.
+      It sits beside internal/tools/llm, internal/tools/control, and
+      internal/tools/lifecycle rather than inside internal/tools/stl. The stl
+      package remains a temporary facade only and must not receive long-term
+      REST implementations.
+
+      REST client tools call configured upstreams. REST server tools are
+      launched by configured agent profiles and bind configured addresses.
+      OpenAPI documents and REST definitions live with agent/profile/tool
+      configuration, not compiled code.
+
+      Client and server tools share REST definition types: operation names,
+      methods, paths, schemas, auth references, success codes, error mappings,
+      side effects, and compensation notes. The runtime validates those
+      definitions before a machine dispatches them.
+    responsibilities:
+      client: |
+        REST client tools resolve configured operations, validate runtime
+        parameters, render requests, apply configured authentication, call
+        upstreams through net/http, map responses to structured Result output,
+        and emit declared REST signals.
+      server: |
+        REST server tools load configured routes, bind configured addresses,
+        validate incoming requests, map accepted requests to inbox messages or
+        declared grammar signals, expose health/state endpoints when configured,
+        and shut down through tool lifecycle or agent shutdown.
+      openapi: |
+        The runtime uses github.com/getkin/kin-openapi/openapi3 to load,
+        resolve, and validate OpenAPI 3 documents referenced by REST tool
+        configuration. OpenAPI augments REST definitions; it does not generate
+        Go client or server code in the first implementation.
+      async: |
+        Server-side input and long-running client calls use the boundary inbox
+        model described by the async boundary design. Launch words can bind
+        servers or start requests, and await words can receive REST events
+        alongside human, model, or child-agent events.
+      catalog_and_registry: |
+        internal/tools/catalog owns ToolDef loading, selection, and typed
+        config decoding. internal/tools/registry owns builtin factory
+        registration. internal/tools/rest provides factories and command
+        implementations that those packages wire into configured profiles.
+    deployment:
+      - REST server tools are launched only by configured agent profiles.
+      - REST server tools bind addresses declared in profile or tool configuration.
+      - REST client tools call upstreams declared in profile or tool configuration.
+      - OpenAPI documents live with agent/profile/tool configuration.
+      - REST definitions live with agent/profile/tool configuration.
+      - Runtime credentials are referenced by configuration and resolved by the agent runtime.
+      - Generated Go REST clients and servers are out of scope for the first implementation.
+    source_files:
+      planned:
+        - internal/tools/rest/
+        - docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
+        - docs/specs/software-requirements/srd028-rest-client-tools.yaml
+        - docs/specs/software-requirements/srd029-rest-server-tools.yaml
+        - docs/specs/semantic-models/rest-tool-language.yaml
+        - docs/specs/config-formats/rest-tool-format.yaml
+        - docs/specs/use-cases/rel03.0-uc001-rest-client-tool.yaml
+        - docs/specs/use-cases/rel03.0-uc002-rest-server-tool.yaml
+        - docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
   container_runtime_architecture:
     summary: |
@@ -1125,6 +1213,15 @@ technology_choices:
   - component: YAML parsing
     technology: gopkg.in/yaml.v3
     purpose: Machine spec parsing and validation
+  - component: REST runtime HTTP
+    technology: net/http
+    purpose: Planned REST client requests and REST server bindings
+  - component: REST OpenAPI
+    technology: github.com/getkin/kin-openapi/openapi3
+    purpose: Planned OpenAPI 3 loading, resolution, and validation
+  - component: REST code generation
+    technology: none
+    purpose: No generated Go REST clients or servers in the first implementation
   - component: Test assertions
     technology: testify (stretchr/testify)
     purpose: Test assertions and helpers
@@ -1171,6 +1268,8 @@ project_structure:
       role: Planned file tools, path validation, snapshots, and workspace restore package
     - path: internal/tools/llm/
       role: Planned model-boundary, response parsing, conversation state, and done tool package
+    - path: internal/tools/rest/
+      role: Planned REST client/server boundary tool package with OpenAPI loading, operation definitions, async inbox integration, and net/http runtime behavior
     - path: internal/tools/lifecycle/
       role: Planned checkpoint history, rollback, and lifecycle adapter package
     - path: internal/tools/control/
