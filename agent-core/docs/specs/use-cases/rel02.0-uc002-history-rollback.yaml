@@ -18,12 +18,12 @@ trigger: |
 flow:
   - F1: During execution, Loop records a HistoryEntry for each dispatched Command when lifecycle recording is enabled (srd025 R5).
   - F2: Mutating commands record enough pre-execution state or workspace refs to support Command.Undo and Workspace.Restore (srd025 R4, R5).
-  - F3: The developer inspects History entries, including iteration, command name, from/to states, result signal, result summary, and workspace ref (srd025 R5).
+  - F3: The developer inspects History entries, including iteration, command name, from/to states, result signal, result summary, and workspace ref through the checkpoint_history lifecycle adapter when a profile selects it (srd026 R2, R5).
   - F4: The developer selects the last known-good iteration as the rollback target.
-  - F5: Rollback traverses History in reverse dispatch order from the current iteration to the target (srd025 R7).
+  - F5: Rollback traverses History in reverse dispatch order from the current iteration to the target through core rollback traversal or the checkpoint_rollback lifecycle adapter (srd025 R7, srd026 R3).
   - F6: For each traversed command, rollback calls Command.Undo to restore command/domain state such as conversation, planner, or evaluator state (srd025 R4, R7).
   - F7: Rollback restores Workspace to the target workspace ref or initial ref for full rollback (srd025 R3, R7).
-  - F8: Rollback reports the resumed agent state and any partial failure details so the developer can decide whether to continue, retry, or stop (srd025 R7).
+  - F8: Rollback reports the resumed agent state and any partial failure details so the developer can choose to continue, retry, or stop (srd025 R7).
 
 touchpoints:
   - T1: "srd001-core-types R2, R8 -- Command.Undo and rollback foundation types"
@@ -31,6 +31,7 @@ touchpoints:
   - T3: "srd025-rollback-lifecycle R1, R3, R4, R5, R7, R10 -- history, command undo, workspace restore, rollback traversal"
   - T4: "sm-rollback-lifecycle -- reverse traversal and layer ownership"
   - T5: "sm-command-undo-audit -- current command-specific undo migration checklist"
+  - T6: "srd026-lifecycle-tools R1, R2, R3, R4, R5, R6 -- checkpoint_history and checkpoint_rollback adapters, typed config, ToolDef declarations, errors"
 
 success_criteria:
   - id: S1
@@ -46,7 +47,7 @@ success_criteria:
     traces:
       - srd025-rollback-lifecycle AC4
   - id: S4
-    criterion: Partial rollback failures identify whether command undo, workspace restore, or checkpoint/state-store restore failed.
+    criterion: Partial rollback failures name the failed layer, such as command undo, workspace restore, or checkpoint/state-store restore.
     traces:
       - srd025-rollback-lifecycle AC4
 
