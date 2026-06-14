@@ -55,15 +55,22 @@ test_cases:
       Against an httptest.Server, run rest_client_get and rest_client_set with
       configured operations. net/http should receive the expected method and
       path. Response mapping then produces structured output for MachineSpec.
+      The case checks the two resource paths together because their signals
+      prove that read, write, missing, domain-failure, and infrastructure
+      outcomes stay separate at the grammar boundary.
+      This matters when a remote service returns a valid HTTP response that
+      still represents a business failure, because the machine must route that
+      case through RESTDomainFailed while reserving CommandError for transport,
+      schema, auth, timeout, and mapping failures.
     inputs:
       client: github_like_issue_client
       operations: [get_issue, set_issue]
       server_responses: [read_ok, update_ok, missing, domain_failed]
     expected:
-      get_signal: ResourceRead
-      set_signal: ResourceUpdated
+      get_signal: RESTResourceRead
+      set_signal: RESTResourceWritten
       missing_signal: RESTMissing
-      domain_failure_signal: RESTFailed
+      domain_failure_signal: RESTDomainFailed
       command_error_signal: CommandError
       output_contains_status_and_operation: true
     traces:
@@ -165,6 +172,10 @@ test_cases:
     description: |
       Begin with stored AsyncRequest state. Completion, domain failure,
       absence, timeout, and missing state each map to a declared signal.
+      The table uses separate outcomes so RESTDomainFailed is not confused
+      with CommandError or the timeout path.
+      Await behavior also proves that stored async state is consumed according
+      to policy after the final signal is chosen.
     inputs:
       request_state: pending_payment
       outcomes:
@@ -175,7 +186,7 @@ test_cases:
         - async_state_missing
     expected:
       responded_signal: RESTResponded
-      domain_failed_signal: RESTFailed
+      domain_failed_signal: RESTDomainFailed
       missing_signal: RESTMissing
       timeout_signal: RESTAwaitTimedOut
       missing_state_signal: CommandError
