@@ -18,7 +18,7 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/plan"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/subprocess"
 )
 
 const spanMaterialize = "materialize_task"
@@ -188,7 +188,7 @@ func parseIssueID(data []byte) (string, error) {
 }
 
 func defaultRunBd(ctx context.Context, args []string) ([]byte, error) {
-	out, err := stl.RunBd(ctx, "", args...)
+	out, err := subprocess.RunCLIOutput(ctx, "", "bd", args...)
 	if err != nil {
 		return nil, err
 	}
