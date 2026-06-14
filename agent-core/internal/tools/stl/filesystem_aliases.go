@@ -24,9 +24,3 @@ var (
 	FindToolSpec      = filesystem.FindToolSpec
 	ListFilesToolSpec = filesystem.ListFilesToolSpec
 )
-
-type workspaceUndoPayload struct {
-	WorkspaceRestore struct {
-		Paths []string `json:"paths"`
-	} `json:"workspace_restore"`
-}

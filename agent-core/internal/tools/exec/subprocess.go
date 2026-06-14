@@ -1,42 +1,30 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package exec
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os/exec"
+	osexec "os/exec"
 	"strings"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
-// DefaultOutputLineCap is the default maximum number of output lines
-// before truncation.
+// DefaultOutputLineCap is the default maximum number of output lines before truncation.
 const DefaultOutputLineCap = 200
 
 // SubprocessResult maps subprocess output and error to a core.Result.
-// Exit errors produce ToolFailed; other errors produce CommandError.
 func SubprocessResult(name string, output []byte, err error) core.Result {
 	out := strings.TrimRight(string(output), "\n")
 	if err == nil {
-		return core.Result{
-			Output:      out,
-			Signal:      core.ToolDone,
-			CommandName: name,
-		}
+		return core.Result{Output: out, Signal: core.ToolDone, CommandName: name}
 	}
-
-	var exitErr *exec.ExitError
+	var exitErr *osexec.ExitError
 	if errors.As(err, &exitErr) {
-		return core.Result{
-			Output:      out,
-			Signal:      core.ToolFailed,
-			CommandName: name,
-		}
+		return core.Result{Output: out, Signal: core.ToolFailed, CommandName: name}
 	}
-
 	return core.Result{
 		Output:      out,
 		Signal:      core.CommandError,
@@ -57,7 +45,6 @@ func CapOutput(output string, maxLines int) string {
 }
 
 // ExtractStringParam extracts a string parameter from a JSON tool request.
-// Expected format: {"parameters": {"key": "value"}}
 func ExtractStringParam(jsonOutput, key string) string {
 	var params struct {
 		Parameters map[string]interface{} `json:"parameters"`
@@ -65,15 +52,10 @@ func ExtractStringParam(jsonOutput, key string) string {
 	if err := json.Unmarshal([]byte(jsonOutput), &params); err != nil {
 		return ""
 	}
-	v, ok := params.Parameters[key]
-	if !ok {
-		return ""
+	if v, ok := params.Parameters[key].(string); ok {
+		return v
 	}
-	s, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return s
+	return ""
 }
 
 // ExtractIntParam extracts an integer parameter from a JSON tool request.
@@ -84,19 +66,13 @@ func ExtractIntParam(jsonOutput, key string) int {
 	if err := json.Unmarshal([]byte(jsonOutput), &params); err != nil {
 		return 0
 	}
-	v, ok := params.Parameters[key]
-	if !ok {
-		return 0
+	if v, ok := params.Parameters[key].(float64); ok {
+		return int(v)
 	}
-	f, ok := v.(float64)
-	if !ok {
-		return 0
-	}
-	return int(f)
+	return 0
 }
 
-// FailedParamCmd is a command returned by builders when required
-// parameters are missing from the tool request.
+// FailedParamCmd is returned by builders when required parameters are missing.
 type FailedParamCmd struct {
 	ToolName string
 	Missing  string
