@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package control
 
 import (
 	"fmt"
@@ -11,7 +11,8 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
-const rereadNudge = `The file was modified successfully. ` +
+// RereadNudge is appended after edits so the model reads current file content.
+const RereadNudge = `The file was modified successfully. ` +
 	`IMPORTANT: You MUST call the read tool on the modified file to see ` +
 	`its current contents before making any further edits. Do not assume ` +
 	`you know what the file looks like — re-read it now.`
@@ -27,30 +28,18 @@ func (n *nudgeRereadCmd) Undo() core.Result { return core.NoopUndo(n.Name()) }
 func (n *nudgeRereadCmd) Execute() core.Result {
 	child, done := n.tracer.Push(n.Name())
 	defer done()
-
-	output := fmt.Sprintf("%s\n\n%s", n.editResult, rereadNudge)
-
-	child.SetAttributes(
-		attribute.String("edit_result", n.editResult),
-	)
-
+	child.SetAttributes(attribute.String("edit_result", n.editResult))
 	return core.Result{
-		Signal:      core.ToolDone,
-		Output:      output,
+		Signal: core.ToolDone, Output: fmt.Sprintf("%s\n\n%s", n.editResult, RereadNudge),
 		CommandName: n.Name(),
 	}
 }
 
-// NudgeRereadBuilder constructs nudge_reread commands that append a
-// re-read instruction after successful edits. Unlike reset_history,
-// it preserves the full conversation context.
+// NudgeRereadBuilder constructs nudge_reread commands.
 type NudgeRereadBuilder struct {
 	Tracer tracing.Tracer
 }
 
 func (b *NudgeRereadBuilder) Build(r core.Result) core.Command {
-	return &nudgeRereadCmd{
-		editResult: r.Output,
-		tracer:     b.Tracer,
-	}
+	return &nudgeRereadCmd{editResult: r.Output, tracer: b.Tracer}
 }
