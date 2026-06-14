@@ -546,5 +546,6 @@ implementation:
   - internal/runtime/core/machine.go
   - internal/runtime/core/checkpoint_ops.go
   - internal/tools/lifecycle/checkpoint.go
-  - internal/tools/stl/register.go
+  - internal/tools/catalog/loading.go
   - internal/tools/catalog/emits.go
+  - internal/tools/registry/builtin.go
