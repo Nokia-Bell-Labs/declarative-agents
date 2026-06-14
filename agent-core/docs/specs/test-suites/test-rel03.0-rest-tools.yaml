@@ -685,6 +685,37 @@ test_cases:
       - srd028-rest-client-tools AC4
       - srd028-rest-client-tools AC7
 
+  - use_case: rel03.0-uc006-documentation-curator
+    name: Documentation curator migration smoke test
+    go_test: mage integration:uc006
+    status: done
+    description: |
+      Build the agent with production assets, start
+      agents/knowledge-manager/documentation-curator/profile.yaml, probe the
+      documentation health, docs index, validation, suggestion, and SPA routes,
+      and run the bench docs-route absence test.
+    inputs:
+      profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      listener: 127.0.0.1:18081
+      frontend_builds:
+        - internal/evaluation/bench/ui
+        - internal/knowledge/documentation/ui
+      bench_route_test: TestDocsAPIRoutesAreNotMounted
+    expected:
+      documentation_health_ok: true
+      documentation_index_returned: true
+      validation_endpoint_returned: true
+      suggestion_endpoint_returned: true
+      spa_route_returned_html: true
+      bench_docs_routes_absent: true
+    traces:
+      - rel03.0-uc006-documentation-curator S1
+      - rel03.0-uc006-documentation-curator S2
+      - rel03.0-uc006-documentation-curator S3
+      - rel03.0-uc006-documentation-curator S4
+      - srd020-bench-web-ui AC4
+      - srd024-blocking-input-tools AC1
+
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST observability redacts secrets and reports failure stages
     go_test: TestRESTTools_TracingRedactionAndErrors
