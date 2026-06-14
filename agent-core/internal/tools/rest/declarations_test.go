@@ -69,11 +69,69 @@ func TestRESTFactoriesResolveConfiguredDefinitions(t *testing.T) {
 	require.NotNil(t, builder)
 }
 
+func TestDocumentationCuratorRESTDefinitionsLoad(t *testing.T) {
+	t.Parallel()
+
+	defs, err := catalog.LoadToolDefs(documentationCuratorDeclarationsPath(t))
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{
+		"doc_list",
+		"doc_get",
+		"doc_search",
+		"doc_validate",
+		"doc_suggest_changes",
+		"doc_patch_approve",
+		"doc_patch_reject",
+	}, toolDefNames(defs))
+
+	collection, err := LoadDefinitions([]string{documentationCuratorRestPath(t)}, nil)
+	require.NoError(t, err)
+	br := toolregistry.NewBuiltinRegistry()
+	RegisterFactories(br, FactoryDeps{Definitions: collection})
+
+	for _, def := range defs {
+		require.Equal(t, "builtin", def.Type)
+		require.Equal(t, "boundary", def.Category)
+		requireConfigUsesNamedRefs(t, def)
+		requireNoAuthorityParameters(t, def.Parameters)
+		factory, ok := br.Resolve(def.Init)
+		require.True(t, ok, "factory for init %q should be registered", def.Init)
+		builder, err := factory(def, nil)
+		require.NoError(t, err, "tool %q should resolve configured REST operation", def.Name)
+		require.NotNil(t, builder)
+	}
+}
+
 func restDeclarationsPath(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "tools", "builtin", "rest", "all.yaml")
+}
+
+func documentationCuratorDeclarationsPath(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(repoRootFromRESTTest(t), "agents", "knowledge-manager", "documentation-curator", "declarations.yaml")
+}
+
+func documentationCuratorRestPath(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(repoRootFromRESTTest(t), "agents", "knowledge-manager", "documentation-curator", "rest.yaml")
+}
+
+func repoRootFromRESTTest(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	return filepath.Join(filepath.Dir(file), "..", "..", "..")
+}
+
+func toolDefNames(defs []catalog.ToolDef) []string {
+	names := make([]string, 0, len(defs))
+	for _, def := range defs {
+		names = append(names, def.Name)
+	}
+	return names
 }
 
 func requireConfigUsesNamedRefs(t *testing.T, def catalog.ToolDef) {
