@@ -8,11 +8,11 @@ No code moved.
 
 ## Verdict
 
-Client paths work. Async paths work. Inbound signal paths work. OpenAPI import paths work. Code follows the profile-first tool language model for those paths. No non-blocking REST endpoint binding gap remains. `agent-core-usbz.1` added `invoke_handler` and `stream_events` endpoint bindings from `srd029-rest-server-tools`, and `agent-core-usbz.2` resolved listener side-effect vocabulary alignment. Release 03.0 now has executable coverage for the endpoint binding work that kept it in progress. Its status moves to `done` through `agent-core-usbz.1`, not through the original audit alone.
+Client paths work. Async paths work. Inbound signal paths work. OpenAPI import paths work. Code follows the profile-first tool language model for those paths. The safety gaps from `agent-core-0l2i` are closed. Credential references resolve through `CredentialResolver`; redirect allowlists and request or response byte limits are enforced; server path, query, header, and body validation rejects unsafe requests; client and server redaction tests keep synthetic secrets out of Result output.
 
 Release readiness is aligned.
 
-A REST tool is not one feature; it is a contract among specs and profile assets, ToolDefs and builders, HTTP behavior and machine transitions. Status changes are valid only when those artifacts agree. Client flows have that agreement. Inbound signal receipt has it too. Shutdown, OpenAPI import, handler invocation, event streaming, and listener side effects now have it.
+A REST tool is not one feature. The release contract spans specs and profile assets, ToolDefs and builders, HTTP behavior, and machine transitions. Status changes are valid only when those artifacts agree. Client flows have that agreement. Inbound signal receipt has it too. Shutdown, OpenAPI import, handler invocation, event streaming, listener side effects, credential resolution, redirect policy, size limits, request validation, and redaction now have it.
 
 ## Design Constitution
 
@@ -52,7 +52,11 @@ Workflow ownership passes. Client send and await are separate words in `client_c
 
 ### Validation And Safety
 
-Validation passes. The runtime rejects undeclared params and runtime authority overrides. Config-policy checks cover auth and redirects. They also cover public listener policy, async retry rules, and OpenAPI operation IDs. Route handling checks HTTP method and body limits. It also checks simple body schema types, queue capacity, configured handler responses, and SSE event streaming.
+Validation passes. The runtime rejects undeclared params and runtime authority overrides. `TestRESTClient_ResolvesAuthCredentialRefs` proves `token_ref`, `username_ref`, and `password_ref` are names resolved by trusted runtime dependencies, not literal secrets. `TestRESTClient_MissingCredentialReferenceFailsAuthResolution` proves missing credential refs fail before the request leaves the process and report `auth_resolution`.
+
+Redirect and size-limit gaps are closed. `TestRESTClient_RedirectAllowlistPolicy` proves allowlisted redirect hosts succeed and unlisted hosts fail as `network_io`. `TestRESTClient_RequestAndResponseSizeLimits` proves oversized request bodies fail before send and oversized response bodies produce a `size_limit` CommandError without returning the response content.
+
+Server validation and redaction gaps are closed. `TestRESTServer_RejectsUndeclaredQueryAndHeader` proves undeclared query and header values, schema-invalid header values, and schema-invalid path values return `400` without enqueueing events. `TestRESTServer_RedactsAwaitAndStreamOutput` proves await and SSE output redact configured query, header, and body secrets. `TestRESTServer_RedactsHandlerResponses` proves handler responses redact configured body secrets before returning JSON.
 
 ## REST ToolDefs
 
@@ -62,12 +66,16 @@ Sample REST ToolDefs pass. `agents/rest/declarations.yaml` loads through the nor
 
 ## Quality Gates
 
-Code and documentation gates passed through the standard Go and Mage checks. The current issue added `TestRESTServer_InvokeHandlerBindings` and `TestRESTServer_StreamEvents`; existing server tests still cover launch, await, stop, validation, queue overflow, method rejection, and simple schema checks. The broader package evidence also includes client sync tests, async send and await tests, OpenAPI import tests, contract loading tests, and tracing or redaction tests. That spread matters because REST behavior crosses config loading, runtime validation, HTTP I/O, event queues, and release metadata. A green server-only test would not prove the release by itself. Here, `go build ./...`, `go vet ./...`, `mage lint`, `go test ./...`, and `mage audit` pass with the updated release suite count.
+Code and documentation gates passed through the standard Go and Mage checks. The release suite names the safety tests added by `agent-core-0l2i.1`, `agent-core-0l2i.2`, and `agent-core-0l2i.3`. Earlier endpoint work remains covered by `TestRESTServer_InvokeHandlerBindings` and `TestRESTServer_StreamEvents`; server tests also cover launch, await, stop, queue overflow, method rejection, body limits, and simple schema checks. The broader package evidence includes client sync tests, async send and await tests, OpenAPI import tests, contract loading tests, and tracing or redaction tests.
+
+REST behavior crosses config loading, runtime validation, HTTP I/O, event queues, and release metadata. A green server-only test would not prove the release by itself. Here, `go build ./...`, `go vet ./...`, `mage lint`, `go test ./...`, and `mage audit` pass with the updated release suite count. The de-AI lexical checks are clean; structural warnings are recorded below.
+
+De-AI exception: the structural checker reports list-heavy, tricolon-heavy, and exhaustive-list-heavy for `docs/specs/test-suites/test-rel03.0-rest-tools.yaml`. We keep that warning because the file is a formal YAML test suite. Its required fields are lists of inputs, expected facts, and traces, and rewriting those lists into prose would make the suite less useful to the spec graph. The checker also reports uniform paragraphs in this Markdown audit; lexical checks are clean, and the paragraphs stay short to preserve audit readability.
 
 No drift remains.
 
 ## Follow-Up Issues
 
-`agent-core-usbz.1` covers completed REST server endpoint binding work. `agent-core-usbz.2` covers completed REST side-effect vocabulary alignment with the contract audit.
+`agent-core-usbz.1` covers completed REST server endpoint binding work. `agent-core-usbz.2` covers completed REST side-effect vocabulary alignment with the contract audit. `agent-core-0l2i.1`, `agent-core-0l2i.2`, and `agent-core-0l2i.3` cover completed REST safety work for credential resolution, redirect and size policies, server validation, and redaction.
 
 No further REST follow-up remains from this audit.

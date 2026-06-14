@@ -10,7 +10,7 @@ overview: |
   Rollback lifecycle contracts belong to 02.0. Declarative REST runtime
   contracts belong to 03.0. REST client and server contracts sit in the same
   release. Thirteen use cases exercise the SRDs across the
-  four releases. Five formal YAML test suites cover 175 acceptance test
+  four releases. Five formal YAML test suites cover 178 acceptance test
   cases across releases 00.0 through 03.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -351,7 +351,7 @@ test_suite_index:
       - rel03.0-uc002-rest-client-async
       - rel03.0-uc003-rest-server-signals
       - rel03.0-uc004-openapi-import
-    formal_test_cases: 17
+    formal_test_cases: 20
     path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
 go_test_coverage:
@@ -367,10 +367,11 @@ go_test_coverage:
     mage integration:uc003 target records a skipped/manual-precondition result,
     not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
-    The 03.0 YAML coverage (17 cases) now names implemented Go tests for REST
+    The 03.0 YAML coverage (20 cases) now names implemented Go tests for REST
     config loading, client execution, async send/await, server signal handling,
-    OpenAPI import, and redaction behavior. Package tests cover srd009-srd018
-    and domain packages. Run
+    OpenAPI import, credential resolution, redirect and size policies, server
+    validation, and redaction behavior. Package tests cover srd009-srd018 and
+    domain packages. Run
     `go test ./... -v | grep -c '=== RUN'` for the current test function count.
 
 srd_to_use_case_mapping:
@@ -432,8 +433,10 @@ coverage_gaps: |
   OpenAPI import compilation, REST runtime tests, and agents/rest profile
   examples are implemented. docs/rel03-rest-design-audit.md records the design
   audit result. REST side-effect vocabulary now accepts listener and listener
-  shutdown effects in the contract audit. invoke_handler and stream_events
-  bindings have executable server coverage, so Release 03.0 is done.
+  shutdown effects in the contract audit. Credential resolution, redirect
+  allowlists, request and response size limits, server query and header
+  validation, and redaction now have executable coverage. invoke_handler and
+  stream_events bindings have executable server coverage, so Release 03.0 is done.
 
   Current `go list ./...` output defines package coverage. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.

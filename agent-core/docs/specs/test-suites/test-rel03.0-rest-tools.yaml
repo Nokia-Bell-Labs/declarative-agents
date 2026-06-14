@@ -110,6 +110,67 @@ test_cases:
       - srd028-rest-client-tools AC9
 
   - use_case: rel03.0-uc001-rest-client-sync
+    name: REST auth references resolve through trusted runtime credentials
+    go_test: TestRESTClient_ResolvesAuthCredentialRefs
+    status: done
+    description: |
+      Configure basic, bearer, header_token, and query_token auth profiles with
+      credential reference names. The runtime resolves synthetic credentials
+      through an injected resolver, sends resolved values to net/http, and does
+      not treat reference names as secret values.
+    inputs:
+      auth_profiles:
+        - basic
+        - bearer
+        - header_token
+        - query_token
+      credential_refs:
+        - github_token
+        - user_ref
+        - password_ref
+    expected:
+      resolved_credentials_sent: true
+      literal_refs_sent: false
+      result_output_contains_secret: false
+      missing_ref_go_test: TestRESTClient_MissingCredentialReferenceFailsAuthResolution
+      missing_ref_failure_stage: auth_resolution
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd027-rest-tool-runtime AC6
+      - srd027-rest-tool-runtime AC7
+      - srd028-rest-client-tools AC2
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST redirect and body size policies fail closed
+    go_test: TestRESTClient_RedirectAllowlistPolicy
+    status: done
+    description: |
+      Exercise outbound redirect and body-size policies with local httptest
+      servers. Allowlisted redirect hosts succeed. Unlisted redirect hosts fail.
+      Oversized request bodies fail before send, and oversized responses return
+      a size_limit CommandError without returning response content.
+    inputs:
+      redirect_mode: allowlist
+      request_limit: max_request_bytes
+      response_limit: max_response_bytes
+      size_limit_go_test: TestRESTClient_RequestAndResponseSizeLimits
+    expected:
+      allowed_redirect_succeeds: true
+      blocked_redirect_signal: CommandError
+      oversized_request_sent: false
+      oversized_response_failure_stage: size_limit
+      oversized_response_content_returned: false
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - rel03.0-uc001-rest-client-sync S2
+      - srd027-rest-tool-runtime AC6
+      - srd027-rest-tool-runtime AC7
+      - srd028-rest-client-tools AC2
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc001-rest-client-sync
     name: Mutating REST operations declare effects and compensation
     go_test: TestRESTClient_MutatingOperationsRequireEffects
     status: done
@@ -328,6 +389,39 @@ test_cases:
     traces:
       - rel03.0-uc003-rest-server-signals S2
       - srd027-rest-tool-runtime AC6
+      - srd029-rest-server-tools AC6
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server query header and output redaction policies fail closed
+    go_test: TestRESTServer_RejectsUndeclaredQueryAndHeader
+    status: done
+    description: |
+      Send unsafe inbound requests with undeclared query and header fields, then
+      send schema-invalid path and header values. The server rejects them before
+      enqueueing grammar events. Separate redaction checks prove await output,
+      SSE output, and handler responses redact configured query, header, and
+      body secrets.
+    inputs:
+      invalid_requests:
+        - undeclared_query
+        - undeclared_header
+        - schema_invalid_path
+        - schema_invalid_header
+      redaction_go_tests:
+        - TestRESTServer_RedactsAwaitAndStreamOutput
+        - TestRESTServer_RedactsHandlerResponses
+    expected:
+      invalid_request_status: 400
+      invalid_request_enqueued: false
+      await_output_redacted: true
+      stream_output_redacted: true
+      handler_response_redacted: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - rel03.0-uc003-rest-server-signals S3
+      - srd027-rest-tool-runtime AC6
+      - srd027-rest-tool-runtime AC7
       - srd029-rest-server-tools AC6
       - srd029-rest-server-tools AC9
 
