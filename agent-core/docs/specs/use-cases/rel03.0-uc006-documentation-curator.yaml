@@ -1,0 +1,61 @@
+id: rel03.0-uc006-documentation-curator
+title: Knowledge Manager serves documentation curator UX and REST tools
+
+summary: |
+  Start agents/knowledge-manager/documentation-curator/profile.yaml to run the
+  docs host. The host serves the React documentation app and /api/v1/docs from
+  internal/knowledge/documentation, where handlers live after the migration away
+  from bench. Profile-selected doc_* words keep REST behavior in YAML instead
+  of bench code. No bench handler participates.
+
+actor: Developer browsing or curating Agent Core documentation
+
+trigger: |
+  A developer starts the curator when they need to browse the corpus or review
+  proposed documentation patches through the Knowledge Manager boundary.
+
+flow:
+  - F1: The agent loads agents/knowledge-manager/documentation-curator/profile.yaml and resolves machine, tool selection, builtin declarations, REST declarations, and REST definitions relative to that profile.
+  - F2: The documentation-curator machine starts in Idle and dispatches serve_documentation on Seed.
+  - F3: serve_documentation reads addr and docs_dir from the ToolDef config block and starts the documentation host.
+  - F4: The host serves the documentation SPA and documentation API from internal/knowledge/documentation without bench route delegation.
+  - F5: The selected doc_list, doc_get, doc_search, doc_validate, doc_suggest_changes, doc_patch_approve, and doc_patch_reject words use configured REST contracts instead of hard-coded bench APIs.
+  - F6: A clean server stop emits ServerStopped and moves the machine to Done. Startup or runtime failure emits CommandError and moves the machine to Failed.
+
+touchpoints:
+  - T1: "srd020-bench-web-ui R6 -- bench does not mount documentation API routes"
+  - T2: "srd024-blocking-input-tools R1, R2 -- serve_documentation blocks the machine while the documentation host is active"
+  - T3: "srd027-rest-tool-runtime R2, R3 -- documentation REST tooling is defined by ToolDef and REST YAML"
+  - T4: "srd028-rest-client-tools R1, R2, R6 -- doc_* words call configured REST operations and emit REST result signals"
+  - T5: "agents/knowledge-manager/documentation-curator/profile.yaml -- profile-owned documentation host entry point"
+  - T6: "internal/knowledge/documentation -- documentation HTTP server, API handlers, and embedded UI assets"
+
+success_criteria:
+  - id: S1
+    criterion: The documentation-curator profile loads with serve_documentation and doc_* tool selections.
+    traces:
+      - srd022-builtin-tools AC1
+      - srd027-rest-tool-runtime AC2
+  - id: S2
+    criterion: The standalone documentation host serves the SPA and /api/v1/docs from internal/knowledge/documentation.
+    traces:
+      - srd024-blocking-input-tools AC1
+      - srd027-rest-tool-runtime AC2
+  - id: S3
+    criterion: Bench /api/v1/docs routes return 404.
+    traces:
+      - srd020-bench-web-ui AC4
+  - id: S4
+    criterion: Documentation curator REST declarations cover read, search, validation, suggestion, approval, and rejection words.
+    traces:
+      - srd028-rest-client-tools AC1
+      - srd028-rest-client-tools AC7
+
+out_of_scope:
+  - Editing documentation content without explicit patch approval.
+  - Routing documentation UX through agents/bench/profile.yaml.
+  - Replacing the declarative REST runtime with generated clients.
+
+machine_config: agents/knowledge-manager/documentation-curator/machine.yaml
+rest_definitions: agents/knowledge-manager/documentation-curator/rest.yaml
+test_suite_trace: test-rel03.0-rest-tools

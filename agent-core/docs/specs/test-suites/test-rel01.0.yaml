@@ -334,7 +334,8 @@ test_cases:
       free_port: required
     expected:
       current_target_status: skipped
-      skip_reason_documents_manual_preconditions: true
+      skip_reason_documents_manual_preconditions: false
+      skip_reason_documents_browser_preconditions: true
       no_automated_ui_success_claim: true
     traces:
       - srd020-bench-web-ui AC3
@@ -376,6 +377,17 @@ test_cases:
       experiment_returned: true
     traces:
       - srd020-bench-web-ui AC2
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: Bench documentation API routes are not mounted
+    go_test: TestDocsAPIRoutesAreNotMounted
+    inputs:
+      route_prefix: /api/v1/docs
+    expected:
+      list_route_status: 404
+      detail_route_status: 404
+    traces:
+      - srd020-bench-web-ui AC4
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Agent child process args stay profile-first

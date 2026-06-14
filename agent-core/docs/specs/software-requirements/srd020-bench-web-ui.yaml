@@ -10,7 +10,7 @@ problem: |
 
 goals:
   - G1: Serve an embedded web UI for interactive evaluation result exploration.
-  - G2: Provide REST API endpoints for session, point, trace, and experiment data.
+  - G2: Provide REST API endpoints for session, point, trace, experiment, config, source, and action data.
   - G3: Support dual-mode asset loading (filesystem for dev, embedded for prod).
   - G4: Display LLM configuration profiles and agent configs alongside results.
 
@@ -47,8 +47,8 @@ requirements:
       - R4.2: Session detail page shows model leaderboard table, pass count chart, and sample-model heatmap.
       - R4.3: Trace viewer page shows experiment configuration panel and tool call timeline.
       - R4.4: Experiment config panel displays model, harness, budget, LLM config (including system prompt), state machine states, registered tools, and expandable transitions table.
-      - R4.5: Documentation page renders YAML docs with SRD requirement tables, syntax-highlighted config viewers, and linked semantic model diagrams.
-      - R4.6: Launch page allows configuring and launching evaluation suites via the bench state machine.
+      - R4.5: Launch page allows configuring and launching evaluation suites via the bench state machine.
+      - R4.6: Documentation browsing is outside the bench UI and belongs to the Knowledge Manager documentation-curator profile.
 
   R5:
     title: Build integration
@@ -57,10 +57,10 @@ requirements:
       - R5.2: Production binary is compiled with -tags production to embed frontend assets from internal/evaluation/bench/ui/dist/.
 
   R6:
-    title: Docs API
+    title: Documentation ownership boundary
     items:
-      - R6.1: GET /api/v1/docs lists documentation files from the docs directory.
-      - R6.2: GET /api/v1/docs/{path} returns parsed documentation content.
+      - R6.1: The bench server SHALL NOT mount /api/v1/docs routes.
+      - R6.2: Documentation browsing and documentation REST workflows belong to agents/knowledge-manager/documentation-curator/profile.yaml.
 
   R7:
     title: Source API
@@ -90,11 +90,11 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
 
   - id: AC3
-    criterion: The dashboard, session detail, trace viewer, documentation, and launch pages render correctly.
+    criterion: The dashboard, session detail, trace viewer, and launch pages render, and documentation browsing is absent from bench.
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
 
   - id: AC4
-    criterion: Docs, source, and actions API endpoints function correctly.
+    criterion: Config, source, and actions API endpoints work, and documentation API routes are not mounted by bench.
     traces: [R3.1, R3.2, R3.3, R6.1, R6.2, R7.1, R7.2, R7.3, R8.1, R8.2]
 
 depends_on:
