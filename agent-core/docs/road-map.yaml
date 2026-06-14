@@ -128,8 +128,11 @@ releases:
         status: done
       - id: rel03.0-uc005-ollama-openapi-model-listing
         summary: Qwen agent lists Ollama models through an OpenAPI REST tool
-        status: planned
+        status: done
+      - id: rel03.0-uc006-documentation-curator
+        summary: Knowledge Manager serves documentation curator UX and REST tools
+        status: done
     planned_test_suites:
       - id: test-rel03.0-rest-tools
-        summary: Formal tests for REST runtime, client tools, server tools, OpenAPI import, and planned Ollama E2E proof
+        summary: Formal tests for REST runtime, client tools, server tools, OpenAPI import, Ollama E2E proof, and documentation-curator ownership
         status: in_progress

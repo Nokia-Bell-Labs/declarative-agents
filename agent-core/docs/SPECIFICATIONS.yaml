@@ -45,8 +45,8 @@ roadmap_summary:
     status: in_progress
   - version: "03.0"
     name: Declarative REST client and server tools
-    use_cases_done: 4
-    use_cases_total: 5
+    use_cases_done: 6
+    use_cases_total: 6
     status: in_progress
 
 foundation_document_index:
@@ -138,7 +138,7 @@ srd_index:
     path: docs/specs/software-requirements/srd019-eval-harness.yaml
   - id: srd020-bench-web-ui
     title: Bench Web UI
-    summary: HTTP server with embedded React frontend, REST API for sessions/points/traces/experiments/docs/source, SPA routing, and dual-mode asset loading in internal/evaluation/bench.
+    summary: HTTP server with embedded React frontend, REST API for sessions/points/traces/experiments/configs/source/actions, SPA routing, documentation-route exclusion, and dual-mode asset loading in internal/evaluation/bench.
     path: docs/specs/software-requirements/srd020-bench-web-ui.yaml
   - id: srd021-agent-cli-exec-tool
     title: Agent CLI as an Exec Tool
@@ -311,9 +311,15 @@ use_case_index:
   - id: rel03.0-uc005-ollama-openapi-model-listing
     title: Qwen agent lists Ollama models through an OpenAPI REST tool
     release: "03.0"
-    status: planned
+    status: done
     test_suite: test-rel03.0-rest-tools
     path: docs/specs/use-cases/rel03.0-uc005-ollama-openapi-model-listing.yaml
+  - id: rel03.0-uc006-documentation-curator
+    title: Knowledge Manager serves documentation curator UX and REST tools
+    release: "03.0"
+    status: done
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc006-documentation-curator.yaml
 
 test_suite_index:
   - id: test-rel00.0
@@ -331,7 +337,7 @@ test_suite_index:
       - rel01.0-uc001-generator-coding
       - rel01.0-uc002-evaluator-benchmark
       - rel01.0-uc003-bench-visualization
-    formal_test_cases: 36
+    formal_test_cases: 37
     path: docs/specs/test-suites/test-rel01.0.yaml
   - id: test-rel02.0-lifecycle
     title: Test Suite for Release 02.0 Rollback Lifecycle
@@ -358,7 +364,8 @@ test_suite_index:
       - rel03.0-uc003-rest-server-signals
       - rel03.0-uc004-openapi-import
       - rel03.0-uc005-ollama-openapi-model-listing
-    formal_test_cases: 21
+      - rel03.0-uc006-documentation-curator
+    formal_test_cases: 23
     path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
 go_test_coverage:
@@ -366,7 +373,7 @@ go_test_coverage:
     Go test functions across all packages provide coverage beyond the
     formal YAML test suites. Release 00.0 YAML coverage (92 cases) covers
     srd001-srd018 where Go tests already prove behavior. For release 01.0,
-    the YAML suite (36 cases) indexes generator and evaluator integration
+    the YAML suite (37 cases) indexes generator and evaluator integration
     targets. It also covers bench integration targets plus Go tests for
     profile and machine behavior. Tool behavior and child-agent behavior are
     covered there too. Builtin, exec, Ollama, and LLM extraction contracts have
@@ -374,11 +381,11 @@ go_test_coverage:
     mage integration:uc003 target records a skipped/manual-precondition result,
     not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
-    The 03.0 YAML coverage (21 cases) now names implemented Go tests for REST
+    The 03.0 YAML coverage (23 cases) now names implemented Go tests for REST
     config loading, client execution, async send/await, server signal handling,
     OpenAPI import, credential resolution, redirect and size policies, server
-    validation, and redaction behavior. It also records the planned live
-    Ollama OpenAPI model-listing integration target. Package tests cover
+    validation, redaction behavior, live Ollama OpenAPI model-listing, and
+    documentation-curator ownership. Package tests cover
     srd009-srd018 and domain packages. Run
     `go test ./... -v | grep -c '=== RUN'` for the current test function count.
 
@@ -438,15 +445,15 @@ coverage_gaps: |
 
   For 03.0, srd027-srd029 have formal YAML coverage in
   test-rel03.0-rest-tools. internal/tools/rest, tools/builtin/rest declarations,
-  OpenAPI import compilation, REST runtime tests, and agents/rest profile
-  examples are implemented. docs/rel03-rest-design-audit.md records the design
+  OpenAPI import compilation, REST runtime tests, agents/rest profile
+  examples, and the documentation-curator profile are implemented. docs/rel03-rest-design-audit.md records the design
   audit result. REST side-effect vocabulary now accepts listener and listener
   shutdown effects in the contract audit. Credential resolution, redirect
   allowlists, request and response size limits, server query and header
   validation, and redaction now have executable coverage. invoke_handler and
   stream_events bindings have executable server coverage. The Qwen Ollama
-  OpenAPI E2E flow is planned as rel03.0-uc005 and waits for
-  agent-core-3x6w.4 before Release 03.0 returns to done.
+  OpenAPI E2E flow and documentation-curator ownership proof now have formal
+  release 03.0 coverage.
 
   Current `go list ./...` output defines package coverage. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.
@@ -489,8 +496,10 @@ coverage_gaps: |
   internal/observability, and internal/planning are package roots or
   documentation stubs with no standalone runtime behavior. internal/runtime,
   internal/support, and internal/tools have the same status.
-  internal/evaluation/bench/ui embeds React assets; srd020
-  and bench integration cover the served API and asset boundary.
+  internal/evaluation/bench/ui embeds React assets behind the bench API.
+  internal/knowledge/documentation/ui embeds React assets behind the
+  documentation-curator host. srd020 and rel03.0-uc006 cover the ownership
+  boundary.
 
   Residual documentation cleanup is tracked as follow-up work. Historical
   roll-backs.md and tools-as-dsl.md references should be normalized to canonical

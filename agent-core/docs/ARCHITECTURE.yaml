@@ -1255,6 +1255,8 @@ project_structure:
       role: Validation agent — machine.yaml, tools.yaml
     - path: agents/bench/
       role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
+    - path: agents/knowledge-manager/documentation-curator/
+      role: Knowledge Manager documentation curator — machine.yaml, tools.yaml, documentation host, and REST tool declarations
     - path: agents/lifecycle/
       role: Lifecycle configured programs — approval, history, and rollback profiles, machines, and tool selection
     - path: tools/
@@ -1267,6 +1269,8 @@ project_structure:
       role: Mage build targets (build, lint, install, clean, tag, stats)
     - path: docs/
       role: Documentation, specifications, and roadmap
+    - path: internal/knowledge/documentation/
+      role: Standalone documentation HTTP server, API handlers, and embedded React UI
 
 package_specification_coverage: |
   `go list ./...` defines the current Go package set. Coverage is layered
@@ -1292,7 +1296,8 @@ package_specification_coverage: |
   Package roots such as internal/model, internal/observability,
   internal/planning, internal/runtime, internal/support, and internal/tools do
   not define standalone runtime behavior. internal/evaluation/bench/ui embeds
-  React assets behind the bench API.
+  React assets behind the bench API. internal/knowledge/documentation/ui embeds
+  React assets behind the documentation-curator host.
 
   Remaining gaps are narrow. Browser-level bench UI proof remains manual or
   skipped until an automated browser harness joins the quality gate. Planner
