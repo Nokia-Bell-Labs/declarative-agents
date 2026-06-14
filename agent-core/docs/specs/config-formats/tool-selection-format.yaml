@@ -14,17 +14,16 @@ schema:
     description: |
       List of tool names to make available to the agent. Each name
       must match a tool declared by the selected profile's
-      tool_config_dirs and tool_declarations, or by compatibility
-      declaration flags. Unknown names cause a startup error.
+      tool_config_dirs and tool_declarations. Unknown names cause a
+      startup error.
 
 cli_mapping:
   description: |
-    Preferred startup uses an agent profile. The profile points at one
-    or more tools.yaml selection files, tool_config_dirs containing
-    individual declaration YAML files, and optional explicit
-    tool_declarations such as agent-local LLM or override files.
-    Compatibility startup can still pass the equivalent paths through
-    CLI flags.
+    Startup uses an agent profile. It points at one or more tools.yaml
+    selection files, tool_config_dirs containing individual declaration YAML
+    files, and optional explicit tool_declarations such as agent-local LLM or
+    override files. The normal CLI exposes only --profile for agent identity.
+    Tool selection paths and declaration paths belong to the profile.
   flags:
     - flag: --profile
       repeatable: false
@@ -33,35 +32,11 @@ cli_mapping:
         files, declaration directories, and explicit declaration files.
         Relative paths are resolved from the profile file.
 
-    - flag: --tool-config-dir
-      repeatable: true
-      description: |
-        Compatibility flag for directories such as tools/builtin/ and
-        tools/exec/. The loader scans *.yaml files in name order and
-        merges them with explicit declarations.
-
-    - flag: --tools-declaration
-      repeatable: true
-      description: |
-        Compatibility flag for explicit declaration files such as
-        agents/generator/llm/default.yaml or agent-local builtin
-        override files. Legacy aggregate files such as tools/builtin.yaml
-        and tools/exec.yaml may still be loaded this way, but current
-        profiles prefer individual declaration directories.
-
-    - flag: --tools
-      repeatable: false
-      description: |
-        Path to the tool selection file (tools.yaml). The agent will
-        only have access to tools whose names appear in this file's
-        tools list.
-
-    - flag: (legacy mode)
-      description: |
-        When no --tools-declaration flag is provided, the --tools
-        file is treated as a legacy full-definition file containing
-        both declarations and selections inline. All current agents
-        use the declaration+selection split.
+  implementation_drift: |
+    cmd/agent still accepts --tools, --tools-declaration, and
+    --tool-config-dir until the profile-only CLI follow-up lands.
+    Do not document those flags as normal startup data. Current support is
+    implementation drift.
 
 selection_files:
   - file: agents/generator/tools.yaml

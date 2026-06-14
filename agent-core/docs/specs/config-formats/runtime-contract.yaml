@@ -10,19 +10,9 @@ purpose: |
   entirely by the config files it receives.
 
 invocation: |
-  Preferred invocation:
+  Normal invocation:
     agent --profile agents/<agent>/profile.yaml \
-          [--input <file>] [--output <dir>] \
-          [--directory <path>] \
-          [--state-store-dir <dir>] \
-          [--resume-checkpoint <id>] [--resume-signal <signal>]
-
-  Compatibility invocation:
-    agent --machine <machine.yaml> \
-          --tools <tools.yaml> [--tools <more-tools.yaml> ...] \
-          [--tools-declaration <decl.yaml> ...] \
-          [--tool-config-dir <dir> ...] \
-          [--input <file>] [--output <dir>] \
+          [--request <file>] [--output <dir>] \
           [--directory <path>] \
           [--state-store-dir <dir>] \
           [--resume-checkpoint <id>] [--resume-signal <signal>]
@@ -30,79 +20,70 @@ invocation: |
   Lifecycle profile invocations:
     agent --profile agents/lifecycle/history/profile.yaml \
           --state-store-dir <dir> \
-          --input requests/history.yaml
+          --request requests/history.yaml
 
     agent --profile agents/lifecycle/rollback/profile.yaml \
           --state-store-dir <dir> \
           --directory <workspace> \
-          --input requests/rollback.yaml
+          --request requests/rollback.yaml
 
   There is no lifecycle subcommand syntax. History and rollback behavior is
   selected by the profile's machine, tool selection, and builtin declarations.
 
-  Preferred agent configuration flag:
+  Agent identity flag:
     --profile            Path to an agent profile YAML. The profile supplies
                          machine, tools, tool_declarations, tool_config_dirs,
                          and optional directory. Relative paths are resolved
                          against the profile file's directory.
 
-  Legacy configuration flags:
-    --machine            Path to the state machine YAML (MachineSpec).
-                         Deprecated for normal agent startup; use --profile.
-    --tools              Path to a tool selection YAML. May be repeated.
-                         Deprecated for normal agent startup; use --profile.
-    --tools-declaration  One or more explicit tool declaration YAML files.
-                         May be repeated. Deprecated for normal agent startup;
-                         use --profile.
-    --tool-config-dir    Directory containing individual tool declaration YAML
-                         files. May be repeated. Directories are scanned for
-                         *.yaml files and loaded in name order. Profiles should
-                         normally provide these directories via tool_config_dirs.
-
-  Legacy loading rules:
-    When --tools-declaration or --tool-config-dir is present, --tools is
-    treated as one or more name-only selection files and intersected with the
-    loaded declarations. Otherwise a single --tools file is parsed as a full
-    declaration file for backward compatibility.
-
-  Optional universal flags:
-    --input              Input file (e.g. suite YAML for evaluator).
-    --output             Output directory (e.g. eval results).
-    --directory          Workspace root for file tools and exec tools.
-    --profiles-dir       Directory with model response-profile YAML overrides.
-    --verbose-trace      Record boundary-tool input/output in OTel traces.
-    --otel-log-file      OTel trace output file.
-    --otel-parent-span   W3C traceparent for distributed tracing.
+  Runtime data flags:
+    --request            Request file. Evaluator suites, lifecycle history
+                         requests, rollback requests, and similar per-run data
+                         flow through this channel.
+    --output             Output directory for artifacts such as eval results.
+    --directory          Workspace root for file tools, exec tools, child
+                         agents, and workspace restore.
     --state-store-dir    Local FileStore root for lifecycle checkpoints.
     --resume-checkpoint  Checkpoint ID to load before re-entering the loop.
     --resume-signal      Signal used for the first resumed transition
                          (default: Approved).
 
-  Lifecycle request input:
-    History and rollback targets are lifecycle tool input data. A request file
+  Diagnostic flags:
+    --profiles-dir       Directory with model response-profile YAML overrides.
+    --verbose-trace      Record boundary-tool input/output in OTel traces.
+    --otel-log-file      OTel trace output file.
+    --otel-parent-span   W3C traceparent for distributed tracing.
+
+  Implementation drift:
+    Current cmd/agent still parses --machine, --tools, --tools-declaration,
+    --tool-config-dir, and --input until the profile-only CLI change lands.
+    Do not use those flags as normal startup guidance. The planned runtime
+    surface is --profile plus runtime data and diagnostics.
+
+  Lifecycle request data:
+    History and rollback targets are lifecycle tool request data. A request file
     can name checkpoint: <id|latest>, to_iteration: <n>, and
     restore_workspace: true. The active lifecycle profile and ToolDef decide
-    how that input maps to checkpoint_history or checkpoint_rollback config.
+    how that request maps to checkpoint_history or checkpoint_rollback config.
 
 startup_sequence:
   - step: 1
     name: Apply profile
     description: |
-      If --profile is provided, cmd/agent loads the AgentProfile and fills any
-      unset CLI configuration fields from it. The profile supplies machine,
-      tool selection files, explicit tool declarations, tool config
-      directories, and optional workspace directory. Explicit CLI flags still
-      take precedence, and deprecated legacy overrides emit warnings.
+      cmd/agent loads the AgentProfile and fills runtime configuration from it.
+      Profile data supplies machine, tool selection files, explicit tool
+      declarations, tool config directories, and optional workspace directory.
+      Normal CLI startup does not expose machine, tool selection, or
+      declaration paths as choices.
     implementation: catalog.LoadProfile, applyProfile
 
   - step: 2
     name: Load tool definitions
     description: |
-      If --tools-declaration or --tool-config-dir is provided, load
-      declarations from explicit files and directories, then load every --tools
-      path as a name-only selection list, and compute the intersection
-      (SelectTools). Otherwise, load the single --tools path as a full
-      declaration file. Result: []ToolDef.
+      Load declarations from the profile's explicit declaration files and
+      declaration directories, then load the profile's tool selection files as
+      name-only selection lists, and compute the intersection (SelectTools).
+      Registration receives []ToolDef.
     implementation: catalog.LoadToolDeclarations, catalog.LoadToolDeclarationsFromDirs, catalog.LoadToolSelections, catalog.SelectTools
 
   - step: 3
@@ -129,12 +110,11 @@ startup_sequence:
     name: Load machine and validate tool signal contracts
     description: |
       cmd/agent loads and validates the machine spec from the resolved profile
-      machine path, or from legacy --machine when no profile is used,
-      before entering the loop. This extracts budget defaults and validates
-      declared tool emits metadata for tools used as named transition actions:
-      emitted signals must be declared by the machine, and each emitted signal
-      must have a transition from the action target state unless that target
-      state is terminal.
+      machine path before entering the loop. This extracts budget defaults and
+      validates declared tool emits metadata for tools used as named transition
+      actions: emitted signals must be declared by the machine, and each emitted
+      signal must have a transition from the action target state unless that
+      target state is terminal.
     implementation: core.LoadMachineSpec, catalog.ValidateToolEmits
 
   - step: 6
@@ -197,7 +177,7 @@ tool_parametrization: |
     - serve_ui reads "addr", "data_dir", "configs_dir", etc.
 
 suite_input_contract: |
-  Evaluator suite YAML is input data to evaluator tools, not a program
+  Evaluator suite YAML is request data for evaluator tools, not a program
   definition layer beside machine.yaml and tools.yaml. The evaluator session
   machine composes parse_suite_config, discover_suite_samples, expand_eval_grid,
   init_eval_session, and report_suite_summary to prepare suite input. run_agent
@@ -205,7 +185,8 @@ suite_input_contract: |
   current point. dump_config snapshots the resolved suite/harness/tool data
   into experiment.yaml for reproducibility.
 
-  CLI flags such as --input and --output serve as universal runtime inputs.
+  CLI flags such as --request and --output serve as universal runtime data
+  channels. The profile decides which tool interprets the request file.
   Model and provider selection comes from the selected boundary tool
   declaration, not from the agent binary.
 
@@ -226,9 +207,8 @@ nested_machines: |
     execute_task reads config.profile
     → subprocess.Run with the same flag
 
-    Compatibility-only declarations may omit profile and instead provide
-    config.machine, config.tools, and config.tools_declarations. In that case
-    execute.Config falls back to --machine/--tools/--tools-declaration.
+    Compatibility-only declarations may still exist until planned removal.
+    They should not be copied into new docs or new ToolDef config.
 
   This design allows swapping nested machines by changing YAML config
   without recompiling the binary.
@@ -284,7 +264,7 @@ history_and_rollback_profiles: |
 
   History and rollback are profile-selected machine actions. Operators pass
   checkpoint, target iteration, and workspace restore choices through request
-  input or typed tool config. The binary no longer exposes history or rollback
+  data or typed tool config. The binary no longer exposes history or rollback
   compatibility aliases.
 
 config_file_layout: |
@@ -364,9 +344,9 @@ invariants:
     through the same profile, machine, tool-selection, and builtin registration
     flow as other configured programs.
   - Mode-specific tool configuration lives in YAML config blocks. A small set
-    of universal CLI flags such as --input, --output, --directory, and
-    lifecycle/telemetry flags serve as runtime inputs. Model/provider settings
-    are boundary-tool config.
+    of universal CLI flags such as --request, --output, --directory, and
+    lifecycle/telemetry flags serve as runtime data channels. Model/provider
+    settings are boundary-tool config.
   - Machine files reference tools by name; tools are resolved from the registry.
   - Named action tools may declare emitted signals with emits; declared emits
     are checked against the machine's signal and transition contract at startup.

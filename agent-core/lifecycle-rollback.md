@@ -14,8 +14,8 @@ files are the source of truth.
 
 ## Defaults
 
-Lifecycle behavior is opt-in. A normal agent run without lifecycle runtime
-inputs creates no checkpoint directory, persists no checkpoint JSON, restores no
+Lifecycle behavior is opt-in. A normal agent run without lifecycle runtime data
+creates no checkpoint directory, persists no checkpoint JSON, restores no
 resume state, attempts no workspace restore, and keeps history minimal unless
 the runtime is configured with a `CheckpointPolicy`.
 
@@ -47,7 +47,7 @@ serialized agent state; they point at a filesystem snapshot.
 Do not store workspace trees in `StateStore`, and do not use git commits as the
 serialization format for agent or conversation state.
 
-## Runtime Inputs
+## Runtime Data
 
 Use universal flags on the main `agent` command. `--state-store-dir <dir>`
 enables the local `FileStore` for lifecycle checkpoints, stored as JSON under
@@ -63,7 +63,7 @@ History and rollback targets come from lifecycle request files. The profile
 selects the MachineSpec and ToolDef. In the request, `checkpoint` selects a
 checkpoint ID or `latest`, `to_iteration` is required for rollback, and
 `restore_workspace` tells rollback to restore the target workspace ref.
-Workspace root remains the universal `--directory` input.
+Workspace root remains the universal `--directory` runtime data channel.
 
 Examples:
 
@@ -87,13 +87,13 @@ Lifecycle profile invocations:
 agent \
   --profile agents/lifecycle/history/profile.yaml \
   --state-store-dir .agent-state \
-  --input requests/history.yaml
+  --request requests/history.yaml
 
 agent \
   --profile agents/lifecycle/rollback/profile.yaml \
   --state-store-dir .agent-state \
   --directory "$PWD" \
-  --input requests/rollback.yaml
+  --request requests/rollback.yaml
 
 agent \
   --profile agents/generator/profile.yaml \
@@ -174,7 +174,7 @@ checkpoint: latest
 agent \
   --profile agents/lifecycle/history/profile.yaml \
   --state-store-dir .agent-state \
-  --input requests/history.yaml
+  --request requests/history.yaml
 ```
 
 Pick the last known-good iteration from the digest. Each row includes iteration,
@@ -196,7 +196,7 @@ agent \
   --profile agents/lifecycle/rollback/profile.yaml \
   --state-store-dir .agent-state \
   --directory "$PWD" \
-  --input requests/rollback.yaml
+  --request requests/rollback.yaml
 ```
 
 Resume from the rollback checkpoint printed by the lifecycle tool:
@@ -265,16 +265,12 @@ checkpoint persistence did not fully restore.
 
 ## Migration Notes
 
-Hidden `agent history` and `agent rollback` commands may exist during the
-migration from Cobra wiring to declarative lifecycle machines. Treat them as
-compatibility paths only. New operator flows should use
+Hidden `agent history` and `agent rollback` commands are implementation drift
+while profile-only CLI cleanup finishes. Normal lifecycle operation uses
 `agent --profile agents/lifecycle/history/profile.yaml` and
 `agent --profile agents/lifecycle/rollback/profile.yaml`.
-
-The compatibility commands are planned for removal after the lifecycle profiles
-select `checkpoint_history` and `checkpoint_rollback` as builtin STL tools.
-Runtime inputs stay on the universal `agent` command. Checkpoint selection and
-target iteration stay in request data or typed tool config.
+Runtime data stays on the universal `agent` command. Checkpoint selection and
+target iteration stay in request files or typed tool config.
 
 ## Related Documents
 
