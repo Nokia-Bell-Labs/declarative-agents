@@ -156,4 +156,6 @@ related_documents:
   - srd022
   - srd023
 
-implementation: internal/tools/stl/exectool.go
+implementation:
+  - internal/tools/catalog/loading.go
+  - internal/tools/catalog/profile.go
