@@ -193,6 +193,9 @@ func validateMutatingOperation(name string, operation Operation) error {
 	if operation.Reversibility.Classification == "" {
 		return fmt.Errorf("operation %q mutates state without reversibility", name)
 	}
+	if operation.Reversibility.Classification == "irreversible" && !operation.Reversibility.RequiresConfirmation {
+		return fmt.Errorf("operation %q is irreversible without confirmation", name)
+	}
 	return nil
 }
 

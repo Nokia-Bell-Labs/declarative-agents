@@ -76,14 +76,14 @@ func newClientBuilder(def catalog.ToolDef, init string, definitions Collection) 
 	if err := validateClientToolConfig(def.Name, cfg); err != nil {
 		return nil, err
 	}
-	operation, err := definitions.ClientOperation(cfg)
+	operation, err := definitions.ResolveClientOperation(cfg)
 	if err != nil {
 		return nil, err
 	}
-	if init == InitClientSend && operation.Async == nil {
+	if init == InitClientSend && operation.Operation.Async == nil {
 		return nil, fmt.Errorf("tool %q requires async REST operation", def.Name)
 	}
-	return RestBuilder{ToolName: def.Name, Init: init, Signal: signalFor(init, operation)}, nil
+	return ClientBuilder{ToolName: def.Name, Init: init, Operation: operation}, nil
 }
 
 func newServerBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.Builder, error) {
@@ -109,18 +109,4 @@ func validateClientToolConfig(toolName string, cfg ClientToolConfig) error {
 		return fmt.Errorf("tool %q config requires operation", toolName)
 	}
 	return nil
-}
-
-func signalFor(init string, operation Operation) core.Signal {
-	if operation.Success.Signal != "" {
-		return core.Signal(operation.Success.Signal)
-	}
-	switch init {
-	case InitServerLaunch:
-		return core.Signal("ServerLaunched")
-	case InitServerStop:
-		return core.Signal("ServerStopped")
-	default:
-		return core.CommandError
-	}
 }

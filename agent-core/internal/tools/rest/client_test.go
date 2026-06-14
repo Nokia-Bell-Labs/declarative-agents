@@ -1,0 +1,194 @@
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package rest
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+)
+
+func TestRESTClient_SyncResourceWords(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(issueHandler))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+
+	requireClientSignal(t, def, InitClientGet, "get", params("1"), "RESTResourceRead")
+	requireClientSignal(t, def, InitClientSet, "set", params("1", "new"), "RESTResourceWritten")
+	requireClientSignal(t, def, InitClientGet, "get", params("missing"), "RESTMissing")
+	requireClientSignal(t, def, InitClientSet, "set", params("domain", "bad"), "RESTDomainFailed")
+	requireClientSignal(t, def, InitClientGet, "get", params("boom"), string(core.CommandError))
+}
+
+func TestRESTClient_RejectsAuthorityOverride(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests++ }))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+
+	result := clientCommand(def, InitClientGet, "get", map[string]interface{}{
+		"owner": "acme", "repo": "agent-core", "number": "1", "url": "https://evil.example",
+	}).Execute()
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "failure_stage")
+	require.Zero(t, requests)
+}
+
+func TestRESTClient_MutatingOperationsRequireEffects(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, ValidateDefinition(mutatingDefinition(validWriteOperation())))
+
+	missingEffects := validWriteOperation()
+	missingEffects.SideEffects = nil
+	require.ErrorContains(t, ValidateDefinition(mutatingDefinition(missingEffects)), "side_effects")
+
+	irreversible := validWriteOperation()
+	irreversible.Reversibility = Reversibility{Classification: "irreversible"}
+	require.ErrorContains(t, ValidateDefinition(mutatingDefinition(irreversible)), "confirmation")
+
+	compensating := validWriteOperation()
+	compensating.Compensation = map[string]interface{}{"operation": "restore_issue"}
+	require.NoError(t, ValidateDefinition(mutatingDefinition(compensating)))
+}
+
+func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"title":"ok","secret":"token-value"}`))
+	}))
+	defer upstream.Close()
+	client := issueClient()
+	client.AuthRef = "token"
+	def := clientDefinition(t, upstream.URL, client)
+	def.Auth = map[string]AuthProfile{"token": {
+		Type: authHeaderToken, Header: "X-Token", TokenRef: "token-value",
+	}}
+
+	result := clientCommand(def, InitClientGet, "get", params("1")).Execute()
+	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal)
+	require.NotContains(t, result.Output, "token-value")
+	require.Contains(t, result.Output, "[REDACTED]")
+
+	badDef := clientDefinition(t, upstream.URL, issueClient())
+	op := badDef.Clients["github"].Resources["issue"].Operations["get"]
+	op.Success.Status = []int{201}
+	badDef.Clients["github"].Resources["issue"].Operations["get"] = op
+	result = clientCommand(badDef, InitClientGet, "get", params("1")).Execute()
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "status_mapping")
+}
+
+func issueHandler(w http.ResponseWriter, req *http.Request) {
+	if req.URL.Path == "/repos/acme/agent-core/issues/boom" {
+		http.Error(w, "boom", http.StatusInternalServerError)
+		return
+	}
+	if req.URL.Path == "/repos/acme/agent-core/issues/missing" {
+		http.NotFound(w, req)
+		return
+	}
+	if req.URL.Path == "/repos/acme/agent-core/issues/domain" {
+		http.Error(w, `{"error":"domain"}`, http.StatusUnprocessableEntity)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok", "id": "ISS-1"})
+}
+
+func clientCommand(def Definition, init, operation string, input map[string]interface{}) core.Command {
+	collection := NewCollection()
+	_ = collection.Add(def)
+	resolved, _ := collection.ResolveClientOperation(ClientToolConfig{
+		RestRef: "github", Resource: "issue", Operation: operation,
+	})
+	params, _ := json.Marshal(map[string]interface{}{"tool": init, "parameters": input})
+	return ClientBuilder{ToolName: init, Init: init, Operation: resolved}.Build(core.Result{Output: string(params)})
+}
+
+func requireClientSignal(t *testing.T, def Definition, init, operation string, input map[string]interface{}, signal string) {
+	t.Helper()
+	result := clientCommand(def, init, operation, input).Execute()
+	require.Equal(t, core.Signal(signal), result.Signal, result.Output)
+	require.Contains(t, result.Output, `"operation":"`+operation+`"`)
+}
+
+func clientDefinition(t *testing.T, baseURL string, client Client) Definition {
+	t.Helper()
+	client.BaseURL = baseURL
+	client.AuthRef = "none"
+	def := Definition{
+		Version: "v1",
+		Auth: map[string]AuthProfile{
+			"none": {Type: authNone},
+		},
+		Clients: map[string]Client{"github": client},
+	}
+	require.NoError(t, ValidateDefinition(def))
+	return def
+}
+
+func issueClient() Client {
+	return Client{Resources: map[string]Resource{"issue": {
+		Path: "/repos/{owner}/{repo}/issues/{number}",
+		Operations: map[string]Operation{
+			"get": issueOperation(http.MethodGet, "RESTResourceRead"),
+			"set": issueSetOperation(),
+		},
+	}}}
+}
+
+func issueOperation(method, signal string) Operation {
+	return Operation{
+		Method: method,
+		Params: RequestBinding{Path: map[string]interface{}{
+			"owner": map[string]interface{}{}, "repo": map[string]interface{}{}, "number": map[string]interface{}{},
+		}},
+		Success:  StatusMapping{Status: []int{200}, Signal: signal},
+		Failures: []StatusMapping{{Status: []int{404}, Signal: "RESTMissing"}, {Status: []int{422}, Signal: "RESTDomainFailed"}},
+		Response: ResponseMapping{
+			Output: map[string]string{"title": "$.title"}, Redact: []string{"body.secret"},
+		},
+		SideEffects:   []SideEffect{{Kind: "external_api", State: "read_only"}},
+		Reversibility: Reversibility{Classification: "reversible", Undo: "noop"},
+	}
+}
+
+func issueSetOperation() Operation {
+	op := issueOperation(http.MethodPatch, "RESTResourceWritten")
+	op.Params.BodySchema = bodySchema("title")
+	op.Body = map[string]interface{}{"title": "{{ params.title }}"}
+	op.SideEffects = []SideEffect{{Kind: "external_api", State: "issue_updated"}}
+	op.Reversibility = Reversibility{Classification: "compensatable", Undo: "restore"}
+	return op
+}
+
+func params(number string, title ...string) map[string]interface{} {
+	values := map[string]interface{}{"owner": "acme", "repo": "agent-core", "number": number}
+	if len(title) > 0 {
+		values["title"] = title[0]
+	}
+	return values
+}
+
+func mutatingDefinition(operation Operation) Definition {
+	return Definition{
+		Version: "v1",
+		Clients: map[string]Client{"github": {
+			BaseURL: "https://api.example", Resources: map[string]Resource{"issue": {
+				Path: "/issue/{number}", Operations: map[string]Operation{"set": operation},
+			}},
+		}},
+	}
+}

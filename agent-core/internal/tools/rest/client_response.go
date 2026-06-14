@@ -1,0 +1,208 @@
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package rest
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+)
+
+const responseReadLimit = 1 << 20
+
+func mapClientResponse(
+	commandName string,
+	def ClientOperationDefinition,
+	response *http.Response,
+	attempts int,
+	duration time.Duration,
+) (core.Result, error) {
+	body, err := readResponseBody(response, def.Limits.MaxResponseBytes)
+	if err != nil {
+		return clientOperationError(commandName, "response_mapping", err, def), err
+	}
+	payload := decodeResponsePayload(body)
+	mapping, signal, err := statusMapping(def, response.StatusCode)
+	if err != nil {
+		return clientOperationError(commandName, "status_mapping", err, def), err
+	}
+	output := responseOutput(def, mapping, response, payload, attempts)
+	redactOutput(output, redactionSelectors(def, mapping))
+	return core.Result{
+		Signal: core.Signal(signal), CommandName: commandName,
+		Output: jsonOutput(output), Metrics: clientMetrics(response.StatusCode, attempts, duration, signal),
+	}, nil
+}
+
+func readResponseBody(response *http.Response, maxBytes int) ([]byte, error) {
+	limit := int64(responseReadLimit)
+	if maxBytes > 0 {
+		limit = int64(maxBytes)
+	}
+	return io.ReadAll(io.LimitReader(response.Body, limit))
+}
+
+func decodeResponsePayload(body []byte) map[string]interface{} {
+	payload := map[string]interface{}{}
+	if len(body) == 0 {
+		return payload
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		payload["raw"] = string(body)
+	}
+	return payload
+}
+
+func statusMapping(def ClientOperationDefinition, status int) (StatusMapping, string, error) {
+	if statusIn(status, def.Operation.Success.Status) {
+		return def.Operation.Success, def.Operation.Success.Signal, nil
+	}
+	for _, mapping := range def.Operation.Failures {
+		if statusIn(status, mapping.Status) {
+			return mapping, mapping.Signal, nil
+		}
+	}
+	return StatusMapping{}, "", fmt.Errorf("status %d is not mapped", status)
+}
+
+func statusIn(status int, allowed []int) bool {
+	for _, candidate := range allowed {
+		if status == candidate {
+			return true
+		}
+	}
+	return false
+}
+
+func responseOutput(
+	def ClientOperationDefinition,
+	mapping StatusMapping,
+	response *http.Response,
+	payload map[string]interface{},
+	attempts int,
+) map[string]interface{} {
+	responseMap := resolvedResponseMapping(def, mapping)
+	return map[string]interface{}{
+		"rest_ref":    def.RestRef,
+		"resource":    def.Resource,
+		"operation":   def.OperationName,
+		"status":      response.StatusCode,
+		"headers":     headerOutput(response.Header),
+		"body":        payload,
+		"mapped":      mappedOutput(responseMap.Output, payload),
+		"resource_id": selectorValue(responseMap.ResourceID, payload),
+		"request_id":  selectorValue(responseMap.RequestID, payload),
+		"retry_count": attempts - 1,
+	}
+}
+
+func resolvedResponseMapping(def ClientOperationDefinition, mapping StatusMapping) ResponseMapping {
+	if mapping.ResponseRef != "" {
+		return def.ResponseMappings[mapping.ResponseRef]
+	}
+	if len(mapping.Response.Output) > 0 || len(mapping.Response.Redact) > 0 {
+		return mapping.Response
+	}
+	if def.Operation.ResponseRef != "" {
+		return def.ResponseMappings[def.Operation.ResponseRef]
+	}
+	return def.Operation.Response
+}
+
+func mappedOutput(selectors map[string]string, payload map[string]interface{}) map[string]interface{} {
+	mapped := map[string]interface{}{}
+	for name, selector := range selectors {
+		mapped[name] = selectorValue(selector, payload)
+	}
+	return mapped
+}
+
+func selectorValue(selector string, payload map[string]interface{}) interface{} {
+	if !strings.HasPrefix(selector, "$.") {
+		return nil
+	}
+	value, ok := payload[strings.TrimPrefix(selector, "$.")]
+	if !ok {
+		return nil
+	}
+	return value
+}
+
+func headerOutput(headers http.Header) map[string]interface{} {
+	output := map[string]interface{}{}
+	for name, values := range headers {
+		if len(values) == 1 {
+			output[strings.ToLower(name)] = values[0]
+			continue
+		}
+		output[strings.ToLower(name)] = values
+	}
+	return output
+}
+
+func redactionSelectors(def ClientOperationDefinition, mapping StatusMapping) []string {
+	responseMap := resolvedResponseMapping(def, mapping)
+	selectors := append([]string{}, responseMap.Redact...)
+	if def.Auth.Header != "" {
+		selectors = append(selectors, "headers."+strings.ToLower(def.Auth.Header))
+	}
+	if def.Auth.Query != "" {
+		selectors = append(selectors, "query."+def.Auth.Query)
+	}
+	return selectors
+}
+
+func redactOutput(output map[string]interface{}, selectors []string) {
+	for _, selector := range selectors {
+		switch {
+		case strings.HasPrefix(selector, "body."):
+			redactNested(output["body"], strings.TrimPrefix(selector, "body."))
+		case strings.HasPrefix(selector, "$."):
+			redactNested(output["body"], strings.TrimPrefix(selector, "$."))
+		case strings.HasPrefix(selector, "headers."):
+			redactNested(output["headers"], strings.TrimPrefix(selector, "headers."))
+		}
+	}
+}
+
+func redactNested(value interface{}, field string) {
+	values, ok := value.(map[string]interface{})
+	if !ok || field == "" {
+		return
+	}
+	values[strings.ToLower(field)] = "[REDACTED]"
+	values[field] = "[REDACTED]"
+}
+
+func clientMetrics(status, attempts int, duration time.Duration, signal string) *core.ToolMetrics {
+	return &core.ToolMetrics{
+		Total: 1, Passed: 1,
+		Details: map[string]interface{}{
+			"status": status, "retry_count": attempts - 1,
+			"duration_ms": duration.Milliseconds(), "signal": signal,
+		},
+	}
+}
+
+func clientOperationError(commandName, stage string, err error, def ClientOperationDefinition) core.Result {
+	output := map[string]interface{}{
+		"failure_stage": stage, "message": err.Error(), "signal": string(core.CommandError),
+		"rest_ref": def.RestRef, "resource": def.Resource, "operation": def.OperationName,
+	}
+	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: jsonOutput(output), Err: err}
+}
+
+func redactError(err error, def ClientOperationDefinition) error {
+	message := err.Error()
+	for _, secret := range []string{def.Auth.TokenRef, def.Auth.PasswordRef} {
+		if secret != "" {
+			message = strings.ReplaceAll(message, secret, "[REDACTED]")
+		}
+	}
+	return fmt.Errorf("%s", message)
+}
