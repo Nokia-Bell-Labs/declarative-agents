@@ -19,11 +19,10 @@ invocation: |
 
   Lifecycle profile invocations:
     agent --profile agents/lifecycle/history/profile.yaml \
-          --state-store-dir <dir> \
+          --directory <workspace> \
           --request requests/history.yaml
 
     agent --profile agents/lifecycle/rollback/profile.yaml \
-          --state-store-dir <dir> \
           --directory <workspace> \
           --request requests/rollback.yaml
 
@@ -43,7 +42,7 @@ invocation: |
     --output             Output directory for artifacts such as eval results.
     --directory          Workspace root for file tools, exec tools, child
                          agents, and workspace restore.
-    --state-store-dir    Local FileStore root for lifecycle checkpoints.
+    --state-store-dir    Advanced override for lifecycle checkpoint storage.
     --resume-checkpoint  Checkpoint ID to load before re-entering the loop.
     --resume-signal      Signal used for the first resumed transition
                          (default: Approved).
@@ -64,6 +63,14 @@ invocation: |
     restore_workspace: true. The active lifecycle profile and ToolDef decide
     how that request maps to checkpoint_history or checkpoint_rollback config.
 
+  Lifecycle state store default:
+    The documented default for agent-core-94su.7 is <directory>/.agent-state
+    when --directory is set and --state-store-dir is absent. This hidden
+    directory is owned by the agent runtime and stores FileStore JSON paths such
+    as checkpoint/<id>. Use --state-store-dir only for shared operator storage,
+    external artifact retention, or tests that need an isolated store outside
+    the workspace.
+
 startup_sequence:
   - step: 1
     name: Apply profile
@@ -73,7 +80,7 @@ startup_sequence:
       declarations, tool config directories, and optional workspace directory.
       Normal CLI startup does not expose machine, tool selection, or
       declaration paths as choices.
-    implementation: catalog.LoadProfile, applyProfile
+    implementation: catalog.LoadProfile, loadRuntimeConfig
 
   - step: 2
     name: Load tool definitions
@@ -118,20 +125,21 @@ startup_sequence:
   - step: 6
     name: Configure lifecycle ports
     description: |
-      Lifecycle behavior is opt-in. When --state-store-dir is absent,
-      cmd/agent does not create a FileStore and checkpoint persistence is
-      disabled. When present, cmd/agent creates a FileStore and passes it to
-      LoopParams.StateStore and lifecycle-aware builtin factories. Lifecycle
-      history and rollback profiles use the same StateStore path and register
-      checkpoint_history or checkpoint_rollback through the normal builtin
-      factory flow. Suspend
+      Lifecycle behavior is opt-in. The target contract for agent-core-94su.7
+      resolves StateStore from --state-store-dir when present, otherwise from
+      <directory>/.agent-state when --directory is set. When neither directory
+      nor state-store override is available, checkpoint persistence stays
+      disabled. The FileStore is passed to LoopParams.StateStore and
+      lifecycle-aware builtin factories. Lifecycle history and rollback
+      profiles use the same StateStore path and register checkpoint_history or
+      checkpoint_rollback through the normal builtin factory flow. Suspend
       checkpoints can include AgentSnapshot, conversation JSON from
       LoopHooks.SnapshotConversation, optional DomainState JSON, optional
       WorkspaceRef, and HistoryDigest entries. Each HistoryDigest can carry an
       UndoMemento captured from commands that implement UndoMementoProvider.
-      Resume requires --state-store-dir and --resume-checkpoint; it loads the
-      checkpoint, restores configured state layers, validates the current
-      machine/tools, then re-enters core.Loop with resume seed fields.
+      Resume requires --resume-checkpoint plus a resolved StateStore. The store
+      comes from <directory>/.agent-state by default or from --state-store-dir
+      when an operator supplies an override.
     implementation: core.FileStore, core.ResumeFromCheckpoint, core.LoopHooks.SnapshotConversation
 
   - step: 7
@@ -311,6 +319,10 @@ history_and_rollback_profiles: |
   checkpoint, target iteration, and workspace restore choices through request
   data or typed tool config. The binary no longer exposes history or rollback
   compatibility aliases.
+
+  By default, lifecycle profiles read checkpoints from <directory>/.agent-state
+  when --directory is set. --state-store-dir remains an override for storage
+  outside the workspace.
 
 config_file_layout: |
   tools/

@@ -46,17 +46,17 @@ domains include `internal/observability` for tracing and telemetry, and
 
 ## Agent Profiles
 
-Profiles are the normal runtime entry points. Use
+Profiles are the normal runtime entry points. The standard profiles are
 `agents/generator/profile.yaml` for the coding generator loop,
 `agents/evaluator/profile.yaml` for evaluator suites,
 `agents/planner/profile.yaml` for planning and task execution,
 `agents/bench/profile.yaml` for the bench web UI, and
 `agents/jurist/profile.yaml` for spec validation.
 
-Lifecycle operators use the same profile path. Use
-`agents/lifecycle/history/profile.yaml` to inspect checkpoint history through
-`checkpoint_history`. Use `agents/lifecycle/rollback/profile.yaml` to roll back
-a checkpoint through `checkpoint_rollback`. The removed `agent history` and
+Lifecycle operators use the same profile path.
+`agents/lifecycle/history/profile.yaml` inspects checkpoint history through
+`checkpoint_history`. `agents/lifecycle/rollback/profile.yaml` rolls back a
+checkpoint through `checkpoint_rollback`. The removed `agent history` and
 `agent rollback` aliases are not part of the runtime surface.
 
 Profiles resolve relative paths from their own directory. Current profiles load
@@ -65,34 +65,37 @@ shared tool declarations from directories such as `tools/builtin/` and
 config overrides. `--profile` is the normal agent configuration flag; machine,
 tool selection, declaration, and tool-config paths belong in the profile.
 
-Runtime data stays outside the profile. Use `--directory` for the workspace,
-`--request` for per-run request files, and `--output` for artifacts. These flags
-do not identify the agent program.
+Runtime data stays outside the profile. Pass `--directory` for the workspace,
+`--request` for per-run request files, and `--output` for artifacts. These
+flags do not identify the agent program.
 
 ## Lifecycle Operations
 
-Checkpointing, suspend/resume, approval gates, history, and rollback are
-opt-in lifecycle features. See `lifecycle-rollback.md` for the operator guide,
-including lifecycle profile examples, `--state-store-dir`,
-`--resume-checkpoint`, request files, the three-layer state model, and
-safety rules for irreversible tools and workspace restore.
+Lifecycle features are opt-in: checkpointing, suspend/resume, approval gates,
+history, and rollback. See `lifecycle-rollback.md` for profile examples,
+workspace-local `.agent-state`, `--state-store-dir` overrides,
+`--resume-checkpoint`, request files, state-layer rules, and workspace restore
+safety.
 
-History and rollback use the universal runtime flags:
+For history and rollback, use the universal runtime flags:
 
 ```bash
 bin/agent --profile agents/lifecycle/history/profile.yaml \
-  --state-store-dir "$STATE_DIR" \
+  --directory "$WORKSPACE" \
   --request requests/history.yaml
 
 bin/agent --profile agents/lifecycle/rollback/profile.yaml \
-  --state-store-dir "$STATE_DIR" \
   --directory "$WORKSPACE" \
   --request requests/rollback.yaml
 ```
 
-Request files carry lifecycle tool data such as `checkpoint: latest` or
-`to_iteration: 3`. The binary does not expose lifecycle-only subcommands or
-checkpoint flags.
+Lifecycle request files carry values such as `checkpoint: latest` or
+`to_iteration: 3`. No lifecycle-only subcommands or checkpoint flags are
+exposed by the binary.
+
+With `--directory` and no store override, the documented checkpoint store is
+`$WORKSPACE/.agent-state`. Choose `--state-store-dir` for shared operator
+storage, retained artifacts, or isolated tests.
 
 ## Quick Start
 

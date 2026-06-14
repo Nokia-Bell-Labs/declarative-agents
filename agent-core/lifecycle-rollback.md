@@ -14,15 +14,20 @@ files are the source of truth.
 
 ## Defaults
 
-Lifecycle behavior is opt-in. A normal agent run without lifecycle runtime data
-creates no checkpoint directory, persists no checkpoint JSON, restores no
-resume state, attempts no workspace restore, and keeps history minimal unless
-the runtime is configured with a `CheckpointPolicy`.
+By default, lifecycle behavior is off. A normal agent run without lifecycle
+runtime data creates no checkpoint directory, persists no checkpoint JSON,
+restores no resume state, attempts no workspace restore, and keeps history
+minimal unless the runtime is configured with a `CheckpointPolicy`.
 
-The universal runtime enables local checkpoint persistence with
-`--state-store-dir`. Without that flag, suspend can still emit lifecycle
-signals, but checkpoint persistence is unavailable. Tools that set
-`require_checkpoint: true` fail explicitly when no `StateStore` is configured.
+With `--directory <workspace>` and no explicit store override, the documented
+default state store is `<workspace>/.agent-state`. That hidden, agent-owned
+directory stores `FileStore` JSON paths such as `checkpoint/<id>`.
+Implementation of the default is tracked by `agent-core-94su.7`; until it
+lands, current builds still require `--state-store-dir`.
+
+Reserve `--state-store-dir` for cases where the workspace-local store is not
+the right place. Common reasons are shared operator storage, external artifact
+retention, or tests that need an isolated store outside the workspace.
 
 ## State Model
 
@@ -49,21 +54,20 @@ serialization format for agent or conversation state.
 
 ## Runtime Data
 
-Use universal flags on the main `agent` command. `--state-store-dir <dir>`
-enables the local `FileStore` for lifecycle checkpoints, stored as JSON under
-paths like `checkpoint/<id>`. `--resume-checkpoint <id>` loads a persisted
-checkpoint before entering the loop again and requires `--state-store-dir`.
-`--resume-signal <signal>` supplies the first resumed transition signal, with
-`Approved` as the default. `--directory <path>` sets the workspace root for file
-tools and workspace restore. When rollback or resume needs to restore a
-workspace ref, this path must be a managed git repository root accepted by
-`GitWorkspace`.
+On the main `agent` command, universal flags carry lifecycle runtime data.
+`--directory <path>` sets the workspace root for file tools, workspace restore,
+and the default lifecycle state store at `<path>/.agent-state`.
+`--resume-checkpoint <id>` loads a persisted checkpoint before entering the loop
+again and requires a resolved state store. `--resume-signal <signal>` supplies
+the first resumed transition signal, with `Approved` as the default. For
+rollback or resume that restores a workspace ref, `--directory` must identify a
+managed git repository root accepted by `GitWorkspace`.
 
-History and rollback targets come from lifecycle request files. The profile
-selects the MachineSpec and ToolDef. In the request, `checkpoint` selects a
-checkpoint ID or `latest`, `to_iteration` is required for rollback, and
-`restore_workspace` tells rollback to restore the target workspace ref.
-Workspace root remains the universal `--directory` runtime data channel.
+Lifecycle request files carry history and rollback targets. The profile selects
+the MachineSpec and ToolDef. In the request, `checkpoint` selects a checkpoint
+ID or `latest`, `to_iteration` is required for rollback, and
+`restore_workspace` tells rollback to restore the target workspace ref. The
+workspace root remains the universal `--directory` runtime data channel.
 
 Examples:
 
@@ -86,21 +90,29 @@ Lifecycle profile invocations:
 ```bash
 agent \
   --profile agents/lifecycle/history/profile.yaml \
-  --state-store-dir .agent-state \
+  --directory "$PWD" \
   --request requests/history.yaml
 
 agent \
   --profile agents/lifecycle/rollback/profile.yaml \
-  --state-store-dir .agent-state \
   --directory "$PWD" \
   --request requests/rollback.yaml
 
 agent \
   --profile agents/generator/profile.yaml \
-  --state-store-dir .agent-state \
   --resume-checkpoint rollback-suspend-4-1780000000000000000-to-2-1780000000000000001 \
   --resume-signal Approved \
   --directory "$PWD"
+```
+
+Override storage when the checkpoint store must live outside the workspace:
+
+```bash
+agent \
+  --profile agents/lifecycle/history/profile.yaml \
+  --directory "$PWD" \
+  --state-store-dir "$STATE_DIR" \
+  --request requests/history.yaml
 ```
 
 ## Approval Gates
@@ -173,7 +185,7 @@ checkpoint: latest
 ```bash
 agent \
   --profile agents/lifecycle/history/profile.yaml \
-  --state-store-dir .agent-state \
+  --directory "$PWD" \
   --request requests/history.yaml
 ```
 
@@ -194,7 +206,6 @@ restore_workspace: true
 ```bash
 agent \
   --profile agents/lifecycle/rollback/profile.yaml \
-  --state-store-dir .agent-state \
   --directory "$PWD" \
   --request requests/rollback.yaml
 ```
@@ -204,7 +215,6 @@ Resume from the rollback checkpoint printed by the lifecycle tool:
 ```bash
 agent \
   --profile agents/<agent>/profile.yaml \
-  --state-store-dir .agent-state \
   --resume-checkpoint <rollback-checkpoint-id> \
   --resume-signal Approved \
   --directory "$PWD"

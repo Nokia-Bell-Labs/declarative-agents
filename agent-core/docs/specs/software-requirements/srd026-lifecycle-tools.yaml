@@ -38,7 +38,7 @@ requirements:
     items:
       - R2.1: checkpoint_history SHALL inspect one checkpoint selected by explicit ID or the latest checkpoint selector.
       - R2.2: checkpoint_history config SHALL decode into CheckpointHistoryConfig.
-      - R2.3: checkpoint_history SHALL require a StateStore.
+      - R2.3: checkpoint_history SHALL require a StateStore resolved from --state-store-dir or from <directory>/.agent-state when a workspace directory is available.
       - R2.4: checkpoint_history SHALL resolve the selected checkpoint through core.ResolveLatestCheckpointID.
       - R2.5: checkpoint_history SHALL load checkpoint data through core.LoadCheckpoint.
       - R2.6: checkpoint_history SHALL format output through core.FormatCheckpointHistory.
@@ -51,7 +51,7 @@ requirements:
     items:
       - R3.1: checkpoint_rollback SHALL roll back one checkpoint selected by explicit ID or the latest checkpoint selector.
       - R3.2: checkpoint_rollback config SHALL decode into CheckpointRollbackConfig.
-      - R3.3: checkpoint_rollback SHALL require a StateStore and an explicit to_iteration value.
+      - R3.3: checkpoint_rollback SHALL require a StateStore resolved from --state-store-dir or from <directory>/.agent-state when a workspace directory is available.
       - R3.4: checkpoint_rollback SHALL call core.RollbackFromCheckpoint for traversal and checkpoint rewriting.
       - R3.5: checkpoint_rollback SHALL create or use a managed Workspace when workspace restore is required.
       - R3.6: checkpoint_rollback SHALL refuse rollback when checkpoint data references a workspace ref but no managed workspace is configured.
@@ -66,8 +66,10 @@ requirements:
       - R4.1: Lifecycle tool config SHALL use typed structs decoded at builtin registration time.
       - R4.2: Checkpoint selector config SHALL default to latest when omitted.
       - R4.3: Rollback target iteration SHALL be represented so missing and zero are distinguishable.
-      - R4.4: Runtime store directory, workspace directory, request path, and active profile SHALL remain runtime inputs rather than hidden lifecycle subcommand flags.
+      - R4.4: Runtime store override, workspace directory, request path, and active profile SHALL remain runtime inputs rather than hidden lifecycle subcommand flags.
       - R4.5: Config decode errors SHALL include the tool name and mismatched field.
+      - R4.6: When --state-store-dir is absent and --directory is present, lifecycle adapters SHALL use the workspace-local <directory>/.agent-state FileStore root supplied by runtime wiring.
+      - R4.7: --state-store-dir SHALL remain available for shared operator storage, external artifact retention, and tests that need an isolated store.
 
   R5:
     title: Tool declarations and machine integration
@@ -107,8 +109,8 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10]
 
   - id: AC4
-    criterion: Runtime inputs stay outside hidden lifecycle subcommand flags, and typed config keeps required values explicit.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+    criterion: Runtime inputs stay outside hidden lifecycle subcommand flags, typed config keeps required values explicit, and lifecycle adapters use the resolved workspace-local StateStore unless an override is supplied.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
 
   - id: AC5
     criterion: ToolDef declarations and lifecycle MachineSpec transitions select lifecycle adapters by name and validate emitted signals.
