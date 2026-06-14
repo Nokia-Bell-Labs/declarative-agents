@@ -8,9 +8,6 @@ export default defineConfig({
   },
   server: {
     port: 5174,
-    fs: {
-      allow: ['.', '../../../../evaluation/bench/ui/src'],
-    },
     proxy: {
       '/api': 'http://localhost:18081',
     },

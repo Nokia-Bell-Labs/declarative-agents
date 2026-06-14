@@ -18,8 +18,6 @@
     "noUncheckedSideEffectImports": true
   },
   "include": [
-    "src",
-    "../../../../evaluation/bench/ui/src/pages/Documentation.tsx",
-    "../../../../evaluation/bench/ui/src/api/client.ts"
+    "src"
   ]
 }

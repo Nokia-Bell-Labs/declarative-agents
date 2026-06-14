@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
-import Documentation from '../../../../evaluation/bench/ui/src/pages/Documentation'
+import Documentation from './Documentation'
 
 export default function App() {
   return (
