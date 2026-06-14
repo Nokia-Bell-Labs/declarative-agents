@@ -430,8 +430,10 @@ coverage_gaps: |
   For 03.0, srd027-srd029 have formal YAML coverage in
   test-rel03.0-rest-tools. internal/tools/rest, tools/builtin/rest declarations,
   OpenAPI import compilation, REST runtime tests, and agents/rest profile
-  examples are implemented. Release 03.0 remains in progress until the REST
-  design audit closes the remaining verification work.
+  examples are implemented. docs/rel03-rest-design-audit.md records the design
+  audit result. Release 03.0 remains in progress until agent-core-usbz.1
+  implements or rescope remaining server endpoint bindings and
+  agent-core-usbz.2 aligns REST side-effect vocabulary with the contract audit.
 
   Current `go list ./...` output defines package coverage. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.
