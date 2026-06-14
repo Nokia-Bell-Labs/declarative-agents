@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { listDocs, getDoc, getConfig, getSource, type DocEntry, type DocDetail, type ConfigDetail, type SourceDetail } from './apiClient'
+import {
+  listDocs, getDoc, getConfig, getSource, validateDocs, suggestDocChanges,
+  approvePatch, rejectPatch,
+  type DocEntry, type DocDetail, type ConfigDetail, type SourceDetail,
+  type ValidationReport, type SuggestionResponse, type PatchDecision,
+} from './apiClient'
 import mermaid from 'mermaid'
 import hljs from 'highlight.js/lib/core'
 import yaml from 'highlight.js/lib/languages/yaml'
@@ -774,6 +779,132 @@ function SourceViewer({ sourcePath, onClose }: {
   )
 }
 
+function CuratorWorkflowPanel({ docPath, raw }: { docPath: string; raw: string }) {
+  const [instruction, setInstruction] = useState('')
+  const [validation, setValidation] = useState<ValidationReport | null>(null)
+  const [suggestion, setSuggestion] = useState<SuggestionResponse | null>(null)
+  const [decision, setDecision] = useState<PatchDecision | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const runValidation = async () => {
+    setBusy('validate')
+    setError(null)
+    try {
+      setValidation(await validateDocs([docPath]))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Validation failed')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const createSuggestion = async () => {
+    if (!instruction.trim()) {
+      setError('Describe the requested change before generating a suggestion.')
+      return
+    }
+    setBusy('suggest')
+    setError(null)
+    try {
+      setSuggestion(await suggestDocChanges(docPath, instruction, raw.slice(0, 2000)))
+      setDecision(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Suggestion failed')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const decide = async (action: 'approve' | 'reject') => {
+    if (!suggestion) return
+    setBusy(action)
+    setError(null)
+    try {
+      const result = action === 'approve'
+        ? await approvePatch(suggestion.patch_id, 'documentation-curator-ui', 'Reviewed in UI')
+        : await rejectPatch(suggestion.patch_id, 'documentation-curator-ui', 'Rejected in UI')
+      setDecision(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `${action} failed`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="doc-section curator-panel">
+      <div className="curator-panel-header">
+        <div>
+          <h3>Curator Workflow</h3>
+          <p>Validate this document and draft reviewable changes. Decisions do not apply file writes.</p>
+        </div>
+        <button className="curator-button" onClick={runValidation} disabled={busy !== null}>
+          {busy === 'validate' ? 'Validating...' : 'Validate'}
+        </button>
+      </div>
+
+      {validation && (
+        <div className={`curator-status curator-status-${validation.status}`}>
+          <strong>{validation.status}</strong>
+          <span>{validation.findings.length} findings across {validation.checked_paths.length} checked paths</span>
+        </div>
+      )}
+      {validation?.findings.length ? (
+        <ul className="curator-findings">
+          {validation.findings.map((finding, idx) => (
+            <li key={`${finding.code}-${idx}`}>
+              <span className="curator-finding-code">{finding.code}</span>
+              <span>{finding.path}: {finding.message}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <label className="curator-label" htmlFor="curator-instruction">Suggestion instruction</label>
+      <textarea
+        id="curator-instruction"
+        className="curator-textarea"
+        value={instruction}
+        onChange={e => setInstruction(e.target.value)}
+        placeholder="Describe the documentation change to propose."
+      />
+      <button className="curator-button" onClick={createSuggestion} disabled={busy !== null}>
+        {busy === 'suggest' ? 'Generating...' : 'Generate proposal'}
+      </button>
+
+      {suggestion && (
+        <div className="curator-suggestion">
+          <div className="curator-suggestion-header">
+            <strong>{suggestion.patch_id}</strong>
+            <span>{suggestion.status}</span>
+          </div>
+          <ul>
+            {suggestion.suggestions.map(item => <li key={item}>{item}</li>)}
+          </ul>
+          <pre>{suggestion.proposed_patch}</pre>
+          <div className="curator-actions">
+            <button className="curator-button" onClick={() => decide('approve')} disabled={busy !== null}>
+              Approve record
+            </button>
+            <button className="curator-button curator-button-secondary" onClick={() => decide('reject')} disabled={busy !== null}>
+              Reject record
+            </button>
+          </div>
+        </div>
+      )}
+
+      {decision && (
+        <div className="curator-status">
+          <strong>{decision.status}</strong>
+          <span>applied: {String(decision.applied)}</span>
+        </div>
+      )}
+      {error && <div className="error">{error}</div>}
+    </div>
+  )
+}
+
 // --- Main page ---
 
 export default function Documentation() {
@@ -952,6 +1083,8 @@ export default function Documentation() {
                   onNavigate={selectDoc}
                 />
               ))}
+
+            <CuratorWorkflowPanel docPath={detail.path} raw={detail.raw} />
 
             <div className="doc-section doc-raw-section">
               <details>

@@ -3,6 +3,7 @@
 package docsapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -108,6 +109,35 @@ func TestHandlerPreservesDocsAPIEnvelopeAndErrors(t *testing.T) {
 	require.Equal(t, "invalid path", decodeError(t, rec.Body.Bytes()))
 }
 
+func TestHandlerServesCuratorSearchValidationAndPatchReview(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeDocFixture(t, root, "VISION.yaml", "id: vision\ntitle: Vision\n")
+	writeDocFixture(t, root, "specs/use-cases/rel03.0-uc999-demo.yaml", "title: Demo\n")
+	handler := NewServer(HostConfig{DocsDir: root}).Handler()
+
+	search := postDocsJSON(t, handler, "/api/v1/docs/search", `{"query":"vision"}`)
+	require.Equal(t, http.StatusOK, search.Code)
+	require.Contains(t, search.Body.String(), `"count":1`)
+
+	validate := postDocsJSON(t, handler, "/api/v1/docs/validate", `{"paths":["VISION.yaml"],"strict":true}`)
+	require.Equal(t, http.StatusUnprocessableEntity, validate.Code)
+	require.Contains(t, validate.Body.String(), `"status":"findings"`)
+	require.Contains(t, validate.Body.String(), `"missing_required_field"`)
+
+	suggest := postDocsJSON(t, handler, "/api/v1/docs/suggestions", `{"path":"VISION.yaml","instruction":"Add required fields."}`)
+	require.Equal(t, http.StatusAccepted, suggest.Code)
+	patchID := decodeField(t, suggest.Body.Bytes(), "patch_id")
+	require.NotEmpty(t, patchID)
+	require.Contains(t, suggest.Body.String(), "Approval required before any file write.")
+
+	approve := postDocsJSON(t, handler, "/api/v1/docs/patches/"+patchID+"/approve", `{"decided_by":"tester","note":"reviewed"}`)
+	require.Equal(t, http.StatusOK, approve.Code)
+	require.Contains(t, approve.Body.String(), `"status":"approved_pending_apply"`)
+	require.Contains(t, approve.Body.String(), `"applied":false`)
+}
+
 func writeDocFixture(t *testing.T, root, rel, content string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(rel))
@@ -123,10 +153,28 @@ func getDocsRoute(t *testing.T, handler http.Handler, path string) *httptest.Res
 	return rec
 }
 
+func postDocsJSON(t *testing.T, handler http.Handler, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+
 func decodeError(t *testing.T, data []byte) string {
 	t.Helper()
 	var response apiResponse
 	require.NoError(t, json.Unmarshal(data, &response))
 	require.NotEmpty(t, response.Error)
 	return response.Error
+}
+
+func decodeField(t *testing.T, data []byte, field string) string {
+	t.Helper()
+	var response map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &response))
+	value, ok := response[field].(string)
+	require.True(t, ok, "field %q should be a string", field)
+	return value
 }

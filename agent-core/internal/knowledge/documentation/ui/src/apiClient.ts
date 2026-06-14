@@ -39,7 +39,57 @@ export interface SourceDetail {
   size: number
 }
 
+export interface ValidationFinding {
+  code: string
+  severity: string
+  path: string
+  message: string
+}
+
+export interface ValidationReport {
+  status: string
+  findings: ValidationFinding[]
+  checked_paths: string[]
+}
+
+export interface SuggestionResponse {
+  patch_id: string
+  path: string
+  status: string
+  suggestions: string[]
+  proposed_patch: string
+  findings?: ValidationFinding[]
+}
+
+export interface PatchDecision {
+  patch_id: string
+  status: string
+  decided_by: string
+  applied: boolean
+}
+
+async function postJSON<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const payload = await res.json()
+  if (!res.ok && !payload.data) throw new Error(payload.error ?? `API error: ${res.status}`)
+  return payload.data
+}
+
 export const listDocs = () => fetchJSON<DocEntry[]>('/docs')
 export const getDoc = (path: string) => fetchJSON<DocDetail>(`/docs/${path}`)
 export const getConfig = (path: string) => fetchJSON<ConfigDetail>(`/configs/${path}`)
 export const getSource = (path: string) => fetchJSON<SourceDetail>(`/source/${path}`)
+export const validateDocs = (paths: string[], strict = false) => postJSON<ValidationReport>('/docs/validate', { paths, strict })
+export const suggestDocChanges = (path: string, instruction: string, context = '') => {
+  return postJSON<SuggestionResponse>('/docs/suggestions', { path, instruction, context })
+}
+export const approvePatch = (patchId: string, decidedBy: string, note = '') => {
+  return postJSON<PatchDecision>(`/docs/patches/${patchId}/approve`, { decided_by: decidedBy, note })
+}
+export const rejectPatch = (patchId: string, decidedBy: string, reason = '') => {
+  return postJSON<PatchDecision>(`/docs/patches/${patchId}/reject`, { decided_by: decidedBy, reason })
+}

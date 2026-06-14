@@ -10,12 +10,13 @@ import (
 
 // Handler serves documentation repository HTTP routes.
 type Handler struct {
-	repo Repository
+	repo    Repository
+	patches *PatchStore
 }
 
 // NewHandler creates a documentation API handler for one docs root.
 func NewHandler(docsDir string) Handler {
-	return Handler{repo: NewRepository(docsDir)}
+	return Handler{repo: NewRepository(docsDir), patches: NewPatchStore()}
 }
 
 // List handles GET /api/v1/docs.
@@ -25,7 +26,7 @@ func (h Handler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to scan docs directory")
 		return
 	}
-	writeData(w, docs)
+	writeDataFields(w, http.StatusOK, docs, map[string]interface{}{"count": len(docs)})
 }
 
 // Get handles GET /api/v1/docs/{path...}.
@@ -35,7 +36,64 @@ func (h Handler) Get(w http.ResponseWriter, r *http.Request) {
 		writeDocError(w, err)
 		return
 	}
-	writeData(w, doc)
+	writeDataFields(w, http.StatusOK, doc, detailFields(doc))
+}
+
+// Search handles POST /api/v1/docs/search.
+func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
+	var req SearchRequest
+	if !decodeRequest(w, r, &req) {
+		return
+	}
+	result, err := h.repo.Search(req)
+	if err != nil {
+		writeDocError(w, err)
+		return
+	}
+	writeDataFields(w, http.StatusOK, result, searchFields(result))
+}
+
+// Validate handles POST /api/v1/docs/validate.
+func (h Handler) Validate(w http.ResponseWriter, r *http.Request) {
+	var req ValidationRequest
+	if !decodeRequest(w, r, &req) {
+		return
+	}
+	report, err := h.repo.Validate(req)
+	if err != nil {
+		writeDocError(w, err)
+		return
+	}
+	status := http.StatusOK
+	if req.Strict && len(report.Findings) > 0 {
+		status = http.StatusUnprocessableEntity
+	}
+	writeDataFields(w, status, report, validationFields(report))
+}
+
+// Suggest handles POST /api/v1/docs/suggestions.
+func (h Handler) Suggest(w http.ResponseWriter, r *http.Request) {
+	var req SuggestionRequest
+	if !decodeRequest(w, r, &req) {
+		return
+	}
+	suggestion, err := h.repo.SuggestChanges(req)
+	if err != nil {
+		writeDocError(w, err)
+		return
+	}
+	h.patches.Add(suggestion)
+	writeDataFields(w, http.StatusAccepted, suggestion, suggestionFields(suggestion))
+}
+
+// Approve handles POST /api/v1/docs/patches/{patch_id}/approve.
+func (h Handler) Approve(w http.ResponseWriter, r *http.Request) {
+	h.decidePatch(w, r, "approved_pending_apply")
+}
+
+// Reject handles POST /api/v1/docs/patches/{patch_id}/reject.
+func (h Handler) Reject(w http.ResponseWriter, r *http.Request) {
+	h.decidePatch(w, r, "rejected")
 }
 
 type apiResponse struct {
@@ -58,8 +116,34 @@ func writeDocError(w http.ResponseWriter, err error) {
 	}
 }
 
-func writeData(w http.ResponseWriter, data interface{}) {
-	writeJSON(w, http.StatusOK, apiResponse{Data: data})
+func (h Handler) decidePatch(w http.ResponseWriter, r *http.Request, status string) {
+	var req PatchDecisionRequest
+	if !decodeRequest(w, r, &req) {
+		return
+	}
+	decision, err := h.patches.Decide(r.PathValue("patch_id"), status, req)
+	if err != nil {
+		writeDocError(w, err)
+		return
+	}
+	writeDataFields(w, http.StatusOK, decision, decisionFields(decision))
+}
+
+func decodeRequest(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON request body")
+		return false
+	}
+	return true
+}
+
+func writeDataFields(w http.ResponseWriter, status int, data interface{}, fields map[string]interface{}) {
+	payload := map[string]interface{}{"data": data}
+	for key, value := range fields {
+		payload[key] = value
+	}
+	writeJSON(w, status, payload)
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
@@ -70,4 +154,24 @@ func writeJSON(w http.ResponseWriter, status int, value interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+func detailFields(doc Detail) map[string]interface{} {
+	return map[string]interface{}{"path": doc.Path, "content": doc.Content, "raw": doc.Raw}
+}
+
+func searchFields(result SearchResult) map[string]interface{} {
+	return map[string]interface{}{"query": result.Query, "matches": result.Matches, "count": result.Count}
+}
+
+func validationFields(report ValidationReport) map[string]interface{} {
+	return map[string]interface{}{"status": report.Status, "findings": report.Findings, "checked_paths": report.CheckedPaths}
+}
+
+func suggestionFields(s SuggestionResponse) map[string]interface{} {
+	return map[string]interface{}{"patch_id": s.PatchID, "path": s.Path, "status": s.Status, "suggestions": s.Suggestions, "proposed_patch": s.ProposedPatch}
+}
+
+func decisionFields(decision PatchDecision) map[string]interface{} {
+	return map[string]interface{}{"patch_id": decision.PatchID, "status": decision.Status, "decided_by": decision.DecidedBy}
 }
