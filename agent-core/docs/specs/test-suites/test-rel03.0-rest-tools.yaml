@@ -9,7 +9,7 @@ traces:
   - rel03.0-uc004-openapi-import
 
 preconditions:
-  - internal/tools/rest does not exist yet; all Go tests in this suite are planned.
+  - internal/tools/rest contains the REST runtime and executable Go coverage for this suite.
   - Test fixtures can provide hand-authored REST config files and OpenAPI 3 documents.
   - HTTP client tests can use httptest.Server with local-only addresses.
   - HTTP server tests can bind listener port 0 and use per-test queues.
@@ -19,7 +19,7 @@ test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST definitions load into boundary ToolDefs
     go_test: TestRESTConfig_LoadsToolDefinitions
-    status: planned
+    status: done
     description: |
       After loading a REST config file and its tool declaration file, inspect
       each REST ToolDef. It should name one boundary word and reference
@@ -50,7 +50,7 @@ test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
     name: Synchronous resource words build configured requests
     go_test: TestRESTClient_SyncResourceWords
-    status: planned
+    status: done
     description: |
       Against an httptest.Server, run rest_client_get and rest_client_set with
       configured operations. net/http should receive the expected method and
@@ -85,7 +85,7 @@ test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
     name: Runtime input cannot override configured authority
     go_test: TestRESTClient_RejectsAuthorityOverride
-    status: planned
+    status: done
     description: |
       A malicious input tries to replace transport authority at runtime. The
       client rejects it before any HTTP request leaves the process.
@@ -112,7 +112,7 @@ test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
     name: Mutating REST operations declare effects and compensation
     go_test: TestRESTClient_MutatingOperationsRequireEffects
-    status: planned
+    status: done
     description: |
       Review mutating resource operations beside an RPC-shaped invoke
       operation. Each one must declare its side-effect contract and
@@ -141,7 +141,7 @@ test_cases:
   - use_case: rel03.0-uc002-rest-client-async
     name: Async send records request state and returns RESTAccepted
     go_test: TestRESTClient_SendRecordsAsyncRequest
-    status: planned
+    status: done
     description: |
       Dispatch rest_client_send for an async operation and confirm the command
       returns before final completion. AsyncRequest state is stored by request
@@ -168,7 +168,7 @@ test_cases:
   - use_case: rel03.0-uc002-rest-client-async
     name: Async await maps completion and timeout signals
     go_test: TestRESTClient_AwaitAsyncRequest
-    status: planned
+    status: done
     description: |
       Begin with stored AsyncRequest state. Completion, domain failure,
       absence, timeout, and missing state each map to a declared signal.
@@ -202,7 +202,7 @@ test_cases:
   - use_case: rel03.0-uc002-rest-client-async
     name: Async retry policy requires idempotency metadata
     go_test: TestRESTClient_AsyncRetryPolicyValidation
-    status: planned
+    status: done
     description: |
       For async operations, check retry policy at config validation time.
       Non-idempotent requests reject retry settings unless config declares
@@ -225,7 +225,7 @@ test_cases:
   - use_case: rel03.0-uc003-rest-server-signals
     name: Server launch registers routes without blocking
     go_test: TestRESTServer_LaunchRegistersRoutes
-    status: planned
+    status: done
     description: |
       Dispatch rest_server_launch with a listener on port 0. The command binds
       the server, registers configured routes, records shared state, and
@@ -252,7 +252,7 @@ test_cases:
   - use_case: rel03.0-uc003-rest-server-signals
     name: Server await emits queued inbound signals
     go_test: TestRESTServer_AwaitInboundSignals
-    status: planned
+    status: done
     description: |
       Send validated inbound HTTP requests to signal-producing endpoints.
       rest_server_await consumes queued events and returns the configured
@@ -283,7 +283,7 @@ test_cases:
   - use_case: rel03.0-uc003-rest-server-signals
     name: Server stop drains queues and unblocks await
     go_test: TestRESTServer_StopDrainsAndUnblocks
-    status: planned
+    status: done
     description: |
       Stop a launched server while events and await calls exist. Shutdown
       follows configured drain policy, closes listeners, and unblocks await
@@ -308,7 +308,7 @@ test_cases:
   - use_case: rel03.0-uc003-rest-server-signals
     name: Server validation rejects unsafe inbound traffic
     go_test: TestRESTServer_RequestValidationFailures
-    status: planned
+    status: done
     description: |
       Bad inbound traffic reaches the configured routes. The server returns
       configured HTTP errors and avoids hidden MachineSpec actions.
@@ -331,10 +331,59 @@ test_cases:
       - srd029-rest-server-tools AC6
       - srd029-rest-server-tools AC9
 
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server invoke handler returns configured responses
+    go_test: TestRESTServer_InvokeHandlerBindings
+    status: done
+    description: |
+      Send requests to configured invoke_handler endpoints. The server validates
+      requests, returns mapped JSON, and enqueues only a declared signal when
+      the endpoint configuration names one.
+    inputs:
+      endpoint_bindings:
+        - invoke_handler
+      valid_request: handler_response
+      signal_request: handler_signal
+      invalid_request: handler_not_configured
+    expected:
+      mapped_response_returned: true
+      declared_signal_enqueued: true
+      unconfigured_handler_fails: true
+      hidden_workflow_action_selected: false
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - srd029-rest-server-tools AC5
+      - srd029-rest-server-tools AC6
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server streams queued events as SSE
+    go_test: TestRESTServer_StreamEvents
+    status: done
+    description: |
+      Queue a validated inbound event, then call a stream_events endpoint. The
+      endpoint writes one server-sent event containing the configured signal and
+      route metadata without choosing the next MachineSpec action.
+    inputs:
+      endpoint_bindings:
+        - emit_signal
+        - stream_events
+      queued_event: Approved
+    expected:
+      content_type: text/event-stream
+      streamed_signal: Approved
+      streamed_route: approve
+      hidden_workflow_action_selected: false
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - srd029-rest-server-tools AC5
+      - srd029-rest-server-tools AC7
+      - srd029-rest-server-tools AC9
+
   - use_case: rel03.0-uc004-openapi-import
     name: OpenAPI import exposes allowlisted operations
     go_test: TestRESTOpenAPI_ImportAllowlist
-    status: planned
+    status: done
     description: |
       Load an OpenAPI 3 document with several operations, but import only the
       allowlisted operation IDs. The import compiles them into RestDefinition
@@ -365,7 +414,7 @@ test_cases:
   - use_case: rel03.0-uc004-openapi-import
     name: OpenAPI server bind maps operation IDs to endpoints
     go_test: TestRESTOpenAPI_ServerBindMap
-    status: planned
+    status: done
     description: |
       Bind selected OpenAPI operation IDs to configured server endpoint names.
       Imported paths and schemas attach to endpoint binding kinds while server
@@ -390,7 +439,7 @@ test_cases:
   - use_case: rel03.0-uc004-openapi-import
     name: OpenAPI import reports invalid operation IDs
     go_test: TestRESTOpenAPI_InvalidOperationIDs
-    status: planned
+    status: done
     description: |
       When an import names a missing or duplicated operation ID, validation
       fails before ToolDefs register. An incompatible server binding fails the
@@ -417,7 +466,7 @@ test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST observability redacts secrets and reports failure stages
     go_test: TestRESTTools_TracingRedactionAndErrors
-    status: planned
+    status: done
     description: |
       Exercise client and server error paths with synthetic secret material.
       Traces and Result output report identity, status, timing data, byte

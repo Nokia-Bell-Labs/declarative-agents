@@ -104,7 +104,7 @@ releases:
       OpenAPI 3 loading uses kin-openapi. Shared REST definitions and async
       inbox support are implemented, while generated Go clients and servers are
       excluded.
-    status: in_progress
+    status: done
     srds:
       - srd027-rest-tool-runtime
       - srd028-rest-client-tools

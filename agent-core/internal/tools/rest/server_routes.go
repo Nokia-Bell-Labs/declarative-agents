@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
 	bindingEmitSignal     = "emit_signal"
 	bindingReadState      = "read_state"
+	bindingInvokeHandler  = "invoke_handler"
+	bindingStreamEvents   = "stream_events"
 	bindingHealth         = "health"
 	bindingStaticMetadata = "static_metadata"
 )
@@ -62,6 +65,10 @@ func (r *serverRuntime) handleEndpoint(
 		r.enqueueDynamicSignal(w, req, name, endpoint, payload)
 	case bindingReadState:
 		writeJSON(w, http.StatusOK, r.stateOutput())
+	case bindingInvokeHandler:
+		r.invokeHandler(w, req, name, endpoint, payload)
+	case bindingStreamEvents:
+		r.streamEvents(w)
 	case bindingHealth:
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
 	case bindingStaticMetadata:
@@ -69,6 +76,27 @@ func (r *serverRuntime) handleEndpoint(
 	default:
 		http.Error(w, "endpoint binding is not implemented", http.StatusNotImplemented)
 	}
+}
+
+func (r *serverRuntime) invokeHandler(
+	w http.ResponseWriter,
+	req *http.Request,
+	name string,
+	endpoint Endpoint,
+	payload map[string]interface{},
+) {
+	if endpoint.Signal != "" {
+		event := inboundEvent(r.name, name, req.Method, endpoint.Signal, payload, req.Header.Get("X-Request-ID"))
+		if !r.offerEvent(event) {
+			http.Error(w, "REST server queue is full", http.StatusTooManyRequests)
+			return
+		}
+	}
+	if endpoint.Signal == "" && len(endpoint.Response.Output) == 0 {
+		http.Error(w, "handler is not configured", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, serverResponseOutput(endpoint.Response, payload))
 }
 
 func (r *serverRuntime) enqueueDynamicSignal(
@@ -97,10 +125,7 @@ func (r *serverRuntime) enqueueSignal(
 		http.Error(w, "endpoint signal is not configured", http.StatusInternalServerError)
 		return
 	}
-	event := InboundEvent{
-		Source: r.name, Route: route, Method: req.Method,
-		Signal: signal, Payload: payload, RequestID: req.Header.Get("X-Request-ID"),
-	}
+	event := inboundEvent(r.name, route, req.Method, signal, payload, req.Header.Get("X-Request-ID"))
 	if !r.offerEvent(event) {
 		http.Error(w, "REST server queue is full", http.StatusTooManyRequests)
 		return
@@ -118,6 +143,43 @@ func (r *serverRuntime) offerEvent(event InboundEvent) bool {
 		r.mu.Unlock()
 		return false
 	}
+}
+
+func inboundEvent(source, route, method, signal string, payload map[string]interface{}, requestID string) InboundEvent {
+	return InboundEvent{
+		Source: source, Route: route, Method: method,
+		Signal: signal, Payload: payload, RequestID: requestID,
+	}
+}
+
+func (r *serverRuntime) streamEvents(w http.ResponseWriter) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming is not supported", http.StatusInternalServerError)
+		return
+	}
+	r.incrementStreams()
+	defer r.decrementStreams()
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	select {
+	case event := <-r.queue:
+		writeSSEEvent(w, flusher, "message", event)
+	case <-r.stopped:
+		writeSSEEvent(w, flusher, "server_stopped", InboundEvent{Source: r.name, Signal: "ServerStopped"})
+	case <-time.After(r.awaitTimeout()):
+		writeSSEEvent(w, flusher, "timeout", InboundEvent{Source: r.name, Signal: "AwaitTimedOut"})
+	}
+}
+
+func writeSSEEvent(w http.ResponseWriter, flusher http.Flusher, eventType string, event InboundEvent) {
+	data, err := json.Marshal(event)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, data)
+	flusher.Flush()
 }
 
 func readRequestPayload(req *http.Request, endpoint Endpoint, maxBytes int) (map[string]interface{}, error) {
@@ -192,6 +254,30 @@ func writeJSON(w http.ResponseWriter, status int, payload map[string]interface{}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func serverResponseOutput(mapping ResponseMapping, payload map[string]interface{}) map[string]interface{} {
+	if len(mapping.Output) == 0 {
+		return map[string]interface{}{"handled": true}
+	}
+	out := map[string]interface{}{}
+	for name, selector := range mapping.Output {
+		out[name] = responseValue(selector, payload)
+	}
+	return out
+}
+
+func responseValue(selector string, payload map[string]interface{}) interface{} {
+	switch selector {
+	case "true":
+		return true
+	case "false":
+		return false
+	}
+	if strings.HasPrefix(selector, "$.") {
+		return payload[strings.TrimPrefix(selector, "$.")]
+	}
+	return selector
 }
 
 func matchPath(template, path string) (map[string]string, bool) {
