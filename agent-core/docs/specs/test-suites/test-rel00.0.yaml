@@ -935,3 +935,55 @@ test_cases:
       args: ["--model", "qwen"]
     traces:
       - srd018-cli-flag-contract AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: LLM tools parse responses and manage retry state
+    go_test: go test ./internal/tools/stl -run 'Test(InvokeLLM|ParseResponse|ReportParseError|ResetHistory)'
+    inputs:
+      llm_tools: "invoke_llm, parse_response, report_parse_error, reset_history"
+    expected:
+      conversation_updated: true
+      parser_validates_tools: true
+      retry_counter_managed: true
+      timeout_and_context_limits_enforced: true
+    traces:
+      - srd013-standard-tool-library AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Subprocess helpers map output and process groups
+    go_test: go test ./internal/tools/stl -run 'Test(SubprocessResult|CapOutput|ExtractStringParam|ProcGroupCmd|RunProcGroup)'
+    inputs:
+      subprocesses: "success, non-zero exit, timeout, missing binary"
+    expected:
+      result_signals_mapped: true
+      output_capped: true
+      params_extracted: true
+      process_group_timeout_handled: true
+    traces:
+      - srd013-standard-tool-library AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Tool declarations load and register selected tools
+    go_test: go test ./internal/tools/stl -run 'Test(LoadToolDeclarations|SelectTools|RegisterToolDefs|ParseToolDefs)'
+    inputs:
+      declarations: "builtin and exec tool YAML"
+      selection: "selected tool names"
+    expected:
+      declarations_loaded: true
+      selection_validated: true
+      registry_populated: true
+      legacy_paths_available: true
+    traces:
+      - srd013-standard-tool-library AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Tool metrics parse test and build output
+    go_test: go test ./internal/tools/stl -run 'TestParse(Test|Build)Metrics'
+    inputs:
+      outputs: "go test and go build output samples"
+    expected:
+      pass_fail_skip_counts: true
+      build_failed_detected: true
+      file_error_counts: true
+    traces:
+      - srd013-standard-tool-library AC7

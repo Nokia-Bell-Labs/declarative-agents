@@ -10,7 +10,7 @@ overview: |
   Rollback lifecycle contracts belong to 02.0. Declarative REST runtime
   contracts belong to 03.0. REST client and server contracts sit in the same
   release. Twelve use cases exercise the SRDs across the
-  four releases. Five formal YAML test suites cover 159 acceptance test
+  four releases. Five formal YAML test suites cover 167 acceptance test
   cases across releases 00.0 through 03.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -309,7 +309,7 @@ test_suite_index:
     release: "00.0"
     traces:
       - rel00.0-uc001-domain-agent-integration
-    formal_test_cases: 85
+    formal_test_cases: 89
     path: docs/specs/test-suites/test-rel00.0.yaml
   - id: test-rel01.0
     title: Test Suite for Release 01.0 Unified Agent Runtime
@@ -318,7 +318,7 @@ test_suite_index:
       - rel01.0-uc001-generator-coding
       - rel01.0-uc002-evaluator-benchmark
       - rel01.0-uc003-bench-visualization
-    formal_test_cases: 29
+    formal_test_cases: 33
     path: docs/specs/test-suites/test-rel01.0.yaml
   - id: test-rel02.0-lifecycle
     title: Test Suite for Release 02.0 Rollback Lifecycle
@@ -350,12 +350,12 @@ test_suite_index:
 go_test_coverage:
   note: >
     Go test functions across all packages provide coverage beyond the
-    formal YAML test suites. Release 00.0 YAML coverage (85 cases) covers
+    formal YAML test suites. Release 00.0 YAML coverage (89 cases) covers
     srd001-srd018 where Go tests already prove behavior. For release 01.0,
-    the YAML suite (29 cases) indexes generator and evaluator integration
+    the YAML suite (33 cases) indexes generator and evaluator integration
     targets. It also covers bench integration targets plus Go tests for
-    profile, machine, tool, and child-agent behavior. Bench API and result
-    behavior now have direct cases; mage integration:uc003 records a
+    profile, machine, tool, and child-agent behavior. Builtin and exec
+    declaration contracts have focused cases. Bench API and result behavior now have direct cases; mage integration:uc003 records a
     skipped/manual-precondition target, not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
     The 03.0 YAML coverage (15 cases) names planned Go tests for REST
@@ -402,7 +402,7 @@ coverage_gaps: |
   Original core SRDs srd001-srd008 have use case touchpoints and
   formal YAML test suite coverage in release 00.0. Release 00.0 now also has
   formal YAML cases for implemented conversation, prompt, and spec graph
-  behavior. GenAI, traceparent, and CLI helper behavior are covered too. Remaining release
+  behavior. GenAI, traceparent, CLI helper, and STL behavior are covered too. Remaining release
   00.0 uncovered criteria need narrower Go tests or migration proof before
   they should be marked covered. agent-core-ugn4 tracks srd001 AC6 and AC7.
   It also tracks srd007 AC3. agent-core-28rd tracks srd009 AC5 and AC6.
@@ -429,11 +429,12 @@ coverage_gaps: |
   boundaries. They also cover tools, CLI support, and spec validation.
 
   Uncovered release 01.0 and 02.0 criteria are deferred for specific
-  follow-up. agent-core-rjp3 tracks missing tool declaration coverage for
-  srd013 AC3 through AC5 and AC7. It also tracks srd022 AC2 and srd022 AC3.
-  The same issue tracks srd023 AC1 and srd023 AC3. CLI helper and evaluator
-  statistics now have focused formal YAML cases. Bench API, child-agent
-  outcome, and blocking-input criteria have focused cases too.
+  follow-up. agent-core-ugn4 tracks missing core type and tracer coverage.
+  agent-core-28rd tracks missing Ollama and migration coverage. Tool
+  declaration coverage now has focused YAML cases for STL, builtin, and exec
+  criteria. CLI helper and evaluator statistics now have focused formal YAML
+  cases. Bench API, child-agent outcome, and blocking-input criteria have
+  focused cases too.
   Keeping those follow-up issue IDs in this index lets a reader separate
   planned documentation cleanup from missing runtime behavior that would change
   the product contract.

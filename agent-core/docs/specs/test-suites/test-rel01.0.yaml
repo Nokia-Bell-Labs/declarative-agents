@@ -436,3 +436,53 @@ test_cases:
       result_signal_returned: true
     traces:
       - srd024-blocking-input-tools AC5
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Builtin registry resolves factories and rejects unknown init
+    go_test: go test ./internal/tools/registry -run 'Test(BuiltinRegistryRegisterResolveOverride|RegisterUnifiedToolsUnknownInit|RegisterSingleBuiltinOverrides)'
+    inputs:
+      builtin_defs: "registered and missing init names"
+    expected:
+      init_resolved: true
+      unknown_init_rejected: true
+      registration_overrides_existing_tool: true
+    traces:
+      - srd022-builtin-tools AC2
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Builtin tool config decodes typed structs and errors
+    go_test: go test ./internal/tools/stl -run 'TestDecodeToolConfig'
+    inputs:
+      configs: "child agent, LLM, load suite, run point, serve_ui"
+    expected:
+      typed_configs_decoded: true
+      type_mismatch_mentions_tool: true
+      extra_fields_ignored: true
+    traces:
+      - srd022-builtin-tools AC3
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Exec declarations parse schema and contract fields
+    go_test: TestParseToolDefs
+    inputs:
+      declaration: "exec tool with args, dir, emits, output cap, precondition, parameters, and side effects"
+    expected:
+      schema_fields_loaded: true
+      emits_loaded: true
+      side_effects_loaded: true
+      visibility_loaded: true
+    traces:
+      - srd023-cli-exec-tools AC1
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Exec tools map argv, process outcomes, caps, and timeouts
+    go_test: go test ./internal/tools/exec ./internal/tools/stl -run 'Test(ExecCmd_(BuildArgs|Execute)|ExecBuilder_|RunProcGroup)'
+    inputs:
+      exec_defs: "argv mapping, working dir, output cap, precondition, process group timeout"
+    expected:
+      args_mapped: true
+      output_and_exit_mapped: true
+      output_cap_applied: true
+      timeout_handled: true
+    traces:
+      - srd023-cli-exec-tools AC3
