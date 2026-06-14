@@ -33,6 +33,7 @@ var StandardInits = []string{
 type FactoryDeps struct {
 	Definitions Collection
 	ServerState *ServerState
+	AsyncState  *AsyncState
 }
 
 // ClientToolConfig holds REST client ToolDef config.
@@ -52,6 +53,9 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	if deps.ServerState == nil {
 		deps.ServerState = NewServerState()
 	}
+	if deps.AsyncState == nil {
+		deps.AsyncState = NewAsyncState()
+	}
 	for _, init := range StandardInits {
 		br.Register(init, factoryFor(init, deps))
 	}
@@ -63,12 +67,12 @@ func factoryFor(init string, deps FactoryDeps) toolregistry.BuiltinFactory {
 		case InitServerLaunch, InitServerAwait, InitServerStop:
 			return newServerBuilder(def, init, deps)
 		default:
-			return newClientBuilder(def, init, deps.Definitions)
+			return newClientBuilder(def, init, deps)
 		}
 	}
 }
 
-func newClientBuilder(def catalog.ToolDef, init string, definitions Collection) (core.Builder, error) {
+func newClientBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.Builder, error) {
 	var cfg ClientToolConfig
 	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 		return nil, err
@@ -76,14 +80,14 @@ func newClientBuilder(def catalog.ToolDef, init string, definitions Collection) 
 	if err := validateClientToolConfig(def.Name, cfg); err != nil {
 		return nil, err
 	}
-	operation, err := definitions.ResolveClientOperation(cfg)
+	operation, err := deps.Definitions.ResolveClientOperation(cfg)
 	if err != nil {
 		return nil, err
 	}
 	if init == InitClientSend && operation.Operation.Async == nil {
 		return nil, fmt.Errorf("tool %q requires async REST operation", def.Name)
 	}
-	return ClientBuilder{ToolName: def.Name, Init: init, Operation: operation}, nil
+	return ClientBuilder{ToolName: def.Name, Init: init, Operation: operation, AsyncState: deps.AsyncState}, nil
 }
 
 func newServerBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.Builder, error) {
