@@ -13,6 +13,17 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
 )
 
+func TestFlagConstants(t *testing.T) {
+	assert.Equal(t, "otel-log-file", FlagOTelLogFile)
+	assert.Equal(t, "otel-parent-span", FlagOTelParent)
+	assert.Equal(t, "model", FlagModel)
+	assert.Equal(t, "directory", FlagDirectory)
+	assert.Equal(t, "max-time", FlagMaxTime)
+	assert.Equal(t, "llm-timeout", FlagLLMTimeout)
+	assert.Equal(t, "prompt", FlagPrompt)
+	assert.Equal(t, "ollama-url", FlagOllamaURL)
+}
+
 func TestPropagateArgs_Build_Full(t *testing.T) {
 	sc, err := telemetry.ParseTraceparent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 	require.NoError(t, err)
@@ -92,4 +103,8 @@ func TestRemainingBudget(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestFormatFlag(t *testing.T) {
+	assert.Equal(t, []string{"--model", "qwen"}, FormatFlag("model", "qwen"))
 }

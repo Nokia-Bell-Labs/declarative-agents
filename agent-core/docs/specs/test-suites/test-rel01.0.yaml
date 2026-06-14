@@ -339,3 +339,100 @@ test_cases:
     traces:
       - srd020-bench-web-ui AC3
       - srd024-blocking-input-tools AC1
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator model statistics aggregate run outcomes
+    go_test: TestComputeModelStatsAggregatesRuns
+    inputs:
+      grouped_runs: "passed and failed runs for one model"
+    expected:
+      success_rate_computed: true
+      convergence_rates_computed: true
+      mean_tokens_and_duration_computed: true
+    traces:
+      - srd019-eval-harness AC3
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator detailed rows aggregate sample and model results
+    go_test: TestComputeDetailedAggregatesSampleModelRows
+    inputs:
+      grouped_runs: "one sample and model result group"
+    expected:
+      sample_model_row_created: true
+      convergence_counts_computed: true
+      means_computed: true
+    traces:
+      - srd019-eval-harness AC3
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: Bench session APIs return evaluation artifacts
+    go_test: TestSessionAPIsReturnEvaluationArtifacts
+    inputs:
+      eval_results: "meta.json, trace.ndjson, experiment.yaml"
+    expected:
+      sessions_returned: true
+      points_returned: true
+      trace_returned: true
+      experiment_returned: true
+    traces:
+      - srd020-bench-web-ui AC2
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Agent child process args stay profile-first
+    go_test: TestBuildArgs_ProfileOnly
+    inputs:
+      profile: agents/generator/profile.yaml
+    expected:
+      profile_flag_present: true
+      machine_and_model_flags_absent: true
+    traces:
+      - srd021-agent-cli-exec-tool AC1
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Self invoke maps child process success and failure
+    go_test: go test ./internal/tools/stl -run 'TestSelfInvokeBuilder_Execute_(Success|Failure)$'
+    inputs:
+      child_binary: echo
+      failure_binary: false
+    expected:
+      success_maps_to_tool_done: true
+      failure_maps_to_tool_failed: true
+      duration_recorded: true
+    traces:
+      - srd021-agent-cli-exec-tool AC4
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: invoke_llm handles call timeout as command error
+    go_test: TestInvokeLLM_CallTimeout
+    inputs:
+      client: "waits for context cancellation"
+      call_timeout: 1ms
+    expected:
+      deadline_error_returned: true
+      command_error_signal: true
+      duration_recorded: true
+    traces:
+      - srd024-blocking-input-tools AC3
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: Bench action endpoint applies single pending action backpressure
+    go_test: TestActionEndpointAppliesSinglePendingActionBackpressure
+    inputs:
+      action_queue_capacity: 1
+    expected:
+      first_action_accepted: true
+      second_action_rejected: true
+    traces:
+      - srd024-blocking-input-tools AC4
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: invoke_llm records duration and token usage
+    go_test: TestInvokeLLM_Success
+    inputs:
+      chat_response: "content plus token counts"
+    expected:
+      duration_recorded: true
+      token_usage_recorded: true
+      result_signal_returned: true
+    traces:
+      - srd024-blocking-input-tools AC5
