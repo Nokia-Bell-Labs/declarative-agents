@@ -1,0 +1,7 @@
+# Lifecycle builtin declarations.
+includes:
+  - ../suspend.yaml
+  - ../checkpoint-history.yaml
+  - ../checkpoint-rollback.yaml
+
+tools: []

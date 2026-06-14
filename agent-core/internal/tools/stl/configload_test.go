@@ -74,6 +74,35 @@ func TestAgentMachineSemanticMetadataMerged(t *testing.T) {
 	}
 }
 
+func TestAgentProfilesLoadSelectedGroupedDeclarations(t *testing.T) {
+	cd := configDir(t)
+	profiles := agentProfilePaths(t, cd)
+	require.NotEmpty(t, profiles)
+	for _, profilePath := range profiles {
+		t.Run(profilePath, func(t *testing.T) {
+			profile, err := stl.LoadProfile(profilePath)
+			require.NoError(t, err)
+			defs := loadProfileTestDefs(t, profile)
+			require.NotEmpty(t, defs)
+			spec, err := core.LoadMachineSpec(profile.Machine)
+			require.NoError(t, err)
+			assertToolEmits(t, spec, defs)
+			buildRegistryForDefs(t, defs)
+		})
+	}
+}
+
+func agentProfilePaths(t *testing.T, cd string) []string {
+	t.Helper()
+	var profiles []string
+	for _, pattern := range []string{"*/profile*.yaml", "lifecycle/*/profile.yaml"} {
+		matches, err := filepath.Glob(filepath.Join(cd, pattern))
+		require.NoError(t, err)
+		profiles = append(profiles, matches...)
+	}
+	return profiles
+}
+
 // loadTestDefs loads shared tool declarations, mode-local overrides,
 // per-agent LLM defaults, and applies the agent's selection file.
 func loadTestDefs(t *testing.T, cd, agent string) []stl.ToolDef {
@@ -82,20 +111,9 @@ func loadTestDefs(t *testing.T, cd, agent string) []stl.ToolDef {
 
 func loadTestDefsForSelection(t *testing.T, cd, agent, selectionPath string) []stl.ToolDef {
 	t.Helper()
-	declPaths := []string{
-		sharedToolDecl(t, cd, "builtin.yaml"),
-		sharedToolDecl(t, cd, "exec.yaml"),
-	}
-	modeBuiltin := filepath.Join(cd, agent, "builtin.yaml")
-	if _, err := os.Stat(modeBuiltin); err == nil {
-		declPaths = append(declPaths, modeBuiltin)
-	}
-	llmDefault := filepath.Join(cd, agent, "llm", "default.yaml")
-	if _, err := os.Stat(llmDefault); err == nil {
-		declPaths = append(declPaths, llmDefault)
-	}
-	declarations, err := stl.LoadToolDeclarations(declPaths)
+	profile, err := stl.LoadProfile(filepath.Join(cd, agent, "profile.yaml"))
 	require.NoError(t, err)
+	declarations := loadProfileDeclarations(t, profile)
 	selection, err := stl.LoadToolSelection(selectionPath)
 	require.NoError(t, err)
 	defs, err := stl.SelectTools(declarations, selection)
@@ -105,15 +123,21 @@ func loadTestDefsForSelection(t *testing.T, cd, agent, selectionPath string) []s
 
 func loadProfileTestDefs(t *testing.T, profile stl.AgentProfile) []stl.ToolDef {
 	t.Helper()
+	declarations := loadProfileDeclarations(t, profile)
+	selection, err := stl.LoadToolSelections(profile.Tools)
+	require.NoError(t, err)
+	defs, err := stl.SelectTools(declarations, selection)
+	require.NoError(t, err)
+	return defs
+}
+
+func loadProfileDeclarations(t *testing.T, profile stl.AgentProfile) []stl.ToolDef {
+	t.Helper()
 	declarations, err := stl.LoadToolDeclarations(profile.ToolDeclarations)
 	require.NoError(t, err)
 	dirDeclarations, err := stl.LoadToolDeclarationsFromDirs(profile.ToolConfigDirs)
 	require.NoError(t, err)
-	selection, err := stl.LoadToolSelections(profile.Tools)
-	require.NoError(t, err)
-	defs, err := stl.SelectTools(stl.MergeToolDefs(declarations, dirDeclarations), selection)
-	require.NoError(t, err)
-	return defs
+	return stl.MergeToolDefs(dirDeclarations, declarations)
 }
 
 type noopBuilder struct{}
@@ -241,7 +265,7 @@ func TestToolContractsWarnOnlyReport(t *testing.T) {
 		t.Logf("%s: %d tool contract findings", tc.name, len(findings))
 	}
 
-	require.NotZero(t, total, "current declarations should still have warn-only contract migration findings")
+	require.Zero(t, bySeverity[stl.ContractSeverityError])
 	t.Logf("tool contract findings by severity: %v", bySeverity)
 	t.Logf("tool contract findings by category: %v", byCategory)
 }
@@ -264,7 +288,7 @@ func TestBuiltinToolContractAuditClassifiesMigrationCoverage(t *testing.T) {
 		require.NotContains(t, entry.MissingFields, "side_effects", "tool %s should declare side effects", entry.ToolName)
 		require.NotContains(t, entry.MissingFields, "reversibility.classification", "tool %s should declare reversibility", entry.ToolName)
 		require.NotContains(t, entry.MissingFields, "undo", "tool %s should declare undo", entry.ToolName)
-		if entry.Category == "boundary" || entry.Category == "stateful_internal" {
+		if entry.Status != stl.ContractAuditComplete && (entry.Category == "boundary" || entry.Category == "stateful_internal") {
 			require.NotEmpty(t, entry.MigrationTarget, "stateful/boundary tool %s should name a migration target", entry.ToolName)
 		}
 	}
@@ -313,6 +337,35 @@ func TestSelectedToolOutputContractsLoad(t *testing.T) {
 	require.NoError(t, err)
 	status := requireToolDef(t, allDecls, "workspace_status")
 	require.Equal(t, "object", status.Output.Schema["type"])
+}
+
+func TestGroupedDeclarationBundlesPreserveLegacyToolNames(t *testing.T) {
+	cd := configDir(t)
+	cases := []struct {
+		name   string
+		legacy string
+		group  string
+	}{
+		{name: "builtin", legacy: "builtin.yaml", group: "builtin/all.yaml"},
+		{name: "exec", legacy: "exec.yaml", group: "exec/all.yaml"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			legacy, err := stl.LoadToolDeclarations([]string{sharedToolDecl(t, cd, tc.legacy)})
+			require.NoError(t, err)
+			grouped, err := stl.LoadToolDeclarations([]string{sharedToolDecl(t, cd, tc.group)})
+			require.NoError(t, err)
+			require.ElementsMatch(t, toolNames(legacy), toolNames(grouped))
+		})
+	}
+}
+
+func toolNames(defs []stl.ToolDef) []string {
+	names := make([]string, 0, len(defs))
+	for _, def := range defs {
+		names = append(names, def.Name)
+	}
+	return names
 }
 
 func TestSelectedBoundaryToolContractsLoad(t *testing.T) {
@@ -783,7 +836,7 @@ func assertLifecycleProfileWiring(t *testing.T, cd, profilePath, machinePath, ac
 	require.NoError(t, err)
 	require.Equal(t, machinePath, profile.Machine)
 	require.Equal(t, []string{filepath.Join(cd, "lifecycle", "tools.yaml")}, profile.Tools)
-	require.Equal(t, []string{sharedToolDecl(t, cd, "builtin")}, profile.ToolConfigDirs)
+	require.Equal(t, []string{sharedToolDecl(t, cd, "builtin/lifecycle")}, profile.ToolConfigDirs)
 
 	spec, err := core.LoadMachineSpec(profile.Machine)
 	require.NoError(t, err)

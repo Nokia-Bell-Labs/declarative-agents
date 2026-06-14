@@ -1,0 +1,11 @@
+# Planner builtin declarations.
+includes:
+  - ../extract-task.yaml
+  - ../extract-all.yaml
+  - ../assemble-prompt.yaml
+  - ../parse-plan.yaml
+  - ../create-issue.yaml
+  - ../execute-task.yaml
+  - ../check-result.yaml
+
+tools: []

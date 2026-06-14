@@ -1,0 +1,8 @@
+# Full shared exec declaration bundle.
+includes:
+  - go/all.yaml
+  - workspace/all.yaml
+  - git/all.yaml
+  - beads/all.yaml
+
+tools: []
