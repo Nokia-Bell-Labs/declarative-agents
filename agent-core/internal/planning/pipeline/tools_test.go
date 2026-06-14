@@ -16,7 +16,8 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/graph"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/plan"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
@@ -460,16 +461,16 @@ func TestMinimalState_GraphHasNodes(t *testing.T) {
 
 func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
 	t.Parallel()
-	br := stl.NewBuiltinRegistry()
+	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br, FactoryDeps{Ctx: context.Background()})
 
 	factory, ok := br.Resolve("execute_task")
 	require.True(t, ok)
 
-	_, err := factory(stl.ToolDef{Name: "execute_task", Init: "execute_task"}, nil)
+	_, err := factory(catalog.ToolDef{Name: "execute_task", Init: "execute_task"}, nil)
 	require.ErrorContains(t, err, "requires profile or legacy machine")
 
-	_, err = factory(stl.ToolDef{
+	_, err = factory(catalog.ToolDef{
 		Name: "execute_task",
 		Init: "execute_task",
 		Config: map[string]interface{}{
@@ -482,13 +483,13 @@ func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
 
 func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
 	t.Parallel()
-	br := stl.NewBuiltinRegistry()
+	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br, FactoryDeps{Ctx: context.Background()})
 
 	factory, ok := br.Resolve("execute_task")
 	require.True(t, ok)
 
-	builder, err := factory(stl.ToolDef{
+	builder, err := factory(catalog.ToolDef{
 		Name: "execute_task",
 		Init: "execute_task",
 		Config: map[string]interface{}{

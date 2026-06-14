@@ -10,7 +10,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
 
 // RunPointBuilder creates runPointCmd instances.
@@ -49,7 +49,7 @@ func (c *runPointCmd) UndoMemento() (core.UndoMemento, error) {
 			Started     bool   `json:"started"`
 			Exhausted   bool   `json:"exhausted"`
 		} `json:"domain_state"`
-		BoundaryCompensation stl.BoundaryCompensation `json:"boundary_compensation"`
+		BoundaryCompensation undo.BoundaryCompensation `json:"boundary_compensation"`
 	}{
 		DomainState: struct {
 			SuiteName   string `json:"suite_name,omitempty"`
@@ -66,7 +66,7 @@ func (c *runPointCmd) UndoMemento() (core.UndoMemento, error) {
 			Started:     c.snapshot.started,
 			Exhausted:   c.snapshot.exhausted,
 		},
-		BoundaryCompensation: stl.BoundaryCompensation{
+		BoundaryCompensation: undo.BoundaryCompensation{
 			Strategy:     "nested_machine_rollback",
 			Reason:       "run_point executes a nested evaluator point machine",
 			Requires:     []string{"nested_machine_history", "Workspace"},
@@ -151,7 +151,7 @@ func (c *runPointCmd) Execute() core.Result {
 // Nested loop parameters (point_machine, point_tools, agent_name,
 // max_iterations, success_state) are read from the tool declaration config block.
 func RunPointFactory(es *EvalSessionState) toolregistry.BuiltinFactory {
-	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var cfg catalog.RunPointConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err

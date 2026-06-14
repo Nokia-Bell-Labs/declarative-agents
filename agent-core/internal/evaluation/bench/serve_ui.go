@@ -8,7 +8,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
 
 // ServeUIBuilder creates serveUICmd instances. It is the bench
@@ -37,7 +37,7 @@ func (c *serveUICmd) Undo() core.Result {
 	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
 }
 func (c *serveUICmd) UndoMemento() (core.UndoMemento, error) {
-	payload := stl.BoundaryCompensationPayload{BoundaryCompensation: stl.BoundaryCompensation{
+	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
 		Strategy:   "server_shutdown_or_user_action_compensation",
 		Reason:     "serve_ui waits on a live HTTP server and human action",
 		Requires:   []string{"server_addr", "last_user_action"},
@@ -70,7 +70,7 @@ func (c *serveUICmd) Execute() core.Result {
 // instances. The factory extracts config values from the tool
 // declaration YAML to configure the server.
 func ServeUIFactory(bs *BenchState) toolregistry.BuiltinFactory {
-	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var cfg catalog.ServeUIToolConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err

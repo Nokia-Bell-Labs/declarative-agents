@@ -11,7 +11,6 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
 // ParseSuiteConfigBuilder creates parseSuiteConfigCmd instances.
@@ -249,7 +248,7 @@ func (c *reportSuiteSummaryCmd) Execute() core.Result {
 
 // Config keys: input, output_dir, reps, timeout, ollama_url.
 func evaluatorSessionConfigFactory(es *EvalSessionState, build func(*EvalSessionState) core.Builder) toolregistry.BuiltinFactory {
-	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		if err := applyLoadSuiteConfig(es, def); err != nil {
 			return nil, err
 		}
@@ -257,7 +256,7 @@ func evaluatorSessionConfigFactory(es *EvalSessionState, build func(*EvalSession
 	}
 }
 
-func applyLoadSuiteConfig(es *EvalSessionState, def stl.ToolDef) error {
+func applyLoadSuiteConfig(es *EvalSessionState, def catalog.ToolDef) error {
 	var cfg catalog.LoadSuiteConfig
 	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 		return err

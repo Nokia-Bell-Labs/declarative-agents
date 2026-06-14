@@ -20,9 +20,15 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/pipeline"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/control"
+	toolexec "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/exec"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/filesystem"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
+	toollm "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/llm"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/validation"
 )
 
 var (
@@ -78,21 +84,20 @@ func init() {
 }
 
 type agentState struct {
-	parser        llm.ResponseParser
-	conversation  *llm.Conversation
-	conversations *stl.ConversationStore
-	tracker       *stl.ToolTracker
-	registry      *core.Registry
-	tracer        tracing.Tracer
-	model         string
-	providerName  string
-	parseRetries  *stl.ParseErrorRetryTracker
-	maxDuration   time.Duration
-	maxTokens     int
-	verbose       bool
-	ctx           context.Context
-	directory     string
-	stateStore    core.StateStore
+	parser       llm.ResponseParser
+	conversation *llm.Conversation
+	tracker      *validation.ToolTracker
+	registry     *core.Registry
+	tracer       tracing.Tracer
+	model        string
+	providerName string
+	parseRetries *toollm.ParseErrorRetryTracker
+	maxDuration  time.Duration
+	maxTokens    int
+	verbose      bool
+	ctx          context.Context
+	directory    string
+	stateStore   core.StateStore
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -160,8 +165,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	conversation := llm.NewConversation(nil, "", llm.ChatOptions{})
-	conversations := stl.NewConversationStore()
-	tracker := stl.NewToolTracker()
+	tracker := validation.NewToolTracker()
 	var stateStore core.StateStore
 	if flagStateStoreDir != "" {
 		stateStore = core.NewFileStore(flagStateStoreDir)
@@ -189,29 +193,28 @@ func run(cmd *cobra.Command, args []string) error {
 	if machineSpec.BudgetSpec != nil {
 		parseErrorLimit = machineSpec.BudgetSpec.MaxConsecutiveParseErrors
 	}
-	var parseRetries *stl.ParseErrorRetryTracker
+	var parseRetries *toollm.ParseErrorRetryTracker
 	var afterDispatch func(core.Command, core.Result) core.Signal
 	if parseErrorLimit > 0 {
 		if selectedInits["report_parse_error"] {
-			parseRetries = &stl.ParseErrorRetryTracker{MaxConsecutive: parseErrorLimit}
+			parseRetries = &toollm.ParseErrorRetryTracker{MaxConsecutive: parseErrorLimit}
 		} else {
-			afterDispatch = stl.ParseErrorPolicy(parseErrorLimit)
+			afterDispatch = toollm.ParseErrorPolicy(parseErrorLimit)
 		}
 	}
 
 	reg := core.NewRegistry()
 	builtins := toolregistry.NewBuiltinRegistry()
 	st := &agentState{
-		conversation:  conversation,
-		conversations: conversations,
-		tracker:       tracker,
-		registry:      reg,
-		tracer:        tracer,
-		parseRetries:  parseRetries,
-		verbose:       flagVerboseTrace,
-		ctx:           cmd.Context(),
-		directory:     flagDirectory,
-		stateStore:    stateStore,
+		conversation: conversation,
+		tracker:      tracker,
+		registry:     reg,
+		tracer:       tracer,
+		parseRetries: parseRetries,
+		verbose:      flagVerboseTrace,
+		ctx:          cmd.Context(),
+		directory:    flagDirectory,
+		stateStore:   stateStore,
 	}
 
 	registerBuiltinFactories(builtins, st, selectedInits)
@@ -293,7 +296,7 @@ func selectedBuiltinInits(defs []catalog.ToolDef) map[string]bool {
 }
 
 func execBuilder(def catalog.ToolDef, root string) core.Builder {
-	return &stl.ExecBuilder{Def: def, Root: root}
+	return &toolexec.ExecBuilder{Def: def, Root: root}
 }
 
 func registerBuiltinFactories(br *toolregistry.BuiltinRegistry, st *agentState, selected map[string]bool) {
@@ -320,44 +323,193 @@ func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
 
 func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 	return toolregistry.StandardFactoryDeps{
-		RegisterFilesystem:     registerSTLFactories(stl.RegisterFilesystemFactories, st),
-		RegisterLLM:            registerSTLFactories(stl.RegisterLLMFactories, st),
-		RegisterLifecycle:      registerSTLFactories(stl.RegisterLifecycleFactoryGroup, st),
-		RegisterValidation:     registerSTLFactories(stl.RegisterValidationFactory, st),
-		RegisterControl:        registerSTLFactories(stl.RegisterControlFactories, st),
+		RegisterFilesystem:     registerFilesystemFactories(),
+		RegisterLLM:            registerLLMFactories(st),
+		RegisterLifecycle:      registerLifecycleFactories(st),
+		RegisterValidation:     registerValidationFactory(st),
+		RegisterControl:        registerControlFactories(st),
 		RegisterPlanning:       registerPlanningFactories(st),
 		RegisterEvaluation:     registerEvaluationFactories(st),
 		RegisterBench:          registerBenchFactories(),
-		RegisterSpecValidation: registerSTLFactories(stl.RegisterSpecValidationFactories, st),
+		RegisterSpecValidation: registerSpecValidationFactories(st),
 	}
 }
 
-func registerSTLFactories(register func(*stl.BuiltinRegistry, stl.STLFactoryDeps), st *agentState) toolregistry.FactoryRegistrar {
+func registerFilesystemFactories() toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
-		register(br, stlFactoryDeps(st))
+		fileFactories := []struct {
+			init    string
+			builder func(string) core.Builder
+		}{
+			{"file_read", func(root string) core.Builder { return &filesystem.ReadBuilder{Root: root} }},
+			{"file_write", func(root string) core.Builder { return &filesystem.WriteBuilder{Root: root} }},
+			{"file_edit", func(root string) core.Builder { return &filesystem.EditBuilder{Root: root} }},
+			{"file_find", func(root string) core.Builder { return &filesystem.FindBuilder{Root: root} }},
+			{"file_list", func(root string) core.Builder { return &filesystem.ListFilesBuilder{Root: root} }},
+		}
+		for _, entry := range fileFactories {
+			registerFileFactory(br, entry.init, entry.builder)
+		}
 	}
 }
 
-func stlFactoryDeps(st *agentState) stl.STLFactoryDeps {
-	return stl.STLFactoryDeps{
-		Conversation: st.conversation,
-		Registry:     st.registry,
-		Parser:       func() llm.ResponseParser { return st.parser },
-		Tracer:       st.tracer,
-		ProfilesDir:  flagProfilesDir,
-		Verbose:      st.verbose,
-		Ctx:          st.ctx,
-		Directory:    st.directory,
-		StateStore:   st.stateStore,
-		Tracker:      st.tracker,
-		ParseRetries: st.parseRetries,
-		OnModelResolved: func(cfg stl.InvokeLLMResolvedConfig) {
-			st.parser = cfg.Parser
-			st.model = cfg.Model
-			st.providerName = cfg.ProviderName
-			st.maxDuration = cfg.MaxTime
-			st.maxTokens = cfg.MaxTokens
-		},
+func registerFileFactory(br *toolregistry.BuiltinRegistry, init string, builder func(string) core.Builder) {
+	br.Register(init, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return builder(vars["directory"]), nil
+	})
+}
+
+func registerLLMFactories(st *agentState) toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		br.Register("invoke_llm", invokeLLMFactory(st))
+		br.Register("parse_response", parseResponseFactory(st))
+		br.Register("report_parse_error", reportParseErrorFactory(st))
+		br.Register("reset_history", resetHistoryFactory(st))
+		br.Register("nudge_reread", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+			return &control.NudgeRereadBuilder{Tracer: st.tracer}, nil
+		})
+		br.Register("done", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+			return control.DoneBuilder{}, nil
+		})
+	}
+}
+
+func invokeLLMFactory(st *agentState) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return toollm.NewInvokeLLMBuilder(def, toollm.InvokeLLMFactoryDeps{
+			History:     st.conversation,
+			Registry:    st.registry,
+			Tracer:      st.tracer,
+			ProfilesDir: flagProfilesDir,
+			Verbose:     st.verbose,
+			Ctx:         st.ctx,
+			OnResolved:  onModelResolved(st),
+		})
+	}
+}
+
+func onModelResolved(st *agentState) func(toollm.InvokeLLMResolvedConfig) {
+	return func(cfg toollm.InvokeLLMResolvedConfig) {
+		st.parser = cfg.Parser
+		st.model = cfg.Model
+		st.providerName = cfg.ProviderName
+		st.maxDuration = cfg.MaxTime
+		st.maxTokens = cfg.MaxTokens
+	}
+}
+
+func parseResponseFactory(st *agentState) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &toollm.ParseResponseBuilder{
+			Registry: st.registry,
+			Parser:   st.parser,
+			Tracer:   st.tracer,
+			Verbose:  st.verbose,
+			Retry:    st.parseRetries,
+		}, nil
+	}
+}
+
+func reportParseErrorFactory(st *agentState) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &toollm.ReportParseErrorBuilder{Tracer: st.tracer, Retry: st.parseRetries}, nil
+	}
+}
+
+func resetHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &toollm.ResetHistoryBuilder{History: st.conversation, Tracer: st.tracer}, nil
+	}
+}
+
+func registerLifecycleFactories(st *agentState) toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		lifecycle.RegisterFactories(br, lifecycle.FactoryDeps{StateStore: st.stateStore, Tracer: st.tracer})
+		br.Register("checkpoint_history", checkpointHistoryFactory(st))
+		br.Register("checkpoint_rollback", checkpointRollbackFactory(st))
+	}
+}
+
+func checkpointHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var cfg catalog.CheckpointHistoryConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		return &lifecycle.CheckpointHistoryBuilder{Config: cfg, StateStore: st.stateStore, Ctx: st.ctx}, nil
+	}
+}
+
+func checkpointRollbackFactory(st *agentState) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var cfg catalog.CheckpointRollbackConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		return &lifecycle.CheckpointRollbackBuilder{Config: cfg, StateStore: st.stateStore, Directory: st.directory, Tracer: st.tracer, Ctx: st.ctx}, nil
+	}
+}
+
+func registerValidationFactory(st *agentState) toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		br.Register("validate", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+			return &validation.ValidateBuilder{Tracker: st.tracker, Registry: st.registry, Tracer: st.tracer, Verbose: st.verbose}, nil
+		})
+	}
+}
+
+func registerControlFactories(st *agentState) toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		br.Register("self_invoke", selfInvokeFactory(st))
+	}
+}
+
+func selfInvokeFactory(st *agentState) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		parsed, err := decodeChildAgent(def)
+		if err != nil {
+			return nil, err
+		}
+		return &control.SelfInvokeBuilder{
+			Config:    childExecuteConfig(parsed, vars["model"]),
+			ExtraArgs: directoryArgs(vars["directory"]),
+			Ctx:       st.ctx,
+			Tracer:    st.tracer,
+		}, nil
+	}
+}
+
+func decodeChildAgent(def catalog.ToolDef) (catalog.ChildAgentConfig, error) {
+	var parsed catalog.ChildAgentConfig
+	if err := catalog.DecodeToolConfig(def, &parsed); err != nil {
+		return catalog.ChildAgentConfig{}, err
+	}
+	if err := catalog.ValidateChildAgentConfig(def.Name, parsed); err != nil {
+		return catalog.ChildAgentConfig{}, err
+	}
+	return parsed, nil
+}
+
+func childExecuteConfig(parsed catalog.ChildAgentConfig, model string) execute.Config {
+	return execute.Config{
+		Profile:          parsed.Profile,
+		Machine:          parsed.Machine,
+		Tools:            parsed.Tools,
+		ToolDeclarations: parsed.ToolDeclarations,
+		Model:            model,
+	}
+}
+
+func directoryArgs(directory string) []string {
+	if directory == "" {
+		return nil
+	}
+	return []string{"--directory", directory}
+}
+
+func registerSpecValidationFactories(st *agentState) toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		validation.RegisterSpecFactories(br, st.directory)
 	}
 }
 

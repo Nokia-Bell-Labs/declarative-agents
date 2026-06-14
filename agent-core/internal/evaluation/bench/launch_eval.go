@@ -13,7 +13,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
 
 // LaunchEvalBuilder creates launchEvalCmd instances.
@@ -50,7 +50,7 @@ func (c *launchEvalCmd) Undo() core.Result {
 	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
 }
 func (c *launchEvalCmd) UndoMemento() (core.UndoMemento, error) {
-	payload := stl.BoundaryCompensationPayload{BoundaryCompensation: stl.BoundaryCompensation{
+	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
 		Strategy:       "child_eval_artifact_compensation",
 		Reason:         "launch_eval spawns an evaluator child agent",
 		Requires:       []string{"child_history", "artifact_dir"},
@@ -127,7 +127,7 @@ func agentBinaryPath() string {
 // LaunchEvalFactory returns a registry.BuiltinFactory that reads child agent
 // invocation parameters from tool declaration config.
 func LaunchEvalFactory(bs *BenchState) toolregistry.BuiltinFactory {
-	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var parsed catalog.ChildAgentConfig
 		if err := catalog.DecodeToolConfig(def, &parsed); err != nil {
 			return nil, err

@@ -9,7 +9,6 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
 // RegisterFactories registers bench builtin tool factories (serve_ui,
@@ -19,7 +18,7 @@ import (
 func RegisterFactories(br *toolregistry.BuiltinRegistry, assets fs.FS) {
 	var bs *BenchState
 
-	initBS := func(def stl.ToolDef) *BenchState {
+	initBS := func(def catalog.ToolDef) *BenchState {
 		if bs != nil {
 			return bs
 		}
@@ -49,10 +48,10 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, assets fs.FS) {
 		return bs
 	}
 
-	br.Register("serve_ui", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("serve_ui", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &ServeUIBuilder{BS: initBS(def)}, nil
 	})
-	br.Register("launch_eval", func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
+	br.Register("launch_eval", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		factory := LaunchEvalFactory(initBS(def))
 		return factory(def, vars)
 	})
