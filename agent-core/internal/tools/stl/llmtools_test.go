@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,17 @@ func (s *stubClient) Chat(_ context.Context, _ []llm.Message, _ llm.ChatOptions)
 }
 
 func (s *stubClient) ListModels(_ context.Context) ([]llm.ModelInfo, error) {
+	return nil, nil
+}
+
+type waitClient struct{}
+
+func (w waitClient) Chat(ctx context.Context, _ []llm.Message, _ llm.ChatOptions) (llm.ChatResponse, error) {
+	<-ctx.Done()
+	return llm.ChatResponse{}, ctx.Err()
+}
+
+func (w waitClient) ListModels(_ context.Context) ([]llm.ModelInfo, error) {
 	return nil, nil
 }
 
@@ -87,6 +99,7 @@ func TestInvokeLLM_Success(t *testing.T) {
 	assert.Contains(t, res.Output, "tool_call")
 	assert.Equal(t, 100, res.Cost.TokensIn)
 	assert.Equal(t, 50, res.Cost.TokensOut)
+	assert.Positive(t, res.Cost.Duration)
 	assert.Equal(t, 2, history.Len()) // user + assistant
 }
 
@@ -245,6 +258,27 @@ func TestInvokeLLM_ContextOverflow(t *testing.T) {
 
 	assert.Equal(t, core.CommandError, res.Signal)
 	assert.Contains(t, res.Output, "context window")
+}
+
+func TestInvokeLLM_CallTimeout(t *testing.T) {
+	history := llm.NewConversation(nil, "", llm.ChatOptions{})
+	builder := &InvokeLLMBuilder{
+		Client:      waitClient{},
+		History:     history,
+		Registry:    core.NewRegistry(),
+		Assembler:   &stubAssembler{},
+		Model:       "test-model",
+		Tracer:      noopTracer(),
+		CallTimeout: time.Millisecond,
+		Ctx:         context.Background(),
+	}
+
+	cmd := builder.Build(core.Result{Output: "wait for input"})
+	res := cmd.Execute()
+
+	assert.Equal(t, core.CommandError, res.Signal)
+	assert.ErrorIs(t, res.Err, context.DeadlineExceeded)
+	assert.Positive(t, res.Cost.Duration)
 }
 
 // --- parse_response tests ---

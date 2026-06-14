@@ -914,3 +914,24 @@ test_cases:
       remainder_computed: true
     traces:
       - srd018-cli-flag-contract AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Standard CLI flag constants match contract
+    go_test: TestFlagConstants
+    inputs:
+      constants: "standard child-agent flags"
+    expected:
+      flag_names_match: true
+    traces:
+      - srd018-cli-flag-contract AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: FormatFlag emits prefixed flag pair
+    go_test: TestFormatFlag
+    inputs:
+      name: model
+      value: qwen
+    expected:
+      args: ["--model", "qwen"]
+    traces:
+      - srd018-cli-flag-contract AC4
