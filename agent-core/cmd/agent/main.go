@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"time"
 
@@ -33,16 +32,11 @@ import (
 
 var (
 	flagProfile          string
-	flagMachine          string
-	flagTools            []string
-	flagToolDeclarations []string
-	flagToolConfigDirs   []string
 	flagOTelLog          string
 	flagOTelParent       string
 	flagDirectory        string
-	flagProfilesDir      string
 	flagVerboseTrace     bool
-	flagInput            string
+	flagRequest          string
 	flagOutput           string
 	flagStateStoreDir    string
 	flagResumeCheckpoint string
@@ -64,17 +58,12 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	f := rootCmd.PersistentFlags()
-	f.StringVar(&flagProfile, "profile", "", "path to agent profile YAML (replaces --machine/--tools/--tools-declaration)")
-	f.StringVar(&flagMachine, "machine", "", "path to state machine YAML (required unless --profile)")
-	f.StringArrayVar(&flagTools, "tools", nil, "path to tool selection YAML (repeatable, required unless --profile)")
-	f.StringArrayVar(&flagToolDeclarations, "tools-declaration", nil, "path to tool declaration YAML (repeatable)")
-	f.StringArrayVar(&flagToolConfigDirs, "tool-config-dir", nil, "directory of tool declaration YAMLs (repeatable)")
+	f.StringVar(&flagProfile, "profile", "", "path to agent profile YAML")
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
-	f.StringVar(&flagProfilesDir, "profiles-dir", "", "directory with model profile YAML files (overrides embedded)")
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
-	f.StringVar(&flagInput, "input", "", "input file (e.g. suite YAML for evaluator mode)")
+	f.StringVar(&flagRequest, "request", "", "request data file")
 	f.StringVar(&flagOutput, "output", "", "output directory for eval results (default: eval-results)")
 	f.StringVar(&flagStateStoreDir, "state-store-dir", "", "directory for lifecycle checkpoints")
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
@@ -97,30 +86,22 @@ type agentState struct {
 	verbose      bool
 	ctx          context.Context
 	directory    string
+	request      string
+	output       string
 	stateStore   core.StateStore
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	if flagProfile != "" {
-		if err := applyProfile(flagProfile); err != nil {
-			return err
-		}
-	}
-
-	warnDeprecated(cmd)
-
-	if flagMachine == "" {
-		return fmt.Errorf("--machine is required (or use --profile)")
-	}
-	if len(flagTools) == 0 {
-		return fmt.Errorf("--tools is required (or use --profile)")
+	cfg, err := loadRuntimeConfig()
+	if err != nil {
+		return err
 	}
 
 	var tracer tracing.Tracer = tracing.NoopTracer{}
-	if flagOTelLog != "" {
-		parentCtx, _ := telemetry.ParseParentSpan(flagOTelParent)
-		cfg := telemetry.ExporterConfig{FilePath: flagOTelLog}
-		t, shutdown, err := telemetry.NewRoot("agent", "agent.run", cfg, parentCtx)
+	if cfg.OTelLog != "" {
+		parentCtx, _ := telemetry.ParseParentSpan(cfg.OTelParent)
+		exporter := telemetry.ExporterConfig{FilePath: cfg.OTelLog}
+		t, shutdown, err := telemetry.NewRoot("agent", "agent.run", exporter, parentCtx)
 		if err != nil {
 			return fmt.Errorf("otel init: %w", err)
 		}
@@ -128,55 +109,24 @@ func run(cmd *cobra.Command, args []string) error {
 		tracer = telemetry.TraceAdapter{T: t}
 	}
 
-	var defs []catalog.ToolDef
-	var err error
-	if len(flagToolDeclarations) > 0 || len(flagToolConfigDirs) > 0 {
-		var declarations []catalog.ToolDef
-		if len(flagToolConfigDirs) > 0 {
-			declarations, err = catalog.LoadToolDeclarationsFromDirs(flagToolConfigDirs)
-			if err != nil {
-				return fmt.Errorf("load tool config dirs: %w", err)
-			}
-		}
-		if len(flagToolDeclarations) > 0 {
-			explicit, err := catalog.LoadToolDeclarations(flagToolDeclarations)
-			if err != nil {
-				return fmt.Errorf("load tool declarations: %w", err)
-			}
-			declarations = catalog.MergeToolDefs(declarations, explicit)
-		}
-		var selection []string
-		selection, err = catalog.LoadToolSelections(flagTools)
-		if err != nil {
-			return fmt.Errorf("load tool selection: %w", err)
-		}
-		defs, err = catalog.SelectTools(declarations, selection)
-		if err != nil {
-			return fmt.Errorf("select tools: %w", err)
-		}
-	} else {
-		if len(flagTools) > 1 {
-			return fmt.Errorf("multiple --tools files require --tools-declaration")
-		}
-		defs, err = catalog.LoadToolDefs(flagTools[0])
-		if err != nil {
-			return fmt.Errorf("load tools: %w", err)
-		}
+	defs, err := loadProfileToolDefs(cfg)
+	if err != nil {
+		return err
 	}
 
 	conversation := llm.NewConversation(nil, "", llm.ChatOptions{})
 	tracker := validation.NewToolTracker()
 	var stateStore core.StateStore
-	if flagStateStoreDir != "" {
-		stateStore = core.NewFileStore(flagStateStoreDir)
+	if cfg.StateStoreDir != "" {
+		stateStore = core.NewFileStore(cfg.StateStoreDir)
 	}
 
 	vars := map[string]string{
-		"directory": flagDirectory,
-		"input":     flagInput,
+		"directory": cfg.Directory,
+		"request":   cfg.Request,
 	}
 
-	machineSpec, err := core.LoadMachineSpec(flagMachine)
+	machineSpec, err := core.LoadMachineSpec(cfg.Machine)
 	if err != nil {
 		return fmt.Errorf("load machine spec for budget: %w", err)
 	}
@@ -211,15 +161,17 @@ func run(cmd *cobra.Command, args []string) error {
 		registry:     reg,
 		tracer:       tracer,
 		parseRetries: parseRetries,
-		verbose:      flagVerboseTrace,
+		verbose:      cfg.VerboseTrace,
 		ctx:          cmd.Context(),
-		directory:    flagDirectory,
+		directory:    cfg.Directory,
+		request:      cfg.Request,
+		output:       cfg.Output,
 		stateStore:   stateStore,
 	}
 
 	registerBuiltinFactories(builtins, st, selectedInits)
 
-	if err := toolregistry.RegisterUnifiedTools(reg, builtins, flagDirectory, defs, vars, execBuilder); err != nil {
+	if err := toolregistry.RegisterUnifiedTools(reg, builtins, cfg.Directory, defs, vars, execBuilder); err != nil {
 		return fmt.Errorf("register tools: %w", err)
 	}
 	if st.maxDuration > 0 {
@@ -233,11 +185,11 @@ func run(cmd *cobra.Command, args []string) error {
 		Registry: reg,
 		Tracker:  tracker,
 		Tracer:   tracer,
-		Verbose:  flagVerboseTrace,
+		Verbose:  cfg.VerboseTrace,
 	})
 
 	params := core.LoopParams{
-		MachineFile:  flagMachine,
+		MachineFile:  cfg.Machine,
 		MachineSpec:  &machineSpec,
 		AgentName:    "agent",
 		ModelName:    st.model,
@@ -246,7 +198,7 @@ func run(cmd *cobra.Command, args []string) error {
 		Budget:       budget,
 		ToolAction:   toolAction,
 		Registry:     reg,
-		Directory:    flagDirectory,
+		Directory:    cfg.Directory,
 		StateStore:   stateStore,
 		Hooks: core.LoopHooks{
 			AfterDispatch: afterDispatch,
@@ -257,15 +209,15 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	var result core.RunResult
-	if flagResumeCheckpoint != "" {
+	if cfg.ResumeCheckpoint != "" {
 		if stateStore == nil {
 			return fmt.Errorf("--resume-checkpoint requires --state-store-dir")
 		}
 		resumeResult, err := core.ResumeFromCheckpoint(core.ResumeOptions{
 			Store:        stateStore,
-			CheckpointID: flagResumeCheckpoint,
+			CheckpointID: cfg.ResumeCheckpoint,
 			Params:       params,
-			ResumeSignal: core.Signal(flagResumeSignal),
+			ResumeSignal: core.Signal(cfg.ResumeSignal),
 			RestoreConversation: func(data json.RawMessage) error {
 				var messages []llm.Message
 				if err := json.Unmarshal(data, &messages); err != nil {
@@ -289,6 +241,71 @@ func run(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintf(os.Stderr, "terminal state: %s\n", result.Status)
 	return nil
+}
+
+type runtimeConfig struct {
+	Machine          string
+	Tools            []string
+	ToolDeclarations []string
+	ToolConfigDirs   []string
+	Directory        string
+	Request          string
+	Output           string
+	OTelLog          string
+	OTelParent       string
+	VerboseTrace     bool
+	StateStoreDir    string
+	ResumeCheckpoint string
+	ResumeSignal     string
+}
+
+func loadRuntimeConfig() (runtimeConfig, error) {
+	if flagProfile == "" {
+		return runtimeConfig{}, fmt.Errorf("--profile is required")
+	}
+	p, err := catalog.LoadProfile(flagProfile)
+	if err != nil {
+		return runtimeConfig{}, fmt.Errorf("load profile: %w", err)
+	}
+	directory := flagDirectory
+	if directory == "" {
+		directory = p.Directory
+	}
+	return runtimeConfig{
+		Machine:          p.Machine,
+		Tools:            append([]string(nil), p.Tools...),
+		ToolDeclarations: append([]string(nil), p.ToolDeclarations...),
+		ToolConfigDirs:   append([]string(nil), p.ToolConfigDirs...),
+		Directory:        directory,
+		Request:          flagRequest,
+		Output:           flagOutput,
+		OTelLog:          flagOTelLog,
+		OTelParent:       flagOTelParent,
+		VerboseTrace:     flagVerboseTrace,
+		StateStoreDir:    flagStateStoreDir,
+		ResumeCheckpoint: flagResumeCheckpoint,
+		ResumeSignal:     flagResumeSignal,
+	}, nil
+}
+
+func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
+	declarations, err := catalog.LoadToolDeclarationsFromDirs(cfg.ToolConfigDirs)
+	if err != nil {
+		return nil, fmt.Errorf("load tool config dirs: %w", err)
+	}
+	explicit, err := catalog.LoadToolDeclarations(cfg.ToolDeclarations)
+	if err != nil {
+		return nil, fmt.Errorf("load tool declarations: %w", err)
+	}
+	selection, err := catalog.LoadToolSelections(cfg.Tools)
+	if err != nil {
+		return nil, fmt.Errorf("load tool selection: %w", err)
+	}
+	defs, err := catalog.SelectTools(catalog.MergeToolDefs(declarations, explicit), selection)
+	if err != nil {
+		return nil, fmt.Errorf("select tools: %w", err)
+	}
+	return defs, nil
 }
 
 func selectedBuiltinInits(defs []catalog.ToolDef) map[string]bool {
@@ -377,13 +394,12 @@ func registerLLMFactories(st *agentState) toolregistry.FactoryRegistrar {
 func invokeLLMFactory(st *agentState) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return toollm.NewInvokeLLMBuilder(def, toollm.InvokeLLMFactoryDeps{
-			History:     st.conversation,
-			Registry:    st.registry,
-			Tracer:      st.tracer,
-			ProfilesDir: flagProfilesDir,
-			Verbose:     st.verbose,
-			Ctx:         st.ctx,
-			OnResolved:  onModelResolved(st),
+			History:    st.conversation,
+			Registry:   st.registry,
+			Tracer:     st.tracer,
+			Verbose:    st.verbose,
+			Ctx:        st.ctx,
+			OnResolved: onModelResolved(st),
 		})
 	}
 }
@@ -529,8 +545,8 @@ func registerEvaluationFactories(st *agentState) toolregistry.FactoryRegistrar {
 			Ctx:       st.ctx,
 			Registry:  st.registry,
 			Stderr:    os.Stderr,
-			SuitePath: flagInput,
-			OutputDir: flagOutput,
+			SuitePath: st.request,
+			OutputDir: st.output,
 		})
 	}
 }
@@ -539,47 +555,4 @@ func registerBenchFactories() toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		bench.RegisterFactories(br, benchui.Assets())
 	}
-}
-
-var osStderr io.Writer = os.Stderr
-
-func warnDeprecated(cmd *cobra.Command) {
-	deprecated := []struct {
-		flag    string
-		message string
-	}{
-		{"machine", "deprecated: use --profile instead of --machine"},
-		{"tools", "deprecated: use --profile instead of --tools"},
-		{"tools-declaration", "deprecated: use --profile instead of --tools-declaration"},
-	}
-	for _, d := range deprecated {
-		if cmd.Flags().Changed(d.flag) {
-			fmt.Fprintf(osStderr, "warning: --%s is %s\n", d.flag, d.message)
-		}
-	}
-}
-
-// applyProfile loads an agent profile and fills in any CLI flags that
-// were not explicitly set. Explicit CLI flags always take precedence.
-func applyProfile(path string) error {
-	p, err := catalog.LoadProfile(path)
-	if err != nil {
-		return fmt.Errorf("load profile: %w", err)
-	}
-	if flagMachine == "" {
-		flagMachine = p.Machine
-	}
-	if len(flagTools) == 0 {
-		flagTools = p.Tools
-	}
-	if len(flagToolDeclarations) == 0 {
-		flagToolDeclarations = p.ToolDeclarations
-	}
-	if len(flagToolConfigDirs) == 0 {
-		flagToolConfigDirs = p.ToolConfigDirs
-	}
-	if flagDirectory == "" && p.Directory != "" {
-		flagDirectory = p.Directory
-	}
-	return nil
 }

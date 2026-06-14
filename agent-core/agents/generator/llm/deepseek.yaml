@@ -1,6 +1,5 @@
 # LLM tool declaration for the generator agent — DeepSeek model.
-# Loaded as a tool declaration:
-#   agent --tools-declaration agents/generator/llm/deepseek.yaml ...
+# Loaded through a generator profile tool_declarations entry.
 
 tools:
   - name: invoke_llm
@@ -14,6 +13,7 @@ tools:
       provider: ollama
       provider_url: "http://localhost:11434"
       manifest_state: Composing
+      response_profile: deepseek
       system_prompt: |
         You are a Go developer following specification-driven development. You
         read specifications before writing code. You make minimal, focused

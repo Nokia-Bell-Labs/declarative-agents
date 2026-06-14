@@ -84,7 +84,7 @@ schema:
         - field: response_profile
           type: string
           required: false
-          status: planned
+          status: current
           description: |
             Name of the LLM response parser profile to use for model output
             extraction. The value selects one parser profile from
@@ -93,11 +93,9 @@ schema:
             selected agent profile loads. It is not a process-wide CLI
             override.
           fallback: |
-            Until the profile-only CLI implementation lands, invoke_llm
-            resolves the parser from the model name by matching
-            ProfileSpec.match_prefixes and falls back to the default parser
-            profile when no prefix matches. After response_profile is wired,
-            an omitted value keeps that same model-prefix fallback.
+            When omitted, invoke_llm resolves the parser from the model name
+            by matching ProfileSpec.match_prefixes and falls back to the
+            default parser profile when no prefix matches.
 
         - field: system_prompt
           type: string

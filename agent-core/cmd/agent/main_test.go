@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 )
 
 func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
@@ -145,17 +145,69 @@ func TestRootCommandHasNoLifecycleSubcommands(t *testing.T) {
 func TestRootCommandHasNoLifecycleOnlyFlags(t *testing.T) {
 	t.Parallel()
 
-	for _, flag := range []string{"checkpoint", "to-iteration"} {
-		require.Nil(t, rootCmd.PersistentFlags().Lookup(flag), "lifecycle-only flag %q must not be universal", flag)
+	for _, flag := range []string{
+		"checkpoint", "to-iteration", "machine", "tools",
+		"tools-declaration", "tool-config-dir", "profiles-dir", "input",
+	} {
+		require.Nil(t, rootCmd.PersistentFlags().Lookup(flag), "flag %q must not be public", flag)
 	}
-	for _, flag := range []string{"profile", "state-store-dir", "resume-checkpoint", "resume-signal", "directory", "input"} {
+	for _, flag := range []string{"profile", "state-store-dir", "resume-checkpoint", "resume-signal", "directory", "request"} {
 		require.NotNil(t, rootCmd.PersistentFlags().Lookup(flag), "universal flag %q should remain", flag)
 	}
 	assertMainDeclsAbsent(t, map[string]bool{
 		"flagHistoryCheckpoint":   true,
 		"flagRollbackCheckpoint":  true,
 		"flagRollbackToIteration": true,
+		"flagMachine":             true,
+		"flagTools":               true,
+		"flagToolDeclarations":    true,
+		"flagToolConfigDirs":      true,
+		"flagProfilesDir":         true,
+		"flagInput":               true,
 	})
+}
+
+func TestRootCommandHelpShowsProfileOnlyRuntimeFlags(t *testing.T) {
+	t.Parallel()
+
+	usage := rootCmd.UsageString()
+
+	for _, text := range []string{"--machine", "--tools", "--tools-declaration", "--tool-config-dir", "--profiles-dir", "--input"} {
+		require.NotContains(t, usage, text)
+	}
+	for _, text := range []string{"--profile", "--request", "--output", "--directory"} {
+		require.Contains(t, usage, text)
+	}
+}
+
+func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
+	restore := snapshotAgentFlags()
+	t.Cleanup(func() { restoreAgentFlags(restore) })
+
+	root := repoRootFromTest(t)
+	profiles := []string{
+		"agents/generator/profile.yaml",
+		"agents/evaluator/profile.yaml",
+		"agents/bench/profile.yaml",
+		"agents/jurist/profile.yaml",
+		"agents/lifecycle/history/profile.yaml",
+		"agents/lifecycle/rollback/profile.yaml",
+		"agents/lifecycle/approval/profile.yaml",
+	}
+	for _, rel := range profiles {
+		t.Run(rel, func(t *testing.T) {
+			clearAgentFlags()
+			flagProfile = filepath.Join(root, rel)
+
+			cfg, err := loadRuntimeConfig()
+			require.NoError(t, err)
+			defs, err := loadProfileToolDefs(cfg)
+			require.NoError(t, err)
+			spec, err := core.LoadMachineSpec(cfg.Machine)
+			require.NoError(t, err)
+			require.NoError(t, catalog.ValidateToolEmits(spec, defs))
+		})
+	}
 }
 
 func TestApprovalLifecycleProfileSuspendsAndResumesApproved(t *testing.T) {
@@ -223,16 +275,11 @@ func assertGenDeclNamesAbsent(t *testing.T, decl *ast.GenDecl, forbidden map[str
 
 type agentFlagSnapshot struct {
 	profile          string
-	machine          string
-	tools            []string
-	toolDeclarations []string
-	toolConfigDirs   []string
 	otelLog          string
 	otelParent       string
 	directory        string
-	profilesDir      string
 	verboseTrace     bool
-	input            string
+	request          string
 	output           string
 	stateStoreDir    string
 	resumeCheckpoint string
@@ -242,16 +289,11 @@ type agentFlagSnapshot struct {
 func snapshotAgentFlags() agentFlagSnapshot {
 	return agentFlagSnapshot{
 		profile:          flagProfile,
-		machine:          flagMachine,
-		tools:            append([]string(nil), flagTools...),
-		toolDeclarations: append([]string(nil), flagToolDeclarations...),
-		toolConfigDirs:   append([]string(nil), flagToolConfigDirs...),
 		otelLog:          flagOTelLog,
 		otelParent:       flagOTelParent,
 		directory:        flagDirectory,
-		profilesDir:      flagProfilesDir,
 		verboseTrace:     flagVerboseTrace,
-		input:            flagInput,
+		request:          flagRequest,
 		output:           flagOutput,
 		stateStoreDir:    flagStateStoreDir,
 		resumeCheckpoint: flagResumeCheckpoint,
@@ -261,16 +303,11 @@ func snapshotAgentFlags() agentFlagSnapshot {
 
 func restoreAgentFlags(s agentFlagSnapshot) {
 	flagProfile = s.profile
-	flagMachine = s.machine
-	flagTools = append([]string(nil), s.tools...)
-	flagToolDeclarations = append([]string(nil), s.toolDeclarations...)
-	flagToolConfigDirs = append([]string(nil), s.toolConfigDirs...)
 	flagOTelLog = s.otelLog
 	flagOTelParent = s.otelParent
 	flagDirectory = s.directory
-	flagProfilesDir = s.profilesDir
 	flagVerboseTrace = s.verboseTrace
-	flagInput = s.input
+	flagRequest = s.request
 	flagOutput = s.output
 	flagStateStoreDir = s.stateStoreDir
 	flagResumeCheckpoint = s.resumeCheckpoint
@@ -444,24 +481,4 @@ func saveAgentCheckpoint(t *testing.T, store core.StateStore, cp core.Checkpoint
 	data, err := json.Marshal(cp)
 	require.NoError(t, err)
 	require.NoError(t, store.Save(context.Background(), "checkpoint/"+cp.ID, data))
-}
-
-func TestWarnDeprecatedEmitsWarnings(t *testing.T) {
-	cmd := &cobra.Command{}
-	cmd.Flags().String("machine", "", "")
-	cmd.Flags().StringArray("tools", nil, "")
-	cmd.Flags().StringArray("tools-declaration", nil, "")
-
-	_ = cmd.Flags().Set("machine", "m.yaml")
-
-	var buf bytes.Buffer
-	old := osStderr
-	osStderr = &buf
-	defer func() { osStderr = old }()
-
-	warnDeprecated(cmd)
-
-	out := buf.String()
-	require.Contains(t, out, "--machine is deprecated")
-	require.NotContains(t, out, "--tools is deprecated")
 }

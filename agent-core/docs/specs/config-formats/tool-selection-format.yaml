@@ -32,11 +32,9 @@ cli_mapping:
         files, declaration directories, and explicit declaration files.
         Relative paths are resolved from the profile file.
 
-  implementation_drift: |
-    cmd/agent still accepts --tools, --tools-declaration, and
-    --tool-config-dir until the profile-only CLI follow-up lands.
-    Do not document those flags as normal startup data. Current support is
-    implementation drift.
+  removed_flags: |
+    cmd/agent no longer accepts --tools, --tools-declaration, or
+    --tool-config-dir startup flags. Profile YAML owns those paths.
 
 selection_files:
   - file: agents/generator/tools.yaml

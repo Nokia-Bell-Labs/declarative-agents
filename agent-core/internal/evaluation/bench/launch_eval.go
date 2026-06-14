@@ -91,7 +91,7 @@ func (c *launchEvalCmd) Execute() core.Result {
 	}
 
 	var extraArgs []string
-	extraArgs = append(extraArgs, "--input", suitePath)
+	extraArgs = append(extraArgs, "--request", suitePath)
 	if outputDir, ok := action.Config["output_dir"].(string); ok && outputDir != "" {
 		c.outputDir = outputDir
 		extraArgs = append(extraArgs, "--output", outputDir)

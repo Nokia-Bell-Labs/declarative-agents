@@ -1,8 +1,7 @@
 # LLM variation for evaluation — Qwen 3.6 8B (smaller/faster baseline).
 # The evaluator iterates over llm/*.yaml files to benchmark each model.
 #
-# Loaded as a tool declaration:
-#   agent --tools-declaration agents/evaluator/llm/qwen3-8b.yaml ...
+# Loaded through evaluator harness profile data.
 
 tools:
   - name: invoke_llm
@@ -16,6 +15,7 @@ tools:
       provider: ollama
       provider_url: "http://localhost:11434"
       manifest_state: Composing
+      response_profile: qwen
       system_prompt: |
         You are a Go developer following specification-driven development. You
         read specifications before writing code. You make minimal, focused

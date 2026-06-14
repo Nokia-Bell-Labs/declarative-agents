@@ -21,7 +21,7 @@ actor: Developer benchmarking model performance
 trigger: |
   A developer, or mage integration:uc002, runs:
     agent --profile agents/evaluator/profile.yaml \
-          --input testdata/integration/uc002-evaluator-benchmark/suite.yaml \
+          --request testdata/integration/uc002-evaluator-benchmark/suite.yaml \
           --output eval-results
 
 preconditions:

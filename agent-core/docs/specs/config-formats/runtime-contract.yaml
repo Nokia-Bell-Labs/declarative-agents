@@ -53,11 +53,10 @@ invocation: |
     --otel-log-file      OTel trace output file.
     --otel-parent-span   W3C traceparent for distributed tracing.
 
-  Implementation drift:
-    Current cmd/agent still parses --machine, --tools, --tools-declaration,
-    --tool-config-dir, --profiles-dir, and --input until the profile-only CLI
-    change lands. Do not use those flags as normal startup guidance. The
-    planned runtime surface is --profile plus runtime data and diagnostics.
+  Removed configuration flags:
+    cmd/agent does not expose --machine, --tools, --tools-declaration,
+    --tool-config-dir, --profiles-dir, or --input. The runtime surface is
+    --profile plus runtime data and diagnostics.
 
   Lifecycle request data:
     History and rollback targets are lifecycle tool request data. A request file
@@ -203,11 +202,11 @@ llm_parser_ownership: |
   extraction_pipeline. Agent profiles live under agents/*/profile.yaml and
   select the configured program.
 
-  Current code still accepts --profiles-dir and resolves parser behavior from
-  model-name prefixes through ProfileRegistry. That is implementation drift
-  until the profile-only CLI follow-up moves parser selection fully into the
-  invoke_llm config. Custom parser behavior should be added as a parser profile
-  YAML and referenced by response_profile from the agent-local LLM declaration.
+  Current code resolves parser behavior from response_profile in invoke_llm
+  config. When response_profile is omitted, it falls back to model-name prefix
+  matching through ProfileRegistry and then the default parser profile. Custom
+  parser behavior should be added as a parser profile YAML and referenced by
+  response_profile from the agent-local LLM declaration.
 
 nested_machines: |
   Some tools spawn nested core.Loop instances (run_point) or child
