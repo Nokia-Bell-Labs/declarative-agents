@@ -5,9 +5,8 @@ releases:
   - version: "00.0"
     name: Core engine and supporting packages
     description: |
-      Import the generic agentic loop engine from the generator project.
-      Add the support packages needed for models, prompts, tools,
-      specifications, telemetry, and CLI behavior.
+      Import the generic agentic loop engine from the generator project and add
+      the support packages that make it usable as a library.
     status: done
     srds:
       - srd001-core-types
@@ -36,13 +35,12 @@ releases:
   - version: "01.0"
     name: Unified agent binary and configuration-driven architecture
     description: |
-      Consolidate generator, planner, and evaluator into the cmd/agent binary
-      driven by YAML configurations. Original projects become
-      configuration-only repositories.
-
-      Profile-driven machines, selected tool declarations, model
-      configuration, planner packages, evaluator support, bench UI support,
-      native Mage targets, and Go tests are part of this release.
+      Consolidate generator behavior into the cmd/agent binary. Planner and
+      evaluator behavior move there too, but YAML profiles still choose the
+      active machine and selected tools. Profile-driven machines and selected
+      tool declarations become the normal runtime path. Model configuration,
+      planner packages, evaluator support, bench UI support, native Mage
+      targets, and Go tests round out the release.
     status: done
     srds:
       - srd019-eval-harness
@@ -65,12 +63,11 @@ releases:
   - version: "02.0"
     name: Rollback lifecycle and tool language documentation
     description: |
-      Checkpoint, suspend, resume, and rollback lifecycle foundations are
-      implemented in the runtime. Lifecycle profiles expose checkpoint history
-      and rollback through first-class STL builtin tools. Tool-as-vocabulary
-      authoring and sentence-to-word migration guidance are specified. Remaining
-      work covers documentation, reference-profile follow-up, and the planned
-      internal/tools package split.
+      Runtime checkpoint behavior is implemented. Suspend, resume, and rollback
+      foundations are implemented too. Lifecycle profiles expose checkpoint
+      history and rollback through first-class STL builtin tools. Remaining
+      work covers documentation cleanup and the planned internal/tools package
+      split.
     status: in_progress
     srds:
       - srd025-rollback-lifecycle
@@ -97,14 +94,13 @@ releases:
     name: Declarative REST client and server tools
     description: |
       Add REST client and REST server tools as declarative boundary tool
-      families. Outbound words call configured upstreams. Inbound words launch
+      families. Outbound words call configured upstreams; inbound words launch
       from agent profiles and bind configured addresses. OpenAPI documents and
-      REST definitions live with agent/profile/tool configuration, not compiled
-      service adapters.
-
-      Planned deliverables include internal/tools/rest, net/http client and
-      server behavior, OpenAPI 3 loading through kin-openapi, shared REST
-      definitions, async inbox support, and no generated Go clients or servers.
+      REST definitions live with configuration. The planned runtime package is
+      internal/tools/rest. net/http supplies client and server behavior.
+      OpenAPI 3 loading uses kin-openapi. Shared REST definitions and async
+      inbox support are planned, while generated Go clients and servers are
+      excluded.
     status: planned
     srds:
       - srd027-rest-tool-runtime
