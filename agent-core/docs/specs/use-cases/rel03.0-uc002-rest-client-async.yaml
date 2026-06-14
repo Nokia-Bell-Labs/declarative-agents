@@ -1,0 +1,63 @@
+id: rel03.0-uc002-rest-client-async
+title: Grammar sends and awaits an asynchronous REST client operation
+
+summary: |
+  An agent profile needs to submit outbound REST work without blocking the
+  grammar until the remote service finishes. The profile uses rest_client_send
+  for submission and stores AsyncRequest state. Later, perhaps after several
+  local actions, MachineSpec dispatches rest_client_await with a request ID and
+  routes the final response signal.
+
+actor: Agent profile author configuring asynchronous outbound REST work
+
+trigger: |
+  Some external work outlives one machine step. The agent submits it, keeps
+  moving, and waits only when the grammar reaches the await state.
+
+flow:
+  - F1: The author defines a REST operation with async.request_id, async.timeout, async.state_retention, and optional idempotency_token.
+  - F2: The author declares a rest_client_send ToolDef for the operation and a separate rest_client_await ToolDef for completion.
+  - F3: MachineSpec dispatches rest_client_send from SubmitRemoteWork.
+  - F4: rest_client_send validates input, submits the configured request, records AsyncRequest state, and emits RESTAccepted or CommandError.
+  - F5: MachineSpec routes RESTAccepted to PrepareLocalContext and routes CommandError to retry or failure handling.
+  - F6: The grammar performs local work while the remote request is pending.
+  - F7: MachineSpec dispatches rest_client_await from AwaitRemoteWork with the request ID or correlation token.
+  - F8: rest_client_await reads AsyncRequest state and emits RESTResponded, RESTFailed, RESTMissing, RESTAwaitTimedOut, or CommandError.
+  - F9: MachineSpec routes the final signal to response handling, missing-resource handling, timeout recovery, or infrastructure failure handling.
+
+touchpoints:
+  - T1: "srd027-rest-tool-runtime R5.3, R5.5, R5.6, R5.7 -- non-blocking send and await use request state and declared signals"
+  - T2: "srd028-rest-client-tools R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7 -- async client words define send, await, request ID, signals, and state retention"
+  - T3: "srd028-rest-client-tools R8.1, R8.2, R8.3, R8.4, R8.5 -- idempotency and retry metadata are configured"
+  - T4: "srd028-rest-client-tools R10.6, R10.7 -- undo expectations for send and await are explicit"
+  - T5: "cfg-rest-tool-format async_client_config -- async request_id, correlation, idempotency_token, await_operation, timeout, and state_retention fields are documented"
+  - T6: "sm-rest-tool-language AsyncRequest and rest_client_send_to_AsyncRequest -- outbound pending state is command/domain state"
+
+success_criteria:
+  - id: S1
+    criterion: Send and await are separate MachineSpec actions with an intervening local-work state.
+    traces:
+      - srd027-rest-tool-runtime AC5
+      - srd028-rest-client-tools AC5
+  - id: S2
+    criterion: The send result contains request ID, operation ID, idempotency metadata, and correlation metadata.
+    traces:
+      - srd028-rest-client-tools AC5
+  - id: S3
+    criterion: Await routes RESTResponded, RESTFailed, RESTMissing, RESTAwaitTimedOut, and CommandError explicitly.
+    traces:
+      - srd028-rest-client-tools AC6
+      - srd028-rest-client-tools AC9
+  - id: S4
+    criterion: Retry and idempotency policy are declared in REST config, not hidden in Go code.
+    traces:
+      - srd028-rest-client-tools AC8
+
+out_of_scope:
+  - Running parallel goroutine scheduling tests.
+  - Defining every polling protocol shape.
+  - Implementing cancellation against each external service.
+  - Creating the release 03.0 test suite.
+
+semantic_model: sm-rest-tool-language
+config_format: cfg-rest-tool-format

@@ -1,0 +1,66 @@
+id: rel03.0-uc004-openapi-import
+title: OpenAPI import defines REST operations and endpoint bindings
+
+summary: |
+  An agent profile imports selected OpenAPI 3 operations into the internal REST
+  definition model. The import supplies operation IDs and the HTTP contracts
+  behind them. Tool declarations stay explicit. They reference imported
+  definitions by name, so the grammar can call create_payment or
+  launch_payment_webhooks without exposing a raw service catalog. No Go client
+  or server code is generated.
+
+actor: Agent profile author integrating an OpenAPI-described service
+
+trigger: |
+  A service already publishes an OpenAPI 3 document. The agent needs less than
+  the whole document. Only a few operations belong in this grammar, and the
+  profile author chooses them before any ToolDef can reference the import.
+
+flow:
+  - F1: The author defines rest.openapi with a path or trusted URL, optional base_url, client expose allowlist, and server bind map.
+  - F2: The author adds per-operation side_effects and reversibility metadata for imported operations that cross external service boundaries.
+  - F3: The runtime loads, resolves, and validates the OpenAPI document through github.com/getkin/kin-openapi/openapi3.
+  - F4: The import compiles selected operation IDs into the same internal RestDefinition model as hand-authored YAML.
+  - F5: The author declares ToolDefs such as create_payment, await_payment, and launch_payment_webhooks that reference imported operations or endpoints.
+  - F6: MachineSpec dispatches the explicit ToolDef names. It does not dispatch raw OpenAPI operation IDs.
+  - F7: Client ToolDefs use imported request and response schemas for parameter validation and response mapping.
+  - F8: Server ToolDefs use bind mappings to attach imported paths and methods to configured endpoint binding kinds.
+  - F9: Duplicate, missing, or incompatible operation IDs fail validation before the agent runs.
+
+touchpoints:
+  - T1: "srd027-rest-tool-runtime R3.1, R3.2, R3.3, R3.4, R3.5, R3.6 -- OpenAPI 3 imports compile into the same internal model without generated Go code"
+  - T2: "srd028-rest-client-tools R1.3, R2.3, R7.1, R7.3 -- client operations use configured definitions and response schemas"
+  - T3: "srd029-rest-server-tools R8.1, R8.2, R8.3, R8.4, R8.5 -- OpenAPI operation IDs bind server endpoints"
+  - T4: "srd027-rest-tool-runtime R2.3, R2.4, R2.5 -- ToolDef remains the vocabulary contract and runtime cannot choose arbitrary authority"
+  - T5: "cfg-rest-tool-format openapi_import fields -- path, base_url, expose, bind, side_effects, and reversibility are specified"
+  - T6: "cfg-rest-tool-format validation rules V2, V3, V7, V12 -- duplicate and missing operation IDs, side effects, and endpoint names are checked"
+  - T7: "sm-rest-tool-language OpenAPIImport -- source documents populate RestDefinition without replacing ToolDef words"
+
+success_criteria:
+  - id: S1
+    criterion: The OpenAPI import exposes only allowlisted client operation IDs.
+    traces:
+      - srd027-rest-tool-runtime AC3
+  - id: S2
+    criterion: Server bind mappings connect selected operation IDs to configured endpoint bindings.
+    traces:
+      - srd029-rest-server-tools AC8
+  - id: S3
+    criterion: Tool declarations stay explicit and reference imported definitions from config.
+    traces:
+      - srd027-rest-tool-runtime AC2
+      - srd028-rest-client-tools AC1
+  - id: S4
+    criterion: The import path does not generate Go clients or servers.
+    traces:
+      - srd027-rest-tool-runtime AC3
+      - srd029-rest-server-tools AC8
+
+out_of_scope:
+  - Supporting OpenAPI 2.0.
+  - Generating Go clients or servers.
+  - Importing every operation from a service by default.
+  - Creating the release 03.0 test suite.
+
+semantic_model: sm-rest-tool-language
+config_format: cfg-rest-tool-format
