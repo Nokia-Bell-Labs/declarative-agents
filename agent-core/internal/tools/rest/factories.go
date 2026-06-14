@@ -32,6 +32,7 @@ var StandardInits = []string{
 // FactoryDeps holds REST factory dependencies.
 type FactoryDeps struct {
 	Definitions Collection
+	ServerState *ServerState
 }
 
 // ClientToolConfig holds REST client ToolDef config.
@@ -48,6 +49,9 @@ type ServerToolConfig struct {
 
 // RegisterFactories registers REST builtin factories.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
+	if deps.ServerState == nil {
+		deps.ServerState = NewServerState()
+	}
 	for _, init := range StandardInits {
 		br.Register(init, factoryFor(init, deps))
 	}
@@ -57,7 +61,7 @@ func factoryFor(init string, deps FactoryDeps) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		switch init {
 		case InitServerLaunch, InitServerAwait, InitServerStop:
-			return newServerBuilder(def, init, deps.Definitions)
+			return newServerBuilder(def, init, deps)
 		default:
 			return newClientBuilder(def, init, deps.Definitions)
 		}
@@ -82,7 +86,7 @@ func newClientBuilder(def catalog.ToolDef, init string, definitions Collection) 
 	return RestBuilder{ToolName: def.Name, Init: init, Signal: signalFor(init, operation)}, nil
 }
 
-func newServerBuilder(def catalog.ToolDef, init string, definitions Collection) (core.Builder, error) {
+func newServerBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.Builder, error) {
 	var cfg ServerToolConfig
 	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 		return nil, err
@@ -90,10 +94,11 @@ func newServerBuilder(def catalog.ToolDef, init string, definitions Collection) 
 	if cfg.RestRef == "" {
 		return nil, fmt.Errorf("tool %q config requires rest_ref", def.Name)
 	}
-	if _, err := definitions.Server(cfg.RestRef); err != nil {
+	server, err := deps.Definitions.ResolveServer(cfg.RestRef)
+	if err != nil {
 		return nil, err
 	}
-	return RestBuilder{ToolName: def.Name, Init: init, Signal: signalFor(init, Operation{})}, nil
+	return ServerBuilder{ToolName: def.Name, Init: init, Server: server, State: deps.ServerState}, nil
 }
 
 func validateClientToolConfig(toolName string, cfg ClientToolConfig) error {
