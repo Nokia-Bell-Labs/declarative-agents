@@ -20,8 +20,6 @@ type evalSessionSnapshot struct {
 	timeout      int64
 	ollamaURL    string
 	llmTimeout   int64
-	hIdx         int
-	mIdx         int
 	gIdx         int
 	sIdx         int
 	rIdx         int
@@ -43,8 +41,6 @@ func snapshotEvalSession(es *EvalSessionState) evalSessionSnapshot {
 		timeout:      int64(es.timeout),
 		ollamaURL:    es.ollamaURL,
 		llmTimeout:   int64(es.llmTimeout),
-		hIdx:         es.hIdx,
-		mIdx:         es.mIdx,
 		gIdx:         es.gIdx,
 		sIdx:         es.sIdx,
 		rIdx:         es.rIdx,
@@ -69,8 +65,7 @@ func (s evalSessionSnapshot) restore(es *EvalSessionState) {
 	es.timeout = time.Duration(s.timeout)
 	es.ollamaURL = s.ollamaURL
 	es.llmTimeout = time.Duration(s.llmTimeout)
-	es.hIdx, es.mIdx, es.gIdx, es.sIdx, es.rIdx = s.hIdx, s.mIdx, s.gIdx, s.sIdx, s.rIdx
-	es.pIdx = s.pIdx
+	es.pIdx, es.gIdx, es.sIdx, es.rIdx = s.pIdx, s.gIdx, s.sIdx, s.rIdx
 	es.started = s.started
 	es.exhausted = s.exhausted
 	if s.startUnixNS == 0 {
@@ -169,8 +164,6 @@ func pointContextMemento(commandName string, snap pointContextSnapshot, ok bool)
 
 func cloneSuiteConfig(in SuiteConfig) SuiteConfig {
 	out := in
-	out.Harnesses = append([]Harness(nil), in.Harnesses...)
-	out.Models = append([]string(nil), in.Models...)
 	out.Profiles = append([]SuiteProfile(nil), in.Profiles...)
 	out.Samples = append([]Sample(nil), in.Samples...)
 	if in.Grid != nil {
@@ -216,11 +209,5 @@ func clonePointContext(in *PointContext) *PointContext {
 	}
 	out := *in
 	out.GridPoint = cloneGridPoint(in.GridPoint)
-	if in.Harness.Flags != nil {
-		out.Harness.Flags = make(map[string]interface{}, len(in.Harness.Flags))
-		for k, v := range in.Harness.Flags {
-			out.Harness.Flags[k] = v
-		}
-	}
 	return &out
 }

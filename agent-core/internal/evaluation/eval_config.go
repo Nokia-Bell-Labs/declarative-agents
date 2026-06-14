@@ -16,14 +16,11 @@ type Sample struct {
 	WorkspaceDir string
 }
 
-// Harness defines a harness binary and its flag template.
-// Deprecated: use SuiteProfile with --profile instead.
+// Harness names the child agent binary used for a resolved suite profile.
 type Harness struct {
-	Name    string                 `yaml:"name"`
-	Binary  string                 `yaml:"binary"`
-	Module  string                 `yaml:"module"`
-	Version string                 `yaml:"version"`
-	Flags   map[string]interface{} `yaml:"flags"`
+	Name    string
+	Binary  string
+	Version string
 }
 
 // SuiteProfile is a resolved profile entry in a suite configuration.

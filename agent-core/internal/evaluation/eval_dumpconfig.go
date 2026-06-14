@@ -50,17 +50,6 @@ func (c *dumpConfigCmd) Execute() core.Result {
 
 	exp.AgentCommit = gitCommitHash()
 
-	for flag, val := range pc.Harness.Flags {
-		switch flag {
-		case "machine":
-			exp.Harness.Machine = readFileContent(fmt.Sprintf("%v", val))
-		case "tools":
-			exp.Harness.Tools = readFileContent(fmt.Sprintf("%v", val))
-		case "tools-declaration":
-			exp.Harness.ToolDeclarations = readToolDeclarations(val)
-		}
-	}
-
 	out, err := yaml.Marshal(exp)
 	if err != nil {
 		return core.Result{
@@ -100,53 +89,12 @@ type experimentConfig struct {
 }
 
 type experimentHarness struct {
-	Name             string                   `yaml:"name"`
-	Binary           string                   `yaml:"binary"`
-	Machine          map[string]interface{}   `yaml:"machine,omitempty"`
-	Tools            map[string]interface{}   `yaml:"tools,omitempty"`
-	ToolDeclarations []map[string]interface{} `yaml:"tool_declarations,omitempty"`
+	Name   string `yaml:"name"`
+	Binary string `yaml:"binary"`
 }
 
 type experimentSample struct {
 	Name string `yaml:"name"`
-}
-
-func readFileContent(path string) map[string]interface{} {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return map[string]interface{}{"_error": fmt.Sprintf("read %s: %v", path, err)}
-	}
-	var content map[string]interface{}
-	if err := yaml.Unmarshal(data, &content); err != nil {
-		return map[string]interface{}{"_error": fmt.Sprintf("parse %s: %v", path, err)}
-	}
-	return content
-}
-
-func readToolDeclarations(val interface{}) []map[string]interface{} {
-	var paths []string
-	switch v := val.(type) {
-	case string:
-		paths = strings.Split(v, ",")
-	case []interface{}:
-		for _, elem := range v {
-			paths = append(paths, fmt.Sprintf("%v", elem))
-		}
-	default:
-		return nil
-	}
-
-	var result []map[string]interface{}
-	for _, p := range paths {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		content := readFileContent(p)
-		content["_source"] = filepath.Base(p)
-		result = append(result, content)
-	}
-	return result
 }
 
 func gitCommitHash() string {

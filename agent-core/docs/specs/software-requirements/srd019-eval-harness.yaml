@@ -2,7 +2,7 @@ id: srd019-eval-harness
 title: Evaluation Harness Infrastructure
 
 problem: |
-  Running reproducible benchmarks across multiple LLM models and coding
+  Running reproducible benchmarks across multiple LLM profiles and coding
   tasks requires orchestrating workspace preparation, agent subprocess
   execution, result validation, metrics collection, and configuration
   snapshotting. Without a shared harness, each benchmark script
@@ -29,18 +29,18 @@ requirements:
   R1:
     title: Suite configuration
     items:
-      - R1.1: SuiteConfig defines name, profiles, grid parameters, samples directory, timeout, and repetitions. Profile paths are the preferred suite dimension.
+      - R1.1: SuiteConfig defines name, profiles, grid parameters, samples directory, timeout, and repetitions. Profile paths are the required suite dimension.
       - R1.2: SuiteProfile resolves each profile path relative to the suite file, loads the AgentProfile, derives a display name and model from the profile-selected invoke_llm declaration, and uses the agent binary as the harness process.
       - R1.3: DiscoverSamples scans a directory for subdirectories containing workspace/ and prompt.yaml files.
       - R1.4: LoadSuite reads a YAML suite file and resolves samples relative to the suite's base directory.
       - R1.5: expandGrid generates the Cartesian product of all grid parameter values.
-      - R1.6: Suite parsing SHALL reject suites that mix profiles with harnesses/models, suites with neither profiles nor harnesses, legacy harnesses without name or binary, and legacy harness suites without models.
-      - R1.7: Legacy harnesses/models fields remain supported only for compatibility. Harness specifies a binary, flag templates, and optional grid parameter interpolation via ${param} syntax.
+      - R1.6: Suite parsing SHALL reject suites without profiles and SHALL reject obsolete suite fields that bypass profile-selected runtime configuration.
+      - R1.7: Suite YAML SHALL NOT define child binary flags directly; each referenced profile owns its machine, tool selection, declarations, and boundary-tool config.
 
   R2:
     title: Evaluation session execution
     items:
-      - R2.1: The session state machine (agents/evaluator/machine.yaml) initializes the suite via parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary, then iterates profile suites in (profile, gridPoint, sample, repetition) order via next_point, run_point, and report_session, running each point through a nested core.Loop. Legacy suites iterate (harness, model, gridPoint, sample, repetition).
+      - R2.1: The session state machine (agents/evaluator/machine.yaml) initializes the suite via parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary, then iterates suites in (profile, gridPoint, sample, repetition) order via next_point, run_point, and report_session, running each point through a nested core.Loop.
       - R2.2: PointContext holds per-point mutable state (directories, trace path, tokens, results, timing).
       - R2.3: EvalState is the shared state container whose PC field is updated before each point's loop run.
       - R2.4: SessionResult and PointResult capture aggregate and per-point outcomes.
@@ -56,8 +56,8 @@ requirements:
       - R3.1.4: init_workspace_repo SHALL initialize git only in PointContext.PointDir.
       - R3.1.5: stage_workspace_baseline SHALL stage all current point workspace files.
       - R3.1.6: commit_workspace_baseline SHALL create the baseline commit for the point workspace.
-      - R3.2: dump_config serializes the resolved profile path, harness label, model, timeout, repetition, sample, and legacy machine/tools/tool declarations when present into experiment.yaml.
-      - R3.3: run_agent executes the harness binary as a subprocess with flag propagation, timeout, and OTel context. Profile points pass --profile <path>; legacy points pass --model plus harness flags.
+      - R3.2: dump_config serializes the resolved profile path, harness label, model, timeout, repetition, and sample into experiment.yaml.
+      - R3.3: run_agent executes the harness binary as a subprocess with timeout and OTel context. Each point passes --profile <path>.
       - R3.4: run_oracle_check runs oracle tests and records pass/fail output independently from trace parsing.
       - R3.5: collect_trace_tokens parses trace files for token counts and treats a missing trace as a successful zero-token result.
       - R3.6: check_agent_version compares configured harness version with traced agent version and emits a warning signal on mismatch.
@@ -83,7 +83,7 @@ requirements:
 non_goals:
   - LLM-based evaluation (the evaluator is deterministic, no LLM calls).
   - Parallel point execution within a single session.
-  - Automatic model management (pulling/loading Ollama models).
+  - Automatic LLM artifact management.
 
 acceptance_criteria:
   - id: AC1

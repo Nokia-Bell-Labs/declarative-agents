@@ -51,12 +51,9 @@ type EvalSessionState struct {
 	ollamaURL  string
 	llmTimeout time.Duration
 
-	// Iterator indices into the (harness, model, gridpoint, sample, rep) space (legacy)
-	// or (profile, gridpoint, sample, rep) space (profile mode)
-	hIdx, mIdx, gIdx, sIdx, rIdx int
-	pIdx                         int
-	started                      bool
-	exhausted                    bool
+	pIdx, gIdx, sIdx, rIdx int
+	started                bool
+	exhausted              bool
 
 	start time.Time
 }
@@ -107,14 +104,6 @@ func (s *EvalSessionState) NextPoint() (*PointContext, bool) {
 	if s.exhausted {
 		return nil, false
 	}
-
-	if len(s.Suite.Profiles) > 0 {
-		return s.nextPointProfile()
-	}
-	return s.nextPointLegacy()
-}
-
-func (s *EvalSessionState) nextPointProfile() (*PointContext, bool) {
 	if !s.started {
 		s.started = true
 		s.pIdx, s.gIdx, s.sIdx, s.rIdx = 0, 0, 0, 0
@@ -157,58 +146,6 @@ func (s *EvalSessionState) nextPointProfile() (*PointContext, bool) {
 		LLMTimeout:  s.llmTimeout,
 		OllamaURL:   s.ollamaURL,
 		Stderr:      s.Stderr,
-	}
-
-	return pc, true
-}
-
-func (s *EvalSessionState) nextPointLegacy() (*PointContext, bool) {
-	if !s.started {
-		s.started = true
-		s.hIdx, s.mIdx, s.gIdx, s.sIdx, s.rIdx = 0, 0, 0, 0, 0
-	} else {
-		s.rIdx++
-		if s.rIdx >= s.reps {
-			s.rIdx = 0
-			s.sIdx++
-		}
-		if s.sIdx >= len(s.Suite.Samples) {
-			s.sIdx = 0
-			s.gIdx++
-		}
-		if s.gIdx >= len(s.gridPoints) {
-			s.gIdx = 0
-			s.mIdx++
-		}
-		if s.mIdx >= len(s.Suite.Models) {
-			s.mIdx = 0
-			s.hIdx++
-		}
-		if s.hIdx >= len(s.Suite.Harnesses) {
-			s.exhausted = true
-			return nil, false
-		}
-	}
-
-	harness := s.Suite.Harnesses[s.hIdx]
-	model := s.Suite.Models[s.mIdx]
-	gp := s.gridPoints[s.gIdx]
-	sample := s.Suite.Samples[s.sIdx]
-
-	pointID := EvalPointID(sample.Name, harness.Name, model, gp, s.rIdx)
-
-	pc := &PointContext{
-		SessionDir: s.SessionDir,
-		PointID:    pointID,
-		Sample:     sample,
-		Harness:    harness,
-		Model:      model,
-		GridPoint:  gp,
-		Rep:        s.rIdx,
-		Timeout:    s.timeout,
-		LLMTimeout: s.llmTimeout,
-		OllamaURL:  s.ollamaURL,
-		Stderr:     s.Stderr,
 	}
 
 	return pc, true

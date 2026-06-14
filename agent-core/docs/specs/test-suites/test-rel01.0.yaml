@@ -12,7 +12,7 @@ preconditions:
   - bin/agent is buildable through mage build or the integration target helper.
   - Ollama is available for live generator and evaluator integration targets.
   - qwen3.6:35b-mlx is available for mage integration:uc001.
-  - qwen3.6:35b-mlx and qwen3.6:27b-mlx are available for mage integration:uc002.
+  - qwen3.6:35b-mlx and qwen3.6:27b-mlx artifacts are available for mage integration:uc002.
   - Bench visualization requires an eval-results directory and a free port; mage integration:uc003 records the current skip behavior.
 
 test_cases:
@@ -170,7 +170,7 @@ test_cases:
     name: Evaluator setup tools expand suite grid and initialize session
     go_test: TestEvaluatorSessionSetupToolSequence
     inputs:
-      suite: synthetic_profile_or_harness_suite
+      suite: synthetic_profile_suite
       grid: effort_low_high
       repetitions: 2
     expected:
