@@ -2,34 +2,26 @@ id: agent-core
 title: "Agent Core: Framework for Declarative Tool-Language Agents"
 
 executive_summary: |
-  Agent Core is a Go framework for building agents as declarative programs.
+  This framework builds agents as declarative Go programs.
   A program is a state machine wired to a vocabulary of tools. The machine
-  owns sequencing. Tools are contract-bearing words: typed inputs, typed
-  outputs, declared side effects, explicit failure semantics, and a rollback
-  story.
+  owns sequencing. Tool declarations describe typed inputs, typed outputs,
+  side effects, failure semantics, and rollback behavior.
 
-  The framework provides the runtime that interprets those programs: state
-  machine execution, command dispatch, tool registry, budget tracking, event
-  recording, tracing, boundary tool support, prompt assembly, a standard tool
-  library, lifecycle state ports, REST client and server boundary tools, and a
-  unified binary that loads YAML programs.
+  Runtime support interprets the program and records what happens. It executes
+  state machines, dispatches commands, manages registry behavior, tracks
+  budgets, records traces, and loads YAML programs through cmd/agent.
 
-  The core engine (internal/runtime/core) remains domain-agnostic: it drives the loop
-  without knowing what tools exist, which model boundary a machine calls, or what
-  workflow the machine expresses. Higher-level packages (internal/model/llm,
-  internal/model/prompt, internal/observability/telemetry, pkg/spec, and the
-  internal/tools package family) provide reusable infrastructure that
-  configured agents compose into complete systems.
+  internal/runtime/core stays domain-agnostic. It drives the loop without
+  knowing which tools exist, which model boundary a machine calls, or which
+  workflow the machine expresses. Higher-level packages provide model, prompt,
+  telemetry, specification, and tool infrastructure for configured agents.
 
 problem: |
-  The agentic loop pattern -- observe, decide, act, validate, repeat --
-  recurs across agent types. A coding agent loops until tests pass.
-  A research agent loops until it finds an answer. An orchestrator
-  loops until subtasks complete. Each embeds the same machinery:
-  state transitions, budget enforcement, command dispatch with
-  timeout and panic recovery, cost tracking, event logging,
-  OpenTelemetry tracing, tool manifest filtering, model boundary calls,
-  prompt assembly, and standard file/build/subprocess tools.
+  Agentic loop behavior recurs across agent types. A coding agent loops
+  until tests pass. Research agents loop until they find an answer.
+  Orchestrators loop until subtasks complete. Each one needs state transitions,
+  budget enforcement, command dispatch, tracing, model boundary calls, prompt
+  assembly, and standard tools.
 
   When this machinery is coupled to a specific domain, it cannot be reused.
   Building a new agent means reimplementing the same loop plumbing plus
@@ -37,14 +29,13 @@ problem: |
   unfixed in another. Improvements to budget tracking, tracing, or model
   boundary handling require changes in every agent.
 
-  There is a second problem: procedural tool wiring hides program structure.
-  If a tool secretly performs a workflow, the machine cannot show the sequence,
-  validation cannot reason about intermediate signals, and rollback cannot see
-  which state layer changed. A tool that writes files without declaring the
-  effect, mutates conversation state without undo, or invokes a child program
-  without boundary metadata is not a reliable vocabulary word.
+  Procedural tool wiring also hides program structure. When a tool secretly
+  performs a workflow, the machine cannot show the sequence. Validation loses
+  intermediate signals. Rollback cannot see which state layer changed. Tools
+  that write files, mutate conversation state, or invoke child programs need
+  declared effects, undo behavior, and boundary metadata.
 
-  Agent Core extracts the loop engine and its supporting infrastructure into a
+  To solve this, Agent Core extracts the loop engine and its supporting infrastructure into a
   standalone Go library, then makes the configured machine and selected tools
   the program. Domain agents become declarative machines plus tool
   declarations. Go packages provide reusable vocabulary and runtime services.
@@ -106,153 +97,135 @@ tool_language_diagram: |
   ```
 
 what_this_does: |
-  Agent Core is a Go framework comprising library packages and a
-  unified binary (cmd/agent). The binary drives five agent types —
-  generator, evaluator, planner, jurist, and bench — each
-  defined by YAML configurations. It provides a layered set of
-  packages that together implement a complete agentic loop framework.
+  The project ships library packages and a
+  cmd/agent binary. That binary drives generator, evaluator, planner, jurist,
+  and bench profiles from YAML configuration. Library packages supply the
+  layered runtime behind those configured programs.
 
-  Declarative Program Model. Agent behavior is defined by:
-  - MachineSpec: states, signals, terminal states, and transitions.
-  - Tool declarations: vocabulary contracts for builtin, exec, boundary,
-    and internal tools.
-  - Tool selection: the subset of vocabulary available to a configured agent.
-  - Boundary tool config and prompt config: model behavior and tool manifest context.
-  - Lifecycle config: optional StateStore, Workspace, CheckpointPolicy, and
-    rollback/suspend/resume behavior.
+  Declarative programs use MachineSpec for states, signals, terminal states,
+  and transitions. Tool declarations define vocabulary contracts. Tool
+  selection narrows the vocabulary available to each configured agent.
+  Boundary config describes model behavior and tool manifest context. Lifecycle
+  config supplies StateStore, Workspace, CheckpointPolicy, rollback behavior,
+  and suspend behavior.
 
-  Core Engine (internal/runtime/core). The domain-agnostic loop machinery:
-  - State Machine: static transition table mapping (State, Signal) to
-    (NextState, ActionFunc). Domain supplies its own constants.
-  - Command Dispatch: wraps Execute with OTel tracing, timeout, panic
-    recovery, duration measurement, and signal normalization.
-  - Tool Registry: ToolSpec + Builder pairs, state-filtered tool listings,
-    freeze-before-run semantics.
-  - Agentic Loop: budget-tracked iteration driving the state machine
-    with LoopHooks for domain injection.
-  - YAML Machine Config: declarative state machine definition with
-    referential integrity validation and $tool dynamic dispatch.
-  - Types: Command, Result (with ToolMetrics), Signal, Cost, Builder,
-    CommandResolver, SpanOverride, rollback foundation interfaces, and
-    Command.Undo.
+  Core runtime code owns the domain-agnostic loop machinery. The state
+  machine maps State and Signal values to NextState and ActionFunc behavior.
+  Command dispatch wraps Execute with tracing, timeout, panic recovery,
+  duration measurement, and signal normalization. Registry behavior pairs
+  ToolSpec metadata with builders, filters tool listings by state, and freezes
+  before a run. Loop execution tracks budget and delegates domain-specific
+  behavior to LoopHooks. YAML machine config validates declarative state
+  machines and supports dynamic $tool dispatch.
 
-  Model Boundary Support (internal/model/llm). Client interface, Ollama
-  implementation, conversation management, message types, model profiles,
-  response parsing utilities, and ChatOptions used by boundary tools.
+  Model boundary support in internal/model/llm includes clients,
+  conversations, model profiles, response parsing utilities, and ChatOptions
+  used by boundary tools.
 
-  Prompt Assembly (internal/model/prompt). Prompt struct with YAML loading,
+  Prompt assembly in internal/model/prompt provides the Prompt struct, YAML loading,
   system prompt Go template, and tool manifest serialization for
   LLM context injection.
 
-  Standard Tool Library (internal/tools package family). Reusable tool
-  implementations cover file tools, build tools, model-boundary invoke/parse
-  commands, subprocess execution, workspace tools, lifecycle adapters, REST
-  client/server boundary tools, and tool metrics extraction. The current
-  internal/tools/stl package is a compatibility facade while target packages
-  such as internal/tools/catalog, internal/tools/registry, internal/tools/exec,
-  internal/tools/filesystem, internal/tools/llm, internal/tools/rest,
-  internal/tools/lifecycle, internal/tools/control, internal/tools/validation,
-  and internal/tools/undo take ownership. Tools in these packages should behave
-  as vocabulary words or documented boundaries, not hidden workflows.
+  Reusable tool implementations live in the internal/tools package family.
+  These packages cover file tools, build tools, model-boundary commands,
+  subprocess execution, workspace tools, lifecycle adapters, and REST boundary
+  tools. Tool metrics extraction lives there too. The current internal/tools/stl package is
+  a compatibility facade while focused target packages take ownership. Tools in
+  these packages should behave as vocabulary words or documented boundaries, not
+  hidden workflows.
 
-  CLI Flags (internal/support/cli). Utility library for CLI flag constants and
-  argument propagation. Not imported by cmd/agent directly.
+  internal/support/cli provides CLI flag constants and argument propagation as
+  a utility library. cmd/agent does not import it directly.
 
-  Tracing (internal/observability/tracing). Tracer port interface (Push, Event,
-  SetAttributes, RecordError, Context) decoupling the engine from
-  OpenTelemetry internals. Includes NoopTracer for testing.
+  internal/observability/tracing defines the Tracer port with Push, Event,
+  SetAttributes, RecordError, and Context methods. This port decouples the
+  engine from OpenTelemetry internals and includes NoopTracer for tests.
 
-  Telemetry (internal/observability/telemetry). OpenTelemetry implementation:
-  provider setup, exporter config (file + OTLP), root span lifecycle,
-  TraceAdapter satisfying the Tracer port, GenAI semantic convention
-  helpers, W3C traceparent parsing, and offline trace replay.
+  Telemetry code implements OpenTelemetry provider setup, exporter config, root
+  span lifecycle, TraceAdapter, GenAI semantic convention helpers, W3C
+  traceparent parsing, and offline trace replay.
 
-  Specification Tooling (pkg/spec). SRD/UC/TS YAML parsing, dependency
-  graph construction, cross-artifact validation, and corpus management.
+  pkg/spec parses SRD, use case, and test suite YAML. It also builds dependency
+  graphs, validates cross-artifact links, and manages the corpus.
 
   Lifecycle and Rollback Foundations. Optional StateStore, Workspace, and
   CheckpointPolicy ports let agents record state and recover from bad actions
   without changing normal behavior when disabled.
 
 why_we_build_this: |
-  Five reasons.
-
-  First, to enable multiple agent types within the agentic-loop project.
-  The generator (coding agent) was the first agent built on this engine.
-  Future agents -- an outer-loop orchestrator, a research agent, a
-  testing agent -- reuse the same loop machinery without reimplementing
+  The agentic-loop project needs more than one agent type.
+  Generator was the first agent on this engine. Future orchestrator,
+  research, and testing agents can reuse loop machinery instead of rebuilding
   state machines, dispatch, or budget tracking.
 
-  Second, to provide shared infrastructure above the engine layer. Model
-  boundary tools, prompt assembly, and standard tools are needed by every
-  agent. Centralizing them in agent-core avoids duplication and ensures
-  consistent behavior across agents.
+  Shared infrastructure belongs above the engine layer. Model boundary tools,
+  prompt assembly, and standard tools are needed by every agent. Centralizing
+  them in agent-core avoids duplicate implementations and keeps behavior
+  consistent across agents.
 
-  Third, to make agent programs inspectable. A machine.yaml file should show
-  the workflow. Tool declarations should show what each word means, what it
-  emits, what it changes, and how it can be reversed or compensated. This lets
-  humans review the program and lets validation tooling reason about it.
+  Inspectable programs are easier to review. machine.yaml should show the
+  workflow. Tool declarations should show each word's meaning, emitted signals,
+  state changes, and reversal path. Reviewers can inspect the program, and
+  validation tooling can reason about it.
 
-  Fourth, to keep vocabulary and grammar separate. Tools should be reusable
-  words with clear contracts. Machines compose those words into sentences.
-  This prevents workflow-shaped tools from hiding decisions, failure paths, and
-  rollback boundaries inside Go code.
+  Vocabulary and grammar stay separate. Tools are reusable words with clear
+  contracts. Machines compose those words into sentences. Workflow-shaped tools
+  should not hide decisions, failure paths, or rollback boundaries inside Go
+  code.
 
-  Fifth, to accumulate improvements in one place. Better tracing,
-  smarter budget checks, safer panic recovery, improved response
-  parsing, new tool implementations, contract validation, and lifecycle
-  recovery benefit every agent that imports agent-core.
+  Improvements should accumulate in one place. Better tracing, budget checks,
+  panic recovery, response parsing, tool implementations, contract validation,
+  and lifecycle recovery benefit every agent that imports agent-core.
 
 success_criteria:
   engine_agnosticism: |
-    The core engine (internal/runtime/core) does not import model-boundary
+    Core engine code does not import model-boundary
     implementations, file system operations, or domain-specific tool implementations. It
     depends only on internal/observability/tracing, internal/observability/telemetry/genai, the Go standard
     library, OTel attributes, and a YAML parser.
   composability: |
-    A domain agent can build a working agentic loop by supplying: a set
-    of State and Signal constants, a TransitionTable (or YAML machine
-    file), tool Builders registered in a Registry, a TerminalFunc, and
-    optional LoopHooks. No subclassing, no code generation.
+    Domain agents can build a working agentic loop from State and Signal
+    constants, a TransitionTable or YAML machine file, registered tool
+    builders, a TerminalFunc, and optional LoopHooks. No subclassing or code
+    generation is required.
   declarative_programs: |
-    Agent behavior is visible in YAML: machine.yaml owns workflow sequencing,
+    YAML makes agent behavior visible. machine.yaml owns workflow sequencing,
     tool selections identify available vocabulary, and tool declarations define
-    the meaning and contract of each word.
+    each word's meaning and contract.
   tool_contract_completeness: |
-    New tools declare problem, goals, requirements, non-goals, typed input and
-    output contracts, emitted signals, side effects, reversibility, undo,
-    errors, and relationships to neighboring tools.
+    New tools declare the problem, goals, requirements, and non-goals. They
+    also declare typed contracts, emitted signals, side effects, reversibility,
+    undo behavior, errors, and neighboring-tool relationships.
   explicit_boundaries: |
-    Tools that cross model, human, child-process, nested-machine, external API,
+    Boundary tools cross model, human, child-process, nested-machine, external API,
     or workspace boundaries are classified and documented as boundary tools
     rather than mistaken for ordinary deterministic words.
   rest_boundary_tools: |
-    Agent Core supports standalone REST client and REST server tools as
+    Standalone REST client and REST server tools are supported as
     declarative boundary tool families. REST behavior is configured by trusted
     agent/profile/tool YAML, not hard-coded into model-provider adapters or
     hidden inside ordinary tools.
   lifecycle_readiness: |
-    Runtime and tool contracts preserve the separation between agent state,
+    Runtime contracts preserve the separation between agent state,
     command/domain state, and workspace/environment state so checkpoint,
     suspend, resume, and rollback behavior can be enabled without changing
     disabled-mode execution.
   reusable_infrastructure: |
-    Model boundary support (internal/model/llm), prompt assembly
-    (internal/model/prompt), standard tools (internal/tools/* with a temporary
-    internal/tools/stl facade), and tracing (internal/observability/tracing)
-    are shared across agents. Domain agents compose these packages without
-    reimplementing them.
+    Reusable model boundary support, prompt assembly, standard tools, and tracing are
+    shared across agents through internal/model/llm, internal/model/prompt,
+    internal/tools, and internal/observability/tracing. Domain agents compose
+    these packages without reimplementing them.
   budget_enforcement: |
-    Iteration, token, and wall-clock-time limits are enforced by the
-    generic loop. Domain-specific limits (e.g., max build failures)
-    plug in through the BudgetExceeded hook.
+    Generic loop execution enforces iteration, token, and wall-clock-time
+    limits. Domain-specific limits such as max build failures plug in through
+    the BudgetExceeded hook.
   observability: |
-    Every command dispatch is recorded as a RunEvent. The loop emits
+    Command dispatch is recorded as a RunEvent. The loop emits
     OpenTelemetry spans and events for state transitions, budget
     checks, and dispatch outcomes. ToolMetrics on Result enable
     structured progress tracking.
   backward_compatibility: |
-    The generator, planner, and evaluator are now configuration-only
+    Generator, planner, and evaluator are now configuration-only
     repositories. All Go code lives in agent-core and is consumed by
     the unified cmd/agent binary via YAML configurations.
 
@@ -285,17 +258,17 @@ canonical_documents:
 
 dependencies:
   direct:
-    - go.opentelemetry.io/otel (attributes, trace, metric)
-    - go.opentelemetry.io/otel/sdk (trace and metric providers)
-    - go.opentelemetry.io/otel/exporters (OTLP gRPC, stdout)
-    - go.opentelemetry.io/proto/otlp (proto types for replay)
-    - google.golang.org/grpc (OTLP transport)
-    - google.golang.org/protobuf (proto serialization)
-    - gopkg.in/yaml.v3 (YAML parsing)
-    - github.com/stretchr/testify (test assertions)
+    - go.opentelemetry.io/otel for attributes, trace, and metric APIs
+    - go.opentelemetry.io/otel/sdk for trace and metric providers
+    - go.opentelemetry.io/otel/exporters for OTLP gRPC and stdout exporters
+    - go.opentelemetry.io/proto/otlp for replay proto types
+    - google.golang.org/grpc for OTLP transport
+    - google.golang.org/protobuf for proto serialization
+    - gopkg.in/yaml.v3 for YAML parsing
+    - github.com/stretchr/testify for test assertions
   planned_direct:
-    - github.com/getkin/kin-openapi/openapi3 (OpenAPI 3 loading, resolution, and validation for REST tools)
+    - github.com/getkin/kin-openapi/openapi3 for OpenAPI 3 loading, resolution, and validation for REST tools
   indirect:
-    - github.com/dominikbraun/graph (spec dependency graphs)
-    - github.com/google/uuid (trace IDs)
-    - github.com/cenkalti/backoff/v5 (OTLP retry)
+    - github.com/dominikbraun/graph for spec dependency graphs
+    - github.com/google/uuid for trace IDs
+    - github.com/cenkalti/backoff/v5 for OTLP retry
