@@ -5,6 +5,8 @@ package rest
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
@@ -32,4 +34,41 @@ func ParseDefinition(data []byte) (Definition, error) {
 		return Definition{}, err
 	}
 	return file.Rest, nil
+}
+
+// LoadDefinitions reads REST definition files and directories.
+func LoadDefinitions(paths, dirs []string) (Collection, error) {
+	files, err := definitionFiles(paths, dirs)
+	if err != nil {
+		return Collection{}, err
+	}
+	collection := NewCollection()
+	for _, path := range files {
+		def, err := LoadDefinition(path)
+		if err != nil {
+			return Collection{}, err
+		}
+		if err := collection.Add(def); err != nil {
+			return Collection{}, fmt.Errorf("merge REST definition %s: %w", path, err)
+		}
+	}
+	return collection, nil
+}
+
+func definitionFiles(paths, dirs []string) ([]string, error) {
+	files := append([]string(nil), paths...)
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return nil, fmt.Errorf("scan REST config dir %s: %w", dir, err)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
+				continue
+			}
+			files = append(files, filepath.Join(dir, entry.Name()))
+		}
+	}
+	sort.Strings(files)
+	return files, nil
 }
