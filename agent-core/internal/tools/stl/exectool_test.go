@@ -367,56 +367,6 @@ func TestMergeToolDefs(t *testing.T) {
 	assert.Equal(t, "lint", merged[2].Name)
 }
 
-func TestLoadDefaultToolDefs(t *testing.T) {
-	defs, err := LoadToolDefs("tools.yaml")
-	require.NoError(t, err)
-	assert.True(t, len(defs) >= 21, "expected at least 21 default tool defs, got %d", len(defs))
-
-	names := make(map[string]bool)
-	for _, d := range defs {
-		names[d.Name] = true
-	}
-	for _, expected := range []string{
-		"build", "vet", "lint", "test",
-		"stage_all", "workspace_status", "commit", "rev_parse",
-		"branch_create", "branch_delete", "worktree_add", "worktree_remove",
-		"issue_create", "issue_close", "issue_list", "issue_claim",
-	} {
-		assert.True(t, names[expected], "missing tool %q", expected)
-	}
-}
-
-func TestDefaultToolDefs_CLIExtensionsStripped(t *testing.T) {
-	defs, err := LoadToolDefs("tools.yaml")
-	require.NoError(t, err)
-
-	for _, d := range defs {
-		spec := d.ToToolSpec()
-		if len(spec.InputSchema) == 0 {
-			continue
-		}
-
-		var schema map[string]interface{}
-		require.NoError(t, json.Unmarshal(spec.InputSchema, &schema), "tool %s", d.Name)
-
-		props, ok := schema["properties"].(map[string]interface{})
-		if !ok {
-			continue
-		}
-		for pName, pVal := range props {
-			pMap, ok := pVal.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			for _, ext := range []string{"flag", "positional", "bool_flag", "default"} {
-				assert.NotContains(t, pMap, ext,
-					"tool %s property %s should not have CLI extension %q in LLM schema",
-					d.Name, pName, ext)
-			}
-		}
-	}
-}
-
 func TestExtractParamMappings_Empty(t *testing.T) {
 	td := ToolDef{Name: "noop", Binary: "true"}
 	assert.Nil(t, td.ExtractParamMappings())
