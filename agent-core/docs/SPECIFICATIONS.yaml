@@ -478,10 +478,9 @@ coverage_gaps: |
   internal/evaluation/bench/ui embeds React assets; srd020
   and bench integration cover the served API and asset boundary.
 
-  Residual mage audit warnings are known follow-up work. Release 01.0
-  touchpoints should cite R-groups instead of bare SRD IDs. Historical
+  Residual documentation cleanup is tracked as follow-up work. Historical
   roll-backs.md and tools-as-dsl.md references should be normalized to canonical
-  spec IDs. lifecycle-rollback.md needs the same treatment. Orphaned SRD and
+  spec IDs. lifecycle-rollback.md needs the same treatment. Remaining
   uncovered-AC warnings track missing formal YAML test cases for packages that
   already have Go tests.
   This split matters because YAML suites provide traceability evidence, while

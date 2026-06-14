@@ -43,10 +43,10 @@ flow:
   - F13: After done, machine-declared validation runs build → lint → test. All oracle tests pass, transitioning to Succeeded (srd006, srd013).
 
 touchpoints:
-  - T1: "srd006-yaml-machine-config -- MachineSpec loading, $tool dispatch, transition validation"
-  - T2: "srd009-ollama-adapter -- Qwen 3.6 model invocation via Ollama Chat API"
-  - T3: "srd013-standard-tool-library -- file tools, build tools, LLM commands, done"
-  - T4: "srd017-llm-extensions -- qwen profile resolution, thinking-block stripping, envelope extraction"
+  - T1: "srd006-yaml-machine-config R1, R2, R3, R4 -- MachineSpec loading, $tool dispatch, transition validation"
+  - T2: "srd009-ollama-adapter R1, R2, R4 -- configured adapter, Ollama Chat API request, model availability"
+  - T3: "srd013-standard-tool-library R1, R2, R3, R5, R8, R9 -- file tools, build tools, LLM commands, declarations, validation, done"
+  - T4: "srd017-llm-extensions R2, R4 -- qwen profile resolution, thinking-block stripping, envelope extraction"
   - T5: "cfg-runtime-contract -- profile-first invocation and compatibility flags"
   - T6: "cfg-tool-declaration-format -- builtin, exec, and llm tool declarations"
   - T7: "cfg-tool-selection-format -- tools.yaml name-list filtering"

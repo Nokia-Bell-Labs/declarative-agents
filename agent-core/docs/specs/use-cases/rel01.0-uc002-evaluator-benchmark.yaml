@@ -45,10 +45,10 @@ flow:
   - F12: Results are written to eval-results/<suite>/<timestamp>/<point-id>/ with meta.json, trace.ndjson, and experiment.yaml (srd019).
 
 touchpoints:
-  - T1: "srd005-agentic-loop -- Loop drives both session and point state machines"
-  - T2: "srd006-yaml-machine-config -- session and point machine.yaml loading"
-  - T3: "srd016-traceparent -- W3C traceparent propagation to subprocess"
-  - T4: "srd019-eval-harness -- suite parsing, grid eval, all eval tools, result analysis"
+  - T1: "srd005-agentic-loop R4, R5 -- LoopParams and Loop drive both session and point state machines"
+  - T2: "srd006-yaml-machine-config R1, R2, R3, R4 -- session and point machine.yaml loading and validation"
+  - T3: "srd016-traceparent R2, R3 -- W3C traceparent formatting and parent-span context propagation to subprocess"
+  - T4: "srd019-eval-harness R0, R1, R2, R3, R4, R5 -- suite parsing, grid eval, all eval tools, result analysis"
   - T5: "agents/evaluator/*.yaml -- two-level state machine: session states, point states, signals, lifecycle"
   - T6: "testdata/integration/uc002-evaluator-benchmark/suite.yaml -- profile-based qwen35b/qwen27b integration suite"
   - T7: "agents/generator/profile-qwen35b.yaml and profile-qwen27b.yaml -- generator profiles under evaluation"
