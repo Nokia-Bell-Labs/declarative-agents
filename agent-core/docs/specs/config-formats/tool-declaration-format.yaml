@@ -544,8 +544,10 @@ related_documents:
   - cfg-llm-config-format
 
 implementation:
-  - internal/tools/stl/exectool.go
-  - internal/tools/stl/tool_contracts.go
-  - internal/tools/stl/tool_emits.go
-  - internal/tools/stl/toolconfig.go
-  - internal/tools/stl/builtintool.go
+  - internal/tools/catalog/tooldef.go
+  - internal/tools/catalog/loading.go
+  - internal/tools/catalog/contracts.go
+  - internal/tools/catalog/emits.go
+  - internal/tools/catalog/config.go
+  - internal/tools/registry/builtin.go
+  - internal/tools/exec/builder.go

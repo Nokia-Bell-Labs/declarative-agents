@@ -449,5 +449,6 @@ related_documents:
 implementation:
   - tools/builtin/
   - tools/exec/
-  - internal/tools/stl/exectool.go
-  - internal/tools/stl/tool_contracts.go
+  - internal/tools/exec/builder.go
+  - internal/tools/catalog/contracts.go
+  - internal/tools/catalog/schema_compat.go

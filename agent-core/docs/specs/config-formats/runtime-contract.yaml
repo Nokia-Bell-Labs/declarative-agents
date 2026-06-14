@@ -93,7 +93,7 @@ startup_sequence:
       tool selection files, explicit tool declarations, tool config
       directories, and optional workspace directory. Explicit CLI flags still
       take precedence, and deprecated legacy overrides emit warnings.
-    implementation: stl.LoadProfile, applyProfile
+    implementation: catalog.LoadProfile, applyProfile
 
   - step: 2
     name: Load tool definitions
@@ -103,7 +103,7 @@ startup_sequence:
       path as a name-only selection list, and compute the intersection
       (SelectTools). Otherwise, load the single --tools path as a full
       declaration file. Result: []ToolDef.
-    implementation: stl.LoadToolDeclarations, stl.LoadToolDeclarationsFromDirs, stl.LoadToolSelections, stl.SelectTools
+    implementation: catalog.LoadToolDeclarations, catalog.LoadToolDeclarationsFromDirs, catalog.LoadToolSelections, catalog.SelectTools
 
   - step: 3
     name: Preserve tool-owned boundary config
@@ -113,7 +113,7 @@ startup_sequence:
       prompt, timeout, manifest_state, and provider-specific settings. The
       agent binary does not interpret those settings and does not create model
       clients as a startup step.
-    implementation: stl.ToolDef, stl.DecodeToolConfig
+    implementation: catalog.ToolDef, catalog.DecodeToolConfig
 
   - step: 4
     name: Register tool factories
@@ -123,7 +123,7 @@ startup_sequence:
       (Go factories selected by the "init" field). Exec tools are
       wrapped as ExecBuilder instances. Tool config from the
       declaration YAML is passed to factories for parametrization.
-    implementation: stl.RegisterUnifiedTools
+    implementation: registry.RegisterUnifiedTools
 
   - step: 5
     name: Load machine and validate tool signal contracts
@@ -135,7 +135,7 @@ startup_sequence:
       emitted signals must be declared by the machine, and each emitted signal
       must have a transition from the action target state unless that target
       state is terminal.
-    implementation: core.LoadMachineSpec, stl.ValidateToolEmits
+    implementation: core.LoadMachineSpec, catalog.ValidateToolEmits
 
   - step: 6
     name: Configure lifecycle ports
@@ -517,6 +517,6 @@ implementation:
   - internal/runtime/core/loop.go
   - internal/runtime/core/machine.go
   - internal/runtime/core/checkpoint_ops.go
-  - internal/tools/stl/checkpoint_lifecycle.go
+  - internal/tools/lifecycle/checkpoint.go
   - internal/tools/stl/register.go
-  - internal/tools/stl/tool_emits.go
+  - internal/tools/catalog/emits.go
