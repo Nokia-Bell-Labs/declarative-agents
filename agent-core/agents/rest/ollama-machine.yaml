@@ -1,0 +1,49 @@
+name: ollama-rest-model-listing
+purpose: |-
+  Reference REST boundary profile for listing local Ollama models.
+  The machine keeps the OpenAPI-backed REST call as one grammar-visible word.
+configuration:
+  machine: agents/rest/ollama-machine.yaml
+  tools: agents/rest/ollama-tools.yaml
+invariants:
+  - REST authority lives in agents/rest/ollama-rest.yaml.
+  - The selected model-visible manifest contains only ollama_list_models.
+  - OpenAPI imports populate REST definitions without generated Go code.
+initial_state: Idle
+budget:
+  max_iterations: 3
+states:
+  - name: Idle
+    meaning: Initial state before the Ollama REST model listing starts.
+  - name: ListingModels
+    meaning: The configured Ollama model listing REST call is in flight.
+  - name: Succeeded
+    meaning: Terminal. The model list returned from Ollama.
+  - name: Failed
+    meaning: Terminal. The REST boundary word failed.
+terminal_states:
+  - Succeeded
+  - Failed
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: RESTResponded
+    trigger: Ollama returned the configured successful model-listing response.
+  - name: RESTDomainFailed
+    trigger: Ollama returned a configured service-domain failure.
+  - name: CommandError
+    trigger: Runtime or REST boundary infrastructure failed.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: ListingModels
+    action: ollama_list_models
+  - state: ListingModels
+    signal: RESTResponded
+    next: Succeeded
+  - state: ListingModels
+    signal: RESTDomainFailed
+    next: Failed
+  - state: ListingModels
+    signal: CommandError
+    next: Failed
