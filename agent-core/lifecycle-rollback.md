@@ -22,8 +22,6 @@ minimal unless the runtime is configured with a `CheckpointPolicy`.
 With `--directory <workspace>` and no explicit store override, the documented
 default state store is `<workspace>/.agent-state`. That hidden, agent-owned
 directory stores `FileStore` JSON paths such as `checkpoint/<id>`.
-Implementation of the default is tracked by `agent-core-94su.7`; until it
-lands, current builds still require `--state-store-dir`.
 
 Reserve `--state-store-dir` for cases where the workspace-local store is not
 the right place. Common reasons are shared operator storage, external artifact

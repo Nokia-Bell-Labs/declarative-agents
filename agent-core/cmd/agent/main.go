@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -42,6 +43,8 @@ var (
 	flagResumeCheckpoint string
 	flagResumeSignal     string
 )
+
+const defaultStateStoreDirName = ".agent-state"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -116,10 +119,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	conversation := llm.NewConversation(nil, "", llm.ChatOptions{})
 	tracker := validation.NewToolTracker()
-	var stateStore core.StateStore
-	if cfg.StateStoreDir != "" {
-		stateStore = core.NewFileStore(cfg.StateStoreDir)
-	}
+	stateStore := resolveStateStore(cfg)
 
 	vars := map[string]string{
 		"directory": cfg.Directory,
@@ -211,7 +211,7 @@ func run(cmd *cobra.Command, args []string) error {
 	var result core.RunResult
 	if cfg.ResumeCheckpoint != "" {
 		if stateStore == nil {
-			return fmt.Errorf("--resume-checkpoint requires --state-store-dir")
+			return fmt.Errorf("--resume-checkpoint requires --directory or --state-store-dir")
 		}
 		resumeResult, err := core.ResumeFromCheckpoint(core.ResumeOptions{
 			Store:        stateStore,
@@ -306,6 +306,24 @@ func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
 		return nil, fmt.Errorf("select tools: %w", err)
 	}
 	return defs, nil
+}
+
+func resolveStateStore(cfg runtimeConfig) core.StateStore {
+	root := resolveStateStoreRoot(cfg)
+	if root == "" {
+		return nil
+	}
+	return core.NewFileStore(root)
+}
+
+func resolveStateStoreRoot(cfg runtimeConfig) string {
+	if cfg.StateStoreDir != "" {
+		return cfg.StateStoreDir
+	}
+	if cfg.Directory != "" {
+		return filepath.Join(cfg.Directory, defaultStateStoreDirName)
+	}
+	return ""
 }
 
 func selectedBuiltinInits(defs []catalog.ToolDef) map[string]bool {
