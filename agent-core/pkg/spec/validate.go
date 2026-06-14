@@ -647,12 +647,14 @@ func checkToolSideEffectVocab(corpus *Corpus) []Finding {
 // side effects declare category: boundary.
 func checkToolBoundaryCategory(corpus *Corpus) []Finding {
 	boundaryKinds := map[string]bool{
-		"child_agent_execution":    true,
-		"child_process":            true,
-		"nested_machine_execution": true,
-		"external_api":             true,
-		"external_api_call":        true,
-		"human_boundary":           true,
+		"child_agent_execution":     true,
+		"child_process":             true,
+		"nested_machine_execution":  true,
+		"external_api":              true,
+		"external_api_call":         true,
+		"network_listen":            true,
+		"network_listener_shutdown": true,
+		"human_boundary":            true,
 	}
 	var findings []Finding
 	for name, td := range corpus.ToolDeclarations {

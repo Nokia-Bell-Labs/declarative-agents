@@ -439,6 +439,29 @@ tools:
 	require.Contains(t, decls, "read")
 }
 
+func TestDiscoverToolDeclarationsAcceptsRESTSideEffectKinds(t *testing.T) {
+	root := t.TempDir()
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	require.NoError(t, err)
+	restDecls := filepath.Join(repoRoot, "tools", "builtin", "rest", "all.yaml")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "agents", "rest"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "rest", "profile.yaml"), []byte(`
+name: rest
+tool_declarations:
+  - `+restDecls+`
+`), 0o644))
+
+	decls, err := discoverAndParseToolDeclarations(root)
+
+	require.NoError(t, err)
+	require.Contains(t, decls, "rest_server_launch")
+	require.Contains(t, decls, "rest_server_stop")
+	corpus := &Corpus{ToolDeclarations: decls}
+	assert.Empty(t, checkToolSideEffectVocab(corpus))
+	assert.Empty(t, checkToolBoundaryCategory(corpus))
+}
+
 func TestDiscoverToolDeclarationsKeepsAgentLocalOverrides(t *testing.T) {
 	root := t.TempDir()
 
@@ -612,6 +635,14 @@ func TestValidate_ToolSideEffectVocab(t *testing.T) {
 				Name:        "good",
 				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "filesystem_read"}}},
 			},
+			"rest_launch": {
+				Name:        "rest_launch",
+				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "network_listen"}}},
+			},
+			"rest_stop": {
+				Name:        "rest_stop",
+				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "network_listener_shutdown"}}},
+			},
 			"bad": {
 				Name:        "bad",
 				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "invented_kind"}}},
@@ -638,13 +669,19 @@ func TestValidate_ToolBoundaryCategory(t *testing.T) {
 				Category:    "word",
 				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "external_api"}}},
 			},
+			"listener": {
+				Name:        "listener",
+				Category:    "word",
+				SideEffects: ToolDeclSideEffects{Items: []ToolDeclSideEffect{{Kind: "network_listen"}}},
+			},
 		},
 	}
 
 	findings := checkToolBoundaryCategory(corpus)
-	require.Len(t, findings, 1)
-	assert.Contains(t, findings[0].Message, "wrong")
-	assert.Contains(t, findings[0].Message, "boundary")
+	require.Len(t, findings, 2)
+	messages := []string{findings[0].Message, findings[1].Message}
+	assert.Contains(t, messages, `tool "wrong" has boundary side effects but category is "word", expected "boundary"`)
+	assert.Contains(t, messages, `tool "listener" has boundary side effects but category is "word", expected "boundary"`)
 }
 
 func TestValidate_ToolDeclNodesInGraph(t *testing.T) {
