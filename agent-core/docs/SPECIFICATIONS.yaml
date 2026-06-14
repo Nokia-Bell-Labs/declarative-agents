@@ -9,7 +9,7 @@ overview: |
   evaluator, bench, and tool declaration contracts. Rollback lifecycle
   contracts belong to 02.0. Declarative REST runtime, client, and server
   contracts belong to 03.0. Twelve use cases exercise the SRDs across the
-  four releases. Five formal YAML test suites cover 114 acceptance test
+  four releases. Five formal YAML test suites cover 149 acceptance test
   cases across releases 00.0 through 03.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -308,7 +308,7 @@ test_suite_index:
     release: "00.0"
     traces:
       - rel00.0-uc001-domain-agent-integration
-    formal_test_cases: 51
+    formal_test_cases: 83
     path: docs/specs/test-suites/test-rel00.0.yaml
   - id: test-rel01.0
     title: Test Suite for Release 01.0 Unified Agent Runtime
@@ -317,7 +317,7 @@ test_suite_index:
       - rel01.0-uc001-generator-coding
       - rel01.0-uc002-evaluator-benchmark
       - rel01.0-uc003-bench-visualization
-    formal_test_cases: 18
+    formal_test_cases: 21
     path: docs/specs/test-suites/test-rel01.0.yaml
   - id: test-rel02.0-lifecycle
     title: Test Suite for Release 02.0 Rollback Lifecycle
@@ -349,14 +349,15 @@ test_suite_index:
 go_test_coverage:
   note: >
     Go test functions across all packages provide coverage beyond the
-    formal YAML test suites. Release 00.0 YAML coverage (51 cases) covers
-    srd001-srd008. For release 01.0, the YAML suite (18 cases) indexes the
+    formal YAML test suites. Release 00.0 YAML coverage (83 cases) covers
+    srd001-srd018 where Go tests already prove behavior. For release 01.0,
+    the YAML suite (21 cases) indexes the
     generator, evaluator, and bench integration targets plus Go tests for
     profile, machine, tool, child-agent, and result behavior; mage
     integration:uc003 records a skipped/manual-precondition target, not
     automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
-    Release 03.0 YAML coverage (15 cases) names planned Go tests for REST
+    The 03.0 YAML coverage (15 cases) names planned Go tests for REST
     config loading, OpenAPI import, client execution, async send/await, server
     signal handling, and redaction behavior. Package tests cover
     srd009-srd018 and domain packages. Run
@@ -397,30 +398,43 @@ srd_to_use_case_mapping:
     coverage: Full. Covers AC1 through AC9 via SC8 and telemetry initialization.
 
 coverage_gaps: |
-  The original eight core SRDs (srd001-srd008) have full use case
-  touchpoints and formal YAML test suite coverage in release 00.0.
-  SRDs srd009-srd018 (remaining 00.0 SRDs) have Go test coverage but no
-  formal YAML test suites. SRDs srd019-srd024 (01.0) now have formal YAML
+  Original core SRDs srd001-srd008 have use case touchpoints and
+  formal YAML test suite coverage in release 00.0. Release 00.0 now also has
+  formal YAML cases for implemented conversation, prompt, spec graph, GenAI,
+  traceparent, and CLI helper behavior. Remaining release
+  00.0 uncovered criteria need narrower Go tests or migration proof before
+  they should be marked covered. agent-core-ugn4 tracks srd001 AC6 and AC7.
+  It also tracks srd007 AC3. agent-core-28rd tracks srd009 AC5 and AC6.
+  It also tracks srd017 AC4. SRDs srd019-srd024 (01.0) now have formal YAML
   suite coverage tied to integration targets and package tests.
   srd025-srd026 (02.0) have formal YAML coverage in the release 02.0
   lifecycle and tool-contract test suites. Core checkpoint, history, resume,
-  rollback, lifecycle profile, and lifecycle STL adapter behavior is implemented
-  and tested. The approval-gate reference profile is implemented and tested.
+  and rollback behavior is implemented and tested. Lifecycle profile and
+  lifecycle STL adapter behavior is implemented too. The approval-gate
+  reference profile is implemented and tested.
   Tool-language migration proofs remain planned follow-up work.
 
-  SRDs srd027-srd029 (03.0) have formal planned YAML coverage in
+  For 03.0, srd027-srd029 have formal planned YAML coverage in
   test-rel03.0-rest-tools. REST implementation remains planned until code issues
   implement internal/tools/rest, tools/builtin/rest declarations, typed config
   loading, OpenAPI import compilation, REST runtime tests, and profile examples.
 
-  Package coverage follows the current `go list ./...` output. Direct SRD
+  Current `go list ./...` output defines package coverage. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.
   Observability, model-boundary, prompt, tool adapter, CLI, and spec graph
   packages map to srd007-srd018 plus srd022-srd024 and srd026. Those direct
   mappings cover the implementation package families used by runtime support,
   model boundaries, tools, CLI support, and spec validation.
 
-  Release use cases and formal suites cover package groups that implement
+  Uncovered release 01.0 and 02.0 criteria are deferred for specific
+  follow-up. agent-core-rjp3 tracks missing tool declaration coverage for
+  srd013 AC3 through AC5 and AC7. It also tracks srd022 AC2, srd022 AC3,
+  srd023 AC1, and srd023 AC3. agent-core-18qg tracks missing CLI helper,
+  evaluator, bench, child-agent, and blocking-input coverage. The affected
+  criteria are srd018 AC1, srd018 AC4, srd019 AC3, srd020 AC2, srd021 AC1,
+  srd021 AC4, and srd024 AC3 through AC5.
+
+  Use cases and formal suites cover package groups that implement
   configured agent behavior. The cmd/agent package is covered by
   cfg-runtime-contract,
   release 01.0 use cases, test-rel01.0, lifecycle use cases, and Go tests.
@@ -434,7 +448,7 @@ coverage_gaps: |
   internal/support/subprocess is covered by srd013 STL delegation, srd021
   child-agent execution, and execute or STL integration tests.
 
-  Package roots and assets are not specification gaps. internal/model,
+  Root packages and assets are not specification gaps. internal/model,
   internal/observability, internal/planning, internal/runtime, internal/support,
   and internal/tools are package roots or documentation stubs with no standalone
   runtime behavior. internal/evaluation/bench/ui embeds React assets; srd020
