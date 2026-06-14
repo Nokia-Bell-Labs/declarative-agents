@@ -169,6 +169,8 @@ tool_parametrization: |
       evaluator with --profile.
     - execute_task reads "profile" from its config and invokes the child
       generator with --profile.
+    - self_invoke reads "profile" from its config and invokes a configured
+      child agent with --profile.
     - parse_suite_config and evaluator session setup tools read "output_dir",
       "reps", and "timeout" from config.
     - run_point reads "point_machine" and "point_tools" to locate the
@@ -209,8 +211,8 @@ llm_parser_ownership: |
 
 nested_machines: |
   Some tools spawn nested core.Loop instances (run_point) or child
-  agent processes (launch_eval, execute_task). The nested machine
-  path is read from the tool's config block, not hardcoded.
+  agent processes (launch_eval, execute_task, self_invoke). The nested
+  machine path is read from the tool's config block, not hardcoded.
 
   Nested core.Loop (same process):
     run_point reads config.point_machine and config.point_tools
@@ -224,11 +226,38 @@ nested_machines: |
     execute_task reads config.profile
     → subprocess.Run with the same flag
 
-    Compatibility-only declarations may still exist until planned removal.
-    They should not be copied into new docs or new ToolDef config.
+    self_invoke reads config.profile
+    → execute.RunAgent with the same flag
+
+  Child agent process boundaries do not take child machine, tools, or tool
+  declaration paths directly. The child profile owns those paths.
+  Compatibility-only declarations may still exist until planned removal.
+  They should not be copied into new docs or new ToolDef config.
 
   This design allows swapping nested machines by changing YAML config
   without recompiling the binary.
+
+child_agent_boundaries: |
+  Child agent boundary tools are profile-only in the normal runtime contract.
+  execute_task, self_invoke, and launch_eval decode child-agent config from
+  their ToolDef config block. Config must include profile. The child process
+  receives that value as --profile with runtime data such as --directory,
+  --request, --output, and telemetry flags.
+
+  The referenced child profile supplies the child machine, tools.yaml,
+  tool_config_dirs, tool_declarations, LLM boundary declarations, and optional
+  default directory. Parent tools do not pass those program-shaping paths as
+  process flags.
+
+  Current implementation drift remains in internal/support/execute.Config,
+  which still has Machine, Tools, and ToolDeclarations compatibility fields.
+  internal/tools/catalog.ChildAgentConfig still decodes machine, tools, and
+  tools_declarations. internal/planning/pipeline, internal/evaluation/bench,
+  and the planned internal/tools/control package are the affected child agent
+  factory sites.
+
+  The follow-up code issue removes the compatibility fields and requires
+  profile at registration time for child agent boundary tools.
 
 lifecycle: |
   Lifecycle features are runtime ports around the same machine contract, not a
