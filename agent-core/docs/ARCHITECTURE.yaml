@@ -48,7 +48,6 @@ overview:
     - internal/planning/extract — task extraction from requirement graphs
     - internal/planning/graph — requirement DAG construction and traversal
     - internal/planning/materialize — plan-to-issue materialization
-    - internal/support/worktree — git worktree lifecycle management
     - pkg/spec — public specification corpus parsing and validation; mirrors tool declaration fields for corpus audit without importing internal tool packages
 
     Configuration layer (agents/, tools/, and docs/specs/). YAML files defining each agent's
@@ -81,7 +80,6 @@ overview:
         REQGRAPH[internal/planning/graph]
         MAT[internal/planning/materialize]
         EXEC[internal/support/execute]
-        WORKTREE[internal/support/worktree]
         SPEC[pkg/spec]
         BENCH[internal/evaluation/bench]
       end
@@ -853,7 +851,6 @@ overview:
     - internal/planning/extract depends on internal/planning/graph and internal/planning/plan.
     - internal/planning/graph depends on gopkg.in/yaml.v3.
     - internal/planning/materialize depends on internal/planning/plan.
-    - internal/support/worktree depends on os/exec.
     - pkg/spec depends on the Go standard library, gopkg.in/yaml.v3,
       and a graph library.
     - internal/support/subprocess depends on the Go standard library.
@@ -1186,8 +1183,6 @@ project_structure:
       role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
     - path: internal/support/subprocess/
       role: Subprocess execution utilities (Run, EnvVar)
-    - path: internal/audit/
-      role: Constitution-auditor orchestration and audit-specific tool glue
 
   domain:
     - path: internal/support/execute/
@@ -1202,8 +1197,6 @@ project_structure:
       role: Requirement DAG construction, traversal, and persistence
     - path: internal/planning/materialize/
       role: Plan-to-issue materialization (bd create)
-    - path: internal/support/worktree/
-      role: Git worktree lifecycle management
     - path: pkg/spec/
       role: Public specification corpus parsing, graph construction, cross-artifact validation, and mirrored tool declaration completeness checks
 
@@ -1246,18 +1239,16 @@ package_specification_coverage: |
   test-rel01.0, and package tests. internal/support/execute is covered by
   srd021, srd022 AC6, evaluator use cases, and child-agent tests.
 
-  Planning, worktree, and subprocess packages are cross-cutting support
-  packages. Planner packages are covered by planner machine configs,
+  Planning and subprocess packages are cross-cutting support packages.
+  Planner packages are covered by planner machine configs,
   sm-tool-language, sm-tool-vocabulary-audit, and package tests.
-  internal/support/worktree is covered by release 01.0 workspace architecture,
-  sm-rollback-lifecycle, and Go tests. internal/support/subprocess is covered
-  by STL delegation, child-agent execution, and execute or STL integration tests.
+  internal/support/subprocess is covered by STL delegation, child-agent
+  execution, and execute or STL integration tests.
 
   Package roots such as internal/model, internal/observability,
   internal/planning, internal/runtime, internal/support, and internal/tools do
   not define standalone runtime behavior. internal/evaluation/bench/ui embeds
-  React assets behind the bench API. internal/audit is Mage and audit glue
-  governed by constitutions and mage audit behavior.
+  React assets behind the bench API.
 
   Remaining gaps are narrow. Browser-level bench UI proof remains manual or
   skipped until an automated browser harness joins the quality gate. Planner
@@ -1280,7 +1271,6 @@ implementation_status:
     - done: Subprocess (internal/support/subprocess) — process execution utilities
     - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph, internal/planning/materialize)
     - done: Agent execution (internal/support/execute) — subprocess execution with process groups
-    - done: Worktree management (internal/support/worktree) — git worktree lifecycle
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, jurist, bench
     - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching

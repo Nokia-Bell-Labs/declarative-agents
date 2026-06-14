@@ -27,6 +27,11 @@ type MachineSpec struct {
 	BudgetSpec      *BudgetSpec      `yaml:"budget,omitempty"`
 }
 
+// MarshalMachineSpec serializes a MachineSpec to YAML bytes.
+func MarshalMachineSpec(spec MachineSpec) ([]byte, error) {
+	return yaml.Marshal(spec)
+}
+
 // StateSpec describes a state and optional semantic metadata.
 type StateSpec struct {
 	Name    string `yaml:"name"`
