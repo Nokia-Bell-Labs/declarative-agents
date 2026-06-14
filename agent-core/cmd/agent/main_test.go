@@ -95,6 +95,7 @@ func TestBuiltinFactoryCatalogSelectsEntriesByInit(t *testing.T) {
 	require.True(t, byName["spec_validation"].selectedBy(map[string]bool{"validate_specs": true}))
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_history": true}))
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_rollback": true}))
+	require.True(t, byName["documentation"].selectedBy(map[string]bool{"serve_documentation": true}))
 	require.False(t, byName["planning"].selectedBy(map[string]bool{"launch_eval": true}))
 }
 
@@ -121,7 +122,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 		"report_session", "run_agent", "run_oracle_check", "collect_trace_tokens",
 		"check_agent_version", "summarize_point_results", "collect_metrics",
 		"dump_config", "serve_ui", "launch_eval", "load_corpus", "validate_specs",
-		"format_report",
+		"format_report", "serve_documentation",
 	} {
 		require.True(t, covered[init], "catalog should cover init %q", init)
 	}
@@ -193,6 +194,7 @@ func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
 		"agents/lifecycle/history/profile.yaml",
 		"agents/lifecycle/rollback/profile.yaml",
 		"agents/lifecycle/approval/profile.yaml",
+		"agents/knowledge-manager/documentation-curator/profile.yaml",
 	}
 	for _, rel := range profiles {
 		t.Run(rel, func(t *testing.T) {

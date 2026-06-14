@@ -1,0 +1,82 @@
+tools:
+  - name: serve_documentation
+    type: builtin
+    init: serve_documentation
+    visibility: internal
+    emits:
+      - ServerStopped
+      - CommandError
+    description: Start the standalone Knowledge Manager documentation UI and API host.
+    category: boundary
+    problem: The documentation-curator profile needs one host boundary word that starts the documentation UX without relying on bench routes.
+    goals:
+      - Start the documentation UI and API host from profile-owned config.
+      - Serve documentation content from the configured docs root.
+      - Keep bind address and docs path outside cmd/agent code.
+    requirements:
+      input:
+        - must read addr and docs_dir from ToolDef config
+      output:
+        - must emit ServerStopped when the host shuts down cleanly
+        - must emit CommandError when the host cannot start or exits with an error
+      side_effects:
+        - must bind a local HTTP server
+      undo:
+        - must treat server shutdown as an operator-managed compensation
+      errors:
+        - must emit CommandError when docs_dir is missing or the server cannot bind
+    non_goals:
+      - Does not validate or mutate documentation content.
+      - Does not run evaluator or bench workflows.
+      - Does not call an LLM.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    output:
+      description: Documentation host lifecycle status.
+      schema:
+        type: object
+        properties:
+          signal:
+            type: string
+          addr:
+            type: string
+    side_effects:
+      - kind: server
+        target: documentation_curator_http
+        state: running
+        description: Starts the local documentation UX and API server.
+      - kind: external_api
+        target: documentation.host
+        state: read_only
+        description: Exposes read-only documentation list/get/search routes through localhost.
+    reversibility:
+      classification: compensatable
+      undo: server_shutdown
+      requires_confirmation: false
+    undo:
+      strategy: compensating_action
+      description: Stop the documentation host process or release the bound address.
+      requires:
+        - addr
+    errors:
+      - signal: CommandError
+        condition: docs_dir is missing, address binding fails, or the HTTP server exits with an error
+        message_shape: 'serve_documentation: <error>'
+        state_after_failure: no durable docs state is changed
+    relationships:
+      before:
+        - Idle
+      after:
+        - doc_list
+        - doc_get
+        - doc_search
+        - doc_validate
+        - doc_suggest_changes
+      overlaps:
+        - tool: serve_ui
+          difference: serve_documentation hosts Knowledge Manager docs only; serve_ui hosts bench experiment workflows.
+    config:
+      addr: :18081
+      docs_dir: docs

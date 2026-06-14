@@ -1,0 +1,9 @@
+tools:
+  - serve_documentation
+  - doc_list
+  - doc_get
+  - doc_search
+  - doc_validate
+  - doc_suggest_changes
+  - doc_patch_approve
+  - doc_patch_reject
