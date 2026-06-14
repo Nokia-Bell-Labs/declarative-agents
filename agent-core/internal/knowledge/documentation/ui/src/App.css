@@ -1,0 +1,9 @@
+@import '../../../../evaluation/bench/ui/src/App.css';
+
+.app-documentation .docs-layout {
+  min-height: 100vh;
+}
+
+.app-documentation .docs-sidebar {
+  height: 100vh;
+}

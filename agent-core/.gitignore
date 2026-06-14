@@ -10,6 +10,8 @@
 # Bench UI
 pkg/bench/ui/dist/
 pkg/bench/ui/node_modules/
+internal/evaluation/bench/ui/node_modules/
+internal/knowledge/documentation/ui/node_modules/
 bin/
 magefiles/mage_output_file.go
 
