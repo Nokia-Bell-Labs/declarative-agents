@@ -15,6 +15,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation/bench"
 	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation/bench/ui"
+	docsapi "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/knowledge/documentation"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
@@ -379,6 +380,7 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterBench:          registerBenchFactories(),
 		RegisterSpecValidation: registerSpecValidationFactories(st),
 		RegisterREST:           registerRESTFactories(st),
+		RegisterDocumentation:  registerDocumentationFactories(),
 	}
 }
 
@@ -589,5 +591,11 @@ func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
 			Definitions:        st.restDefs,
 			CredentialResolver: toolrest.EmptyCredentialResolver{},
 		})
+	}
+}
+
+func registerDocumentationFactories() toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		docsapi.RegisterFactories(br)
 	}
 }

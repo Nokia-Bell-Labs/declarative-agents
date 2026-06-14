@@ -1,0 +1,64 @@
+name: documentation-curator
+purpose: |-
+  The documentation-curator serves the Knowledge Manager documentation UX and
+  exposes the configured documentation REST workflow. Its first boundary word
+  starts the standalone documentation host. The profile also selects document
+  read, search, trace, validate, suggest, and patch-review REST tools so future
+  curator workflows use configured REST contracts instead of bench-owned routes.
+configuration:
+  machine: agents/knowledge-manager/documentation-curator/machine.yaml
+  tools: agents/knowledge-manager/documentation-curator/tools.yaml
+  tool_declarations:
+    - agents/knowledge-manager/documentation-curator/builtin.yaml
+    - agents/knowledge-manager/documentation-curator/declarations.yaml
+  rest_definitions:
+    - agents/knowledge-manager/documentation-curator/rest.yaml
+invariants:
+  - The documentation host owns docs UI serving for Knowledge Manager documentation.
+  - Runtime authority remains in profile, machine, ToolDef, and REST YAML.
+  - Documentation API access uses localhost-only REST limits from rest.yaml.
+lifecycle: |-
+  1. Idle -> Serving (Seed): serve_documentation starts the documentation host.
+  2. Serving remains active while the HTTP server is running.
+  3. Serving -> Done (ServerStopped): graceful server shutdown stops the machine.
+  4. Serving -> Failed (CommandError): startup or runtime server failure stops the machine.
+pipeline_diagram: |-
+  ```mermaid
+  flowchart TD
+    A[Idle] -->|Seed| B[Serving]
+    B -->|ServerStopped| C[Done]
+    B -->|CommandError| D[Failed]
+  ```
+initial_state: Idle
+budget:
+  max_iterations: 10000
+states:
+  - name: Idle
+    meaning: Initial state before the documentation host starts.
+  - name: Serving
+    meaning: The standalone documentation UX and API host is running.
+  - name: Failed
+    meaning: Terminal. The documentation host could not start or returned an error.
+  - name: Done
+    meaning: Terminal. The documentation host shut down cleanly.
+terminal_states:
+  - Done
+  - Failed
+signals:
+  - name: Seed
+    trigger: Agent startup.
+  - name: CommandError
+    trigger: Documentation host startup or runtime failure.
+  - name: ServerStopped
+    trigger: Documentation host shut down cleanly.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Serving
+    action: serve_documentation
+  - state: Serving
+    signal: CommandError
+    next: Failed
+  - state: Serving
+    signal: ServerStopped
+    next: Done
