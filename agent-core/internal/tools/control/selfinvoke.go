@@ -14,6 +14,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
 	toolexec "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/exec"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
 
 // SelfInvokeBuilder constructs self-invocation commands.
@@ -42,16 +43,16 @@ type selfInvokeCmd struct {
 
 func (c *selfInvokeCmd) Name() string { return "self_invoke" }
 func (c *selfInvokeCmd) Undo() core.Result {
-	return BoundaryCompensationUndo(c.Name(), "restore child workspace/artifacts or compensate the child agent run")
+	return undo.BoundaryCompensationUndo(c.Name(), "restore child workspace/artifacts or compensate the child agent run")
 }
 
 func (c *selfInvokeCmd) UndoMemento() (core.UndoMemento, error) {
 	payload := c.undoPayload()
-	return BoundaryCompensationMemento(c.Name(), payload, "restore child workspace/artifacts or compensate the child agent run")
+	return undo.BoundaryCompensationMemento(c.Name(), payload, "restore child workspace/artifacts or compensate the child agent run")
 }
 
-func (c *selfInvokeCmd) undoPayload() BoundaryCompensationPayload {
-	payload := BoundaryCompensationPayload{BoundaryCompensation: BoundaryCompensation{
+func (c *selfInvokeCmd) undoPayload() undo.BoundaryCompensationPayload {
+	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
 		Strategy: "child_agent_workspace_restore", Reason: "self-invocation runs a child agent process",
 		Requires: []string{"child_workspace_ref", "child_trace"}, ChildProfile: c.config.Profile,
 		ChildRunID: c.runID,
