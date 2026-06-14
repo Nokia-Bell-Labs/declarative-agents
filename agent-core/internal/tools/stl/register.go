@@ -12,8 +12,8 @@ import (
 //go:embed tools.yaml
 var defaultToolsFS embed.FS
 
-// DefaultToolDefs returns the built-in YAML tool definitions shipped
-// with agent-core. These cover build, git, and issue tools.
+// DefaultToolDefs is a compatibility wrapper for loading the legacy embedded
+// exec declarations. New code should load declarations through catalog.
 func DefaultToolDefs() ([]ToolDef, error) {
 	data, err := defaultToolsFS.ReadFile("tools.yaml")
 	if err != nil {
@@ -22,9 +22,8 @@ func DefaultToolDefs() ([]ToolDef, error) {
 	return ParseToolDefs(data)
 }
 
-// RegisterFileTools registers read, write, edit, find, and list_files
-// with the given registry, all scoped to root. These require Go
-// implementations (not CLI wrappers) so they remain as Go code.
+// RegisterFileTools is a compatibility wrapper for filesystem tool builders.
+// New code should import internal/tools/filesystem directly.
 func RegisterFileTools(reg *core.Registry, root string) {
 	reg.Register(ReadToolSpec(), &ReadBuilder{Root: root})
 	reg.Register(WriteToolSpec(), &WriteBuilder{Root: root})
@@ -33,9 +32,8 @@ func RegisterFileTools(reg *core.Registry, root string) {
 	reg.Register(ListFilesToolSpec(), &ListFilesBuilder{Root: root})
 }
 
-// RegisterExecTools registers all YAML-defined tools (build, git, issue)
-// from the embedded tools.yaml. Use RegisterExecToolsFrom to load from
-// a custom YAML file, or MergeToolDefs to overlay project-specific defs.
+// RegisterExecTools is a compatibility wrapper for legacy YAML-defined exec
+// tools. New code should use catalog declarations and registry wiring.
 func RegisterExecTools(reg *core.Registry, root string) error {
 	defs, err := DefaultToolDefs()
 	if err != nil {
@@ -45,9 +43,8 @@ func RegisterExecTools(reg *core.Registry, root string) error {
 	return nil
 }
 
-// RegisterExecToolsFrom loads tool definitions from a YAML file and
-// registers them. Definitions from the file override built-in defaults
-// with the same name.
+// RegisterExecToolsFrom is a compatibility wrapper for legacy exec overrides.
+// New code should load declarations through catalog and register via registry.
 func RegisterExecToolsFrom(reg *core.Registry, root, yamlPath string) error {
 	defaults, err := DefaultToolDefs()
 	if err != nil {
@@ -62,8 +59,8 @@ func RegisterExecToolsFrom(reg *core.Registry, root, yamlPath string) error {
 	return nil
 }
 
-// RegisterAll registers all standard tools: file tools (Go) + exec
-// tools (YAML). This is the recommended entry point for agents.
+// RegisterAll is a compatibility wrapper for legacy standard tool registration.
+// New code should use focused tool packages and registry.RegisterUnifiedTools.
 func RegisterAll(reg *core.Registry, root string) error {
 	RegisterFileTools(reg, root)
 	return RegisterExecTools(reg, root)

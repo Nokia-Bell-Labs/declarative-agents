@@ -10,9 +10,9 @@ import (
 	"strings"
 )
 
-// RunCLI executes a CLI command in dir, capturing stdout and returning it.
-// Stderr is captured and included in the error if the command fails.
-// Pass an empty dir to inherit the working directory.
+// RunCLI is a compatibility wrapper for legacy callers that still execute
+// simple CLIs through stl. Prefer a domain package or support package for new
+// subprocess behavior.
 func RunCLI(ctx context.Context, dir string, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	if dir != "" {
@@ -31,17 +31,17 @@ func RunCLI(ctx context.Context, dir string, name string, args ...string) (strin
 	return string(out), nil
 }
 
-// RunGit executes a git command in dir.
+// RunGit is a compatibility wrapper for legacy git callers.
 func RunGit(ctx context.Context, dir string, args ...string) (string, error) {
 	return RunCLI(ctx, dir, "git", args...)
 }
 
-// RunBd executes a bd (beads) command in dir.
+// RunBd is a compatibility wrapper for legacy bd callers.
 func RunBd(ctx context.Context, dir string, args ...string) (string, error) {
 	return RunCLI(ctx, dir, "bd", args...)
 }
 
-// VerifyGitDir checks that dir contains a .git entry (file or directory).
+// VerifyGitDir is a compatibility wrapper for legacy git workspace checks.
 func VerifyGitDir(dir string) error {
 	gitPath := dir + "/.git"
 	if _, err := os.Stat(gitPath); err != nil {

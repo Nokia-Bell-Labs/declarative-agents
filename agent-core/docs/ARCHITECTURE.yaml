@@ -27,16 +27,16 @@ overview:
     - internal/model/llm — model-boundary client, conversation, profiles, parsing utilities
     - internal/model/llm/ollama — Ollama client implementation used by model boundary tools
     - internal/model/prompt — prompt schema, YAML loading, system template
-    - internal/tools/stl — current standard tool library facade during the package split
-    - internal/tools/catalog — planned tool declaration, selection, config loading, and ToolDef contracts
-    - internal/tools/registry — planned builtin factory catalog and registration boundary
-    - internal/tools/exec — planned CLI/exec tool builder and subprocess command adapters
-    - internal/tools/filesystem — planned file, path, search, list, and workspace snapshot tools
-    - internal/tools/llm — planned model-boundary and conversation tools
-    - internal/tools/lifecycle — planned lifecycle tool adapters around core checkpoint operations
-    - internal/tools/control — planned loop-control and child-agent boundary tools
-    - internal/tools/validation — planned validation and audit tool adapters
-    - internal/tools/undo — planned shared undo memento and compensation payload helpers
+    - internal/tools/catalog — tool declaration, selection, config loading, and ToolDef contracts
+    - internal/tools/registry — builtin factory catalog and registration boundary
+    - internal/tools/exec — CLI/exec tool builder and subprocess command adapters
+    - internal/tools/filesystem — file, path, search, list, and workspace snapshot tools
+    - internal/tools/llm — model-boundary and conversation tools
+    - internal/tools/lifecycle — lifecycle tool adapters around core checkpoint operations
+    - internal/tools/control — loop-control and child-agent boundary tools
+    - internal/tools/validation — validation and audit tool adapters
+    - internal/tools/undo — shared undo memento and compensation payload helpers
+    - internal/tools/stl — temporary compatibility facade for migrated tool imports
     - internal/evaluation — evaluator session/point runtime, result artifacts, metrics, and trace analysis
     - internal/support/cli — CLI flag constants and argument propagation (library; not imported by cmd/agent)
     - internal/support/subprocess — subprocess execution utilities
@@ -89,7 +89,8 @@ overview:
       subgraph Infra["Reusable Infrastructure"]
         MODEL[internal/model/llm and internal/model/llm/ollama]
         PROMPT[internal/model/prompt]
-        STL[internal/tools/stl facade and split tool packages]
+        TOOLS[internal/tools focused packages]
+        STL[internal/tools/stl compatibility facade]
         TELE[internal/observability/telemetry]
         TRACE[internal/observability/tracing]
         CLI[internal/support/cli]
@@ -110,8 +111,9 @@ overview:
       EXTRACT --> REQGRAPH
       EXEC --> SUB
       EXEC --> CLI
-      BENCH --> STL
-      STL --> CORE
+      BENCH --> TOOLS
+      STL --> TOOLS
+      TOOLS --> CORE
       MODEL --> CORE
       TELE --> TRACE
       CORE --> TRACE
@@ -154,12 +156,11 @@ overview:
     ```
 
   target_tool_package_layout:
-    status: planned
+    status: current
     summary: |
-      The long-term tool implementation layout splits the current
-      internal/tools/stl package into smaller internal/tools packages. The
-      temporary internal/tools/stl package remains only as a compatibility
-      facade while callers migrate.
+      The long-term tool implementation layout is split across focused
+      internal/tools packages. The temporary internal/tools/stl package remains
+      only as a compatibility facade for older internal imports.
 
       MachineSpec still owns sequencing. ToolDef still owns one vocabulary
       contract: input, output, emitted signals, side effects, errors, and undo
@@ -305,8 +306,8 @@ overview:
         responsibility: |
           Remain as a temporary compatibility facade. It may re-export
           constructor functions, types, and registration helpers needed by
-          existing callers during migration. It must not receive new long-term
-          tool implementations after the split begins.
+          existing callers that have not moved yet. It must not receive new
+          long-term tool implementations.
         dependencies:
           may_depend_on:
             - internal/tools/catalog
@@ -326,8 +327,8 @@ overview:
       - Tool packages may import internal/tools/catalog for ToolDef and config decoding.
       - Tool implementation packages may import internal/tools/undo. internal/tools/undo must not import tool implementation packages.
       - internal/tools/registry may coordinate factory registration through explicit hooks. It must not import cmd/agent or domain packages.
-      - cmd/agent may import the stl facade during migration, then target packages or registration packages after migration.
-      - internal/evaluation and internal/planning may import target tool packages only for tool builders they own or reuse. They must not depend on the stl facade after migration.
+      - cmd/agent imports target tool packages or registration packages, not the stl facade.
+      - internal/evaluation and internal/planning may import target tool packages only for tool builders they own or reuse. They must not depend on the stl facade.
       - internal/model/llm remains the model-boundary client package. internal/tools/llm depends on it; internal/model/llm does not depend on tools.
     migration_sequence:
       - step: M1
@@ -347,10 +348,10 @@ overview:
       - step: M8
         work: Shrink internal/tools/stl to a temporary facade, then remove it when no caller imports it.
     compatibility_policy: |
-      During migration, internal/tools/stl may keep type aliases and wrapper
-      functions for shipped import paths. New code should import the target
-      package that owns the behavior. Compatibility wrappers must stay thin,
-      must not duplicate logic, and must be removed once callers migrate.
+      internal/tools/stl may keep type aliases and wrapper functions for older
+      import paths. New code should import the target package that owns the
+      behavior. Compatibility wrappers must stay thin, must not duplicate logic,
+      and must be removed once callers migrate.
 
   lifecycle: |
     A run proceeds through three phases.
@@ -812,7 +813,7 @@ overview:
       - internal/runtime/core/checkpoint_ops_test.go
       - internal/runtime/core/resume.go
       - internal/runtime/core/rollback.go
-      - internal/tools/stl/checkpoint_lifecycle.go
+      - internal/tools/lifecycle/checkpoint.go
       - internal/tools/stl/checkpoint_lifecycle_test.go
 
   coordination_pattern: |
@@ -838,18 +839,14 @@ overview:
       protobuf. It imports internal/observability/tracing but not internal/runtime/core.
     - internal/observability/telemetry/genai depends only on go.opentelemetry.io/otel/attribute.
     - internal/model/llm depends on internal/runtime/core, internal/model/prompt, and internal/observability/tracing.
-    - Current compatibility state: internal/tools/stl depends on internal/runtime/core, internal/model/llm,
-      internal/observability/tracing, internal/observability/telemetry/genai, internal/support/execute,
-      and internal/support/subprocess.
-    - Target state: focused packages under internal/tools own catalog,
-      registry, exec, filesystem, LLM, lifecycle, control, validation, and
-      undo responsibilities. internal/tools/stl becomes a facade only.
-    - internal/evaluation currently depends on internal/runtime/core and internal/tools/stl for evaluator machines,
-      workspace preparation, profile-based agent execution, result analysis, and trace utilities. It should migrate
-      to focused internal/tools packages as the split lands.
+    - Focused packages under internal/tools own catalog, registry, exec,
+      filesystem, LLM, lifecycle, control, validation, and undo responsibilities.
+      internal/tools/stl is a compatibility facade only.
+    - internal/evaluation depends on internal/runtime/core and focused
+      internal/tools packages for evaluator machines, workspace preparation,
+      profile-based agent execution, result analysis, and trace utilities.
     - internal/planning/pipeline depends on internal/runtime/core, internal/planning/plan, internal/planning/extract,
-      internal/planning/materialize, and internal/tools/stl during migration. It should migrate to focused
-      internal/tools packages as the split lands.
+      internal/planning/materialize, and focused internal/tools packages.
     - internal/support/execute depends on internal/support/subprocess, internal/model/llm, and internal/observability/tracing.
     - internal/planning/plan depends on gopkg.in/yaml.v3.
     - internal/planning/extract depends on internal/planning/graph and internal/planning/plan.
@@ -860,11 +857,12 @@ overview:
       and a graph library.
     - internal/support/subprocess depends on the Go standard library.
     - internal/support/cli depends on the Go standard library.
-    - cmd/agent imports internal/runtime/core, internal/tools/stl during migration,
-      internal/observability/telemetry, internal/planning/pipeline, internal/evaluation/bench, internal/support/execute, and
+    - cmd/agent imports internal/runtime/core, focused internal/tools packages,
+      internal/observability/telemetry, internal/planning/pipeline,
+      internal/evaluation/bench, internal/support/execute, and
       internal/observability/tracing.
     - internal/evaluation/bench imports internal/evaluation for evaluation result analysis,
-      internal/tools/stl for shared tool/config helpers during migration, and internal/runtime/core for the state machine loop.
+      focused internal/tools packages for shared tool/config helpers, and internal/runtime/core for the state machine loop.
 
 interfaces:
   - name: Tracer interface
@@ -1164,7 +1162,7 @@ project_structure:
     - path: internal/model/prompt/
       role: Prompt struct, YAML loading, system prompt template, and manifest serialization
     - path: internal/tools/stl/
-      role: Temporary standard tool library facade during the package split
+      role: Temporary standard tool library compatibility facade
     - path: internal/tools/catalog/
       role: Planned ToolDef, declaration loading, tool selection, ToolSpec conversion, and config decoding package
     - path: internal/tools/registry/
@@ -1276,7 +1274,7 @@ implementation_status:
     - done: Ollama client implementation (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
     - done: Standard tool library behavior — file, build, model boundary, lifecycle adapters, config loading
-    - planned: Standard tool library package split — internal/tools/catalog, registry, exec, filesystem, llm, lifecycle, control, validation, undo, and temporary stl facade
+    - done: Standard tool library package split — internal/tools/catalog, registry, exec, filesystem, llm, lifecycle, control, validation, undo, and temporary stl facade
     - done: CLI flags (internal/support/cli) — standard flag constants, PropagateArgs, RemainingBudget
     - done: Subprocess (internal/support/subprocess) — process execution utilities
     - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph, internal/planning/materialize)
