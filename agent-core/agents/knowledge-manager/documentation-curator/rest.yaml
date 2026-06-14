@@ -1,0 +1,259 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local_docs_api:
+      timeout: 10s
+      read_timeout: 10s
+      max_request_bytes: 262144
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18081]
+  response_mappings:
+    doc_index:
+      output:
+        documents: $.data
+        count: $.count
+    doc_detail:
+      output:
+        path: $.path
+        content: $.content
+        raw: $.raw
+    doc_search_results:
+      output:
+        query: $.query
+        matches: $.matches
+        count: $.count
+    doc_validation_report:
+      output:
+        status: $.status
+        findings: $.findings
+        checked_paths: $.checked_paths
+    doc_suggestions:
+      output:
+        patch_id: $.patch_id
+        path: $.path
+        suggestions: $.suggestions
+      redact: [body.proposed_patch]
+    patch_decision:
+      output:
+        patch_id: $.patch_id
+        status: $.status
+        decided_by: $.decided_by
+  clients:
+    documentation:
+      base_url: http://127.0.0.1:18081
+      auth_ref: none
+      limits_ref: local_docs_api
+      resources:
+        document_index:
+          path: /api/v1/docs
+          operations:
+            get:
+              method: GET
+              success:
+                status: [200]
+                signal: RESTResourceRead
+                response_ref: doc_index
+              response_ref: doc_index
+              side_effects:
+                - kind: external_api
+                  target: documentation.index
+                  state: read_only
+              reversibility:
+                classification: reversible
+                undo: noop
+        document:
+          path: /api/v1/docs/{path}
+          operations:
+            get:
+              method: GET
+              params:
+                path:
+                  path:
+                    type: string
+                    description: Slash-normalized documentation path inside the docs corpus.
+              success:
+                status: [200]
+                signal: RESTResourceRead
+                response_ref: doc_detail
+              failures:
+                - status: [404]
+                  signal: RESTMissing
+              response_ref: doc_detail
+              side_effects:
+                - kind: external_api
+                  target: documentation.document
+                  state: read_only
+              reversibility:
+                classification: reversible
+                undo: noop
+      operations:
+        doc_search:
+          method: POST
+          path: /api/v1/docs/search
+          params:
+            body_schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                category:
+                  type: string
+                limit:
+                  type: integer
+              required: [query]
+          body:
+            query: "{{ params.query }}"
+            category: "{{ params.category }}"
+            limit: "{{ params.limit }}"
+          success:
+            status: [200]
+            signal: RESTResponded
+            response_ref: doc_search_results
+          response_ref: doc_search_results
+          side_effects:
+            - kind: external_api
+              target: documentation.search
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        doc_validate:
+          method: POST
+          path: /api/v1/docs/validate
+          params:
+            body_schema:
+              type: object
+              properties:
+                paths:
+                  type: array
+                  items:
+                    type: string
+                strict:
+                  type: boolean
+          body:
+            paths: "{{ params.paths }}"
+            strict: "{{ params.strict }}"
+          success:
+            status: [200]
+            signal: RESTResponded
+            response_ref: doc_validation_report
+          failures:
+            - status: [422]
+              signal: RESTDomainFailed
+              domain_error_code: validation_failed
+              response_ref: doc_validation_report
+          response_ref: doc_validation_report
+          side_effects:
+            - kind: external_api
+              target: documentation.validation
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        doc_suggest_changes:
+          method: POST
+          path: /api/v1/docs/suggestions
+          params:
+            body_schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                instruction:
+                  type: string
+                context:
+                  type: string
+              required: [path, instruction]
+          body:
+            path: "{{ params.path }}"
+            instruction: "{{ params.instruction }}"
+            context: "{{ params.context }}"
+          success:
+            status: [202]
+            signal: RESTAccepted
+            response_ref: doc_suggestions
+          response_ref: doc_suggestions
+          side_effects:
+            - kind: external_api
+              target: documentation.suggestions
+              state: patch_suggestion_created
+          reversibility:
+            classification: compensatable
+            undo: doc_patch_reject
+          compensation:
+            operation: doc_patch_reject
+            reason: Reject the created suggestion before it is applied.
+        doc_patch_approve:
+          method: POST
+          path: /api/v1/docs/patches/{patch_id}/approve
+          params:
+            path:
+              patch_id:
+                type: string
+            body_schema:
+              type: object
+              properties:
+                decided_by:
+                  type: string
+                note:
+                  type: string
+              required: [decided_by]
+          body:
+            decided_by: "{{ params.decided_by }}"
+            note: "{{ params.note }}"
+          success:
+            status: [200, 202]
+            signal: RESTResponded
+            response_ref: patch_decision
+          response_ref: patch_decision
+          side_effects:
+            - kind: external_api
+              target: documentation.patch
+              state: patch_approved
+          reversibility:
+            classification: compensatable
+            undo: doc_patch_reject
+          compensation:
+            operation: doc_patch_reject
+            reason: Reverse an un-applied approval by rejecting the pending patch.
+        doc_patch_reject:
+          method: POST
+          path: /api/v1/docs/patches/{patch_id}/reject
+          params:
+            path:
+              patch_id:
+                type: string
+            body_schema:
+              type: object
+              properties:
+                decided_by:
+                  type: string
+                reason:
+                  type: string
+              required: [decided_by]
+          body:
+            decided_by: "{{ params.decided_by }}"
+            reason: "{{ params.reason }}"
+          success:
+            status: [200, 202]
+            signal: RESTResponded
+            response_ref: patch_decision
+          response_ref: patch_decision
+          side_effects:
+            - kind: external_api
+              target: documentation.patch
+              state: patch_rejected
+          reversibility:
+            classification: compensatable
+            undo: doc_patch_reopen
+          compensation:
+            operation: doc_patch_reopen
+            reason: Reopen the rejected patch when the service keeps pending patch state.
