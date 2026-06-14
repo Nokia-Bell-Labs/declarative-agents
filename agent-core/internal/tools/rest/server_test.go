@@ -42,6 +42,57 @@ func TestRESTServer_AwaitInboundSignals(t *testing.T) {
 	requireAwaitSignal(t, state, "control", "AwaitTimedOut")
 }
 
+func TestRESTServer_RejectsUndeclaredQueryAndHeader(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, validationServer(), LimitProfile{MaxRequestBytes: 128})
+	defer stopRESTServer(t, state, "validation")
+
+	postStatus(t, baseURL+"/approve/1?unexpected=value", `{}`, http.StatusBadRequest)
+	requestStatusWithHeaders(t, http.MethodPost, baseURL+"/approve/1", `{}`, map[string]string{
+		"X-Undeclared-Secret": "secret-value",
+	}, http.StatusBadRequest)
+	postStatus(t, baseURL+"/approve/abc", `{}`, http.StatusBadRequest)
+	requestStatusWithHeaders(t, http.MethodPost, baseURL+"/approve/1", `{}`, map[string]string{
+		"X-Approval-Token": "wrong-type",
+	}, http.StatusBadRequest)
+
+	requireAwaitSignal(t, state, "validation", "AwaitTimedOut")
+}
+
+func TestRESTServer_RedactsAwaitAndStreamOutput(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, redactionServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "redaction")
+
+	requestStatusWithHeaders(t, http.MethodPost, baseURL+"/approve/123?token=query-secret",
+		`{"secret":"body-secret"}`, map[string]string{"Authorization": "header-secret"}, http.StatusAccepted)
+	await := awaitCommand(state, "redaction").Execute().Output
+	require.NotContains(t, await, "query-secret")
+	require.NotContains(t, await, "header-secret")
+	require.NotContains(t, await, "body-secret")
+	require.Contains(t, await, "[REDACTED]")
+
+	requestStatusWithHeaders(t, http.MethodPost, baseURL+"/approve/456?token=query-secret",
+		`{"secret":"body-secret"}`, map[string]string{"Authorization": "header-secret"}, http.StatusAccepted)
+	stream := requestBody(t, http.MethodGet, baseURL+"/events", "", http.StatusOK)
+	require.NotContains(t, stream, "query-secret")
+	require.NotContains(t, stream, "header-secret")
+	require.NotContains(t, stream, "body-secret")
+	require.Contains(t, stream, "[REDACTED]")
+}
+
+func TestRESTServer_RedactsHandlerResponses(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, redactionServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "redaction")
+
+	result := postJSON(t, baseURL+"/handle-secret", `{"secret":"body-secret"}`, http.StatusOK)
+	require.Equal(t, "[REDACTED]", result["secret"])
+}
+
 func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 	t.Parallel()
 
@@ -159,9 +210,24 @@ func postStatus(t *testing.T, url, body string, want int) {
 
 func requestStatus(t *testing.T, method, url, body string, want int) {
 	t.Helper()
+	requestStatusWithHeaders(t, method, url, body, nil, want)
+}
+
+func requestStatusWithHeaders(
+	t *testing.T,
+	method string,
+	url string,
+	body string,
+	headers map[string]string,
+	want int,
+) {
+	t.Helper()
 	req, err := http.NewRequest(method, url, bytes.NewBufferString(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	for name, value := range headers {
+		req.Header.Set(name, value)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -223,6 +289,10 @@ func namedControlServer(name string) Server {
 func validationServer() Server {
 	server := namedControlServer("validation")
 	server.Queue = QueueConfig{Name: "validation", Capacity: 1, Timeout: "20ms"}
+	approve := server.Endpoints["approve"]
+	approve.Request.Path = map[string]interface{}{"id": map[string]interface{}{"type": "integer"}}
+	approve.Request.Headers = map[string]interface{}{"x-approval-token": map[string]interface{}{"type": "integer"}}
+	server.Endpoints["approve"] = approve
 	server.Endpoints["typed"] = Endpoint{
 		Method: "POST", Path: "/typed", Binding: bindingEmitSignal, Signal: "Typed",
 		Request: RequestBinding{BodySchema: bodySchemaWithRequired("name")},
@@ -265,6 +335,9 @@ func dynamicEndpoint(method, path string) Endpoint {
 	return Endpoint{
 		Method: method, Path: path, Binding: bindingDynamicSignal,
 		AllowedSignals: []string{"DomainEventReceived"},
+		Request: RequestBinding{Query: map[string]interface{}{
+			"signal": map[string]interface{}{"type": "string"},
+		}},
 	}
 }
 
@@ -272,6 +345,31 @@ func bodySchemaWithRequired(field string) map[string]interface{} {
 	return map[string]interface{}{
 		"type": "object", "required": []interface{}{field},
 		"properties": map[string]interface{}{field: map[string]interface{}{"type": "string"}},
+	}
+}
+
+func redactionServer() Server {
+	server := namedControlServer("redaction")
+	server.Endpoints["approve"] = redactionEndpoint()
+	server.Endpoints["events"] = Endpoint{Method: "GET", Path: "/events", Binding: bindingStreamEvents}
+	server.Endpoints["handle_secret"] = Endpoint{
+		Method: "POST", Path: "/handle-secret", Binding: bindingInvokeHandler,
+		Request:  RequestBinding{BodySchema: bodySchemaWithRequired("secret")},
+		Response: ResponseMapping{Output: map[string]string{"secret": "$.secret"}, Redact: []string{"body.secret"}},
+	}
+	return server
+}
+
+func redactionEndpoint() Endpoint {
+	return Endpoint{
+		Method: "POST", Path: "/approve/{id}", Binding: bindingEmitSignal, Signal: "Approved",
+		Request: RequestBinding{
+			Path:       map[string]interface{}{"id": map[string]interface{}{"type": "string"}},
+			Query:      map[string]interface{}{"token": map[string]interface{}{"type": "string"}},
+			Headers:    map[string]interface{}{"authorization": map[string]interface{}{"type": "string"}},
+			BodySchema: bodySchemaWithRequired("secret"),
+		},
+		Response: ResponseMapping{Redact: []string{"query.token", "headers.authorization", "body.secret"}},
 	}
 }
 

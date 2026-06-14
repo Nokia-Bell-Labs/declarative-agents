@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -19,6 +20,12 @@ const (
 	bindingHealth         = "health"
 	bindingStaticMetadata = "static_metadata"
 )
+
+var allowedUndeclaredHeaders = map[string]bool{
+	"accept": true, "accept-encoding": true, "connection": true,
+	"content-length": true, "content-type": true, "user-agent": true,
+	"x-request-id": true,
+}
 
 func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	name, endpoint, vars, pathFound := r.matchEndpoint(req)
@@ -35,8 +42,9 @@ func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		writeRequestError(w, err)
 		return
 	}
-	for key, value := range vars {
-		payload[key] = value
+	if err := addPathValues(payload, endpoint.Request.Path, vars); err != nil {
+		writeRequestError(w, err)
+		return
 	}
 	r.handleEndpoint(w, req, name, endpoint, payload)
 }
@@ -60,7 +68,7 @@ func (r *serverRuntime) handleEndpoint(
 ) {
 	switch endpoint.Binding {
 	case bindingEmitSignal:
-		r.enqueueSignal(w, req, name, endpoint.Signal, payload)
+		r.enqueueSignal(w, req, name, endpoint.Signal, payload, endpoint.Response.Redact)
 	case bindingDynamicSignal:
 		r.enqueueDynamicSignal(w, req, name, endpoint, payload)
 	case bindingReadState:
@@ -86,6 +94,7 @@ func (r *serverRuntime) invokeHandler(
 	payload map[string]interface{},
 ) {
 	if endpoint.Signal != "" {
+		redactServerPayload(payload, endpoint.Response.Redact)
 		event := inboundEvent(r.name, name, req.Method, endpoint.Signal, payload, req.Header.Get("X-Request-ID"))
 		if !r.offerEvent(event) {
 			http.Error(w, "REST server queue is full", http.StatusTooManyRequests)
@@ -111,7 +120,7 @@ func (r *serverRuntime) enqueueDynamicSignal(
 		http.Error(w, "signal is not allowed", http.StatusBadRequest)
 		return
 	}
-	r.enqueueSignal(w, req, name, signal, payload)
+	r.enqueueSignal(w, req, name, signal, payload, endpoint.Response.Redact)
 }
 
 func (r *serverRuntime) enqueueSignal(
@@ -120,11 +129,13 @@ func (r *serverRuntime) enqueueSignal(
 	route string,
 	signal string,
 	payload map[string]interface{},
+	redact []string,
 ) {
 	if signal == "" {
 		http.Error(w, "endpoint signal is not configured", http.StatusInternalServerError)
 		return
 	}
+	redactServerPayload(payload, redact)
 	event := inboundEvent(r.name, route, req.Method, signal, payload, req.Header.Get("X-Request-ID"))
 	if !r.offerEvent(event) {
 		http.Error(w, "REST server queue is full", http.StatusTooManyRequests)
@@ -183,17 +194,128 @@ func writeSSEEvent(w http.ResponseWriter, flusher http.Flusher, eventType string
 }
 
 func readRequestPayload(req *http.Request, endpoint Endpoint, maxBytes int) (map[string]interface{}, error) {
+	payload := map[string]interface{}{}
+	if err := addQueryValues(payload, endpoint.Request.Query, req.URL.Query()); err != nil {
+		return nil, err
+	}
+	if err := addHeaderValues(payload, endpoint.Request.Headers, req.Header); err != nil {
+		return nil, err
+	}
 	if maxBytes > 0 {
 		req.Body = http.MaxBytesReader(nil, req.Body, int64(maxBytes))
 	}
-	payload := map[string]interface{}{}
 	if len(endpoint.Request.BodySchema) == 0 {
 		return payload, nil
 	}
-	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+	body := map[string]interface{}{}
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 		return nil, err
 	}
-	return payload, validateBodySchema(endpoint.Request.BodySchema, payload)
+	if err := validateBodySchema(endpoint.Request.BodySchema, body); err != nil {
+		return nil, err
+	}
+	payload["body"] = body
+	for key, value := range body {
+		payload[key] = value
+	}
+	return payload, nil
+}
+
+func addPathValues(payload map[string]interface{}, schema map[string]interface{}, vars map[string]string) error {
+	path := map[string]interface{}{}
+	for name, value := range vars {
+		typed, err := validateStringValue("path param", name, schema[name], value)
+		if err != nil {
+			return err
+		}
+		path[name] = typed
+		payload[name] = typed
+	}
+	payload["path"] = path
+	return nil
+}
+
+func addQueryValues(payload map[string]interface{}, schema map[string]interface{}, values map[string][]string) error {
+	query := map[string]interface{}{}
+	for name, raw := range values {
+		if _, ok := schema[name]; !ok {
+			return fmt.Errorf("query param %q is not declared", name)
+		}
+		typed, err := validateStringValue("query param", name, schema[name], firstValue(raw))
+		if err != nil {
+			return err
+		}
+		query[name] = typed
+		payload[name] = typed
+	}
+	payload["query"] = query
+	return nil
+}
+
+func addHeaderValues(payload map[string]interface{}, schema map[string]interface{}, values http.Header) error {
+	headers := map[string]interface{}{}
+	for name, raw := range values {
+		field := strings.ToLower(name)
+		spec, declared := lookupHeaderSchema(schema, field)
+		if !declared {
+			if allowedUndeclaredHeaders[field] {
+				continue
+			}
+			return fmt.Errorf("header %q is not declared", field)
+		}
+		typed, err := validateStringValue("header", field, spec, firstValue(raw))
+		if err != nil {
+			return err
+		}
+		headers[field] = typed
+		payload[field] = typed
+	}
+	payload["headers"] = headers
+	return nil
+}
+
+func lookupHeaderSchema(schema map[string]interface{}, field string) (interface{}, bool) {
+	for name, spec := range schema {
+		if strings.EqualFold(name, field) {
+			return spec, true
+		}
+	}
+	return nil, false
+}
+
+func firstValue(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+func validateStringValue(kind, name string, spec interface{}, value string) (interface{}, error) {
+	rules, _ := spec.(map[string]interface{})
+	switch want, _ := rules["type"].(string); want {
+	case "", "string":
+		return value, nil
+	case "integer":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return nil, fmt.Errorf("%s %q must be integer", kind, name)
+		}
+		return parsed, nil
+	case "number":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return nil, fmt.Errorf("%s %q must be number", kind, name)
+		}
+		return parsed, nil
+	case "boolean":
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return nil, fmt.Errorf("%s %q must be boolean", kind, name)
+		}
+		return parsed, nil
+	default:
+		return value, nil
+	}
 }
 
 func validateBodySchema(schema map[string]interface{}, payload map[string]interface{}) error {
@@ -264,6 +386,7 @@ func serverResponseOutput(mapping ResponseMapping, payload map[string]interface{
 	for name, selector := range mapping.Output {
 		out[name] = responseValue(selector, payload)
 	}
+	redactMappedOutput(out, mapping.Redact)
 	return out
 }
 
@@ -278,6 +401,48 @@ func responseValue(selector string, payload map[string]interface{}) interface{} 
 		return payload[strings.TrimPrefix(selector, "$.")]
 	}
 	return selector
+}
+
+func redactServerPayload(payload map[string]interface{}, selectors []string) {
+	for _, selector := range selectors {
+		field := selectorField(selector)
+		switch {
+		case strings.HasPrefix(selector, "body."):
+			redactNested(payload["body"], field)
+		case strings.HasPrefix(selector, "$."):
+			redactNested(payload["body"], field)
+		case strings.HasPrefix(selector, "headers."):
+			redactNested(payload["headers"], field)
+		case strings.HasPrefix(selector, "query."):
+			redactNested(payload["query"], field)
+		}
+		if field != "" {
+			payload[field] = "[REDACTED]"
+		}
+	}
+}
+
+func redactMappedOutput(output map[string]interface{}, selectors []string) {
+	for _, selector := range selectors {
+		if field := selectorField(selector); field != "" {
+			output[field] = "[REDACTED]"
+		}
+	}
+}
+
+func selectorField(selector string) string {
+	switch {
+	case strings.HasPrefix(selector, "body."):
+		return strings.TrimPrefix(selector, "body.")
+	case strings.HasPrefix(selector, "$."):
+		return strings.TrimPrefix(selector, "$.")
+	case strings.HasPrefix(selector, "headers."):
+		return strings.TrimPrefix(selector, "headers.")
+	case strings.HasPrefix(selector, "query."):
+		return strings.TrimPrefix(selector, "query.")
+	default:
+		return ""
+	}
 }
 
 func matchPath(template, path string) (map[string]string, bool) {
