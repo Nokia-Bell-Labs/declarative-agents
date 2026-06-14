@@ -35,8 +35,10 @@ requirements:
       - R2.3: ProfileRegistry resolves profiles by model name using prefix matching, falling back to a default.
       - R2.4: "Extraction pipeline steps: strip_code_fences, strip_thinking_blocks, extract_envelope, extract_native_token, extract_braces."
       - R2.5: DefaultProfile creates a fallback ResponseParser with envelope-based extraction.
-      - R2.6: "Profile-driven machine switching: when a ProfileSpec declares a MachineName, the runtime resolves it to a machine file adjacent to the originally specified --machine path and validates its existence at startup."
+      - R2.6: "Profile-driven machine switching is legacy parser-profile metadata. It MUST NOT be documented as normal runtime startup behavior for profile-only agent invocation."
       - R2.7: invoke_llm tool config SHALL declare provider, provider URL, and manifest_state; startup SHALL reject unsupported providers and missing required runtime fields.
+      - R2.8: invoke_llm tool config SHALL own response parser selection through a response_profile field that names an embedded model parser profile. When response_profile is absent, runtime parser resolution SHALL fall back to model-prefix matching and then the default parser profile.
+      - R2.9: The runtime CLI SHALL NOT expose --profiles-dir as the supported parser selection mechanism. Custom parser behavior SHALL be modeled as a parser profile YAML referenced by invoke_llm config.
 
   R3:
     title: Domain interfaces and types
@@ -55,7 +57,7 @@ requirements:
       - R4.5: MakeNativeTokenExtractor builds an extraction step for model-native tokens.
 
 non_goals:
-  - Concrete ResponseParser or PromptAssembler implementations (those live in domain agents or STL).
+  - Specific ResponseParser or PromptAssembler implementations (those live in domain agents or STL).
   - LLM client implementations (srd009).
   - Conversation management (srd010).
 
@@ -65,8 +67,8 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
 
   - id: AC2
-    criterion: ProfileRegistry loads YAML profiles, resolves by model prefix, and provides a default. Pipeline steps are configurable.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
+    criterion: ProfileRegistry loads YAML profiles, resolves by model prefix, and provides a default. Pipeline steps are configurable. invoke_llm config owns parser selection through response_profile, with model-prefix/default fallback when omitted.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9]
 
   - id: AC3
     criterion: ResponseParser and PromptAssembler are domain interfaces. yamlProfile satisfies ResponseParser at compile time. ToolRequest is the parsed tool call representation.

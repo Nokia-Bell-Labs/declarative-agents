@@ -5,7 +5,7 @@ purpose: |
   Defines the per-model invoke_llm tool declaration format used under
   each agent's llm/ directory. Each file configures a single model
   variant as a builtin tool declaration with an invoke_llm config
-  block containing model, provider, endpoint, and prompt settings.
+  block containing model, provider, endpoint, parser, and prompt settings.
 
 schema:
   description: |
@@ -52,8 +52,8 @@ schema:
           type: string
           required: true
           description: |
-            Model name as recognized by the provider (e.g.
-            "deepseek-r1:8b", "devstral:24b", "gemma3:27b").
+            Model name as recognized by the provider. Examples include
+            "deepseek-r1:8b", "devstral:24b", and "gemma3:27b".
 
         - field: provider
           type: string
@@ -67,9 +67,9 @@ schema:
           type: string
           required: true
           description: |
-            Endpoint URL for the provider API (e.g.
-            "http://localhost:11434"). Used by the provider client
-            to route requests.
+            Endpoint URL for the provider API. For local Ollama, this is
+            usually "http://localhost:11434". Used by the provider client to
+            route requests.
 
         - field: manifest_state
           type: string
@@ -80,6 +80,24 @@ schema:
             is currently "Composing". Declaring this in YAML keeps LLM
             manifest construction tied to the machine contract rather
             than hardcoded in cmd/agent.
+
+        - field: response_profile
+          type: string
+          required: false
+          status: planned
+          description: |
+            Name of the LLM response parser profile to use for model output
+            extraction. The value selects one parser profile from
+            internal/model/llm/profiles/*.yaml.
+            This field is owned by the invoke_llm tool declaration that the
+            selected agent profile loads. It is not a process-wide CLI
+            override.
+          fallback: |
+            Until the profile-only CLI implementation lands, invoke_llm
+            resolves the parser from the model name by matching
+            ProfileSpec.match_prefixes and falls back to the default parser
+            profile when no prefix matches. After response_profile is wired,
+            an omitted value keeps that same model-prefix fallback.
 
         - field: system_prompt
           type: string
@@ -135,15 +153,32 @@ schema:
 
 per_model_pattern: |
   Each file under an agent's llm/ directory configures a different
-  model variant. The file name (e.g. default.yaml, deepseek.yaml,
-  devstral.yaml) identifies the variant but has no semantic meaning
-  to the system — all configuration comes from the fields inside.
+  model variant. The file name identifies the variant but has no semantic
+  meaning to the system. All configuration comes from the fields inside.
 
-  The evaluator uses these files to build a grid of (sample, model)
-  pairs for benchmarking. By loading multiple llm/*.yaml files, the
+  Parser behavior is part of the same invoke_llm config. A model variant can
+  set response_profile to choose the parser profile by name. Custom parser
+  behavior should be added as a parser profile YAML under
+  internal/model/llm/profiles/ and referenced from the agent's llm/*.yaml file.
+  Operators should not select parser behavior with --profiles-dir.
+
+  The evaluator uses these files to build a benchmark grid across samples and
+  models. By loading multiple llm/*.yaml files, the
   evaluator can run the same coding task against different models and
   compare their outputs. The generator and planner typically load a
   single variant selected at invocation time.
+
+profile_terms: |
+  Agent profiles differ from response parser profiles.
+
+  Agent profiles live under agents/*/profile.yaml. They select the machine,
+  tools.yaml files, declaration directories, and agent-local declaration files
+  that define one configured agent program.
+
+  Response parser profiles live under internal/model/llm/profiles/*.yaml. They
+  define output extraction for model families: match_prefixes, envelope,
+  strict_format, and extraction_pipeline. invoke_llm uses one response parser
+  profile to turn raw model text into a candidate tool call for parse_response.
 
 config_files:
   - directory: agents/generator/llm/
