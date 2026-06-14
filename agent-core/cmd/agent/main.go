@@ -21,6 +21,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/pipeline"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
@@ -199,7 +200,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	reg := core.NewRegistry()
-	builtins := stl.NewBuiltinRegistry()
+	builtins := toolregistry.NewBuiltinRegistry()
 	st := &agentState{
 		conversation:  conversation,
 		conversations: conversations,
@@ -215,7 +216,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	registerBuiltinFactories(builtins, st, selectedInits)
 
-	if err := stl.RegisterUnifiedTools(reg, builtins, flagDirectory, defs, vars); err != nil {
+	if err := toolregistry.RegisterUnifiedTools(reg, builtins, flagDirectory, defs, vars, execBuilder); err != nil {
 		return fmt.Errorf("register tools: %w", err)
 	}
 	if st.maxDuration > 0 {
@@ -225,7 +226,7 @@ func run(cmd *cobra.Command, args []string) error {
 		budget.MaxTokens = st.maxTokens
 	}
 
-	toolAction := stl.BuildDynamicToolAction(stl.DynamicToolActionDeps{
+	toolAction := toolregistry.BuildDynamicToolAction(toolregistry.DynamicToolActionDeps{
 		Registry: reg,
 		Tracker:  tracker,
 		Tracer:   tracer,
@@ -288,11 +289,15 @@ func run(cmd *cobra.Command, args []string) error {
 }
 
 func selectedBuiltinInits(defs []catalog.ToolDef) map[string]bool {
-	return stl.SelectedBuiltinInits(defs)
+	return toolregistry.SelectedBuiltinInits(defs)
 }
 
-func registerBuiltinFactories(br *stl.BuiltinRegistry, st *agentState, selected map[string]bool) {
-	stl.RegisterStandardBuiltinFactories(br, selected, standardFactoryDeps(st))
+func execBuilder(def catalog.ToolDef, root string) core.Builder {
+	return &stl.ExecBuilder{Def: def, Root: root}
+}
+
+func registerBuiltinFactories(br *toolregistry.BuiltinRegistry, st *agentState, selected map[string]bool) {
+	toolregistry.RegisterStandardBuiltinFactories(br, selected, standardFactoryDeps(st))
 }
 
 type builtinFactoryCatalogEntry struct {
@@ -301,11 +306,11 @@ type builtinFactoryCatalogEntry struct {
 }
 
 func (e builtinFactoryCatalogEntry) selectedBy(selected map[string]bool) bool {
-	return stl.StandardFactoryCatalogEntry{Name: e.Name, Inits: e.Inits}.SelectedBy(selected)
+	return toolregistry.StandardFactoryCatalogEntry{Name: e.Name, Inits: e.Inits}.SelectedBy(selected)
 }
 
 func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
-	entries := stl.StandardFactoryCatalog(standardFactoryDeps(st))
+	entries := toolregistry.StandardFactoryCatalog(standardFactoryDeps(st))
 	out := make([]builtinFactoryCatalogEntry, 0, len(entries))
 	for _, entry := range entries {
 		out = append(out, builtinFactoryCatalogEntry{Name: entry.Name, Inits: entry.Inits})
@@ -313,8 +318,28 @@ func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
 	return out
 }
 
-func standardFactoryDeps(st *agentState) stl.StandardFactoryDeps {
-	return stl.StandardFactoryDeps{
+func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
+	return toolregistry.StandardFactoryDeps{
+		RegisterFilesystem:     registerSTLFactories(stl.RegisterFilesystemFactories, st),
+		RegisterLLM:            registerSTLFactories(stl.RegisterLLMFactories, st),
+		RegisterLifecycle:      registerSTLFactories(stl.RegisterLifecycleFactoryGroup, st),
+		RegisterValidation:     registerSTLFactories(stl.RegisterValidationFactory, st),
+		RegisterControl:        registerSTLFactories(stl.RegisterControlFactories, st),
+		RegisterPlanning:       registerPlanningFactories(st),
+		RegisterEvaluation:     registerEvaluationFactories(st),
+		RegisterBench:          registerBenchFactories(),
+		RegisterSpecValidation: registerSTLFactories(stl.RegisterSpecValidationFactories, st),
+	}
+}
+
+func registerSTLFactories(register func(*stl.BuiltinRegistry, stl.STLFactoryDeps), st *agentState) toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		register(br, stlFactoryDeps(st))
+	}
+}
+
+func stlFactoryDeps(st *agentState) stl.STLFactoryDeps {
+	return stl.STLFactoryDeps{
 		Conversation: st.conversation,
 		Registry:     st.registry,
 		Parser:       func() llm.ResponseParser { return st.parser },
@@ -333,14 +358,11 @@ func standardFactoryDeps(st *agentState) stl.StandardFactoryDeps {
 			st.maxDuration = cfg.MaxTime
 			st.maxTokens = cfg.MaxTokens
 		},
-		RegisterPlanning:   registerPlanningFactories(st),
-		RegisterEvaluation: registerEvaluationFactories(st),
-		RegisterBench:      registerBenchFactories(),
 	}
 }
 
-func registerPlanningFactories(st *agentState) func(*stl.BuiltinRegistry) {
-	return func(br *stl.BuiltinRegistry) {
+func registerPlanningFactories(st *agentState) toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
 		pipeline.RegisterFactories(br, pipeline.FactoryDeps{
 			Directory: st.directory,
 			Tracer:    st.tracer,
@@ -349,8 +371,8 @@ func registerPlanningFactories(st *agentState) func(*stl.BuiltinRegistry) {
 	}
 }
 
-func registerEvaluationFactories(st *agentState) func(*stl.BuiltinRegistry) {
-	return func(br *stl.BuiltinRegistry) {
+func registerEvaluationFactories(st *agentState) toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
 		evaluation.RegisterEvalFactories(br, evaluation.EvalFactoryDeps{
 			Ctx:       st.ctx,
 			Registry:  st.registry,
@@ -361,8 +383,8 @@ func registerEvaluationFactories(st *agentState) func(*stl.BuiltinRegistry) {
 	}
 }
 
-func registerBenchFactories() func(*stl.BuiltinRegistry) {
-	return func(br *stl.BuiltinRegistry) {
+func registerBenchFactories() toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
 		bench.RegisterFactories(br, benchui.Assets())
 	}
 }

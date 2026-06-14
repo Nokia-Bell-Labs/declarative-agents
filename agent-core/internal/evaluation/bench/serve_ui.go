@@ -7,6 +7,7 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
@@ -65,10 +66,10 @@ func (c *serveUICmd) Execute() core.Result {
 	}
 }
 
-// ServeUIFactory returns a BuiltinFactory that creates ServeUIBuilder
+// ServeUIFactory returns a registry.BuiltinFactory that creates ServeUIBuilder
 // instances. The factory extracts config values from the tool
 // declaration YAML to configure the server.
-func ServeUIFactory(bs *BenchState) stl.BuiltinFactory {
+func ServeUIFactory(bs *BenchState) toolregistry.BuiltinFactory {
 	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
 		var cfg catalog.ServeUIToolConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {

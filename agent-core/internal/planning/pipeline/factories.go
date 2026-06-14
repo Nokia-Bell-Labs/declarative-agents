@@ -10,6 +10,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
@@ -24,7 +25,7 @@ type FactoryDeps struct {
 // (extract_task, extract_all, assemble_prompt, parse_plan, create_issue,
 // execute_task, check_result) into the provided BuiltinRegistry.
 // Pipeline state is lazily initialized on first factory call.
-func RegisterFactories(br *stl.BuiltinRegistry, deps FactoryDeps) {
+func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	var ps *State
 
 	initPS := func(def stl.ToolDef) *State {

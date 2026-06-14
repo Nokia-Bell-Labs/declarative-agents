@@ -8,14 +8,15 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
 // RegisterFactories registers bench builtin tool factories (serve_ui,
-// launch_eval) into the provided BuiltinRegistry. BenchState is lazily
+// launch_eval) into the provided registry. BenchState is lazily
 // initialized on first factory call, pulling config from the tool
 // definition YAML.
-func RegisterFactories(br *stl.BuiltinRegistry, assets fs.FS) {
+func RegisterFactories(br *toolregistry.BuiltinRegistry, assets fs.FS) {
 	var bs *BenchState
 
 	initBS := func(def stl.ToolDef) *BenchState {
