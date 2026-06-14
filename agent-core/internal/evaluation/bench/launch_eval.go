@@ -11,6 +11,7 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
@@ -126,11 +127,11 @@ func agentBinaryPath() string {
 // invocation parameters from tool declaration config.
 func LaunchEvalFactory(bs *BenchState) stl.BuiltinFactory {
 	return func(def stl.ToolDef, vars map[string]string) (core.Builder, error) {
-		var parsed stl.ChildAgentConfig
-		if err := stl.DecodeToolConfig(def, &parsed); err != nil {
+		var parsed catalog.ChildAgentConfig
+		if err := catalog.DecodeToolConfig(def, &parsed); err != nil {
 			return nil, err
 		}
-		if err := stl.ValidateChildAgentConfig(def.Name, parsed); err != nil {
+		if err := catalog.ValidateChildAgentConfig(def.Name, parsed); err != nil {
 			return nil, err
 		}
 		cfg := execute.Config{

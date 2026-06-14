@@ -4,12 +4,13 @@ package evaluation
 
 import (
 	"fmt"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 	"os"
 	"path/filepath"
 	"time"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
 // ParseSuiteConfigBuilder creates parseSuiteConfigCmd instances.
@@ -256,8 +257,8 @@ func evaluatorSessionConfigFactory(es *EvalSessionState, build func(*EvalSession
 }
 
 func applyLoadSuiteConfig(es *EvalSessionState, def stl.ToolDef) error {
-	var cfg stl.LoadSuiteConfig
-	if err := stl.DecodeToolConfig(def, &cfg); err != nil {
+	var cfg catalog.LoadSuiteConfig
+	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 		return err
 	}
 	if es.SuitePath == "" && cfg.Input != "" {
