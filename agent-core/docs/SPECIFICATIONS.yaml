@@ -374,17 +374,14 @@ coverage_gaps: |
   Semantic models cover cross-cutting packages that do not need separate SRDs
   today. The internal/planning packages are covered by planner machine configs,
   sm-tool-language, sm-tool-vocabulary-audit, and planning tests.
-  internal/support/worktree is covered by release 01.0 workspace architecture,
-  sm-rollback-lifecycle, and Go tests. internal/support/subprocess is covered
-  by srd013 STL delegation, srd021 child-agent execution, and execute or STL
-  integration tests.
+  internal/support/subprocess is covered by srd013 STL delegation, srd021
+  child-agent execution, and execute or STL integration tests.
 
   Package roots and assets are not specification gaps. internal/model,
   internal/observability, internal/planning, internal/runtime, internal/support,
   and internal/tools are package roots or documentation stubs with no standalone
   runtime behavior. internal/evaluation/bench/ui embeds React assets; srd020
-  and bench integration cover the served API and asset boundary. internal/audit
-  is Mage and audit glue governed by docs/constitutions plus mage audit behavior.
+  and bench integration cover the served API and asset boundary.
 
   Residual mage audit warnings are known follow-up work. Release 01.0
   touchpoints should cite R-groups instead of bare SRD IDs. Historical
