@@ -8,7 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
@@ -236,6 +239,34 @@ func TestNewAdapter_TrailingSlashInURL(t *testing.T) {
 	a, err := NewAdapter(srv.URL+"/", "llama3", WithHTTPClient(srv.Client()))
 	require.NoError(t, err)
 	require.NotNil(t, a)
+}
+
+func TestNewAdapter_OptionsConfigureClientAndSkipModelCheck(t *testing.T) {
+	t.Parallel()
+	client := &http.Client{Timeout: 37 * time.Second}
+
+	a, err := NewAdapter("http://127.0.0.1:1", "missing-model", WithHTTPClient(client), WithSkipModelCheck())
+
+	require.NoError(t, err)
+	require.Same(t, client, a.client)
+	require.Equal(t, 37*time.Second, a.client.Timeout)
+	require.True(t, a.skipModelCheck)
+}
+
+func TestOllamaMigrationRemovesLegacyAdapterPaths(t *testing.T) {
+	t.Parallel()
+	root := filepath.Clean("../../../../")
+
+	legacyPaths := []string{
+		filepath.Join(root, "internal/llm/adapter.go"),
+		filepath.Join(root, "cmd/planner/ollama.go"),
+	}
+	for _, path := range legacyPaths {
+		_, err := os.Stat(path)
+		require.ErrorIs(t, err, os.ErrNotExist, path)
+	}
+
+	assertFileContains(t, filepath.Join(root, "internal/tools/llm/invoke.go"), "internal/model/llm/ollama")
 }
 
 // ---------------------------------------------------------------------------
@@ -624,4 +655,11 @@ func TestNewAdapter_NilTracerNoops(t *testing.T) {
 	a, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()))
 	require.NoError(t, err)
 	require.NotNil(t, a)
+}
+
+func assertFileContains(t *testing.T, path, want string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(data), want)
 }
