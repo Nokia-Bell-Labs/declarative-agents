@@ -22,7 +22,7 @@ flow:
   - F5: MachineSpec routes RESTAccepted to PrepareLocalContext and routes CommandError to retry or failure handling.
   - F6: The grammar performs local work while the remote request is pending.
   - F7: MachineSpec dispatches rest_client_await from AwaitRemoteWork with the request ID or correlation token.
-  - F8: rest_client_await reads AsyncRequest state and emits RESTResponded, RESTFailed, RESTMissing, RESTAwaitTimedOut, or CommandError.
+  - F8: rest_client_await reads AsyncRequest state and emits RESTResponded, RESTDomainFailed, RESTMissing, RESTAwaitTimedOut, or CommandError.
   - F9: MachineSpec routes the final signal to response handling, missing-resource handling, timeout recovery, or infrastructure failure handling.
 
 touchpoints:
@@ -44,7 +44,7 @@ success_criteria:
     traces:
       - srd028-rest-client-tools AC5
   - id: S3
-    criterion: Await routes RESTResponded, RESTFailed, RESTMissing, RESTAwaitTimedOut, and CommandError explicitly.
+    criterion: Await routes RESTResponded, RESTDomainFailed, RESTMissing, RESTAwaitTimedOut, and CommandError explicitly.
     traces:
       - srd028-rest-client-tools AC6
       - srd028-rest-client-tools AC9

@@ -20,11 +20,11 @@ flow:
   - F1: The author defines a rest.clients entry with base_url, auth_ref, limits_ref, and one resource with get and set operations.
   - F2: The author declares rest_client_get and rest_client_set ToolDefs that reference the client, resource, and operation by name.
   - F3: MachineSpec dispatches rest_client_get from a ReadRemoteResource state.
-  - F4: rest_client_get validates declared path/query/header input, sends the configured GET request, and emits ResourceRead, RESTMissing, RESTFailed, or CommandError.
-  - F5: MachineSpec routes ResourceRead to a DecideUpdate state and routes RESTMissing, RESTFailed, and CommandError to explicit recovery states.
+  - F4: rest_client_get validates declared path/query/header input, sends the configured GET request, and emits RESTResourceRead, RESTMissing, RESTDomainFailed, or CommandError.
+  - F5: MachineSpec routes RESTResourceRead to a DecideUpdate state and routes RESTMissing, RESTDomainFailed, and CommandError to explicit recovery states.
   - F6: After a local decision, MachineSpec dispatches rest_client_set from UpdateRemoteResource.
-  - F7: rest_client_set validates the declared body input, sends the configured update request, and emits ResourceUpdated, RESTFailed, or CommandError.
-  - F8: MachineSpec routes ResourceUpdated to ContinueWorkflow and routes failure signals to compensation or operator review.
+  - F7: rest_client_set validates the declared body input, sends the configured update request, and emits RESTResourceWritten, RESTDomainFailed, or CommandError.
+  - F8: MachineSpec routes RESTResourceWritten to ContinueWorkflow and routes failure signals to compensation or operator review.
 
 touchpoints:
   - T1: "srd027-rest-tool-runtime R2.1, R2.2, R2.3, R2.4, R2.5 -- REST definitions are declarative and MachineSpec owns sequencing"
@@ -41,7 +41,7 @@ success_criteria:
       - srd028-rest-client-tools AC1
       - srd028-rest-client-tools AC2
   - id: S2
-    criterion: MachineSpec visibly routes ResourceRead, ResourceUpdated, RESTFailed, RESTMissing, and CommandError signals.
+    criterion: MachineSpec visibly routes RESTResourceRead, RESTResourceWritten, RESTDomainFailed, RESTMissing, and CommandError signals.
     traces:
       - srd027-rest-tool-runtime AC2
       - srd028-rest-client-tools AC6
