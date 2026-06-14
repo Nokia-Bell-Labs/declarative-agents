@@ -3,6 +3,8 @@ machine: ollama-machine.yaml
 tools:
   - ollama-tools.yaml
 tool_declarations:
+  - ../../tools/builtin/llm/all.yaml
+  - ollama-llm.yaml
   - ollama-declarations.yaml
 rest_definitions:
   - ollama-rest.yaml

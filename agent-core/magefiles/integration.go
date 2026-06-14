@@ -28,6 +28,7 @@ func (i Integration) All() error {
 		{"uc001", i.Uc001},
 		{"uc002", i.Uc002},
 		{"uc003", i.Uc003},
+		{"uc005", i.Uc005},
 	}
 
 	var passed, failed, skipped int

@@ -89,22 +89,50 @@ func TestRESTOpenAPI_LoadsOllamaProfileConfig(t *testing.T) {
 	require.NoError(t, err)
 	selection, err := catalog.LoadToolSelections(profile.Tools)
 	require.NoError(t, err)
-	require.Equal(t, []string{"ollama_list_models"}, selection)
+	require.ElementsMatch(t, []string{
+		"invoke_llm",
+		"parse_response",
+		"report_parse_error",
+		"done",
+		"ollama_list_models",
+	}, selection)
 
 	declarations, err := catalog.LoadToolDeclarations(profile.ToolDeclarations)
 	require.NoError(t, err)
 	selected, err := catalog.SelectTools(declarations, selection)
 	require.NoError(t, err)
-	require.Len(t, selected, 1)
-	require.Equal(t, InitClientInvoke, selected[0].Init)
-	require.Equal(t, core.External, selected[0].ToToolSpec().Visibility)
-	requireNoAuthorityParameters(t, selected[0].Parameters)
-	requireConfigUsesNamedRefs(t, selected[0])
+	restTool := requireSelectedTool(t, selected, "ollama_list_models")
+	require.Equal(t, InitClientInvoke, restTool.Init)
+	require.Equal(t, core.External, restTool.ToToolSpec().Visibility)
+	requireNoAuthorityParameters(t, restTool.Parameters)
+	requireConfigUsesNamedRefs(t, restTool)
+	require.Equal(t, []string{"ollama_list_models"}, externalToolNames(selected))
 }
 
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+}
+
+func requireSelectedTool(t *testing.T, defs []catalog.ToolDef, name string) catalog.ToolDef {
+	t.Helper()
+	for _, def := range defs {
+		if def.Name == name {
+			return def
+		}
+	}
+	t.Fatalf("selected tool %q not found", name)
+	return catalog.ToolDef{}
+}
+
+func externalToolNames(defs []catalog.ToolDef) []string {
+	names := []string{}
+	for _, def := range defs {
+		if def.ToToolSpec().Visibility == core.External {
+			names = append(names, def.Name)
+		}
+	}
+	return names
 }
 
 func repoRoot(t *testing.T) string {
