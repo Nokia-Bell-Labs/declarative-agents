@@ -78,9 +78,10 @@ language_model:
   request_tool_selection: |
     Profile-backed request runners load ToolDefs from trusted profile
     declaration roots. They then select the actions named by the request
-    MachineSpec transitions. This combination keeps vocabulary authority in the
-    profile while allowing the request machine to narrow the words it needs for
-    one short-lived sentence.
+    MachineSpec transitions and register builtin factories only for the selected
+    init names. This combination keeps vocabulary authority in the profile while
+    allowing the request machine to narrow the words it needs for one
+    short-lived sentence.
   generic_trace_envelope: |
     The generic machine_request response trace belongs to internal/tools/rest.
     It identifies the REST route, request machine, terminal signal, and run
@@ -95,8 +96,8 @@ relationships:
     meaning: The binding constructs the configured LoopParams, selected registry, initial state, and request seed data for one run.
     invariant: Trusted config chooses profile, machine, tool selection, and boundary config; HTTP callers do not.
   Profile_to_RequestToolSelection:
-    meaning: The request runner loads declarations from trusted profile config and selects only actions named by the request MachineSpec.
-    invariant: Missing request-machine actions fail configuration validation before request execution.
+    meaning: The request runner loads declarations from trusted profile config, selects only actions named by the request MachineSpec, and registers only selected builtin init names.
+    invariant: Missing request-machine actions fail configuration validation before request execution, and unselected request factories remain unavailable.
   RequestEvent_to_RequestMachine:
     meaning: The request event becomes structured input available to the first machine action and later response words.
     invariant: RequestEvent contains only declared, validated, and redacted request fields.
@@ -181,6 +182,7 @@ invariants:
   - One accepted HTTP request starts at most one short-lived request machine run.
   - MachineSpec owns request-specific sequencing, branching, retries, and response preparation.
   - ToolDef owns request-handling vocabulary contracts, including response words.
+  - Request-machine builtin factories are registered only when their init names are selected by the trusted request ToolDefs.
   - HTTP callers cannot choose profile, machine, tool declaration roots, model config, credentials, URLs, or workspace roots.
   - Invalid request input does not start a machine run.
   - Response words or configured terminal response output are the only bridge back to HTTP status, headers, and body.
