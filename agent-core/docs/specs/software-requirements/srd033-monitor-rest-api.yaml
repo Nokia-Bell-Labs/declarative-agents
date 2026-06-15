@@ -1,0 +1,113 @@
+id: srd033-monitor-rest-api
+title: Monitor REST API
+
+problem: |
+  Embedded monitor state is useful only if profiles can expose it safely.
+  Operators need to inspect a running agent. They need enough context to match
+  the visible machine with metric snapshots that arrived during the same run.
+  Recent events matter too. Streams keep the view fresh.
+
+  A generic HTTP handler could make this unsafe. A handler that executes tools
+  or chooses workflow steps becomes another hidden control plane. Prompt reads
+  and workspace scraping are also outside the monitor contract. The API must
+  read cached monitor state only. Profile-owned REST configuration and OpenAPI
+  descriptions must own the exposed routes.
+
+  This SRD is planned documentation for future monitor readers, and the
+  requirements stop at contracts so later code issues can implement handlers,
+  configured routes, OpenAPI output, and streaming support under the same
+  cached-state boundary. Nothing here is implemented yet.
+
+goals:
+  - G1: Define monitor REST endpoints that read cached monitor state.
+  - G2: Preserve MachineSpec workflow ownership and avoid hidden HTTP workflows.
+  - G3: Keep REST authority and OpenAPI documentation profile-owned.
+  - G4: Define endpoint coverage for machine, tool, metric, event, and stream reads.
+  - G5: Define redaction, caching, and failure behavior for monitor readers.
+
+requirements:
+  R1:
+    title: API scope and authority
+    items:
+      - R1.1: The monitor REST API SHALL expose read-only endpoints over cached monitor store snapshots from srd032-tool-metrics-monitor-store.
+      - R1.2: Monitor REST handlers SHALL NOT execute tools, dispatch MachineSpec actions, inspect prompts, scrape workspace files, or call external collectors.
+      - R1.3: Profile-owned REST configuration SHALL define server address, route paths, endpoint bindings, auth references, limits, and OpenAPI exposure.
+      - R1.4: Runtime input SHALL NOT choose arbitrary monitor routes, methods, authentication, OpenAPI documents, or network destinations.
+      - R1.5: Monitor REST endpoints SHALL be documented as boundary read endpoints, not workflow actions.
+
+  R2:
+    title: OpenAPI contract
+    items:
+      - R2.1: The monitor API SHALL provide an OpenAPI description for every configured monitor endpoint.
+      - R2.2: OpenAPI operation IDs SHALL be stable and derived from configured monitor endpoint names.
+      - R2.3: Response schemas SHALL describe machine spec metadata, current state, selected tools, per-tool metrics, aggregate metrics, recent events, event stream frames, errors, and diagnostics.
+      - R2.4: OpenAPI output SHALL omit secrets, raw prompts, full tool output, arbitrary workspace paths, and unbounded labels.
+      - R2.5: OpenAPI generation SHALL NOT generate Go server code in the first implementation.
+
+  R3:
+    title: Snapshot endpoints
+    items:
+      - R3.1: GET machine spec endpoint SHALL return configured machine name, states, signals, transitions, terminal states, and safe metric_labels metadata.
+      - R3.2: GET current state endpoint SHALL return current run ID, status, state, last signal, iteration, updated_at, and bounded diagnostics.
+      - R3.3: GET tools endpoint SHALL return selected tool names, categories, visibility, emitted signals, configured metric instruments, and safe relationship metadata.
+      - R3.4: GET per-tool metrics endpoint SHALL return per-tool aggregates and recent samples grouped only by allowed low-cardinality attributes.
+      - R3.5: GET aggregate metrics endpoint SHALL return run-level counters, histograms, gauges, status summaries, and monitor diagnostics.
+      - R3.6: GET recent events endpoint SHALL return a bounded recent event window with state, signal, tool name, timestamp, status, and redacted diagnostics.
+
+  R4:
+    title: Event streams
+    items:
+      - R4.1: The monitor API MAY expose an event stream endpoint for cached monitor updates.
+      - R4.2: Event stream frames SHALL be derived from accepted monitor samples, run state changes, diagnostics, or recent events already present in the monitor store.
+      - R4.3: Event streams SHALL use configured limits for subscriber count, frame size, heartbeat interval, and idle timeout.
+      - R4.4: Event streams SHALL NOT create workflow signals, enqueue server events for MachineSpec routing, or keep tools running.
+      - R4.5: Event stream disconnects SHALL clean up subscriptions without changing agent state.
+
+  R5:
+    title: Redaction and failure behavior
+    items:
+      - R5.1: Monitor responses SHALL apply the attribute safety rules from sm-tool-metrics-monitoring before returning labels or samples.
+      - R5.2: Responses SHALL NOT include raw prompts, full model responses, full tool output, secrets, arbitrary URLs, request IDs as labels, timestamps as labels, stack traces, command output, or user free text.
+      - R5.3: Missing monitor state SHALL return a configured empty snapshot or a documented not-ready response.
+      - R5.4: Handler failures SHALL return structured errors with endpoint name, failure stage, redacted message, and correlation metadata.
+      - R5.5: REST API failures SHALL NOT change command Result.Signal, monitor store state, or MachineSpec state.
+
+non_goals:
+  - Implementing REST handlers, OpenAPI generation, or event streams in this issue.
+  - Defining write endpoints for monitor state.
+  - Executing tools or MachineSpec actions from monitor HTTP handlers.
+  - Replacing REST server tool contracts in srd029-rest-server-tools.
+  - Exposing raw prompts, full outputs, secrets, or arbitrary workspace files.
+  - Defining durable metric history.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: API scope requirements define read-only cached monitor endpoints with profile-owned REST authority and no hidden workflow execution.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+
+  - id: AC2
+    criterion: OpenAPI requirements cover configured endpoint descriptions, stable operation IDs, response schemas, redaction, and no generated Go server code.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+
+  - id: AC3
+    criterion: Snapshot endpoint requirements cover machine spec, current state, tools, per-tool metrics, aggregate metrics, and recent events.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+
+  - id: AC4
+    criterion: Event stream requirements expose cached monitor updates without creating workflow signals or retaining tool execution.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+
+  - id: AC5
+    criterion: Redaction and failure requirements preserve monitor safety and do not change command or machine state.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+
+depends_on:
+  - srd_id: srd029-rest-server-tools
+    symbols_used: [read_state, stream_events, health, static_metadata]
+  - srd_id: srd032-tool-metrics-monitor-store
+    symbols_used: [ToolMetricsRecorder, monitor snapshot, diagnostics]
+
+related_documents:
+  - sm-tool-metrics-monitoring
+  - cfg-rest-tool-format
+  - boundary-tools-and-async.md
