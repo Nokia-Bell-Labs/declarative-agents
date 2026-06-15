@@ -1,0 +1,81 @@
+name: documentation-curator-request
+purpose: |-
+  Request-scoped machine for Knowledge Manager document resource requests.
+  REST machine_request endpoints use this grammar to keep list and read
+  behavior in profile-owned configuration.
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 4
+states:
+  - name: AwaitingRequest
+    meaning: Initial state seeded by a trusted REST endpoint.
+  - name: ListingDocuments
+    meaning: The machine is listing configured documentation resources.
+  - name: ReadingDocument
+    meaning: The machine is reading one configured documentation resource.
+  - name: DocumentIndexReady
+    meaning: Terminal. Document index data is ready for HTTP response mapping.
+  - name: DocumentDetailReady
+    meaning: Terminal. Document detail data is ready for HTTP response mapping.
+  - name: DocumentNotFound
+    meaning: Terminal. The requested document path is absent.
+  - name: RequestDenied
+    meaning: Terminal. The request selected a path outside configured resource rules.
+  - name: Failed
+    meaning: Terminal. The resource command failed.
+terminal_states:
+  - DocumentIndexReady
+  - DocumentDetailReady
+  - DocumentNotFound
+  - RequestDenied
+  - Failed
+signals:
+  - name: Seed
+    trigger: Machine request endpoint starts a list request.
+  - name: ReadRequested
+    trigger: Machine request endpoint starts a detail request.
+  - name: DocumentListReady
+    trigger: doc_list_resource returned configured resource entries.
+  - name: DocumentReady
+    trigger: doc_read_resource returned configured resource content.
+  - name: DocumentMissing
+    trigger: doc_read_resource could not find the requested path.
+  - name: DocumentResourceDenied
+    trigger: A resource command rejected the requested path or extension.
+  - name: DocumentParseFailed
+    trigger: A resource command could not parse configured document content.
+  - name: CommandError
+    trigger: Resource configuration or filesystem access failed.
+transitions:
+  - state: AwaitingRequest
+    signal: Seed
+    next: ListingDocuments
+    action: doc_list_resource
+  - state: AwaitingRequest
+    signal: ReadRequested
+    next: ReadingDocument
+    action: doc_read_resource
+  - state: ListingDocuments
+    signal: DocumentListReady
+    next: DocumentIndexReady
+  - state: ListingDocuments
+    signal: DocumentResourceDenied
+    next: RequestDenied
+  - state: ListingDocuments
+    signal: CommandError
+    next: Failed
+  - state: ReadingDocument
+    signal: DocumentReady
+    next: DocumentDetailReady
+  - state: ReadingDocument
+    signal: DocumentMissing
+    next: DocumentNotFound
+  - state: ReadingDocument
+    signal: DocumentResourceDenied
+    next: RequestDenied
+  - state: ReadingDocument
+    signal: DocumentParseFailed
+    next: Failed
+  - state: ReadingDocument
+    signal: CommandError
+    next: Failed
