@@ -68,6 +68,24 @@ language_model:
     At the transport boundary, the HTTP handler owns validation, cancellation,
     timeouts, and response writing. Request-specific workflow composition stays
     in the machine.
+  request_server_ownership: |
+    A request server may be launched by a parent MachineSpec through
+    rest_server_launch. A same-origin host proxy may also own the request
+    server lifecycle when the proxy only adapts browser traffic to a configured
+    generic REST server. In both cases, trusted REST configuration names the
+    route contract, request program, and response policy. The proxy must not
+    recompose request workflow in Go after launch.
+  request_tool_selection: |
+    Profile-backed request runners load ToolDefs from trusted profile
+    declaration roots. They then select the actions named by the request
+    MachineSpec transitions. This combination keeps vocabulary authority in the
+    profile while allowing the request machine to narrow the words it needs for
+    one short-lived sentence.
+  generic_trace_envelope: |
+    The generic machine_request response trace belongs to internal/tools/rest.
+    It identifies the REST route, request machine, terminal signal, and run
+    outcome. Profile-specific proxies may forward or display that trace, but
+    they should not be the source of generic route or machine identity.
 
 relationships:
   MachineRequestEndpoint_to_MachineRequestBinding:
@@ -76,6 +94,9 @@ relationships:
   MachineRequestBinding_to_RequestMachine:
     meaning: The binding constructs the configured LoopParams, selected registry, initial state, and request seed data for one run.
     invariant: Trusted config chooses profile, machine, tool selection, and boundary config; HTTP callers do not.
+  Profile_to_RequestToolSelection:
+    meaning: The request runner loads declarations from trusted profile config and selects only actions named by the request MachineSpec.
+    invariant: Missing request-machine actions fail configuration validation before request execution.
   RequestEvent_to_RequestMachine:
     meaning: The request event becomes structured input available to the first machine action and later response words.
     invariant: RequestEvent contains only declared, validated, and redacted request fields.
@@ -90,7 +111,7 @@ relationships:
     invariant: Error responses redact secrets, raw prompts, credentials, internal paths, and unredacted body content.
   RequestTrace_to_RunResult:
     meaning: The request trace links HTTP metadata with RunResult and RunEvent records.
-    invariant: Traces record route, request ID, machine, terminal signal, elapsed time, and status without secret material.
+    invariant: Traces record generic route identity and run outcome without secret material.
 
 request_flow:
   steps:
@@ -106,6 +127,9 @@ request_flow:
     - id: F4
       actor: MachineRequestBinding
       action: Resolve trusted profile, MachineSpec, selected ToolDefs, and response policy.
+    - id: F4a
+      actor: ProfileMachineRequestRunner
+      action: Load trusted profile declaration roots and select the request MachineSpec action names.
     - id: F5
       actor: Loop
       action: Run the short-lived request machine with RequestEvent as seed input.
@@ -161,8 +185,9 @@ invariants:
   - Invalid request input does not start a machine run.
   - Response words or configured terminal response output are the only bridge back to HTTP status, headers, and body.
   - Request-scoped timeout cancels the machine run context.
-  - Traces link HTTP metadata to RunResult without leaking secrets or raw prompts.
+  - Generic traces identify route identity and run outcome without leaking secrets or raw prompts.
   - Request metadata is command/domain state for the request run; it is not workspace state.
+  - Same-origin host proxies may own request server launch and shutdown only when they remain thin transport adapters over configured generic REST machine_request routes.
 
 non_goals:
   - Defining Knowledge Manager document content.

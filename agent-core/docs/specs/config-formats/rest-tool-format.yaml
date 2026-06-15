@@ -2,8 +2,8 @@ id: cfg-rest-tool-format
 title: REST Tool Configuration Format
 
 purpose: |
-  Defines the planned YAML format for declarative REST definitions under a
-  top-level rest mapping. Agent profiles and tool declaration files use this
+  Defines the YAML format for declarative REST definitions under a top-level
+  rest mapping. Agent profiles and tool declaration files use this
   format to configure REST client and REST server boundary words.
 
   The format keeps HTTP authority in trusted configuration. ToolDef config
@@ -491,7 +491,7 @@ schema:
       - field: tools
         type: string
         required: false
-        description: Optional selected tools reference inside the trusted profile scope.
+        description: Optional selected tools reference inside the trusted profile scope. Profile-backed request runners may narrow selection further to action names used by the request MachineSpec.
       - field: tool_declarations
         type: "[]string"
         required: false
@@ -520,10 +520,29 @@ schema:
         type: bool
         required: false
         description: Keeps request-scoped run trace artifacts when true.
+      - field: trace
+        type: machine_request_trace_config
+        required: false
+        description: Optional controls for retaining or exposing generic machine_request trace metadata. The runtime emits route identity and run outcome when trace output is exposed.
       - field: document_resources
         type: "[]string"
         required: false
         description: Named document resources made available to the request machine.
+
+  machine_request_trace_config:
+    fields:
+      - field: expose_response_trace
+        type: bool
+        required: false
+        description: Exposes generic trace metadata in the HTTP response body when the endpoint response policy permits trace evidence.
+      - field: retain_run_events
+        type: bool
+        required: false
+        description: Retains request-scoped RunEvent details for audit artifacts when configured by trusted profile or REST config.
+      - field: redact
+        type: "[]string"
+        required: false
+        description: Selectors removed from retained trace data before storage or response exposure.
 
   machine_request_input_mapping:
     fields:
@@ -1245,6 +1264,10 @@ validation_rules:
     rule: document resource runtime selectors MUST NOT choose roots, include patterns, extension allowlists, response modes, symlink policy, or binary policy.
   - id: V24
     rule: document resource path resolution MUST deny empty paths, absolute paths, parent-directory traversal, and resolved paths outside the configured root.
+  - id: V25
+    rule: machine_request profile-backed tool selection MUST use trusted profile declaration roots and MUST fail when any request MachineSpec action is missing from the selected ToolDefs.
+  - id: V26
+    rule: machine_request response trace output MUST identify generic route identity and run outcome when exposed.
 
 invalid_examples:
   ambiguous_resource_operation: |
@@ -1358,7 +1381,7 @@ related_documents:
   - srd026-lifecycle-tools
 
 implementation_status:
-  planned:
+  implemented:
     - internal/tools/rest typed config structs.
     - internal/tools/rest YAML loader.
     - OpenAPI import compilation through github.com/getkin/kin-openapi/openapi3.
@@ -1366,3 +1389,6 @@ implementation_status:
     - lifecycle_control endpoint config and exit_agent ToolDef config.
     - machine_request endpoint binding config.
     - document_resource config and filesystem resource words.
+  planned_follow_up:
+    - generic machine_request response trace fields for server, route, and request machine emitted directly by internal/tools/rest.
+    - always-on Knowledge Manager conformance coverage for generic machine_request routes under plain go test.

@@ -36,6 +36,8 @@ requirements:
       - R2.3: Runtime HTTP callers SHALL NOT choose the machine file, profile path, tool declarations, model boundary config, or filesystem roots.
       - R2.4: The request machine SHALL use selected vocabulary words exactly like any other MachineSpec execution.
       - R2.5: The binding SHALL reject configuration that references missing machines, missing tools, unresolved response words, or undeclared terminal signals.
+      - R2.6: Profile-backed request runners SHALL load ToolDefs only from trusted profile declaration roots and SHALL narrow the selected vocabulary to action names used by the configured request MachineSpec.
+      - R2.7: A request MachineSpec action that is missing from the trusted selected vocabulary SHALL fail configuration validation before any HTTP request starts a machine run.
 
   R3:
     title: Request input mapping
@@ -67,14 +69,14 @@ requirements:
   R6:
     title: Trace and lifecycle behavior
     items:
-      - R6.1: The binding SHOULD trace route name, request ID, machine name, profile name, terminal state, terminal signal, status code, elapsed time, and failure stage.
+      - R6.1: The binding SHALL emit generic machine_request trace metadata from internal/tools/rest for server name, route name, request machine identity, terminal signal, iteration count, and run status.
       - R6.2: Trace attributes and events SHALL redact configured secret material.
       - R6.3: The machine run SHALL record normal RunResult and RunEvent data for the short-lived sentence.
       - R6.4: If lifecycle ports are enabled, checkpoints SHALL keep HTTP request metadata separate from command/domain state and workspace state.
       - R6.5: The binding SHALL clean up request-scoped machine state after the response unless configuration declares retained trace or audit artifacts.
+      - R6.6: Same-origin host proxies MAY own the lifecycle of a configured request server when the proxy is only a transport adapter, launches the generic REST server from trusted profile configuration, and exposes the same machine_request trace envelope as a server launched by rest_server_launch.
 
 non_goals:
-  - Implementing the machine_request binding in this issue.
   - Replacing rest_server_await or rest_await_event for long-lived event queues.
   - Letting HTTP callers choose arbitrary machines, tools, prompts, credentials, URLs, or filesystem roots.
   - Generating Go handlers from MachineSpec or OpenAPI documents.
@@ -90,8 +92,8 @@ acceptance_criteria:
     traces: [R1.4]
 
   - id: AC3
-    criterion: Configuration owns profile, machine, selected tools, initial state, terminal state, and response signal authority; runtime callers cannot choose those values.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+    criterion: Configuration owns profile, machine, selected tools, initial state, terminal state, and response signal authority; runtime callers cannot choose those values, and request-machine actions must resolve through trusted profile ToolDefs.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
 
   - id: AC4
     criterion: Request input mapping validates HTTP fields, builds structured machine input, carries request metadata, and rejects invalid input before machine execution.
@@ -106,8 +108,8 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
 
   - id: AC7
-    criterion: Trace and lifecycle requirements record request-scoped machine execution while keeping request metadata separate from command/domain and workspace state.
-    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+    criterion: Generic trace and lifecycle requirements record request-scoped machine execution, identify the server route and request machine, and keep request metadata separate from command/domain and workspace state.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6]
 
 depends_on:
   - srd_id: srd005-agentic-loop
@@ -131,3 +133,6 @@ implementation_status:
     - agents/knowledge-manager/documentation-curator/rest.yaml routes document index and detail requests through documentation_curator_requests machine_request endpoints.
     - agents/knowledge-manager/documentation-curator/request-machine.yaml defines the short-lived request machine used by the generic REST server path.
     - mage integration:uc007 and opt-in conformance tests cover request-to-machine response behavior and trace evidence.
+  planned_follow_up:
+    - internal/tools/rest should emit server, route, and request machine trace fields directly in the generic machine_request response envelope instead of relying on Knowledge Manager proxy enrichment.
+    - internal/knowledge/documentation should make the generic REST route conformance assertion run under plain go test without AGENT_CORE_MACHINE_REQUEST_CONFORMANCE.
