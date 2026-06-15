@@ -108,6 +108,7 @@ func TestCuratorMachineExitStopsDocumentationHost(t *testing.T) {
 	require.Equal(t, core.StatusSucceeded, result.Status)
 	require.Equal(t, core.State("Done"), result.FinalState)
 	require.NotEmpty(t, launchedAddr)
+	requireDocsHostStoppedEvent(t, result)
 	requireAddressReleased(t, launchedAddr)
 }
 
@@ -218,6 +219,14 @@ func requireAddressReleased(t *testing.T, addr string) {
 		_ = listener.Close()
 		return true
 	}, time.Second, 10*time.Millisecond)
+}
+
+func requireDocsHostStoppedEvent(t *testing.T, result core.RunResult) {
+	t.Helper()
+	require.NotEmpty(t, result.Events)
+	last := result.Events[len(result.Events)-1]
+	require.Equal(t, "serve_documentation", last.CommandName)
+	require.Equal(t, core.Signal("ServerStopped"), last.Signal)
 }
 
 func TestStandaloneServerRunsActionsThroughWorkflowRunner(t *testing.T) {
