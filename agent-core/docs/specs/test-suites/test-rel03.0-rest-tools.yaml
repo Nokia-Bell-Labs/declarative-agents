@@ -452,7 +452,9 @@ test_cases:
       A configured lifecycle_control exit endpoint receives an operator
       request. Handler validation enqueues ExitRequested. rest_await_event
       returns that event, and MachineSpec routes it to exit_agent as explicit
-      lifecycle vocabulary.
+      lifecycle vocabulary. Command-level coverage also proves that shutdown is
+      requested by exit_agent but applied after the loop records AgentExited and
+      resolves the terminal MachineSpec state.
     inputs:
       endpoint: POST /api/lifecycle/exit
       payload:
@@ -466,6 +468,12 @@ test_cases:
       await_signal: ExitRequested
       exit_agent_action_visible: true
       exit_result_signal: AgentExited
+      control_profile_terminal_state: Succeeded
+      documentation_profile_terminal_state: Done
+      run_status_cancelled: false
+      deferred_shutdown_after_loop_return: true
+      control_profile_go_test: TestControlProfileExitReachesSucceededBeforeDeferredShutdown
+      documentation_profile_go_test: TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown
       profile_smoke_target: mage integration:uc006
     traces:
       - rel03.0-uc003-rest-server-signals S3

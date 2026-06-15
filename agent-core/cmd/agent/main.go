@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -98,6 +99,25 @@ type agentState struct {
 	shutdown     func()
 }
 
+type deferredShutdown struct {
+	requested atomic.Bool
+	cancel    context.CancelFunc
+}
+
+func newDeferredShutdown(cancel context.CancelFunc) *deferredShutdown {
+	return &deferredShutdown{cancel: cancel}
+}
+
+func (s *deferredShutdown) Request() {
+	s.requested.Store(true)
+}
+
+func (s *deferredShutdown) Apply() {
+	if s.requested.Load() && s.cancel != nil {
+		s.cancel()
+	}
+}
+
 func run(cmd *cobra.Command, args []string) error {
 	cfg, err := loadRuntimeConfig()
 	if err != nil {
@@ -128,6 +148,9 @@ func run(cmd *cobra.Command, args []string) error {
 	conversation := llm.NewConversation(nil, "", llm.ChatOptions{})
 	tracker := validation.NewToolTracker()
 	stateStore := resolveStateStore(cfg)
+	loopCtx, loopCancel := context.WithCancel(commandContext(cmd))
+	defer loopCancel()
+	shutdown := newDeferredShutdown(loopCancel)
 
 	vars := map[string]string{
 		"directory": cfg.Directory,
@@ -170,13 +193,13 @@ func run(cmd *cobra.Command, args []string) error {
 		tracer:       tracer,
 		parseRetries: parseRetries,
 		verbose:      cfg.VerboseTrace,
-		ctx:          cmd.Context(),
+		ctx:          loopCtx,
 		directory:    cfg.Directory,
 		request:      cfg.Request,
 		output:       cfg.Output,
 		stateStore:   stateStore,
 		restDefs:     restDefs,
-		shutdown:     func() {},
+		shutdown:     shutdown.Request,
 	}
 
 	registerBuiltinFactories(builtins, st, selectedInits)
@@ -236,20 +259,21 @@ func run(cmd *cobra.Command, args []string) error {
 				conversation.Restore(messages)
 				return nil
 			},
-			Ctx: cmd.Context(),
+			Ctx: loopCtx,
 		})
 		if err != nil {
 			return fmt.Errorf("resume: %w", err)
 		}
 		result = resumeResult.Run
 	} else {
-		result, err = core.Loop(params, context.Background())
+		result, err = core.Loop(params, loopCtx)
 	}
 	if err != nil {
 		return fmt.Errorf("loop: %w", err)
 	}
 
 	fmt.Fprintf(os.Stderr, "terminal state: %s\n", result.Status)
+	shutdown.Apply()
 	return nil
 }
 
@@ -338,6 +362,13 @@ func resolveStateStoreRoot(cfg runtimeConfig) string {
 		return filepath.Join(cfg.Directory, defaultStateStoreDirName)
 	}
 	return ""
+}
+
+func commandContext(cmd *cobra.Command) context.Context {
+	if ctx := cmd.Context(); ctx != nil {
+		return ctx
+	}
+	return context.Background()
 }
 
 func selectedBuiltinInits(defs []catalog.ToolDef) map[string]bool {

@@ -19,8 +19,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
 )
 
 func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
@@ -181,6 +183,15 @@ func TestRootCommandHelpShowsProfileOnlyRuntimeFlags(t *testing.T) {
 	}
 }
 
+func TestMainWiresExitAgentToDeferredShutdown(t *testing.T) {
+	t.Parallel()
+	source, err := os.ReadFile(filepath.Join(repoRootFromTest(t), "cmd", "agent", "main.go"))
+	require.NoError(t, err)
+
+	require.Contains(t, string(source), "shutdown:     shutdown.Request")
+	require.NotContains(t, string(source), "shutdown:     func() {}")
+}
+
 func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
@@ -210,6 +221,49 @@ func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
 			require.NoError(t, catalog.ValidateToolEmits(spec, defs))
 		})
 	}
+}
+
+func TestControlProfileExitReachesSucceededBeforeDeferredShutdown(t *testing.T) {
+	t.Parallel()
+	var cancelled bool
+	shutdown := newDeferredShutdown(func() { cancelled = true })
+
+	result := runExitMachine(t, exitMachineCase{
+		machinePath: "agents/control/machine.yaml",
+		launch:      "launch_agent_control",
+		await:       "await_agent_control",
+		terminal:    "Succeeded",
+		shutdown:    shutdown,
+	})
+
+	require.Equal(t, core.StatusSucceeded, result.Status)
+	require.Equal(t, core.State("Succeeded"), result.FinalState)
+	requireExitEvent(t, result)
+	require.False(t, cancelled, "shutdown must wait until after Loop returns")
+	shutdown.Apply()
+	require.True(t, cancelled)
+}
+
+func TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown(t *testing.T) {
+	t.Parallel()
+	var cancelled bool
+	shutdown := newDeferredShutdown(func() { cancelled = true })
+
+	result := runExitMachine(t, exitMachineCase{
+		machinePath:  "agents/knowledge-manager/documentation-curator/machine.yaml",
+		launch:       "serve_documentation",
+		secondLaunch: "launch_curator_control",
+		await:        "await_curator_control",
+		terminal:     "Done",
+		shutdown:     shutdown,
+	})
+
+	require.Equal(t, core.StatusSucceeded, result.Status)
+	require.Equal(t, core.State("Done"), result.FinalState)
+	requireExitEvent(t, result)
+	require.False(t, cancelled, "shutdown must wait until after Loop returns")
+	shutdown.Apply()
+	require.True(t, cancelled)
 }
 
 func TestApprovalLifecycleProfileSuspendsAndResumesApproved(t *testing.T) {
@@ -303,6 +357,27 @@ func TestResumeCheckpointRequiresResolvableStateStore(t *testing.T) {
 	require.ErrorContains(t, err, "--resume-checkpoint requires --directory or --state-store-dir")
 }
 
+type exitMachineCase struct {
+	machinePath  string
+	launch       string
+	secondLaunch string
+	await        string
+	terminal     string
+	shutdown     *deferredShutdown
+}
+
+type staticSignalBuilder struct {
+	name   string
+	signal core.Signal
+	output string
+}
+
+type staticSignalCmd struct {
+	name   string
+	signal core.Signal
+	output string
+}
+
 func assertMainDeclsAbsent(t *testing.T, forbidden map[string]bool) {
 	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)
@@ -317,6 +392,58 @@ func assertMainDeclsAbsent(t *testing.T, forbidden map[string]bool) {
 			assertGenDeclNamesAbsent(t, d, forbidden)
 		}
 	}
+}
+
+func runExitMachine(t *testing.T, tc exitMachineCase) core.RunResult {
+	t.Helper()
+	machine, err := core.LoadMachineSpec(filepath.Join(repoRootFromTest(t), tc.machinePath))
+	require.NoError(t, err)
+	reg := core.NewRegistry()
+	registerStaticSignal(reg, tc.launch, "ServerLaunched", "{}")
+	if tc.secondLaunch != "" {
+		registerStaticSignal(reg, tc.secondLaunch, "ServerLaunched", "{}")
+	}
+	registerStaticSignal(reg, tc.await, "ExitRequested", exitEventOutput())
+	reg.Register(core.ToolSpec{Name: "exit_agent"}, lifecycle.ExitBuilder{
+		Config:   lifecycle.ExitConfig{Status: "success"},
+		Shutdown: tc.shutdown.Request,
+	})
+	result, err := core.Loop(core.LoopParams{
+		MachineSpec: &machine, Registry: reg, Trace: tracing.NoopTracer{},
+	}, context.Background())
+	require.NoError(t, err)
+	return result
+}
+
+func registerStaticSignal(reg *core.Registry, name string, signal core.Signal, output string) {
+	reg.Register(core.ToolSpec{Name: name}, staticSignalBuilder{name: name, signal: signal, output: output})
+}
+
+func (b staticSignalBuilder) Build(_ core.Result) core.Command {
+	return staticSignalCmd(b)
+}
+
+func (c staticSignalCmd) Name() string { return c.name }
+
+func (c staticSignalCmd) Execute() core.Result {
+	return core.Result{CommandName: c.name, Signal: c.signal, Output: c.output}
+}
+
+func (c staticSignalCmd) Undo() core.Result {
+	return core.NoopUndo(c.name)
+}
+
+func exitEventOutput() string {
+	return `{"payload":{"reason":"operator requested shutdown","status":"success"}}`
+}
+
+func requireExitEvent(t *testing.T, result core.RunResult) {
+	t.Helper()
+	require.NotEqual(t, core.StatusCancelled, result.Status)
+	require.NotEmpty(t, result.Events)
+	last := result.Events[len(result.Events)-1]
+	require.Equal(t, "exit_agent", last.CommandName)
+	require.Equal(t, core.Signal("AgentExited"), last.Signal)
 }
 
 func assertGenDeclNamesAbsent(t *testing.T, decl *ast.GenDecl, forbidden map[string]bool) {
