@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 // LoadToolSelection reads a YAML file listing tool names.
@@ -161,6 +163,9 @@ func validateToolDefs(defs []ToolDef) error {
 			}
 		default:
 			return fmt.Errorf("tool %q: unknown type %q", td.Name, td.Type)
+		}
+		if err := core.ValidateMetricConfig(td.Name, td.Metrics); err != nil {
+			return fmt.Errorf("tool %q: %w", td.Name, err)
 		}
 	}
 	return nil

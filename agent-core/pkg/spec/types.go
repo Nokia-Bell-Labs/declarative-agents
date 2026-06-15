@@ -9,6 +9,8 @@ import (
 	"sort"
 
 	"gopkg.in/yaml.v3"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 // SRD represents a parsed Software Requirements Document.
@@ -212,6 +214,7 @@ type ToolDeclaration struct {
 	NonGoals      []string              `yaml:"non_goals,omitempty"`
 	Emits         []string              `yaml:"emits,omitempty"`
 	Output        ToolDeclOutput        `yaml:"output,omitempty"`
+	Metrics       core.MetricConfig     `yaml:"metrics,omitempty"`
 	Visibility    string                `yaml:"visibility,omitempty"`
 	Reversibility ToolDeclReversibility `yaml:"reversibility,omitempty"`
 	Undo          ToolDeclUndo          `yaml:"undo,omitempty"`

@@ -43,6 +43,8 @@ func Validate(g *Graph, corpus *Corpus) []Finding {
 	all = append(all, checkToolUndoConsistency(corpus)...)
 	all = append(all, checkToolSideEffectVocab(corpus)...)
 	all = append(all, checkToolBoundaryCategory(corpus)...)
+	all = append(all, checkToolMetricConfig(corpus)...)
+	all = append(all, checkMachineMetricLabels(corpus)...)
 	all = append(all, checkUseCaseIndexRefs(corpus)...)
 	all = append(all, checkTestSuiteIndexRefs(corpus)...)
 	all = append(all, checkRoadmapUseCaseRefs(corpus)...)

@@ -207,6 +207,58 @@ func TestValidate_MachineActionResolution(t *testing.T) {
 	assert.Contains(t, findings[0].Message, "missing_tool")
 }
 
+func TestValidate_ToolMetricConfig(t *testing.T) {
+	corpus := &Corpus{
+		ToolDeclarations: map[string]ToolDeclaration{
+			"valid": {
+				Name: "valid",
+				Metrics: core.MetricConfig{
+					Instruments: []core.MetricInstrument{{
+						Name:        "rest.request_duration",
+						Kind:        "histogram",
+						Description: "Duration.",
+						ValueSource: "dispatch_duration",
+					}},
+				},
+			},
+			"bad": {
+				Name: "bad",
+				Metrics: core.MetricConfig{
+					Instruments: []core.MetricInstrument{{
+						Name:        "bad",
+						Kind:        "summary",
+						Description: "Invalid.",
+						ValueSource: "dispatch_count",
+					}},
+				},
+			},
+		},
+	}
+
+	findings := checkToolMetricConfig(corpus)
+
+	require.Len(t, findings, 1)
+	assert.Equal(t, "tool-metric-config-invalid", findings[0].Check)
+	assert.Contains(t, findings[0].Message, "summary")
+}
+
+func TestValidate_MachineMetricLabels(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"bad-machine": {
+				Name:         "bad-machine",
+				MetricLabels: core.MetricLabels{"phase": "request_id"},
+			},
+		},
+	}
+
+	findings := checkMachineMetricLabels(corpus)
+
+	require.Len(t, findings, 1)
+	assert.Equal(t, "machine-metric-label-invalid", findings[0].Check)
+	assert.Contains(t, findings[0].Message, "request_id")
+}
+
 func TestValidate_MachineActionResolutionIgnoresDynamicTool(t *testing.T) {
 	corpus := &Corpus{
 		Machines: map[string]core.MachineSpec{
