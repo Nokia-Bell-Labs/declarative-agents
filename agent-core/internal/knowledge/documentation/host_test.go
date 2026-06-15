@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -90,6 +91,27 @@ func TestStandaloneServerStartServesDocsAPI(t *testing.T) {
 
 	require.Contains(t, body, `"path":"VISION.yaml"`)
 	require.Contains(t, body, `"trace"`)
+}
+
+func TestStandaloneServerConformanceUsesRESTMachineRequestRoutes(t *testing.T) {
+	t.Parallel()
+	requireMachineRequestConformance(t)
+	root := t.TempDir()
+	docsDir := filepath.Join(root, "docs")
+	writeDocFixture(t, docsDir, "specs/use-cases/uc007.yaml", "id: uc007\n")
+	handler := NewServer(HostConfig{
+		DocsDir: docsDir, ProfilePath: curatorProfilePath(t),
+		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
+	}).Handler()
+
+	rec := getDocsRoute(t, handler, "/api/v1/docs/specs/use-cases/uc007.yaml")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	trace := responseTrace(t, rec.Body.Bytes())
+	require.Equal(t, "documentation_curator_requests", trace["server"])
+	require.Equal(t, "document", trace["route"])
+	require.Equal(t, "documentation-curator-request", trace["machine"])
+	require.Equal(t, "DocumentDetailReady", trace["terminal_signal"])
 }
 
 func TestServeDocumentationUndoStopsOwnedListener(t *testing.T) {
@@ -236,6 +258,22 @@ func requireDocsHostStoppedEvent(t *testing.T, result core.RunResult) {
 	last := result.Events[len(result.Events)-1]
 	require.Equal(t, "serve_documentation", last.CommandName)
 	require.Equal(t, core.Signal("ServerStopped"), last.Signal)
+}
+
+func responseTrace(t *testing.T, data []byte) map[string]interface{} {
+	t.Helper()
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &body))
+	trace, _ := body["trace"].(map[string]interface{})
+	require.NotNil(t, trace)
+	return trace
+}
+
+func requireMachineRequestConformance(t *testing.T) {
+	t.Helper()
+	if os.Getenv("AGENT_CORE_MACHINE_REQUEST_CONFORMANCE") != "1" {
+		t.Skip("set AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 to run failing-first conformance tests")
+	}
 }
 
 func TestStandaloneServerRunsActionsThroughWorkflowRunner(t *testing.T) {

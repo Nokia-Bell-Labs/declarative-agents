@@ -1003,6 +1003,60 @@ test_cases:
       - srd030-machine-request-rest-binding AC6
       - srd030-machine-request-rest-binding AC7
 
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Machine_request conformance loads configured profile machine
+    go_test: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 go test ./internal/tools/rest -run TestRESTServerMachineRequestConformance
+    status: planned
+    description: |
+      Run the opt-in conformance tests for machine_request endpoints. The tests
+      require a configured profile and request-machine file, not an injected
+      MachineSpec, and cover nested catch-all document paths.
+    inputs:
+      conformance_env: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1
+      profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      machine: agents/knowledge-manager/documentation-curator/request-machine.yaml
+      endpoint_path: /api/v1/docs/{path...}
+    expected:
+      configured_profile_loaded: true
+      injected_machine_spec_required: false
+      nested_path_captured: true
+      terminal_signal_mapped: DocumentDetailReady
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S2
+      - rel03.0-uc007-machine-request-documentation-ux S3
+      - srd030-machine-request-rest-binding AC1
+      - srd030-machine-request-rest-binding AC3
+      - srd030-machine-request-rest-binding AC5
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Knowledge Manager routes docs API through generic machine_request
+    go_test: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 go test ./internal/knowledge/documentation -run TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
+    status: planned
+    description: |
+      Run the opt-in Knowledge Manager conformance check. The docs API response
+      trace must identify the generic REST machine_request server route, request
+      machine, terminal signal, and request-scoped run summary.
+    inputs:
+      conformance_env: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1
+      routes:
+        - GET /api/v1/docs
+        - GET /api/v1/docs/{path...}
+      request_machine: documentation-curator-request
+    expected:
+      generic_rest_route_used: true
+      docs_specific_runner_used: false
+      route_trace_present: true
+      machine_name_present: true
+      terminal_signal_present: true
+      run_summary_present: true
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S2
+      - rel03.0-uc007-machine-request-documentation-ux S5
+      - srd030-machine-request-rest-binding AC1
+      - srd030-machine-request-rest-binding AC3
+      - srd030-machine-request-rest-binding AC5
+      - srd030-machine-request-rest-binding AC7
+
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST observability redacts secrets and reports failure stages
     go_test: TestRESTTools_TracingRedactionAndErrors
