@@ -19,7 +19,8 @@ func NewHandler(docsDir string) Handler {
 	return Handler{repo: NewRepository(docsDir), patches: NewPatchStore()}
 }
 
-// List handles GET /api/v1/docs.
+// List is the legacy direct document index handler.
+// Server.Handler routes browser index requests through request-machine instead.
 func (h Handler) List(w http.ResponseWriter, r *http.Request) {
 	docs, err := h.repo.List()
 	if err != nil {
@@ -29,7 +30,8 @@ func (h Handler) List(w http.ResponseWriter, r *http.Request) {
 	writeDataFields(w, http.StatusOK, docs, map[string]interface{}{"count": len(docs)})
 }
 
-// Get handles GET /api/v1/docs/{path...}.
+// Get is the legacy direct document detail handler.
+// Server.Handler routes browser detail requests through request-machine instead.
 func (h Handler) Get(w http.ResponseWriter, r *http.Request) {
 	doc, err := h.repo.Get(r.PathValue("path"))
 	if err != nil {
