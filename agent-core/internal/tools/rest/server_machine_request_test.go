@@ -3,6 +3,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 )
 
 func TestRESTServerMachineRequestSuccess(t *testing.T) {
@@ -61,18 +64,47 @@ func TestRESTServerMachineRequestCommandError(t *testing.T) {
 
 func TestRESTServerMachineRequestConformanceLoadsConfiguredMachineFile(t *testing.T) {
 	t.Parallel()
-	requireMachineRequestConformance(t)
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
 	cfg.MachineSpec = nil
-	cfg.Profile = writeConformanceProfile(t)
-	cfg.Machine = writeConformanceMachine(t, filepath.Dir(cfg.Profile))
-	state, baseURL := launchMachineRequestServerWithConfig(t, cfg)
+	cfg.InitFunc = nil
+	cfg.Timeout = "2s"
+	dir := writeConformanceProfile(t)
+	cfg.Profile = "profile.yaml"
+	cfg.Machine = "request-machine.yaml"
+	cfg.Response.TerminalSignals = map[string]MachineResponseMapping{
+		"DocumentationReady": {Status: 200, Body: map[string]string{"greeting": "$.greeting"}},
+	}
+	runner := conformanceProfileRunner(dir)
+	state, baseURL := launchMachineRequestServerWithRunner(t, cfg, runner)
 	defer stopRESTServer(t, state, "machine")
 
 	body := postJSON(t, baseURL+"/docs", `{"name":"profile"}`, http.StatusOK)
 
 	require.Equal(t, "hello profile", body["greeting"])
 	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
+}
+
+func TestProfileMachineRequestRunnerRejectsInvalidConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		cfg  MachineRequest
+		dir  func(*testing.T) string
+		want string
+	}{
+		{name: "missing profile", cfg: MachineRequest{}, dir: tempProfileDir, want: "profile is required"},
+		{name: "missing machine", cfg: MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutMachine, want: "machine is required"},
+		{name: "missing selected tool", cfg: MachineRequest{Profile: "profile.yaml"}, dir: writeProfileWithoutRespondTool, want: "respond"},
+		{name: "unresolved response signal", cfg: unresolvedResponseConfig(), dir: writeConformanceProfile, want: "terminal signal"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			runner := conformanceProfileRunner(tc.dir(t))
+			_, err := runner.RunMachineRequest(context.Background(), MachineRequestRun{Config: tc.cfg})
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
 }
 
 func TestRESTServerMachineRequestConfiguredInitialSignal(t *testing.T) {
@@ -153,6 +185,24 @@ func launchMachineRequestServerWithConfig(
 		server.Endpoints = endpoints[0]
 	}
 	def := ServerDefinition{Name: "machine", Server: server, MachineRequestRunner: nil}
+	result := ServerBuilder{
+		ToolName: "rest_server_launch", Init: InitServerLaunch, Server: def, State: state,
+	}.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
+	var output map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	return state, "http://" + output["address"].(string)
+}
+
+func launchMachineRequestServerWithRunner(
+	t *testing.T,
+	cfg MachineRequest,
+	runner MachineRequestRunner,
+) (*ServerState, string) {
+	t.Helper()
+	state := NewServerState()
+	server := machineRequestServer(cfg)
+	def := ServerDefinition{Name: "machine", Server: server, MachineRequestRunner: runner}
 	result := ServerBuilder{
 		ToolName: "rest_server_launch", Init: InitServerLaunch, Server: def, State: state,
 	}.Build(core.Result{}).Execute()
@@ -324,26 +374,74 @@ func requestPath(input string) string {
 	return path
 }
 
-func requireMachineRequestConformance(t *testing.T) {
+func conformanceProfileRunner(dir string) *ProfileMachineRequestRunner {
+	return NewProfileMachineRequestRunner(ProfileMachineRequestRunnerDeps{
+		BaseDir:   dir,
+		Directory: dir,
+		RegisterBuiltins: func(br *toolregistry.BuiltinRegistry, selected map[string]bool) {
+			br.Register("test_machine_request_respond", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+				return responseBuilder{signal: "DocumentationReady"}, nil
+			})
+		},
+	})
+}
+
+func tempProfileDir(t *testing.T) string {
 	t.Helper()
-	if os.Getenv("AGENT_CORE_MACHINE_REQUEST_CONFORMANCE") != "1" {
-		t.Skip("set AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 to run failing-first conformance tests")
-	}
+	return t.TempDir()
+}
+
+func unresolvedResponseConfig() MachineRequest {
+	cfg := MachineRequest{Profile: "profile.yaml"}
+	cfg.Response.TerminalSignals = map[string]MachineResponseMapping{"UnknownReady": {Status: 200}}
+	return cfg
 }
 
 func writeConformanceProfile(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	profile := filepath.Join(dir, "profile.yaml")
-	require.NoError(t, os.WriteFile(profile, []byte("name: conformance\nmachine: request-machine.yaml\n"), 0o644))
-	return profile
+	writeProfileFiles(t, dir, "machine: request-machine.yaml\n")
+	writeConformanceMachine(t, dir)
+	writeConformanceDeclarations(t, dir, true)
+	return dir
 }
 
-func writeConformanceMachine(t *testing.T, dir string) string {
+func writeProfileWithoutMachine(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	writeProfileFiles(t, dir, "")
+	return dir
+}
+
+func writeProfileWithoutRespondTool(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	writeProfileFiles(t, dir, "machine: request-machine.yaml\n")
+	writeConformanceMachine(t, dir)
+	writeConformanceDeclarations(t, dir, false)
+	return dir
+}
+
+func writeProfileFiles(t *testing.T, dir string, machineLine string) {
+	t.Helper()
+	data := "name: conformance\n" + machineLine + "tools:\n  - tools.yaml\ntool_declarations:\n  - declarations.yaml\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "profile.yaml"), []byte(data), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "tools.yaml"), []byte("tools:\n  - respond\n"), 0o644))
+}
+
+func writeConformanceMachine(t *testing.T, dir string) {
 	t.Helper()
 	machine := filepath.Join(dir, "request-machine.yaml")
 	require.NoError(t, os.WriteFile(machine, []byte(conformanceMachineYAML), 0o644))
-	return machine
+}
+
+func writeConformanceDeclarations(t *testing.T, dir string, includeRespond bool) {
+	t.Helper()
+	data := "tools: []\n"
+	if includeRespond {
+		data = conformanceDeclarationsYAML
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "declarations.yaml"), []byte(data), 0o644))
 }
 
 const conformanceMachineYAML = `name: request
@@ -365,4 +463,11 @@ transitions:
   - state: Responding
     signal: DocumentationReady
     next: Done
+`
+
+const conformanceDeclarationsYAML = `tools:
+  - name: respond
+    type: builtin
+    init: test_machine_request_respond
+    emits: [DocumentationReady]
 `

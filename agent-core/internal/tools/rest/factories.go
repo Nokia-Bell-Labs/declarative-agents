@@ -3,7 +3,9 @@
 package rest
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
@@ -39,6 +41,192 @@ type FactoryDeps struct {
 	AsyncState         *AsyncState
 	MachineRunner      MachineRequestRunner
 	CredentialResolver CredentialResolver
+}
+
+// BuiltinRegistrar registers builtin factories for a selected tool set.
+type BuiltinRegistrar func(*toolregistry.BuiltinRegistry, map[string]bool)
+
+// ProfileMachineRequestRunnerDeps wires profile-backed machine_request runs.
+type ProfileMachineRequestRunnerDeps struct {
+	BaseDir          string
+	Directory        string
+	Vars             map[string]string
+	RegisterBuiltins BuiltinRegistrar
+	ExecBuilder      toolregistry.ExecBuilderFactory
+}
+
+// ProfileMachineRequestRunner runs request machines from trusted profile config.
+type ProfileMachineRequestRunner struct {
+	deps ProfileMachineRequestRunnerDeps
+}
+
+// NewProfileMachineRequestRunner creates a configured machine_request runner.
+func NewProfileMachineRequestRunner(deps ProfileMachineRequestRunnerDeps) *ProfileMachineRequestRunner {
+	return &ProfileMachineRequestRunner{deps: deps}
+}
+
+// RunMachineRequest loads the configured request profile and runs one machine.
+func (r *ProfileMachineRequestRunner) RunMachineRequest(
+	ctx context.Context,
+	req MachineRequestRun,
+) (MachineRequestResult, error) {
+	if req.Config.MachineSpec != nil {
+		return defaultMachineRequestRunner{}.RunMachineRequest(ctx, req)
+	}
+	cfg, err := r.prepareConfig(req.Config)
+	if err != nil {
+		return MachineRequestResult{}, err
+	}
+	req.Config = cfg
+	return defaultMachineRequestRunner{}.RunMachineRequest(ctx, req)
+}
+
+func (r *ProfileMachineRequestRunner) prepareConfig(cfg MachineRequest) (MachineRequest, error) {
+	profilePath, profile, err := r.loadRequestProfile(cfg)
+	if err != nil {
+		return MachineRequest{}, err
+	}
+	machinePath := requestMachinePath(cfg, profile, filepath.Dir(profilePath))
+	machine, err := core.LoadMachineSpec(machinePath)
+	if err != nil {
+		return MachineRequest{}, fmt.Errorf("machine_config_invalid: load request machine: %w", err)
+	}
+	if err := validateMachineResponses(machine, cfg.Response); err != nil {
+		return MachineRequest{}, err
+	}
+	reg, err := r.requestRegistry(profilePath, profile, machine)
+	if err != nil {
+		return MachineRequest{}, err
+	}
+	cfg.MachineSpec = &machine
+	cfg.Registry = reg
+	cfg.Budget = machine.BudgetSpec.ToBudget(core.Budget{MaxIterations: 10})
+	return cfg, nil
+}
+
+func (r *ProfileMachineRequestRunner) loadRequestProfile(
+	cfg MachineRequest,
+) (string, catalog.AgentProfile, error) {
+	if cfg.Profile == "" {
+		return "", catalog.AgentProfile{}, fmt.Errorf("machine_config_invalid: machine_request profile is required")
+	}
+	path := configuredPath(r.deps.BaseDir, cfg.Profile)
+	profile, err := catalog.LoadProfile(path)
+	if err != nil {
+		return "", catalog.AgentProfile{}, fmt.Errorf("machine_config_invalid: load request profile: %w", err)
+	}
+	return path, profile, nil
+}
+
+func requestMachinePath(cfg MachineRequest, profile catalog.AgentProfile, profileDir string) string {
+	if cfg.Machine == "" {
+		return profile.Machine
+	}
+	return configuredPath(profileDir, cfg.Machine)
+}
+
+func (r *ProfileMachineRequestRunner) requestRegistry(
+	profilePath string,
+	profile catalog.AgentProfile,
+	machine core.MachineSpec,
+) (*core.Registry, error) {
+	defs, err := requestToolDefs(profile, machine)
+	if err != nil {
+		return nil, err
+	}
+	if err := catalog.ValidateToolEmits(machine, defs); err != nil {
+		return nil, fmt.Errorf("machine_config_invalid: %w", err)
+	}
+	return r.registerRequestTools(profilePath, profile, defs)
+}
+
+func requestToolDefs(profile catalog.AgentProfile, machine core.MachineSpec) ([]catalog.ToolDef, error) {
+	dirDefs, err := catalog.LoadToolDeclarationsFromDirs(profile.ToolConfigDirs)
+	if err != nil {
+		return nil, fmt.Errorf("machine_config_invalid: load request tool config dirs: %w", err)
+	}
+	fileDefs, err := catalog.LoadToolDeclarations(profile.ToolDeclarations)
+	if err != nil {
+		return nil, fmt.Errorf("machine_config_invalid: load request tool declarations: %w", err)
+	}
+	defs, err := catalog.SelectTools(catalog.MergeToolDefs(dirDefs, fileDefs), machineActionNames(machine))
+	if err != nil {
+		return nil, fmt.Errorf("machine_config_invalid: select request tools: %w", err)
+	}
+	return defs, nil
+}
+
+func (r *ProfileMachineRequestRunner) registerRequestTools(
+	profilePath string,
+	profile catalog.AgentProfile,
+	defs []catalog.ToolDef,
+) (*core.Registry, error) {
+	reg := core.NewRegistry()
+	builtins := toolregistry.NewBuiltinRegistry()
+	selected := toolregistry.SelectedBuiltinInits(defs)
+	if r.deps.RegisterBuiltins != nil {
+		r.deps.RegisterBuiltins(builtins, selected)
+	}
+	vars := r.requestVars(profilePath, profile)
+	if err := toolregistry.RegisterUnifiedTools(reg, builtins, vars["directory"], defs, vars, r.deps.ExecBuilder); err != nil {
+		return nil, fmt.Errorf("machine_config_invalid: register request tools: %w", err)
+	}
+	return reg, nil
+}
+
+func (r *ProfileMachineRequestRunner) requestVars(profilePath string, profile catalog.AgentProfile) map[string]string {
+	vars := map[string]string{}
+	for name, value := range r.deps.Vars {
+		vars[name] = value
+	}
+	if vars["directory"] == "" {
+		vars["directory"] = requestDirectory(r.deps.Directory, profile, profilePath)
+	}
+	return vars
+}
+
+func requestDirectory(configured string, profile catalog.AgentProfile, profilePath string) string {
+	switch {
+	case configured != "":
+		return configured
+	case profile.Directory != "":
+		return profile.Directory
+	default:
+		return filepath.Dir(profilePath)
+	}
+}
+
+func machineActionNames(machine core.MachineSpec) []string {
+	seen := map[string]bool{}
+	var names []string
+	for _, transition := range machine.Transitions {
+		if transition.Action == "" || transition.Action == "$tool" || seen[transition.Action] {
+			continue
+		}
+		seen[transition.Action] = true
+		names = append(names, transition.Action)
+	}
+	return names
+}
+
+func validateMachineResponses(machine core.MachineSpec, response MachineRequestResponse) error {
+	signals := map[string]bool{}
+	for _, signal := range machine.Signals.Names() {
+		signals[signal] = true
+	}
+	for signal := range response.TerminalSignals {
+		if !signals[signal] {
+			return fmt.Errorf("machine_config_invalid: response terminal signal %q is not declared", signal)
+		}
+	}
+	return nil
+}
+
+func configuredPath(base, path string) string {
+	if filepath.IsAbs(path) || base == "" {
+		return path
+	}
+	return filepath.Join(base, path)
 }
 
 // ClientToolConfig holds REST client ToolDef config.
