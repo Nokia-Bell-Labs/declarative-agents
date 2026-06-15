@@ -50,7 +50,7 @@ roadmap_summary:
     status: in_progress
   - version: "03.0"
     name: Declarative REST client and server tools
-    use_cases_done: 7
+    use_cases_done: 8
     use_cases_total: 8
     status: in_progress
   - version: "04.0"
@@ -369,7 +369,7 @@ use_case_index:
   - id: rel03.0-uc008-rest-await-any-fan-in
     title: Staged REST await-any fan-in adds event sources
     release: "03.0"
-    status: planned
+    status: done
     test_suite: test-rel03.0-rest-tools
     path: docs/specs/use-cases/rel03.0-uc008-rest-await-any-fan-in.yaml
   - id: rel04.0-uc001-configurable-tool-metrics
@@ -468,7 +468,7 @@ go_test_coverage:
     mage integration:uc003 target records a skipped/manual-precondition result,
     not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
-    The 03.0 YAML coverage (35 cases) names implemented Go tests for REST
+    The 03.0 YAML coverage (36 cases) names implemented Go tests for REST
     config loading, client execution, async send/await, server signal handling,
     OpenAPI import, credential resolution, redirect and size policies, server
     validation, redaction behavior, live Ollama OpenAPI model-listing, and
@@ -554,8 +554,8 @@ coverage_gaps: |
     REST event fan-in, route and signal filters, timeout handling, stopped-source
     policy, machine_request configured-profile conformance, Knowledge Manager
     generic route conformance, and REST-triggered lifecycle exit now have formal
-    cases tied to Go tests, uc006, and uc007. rel03.0-uc008 records the planned
-    staged await-any fan-in proof that will launch a later REST source after the
+    cases tied to Go tests, uc006, and uc007. rel03.0-uc008 now has executable
+    staged await-any fan-in coverage that launches a later REST source after the
     first selected event routes through MachineSpec.
   Release 04.0 package tests cover the monitor store, recorder ownership,
   metric config validation, disabled mode, OpenTelemetry metric export,

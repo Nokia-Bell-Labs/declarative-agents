@@ -381,7 +381,7 @@ test_cases:
   - use_case: rel03.0-uc008-rest-await-any-fan-in
     name: Staged REST await-any fan-in adds a later source
     go_test: TestRESTAwaitEvent_FactoryBuildsStagedFanIn
-    status: planned
+    status: done
     description: |
       Build a MachineSpec-shaped factory path with three configured REST server
       sources. Launch the first two servers, dispatch rest_await_event across
