@@ -4,9 +4,9 @@ package filesystem
 
 import (
 	"context"
-	"time"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
 // SetMonitorRecorder connects read to the embedded monitor recorder.
@@ -24,29 +24,27 @@ func (e *editCmd) SetMonitorRecorder(rec monitor.ToolMetricsRecorder) {
 	e.recorder = rec
 }
 
-func (r *readCmd) recordFilesystemMetric(name string, value float64, unit string, description string) {
-	recordFilesystemMetric(context.Background(), r.recorder, r.Name(), name, value, unit, description)
+func (r *readCmd) recordFilesystemMetric(source string, value float64) {
+	recordFilesystemMetric(context.Background(), r.recorder, r.Name(), r.metrics, source, value)
 }
 
-func (w *writeCmd) recordFilesystemMetric(name string, value float64, unit string, description string) {
-	recordFilesystemMetric(context.Background(), w.recorder, w.Name(), name, value, unit, description)
+func (w *writeCmd) recordFilesystemMetric(source string, value float64) {
+	recordFilesystemMetric(context.Background(), w.recorder, w.Name(), w.metrics, source, value)
 }
 
-func (e *editCmd) recordFilesystemMetric(name string, value float64, unit string, description string) {
-	recordFilesystemMetric(context.Background(), e.recorder, e.Name(), name, value, unit, description)
+func (e *editCmd) recordFilesystemMetric(source string, value float64) {
+	recordFilesystemMetric(context.Background(), e.recorder, e.Name(), e.metrics, source, value)
 }
 
-func recordFilesystemMetric(ctx context.Context, rec monitor.ToolMetricsRecorder, toolName, name string, value float64, unit string, description string) {
-	if rec == nil {
-		return
-	}
-	sample := monitor.MetricSample{
-		Name: name, Kind: monitor.InstrumentHistogram, Unit: unit,
-		Description: description, Value: value, ToolName: toolName,
-		Attributes: map[string]string{"operation": toolName}, Timestamp: time.Now(),
-	}
-	// Monitoring is observational; recorder failures must not change file behavior.
-	_ = rec.RecordMetric(ctx, sample)
+func recordFilesystemMetric(
+	ctx context.Context,
+	rec monitor.ToolMetricsRecorder,
+	toolName string,
+	cfg core.MetricConfig,
+	source string,
+	value float64,
+) {
+	core.RecordDeclaredToolMetrics(ctx, rec, toolName, cfg, map[string]float64{source: value}, nil)
 }
 
 func bytesChanged(oldString, newString string) int {

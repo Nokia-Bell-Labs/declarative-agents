@@ -19,6 +19,7 @@ type ClientBuilder struct {
 	Operation   ClientOperationDefinition
 	AsyncState  *AsyncState
 	Credentials CredentialResolver
+	Metrics     core.MetricConfig
 }
 
 // Build creates one REST client boundary command.
@@ -27,6 +28,7 @@ func (b ClientBuilder) Build(res core.Result) core.Command {
 	return &clientCmd{
 		toolName: b.ToolName, init: b.Init, operation: b.Operation,
 		params: params, asyncState: b.AsyncState, credentials: b.Credentials, buildErr: err,
+		metrics: b.Metrics,
 	}
 }
 
@@ -39,6 +41,7 @@ type clientCmd struct {
 	credentials CredentialResolver
 	buildErr    error
 	recorder    monitor.ToolMetricsRecorder
+	metrics     core.MetricConfig
 }
 
 func (c clientCmd) Name() string { return c.toolName }

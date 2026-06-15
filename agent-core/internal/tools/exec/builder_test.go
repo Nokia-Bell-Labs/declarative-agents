@@ -156,7 +156,10 @@ func TestExecCmd_Execute_Success(t *testing.T) {
 func TestExecCmdRecordsMonitorMetrics(t *testing.T) {
 	t.Parallel()
 	rec := &execMetricRecorder{}
-	cmd := &ExecCmd{def: catalog.ToolDef{Name: "greet", Binary: "echo", Args: []string{"hello"}}, root: "/tmp"}
+	cmd := &ExecCmd{
+		def:  catalog.ToolDef{Name: "greet", Binary: "echo", Args: []string{"hello"}, Metrics: execMetrics()},
+		root: "/tmp",
+	}
 	cmd.SetMonitorRecorder(rec)
 
 	res := cmd.Execute()
@@ -165,9 +168,23 @@ func TestExecCmdRecordsMonitorMetrics(t *testing.T) {
 	requireExecMetric(t, rec.samples, "exec.output_bytes", 6)
 	requireExecMetric(t, rec.samples, "exec.exit_code", 0)
 	for _, sample := range rec.samples {
-		require.Equal(t, "echo", sample.Attributes["binary"])
 		require.NotContains(t, sample.Attributes, "output")
 	}
+}
+
+func TestExecCmdSkipsDisabledMonitorMetrics(t *testing.T) {
+	t.Parallel()
+	rec := &execMetricRecorder{}
+	cmd := &ExecCmd{
+		def:  catalog.ToolDef{Name: "greet", Binary: "echo", Args: []string{"hello"}, Metrics: core.MetricConfig{Disabled: true}},
+		root: "/tmp",
+	}
+	cmd.SetMonitorRecorder(rec)
+
+	res := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.Empty(t, rec.samples)
 }
 
 type execMetricRecorder struct {
@@ -187,6 +204,14 @@ func requireExecMetric(t *testing.T, samples []monitor.MetricSample, name string
 		}
 	}
 	t.Fatalf("missing metric %s=%v in %#v", name, value, samples)
+}
+
+func execMetrics() core.MetricConfig {
+	return core.MetricConfig{Instruments: []core.MetricInstrument{
+		{Name: "exec.process_duration", Kind: "histogram", Unit: "ms", Description: "Process duration.", ValueSource: "process_duration"},
+		{Name: "exec.output_bytes", Kind: "histogram", Unit: "By", Description: "Output bytes.", ValueSource: "output_bytes"},
+		{Name: "exec.exit_code", Kind: "gauge", Unit: "1", Description: "Exit code.", ValueSource: "exit_code"},
+	}}
 }
 
 func TestExecCmd_Execute_Failure(t *testing.T) {

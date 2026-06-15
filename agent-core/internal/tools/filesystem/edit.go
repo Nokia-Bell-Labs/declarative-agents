@@ -22,6 +22,7 @@ type editCmd struct {
 	snapshot    fileSnapshot
 	hasSnapshot bool
 	recorder    monitor.ToolMetricsRecorder
+	metrics     core.MetricConfig
 }
 
 func (e *editCmd) Name() string { return "edit" }
@@ -85,7 +86,7 @@ func (e *editCmd) apply(resolved, relPath, content string) core.Result {
 	}
 	e.snapshot = snapshot
 	e.hasSnapshot = true
-	e.recordFilesystemMetric("filesystem.bytes_changed", float64(bytesChanged(e.oldString, e.newString)), "By", "Byte delta for one file edit.")
+	e.recordFilesystemMetric("bytes_changed", float64(bytesChanged(e.oldString, e.newString)))
 	return core.Result{
 		Output:      fmt.Sprintf("replacement applied in %s", relPath),
 		Signal:      core.EditDone,
@@ -96,7 +97,8 @@ func (e *editCmd) apply(resolved, relPath, content string) core.Result {
 
 // EditBuilder constructs edit commands.
 type EditBuilder struct {
-	Root string
+	Root    string
+	Metrics core.MetricConfig
 }
 
 func (b *EditBuilder) Build(res core.Result) core.Command {
@@ -112,7 +114,7 @@ func (b *EditBuilder) Build(res core.Result) core.Command {
 	if n == "" {
 		return missingParam("edit", "new_string")
 	}
-	return &editCmd{root: b.Root, path: p, oldString: o, newString: n}
+	return &editCmd{root: b.Root, path: p, oldString: o, newString: n, metrics: b.Metrics}
 }
 
 // EditToolSpec returns the ToolSpec for the edit tool.

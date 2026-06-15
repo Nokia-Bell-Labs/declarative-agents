@@ -24,19 +24,22 @@ func TestFilesystemCommandsRecordMonitorMetrics(t *testing.T) {
 	root := t.TempDir()
 	rec := &filesystemMetricRecorder{}
 
-	write := (&WriteBuilder{Root: root}).Build(toolReq(`{"path":"a.txt","content":"hello"}`))
+	write := (&WriteBuilder{Root: root, Metrics: filesystemMetrics("filesystem.bytes_written", "bytes_written")}).
+		Build(toolReq(`{"path":"a.txt","content":"hello"}`))
 	write.(core.MonitorRecorderAware).SetMonitorRecorder(rec)
 	if res := write.Execute(); res.Signal != core.ToolDone {
 		t.Fatalf("write signal = %s", res.Signal)
 	}
 
-	read := (&ReadBuilder{Root: root}).Build(toolReq(`{"path":"a.txt"}`))
+	read := (&ReadBuilder{Root: root, Metrics: filesystemMetrics("filesystem.bytes_read", "bytes_read")}).
+		Build(toolReq(`{"path":"a.txt"}`))
 	read.(core.MonitorRecorderAware).SetMonitorRecorder(rec)
 	if res := read.Execute(); res.Signal != core.ToolDone {
 		t.Fatalf("read signal = %s", res.Signal)
 	}
 
-	edit := (&EditBuilder{Root: root}).Build(toolReq(`{"path":"a.txt","old_string":"hello","new_string":"hello!"}`))
+	edit := (&EditBuilder{Root: root, Metrics: filesystemMetrics("filesystem.bytes_changed", "bytes_changed")}).
+		Build(toolReq(`{"path":"a.txt","old_string":"hello","new_string":"hello!"}`))
 	edit.(core.MonitorRecorderAware).SetMonitorRecorder(rec)
 	if res := edit.Execute(); res.Signal != core.EditDone {
 		t.Fatalf("edit signal = %s", res.Signal)
@@ -49,6 +52,38 @@ func TestFilesystemCommandsRecordMonitorMetrics(t *testing.T) {
 		if _, ok := sample.Attributes["path"]; ok {
 			t.Fatalf("path leaked in metric attrs: %#v", sample.Attributes)
 		}
+	}
+}
+
+func TestFilesystemMetricsRespectDisabledConfig(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	rec := &filesystemMetricRecorder{}
+	cmd := (&WriteBuilder{Root: root, Metrics: core.MetricConfig{Disabled: true}}).
+		Build(toolReq(`{"path":"a.txt","content":"hello"}`))
+	cmd.(core.MonitorRecorderAware).SetMonitorRecorder(rec)
+
+	res := cmd.Execute()
+
+	if res.Signal != core.ToolDone {
+		t.Fatalf("write signal = %s", res.Signal)
+	}
+	if len(rec.samples) != 0 {
+		t.Fatalf("disabled metrics recorded samples: %#v", rec.samples)
+	}
+}
+
+func filesystemMetrics(name, source string) core.MetricConfig {
+	return core.MetricConfig{
+		Instruments: []core.MetricInstrument{{
+			Name: name, Kind: "histogram", Unit: "By",
+			Description: "Filesystem metric from declared source.", ValueSource: source,
+			Attributes: []string{"operation", "path"},
+		}},
+		Attributes: []core.MetricAttribute{
+			{Name: "operation", Source: "tool_name", Cardinality: "low", Redaction: "none"},
+			{Name: "path", Source: "user_free_text", Cardinality: "low", Redaction: "none"},
+		},
 	}
 }
 
