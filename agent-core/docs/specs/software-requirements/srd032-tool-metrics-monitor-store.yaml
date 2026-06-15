@@ -14,12 +14,12 @@ problem: |
   recorder boundary. That would blur the boundary between tool-owned metric
   meaning, runtime-owned dispatch context, and reader-owned snapshots.
 
-  The monitor store contract now has an implementation in
+  The monitor store contract has an implementation in
   internal/observability/monitor. The package provides the in-memory store,
   recorder ports, sample validation, diagnostics, disabled-mode recorder, and
-  OpenTelemetry metric emission. Runtime dispatch can pass monitor context to
-  commands through LoopParams. Normal cmd/agent startup still needs opt-in live
-  store wiring before profile runs use the monitor by default.
+  OpenTelemetry metric emission. Runtime dispatch passes monitor context to
+  commands through LoopParams. cmd/agent startup allocates a live store when
+  profile config enables monitor behavior.
 
 goals:
   - G1: Define a bounded in-memory monitor store for current and recent agent state.
@@ -87,20 +87,19 @@ implementation_status:
     OpenTelemetry metric emission. Runtime core can pass an optional monitor
     recorder through LoopParams and dispatch context. ToolDef metrics and
     MachineSpec metric_labels validation run during loading and spec audit.
-    Representative filesystem, LLM, REST, and exec tools emit specialized
-    samples when a recorder is present. Go tests cover bounded snapshots,
-    recorder ownership, unsafe metric config rejection, OTel export, and
-    disabled mode.
+    Filesystem, LLM, REST, and exec tools emit specialized samples from
+    declared ToolDef metrics config. MachineSpec and transition metric_labels
+    apply to standard and specialized samples. cmd/agent allocates the live
+    monitor store during profile startup. TestMonitorReleaseProfileProof and
+    mage integration:uc004 prove the configured Release 04.0 path.
   remaining: |
-    agent-core-xx0f wires monitor store and recorder allocation into cmd/agent
-    profile startup. agent-core-zebe applies MachineSpec and transition
-    metric_labels to standard and specialized samples. agent-core-2gop makes
-    specialized tool emission obey declared ToolDef metrics config.
-    agent-core-i07c adds the end-to-end Release 04.0 monitor proof.
+    No remaining Release 04.0 implementation gap is tracked here. Residual
+    monitor limits are product boundaries: the store is in-process, bounded,
+    and not durable history.
 
 non_goals:
   - Defining REST or OpenAPI monitor read endpoints; see srd033-monitor-rest-api.
-  - Making cmd/agent allocate a live monitor store by default before agent-core-xx0f.
+  - Allocating a monitor store when no monitor profile configuration is present.
   - Making monitor data durable history.
   - Replacing RunResult, History, checkpoints, traces, or rollback state.
   - Letting model text, tool output, or external callers define metric names or labels.
@@ -110,22 +109,35 @@ acceptance_criteria:
   - id: AC1
     criterion: The SRD defines monitor store scope, bounded cached state, snapshots, and non-durable observability cache behavior.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
+    tests:
+      - "test-rel04.0-monitor: Monitor store returns bounded snapshots"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC2
     criterion: Recorder requirements distinguish runtime-owned standard context from tool-owned specialized metric meaning.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
+    tests:
+      - "test-rel04.0-monitor: Recorder separates runtime and tool-owned metrics"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC3
     criterion: Metric validation requirements cover instrument names, kinds, units, source paths, low-cardinality attributes, redaction, and startup diagnostics.
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
+    tests:
+      - "test-rel04.0-monitor: Metric config rejects unsafe labels"
 
   - id: AC4
     criterion: OpenTelemetry export requirements consume normalized samples while preserving tracing behavior and command results.
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+    tests:
+      - "test-rel04.0-monitor: OpenTelemetry export reads normalized samples"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC5
     criterion: Disabled mode keeps monitoring opt-in and preserves current runtime behavior with no store allocation.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+    tests:
+      - "test-rel04.0-monitor: Disabled mode avoids monitor allocation"
 
 depends_on:
   - srd_id: srd003-command-dispatch
