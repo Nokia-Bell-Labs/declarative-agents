@@ -1,0 +1,80 @@
+id: rel04.0-uc001-monitor-metrics
+title: Agent records embedded monitor metrics
+
+summary: |
+  A profile enables embedded monitor metrics for a MachineSpec run.
+
+  Runtime dispatch provides standard context. Tools emit specialized samples
+  through a recorder port. The monitor store caches current state and recent
+  events. It also keeps per-tool usage, accepted samples, diagnostics, and
+  bounded recent errors. OpenTelemetry export reads normalized samples from
+  that cache.
+
+  This path matters when a profile author wants progress data for a live run
+  but still needs the grammar to stay visible in MachineSpec, the metric
+  vocabulary to stay in ToolDef declarations, and the runtime to keep readers
+  away from prompts, workspace files, and tool internals.
+
+  Export failure does not change command results. With monitoring disabled,
+  tools see a nil or no-op recorder and the loop keeps current behavior.
+
+actor: Agent profile author configuring monitor metrics
+
+trigger: |
+  The author wants local progress and usage metrics for a configured agent
+  without adding a sidecar, daemon, external collector requirement, or hidden
+  workflow inside tools.
+
+flow:
+  - F1: The author configures monitor metrics for one profile.
+  - F2: ToolDef metrics declarations define instruments, units, value sources, and allowed attributes.
+  - F3: MachineSpec metric_labels define bounded workflow context for the run.
+  - F4: Startup validation checks metric declarations and workflow labels.
+  - F5: Runtime dispatch passes standard context to the recorder for each command.
+  - F6: Tools emit safe specialized samples through ToolMetricsRecorder.
+  - F7: The monitor store caches bounded state, aggregates, recent samples, diagnostics, and error summaries.
+  - F8: OpenTelemetry metric export reads normalized samples without changing command Result.Signal.
+  - F9: When monitor config is absent, runtime setup uses disabled-mode recorder behavior and no monitor store.
+
+touchpoints:
+  - T1: "srd032-tool-metrics-monitor-store R1.1, R1.2, R1.3, R1.4, R1.5 -- monitor store scope and bounded snapshot state"
+  - T2: "srd032-tool-metrics-monitor-store R2.1, R2.2, R2.3, R2.4, R2.5, R2.6 -- recorder ownership boundaries"
+  - T3: "srd032-tool-metrics-monitor-store R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7 -- metric schema and label validation"
+  - T4: "srd032-tool-metrics-monitor-store R4.1, R4.2, R4.3, R4.4, R4.5 -- OpenTelemetry metric export"
+  - T5: "srd032-tool-metrics-monitor-store R5.1, R5.2, R5.3, R5.4, R5.5 -- disabled-mode behavior"
+  - T6: "sm-tool-metrics-monitoring ownership_rules -- tools own specialized metrics and runtime owns standard context"
+  - T7: "cfg-tool-declaration-format metric_declaration_fields -- ToolDef metrics declarations"
+  - T8: "cfg-machine-format workflow_metric_labels -- MachineSpec workflow labels"
+
+success_criteria:
+  - id: S1
+    criterion: Monitor store snapshots expose bounded current and recent state without executing tools or reading workspace files.
+    traces:
+      - srd032-tool-metrics-monitor-store AC1
+  - id: S2
+    criterion: Recorder use separates runtime-owned standard context from tool-owned specialized metric meaning.
+    traces:
+      - srd032-tool-metrics-monitor-store AC2
+  - id: S3
+    criterion: Metric config validation rejects unsafe names, source paths, attributes, and label values before recording starts.
+    traces:
+      - srd032-tool-metrics-monitor-store AC3
+  - id: S4
+    criterion: OpenTelemetry metric export reads normalized samples and reports export failure as diagnostics.
+    traces:
+      - srd032-tool-metrics-monitor-store AC4
+  - id: S5
+    criterion: Disabled mode preserves current loop, dispatch, tracing, and tool behavior without allocating a monitor store.
+    traces:
+      - srd032-tool-metrics-monitor-store AC5
+
+out_of_scope:
+  - Defining REST or OpenAPI monitor read endpoints.
+  - Implementing monitor packages.
+  - Creating durable metric history.
+  - Replacing traces, RunResult, checkpoints, or rollback state.
+
+semantic_model: sm-tool-metrics-monitoring
+config_formats:
+  - cfg-tool-declaration-format
+  - cfg-machine-format

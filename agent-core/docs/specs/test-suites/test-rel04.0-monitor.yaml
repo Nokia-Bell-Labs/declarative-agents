@@ -1,0 +1,116 @@
+id: test-rel04.0-monitor
+title: Test Suite for Release 04.0 Embedded Monitor
+release: "04.0"
+
+traces:
+  - rel04.0-uc001-monitor-metrics
+
+preconditions:
+  - internal/monitor contains the planned monitor store and recorder ports.
+  - ToolDef metrics declarations can be loaded from trusted YAML.
+  - MachineSpec metric_labels can be loaded from trusted YAML.
+  - OpenTelemetry metric export can use a local in-memory metric reader in tests.
+  - Disabled-mode tests can run without monitor config.
+
+test_cases:
+  - use_case: rel04.0-uc001-monitor-metrics
+    name: Monitor store returns bounded snapshots
+    go_test: TestMonitorStore_BoundedSnapshot
+    status: planned
+    description: |
+      Record current machine state, recent events, per-tool usage, accepted
+      samples, diagnostics, and recent errors. Read a snapshot from the store.
+      The snapshot should honor configured limits and should not execute tools
+      or read workspace files.
+    inputs:
+      limits:
+        events: 3
+        samples: 4
+        errors: 2
+      sample_count: 8
+    expected:
+      snapshot_bounded: true
+      reads_execute_tools: false
+      reads_workspace_files: false
+    traces:
+      - rel04.0-uc001-monitor-metrics S1
+      - srd032-tool-metrics-monitor-store AC1
+
+  - use_case: rel04.0-uc001-monitor-metrics
+    name: Recorder separates runtime and tool-owned metrics
+    go_test: TestToolMetricsRecorder_OwnershipBoundaries
+    status: planned
+    description: |
+      Dispatch records standard context while a filesystem tool records
+      specialized samples. The recorder should accept both forms through one
+      path and reject direct writes to exporters or REST readers.
+    inputs:
+      standard_context: [run_id, agent_name, tool_name, state, signal, status, duration]
+      specialized_samples: [files_written, bytes_changed]
+    expected:
+      runtime_context_recorded: true
+      specialized_samples_recorded: true
+      direct_exporter_write_allowed: false
+    traces:
+      - rel04.0-uc001-monitor-metrics S2
+      - srd032-tool-metrics-monitor-store AC2
+
+  - use_case: rel04.0-uc001-monitor-metrics
+    name: Metric config rejects unsafe labels
+    go_test: TestMonitorMetricConfig_RejectsUnsafeLabels
+    status: planned
+    description: |
+      Load ToolDef metrics and MachineSpec labels with invalid value sources.
+      Validation should reject unsafe names, source paths, attributes, and label
+      values before monitor recording starts.
+    inputs:
+      invalid_sources:
+        - raw_prompt
+        - full_tool_output
+        - arbitrary_url
+        - request_id
+        - timestamp
+    expected:
+      validation_failed: true
+      recording_started: false
+      diagnostic_identifies_field: true
+    traces:
+      - rel04.0-uc001-monitor-metrics S3
+      - srd032-tool-metrics-monitor-store AC3
+
+  - use_case: rel04.0-uc001-monitor-metrics
+    name: OpenTelemetry export reads normalized samples
+    go_test: TestMonitorOTelExport_NormalizedSamples
+    status: planned
+    description: |
+      Export normalized monitor samples through an OpenTelemetry metric path.
+      The exporter should use service resource identity and report exporter
+      failure as diagnostics without changing command results.
+    inputs:
+      instruments: [dispatch_duration, dispatch_count]
+      exporter_failure: true
+    expected:
+      resource_identity_matches_trace: true
+      diagnostics_recorded: true
+      command_signal_changed: false
+    traces:
+      - rel04.0-uc001-monitor-metrics S4
+      - srd032-tool-metrics-monitor-store AC4
+
+  - use_case: rel04.0-uc001-monitor-metrics
+    name: Disabled mode avoids monitor allocation
+    go_test: TestMonitorDisabledMode_NoStoreAllocation
+    status: planned
+    description: |
+      Run setup without monitor config. Runtime should provide nil or no-op
+      recorder behavior, avoid monitor store allocation, and preserve current
+      loop, dispatch, tracing, and tool behavior.
+    inputs:
+      monitor_configured: false
+    expected:
+      monitor_store_allocated: false
+      recorder_noop: true
+      existing_behavior_preserved: true
+    traces:
+      - rel04.0-uc001-monitor-metrics S5
+      - srd032-tool-metrics-monitor-store AC5

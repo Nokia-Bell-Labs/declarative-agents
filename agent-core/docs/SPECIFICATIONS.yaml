@@ -3,27 +3,27 @@ title: Agent Core Specification Index
 
 overview: |
   Specification index for the agent-core framework. Thirty-one current SRDs
-  define the generic agentic loop engine and its supporting packages
-  across four releases. The 00.0 release owns the engine foundation and
-  its support packages. In 01.0, configured runtime behavior expands into
-  evaluator and bench contracts. Tool declarations also belong to that release.
-  Rollback lifecycle contracts belong to 02.0. Declarative REST runtime
-  contracts belong to 03.0. REST client and server contracts sit in the same
-  release. Fifteen use cases exercise the SRDs across the
-  four releases. Five formal YAML test suites cover 189 acceptance test
-  cases across releases 00.0 through 03.0; additional
+  define the generic agentic loop engine and its supporting packages across
+  four releases. One planned SRD starts the monitor release. The 00.0 release
+  owns the engine foundation and its support packages. In 01.0, configured
+  runtime behavior expands into evaluator and bench contracts. Tool
+  declarations also belong to that release. Rollback lifecycle contracts
+  belong to 02.0. Declarative REST runtime contracts belong to 03.0. REST
+  client and server contracts sit in the same release. Sixteen use cases
+  exercise the SRDs across the five releases. Six formal YAML test suites cover 194 acceptance test
+  cases across releases 00.0 through 04.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
 
-  A future monitor release will add embedded runtime monitoring. That release
-  will define monitor metric semantics, an in-memory monitor store,
-  OpenTelemetry metric export, and REST/OpenAPI reads from cached monitor
-  state. Those artifacts are planned and are not implementation evidence.
+  A future monitor release will add embedded runtime monitoring. One planned
+  SRD now defines the monitor store, recorder, metric validation, disabled
+  mode, and OpenTelemetry metric export. Follow-up artifacts will define
+  REST/OpenAPI reads from cached monitor state.
 
   SRD release assignments are range based. Release 00.0 covers srd001
   through srd018. Release 01.0 covers srd019 through srd024. Release
   02.0 covers srd025 and srd026. Release 03.0 covers srd027 through
-  srd031.
+  srd031. Release 04.0 starts with planned srd032.
 
   Source-of-truth note.
   - roll-backs.md and tools-as-dsl.md are historical design notes. Their
@@ -67,31 +67,16 @@ planned_monitor_artifact_index:
     follow-up documentation issues and should not be treated as existing SRDs,
     semantic models, use cases, test suites, or implemented runtime behavior.
   artifacts:
-    - id: srd032-monitor-store-metrics
-      type: srd
-      title: Monitor Store and Metrics
-      planned_path: docs/specs/software-requirements/srd032-monitor-store-metrics.yaml
-      scope: Define recorder ports, bounded in-memory store behavior, metric schema validation, and OpenTelemetry metric export.
     - id: srd033-monitor-rest-api
       type: srd
       title: Monitor REST API
       planned_path: docs/specs/software-requirements/srd033-monitor-rest-api.yaml
       scope: Define REST and OpenAPI read paths over cached monitor state.
-    - id: rel04.0-uc001-monitor-metrics
-      type: use_case
-      title: Agent exposes embedded monitor metrics
-      planned_path: docs/specs/use-cases/rel04.0-uc001-monitor-metrics.yaml
-      scope: Exercise tool-owned metric emission into the in-memory monitor store and OpenTelemetry metric export.
     - id: rel04.0-uc002-monitor-rest-api
       type: use_case
       title: Supervisor reads monitor state through REST
       planned_path: docs/specs/use-cases/rel04.0-uc002-monitor-rest-api.yaml
       scope: Exercise REST and OpenAPI reads from cached monitor state without re-running tools.
-    - id: test-rel04.0-monitor
-      type: test_suite
-      title: Test Suite for Release 04.0 Embedded Monitor
-      planned_path: docs/specs/test-suites/test-rel04.0-monitor.yaml
-      scope: Map the monitor store, metric export, and REST API criteria to Go and integration tests.
 
 foundation_document_index:
   - id: agent-core
@@ -228,6 +213,11 @@ srd_index:
     title: Declarative Document Resources
     summary: Requirements for filesystem-backed documentation resources with safe path resolution, include patterns, extension allowlists, YAML and Markdown response modes, and profile-owned UI placement.
     path: docs/specs/software-requirements/srd031-declarative-document-resources.yaml
+  - id: srd032-tool-metrics-monitor-store
+    title: Tool Metrics Monitor Store
+    summary: Planned requirements for a bounded in-memory monitor store, ToolMetricsRecorder, metric validation, OpenTelemetry metric export, and disabled-mode behavior.
+    status: planned
+    path: docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -390,6 +380,12 @@ use_case_index:
     status: done
     test_suite: test-rel03.0-rest-tools
     path: docs/specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml
+  - id: rel04.0-uc001-monitor-metrics
+    title: Agent records embedded monitor metrics
+    release: "04.0"
+    status: planned
+    test_suite: test-rel04.0-monitor
+    path: docs/specs/use-cases/rel04.0-uc001-monitor-metrics.yaml
 
 test_suite_index:
   - id: test-rel00.0
@@ -438,6 +434,13 @@ test_suite_index:
       - rel03.0-uc007-machine-request-documentation-ux
     formal_test_cases: 35
     path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
+  - id: test-rel04.0-monitor
+    title: Test Suite for Release 04.0 Embedded Monitor
+    release: "04.0"
+    traces:
+      - rel04.0-uc001-monitor-metrics
+    formal_test_cases: 5
+    path: docs/specs/test-suites/test-rel04.0-monitor.yaml
 
 go_test_coverage:
   note: >
@@ -457,7 +460,8 @@ go_test_coverage:
     OpenAPI import, credential resolution, redirect and size policies, server
     validation, redaction behavior, live Ollama OpenAPI model-listing, and
     documentation-curator ownership, curator validation workflows, generic REST fan-in, lifecycle-control routing, payload propagation, terminal-state routing, listener shutdown, migration smoke coverage, machine_request conformance checks, and Puppeteer coverage for machine_request documentation UX. Package tests cover
-    srd009-srd018 and domain packages. Run
+    srd009-srd018 and domain packages. Release 04.0 has planned monitor
+    coverage for the monitor store and metric export SRD. Run
     `go test ./... -v | grep -c '=== RUN'` for the current test function count.
 
 srd_to_use_case_mapping:
