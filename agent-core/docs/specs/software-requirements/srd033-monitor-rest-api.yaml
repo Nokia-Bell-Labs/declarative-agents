@@ -13,10 +13,13 @@ problem: |
   read cached monitor state only. Profile-owned REST configuration and OpenAPI
   descriptions must own the exposed routes.
 
-  This SRD is planned documentation for future monitor readers, and the
-  requirements stop at contracts so later code issues can implement handlers,
-  configured routes, OpenAPI output, and streaming support under the same
-  cached-state boundary. Nothing here is implemented yet.
+  Monitor REST reader support now exists on the existing REST server path.
+  Configured endpoints can read monitor views, expose OpenAPI metadata, and
+  stream cached monitor updates. The implementation keeps handlers read-only:
+  they do not execute tools, dispatch MachineSpec actions, inspect prompts, or
+  scrape workspace files. Follow-up work still needs to pass the live cmd/agent
+  monitor store into those routes before the monitor profile reflects a running
+  agent without test seeding.
 
 goals:
   - G1: Define monitor REST endpoints that read cached monitor state.
@@ -72,9 +75,24 @@ requirements:
       - R5.4: Handler failures SHALL return structured errors with endpoint name, failure stage, redacted message, and correlation metadata.
       - R5.5: REST API failures SHALL NOT change command Result.Signal, monitor store state, or MachineSpec state.
 
+implementation_status:
+  current: |
+    internal/tools/rest supports monitor_view on read_state, static_metadata,
+    and stream_events endpoints. agents/monitor defines a profile-owned REST
+    server with machine, state, tools, metrics, events, event stream, and
+    OpenAPI routes. Monitor REST tests cover cached-state reads, OpenAPI
+    redaction, snapshot endpoints, event stream frames, and observational
+    failure behavior. REST monitor readers reuse the existing REST server launch
+    path instead of a separate monitor server stack.
+  remaining: |
+    agent-core-talk passes live MonitorState from cmd/agent into REST server
+    factory dependencies. agent-core-xx0f allocates the monitor store and
+    recorder during profile startup. agent-core-i07c proves the configured
+    monitor path end to end through cmd/agent.
+
 non_goals:
-  - Implementing REST handlers, OpenAPI generation, or event streams in this issue.
-  - Defining write endpoints for monitor state.
+  - Writing monitor state through REST.
+  - Treating the monitor profile as live until agent-core-talk wires it to the current process store.
   - Executing tools or MachineSpec actions from monitor HTTP handlers.
   - Replacing REST server tool contracts in srd029-rest-server-tools.
   - Exposing raw prompts, full outputs, secrets, or arbitrary workspace files.

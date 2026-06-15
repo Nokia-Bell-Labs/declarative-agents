@@ -2,9 +2,9 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Thirty-one current SRDs
+  Specification index for the agent-core framework. Thirty-three SRDs
   define the generic agentic loop engine and its supporting packages across
-  four releases. Two planned SRDs start the monitor release. The 00.0 release
+  five releases. Release 04.0 is in progress for embedded monitoring. The 00.0 release
   owns the engine foundation and its support packages. In 01.0, configured
   runtime behavior expands into evaluator and bench contracts. Tool
   declarations also belong to that release. Rollback lifecycle contracts
@@ -15,15 +15,16 @@ overview: |
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
 
-  A future monitor release will add embedded runtime monitoring. Planned SRDs
-  now define the monitor store, recorder, metric validation, disabled mode,
-  OpenTelemetry metric export, and REST/OpenAPI reads from cached monitor
-  state.
+  The monitor release adds embedded runtime monitoring. Current code defines
+  the monitor store, recorder, metric validation, disabled mode, OpenTelemetry
+  metric export, and REST/OpenAPI reads from cached monitor state. Follow-up
+  work under agent-core-8np6 wires the live store into normal cmd/agent profile
+  startup and completes the release proof.
 
   SRD release assignments are range based. Release 00.0 covers srd001
   through srd018. Release 01.0 covers srd019 through srd024. Release
   02.0 covers srd025 and srd026. Release 03.0 covers srd027 through
-  srd031. Release 04.0 starts with planned srd032 and srd033.
+  srd031. Release 04.0 starts with in-progress srd032 and srd033.
 
   Source-of-truth note.
   - roll-backs.md and tools-as-dsl.md are historical design notes. Their
@@ -57,7 +58,7 @@ roadmap_summary:
     name: Embedded monitor metrics and REST API
     use_cases_done: 0
     use_cases_total: 2
-    status: planned
+    status: in_progress
 
 planned_monitor_artifact_index:
   release: "04.0"
@@ -210,13 +211,13 @@ srd_index:
     path: docs/specs/software-requirements/srd031-declarative-document-resources.yaml
   - id: srd032-tool-metrics-monitor-store
     title: Tool Metrics Monitor Store
-    summary: Planned requirements for a bounded in-memory monitor store, ToolMetricsRecorder, metric validation, OpenTelemetry metric export, and disabled-mode behavior.
-    status: planned
+    summary: Requirements for a bounded in-memory monitor store, ToolMetricsRecorder, metric validation, OpenTelemetry metric export, disabled-mode behavior, and remaining profile startup wiring.
+    status: in_progress
     path: docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
   - id: srd033-monitor-rest-api
     title: Monitor REST API
-    summary: Planned requirements for read-only REST and OpenAPI monitor endpoints over cached monitor state, including machine, tool, metric, event, and stream views.
-    status: planned
+    summary: Requirements for read-only REST and OpenAPI monitor endpoints over cached monitor state, including machine, tool, metric, event, stream views, and remaining live-store wiring.
+    status: in_progress
     path: docs/specs/software-requirements/srd033-monitor-rest-api.yaml
 
 config_format_index:
@@ -383,13 +384,13 @@ use_case_index:
   - id: rel04.0-uc001-configurable-tool-metrics
     title: Profile configures tool metrics for embedded monitoring
     release: "04.0"
-    status: planned
+    status: in_progress
     test_suite: test-rel04.0-monitor
     path: docs/specs/use-cases/rel04.0-uc001-configurable-tool-metrics.yaml
   - id: rel04.0-uc002-monitor-rest-api
     title: Supervisor reads monitor state through REST
     release: "04.0"
-    status: planned
+    status: in_progress
     test_suite: test-rel04.0-monitor
     path: docs/specs/use-cases/rel04.0-uc002-monitor-rest-api.yaml
 
@@ -467,8 +468,9 @@ go_test_coverage:
     OpenAPI import, credential resolution, redirect and size policies, server
     validation, redaction behavior, live Ollama OpenAPI model-listing, and
     documentation-curator ownership, curator validation workflows, generic REST fan-in, lifecycle-control routing, payload propagation, terminal-state routing, listener shutdown, migration smoke coverage, machine_request conformance checks, and Puppeteer coverage for machine_request documentation UX. Package tests cover
-    srd009-srd018 and domain packages. Release 04.0 has planned monitor
-    coverage for the monitor store, metric export, and REST API SRDs. Run
+    srd009-srd018 and domain packages. Release 04.0 now has implemented
+    package tests for the monitor store, metric export, and REST API SRDs. The
+    remaining release proof must run those monitor paths through cmd/agent. Run
     `go test ./... -v | grep -c '=== RUN'` for the current test function count.
 
 srd_to_use_case_mapping:
@@ -542,11 +544,15 @@ coverage_gaps: |
   validation, and redaction now have executable coverage. invoke_handler and
   stream_events bindings have executable server coverage. The Qwen Ollama
   OpenAPI E2E flow, documentation-curator ownership proof, and
-  machine_request browser proof now have formal release 03.0 coverage. Generic
-  REST event fan-in, route and signal filters, timeout handling, stopped-source
-  policy, machine_request configured-profile conformance, Knowledge Manager
-  generic route conformance, and REST-triggered lifecycle exit now have formal
-  cases tied to Go tests, uc006, and uc007.
+    machine_request browser proof now have formal release 03.0 coverage. Generic
+    REST event fan-in, route and signal filters, timeout handling, stopped-source
+    policy, machine_request configured-profile conformance, Knowledge Manager
+    generic route conformance, and REST-triggered lifecycle exit now have formal
+    cases tied to Go tests, uc006, and uc007.
+  Release 04.0 package tests now cover the monitor store, recorder ownership,
+  metric config validation, disabled mode, OpenTelemetry metric export, and
+  REST/OpenAPI cached-state readers. The remaining release proof must run the
+  monitor path through cmd/agent with a live store.
   Lifecycle exit coverage asserts event payload propagation, structured
   exit_agent output, terminal Done or Succeeded routing, absence of cancelled
   status, and documentation/control listener release.

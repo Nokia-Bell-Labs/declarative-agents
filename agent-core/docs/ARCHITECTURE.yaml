@@ -18,14 +18,14 @@ overview:
     providers, or workspace files.
 
     Infrastructure packages are shared by all agent profiles. Observability
-    packages own tracing, telemetry, traceparent, and GenAI attributes. Model
-    packages own the LLM boundary, conversations, profiles, parsing, and prompt
-    assembly. Focused internal/tools packages own catalog, registry, exec,
-    filesystem, LLM, REST, lifecycle, control, validation, undo, and temporary
-    STL facade behavior. Planned embedded monitor packages own cached runtime
-    metrics, OpenTelemetry metric export, and REST/OpenAPI read models for
-    live agent state. Evaluation and support packages provide session runtime,
-    result artifacts, metrics, CLI helpers, and subprocess utilities.
+    packages own tracing, telemetry, traceparent, GenAI attributes, and the
+    embedded monitor store. Model packages own the LLM boundary, conversations,
+    profiles, parsing, and prompt assembly. Focused internal/tools packages own
+    catalog, registry, exec, filesystem, LLM, REST, lifecycle, control,
+    validation, undo, and temporary STL facade behavior. Monitor readers expose
+    cached runtime metrics through OpenTelemetry and REST/OpenAPI read models
+    for live agent state. Evaluation and support packages provide session
+    runtime, result artifacts, metrics, CLI helpers, and subprocess utilities.
 
     Domain packages support specific workflows. Planning packages parse plans,
     extract tasks, build requirement graphs, and materialize issues.
@@ -698,13 +698,13 @@ overview:
         - docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
   embedded_monitor_runtime_architecture:
-    status: planned
+    status: in_progress
     summary: |
-      Embedded monitor support will run inside the agent process. It is a
-      reusable runtime capability, not a Kubernetes sidecar, daemon, or
-      required external service. A bounded in-memory store records tool and
-      loop metrics so profiles can expose live progress without waiting for an
-      external collector.
+      Embedded monitor support runs inside the agent process when a recorder
+      and store are provided to runtime code. This reusable runtime capability
+      is not a Kubernetes sidecar, daemon, or required external service. A
+      bounded in-memory store records tool and loop metrics so readers can
+      expose live progress without waiting for an external collector.
 
       Metric meaning stays with each tool family. File tools can emit changed
       byte counts. Exec tools can emit exit status and output sizes. REST tools
@@ -712,13 +712,16 @@ overview:
       Runtime code owns the common envelope: run ID, tool name, state, signal,
       timestamp, duration, and status.
 
-      OpenTelemetry metric export reads normalized samples from the store.
-      Export behavior stays separate from tool execution. Export failure must
-      not break the agent loop.
+      OpenTelemetry metric export reads normalized samples through the monitor
+      recorder. Export behavior stays separate from tool execution. Export
+      failure does not break the agent loop.
 
       Cached monitor state backs REST and OpenAPI read paths. Handlers return
       snapshots and recent sample windows from trusted in-process state. They
       do not scrape tools, re-run commands, or read arbitrary workspace files.
+      Remaining work wires cmd/agent startup to allocate the live store, pass it
+      to REST monitor routes, and apply MachineSpec workflow labels to emitted
+      samples.
     monitor_flow_diagram: |
       ```mermaid
       flowchart LR
@@ -749,14 +752,29 @@ overview:
         OpenAPI descriptions. Read handlers return snapshots, time windows, and
         known metric schemas from trusted monitor state.
     source_files:
-      planned:
-        - internal/monitor/
-        - internal/tools/* monitor metric emission points
-        - tools/builtin/monitor/
-        - docs/specs/software-requirements/srd032-monitor-store-metrics.yaml
+      current:
+        - internal/observability/monitor/
+        - internal/runtime/core/dispatch.go
+        - internal/runtime/core/loop.go
+        - internal/runtime/core/metric_config.go
+        - internal/tools/filesystem/monitor_metrics.go
+        - internal/tools/llm/monitor_metrics.go
+        - internal/tools/rest/monitor_metrics.go
+        - internal/tools/rest/monitor_views.go
+        - internal/tools/rest/monitor_openapi.go
+        - internal/tools/exec/metrics.go
+        - agents/monitor/
+        - testdata/integration/rel04-monitor/
+        - docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
         - docs/specs/software-requirements/srd033-monitor-rest-api.yaml
-        - docs/specs/semantic-models/tool-metrics.yaml
-        - docs/specs/config-formats/monitor-rest-api.yaml
+        - docs/specs/semantic-models/tool-metrics-monitoring.yaml
+        - docs/specs/test-suites/test-rel04.0-monitor.yaml
+      remaining:
+        - agent-core-xx0f: wire monitor recorder into cmd/agent runtime
+        - agent-core-talk: back monitor REST profile with live store
+        - agent-core-zebe: apply MachineSpec metric labels to monitor samples
+        - agent-core-2gop: make tool metric emission config-driven
+        - agent-core-i07c: add end-to-end monitor release proof
 
   container_runtime_architecture:
     summary: |
@@ -1308,8 +1326,8 @@ project_structure:
       role: OTel implementation (providers, exporters, adapter, traceparent, replay)
     - path: internal/observability/telemetry/genai/
       role: OTel GenAI semantic convention constants, span name builders, attribute helpers
-    - path: internal/monitor/
-      role: Planned embedded monitor store, recorder ports, metric schema registry, OpenTelemetry metric export, and REST/OpenAPI cached-state readers
+    - path: internal/observability/monitor/
+      role: Embedded monitor store, recorder ports, metric schema registry, and OpenTelemetry metric export for normalized samples
     - path: internal/model/llm/
       role: Model-boundary client, conversation, profiles, parse utilities, domain interfaces
     - path: internal/model/llm/ollama/
@@ -1455,7 +1473,7 @@ implementation_status:
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd026)
-    - planned: Embedded monitor runtime with in-memory monitor store, tool-owned metric emission, OpenTelemetry metric export, and REST/OpenAPI reads from cached state
+    - in_progress: Embedded monitor runtime — in-memory store, recorder ports, ToolDef and MachineSpec metric validation, representative tool-owned metric emission, OpenTelemetry metric export, and REST/OpenAPI cached-state readers exist; cmd/agent live-store wiring, workflow label propagation, config-driven emission, and release proof remain open under agent-core-8np6
 
 related_documents:
   - doc: docs/VISION.yaml
