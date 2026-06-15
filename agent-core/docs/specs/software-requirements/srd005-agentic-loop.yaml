@@ -64,6 +64,7 @@ requirements:
       - R5.9: Cost is accumulated across iterations (TokensIn, TokensOut, TotalCost).
       - R5.10: Events are appended with per-iteration metadata.
       - R5.11: "Loop emits OTel spans using GenAI semconv naming: an invoke_agent {AgentName} root span for the run, and events for transitions, budget, and termination."
+      - R5.12: When monitor recording is configured, Loop SHALL provide runtime-owned workflow context for standard metrics. Context includes agent name, iteration, command name, from-state, to-state, signal, run status, and budget outcome. Tool-specific metric meaning remains owned by the dispatched tool.
 
   R6:
     title: ValidateBuilders helper
@@ -105,7 +106,7 @@ acceptance_criteria:
 
   - id: AC5
     criterion: Loop drives state machine from InitialState to terminal, checking budget and context, dispatching commands, accumulating cost, recording events, and emitting OTel spans.
-    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10, R5.11]
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10, R5.11, R5.12]
 
   - id: AC6
     criterion: ValidateBuilders returns a ValidateParams hook checking named builders.
@@ -128,3 +129,6 @@ depends_on:
     symbols_used: [Tracer]
   - srd_id: srd015-genai-semconv
     symbols_used: [AgentSpanName, AgentAttrs, AttrUsageInputTokens, AttrUsageOutputTokens, AttrResponseFinishReasons]
+
+related_documents:
+  - docs/specs/semantic-models/tool-metrics-monitoring.yaml

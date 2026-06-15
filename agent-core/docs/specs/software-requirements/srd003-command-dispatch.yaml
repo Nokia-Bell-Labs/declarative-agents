@@ -20,6 +20,7 @@ requirements:
       - R1.2: "Dispatch creates a child span using GenAI semconv naming: execute_tool {name} by default. Commands implementing SpanOverride customize the span name and creation attributes."
       - R1.3: The child span records command.name, command.signal, command.duration_ms, gen_ai.usage.input_tokens, and gen_ai.usage.output_tokens as attributes.
       - R1.4: If Result.Err is non-nil, Dispatch sets error.type attributes and calls RecordError on the span.
+      - R1.5: When an optional monitor recorder is configured, Dispatch SHALL emit standard dispatch metric samples without changing the tracing span contract. Runtime-owned fields include command name, signal, duration, status, error class, and token counts already present in Result.Cost.
 
   R2:
     title: SafeExecute function
@@ -44,7 +45,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: Dispatch creates a child span, calls SafeExecute, sets CommandName, stamps span attributes.
-    traces: [R1.1, R1.2, R1.3, R1.4]
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
 
   - id: AC2
     criterion: SafeExecute recovers panics, enforces timeout, fills duration, and normalizes error signals.
@@ -61,3 +62,6 @@ depends_on:
     symbols_used: [Tracer]
   - srd_id: srd015-genai-semconv
     symbols_used: [ToolSpanName, ToolAttrs, ErrorAttrs]
+
+related_documents:
+  - docs/specs/semantic-models/tool-metrics-monitoring.yaml
