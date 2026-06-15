@@ -341,6 +341,10 @@ schema:
         type: queue_config
         required: false
         description: Default inbound queue behavior.
+      - field: event_sources
+        type: map[string]event_source
+        required: false
+        description: Named source filters that rest_await_event can read for fan-in across server queues.
       - field: endpoints
         type: map[string]endpoint
         required: true
@@ -376,6 +380,10 @@ schema:
         type: "[]string"
         required: false
         description: Signal allowlist for emit_dynamic_signal endpoints.
+      - field: lifecycle_control
+        type: lifecycle_control_config
+        required: false
+        description: Lifecycle control request mapping used when binding is lifecycle_control.
       - field: request
         type: request_binding
         required: false
@@ -388,6 +396,79 @@ schema:
         type: queue_config
         required: false
         description: Endpoint-specific queue behavior.
+
+  event_source:
+    fields:
+      - field: server
+        type: string
+        required: false
+        description: Server name for this source. Defaults to the containing server when nested under rest.servers.
+      - field: routes
+        type: "[]string"
+        required: false
+        description: Route or endpoint names accepted by this source.
+      - field: signals
+        type: "[]string"
+        required: false
+        description: Event signals accepted by this source.
+      - field: queue
+        type: string
+        required: false
+        description: Queue name to read when it differs from the server default.
+      - field: timeout
+        type: duration string
+        required: false
+        description: Source-specific await timeout.
+      - field: stopped_behavior
+        type: string
+        required: false
+        description: One of ignore, emit_server_stopped, or command_error.
+
+  rest_await_event_config:
+    fields:
+      - field: sources
+        type: "[]event_source"
+        required: true
+        description: Ordered or fair-read set of REST server event sources.
+      - field: allowed_signals
+        type: "[]string"
+        required: false
+        description: Final signal allowlist applied after source selection.
+      - field: timeout
+        type: duration string
+        required: false
+        description: Maximum time to wait before emitting AwaitTimedOut.
+      - field: read_policy
+        type: string
+        required: false
+        description: One of first_available, priority_order, or round_robin.
+      - field: stopped_behavior
+        type: string
+        required: false
+        description: Default stopped-source behavior when a source does not override it.
+
+  lifecycle_control_config:
+    fields:
+      - field: action
+        type: string
+        required: true
+        description: One of exit, pause, rollback_request, resume, or inject_signal.
+      - field: signal
+        type: string
+        required: false
+        description: Static lifecycle signal enqueued for MachineSpec routing.
+      - field: allowed_signals
+        type: "[]string"
+        required: false
+        description: Allowlist required for inject_signal endpoints.
+      - field: target_schema
+        type: json_schema
+        required: false
+        description: Request body schema for rollback targets, exit reason, injected signal payload, or operator metadata.
+      - field: require_auth_ref
+        type: string
+        required: false
+        description: Auth profile required before accepting the control request.
 
   shutdown_config:
     fields:
@@ -707,6 +788,60 @@ format_examples:
                 output:
                   accepted: "true"
 
+  lifecycle_control_fan_in: |
+    rest:
+      version: v1
+      servers:
+        agent_control:
+          address: 127.0.0.1:19090
+          queue:
+            name: control
+            capacity: 64
+            overflow: reject
+          event_sources:
+            control_events:
+              routes: [exit, pause, rollback, inject]
+              signals: [AgentExitRequested, PauseRequested, RollbackRequested, InjectSignalRequested]
+              stopped_behavior: emit_server_stopped
+          endpoints:
+            exit:
+              method: POST
+              path: /api/lifecycle/exit
+              binding: lifecycle_control
+              lifecycle_control:
+                action: exit
+                signal: AgentExitRequested
+                target_schema:
+                  type: object
+                  properties:
+                    reason: {type: string}
+                    status: {type: string}
+            pause:
+              method: POST
+              path: /api/lifecycle/pause
+              binding: lifecycle_control
+              lifecycle_control:
+                action: pause
+                signal: PauseRequested
+            rollback:
+              method: POST
+              path: /api/lifecycle/rollback
+              binding: lifecycle_control
+              lifecycle_control:
+                action: rollback_request
+                signal: RollbackRequested
+                target_schema:
+                  type: object
+                  properties:
+                    target_iteration: {type: integer}
+            inject:
+              method: POST
+              path: /api/machine/inject
+              binding: lifecycle_control
+              lifecycle_control:
+                action: inject_signal
+                allowed_signals: [Approved, Rejected, PauseRequested]
+
   tool_declarations: |
     tools:
       - name: get_issue
@@ -745,6 +880,28 @@ format_examples:
         config:
           rest_ref: payments_webhooks
 
+      - name: await_any_control_event
+        type: builtin
+        init: rest_await_event
+        category: boundary
+        emits: [AgentExitRequested, PauseRequested, RollbackRequested, InjectSignalRequested, AwaitTimedOut, ServerStopped, CommandError]
+        config:
+          sources:
+            - server: agent_control
+              routes: [exit, pause, rollback, inject]
+              signals: [AgentExitRequested, PauseRequested, RollbackRequested, InjectSignalRequested]
+          timeout: 30s
+          read_policy: first_available
+          stopped_behavior: emit_server_stopped
+
+      - name: exit_agent
+        type: builtin
+        init: exit_agent
+        category: boundary
+        emits: [AgentExited, CommandError]
+        config:
+          drain_policy: stop_servers
+
 validation_rules:
   - id: V1
     rule: A REST config file MUST contain rest.version.
@@ -774,6 +931,14 @@ validation_rules:
     rule: Redirect mode MUST be none, same_host, or allowlist.
   - id: V14
     rule: Redaction selectors MUST be valid for the configured response or request mapping syntax.
+  - id: V15
+    rule: rest_await_event configs MUST declare at least one source.
+  - id: V16
+    rule: Event source stopped_behavior MUST be one of ignore, emit_server_stopped, or command_error.
+  - id: V17
+    rule: lifecycle_control endpoints with action inject_signal MUST declare allowed_signals.
+  - id: V18
+    rule: lifecycle_control endpoints MUST enqueue declared signals and MUST NOT execute lifecycle operations inside HTTP handlers.
 
 invalid_examples:
   ambiguous_resource_operation: |
@@ -880,9 +1045,12 @@ related_documents:
   - srd027-rest-tool-runtime
   - srd028-rest-client-tools
   - srd029-rest-server-tools
+  - srd026-lifecycle-tools
 
 implementation_status:
   planned:
     - internal/tools/rest typed config structs.
     - internal/tools/rest YAML loader.
     - OpenAPI import compilation through github.com/getkin/kin-openapi/openapi3.
+    - rest_await_event source-filter config.
+    - lifecycle_control endpoint config and exit_agent ToolDef config.

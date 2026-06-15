@@ -346,6 +346,133 @@ test_cases:
       - srd029-rest-server-tools AC6
 
   - use_case: rel03.0-uc003-rest-server-signals
+    name: Generic REST await fan-in selects one event across servers
+    go_test: TestRESTAwaitEvent_MultiSourceFanIn
+    status: planned
+    description: |
+      Launch two configured REST servers with separate queues. Enqueue accepted
+      events on each server, then dispatch rest_await_event with both sources.
+      One Result carries the selected event. MachineSpec owns the workflow
+      route after that signal.
+    inputs:
+      servers:
+        - control_api
+        - domain_webhooks
+      queued_events:
+        - server: control_api
+          signal: Approved
+        - server: domain_webhooks
+          signal: DomainEventReceived
+    expected:
+      selected_event_returned_once: true
+      output_contains_source_and_route: true
+      hidden_workflow_action_selected: false
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - rel03.0-uc003-rest-server-signals S3
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Generic REST await applies route and signal filters
+    go_test: TestRESTAwaitEvent_SourceFilters
+    status: planned
+    description: |
+      Configure rest_await_event with server, route, and signal filters. Events
+      outside the route or signal allowlist remain queued or are skipped
+      according to policy. Matching input drives the emitted signal.
+    inputs:
+      sources:
+        - server: control_api
+          routes: [approve, reject]
+          signals: [Approved, Rejected]
+      queued_events:
+        - route: pause
+          signal: PauseRequested
+        - route: approve
+          signal: Approved
+    expected:
+      disallowed_route_selected: false
+      allowed_signal_selected: Approved
+      filter_diagnostics_reported: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S3
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Generic REST await reports timeout without consuming events
+    go_test: TestRESTAwaitEvent_Timeout
+    status: planned
+    description: |
+      Dispatch rest_await_event with no matching events before the configured
+      timeout. AwaitTimedOut reports the active source filters
+      without inventing a lifecycle or domain signal.
+    inputs:
+      sources:
+        - server: control_api
+          routes: [approve]
+          signals: [Approved]
+      timeout: 10ms
+    expected:
+      signal: AwaitTimedOut
+      matching_event_consumed: false
+      hidden_workflow_action_selected: false
+    traces:
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Generic REST await handles stopped sources by policy
+    go_test: TestRESTAwaitEvent_StoppedSourceBehavior
+    status: planned
+    description: |
+      Stop one configured source while rest_await_event is waiting. Run the
+      ignore, emit_server_stopped, and command_error policies and verify each
+      policy returns the declared signal or continues waiting as configured.
+    inputs:
+      stopped_behaviors:
+        - ignore
+        - emit_server_stopped
+        - command_error
+    expected:
+      ignore_continues_to_other_sources: true
+      emit_server_stopped_signal: ServerStopped
+      command_error_signal: CommandError
+    traces:
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Lifecycle exit through REST routes to exit_agent
+    go_test: TestRESTLifecycleControl_ExitAgentSignal
+    status: planned
+    description: |
+      A configured lifecycle_control exit endpoint receives an operator
+      request. Handler validation enqueues AgentExitRequested. rest_await_event
+      returns that event, and MachineSpec routes it to exit_agent as explicit
+      lifecycle vocabulary.
+    inputs:
+      endpoint: POST /api/lifecycle/exit
+      payload:
+        reason: operator requested shutdown
+        status: success
+      machine_route:
+        signal: AgentExitRequested
+        action: exit_agent
+    expected:
+      handler_executed_exit_directly: false
+      await_signal: AgentExitRequested
+      exit_agent_action_visible: true
+      exit_result_signal: AgentExited
+    traces:
+      - rel03.0-uc003-rest-server-signals S3
+      - srd026-lifecycle-tools AC7
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC5
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc003-rest-server-signals
     name: Server stop drains queues and unblocks await
     go_test: TestRESTServer_StopDrainsAndUnblocks
     status: done

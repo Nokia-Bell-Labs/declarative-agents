@@ -72,6 +72,21 @@ primary_entities:
     kind: inbound_signal_message
     responsibility: Carries a validated server request, configured signal, source route, payload, and request metadata from HTTP handler state to rest_server_await.
     owns: [event_payload, event_signal]
+  - name: RestEventSource
+    kind: fan_in_source
+    responsibility: Names one server queue or route-filtered event stream that rest_await_event can read with configured signal, route, timeout, and stopped-source policies.
+    owns: [source_filter, stopped_source_policy]
+    references: [RestServer, Endpoint, InboundEvent]
+  - name: LifecycleControlEndpoint
+    kind: inbound_control_route
+    responsibility: Validates exit, pause, rollback request, resume, or signal injection requests and enqueues declared lifecycle events for MachineSpec.
+    owns: [control_request_validation, control_signal_mapping]
+    references: [Endpoint, InboundEvent, MachineSpec]
+  - name: LifecycleControlWord
+    kind: profile_selected_lifecycle_vocabulary
+    responsibility: Executes lifecycle behavior such as exit_agent after MachineSpec routes a validated REST event to that word.
+    owns: [lifecycle_side_effects, lifecycle_undo_contract]
+    references: [ToolDef, MachineSpec]
   - name: RestToolState
     kind: command_domain_state
     responsibility: Tracks shared REST clients, shared REST servers, async requests, inbound queues, active streams, route ownership, and shutdown status.
@@ -100,6 +115,12 @@ tool_words:
   server:
     words: [rest_server_launch, rest_server_await, rest_server_stop]
     meaning: Launch activates configured routes. Await receives validated InboundEvent messages. Stop shuts down shared server state.
+  event_aggregation:
+    words: [rest_await_event]
+    meaning: Await receives one event from multiple configured REST server event sources and returns the selected signal to MachineSpec.
+  lifecycle_control:
+    words: [exit_agent]
+    meaning: Lifecycle control words consume validated REST event payloads or profile config and perform explicit MachineSpec-selected lifecycle actions.
 
 relationships:
   RestDefinition_to_ToolDef:
@@ -132,6 +153,15 @@ relationships:
   rest_server_await_to_InboundEvent:
     meaning: rest_server_await consumes queued InboundEvent messages and returns the event signal to MachineSpec.
     invariant: The HTTP request becomes grammar-visible only through the await word result.
+  rest_await_event_to_RestEventSource:
+    meaning: rest_await_event waits over one or more configured RestEventSource entries and returns the first matching event, timeout, stopped-source, or error signal.
+    invariant: Source filters are declarative and include server names, route names, allowed signals, timeout, and stopped-source behavior.
+  LifecycleControlEndpoint_to_InboundEvent:
+    meaning: A lifecycle control endpoint validates a control request and enqueues an event such as AgentExitRequested, PauseRequested, RollbackRequested, ResumeRequested, or an allowlisted injected signal.
+    invariant: The HTTP handler does not execute exit, pause, rollback, resume, or signal injection directly.
+  InboundEvent_to_LifecycleControlWord:
+    meaning: MachineSpec routes a lifecycle event from rest_server_await or rest_await_event to profile-selected vocabulary such as exit_agent or checkpoint_rollback.
+    invariant: Lifecycle behavior remains visible as declared ToolDef words and MachineSpec transitions.
   RestToolState_to_lifecycle:
     meaning: RestToolState is command/domain state for async requests, server queues, active streams, and route ownership.
     invariant: Lifecycle storage captures REST command state separately from workspace files and agent loop position.
@@ -174,7 +204,10 @@ invariants:
   - rest_client_invoke is reserved for RPC-shaped or action-shaped operations.
   - rest_client_send and rest_client_await make outbound async state visible in grammar words.
   - rest_server_launch and rest_server_await make inbound HTTP work visible in grammar words.
+  - rest_await_event makes multi-source inbound HTTP work visible as one grammar await word.
   - HTTP handlers validate and translate requests; they do not run hidden workflows.
+  - Lifecycle control endpoints enqueue events; lifecycle behavior runs only through MachineSpec-selected vocabulary.
+  - exit_agent is generic lifecycle vocabulary and is not owned by Knowledge Manager-specific HTTP handlers.
   - OpenAPI imports compile into internal REST definitions and do not generate Go code in release 03.0.
   - REST command/domain state is separate from agent state and workspace/environment state.
   - External service effects are reversible only when the configured operation declares a valid compensation path.
@@ -185,6 +218,7 @@ non_goals:
   - Implementing internal/tools/rest.
   - Adding generated Go clients or generated Go servers.
   - Replacing MachineSpec control flow with REST handler code.
+  - Executing lifecycle control directly inside HTTP handlers or rest_await_event.
   - Allowing model text or inbound callers to choose transport authority.
   - Modeling every provider-specific REST API.
 
@@ -241,6 +275,21 @@ diagrams:
       A->>Q: receive event
       A-->>M: configured event signal
     ```
+  multi_source_rest_await_event: |
+    ```mermaid
+    sequenceDiagram
+      participant H1 as Control endpoint
+      participant H2 as Domain endpoint
+      participant Q as Server event queues
+      participant A as rest_await_event
+      participant M as MachineSpec
+      H1->>Q: enqueue AgentExitRequested
+      H2->>Q: enqueue DomainEventReceived
+      M->>A: dispatch with source and signal filters
+      A->>Q: select first matching event
+      A-->>M: selected event signal and payload
+      M->>M: route to visible lifecycle or domain action
+    ```
   openapi_import_to_internal_definition: |
     ```mermaid
     flowchart LR
@@ -259,6 +308,7 @@ related_documents:
   - srd027-rest-tool-runtime
   - srd028-rest-client-tools
   - srd029-rest-server-tools
+  - srd026-lifecycle-tools
   - cfg-tool-declaration-format
   - cfg-tool-authoring-standard
 
@@ -267,3 +317,5 @@ implementation_status:
     - internal/tools/rest.
     - tools/builtin/rest.
     - docs/specs/config-formats/rest-tool-format.yaml.
+    - rest_await_event fan-in word.
+    - exit_agent lifecycle control word.

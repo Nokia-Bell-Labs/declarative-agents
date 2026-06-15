@@ -22,6 +22,7 @@ goals:
   - G3: Define StateStore and Workspace requirements for history and rollback execution.
   - G4: Define undo metadata and reversibility for lifecycle adapter effects.
   - G5: Require lifecycle tools to be selected by ToolDef declarations and invoked by MachineSpec transitions.
+  - G6: Define generic lifecycle control vocabulary for profile-owned pause, rollback, signal injection, and exit behavior.
 
 requirements:
   R1:
@@ -89,11 +90,25 @@ requirements:
       - R6.3: Partial rollback failures SHALL preserve the core error detail needed by an operator to choose retry, resume, or stop.
       - R6.4: Lifecycle adapters SHALL not report success when workspace restore was required but skipped.
 
+  R7:
+    title: Generic lifecycle control vocabulary
+    items:
+      - R7.1: exit_agent or an equivalent configured lifecycle word SHALL be profile-selectable vocabulary, not a Knowledge Manager-specific handler.
+      - R7.2: exit_agent input SHALL include or resolve exit reason, requested status, drain policy, and optional checkpoint policy from ToolDef config or validated runtime input.
+      - R7.3: exit_agent output SHALL include requested status, reason, drain result, checkpoint ID when created, and resulting signal.
+      - R7.4: exit_agent SHALL emit AgentExitRequested, AgentExited, CommandError, or a profile-declared equivalent signal that MachineSpec handles explicitly.
+      - R7.5: exit_agent side effects SHALL declare lifecycle_state mutation, optional checkpoint_state mutation, and optional server shutdown when paired with REST server control.
+      - R7.6: exit_agent undo SHALL be noop after process exit and compensatable before exit only when the profile declares a cancellation path.
+      - R7.7: Pause, resume, rollback request, and signal injection control words SHALL be selected by ToolDef declarations and MachineSpec transitions rather than hard-coded HTTP handlers.
+      - R7.8: Lifecycle control words triggered by REST events SHALL consume validated event payloads from rest_server_await or rest_await_event.
+
 non_goals:
   - Defining the final request-file schema for lifecycle profiles.
   - Defining the complete operator CLI syntax for running lifecycle profiles.
   - Replacing core checkpoint operations.
   - Requiring all existing tools to have specialized rollback behavior before lifecycle adapters ship.
+  - Defining lifecycle behavior that only one agent profile or Knowledge Manager handler can use.
+  - Letting REST handlers exit, pause, resume, roll back, or inject signals without a declared lifecycle word.
 
 acceptance_criteria:
   - id: AC1
@@ -120,9 +135,15 @@ acceptance_criteria:
     criterion: Lifecycle adapter failures and partial rollback states are observable enough for operator recovery.
     traces: [R6.1, R6.2, R6.3, R6.4]
 
+  - id: AC7
+    criterion: Generic lifecycle control vocabulary defines exit_agent inputs, outputs, signals, side effects, undo behavior, and REST-triggered routing through MachineSpec.
+    traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7, R7.8]
+
 test_trace_plan:
   - test_suite: test-rel02.0-lifecycle
     covers: [AC1, AC2, AC3, AC4, AC5, AC6]
+  - test_suite: test-rel03.0-rest-tools
+    covers: [AC7]
   - existing_go_tests:
       - internal/tools/stl/checkpoint_lifecycle_test.go
       - internal/runtime/core/checkpoint_ops_test.go
@@ -142,8 +163,10 @@ related_documents:
   - cfg-tool-authoring-standard
   - cfg-tool-declaration-format
   - cfg-runtime-contract
+  - cfg-rest-tool-format
   - srd022-builtin-tools
   - srd025-rollback-lifecycle
+  - srd027-rest-tool-runtime
 
 implementation:
   - internal/tools/stl/checkpoint_lifecycle.go
@@ -156,3 +179,6 @@ implementation_status:
     - checkpoint_rollback is implemented as a builtin STL adapter around core rollback traversal.
     - agents/lifecycle/history/profile.yaml and agents/lifecycle/rollback/profile.yaml select the lifecycle machines and builtin tool declarations.
     - Hidden lifecycle subcommands have been removed from cmd/agent; lifecycle operations use the universal profile-first runtime path.
+  planned:
+    - exit_agent lifecycle control word.
+    - REST-triggered lifecycle control profiles for exit, pause, rollback request, resume, and signal injection.

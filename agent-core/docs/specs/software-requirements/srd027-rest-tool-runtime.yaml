@@ -24,6 +24,7 @@ goals:
   - G4: Define the internal REST definition model shared by hand-authored YAML and OpenAPI imports.
   - G5: Define common safety, validation, observability, error, and rollback requirements.
   - G6: Name the planned package, declaration, and config-format layout without implementing code.
+  - G7: Define generic REST event fan-in and lifecycle control routing without hiding workflow actions in handlers.
 
 requirements:
   R1:
@@ -114,6 +115,18 @@ requirements:
       - R9.4: Shared REST semantic model documentation SHALL live at docs/specs/semantic-models/rest-tool-language.yaml.
       - R9.5: REST runtime tests and release test-suite entries SHALL trace to srd027 acceptance criteria before release 03.0 is closed.
 
+  R10:
+    title: Event aggregation and lifecycle control routing
+    items:
+      - R10.1: REST runtime SHALL provide a generic rest_await_event boundary word that waits across multiple configured REST server event queues and returns one core.Result for the selected event.
+      - R10.2: rest_await_event input SHALL include or resolve source filters for server names, route names, allowed signals, timeout, queue read policy, and stopped-server behavior.
+      - R10.3: rest_await_event SHALL emit the selected event signal, AwaitTimedOut, ServerStopped, or CommandError according to configuration and runtime state.
+      - R10.4: rest_await_event output SHALL include selected source name, route name, method, signal, validated payload, request ID, correlation metadata, and redacted diagnostics.
+      - R10.5: rest_await_event SHALL wait and route only; it SHALL NOT execute hidden workflow actions inside HTTP handlers or inside the aggregator.
+      - R10.6: Profile-owned REST servers MAY expose lifecycle control endpoints for exit, pause, rollback request, resume, and signal injection when those endpoint bindings are declared by trusted config.
+      - R10.7: Lifecycle control endpoints SHALL validate requests and enqueue configured signals or lifecycle request events; they SHALL NOT call lifecycle operations directly from HTTP handlers.
+      - R10.8: MachineSpec SHALL route lifecycle control signals to visible actions such as exit_agent, checkpoint_rollback, suspend, resume, or other profile-selected vocabulary.
+
 non_goals:
   - Defining REST client operation execution details; see srd028-rest-client-tools.
   - Defining REST server route binding and HTTP API details; see srd029-rest-server-tools.
@@ -122,6 +135,7 @@ non_goals:
   - Generating Go clients or servers from OpenAPI documents.
   - Allowing model text to choose arbitrary REST URLs, methods, authentication, or network destinations.
   - Replacing MachineSpec sequencing with hidden REST tool workflows.
+  - Letting lifecycle HTTP handlers pause, roll back, exit, or inject signals without a MachineSpec transition.
 
 acceptance_criteria:
   - id: AC1
@@ -159,6 +173,10 @@ acceptance_criteria:
   - id: AC9
     criterion: Planned layout names internal/tools/rest, tools/builtin/rest, rest-tool-format.yaml, rest-tool-language.yaml, and future release 03.0 test traces.
     traces: [R9.1, R9.2, R9.3, R9.4, R9.5]
+
+  - id: AC10
+    criterion: Generic REST event aggregation waits across configured server sources, applies source filters, returns one event Result, and keeps lifecycle control endpoints routed through visible MachineSpec actions.
+    traces: [R10.1, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8]
 
 depends_on:
   - srd_id: srd001-core-types
