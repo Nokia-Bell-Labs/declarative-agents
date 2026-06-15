@@ -6,9 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -289,8 +291,8 @@ func TestMonitorReleaseProfileProof(t *testing.T) {
 		result, err := core.Loop(proof.params, context.Background())
 		resultCh <- loopResult{result: result, err: err}
 	}()
-	waitForProofMonitorRoute(t, "http://127.0.0.1:18083/monitor/state")
-	postProofMonitorExit(t, "http://127.0.0.1:18083/monitor/control/exit")
+	waitForProofMonitorRoute(t, proof.monitorBaseURL+"/monitor/state")
+	postProofMonitorExit(t, proof.monitorBaseURL+"/monitor/control/exit")
 	outcome := receiveLoopResult(t, resultCh)
 	require.NoError(t, outcome.err)
 	require.Equal(t, core.State("Done"), outcome.result.FinalState)
@@ -316,18 +318,19 @@ func TestMonitorReleaseProfileProof(t *testing.T) {
 
 func TestMonitorCLIProfileServesUntilControlExit(t *testing.T) {
 	root := repoRootFromTest(t)
-	cmd, stdout, stderr := startMonitorAgentProcess(t, root)
+	profilePath, baseURL := isolatedMonitorProfile(t, root)
+	cmd, stdout, stderr := startMonitorAgentProcess(t, root, profilePath)
 	resultCh := waitForProcess(t, cmd)
 
-	waitForProofMonitorRoute(t, "http://127.0.0.1:18083/monitor/state")
-	stateBody := proofRequestBody(t, "http://127.0.0.1:18083/monitor/state")
+	waitForProofMonitorRoute(t, baseURL+"/monitor/state")
+	stateBody := proofRequestBody(t, baseURL+"/monitor/state")
 	require.Contains(t, stateBody, `"state"`)
 	require.Contains(t, stateBody, `"run_id"`)
 	require.NotContains(t, stateBody, `"State"`)
 	require.NotContains(t, stateBody, `"RunID"`)
-	require.Contains(t, proofRequestBody(t, "http://127.0.0.1:18083/monitor/metrics"), "dispatch_count")
+	require.Contains(t, proofRequestBody(t, baseURL+"/monitor/metrics"), "dispatch_count")
 	requireProcessStillRunning(t, resultCh)
-	postProofMonitorExit(t, "http://127.0.0.1:18083/monitor/control/exit")
+	postProofMonitorExit(t, baseURL+"/monitor/control/exit")
 	requireProcessSucceeded(t, resultCh, stdout, stderr)
 }
 
@@ -572,19 +575,21 @@ func runMonitorRuntimeLoop(t *testing.T, runtime monitorRuntime) core.RunResult 
 }
 
 type monitorProof struct {
-	params       core.LoopParams
-	monitor      monitorRuntime
-	monitorState toolrest.MonitorState
-	restDefs     toolrest.Collection
-	launchDef    catalog.ToolDef
-	metricReader *sdkmetric.ManualReader
+	params         core.LoopParams
+	monitor        monitorRuntime
+	monitorState   toolrest.MonitorState
+	restDefs       toolrest.Collection
+	launchDef      catalog.ToolDef
+	metricReader   *sdkmetric.ManualReader
+	monitorBaseURL string
 }
 
 func monitorReleaseProof(t *testing.T) monitorProof {
 	t.Helper()
 	clearAgentFlags()
 	root := repoRootFromTest(t)
-	flagProfile = filepath.Join(root, "agents", "monitor", "profile.yaml")
+	profilePath, baseURL := isolatedMonitorProfile(t, root)
+	flagProfile = profilePath
 	flagDirectory = root
 
 	cfg, err := loadRuntimeConfig()
@@ -619,11 +624,12 @@ func monitorReleaseProof(t *testing.T) monitorProof {
 			Budget:          machine.BudgetSpec.ToBudget(core.Budget{MaxIterations: 2}),
 			MonitorRecorder: mon.Recorder,
 		},
-		monitor:      mon,
-		monitorState: monitorState(mon.Store, &machine, defs),
-		restDefs:     restDefs,
-		launchDef:    requireToolDef(t, defs, "launch_monitor_rest"),
-		metricReader: reader,
+		monitor:        mon,
+		monitorState:   monitorState(mon.Store, &machine, defs),
+		restDefs:       restDefs,
+		launchDef:      requireToolDef(t, defs, "launch_monitor_rest"),
+		metricReader:   reader,
+		monitorBaseURL: baseURL,
 	}
 }
 
@@ -646,6 +652,49 @@ func monitorProofAgentState(
 		shutdown:   func() {},
 		stateStore: nil,
 	}
+}
+
+func isolatedMonitorProfile(t *testing.T, root string) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	address := isolatedMonitorAddress(t)
+	writeIsolatedMonitorREST(t, root, dir, address)
+	profilePath := filepath.Join(dir, "profile.yaml")
+	profile := fmt.Sprintf(`name: monitor
+machine: %s
+tools:
+  - %s
+tool_declarations:
+  - %s
+rest_definitions:
+  - %s
+`, absTestPath(root, "agents/monitor/machine.yaml"),
+		absTestPath(root, "agents/monitor/tools.yaml"),
+		absTestPath(root, "agents/monitor/declarations.yaml"),
+		filepath.Join(dir, "rest.yaml"))
+	require.NoError(t, os.WriteFile(profilePath, []byte(profile), 0o644))
+	return profilePath, "http://" + address
+}
+
+func writeIsolatedMonitorREST(t *testing.T, root, dir, address string) {
+	t.Helper()
+	data, err := os.ReadFile(absTestPath(root, "agents/monitor/rest.yaml"))
+	require.NoError(t, err)
+	replaced := strings.Replace(string(data), "address: 127.0.0.1:18083", "address: "+address, 1)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "rest.yaml"), []byte(replaced), 0o644))
+}
+
+func isolatedMonitorAddress(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	require.NoError(t, listener.Close())
+	return address
+}
+
+func absTestPath(root, rel string) string {
+	return filepath.Join(root, filepath.FromSlash(rel))
 }
 
 func launchProofMonitorREST(t *testing.T, proof monitorProof) (*toolrest.ServerState, string) {
@@ -720,9 +769,9 @@ func receiveLoopResult(t *testing.T, resultCh <-chan loopResult) loopResult {
 	return loopResult{}
 }
 
-func startMonitorAgentProcess(t *testing.T, root string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer) {
+func startMonitorAgentProcess(t *testing.T, root string, profilePath string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
-	cmd := exec.Command("go", "run", "./cmd/agent", "--profile", "agents/monitor/profile.yaml", "--directory", root)
+	cmd := exec.Command("go", "run", "./cmd/agent", "--profile", profilePath, "--directory", root)
 	cmd.Dir = root
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
