@@ -4,7 +4,7 @@ tools:
     init: serve_documentation
     visibility: internal
     emits:
-      - ServerStopped
+      - ServerLaunched
       - CommandError
     description: Start the standalone Knowledge Manager documentation UI and API host.
     category: boundary
@@ -17,7 +17,7 @@ tools:
       input:
         - must read addr and docs_dir from ToolDef config
       output:
-        - must emit ServerStopped when the host shuts down cleanly
+        - must emit ServerLaunched when the host starts
         - must emit CommandError when the host cannot start or exits with an error
       side_effects:
         - must bind a local HTTP server
@@ -83,3 +83,71 @@ tools:
       configs_dir: configs
       source_dir: .
       profile_path: agents/knowledge-manager/documentation-curator/profile.yaml
+
+  - name: launch_curator_control
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    description: Launch generic lifecycle control routes for documentation-curator.
+    emits: [ServerLaunched, CommandError]
+    parameters:
+      type: object
+      properties: {}
+    output:
+      description: Control server launch result.
+      schema:
+        type: object
+    side_effects:
+      - kind: network_listen
+        target: documentation_curator_control
+        state: listener_started
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the documentation-curator control server.
+    errors:
+      - signal: CommandError
+        condition: Control server config, bind, or route setup failed.
+    relationships:
+      before: [await_curator_control]
+    config:
+      rest_ref: documentation_curator_control
+
+  - name: await_curator_control
+    type: builtin
+    init: rest_await_event
+    category: boundary
+    description: Await generic lifecycle control events for documentation-curator.
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    parameters:
+      type: object
+      properties: {}
+    output:
+      description: Selected control event.
+      schema:
+        type: object
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: selected_event_consumed
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Queue restore is not implemented.
+    errors:
+      - signal: CommandError
+        condition: Control source is missing or stopped with command_error policy.
+    relationships:
+      after: [launch_curator_control]
+      before: [exit_agent]
+    config:
+      sources:
+        - server: documentation_curator_control
+          routes: [exit]
+          signals: [ExitRequested]
+      timeout: 30s
+      stopped_behavior: emit_server_stopped

@@ -3,9 +3,7 @@
 package docsapi
 
 import (
-	"errors"
 	"fmt"
-	"net/http"
 	"path/filepath"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
@@ -60,20 +58,17 @@ func (c serveDocumentationCmd) Undo() core.Result {
 }
 
 func (c serveDocumentationCmd) Execute() core.Result {
-	err := NewServer(HostConfig{
+	running, err := NewServer(HostConfig{
 		Addr:       c.config.Addr,
 		DocsDir:    c.config.DocsDir,
 		ConfigsDir: c.config.ConfigsDir,
 		SourceDir:  c.config.SourceDir,
 		Workflow:   NewLazyProfileWorkflowRunner(c.config.ProfilePath),
-	}).ListenAndServe()
-	if errors.Is(err, http.ErrServerClosed) {
-		return core.Result{Signal: "ServerStopped", CommandName: c.Name()}
+	}).Start()
+	if err != nil {
+		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Err: err, Output: err.Error()}
 	}
-	if err == nil {
-		return core.Result{Signal: "ServerStopped", CommandName: c.Name()}
-	}
-	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Err: err, Output: err.Error()}
+	return core.Result{Signal: "ServerLaunched", CommandName: c.Name(), Output: running.Addr}
 }
 
 func decodeToolConfig(def catalog.ToolDef) (ToolConfig, error) {
