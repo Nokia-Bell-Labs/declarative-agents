@@ -69,6 +69,37 @@ Runtime data stays outside the profile. Pass `--directory` for the workspace,
 `--request` for per-run request files, and `--output` for artifacts. These
 flags do not identify the agent program.
 
+## Knowledge Manager UX Demo
+
+Release 03.0 uses the Knowledge Manager profile as the documentation UX proof.
+Current smoke coverage starts the documentation-curator profile and serves the
+browser UI plus `/api/v1/docs` through the direct host.
+
+```bash
+mage integration:uc006
+```
+
+Its planned successor is `rel03.0-uc007-machine-request-documentation-ux`.
+That path keeps the same human-facing UX goal and changes the request boundary.
+Browser document requests enter the REST server through `machine_request`.
+After validation, one short-lived `MachineSpec` sentence reads the configured
+`documentation_corpus` document resource. A response word maps machine output
+back to HTTP.
+
+Run the planned proof with:
+
+```bash
+mage integration:uc007
+```
+
+That future target will drive Puppeteer through
+`internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts`.
+Puppeteer will open the page, request the document index, request one raw YAML
+document, and check trace evidence for both machine runs. In the browser, the
+document view must still appear. Until the machine_request binding, document resource
+words, and Puppeteer target land, `uc007` remains planned. `uc006` remains the
+implemented direct-host smoke proof.
+
 ## Lifecycle Operations
 
 Lifecycle features are opt-in: checkpointing, suspend/resume, approval gates,

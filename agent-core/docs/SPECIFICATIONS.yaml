@@ -468,8 +468,10 @@ coverage_gaps: |
 
   For 03.0, srd027-srd029 have formal YAML coverage in
   test-rel03.0-rest-tools. srd030-machine-request-rest-binding and
-  srd031-declarative-document-resources are indexed as planned follow-up
-  coverage for the Knowledge Manager machine-request demo.
+  srd031-declarative-document-resources are indexed with planned follow-up
+  coverage for the Knowledge Manager machine-request demo. rel03.0-uc007 names
+  the intended browser proof, but its machine_request runtime binding, document
+  resource words, and Puppeteer target are not implemented yet.
   internal/tools/rest, tools/builtin/rest declarations,
   OpenAPI import compilation, REST runtime tests, agents/rest profile
   examples, and the documentation-curator profile are implemented. docs/rel03-rest-design-audit.md records the design
@@ -530,7 +532,8 @@ coverage_gaps: |
   internal/evaluation/bench/ui embeds React assets behind the bench API.
   internal/knowledge/documentation/ui embeds React assets behind the
   documentation-curator host. srd020 and rel03.0-uc006 cover the ownership
-  boundary.
+  boundary. rel03.0-uc007 extends that boundary to planned human actor
+  configuration for a machine_request-backed Knowledge Manager UX.
 
   Residual documentation cleanup is tracked as follow-up work. Historical
   roll-backs.md and tools-as-dsl.md references should be normalized to canonical

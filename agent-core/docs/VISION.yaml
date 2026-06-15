@@ -213,6 +213,13 @@ success_criteria:
     Knowledge Manager UI placement are configured as profile-owned resources and
     human actor config, while Go code provides reusable server and resource
     capability.
+  human_actor_configuration: |
+    Human-facing UX surfaces are part of the declarative agent program when a
+    profile exposes a browser or operator workflow. Profile config owns UI
+    assets, route labels, actions, resource references, and presentation rules.
+    For the planned Knowledge Manager machine-request demo, browser document
+    requests should enter REST, run short-lived MachineSpec sentences, read
+    configured document resources, and return response word output.
   lifecycle_readiness: |
     Runtime contracts preserve the separation between agent state,
     command/domain state, and workspace/environment state so checkpoint,
@@ -260,8 +267,11 @@ canonical_documents:
   - docs/specs/software-requirements/srd023-cli-exec-tools.yaml
   - docs/specs/software-requirements/srd024-blocking-input-tools.yaml
   - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+  - docs/specs/software-requirements/srd030-machine-request-rest-binding.yaml
+  - docs/specs/software-requirements/srd031-declarative-document-resources.yaml
   - docs/specs/use-cases/rel02.0-uc003-tool-authoring.yaml
   - docs/specs/use-cases/rel02.0-uc004-sentence-tool-migration.yaml
+  - docs/specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml
   - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
 
 dependencies:
