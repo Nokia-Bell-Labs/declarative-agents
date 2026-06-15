@@ -63,6 +63,9 @@ type MachineRequestRun struct {
 
 // MachineRequestResult records the short-lived machine outcome.
 type MachineRequestResult struct {
+	Server         string                 `json:"server,omitempty"`
+	Route          string                 `json:"route,omitempty"`
+	Machine        string                 `json:"machine,omitempty"`
 	TerminalSignal string                 `json:"terminal_signal"`
 	Output         map[string]interface{} `json:"output,omitempty"`
 	Run            core.RunResult         `json:"run"`
@@ -234,7 +237,7 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 	if rr.Status == core.StatusCancelled {
 		return MachineRequestResult{}, fmt.Errorf("machine_timeout: request machine timed out")
 	}
-	return machineRequestResult(rr, last)
+	return machineRequestResult(req, rr, last)
 }
 
 func machineRequestInitialSignal(cfg MachineRequest) core.Signal {
@@ -252,7 +255,7 @@ func requestSeed(req MachineRequestRun, signal core.Signal) core.Result {
 	return core.Result{Signal: signal, Output: string(data)}
 }
 
-func machineRequestResult(rr core.RunResult, last core.Result) (MachineRequestResult, error) {
+func machineRequestResult(req MachineRequestRun, rr core.RunResult, last core.Result) (MachineRequestResult, error) {
 	if last.Signal == "" {
 		return MachineRequestResult{}, fmt.Errorf("response_missing: request machine produced no response signal")
 	}
@@ -262,7 +265,10 @@ func machineRequestResult(rr core.RunResult, last core.Result) (MachineRequestRe
 			return MachineRequestResult{}, fmt.Errorf("response_invalid: %w", err)
 		}
 	}
-	return MachineRequestResult{TerminalSignal: string(last.Signal), Output: output, Run: rr}, nil
+	return MachineRequestResult{
+		Server: req.Server, Route: req.Route, Machine: req.Config.MachineSpec.Name,
+		TerminalSignal: string(last.Signal), Output: output, Run: rr,
+	}, nil
 }
 
 func (r *serverRuntime) handleMachineRequest(
@@ -334,6 +340,9 @@ func machineResponseBody(mapping MachineResponseMapping, result MachineRequestRe
 		body["data"] = result.Output
 	}
 	body["trace"] = map[string]interface{}{
+		"server":          result.Server,
+		"route":           result.Route,
+		"machine":         result.Machine,
 		"terminal_signal": result.TerminalSignal,
 		"iterations":      result.Run.Iterations,
 		"status":          result.Run.Status,

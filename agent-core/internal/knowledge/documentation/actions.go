@@ -370,14 +370,14 @@ func (p *LazyMachineRequestProxy) forward(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer resp.Body.Close()
-	writeProxiedDocumentResponse(w, r, resp)
+	writeProxiedDocumentResponse(w, resp)
 }
 
 func proxyURL(baseURL string, requestURL *url.URL) string {
 	return baseURL + requestURL.RequestURI()
 }
 
-func writeProxiedDocumentResponse(w http.ResponseWriter, r *http.Request, resp *http.Response) {
+func writeProxiedDocumentResponse(w http.ResponseWriter, resp *http.Response) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
@@ -390,7 +390,6 @@ func writeProxiedDocumentResponse(w http.ResponseWriter, r *http.Request, resp *
 		_, _ = w.Write(body)
 		return
 	}
-	enrichDocumentTrace(parsed, documentRouteName(r.URL.Path))
 	writeJSON(w, resp.StatusCode, parsed)
 }
 
@@ -400,24 +399,6 @@ func copyProxyHeaders(w http.ResponseWriter, headers http.Header) {
 			w.Header().Add(name, value)
 		}
 	}
-}
-
-func enrichDocumentTrace(body map[string]interface{}, route string) {
-	trace, _ := body["trace"].(map[string]interface{})
-	if trace == nil {
-		trace = map[string]interface{}{}
-		body["trace"] = trace
-	}
-	trace["server"] = "documentation_curator_requests"
-	trace["route"] = route
-	trace["machine"] = "documentation-curator-request"
-}
-
-func documentRouteName(path string) string {
-	if path == "/api/v1/docs" {
-		return "documents"
-	}
-	return "document"
 }
 
 func registerResourceFactory(br *toolregistry.BuiltinRegistry, init string, factory func(string, filesystem.ResourceConfig) core.Builder) {

@@ -30,6 +30,22 @@ func TestRESTServerMachineRequestSuccess(t *testing.T) {
 	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
 }
 
+func TestRESTServerMachineRequestTraceEnvelope(t *testing.T) {
+	t.Parallel()
+	state, baseURL := launchMachineRequestServer(t, "DocumentationReady", 0, false)
+	defer stopRESTServer(t, state, "machine")
+
+	body := postJSON(t, baseURL+"/docs", `{"name":"trace"}`, http.StatusOK)
+
+	trace := body["trace"].(map[string]interface{})
+	require.Equal(t, "machine", trace["server"])
+	require.Equal(t, "docs", trace["route"])
+	require.Equal(t, "request", trace["machine"])
+	require.Equal(t, "DocumentationReady", trace["terminal_signal"])
+	require.NotZero(t, trace["iterations"])
+	require.Equal(t, string(core.StatusSucceeded), trace["status"])
+}
+
 func TestRESTServerMachineRequestMissingResource(t *testing.T) {
 	t.Parallel()
 	state, baseURL := launchMachineRequestServer(t, "DocumentMissing", 0, false)
