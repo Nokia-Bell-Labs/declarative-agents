@@ -36,6 +36,49 @@ func TestExitAgentEmitsAgentExited(t *testing.T) {
 	require.Contains(t, res.Output, "operator")
 }
 
+func TestExitAgentUsesRuntimeEventPayload(t *testing.T) {
+	t.Parallel()
+	previous := core.Result{Output: `{"payload":{"reason":"runtime reason","status":"failed","drain_policy":"drain_then_stop","checkpoint_id":"cp-1"}}`}
+	cmd := (ExitBuilder{
+		Config:   ExitConfig{Reason: "default reason", Status: "success", DrainPolicy: "stop_servers"},
+		Shutdown: func() {},
+	}).Build(previous)
+
+	res := cmd.Execute()
+	output := requireExitOutput(t, res)
+
+	require.Equal(t, core.Signal("AgentExited"), res.Signal)
+	require.Equal(t, "runtime reason", output["reason"])
+	require.Equal(t, "failed", output["status"])
+	require.Equal(t, "drain_then_stop", output["drain_policy"])
+	require.Equal(t, "cp-1", output["checkpoint_id"])
+}
+
+func TestExitAgentPreservesConfigDefaultsWithoutPayloadValues(t *testing.T) {
+	t.Parallel()
+	cmd := (ExitBuilder{
+		Config:   ExitConfig{Reason: "default reason", Status: "success", DrainPolicy: "stop_servers"},
+		Shutdown: func() {},
+	}).Build(core.Result{Output: `{"payload":{"operator":"tester"}}`})
+
+	output := requireExitOutput(t, cmd.Execute())
+
+	require.Equal(t, "default reason", output["reason"])
+	require.Equal(t, "success", output["status"])
+	require.Equal(t, "stop_servers", output["drain_policy"])
+	require.Equal(t, "AgentExited", output["signal"])
+}
+
+func TestExitAgentRejectsMalformedPreviousResult(t *testing.T) {
+	t.Parallel()
+	cmd := (ExitBuilder{Shutdown: func() {}}).Build(core.Result{Output: `{"payload":`})
+
+	res := cmd.Execute()
+
+	require.Equal(t, core.CommandError, res.Signal)
+	require.ErrorContains(t, res.Err, "decode exit_agent previous result")
+}
+
 func TestExitAgentRequiresShutdownDependency(t *testing.T) {
 	t.Parallel()
 	res := (ExitBuilder{}).Build(core.Result{}).Execute()
@@ -76,10 +119,11 @@ func TestRESTLifecycleControl_ExitAgentSignal(t *testing.T) {
 	require.Equal(t, "exit", event.Route)
 	require.Equal(t, "operator requested shutdown", event.Payload["reason"])
 	res := (ExitBuilder{
-		Config:   ExitConfig{Reason: event.Payload["reason"].(string), Status: "success"},
+		Config:   ExitConfig{Status: "success"},
 		Shutdown: func() {},
-	}).Build(core.Result{}).Execute()
+	}).Build(core.Result{Output: mustJSON(t, event)}).Execute()
 	require.Equal(t, core.Signal("AgentExited"), res.Signal)
+	require.Equal(t, "operator requested shutdown", requireExitOutput(t, res)["reason"])
 }
 
 func TestRegisterLifecycleFactoriesRegistersExitAgent(t *testing.T) {
@@ -163,4 +207,18 @@ func toolNames(defs []catalog.ToolDef) map[string]bool {
 		names[def.Name] = true
 	}
 	return names
+}
+
+func requireExitOutput(t *testing.T, result core.Result) map[string]string {
+	t.Helper()
+	output := map[string]string{}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	return output
+}
+
+func mustJSON(t *testing.T, value interface{}) string {
+	t.Helper()
+	data, err := json.Marshal(value)
+	require.NoError(t, err)
+	return string(data)
 }

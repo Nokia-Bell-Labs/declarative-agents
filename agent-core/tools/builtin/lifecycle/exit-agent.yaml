@@ -19,8 +19,9 @@ tools:
   requirements:
     input:
     - must receive reason, status, and drain policy from ToolDef config or validated event context.
+    - must prefer validated runtime event payload fields over ToolDef defaults.
     output:
-    - must report requested status, reason, drain policy, and resulting signal.
+    - must report requested status, reason, drain policy, resulting signal, and optional drain or checkpoint result fields as structured JSON.
     side_effects:
     - must mutate lifecycle run state through the injected shutdown dependency.
     undo:
@@ -45,6 +46,10 @@ tools:
         drain_policy:
           type: string
         signal:
+          type: string
+        drain_result:
+          type: string
+        checkpoint_id:
           type: string
   side_effects:
   - kind: state_mutation
@@ -71,6 +76,10 @@ tools:
   - signal: CommandError
     condition: shutdown dependency is missing
     message_shape: "exit_agent requires shutdown dependency"
+    state_after_failure: run continues until MachineSpec handles CommandError
+  - signal: CommandError
+    condition: previous Result output is malformed or contains non-string lifecycle payload fields
+    message_shape: "decode exit_agent previous result: <error>"
     state_after_failure: run continues until MachineSpec handles CommandError
   relationships:
     after:
