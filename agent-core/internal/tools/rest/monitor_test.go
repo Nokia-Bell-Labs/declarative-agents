@@ -24,7 +24,9 @@ func TestMonitorREST_ReadOnlyCachedState(t *testing.T) {
 	defer stopRESTServer(t, state, "monitor")
 
 	current := getJSON(t, baseURL+"/monitor/state")
-	require.Equal(t, "running", current["run"].(map[string]interface{})["Status"])
+	require.Equal(t, "running", current["run"].(map[string]interface{})["status"])
+	require.Equal(t, "agent", current["run"].(map[string]interface{})["run_id"])
+	requireJSONOmitsGoMonitorFields(t, requestBody(t, http.MethodGet, baseURL+"/monitor/state", "", http.StatusOK))
 	require.Len(t, getJSON(t, baseURL+"/monitor/events")["recent_events"], 1)
 
 	requireAwaitSignal(t, state, "monitor", "AwaitTimedOut")
@@ -42,6 +44,10 @@ func TestMonitorREST_OpenAPIRedaction(t *testing.T) {
 	require.Equal(t, "3.0.3", doc["openapi"])
 	require.NotContains(t, body, "prompt")
 	require.NotContains(t, body, "full_output")
+	require.NotContains(t, body, "RunID")
+	require.NotContains(t, body, "ToolName")
+	require.Contains(t, body, "run_id")
+	require.Contains(t, body, "tool_name")
 	require.Contains(t, doc["paths"], "/monitor/metrics")
 }
 
@@ -61,6 +67,7 @@ func TestMonitorREST_SnapshotEndpoints(t *testing.T) {
 	metrics := getJSON(t, baseURL+"/monitor/metrics")
 	require.Contains(t, metrics["metrics"], "dispatch_count")
 	require.NotContains(t, metrics, "secret")
+	requireJSONOmitsGoMonitorFields(t, requestBody(t, http.MethodGet, baseURL+"/monitor/metrics", "", http.StatusOK))
 }
 
 func TestMonitorREST_EventStreamCachedUpdates(t *testing.T) {
@@ -73,6 +80,7 @@ func TestMonitorREST_EventStreamCachedUpdates(t *testing.T) {
 	require.Contains(t, body, "event: run_event")
 	require.Contains(t, body, "event: metric_sample")
 	require.NotContains(t, body, "request_id")
+	requireJSONOmitsGoMonitorFields(t, body)
 	requireQueueEmpty(t, state, "monitor_stream")
 }
 
@@ -217,7 +225,9 @@ func requireMonitorSample(t *testing.T, samples []interface{}, name string) {
 	t.Helper()
 	for _, item := range samples {
 		sample, _ := item.(map[string]interface{})
-		if sample["Name"] == name {
+		if sample["name"] == name {
+			require.Contains(t, sample, "tool_name")
+			require.Contains(t, sample, "attributes")
 			return
 		}
 	}
@@ -229,7 +239,7 @@ func requireToolMetricDeclaration(t *testing.T, tools []interface{}, metric stri
 	for _, item := range tools {
 		tool, _ := item.(map[string]interface{})
 		metrics, _ := tool["metrics"].(map[string]interface{})
-		instruments, _ := metrics["Instruments"].([]interface{})
+		instruments, _ := metrics["instruments"].([]interface{})
 		if metricDeclared(instruments, metric) {
 			return
 		}
@@ -240,11 +250,18 @@ func requireToolMetricDeclaration(t *testing.T, tools []interface{}, metric stri
 func metricDeclared(instruments []interface{}, metric string) bool {
 	for _, item := range instruments {
 		instrument, _ := item.(map[string]interface{})
-		if instrument["Name"] == metric {
+		if instrument["name"] == metric {
 			return true
 		}
 	}
 	return false
+}
+
+func requireJSONOmitsGoMonitorFields(t *testing.T, body string) {
+	t.Helper()
+	for _, field := range []string{"RunID", "ToolName", "UpdatedAt", "CommandName", "FromState", "ToState"} {
+		require.NotContains(t, body, `"`+field+`"`)
+	}
 }
 
 func requireQueueEmpty(t *testing.T, state *ServerState, name string) {
