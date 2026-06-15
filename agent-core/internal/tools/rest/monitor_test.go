@@ -49,6 +49,13 @@ func TestMonitorREST_OpenAPIRedaction(t *testing.T) {
 	require.Contains(t, body, "run_id")
 	require.Contains(t, body, "tool_name")
 	require.Contains(t, doc["paths"], "/monitor/metrics")
+	require.Contains(t, doc["paths"], "/monitor/control/exit")
+	control := monitorOpenAPIOperation(t, doc, "/monitor/control/exit", "post")
+	require.Equal(t, "monitorControlExit", control["operationId"])
+	require.Contains(t, control, "requestBody")
+	responses, _ := control["responses"].(map[string]interface{})
+	require.Contains(t, responses, "202")
+	require.NotContains(t, control, "monitor_view")
 }
 
 func TestMonitorREST_SnapshotEndpoints(t *testing.T) {
@@ -297,7 +304,27 @@ func monitorServer(name string) Server {
 			"monitor_events":  {Method: "GET", Path: "/monitor/events", Binding: bindingReadState, MonitorView: monitorViewEvents},
 			"monitor_stream":  {Method: "GET", Path: "/monitor/events/stream", Binding: bindingStreamEvents, MonitorView: monitorViewEvents},
 			"monitor_openapi": {Method: "GET", Path: "/monitor/openapi", Binding: bindingStaticMetadata, MonitorView: "openapi"},
-			"monitor_broken":  {Method: "GET", Path: "/monitor/broken", Binding: bindingReadState, MonitorView: "broken"},
+			"control_exit": {
+				Method: "POST", Path: "/monitor/control/exit",
+				Binding: bindingEmitSignal, Signal: "ExitRequested",
+				Request: RequestBinding{BodySchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"reason": map[string]interface{}{"type": "string"},
+					},
+				}},
+			},
+			"monitor_broken": {Method: "GET", Path: "/monitor/broken", Binding: bindingReadState, MonitorView: "broken"},
 		},
 	}
+}
+
+func monitorOpenAPIOperation(t *testing.T, doc map[string]interface{}, path string, method string) map[string]interface{} {
+	t.Helper()
+	paths, _ := doc["paths"].(map[string]interface{})
+	pathItem, _ := paths[path].(map[string]interface{})
+	require.NotNil(t, pathItem, "path %s should be documented", path)
+	operation, _ := pathItem[method].(map[string]interface{})
+	require.NotNil(t, operation, "%s %s should be documented", method, path)
+	return operation
 }

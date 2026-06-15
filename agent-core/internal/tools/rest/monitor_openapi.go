@@ -7,24 +7,11 @@ import "strings"
 func (r *serverRuntime) monitorOpenAPI() map[string]interface{} {
 	paths := map[string]interface{}{}
 	for name, endpoint := range r.def.Server.Endpoints {
-		if endpoint.MonitorView == "" || endpoint.MonitorView == "openapi" {
+		operation := monitorEndpointOperation(name, endpoint)
+		if operation == nil {
 			continue
 		}
-		paths[endpoint.Path] = map[string]interface{}{
-			strings.ToLower(endpoint.Method): map[string]interface{}{
-				"operationId": monitorOperationID(name),
-				"responses": map[string]interface{}{
-					"200": map[string]interface{}{
-						"description": "Cached monitor state",
-						"content": map[string]interface{}{
-							"application/json": map[string]interface{}{
-								"schema": monitorResponseSchema(endpoint.MonitorView),
-							},
-						},
-					},
-				},
-			},
-		}
+		addMonitorPathOperation(paths, endpoint, operation)
 	}
 	return map[string]interface{}{
 		"openapi": "3.0.3",
@@ -33,6 +20,41 @@ func (r *serverRuntime) monitorOpenAPI() map[string]interface{} {
 		},
 		"paths": paths,
 	}
+}
+
+func monitorEndpointOperation(name string, endpoint Endpoint) map[string]interface{} {
+	switch {
+	case endpoint.MonitorView != "" && endpoint.MonitorView != "openapi":
+		return monitorReadOperation(name, endpoint.MonitorView)
+	case monitorControlEndpoint(endpoint):
+		return monitorControlOperation(name, endpoint)
+	default:
+		return nil
+	}
+}
+
+func monitorReadOperation(name, view string) map[string]interface{} {
+	return map[string]interface{}{
+		"operationId": monitorOperationID(name),
+		"responses":   monitorResponses("200", "Cached monitor state", monitorResponseSchema(view)),
+	}
+}
+
+func monitorControlOperation(name string, endpoint Endpoint) map[string]interface{} {
+	return map[string]interface{}{
+		"operationId": monitorOperationID(name),
+		"requestBody": monitorRequestBody(endpoint.Request.BodySchema),
+		"responses":   monitorResponses("202", "Control request accepted", monitorControlResponseSchema()),
+	}
+}
+
+func addMonitorPathOperation(paths map[string]interface{}, endpoint Endpoint, operation map[string]interface{}) {
+	pathItem, _ := paths[endpoint.Path].(map[string]interface{})
+	if pathItem == nil {
+		pathItem = map[string]interface{}{}
+		paths[endpoint.Path] = pathItem
+	}
+	pathItem[strings.ToLower(endpoint.Method)] = operation
 }
 
 func monitorOperationID(name string) string {
@@ -46,6 +68,43 @@ func monitorOperationID(name string) string {
 		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
 	}
 	return "monitor" + strings.Join(parts, "")
+}
+
+func monitorControlEndpoint(endpoint Endpoint) bool {
+	return endpoint.Binding == bindingEmitSignal && strings.HasPrefix(endpoint.Path, "/monitor/control/")
+}
+
+func monitorResponses(status, description string, schema map[string]interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		status: map[string]interface{}{
+			"description": description,
+			"content": map[string]interface{}{
+				"application/json": map[string]interface{}{"schema": schema},
+			},
+		},
+	}
+}
+
+func monitorRequestBody(schema map[string]interface{}) map[string]interface{} {
+	if len(schema) == 0 {
+		schema = schemaObject()
+	}
+	return map[string]interface{}{
+		"required": false,
+		"content": map[string]interface{}{
+			"application/json": map[string]interface{}{"schema": schema},
+		},
+	}
+}
+
+func monitorControlResponseSchema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"accepted": map[string]interface{}{"type": "boolean"},
+			"signal":   map[string]interface{}{"type": "string"},
+		},
+	}
 }
 
 func monitorResponseSchema(view string) map[string]interface{} {
