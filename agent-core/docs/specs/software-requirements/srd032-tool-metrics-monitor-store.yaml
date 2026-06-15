@@ -14,9 +14,12 @@ problem: |
   recorder boundary. That would blur the boundary between tool-owned metric
   meaning, runtime-owned dispatch context, and reader-owned snapshots.
 
-  The monitor store is planned runtime documentation. It defines recorder and
-  storage contracts for the future monitor package. It does not claim the
-  package, recorder, validation, exporters, or REST readers are implemented.
+  The monitor store contract now has an implementation in
+  internal/observability/monitor. The package provides the in-memory store,
+  recorder ports, sample validation, diagnostics, disabled-mode recorder, and
+  OpenTelemetry metric emission. Runtime dispatch can pass monitor context to
+  commands through LoopParams. Normal cmd/agent startup still needs opt-in live
+  store wiring before profile runs use the monitor by default.
 
 goals:
   - G1: Define a bounded in-memory monitor store for current and recent agent state.
@@ -29,7 +32,7 @@ requirements:
   R1:
     title: Monitor store scope
     items:
-      - R1.1: The planned monitor package SHALL provide an in-memory store scoped to one agent process.
+      - R1.1: The monitor package SHALL provide an in-memory store scoped to one agent process.
       - R1.2: The store SHALL cache current machine state, current run status, and recent RunEvent data.
       - R1.3: The store SHALL cache per-tool usage aggregates, accepted metric samples, known metric schemas, monitor diagnostics, and bounded recent errors.
       - R1.4: The store SHALL bound retained events, samples, diagnostics, and errors by configured limits.
@@ -77,9 +80,27 @@ requirements:
       - R5.4: Tools SHALL treat a missing recorder as normal disabled-mode behavior.
       - R5.5: Monitor configuration SHALL be opt-in and profile-owned.
 
+implementation_status:
+  current: |
+    internal/observability/monitor provides Store, Recorder, NoopRecorder,
+    snapshots, diagnostics, schema registration, bounded retention, and
+    OpenTelemetry metric emission. Runtime core can pass an optional monitor
+    recorder through LoopParams and dispatch context. ToolDef metrics and
+    MachineSpec metric_labels validation run during loading and spec audit.
+    Representative filesystem, LLM, REST, and exec tools emit specialized
+    samples when a recorder is present. Go tests cover bounded snapshots,
+    recorder ownership, unsafe metric config rejection, OTel export, and
+    disabled mode.
+  remaining: |
+    agent-core-xx0f wires monitor store and recorder allocation into cmd/agent
+    profile startup. agent-core-zebe applies MachineSpec and transition
+    metric_labels to standard and specialized samples. agent-core-2gop makes
+    specialized tool emission obey declared ToolDef metrics config.
+    agent-core-i07c adds the end-to-end Release 04.0 monitor proof.
+
 non_goals:
-  - Defining REST or OpenAPI monitor read endpoints; see the planned monitor REST API SRD.
-  - Implementing monitor recorder ports, stores, validation, or exporters in this issue.
+  - Defining REST or OpenAPI monitor read endpoints; see srd033-monitor-rest-api.
+  - Making cmd/agent allocate a live monitor store by default before agent-core-xx0f.
   - Making monitor data durable history.
   - Replacing RunResult, History, checkpoints, traces, or rollback state.
   - Letting model text, tool output, or external callers define metric names or labels.

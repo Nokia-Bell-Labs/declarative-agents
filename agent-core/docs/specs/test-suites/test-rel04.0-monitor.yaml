@@ -7,7 +7,7 @@ traces:
   - rel04.0-uc002-monitor-rest-api
 
 preconditions:
-  - internal/monitor contains the planned monitor store and recorder ports.
+  - internal/observability/monitor contains the monitor store and recorder ports.
   - ToolDef metrics declarations can be loaded from trusted YAML.
   - MachineSpec metric_labels can be loaded from trusted YAML.
   - OpenTelemetry metric export can use a local in-memory metric reader in tests.
@@ -19,7 +19,7 @@ test_cases:
   - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Monitor store returns bounded snapshots
     go_test: TestMonitorStore_BoundedSnapshot
-    status: planned
+    status: implemented
     description: |
       Seed the store with current machine state and recent runtime data. Add
       per-tool usage plus metric samples. Add diagnostics and recent errors
@@ -43,7 +43,7 @@ test_cases:
   - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Recorder separates runtime and tool-owned metrics
     go_test: TestToolMetricsRecorder_OwnershipBoundaries
-    status: planned
+    status: implemented
     description: |
       Dispatch records standard context. A filesystem tool records specialized
       samples. The recorder should accept both forms through one path. Direct
@@ -63,7 +63,7 @@ test_cases:
   - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Metric config rejects unsafe labels
     go_test: TestMonitorMetricConfig_RejectsUnsafeLabels
-    status: planned
+    status: implemented
     description: |
       Load ToolDef metrics and MachineSpec labels with unsafe sources.
       Validation should reject bad names and source paths. Unsafe attributes
@@ -87,7 +87,7 @@ test_cases:
   - use_case: rel04.0-uc001-configurable-tool-metrics
     name: OpenTelemetry export reads normalized samples
     go_test: TestMonitorOTelExport_NormalizedSamples
-    status: planned
+    status: implemented
     description: |
       Export normalized monitor samples through an OpenTelemetry metric path.
       The exporter should use service resource identity. When export fails, the
@@ -107,7 +107,7 @@ test_cases:
   - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Disabled mode avoids monitor allocation
     go_test: TestMonitorDisabledMode_NoStoreAllocation
-    status: planned
+    status: implemented
     description: |
       Run setup without monitor config. Runtime should provide nil or no-op
       recorder behavior and avoid monitor store allocation. Existing loop,
