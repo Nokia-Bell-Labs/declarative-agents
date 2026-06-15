@@ -32,6 +32,13 @@ type ToolConfig struct {
 // RegisterFactories registers Knowledge Manager documentation builtin factories.
 func RegisterFactories(br *toolregistry.BuiltinRegistry) {
 	br.Register("serve_documentation", ServeDocumentationFactory())
+	RegisterRequestFactories(br)
+}
+
+// RegisterRequestFactories registers builtins used by documentation machine_request profiles.
+func RegisterRequestFactories(br *toolregistry.BuiltinRegistry) {
+	br.Register("doc_index_response", responseFactory("doc_index_response", "DocumentIndexReady"))
+	br.Register("doc_detail_response", responseFactory("doc_detail_response", "DocumentDetailReady"))
 }
 
 // ServeDocumentationFactory creates builders for the documentation UI host.
@@ -42,6 +49,12 @@ func ServeDocumentationFactory() toolregistry.BuiltinFactory {
 			return nil, err
 		}
 		return ServeDocumentationBuilder{Config: cfg, Host: NewDocumentationHostLifecycle()}, nil
+	}
+}
+
+func responseFactory(name string, signal core.Signal) toolregistry.BuiltinFactory {
+	return func(catalog.ToolDef, map[string]string) (core.Builder, error) {
+		return responseBuilder{name: name, signal: signal}, nil
 	}
 }
 

@@ -157,3 +157,95 @@ tools:
           signals: [ExitRequested]
       timeout: 30s
       stopped_behavior: emit_server_stopped
+
+  - name: doc_index_response
+    type: builtin
+    init: doc_index_response
+    visibility: internal
+    emits:
+      - DocumentIndexReady
+    description: Shape document index resource output for machine_request HTTP responses.
+    category: response
+    problem: The document index request machine needs a configured word that maps list_resource output into the terminal HTTP response body.
+    goals:
+      - Return the listed documents under both data and documents keys.
+      - Count listed documents for the REST response mapping.
+      - Keep response shaping inside the selected request machine vocabulary.
+    requirements:
+      input:
+        - must receive JSON array output from doc_list_resource
+      output:
+        - must emit DocumentIndexReady with data, documents, and count fields
+        - must emit CommandError when list output is not valid JSON
+      side_effects: []
+      undo:
+        - no durable state is changed
+      errors:
+        - must emit CommandError when response output cannot be encoded
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    output:
+      description: Document index response body.
+      schema:
+        type: object
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    undo:
+      strategy: noop
+      description: Response shaping has no durable effect.
+    errors:
+      - signal: CommandError
+        condition: Resource output cannot be decoded or response output cannot be encoded.
+        message_shape: '<json error>'
+        state_after_failure: no durable docs state is changed
+
+  - name: doc_detail_response
+    type: builtin
+    init: doc_detail_response
+    visibility: internal
+    emits:
+      - DocumentDetailReady
+    description: Shape document read resource output for machine_request HTTP responses.
+    category: response
+    problem: The document detail request machine needs a configured word that maps read_resource output into the terminal HTTP response body.
+    goals:
+      - Return parsed content, raw content, path, and content type.
+      - Keep the detail response shape stable for the Knowledge Manager SPA.
+      - Keep response shaping inside the selected request machine vocabulary.
+    requirements:
+      input:
+        - must receive JSON object output from doc_read_resource
+      output:
+        - must emit DocumentDetailReady with data, path, content, raw, and content_type fields
+        - must emit CommandError when read output is not valid JSON
+      side_effects: []
+      undo:
+        - no durable state is changed
+      errors:
+        - must emit CommandError when response output cannot be encoded
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    output:
+      description: Document detail response body.
+      schema:
+        type: object
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    undo:
+      strategy: noop
+      description: Response shaping has no durable effect.
+    errors:
+      - signal: CommandError
+        condition: Resource output cannot be decoded or response output cannot be encoded.
+        message_shape: '<json error>'
+        state_after_failure: no durable docs state is changed

@@ -98,13 +98,13 @@ func TestStandaloneServerConformanceUsesRESTMachineRequestRoutes(t *testing.T) {
 	requireMachineRequestConformance(t)
 	root := t.TempDir()
 	docsDir := filepath.Join(root, "docs")
-	writeDocFixture(t, docsDir, "specs/use-cases/uc007.yaml", "id: uc007\n")
+	writeDocFixture(t, docsDir, "SPECIFICATIONS.yaml", "id: specs\n")
 	handler := NewServer(HostConfig{
 		DocsDir: docsDir, ProfilePath: curatorProfilePath(t),
 		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
 	}).Handler()
 
-	rec := getDocsRoute(t, handler, "/api/v1/docs/specs/use-cases/uc007.yaml")
+	rec := getDocsRoute(t, handler, "/api/v1/docs/SPECIFICATIONS.yaml")
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	trace := responseTrace(t, rec.Body.Bytes())
