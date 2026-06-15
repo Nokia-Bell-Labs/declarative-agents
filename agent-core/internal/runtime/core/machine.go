@@ -18,6 +18,7 @@ type MachineSpec struct {
 	Invariants      []string         `yaml:"invariants,omitempty"`
 	Lifecycle       string           `yaml:"lifecycle,omitempty"`
 	Configuration   map[string]any   `yaml:"configuration,omitempty"`
+	MetricLabels    MetricLabels     `yaml:"metric_labels,omitempty"`
 	PipelineDiagram string           `yaml:"pipeline_diagram,omitempty"`
 	InitialState    string           `yaml:"initial_state"`
 	States          StateSpecs       `yaml:"states"`
@@ -161,10 +162,11 @@ func (bs *BudgetSpec) ToBudget(defaults Budget) Budget {
 // Action is either a tool name (resolved from the registry) or "$tool"
 // for dynamic dispatch. Empty action means terminal (no command).
 type TransitionSpec struct {
-	State  string `yaml:"state"`
-	Signal string `yaml:"signal"`
-	Next   string `yaml:"next"`
-	Action string `yaml:"action,omitempty"`
+	State        string       `yaml:"state"`
+	Signal       string       `yaml:"signal"`
+	Next         string       `yaml:"next"`
+	Action       string       `yaml:"action,omitempty"`
+	MetricLabels MetricLabels `yaml:"metric_labels,omitempty"`
 }
 
 // MachineDiagnosticSeverity classifies non-fatal grammar diagnostics.
@@ -261,6 +263,13 @@ func validateSpec(spec MachineSpec) error {
 		if !stateSet[tr.Next] {
 			errs = append(errs, fmt.Sprintf("transition[%d]: next %q not in states list", i, tr.Next))
 		}
+		if err := ValidateMetricLabels(fmt.Sprintf("transition[%d].metric_labels", i), tr.MetricLabels); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+
+	if err := ValidateMetricLabels("metric_labels", spec.MetricLabels); err != nil {
+		errs = append(errs, err.Error())
 	}
 
 	if len(errs) > 0 {

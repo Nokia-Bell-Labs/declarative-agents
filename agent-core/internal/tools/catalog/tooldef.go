@@ -30,6 +30,7 @@ type ToolDef struct {
 	Requirements  ToolRequirements       `yaml:"requirements,omitempty"`
 	NonGoals      []string               `yaml:"non_goals,omitempty"`
 	Output        ToolOutputContract     `yaml:"output,omitempty"`
+	Metrics       core.MetricConfig      `yaml:"metrics,omitempty"`
 	SideEffects   ToolSideEffects        `yaml:"side_effects,omitempty"`
 	Reversibility ToolReversibility      `yaml:"reversibility,omitempty"`
 	Undo          ToolUndoContract       `yaml:"undo,omitempty"`
