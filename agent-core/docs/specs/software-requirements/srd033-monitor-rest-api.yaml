@@ -98,21 +98,21 @@ implementation_status:
   current: |
     internal/tools/rest supports monitor_view on read_state, static_metadata,
     and stream_events endpoints. agents/monitor defines a profile-owned REST
-    server with machine, state, tools, metrics, events, event stream, and
-    OpenAPI routes. Tests cover cached-state reads, OpenAPI redaction, snapshot
-    endpoints, event stream frames, and observational failure behavior. The
+    server with machine, state, tools, metrics, events, event stream, OpenAPI,
+    and control exit routes. Tests cover cached-state reads, OpenAPI redaction,
+    snapshot endpoint response shape, event stream frames, observational
+    failure behavior, and profile-owned control endpoint documentation. The
     monitor profile uses the same REST server launch path as other configured
     server tools, so there is no separate monitor server stack.
     A supervisor can call /monitor/metrics after launch and see samples from
-    the same run, not a seeded fixture.
-    TestMonitorReleaseProfileProof and mage integration:uc004 prove the path
-    through cmd/agent with the live store.
+    the same run, not a seeded fixture. The real CLI proof generates an
+    isolated loopback listener while preserving the checked-in operator profile
+    default. TestMonitorReleaseProfileProof and mage integration:uc004 prove
+    the path through cmd/agent with the live store.
   remaining: |
-    The monitor profile still needs the Knowledge Manager serving lifecycle.
-    The REST listener already starts in the background. The remaining work is
-    to keep the MachineSpec alive in an await state, accept a configured control
-    exit request, stop the owned listener, and prove the real cmd/agent process
-    stays queryable until that exit request.
+    No remaining Release 04.0 monitor REST API hardening gap is tracked here.
+    Residual limits are product boundaries: monitor readers are profile-owned,
+    read cached state only, and do not provide durable metric history.
 
 non_goals:
   - Writing monitor state through REST.

@@ -58,7 +58,7 @@ test_cases:
     name: Real CLI monitor process stays queryable until exit
     go_test: TestMonitorCLIProfileServesUntilControlExit
     integration_target: mage integration:uc004
-    status: planned
+    status: implemented
     description: |
       Start cmd/agent with agents/monitor/profile.yaml, then wait until the
       monitor REST listener accepts requests. Request /monitor/state while the
