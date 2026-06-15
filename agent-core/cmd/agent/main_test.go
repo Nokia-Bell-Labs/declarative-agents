@@ -9,6 +9,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -26,6 +27,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	toolrest "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 )
 
@@ -196,6 +198,13 @@ func TestMainWiresExitAgentToDeferredShutdown(t *testing.T) {
 	require.NotContains(t, string(source), "shutdown:     func() {}")
 }
 
+func requireMainWiresMonitorRecorder(t *testing.T) {
+	t.Helper()
+	source, err := os.ReadFile(filepath.Join(repoRootFromTest(t), "cmd", "agent", "main.go"))
+	require.NoError(t, err)
+	require.Contains(t, string(source), "MonitorRecorder: monitorRuntime.Recorder")
+}
+
 func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
@@ -266,6 +275,34 @@ func TestMonitorRuntimeUsesTelemetryMeter(t *testing.T) {
 	var data metricdata.ResourceMetrics
 	require.NoError(t, reader.Collect(context.Background(), &data))
 	requireMetricData(t, data, "dispatch_count")
+}
+
+func TestMonitorReleaseProfileProof(t *testing.T) {
+	restore := snapshotAgentFlags()
+	t.Cleanup(func() { restoreAgentFlags(restore) })
+	requireMainWiresMonitorRecorder(t)
+
+	proof := monitorReleaseProof(t)
+	result, err := core.Loop(proof.params, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, core.State("Serving"), result.FinalState)
+
+	snapshot := proof.monitor.Store.Snapshot()
+	requireMonitorSample(t, snapshot.RecentSamples, "dispatch_count")
+	requireMonitorSampleAttribute(t, snapshot.RecentSamples, "dispatch_duration", "profile", "monitor")
+	requireMonitorSampleAttribute(t, snapshot.RecentSamples, "dispatch_duration", "route_group", "monitor")
+
+	var data metricdata.ResourceMetrics
+	require.NoError(t, proof.metricReader.Collect(context.Background(), &data))
+	requireMetricData(t, data, "dispatch_count")
+
+	state, baseURL := launchProofMonitorREST(t, proof)
+	defer func() { _, _ = state.Stop("monitor") }()
+	metrics := proofRequestBody(t, baseURL+"/monitor/metrics")
+	require.Contains(t, metrics, "dispatch_count")
+	require.Contains(t, metrics, "route_group")
+	require.Contains(t, proofRequestBody(t, baseURL+"/monitor/openapi"), "/monitor/metrics")
+	require.Contains(t, proofRequestBody(t, baseURL+"/monitor/events/stream"), "event: metric_sample")
 }
 
 func TestControlProfileExitReachesSucceededBeforeDeferredShutdown(t *testing.T) {
@@ -503,6 +540,134 @@ func runMonitorRuntimeLoop(t *testing.T, runtime monitorRuntime) core.RunResult 
 	return result
 }
 
+type monitorProof struct {
+	params       core.LoopParams
+	monitor      monitorRuntime
+	monitorState toolrest.MonitorState
+	restDefs     toolrest.Collection
+	launchDef    catalog.ToolDef
+	metricReader *sdkmetric.ManualReader
+}
+
+func monitorReleaseProof(t *testing.T) monitorProof {
+	t.Helper()
+	clearAgentFlags()
+	root := repoRootFromTest(t)
+	flagProfile = filepath.Join(root, "agents", "monitor", "profile.yaml")
+	flagDirectory = root
+
+	cfg, err := loadRuntimeConfig()
+	require.NoError(t, err)
+	defs, err := loadProfileToolDefs(cfg)
+	require.NoError(t, err)
+	restDefs, err := toolrest.LoadDefinitions(cfg.RestDefinitions, cfg.RestConfigDirs)
+	require.NoError(t, err)
+	machine, err := core.LoadMachineSpec(cfg.Machine)
+	require.NoError(t, err)
+	require.NoError(t, catalog.ValidateToolEmits(machine, defs))
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	mon := newMonitorRuntime(machine, defs, restDefs, provider.Meter("agent"))
+	require.NotNil(t, mon.Store)
+	require.NotNil(t, mon.Recorder)
+
+	reg := core.NewRegistry()
+	builtins := toolregistry.NewBuiltinRegistry()
+	st := monitorProofAgentState(cfg, reg, mon, &machine, defs, restDefs)
+	registerBuiltinFactories(builtins, st, selectedBuiltinInits(defs))
+	vars := map[string]string{"directory": cfg.Directory, "request": cfg.Request}
+	require.NoError(t, toolregistry.RegisterUnifiedTools(reg, builtins, cfg.Directory, defs, vars, execBuilder))
+
+	return monitorProof{
+		params: core.LoopParams{
+			MachineSpec:     &machine,
+			AgentName:       "agent",
+			Registry:        reg,
+			Trace:           tracing.NoopTracer{},
+			Budget:          machine.BudgetSpec.ToBudget(core.Budget{MaxIterations: 2}),
+			MonitorRecorder: mon.Recorder,
+		},
+		monitor:      mon,
+		monitorState: monitorState(mon.Store, &machine, defs),
+		restDefs:     restDefs,
+		launchDef:    requireToolDef(t, defs, "launch_monitor_rest"),
+		metricReader: reader,
+	}
+}
+
+func monitorProofAgentState(
+	cfg runtimeConfig,
+	reg *core.Registry,
+	mon monitorRuntime,
+	machine *core.MachineSpec,
+	defs []catalog.ToolDef,
+	restDefs toolrest.Collection,
+) *agentState {
+	return &agentState{
+		registry:   reg,
+		tracer:     tracing.NoopTracer{},
+		ctx:        context.Background(),
+		directory:  cfg.Directory,
+		request:    cfg.Request,
+		monitor:    monitorState(mon.Store, machine, defs),
+		restDefs:   restDefs,
+		shutdown:   func() {},
+		stateStore: nil,
+	}
+}
+
+func launchProofMonitorREST(t *testing.T, proof monitorProof) (*toolrest.ServerState, string) {
+	t.Helper()
+	state := toolrest.NewServerState()
+	br := toolregistry.NewBuiltinRegistry()
+	toolrest.RegisterFactories(br, toolrest.FactoryDeps{
+		Definitions:        proof.restDefs,
+		ServerState:        state,
+		Monitor:            proof.monitorState,
+		CredentialResolver: toolrest.EmptyCredentialResolver{},
+	})
+	factory, ok := br.Resolve(toolrest.InitServerLaunch)
+	require.True(t, ok)
+	builder, err := factory(proof.launchDef, nil)
+	require.NoError(t, err)
+	result := builder.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
+	return state, "http://" + proofLaunchAddress(t, result.Output)
+}
+
+func proofLaunchAddress(t *testing.T, output string) string {
+	t.Helper()
+	var decoded map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(output), &decoded))
+	address, ok := decoded["address"].(string)
+	require.True(t, ok, "launch output should include address")
+	return address
+}
+
+func proofRequestBody(t *testing.T, url string) string {
+	t.Helper()
+	resp, err := http.Get(url)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	var body bytes.Buffer
+	_, err = body.ReadFrom(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, body.String())
+	return body.String()
+}
+
+func requireToolDef(t *testing.T, defs []catalog.ToolDef, name string) catalog.ToolDef {
+	t.Helper()
+	for _, def := range defs {
+		if def.Name == name {
+			return def
+		}
+	}
+	require.Failf(t, "missing tool definition", "tool %q not found", name)
+	return catalog.ToolDef{}
+}
+
 func requireMonitorSample(t *testing.T, samples []monitor.MetricSample, name string) {
 	t.Helper()
 	for _, sample := range samples {
@@ -511,6 +676,16 @@ func requireMonitorSample(t *testing.T, samples []monitor.MetricSample, name str
 		}
 	}
 	require.Failf(t, "missing monitor sample", "sample %q not found in %#v", name, samples)
+}
+
+func requireMonitorSampleAttribute(t *testing.T, samples []monitor.MetricSample, name, key, value string) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name == name && sample.Attributes[key] == value {
+			return
+		}
+	}
+	require.Failf(t, "missing monitor sample attribute", "sample %q missing %s=%s in %#v", name, key, value, samples)
 }
 
 func requireMetricData(t *testing.T, data metricdata.ResourceMetrics, name string) {
