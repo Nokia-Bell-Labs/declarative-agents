@@ -1,0 +1,126 @@
+id: srd031-declarative-document-resources
+title: Declarative Document Resources
+
+problem: |
+  Knowledge Manager needs configured REST and machine_request words that read
+  documentation files from `docs/`. Current host routes work, but route wiring
+  and UI workflow policy still sit in the documentation host.
+
+  Document access belongs behind a resource definition. Trusted profile config
+  should name corpus rules and UI placement, leaving Go code to provide safe
+  filesystem reading and response rendering without hardcoding Knowledge Manager
+  routes. That split keeps the resource reusable.
+
+goals:
+  - G1: Define declarative filesystem document resources for REST and machine_request words.
+  - G2: Keep reusable file reading capability separate from Knowledge Manager UI configuration.
+  - G3: Define safe path resolution, include patterns, extension allowlists, and traversal denial.
+  - G4: Define raw YAML, parsed YAML, raw Markdown, and parsed Markdown response modes.
+  - G5: Define where Knowledge Manager UI assets and UI route/action configuration may live.
+
+requirements:
+  R1:
+    title: Resource binding scope
+    items:
+      - R1.1: REST configuration SHALL support declarative document resource definitions for filesystem-backed documentation corpora.
+      - R1.2: Document resources SHALL be usable by REST server endpoints, REST client words, and machine_request request machines when selected by trusted profile config.
+      - R1.3: A document resource SHALL define read-only corpus access unless a separate mutating resource contract declares write behavior.
+      - R1.4: Direct Go documentation handlers SHALL NOT be the composition mechanism for Knowledge Manager demo document behavior.
+      - R1.5: Generic document resource code SHALL be reusable by profiles other than Knowledge Manager.
+
+  R2:
+    title: Corpus authority
+    items:
+      - R2.1: Trusted configuration SHALL name each resource root, such as docs, configs, or a profile-local content directory.
+      - R2.2: Configuration SHALL declare include patterns for listable and readable files.
+      - R2.3: Configuration SHALL declare extension allowlists before a file can be returned.
+      - R2.4: Runtime input MAY supply only declared path variables or request fields used to select a document inside the configured root.
+      - R2.5: Runtime input SHALL NOT choose arbitrary roots, absolute paths, glob rules, extension allowlists, or parser modes.
+
+  R3:
+    title: Path safety
+    items:
+      - R3.1: Document resource paths SHALL be slash-normalized before resolution.
+      - R3.2: Empty paths, absolute paths, parent-directory segments, path traversal encodings, and resolved paths outside the configured root SHALL be rejected.
+      - R3.3: Directory reads SHALL be rejected unless the selected operation is an explicit list operation.
+      - R3.4: Symlink handling SHALL be explicit in configuration and SHALL default to denying root escapes after symlink resolution.
+      - R3.5: File reads SHALL enforce configured maximum bytes and binary detection policy before returning body content.
+
+  R4:
+    title: Resource operations
+    items:
+      - R4.1: Document resources SHALL support list and get operations.
+      - R4.2: Document resources MAY support search, validate, and suggest operations only when those operations are declared as separate resource operations or machine words.
+      - R4.3: List output SHALL include path, name, category, extension, and optional metadata fields configured for the resource.
+      - R4.4: Get output SHALL include path, raw content when enabled, parsed content when enabled, content type, extension, and size.
+      - R4.5: Operation errors SHALL distinguish path_required, invalid_path, extension_denied, not_found, read_failed, parse_failed, and size_limit_exceeded.
+
+  R5:
+    title: Response modes
+    items:
+      - R5.1: Resource configuration SHALL declare one or more response modes for each operation.
+      - R5.2: raw_yaml mode SHALL return the YAML file text without parsing.
+      - R5.3: parsed_yaml mode SHALL parse YAML into structured Result output and MAY also include raw content when configured.
+      - R5.4: raw_markdown mode SHALL return Markdown text with content type metadata.
+      - R5.5: parsed_markdown mode MAY return a configured Markdown AST, front matter, headings, or rendered HTML only when the parser is explicitly configured.
+      - R5.6: Parse failures SHALL map to configured signals and SHALL NOT hide the raw file when raw fallback is enabled.
+
+  R6:
+    title: UI actor configuration
+    items:
+      - R6.1: Knowledge Manager UI assets MAY live under agents/knowledge-manager/documentation-curator or another profile-owned asset path.
+      - R6.2: UI route labels, sidebar grouping, action names, resource references, and response presentation rules MAY live in profile-local configuration.
+      - R6.3: The generic server SHALL serve configured UI assets and route/action config without embedding Knowledge Manager-specific workflow policy.
+      - R6.4: Human-facing UI configuration SHALL be treated as actor configuration, analogous to prompt configuration for model actors.
+      - R6.5: Generic document resource capability SHALL remain reusable without the Knowledge Manager UI.
+
+non_goals:
+  - Implementing document resource tools in this issue.
+  - Defining mutating document writes or applying patches to files.
+  - Replacing all existing documentation host routes in this issue.
+  - Letting browser input choose arbitrary filesystem roots or parser behavior.
+  - Defining a general CMS or web framework.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The SRD defines declarative document resources that connect REST or machine_request words to a filesystem documentation corpus.
+    traces: [R1.1, R1.2, R1.3]
+
+  - id: AC2
+    criterion: The SRD states that direct Go documentation handlers are not the composition mechanism for Knowledge Manager demo document behavior.
+    traces: [R1.4, R6.3]
+
+  - id: AC3
+    criterion: Corpus authority requirements cover roots, include patterns, extension allowlists, runtime input limits, and trusted parser mode selection.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+
+  - id: AC4
+    criterion: Path safety requirements cover normalization, traversal denial, directory denial, symlink policy, size limits, and binary policy.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+
+  - id: AC5
+    criterion: Response mode requirements cover raw YAML, parsed YAML, raw Markdown, parsed Markdown, parse failures, and raw fallback.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6]
+
+  - id: AC6
+    criterion: UI actor configuration requirements distinguish profile-owned Knowledge Manager assets and route/action config from reusable generic server and resource capability.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+
+depends_on:
+  - srd_id: srd027-rest-tool-runtime
+    symbols_used: [REST configuration, request validation, redaction, response mapping]
+  - srd_id: srd030-machine-request-rest-binding
+    symbols_used: [machine_request, RequestEvent, response words]
+
+related_documents:
+  - docs/specs/semantic-models/document-resource-language.yaml
+  - docs/specs/semantic-models/machine-request-http.yaml
+  - docs/specs/config-formats/rest-tool-format.yaml
+  - docs/VISION.yaml
+  - docs/ARCHITECTURE.yaml
+
+implementation_status:
+  planned:
+    - Declarative document_resource configuration under REST definitions.
+    - Reusable filesystem document resource words.
+    - Knowledge Manager profile-owned UI asset and route/action configuration.

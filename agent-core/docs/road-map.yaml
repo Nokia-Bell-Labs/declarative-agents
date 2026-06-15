@@ -107,16 +107,20 @@ releases:
       inbox support are implemented, while generated Go clients and servers are
       excluded. New Knowledge Manager demo work adds a machine_request server
       binding so one inbound HTTP request can run one short-lived MachineSpec
-      sentence and map terminal output back to HTTP.
+      sentence and map terminal output back to HTTP. Declarative document
+      resources connect that request grammar to filesystem documentation corpora
+      without hardcoding demo document routes in the generic host.
     status: in_progress
     srds:
       - srd027-rest-tool-runtime
       - srd028-rest-client-tools
       - srd029-rest-server-tools
       - srd030-machine-request-rest-binding
+      - srd031-declarative-document-resources
     semantic_models:
       - sm-rest-tool-language
       - sm-machine-request-http
+      - sm-document-resource-language
     config_formats:
       - cfg-rest-tool-format
     planned_use_cases:

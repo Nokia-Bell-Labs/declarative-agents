@@ -594,6 +594,14 @@ overview:
       paths, schemas, auth references, status mapping, side effects, and
       compensation notes. The runtime validates those definitions before a
       machine dispatches them.
+
+      Machine request bindings and document resources extend this model for the
+      Knowledge Manager demo. A machine_request endpoint turns one HTTP request
+      into one short-lived MachineSpec sentence. Document resources expose a
+      configured filesystem corpus such as docs/ through reusable resource
+      words. Knowledge Manager UI assets, labels, routes, actions, and
+      placement live with the documentation-curator profile as human actor
+      configuration.
     responsibilities:
       client: |
         REST client tools resolve configured operations, validate runtime
@@ -605,6 +613,20 @@ overview:
         validate incoming requests, map accepted requests to inbox messages or
         declared grammar signals, expose health/state endpoints when configured,
         and shut down through tool lifecycle or agent shutdown.
+      machine_request: |
+        Machine request bindings validate one inbound HTTP request, seed a
+        configured request machine, run core.Loop for that short-lived sentence,
+        and map terminal response word output back to HTTP.
+      document_resources: |
+        Document resources resolve configured filesystem roots, include
+        patterns, extension allowlists, response modes, and path safety policy.
+        They return raw or parsed YAML and Markdown content only when trusted
+        config allows it.
+      human_ui_actor_config: |
+        Human-facing UI assets and route/action configuration are actor
+        configuration. They may live under
+        agents/knowledge-manager/documentation-curator while generic server and
+        document resource code stays reusable across profiles.
       openapi: |
         Runtime code uses github.com/getkin/kin-openapi/openapi3 to load,
         resolve, and validate OpenAPI 3 documents referenced by REST tool
@@ -627,6 +649,8 @@ overview:
       - OpenAPI documents live with agent/profile/tool configuration.
       - REST definitions live with agent/profile/tool configuration.
       - Runtime credentials are referenced by configuration and resolved by the agent runtime.
+      - Document resource roots, include patterns, extension allowlists, and response modes live with trusted profile or REST configuration.
+      - Knowledge Manager UI assets and UI-specific action placement live with the documentation-curator profile.
       - Generated Go REST clients and servers are out of scope for the first implementation.
     source_files:
       current:
@@ -637,7 +661,11 @@ overview:
         - docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
         - docs/specs/software-requirements/srd028-rest-client-tools.yaml
         - docs/specs/software-requirements/srd029-rest-server-tools.yaml
+        - docs/specs/software-requirements/srd030-machine-request-rest-binding.yaml
+        - docs/specs/software-requirements/srd031-declarative-document-resources.yaml
         - docs/specs/semantic-models/rest-tool-language.yaml
+        - docs/specs/semantic-models/machine-request-http.yaml
+        - docs/specs/semantic-models/document-resource-language.yaml
         - docs/specs/config-formats/rest-tool-format.yaml
         - docs/specs/use-cases/rel03.0-uc001-rest-client-sync.yaml
         - docs/specs/use-cases/rel03.0-uc002-rest-client-async.yaml
@@ -1256,7 +1284,7 @@ project_structure:
     - path: agents/bench/
       role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
     - path: agents/knowledge-manager/documentation-curator/
-      role: Knowledge Manager documentation curator — machine.yaml, tools.yaml, documentation host, and REST tool declarations
+      role: Knowledge Manager documentation curator — machine.yaml, tools.yaml, human-facing UI assets, UI action config, document resources, documentation host, and REST tool declarations
     - path: agents/lifecycle/
       role: Lifecycle configured programs — approval, history, and rollback profiles, machines, and tool selection
     - path: tools/
