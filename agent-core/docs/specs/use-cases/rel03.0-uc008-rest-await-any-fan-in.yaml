@@ -75,7 +75,7 @@ out_of_scope:
   - Adding hidden workflow actions inside rest_await_event.
   - Replacing single-server rest_server_await coverage.
 
-status: planned
+status: done
 semantic_model: sm-rest-tool-language
 config_format: cfg-rest-tool-format
 test_suite_trace: test-rel03.0-rest-tools

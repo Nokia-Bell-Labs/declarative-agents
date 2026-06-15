@@ -149,7 +149,7 @@ releases:
         status: done
       - id: rel03.0-uc008-rest-await-any-fan-in
         summary: Staged REST await-any fan-in adds a later event source after the first selected event
-        status: planned
+        status: done
     planned_test_suites:
       - id: test-rel03.0-rest-tools
         summary: Formal tests for REST runtime, client tools, server tools, generic event fan-in, staged await-any fan-in, lifecycle exit payload propagation, terminal routing, listener shutdown, OpenAPI import, Ollama E2E proof, documentation-curator ownership, and Puppeteer machine_request UX coverage
