@@ -17,22 +17,24 @@ import (
 
 // HostConfig configures the standalone documentation UI host.
 type HostConfig struct {
-	Addr       string
-	DocsDir    string
-	ConfigsDir string
-	SourceDir  string
-	Assets     fs.FS
-	Workflow   WorkflowRunner
+	Addr        string
+	DocsDir     string
+	ConfigsDir  string
+	SourceDir   string
+	ProfilePath string
+	Assets      fs.FS
+	Workflow    WorkflowRunner
 }
 
 // Server serves the Knowledge Manager documentation API and UI assets.
 type Server struct {
-	addr       string
-	docsDir    string
-	configsDir string
-	sourceDir  string
-	assets     fs.FS
-	workflow   WorkflowRunner
+	addr        string
+	docsDir     string
+	configsDir  string
+	sourceDir   string
+	profilePath string
+	assets      fs.FS
+	workflow    WorkflowRunner
 }
 
 // RunningServer is a launched documentation host.
@@ -49,12 +51,13 @@ func NewServer(cfg HostConfig) *Server {
 		assets = ui.Assets()
 	}
 	return &Server{
-		addr:       cfg.Addr,
-		docsDir:    cfg.DocsDir,
-		configsDir: cfg.ConfigsDir,
-		sourceDir:  cfg.SourceDir,
-		assets:     assets,
-		workflow:   cfg.Workflow,
+		addr:        cfg.Addr,
+		docsDir:     cfg.DocsDir,
+		configsDir:  cfg.ConfigsDir,
+		sourceDir:   cfg.SourceDir,
+		profilePath: profilePathOrDefault(cfg.ProfilePath),
+		assets:      assets,
+		workflow:    cfg.Workflow,
 	}
 }
 
@@ -63,8 +66,8 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	docs := NewHandler(s.docsDir)
 	mux.HandleFunc("GET /api/v1/health", s.handleHealth)
-	mux.HandleFunc("GET /api/v1/docs", docs.List)
-	mux.HandleFunc("GET /api/v1/docs/{path...}", docs.Get)
+	mux.HandleFunc("GET /api/v1/docs", s.handleDocumentIndex)
+	mux.HandleFunc("GET /api/v1/docs/{path...}", s.handleDocumentDetail)
 	mux.HandleFunc("POST /api/v1/docs/search", docs.Search)
 	mux.HandleFunc("POST /api/v1/docs/validate", docs.Validate)
 	mux.HandleFunc("POST /api/v1/docs/suggestions", docs.Suggest)
@@ -140,10 +143,20 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+func (s *Server) handleDocumentIndex(w http.ResponseWriter, r *http.Request) {
+	result, err := s.machineDocs().List(r.Context())
+	writeMachineDocHTTP(w, result, err)
+}
+
+func (s *Server) handleDocumentDetail(w http.ResponseWriter, r *http.Request) {
+	result, err := s.machineDocs().Get(r.Context(), r.PathValue("path"))
+	writeMachineDocHTTP(w, result, err)
+}
+
 func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	runner := s.workflow
 	if runner == nil {
-		runner = NewLazyProfileWorkflowRunner(defaultCuratorProfilePath)
+		runner = NewLazyProfileWorkflowRunner(s.profilePath, s.docsDir)
 	}
 	result, err := runner.Run(r)
 	if err != nil {
@@ -151,6 +164,17 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) machineDocs() *LazyMachineDocsRunner {
+	return NewLazyMachineDocsRunner(s.profilePath, s.docsDir)
+}
+
+func profilePathOrDefault(path string) string {
+	if path != "" {
+		return path
+	}
+	return defaultCuratorProfilePath
 }
 
 func spaHandler(assets fs.FS) http.Handler {

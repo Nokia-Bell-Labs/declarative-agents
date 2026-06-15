@@ -13,6 +13,10 @@ states:
     meaning: The machine is listing configured documentation resources.
   - name: ReadingDocument
     meaning: The machine is reading one configured documentation resource.
+  - name: ShapingDocumentIndex
+    meaning: The machine is preparing document index output for HTTP response mapping.
+  - name: ShapingDocumentDetail
+    meaning: The machine is preparing document detail output for HTTP response mapping.
   - name: DocumentIndexReady
     meaning: Terminal. Document index data is ready for HTTP response mapping.
   - name: DocumentDetailReady
@@ -38,6 +42,10 @@ signals:
     trigger: doc_list_resource returned configured resource entries.
   - name: DocumentReady
     trigger: doc_read_resource returned configured resource content.
+  - name: DocumentIndexReady
+    trigger: doc_index_response shaped document entries for the browser.
+  - name: DocumentDetailReady
+    trigger: doc_detail_response shaped document content for the browser.
   - name: DocumentMissing
     trigger: doc_read_resource could not find the requested path.
   - name: DocumentResourceDenied
@@ -57,6 +65,10 @@ transitions:
     action: doc_read_resource
   - state: ListingDocuments
     signal: DocumentListReady
+    next: ShapingDocumentIndex
+    action: doc_index_response
+  - state: ShapingDocumentIndex
+    signal: DocumentIndexReady
     next: DocumentIndexReady
   - state: ListingDocuments
     signal: DocumentResourceDenied
@@ -66,6 +78,10 @@ transitions:
     next: Failed
   - state: ReadingDocument
     signal: DocumentReady
+    next: ShapingDocumentDetail
+    action: doc_detail_response
+  - state: ShapingDocumentDetail
+    signal: DocumentDetailReady
     next: DocumentDetailReady
   - state: ReadingDocument
     signal: DocumentMissing

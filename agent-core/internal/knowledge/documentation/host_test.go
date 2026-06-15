@@ -28,9 +28,10 @@ func TestStandaloneServerServesDocsAPIAndSPA(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeDocFixture(t, root, "VISION.yaml", "title: Vision\n")
+	docsDir := filepath.Join(root, "docs")
+	writeDocFixture(t, docsDir, "VISION.yaml", "title: Vision\n")
 	server := NewServer(HostConfig{
-		DocsDir: root,
+		DocsDir: docsDir, ProfilePath: curatorProfilePath(t),
 		Assets: fstest.MapFS{
 			"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")},
 			"asset.js":   &fstest.MapFile{Data: []byte("console.log('docs')")},
@@ -41,6 +42,12 @@ func TestStandaloneServerServesDocsAPIAndSPA(t *testing.T) {
 	rec := getDocsRoute(t, handler, "/api/v1/docs")
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"path":"VISION.yaml"`)
+	require.Contains(t, rec.Body.String(), `"trace"`)
+
+	rec = getDocsRoute(t, handler, "/api/v1/docs/VISION.yaml")
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"raw":"title: Vision\n"`)
+	require.Contains(t, rec.Body.String(), `"trace"`)
 
 	rec = getDocsRoute(t, handler, "/docs/VISION.yaml")
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -70,9 +77,10 @@ func TestStandaloneServerStartServesDocsAPI(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeDocFixture(t, root, "VISION.yaml", "title: Vision\n")
+	docsDir := filepath.Join(root, "docs")
+	writeDocFixture(t, docsDir, "VISION.yaml", "title: Vision\n")
 	running, err := NewServer(HostConfig{
-		Addr: "127.0.0.1:0", DocsDir: root,
+		Addr: "127.0.0.1:0", DocsDir: docsDir, ProfilePath: curatorProfilePath(t),
 		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
 	}).Start()
 	require.NoError(t, err)
@@ -81,6 +89,7 @@ func TestStandaloneServerStartServesDocsAPI(t *testing.T) {
 	body := getHTTPBody(t, "http://"+running.Addr+"/api/v1/docs")
 
 	require.Contains(t, body, `"path":"VISION.yaml"`)
+	require.Contains(t, body, `"trace"`)
 }
 
 func TestServeDocumentationUndoStopsOwnedListener(t *testing.T) {
@@ -250,9 +259,10 @@ func TestProfileWorkflowRunnerDispatchesConfiguredRESTTool(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeDocFixture(t, root, "VISION.yaml", "title: Vision\n")
+	docsDir := filepath.Join(root, "docs")
+	writeDocFixture(t, docsDir, "VISION.yaml", "title: Vision\n")
 	apiServer := httptest.NewServer(NewServer(HostConfig{
-		DocsDir: root,
+		DocsDir: docsDir, ProfilePath: curatorProfilePath(t),
 		Assets: fstest.MapFS{
 			"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")},
 		},

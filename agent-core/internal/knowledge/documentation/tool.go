@@ -99,11 +99,12 @@ func (c serveDocumentationCmd) Execute() core.Result {
 		return c.stopHost()
 	}
 	running, err := c.host.Start(HostConfig{
-		Addr:       c.config.Addr,
-		DocsDir:    c.config.DocsDir,
-		ConfigsDir: c.config.ConfigsDir,
-		SourceDir:  c.config.SourceDir,
-		Workflow:   NewLazyProfileWorkflowRunner(c.config.ProfilePath),
+		Addr:        c.config.Addr,
+		DocsDir:     c.config.DocsDir,
+		ConfigsDir:  c.config.ConfigsDir,
+		SourceDir:   c.config.SourceDir,
+		ProfilePath: c.config.ProfilePath,
+		Workflow:    NewLazyProfileWorkflowRunner(c.config.ProfilePath, c.config.DocsDir),
 	})
 	if err != nil {
 		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Err: err, Output: err.Error()}

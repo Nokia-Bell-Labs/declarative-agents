@@ -338,7 +338,7 @@ rest:
                 prefix: $.prefix
             response:
               terminal_signals:
-                DocumentListReady:
+                DocumentIndexReady:
                   status: 200
                   content_type: application/json
                   body:
@@ -368,11 +368,11 @@ rest:
                 path: $.path
             response:
               terminal_signals:
-                DocumentReady:
+                DocumentDetailReady:
                   status: 200
                   content_type: application/json
                   body:
-                    data: $.parsed
+                    data: $.content
                     path: $.path
                     raw: $.raw
                     content_type: $.content_type
