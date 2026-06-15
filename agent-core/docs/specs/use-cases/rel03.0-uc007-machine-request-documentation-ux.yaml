@@ -1,0 +1,83 @@
+id: rel03.0-uc007-machine-request-documentation-ux
+title: Knowledge Manager UX uses machine_request document resources
+
+summary: |
+  A developer opens the Knowledge Manager documentation UX. Browser requests for
+  the document index and a raw YAML document enter through machine_request
+  endpoints. Each accepted HTTP request runs one short-lived MachineSpec
+  sentence that reads configured document resources and returns a response word
+  output. Puppeteer drives the browser proof and captures request trace evidence.
+
+actor: Developer browsing Agent Core documentation in a browser
+
+trigger: |
+  The developer opens the Knowledge Manager UX after the profile has launched a
+  machine_request-backed documentation server with configured document resources.
+
+flow:
+  - F1: The agent loads agents/knowledge-manager/documentation-curator/profile.yaml with machine_request endpoints and the documentation_corpus document resource selected.
+  - F2: The browser opens the Knowledge Manager documentation URL served from profile-owned UI assets.
+  - F3: The UI requests the document index. The HTTP route validates the request and starts one short-lived request machine.
+  - F4: The request machine dispatches a document list word against the configured docs/ corpus and emits DocumentListReady.
+  - F5: The response word maps DocumentListReady output to the HTTP index response. The UI shows sidebar categories from the returned document list.
+  - F6: The operator selects SPECIFICATIONS.yaml or another YAML document from the sidebar.
+  - F7: The browser requests that raw YAML document. The machine_request route validates the path and starts a second short-lived request machine.
+  - F8: The request machine dispatches a document get word. Path policy denies traversal and permits only configured YAML or Markdown extensions.
+  - F9: The response word returns raw YAML and parsed content according to the document resource response mode.
+  - F10: The UI shows the document as HTML and exposes the raw YAML view.
+  - F11: Puppeteer verifies visible content, raw YAML retrieval, rendered HTML, and trace evidence that each browser request has a request ID, machine name, terminal signal, and RunResult summary.
+  - F12: Browser, server, or machine failures produce a structured Puppeteer failure report with screenshot, console output, network log, and captured trace metadata.
+
+touchpoints:
+  - T1: "srd030-machine-request-rest-binding R1, R2 -- one accepted HTTP request runs one configured MachineSpec sentence"
+  - T2: "srd030-machine-request-rest-binding R3, R4, R6 -- request input, terminal response extraction, and trace recording"
+  - T3: "srd031-declarative-document-resources R1, R2 -- document resources connect request machines to docs/"
+  - T4: "srd031-declarative-document-resources R3, R5 -- path safety and raw or parsed YAML response modes"
+  - T5: "srd031-declarative-document-resources R6 -- Knowledge Manager UI assets and action placement are human actor configuration"
+  - T6: "rel03.0-uc006-documentation-curator -- current direct-host behavior retained until this successor proof is implemented"
+  - T7: "magefiles/integration_docs.go -- current uc006 integration target and future location for uc007 orchestration"
+
+success_criteria:
+  - id: S1
+    criterion: The browser loads the Knowledge Manager UX from profile-owned UI assets without using bench routes.
+    traces:
+      - srd031-declarative-document-resources AC6
+  - id: S2
+    criterion: The document index request is fulfilled by one machine_request run and returns a sidebar-ready document list.
+    traces:
+      - srd030-machine-request-rest-binding AC1
+      - srd031-declarative-document-resources AC1
+  - id: S3
+    criterion: The raw YAML document request is fulfilled by one machine_request run and returns raw YAML plus configured parsed content.
+    traces:
+      - srd030-machine-request-rest-binding AC5
+      - srd031-declarative-document-resources AC5
+  - id: S4
+    criterion: Path traversal and disallowed extension attempts are rejected before a document resource reads a file.
+    traces:
+      - srd031-declarative-document-resources AC4
+  - id: S5
+    criterion: Puppeteer verifies rendered HTML, raw YAML visibility, and request trace evidence for both browser-driven machine_request runs.
+    traces:
+      - srd030-machine-request-rest-binding AC7
+      - srd031-declarative-document-resources AC6
+  - id: S6
+    criterion: Failures report the page URL, screenshot path, browser console output, network log, and machine_request trace metadata.
+    traces:
+      - srd030-machine-request-rest-binding AC6
+
+out_of_scope:
+  - Applying documentation patches from the browser.
+  - Replacing the current rel03.0-uc006 direct-host smoke proof before implementation.
+  - Running Puppeteer against non-local public listener addresses.
+  - Letting browser input choose document roots, parser modes, or machine files.
+
+successor_to: rel03.0-uc006-documentation-curator
+status: planned
+machine_config: agents/knowledge-manager/documentation-curator/machine.yaml
+rest_definitions: agents/knowledge-manager/documentation-curator/rest.yaml
+document_resource: documentation_corpus
+browser_harness: Puppeteer
+future_integration_target: mage integration:uc007
+future_entry_point: internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts
+test_suite_trace: test-rel03.0-rest-tools

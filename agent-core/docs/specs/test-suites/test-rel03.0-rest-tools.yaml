@@ -9,6 +9,7 @@ traces:
   - rel03.0-uc004-openapi-import
   - rel03.0-uc005-ollama-openapi-model-listing
   - rel03.0-uc006-documentation-curator
+  - rel03.0-uc007-machine-request-documentation-ux
 
 preconditions:
   - internal/tools/rest contains the REST runtime and executable Go coverage for this suite.
@@ -18,6 +19,7 @@ preconditions:
   - Redaction tests can use synthetic credentials and payload fields.
   - Live Ollama E2E coverage requires Ollama on 127.0.0.1:11434 and a Qwen 3 family model.
   - Documentation-curator tests use local fixture directories and do not require a browser.
+  - Machine-request documentation UX coverage will use Puppeteer through mage integration:uc007 and internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts.
 
 test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
@@ -872,6 +874,134 @@ test_cases:
       - srd024-blocking-input-tools AC1
       - srd027-rest-tool-runtime AC10
       - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Puppeteer loads machine-request Knowledge Manager UX
+    go_test: mage integration:uc007
+    status: planned
+    description: |
+      Build the agent and Knowledge Manager UI assets, start the
+      documentation-curator profile with machine_request document endpoints, and
+      launch Puppeteer against the local UX. The page must load from
+      profile-owned UI assets without using bench routes.
+    inputs:
+      profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      browser_harness: Puppeteer
+      entry_point: internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts
+      integration_target: mage integration:uc007
+      page_url: http://127.0.0.1:18081/
+    expected:
+      page_loaded: true
+      profile_ui_assets_served: true
+      bench_route_delegation: false
+      screenshot_on_failure: true
+      console_log_captured_on_failure: true
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S1
+      - srd031-declarative-document-resources AC6
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Puppeteer verifies document index machine_request sentence
+    go_test: mage integration:uc007
+    status: planned
+    description: |
+      Puppeteer waits for the document index network request. The server should
+      validate the browser request, run one short-lived MachineSpec sentence,
+      return a document list, and render sidebar categories in the page.
+    inputs:
+      browser_request: GET or POST document index endpoint configured as machine_request
+      document_resource: documentation_corpus
+      expected_document: SPECIFICATIONS.yaml
+    expected:
+      index_response_ok: true
+      sidebar_contains_specifications: true
+      request_run_count: 1
+      terminal_signal: DocumentListReady
+      document_resource_root: docs
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S2
+      - srd030-machine-request-rest-binding AC1
+      - srd030-machine-request-rest-binding AC4
+      - srd031-declarative-document-resources AC1
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Puppeteer opens raw YAML document through document resource
+    go_test: mage integration:uc007
+    status: planned
+    description: |
+      After the sidebar appears, Puppeteer selects a YAML document. The browser
+      request must run one request machine, pass document resource path policy,
+      and return raw YAML plus configured parsed content.
+    inputs:
+      selected_document: SPECIFICATIONS.yaml
+      response_modes: [raw_yaml, parsed_yaml]
+      blocked_paths:
+        - ../go.mod
+        - internal/knowledge/documentation/host.go
+    expected:
+      raw_yaml_returned: true
+      parsed_content_returned: true
+      rendered_title_visible: true
+      traversal_request_denied: true
+      disallowed_extension_denied: true
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S3
+      - rel03.0-uc007-machine-request-documentation-ux S4
+      - srd030-machine-request-rest-binding AC5
+      - srd031-declarative-document-resources AC4
+      - srd031-declarative-document-resources AC5
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Puppeteer verifies rendered HTML and raw YAML view
+    go_test: mage integration:uc007
+    status: planned
+    description: |
+      Puppeteer checks the document viewer after navigation. The rendered HTML
+      should show parsed document fields, and the raw YAML view should expose
+      the exact YAML text returned by the document resource response.
+    inputs:
+      selected_document: SPECIFICATIONS.yaml
+      rendered_selectors:
+        - .doc-viewer
+        - .doc-raw-section
+      raw_text_contains: "id: agent-core-specifications"
+    expected:
+      rendered_html_visible: true
+      raw_yaml_visible: true
+      parsed_fields_match_raw_document: true
+      browser_console_errors: 0
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S3
+      - rel03.0-uc007-machine-request-documentation-ux S5
+      - srd031-declarative-document-resources AC5
+      - srd031-declarative-document-resources AC6
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Puppeteer captures auditable machine_request trace evidence
+    go_test: mage integration:uc007
+    status: planned
+    description: |
+      The Puppeteer proof collects trace evidence for the index and document
+      requests. A failure report must include screenshot path, page URL, browser
+      console output, network log, request ID, machine name, terminal signal,
+      and RunResult summary for each machine_request run.
+    inputs:
+      requests:
+        - document_index
+        - document_detail
+      failure_artifacts_dir: testdata/integration/rel03-rest-tools/artifacts/uc007
+    expected:
+      request_ids_present: true
+      machine_names_present: true
+      terminal_signals_present: true
+      run_result_summaries_present: true
+      network_log_captured: true
+      screenshot_path_reported_on_failure: true
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S5
+      - rel03.0-uc007-machine-request-documentation-ux S6
+      - srd030-machine-request-rest-binding AC6
+      - srd030-machine-request-rest-binding AC7
 
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST observability redacts secrets and reports failure stages

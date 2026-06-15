@@ -9,8 +9,8 @@ overview: |
   evaluator and bench contracts. Tool declarations also belong to that release.
   Rollback lifecycle contracts belong to 02.0. Declarative REST runtime
   contracts belong to 03.0. REST client and server contracts sit in the same
-  release. Fourteen use cases exercise the SRDs across the
-  four releases. Five formal YAML test suites cover 184 acceptance test
+  release. Fifteen use cases exercise the SRDs across the
+  four releases. Five formal YAML test suites cover 189 acceptance test
   cases across releases 00.0 through 03.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -46,7 +46,7 @@ roadmap_summary:
   - version: "03.0"
     name: Declarative REST client and server tools
     use_cases_done: 6
-    use_cases_total: 6
+    use_cases_total: 7
     status: in_progress
 
 foundation_document_index:
@@ -336,6 +336,12 @@ use_case_index:
     status: done
     test_suite: test-rel03.0-rest-tools
     path: docs/specs/use-cases/rel03.0-uc006-documentation-curator.yaml
+  - id: rel03.0-uc007-machine-request-documentation-ux
+    title: Knowledge Manager UX uses machine_request document resources
+    release: "03.0"
+    status: planned
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml
 
 test_suite_index:
   - id: test-rel00.0
@@ -381,7 +387,8 @@ test_suite_index:
       - rel03.0-uc004-openapi-import
       - rel03.0-uc005-ollama-openapi-model-listing
       - rel03.0-uc006-documentation-curator
-    formal_test_cases: 30
+      - rel03.0-uc007-machine-request-documentation-ux
+    formal_test_cases: 35
     path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
 go_test_coverage:
@@ -397,11 +404,11 @@ go_test_coverage:
     mage integration:uc003 target records a skipped/manual-precondition result,
     not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
-    The 03.0 YAML coverage (30 cases) names implemented Go tests for REST
+    The 03.0 YAML coverage (35 cases) names implemented Go tests for REST
     config loading, client execution, async send/await, server signal handling,
     OpenAPI import, credential resolution, redirect and size policies, server
     validation, redaction behavior, live Ollama OpenAPI model-listing, and
-    documentation-curator ownership, curator validation workflows, generic REST fan-in, lifecycle-control routing, payload propagation, terminal-state routing, listener shutdown, and migration smoke coverage. Package tests cover
+    documentation-curator ownership, curator validation workflows, generic REST fan-in, lifecycle-control routing, payload propagation, terminal-state routing, listener shutdown, migration smoke coverage, and planned Puppeteer coverage for machine_request documentation UX. Package tests cover
     srd009-srd018 and domain packages. Run
     `go test ./... -v | grep -c '=== RUN'` for the current test function count.
 
