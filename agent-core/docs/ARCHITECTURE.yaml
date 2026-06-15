@@ -722,6 +722,13 @@ overview:
       do not scrape tools, re-run commands, or read arbitrary workspace files.
       cmd/agent startup allocates the live store, passes it to REST monitor
       routes, and applies MachineSpec workflow labels to emitted samples.
+
+      Monitor serving uses the same lifecycle shape as the Knowledge Manager
+      documentation curator. After a launch word, the REST listener runs in the
+      background. A monitor MachineSpec must not make that launch state
+      terminal. Its next step should be a serving or awaiting state with a
+      blocking await word. A configured control exit request then stops the
+      owned listener and routes the machine to Done or Succeeded.
     monitor_flow_diagram: |
       ```mermaid
       flowchart LR
@@ -751,6 +758,11 @@ overview:
         REST handlers expose cached monitor state through configured routes and
         OpenAPI descriptions. Read handlers return snapshots, time windows, and
         known metric schemas from trusted monitor state.
+      serving_lifecycle: |
+        Monitor REST listeners are background servers. Profile grammar keeps
+        cmd/agent alive by awaiting a control event after launch. This follows
+        agents/knowledge-manager/documentation-curator/machine.yaml: launch,
+        await, exit, stop, and reach a success terminal.
     source_files:
       current:
         - internal/observability/monitor/
@@ -773,6 +785,8 @@ overview:
         - cmd/agent/main_test.go: TestMonitorReleaseProfileProof
         - internal/tools/rest/monitor_test.go: TestMonitorREST_FactoryUsesLiveMonitorState
         - magefiles/integration_monitor.go: mage integration:uc004
+      planned_proof:
+        - cmd/agent/main_test.go: TestMonitorCLIProfileServesUntilControlExit
 
   container_runtime_architecture:
     summary: |
