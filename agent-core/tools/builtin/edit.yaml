@@ -21,6 +21,20 @@ tools:
       required:
       - path
       - replacements
+  metrics:
+    instruments:
+    - name: filesystem.bytes_changed
+      kind: histogram
+      unit: By
+      description: Absolute byte delta for one file edit.
+      value_source: bytes_changed
+      attributes:
+      - operation
+    attributes:
+    - name: operation
+      source: tool_name
+      cardinality: low
+      redaction: none
   parameters:
     type: object
     properties:

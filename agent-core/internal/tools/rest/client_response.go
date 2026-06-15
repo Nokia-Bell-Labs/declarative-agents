@@ -34,11 +34,13 @@ func mapClientResponse(
 	if err != nil {
 		return clientOperationError(commandName, "status_mapping", err, def), err
 	}
+	responseBytes := len(body)
 	output := responseOutput(def, mapping, response, payload, attempts)
 	redactOutput(output, redactionSelectors(def, mapping))
 	return core.Result{
 		Signal: core.Signal(signal), CommandName: commandName,
-		Output: jsonOutput(output), Metrics: clientMetrics(response.StatusCode, attempts, duration, signal),
+		Output:  jsonOutput(output),
+		Metrics: clientMetrics(response.StatusCode, attempts, duration, signal, responseBytes),
 	}, nil
 }
 
@@ -196,12 +198,13 @@ func redactNested(value interface{}, field string) {
 	values[field] = "[REDACTED]"
 }
 
-func clientMetrics(status, attempts int, duration time.Duration, signal string) *core.ToolMetrics {
+func clientMetrics(status, attempts int, duration time.Duration, signal string, responseBytes int) *core.ToolMetrics {
 	return &core.ToolMetrics{
 		Total: 1, Passed: 1,
 		Details: map[string]interface{}{
 			"status": status, "retry_count": attempts - 1,
 			"duration_ms": duration.Milliseconds(), "signal": signal,
+			"response_bytes": responseBytes,
 		},
 	}
 }

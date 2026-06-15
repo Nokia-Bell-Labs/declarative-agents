@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
@@ -17,6 +18,7 @@ type readCmd struct {
 	path      string
 	startLine int
 	endLine   int
+	recorder  monitor.ToolMetricsRecorder
 }
 
 func (r *readCmd) Name() string      { return "read" }
@@ -38,6 +40,7 @@ func (r *readCmd) Execute() core.Result {
 	if IsBinary(data) {
 		return toolFailed("read", fmt.Sprintf("file appears to be binary: %s", RelPath(r.root, resolved)))
 	}
+	r.recordFilesystemMetric("filesystem.bytes_read", float64(len(data)), "By", "Bytes read from one workspace file.")
 	return readLines(data, r.startLine, r.endLine)
 }
 

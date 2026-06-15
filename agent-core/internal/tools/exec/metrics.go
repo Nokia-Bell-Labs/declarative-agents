@@ -3,9 +3,14 @@
 package exec
 
 import (
+	"context"
+	"errors"
+	osexec "os/exec"
 	"regexp"
 	"strings"
+	"time"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
@@ -58,4 +63,40 @@ func buildErrorFiles(output string) map[string]struct{} {
 		files[m[1]] = struct{}{}
 	}
 	return files
+}
+
+// SetMonitorRecorder connects exec commands to the embedded monitor recorder.
+func (c *ExecCmd) SetMonitorRecorder(rec monitor.ToolMetricsRecorder) {
+	c.rec = rec
+}
+
+func (c *ExecCmd) recordExecMetrics(duration time.Duration, output []byte, err error) {
+	if c.rec == nil {
+		return
+	}
+	attrs := map[string]string{"binary": c.def.Binary}
+	c.recordExecMetric("exec.process_duration", float64(duration.Milliseconds()), "ms", attrs)
+	c.recordExecMetric("exec.output_bytes", float64(len(output)), "By", attrs)
+	c.recordExecMetric("exec.exit_code", float64(exitCode(err)), "1", attrs)
+}
+
+func (c *ExecCmd) recordExecMetric(name string, value float64, unit string, attrs map[string]string) {
+	sample := monitor.MetricSample{
+		Name: name, Kind: monitor.InstrumentHistogram, Unit: unit,
+		Description: "Exec subprocess metric from process result data.",
+		Value:       value, ToolName: c.Name(), Attributes: attrs, Timestamp: time.Now(),
+	}
+	// Monitoring is observational; recorder failures must not change exec behavior.
+	_ = c.rec.RecordMetric(context.Background(), sample)
+}
+
+func exitCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	var exitErr *osexec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	return -1
 }

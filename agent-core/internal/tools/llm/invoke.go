@@ -15,6 +15,7 @@ import (
 	modelllm "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm/ollama"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/prompt"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry/genai"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
@@ -37,6 +38,7 @@ type invokeLLMCmd struct {
 	verbose      bool
 	ctx          context.Context
 	callTimeout  time.Duration
+	recorder     monitor.ToolMetricsRecorder
 	prevLen      int
 	prevMessages []modelllm.Message
 	hasSnapshot  bool
@@ -132,6 +134,7 @@ func (c *invokeLLMCmd) chatResult(chatResp modelllm.ChatResponse, duration time.
 	if c.verbose {
 		c.tracer.SetAttributes(genai.AttrOutputMessages.String(chatResp.Content))
 	}
+	c.recordTokenMetrics(cost)
 	return core.Result{Signal: core.LLMResponded, Output: chatResp.Content, Cost: cost}
 }
 

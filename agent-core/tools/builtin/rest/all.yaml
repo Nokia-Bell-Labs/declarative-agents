@@ -34,6 +34,38 @@ tools:
           status: {type: integer}
           resource_id: {type: string}
           body: {type: object}
+    metrics:
+      instruments:
+        - name: rest.http_status_code
+          kind: gauge
+          unit: "1"
+          description: HTTP status returned by one configured REST operation.
+          value_source: http_status_code
+          attributes: [operation]
+        - name: rest.retry_count
+          kind: counter
+          unit: "{retry}"
+          description: Retries attempted for one configured REST operation.
+          value_source: retry_count
+          attributes: [operation]
+        - name: rest.request_bytes
+          kind: histogram
+          unit: By
+          description: Serialized request body size for one configured REST operation.
+          value_source: request_bytes
+          attributes: [operation]
+        - name: rest.response_bytes
+          kind: histogram
+          unit: By
+          description: Response body bytes read from one configured REST operation.
+          value_source: response_bytes
+          attributes: [operation]
+      attributes:
+        - name: operation
+          source: configured_operation
+          cardinality: bounded
+          allowed_values: [get]
+          redaction: none
     side_effects:
       - kind: external_api
         target: configured_rest_client

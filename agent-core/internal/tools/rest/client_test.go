@@ -3,6 +3,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
@@ -201,6 +203,29 @@ func TestRESTClient_RequestAndResponseSizeLimits(t *testing.T) {
 	require.NotContains(t, result.Output, strings.Repeat("x", 16))
 }
 
+func TestRESTClientRecordsMonitorMetrics(t *testing.T) {
+	t.Parallel()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok"})
+	}))
+	defer upstream.Close()
+	rec := &restMetricRecorder{}
+	cmd := clientCommand(clientDefinition(t, upstream.URL, issueClient()), InitClientGet, "get", params("1"))
+	cmd.(core.MonitorRecorderAware).SetMonitorRecorder(rec)
+
+	result := cmd.Execute()
+
+	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal, result.Output)
+	requireRestMetric(t, rec.samples, "rest.http_status_code", 200)
+	requireRestMetric(t, rec.samples, "rest.retry_count", 0)
+	requirePositiveRestMetric(t, rec.samples, "rest.response_bytes")
+	for _, sample := range rec.samples {
+		require.Equal(t, "get", sample.Attributes["operation"])
+		require.NotContains(t, sample.Attributes, "url")
+		require.NotContains(t, sample.Attributes, "authorization")
+	}
+}
+
 func issueHandler(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/repos/acme/agent-core/issues/boom" {
 		http.Error(w, "boom", http.StatusInternalServerError)
@@ -215,6 +240,35 @@ func issueHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok", "id": "ISS-1"})
+}
+
+type restMetricRecorder struct {
+	samples []monitor.MetricSample
+}
+
+func (r *restMetricRecorder) RecordMetric(_ context.Context, sample monitor.MetricSample) error {
+	r.samples = append(r.samples, sample)
+	return nil
+}
+
+func requireRestMetric(t *testing.T, samples []monitor.MetricSample, name string, value float64) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name == name && sample.Value == value {
+			return
+		}
+	}
+	t.Fatalf("missing metric %s=%v in %#v", name, value, samples)
+}
+
+func requirePositiveRestMetric(t *testing.T, samples []monitor.MetricSample, name string) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name == name && sample.Value > 0 {
+			return
+		}
+	}
+	t.Fatalf("missing positive metric %s in %#v", name, samples)
 }
 
 func clientCommand(def Definition, init, operation string, input map[string]interface{}) core.Command {

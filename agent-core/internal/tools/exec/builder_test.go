@@ -3,11 +3,13 @@
 package exec
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 )
@@ -149,6 +151,42 @@ func TestExecCmd_Execute_Success(t *testing.T) {
 	assert.Equal(t, core.ToolDone, res.Signal)
 	assert.Equal(t, "hello", res.Output)
 	assert.Equal(t, "greet", res.CommandName)
+}
+
+func TestExecCmdRecordsMonitorMetrics(t *testing.T) {
+	t.Parallel()
+	rec := &execMetricRecorder{}
+	cmd := &ExecCmd{def: catalog.ToolDef{Name: "greet", Binary: "echo", Args: []string{"hello"}}, root: "/tmp"}
+	cmd.SetMonitorRecorder(rec)
+
+	res := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, res.Signal)
+	requireExecMetric(t, rec.samples, "exec.output_bytes", 6)
+	requireExecMetric(t, rec.samples, "exec.exit_code", 0)
+	for _, sample := range rec.samples {
+		require.Equal(t, "echo", sample.Attributes["binary"])
+		require.NotContains(t, sample.Attributes, "output")
+	}
+}
+
+type execMetricRecorder struct {
+	samples []monitor.MetricSample
+}
+
+func (r *execMetricRecorder) RecordMetric(_ context.Context, sample monitor.MetricSample) error {
+	r.samples = append(r.samples, sample)
+	return nil
+}
+
+func requireExecMetric(t *testing.T, samples []monitor.MetricSample, name string, value float64) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name == name && sample.Value == value {
+			return
+		}
+	}
+	t.Fatalf("missing metric %s=%v in %#v", name, value, samples)
 }
 
 func TestExecCmd_Execute_Failure(t *testing.T) {
