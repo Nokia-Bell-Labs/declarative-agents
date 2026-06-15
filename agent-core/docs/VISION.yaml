@@ -10,6 +10,8 @@ executive_summary: |
   Runtime support interprets the program and records what happens. It executes
   state machines, dispatches commands, manages registry behavior, tracks
   budgets, records traces, and loads YAML programs through cmd/agent.
+  Embedded monitor work will add cached runtime metrics and read APIs inside
+  the agent process.
 
   internal/runtime/core stays domain-agnostic. It drives the loop without
   knowing which tools exist, which model boundary a machine calls, or which
@@ -145,6 +147,11 @@ what_this_does: |
   span lifecycle, TraceAdapter, GenAI semantic convention helpers, W3C
   traceparent parsing, and offline trace replay.
 
+  Monitor support is planned for structured samples emitted by tools into an
+  in-memory runtime store. Cached samples can feed OpenTelemetry metrics and
+  REST or OpenAPI read paths without a Kubernetes sidecar, daemon, or separate
+  monitor process.
+
   pkg/spec parses SRD, use case, and test suite YAML. It also builds dependency
   graphs, validates cross-artifact links, and manages the corpus.
 
@@ -239,6 +246,11 @@ success_criteria:
     OpenTelemetry spans and events for state transitions, budget
     checks, and dispatch outcomes. ToolMetrics on Result enable
     structured progress tracking.
+  embedded_monitoring: |
+    Embedded monitoring is planned as a reusable runtime capability that keeps
+    metric emission in tools and caches recent values in process. Optional
+    exporters and REST readers consume that cached state. No Kubernetes sidecar
+    or external process is required.
   backward_compatibility: |
     Generator, planner, and evaluator are now configuration-only
     repositories. All Go code lives in agent-core and is consumed by
