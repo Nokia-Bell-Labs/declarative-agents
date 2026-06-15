@@ -67,11 +67,6 @@ planned_monitor_artifact_index:
     follow-up documentation issues and should not be treated as existing SRDs,
     semantic models, use cases, test suites, or implemented runtime behavior.
   artifacts:
-    - id: sm-tool-metrics
-      type: semantic_model
-      title: Tool Metrics Semantic Model
-      planned_path: docs/specs/semantic-models/tool-metrics.yaml
-      scope: Define common and tool-owned metric fields for runtime samples.
     - id: srd032-monitor-store-metrics
       type: srd
       title: Monitor Store and Metrics
@@ -293,6 +288,10 @@ semantic_model_index:
     title: Document Resource Language Semantic Model
     summary: Semantic model for configured filesystem documentation corpora, safe path policy, response modes, document resource words, and human UI actor configuration.
     path: docs/specs/semantic-models/document-resource-language.yaml
+  - id: sm-tool-metrics-monitoring
+    title: Tool Metrics Monitoring Semantic Model
+    summary: Semantic model for standard tool metrics, specialized metrics, recorder ownership, workflow labels, low-cardinality attributes, and monitor snapshots.
+    path: docs/specs/semantic-models/tool-metrics-monitoring.yaml
 
 use_case_index:
   - id: rel00.0-uc001-domain-agent-integration

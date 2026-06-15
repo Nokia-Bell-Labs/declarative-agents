@@ -51,11 +51,26 @@ schema:
     type: "map[string]any"
     required: false
     description: |
-      Cross-references to related configuration files. Common keys
+      Cross-references to related configuration files. Common entries
       include machine (self-reference), tools (tool selection file),
       llm_configs (LLM config glob), tool_declarations (shared YAML
       declaration files), and variants (alternative machine files).
       Not consumed by the runtime; serves as a documentation index.
+
+  - field: metric_labels
+    type: object
+    required: false
+    status: planned
+    description: |
+      Planned monitor metadata for stable workflow labels. These labels come
+      from trusted MachineSpec YAML and may be attached to tool metric samples
+      by the runtime recorder. They are documentation only until monitor
+      validation and recorder code land.
+
+      Values must be low-cardinality. They should name workflow phases,
+      profile-owned use cases, or other bounded categories. They must not
+      include raw prompts, full outputs, secrets, unbounded paths, arbitrary
+      URLs, request IDs, timestamps, or user free text.
 
   - field: pipeline_diagram
     type: string
@@ -190,6 +205,15 @@ schema:
         description: |
           Tool to execute during the transition. See action_semantics
           for the three modes. May be omitted for terminal transitions.
+      - field: metric_labels
+        type: object
+        status: planned
+        description: |
+          Planned transition-level metric labels. These labels refine the
+          workflow context for samples emitted by the action on this
+          transition. Transition labels override or extend machine-level
+          labels by label name. They must follow the same low-cardinality safety
+          policy as top-level metric_labels.
 
 action_semantics:
   - mode: Named tool
@@ -202,7 +226,7 @@ action_semantics:
   - mode: $tool
     description: |
       Dynamic dispatch sentinel. At runtime, the actual tool name is
-      extracted from the parsed LLM output. This enables the LLM to
+      extracted from the parsed LLM output. This lets the LLM
       choose which tool to call (e.g. read, write, edit, build).
       Used in the generator's Parsing → Composing transition.
     example: $tool
@@ -212,6 +236,44 @@ action_semantics:
       No command is executed. Used for terminal transitions where the
       machine simply moves to a halting state (e.g. Succeeded, Failed,
       BudgetExceeded).
+
+workflow_metric_labels:
+  status: planned
+  purpose: |
+    Defines planned MachineSpec metadata for grouping embedded monitor metrics
+    by workflow context. Tool declarations define metric instruments.
+    MachineSpec labels define where in the grammar those instruments ran.
+  ownership_rules:
+    - MachineSpec owns workflow label values because it owns sequencing.
+    - ToolDef owns metric instrument names and specialized metric meaning.
+    - Runtime dispatch may attach machine and transition labels to samples.
+    - Labels are trusted config values, not runtime input chosen by the model.
+  allowed_label_examples:
+    - phase: validation
+    - use_case: rel04.0-monitor
+    - boundary: rest_server
+    - checkpoint_policy: disabled
+  prohibited_label_sources:
+    - raw prompts
+    - full tool outputs
+    - secrets
+    - absolute paths
+    - arbitrary URLs
+    - request IDs
+    - timestamps
+    - user free text
+  example: |
+    metric_labels:
+      use_case: rel04.0-monitor
+      phase: main_loop
+
+    transitions:
+      - state: WaitingForRequest
+        signal: ServerLaunched
+        next: ReadingMonitor
+        action: monitor_snapshot
+        metric_labels:
+          phase: monitor_read
 
 validation_rules: |
   Validation occurs in two phases at startup:

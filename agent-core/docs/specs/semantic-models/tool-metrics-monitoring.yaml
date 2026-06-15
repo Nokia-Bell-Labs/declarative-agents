@@ -1,0 +1,222 @@
+id: sm-tool-metrics-monitoring
+title: Tool Metrics Monitoring Semantic Model
+
+purpose: |
+  Defines the vocabulary for tool metrics and embedded monitor snapshots.
+  Tools own metric meaning. Runtime code supplies dispatch context and a
+  shared recorder path. Monitor readers consume cached state from the embedded
+  store.
+
+  This model is planned documentation. It defines language for follow-up SRDs,
+  ToolDef metric fields, MachineSpec workflow labels, OpenTelemetry metric
+  export, and REST or OpenAPI monitor reads. It does not claim that recorder
+  ports, stores, exporters, or APIs are implemented.
+
+  The immediate value is shared wording: later documents can talk about metric
+  samples, recorder ports, workflow labels, and snapshots without redefining
+  those terms in each SRD.
+
+requirements_source:
+  canonical:
+    - docs/ARCHITECTURE.yaml
+    - docs/specs/semantic-models/tool-language.yaml
+    - docs/specs/semantic-models/rest-tool-language.yaml
+    - docs/specs/semantic-models/rollback-lifecycle.yaml
+    - docs/specs/config-formats/tool-declaration-format.yaml
+    - docs/specs/config-formats/machine-format.yaml
+  planned:
+    - docs/specs/software-requirements/srd032-monitor-store-metrics.yaml
+    - docs/specs/software-requirements/srd033-monitor-rest-api.yaml
+
+vocabulary:
+  standard_tool_metric: |
+    A metric every tool dispatch may report with the same meaning across tool
+    families. Common examples are duration, dispatch counts, safe byte counts,
+    and retry counts.
+  specialized_tool_metric: |
+    A metric whose meaning belongs to one tool family or one declared tool.
+    Examples include files changed for filesystem tools, process exit code for
+    exec tools, provider tokens for model tools, and HTTP status code for REST
+    tools.
+  metric_source: |
+    The actor that produces a metric sample. Tool commands produce specialized
+    samples. Runtime dispatch code may add run identity, state, signal, tool
+    name, status, and duration.
+  recorder_port: |
+    Optional runtime port that accepts normalized metric samples. Tools emit
+    through this port instead of writing directly to a store, exporter, or REST
+    handler.
+  metric_instrument: |
+    Declared metric stream. Each instrument has a name, kind, unit, value
+    source, and allowed attributes. Instrument kinds include counters,
+    histograms, and gauges.
+  metric_attribute: |
+    Low-cardinality name-value label attached to a metric sample. Attributes
+    identify stable dimensions. Tool family and state are examples. Signal,
+    status, and workflow labels are also valid when their value sets stay
+    bounded.
+  workflow_label: |
+    MachineSpec or transition metadata that groups metric samples by declared
+    workflow meaning. Workflow labels come from trusted machine YAML, not tool
+    output or model text.
+  monitor_snapshot: |
+    Cached view of recent metric state held by the embedded monitor store. A
+    snapshot can include run summary, tool aggregates, recent samples, schema
+    metadata, and monitor diagnostics.
+  monitor_reader: |
+    Consumer that reads cached monitor state. REST handlers and OpenTelemetry
+    export paths are monitor readers. Local UIs and supervisors may read the
+    same snapshots.
+  metric_schema: |
+    Declared shape for one metric instrument, including value type, unit,
+    allowed attributes, source, and redaction policy. Schema validation belongs
+    to configuration loading or monitor setup, not to the LLM.
+
+ownership_rules:
+  tools: Tools own specialized metric meaning and choose which tool-local values become samples.
+  runtime_dispatch: Runtime dispatch code owns standard context that is independent of tool family.
+  tooldef_metrics: ToolDef metrics config declares instrument names, units, value sources, and allowed attributes.
+  machine_labels: MachineSpec config may add workflow labels for states or transitions.
+  recorder_port: The recorder port owns sample normalization and rejects samples that violate metric schema.
+  monitor_store: The embedded monitor store owns cached recent state, not durable history.
+  otel_export: OpenTelemetry export maps normalized samples to OTel instruments and attributes.
+  rest_readers: REST and OpenAPI monitor readers read cached snapshots only.
+  reader_limits: Monitor readers do not execute tools, inspect prompts, or scrape workspace files.
+
+standard_metric_set:
+  dispatch_duration:
+    kind: histogram
+    unit: ms
+    source: runtime_dispatch
+    meaning: Wall-clock duration for one command dispatch.
+  dispatch_count:
+    kind: counter
+    unit: "{dispatch}"
+    source: runtime_dispatch
+    meaning: Count of tool dispatch attempts.
+  dispatch_success:
+    kind: counter
+    unit: "{dispatch}"
+    source: runtime_dispatch
+    meaning: Count of dispatches whose Result.Signal indicates success for the declared tool.
+  dispatch_failure:
+    kind: counter
+    unit: "{dispatch}"
+    source: runtime_dispatch
+    meaning: Count of command errors, failed signals, panics, or timeouts.
+  input_bytes:
+    kind: histogram
+    unit: By
+    source: tool_or_runtime
+    meaning: Size of structured or serialized input when the tool can report it safely.
+  output_bytes:
+    kind: histogram
+    unit: By
+    source: tool_or_runtime
+    meaning: Size of safe structured output or redacted output preview.
+  retry_count:
+    kind: counter
+    unit: "{retry}"
+    source: tool
+    meaning: Count of retries attempted inside one declared tool word.
+
+specialized_metric_families:
+  filesystem:
+    examples: files_read, files_written, bytes_changed, path_policy_denials.
+    owner: internal/tools/filesystem declarations and commands.
+  exec:
+    examples: process_exit_code, stdout_bytes, stderr_bytes, elapsed_process_ms.
+    owner: internal/tools/exec declarations and commands.
+  llm:
+    examples: prompt_tokens, completion_tokens, model_latency_ms, parse_error_count.
+    owner: internal/tools/llm and model-boundary declarations.
+  rest:
+    examples:
+      status: http_status_code
+      request_size: request_bytes
+      response_size: response_bytes
+      redirect: redirect_count
+      retry: retry_count
+    owner: internal/tools/rest declarations and commands.
+  lifecycle:
+    examples: checkpoint_count, checkpoint_bytes, rollback_steps, restore_duration_ms.
+    owner: internal/tools/lifecycle declarations and commands.
+
+attribute_rules:
+  allowed_sources: |
+    Attribute values may come from trusted ToolDef config, trusted MachineSpec
+    config, bounded runtime enums, or normalized operation names declared in
+    REST or LLM config.
+  prohibited_sources: |
+    Attribute values must not come from raw prompts, full model responses,
+    full tool output, or secret material. They also must not come from
+    unbounded paths or arbitrary URLs. User free text, stack traces, and
+    command output are also prohibited.
+  path_policy: |
+    Path labels must use bounded names from config, path class values, or
+    redacted path hashes when an SRD allows them. Raw workspace paths are not
+    metric attributes.
+  cardinality_policy: |
+    Attribute value sets should be small and predictable. Tool names, states,
+    signals, statuses, configured operation IDs, and fixed workflow labels are
+    allowed. Request IDs and timestamps are not allowed as metric labels.
+    Filenames, prompt fragments, and output fragments are also not allowed.
+  redaction_policy: |
+    Redaction happens before a sample reaches the recorder. If a value cannot
+    be safely classified, the tool should omit the attribute and emit a monitor
+    diagnostic instead.
+
+relationships:
+  ToolDef_to_metric_schema:
+    meaning: ToolDef metrics config declares instruments and allowed attributes for one vocabulary word.
+    invariant: ToolDef config cannot make the LLM choose metric names, labels, or secret material.
+  Command_to_recorder_port:
+    meaning: A command emits standard or specialized samples through the shared recorder port.
+    invariant: Commands do not write directly to REST handlers, OpenTelemetry exporters, or monitor store internals.
+  Runtime_dispatch_to_standard_metrics:
+    meaning: Dispatch can add duration and status context. It can also add state, signal, and tool identity.
+    invariant: Runtime code does not invent specialized tool-family metric meaning.
+  MachineSpec_to_workflow_labels:
+    meaning: Machine or transition metadata can attach stable workflow labels to samples.
+    invariant: Workflow labels are trusted config values and are not derived from model text or tool output.
+  Recorder_port_to_monitor_store:
+    meaning: The recorder validates and normalizes samples before the store caches them.
+    invariant: Invalid samples are rejected or recorded as diagnostics without failing the agent loop.
+  Monitor_store_to_monitor_snapshot:
+    meaning: The store builds snapshots from bounded recent samples and aggregate state.
+    invariant: Snapshots are cached monitor views, not durable audit logs.
+  Monitor_store_to_OpenTelemetry:
+    meaning: Export reads normalized samples or aggregates and maps them to OpenTelemetry metric instruments.
+    invariant: Export failure does not change tool execution results.
+  Monitor_store_to_REST_API:
+    meaning: REST and OpenAPI handlers return cached snapshots, schema, and recent sample windows.
+    invariant: Read handlers do not execute tools or expose prohibited labels.
+  Metrics_to_rollback_lifecycle:
+    meaning: Metric samples are observability records and do not replace checkpoints, history, UndoMemento data, or workspace refs.
+    invariant: Rollback uses lifecycle state. Monitor snapshots may help operators inspect behavior but do not restore state.
+
+monitor_snapshot_shape:
+  fields:
+    run_id: Runtime run identifier or configured run label.
+    status: Current or final run status known to the monitor.
+    updated_at: Timestamp for the latest accepted sample.
+    instruments: Known metric schemas selected for the run.
+    aggregates: Bounded counters, histograms, gauges, and summaries by allowed attributes.
+    recent_samples: Optional recent sample window for debugging and UI display.
+    diagnostics: Recorder, store, export, or schema warnings.
+
+non_goals: |
+  This model does not implement monitor recorder ports, stores, exporters, or
+  REST handlers. It does not make metrics a durable audit log or replace
+  RunResult, History, checkpoints, or OpenTelemetry traces.
+
+  Metric labels must not be defined by model text or tool output. Labels must
+  not contain raw prompts, full outputs, secrets, or unbounded paths. Existing
+  tools do not need specialized metrics before the monitor SRDs land.
+
+related_documents:
+  - sm-tool-language
+  - sm-rest-tool-language
+  - sm-rollback-lifecycle
+  - cfg-tool-declaration-format
+  - cfg-machine-format

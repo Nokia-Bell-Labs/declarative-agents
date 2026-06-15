@@ -127,6 +127,21 @@ schema:
       contract. This does not yet change core.Result.Output, which remains
       the human-readable/runtime string channel during migration.
 
+  - field: metrics
+    type: object
+    required: false
+    status: planned
+    description: |
+      Planned contract field for tool metric declarations. It describes metric
+      instruments emitted by this tool, the source of each value, and the
+      allowed low-cardinality attributes. It is documentation only until the
+      monitor recorder and validation code land.
+
+      Tools own specialized metric meaning. Runtime code may attach standard
+      dispatch context such as tool name, state, signal, duration, and status.
+      Metric labels must not include raw prompts, full outputs, secrets,
+      unbounded paths, arbitrary URLs, or user-supplied free text.
+
   - field: side_effects
     type: string or list
     required: false
@@ -289,6 +304,110 @@ document_resource_config:
             extensions: [yaml, yml, md]
             modes: [raw_yaml, parsed_yaml, raw_markdown]
             max_bytes: 65536
+
+metric_declaration_fields:
+  status: planned
+  purpose: |
+    Defines the planned shape of ToolDef metrics config. Metric declarations
+    reserve vocabulary for follow-up monitor SRDs and code. They should be
+    written only for values the tool can emit safely through a shared recorder.
+  fields:
+    - field: instruments
+      type: "[]object"
+      required: false
+      description: |
+        Metric instruments emitted by the tool. Each item declares name, kind,
+        unit, description, value_source, and allowed attributes.
+    - field: attributes
+      type: "[]object"
+      required: false
+      description: |
+        Shared attribute declarations for this tool. Attribute values must come
+        from trusted config, bounded runtime enums, or redacted low-cardinality
+        values allowed by the metric schema.
+    - field: disabled
+      type: bool
+      required: false
+      description: |
+        Explicit opt-out for a tool that would otherwise receive standard
+        dispatch metrics from profile or runtime policy.
+  instrument_fields:
+    - field: name
+      type: string
+      required: true
+      description: Stable metric name scoped by tool family or package.
+    - field: kind
+      type: string
+      required: true
+      description: One of counter, up_down_counter, histogram, or gauge.
+    - field: unit
+      type: string
+      required: false
+      description: Unit string such as ms, By, "{dispatch}", or "{retry}".
+    - field: description
+      type: string
+      required: true
+      description: Human-readable metric meaning.
+    - field: value_source
+      type: string
+      required: true
+      description: |
+        Named source for the metric value. Examples include dispatch_duration,
+        result_output_bytes, exit_code, http_status_code, prompt_tokens, or a
+        tool-specific safe field.
+    - field: attributes
+      type: "[]string"
+      required: false
+      description: Names of attributes allowed on this instrument.
+    - field: buckets
+      type: "[]number"
+      required: false
+      description: Optional histogram buckets for duration, byte, or count data.
+  attribute_fields:
+    - field: name
+      type: string
+      required: true
+      description: Stable attribute name.
+    - field: source
+      type: string
+      required: true
+      description: |
+        Trusted source for the value. Allowed source classes are config_literal,
+        tool_name, tool_family, state, signal, status, error_class,
+        workflow_label, and configured_operation.
+    - field: cardinality
+      type: string
+      required: true
+      description: Must be low or bounded.
+    - field: allowed_values
+      type: "[]string"
+      required: false
+      description: Explicit allowed set for bounded string labels.
+    - field: redaction
+      type: string
+      required: false
+      description: Omit, hash, classify, or none. Defaults to omit for unsafe sources.
+  safety_rules:
+    - Do not use raw prompts as metric labels.
+    - Do not use full model responses or full command output as metric labels.
+    - Do not use secret values, authorization headers, cookies, passwords, or tokens.
+    - Do not use unbounded absolute paths, arbitrary URLs, request IDs, timestamps, or user free text.
+    - Prefer configured operation names, path classes, status enums, and workflow labels.
+  example: |
+    metrics:
+      instruments:
+        - name: rest_client_request_duration
+          kind: histogram
+          unit: ms
+          description: Duration of one configured REST client request.
+          value_source: dispatch_duration
+          attributes: [tool_name, state, signal, status, operation]
+      attributes:
+        - name: operation
+          source: configured_operation
+          cardinality: bounded
+          allowed_values: [documentation_curator_requests.documents]
+          redaction: none
 
 child_agent_config:
   purpose: |
