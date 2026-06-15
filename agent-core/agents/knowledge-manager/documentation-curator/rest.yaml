@@ -99,7 +99,7 @@ rest:
                 classification: reversible
                 undo: noop
         document:
-          path: /api/v1/docs/{path}
+          path: /api/v1/docs/{path...}
           operations:
             get:
               method: GET

@@ -166,7 +166,7 @@ func responseFromResult(tool string, result core.Result) (ActionResponse, error)
 		}
 	}
 	response := ActionResponse{
-		Data:   actionData(parsed),
+		Data:   actionData(tool, parsed),
 		Tool:   tool,
 		Signal: string(result.Signal),
 		Output: parsed,
@@ -177,10 +177,32 @@ func responseFromResult(tool string, result core.Result) (ActionResponse, error)
 	return response, nil
 }
 
-func actionData(output map[string]interface{}) interface{} {
+func actionData(tool string, output map[string]interface{}) interface{} {
+	if tool == "doc_list" {
+		return responseBodyData(output)
+	}
+	if tool == "doc_get" {
+		return docGetActionData(output)
+	}
 	if mapped, ok := output["mapped"].(map[string]interface{}); ok && len(mapped) > 0 {
 		return mapped
 	}
+	return responseBodyData(output)
+}
+
+func docGetActionData(output map[string]interface{}) interface{} {
+	body, _ := output["body"].(map[string]interface{})
+	if body == nil {
+		return responseBodyData(output)
+	}
+	return map[string]interface{}{
+		"path":    body["path"],
+		"content": body["data"],
+		"raw":     body["raw"],
+	}
+}
+
+func responseBodyData(output map[string]interface{}) interface{} {
 	if body, ok := output["body"].(map[string]interface{}); ok {
 		if data, ok := body["data"]; ok {
 			return data

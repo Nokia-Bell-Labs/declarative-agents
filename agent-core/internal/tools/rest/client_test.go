@@ -45,6 +45,16 @@ func TestRESTClient_RejectsAuthorityOverride(t *testing.T) {
 	require.Zero(t, requests)
 }
 
+func TestRESTClient_RenderCatchAllPathParam(t *testing.T) {
+	t.Parallel()
+
+	path := renderPath("/api/v1/docs/{path...}", map[string]interface{}{
+		"path": "specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml",
+	})
+
+	require.Equal(t, "/api/v1/docs/specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml", path)
+}
+
 func TestRESTClient_MutatingOperationsRequireEffects(t *testing.T) {
 	t.Parallel()
 

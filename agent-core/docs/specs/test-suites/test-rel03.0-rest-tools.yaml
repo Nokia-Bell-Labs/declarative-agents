@@ -917,6 +917,9 @@ test_cases:
       sidebar_contains_specifications: true
       request_run_count: 1
       terminal_signal: DocumentIndexReady
+      machine_request_trace_required: true
+      generic_rest_route_used: documentation_curator_requests.documents
+      direct_docs_handler_restored_fails: true
       document_resource_root: docs
     traces:
       - rel03.0-uc007-machine-request-documentation-ux S2
@@ -934,14 +937,18 @@ test_cases:
       and return raw YAML plus configured parsed content.
     inputs:
       selected_document: SPECIFICATIONS.yaml
+      nested_index_document: specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml
       response_modes: [raw_yaml, parsed_yaml]
       blocked_paths:
         - ../go.mod
         - internal/knowledge/documentation/host.go
     expected:
       raw_yaml_returned: true
+      nested_document_path_listed: true
       parsed_content_returned: true
       rendered_title_visible: true
+      terminal_signal: DocumentDetailReady
+      generic_rest_route_used: documentation_curator_requests.document
       traversal_request_denied: true
       disallowed_extension_denied: true
     traces:
@@ -969,6 +976,7 @@ test_cases:
       rendered_html_visible: true
       raw_yaml_visible: true
       parsed_fields_match_raw_document: true
+      browser_observed_detail_response_trace: true
       browser_console_errors: 0
     traces:
       - rel03.0-uc007-machine-request-documentation-ux S3
@@ -995,6 +1003,8 @@ test_cases:
       machine_names_present: true
       terminal_signals_present: true
       run_result_summaries_present: true
+      generic_server_route_present: true
+      captured_responses_recorded_on_failure: true
       network_log_captured: true
       screenshot_path_reported_on_failure: true
     traces:

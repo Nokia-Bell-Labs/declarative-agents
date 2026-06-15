@@ -79,7 +79,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/actions", s.handleAction)
 	mux.HandleFunc("GET /api/v1/configs/{path...}", s.handleGetConfig)
 	mux.HandleFunc("GET /api/v1/source/{path...}", s.handleGetSource)
-	mux.Handle("/", spaHandler(s.assets))
+	mux.Handle("/", docsAPIOrSPAHandler(requests, spaHandler(s.assets)))
 	return closeAwareHandler{Handler: mux, close: requests.Close}
 }
 
@@ -183,6 +183,16 @@ func (h closeAwareHandler) Close() error {
 		return nil
 	}
 	return h.close()
+}
+
+func docsAPIOrSPAHandler(docs http.Handler, spa http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/docs/") {
+			docs.ServeHTTP(w, r)
+			return
+		}
+		spa.ServeHTTP(w, r)
+	})
 }
 
 func profilePathOrDefault(path string) string {

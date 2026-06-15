@@ -242,6 +242,7 @@ func runDocsPuppeteer(rootDir, browser string) error {
 	cmd := exec.Command("npm", "run", "test:e2e:machine-request")
 	cmd.Dir = uiDir
 	cmd.Env = append(os.Environ(),
+		"AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1",
 		"PUPPETEER_EXECUTABLE_PATH="+browser,
 		"KM_DOCS_BASE_URL=http://"+docsCuratorAddr+"/",
 		"KM_DOCS_ARTIFACT_DIR="+artifacts,
