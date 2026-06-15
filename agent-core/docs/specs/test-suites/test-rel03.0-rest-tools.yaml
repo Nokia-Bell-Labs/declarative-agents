@@ -452,9 +452,10 @@ test_cases:
       A configured lifecycle_control exit endpoint receives an operator
       request. Handler validation enqueues ExitRequested. rest_await_event
       returns that event, and MachineSpec routes it to exit_agent as explicit
-      lifecycle vocabulary. Command-level coverage also proves that shutdown is
-      requested by exit_agent but applied after the loop records AgentExited and
-      resolves the terminal MachineSpec state.
+      lifecycle vocabulary. Command-level coverage also proves that runtime
+      payload fields reach structured exit_agent output, shutdown is requested
+      by exit_agent, and cancellation is deferred until after the loop records
+      AgentExited and resolves the terminal MachineSpec state.
     inputs:
       endpoint: POST /api/lifecycle/exit
       payload:
@@ -468,12 +469,16 @@ test_cases:
       await_signal: ExitRequested
       exit_agent_action_visible: true
       exit_result_signal: AgentExited
+      exit_output_json: true
+      exit_output_reason_from_event: true
+      exit_output_status_from_event: true
       control_profile_terminal_state: Succeeded
       documentation_profile_terminal_state: Done
       run_status_cancelled: false
       deferred_shutdown_after_loop_return: true
       control_profile_go_test: TestControlProfileExitReachesSucceededBeforeDeferredShutdown
       documentation_profile_go_test: TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown
+      payload_go_test: TestExitAgentUsesRuntimeEventPayload
       profile_smoke_target: mage integration:uc006
     traces:
       - rel03.0-uc003-rest-server-signals S3
@@ -831,7 +836,9 @@ test_cases:
       agents/knowledge-manager/documentation-curator/profile.yaml, probe the
       documentation health, docs index, validation, suggestion, and SPA routes,
       run the bench docs-route absence test, post a generic lifecycle exit
-      request, and require clean agent shutdown.
+      request, and require clean agent shutdown through the declared Done path.
+      The target checks process output for succeeded terminal state text and
+      confirms both documentation and control listeners are released.
     inputs:
       profile: agents/knowledge-manager/documentation-curator/profile.yaml
       listener: 127.0.0.1:18081
@@ -848,6 +855,13 @@ test_cases:
       spa_route_returned_html: true
       bench_docs_routes_absent: true
       lifecycle_exit_requested: true
+      terminal_state_output_succeeded: true
+      run_result_output_succeeded: true
+      cancelled_output_absent: true
+      documentation_listener_released: true
+      control_listener_released: true
+      documentation_host_stop_go_test: TestCuratorMachineExitStopsDocumentationHost
+      serve_documentation_undo_go_test: TestServeDocumentationUndoStopsOwnedListener
       clean_shutdown: true
     traces:
       - rel03.0-uc006-documentation-curator S1

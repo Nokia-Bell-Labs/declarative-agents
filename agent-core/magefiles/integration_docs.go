@@ -58,6 +58,15 @@ func (Integration) Uc006() error {
 	if err := waitDocsCuratorExit(cmd, output); err != nil {
 		return err
 	}
+	if err := assertDocsCuratorLifecycleExit(output.String()); err != nil {
+		return err
+	}
+	if err := waitTCPFree(docsCuratorAddr); err != nil {
+		return err
+	}
+	if err := waitTCPFree(docsCuratorControlAddr); err != nil {
+		return err
+	}
 	fmt.Println("uc006: PASS — documentation-curator served docs UX/API and exited through lifecycle control")
 	return nil
 }
@@ -76,6 +85,20 @@ func requireTCPFree(addr string) error {
 		return fmt.Errorf("%s is already in use: %w", addr, err)
 	}
 	return listener.Close()
+}
+
+func waitTCPFree(addr string) error {
+	deadline := time.Now().Add(5 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		if err := requireTCPFree(addr); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("uc006: %s was not released after lifecycle exit: %w", addr, lastErr)
 }
 
 func startDocsCurator(ctx context.Context, binary, rootDir string) (*exec.Cmd, *bytes.Buffer) {
@@ -221,6 +244,19 @@ func waitDocsCuratorExit(cmd *exec.Cmd, output *bytes.Buffer) error {
 	case <-time.After(5 * time.Second):
 		return fmt.Errorf("uc006: documentation-curator did not exit after lifecycle request\n%s", output.String())
 	}
+}
+
+func assertDocsCuratorLifecycleExit(output string) error {
+	if strings.Contains(output, "terminal state: cancelled") || strings.Contains(output, "status=cancelled") {
+		return fmt.Errorf("uc006: lifecycle exit cancelled the run instead of reaching Done\n%s", output)
+	}
+	if !strings.Contains(output, "terminal state: succeeded") {
+		return fmt.Errorf("uc006: lifecycle exit did not report terminal state succeeded\n%s", output)
+	}
+	if !strings.Contains(output, "run complete: status=succeeded") {
+		return fmt.Errorf("uc006: lifecycle exit did not record a succeeded RunResult\n%s", output)
+	}
+	return nil
 }
 
 func assertBenchDocsRoutesAbsent() error {

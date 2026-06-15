@@ -52,6 +52,7 @@ func TestExitAgentUsesRuntimeEventPayload(t *testing.T) {
 	require.Equal(t, "failed", output["status"])
 	require.Equal(t, "drain_then_stop", output["drain_policy"])
 	require.Equal(t, "cp-1", output["checkpoint_id"])
+	require.Equal(t, "AgentExited", output["signal"])
 }
 
 func TestExitAgentPreservesConfigDefaultsWithoutPayloadValues(t *testing.T) {
