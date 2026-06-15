@@ -12,7 +12,7 @@ import (
 func (Integration) Uc004() error {
 	cmd := exec.Command(
 		"go", "test", "./cmd/agent", "./internal/tools/rest",
-		"-run", "TestMonitorReleaseProfileProof|TestMonitorREST_FactoryUsesLiveMonitorState",
+		"-run", "TestMonitorReleaseProfileProof|TestMonitorCLIProfileServesUntilControlExit|TestMonitorREST_FactoryUsesLiveMonitorState",
 		"-count=1",
 	)
 	cmd.Stdout = os.Stdout

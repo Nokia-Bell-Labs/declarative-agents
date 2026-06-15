@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -311,6 +312,19 @@ func TestMonitorReleaseProfileProof(t *testing.T) {
 	require.Contains(t, metrics, "route_group")
 	require.Contains(t, proofRequestBody(t, baseURL+"/monitor/openapi"), "/monitor/metrics")
 	require.Contains(t, proofRequestBody(t, baseURL+"/monitor/events/stream"), "event: metric_sample")
+}
+
+func TestMonitorCLIProfileServesUntilControlExit(t *testing.T) {
+	root := repoRootFromTest(t)
+	cmd, stdout, stderr := startMonitorAgentProcess(t, root)
+	resultCh := waitForProcess(t, cmd)
+
+	waitForProofMonitorRoute(t, "http://127.0.0.1:18083/monitor/state")
+	require.Contains(t, proofRequestBody(t, "http://127.0.0.1:18083/monitor/state"), `"State"`)
+	require.Contains(t, proofRequestBody(t, "http://127.0.0.1:18083/monitor/metrics"), "dispatch_count")
+	requireProcessStillRunning(t, resultCh)
+	postProofMonitorExit(t, "http://127.0.0.1:18083/monitor/control/exit")
+	requireProcessSucceeded(t, resultCh, stdout, stderr)
 }
 
 type loopResult struct {
@@ -700,6 +714,50 @@ func receiveLoopResult(t *testing.T, resultCh <-chan loopResult) loopResult {
 		require.FailNow(t, "monitor loop did not exit after control request")
 	}
 	return loopResult{}
+}
+
+func startMonitorAgentProcess(t *testing.T, root string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer) {
+	t.Helper()
+	cmd := exec.Command("go", "run", "./cmd/agent", "--profile", "agents/monitor/profile.yaml", "--directory", root)
+	cmd.Dir = root
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	})
+	return cmd, &stdout, &stderr
+}
+
+func waitForProcess(t *testing.T, cmd *exec.Cmd) <-chan error {
+	t.Helper()
+	resultCh := make(chan error, 1)
+	go func() { resultCh <- cmd.Wait() }()
+	return resultCh
+}
+
+func requireProcessStillRunning(t *testing.T, resultCh <-chan error) {
+	t.Helper()
+	select {
+	case err := <-resultCh:
+		require.Failf(t, "monitor process exited early", "err=%v", err)
+	default:
+	}
+}
+
+func requireProcessSucceeded(t *testing.T, resultCh <-chan error, stdout, stderr *bytes.Buffer) {
+	t.Helper()
+	select {
+	case err := <-resultCh:
+		require.NoError(t, err, "stdout=%s stderr=%s", stdout.String(), stderr.String())
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "monitor process did not exit after control request")
+	}
+	require.Contains(t, stderr.String(), "terminal state: succeeded")
 }
 
 func requireToolDef(t *testing.T, defs []catalog.ToolDef, name string) catalog.ToolDef {
