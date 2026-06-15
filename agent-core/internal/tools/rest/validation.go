@@ -261,12 +261,31 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 	if endpoint.Binding == bindingDynamicSignal && len(endpoint.AllowedSignals) == 0 {
 		return fmt.Errorf("endpoint %q emit_dynamic_signal requires allowed_signals", name)
 	}
+	if endpoint.Binding == bindingMachineRequest {
+		if err := validateMachineRequestEndpoint(name, endpoint); err != nil {
+			return err
+		}
+	}
 	for _, param := range pathParamPattern.FindAllStringSubmatch(endpoint.Path, -1) {
 		if _, ok := endpoint.Request.Path[param[1]]; !ok {
 			return fmt.Errorf("endpoint %q path param %q is not declared", name, param[1])
 		}
 	}
 	return validateResponseMapping(name, endpoint.Response)
+}
+
+func validateMachineRequestEndpoint(name string, endpoint Endpoint) error {
+	cfg := endpoint.MachineRequest
+	if cfg.Profile == "" && cfg.Machine == "" && cfg.MachineSpec == nil {
+		return fmt.Errorf("endpoint %q machine_request requires profile, machine, or machine spec", name)
+	}
+	if len(cfg.Response.TerminalSignals) == 0 {
+		return fmt.Errorf("endpoint %q machine_request requires response terminal_signals", name)
+	}
+	if cfg.Timeout == "" {
+		return fmt.Errorf("endpoint %q machine_request requires timeout", name)
+	}
+	return nil
 }
 
 func validateResponseMapping(name string, mapping ResponseMapping) error {

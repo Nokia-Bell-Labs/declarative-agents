@@ -3,6 +3,8 @@
 // Package rest loads and validates declarative REST boundary definitions.
 package rest
 
+import "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+
 // DefinitionFile is the top-level YAML document for REST config files.
 type DefinitionFile struct {
 	Rest Definition `yaml:"rest"`
@@ -145,6 +147,44 @@ type Endpoint struct {
 	Request            RequestBinding  `yaml:"request,omitempty"`
 	Response           ResponseMapping `yaml:"response,omitempty"`
 	Queue              QueueConfig     `yaml:"queue,omitempty"`
+	MachineRequest     MachineRequest  `yaml:"machine_request,omitempty"`
+}
+
+// MachineRequest configures one request-scoped MachineSpec run.
+type MachineRequest struct {
+	Profile        string                     `yaml:"profile,omitempty"`
+	Machine        string                     `yaml:"machine,omitempty"`
+	Request        MachineRequestMapping      `yaml:"request,omitempty"`
+	Response       MachineRequestResponse     `yaml:"response,omitempty"`
+	Timeout        string                     `yaml:"timeout,omitempty"`
+	MachineSpec    *core.MachineSpec          `yaml:"-"`
+	Registry       *core.Registry             `yaml:"-"`
+	InitFunc       func(*core.Registry) error `yaml:"-"`
+	ToolAction     core.ActionFunc            `yaml:"-"`
+	Budget         core.Budget                `yaml:"-"`
+	CommandTimeout string                     `yaml:"-"`
+}
+
+// MachineRequestMapping declares which request data seeds the machine.
+type MachineRequestMapping struct {
+	Body     map[string]string `yaml:"body,omitempty"`
+	Query    map[string]string `yaml:"query,omitempty"`
+	Path     map[string]string `yaml:"path,omitempty"`
+	Headers  map[string]string `yaml:"headers,omitempty"`
+	Metadata []string          `yaml:"metadata,omitempty"`
+}
+
+// MachineRequestResponse maps terminal machine output to HTTP.
+type MachineRequestResponse struct {
+	TerminalSignals map[string]MachineResponseMapping `yaml:"terminal_signals,omitempty"`
+}
+
+// MachineResponseMapping defines one terminal HTTP response mapping.
+type MachineResponseMapping struct {
+	Status      int               `yaml:"status,omitempty"`
+	ContentType string            `yaml:"content_type,omitempty"`
+	Headers     map[string]string `yaml:"headers,omitempty"`
+	Body        map[string]string `yaml:"body,omitempty"`
 }
 
 // ShutdownConfig defines graceful server shutdown behavior.
