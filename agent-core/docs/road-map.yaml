@@ -172,10 +172,9 @@ releases:
     config_formats:
       - cfg-monitor-rest-api
     use_cases:
-      - id: rel04.0-uc001-monitor-metrics
+      - id: rel04.0-uc001-configurable-tool-metrics
         summary: Agent records tool-owned metrics in the embedded monitor store and exports them through OpenTelemetry
         status: planned
-    planned_use_cases:
       - id: rel04.0-uc002-monitor-rest-api
         summary: Supervisor reads cached monitor state through configured REST and OpenAPI endpoints
         status: planned

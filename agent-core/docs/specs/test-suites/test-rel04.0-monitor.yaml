@@ -3,25 +3,29 @@ title: Test Suite for Release 04.0 Embedded Monitor
 release: "04.0"
 
 traces:
-  - rel04.0-uc001-monitor-metrics
+  - rel04.0-uc001-configurable-tool-metrics
+  - rel04.0-uc002-monitor-rest-api
 
 preconditions:
   - internal/monitor contains the planned monitor store and recorder ports.
   - ToolDef metrics declarations can be loaded from trusted YAML.
   - MachineSpec metric_labels can be loaded from trusted YAML.
   - OpenTelemetry metric export can use a local in-memory metric reader in tests.
+  - REST monitor tests can use httptest.Server with profile-owned routes.
+  - OpenAPI tests can inspect generated or configured endpoint descriptions.
   - Disabled-mode tests can run without monitor config.
 
 test_cases:
-  - use_case: rel04.0-uc001-monitor-metrics
+  - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Monitor store returns bounded snapshots
     go_test: TestMonitorStore_BoundedSnapshot
     status: planned
     description: |
-      Record current machine state, recent events, per-tool usage, accepted
-      samples, diagnostics, and recent errors. Read a snapshot from the store.
-      The snapshot should honor configured limits and should not execute tools
-      or read workspace files.
+      Seed the store with current machine state and recent runtime data. Add
+      per-tool usage plus metric samples. Add diagnostics and recent errors
+      too. Read one snapshot after the store exceeds its configured limits, so
+      the assertion can prove that older entries fall out without a reader
+      reaching into tools or workspace files. Snapshot reads must stay passive.
     inputs:
       limits:
         events: 3
@@ -33,17 +37,18 @@ test_cases:
       reads_execute_tools: false
       reads_workspace_files: false
     traces:
-      - rel04.0-uc001-monitor-metrics S1
+      - rel04.0-uc001-configurable-tool-metrics S1
       - srd032-tool-metrics-monitor-store AC1
 
-  - use_case: rel04.0-uc001-monitor-metrics
+  - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Recorder separates runtime and tool-owned metrics
     go_test: TestToolMetricsRecorder_OwnershipBoundaries
     status: planned
     description: |
-      Dispatch records standard context while a filesystem tool records
-      specialized samples. The recorder should accept both forms through one
-      path and reject direct writes to exporters or REST readers.
+      Dispatch records standard context. A filesystem tool records specialized
+      samples. The recorder should accept both forms through one path. Direct
+      writes to exporters or REST readers should fail before any reader learns
+      tool-family internals.
     inputs:
       standard_context: [run_id, agent_name, tool_name, state, signal, status, duration]
       specialized_samples: [files_written, bytes_changed]
@@ -52,17 +57,18 @@ test_cases:
       specialized_samples_recorded: true
       direct_exporter_write_allowed: false
     traces:
-      - rel04.0-uc001-monitor-metrics S2
+      - rel04.0-uc001-configurable-tool-metrics S2
       - srd032-tool-metrics-monitor-store AC2
 
-  - use_case: rel04.0-uc001-monitor-metrics
+  - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Metric config rejects unsafe labels
     go_test: TestMonitorMetricConfig_RejectsUnsafeLabels
     status: planned
     description: |
-      Load ToolDef metrics and MachineSpec labels with invalid value sources.
-      Validation should reject unsafe names, source paths, attributes, and label
-      values before monitor recording starts.
+      Load ToolDef metrics and MachineSpec labels with unsafe sources.
+      Validation should reject bad names and source paths. Unsafe attributes
+      should fail before monitor recording starts, even when the rest of the
+      profile is valid.
     inputs:
       invalid_sources:
         - raw_prompt
@@ -75,17 +81,18 @@ test_cases:
       recording_started: false
       diagnostic_identifies_field: true
     traces:
-      - rel04.0-uc001-monitor-metrics S3
+      - rel04.0-uc001-configurable-tool-metrics S3
       - srd032-tool-metrics-monitor-store AC3
 
-  - use_case: rel04.0-uc001-monitor-metrics
+  - use_case: rel04.0-uc001-configurable-tool-metrics
     name: OpenTelemetry export reads normalized samples
     go_test: TestMonitorOTelExport_NormalizedSamples
     status: planned
     description: |
       Export normalized monitor samples through an OpenTelemetry metric path.
-      The exporter should use service resource identity and report exporter
-      failure as diagnostics without changing command results.
+      The exporter should use service resource identity. When export fails, the
+      monitor should record diagnostics without changing command results, since
+      export is observational and the loop must keep its original signal.
     inputs:
       instruments: [dispatch_duration, dispatch_count]
       exporter_failure: true
@@ -94,17 +101,17 @@ test_cases:
       diagnostics_recorded: true
       command_signal_changed: false
     traces:
-      - rel04.0-uc001-monitor-metrics S4
+      - rel04.0-uc001-configurable-tool-metrics S4
       - srd032-tool-metrics-monitor-store AC4
 
-  - use_case: rel04.0-uc001-monitor-metrics
+  - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Disabled mode avoids monitor allocation
     go_test: TestMonitorDisabledMode_NoStoreAllocation
     status: planned
     description: |
       Run setup without monitor config. Runtime should provide nil or no-op
-      recorder behavior, avoid monitor store allocation, and preserve current
-      loop, dispatch, tracing, and tool behavior.
+      recorder behavior and avoid monitor store allocation. Existing loop,
+      dispatch, tracing, and tool behavior should remain unchanged.
     inputs:
       monitor_configured: false
     expected:
@@ -112,5 +119,107 @@ test_cases:
       recorder_noop: true
       existing_behavior_preserved: true
     traces:
-      - rel04.0-uc001-monitor-metrics S5
+      - rel04.0-uc001-configurable-tool-metrics S5
       - srd032-tool-metrics-monitor-store AC5
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: Monitor REST routes read cached state
+    go_test: TestMonitorREST_ReadOnlyCachedState
+    status: planned
+    description: |
+      Serve configured monitor REST routes with a populated monitor store. The
+      handlers should read cached state only. They should not execute tools or
+      dispatch actions. They should not scrape prompts or inspect workspace
+      files.
+    inputs:
+      routes: [machine_spec, current_state, tools, metrics, events]
+      monitor_store_seeded: true
+    expected:
+      all_routes_return_cached_state: true
+      tools_executed: false
+      machine_actions_dispatched: false
+    traces:
+      - rel04.0-uc002-monitor-rest-api S1
+      - srd033-monitor-rest-api AC1
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: Monitor OpenAPI omits unsafe fields
+    go_test: TestMonitorREST_OpenAPIRedaction
+    status: planned
+    description: |
+      Inspect the configured OpenAPI document for monitor endpoints. Operation
+      IDs should be stable. Schemas should describe safe monitor responses and
+      omit prompt data or output data. They should also omit secret material,
+      workspace paths, and unbounded labels.
+    inputs:
+      endpoints: [machine_spec, current_state, tool_metrics, aggregate_metrics, event_stream]
+    expected:
+      operation_ids_stable: true
+      unsafe_fields_absent: true
+      generated_go_server_code: false
+    traces:
+      - rel04.0-uc002-monitor-rest-api S2
+      - srd033-monitor-rest-api AC2
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: Monitor snapshot endpoints return configured views
+    go_test: TestMonitorREST_SnapshotEndpoints
+    status: planned
+    description: |
+      Query each configured snapshot endpoint. Each response should come from
+      the monitor snapshot. Labels should use only allowed low-cardinality
+      attributes.
+    inputs:
+      requested_views:
+        - machine_spec
+        - current_state
+        - tools
+        - per_tool_metrics
+        - aggregate_metrics
+        - recent_events
+    expected:
+      views_present: true
+      labels_safe: true
+      source_is_monitor_store: true
+    traces:
+      - rel04.0-uc002-monitor-rest-api S3
+      - srd033-monitor-rest-api AC3
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: Monitor event stream reads cached updates
+    go_test: TestMonitorREST_EventStreamCachedUpdates
+    status: planned
+    description: |
+      Connect to the configured monitor event stream. Frames should reflect
+      cached monitor updates and obey stream limits. A disconnect should clean
+      up the subscription without changing agent state.
+    inputs:
+      subscribers: 2
+      store_updates: [state_change, metric_sample, diagnostic]
+    expected:
+      frames_from_cached_updates: true
+      workflow_signals_created: false
+      disconnect_changes_agent_state: false
+    traces:
+      - rel04.0-uc002-monitor-rest-api S4
+      - srd033-monitor-rest-api AC4
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: Monitor REST failures stay observational
+    go_test: TestMonitorREST_FailureDoesNotMutateState
+    status: planned
+    description: |
+      Force a handler failure and a redaction failure. The response should be a
+      structured REST error with redacted diagnostics. Command results should
+      remain unchanged. Monitor store state and MachineSpec state should remain
+      unchanged too.
+    inputs:
+      failures: [handler_failed, redaction_failed]
+    expected:
+      structured_error: true
+      command_signal_changed: false
+      monitor_store_mutated: false
+      machine_state_changed: false
+    traces:
+      - rel04.0-uc002-monitor-rest-api S5
+      - srd033-monitor-rest-api AC5
