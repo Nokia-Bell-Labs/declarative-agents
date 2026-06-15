@@ -1,0 +1,43 @@
+name: monitor-rest-profile
+purpose: |-
+  Launches the read-only embedded monitor REST profile.
+configuration:
+  machine: agents/monitor/machine.yaml
+  tools: agents/monitor/tools.yaml
+metric_labels:
+  profile: monitor
+initial_state: Idle
+budget:
+  max_iterations: 2
+states:
+  - name: Idle
+    meaning: Initial state before the monitor server starts.
+  - name: Launching
+    meaning: The REST server launch command is running.
+  - name: Serving
+    meaning: Terminal state after REST routes are registered.
+  - name: Failed
+    meaning: Terminal state for launch failures.
+terminal_states:
+  - Serving
+  - Failed
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: ServerLaunched
+    trigger: Monitor REST routes were registered.
+  - name: CommandError
+    trigger: REST server launch failed.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Launching
+    action: launch_monitor_rest
+    metric_labels:
+      route_group: monitor
+  - state: Launching
+    signal: ServerLaunched
+    next: Serving
+  - state: Launching
+    signal: CommandError
+    next: Failed

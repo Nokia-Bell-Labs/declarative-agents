@@ -1,0 +1,56 @@
+tools:
+  - name: launch_monitor_rest
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    description: Launch read-only REST endpoints for cached monitor state.
+    problem: Operators need a profile-owned monitor reader that does not run tools or inspect prompts.
+    goals:
+      - Register monitor snapshot, metadata, and stream routes.
+      - Keep monitor access inside the existing REST server tool path.
+    requirements:
+      input:
+        - Tool config references the trusted monitor REST server definition.
+      output:
+        - Output reports server name, bound address, route count, and binding kinds.
+      errors:
+        - Config, bind, route conflict, and schema failures emit CommandError.
+    non_goals:
+      - Does not execute monitor reads as MachineSpec workflow actions.
+      - Does not require a sidecar, collector, or external database.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerLaunched, CommandError]
+    output:
+      description: Monitor REST server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+          bindings: {type: array}
+    side_effects:
+      - kind: network_listen
+        target: monitor_rest_server
+        state: listener_started
+      - kind: state_mutation
+        target: rest_server_state
+        state: routes_registered
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the REST server if the launch command owns the listener.
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server config, bind, route, or schema failure.
+        state_after_failure: No monitor route is exposed.
+    relationships:
+      overlaps:
+        - tool: rest_server_launch
+          difference: This profile-specific word binds only the monitor REST route set.
+    config:
+      rest_ref: monitor

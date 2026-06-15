@@ -125,7 +125,7 @@ test_cases:
   - use_case: rel04.0-uc002-monitor-rest-api
     name: Monitor REST routes read cached state
     go_test: TestMonitorREST_ReadOnlyCachedState
-    status: planned
+    status: implemented
     description: |
       Serve configured monitor REST routes with a populated monitor store. The
       handlers should read cached state only. They should not execute tools or
@@ -145,7 +145,7 @@ test_cases:
   - use_case: rel04.0-uc002-monitor-rest-api
     name: Monitor OpenAPI omits unsafe fields
     go_test: TestMonitorREST_OpenAPIRedaction
-    status: planned
+    status: implemented
     description: |
       Inspect the configured OpenAPI document for monitor endpoints. Operation
       IDs should be stable. Schemas should describe safe monitor responses and
@@ -164,7 +164,7 @@ test_cases:
   - use_case: rel04.0-uc002-monitor-rest-api
     name: Monitor snapshot endpoints return configured views
     go_test: TestMonitorREST_SnapshotEndpoints
-    status: planned
+    status: implemented
     description: |
       Query each configured snapshot endpoint. Each response should come from
       the monitor snapshot. Labels should use only allowed low-cardinality
@@ -188,7 +188,7 @@ test_cases:
   - use_case: rel04.0-uc002-monitor-rest-api
     name: Monitor event stream reads cached updates
     go_test: TestMonitorREST_EventStreamCachedUpdates
-    status: planned
+    status: implemented
     description: |
       Connect to the configured monitor event stream. Frames should reflect
       cached monitor updates and obey stream limits. A disconnect should clean
@@ -207,7 +207,7 @@ test_cases:
   - use_case: rel04.0-uc002-monitor-rest-api
     name: Monitor REST failures stay observational
     go_test: TestMonitorREST_FailureDoesNotMutateState
-    status: planned
+    status: implemented
     description: |
       Force a handler failure and a redaction failure. The response should be a
       structured REST error with redacted diagnostics. Command results should

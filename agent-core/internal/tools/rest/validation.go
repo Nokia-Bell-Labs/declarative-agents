@@ -266,6 +266,9 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 	if endpoint.Binding == bindingDynamicSignal && len(endpoint.AllowedSignals) == 0 {
 		return fmt.Errorf("endpoint %q emit_dynamic_signal requires allowed_signals", name)
 	}
+	if err := validateMonitorView(name, endpoint); err != nil {
+		return err
+	}
 	if endpoint.Binding == bindingMachineRequest {
 		if err := validateMachineRequestEndpoint(name, endpoint); err != nil {
 			return err
@@ -281,6 +284,23 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 		}
 	}
 	return validateResponseMapping(name, endpoint.Response)
+}
+
+func validateMonitorView(name string, endpoint Endpoint) error {
+	if endpoint.MonitorView == "" {
+		return nil
+	}
+	switch endpoint.Binding {
+	case bindingReadState, bindingStaticMetadata, bindingStreamEvents:
+	default:
+		return fmt.Errorf("endpoint %q monitor_view requires read_state, static_metadata, or stream_events binding", name)
+	}
+	switch endpoint.MonitorView {
+	case monitorViewMachine, monitorViewState, monitorViewTools, monitorViewMetrics, monitorViewEvents, "openapi":
+		return nil
+	default:
+		return fmt.Errorf("endpoint %q has unsupported monitor_view %q", name, endpoint.MonitorView)
+	}
 }
 
 func validateMachineRequestEndpoint(name string, endpoint Endpoint) error {
