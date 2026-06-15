@@ -457,6 +457,7 @@ tool_declarations:
 	require.NoError(t, err)
 	require.Contains(t, decls, "rest_server_launch")
 	require.Contains(t, decls, "rest_server_stop")
+	require.Contains(t, decls, "rest_await_event")
 	corpus := &Corpus{ToolDeclarations: decls}
 	assert.Empty(t, checkToolSideEffectVocab(corpus))
 	assert.Empty(t, checkToolBoundaryCategory(corpus))

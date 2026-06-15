@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 )
 
 func TestRESTServer_LaunchRegistersRoutes(t *testing.T) {
@@ -120,6 +122,29 @@ func TestRESTAwaitEvent_StoppedSourceCommandError(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	stopRESTServer(t, state, "stopped_error")
 	require.Equal(t, core.Signal("CommandError"), (<-results).Signal)
+}
+
+func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
+	t.Parallel()
+
+	state := NewServerState()
+	collection := NewCollection()
+	require.NoError(t, collection.Add(Definition{Servers: map[string]Server{"control": controlServer()}}))
+	_, baseURL := launchRESTServerWithState(t, state, controlServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "control")
+
+	def := requireRESTToolDef(t, InitAwaitEvent)
+	def.Config = map[string]interface{}{"sources": []interface{}{
+		map[string]interface{}{"server": "control", "routes": []interface{}{"approve"}},
+	}}
+	command := requireRESTCommand(t, def, collection, state)
+	postStatus(t, baseURL+"/approve/123", `{}`, http.StatusAccepted)
+	result := command.Execute()
+
+	require.Equal(t, core.Signal("Approved"), result.Signal, result.Output)
+	require.Contains(t, result.Output, `"source":"control"`)
+	require.Contains(t, result.Output, `"route":"approve"`)
+	require.Equal(t, core.ToolDone, command.Undo().Signal)
 }
 
 func TestRESTServer_RejectsUndeclaredQueryAndHeader(t *testing.T) {
@@ -303,6 +328,35 @@ func awaitAnyResult(state *ServerState, source AwaitSource) core.Result {
 		output["error"] = err.Error()
 	}
 	return core.Result{Signal: core.Signal(signal), Output: jsonOutput(output)}
+}
+
+func requireRESTToolDef(t *testing.T, init string) catalog.ToolDef {
+	t.Helper()
+	defs, err := catalog.LoadToolDefs(restDeclarationsPath(t))
+	require.NoError(t, err)
+	for _, def := range defs {
+		if def.Init == init {
+			return def
+		}
+	}
+	require.Failf(t, "missing REST tool declaration", "init %q", init)
+	return catalog.ToolDef{}
+}
+
+func requireRESTCommand(
+	t *testing.T,
+	def catalog.ToolDef,
+	collection Collection,
+	state *ServerState,
+) core.Command {
+	t.Helper()
+	br := toolregistry.NewBuiltinRegistry()
+	RegisterFactories(br, FactoryDeps{Definitions: collection, ServerState: state})
+	factory, ok := br.Resolve(def.Init)
+	require.True(t, ok)
+	builder, err := factory(def, nil)
+	require.NoError(t, err)
+	return builder.Build(core.Result{})
 }
 
 func postStatus(t *testing.T, url, body string, want int) {

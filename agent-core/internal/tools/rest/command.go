@@ -29,9 +29,21 @@ type ServerBuilder struct {
 	State    *ServerState
 }
 
+// AwaitEventBuilder constructs REST event fan-in commands.
+type AwaitEventBuilder struct {
+	ToolName string
+	Options  AwaitAnyOptions
+	State    *ServerState
+}
+
 // Build creates one REST server boundary command.
 func (b ServerBuilder) Build(_ core.Result) core.Command {
 	return serverCmd{toolName: b.ToolName, init: b.Init, server: b.Server, state: b.State}
+}
+
+// Build creates one REST event fan-in command.
+func (b AwaitEventBuilder) Build(_ core.Result) core.Command {
+	return awaitEventCmd{toolName: b.ToolName, options: b.Options, state: b.State}
 }
 
 type restCmd struct {
@@ -55,6 +67,12 @@ type serverCmd struct {
 	toolName string
 	init     string
 	server   ServerDefinition
+	state    *ServerState
+}
+
+type awaitEventCmd struct {
+	toolName string
+	options  AwaitAnyOptions
 	state    *ServerState
 }
 
@@ -107,6 +125,20 @@ func (c serverCmd) stop() core.Result {
 		return commandError(c.toolName, err)
 	}
 	return core.Result{Signal: core.Signal("ServerStopped"), CommandName: c.toolName, Output: jsonOutput(output)}
+}
+
+func (c awaitEventCmd) Name() string { return c.toolName }
+
+func (c awaitEventCmd) Execute() core.Result {
+	event, signal, err := c.state.AwaitAny(c.options)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	return core.Result{Signal: core.Signal(signal), CommandName: c.toolName, Output: eventOutput(event)}
+}
+
+func (c awaitEventCmd) Undo() core.Result {
+	return core.NoopUndo(c.toolName)
 }
 
 func commandError(commandName string, err error) core.Result {
