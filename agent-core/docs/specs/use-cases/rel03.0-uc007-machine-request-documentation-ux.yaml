@@ -34,8 +34,8 @@ touchpoints:
   - T3: "srd031-declarative-document-resources R1, R2 -- document resources connect request machines to docs/"
   - T4: "srd031-declarative-document-resources R3, R5 -- path safety and raw or parsed YAML response modes"
   - T5: "srd031-declarative-document-resources R6 -- Knowledge Manager UI assets and action placement are human actor configuration"
-  - T6: "rel03.0-uc006-documentation-curator -- current direct-host behavior retained until this successor proof is implemented"
-  - T7: "magefiles/integration_docs.go -- current uc006 integration target and future location for uc007 orchestration"
+  - T6: "rel03.0-uc006-documentation-curator -- direct-host smoke behavior retained beside the machine_request successor proof"
+  - T7: "magefiles/integration_docs.go -- current uc006 and uc007 integration orchestration"
 
 success_criteria:
   - id: S1
@@ -73,11 +73,11 @@ out_of_scope:
   - Letting browser input choose document roots, parser modes, or machine files.
 
 successor_to: rel03.0-uc006-documentation-curator
-status: planned
+status: done
 machine_config: agents/knowledge-manager/documentation-curator/machine.yaml
 rest_definitions: agents/knowledge-manager/documentation-curator/rest.yaml
 document_resource: documentation_corpus
 browser_harness: Puppeteer
-future_integration_target: mage integration:uc007
-future_entry_point: internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts
+integration_target: mage integration:uc007
+entry_point: internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts
 test_suite_trace: test-rel03.0-rest-tools
