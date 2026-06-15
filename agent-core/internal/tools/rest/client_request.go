@@ -119,9 +119,20 @@ func renderURL(def ClientOperationDefinition, params map[string]interface{}) (st
 
 func renderPath(path string, params map[string]interface{}) string {
 	for _, match := range pathParamPattern.FindAllStringSubmatch(path, -1) {
-		path = strings.ReplaceAll(path, match[0], url.PathEscape(fmt.Sprint(params[match[1]])))
+		path = strings.ReplaceAll(path, match[0], escapedPathParam(match[0], fmt.Sprint(params[match[1]])))
 	}
 	return path
+}
+
+func escapedPathParam(token, value string) string {
+	if !strings.HasSuffix(token, "...}") {
+		return url.PathEscape(value)
+	}
+	parts := strings.Split(value, "/")
+	for i, part := range parts {
+		parts[i] = url.PathEscape(part)
+	}
+	return strings.Join(parts, "/")
 }
 
 func renderRequestBody(operation Operation, params map[string]interface{}, maxBytes int) (io.ReadCloser, error) {

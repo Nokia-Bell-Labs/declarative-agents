@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import http from 'node:http'
 import path from 'node:path'
 import puppeteer, { type Browser, type Page } from 'puppeteer-core'
 
@@ -13,6 +14,7 @@ type Trace = {
 
 type CapturedResponse = {
   url: string
+  requestId: string
   status: number
   body: Record<string, unknown>
 }
@@ -26,9 +28,9 @@ type NetworkEntry = {
 const baseURL = process.env.KM_DOCS_BASE_URL ?? 'http://127.0.0.1:18081/'
 const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH ?? process.env.CHROME_BIN
 const artifactDir = process.env.KM_DOCS_ARTIFACT_DIR ?? path.join(process.cwd(), 'e2e-artifacts')
-const requireConformance = process.env.AGENT_CORE_MACHINE_REQUEST_CONFORMANCE === '1'
 const networkLog: NetworkEntry[] = []
 const consoleLog: string[] = []
+const capturedResponses: CapturedResponse[] = []
 
 async function main() {
   if (!executablePath) {
@@ -63,11 +65,11 @@ async function runProof(browser: Browser) {
   await page.goto(new URL('/docs', baseURL).href, { waitUntil: 'networkidle0' })
   await page.waitForSelector('.docs-category-toggle')
 
-  const index = await fetchEndpoint(page, '/api/v1/docs')
+  const index = await fetchEndpoint('/api/v1/docs')
   assert(index.status === 200, `index response status ${index.status}`)
   assert(Array.isArray(index.body.data), 'index data is an array')
-  assert(hasTrace(index.body), 'index machine_request trace evidence present')
-  assertConformanceTrace(index.body, 'documents', 'DocumentIndexReady')
+  assert(includesDocumentPath(index.body, 'specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml'), 'nested document path listed')
+  assertMachineRequestTrace(index.body, 'documents', 'DocumentIndexReady')
 
   await expandCategories(page)
   await page.waitForSelector('.docs-link-title')
@@ -75,11 +77,10 @@ async function runProof(browser: Browser) {
   await page.waitForSelector('.doc-viewer')
   await page.waitForSelector('.doc-raw-section')
 
-  const detail = await fetchEndpoint(page, '/api/v1/docs/SPECIFICATIONS.yaml')
+  const detail = await fetchEndpoint('/api/v1/docs/SPECIFICATIONS.yaml')
   assert(detail.status === 200, `detail response status ${detail.status}`)
   assert(String(detail.body.raw ?? '').includes('id: agent-core-specifications'), 'raw YAML returned')
-  assert(hasTrace(detail.body), 'detail machine_request trace evidence present')
-  assertConformanceTrace(detail.body, 'document', 'DocumentDetailReady')
+  assertMachineRequestTrace(detail.body, 'document', 'DocumentDetailReady')
 
   const rendered = await page.$eval('.doc-viewer', node => node.textContent ?? '')
   assert(rendered.includes('Agent Core Specification Index'), 'pretty view rendered title')
@@ -111,22 +112,41 @@ async function clickDocument(page: Page, label: string) {
   assert(clicked, `document button containing ${label} found`)
 }
 
-async function fetchEndpoint(page: Page, endpoint: string): Promise<CapturedResponse> {
-  return page.evaluate(async target => {
-    const response = await fetch(target)
-    const body = await response.json() as Record<string, unknown>
-    return { url: new URL(target, location.href).href, status: response.status, body }
-  }, endpoint)
+async function fetchEndpoint(endpoint: string): Promise<CapturedResponse> {
+  const requestId = `km-docs-${Date.now()}-${capturedResponses.length}`
+  const url = new URL(endpoint, baseURL).href
+  const response = await getJSON(url)
+  const captured = { url, requestId, status: response.status, body: response.body }
+  capturedResponses.push(captured)
+  return captured
 }
 
-function hasTrace(body: Record<string, unknown>) {
-  const trace = body.trace as Trace | undefined
-  return typeof trace?.status === 'string' && typeof trace.iterations === 'number'
+async function getJSON(url: string): Promise<{ status: number, body: Record<string, unknown> }> {
+  return new Promise((resolve, reject) => {
+    http.get(url, res => {
+      const chunks: Buffer[] = []
+      res.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8')
+        try {
+          resolve({ status: res.statusCode ?? 0, body: JSON.parse(text) as Record<string, unknown> })
+        } catch (err) {
+          reject(new Error(`invalid JSON from ${url}: ${text}`))
+        }
+      })
+    }).on('error', reject)
+  })
 }
 
-function assertConformanceTrace(body: Record<string, unknown>, route: string, signal: string) {
-  if (!requireConformance) return
+function includesDocumentPath(body: Record<string, unknown>, path: string) {
+  const docs = body.data as Array<Record<string, unknown>> | undefined
+  return Array.isArray(docs) && docs.some(doc => doc.path === path)
+}
+
+function assertMachineRequestTrace(body: Record<string, unknown>, route: string, signal: string) {
   const trace = body.trace as Trace | undefined
+  assert(typeof trace?.status === 'string', `${route} trace status present`)
+  assert(typeof trace.iterations === 'number', `${route} trace iterations present`)
   assert(trace?.server === 'documentation_curator_requests', `${route} trace server present`)
   assert(trace.route === route, `${route} trace route present`)
   assert(trace.machine === 'documentation-curator-request', `${route} trace machine present`)
@@ -140,7 +160,11 @@ async function writeFailure(browser: Browser, err: unknown) {
     await page.screenshot({ path: path.join(artifactDir, 'failure.png'), fullPage: true })
     await fs.writeFile(path.join(artifactDir, 'page.html'), await page.content())
   }
-  await writeArtifacts('failure', { error: err instanceof Error ? err.message : String(err), url: page?.url() })
+  await writeArtifacts('failure', {
+    error: err instanceof Error ? err.message : String(err),
+    url: page?.url(),
+    responses: capturedResponses,
+  })
 }
 
 async function writeArtifacts(kind: string, data: Record<string, unknown>) {
