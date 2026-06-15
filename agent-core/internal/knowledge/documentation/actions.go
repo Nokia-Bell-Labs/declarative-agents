@@ -3,15 +3,15 @@
 package docsapi
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/filesystem"
@@ -89,7 +89,6 @@ func (r *LazyProfileWorkflowRunner) profileRunner() (*ProfileWorkflowRunner, err
 // ProfileWorkflowRunner dispatches action requests to selected REST client tools.
 type ProfileWorkflowRunner struct {
 	registry *core.Registry
-	machine  *LazyMachineDocsRunner
 }
 
 // NewProfileWorkflowRunner loads profile tool declarations and REST definitions.
@@ -118,7 +117,6 @@ func NewProfileWorkflowRunner(profilePath, docsDir string) (*ProfileWorkflowRunn
 	if err != nil {
 		return nil, err
 	}
-	runner.machine = NewLazyMachineDocsRunner(profilePath, docsDir)
 	return runner, nil
 }
 
@@ -147,9 +145,6 @@ func (r *ProfileWorkflowRunner) Run(req *http.Request) (ActionResponse, error) {
 	}
 	if !allowedWorkflowActions[action.Type] {
 		return ActionResponse{}, fmt.Errorf("unsupported documentation action %q", action.Type)
-	}
-	if r.machine != nil && machineBackedAction(action.Type) {
-		return r.machine.RunAction(req.Context(), action.Type, action.Params)
 	}
 	builder, ok := r.registry.Resolve(action.Type)
 	if !ok {
@@ -183,160 +178,224 @@ func responseFromResult(tool string, result core.Result) (ActionResponse, error)
 }
 
 func actionData(output map[string]interface{}) interface{} {
+	if mapped, ok := output["mapped"].(map[string]interface{}); ok && len(mapped) > 0 {
+		return mapped
+	}
 	if body, ok := output["body"].(map[string]interface{}); ok {
 		if data, ok := body["data"]; ok {
 			return data
 		}
 	}
-	if mapped, ok := output["mapped"].(map[string]interface{}); ok && len(mapped) > 0 {
-		return mapped
-	}
 	return output
 }
 
-type MachineDocResponse struct {
-	Status int
-	Signal string
-	Body   map[string]interface{}
-}
-
-type LazyMachineDocsRunner struct {
+// LazyMachineRequestProxy forwards document API requests to the configured REST server.
+type LazyMachineRequestProxy struct {
 	profilePath string
 	docsDir     string
 	mu          sync.Mutex
-	runner      *MachineDocsRunner
+	state       *rest.ServerState
+	baseURL     string
 }
 
-func NewLazyMachineDocsRunner(profilePath, docsDir string) *LazyMachineDocsRunner {
-	return &LazyMachineDocsRunner{profilePath: profilePath, docsDir: docsDir}
+// NewLazyMachineRequestProxy creates a same-origin proxy for document machine requests.
+func NewLazyMachineRequestProxy(profilePath, docsDir string) *LazyMachineRequestProxy {
+	return &LazyMachineRequestProxy{profilePath: profilePath, docsDir: docsDir}
 }
 
-func (r *LazyMachineDocsRunner) List(ctx context.Context) (MachineDocResponse, error) {
-	runner, err := r.machineRunner()
+func (p *LazyMachineRequestProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	baseURL, err := p.backendBaseURL()
 	if err != nil {
-		return MachineDocResponse{}, err
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
-	return runner.List(ctx)
+	p.forward(w, r, baseURL)
 }
 
-func (r *LazyMachineDocsRunner) Get(ctx context.Context, path string) (MachineDocResponse, error) {
-	runner, err := r.machineRunner()
+// Close stops the owned generic REST machine_request server.
+func (p *LazyMachineRequestProxy) Close() error {
+	p.mu.Lock()
+	state := p.state
+	p.state = nil
+	p.baseURL = ""
+	p.mu.Unlock()
+	if state == nil {
+		return nil
+	}
+	_, err := state.Stop("documentation_curator_requests")
+	return err
+}
+
+func (p *LazyMachineRequestProxy) backendBaseURL() (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.baseURL != "" {
+		return p.baseURL, nil
+	}
+	baseURL, state, err := p.launchBackend()
 	if err != nil {
-		return MachineDocResponse{}, err
+		return "", err
 	}
-	return runner.Get(ctx, path)
+	p.baseURL = baseURL
+	p.state = state
+	return p.baseURL, nil
 }
 
-func (r *LazyMachineDocsRunner) RunAction(ctx context.Context, action string, params map[string]interface{}) (ActionResponse, error) {
-	result, err := r.runActionResponse(ctx, action, params)
+func (p *LazyMachineRequestProxy) launchBackend() (string, *rest.ServerState, error) {
+	profile, err := catalog.LoadProfile(p.profilePath)
 	if err != nil {
-		return ActionResponse{}, err
+		return "", nil, err
 	}
-	return ActionResponse{Data: result.Body["data"], Tool: action, Signal: result.Signal, Output: result.Body}, nil
-}
-
-func (r *LazyMachineDocsRunner) runActionResponse(ctx context.Context, action string, params map[string]interface{}) (MachineDocResponse, error) {
-	if action == "doc_list" {
-		return r.List(ctx)
-	}
-	path, _ := params["path"].(string)
-	return r.Get(ctx, path)
-}
-
-func (r *LazyMachineDocsRunner) machineRunner() (*MachineDocsRunner, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.runner != nil {
-		return r.runner, nil
-	}
-	runner, err := NewMachineDocsRunner(r.profilePath, r.docsDir)
+	collection, err := rest.LoadDefinitions(profile.RestDefinitions, profile.RestConfigDirs)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	r.runner = runner
-	return runner, nil
-}
-
-type MachineDocsRunner struct {
-	machine  core.MachineSpec
-	registry *core.Registry
-}
-
-func NewMachineDocsRunner(profilePath, docsDir string) (*MachineDocsRunner, error) {
-	profile, err := catalog.LoadProfile(profilePath)
+	def, err := collection.ResolveServer("documentation_curator_requests")
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	machine, err := core.LoadMachineSpec(requestMachinePath(profile.Machine))
+	def.Server.Address = "127.0.0.1:0"
+	def.MachineRequestRunner = p.requestRunner()
+	state := rest.NewServerState()
+	output, err := state.Launch(def)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	registry, err := requestMachineRegistry(profile.ToolDeclarations, docsResourceRoot(docsDir))
-	if err != nil {
-		return nil, err
-	}
-	return &MachineDocsRunner{machine: machine, registry: registry}, nil
+	return "http://" + output["address"].(string), state, nil
 }
 
-func (r *MachineDocsRunner) List(ctx context.Context) (MachineDocResponse, error) {
-	return r.run(ctx, map[string]interface{}{"resource": "docs"}, false)
+func (p *LazyMachineRequestProxy) requestRunner() rest.MachineRequestRunner {
+	return rest.NewProfileMachineRequestRunner(rest.ProfileMachineRequestRunnerDeps{
+		BaseDir:          filepath.Dir(p.profilePath),
+		Directory:        docsResourceRoot(p.docsDir),
+		RegisterBuiltins: registerMachineRequestFactories,
+	})
 }
 
-func (r *MachineDocsRunner) Get(ctx context.Context, path string) (MachineDocResponse, error) {
-	return r.run(ctx, map[string]interface{}{"resource": "docs", "path": path}, true)
+func registerMachineRequestFactories(br *toolregistry.BuiltinRegistry, _ map[string]bool) {
+	registerResourceFactory(br, "list_resource", func(root string, cfg filesystem.ResourceConfig) core.Builder {
+		return requestListResourceBuilder{root: root, resources: cfg}
+	})
+	registerResourceFactory(br, "read_resource", func(root string, cfg filesystem.ResourceConfig) core.Builder {
+		return requestReadResourceBuilder{root: root, resources: cfg}
+	})
+	RegisterRequestFactories(br)
 }
 
-func (r *MachineDocsRunner) run(ctx context.Context, params map[string]interface{}, read bool) (MachineDocResponse, error) {
-	var last core.Result
-	spec := requestSpecFor(r.machine, read)
-	result, err := core.Loop(core.LoopParams{
-		MachineSpec: &spec, Registry: r.registry, InitialSignal: core.Seed,
-		InitialResult: parametersResult(params), Budget: requestMachineBudget(spec),
-		Trace: tracing.NoopTracer{}, AgentName: "documentation_request",
-		Hooks: core.LoopHooks{OnResult: func(rr core.RunResult, res core.Result) core.RunResult {
-			last = res
-			return rr
-		}},
-	}, ctx)
+type requestListResourceBuilder struct {
+	root      string
+	resources filesystem.ResourceConfig
+}
+
+func (b requestListResourceBuilder) Build(res core.Result) core.Command {
+	return (&filesystem.ListResourceBuilder{
+		Root: b.root, Resources: b.resources,
+	}).Build(machineRequestParameterResult(res.Output))
+}
+
+type requestReadResourceBuilder struct {
+	root      string
+	resources filesystem.ResourceConfig
+}
+
+func (b requestReadResourceBuilder) Build(res core.Result) core.Command {
+	return (&filesystem.ReadResourceBuilder{
+		Root: b.root, Resources: b.resources,
+	}).Build(machineRequestParameterResult(res.Output))
+}
+
+func machineRequestParameterResult(output string) core.Result {
+	params := machineRequestParameters(output)
+	data, err := json.Marshal(map[string]interface{}{"parameters": params})
 	if err != nil {
-		return MachineDocResponse{}, err
+		return core.Result{Signal: core.Seed, Output: `{"parameters":{"resource":"docs"}}`}
 	}
-	return machineDocResponse(result, last), nil
+	return core.Result{Signal: core.Seed, Output: string(data)}
 }
 
-func requestMachineRegistry(paths []string, root string) (*core.Registry, error) {
-	defs, err := requestResourceDefs(paths)
-	if err != nil {
-		return nil, err
+func machineRequestParameters(output string) map[string]interface{} {
+	var req struct {
+		Payload map[string]interface{} `json:"payload"`
+		Path    string                 `json:"path"`
 	}
-	reg := core.NewRegistry()
-	builtins := requestBuiltinRegistry()
-	for _, def := range defs {
-		if err := toolregistry.RegisterSingleBuiltin(reg, builtins, def, map[string]string{"directory": root}); err != nil {
-			return nil, err
+	_ = json.Unmarshal([]byte(output), &req)
+	params := req.Payload
+	if params == nil {
+		params = map[string]interface{}{}
+	}
+	if _, ok := params["resource"]; !ok {
+		params["resource"] = "docs"
+	}
+	if _, ok := params["path"].(string); !ok {
+		if path := strings.TrimPrefix(req.Path, "/api/v1/docs/"); path != req.Path {
+			params["path"] = path
 		}
 	}
-	registerResponseWords(reg)
-	return reg, nil
+	return params
 }
 
-func requestResourceDefs(paths []string) ([]catalog.ToolDef, error) {
-	declarations, err := catalog.LoadToolDeclarations(paths)
+func (p *LazyMachineRequestProxy) forward(w http.ResponseWriter, r *http.Request, baseURL string) {
+	target := proxyURL(baseURL, r.URL)
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, target, r.Body)
 	if err != nil {
-		return nil, err
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
-	return catalog.SelectTools(declarations, []string{"doc_list_resource", "doc_read_resource"})
+	req.Header = r.Header.Clone()
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	defer resp.Body.Close()
+	writeProxiedDocumentResponse(w, r, resp)
 }
 
-func requestBuiltinRegistry() *toolregistry.BuiltinRegistry {
-	builtins := toolregistry.NewBuiltinRegistry()
-	registerResourceFactory(builtins, "list_resource", func(root string, cfg filesystem.ResourceConfig) core.Builder {
-		return &filesystem.ListResourceBuilder{Root: root, Resources: cfg}
-	})
-	registerResourceFactory(builtins, "read_resource", func(root string, cfg filesystem.ResourceConfig) core.Builder {
-		return &filesystem.ReadResourceBuilder{Root: root, Resources: cfg}
-	})
-	return builtins
+func proxyURL(baseURL string, requestURL *url.URL) string {
+	return baseURL + requestURL.RequestURI()
+}
+
+func writeProxiedDocumentResponse(w http.ResponseWriter, r *http.Request, resp *http.Response) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	parsed := map[string]interface{}{}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		copyProxyHeaders(w, resp.Header)
+		w.WriteHeader(resp.StatusCode)
+		_, _ = w.Write(body)
+		return
+	}
+	enrichDocumentTrace(parsed, documentRouteName(r.URL.Path))
+	writeJSON(w, resp.StatusCode, parsed)
+}
+
+func copyProxyHeaders(w http.ResponseWriter, headers http.Header) {
+	for name, values := range headers {
+		for _, value := range values {
+			w.Header().Add(name, value)
+		}
+	}
+}
+
+func enrichDocumentTrace(body map[string]interface{}, route string) {
+	trace, _ := body["trace"].(map[string]interface{})
+	if trace == nil {
+		trace = map[string]interface{}{}
+		body["trace"] = trace
+	}
+	trace["server"] = "documentation_curator_requests"
+	trace["route"] = route
+	trace["machine"] = "documentation-curator-request"
+}
+
+func documentRouteName(path string) string {
+	if path == "/api/v1/docs" {
+		return "documents"
+	}
+	return "document"
 }
 
 func registerResourceFactory(br *toolregistry.BuiltinRegistry, init string, factory func(string, filesystem.ResourceConfig) core.Builder) {
@@ -347,11 +406,6 @@ func registerResourceFactory(br *toolregistry.BuiltinRegistry, init string, fact
 		}
 		return factory(vars["directory"], cfg), nil
 	})
-}
-
-func registerResponseWords(reg *core.Registry) {
-	reg.Register(core.ToolSpec{Name: "doc_index_response"}, responseBuilder{name: "doc_index_response", signal: "DocumentIndexReady"})
-	reg.Register(core.ToolSpec{Name: "doc_detail_response"}, responseBuilder{name: "doc_detail_response", signal: "DocumentDetailReady"})
 }
 
 type responseBuilder struct {
@@ -408,83 +462,6 @@ func detailResponseOutput(input string) (map[string]interface{}, error) {
 	return map[string]interface{}{"data": map[string]interface{}{
 		"path": detail["path"], "content": content, "raw": detail["raw"],
 	}, "path": detail["path"], "content": content, "raw": detail["raw"], "content_type": detail["content_type"]}, nil
-}
-
-func requestSpecFor(machine core.MachineSpec, read bool) core.MachineSpec {
-	if !read {
-		return machine
-	}
-	for i, transition := range machine.Transitions {
-		if transition.State == "AwaitingRequest" && transition.Signal == "Seed" {
-			machine.Transitions[i].Next = "ReadingDocument"
-			machine.Transitions[i].Action = "doc_read_resource"
-		}
-	}
-	return machine
-}
-
-func requestMachineBudget(spec core.MachineSpec) core.Budget {
-	return spec.BudgetSpec.ToBudget(core.Budget{MaxIterations: 10})
-}
-
-func parametersResult(params map[string]interface{}) core.Result {
-	data, err := json.Marshal(map[string]interface{}{"parameters": params})
-	if err != nil {
-		return core.Result{Signal: core.Seed, Output: `{"parameters":{}}`}
-	}
-	return core.Result{Signal: core.Seed, Output: string(data)}
-}
-
-func machineDocResponse(run core.RunResult, last core.Result) MachineDocResponse {
-	body := machineDocBody(last)
-	return MachineDocResponse{Status: machineDocStatus(last.Signal), Signal: string(last.Signal), Body: bodyWithTrace(body, run)}
-}
-
-func machineDocBody(last core.Result) map[string]interface{} {
-	if machineDocStatus(last.Signal) != http.StatusOK {
-		return map[string]interface{}{"error": string(last.Signal)}
-	}
-	body := map[string]interface{}{}
-	if err := json.Unmarshal([]byte(last.Output), &body); err != nil {
-		return map[string]interface{}{"error": "response_invalid"}
-	}
-	return body
-}
-
-func bodyWithTrace(body map[string]interface{}, run core.RunResult) map[string]interface{} {
-	body["trace"] = map[string]interface{}{"status": run.Status, "iterations": run.Iterations}
-	return body
-}
-
-func machineDocStatus(signal core.Signal) int {
-	switch signal {
-	case "DocumentIndexReady", "DocumentDetailReady":
-		return http.StatusOK
-	case "DocumentMissing":
-		return http.StatusNotFound
-	case "DocumentResourceDenied":
-		return http.StatusForbidden
-	case "DocumentParseFailed":
-		return http.StatusUnprocessableEntity
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
-func writeMachineDocHTTP(w http.ResponseWriter, result MachineDocResponse, err error) {
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, result.Status, result.Body)
-}
-
-func machineBackedAction(action string) bool {
-	return action == "doc_list" || action == "doc_get"
-}
-
-func requestMachinePath(machinePath string) string {
-	return filepath.Join(filepath.Dir(machinePath), "request-machine.yaml")
 }
 
 func docsResourceRoot(docsDir string) string {

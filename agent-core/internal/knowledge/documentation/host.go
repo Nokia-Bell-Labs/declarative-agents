@@ -39,9 +39,10 @@ type Server struct {
 
 // RunningServer is a launched documentation host.
 type RunningServer struct {
-	Addr   string
-	server *http.Server
-	done   chan error
+	Addr    string
+	server  *http.Server
+	done    chan error
+	cleanup func() error
 }
 
 // NewServer creates a standalone documentation server.
@@ -65,9 +66,10 @@ func NewServer(cfg HostConfig) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	docs := NewHandler(s.docsDir)
+	requests := NewLazyMachineRequestProxy(s.profilePath, s.docsDir)
 	mux.HandleFunc("GET /api/v1/health", s.handleHealth)
-	mux.HandleFunc("GET /api/v1/docs", s.handleDocumentIndex)
-	mux.HandleFunc("GET /api/v1/docs/{path...}", s.handleDocumentDetail)
+	mux.Handle("GET /api/v1/docs", requests)
+	mux.Handle("GET /api/v1/docs/{path...}", requests)
 	mux.HandleFunc("POST /api/v1/docs/search", docs.Search)
 	mux.HandleFunc("POST /api/v1/docs/validate", docs.Validate)
 	mux.HandleFunc("POST /api/v1/docs/suggestions", docs.Suggest)
@@ -78,7 +80,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/configs/{path...}", s.handleGetConfig)
 	mux.HandleFunc("GET /api/v1/source/{path...}", s.handleGetSource)
 	mux.Handle("/", spaHandler(s.assets))
-	return mux
+	return closeAwareHandler{Handler: mux, close: requests.Close}
 }
 
 // ListenAndServe starts the documentation UI host.
@@ -96,8 +98,12 @@ func (s *Server) Start() (*RunningServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	server := &http.Server{Handler: s.Handler()}
+	handler := s.Handler()
+	server := &http.Server{Handler: handler}
 	running := &RunningServer{Addr: listener.Addr().String(), server: server, done: make(chan error, 1)}
+	if closer, ok := handler.(interface{ Close() error }); ok {
+		running.cleanup = closer.Close
+	}
 	log.Printf("documentation UI listening on %s (docs=%s)", running.Addr, s.docsDir)
 	go func() {
 		err := server.Serve(listener)
@@ -111,7 +117,11 @@ func (s *Server) Start() (*RunningServer, error) {
 
 // Close stops the launched documentation host.
 func (r *RunningServer) Close() error {
-	return r.server.Close()
+	err := r.server.Close()
+	if cleanupErr := r.cleanupBackend(); err == nil {
+		err = cleanupErr
+	}
+	return err
 }
 
 // Shutdown gracefully stops the launched documentation host.
@@ -136,21 +146,18 @@ func (r *RunningServer) Stop() error {
 	if waitErr != nil && !errors.Is(waitErr, http.ErrServerClosed) {
 		return waitErr
 	}
-	return nil
+	return r.cleanupBackend()
+}
+
+func (r *RunningServer) cleanupBackend() error {
+	if r.cleanup == nil {
+		return nil
+	}
+	return r.cleanup()
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func (s *Server) handleDocumentIndex(w http.ResponseWriter, r *http.Request) {
-	result, err := s.machineDocs().List(r.Context())
-	writeMachineDocHTTP(w, result, err)
-}
-
-func (s *Server) handleDocumentDetail(w http.ResponseWriter, r *http.Request) {
-	result, err := s.machineDocs().Get(r.Context(), r.PathValue("path"))
-	writeMachineDocHTTP(w, result, err)
 }
 
 func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
@@ -166,8 +173,16 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) machineDocs() *LazyMachineDocsRunner {
-	return NewLazyMachineDocsRunner(s.profilePath, s.docsDir)
+type closeAwareHandler struct {
+	http.Handler
+	close func() error
+}
+
+func (h closeAwareHandler) Close() error {
+	if h.close == nil {
+		return nil
+	}
+	return h.close()
 }
 
 func profilePathOrDefault(path string) string {
