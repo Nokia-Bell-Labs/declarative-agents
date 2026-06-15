@@ -17,6 +17,43 @@ preconditions:
 
 test_cases:
   - use_case: rel04.0-uc001-configurable-tool-metrics
+    name: End-to-end monitor release proof
+    go_test: TestMonitorReleaseProfileProof
+    integration_target: mage integration:uc004
+    status: implemented
+    description: |
+      Load agents/monitor/profile.yaml through cmd/agent startup helpers. Run
+      the configured monitor machine with a live MonitorRecorder. Query the
+      configured monitor REST views from the same store. The proof also checks
+      workflow labels, OpenTelemetry export, REST OpenAPI output, and cached
+      event-stream frames.
+    inputs:
+      profile: agents/monitor/profile.yaml
+      fixture: testdata/integration/rel04-monitor/monitor-rest.yaml
+    expected:
+      cmd_agent_monitor_recorder_wired: true
+      live_store_used_by_rest: true
+      specialized_rest_live_store_test: TestMonitorREST_FactoryUsesLiveMonitorState
+      openapi_output_present: true
+      otel_metrics_exported: true
+      workflow_labels_present: true
+    traces:
+      - rel04.0-uc001-configurable-tool-metrics S1
+      - rel04.0-uc001-configurable-tool-metrics S2
+      - rel04.0-uc001-configurable-tool-metrics S4
+      - rel04.0-uc002-monitor-rest-api S1
+      - rel04.0-uc002-monitor-rest-api S2
+      - rel04.0-uc002-monitor-rest-api S3
+      - rel04.0-uc002-monitor-rest-api S4
+      - srd032-tool-metrics-monitor-store AC1
+      - srd032-tool-metrics-monitor-store AC2
+      - srd032-tool-metrics-monitor-store AC4
+      - srd033-monitor-rest-api AC1
+      - srd033-monitor-rest-api AC2
+      - srd033-monitor-rest-api AC3
+      - srd033-monitor-rest-api AC4
+
+  - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Monitor store returns bounded snapshots
     go_test: TestMonitorStore_BoundedSnapshot
     status: implemented
