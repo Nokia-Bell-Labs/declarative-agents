@@ -25,11 +25,8 @@ const (
 
 // Uc006 runs rel03.0-uc006: documentation-curator serves docs UX and REST tools.
 func (Integration) Uc006() error {
-	if err := requireTCPFree(docsCuratorAddr); err != nil {
-		return skipUC("uc006", err.Error())
-	}
-	if err := requireTCPFree(docsCuratorControlAddr); err != nil {
-		return skipUC("uc006", err.Error())
+	if err := requireDocsCuratorPortsFree("uc006"); err != nil {
+		return err
 	}
 	binary, err := buildFreshAgentFor("uc006")
 	if err != nil {
@@ -71,6 +68,46 @@ func (Integration) Uc006() error {
 	return nil
 }
 
+// Uc007 runs rel03.0-uc007: Puppeteer verifies machine_request documentation UX.
+func (Integration) Uc007() error {
+	if err := requireDocsCuratorPortsFree("uc007"); err != nil {
+		return err
+	}
+	browser, err := findPuppeteerBrowser()
+	if err != nil {
+		return skipUC("uc007", err.Error())
+	}
+	if _, err := exec.LookPath("npm"); err != nil {
+		return skipUC("uc007", "npm is required to run the Puppeteer harness")
+	}
+	binary, err := buildFreshAgentFor("uc007")
+	if err != nil {
+		return err
+	}
+	rootDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cmd, output := startDocsCurator(ctx, binary, rootDir)
+	defer stopProcess(cmd, cancel)
+	if err := waitDocsAPI(); err != nil {
+		return fmt.Errorf("uc007: documentation-curator did not become ready: %w\n%s", err, output.String())
+	}
+	if err := runDocsPuppeteer(rootDir, browser); err != nil {
+		return err
+	}
+	if err := requestDocsCuratorExit(); err != nil {
+		return err
+	}
+	if err := waitDocsCuratorExit(cmd, output); err != nil {
+		return err
+	}
+	fmt.Println("uc007: PASS - Puppeteer verified machine_request documentation UX")
+	return nil
+}
+
 func buildFreshAgentFor(name string) (string, error) {
 	fmt.Printf("building fresh agent binary for %s...\n", name)
 	if err := Build(); err != nil {
@@ -85,6 +122,16 @@ func requireTCPFree(addr string) error {
 		return fmt.Errorf("%s is already in use: %w", addr, err)
 	}
 	return listener.Close()
+}
+
+func requireDocsCuratorPortsFree(id string) error {
+	if err := requireTCPFree(docsCuratorAddr); err != nil {
+		return skipUC(id, err.Error())
+	}
+	if err := requireTCPFree(docsCuratorControlAddr); err != nil {
+		return skipUC(id, err.Error())
+	}
+	return nil
 }
 
 func waitTCPFree(addr string) error {
@@ -158,6 +205,53 @@ func requireJSONField(path, field string) error {
 	if _, ok := payload[field]; !ok {
 		return fmt.Errorf("%s response missing %q", path, field)
 	}
+	return nil
+}
+
+func findPuppeteerBrowser() (string, error) {
+	if configured := os.Getenv("PUPPETEER_EXECUTABLE_PATH"); configured != "" {
+		return configured, nil
+	}
+	if configured := os.Getenv("CHROME_BIN"); configured != "" {
+		return configured, nil
+	}
+	names := []string{"chromium", "chromium-browser", "google-chrome", "google-chrome-stable"}
+	for _, name := range names {
+		if path, err := exec.LookPath(name); err == nil {
+			return path, nil
+		}
+	}
+	paths := []string{
+		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+		"/Applications/Chromium.app/Contents/MacOS/Chromium",
+	}
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("set PUPPETEER_EXECUTABLE_PATH or CHROME_BIN to a local Chrome/Chromium binary")
+}
+
+func runDocsPuppeteer(rootDir, browser string) error {
+	artifacts, err := os.MkdirTemp("", "uc007-puppeteer-*")
+	if err != nil {
+		return fmt.Errorf("uc007: create artifact dir: %w", err)
+	}
+	uiDir := filepath.Join(rootDir, "internal/knowledge/documentation/ui")
+	cmd := exec.Command("npm", "run", "test:e2e:machine-request")
+	cmd.Dir = uiDir
+	cmd.Env = append(os.Environ(),
+		"PUPPETEER_EXECUTABLE_PATH="+browser,
+		"KM_DOCS_BASE_URL=http://"+docsCuratorAddr+"/",
+		"KM_DOCS_ARTIFACT_DIR="+artifacts,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("uc007: Puppeteer proof failed; artifacts at %s: %w", artifacts, err)
+	}
+	fmt.Printf("uc007: Puppeteer artifacts at %s\n", artifacts)
 	return nil
 }
 
