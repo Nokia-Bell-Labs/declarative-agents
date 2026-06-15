@@ -878,7 +878,7 @@ test_cases:
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Puppeteer loads machine-request Knowledge Manager UX
     go_test: mage integration:uc007
-    status: planned
+    status: done
     description: |
       Build the agent and Knowledge Manager UI assets, start the
       documentation-curator profile with machine_request document endpoints, and
@@ -903,7 +903,7 @@ test_cases:
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Puppeteer verifies document index machine_request sentence
     go_test: mage integration:uc007
-    status: planned
+    status: done
     description: |
       Puppeteer waits for the document index network request. The server should
       validate the browser request, run one short-lived MachineSpec sentence,
@@ -916,7 +916,7 @@ test_cases:
       index_response_ok: true
       sidebar_contains_specifications: true
       request_run_count: 1
-      terminal_signal: DocumentListReady
+      terminal_signal: DocumentIndexReady
       document_resource_root: docs
     traces:
       - rel03.0-uc007-machine-request-documentation-ux S2
@@ -927,7 +927,7 @@ test_cases:
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Puppeteer opens raw YAML document through document resource
     go_test: mage integration:uc007
-    status: planned
+    status: done
     description: |
       After the sidebar appears, Puppeteer selects a YAML document. The browser
       request must run one request machine, pass document resource path policy,
@@ -954,7 +954,7 @@ test_cases:
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Puppeteer verifies rendered HTML and raw YAML view
     go_test: mage integration:uc007
-    status: planned
+    status: done
     description: |
       Puppeteer checks the document viewer after navigation. The rendered HTML
       should show parsed document fields, and the raw YAML view should expose
@@ -979,7 +979,7 @@ test_cases:
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Puppeteer captures auditable machine_request trace evidence
     go_test: mage integration:uc007
-    status: planned
+    status: done
     description: |
       The Puppeteer proof collects trace evidence for the index and document
       requests. A failure report must include screenshot path, page URL, browser
