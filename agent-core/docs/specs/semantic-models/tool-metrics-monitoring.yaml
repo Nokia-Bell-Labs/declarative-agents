@@ -7,14 +7,14 @@ purpose: |
   shared recorder path. Monitor readers consume cached state from the embedded
   store.
 
-  This model is planned documentation. It defines language for follow-up SRDs,
-  ToolDef metric fields, MachineSpec workflow labels, OpenTelemetry metric
-  export, and REST or OpenAPI monitor reads. It does not claim that recorder
-  ports, stores, exporters, or APIs are implemented.
+  This model defines implemented Release 04.0 language for ToolDef metric
+  fields, MachineSpec workflow labels, OpenTelemetry metric export, and REST or
+  OpenAPI monitor reads. Recorder ports, stores, exporters, and REST readers are
+  implemented by the packages named in the related SRDs.
 
-  The immediate value is shared wording: later documents can talk about metric
-  samples, recorder ports, workflow labels, and snapshots without redefining
-  those terms in each SRD.
+  The value is shared wording: SRDs, use cases, and test suites can talk about
+  metric samples, recorder ports, workflow labels, and snapshots without
+  redefining those terms.
 
 requirements_source:
   canonical:
@@ -24,8 +24,7 @@ requirements_source:
     - docs/specs/semantic-models/rollback-lifecycle.yaml
     - docs/specs/config-formats/tool-declaration-format.yaml
     - docs/specs/config-formats/machine-format.yaml
-  planned:
-    - docs/specs/software-requirements/srd032-monitor-store-metrics.yaml
+    - docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
     - docs/specs/software-requirements/srd033-monitor-rest-api.yaml
 
 vocabulary:
@@ -206,13 +205,11 @@ monitor_snapshot_shape:
     diagnostics: Recorder, store, export, or schema warnings.
 
 non_goals: |
-  This model does not implement monitor recorder ports, stores, exporters, or
-  REST handlers. It does not make metrics a durable audit log or replace
-  RunResult, History, checkpoints, or OpenTelemetry traces.
+  This model does not make metrics a durable audit log or replace RunResult,
+  History, checkpoints, or OpenTelemetry traces.
 
   Metric labels must not be defined by model text or tool output. Labels must
-  not contain raw prompts, full outputs, secrets, or unbounded paths. Existing
-  tools do not need specialized metrics before the monitor SRDs land.
+  not contain raw prompts, full outputs, secrets, or unbounded paths.
 
 related_documents:
   - sm-tool-language
