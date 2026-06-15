@@ -97,7 +97,7 @@ type agentState struct {
 	request      string
 	output       string
 	stateStore   core.StateStore
-	monitorStore *monitor.Store
+	monitor      toolrest.MonitorState
 	restDefs     toolrest.Collection
 	shutdown     func()
 }
@@ -204,7 +204,7 @@ func run(cmd *cobra.Command, args []string) error {
 		request:      cfg.Request,
 		output:       cfg.Output,
 		stateStore:   stateStore,
-		monitorStore: monitorRuntime.Store,
+		monitor:      monitorState(monitorRuntime.Store, &machineSpec, defs),
 		restDefs:     restDefs,
 		shutdown:     shutdown.Request,
 	}
@@ -388,6 +388,13 @@ func newMonitorRuntime(
 	}
 	store := monitor.NewStore(monitor.Limits{})
 	return monitorRuntime{Store: store, Recorder: monitor.NewRecorder(store, meter)}
+}
+
+func monitorState(store *monitor.Store, machine *core.MachineSpec, defs []catalog.ToolDef) toolrest.MonitorState {
+	if store == nil {
+		return toolrest.MonitorState{}
+	}
+	return toolrest.MonitorState{Store: store, Machine: machine, Tools: defs}
 }
 
 func monitorConfigured(machine core.MachineSpec, defs []catalog.ToolDef, restDefs toolrest.Collection) bool {
@@ -709,6 +716,7 @@ func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
 		toolrest.RegisterFactories(br, toolrest.FactoryDeps{
 			Definitions:        st.restDefs,
 			MachineRunner:      profileMachineRequestRunner(st),
+			Monitor:            st.monitor,
 			CredentialResolver: toolrest.EmptyCredentialResolver{},
 		})
 	}

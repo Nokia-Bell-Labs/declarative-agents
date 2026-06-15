@@ -14,6 +14,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 )
 
 func TestMonitorREST_ReadOnlyCachedState(t *testing.T) {
@@ -72,6 +73,7 @@ func TestMonitorREST_EventStreamCachedUpdates(t *testing.T) {
 	require.Contains(t, body, "event: run_event")
 	require.Contains(t, body, "event: metric_sample")
 	require.NotContains(t, body, "request_id")
+	requireQueueEmpty(t, state, "monitor_stream")
 }
 
 func TestMonitorREST_FailureDoesNotMutateState(t *testing.T) {
@@ -86,6 +88,32 @@ func TestMonitorREST_FailureDoesNotMutateState(t *testing.T) {
 	after := monitorState.Store.Snapshot()
 	require.Equal(t, len(before.RecentEvents), len(after.RecentEvents))
 	requireAwaitSignal(t, state, "monitor_failure", "AwaitTimedOut")
+}
+
+func TestMonitorREST_FactoryUsesLiveMonitorState(t *testing.T) {
+	t.Parallel()
+
+	monitorState, rec := liveMonitorState()
+	state, baseURL := launchMonitorRESTServerFromFactory(t, "monitor_live", monitorState)
+	defer stopRESTServer(t, state, "monitor_live")
+
+	_ = rec.RecordMetric(context.Background(), monitor.MetricSample{
+		Name: "filesystem.bytes_read", Kind: monitor.InstrumentHistogram, Unit: "By",
+		Value: 42, ToolName: "file_read", Status: "success",
+		Attributes: map[string]string{"profile": "monitor"},
+	})
+
+	metrics := getJSON(t, baseURL+"/monitor/metrics")
+	require.Contains(t, metrics["metrics"], "filesystem.bytes_read")
+	requireMonitorSample(t, metrics["recent_samples"].([]interface{}), "filesystem.bytes_read")
+
+	tools := getJSON(t, baseURL+"/monitor/tools")
+	requireToolMetricDeclaration(t, tools["tools"].([]interface{}), "filesystem.bytes_read")
+
+	stream := requestBody(t, http.MethodGet, baseURL+"/monitor/events/stream", "", http.StatusOK)
+	require.Contains(t, stream, "event: metric_sample")
+	require.Contains(t, stream, "filesystem.bytes_read")
+	requireQueueEmpty(t, state, "monitor_live")
 }
 
 func launchMonitorRESTServer(
@@ -104,11 +132,52 @@ func launchMonitorRESTServer(
 	return state, "http://" + launchAddress(t, result.Output)
 }
 
+func launchMonitorRESTServerFromFactory(
+	t *testing.T,
+	name string,
+	monitorState MonitorState,
+) (*ServerState, string) {
+	t.Helper()
+	state := NewServerState()
+	collection := NewCollection()
+	require.NoError(t, collection.Add(Definition{Servers: map[string]Server{name: monitorServer(name)}}))
+	br := toolregistry.NewBuiltinRegistry()
+	RegisterFactories(br, FactoryDeps{Definitions: collection, ServerState: state, Monitor: monitorState})
+	factory, ok := br.Resolve(InitServerLaunch)
+	require.True(t, ok)
+	builder, err := factory(monitorLaunchTool(name), nil)
+	require.NoError(t, err)
+	result := builder.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
+	return state, "http://" + launchAddress(t, result.Output)
+}
+
+func monitorLaunchTool(name string) catalog.ToolDef {
+	return catalog.ToolDef{
+		Name: "launch_monitor_rest", Type: "builtin", Init: InitServerLaunch,
+		Description: "Launch monitor REST test server.",
+		Config:      map[string]interface{}{"rest_ref": name},
+	}
+}
+
 func launchAddress(t *testing.T, output string) string {
 	t.Helper()
 	var decoded map[string]interface{}
 	require.NoError(t, json.Unmarshal([]byte(output), &decoded))
 	return decoded["address"].(string)
+}
+
+func liveMonitorState() (MonitorState, *monitor.Recorder) {
+	store := monitor.NewStore(monitor.Limits{Events: 5, Samples: 5})
+	rec := monitor.NewRecorder(store, nil)
+	_ = rec.RecordRun(context.Background(), monitor.RunSnapshot{
+		RunID: "agent", Status: "running", State: "Serving", Iteration: 1,
+	})
+	_ = rec.RecordEvent(context.Background(), monitor.RunEvent{
+		Iteration: 1, CommandName: "launch_monitor_rest", Signal: "ServerLaunched",
+		FromState: "Launching", ToState: "Serving",
+	})
+	return MonitorState{Store: store, Machine: monitorMachineSpec(), Tools: monitorToolDefs()}, rec
 }
 
 func seededMonitorState() MonitorState {
@@ -142,6 +211,50 @@ func monitorMachineSpec() *core.MachineSpec {
 			MetricLabels: core.MetricLabels{"route": "monitor"},
 		}},
 	}
+}
+
+func requireMonitorSample(t *testing.T, samples []interface{}, name string) {
+	t.Helper()
+	for _, item := range samples {
+		sample, _ := item.(map[string]interface{})
+		if sample["Name"] == name {
+			return
+		}
+	}
+	require.Failf(t, "missing monitor sample", "sample %q not found in %#v", name, samples)
+}
+
+func requireToolMetricDeclaration(t *testing.T, tools []interface{}, metric string) {
+	t.Helper()
+	for _, item := range tools {
+		tool, _ := item.(map[string]interface{})
+		metrics, _ := tool["metrics"].(map[string]interface{})
+		instruments, _ := metrics["Instruments"].([]interface{})
+		if metricDeclared(instruments, metric) {
+			return
+		}
+	}
+	require.Failf(t, "missing tool metric declaration", "metric %q not found in %#v", metric, tools)
+}
+
+func metricDeclared(instruments []interface{}, metric string) bool {
+	for _, item := range instruments {
+		instrument, _ := item.(map[string]interface{})
+		if instrument["Name"] == metric {
+			return true
+		}
+	}
+	return false
+}
+
+func requireQueueEmpty(t *testing.T, state *ServerState, name string) {
+	t.Helper()
+	runtime, err := state.runtime(name)
+	require.NoError(t, err)
+	require.Len(t, runtime.queue, 0)
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	require.Empty(t, runtime.pending)
 }
 
 func monitorToolDefs() []catalog.ToolDef {
