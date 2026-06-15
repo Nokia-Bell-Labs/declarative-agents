@@ -20,6 +20,7 @@ goals:
   - G4: Define shared server lifecycle, event queueing, request validation, graceful shutdown, and blocking await behavior.
   - G5: Define address binding, route registration, schemas, SSE/watch endpoints, backpressure, tracing, redaction, and undo rules.
   - G6: Define how OpenAPI operation IDs bind to configured REST server handlers.
+  - G7: Define how server event queues participate in generic REST event aggregation and lifecycle control endpoints.
 
 requirements:
   R1:
@@ -52,6 +53,7 @@ requirements:
       - R3.5: rest_server_await output SHALL include event source, route, method, signal, validated payload, request ID, and redacted diagnostics.
       - R3.6: rest_server_await side effects SHALL be limited to consuming queued server events and updating command/server state.
       - R3.7: rest_server_await undo SHALL be noop unless the implementation supports returning an event to the queue.
+      - R3.8: rest_server_await SHALL remain the single-server await word; multi-server fan-in SHALL use rest_await_event from srd027-rest-tool-runtime.
 
   R4:
     title: rest_server_stop
@@ -74,6 +76,7 @@ requirements:
       - R5.5: stream_events endpoints SHALL expose server-sent events or watch streams for configured runtime event sources.
       - R5.6: health endpoints SHALL return liveness or readiness metadata without mutating machine state.
       - R5.7: static_metadata endpoints SHALL return configured schema, route, machine, tool, or profile metadata.
+      - R5.8: lifecycle_control endpoints SHALL validate configured lifecycle requests such as exit, pause, rollback request, resume, or signal injection and enqueue declared lifecycle signals for MachineSpec routing.
 
   R6:
     title: Request validation and responses
@@ -121,11 +124,22 @@ requirements:
       - R10.4: Queue overflow SHALL return a configured HTTP status and SHALL NOT silently drop accepted events unless configuration declares drop behavior.
       - R10.5: Handler failures SHALL map to configured HTTP status and a declared failure signal or structured non-signal response.
 
+  R11:
+    title: Event aggregation sources and lifecycle control
+    items:
+      - R11.1: Launched server state SHALL expose named event sources that rest_await_event can filter by server name, route name, signal, and queue policy.
+      - R11.2: Event queues SHALL preserve enough source metadata for rest_await_event to return the selected source, route, method, signal, payload, request ID, and correlation metadata.
+      - R11.3: Stopped server state SHALL notify rest_await_event according to configured stopped-source behavior: ignore, emit ServerStopped, or fail with CommandError.
+      - R11.4: lifecycle_control endpoints SHALL enqueue lifecycle request events and SHALL NOT call exit, pause, rollback, resume, or signal-injection operations directly.
+      - R11.5: Signal injection endpoints SHALL accept only configured allowlisted signals and SHALL include operator or caller metadata in the queued event payload.
+      - R11.6: Rollback request endpoints SHALL validate the configured target selector schema before enqueueing a rollback signal or request event.
+
 non_goals:
   - Defining outbound REST client tools; see srd028-rest-client-tools.
   - Implementing internal/tools/rest in this issue.
   - Defining a general web framework for arbitrary Go handlers.
   - Allowing HTTP handlers to run hidden workflows outside MachineSpec.
+  - Letting lifecycle control endpoints bypass rest_server_await, rest_await_event, or MachineSpec routing.
   - Generating Go server code from OpenAPI documents.
   - Replacing existing bench UI behavior in this issue.
 
@@ -144,6 +158,13 @@ tool_words:
     side_effects: [server_queue_consume, command_state]
     errors: [missing_server, await_timeout, queue_closed, payload_decode]
     undo: noop unless implementation supports returning an event to the queue.
+  - name: rest_await_event
+    input: server names, route filters, allowed signals, timeout, queue read policy, stopped-source behavior.
+    output: selected source, route, method, signal, validated payload, request ID, correlation metadata, redacted diagnostics.
+    signals: [configured_event_signal, AwaitTimedOut, ServerStopped, CommandError]
+    side_effects: [server_queue_consume, command_state]
+    errors: [missing_source, await_timeout, queue_closed, payload_decode, source_stopped]
+    undo: noop unless implementation supports returning an event to the source queue.
   - name: rest_server_stop
     input: server name, shutdown timeout, drain policy, listener ownership policy.
     output: server name, address, drained event count, dropped event count, shutdown status.
@@ -163,15 +184,15 @@ acceptance_criteria:
 
   - id: AC3
     criterion: rest_server_await requirements define blocking event receipt, queue input, output payload, emitted signals, side effects, errors, timeout, and undo behavior.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7]
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
 
   - id: AC4
     criterion: rest_server_stop requirements define graceful shutdown, drain policy, output summary, emitted signals, side effects, errors, and noop undo behavior.
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
 
   - id: AC5
-    criterion: Endpoint binding requirements cover emit_signal, emit_dynamic_signal, read_state, invoke_handler, stream_events, health, and static_metadata responses.
-    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7]
+    criterion: Endpoint binding requirements cover emit_signal, emit_dynamic_signal, read_state, invoke_handler, stream_events, health, static_metadata responses, and lifecycle_control event enqueueing.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8]
 
   - id: AC6
     criterion: Inbound HTTP requests become grammar-visible signals or state/metadata reads only through configured validation and response mapping.
@@ -188,6 +209,10 @@ acceptance_criteria:
   - id: AC9
     criterion: Observability, redaction, error, and recovery requirements cover server launch, requests, streams, queues, awaits, stops, partial failures, and handler failures.
     traces: [R9.1, R9.2, R9.3, R9.4, R10.1, R10.2, R10.3, R10.4, R10.5]
+
+  - id: AC10
+    criterion: Server event queues expose named sources for rest_await_event, stopped-source behavior is configurable, and lifecycle control endpoints enqueue signals instead of running hidden lifecycle actions.
+    traces: [R11.1, R11.2, R11.3, R11.4, R11.5, R11.6]
 
 depends_on:
   - srd_id: srd001-core-types

@@ -10,7 +10,7 @@ overview: |
   Rollback lifecycle contracts belong to 02.0. Declarative REST runtime
   contracts belong to 03.0. REST client and server contracts sit in the same
   release. Fourteen use cases exercise the SRDs across the
-  four releases. Five formal YAML test suites cover 179 acceptance test
+  four releases. Five formal YAML test suites cover 184 acceptance test
   cases across releases 00.0 through 03.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -162,11 +162,11 @@ srd_index:
     path: docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
   - id: srd026-lifecycle-tools
     title: Lifecycle Tool Adapters
-    summary: Requirements for checkpoint_history and checkpoint_rollback as STL builtin adapters around core checkpoint operations, selected by ToolDef declarations and MachineSpec transitions.
+    summary: Requirements for checkpoint_history, checkpoint_rollback, and generic lifecycle control words such as exit_agent, selected by ToolDef declarations and MachineSpec transitions.
     path: docs/specs/software-requirements/srd026-lifecycle-tools.yaml
   - id: srd027-rest-tool-runtime
     title: Declarative REST Tool Runtime
-    summary: Shared REST runtime requirements for declarative client and server boundary tools, OpenAPI imports, net/http execution, safety controls, observability, and rollback.
+    summary: Shared REST runtime requirements for declarative client and server boundary tools, OpenAPI imports, net/http execution, event fan-in, lifecycle control routing, safety controls, observability, and rollback.
     path: docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
   - id: srd028-rest-client-tools
     title: REST Client Tools
@@ -174,7 +174,7 @@ srd_index:
     path: docs/specs/software-requirements/srd028-rest-client-tools.yaml
   - id: srd029-rest-server-tools
     title: REST Server Tools
-    summary: Requirements for declarative inbound REST server words, route launch, await, stop, endpoint bindings, queues, OpenAPI server binding, and request validation.
+    summary: Requirements for declarative inbound REST server words, route launch, await, stop, generic event sources, lifecycle control endpoints, queues, OpenAPI server binding, and request validation.
     path: docs/specs/software-requirements/srd029-rest-server-tools.yaml
 
 config_format_index:
@@ -204,7 +204,7 @@ config_format_index:
     path: docs/specs/config-formats/llm-config-format.yaml
   - id: cfg-rest-tool-format
     title: REST Tool Configuration Format
-    summary: Planned YAML format for declarative REST definitions, clients, servers, OpenAPI imports, auth profiles, limits, retry policies, response mappings, and validation rules.
+    summary: Planned YAML format for declarative REST definitions, clients, servers, event sources, lifecycle control endpoints, OpenAPI imports, auth profiles, limits, retry policies, response mappings, and validation rules.
     path: docs/specs/config-formats/rest-tool-format.yaml
 
 semantic_model_index:
@@ -226,7 +226,7 @@ semantic_model_index:
     path: docs/specs/semantic-models/tool-language.yaml
   - id: sm-rest-tool-language
     title: REST Tool Language Semantic Model
-    summary: Semantic model for declarative REST client and server boundary words, REST definitions, async request state, inbound events, and OpenAPI import relationships.
+    summary: Semantic model for declarative REST client and server boundary words, REST definitions, async request state, inbound event fan-in, lifecycle control routing, and OpenAPI import relationships.
     path: docs/specs/semantic-models/rest-tool-language.yaml
 
 use_case_index:
@@ -365,7 +365,7 @@ test_suite_index:
       - rel03.0-uc004-openapi-import
       - rel03.0-uc005-ollama-openapi-model-listing
       - rel03.0-uc006-documentation-curator
-    formal_test_cases: 25
+    formal_test_cases: 30
     path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
 go_test_coverage:
@@ -381,11 +381,11 @@ go_test_coverage:
     mage integration:uc003 target records a skipped/manual-precondition result,
     not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
-    The 03.0 YAML coverage (25 cases) now names implemented Go tests for REST
+    The 03.0 YAML coverage (30 cases) names implemented Go tests for REST
     config loading, client execution, async send/await, server signal handling,
     OpenAPI import, credential resolution, redirect and size policies, server
     validation, redaction behavior, live Ollama OpenAPI model-listing, and
-    documentation-curator ownership, curator validation workflows, and migration smoke coverage. Package tests cover
+    documentation-curator ownership, curator validation workflows, and migration smoke coverage. It also names planned fan-in and lifecycle-control tests for rest_await_event and exit_agent routing. Package tests cover
     srd009-srd018 and domain packages. Run
     `go test ./... -v | grep -c '=== RUN'` for the current test function count.
 
@@ -453,7 +453,9 @@ coverage_gaps: |
   validation, and redaction now have executable coverage. invoke_handler and
   stream_events bindings have executable server coverage. The Qwen Ollama
   OpenAPI E2E flow and documentation-curator ownership proof now have formal
-  release 03.0 coverage.
+  release 03.0 coverage. Generic REST event fan-in, route and signal filters,
+  timeout handling, stopped-source policy, and REST-triggered lifecycle exit
+  now have planned formal cases that trace to follow-on implementation work.
 
   Current `go list ./...` output defines package coverage. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.

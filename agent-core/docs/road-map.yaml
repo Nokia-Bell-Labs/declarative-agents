@@ -98,7 +98,9 @@ releases:
     description: |
       REST client and REST server tools are declarative boundary tool families.
       Outbound words call configured upstreams; inbound words launch from agent
-      profiles and bind configured addresses. OpenAPI documents and REST
+      profiles and bind configured addresses. Generic await words can fan in
+      events across configured server queues, including lifecycle control
+      requests that route through MachineSpec. OpenAPI documents and REST
       definitions live with configuration. The runtime package is
       internal/tools/rest. net/http supplies client and server behavior.
       OpenAPI 3 loading uses kin-openapi. Shared REST definitions and async
@@ -134,5 +136,5 @@ releases:
         status: done
     planned_test_suites:
       - id: test-rel03.0-rest-tools
-        summary: Formal tests for REST runtime, client tools, server tools, OpenAPI import, Ollama E2E proof, and documentation-curator ownership
+        summary: Formal tests for REST runtime, client tools, server tools, generic event fan-in, lifecycle exit routing, OpenAPI import, Ollama E2E proof, and documentation-curator ownership
         status: in_progress
