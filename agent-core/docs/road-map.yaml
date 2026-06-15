@@ -109,7 +109,9 @@ releases:
       binding so one inbound HTTP request can run one short-lived MachineSpec
       sentence and map terminal output back to HTTP. Declarative document
       resources connect that request grammar to filesystem documentation corpora
-      without hardcoding demo document routes in the generic host.
+      without hardcoding demo document routes in the generic host. A planned
+      Puppeteer proof will cover the machine_request Knowledge Manager UX path
+      as the successor to the current direct-host smoke behavior.
     status: in_progress
     srds:
       - srd027-rest-tool-runtime
@@ -142,7 +144,10 @@ releases:
       - id: rel03.0-uc006-documentation-curator
         summary: Knowledge Manager serves documentation curator UX and REST tools
         status: done
+      - id: rel03.0-uc007-machine-request-documentation-ux
+        summary: Knowledge Manager UX requests use machine_request and declarative document resources
+        status: planned
     planned_test_suites:
       - id: test-rel03.0-rest-tools
-        summary: Formal tests for REST runtime, client tools, server tools, generic event fan-in, lifecycle exit payload propagation, terminal routing, listener shutdown, OpenAPI import, Ollama E2E proof, and documentation-curator ownership
+        summary: Formal tests for REST runtime, client tools, server tools, generic event fan-in, lifecycle exit payload propagation, terminal routing, listener shutdown, OpenAPI import, Ollama E2E proof, documentation-curator ownership, and planned Puppeteer machine_request UX coverage
         status: done
