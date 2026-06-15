@@ -151,3 +151,34 @@ releases:
       - id: test-rel03.0-rest-tools
         summary: Formal tests for REST runtime, client tools, server tools, generic event fan-in, lifecycle exit payload propagation, terminal routing, listener shutdown, OpenAPI import, Ollama E2E proof, documentation-curator ownership, and Puppeteer machine_request UX coverage
         status: done
+
+  - version: "04.0"
+    name: Embedded monitor metrics and REST API
+    description: |
+      Embedded monitor support is planned as a reusable runtime capability
+      inside the agent process. It will record tool-owned metric samples in a
+      bounded in-memory store, export normalized samples through OpenTelemetry
+      metrics, and expose REST/OpenAPI read paths over cached monitor state.
+
+      The monitor is not a Kubernetes sidecar, daemon, or required external
+      process. External collectors and supervisors may read or receive exported
+      data, but the runtime owns the cache and recorder ports.
+    status: planned
+    srds:
+      - srd032-monitor-store-metrics
+      - srd033-monitor-rest-api
+    semantic_models:
+      - sm-tool-metrics
+    config_formats:
+      - cfg-monitor-rest-api
+    planned_use_cases:
+      - id: rel04.0-uc001-monitor-metrics
+        summary: Agent records tool-owned metrics in the embedded monitor store and exports them through OpenTelemetry
+        status: planned
+      - id: rel04.0-uc002-monitor-rest-api
+        summary: Supervisor reads cached monitor state through configured REST and OpenAPI endpoints
+        status: planned
+    planned_test_suites:
+      - id: test-rel04.0-monitor
+        summary: Formal tests for monitor store behavior, metric emission, OpenTelemetry export, and REST/OpenAPI cached-state reads
+        status: planned
