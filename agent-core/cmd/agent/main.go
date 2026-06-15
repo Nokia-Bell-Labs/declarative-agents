@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel/metric"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation/bench"
 	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation/bench/ui"
 	docsapi "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/knowledge/documentation"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/pipeline"
@@ -95,6 +97,7 @@ type agentState struct {
 	request      string
 	output       string
 	stateStore   core.StateStore
+	monitorStore *monitor.Store
 	restDefs     toolrest.Collection
 	shutdown     func()
 }
@@ -125,6 +128,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	var tracer tracing.Tracer = tracing.NoopTracer{}
+	var meter metric.Meter
 	if cfg.OTelLog != "" {
 		parentCtx, _ := telemetry.ParseParentSpan(cfg.OTelParent)
 		exporter := telemetry.ExporterConfig{FilePath: cfg.OTelLog}
@@ -133,6 +137,7 @@ func run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("otel init: %w", err)
 		}
 		defer shutdown()
+		meter = t.Meter()
 		tracer = telemetry.TraceAdapter{T: t}
 	}
 
@@ -164,6 +169,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := catalog.ValidateToolEmits(machineSpec, defs); err != nil {
 		return err
 	}
+	monitorRuntime := newMonitorRuntime(machineSpec, defs, restDefs, meter)
 	budgetDefaults := core.Budget{
 		MaxIterations: 100,
 	}
@@ -198,6 +204,7 @@ func run(cmd *cobra.Command, args []string) error {
 		request:      cfg.Request,
 		output:       cfg.Output,
 		stateStore:   stateStore,
+		monitorStore: monitorRuntime.Store,
 		restDefs:     restDefs,
 		shutdown:     shutdown.Request,
 	}
@@ -222,17 +229,18 @@ func run(cmd *cobra.Command, args []string) error {
 	})
 
 	params := core.LoopParams{
-		MachineFile:  cfg.Machine,
-		MachineSpec:  &machineSpec,
-		AgentName:    "agent",
-		ModelName:    st.model,
-		ProviderName: st.providerName,
-		Trace:        tracer,
-		Budget:       budget,
-		ToolAction:   toolAction,
-		Registry:     reg,
-		Directory:    cfg.Directory,
-		StateStore:   stateStore,
+		MachineFile:     cfg.Machine,
+		MachineSpec:     &machineSpec,
+		AgentName:       "agent",
+		ModelName:       st.model,
+		ProviderName:    st.providerName,
+		Trace:           tracer,
+		Budget:          budget,
+		ToolAction:      toolAction,
+		Registry:        reg,
+		Directory:       cfg.Directory,
+		StateStore:      stateStore,
+		MonitorRecorder: monitorRuntime.Recorder,
 		Hooks: core.LoopHooks{
 			AfterDispatch: afterDispatch,
 			SnapshotConversation: func() (json.RawMessage, error) {
@@ -362,6 +370,56 @@ func resolveStateStoreRoot(cfg runtimeConfig) string {
 		return filepath.Join(cfg.Directory, defaultStateStoreDirName)
 	}
 	return ""
+}
+
+type monitorRuntime struct {
+	Store    *monitor.Store
+	Recorder monitor.RuntimeRecorder
+}
+
+func newMonitorRuntime(
+	machine core.MachineSpec,
+	defs []catalog.ToolDef,
+	restDefs toolrest.Collection,
+	meter metric.Meter,
+) monitorRuntime {
+	if !monitorConfigured(machine, defs, restDefs) {
+		return monitorRuntime{}
+	}
+	store := monitor.NewStore(monitor.Limits{})
+	return monitorRuntime{Store: store, Recorder: monitor.NewRecorder(store, meter)}
+}
+
+func monitorConfigured(machine core.MachineSpec, defs []catalog.ToolDef, restDefs toolrest.Collection) bool {
+	if len(machine.MetricLabels) > 0 || transitionsHaveMetricLabels(machine.Transitions) {
+		return true
+	}
+	for _, def := range defs {
+		if len(def.Metrics.Instruments) > 0 || len(def.Metrics.Attributes) > 0 || def.Metrics.Disabled {
+			return true
+		}
+	}
+	return restDefinitionsHaveMonitorViews(restDefs)
+}
+
+func transitionsHaveMetricLabels(transitions []core.TransitionSpec) bool {
+	for _, transition := range transitions {
+		if len(transition.MetricLabels) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func restDefinitionsHaveMonitorViews(defs toolrest.Collection) bool {
+	for _, server := range defs.Servers {
+		for _, endpoint := range server.Endpoints {
+			if endpoint.MonitorView != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func commandContext(cmd *cobra.Command) context.Context {
