@@ -294,14 +294,34 @@ func (p *LazyMachineRequestProxy) requestRunner() rest.MachineRequestRunner {
 	})
 }
 
-func registerMachineRequestFactories(br *toolregistry.BuiltinRegistry, _ map[string]bool) {
-	registerResourceFactory(br, "list_resource", func(root string, cfg filesystem.ResourceConfig) core.Builder {
-		return requestListResourceBuilder{root: root, resources: cfg}
-	})
-	registerResourceFactory(br, "read_resource", func(root string, cfg filesystem.ResourceConfig) core.Builder {
-		return requestReadResourceBuilder{root: root, resources: cfg}
-	})
-	RegisterRequestFactories(br)
+func registerMachineRequestFactories(br *toolregistry.BuiltinRegistry, selected map[string]bool) {
+	if selectedBuiltinInit(selected, "list_resource") {
+		registerResourceFactory(br, "list_resource", func(root string, cfg filesystem.ResourceConfig) core.Builder {
+			return requestListResourceBuilder{root: root, resources: cfg}
+		})
+	}
+	if selectedBuiltinInit(selected, "read_resource") {
+		registerResourceFactory(br, "read_resource", func(root string, cfg filesystem.ResourceConfig) core.Builder {
+			return requestReadResourceBuilder{root: root, resources: cfg}
+		})
+	}
+	registerSelectedResponseFactory(br, selected, "doc_index_response", "DocumentIndexReady")
+	registerSelectedResponseFactory(br, selected, "doc_detail_response", "DocumentDetailReady")
+}
+
+func selectedBuiltinInit(selected map[string]bool, init string) bool {
+	return selected[init]
+}
+
+func registerSelectedResponseFactory(
+	br *toolregistry.BuiltinRegistry,
+	selected map[string]bool,
+	name string,
+	signal core.Signal,
+) {
+	if selectedBuiltinInit(selected, name) {
+		br.Register(name, responseFactory(name, signal))
+	}
 }
 
 type requestListResourceBuilder struct {

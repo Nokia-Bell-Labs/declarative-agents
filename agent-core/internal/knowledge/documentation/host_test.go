@@ -21,6 +21,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
+	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 )
 
@@ -110,6 +111,40 @@ func TestStandaloneServerConformanceUsesRESTMachineRequestRoutes(t *testing.T) {
 	require.Equal(t, "document", trace["route"])
 	require.Equal(t, "documentation-curator-request", trace["machine"])
 	require.Equal(t, "DocumentDetailReady", trace["terminal_signal"])
+}
+
+func TestLazyMachineRequestProxyOwnsBackendLifecycle(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	docsDir := filepath.Join(root, "docs")
+	writeDocFixture(t, docsDir, "VISION.yaml", "title: Vision\n")
+	proxy := NewLazyMachineRequestProxy(curatorProfilePath(t), docsDir)
+	t.Cleanup(func() { _ = proxy.Close() })
+
+	rec := getDocsRoute(t, proxy, "/api/v1/docs")
+	require.Equal(t, http.StatusOK, rec.Code)
+	addr := proxyBackendAddr(t, proxy)
+
+	require.NoError(t, proxy.Close())
+	requireAddressReleased(t, addr)
+}
+
+func TestMachineRequestFactoriesUseSelectedInits(t *testing.T) {
+	t.Parallel()
+	builtins := toolregistry.NewBuiltinRegistry()
+	registerMachineRequestFactories(builtins, map[string]bool{
+		"list_resource":      true,
+		"doc_index_response": true,
+	})
+
+	_, ok := builtins.Resolve("list_resource")
+	require.True(t, ok)
+	_, ok = builtins.Resolve("doc_index_response")
+	require.True(t, ok)
+	_, ok = builtins.Resolve("read_resource")
+	require.False(t, ok)
+	_, ok = builtins.Resolve("doc_detail_response")
+	require.False(t, ok)
 }
 
 func TestServeDocumentationUndoStopsOwnedListener(t *testing.T) {
@@ -265,6 +300,14 @@ func responseTrace(t *testing.T, data []byte) map[string]interface{} {
 	trace, _ := body["trace"].(map[string]interface{})
 	require.NotNil(t, trace)
 	return trace
+}
+
+func proxyBackendAddr(t *testing.T, proxy *LazyMachineRequestProxy) string {
+	t.Helper()
+	proxy.mu.Lock()
+	defer proxy.mu.Unlock()
+	require.NotEmpty(t, proxy.baseURL)
+	return strings.TrimPrefix(proxy.baseURL, "http://")
 }
 
 func TestStandaloneServerRunsActionsThroughWorkflowRunner(t *testing.T) {

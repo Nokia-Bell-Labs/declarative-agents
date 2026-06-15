@@ -132,7 +132,7 @@ implementation_status:
     - internal/tools/rest implements the machine_request endpoint binding.
     - agents/knowledge-manager/documentation-curator/rest.yaml routes document index and detail requests through documentation_curator_requests machine_request endpoints.
     - agents/knowledge-manager/documentation-curator/request-machine.yaml defines the short-lived request machine used by the generic REST server path.
-    - mage integration:uc007 and opt-in conformance tests cover request-to-machine response behavior and trace evidence.
-  planned_follow_up:
-    - internal/tools/rest should emit server, route, and request machine trace fields directly in the generic machine_request response envelope instead of relying on Knowledge Manager proxy enrichment.
-    - internal/knowledge/documentation should make the generic REST route conformance assertion run under plain go test without AGENT_CORE_MACHINE_REQUEST_CONFORMANCE.
+    - ProfileMachineRequestRunner loads request ToolDefs from trusted profile declaration roots and selects only request MachineSpec action names.
+    - internal/tools/rest emits server, route, request machine, terminal signal, iteration, and run status trace fields in the generic machine_request response envelope.
+    - internal/knowledge/documentation owns the documentation_curator_requests lifecycle through a same-origin proxy that stays a transport adapter over the generic REST server.
+    - mage integration:uc007 and plain go test cover request-to-machine response behavior, trace evidence, selected request factories, and same-origin proxy lifecycle cleanup.

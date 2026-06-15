@@ -600,10 +600,12 @@ overview:
       documentation_curator_requests.documents is the generic REST server route.
       For document detail requests, documentation_curator_requests.document is
       the route. Each accepted request runs one short-lived MachineSpec
-      sentence. Document resources expose a configured filesystem corpus such
-      as docs/ through reusable resource words. Knowledge Manager UI assets,
-      labels, routes, actions, and placement live with the
-      documentation-curator profile as human actor configuration.
+      sentence. The same-origin documentation host owns that request server
+      lazily as a transport adapter over trusted REST profile configuration.
+      Document resources expose a configured filesystem corpus such as docs/
+      through reusable resource words. Knowledge Manager UI assets, labels,
+      routes, actions, and placement live with the documentation-curator profile
+      as human actor configuration.
     machine_request_ux_diagram: |
       ```mermaid
       flowchart LR
@@ -634,6 +636,8 @@ overview:
         Manager proof uses the generic REST server routes
         documentation_curator_requests.documents and
         documentation_curator_requests.document, not a docs-specific runner.
+        Profile-backed request runners load ToolDefs from trusted declaration
+        roots and select only actions named by the request MachineSpec.
       document_resources: |
         Document resources resolve configured filesystem roots, include
         patterns, extension allowlists, response modes, and path safety policy.
@@ -660,7 +664,7 @@ overview:
         registration. internal/tools/rest provides factories and command
         implementations that those packages wire into configured profiles.
     deployment:
-      - REST server tools are launched only by configured agent profiles.
+      - REST server tools are launched by configured agent profiles or by same-origin host proxies that own a configured request server lifecycle as thin adapters over generic REST machine_request routes.
       - REST server tools bind addresses declared in profile or tool configuration.
       - REST client tools call upstreams declared in profile or tool configuration.
       - OpenAPI documents live with agent/profile/tool configuration.
@@ -1380,9 +1384,9 @@ implementation_status:
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
     - done: REST runtime package — declarative client, async client, server, and OpenAPI import behavior in internal/tools/rest
     - done: REST sample profile — agents/rest and testdata/integration/rel03-rest-tools fixtures for release 03.0 flows
-    - done: Machine request REST path — documentation_curator_requests machine_request routes execute agents/knowledge-manager/documentation-curator/request-machine.yaml for document index and detail requests
+    - done: Machine request REST path — documentation_curator_requests machine_request routes execute agents/knowledge-manager/documentation-curator/request-machine.yaml for document index and detail requests, with request-machine actions selected from trusted profile declarations
     - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior
-    - done: Knowledge Manager machine_request proof — mage integration:uc007 verifies generic REST route trace evidence, raw YAML, rendered HTML, and nested document path evidence
+    - done: Knowledge Manager machine_request proof — mage integration:uc007 and plain go test verify generic REST route trace evidence, owned same-origin proxy lifecycle, raw YAML, rendered HTML, and nested document path evidence
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd026)
