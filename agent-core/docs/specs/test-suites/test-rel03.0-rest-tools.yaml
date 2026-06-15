@@ -21,7 +21,7 @@ preconditions:
   - Documentation-curator tests use local fixture directories and do not require a browser.
   - Machine-request documentation UX coverage uses Puppeteer through mage integration:uc007 and internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts.
   - Generic machine_request trace metadata should be covered by internal/tools/rest Go tests without relying on Knowledge Manager proxy enrichment.
-  - Knowledge Manager generic REST route conformance should run under plain go test once the remaining environment gate is removed.
+  - Knowledge Manager generic REST route conformance runs under plain go test without browser prerequisites.
 
 test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
@@ -1024,9 +1024,9 @@ test_cases:
     description: |
       Run the opt-in conformance tests for machine_request endpoints. The tests
       require a configured profile and request-machine file, not an injected
-      MachineSpec, and cover nested catch-all document paths. Planned follow-up
-      coverage moves server, route, and machine identity into the generic
-      internal/tools/rest trace envelope.
+      MachineSpec, and cover nested catch-all document paths. The generic
+      internal/tools/rest trace envelope now carries server, route, and machine
+      identity.
     inputs:
       conformance_env: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1
       profile: agents/knowledge-manager/documentation-curator/profile.yaml
@@ -1039,8 +1039,8 @@ test_cases:
       terminal_signal_mapped: DocumentDetailReady
       profile_declaration_roots_used: true
       request_machine_actions_select_tools: true
-      generic_trace_envelope_planned_go_test: TestRESTServerMachineRequestTraceEnvelope
-      generic_trace_contains_server_route_machine: planned
+      generic_trace_envelope_go_test: TestRESTServerMachineRequestTraceEnvelope
+      generic_trace_contains_server_route_machine: true
     traces:
       - rel03.0-uc007-machine-request-documentation-ux S2
       - rel03.0-uc007-machine-request-documentation-ux S3
@@ -1051,16 +1051,15 @@ test_cases:
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Knowledge Manager routes docs API through generic machine_request
-    go_test: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 go test ./internal/knowledge/documentation -run TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
+    go_test: go test ./internal/knowledge/documentation -run TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
     status: done
     description: |
-      Run the opt-in Knowledge Manager conformance check. The docs API response
-      trace must identify the generic REST machine_request server route, request
-      machine, terminal signal, and request-scoped run summary. Planned
-      follow-up coverage removes the AGENT_CORE_MACHINE_REQUEST_CONFORMANCE gate
-      so plain go test catches regressions in the generic route path.
+      Run the always-on Knowledge Manager conformance check. The docs API
+      response trace must identify the generic REST machine_request server
+      route, request machine, terminal signal, and request-scoped run summary.
+      Puppeteer remains under mage integration:uc007.
     inputs:
-      conformance_env: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1
+      conformance_env: none
       routes:
         - GET /api/v1/docs
         - GET /api/v1/docs/{path...}
@@ -1072,8 +1071,8 @@ test_cases:
       machine_name_present: true
       terminal_signal_present: true
       run_summary_present: true
-      current_conformance_gate: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE
-      always_on_go_test_planned: TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
+      current_conformance_gate: none
+      always_on_go_test: TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
       puppeteer_remains_in_integration_target: true
     traces:
       - rel03.0-uc007-machine-request-documentation-ux S2

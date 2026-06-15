@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -95,7 +94,6 @@ func TestStandaloneServerStartServesDocsAPI(t *testing.T) {
 
 func TestStandaloneServerConformanceUsesRESTMachineRequestRoutes(t *testing.T) {
 	t.Parallel()
-	requireMachineRequestConformance(t)
 	root := t.TempDir()
 	docsDir := filepath.Join(root, "docs")
 	writeDocFixture(t, docsDir, "SPECIFICATIONS.yaml", "id: specs\n")
@@ -267,13 +265,6 @@ func responseTrace(t *testing.T, data []byte) map[string]interface{} {
 	trace, _ := body["trace"].(map[string]interface{})
 	require.NotNil(t, trace)
 	return trace
-}
-
-func requireMachineRequestConformance(t *testing.T) {
-	t.Helper()
-	if os.Getenv("AGENT_CORE_MACHINE_REQUEST_CONFORMANCE") != "1" {
-		t.Skip("set AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 to run failing-first conformance tests")
-	}
 }
 
 func TestStandaloneServerRunsActionsThroughWorkflowRunner(t *testing.T) {
