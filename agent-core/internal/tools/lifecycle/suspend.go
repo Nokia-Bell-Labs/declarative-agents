@@ -26,6 +26,7 @@ type FactoryDeps struct {
 	StateStore core.StateStore
 	Workspace  core.Workspace
 	Tracer     tracing.Tracer
+	Shutdown   func()
 }
 
 // RegisterFactories registers lifecycle builtin factories.
@@ -36,6 +37,13 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 			return nil, err
 		}
 		return &SuspendBuilder{Config: cfg, StateStore: deps.StateStore, Workspace: deps.Workspace, Tracer: deps.Tracer}, nil
+	})
+	br.Register("exit_agent", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var cfg ExitConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		return ExitBuilder{Config: cfg, Shutdown: deps.Shutdown, Tracer: deps.Tracer}, nil
 	})
 }
 

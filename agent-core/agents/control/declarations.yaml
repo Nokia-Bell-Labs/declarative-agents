@@ -1,0 +1,68 @@
+tools:
+  - name: launch_agent_control
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    description: Launch the generic REST agent control server.
+    emits: [ServerLaunched, CommandError]
+    parameters:
+      type: object
+      properties: {}
+    output:
+      description: Control server launch result.
+      schema:
+        type: object
+    side_effects:
+      - kind: network_listen
+        target: agent_control_server
+        state: listener_started
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the launched control server.
+    errors:
+      - signal: CommandError
+        condition: Control server config, bind, or route setup failed.
+    relationships:
+      before: [await_agent_control]
+    config:
+      rest_ref: agent_control
+
+  - name: await_agent_control
+    type: builtin
+    init: rest_await_event
+    category: boundary
+    description: Await one generic REST lifecycle control event.
+    emits: [ExitRequested, PauseRequested, RollbackRequested, AwaitTimedOut, ServerStopped, CommandError]
+    parameters:
+      type: object
+      properties: {}
+    output:
+      description: Selected control event.
+      schema:
+        type: object
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: selected_event_consumed
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Queue restore is not implemented.
+    errors:
+      - signal: CommandError
+        condition: Control source is missing or stopped with command_error policy.
+    relationships:
+      after: [launch_agent_control]
+      before: [exit_agent]
+    config:
+      sources:
+        - server: agent_control
+          routes: [exit, pause, rollback]
+          signals: [ExitRequested, PauseRequested, RollbackRequested]
+      timeout: 30s
+      stopped_behavior: emit_server_stopped

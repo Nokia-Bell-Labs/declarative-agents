@@ -95,6 +95,7 @@ type agentState struct {
 	output       string
 	stateStore   core.StateStore
 	restDefs     toolrest.Collection
+	shutdown     func()
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -175,6 +176,7 @@ func run(cmd *cobra.Command, args []string) error {
 		output:       cfg.Output,
 		stateStore:   stateStore,
 		restDefs:     restDefs,
+		shutdown:     func() {},
 	}
 
 	registerBuiltinFactories(builtins, st, selectedInits)
@@ -472,7 +474,9 @@ func resetHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
 
 func registerLifecycleFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
-		lifecycle.RegisterFactories(br, lifecycle.FactoryDeps{StateStore: st.stateStore, Tracer: st.tracer})
+		lifecycle.RegisterFactories(br, lifecycle.FactoryDeps{
+			StateStore: st.stateStore, Tracer: st.tracer, Shutdown: st.shutdown,
+		})
 		br.Register("checkpoint_history", checkpointHistoryFactory(st))
 		br.Register("checkpoint_rollback", checkpointRollbackFactory(st))
 	}
