@@ -172,18 +172,18 @@ transitions:
 func TestParseMachineSpec_MetricLabelsRejectUnsafeValues(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name  string
-		label string
-		want  string
+		name string
+		yaml string
+		want string
 	}{
-		{name: "invalid name", label: "9bad: value", want: "not a valid metric name"},
-		{name: "unsafe value", label: "phase: raw_prompt", want: "not a safe metric label"},
+		{name: "invalid machine label name", yaml: metricLabelYAML("metric_labels:\n  9bad: value"), want: "not a valid metric name"},
+		{name: "unsafe machine label value", yaml: metricLabelYAML("metric_labels:\n  phase: raw_prompt"), want: "not a safe metric label"},
+		{name: "unsafe transition label value", yaml: transitionMetricLabelYAML("phase: arbitrary_url"), want: "not a safe metric label"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			yaml := strings.Replace(validYAML, "name: test-machine", "name: test-machine\nmetric_labels:\n  "+tc.label, 1)
-			_, err := ParseMachineSpec([]byte(yaml))
+			_, err := ParseMachineSpec([]byte(tc.yaml))
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -192,6 +192,14 @@ func TestParseMachineSpec_MetricLabelsRejectUnsafeValues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func metricLabelYAML(labels string) string {
+	return strings.Replace(validYAML, "name: test-machine", "name: test-machine\n"+labels, 1)
+}
+
+func transitionMetricLabelYAML(label string) string {
+	return strings.Replace(validYAML, "    action: do_work", "    action: do_work\n    metric_labels:\n      "+label, 1)
 }
 
 func TestParseMachineSpec_RichValidationErrorsUseNames(t *testing.T) {

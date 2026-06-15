@@ -40,7 +40,7 @@ func dispatchWithMonitor(
 	defer done()
 
 	if aware, ok := cmd.(MonitorRecorderAware); ok && rec != nil {
-		aware.SetMonitorRecorder(rec)
+		aware.SetMonitorRecorder(metricLabelRecorder{rec: rec, labels: dispatchCtx.MetricLabels})
 	}
 	res := SafeExecute(cmd, timeout)
 
@@ -120,8 +120,14 @@ func dispatchSample(dc monitor.DispatchContext, res Result) monitor.MetricSample
 		State:      dc.State,
 		Signal:     string(res.Signal),
 		Status:     dispatchStatus(res),
-		Attributes: map[string]string{"agent.name": dc.AgentName},
+		Attributes: dispatchAttributes(dc),
 	}
+}
+
+func dispatchAttributes(dc monitor.DispatchContext) map[string]string {
+	attrs := cloneMetricLabels(dc.MetricLabels)
+	attrs["agent.name"] = dc.AgentName
+	return attrs
 }
 
 func dispatchOutcomeSample(base monitor.MetricSample, res Result) monitor.MetricSample {
@@ -138,6 +144,42 @@ func dispatchStatus(res Result) string {
 		return "failure"
 	}
 	return "success"
+}
+
+type metricLabelRecorder struct {
+	rec    monitor.RuntimeRecorder
+	labels map[string]string
+}
+
+func (r metricLabelRecorder) RecordMetric(ctx context.Context, sample monitor.MetricSample) error {
+	sample.Attributes = mergeMetricAttributes(sample.Attributes, r.labels)
+	return r.rec.RecordMetric(ctx, sample)
+}
+
+func (r metricLabelRecorder) RecordDiagnostic(ctx context.Context, diagnostic monitor.Diagnostic) error {
+	if diag, ok := r.rec.(monitor.DiagnosticRecorder); ok {
+		return diag.RecordDiagnostic(ctx, diagnostic)
+	}
+	return nil
+}
+
+func mergeMetricAttributes(base map[string]string, labels map[string]string) map[string]string {
+	out := make(map[string]string, len(base)+len(labels))
+	for name, value := range base {
+		out[name] = value
+	}
+	for name, value := range labels {
+		out[name] = value
+	}
+	return out
+}
+
+func cloneMetricLabels(labels map[string]string) map[string]string {
+	out := make(map[string]string, len(labels))
+	for name, value := range labels {
+		out[name] = value
+	}
+	return out
 }
 
 // FillDuration sets the result's duration from wall clock if not already set.
