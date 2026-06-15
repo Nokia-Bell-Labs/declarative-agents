@@ -596,12 +596,14 @@ overview:
       machine dispatches them.
 
       Machine request bindings and document resources extend this model for the
-      Knowledge Manager demo. A machine_request endpoint turns one HTTP request
-      into one short-lived MachineSpec sentence. Document resources expose a
-      configured filesystem corpus such as docs/ through reusable resource
-      words. Knowledge Manager UI assets, labels, routes, actions, and
-      placement live with the documentation-curator profile as human actor
-      configuration.
+      Knowledge Manager demo. For the document index,
+      documentation_curator_requests.documents is the generic REST server route.
+      For document detail requests, documentation_curator_requests.document is
+      the route. Each accepted request runs one short-lived MachineSpec
+      sentence. Document resources expose a configured filesystem corpus such
+      as docs/ through reusable resource words. Knowledge Manager UI assets,
+      labels, routes, actions, and placement live with the
+      documentation-curator profile as human actor configuration.
     machine_request_ux_diagram: |
       ```mermaid
       flowchart LR
@@ -628,7 +630,10 @@ overview:
       machine_request: |
         Machine request bindings validate one inbound HTTP request, seed a
         configured request machine, run core.Loop for that short-lived sentence,
-        and map terminal response word output back to HTTP.
+        and map terminal response word output back to HTTP. The Knowledge
+        Manager proof uses the generic REST server routes
+        documentation_curator_requests.documents and
+        documentation_curator_requests.document, not a docs-specific runner.
       document_resources: |
         Document resources resolve configured filesystem roots, include
         patterns, extension allowlists, response modes, and path safety policy.
@@ -1346,7 +1351,7 @@ package_specification_coverage: |
   outside profile configs.
 
 implementation_status:
-  current_focus: Release 03.0 REST design audit and release documentation verification
+  current_focus: Release 03.0 REST conformance and Knowledge Manager documentation UX verification
   progress:
     - done: Core engine (internal/runtime/core) — types, state machine, dispatch, registry, loop, machine config
     - done: Tracing port (internal/observability/tracing) — 5-method Tracer interface with NoopTracer
@@ -1375,6 +1380,9 @@ implementation_status:
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
     - done: REST runtime package — declarative client, async client, server, and OpenAPI import behavior in internal/tools/rest
     - done: REST sample profile — agents/rest and testdata/integration/rel03-rest-tools fixtures for release 03.0 flows
+    - done: Machine request REST path — documentation_curator_requests machine_request routes execute agents/knowledge-manager/documentation-curator/request-machine.yaml for document index and detail requests
+    - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior
+    - done: Knowledge Manager machine_request proof — mage integration:uc007 verifies generic REST route trace evidence, raw YAML, rendered HTML, and nested document path evidence
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd026)

@@ -17,15 +17,15 @@ trigger: |
 flow:
   - F1: The agent loads agents/knowledge-manager/documentation-curator/profile.yaml with machine_request endpoints and the documentation_corpus document resource selected.
   - F2: The browser opens the Knowledge Manager documentation URL served from profile-owned UI assets.
-  - F3: The UI requests the document index. The HTTP route validates the request and starts one short-lived request machine.
+  - F3: The UI requests the document index through the generic REST documentation_curator_requests.documents machine_request route. Request validation runs before one short-lived request machine starts.
   - F4: The request machine dispatches a document list word against the configured docs/ corpus and emits DocumentListReady.
   - F5: The response word maps DocumentListReady output to the HTTP index response. The UI shows sidebar categories from the returned document list.
   - F6: The operator selects SPECIFICATIONS.yaml or another YAML document from the sidebar.
-  - F7: The browser requests that raw YAML document. The machine_request route validates the path and starts a second short-lived request machine.
+  - F7: The browser requests that raw YAML document through the generic REST documentation_curator_requests.document machine_request route. Path validation runs before a second short-lived request machine starts.
   - F8: The request machine dispatches a document get word. Path policy denies traversal and permits only configured YAML or Markdown extensions.
   - F9: The response word returns raw YAML and parsed content according to the document resource response mode.
   - F10: The UI shows the document as HTML and exposes the raw YAML view.
-  - F11: Puppeteer verifies visible content, raw YAML retrieval, rendered HTML, and trace evidence that each browser request has a request ID, machine name, terminal signal, and RunResult summary.
+  - F11: Puppeteer verifies visible content, raw YAML retrieval, rendered HTML, nested document path evidence, captured request IDs, machine names, terminal signals, and RunResult summaries.
   - F12: Browser, server, or machine failures produce a structured Puppeteer failure report with screenshot, console output, network log, and captured trace metadata.
 
 touchpoints:
@@ -43,12 +43,12 @@ success_criteria:
     traces:
       - srd031-declarative-document-resources AC6
   - id: S2
-    criterion: The document index request is fulfilled by one machine_request run and returns a sidebar-ready document list.
+    criterion: The document index request is fulfilled by one generic REST machine_request run and returns a sidebar-ready document list.
     traces:
       - srd030-machine-request-rest-binding AC1
       - srd031-declarative-document-resources AC1
   - id: S3
-    criterion: The raw YAML document request is fulfilled by one machine_request run and returns raw YAML plus configured parsed content.
+    criterion: The raw YAML document request is fulfilled by one generic REST machine_request run and returns raw YAML plus configured parsed content.
     traces:
       - srd030-machine-request-rest-binding AC5
       - srd031-declarative-document-resources AC5
@@ -68,7 +68,7 @@ success_criteria:
 
 out_of_scope:
   - Applying documentation patches from the browser.
-  - Replacing the current rel03.0-uc006 direct-host smoke proof before implementation.
+  - Replacing the current rel03.0-uc006 direct-host smoke proof.
   - Running Puppeteer against non-local public listener addresses.
   - Letting browser input choose document roots, parser modes, or machine files.
 

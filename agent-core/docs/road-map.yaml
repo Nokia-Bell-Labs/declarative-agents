@@ -105,14 +105,13 @@ releases:
       internal/tools/rest. net/http supplies client and server behavior.
       OpenAPI 3 loading uses kin-openapi. Shared REST definitions and async
       inbox support are implemented, while generated Go clients and servers are
-      excluded. New Knowledge Manager demo work adds a machine_request server
-      binding so one inbound HTTP request can run one short-lived MachineSpec
-      sentence and map terminal output back to HTTP. Declarative document
-      resources connect that request grammar to filesystem documentation corpora
-      without hardcoding demo document routes in the generic host. A Puppeteer
-      proof now covers the machine_request Knowledge Manager UX path as the
-      successor to the current direct-host smoke behavior. The command is
-      mage integration:uc007.
+      excluded. The Knowledge Manager demo uses machine_request server bindings
+      so one inbound HTTP request can run one short-lived MachineSpec sentence
+      and map terminal output back to HTTP. Declarative document resources
+      connect that request grammar to filesystem documentation corpora through
+      reusable resource words. A Puppeteer proof covers the generic REST
+      machine_request Knowledge Manager UX path. The command is mage
+      integration:uc007.
     status: in_progress
     srds:
       - srd027-rest-tool-runtime
