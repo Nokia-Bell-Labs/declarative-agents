@@ -42,6 +42,86 @@ func TestRESTServer_AwaitInboundSignals(t *testing.T) {
 	requireAwaitSignal(t, state, "control", "AwaitTimedOut")
 }
 
+func TestRESTAwaitEvent_MultiSourceFanIn(t *testing.T) {
+	t.Parallel()
+
+	state := NewServerState()
+	_, _ = launchRESTServerWithState(t, state, namedControlServer("first"), LimitProfile{})
+	defer stopRESTServer(t, state, "first")
+	_, secondURL := launchRESTServerWithState(t, state, namedControlServer("second"), LimitProfile{})
+	defer stopRESTServer(t, state, "second")
+
+	postStatus(t, secondURL+"/approve/123", `{}`, http.StatusAccepted)
+	event, signal, err := state.AwaitAny(AwaitAnyOptions{
+		Sources: []AwaitSource{{Server: "first"}, {Server: "second"}},
+		Timeout: time.Second,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Approved", signal)
+	require.Equal(t, "second", event.Source)
+	require.Equal(t, "approve", event.Route)
+}
+
+func TestRESTAwaitEvent_SourceFiltersPreserveUnrelatedEvents(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "control")
+
+	postStatus(t, baseURL+"/domain?signal=DomainEventReceived", `{}`, http.StatusAccepted)
+	postStatus(t, baseURL+"/approve/123", `{}`, http.StatusAccepted)
+	event, signal, err := state.AwaitAny(AwaitAnyOptions{
+		Sources: []AwaitSource{{
+			Server: "control", Routes: []string{"approve"}, Signals: []string{"Approved"},
+		}},
+		Timeout: time.Second,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Approved", signal)
+	require.Equal(t, "approve", event.Route)
+
+	preserved, preservedSignal, err := state.Await("control")
+	require.NoError(t, err)
+	require.Equal(t, "DomainEventReceived", preservedSignal)
+	require.Equal(t, "domain", preserved.Route)
+}
+
+func TestRESTAwaitEvent_Timeout(t *testing.T) {
+	t.Parallel()
+
+	state, _ := launchRESTServer(t, namedControlServer("timeout"), LimitProfile{})
+	defer stopRESTServer(t, state, "timeout")
+
+	_, signal, err := state.AwaitAny(AwaitAnyOptions{
+		Sources: []AwaitSource{{Server: "timeout"}}, Timeout: 10 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "AwaitTimedOut", signal)
+}
+
+func TestRESTAwaitEvent_ServerStopped(t *testing.T) {
+	t.Parallel()
+
+	state, _ := launchRESTServer(t, namedControlServer("stopped"), LimitProfile{})
+	results := make(chan core.Result, 1)
+	go func() { results <- awaitAnyResult(state, AwaitSource{Server: "stopped"}) }()
+	time.Sleep(20 * time.Millisecond)
+	stopRESTServer(t, state, "stopped")
+	require.Equal(t, core.Signal("ServerStopped"), (<-results).Signal)
+}
+
+func TestRESTAwaitEvent_StoppedSourceCommandError(t *testing.T) {
+	t.Parallel()
+
+	state, _ := launchRESTServer(t, namedControlServer("stopped_error"), LimitProfile{})
+	source := AwaitSource{Server: "stopped_error", StoppedBehavior: StoppedSourceCommandError}
+	results := make(chan core.Result, 1)
+	go func() { results <- awaitAnyResult(state, source) }()
+	time.Sleep(20 * time.Millisecond)
+	stopRESTServer(t, state, "stopped_error")
+	require.Equal(t, core.Signal("CommandError"), (<-results).Signal)
+}
+
 func TestRESTServer_RejectsUndeclaredQueryAndHeader(t *testing.T) {
 	t.Parallel()
 
@@ -164,6 +244,17 @@ func TestRESTServer_StreamEvents(t *testing.T) {
 func launchRESTServer(t *testing.T, server Server, limits LimitProfile) (*ServerState, string) {
 	t.Helper()
 	state := NewServerState()
+	_, baseURL := launchRESTServerWithState(t, state, server, limits)
+	return state, baseURL
+}
+
+func launchRESTServerWithState(
+	t *testing.T,
+	state *ServerState,
+	server Server,
+	limits LimitProfile,
+) (map[string]interface{}, string) {
+	t.Helper()
 	def := ServerDefinition{Name: serverName(server), Server: server, Limits: limits}
 	result := ServerBuilder{
 		ToolName: "rest_server_launch", Init: InitServerLaunch, Server: def, State: state,
@@ -171,7 +262,7 @@ func launchRESTServer(t *testing.T, server Server, limits LimitProfile) (*Server
 	require.Equal(t, core.Signal("ServerLaunched"), result.Signal)
 	var output map[string]interface{}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
-	return state, "http://" + output["address"].(string)
+	return output, "http://" + output["address"].(string)
 }
 
 func stopRESTServer(t *testing.T, state *ServerState, name string) map[string]interface{} {
@@ -201,6 +292,17 @@ func stopCommand(state *ServerState, name string) core.Command {
 		ToolName: "rest_server_stop", Init: InitServerStop,
 		Server: ServerDefinition{Name: name, Server: namedControlServer(name)}, State: state,
 	}.Build(core.Result{})
+}
+
+func awaitAnyResult(state *ServerState, source AwaitSource) core.Result {
+	event, signal, err := state.AwaitAny(AwaitAnyOptions{
+		Sources: []AwaitSource{source}, Timeout: time.Second,
+	})
+	output := map[string]interface{}{"source": event.Source}
+	if err != nil {
+		output["error"] = err.Error()
+	}
+	return core.Result{Signal: core.Signal(signal), Output: jsonOutput(output)}
 }
 
 func postStatus(t *testing.T, url, body string, want int) {
