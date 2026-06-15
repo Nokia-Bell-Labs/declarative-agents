@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 )
 
@@ -128,6 +129,69 @@ func simpleLoopParams(tr tracing.Tracer) LoopParams {
 	}
 }
 
+func workflowMetricLoopParams(rec monitor.RuntimeRecorder) LoopParams {
+	spec := &MachineSpec{
+		Name:           "workflow-metrics",
+		InitialState:   "Start",
+		MetricLabels:   MetricLabels{"use_case": "rel04.0-monitor", "phase": "setup"},
+		States:         StateSpecsFromNames("Start", "Working", "Finished"),
+		TerminalStates: []string{"Finished"},
+		Signals:        SignalSpecsFromNames(string(Seed), string(ToolDone)),
+		Transitions: []TransitionSpec{
+			{State: "Start", Signal: string(Seed), Next: "Working", Action: "emit_metric", MetricLabels: MetricLabels{"phase": "dispatch"}},
+			{State: "Working", Signal: string(ToolDone), Next: "Finished"},
+		},
+	}
+	return LoopParams{
+		MachineSpec:     spec,
+		Trace:           &loopRecorder{},
+		Budget:          Budget{MaxIterations: 10},
+		MonitorRecorder: rec,
+		InitFunc: func(reg *Registry) error {
+			reg.Register(ToolSpec{Name: "emit_metric", Visibility: Internal}, workflowMetricBuilder{})
+			return nil
+		},
+		Hooks: LoopHooks{TerminalStatus: func(State) RunStatus { return StatusSucceeded }},
+	}
+}
+
+type workflowMetricBuilder struct{}
+
+func (workflowMetricBuilder) Build(Result) Command {
+	return &workflowMetricCmd{}
+}
+
+type workflowMetricCmd struct {
+	rec monitor.ToolMetricsRecorder
+}
+
+func (c *workflowMetricCmd) Name() string { return "emit_metric" }
+func (c *workflowMetricCmd) Execute() Result {
+	_ = c.rec.RecordMetric(context.Background(), monitor.MetricSample{
+		Name: "tool.bytes", Kind: monitor.InstrumentHistogram, Unit: "By",
+		Value: 7, ToolName: c.Name(),
+	})
+	return Result{Signal: ToolDone}
+}
+func (c *workflowMetricCmd) Undo() Result { return NoopUndo(c.Name()) }
+func (c *workflowMetricCmd) SetMonitorRecorder(rec monitor.ToolMetricsRecorder) {
+	c.rec = rec
+}
+
+func requireSampleLabels(t *testing.T, samples []monitor.MetricSample, name string, labels map[string]string) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name != name {
+			continue
+		}
+		for label, want := range labels {
+			require.Equal(t, want, sample.Attributes[label], "sample %#v", sample)
+		}
+		return
+	}
+	t.Fatalf("missing sample %s in %#v", name, samples)
+}
+
 func TestLoop_RunsToCompletion(t *testing.T) {
 	t.Parallel()
 	tr := &loopRecorder{}
@@ -138,6 +202,26 @@ func TestLoop_RunsToCompletion(t *testing.T) {
 	require.Equal(t, StatusSucceeded, rr.Status)
 	require.Equal(t, State("Finished"), rr.FinalState)
 	require.Equal(t, 2, rr.Iterations)
+}
+
+func TestLoopMonitorSamplesIncludeWorkflowMetricLabels(t *testing.T) {
+	t.Parallel()
+	store := monitor.NewStore(monitor.Limits{Samples: 10})
+	params := workflowMetricLoopParams(monitor.NewRecorder(store, nil))
+
+	rr, err := Loop(params, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusSucceeded, rr.Status)
+	snapshot := store.Snapshot()
+	requireSampleLabels(t, snapshot.RecentSamples, "dispatch_duration", map[string]string{
+		"use_case": "rel04.0-monitor",
+		"phase":    "dispatch",
+	})
+	requireSampleLabels(t, snapshot.RecentSamples, "tool.bytes", map[string]string{
+		"use_case": "rel04.0-monitor",
+		"phase":    "dispatch",
+	})
 }
 
 func TestLoop_NilRollbackParamsPreserveBehavior(t *testing.T) {

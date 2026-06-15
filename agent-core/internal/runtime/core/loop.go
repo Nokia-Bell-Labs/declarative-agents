@@ -320,6 +320,7 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 		}
 
 		transitionSignal := sig
+		metricLabels := transitionMetricLabels(p.MachineSpec, state, transitionSignal)
 		nextState, cmd, err := sm.Step(state, transitionSignal, res)
 		if err != nil {
 			tr.Event("state.transition.unhandled",
@@ -361,10 +362,11 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 		}
 
 		res = dispatchWithMonitor(cmd, tr, p.CommandTimeout, p.MonitorRecorder, monitor.DispatchContext{
-			RunID:     p.AgentName,
-			AgentName: p.AgentName,
-			State:     string(state),
-			Iteration: iteration,
+			RunID:        p.AgentName,
+			AgentName:    p.AgentName,
+			State:        string(state),
+			Iteration:    iteration,
+			MetricLabels: metricLabels,
 		})
 		sig = res.Signal
 
@@ -754,8 +756,37 @@ func initFromMachine(params *LoopParams) error {
 	if params.InitialState == "" {
 		params.InitialState = State(spec.InitialState)
 	}
+	params.MachineSpec = &spec
 
 	return nil
+}
+
+func transitionMetricLabels(spec *MachineSpec, state State, signal Signal) MetricLabels {
+	if spec == nil {
+		return nil
+	}
+	labels := copyMetricLabels(spec.MetricLabels)
+	for _, tr := range spec.Transitions {
+		if tr.State == string(state) && tr.Signal == string(signal) {
+			mergeMetricLabels(labels, tr.MetricLabels)
+			return labels
+		}
+	}
+	return labels
+}
+
+func copyMetricLabels(labels MetricLabels) MetricLabels {
+	out := make(MetricLabels, len(labels))
+	for name, value := range labels {
+		out[name] = value
+	}
+	return out
+}
+
+func mergeMetricLabels(dst MetricLabels, src MetricLabels) {
+	for name, value := range src {
+		dst[name] = value
+	}
 }
 
 // ValidateBuilders is a convenience for creating ValidateParams hooks
