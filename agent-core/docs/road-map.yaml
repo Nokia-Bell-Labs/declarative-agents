@@ -111,7 +111,9 @@ releases:
       resources connect that request grammar to filesystem documentation corpora
       without hardcoding demo document routes in the generic host. A planned
       Puppeteer proof will cover the machine_request Knowledge Manager UX path
-      as the successor to the current direct-host smoke behavior.
+      as the successor to the current direct-host smoke behavior. The intended
+      command is mage integration:uc007 after the binding, resource words, and
+      Puppeteer entry point are implemented.
     status: in_progress
     srds:
       - srd027-rest-tool-runtime
