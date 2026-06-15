@@ -387,3 +387,59 @@ tools:
     config:
       rest_ref: documentation
       operation: doc_patch_reject
+
+  - name: doc_patch_reopen
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Reopen a rejected documentation patch through the configured documentation API.
+    problem: Patch rejection compensation must resolve to an implemented REST operation.
+    goals:
+      - Resolve one configured patch reopen operation.
+      - Return the reopened patch decision state for machine routing.
+    requirements:
+      input:
+        - Runtime input supplies patch ID, decision owner, and optional reason.
+      output:
+        - Output includes patch ID, status, and decision owner.
+      errors:
+        - Missing patches emit RESTMissing; infrastructure failures emit CommandError.
+    non_goals:
+      - Does not apply or rewrite the patch.
+    parameters:
+      type: object
+      properties:
+        params:
+          type: object
+          properties:
+            patch_id: {type: string}
+            decided_by: {type: string}
+            reason: {type: string}
+    emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
+    output:
+      description: Documentation patch reopen response.
+      schema:
+        type: object
+        properties:
+          patch_id: {type: string}
+          status: {type: string}
+          decided_by: {type: string}
+    side_effects:
+      - kind: external_api
+        target: documentation.patch
+        state: patch_reopened
+    reversibility:
+      classification: compensatable
+      undo: doc_patch_reject
+    undo:
+      strategy: compensating_action
+      description: Reject the reopened patch when review should remain closed.
+    errors:
+      - signal: CommandError
+        condition: REST config, schema, network, timeout, or response mapping failure.
+        state_after_failure: Remote patch state may record the reopen attempt.
+    relationships:
+      after: [doc_patch_reject]
+    config:
+      rest_ref: documentation
+      operation: doc_patch_reopen

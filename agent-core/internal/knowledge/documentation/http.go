@@ -96,6 +96,11 @@ func (h Handler) Reject(w http.ResponseWriter, r *http.Request) {
 	h.decidePatch(w, r, "rejected")
 }
 
+// Reopen handles POST /api/v1/docs/patches/{patch_id}/reopen.
+func (h Handler) Reopen(w http.ResponseWriter, r *http.Request) {
+	h.decidePatch(w, r, "pending_review")
+}
+
 type apiResponse struct {
 	Data  interface{} `json:"data,omitempty"`
 	Error string      `json:"error,omitempty"`

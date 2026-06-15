@@ -257,3 +257,36 @@ rest:
           compensation:
             operation: doc_patch_reopen
             reason: Reopen the rejected patch when the service keeps pending patch state.
+        doc_patch_reopen:
+          method: POST
+          path: /api/v1/docs/patches/{patch_id}/reopen
+          params:
+            path:
+              patch_id:
+                type: string
+            body_schema:
+              type: object
+              properties:
+                decided_by:
+                  type: string
+                reason:
+                  type: string
+              required: [decided_by]
+          body:
+            decided_by: "{{ params.decided_by }}"
+            reason: "{{ params.reason }}"
+          success:
+            status: [200, 202]
+            signal: RESTResponded
+            response_ref: patch_decision
+          response_ref: patch_decision
+          side_effects:
+            - kind: external_api
+              target: documentation.patch
+              state: patch_reopened
+          reversibility:
+            classification: compensatable
+            undo: doc_patch_reject
+          compensation:
+            operation: doc_patch_reject
+            reason: Reject the reopened patch when review should remain closed.

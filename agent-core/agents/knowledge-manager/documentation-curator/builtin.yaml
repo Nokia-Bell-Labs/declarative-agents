@@ -80,3 +80,6 @@ tools:
     config:
       addr: :18081
       docs_dir: docs
+      configs_dir: configs
+      source_dir: .
+      profile_path: agents/knowledge-manager/documentation-curator/profile.yaml

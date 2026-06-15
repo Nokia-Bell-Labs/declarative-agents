@@ -82,6 +82,7 @@ func TestDocumentationCuratorRESTDefinitionsLoad(t *testing.T) {
 		"doc_suggest_changes",
 		"doc_patch_approve",
 		"doc_patch_reject",
+		"doc_patch_reopen",
 	}, toolDefNames(defs))
 
 	collection, err := LoadDefinitions([]string{documentationCuratorRestPath(t)}, nil)
