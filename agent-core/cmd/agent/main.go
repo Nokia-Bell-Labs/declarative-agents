@@ -650,9 +650,25 @@ func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		toolrest.RegisterFactories(br, toolrest.FactoryDeps{
 			Definitions:        st.restDefs,
+			MachineRunner:      profileMachineRequestRunner(st),
 			CredentialResolver: toolrest.EmptyCredentialResolver{},
 		})
 	}
+}
+
+func profileMachineRequestRunner(st *agentState) toolrest.MachineRequestRunner {
+	return toolrest.NewProfileMachineRequestRunner(toolrest.ProfileMachineRequestRunnerDeps{
+		BaseDir:   filepath.Dir(flagProfile),
+		Directory: st.directory,
+		Vars: map[string]string{
+			"directory": st.directory,
+			"request":   st.request,
+		},
+		RegisterBuiltins: func(br *toolregistry.BuiltinRegistry, selected map[string]bool) {
+			registerBuiltinFactories(br, st, selected)
+		},
+		ExecBuilder: execBuilder,
+	})
 }
 
 func registerDocumentationFactories() toolregistry.FactoryRegistrar {
