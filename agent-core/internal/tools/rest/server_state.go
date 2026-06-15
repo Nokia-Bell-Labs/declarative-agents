@@ -39,12 +39,40 @@ type InboundEvent struct {
 	RequestID string                 `json:"request_id,omitempty"`
 }
 
+// StoppedSourceBehavior controls how fan-in await handles stopped servers.
+type StoppedSourceBehavior string
+
+const (
+	// StoppedSourceIgnore keeps waiting on other sources when one server stops.
+	StoppedSourceIgnore StoppedSourceBehavior = "ignore"
+	// StoppedSourceEmitServerStopped emits ServerStopped when one source stops.
+	StoppedSourceEmitServerStopped StoppedSourceBehavior = "emit_server_stopped"
+	// StoppedSourceCommandError treats a stopped source as CommandError.
+	StoppedSourceCommandError StoppedSourceBehavior = "command_error"
+)
+
+// AwaitSource selects one launched server queue for fan-in await.
+type AwaitSource struct {
+	Server          string
+	Routes          []string
+	Signals         []string
+	StoppedBehavior StoppedSourceBehavior
+}
+
+// AwaitAnyOptions configures waiting across multiple REST server sources.
+type AwaitAnyOptions struct {
+	Sources         []AwaitSource
+	Timeout         time.Duration
+	StoppedBehavior StoppedSourceBehavior
+}
+
 type serverRuntime struct {
 	name          string
 	def           ServerDefinition
 	httpServer    *http.Server
 	listener      net.Listener
 	queue         chan InboundEvent
+	pending       []InboundEvent
 	stopped       chan struct{}
 	stopOnce      sync.Once
 	activeStreams int
@@ -76,16 +104,25 @@ func (s *ServerState) Await(name string) (InboundEvent, string, error) {
 	if err != nil {
 		return InboundEvent{}, "CommandError", err
 	}
-	timer := time.NewTimer(runtime.awaitTimeout())
-	defer timer.Stop()
-	select {
-	case event := <-runtime.queue:
-		return event, event.Signal, nil
-	case <-runtime.stopped:
-		return InboundEvent{Source: name}, "ServerStopped", nil
-	case <-timer.C:
+	ctx, cancel := context.WithTimeout(context.Background(), runtime.awaitTimeout())
+	defer cancel()
+	result := runtime.awaitMatching(ctx, awaitFilter{server: name}, StoppedSourceEmitServerStopped)
+	if result.signal == "" && result.err == nil {
 		return InboundEvent{Source: name}, "AwaitTimedOut", nil
 	}
+	return result.event, result.signal, result.err
+}
+
+// AwaitAny waits across multiple launched REST server queues.
+func (s *ServerState) AwaitAny(options AwaitAnyOptions) (InboundEvent, string, error) {
+	sources, err := s.resolveAwaitSources(options)
+	if err != nil {
+		return InboundEvent{}, "CommandError", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), awaitAnyTimeout(options))
+	defer cancel()
+	result := waitAnySource(ctx, cancel, sources)
+	return result.event, result.signal, result.err
 }
 
 // Stop shuts down a configured REST server and drains queued events.
@@ -116,6 +153,25 @@ func (s *ServerState) runtime(name string) (*serverRuntime, error) {
 		return nil, fmt.Errorf("REST server %q is not launched", name)
 	}
 	return runtime, nil
+}
+
+func (s *ServerState) resolveAwaitSources(options AwaitAnyOptions) ([]resolvedAwaitSource, error) {
+	if len(options.Sources) == 0 {
+		return nil, fmt.Errorf("at least one REST await source is required")
+	}
+	sources := make([]resolvedAwaitSource, 0, len(options.Sources))
+	for _, source := range options.Sources {
+		runtime, err := s.runtime(source.Server)
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, resolvedAwaitSource{
+			runtime: runtime,
+			filter:  awaitFilter{server: source.Server, routes: source.Routes, signals: source.Signals},
+			stopped: stoppedBehavior(source.StoppedBehavior, options.StoppedBehavior),
+		})
+	}
+	return sources, nil
 }
 
 func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
@@ -185,7 +241,7 @@ func (r *serverRuntime) stopOutput() map[string]interface{} {
 }
 
 func (r *serverRuntime) drainQueue() int {
-	drained := 0
+	drained := r.drainPending()
 	for {
 		select {
 		case <-r.queue:
@@ -194,6 +250,14 @@ func (r *serverRuntime) drainQueue() int {
 			return drained
 		}
 	}
+}
+
+func (r *serverRuntime) drainPending() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	drained := len(r.pending)
+	r.pending = nil
+	return drained
 }
 
 func (r *serverRuntime) bindingKinds() []string {
@@ -236,6 +300,170 @@ func parseDuration(value string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return duration
+}
+
+type awaitFilter struct {
+	server  string
+	routes  []string
+	signals []string
+}
+
+type resolvedAwaitSource struct {
+	runtime *serverRuntime
+	filter  awaitFilter
+	stopped StoppedSourceBehavior
+}
+
+type awaitResult struct {
+	event  InboundEvent
+	signal string
+	err    error
+	done   bool
+}
+
+func waitAnySource(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	sources []resolvedAwaitSource,
+) awaitResult {
+	results := make(chan awaitResult, len(sources))
+	var wg sync.WaitGroup
+	for _, source := range sources {
+		wg.Add(1)
+		go waitAwaitSource(ctx, &wg, source, results)
+	}
+	select {
+	case result := <-results:
+		cancel()
+		wg.Wait()
+		return result
+	case <-ctx.Done():
+		wg.Wait()
+		return awaitResult{event: InboundEvent{}, signal: "AwaitTimedOut"}
+	}
+}
+
+func waitAwaitSource(
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	source resolvedAwaitSource,
+	results chan<- awaitResult,
+) {
+	defer wg.Done()
+	result := source.runtime.awaitMatching(ctx, source.filter, source.stopped)
+	if result.signal == "" {
+		return
+	}
+	select {
+	case results <- result:
+	case <-ctx.Done():
+	}
+}
+
+func (r *serverRuntime) awaitMatching(
+	ctx context.Context,
+	filter awaitFilter,
+	stopped StoppedSourceBehavior,
+) awaitResult {
+	for {
+		if event, ok := r.takePending(filter); ok {
+			return awaitResult{event: event, signal: event.Signal}
+		}
+		result := r.awaitNext(ctx, filter, stopped)
+		if result.done || result.signal != "" || result.err != nil {
+			return result
+		}
+	}
+}
+
+func (r *serverRuntime) awaitNext(
+	ctx context.Context,
+	filter awaitFilter,
+	stopped StoppedSourceBehavior,
+) awaitResult {
+	select {
+	case event := <-r.queue:
+		if filter.matches(event) {
+			return awaitResult{event: event, signal: event.Signal}
+		}
+		r.storePending(event)
+		return awaitResult{}
+	case <-r.stopped:
+		return stoppedResult(r.name, stopped)
+	case <-ctx.Done():
+		return awaitResult{done: true}
+	}
+}
+
+func (r *serverRuntime) takePending(filter awaitFilter) (InboundEvent, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for index, event := range r.pending {
+		if filter.matches(event) {
+			r.pending = append(r.pending[:index], r.pending[index+1:]...)
+			return event, true
+		}
+	}
+	return InboundEvent{}, false
+}
+
+func (r *serverRuntime) storePending(event InboundEvent) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.pending = append(r.pending, event)
+}
+
+func (f awaitFilter) matches(event InboundEvent) bool {
+	return matchesValue(f.server, event.Source) &&
+		matchesList(f.routes, event.Route) &&
+		matchesList(f.signals, event.Signal)
+}
+
+func matchesValue(want, got string) bool {
+	return want == "" || want == got
+}
+
+func matchesList(allowed []string, got string) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, candidate := range allowed {
+		if candidate == got {
+			return true
+		}
+	}
+	return false
+}
+
+func stoppedResult(name string, behavior StoppedSourceBehavior) awaitResult {
+	switch behavior {
+	case StoppedSourceIgnore:
+		return awaitResult{done: true}
+	case StoppedSourceCommandError:
+		return awaitResult{
+			event: InboundEvent{Source: name}, signal: "CommandError",
+			err: fmt.Errorf("REST server %q stopped while awaiting events", name),
+		}
+	default:
+		return awaitResult{event: InboundEvent{Source: name}, signal: "ServerStopped"}
+	}
+}
+
+func stoppedBehavior(source, fallback StoppedSourceBehavior) StoppedSourceBehavior {
+	if source != "" {
+		return source
+	}
+	if fallback != "" {
+		return fallback
+	}
+	return StoppedSourceEmitServerStopped
+}
+
+func awaitAnyTimeout(options AwaitAnyOptions) time.Duration {
+	if options.Timeout > 0 {
+		return options.Timeout
+	}
+	return defaultAwaitTimeout
 }
 
 func jsonOutput(value map[string]interface{}) string {
