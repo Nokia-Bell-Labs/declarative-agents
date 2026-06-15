@@ -385,7 +385,7 @@ go_test_coverage:
     config loading, client execution, async send/await, server signal handling,
     OpenAPI import, credential resolution, redirect and size policies, server
     validation, redaction behavior, live Ollama OpenAPI model-listing, and
-    documentation-curator ownership, curator validation workflows, and migration smoke coverage. It also names planned fan-in and lifecycle-control tests for rest_await_event and exit_agent routing. Package tests cover
+    documentation-curator ownership, curator validation workflows, generic REST fan-in, lifecycle-control routing, and migration smoke coverage. Package tests cover
     srd009-srd018 and domain packages. Run
     `go test ./... -v | grep -c '=== RUN'` for the current test function count.
 
@@ -455,7 +455,7 @@ coverage_gaps: |
   OpenAPI E2E flow and documentation-curator ownership proof now have formal
   release 03.0 coverage. Generic REST event fan-in, route and signal filters,
   timeout handling, stopped-source policy, and REST-triggered lifecycle exit
-  now have planned formal cases that trace to follow-on implementation work.
+  now have formal cases tied to Go tests and the uc006 integration target.
 
   Current `go list ./...` output defines package coverage. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.

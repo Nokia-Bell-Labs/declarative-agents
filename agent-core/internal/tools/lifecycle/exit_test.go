@@ -60,7 +60,7 @@ func TestExitAgentUndoMementoIsOperatorCompensation(t *testing.T) {
 	require.Equal(t, "operator_restart_or_checkpoint_resume", payload.BoundaryCompensation.Strategy)
 }
 
-func TestRESTLifecycleControlExitEventRoutesToExitAgent(t *testing.T) {
+func TestRESTLifecycleControl_ExitAgentSignal(t *testing.T) {
 	t.Parallel()
 	state, baseURL := launchControlServer(t)
 	defer func() { _, _ = state.Stop("agent_control") }()
@@ -75,6 +75,11 @@ func TestRESTLifecycleControlExitEventRoutesToExitAgent(t *testing.T) {
 	require.Equal(t, "ExitRequested", signal)
 	require.Equal(t, "exit", event.Route)
 	require.Equal(t, "operator requested shutdown", event.Payload["reason"])
+	res := (ExitBuilder{
+		Config:   ExitConfig{Reason: event.Payload["reason"].(string), Status: "success"},
+		Shutdown: func() {},
+	}).Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("AgentExited"), res.Signal)
 }
 
 func TestRegisterLifecycleFactoriesRegistersExitAgent(t *testing.T) {
