@@ -320,7 +320,11 @@ func TestMonitorCLIProfileServesUntilControlExit(t *testing.T) {
 	resultCh := waitForProcess(t, cmd)
 
 	waitForProofMonitorRoute(t, "http://127.0.0.1:18083/monitor/state")
-	require.Contains(t, proofRequestBody(t, "http://127.0.0.1:18083/monitor/state"), `"State"`)
+	stateBody := proofRequestBody(t, "http://127.0.0.1:18083/monitor/state")
+	require.Contains(t, stateBody, `"state"`)
+	require.Contains(t, stateBody, `"run_id"`)
+	require.NotContains(t, stateBody, `"State"`)
+	require.NotContains(t, stateBody, `"RunID"`)
 	require.Contains(t, proofRequestBody(t, "http://127.0.0.1:18083/monitor/metrics"), "dispatch_count")
 	requireProcessStillRunning(t, resultCh)
 	postProofMonitorExit(t, "http://127.0.0.1:18083/monitor/control/exit")

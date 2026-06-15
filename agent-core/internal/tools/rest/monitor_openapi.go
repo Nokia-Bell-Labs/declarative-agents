@@ -53,13 +53,20 @@ func monitorResponseSchema(view string) map[string]interface{} {
 	case monitorViewMachine:
 		return schemaObject("name", "states", "signals", "terminal_states", "metric_labels", "transitions")
 	case monitorViewState:
-		return schemaObject("run", "diagnostics", "errors")
+		return schemaObject(
+			"run", "run_id", "status", "state", "signal", "iteration", "updated_at",
+			"diagnostics", "stage", "message", "metric", "tool_name", "timestamp",
+			"errors", "command_name",
+		)
 	case monitorViewTools:
-		return schemaObject("tools")
+		return schemaObject("tools", "name", "category", "visibility", "emits", "metrics", "instruments", "attributes", "relationships")
 	case monitorViewMetrics:
-		return schemaObject("tools", "metrics", "schemas", "recent_samples", "diagnostics")
+		return schemaObject(
+			"tools", "metrics", "schemas", "recent_samples", "diagnostics",
+			"tool_name", "run_id", "state", "signal", "status", "updated_at", "last_value",
+		)
 	case monitorViewEvents:
-		return schemaObject("recent_events")
+		return schemaObject("recent_events", "command_name", "from_state", "to_state", "duration_ms", "tokens_in", "tokens_out")
 	default:
 		return schemaObject("data")
 	}
