@@ -126,7 +126,8 @@ related_documents:
   - docs/ARCHITECTURE.yaml
 
 implementation_status:
-  planned:
-    - internal/tools/rest machine_request endpoint binding.
-    - Knowledge Manager profile configuration that routes demo requests through MachineSpec.
-    - Formal release 03.0 test coverage for request-to-machine response behavior.
+  implemented:
+    - internal/tools/rest implements the machine_request endpoint binding.
+    - agents/knowledge-manager/documentation-curator/rest.yaml routes document index and detail requests through documentation_curator_requests machine_request endpoints.
+    - agents/knowledge-manager/documentation-curator/request-machine.yaml defines the short-lived request machine used by the generic REST server path.
+    - mage integration:uc007 and opt-in conformance tests cover request-to-machine response behavior and trace evidence.

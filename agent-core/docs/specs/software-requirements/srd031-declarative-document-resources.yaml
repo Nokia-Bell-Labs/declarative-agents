@@ -124,7 +124,8 @@ related_documents:
   - docs/ARCHITECTURE.yaml
 
 implementation_status:
-  planned:
-    - Declarative document_resource configuration under REST definitions.
-    - Reusable filesystem document resource words.
-    - Knowledge Manager profile-owned UI asset and route/action configuration.
+  implemented:
+    - agents/knowledge-manager/documentation-curator/rest.yaml declares the documentation_corpus resource under REST definitions.
+    - internal/tools/filesystem provides reusable list_resource and read_resource words used by the request machine.
+    - agents/knowledge-manager/documentation-curator owns the Knowledge Manager UI assets, request machine, REST route configuration, and action placement.
+    - mage integration:uc007 verifies index, document detail, raw YAML, rendered HTML, nested document path evidence, and machine_request trace metadata.

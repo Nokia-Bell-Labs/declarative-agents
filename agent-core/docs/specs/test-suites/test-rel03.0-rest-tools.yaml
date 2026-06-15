@@ -19,7 +19,7 @@ preconditions:
   - Redaction tests can use synthetic credentials and payload fields.
   - Live Ollama E2E coverage requires Ollama on 127.0.0.1:11434 and a Qwen 3 family model.
   - Documentation-curator tests use local fixture directories and do not require a browser.
-  - Machine-request documentation UX coverage will use Puppeteer through mage integration:uc007 and internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts.
+  - Machine-request documentation UX coverage uses Puppeteer through mage integration:uc007 and internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts.
 
 test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
@@ -926,6 +926,7 @@ test_cases:
       - srd030-machine-request-rest-binding AC1
       - srd030-machine-request-rest-binding AC4
       - srd031-declarative-document-resources AC1
+      - srd031-declarative-document-resources AC7
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Puppeteer opens raw YAML document through document resource
@@ -955,6 +956,7 @@ test_cases:
       - rel03.0-uc007-machine-request-documentation-ux S3
       - rel03.0-uc007-machine-request-documentation-ux S4
       - srd030-machine-request-rest-binding AC5
+      - srd031-declarative-document-resources AC3
       - srd031-declarative-document-resources AC4
       - srd031-declarative-document-resources AC5
 
@@ -1016,7 +1018,7 @@ test_cases:
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Machine_request conformance loads configured profile machine
     go_test: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 go test ./internal/tools/rest -run TestRESTServerMachineRequestConformance
-    status: planned
+    status: done
     description: |
       Run the opt-in conformance tests for machine_request endpoints. The tests
       require a configured profile and request-machine file, not an injected
@@ -1041,7 +1043,7 @@ test_cases:
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Knowledge Manager routes docs API through generic machine_request
     go_test: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 go test ./internal/knowledge/documentation -run TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
-    status: planned
+    status: done
     description: |
       Run the opt-in Knowledge Manager conformance check. The docs API response
       trace must identify the generic REST machine_request server route, request
@@ -1063,9 +1065,11 @@ test_cases:
       - rel03.0-uc007-machine-request-documentation-ux S2
       - rel03.0-uc007-machine-request-documentation-ux S5
       - srd030-machine-request-rest-binding AC1
+      - srd030-machine-request-rest-binding AC2
       - srd030-machine-request-rest-binding AC3
       - srd030-machine-request-rest-binding AC5
       - srd030-machine-request-rest-binding AC7
+      - srd031-declarative-document-resources AC2
 
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST observability redacts secrets and reports failure stages
