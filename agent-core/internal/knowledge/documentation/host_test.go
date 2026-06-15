@@ -3,7 +3,9 @@
 package docsapi
 
 import (
+	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -15,8 +17,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 )
 
@@ -79,6 +83,34 @@ func TestStandaloneServerStartServesDocsAPI(t *testing.T) {
 	require.Contains(t, body, `"path":"VISION.yaml"`)
 }
 
+func TestServeDocumentationUndoStopsOwnedListener(t *testing.T) {
+	t.Parallel()
+	host := NewDocumentationHostLifecycle()
+	cmd := newServeDocumentationCommand(t, host).Build(core.Result{})
+	res := cmd.Execute()
+	require.Equal(t, core.Signal("ServerLaunched"), res.Signal)
+	addr := requireResultAddr(t, res)
+	t.Cleanup(func() { _, _ = host.Stop() })
+
+	undo := cmd.Undo()
+
+	require.Equal(t, core.Signal("ServerStopped"), undo.Signal, undo.Output)
+	requireAddressReleased(t, addr)
+}
+
+func TestCuratorMachineExitStopsDocumentationHost(t *testing.T) {
+	t.Parallel()
+	host := NewDocumentationHostLifecycle()
+	var launchedAddr string
+	result, err := core.Loop(curatorExitLoopParams(t, host, &launchedAddr), context.Background())
+	require.NoError(t, err)
+
+	require.Equal(t, core.StatusSucceeded, result.Status)
+	require.Equal(t, core.State("Done"), result.FinalState)
+	require.NotEmpty(t, launchedAddr)
+	requireAddressReleased(t, launchedAddr)
+}
+
 func TestStandaloneServerServesContextFiles(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +132,92 @@ func TestStandaloneServerServesContextFiles(t *testing.T) {
 	source := getDocsRoute(t, handler, "/api/v1/source/pkg/demo/demo.go")
 	require.Equal(t, http.StatusOK, source.Code)
 	require.Contains(t, source.Body.String(), `"language":"go"`)
+}
+
+func newServeDocumentationCommand(t *testing.T, host *DocumentationHostLifecycle) ServeDocumentationBuilder {
+	t.Helper()
+	root := t.TempDir()
+	writeDocFixture(t, root, "VISION.yaml", "title: Vision\n")
+	return ServeDocumentationBuilder{
+		Config: ToolConfig{Addr: "127.0.0.1:0", DocsDir: root},
+		Host:   host,
+	}
+}
+
+func curatorExitLoopParams(t *testing.T, host *DocumentationHostLifecycle, launchedAddr *string) core.LoopParams {
+	t.Helper()
+	machine, err := core.LoadMachineSpec(filepath.Join(repoRootFromDocsTest(t), "agents", "knowledge-manager", "documentation-curator", "machine.yaml"))
+	require.NoError(t, err)
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "serve_documentation"}, newServeDocumentationCommand(t, host))
+	registerStaticDocsSignal(reg, "launch_curator_control", "ServerLaunched", "{}")
+	registerStaticDocsSignal(reg, "await_curator_control", "ExitRequested", `{"payload":{"reason":"operator requested shutdown","status":"success"}}`)
+	reg.Register(core.ToolSpec{Name: "exit_agent"}, lifecycle.ExitBuilder{
+		Config: lifecycle.ExitConfig{Status: "success"}, Shutdown: func() {},
+	})
+	return core.LoopParams{MachineSpec: &machine, Registry: reg, Trace: tracing.NoopTracer{}, Hooks: core.LoopHooks{
+		OnResult: captureLaunchAddr(t, launchedAddr),
+	}}
+}
+
+func captureLaunchAddr(t *testing.T, launchedAddr *string) func(core.RunResult, core.Result) core.RunResult {
+	t.Helper()
+	return func(rr core.RunResult, res core.Result) core.RunResult {
+		if res.CommandName == "serve_documentation" && res.Signal == core.Signal("ServerLaunched") {
+			*launchedAddr = requireResultAddr(t, res)
+		}
+		return rr
+	}
+}
+
+type staticDocsSignalBuilder struct {
+	name   string
+	signal core.Signal
+	output string
+}
+
+type staticDocsSignalCmd struct {
+	name   string
+	signal core.Signal
+	output string
+}
+
+func registerStaticDocsSignal(reg *core.Registry, name string, signal core.Signal, output string) {
+	reg.Register(core.ToolSpec{Name: name}, staticDocsSignalBuilder{name: name, signal: signal, output: output})
+}
+
+func (b staticDocsSignalBuilder) Build(_ core.Result) core.Command {
+	return staticDocsSignalCmd(b)
+}
+
+func (c staticDocsSignalCmd) Name() string { return c.name }
+
+func (c staticDocsSignalCmd) Execute() core.Result {
+	return core.Result{Signal: c.signal, CommandName: c.name, Output: c.output}
+}
+
+func (c staticDocsSignalCmd) Undo() core.Result {
+	return core.NoopUndo(c.name)
+}
+
+func requireResultAddr(t *testing.T, result core.Result) string {
+	t.Helper()
+	var output map[string]string
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	require.NotEmpty(t, output["addr"])
+	return output["addr"]
+}
+
+func requireAddressReleased(t *testing.T, addr string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		listener, err := net.Listen("tcp", addr)
+		if err != nil {
+			return false
+		}
+		_ = listener.Close()
+		return true
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestStandaloneServerRunsActionsThroughWorkflowRunner(t *testing.T) {

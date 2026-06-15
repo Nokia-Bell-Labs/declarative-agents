@@ -22,7 +22,7 @@ flow:
   - F4: The machine launches the profile-owned lifecycle control server and then dispatches await_curator_control.
   - F5: The host serves the documentation SPA and documentation API from internal/knowledge/documentation without bench route delegation.
   - F6: The selected doc_list, doc_get, doc_search, doc_validate, doc_suggest_changes, doc_patch_approve, doc_patch_reject, and doc_patch_reopen words use configured REST contracts instead of hard-coded bench APIs.
-  - F7: A POST to /api/lifecycle/exit enqueues ExitRequested. await_curator_control returns the event. MachineSpec routes it to exit_agent and reaches Done after AgentExited.
+  - F7: A POST to /api/lifecycle/exit enqueues ExitRequested. await_curator_control returns the event. MachineSpec routes it to exit_agent, then routes AgentExited to serve_documentation so the owned documentation host stops before Done.
   - F8: Startup, control launch, await, or lifecycle failure emits CommandError or another declared failure signal and moves the machine to Failed.
 
 touchpoints:
@@ -32,7 +32,7 @@ touchpoints:
   - T4: "srd028-rest-client-tools R1, R2, R6 -- doc_* words call configured REST operations and emit REST result signals"
   - T5: "agents/knowledge-manager/documentation-curator/profile.yaml -- profile-owned documentation host entry point"
   - T6: "internal/knowledge/documentation -- documentation HTTP server, API handlers, and embedded UI assets"
-  - T7: "srd029-rest-server-tools R11 -- lifecycle control endpoints enqueue events for MachineSpec routing"
+  - T7: "srd029-rest-server-tools R7 and R11 -- lifecycle control endpoints enqueue events for MachineSpec routing and shutdown releases the owned documentation listener"
 
 success_criteria:
   - id: S1
@@ -55,7 +55,7 @@ success_criteria:
       - srd028-rest-client-tools AC1
       - srd028-rest-client-tools AC7
   - id: S5
-    criterion: The generic lifecycle exit endpoint causes ExitRequested and clean MachineSpec shutdown through exit_agent.
+    criterion: The generic lifecycle exit endpoint causes ExitRequested, AgentExited, serve_documentation listener shutdown, and Done through MachineSpec routing.
     traces:
       - srd027-rest-tool-runtime AC10
       - srd029-rest-server-tools AC10
