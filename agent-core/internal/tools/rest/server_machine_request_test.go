@@ -5,6 +5,8 @@ package rest
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -57,6 +59,42 @@ func TestRESTServerMachineRequestCommandError(t *testing.T) {
 	require.Equal(t, "CommandError", body["trace"].(map[string]interface{})["terminal_signal"])
 }
 
+func TestRESTServerMachineRequestConformanceLoadsConfiguredMachineFile(t *testing.T) {
+	t.Parallel()
+	requireMachineRequestConformance(t)
+	cfg := machineRequestConfig("DocumentationReady", 0, false)
+	cfg.MachineSpec = nil
+	cfg.Profile = writeConformanceProfile(t)
+	cfg.Machine = writeConformanceMachine(t, filepath.Dir(cfg.Profile))
+	state, baseURL := launchMachineRequestServerWithConfig(t, cfg)
+	defer stopRESTServer(t, state, "machine")
+
+	body := postJSON(t, baseURL+"/docs", `{"name":"profile"}`, http.StatusOK)
+
+	require.Equal(t, "hello profile", body["greeting"])
+	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
+}
+
+func TestRESTServerMachineRequestConformanceMatchesCatchAllPath(t *testing.T) {
+	t.Parallel()
+	requireMachineRequestConformance(t)
+	cfg := machineRequestConfig("DocumentationReady", 0, false)
+	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
+	cfg.InitFunc = func(reg *core.Registry) error {
+		reg.Register(core.ToolSpec{Name: "respond"}, pathEchoBuilder{})
+		return nil
+	}
+	state, baseURL := launchMachineRequestServerWithConfig(t, cfg, catchAllDocsEndpoint(cfg))
+	defer stopRESTServer(t, state, "machine")
+
+	raw := requestBody(t, http.MethodGet, baseURL+"/docs/specs/use-cases/uc007.yaml", "", http.StatusOK)
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(raw), &body))
+
+	require.Equal(t, "specs/use-cases/uc007.yaml", body["path"])
+	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
+}
+
 func launchMachineRequestServer(
 	t *testing.T,
 	signal string,
@@ -64,8 +102,20 @@ func launchMachineRequestServer(
 	fail bool,
 ) (*ServerState, string) {
 	t.Helper()
+	return launchMachineRequestServerWithConfig(t, machineRequestConfig(signal, delay, fail))
+}
+
+func launchMachineRequestServerWithConfig(
+	t *testing.T,
+	cfg MachineRequest,
+	endpoints ...map[string]Endpoint,
+) (*ServerState, string) {
+	t.Helper()
 	state := NewServerState()
-	server := machineRequestServer(machineRequestConfig(signal, delay, fail))
+	server := machineRequestServer(cfg)
+	if len(endpoints) > 0 {
+		server.Endpoints = endpoints[0]
+	}
 	def := ServerDefinition{Name: "machine", Server: server, MachineRequestRunner: nil}
 	result := ServerBuilder{
 		ToolName: "rest_server_launch", Init: InitServerLaunch, Server: def, State: state,
@@ -74,6 +124,16 @@ func launchMachineRequestServer(
 	var output map[string]interface{}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
 	return state, "http://" + output["address"].(string)
+}
+
+func catchAllDocsEndpoint(cfg MachineRequest) map[string]Endpoint {
+	return map[string]Endpoint{
+		"document": {
+			Method: "GET", Path: "/docs/{path...}", Binding: bindingMachineRequest,
+			Request:        RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}},
+			MachineRequest: cfg,
+		},
+	}
 }
 
 func machineRequestServer(cfg MachineRequest) Server {
@@ -173,3 +233,71 @@ func requestName(input string) string {
 type errCommandFailed struct{}
 
 func (errCommandFailed) Error() string { return "command failed" }
+
+type pathEchoBuilder struct{}
+
+type pathEchoCommand struct{ input string }
+
+func (pathEchoBuilder) Build(res core.Result) core.Command {
+	return pathEchoCommand{input: res.Output}
+}
+
+func (c pathEchoCommand) Name() string { return "respond" }
+
+func (c pathEchoCommand) Execute() core.Result {
+	return core.Result{Signal: "DocumentationReady", Output: `{"path":"` + requestPath(c.input) + `"}`}
+}
+
+func (c pathEchoCommand) Undo() core.Result { return core.NoopUndo(c.Name()) }
+
+func requestPath(input string) string {
+	var req MachineRequestRun
+	if err := json.Unmarshal([]byte(input), &req); err != nil {
+		return ""
+	}
+	path, _ := req.Payload["path"].(string)
+	return path
+}
+
+func requireMachineRequestConformance(t *testing.T) {
+	t.Helper()
+	if os.Getenv("AGENT_CORE_MACHINE_REQUEST_CONFORMANCE") != "1" {
+		t.Skip("set AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 to run failing-first conformance tests")
+	}
+}
+
+func writeConformanceProfile(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	profile := filepath.Join(dir, "profile.yaml")
+	require.NoError(t, os.WriteFile(profile, []byte("name: conformance\nmachine: request-machine.yaml\n"), 0o644))
+	return profile
+}
+
+func writeConformanceMachine(t *testing.T, dir string) string {
+	t.Helper()
+	machine := filepath.Join(dir, "request-machine.yaml")
+	require.NoError(t, os.WriteFile(machine, []byte(conformanceMachineYAML), 0o644))
+	return machine
+}
+
+const conformanceMachineYAML = `name: request
+initial_state: Start
+states:
+  - name: Start
+  - name: Responding
+  - name: Done
+terminal_states:
+  - Done
+signals:
+  - name: Seed
+  - name: DocumentationReady
+transitions:
+  - state: Start
+    signal: Seed
+    next: Responding
+    action: respond
+  - state: Responding
+    signal: DocumentationReady
+    next: Done
+`

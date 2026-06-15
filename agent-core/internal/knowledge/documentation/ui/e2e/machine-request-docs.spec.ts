@@ -6,6 +6,9 @@ type Trace = {
   status?: string
   iterations?: number
   terminal_signal?: string
+  server?: string
+  route?: string
+  machine?: string
 }
 
 type CapturedResponse = {
@@ -23,6 +26,7 @@ type NetworkEntry = {
 const baseURL = process.env.KM_DOCS_BASE_URL ?? 'http://127.0.0.1:18081/'
 const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH ?? process.env.CHROME_BIN
 const artifactDir = process.env.KM_DOCS_ARTIFACT_DIR ?? path.join(process.cwd(), 'e2e-artifacts')
+const requireConformance = process.env.AGENT_CORE_MACHINE_REQUEST_CONFORMANCE === '1'
 const networkLog: NetworkEntry[] = []
 const consoleLog: string[] = []
 
@@ -63,6 +67,7 @@ async function runProof(browser: Browser) {
   assert(index.status === 200, `index response status ${index.status}`)
   assert(Array.isArray(index.body.data), 'index data is an array')
   assert(hasTrace(index.body), 'index machine_request trace evidence present')
+  assertConformanceTrace(index.body, 'documents', 'DocumentIndexReady')
 
   await expandCategories(page)
   await page.waitForSelector('.docs-link-title')
@@ -74,6 +79,7 @@ async function runProof(browser: Browser) {
   assert(detail.status === 200, `detail response status ${detail.status}`)
   assert(String(detail.body.raw ?? '').includes('id: agent-core-specifications'), 'raw YAML returned')
   assert(hasTrace(detail.body), 'detail machine_request trace evidence present')
+  assertConformanceTrace(detail.body, 'document', 'DocumentDetailReady')
 
   const rendered = await page.$eval('.doc-viewer', node => node.textContent ?? '')
   assert(rendered.includes('Agent Core Specification Index'), 'pretty view rendered title')
@@ -116,6 +122,15 @@ async function fetchEndpoint(page: Page, endpoint: string): Promise<CapturedResp
 function hasTrace(body: Record<string, unknown>) {
   const trace = body.trace as Trace | undefined
   return typeof trace?.status === 'string' && typeof trace.iterations === 'number'
+}
+
+function assertConformanceTrace(body: Record<string, unknown>, route: string, signal: string) {
+  if (!requireConformance) return
+  const trace = body.trace as Trace | undefined
+  assert(trace?.server === 'documentation_curator_requests', `${route} trace server present`)
+  assert(trace.route === route, `${route} trace route present`)
+  assert(trace.machine === 'documentation-curator-request', `${route} trace machine present`)
+  assert(trace.terminal_signal === signal, `${route} terminal signal present`)
 }
 
 async function writeFailure(browser: Browser, err: unknown) {
