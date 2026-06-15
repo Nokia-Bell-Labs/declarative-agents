@@ -24,8 +24,9 @@ const (
 )
 
 var (
-	bodyParamPattern = regexp.MustCompile(`params\.([A-Za-z_][A-Za-z0-9_]*)`)
-	pathParamPattern = regexp.MustCompile(`\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+	bodyParamPattern     = regexp.MustCompile(`params\.([A-Za-z_][A-Za-z0-9_]*)`)
+	pathParamPattern     = regexp.MustCompile(`\{([A-Za-z_][A-Za-z0-9_]*)(?:\.\.\.)?\}`)
+	pathParamFullPattern = regexp.MustCompile(`^\{([A-Za-z_][A-Za-z0-9_]*)(\.\.\.)?\}$`)
 )
 
 // ValidateDefinition validates a declarative REST definition before use.
@@ -179,9 +180,13 @@ func validateOperation(name string, operation Operation, mutatingResource bool) 
 }
 
 func validateDeclaredInputs(name string, operation Operation) error {
-	for _, param := range pathParamPattern.FindAllStringSubmatch(operation.Path, -1) {
-		if _, ok := operation.Params.Path[param[1]]; !ok {
-			return fmt.Errorf("operation %q path param %q is not declared", name, param[1])
+	params, err := pathParams("operation "+name, operation.Path)
+	if err != nil {
+		return err
+	}
+	for _, param := range params {
+		if _, ok := operation.Params.Path[param.name]; !ok {
+			return fmt.Errorf("operation %q path param %q is not declared", name, param.name)
 		}
 	}
 	for _, field := range bodyTemplateFields(operation.Body) {
@@ -266,9 +271,13 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 			return err
 		}
 	}
-	for _, param := range pathParamPattern.FindAllStringSubmatch(endpoint.Path, -1) {
-		if _, ok := endpoint.Request.Path[param[1]]; !ok {
-			return fmt.Errorf("endpoint %q path param %q is not declared", name, param[1])
+	params, err := pathParams("endpoint "+name, endpoint.Path)
+	if err != nil {
+		return err
+	}
+	for _, param := range params {
+		if _, ok := endpoint.Request.Path[param.name]; !ok {
+			return fmt.Errorf("endpoint %q path param %q is not declared", name, param.name)
 		}
 	}
 	return validateResponseMapping(name, endpoint.Response)
@@ -286,6 +295,46 @@ func validateMachineRequestEndpoint(name string, endpoint Endpoint) error {
 		return fmt.Errorf("endpoint %q machine_request requires timeout", name)
 	}
 	return nil
+}
+
+type pathParam struct {
+	name     string
+	catchAll bool
+}
+
+func pathParams(owner, path string) ([]pathParam, error) {
+	seen := map[string]bool{}
+	parts := pathSegments(path)
+	params := []pathParam{}
+	for i, segment := range parts {
+		param, ok, err := pathParamSegment(owner, segment)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		if seen[param.name] {
+			return nil, fmt.Errorf("%s path param %q is ambiguous", owner, param.name)
+		}
+		if param.catchAll && i != len(parts)-1 {
+			return nil, fmt.Errorf("%s catch-all path param %q must be final", owner, param.name)
+		}
+		seen[param.name] = true
+		params = append(params, param)
+	}
+	return params, nil
+}
+
+func pathParamSegment(owner, segment string) (pathParam, bool, error) {
+	if !strings.ContainsAny(segment, "{}") {
+		return pathParam{}, false, nil
+	}
+	match := pathParamFullPattern.FindStringSubmatch(segment)
+	if match == nil {
+		return pathParam{}, false, fmt.Errorf("%s has malformed path param segment %q", owner, segment)
+	}
+	return pathParam{name: match[1], catchAll: match[2] == "..."}, true, nil
 }
 
 func validateResponseMapping(name string, mapping ResponseMapping) error {

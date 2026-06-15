@@ -209,13 +209,14 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 		return MachineRequestResult{}, fmt.Errorf("machine_config_invalid: machine_request machine spec is not configured")
 	}
 	var last core.Result
+	initialSignal := machineRequestInitialSignal(req.Config)
 	params := core.LoopParams{
 		MachineSpec:    req.Config.MachineSpec,
 		Registry:       req.Config.Registry,
 		InitFunc:       req.Config.InitFunc,
 		ToolAction:     req.Config.ToolAction,
-		InitialSignal:  core.Seed,
-		InitialResult:  requestSeed(req),
+		InitialSignal:  initialSignal,
+		InitialResult:  requestSeed(req, initialSignal),
 		Budget:         req.Config.Budget,
 		CommandTimeout: parseDuration(req.Config.CommandTimeout, 0),
 		Trace:          tracing.NoopTracer{},
@@ -236,12 +237,19 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 	return machineRequestResult(rr, last)
 }
 
-func requestSeed(req MachineRequestRun) core.Result {
+func machineRequestInitialSignal(cfg MachineRequest) core.Signal {
+	if cfg.InitialSignal == "" {
+		return core.Seed
+	}
+	return core.Signal(cfg.InitialSignal)
+}
+
+func requestSeed(req MachineRequestRun, signal core.Signal) core.Result {
 	data, err := json.Marshal(req)
 	if err != nil {
-		return core.Result{Signal: core.Seed, Output: "{}"}
+		return core.Result{Signal: signal, Output: "{}"}
 	}
-	return core.Result{Signal: core.Seed, Output: string(data)}
+	return core.Result{Signal: signal, Output: string(data)}
 }
 
 func machineRequestResult(rr core.RunResult, last core.Result) (MachineRequestResult, error) {

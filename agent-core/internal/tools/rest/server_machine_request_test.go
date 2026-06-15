@@ -75,9 +75,27 @@ func TestRESTServerMachineRequestConformanceLoadsConfiguredMachineFile(t *testin
 	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
 }
 
-func TestRESTServerMachineRequestConformanceMatchesCatchAllPath(t *testing.T) {
+func TestRESTServerMachineRequestConfiguredInitialSignal(t *testing.T) {
 	t.Parallel()
-	requireMachineRequestConformance(t)
+	cfg := machineRequestConfig("DocumentationReady", 0, false)
+	cfg.InitialSignal = "ReadRequested"
+	cfg.MachineSpec = requestReadMachineSpec()
+	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
+	cfg.InitFunc = func(reg *core.Registry) error {
+		reg.Register(core.ToolSpec{Name: "respond"}, pathEchoBuilder{})
+		return nil
+	}
+	state, baseURL := launchMachineRequestServerWithConfig(t, cfg, catchAllDocsEndpoint(cfg))
+	defer stopRESTServer(t, state, "machine")
+
+	body := getJSON(t, baseURL+"/docs/VISION.yaml")
+
+	require.Equal(t, "VISION.yaml", body["path"])
+	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
+}
+
+func TestRESTServerMachineRequestMatchesCatchAllPath(t *testing.T) {
+	t.Parallel()
 	cfg := machineRequestConfig("DocumentationReady", 0, false)
 	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
 	cfg.InitFunc = func(reg *core.Registry) error {
@@ -87,12 +105,30 @@ func TestRESTServerMachineRequestConformanceMatchesCatchAllPath(t *testing.T) {
 	state, baseURL := launchMachineRequestServerWithConfig(t, cfg, catchAllDocsEndpoint(cfg))
 	defer stopRESTServer(t, state, "machine")
 
-	raw := requestBody(t, http.MethodGet, baseURL+"/docs/specs/use-cases/uc007.yaml", "", http.StatusOK)
-	var body map[string]interface{}
-	require.NoError(t, json.Unmarshal([]byte(raw), &body))
+	body := getJSON(t, baseURL+"/docs/specs/use-cases/uc007.yaml")
 
 	require.Equal(t, "specs/use-cases/uc007.yaml", body["path"])
 	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
+}
+
+func TestValidateDefinitionRejectsCatchAllPathErrors(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "malformed", path: "/docs/{path..}", want: "malformed path param"},
+		{name: "not final", path: "/docs/{path...}/raw", want: "must be final"},
+		{name: "ambiguous", path: "/docs/{path}/{path}", want: "ambiguous"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			def := machineRequestDefinitionWithPath(tc.path)
+			require.ErrorContains(t, ValidateDefinition(def), tc.want)
+		})
+	}
 }
 
 func launchMachineRequestServer(
@@ -127,6 +163,7 @@ func launchMachineRequestServerWithConfig(
 }
 
 func catchAllDocsEndpoint(cfg MachineRequest) map[string]Endpoint {
+	cfg.Request = MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
 	return map[string]Endpoint{
 		"document": {
 			Method: "GET", Path: "/docs/{path...}", Binding: bindingMachineRequest,
@@ -186,6 +223,20 @@ func requestMachineSpec() *core.MachineSpec {
 	}
 }
 
+func requestReadMachineSpec() *core.MachineSpec {
+	return &core.MachineSpec{
+		Name:           "request",
+		InitialState:   "Start",
+		States:         core.StateSpecsFromNames("Start", "Responding", "Done"),
+		TerminalStates: []string{"Done"},
+		Signals:        core.SignalSpecsFromNames("ReadRequested", "DocumentationReady"),
+		Transitions: []core.TransitionSpec{
+			{State: "Start", Signal: "ReadRequested", Next: "Responding", Action: "respond"},
+			{State: "Responding", Signal: "DocumentationReady", Next: "Done"},
+		},
+	}
+}
+
 type responseBuilder struct {
 	signal core.Signal
 	delay  time.Duration
@@ -233,6 +284,20 @@ func requestName(input string) string {
 type errCommandFailed struct{}
 
 func (errCommandFailed) Error() string { return "command failed" }
+
+func machineRequestDefinitionWithPath(path string) Definition {
+	return Definition{
+		Version: "v1",
+		Servers: map[string]Server{"machine": {
+			Address: "127.0.0.1:0",
+			Endpoints: map[string]Endpoint{"document": {
+				Method: "GET", Path: path, Binding: bindingMachineRequest,
+				Request:        RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}},
+				MachineRequest: machineRequestConfig("DocumentationReady", 0, false),
+			}},
+		}},
+	}
+}
 
 type pathEchoBuilder struct{}
 
