@@ -378,6 +378,12 @@ use_case_index:
     status: done
     test_suite: test-rel04.0-monitor
     path: docs/specs/use-cases/rel04.0-uc002-monitor-rest-api.yaml
+  - id: rel05.0-uc001-qwen-monitor-token-progress
+    title: Qwen run exposes increasing token metrics through embedded monitor
+    release: "05.0"
+    status: implemented
+    test_suite: test-rel05.0-monitor-qwen
+    path: docs/specs/use-cases/rel05.0-uc001-qwen-monitor-token-progress.yaml
 
 test_suite_index:
   - id: test-rel00.0
@@ -434,6 +440,13 @@ test_suite_index:
       - rel04.0-uc002-monitor-rest-api
     formal_test_cases: 11
     path: docs/specs/test-suites/test-rel04.0-monitor.yaml
+  - id: test-rel05.0-monitor-qwen
+    title: Test Suite for Release 05.0 Qwen Monitor Integration
+    release: "05.0"
+    traces:
+      - rel05.0-uc001-qwen-monitor-token-progress
+    formal_test_cases: 1
+    path: docs/specs/test-suites/test-rel05.0-monitor-qwen.yaml
 
 go_test_coverage:
   note: >
@@ -455,8 +468,9 @@ go_test_coverage:
     documentation-curator ownership, curator validation workflows, generic REST fan-in, lifecycle-control routing, payload propagation, terminal-state routing, listener shutdown, migration smoke coverage, machine_request conformance checks, and Puppeteer coverage for machine_request documentation UX. Package tests cover
     srd009-srd018 and domain packages. Release 04.0 has package tests for the
     monitor store, metric export, REST API SRDs, and the cmd/agent release
-    proof. mage integration:uc004 runs the release proof. Run `go test ./... -v
-    | grep -c '=== RUN'` for the current test function count.
+    proof. mage integration:uc004 runs the release proof. Release 05.0 starts
+    with mage integration:uc008 for monitored Qwen token progress. Run `go test
+    ./... -v | grep -c '=== RUN'` for the current test function count.
 
 srd_to_use_case_mapping:
   - use_case: rel00.0-uc001-domain-agent-integration

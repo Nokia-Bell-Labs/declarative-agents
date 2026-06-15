@@ -183,3 +183,29 @@ releases:
       - id: test-rel04.0-monitor
         summary: Formal tests for monitor store behavior, metric emission, OpenTelemetry export, and REST/OpenAPI cached-state reads
         status: implemented
+
+  - version: "05.0"
+    name: Monitored live model integrations
+    description: |
+      Later live integration proofs combine reusable embedded monitor behavior
+      with model-boundary flows. The first proof starts the monitor from the
+      Qwen/Ollama state machine without blocking model progress, polls cached
+      token metrics while the agent process remains active, and exits through
+      monitor control.
+    status: planned
+    srds:
+      - srd032-tool-metrics-monitor-store
+      - srd033-monitor-rest-api
+    semantic_models:
+      - sm-tool-metrics-monitoring
+    config_formats:
+      - cfg-machine-format
+      - cfg-rest-tool-format
+    use_cases:
+      - id: rel05.0-uc001-qwen-monitor-token-progress
+        summary: Qwen run exposes increasing token metrics through the embedded monitor
+        status: implemented
+    test_suites:
+      - id: test-rel05.0-monitor-qwen
+        summary: Formal test for monitored Qwen token metric progress through mage integration:uc008
+        status: implemented

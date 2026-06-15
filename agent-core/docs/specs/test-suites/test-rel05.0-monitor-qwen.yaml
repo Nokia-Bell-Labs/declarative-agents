@@ -1,0 +1,52 @@
+id: test-rel05.0-monitor-qwen
+title: Test Suite for Release 05.0 Qwen Monitor Integration
+release: "05.0"
+
+traces:
+  - rel05.0-uc001-qwen-monitor-token-progress
+
+preconditions:
+  - Ollama is reachable on http://localhost:11434.
+  - The configured Qwen 3 family model is present in Ollama.
+  - The embedded monitor runtime is enabled by monitor REST views or declared metrics.
+  - The integration target can bind an isolated loopback monitor address.
+
+test_cases:
+  - use_case: rel05.0-uc001-qwen-monitor-token-progress
+    name: Qwen monitor token metrics increase during live run
+    go_test: mage integration:uc008
+    status: implemented
+    description: |
+      Generate a temporary Qwen/Ollama REST profile that starts the embedded
+      monitor through MachineSpec, continues into the existing Qwen REST
+      model-listing flow, and keeps the monitor listener alive until the test
+      sends a control-exit request. Poll /monitor/metrics during the live
+      process and require the combined llm.prompt_tokens and
+      llm.completion_tokens aggregate to increase from the initial value.
+    inputs:
+      model_family: qwen3
+      prompt: List the local Ollama models available on this machine.
+      monitor_routes:
+        - /monitor/state
+        - /monitor/metrics
+        - /monitor/control/exit
+      token_metrics:
+        - llm.prompt_tokens
+        - llm.completion_tokens
+      binding: isolated_loopback_address
+    expected:
+      monitor_launch_non_blocking: true
+      qwen_flow_continues_after_server_launched: true
+      token_metric_present: true
+      token_metric_total_increases: true
+      process_running_while_polled: true
+      control_exit_stops_monitor: true
+      terminal_status_succeeded: true
+    traces:
+      - rel05.0-uc001-qwen-monitor-token-progress S1
+      - rel05.0-uc001-qwen-monitor-token-progress S2
+      - rel05.0-uc001-qwen-monitor-token-progress S3
+      - rel05.0-uc001-qwen-monitor-token-progress S4
+      - srd032-tool-metrics-monitor-store AC2
+      - srd033-monitor-rest-api AC1
+      - srd033-monitor-rest-api AC3
