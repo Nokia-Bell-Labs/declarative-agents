@@ -3,15 +3,22 @@
 package docsapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
 
 const defaultAddr = ":18081"
+const (
+	documentationServerLaunched = core.Signal("ServerLaunched")
+	documentationServerStopped  = core.Signal("ServerStopped")
+)
 
 // ToolConfig configures the serve_documentation boundary word.
 type ToolConfig struct {
@@ -34,41 +41,98 @@ func ServeDocumentationFactory() toolregistry.BuiltinFactory {
 		if err != nil {
 			return nil, err
 		}
-		return ServeDocumentationBuilder{Config: cfg}, nil
+		return ServeDocumentationBuilder{Config: cfg, Host: NewDocumentationHostLifecycle()}, nil
 	}
 }
 
 // ServeDocumentationBuilder creates serve_documentation commands.
 type ServeDocumentationBuilder struct {
 	Config ToolConfig
+	Host   *DocumentationHostLifecycle
 }
 
-func (b ServeDocumentationBuilder) Build(_ core.Result) core.Command {
-	return serveDocumentationCmd{config: b.Config}
+// DocumentationHostLifecycle owns the serve_documentation listener.
+type DocumentationHostLifecycle struct {
+	mu      sync.Mutex
+	running *RunningServer
+}
+
+// NewDocumentationHostLifecycle creates empty documentation host ownership state.
+func NewDocumentationHostLifecycle() *DocumentationHostLifecycle {
+	return &DocumentationHostLifecycle{}
+}
+
+func (b ServeDocumentationBuilder) Build(previous core.Result) core.Command {
+	host := b.Host
+	if host == nil {
+		host = NewDocumentationHostLifecycle()
+	}
+	return serveDocumentationCmd{
+		config: b.Config, host: host,
+		stop: previous.Signal == core.Signal("AgentExited"),
+	}
 }
 
 type serveDocumentationCmd struct {
 	config ToolConfig
+	host   *DocumentationHostLifecycle
+	stop   bool
 }
 
 func (c serveDocumentationCmd) Name() string { return "serve_documentation" }
 
 func (c serveDocumentationCmd) Undo() core.Result {
-	return core.NoopUndo(c.Name())
+	return c.stopHost()
+}
+
+func (c serveDocumentationCmd) UndoMemento() (core.UndoMemento, error) {
+	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
+		Strategy:   "server_shutdown",
+		ServerAddr: c.hostAddr(),
+		Requires:   []string{"addr"},
+	}}
+	return undo.BoundaryCompensationMemento(c.Name(), payload, "stop the owned documentation host listener")
 }
 
 func (c serveDocumentationCmd) Execute() core.Result {
-	running, err := NewServer(HostConfig{
+	if c.stop {
+		return c.stopHost()
+	}
+	running, err := c.host.Start(HostConfig{
 		Addr:       c.config.Addr,
 		DocsDir:    c.config.DocsDir,
 		ConfigsDir: c.config.ConfigsDir,
 		SourceDir:  c.config.SourceDir,
 		Workflow:   NewLazyProfileWorkflowRunner(c.config.ProfilePath),
-	}).Start()
+	})
 	if err != nil {
 		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Err: err, Output: err.Error()}
 	}
-	return core.Result{Signal: "ServerLaunched", CommandName: c.Name(), Output: running.Addr}
+	return core.Result{Signal: documentationServerLaunched, CommandName: c.Name(), Output: jsonOutput(map[string]string{
+		"signal": string(documentationServerLaunched),
+		"addr":   running.Addr,
+	})}
+}
+
+func (c serveDocumentationCmd) stopHost() core.Result {
+	addr, err := c.host.Stop()
+	if err != nil {
+		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Err: err, Output: err.Error()}
+	}
+	return core.Result{Signal: documentationServerStopped, CommandName: c.Name(), Output: jsonOutput(map[string]string{
+		"signal": string(documentationServerStopped),
+		"addr":   addr,
+	})}
+}
+
+func (c serveDocumentationCmd) hostAddr() string {
+	if c.host == nil {
+		return c.config.Addr
+	}
+	if addr := c.host.Addr(); addr != "" {
+		return addr
+	}
+	return c.config.Addr
 }
 
 func decodeToolConfig(def catalog.ToolDef) (ToolConfig, error) {
@@ -104,4 +168,49 @@ func decodeToolConfig(def catalog.ToolDef) (ToolConfig, error) {
 		cfg.ProfilePath = abs
 	}
 	return cfg, nil
+}
+
+// Start launches and retains the owned documentation host.
+func (h *DocumentationHostLifecycle) Start(cfg HostConfig) (*RunningServer, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.running != nil {
+		return nil, fmt.Errorf("documentation host already running at %s", h.running.Addr)
+	}
+	running, err := NewServer(cfg).Start()
+	if err != nil {
+		return nil, err
+	}
+	h.running = running
+	return running, nil
+}
+
+// Stop stops and clears the owned documentation host.
+func (h *DocumentationHostLifecycle) Stop() (string, error) {
+	h.mu.Lock()
+	running := h.running
+	h.running = nil
+	h.mu.Unlock()
+	if running == nil {
+		return "", fmt.Errorf("documentation host is not running")
+	}
+	return running.Addr, running.Stop()
+}
+
+// Addr returns the current owned host address.
+func (h *DocumentationHostLifecycle) Addr() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.running == nil {
+		return ""
+	}
+	return h.running.Addr
+}
+
+func jsonOutput(output map[string]string) string {
+	data, err := json.Marshal(output)
+	if err != nil {
+		return fmt.Sprintf(`{"error":%q}`, err.Error())
+	}
+	return string(data)
 }

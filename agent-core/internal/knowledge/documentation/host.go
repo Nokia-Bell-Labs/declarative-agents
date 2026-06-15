@@ -3,12 +3,14 @@
 package docsapi
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/knowledge/documentation/ui"
 )
@@ -109,9 +111,29 @@ func (r *RunningServer) Close() error {
 	return r.server.Close()
 }
 
+// Shutdown gracefully stops the launched documentation host.
+func (r *RunningServer) Shutdown(ctx context.Context) error {
+	return r.server.Shutdown(ctx)
+}
+
 // Wait blocks until the launched documentation host stops.
 func (r *RunningServer) Wait() error {
 	return <-r.done
+}
+
+// Stop closes the launched host and waits for Serve to return.
+func (r *RunningServer) Stop() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	shutdownErr := r.Shutdown(ctx)
+	waitErr := r.Wait()
+	if shutdownErr != nil {
+		return shutdownErr
+	}
+	if waitErr != nil && !errors.Is(waitErr, http.ErrServerClosed) {
+		return waitErr
+	}
+	return nil
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

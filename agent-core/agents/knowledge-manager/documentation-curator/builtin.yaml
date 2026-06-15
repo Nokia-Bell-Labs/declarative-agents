@@ -5,6 +5,7 @@ tools:
     visibility: internal
     emits:
       - ServerLaunched
+      - ServerStopped
       - CommandError
     description: Start the standalone Knowledge Manager documentation UI and API host.
     category: boundary
@@ -18,11 +19,12 @@ tools:
         - must read addr and docs_dir from ToolDef config
       output:
         - must emit ServerLaunched when the host starts
+        - must emit ServerStopped when the owned host stops
         - must emit CommandError when the host cannot start or exits with an error
       side_effects:
         - must bind a local HTTP server
       undo:
-        - must treat server shutdown as an operator-managed compensation
+        - must stop the owned documentation host listener
       errors:
         - must emit CommandError when docs_dir is missing or the server cannot bind
     non_goals:
@@ -57,13 +59,17 @@ tools:
       requires_confirmation: false
     undo:
       strategy: compensating_action
-      description: Stop the documentation host process or release the bound address.
+      description: Stop the owned documentation host listener and release the bound address.
       requires:
         - addr
     errors:
       - signal: CommandError
         condition: docs_dir is missing, address binding fails, or the HTTP server exits with an error
         message_shape: 'serve_documentation: <error>'
+        state_after_failure: no durable docs state is changed
+      - signal: CommandError
+        condition: stop is requested but no documentation host is running
+        message_shape: 'documentation host is not running'
         state_after_failure: no durable docs state is changed
     relationships:
       before:

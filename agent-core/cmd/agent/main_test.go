@@ -367,9 +367,10 @@ type exitMachineCase struct {
 }
 
 type staticSignalBuilder struct {
-	name   string
-	signal core.Signal
-	output string
+	name      string
+	signal    core.Signal
+	output    string
+	afterExit core.Signal
 }
 
 type staticSignalCmd struct {
@@ -399,11 +400,15 @@ func runExitMachine(t *testing.T, tc exitMachineCase) core.RunResult {
 	machine, err := core.LoadMachineSpec(filepath.Join(repoRootFromTest(t), tc.machinePath))
 	require.NoError(t, err)
 	reg := core.NewRegistry()
-	registerStaticSignal(reg, tc.launch, "ServerLaunched", "{}")
+	launchStopSignal := core.Signal("")
 	if tc.secondLaunch != "" {
-		registerStaticSignal(reg, tc.secondLaunch, "ServerLaunched", "{}")
+		launchStopSignal = "ServerStopped"
 	}
-	registerStaticSignal(reg, tc.await, "ExitRequested", exitEventOutput())
+	registerStaticSignal(reg, tc.launch, "ServerLaunched", "{}", launchStopSignal)
+	if tc.secondLaunch != "" {
+		registerStaticSignal(reg, tc.secondLaunch, "ServerLaunched", "{}", "")
+	}
+	registerStaticSignal(reg, tc.await, "ExitRequested", exitEventOutput(), "")
 	reg.Register(core.ToolSpec{Name: "exit_agent"}, lifecycle.ExitBuilder{
 		Config:   lifecycle.ExitConfig{Status: "success"},
 		Shutdown: tc.shutdown.Request,
@@ -415,12 +420,17 @@ func runExitMachine(t *testing.T, tc exitMachineCase) core.RunResult {
 	return result
 }
 
-func registerStaticSignal(reg *core.Registry, name string, signal core.Signal, output string) {
-	reg.Register(core.ToolSpec{Name: name}, staticSignalBuilder{name: name, signal: signal, output: output})
+func registerStaticSignal(reg *core.Registry, name string, signal core.Signal, output string, afterExit core.Signal) {
+	reg.Register(core.ToolSpec{Name: name}, staticSignalBuilder{
+		name: name, signal: signal, output: output, afterExit: afterExit,
+	})
 }
 
-func (b staticSignalBuilder) Build(_ core.Result) core.Command {
-	return staticSignalCmd(b)
+func (b staticSignalBuilder) Build(previous core.Result) core.Command {
+	if b.afterExit != "" && previous.Signal == core.Signal("AgentExited") {
+		return staticSignalCmd{name: b.name, signal: b.afterExit, output: b.output}
+	}
+	return staticSignalCmd{name: b.name, signal: b.signal, output: b.output}
 }
 
 func (c staticSignalCmd) Name() string { return c.name }
@@ -440,10 +450,13 @@ func exitEventOutput() string {
 func requireExitEvent(t *testing.T, result core.RunResult) {
 	t.Helper()
 	require.NotEqual(t, core.StatusCancelled, result.Status)
-	require.NotEmpty(t, result.Events)
-	last := result.Events[len(result.Events)-1]
-	require.Equal(t, "exit_agent", last.CommandName)
-	require.Equal(t, core.Signal("AgentExited"), last.Signal)
+	for _, event := range result.Events {
+		if event.CommandName == "exit_agent" {
+			require.Equal(t, core.Signal("AgentExited"), event.Signal)
+			return
+		}
+	}
+	require.Fail(t, "exit_agent event not recorded")
 }
 
 func assertGenDeclNamesAbsent(t *testing.T, decl *ast.GenDecl, forbidden map[string]bool) {
