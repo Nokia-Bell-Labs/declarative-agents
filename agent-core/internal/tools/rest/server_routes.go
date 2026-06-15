@@ -73,15 +73,15 @@ func (r *serverRuntime) handleEndpoint(
 	case bindingDynamicSignal:
 		r.enqueueDynamicSignal(w, req, name, endpoint, payload)
 	case bindingReadState:
-		writeJSON(w, http.StatusOK, r.stateOutput())
+		r.writeReadState(w, name, endpoint)
 	case bindingInvokeHandler:
 		r.invokeHandler(w, req, name, endpoint, payload)
 	case bindingStreamEvents:
-		r.streamEvents(w)
+		r.streamEvents(w, endpoint)
 	case bindingHealth:
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
 	case bindingStaticMetadata:
-		writeJSON(w, http.StatusOK, r.metadataOutput())
+		r.writeStaticMetadata(w, endpoint)
 	case bindingMachineRequest:
 		r.handleMachineRequest(w, req, name, endpoint, payload)
 	default:
@@ -166,7 +166,11 @@ func inboundEvent(source, route, method, signal string, payload map[string]inter
 	}
 }
 
-func (r *serverRuntime) streamEvents(w http.ResponseWriter) {
+func (r *serverRuntime) streamEvents(w http.ResponseWriter, endpoint Endpoint) {
+	if endpoint.MonitorView != "" {
+		r.streamMonitorEvents(w)
+		return
+	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming is not supported", http.StatusInternalServerError)

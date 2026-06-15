@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 )
 
 // Collection indexes REST definitions loaded for one profile.
@@ -43,6 +45,14 @@ type ServerDefinition struct {
 	Server               Server
 	Limits               LimitProfile
 	MachineRequestRunner MachineRequestRunner
+	Monitor              MonitorState
+}
+
+// MonitorState provides read-only state for monitor REST endpoints.
+type MonitorState struct {
+	Store   *monitor.Store
+	Machine *core.MachineSpec
+	Tools   []catalog.ToolDef
 }
 
 // MachineRequestRunner runs one request-scoped machine.

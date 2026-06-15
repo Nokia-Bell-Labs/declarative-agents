@@ -144,6 +144,7 @@ type Endpoint struct {
 	Binding            string          `yaml:"binding"`
 	Signal             string          `yaml:"signal,omitempty"`
 	AllowedSignals     []string        `yaml:"allowed_signals,omitempty"`
+	MonitorView        string          `yaml:"monitor_view,omitempty"`
 	Request            RequestBinding  `yaml:"request,omitempty"`
 	Response           ResponseMapping `yaml:"response,omitempty"`
 	Queue              QueueConfig     `yaml:"queue,omitempty"`

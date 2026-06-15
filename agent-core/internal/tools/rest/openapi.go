@@ -269,6 +269,7 @@ func setBoundEndpoint(def *Definition, endpointName string, compiled Endpoint) e
 		compiled.Binding = endpoint.Binding
 		compiled.Signal = endpoint.Signal
 		compiled.AllowedSignals = endpoint.AllowedSignals
+		compiled.MonitorView = endpoint.MonitorView
 		compiled.Queue = endpoint.Queue
 		server.Endpoints[endpointName] = compiled
 		def.Servers[serverName] = server
