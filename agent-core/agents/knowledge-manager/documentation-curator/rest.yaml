@@ -362,6 +362,7 @@ rest:
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
+            initial_signal: ReadRequested
             timeout: 5s
             request:
               path:

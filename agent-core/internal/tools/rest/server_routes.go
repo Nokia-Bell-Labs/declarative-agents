@@ -451,7 +451,7 @@ func selectorField(selector string) string {
 func matchPath(template, path string) (map[string]string, bool) {
 	want := pathSegments(template)
 	got := pathSegments(path)
-	if len(want) != len(got) {
+	if !pathSegmentCountsMatch(want, got) {
 		return nil, false
 	}
 	return matchSegments(want, got)
@@ -460,6 +460,10 @@ func matchPath(template, path string) (map[string]string, bool) {
 func matchSegments(want, got []string) (map[string]string, bool) {
 	vars := map[string]string{}
 	for i, segment := range want {
+		if name, ok := catchAllParam(segment); ok {
+			vars[name] = strings.Join(got[i:], "/")
+			return vars, true
+		}
 		if strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}") {
 			vars[strings.Trim(segment, "{}")] = got[i]
 			continue
@@ -469,6 +473,21 @@ func matchSegments(want, got []string) (map[string]string, bool) {
 		}
 	}
 	return vars, true
+}
+
+func pathSegmentCountsMatch(want, got []string) bool {
+	if len(want) == 0 {
+		return len(got) == 0
+	}
+	if _, ok := catchAllParam(want[len(want)-1]); ok {
+		return len(got) >= len(want)
+	}
+	return len(want) == len(got)
+}
+
+func catchAllParam(segment string) (string, bool) {
+	name, ok := strings.CutSuffix(strings.Trim(segment, "{}"), "...")
+	return name, ok && name != "" && strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}")
 }
 
 func pathSegments(path string) []string {

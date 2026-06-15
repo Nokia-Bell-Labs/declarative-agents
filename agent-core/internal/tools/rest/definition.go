@@ -154,6 +154,7 @@ type Endpoint struct {
 type MachineRequest struct {
 	Profile        string                     `yaml:"profile,omitempty"`
 	Machine        string                     `yaml:"machine,omitempty"`
+	InitialSignal  string                     `yaml:"initial_signal,omitempty"`
 	Request        MachineRequestMapping      `yaml:"request,omitempty"`
 	Response       MachineRequestResponse     `yaml:"response,omitempty"`
 	Timeout        string                     `yaml:"timeout,omitempty"`
