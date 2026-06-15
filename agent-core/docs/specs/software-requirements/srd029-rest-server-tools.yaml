@@ -129,7 +129,7 @@ requirements:
     items:
       - R11.1: Launched server state SHALL expose named event sources that rest_await_event can filter by server name, route name, signal, and queue policy.
       - R11.2: Event queues SHALL preserve enough source metadata for rest_await_event to return the selected source, route, method, signal, payload, request ID, and correlation metadata.
-      - R11.3: Stopped server state SHALL notify rest_await_event according to configured stopped-source behavior: ignore, emit ServerStopped, or fail with CommandError.
+      - R11.3: "Stopped server state SHALL notify rest_await_event according to configured stopped-source behavior: ignore, emit ServerStopped, or fail with CommandError."
       - R11.4: lifecycle_control endpoints SHALL enqueue lifecycle request events and SHALL NOT call exit, pause, rollback, resume, or signal-injection operations directly.
       - R11.5: Signal injection endpoints SHALL accept only configured allowlisted signals and SHALL include operator or caller metadata in the queued event payload.
       - R11.6: Rollback request endpoints SHALL validate the configured target selector schema before enqueueing a rollback signal or request event.
