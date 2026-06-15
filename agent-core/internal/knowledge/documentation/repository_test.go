@@ -136,6 +136,10 @@ func TestHandlerServesCuratorSearchValidationAndPatchReview(t *testing.T) {
 	require.Equal(t, http.StatusOK, approve.Code)
 	require.Contains(t, approve.Body.String(), `"status":"approved_pending_apply"`)
 	require.Contains(t, approve.Body.String(), `"applied":false`)
+
+	reopen := postDocsJSON(t, handler, "/api/v1/docs/patches/"+patchID+"/reopen", `{"decided_by":"tester","reason":"more review"}`)
+	require.Equal(t, http.StatusOK, reopen.Code)
+	require.Contains(t, reopen.Body.String(), `"status":"pending_review"`)
 }
 
 func writeDocFixture(t *testing.T, root, rel, content string) {

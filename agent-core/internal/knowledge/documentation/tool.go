@@ -17,8 +17,11 @@ const defaultAddr = ":18081"
 
 // ToolConfig configures the serve_documentation boundary word.
 type ToolConfig struct {
-	Addr    string `json:"addr"`
-	DocsDir string `json:"docs_dir"`
+	Addr        string `json:"addr"`
+	DocsDir     string `json:"docs_dir"`
+	ConfigsDir  string `json:"configs_dir"`
+	SourceDir   string `json:"source_dir"`
+	ProfilePath string `json:"profile_path"`
 }
 
 // RegisterFactories registers Knowledge Manager documentation builtin factories.
@@ -57,7 +60,13 @@ func (c serveDocumentationCmd) Undo() core.Result {
 }
 
 func (c serveDocumentationCmd) Execute() core.Result {
-	err := NewServer(HostConfig{Addr: c.config.Addr, DocsDir: c.config.DocsDir}).ListenAndServe()
+	err := NewServer(HostConfig{
+		Addr:       c.config.Addr,
+		DocsDir:    c.config.DocsDir,
+		ConfigsDir: c.config.ConfigsDir,
+		SourceDir:  c.config.SourceDir,
+		Workflow:   NewLazyProfileWorkflowRunner(c.config.ProfilePath),
+	}).ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return core.Result{Signal: "ServerStopped", CommandName: c.Name()}
 	}
@@ -80,6 +89,24 @@ func decodeToolConfig(def catalog.ToolDef) (ToolConfig, error) {
 	}
 	if abs, err := filepath.Abs(cfg.DocsDir); err == nil {
 		cfg.DocsDir = abs
+	}
+	if cfg.ConfigsDir == "" {
+		cfg.ConfigsDir = "configs"
+	}
+	if abs, err := filepath.Abs(cfg.ConfigsDir); err == nil {
+		cfg.ConfigsDir = abs
+	}
+	if cfg.SourceDir == "" {
+		cfg.SourceDir = "."
+	}
+	if abs, err := filepath.Abs(cfg.SourceDir); err == nil {
+		cfg.SourceDir = abs
+	}
+	if cfg.ProfilePath == "" {
+		cfg.ProfilePath = defaultCuratorProfilePath
+	}
+	if abs, err := filepath.Abs(cfg.ProfilePath); err == nil {
+		cfg.ProfilePath = abs
 	}
 	return cfg, nil
 }

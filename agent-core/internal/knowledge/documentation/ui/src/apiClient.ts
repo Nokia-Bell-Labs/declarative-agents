@@ -79,17 +79,21 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return payload.data
 }
 
-export const listDocs = () => fetchJSON<DocEntry[]>('/docs')
-export const getDoc = (path: string) => fetchJSON<DocDetail>(`/docs/${path}`)
+async function postAction<T>(type: string, params: Record<string, unknown> = {}): Promise<T> {
+  return postJSON<T>('/actions', { type, params })
+}
+
+export const listDocs = () => postAction<DocEntry[]>('doc_list')
+export const getDoc = (path: string) => postAction<DocDetail>('doc_get', { path })
 export const getConfig = (path: string) => fetchJSON<ConfigDetail>(`/configs/${path}`)
 export const getSource = (path: string) => fetchJSON<SourceDetail>(`/source/${path}`)
-export const validateDocs = (paths: string[], strict = false) => postJSON<ValidationReport>('/docs/validate', { paths, strict })
+export const validateDocs = (paths: string[], strict = false) => postAction<ValidationReport>('doc_validate', { paths, strict })
 export const suggestDocChanges = (path: string, instruction: string, context = '') => {
-  return postJSON<SuggestionResponse>('/docs/suggestions', { path, instruction, context })
+  return postAction<SuggestionResponse>('doc_suggest_changes', { path, instruction, context })
 }
 export const approvePatch = (patchId: string, decidedBy: string, note = '') => {
-  return postJSON<PatchDecision>(`/docs/patches/${patchId}/approve`, { decided_by: decidedBy, note })
+  return postAction<PatchDecision>('doc_patch_approve', { patch_id: patchId, decided_by: decidedBy, note })
 }
 export const rejectPatch = (patchId: string, decidedBy: string, reason = '') => {
-  return postJSON<PatchDecision>(`/docs/patches/${patchId}/reject`, { decided_by: decidedBy, reason })
+  return postAction<PatchDecision>('doc_patch_reject', { patch_id: patchId, decided_by: decidedBy, reason })
 }
