@@ -51,6 +51,7 @@ requirements:
       - R2.3: Response schemas SHALL describe machine spec metadata, current state, selected tools, per-tool metrics, aggregate metrics, recent events, event stream frames, errors, and diagnostics.
       - R2.4: OpenAPI output SHALL omit secrets, raw prompts, full tool output, arbitrary workspace paths, and unbounded labels.
       - R2.5: OpenAPI generation SHALL NOT generate Go server code in the first implementation.
+      - R2.6: OpenAPI output SHALL include profile-owned lifecycle control endpoints configured for the monitor server, including POST /monitor/control/exit when that route exists.
 
   R3:
     title: Snapshot endpoints
@@ -61,6 +62,8 @@ requirements:
       - R3.4: GET per-tool metrics endpoint SHALL return per-tool aggregates and recent samples grouped only by allowed low-cardinality attributes.
       - R3.5: GET aggregate metrics endpoint SHALL return run-level counters, histograms, gauges, status summaries, and monitor diagnostics.
       - R3.6: GET recent events endpoint SHALL return a bounded recent event window with state, signal, tool name, timestamp, status, and redacted diagnostics.
+      - R3.7: Metric sample responses SHALL include the runtime envelope for both dispatch metrics and tool-owned specialized samples with run_id, state, signal, status, tool_name, and workflow labels where available.
+      - R3.8: JSON response field names SHALL use stable API lower_snake_case names and SHALL NOT expose Go struct field names such as RunID, ToolName, or UpdatedAt.
 
   R4:
     title: Event streams
@@ -88,6 +91,8 @@ requirements:
       - R6.3: Monitor control routes SHALL be profile-owned and separate from read-only monitor snapshot routes.
       - R6.4: A configured control exit request SHALL route to a stop step that releases the owned monitor listener.
       - R6.5: After the listener stops without error, the monitor MachineSpec SHALL route to Done or Succeeded so the run status is succeeded.
+      - R6.6: CLI proofs and automated tests SHOULD bind the monitor listener to an isolated localhost address from generated profile config or an explicit runtime override.
+      - R6.7: A checked-in fixed monitor port is a profile default, not a test isolation guarantee; tests SHALL document or avoid conflicts from parallel runs and stale listeners.
 
 implementation_status:
   current: |
@@ -126,15 +131,15 @@ acceptance_criteria:
       - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC2
-    criterion: OpenAPI requirements cover configured endpoint descriptions, stable operation IDs, response schemas, redaction, and no generated Go server code.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+    criterion: OpenAPI requirements cover configured endpoint descriptions, stable operation IDs, response schemas, profile-owned control endpoints, redaction, and no generated Go server code.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
     tests:
       - "test-rel04.0-monitor: Monitor OpenAPI omits unsafe fields"
       - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC3
-    criterion: Snapshot endpoint requirements cover machine spec, current state, tools, per-tool metrics, aggregate metrics, and recent events.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+    criterion: Snapshot endpoint requirements cover machine spec, current state, tools, per-tool metrics, aggregate metrics, recent events, stable lower_snake_case response fields, and the runtime envelope on specialized samples.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
     tests:
       - "test-rel04.0-monitor: Monitor snapshot endpoints return configured views"
       - "test-rel04.0-monitor: End-to-end monitor release proof"
@@ -153,8 +158,8 @@ acceptance_criteria:
       - "test-rel04.0-monitor: Monitor REST failures stay observational"
 
   - id: AC6
-    criterion: Serving lifecycle requirements keep the monitor profile queryable until a configured control exit request stops the listener and routes to a success terminal state.
-    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+    criterion: Serving lifecycle requirements keep the monitor profile queryable until a configured control exit request stops the listener, routes to a success terminal state, and uses isolated binding for automated proofs.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7]
     tests:
       - "test-rel04.0-monitor: Real CLI monitor process stays queryable until exit"
 

@@ -14,7 +14,7 @@ preconditions:
   - REST monitor tests can use httptest.Server with profile-owned routes.
   - OpenAPI tests can inspect generated or configured endpoint descriptions.
   - Disabled-mode tests can run without monitor config.
-  - A real cmd/agent monitor process can bind a localhost REST listener during tests.
+  - A real cmd/agent monitor process can bind an isolated localhost REST listener during tests.
 
 test_cases:
   - use_case: rel04.0-uc001-configurable-tool-metrics
@@ -65,19 +65,23 @@ test_cases:
       process is still running. Before shutdown, ask /monitor/metrics for the
       live aggregate view and send the configured monitor control exit request.
       After handling the control request, the process should stop the owned
-      listener and complete with terminal state Done or Succeeded.
+      listener and complete with terminal state Done or Succeeded. The proof
+      should avoid the checked-in fixed profile port by generating or overriding
+      the monitor bind address for the test run.
     inputs:
       profile: agents/monitor/profile.yaml
       query_routes:
         - /monitor/state
         - /monitor/metrics
       control_route: /monitor/control/exit
+      binding: isolated_loopback_address
     expected:
       process_running_after_server_launch: true
       monitor_state_query_succeeds: true
       monitor_metrics_query_succeeds: true
       control_exit_stops_listener: true
       terminal_status_succeeded: true
+      avoids_shared_fixed_port: true
     traces:
       - rel04.0-uc002-monitor-rest-api S6
       - srd033-monitor-rest-api AC6
@@ -112,15 +116,17 @@ test_cases:
     status: implemented
     description: |
       Dispatch records standard context. A filesystem tool records specialized
-      samples. The recorder should accept both forms through one path. Direct
+      samples. Both forms should carry the same low-cardinality runtime
+      envelope. The recorder should accept both forms through one path. Direct
       writes to exporters or REST readers should fail before any reader learns
       tool-family internals.
     inputs:
-      standard_context: [run_id, agent_name, tool_name, state, signal, status, duration]
+      standard_context: [run_id, agent_name, tool_name, state, signal, status, duration, workflow_labels]
       specialized_samples: [files_written, bytes_changed]
     expected:
       runtime_context_recorded: true
       specialized_samples_recorded: true
+      specialized_envelope_present: [run_id, state, signal, status, tool_name, workflow_labels]
       direct_exporter_write_allowed: false
     traces:
       - rel04.0-uc001-configurable-tool-metrics S2
@@ -216,12 +222,15 @@ test_cases:
       Inspect the configured OpenAPI document for monitor endpoints. Operation
       IDs should be stable. Schemas should describe safe monitor responses and
       omit prompt data or output data. They should also omit secret material,
-      workspace paths, and unbounded labels.
+      workspace paths, and unbounded labels. The OpenAPI document should include
+      profile-owned lifecycle control endpoints such as POST
+      /monitor/control/exit.
     inputs:
-      endpoints: [machine_spec, current_state, tool_metrics, aggregate_metrics, event_stream]
+      endpoints: [machine_spec, current_state, tool_metrics, aggregate_metrics, event_stream, control_exit]
     expected:
       operation_ids_stable: true
       unsafe_fields_absent: true
+      control_exit_documented: true
       generated_go_server_code: false
     traces:
       - rel04.0-uc002-monitor-rest-api S2
@@ -234,7 +243,8 @@ test_cases:
     description: |
       Query each configured snapshot endpoint. Each response should come from
       the monitor snapshot. Labels should use only allowed low-cardinality
-      attributes.
+      attributes. JSON field names should use lower_snake_case API names, not Go
+      struct field names.
     inputs:
       requested_views:
         - machine_spec
@@ -247,6 +257,8 @@ test_cases:
       views_present: true
       labels_safe: true
       source_is_monitor_store: true
+      lower_snake_case_fields: true
+      go_struct_field_names_absent: [RunID, ToolName, UpdatedAt]
     traces:
       - rel04.0-uc002-monitor-rest-api S3
       - srd033-monitor-rest-api AC3

@@ -711,7 +711,9 @@ overview:
       byte counts. Exec tools can emit exit status and output sizes. REST tools
       can emit operation names, status codes, retry counts, and body sizes.
       Runtime code owns the common envelope: run ID, tool name, state, signal,
-      timestamp, duration, and status.
+      timestamp, duration, and status. Tool-owned specialized samples carry
+      that same low-cardinality envelope and trusted workflow labels when those
+      labels are available.
 
       OpenTelemetry metric export reads normalized samples through the monitor
       recorder. Export behavior stays separate from tool execution. Export
@@ -722,13 +724,22 @@ overview:
       do not scrape tools, re-run commands, or read arbitrary workspace files.
       cmd/agent startup allocates the live store, passes it to REST monitor
       routes, and applies MachineSpec workflow labels to emitted samples.
+      JSON responses use lower_snake_case API field names instead of Go
+      struct field names.
 
       Monitor serving uses the same lifecycle shape as the Knowledge Manager
       documentation curator. After a launch word, the REST listener runs in the
       background. A monitor MachineSpec must not make that launch state
       terminal. Its next step should be a serving or awaiting state with a
       blocking await word. A configured control exit request then stops the
-      owned listener and routes the machine to Done or Succeeded.
+      owned listener and routes the machine to Done or Succeeded. OpenAPI
+      output must include both read endpoints and profile-owned lifecycle
+      control endpoints such as POST /monitor/control/exit.
+
+      The checked-in agents/monitor/rest.yaml profile uses 127.0.0.1:18083 by
+      default. Tests and CLI proofs should avoid sharing that fixed port by
+      binding an isolated localhost address from generated profile config or an
+      explicit runtime override.
     monitor_flow_diagram: |
       ```mermaid
       flowchart LR
@@ -758,11 +769,19 @@ overview:
         REST handlers expose cached monitor state through configured routes and
         OpenAPI descriptions. Read handlers return snapshots, time windows, and
         known metric schemas from trusted monitor state.
+      response_shape: |
+        Stable monitor payloads expose lower_snake_case field names. API
+        readers should not depend on Go struct field names such as RunID,
+        ToolName, or UpdatedAt.
       serving_lifecycle: |
         Monitor REST listeners are background servers. Profile grammar keeps
         cmd/agent alive by awaiting a control event after launch. This follows
         agents/knowledge-manager/documentation-curator/machine.yaml: launch,
         await, exit, stop, and reach a success terminal.
+      isolated_binding: |
+        Operator profiles may name a fixed local port. Automated tests and CLI
+        proofs should bind an isolated loopback address so
+        parallel runs and stale listeners do not affect the result.
     source_files:
       current:
         - internal/observability/monitor/
