@@ -1,0 +1,132 @@
+id: srd030-machine-request-rest-binding
+title: Machine Request REST Binding
+
+problem: |
+  Knowledge Manager demo requests need to enter Agent Core through REST without
+  moving request-specific workflow into Go HTTP handlers. A direct handler can
+  validate transport data and write a response. It still hides the sentence
+  that handles the request.
+
+  For REST server runtime, we need a binding that turns one inbound HTTP
+  request into one short-lived MachineSpec execution. Request data becomes
+  grammar input. Declared words handle the request inside the selected machine.
+  Only a response word can carry HTTP response data back to the transport layer.
+
+goals:
+  - G1: Define a REST server binding that starts one short-lived machine run for one inbound HTTP request.
+  - G2: Keep request handling composition in MachineSpec transitions instead of direct Go handlers.
+  - G3: Define request input mapping, response extraction, error mapping, timeout behavior, and trace recording.
+  - G4: Keep profile, machine, tool selection, and response policy under trusted configuration.
+
+requirements:
+  R1:
+    title: Binding scope
+    items:
+      - R1.1: REST server endpoints MAY use binding machine_request when one HTTP request should execute one configured MachineSpec run.
+      - R1.2: The machine_request binding SHALL be a REST server boundary binding under internal/tools/rest.
+      - R1.3: The binding SHALL use the same core.Loop execution model as other configured agent programs.
+      - R1.4: The binding SHALL NOT implement demo request behavior as direct Go handler workflow composition.
+      - R1.5: The binding SHALL support short-lived request/response executions, not long-running background agent sessions.
+
+  R2:
+    title: Configured machine authority
+    items:
+      - R2.1: Trusted REST configuration SHALL name the profile or profile-equivalent runtime inputs used for the request machine.
+      - R2.2: Configuration SHALL name or resolve the MachineSpec, selected ToolDefs, boundary tool config, initial state, terminal states, and allowed response signals.
+      - R2.3: Runtime HTTP callers SHALL NOT choose the machine file, profile path, tool declarations, model boundary config, or filesystem roots.
+      - R2.4: The request machine SHALL use selected vocabulary words exactly like any other MachineSpec execution.
+      - R2.5: The binding SHALL reject configuration that references missing machines, missing tools, unresolved response words, or undeclared terminal signals.
+
+  R3:
+    title: Request input mapping
+    items:
+      - R3.1: The binding SHALL validate method, path, query, headers, and body before starting the machine run.
+      - R3.2: Configuration SHALL declare which path, query, header, and body fields become machine request input.
+      - R3.3: Request input SHALL be provided to the initial machine action through structured Result output or an equivalent configured seed payload.
+      - R3.4: Request metadata SHALL include request ID, route name, method, path template, correlation ID, remote address policy, and redacted diagnostics.
+      - R3.5: Invalid HTTP input SHALL return the configured validation error response and SHALL NOT start a machine run.
+
+  R4:
+    title: Response extraction
+    items:
+      - R4.1: A machine_request run SHALL produce an HTTP response only from configured terminal response data.
+      - R4.2: Response words SHALL be the only bridge from machine output back to HTTP status, headers, and body.
+      - R4.3: Configuration SHALL map allowed terminal signals or response word output to status code, headers, body fields, and content type.
+      - R4.4: The binding SHALL reject terminal output that cannot satisfy the configured response schema.
+      - R4.5: Missing response output SHALL map to a configured default response or a structured server error.
+
+  R5:
+    title: Error and timeout mapping
+    items:
+      - R5.1: Machine construction, validation, dispatch, tool, timeout, cancellation, and terminal response failures SHALL map to configured HTTP error responses.
+      - R5.2: The binding SHALL distinguish request_invalid, machine_config_invalid, machine_run_failed, machine_timeout, response_invalid, and response_missing stages.
+      - R5.3: Request-scoped timeout SHALL bound the whole machine run and SHALL cancel the run context when it expires.
+      - R5.4: A timed-out run SHALL return the configured timeout status and redacted diagnostic output.
+      - R5.5: Error responses SHALL NOT expose secrets, raw prompts, internal paths, credentials, or unredacted request bodies.
+
+  R6:
+    title: Trace and lifecycle behavior
+    items:
+      - R6.1: The binding SHOULD trace route name, request ID, machine name, profile name, terminal state, terminal signal, status code, elapsed time, and failure stage.
+      - R6.2: Trace attributes and events SHALL redact configured secret material.
+      - R6.3: The machine run SHALL record normal RunResult and RunEvent data for the short-lived sentence.
+      - R6.4: If lifecycle ports are enabled, checkpoints SHALL keep HTTP request metadata separate from command/domain state and workspace state.
+      - R6.5: The binding SHALL clean up request-scoped machine state after the response unless configuration declares retained trace or audit artifacts.
+
+non_goals:
+  - Implementing the machine_request binding in this issue.
+  - Replacing rest_server_await or rest_await_event for long-lived event queues.
+  - Letting HTTP callers choose arbitrary machines, tools, prompts, credentials, URLs, or filesystem roots.
+  - Generating Go handlers from MachineSpec or OpenAPI documents.
+  - Encoding Knowledge Manager demo behavior in direct Go HTTP handlers.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The SRD defines machine_request as a REST server binding that turns one inbound HTTP request into one short-lived MachineSpec execution.
+    traces: [R1.1, R1.2, R1.3, R1.5]
+
+  - id: AC2
+    criterion: The SRD states that direct Go handlers are not the composition mechanism for demo request behavior.
+    traces: [R1.4]
+
+  - id: AC3
+    criterion: Configuration owns profile, machine, selected tools, initial state, terminal state, and response signal authority; runtime callers cannot choose those values.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+
+  - id: AC4
+    criterion: Request input mapping validates HTTP fields, builds structured machine input, carries request metadata, and rejects invalid input before machine execution.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+
+  - id: AC5
+    criterion: Response extraction uses configured response words or terminal output to shape HTTP status, headers, body, and content type.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+
+  - id: AC6
+    criterion: Error and timeout mapping cover validation, config, run, timeout, cancellation, response, and redaction behavior.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+
+  - id: AC7
+    criterion: Trace and lifecycle requirements record request-scoped machine execution while keeping request metadata separate from command/domain and workspace state.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+
+depends_on:
+  - srd_id: srd005-agentic-loop
+    symbols_used: [Loop, RunResult, RunEvent, LoopParams]
+  - srd_id: srd006-yaml-machine-config
+    symbols_used: [MachineSpec]
+  - srd_id: srd027-rest-tool-runtime
+    symbols_used: [internal/tools/rest, request validation, tracing, timeout, redaction]
+  - srd_id: srd029-rest-server-tools
+    symbols_used: [REST server endpoint binding, request validation, response mapping]
+
+related_documents:
+  - docs/specs/semantic-models/machine-request-http.yaml
+  - docs/specs/semantic-models/rest-tool-language.yaml
+  - docs/specs/config-formats/rest-tool-format.yaml
+  - docs/ARCHITECTURE.yaml
+
+implementation_status:
+  planned:
+    - internal/tools/rest machine_request endpoint binding.
+    - Knowledge Manager profile configuration that routes demo requests through MachineSpec.
+    - Formal release 03.0 test coverage for request-to-machine response behavior.

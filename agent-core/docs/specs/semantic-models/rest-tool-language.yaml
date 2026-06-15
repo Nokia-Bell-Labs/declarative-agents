@@ -18,6 +18,7 @@ requirements_source:
     - docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
     - docs/specs/software-requirements/srd028-rest-client-tools.yaml
     - docs/specs/software-requirements/srd029-rest-server-tools.yaml
+    - docs/specs/software-requirements/srd030-machine-request-rest-binding.yaml
   supporting:
     - docs/specs/semantic-models/tool-language.yaml
     - docs/specs/semantic-models/rollback-lifecycle.yaml
@@ -82,6 +83,20 @@ primary_entities:
     responsibility: Validates exit, pause, rollback request, resume, or signal injection requests and enqueues declared lifecycle events for MachineSpec.
     owns: [control_request_validation, control_signal_mapping]
     references: [Endpoint, InboundEvent, MachineSpec]
+  - name: MachineRequestBinding
+    kind: inbound_machine_route
+    responsibility: Validates one inbound HTTP request and starts one short-lived MachineSpec execution with configured request input and response mapping.
+    owns: [request_to_machine_mapping, terminal_response_selection]
+    references: [Endpoint, MachineSpec, ToolDef, RequestEvent]
+  - name: RequestEvent
+    kind: grammar_input
+    responsibility: Carries validated request fields and request metadata into a request-scoped machine sentence.
+    owns: [validated_payload, request_metadata, correlation_id]
+  - name: ResponseWord
+    kind: response_boundary_word
+    responsibility: Produces structured output that the machine_request binding maps to HTTP status, headers, content type, and body.
+    owns: [response_output_contract, response_signal]
+    references: [ToolDef, MachineSpec]
   - name: LifecycleControlWord
     kind: profile_selected_lifecycle_vocabulary
     responsibility: Executes lifecycle behavior such as exit_agent after MachineSpec routes a validated REST event to that word.
@@ -121,6 +136,9 @@ tool_words:
   lifecycle_control:
     words: [exit_agent]
     meaning: Lifecycle control words consume validated REST event payloads or profile config and perform explicit MachineSpec-selected lifecycle actions.
+  machine_request:
+    words: [machine_request]
+    meaning: Endpoint binding that turns one accepted HTTP request into one short-lived MachineSpec run and maps terminal response output back to HTTP.
 
 relationships:
   RestDefinition_to_ToolDef:
@@ -159,6 +177,18 @@ relationships:
   LifecycleControlEndpoint_to_InboundEvent:
     meaning: A lifecycle control endpoint validates a control request and enqueues an event such as AgentExitRequested, PauseRequested, RollbackRequested, ResumeRequested, or an allowlisted injected signal.
     invariant: The HTTP handler does not execute exit, pause, rollback, resume, or signal injection directly.
+  MachineRequestBinding_to_RequestEvent:
+    meaning: A machine_request endpoint validates HTTP input and builds one RequestEvent for the configured request machine.
+    invariant: Invalid HTTP input does not enqueue events or start a machine run.
+  MachineRequestBinding_to_MachineSpec:
+    meaning: The binding resolves a trusted profile, MachineSpec, selected ToolDefs, and response policy for one short-lived run.
+    invariant: Runtime HTTP callers cannot choose profile, machine, tool declaration roots, model config, credentials, URLs, or workspace roots.
+  MachineSpec_to_ResponseWord:
+    meaning: Request machines route to response vocabulary when they need to shape an HTTP response.
+    invariant: Direct Go handlers do not compose Knowledge Manager demo request behavior.
+  ResponseWord_to_HTTPResponse:
+    meaning: Response word output and terminal signal mappings produce HTTP status, headers, content type, and body.
+    invariant: HTTP responses use configured terminal response selection and declared response output fields only.
   InboundEvent_to_LifecycleControlWord:
     meaning: MachineSpec routes a lifecycle event from rest_server_await or rest_await_event to profile-selected vocabulary such as exit_agent or checkpoint_rollback.
     invariant: Lifecycle behavior remains visible as declared ToolDef words and MachineSpec transitions.
@@ -208,6 +238,9 @@ invariants:
   - HTTP handlers validate and translate requests; they do not run hidden workflows.
   - Lifecycle control endpoints enqueue events; lifecycle behavior runs only through MachineSpec-selected vocabulary.
   - exit_agent is generic lifecycle vocabulary and is not owned by Knowledge Manager-specific HTTP handlers.
+  - machine_request endpoints validate one HTTP request and run one short-lived MachineSpec sentence.
+  - machine_request request behavior is composed by MachineSpec transitions, not direct Go handlers.
+  - Response words are the only bridge from request-machine output back to HTTP status, headers, content type, and body.
   - OpenAPI imports compile into internal REST definitions and do not generate Go code in release 03.0.
   - REST command/domain state is separate from agent state and workspace/environment state.
   - External service effects are reversible only when the configured operation declares a valid compensation path.
@@ -219,6 +252,7 @@ non_goals:
   - Adding generated Go clients or generated Go servers.
   - Replacing MachineSpec control flow with REST handler code.
   - Executing lifecycle control directly inside HTTP handlers or rest_await_event.
+  - Executing Knowledge Manager demo request behavior directly inside Go HTTP handlers.
   - Allowing model text or inbound callers to choose transport authority.
   - Modeling every provider-specific REST API.
 
@@ -290,6 +324,23 @@ diagrams:
       A-->>M: selected event signal and payload
       M->>M: route to visible lifecycle or domain action
     ```
+  machine_request_binding: |
+    ```mermaid
+    sequenceDiagram
+      participant H as HTTP handler
+      participant B as machine_request binding
+      participant M as MachineSpec
+      participant W as request words
+      participant R as response word
+      H->>H: validate request
+      H->>B: accepted request fields
+      B->>M: seed RequestEvent
+      M->>W: compose request sentence
+      W-->>M: declared signals
+      M->>R: prepare response
+      R-->>B: response output
+      B-->>H: mapped HTTP response
+    ```
   openapi_import_to_internal_definition: |
     ```mermaid
     flowchart LR
@@ -308,6 +359,8 @@ related_documents:
   - srd027-rest-tool-runtime
   - srd028-rest-client-tools
   - srd029-rest-server-tools
+  - srd030-machine-request-rest-binding
+  - sm-machine-request-http
   - srd026-lifecycle-tools
   - cfg-tool-declaration-format
   - cfg-tool-authoring-standard
@@ -319,3 +372,4 @@ implementation_status:
     - docs/specs/config-formats/rest-tool-format.yaml.
     - rest_await_event fan-in word.
     - exit_agent lifecycle control word.
+    - machine_request endpoint binding.
