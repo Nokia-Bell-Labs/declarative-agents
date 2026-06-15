@@ -348,7 +348,7 @@ test_cases:
   - use_case: rel03.0-uc003-rest-server-signals
     name: Generic REST await fan-in selects one event across servers
     go_test: TestRESTAwaitEvent_MultiSourceFanIn
-    status: planned
+    status: done
     description: |
       Launch two configured REST servers with separate queues. Enqueue accepted
       events on each server, then dispatch rest_await_event with both sources.
@@ -375,8 +375,8 @@ test_cases:
 
   - use_case: rel03.0-uc003-rest-server-signals
     name: Generic REST await applies route and signal filters
-    go_test: TestRESTAwaitEvent_SourceFilters
-    status: planned
+    go_test: TestRESTAwaitEvent_SourceFiltersPreserveUnrelatedEvents
+    status: done
     description: |
       Configure rest_await_event with server, route, and signal filters. Events
       outside the route or signal allowlist remain queued or are skipped
@@ -403,7 +403,7 @@ test_cases:
   - use_case: rel03.0-uc003-rest-server-signals
     name: Generic REST await reports timeout without consuming events
     go_test: TestRESTAwaitEvent_Timeout
-    status: planned
+    status: done
     description: |
       Dispatch rest_await_event with no matching events before the configured
       timeout. AwaitTimedOut reports the active source filters
@@ -424,8 +424,8 @@ test_cases:
 
   - use_case: rel03.0-uc003-rest-server-signals
     name: Generic REST await handles stopped sources by policy
-    go_test: TestRESTAwaitEvent_StoppedSourceBehavior
-    status: planned
+    go_test: TestRESTAwaitEvent_ServerStopped
+    status: done
     description: |
       Stop one configured source while rest_await_event is waiting. Run the
       ignore, emit_server_stopped, and command_error policies and verify each
@@ -439,6 +439,7 @@ test_cases:
       ignore_continues_to_other_sources: true
       emit_server_stopped_signal: ServerStopped
       command_error_signal: CommandError
+      command_error_go_test: TestRESTAwaitEvent_StoppedSourceCommandError
     traces:
       - srd027-rest-tool-runtime AC10
       - srd029-rest-server-tools AC10
@@ -446,10 +447,10 @@ test_cases:
   - use_case: rel03.0-uc003-rest-server-signals
     name: Lifecycle exit through REST routes to exit_agent
     go_test: TestRESTLifecycleControl_ExitAgentSignal
-    status: planned
+    status: done
     description: |
       A configured lifecycle_control exit endpoint receives an operator
-      request. Handler validation enqueues AgentExitRequested. rest_await_event
+      request. Handler validation enqueues ExitRequested. rest_await_event
       returns that event, and MachineSpec routes it to exit_agent as explicit
       lifecycle vocabulary.
     inputs:
@@ -458,13 +459,14 @@ test_cases:
         reason: operator requested shutdown
         status: success
       machine_route:
-        signal: AgentExitRequested
+        signal: ExitRequested
         action: exit_agent
     expected:
       handler_executed_exit_directly: false
-      await_signal: AgentExitRequested
+      await_signal: ExitRequested
       exit_agent_action_visible: true
       exit_result_signal: AgentExited
+      profile_smoke_target: mage integration:uc006
     traces:
       - rel03.0-uc003-rest-server-signals S3
       - srd026-lifecycle-tools AC7
@@ -813,14 +815,15 @@ test_cases:
       - srd028-rest-client-tools AC7
 
   - use_case: rel03.0-uc006-documentation-curator
-    name: Documentation curator migration smoke test
+    name: Documentation curator migration and lifecycle exit smoke test
     go_test: mage integration:uc006
     status: done
     description: |
       Build the agent with production assets, start
       agents/knowledge-manager/documentation-curator/profile.yaml, probe the
       documentation health, docs index, validation, suggestion, and SPA routes,
-      and run the bench docs-route absence test.
+      run the bench docs-route absence test, post a generic lifecycle exit
+      request, and require clean agent shutdown.
     inputs:
       profile: agents/knowledge-manager/documentation-curator/profile.yaml
       listener: 127.0.0.1:18081
@@ -828,6 +831,7 @@ test_cases:
         - internal/evaluation/bench/ui
         - internal/knowledge/documentation/ui
       bench_route_test: TestDocsAPIRoutesAreNotMounted
+      lifecycle_exit_endpoint: POST /api/lifecycle/exit
     expected:
       documentation_health_ok: true
       documentation_index_returned: true
@@ -835,6 +839,8 @@ test_cases:
       suggestion_endpoint_returned: true
       spa_route_returned_html: true
       bench_docs_routes_absent: true
+      lifecycle_exit_requested: true
+      clean_shutdown: true
     traces:
       - rel03.0-uc006-documentation-curator S1
       - rel03.0-uc006-documentation-curator S2
@@ -842,6 +848,8 @@ test_cases:
       - rel03.0-uc006-documentation-curator S4
       - srd020-bench-web-ui AC4
       - srd024-blocking-input-tools AC1
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
 
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST observability redacts secrets and reports failure stages

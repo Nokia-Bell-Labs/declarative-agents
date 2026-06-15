@@ -137,4 +137,4 @@ releases:
     planned_test_suites:
       - id: test-rel03.0-rest-tools
         summary: Formal tests for REST runtime, client tools, server tools, generic event fan-in, lifecycle exit routing, OpenAPI import, Ollama E2E proof, and documentation-curator ownership
-        status: in_progress
+        status: done

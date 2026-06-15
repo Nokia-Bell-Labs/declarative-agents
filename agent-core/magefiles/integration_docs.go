@@ -18,11 +18,17 @@ import (
 	"time"
 )
 
-const docsCuratorAddr = "127.0.0.1:18081"
+const (
+	docsCuratorAddr        = "127.0.0.1:18081"
+	docsCuratorControlAddr = "127.0.0.1:18082"
+)
 
 // Uc006 runs rel03.0-uc006: documentation-curator serves docs UX and REST tools.
 func (Integration) Uc006() error {
 	if err := requireTCPFree(docsCuratorAddr); err != nil {
+		return skipUC("uc006", err.Error())
+	}
+	if err := requireTCPFree(docsCuratorControlAddr); err != nil {
 		return skipUC("uc006", err.Error())
 	}
 	binary, err := buildFreshAgentFor("uc006")
@@ -46,7 +52,13 @@ func (Integration) Uc006() error {
 	if err := assertBenchDocsRoutesAbsent(); err != nil {
 		return err
 	}
-	fmt.Println("uc006: PASS — documentation-curator served docs UX/API and bench docs routes stayed absent")
+	if err := requestDocsCuratorExit(); err != nil {
+		return err
+	}
+	if err := waitDocsCuratorExit(cmd, output); err != nil {
+		return err
+	}
+	fmt.Println("uc006: PASS — documentation-curator served docs UX/API and exited through lifecycle control")
 	return nil
 }
 
@@ -163,6 +175,52 @@ func requestDocs(method, path, body string) ([]byte, int, error) {
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
 	return data, resp.StatusCode, err
+}
+
+func requestDocsCuratorExit() error {
+	var lastErr error
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := postDocsCuratorExit(); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("uc006: lifecycle exit was not accepted: %w", lastErr)
+}
+
+func postDocsCuratorExit() error {
+	url := "http://" + docsCuratorControlAddr + "/api/lifecycle/exit"
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(`{"reason":"uc006 smoke exit","status":"success"}`))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("uc006: post lifecycle exit: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("uc006: lifecycle exit returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func waitDocsCuratorExit(cmd *exec.Cmd, output *bytes.Buffer) error {
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			return fmt.Errorf("uc006: documentation-curator exit failed: %w\n%s", err, output.String())
+		}
+		return nil
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("uc006: documentation-curator did not exit after lifecycle request\n%s", output.String())
+	}
 }
 
 func assertBenchDocsRoutesAbsent() error {
