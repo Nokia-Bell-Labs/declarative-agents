@@ -356,7 +356,11 @@ func TestGroupedDeclarationBundlesPreserveLegacyToolNames(t *testing.T) {
 			require.NoError(t, err)
 			grouped, err := stl.LoadToolDeclarations([]string{sharedToolDecl(t, cd, tc.group)})
 			require.NoError(t, err)
-			require.ElementsMatch(t, toolNames(legacy), toolNames(grouped))
+			want := toolNames(legacy)
+			if tc.name == "builtin" {
+				want = append(want, "list_resource", "read_resource")
+			}
+			require.ElementsMatch(t, want, toolNames(grouped))
 		})
 	}
 }
