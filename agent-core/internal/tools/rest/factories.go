@@ -4,6 +4,7 @@ package rest
 
 import (
 	"fmt"
+	"time"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
@@ -21,12 +22,14 @@ const (
 	InitServerLaunch = "rest_server_launch"
 	InitServerAwait  = "rest_server_await"
 	InitServerStop   = "rest_server_stop"
+	InitAwaitEvent   = "rest_await_event"
 )
 
 // StandardInits lists every REST builtin init name.
 var StandardInits = []string{
 	InitClientGet, InitClientSet, InitClientCreate, InitClientDelete, InitClientInvoke,
 	InitClientSend, InitClientAwait, InitServerLaunch, InitServerAwait, InitServerStop,
+	InitAwaitEvent,
 }
 
 // FactoryDeps holds REST factory dependencies.
@@ -49,6 +52,22 @@ type ServerToolConfig struct {
 	RestRef string `json:"rest_ref"`
 }
 
+// AwaitEventToolConfig holds REST event fan-in ToolDef config.
+type AwaitEventToolConfig struct {
+	Sources         []AwaitEventSourceConfig `json:"sources"`
+	AllowedSignals  []string                 `json:"allowed_signals"`
+	Timeout         string                   `json:"timeout"`
+	StoppedBehavior string                   `json:"stopped_behavior"`
+}
+
+// AwaitEventSourceConfig selects one REST server source.
+type AwaitEventSourceConfig struct {
+	Server          string   `json:"server"`
+	Routes          []string `json:"routes"`
+	Signals         []string `json:"signals"`
+	StoppedBehavior string   `json:"stopped_behavior"`
+}
+
 // RegisterFactories registers REST builtin factories.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	if deps.ServerState == nil {
@@ -67,6 +86,8 @@ func factoryFor(init string, deps FactoryDeps) toolregistry.BuiltinFactory {
 		switch init {
 		case InitServerLaunch, InitServerAwait, InitServerStop:
 			return newServerBuilder(def, init, deps)
+		case InitAwaitEvent:
+			return newAwaitEventBuilder(def, deps)
 		default:
 			return newClientBuilder(def, init, deps)
 		}
@@ -109,6 +130,18 @@ func newServerBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 	return ServerBuilder{ToolName: def.Name, Init: init, Server: server, State: deps.ServerState}, nil
 }
 
+func newAwaitEventBuilder(def catalog.ToolDef, deps FactoryDeps) (core.Builder, error) {
+	var cfg AwaitEventToolConfig
+	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+		return nil, err
+	}
+	options, err := awaitAnyOptions(def.Name, cfg, deps.Definitions)
+	if err != nil {
+		return nil, err
+	}
+	return AwaitEventBuilder{ToolName: def.Name, Options: options, State: deps.ServerState}, nil
+}
+
 func validateClientToolConfig(toolName string, cfg ClientToolConfig) error {
 	if cfg.RestRef == "" {
 		return fmt.Errorf("tool %q config requires rest_ref", toolName)
@@ -117,4 +150,112 @@ func validateClientToolConfig(toolName string, cfg ClientToolConfig) error {
 		return fmt.Errorf("tool %q config requires operation", toolName)
 	}
 	return nil
+}
+
+func awaitAnyOptions(toolName string, cfg AwaitEventToolConfig, defs Collection) (AwaitAnyOptions, error) {
+	if len(cfg.Sources) == 0 {
+		return AwaitAnyOptions{}, fmt.Errorf("tool %q config requires sources", toolName)
+	}
+	timeout, err := awaitTimeout(toolName, cfg.Timeout)
+	if err != nil {
+		return AwaitAnyOptions{}, err
+	}
+	stopped, err := stoppedSourceBehavior(toolName, cfg.StoppedBehavior)
+	if err != nil {
+		return AwaitAnyOptions{}, err
+	}
+	options := AwaitAnyOptions{Timeout: timeout, StoppedBehavior: stopped}
+	for _, source := range cfg.Sources {
+		awaitSource, err := awaitSourceConfig(toolName, source, cfg.AllowedSignals, defs)
+		if err != nil {
+			return AwaitAnyOptions{}, err
+		}
+		options.Sources = append(options.Sources, awaitSource)
+	}
+	return options, nil
+}
+
+func awaitSourceConfig(
+	toolName string,
+	cfg AwaitEventSourceConfig,
+	allowedSignals []string,
+	defs Collection,
+) (AwaitSource, error) {
+	if cfg.Server == "" {
+		return AwaitSource{}, fmt.Errorf("tool %q source requires server", toolName)
+	}
+	if _, err := defs.ResolveServer(cfg.Server); err != nil {
+		return AwaitSource{}, err
+	}
+	signals, err := signalFilters(toolName, cfg.Signals, allowedSignals)
+	if err != nil {
+		return AwaitSource{}, err
+	}
+	stopped, err := stoppedSourceBehavior(toolName, cfg.StoppedBehavior)
+	if err != nil {
+		return AwaitSource{}, err
+	}
+	return AwaitSource{
+		Server: cfg.Server, Routes: cfg.Routes,
+		Signals:         signals,
+		StoppedBehavior: stopped,
+	}, nil
+}
+
+func awaitTimeout(toolName, value string) (time.Duration, error) {
+	if value == "" {
+		return 0, nil
+	}
+	timeout, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("tool %q config has invalid timeout %q", toolName, value)
+	}
+	return timeout, nil
+}
+
+func signalFilters(toolName string, source, allowed []string) ([]string, error) {
+	if len(source) == 0 || len(allowed) == 0 {
+		return mergeSignals(source, allowed), nil
+	}
+	signals := intersectSignals(source, allowed)
+	if len(signals) == 0 {
+		return nil, fmt.Errorf("tool %q source signals do not match allowed_signals", toolName)
+	}
+	return signals, nil
+}
+
+func mergeSignals(source, allowed []string) []string {
+	if len(source) > 0 {
+		return source
+	}
+	return allowed
+}
+
+func intersectSignals(source, allowed []string) []string {
+	seen := map[string]bool{}
+	for _, signal := range allowed {
+		seen[signal] = true
+	}
+	var signals []string
+	for _, signal := range source {
+		if seen[signal] {
+			signals = append(signals, signal)
+		}
+	}
+	return signals
+}
+
+func stoppedSourceBehavior(toolName, value string) (StoppedSourceBehavior, error) {
+	switch value {
+	case "":
+		return "", nil
+	case string(StoppedSourceIgnore):
+		return StoppedSourceIgnore, nil
+	case string(StoppedSourceCommandError):
+		return StoppedSourceCommandError, nil
+	case string(StoppedSourceEmitServerStopped):
+		return StoppedSourceEmitServerStopped, nil
+	default:
+		return "", fmt.Errorf("tool %q config has unsupported stopped_behavior %q", toolName, value)
+	}
 }

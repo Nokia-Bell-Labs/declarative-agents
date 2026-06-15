@@ -494,6 +494,68 @@ tools:
     config:
       rest_ref: ""
 
+  - name: rest_await_event
+    type: builtin
+    init: rest_await_event
+    category: boundary
+    description: Await one inbound REST event from configured server sources.
+    problem: Machines need one wait word that can receive events from several configured REST server queues.
+    goals:
+      - Wait across configured REST server event sources.
+      - Return exactly one selected event signal to MachineSpec.
+      - Keep source, route, and signal filters declarative.
+    requirements:
+      input:
+        - Tool config must list trusted server sources and optional route or signal filters.
+      output:
+        - Output must include source, route, method, signal, payload, and request ID.
+      errors:
+        - Missing sources, missing servers, stopped-source policy failures, and timeout conditions emit declared signals.
+    non_goals:
+      - Does not execute workflow actions inside HTTP handlers or the aggregator.
+      - Does not let runtime input choose URLs, methods, listeners, or authentication.
+    parameters:
+      type: object
+      properties: {}
+    emits: [AwaitTimedOut, ServerStopped, CommandError]
+    output:
+      description: Structured selected REST event.
+      schema:
+        type: object
+        properties:
+          source: {type: string}
+          route: {type: string}
+          method: {type: string}
+          signal: {type: string}
+          request_id: {type: string}
+          payload: {type: object}
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: selected_event_consumed
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Await does not mutate remote state; queue restore is not implemented.
+    errors:
+      - signal: CommandError
+        condition: Missing sources, unknown configured server, queue closed, stopped-source failure, or payload decode failure.
+        message_shape: "rest_await_event: <stage>: <redacted diagnostic>"
+        state_after_failure: Filtered events remain queued in REST server state.
+    relationships:
+      after: [rest_server_launch]
+      before: [rest_server_stop]
+      overlaps:
+        - tool: rest_server_await
+          difference: Use rest_await_event for multi-source fan-in and rest_server_await for one server queue.
+    config:
+      rest_ref: ""
+      sources: []
+      timeout: 30s
+      stopped_behavior: emit_server_stopped
+
   - name: rest_server_stop
     type: builtin
     init: rest_server_stop
