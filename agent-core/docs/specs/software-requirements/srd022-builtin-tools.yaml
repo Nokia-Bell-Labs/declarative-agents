@@ -28,6 +28,7 @@ requirements:
     items:
       - R0.1: Builtin tool declarations SHOULD follow cfg-tool-authoring-standard for vocabulary category, problem, goals, requirements, non-goals, output, side effects, reversibility, undo, errors, and relationships.
       - R0.2: Builtin tools SHOULD be single vocabulary words unless explicitly classified and documented as boundary or deprecated compatibility tools.
+      - R0.3: Builtin tool declarations that emit specialized monitor metrics SHOULD follow sm-tool-metrics-monitoring for metric ownership, low-cardinality attributes, and prohibited label sources.
 
   R1:
     title: Builtin declaration schema
@@ -39,6 +40,7 @@ requirements:
       - R1.5: A builtin tool declaration MAY provide parameters as JSON Schema for LLM-visible or externally supplied inputs.
       - R1.6: A builtin tool declaration MAY provide config for tool-specific runtime configuration.
       - R1.7: A builtin tool declaration MAY provide emits, the set of Result.Signal values the tool can return.
+      - R1.8: A builtin tool declaration MAY provide metrics, the planned metric instrument and attribute schema for values the tool can safely emit through a shared recorder.
 
   R2:
     title: BuiltinRegistry factory resolution
@@ -56,6 +58,7 @@ requirements:
       - R3.3: Config decode errors SHALL include the tool name and type mismatch details.
       - R3.4: Defaults MAY exist for backwards compatibility, but defaults that change program behavior SHALL be documented.
       - R3.5: Typed config structs SHALL exist for each config shape (ChildAgentConfig, LLMToolConfig, LoadSuiteConfig, RunPointConfig, ServeUIToolConfig).
+      - R3.6: Metric declaration validation SHALL reject attributes sourced from raw prompts, full outputs, secrets, unbounded paths, arbitrary URLs, request IDs, timestamps, or user free text.
 
   R4:
     title: State-machine integration
@@ -136,16 +139,16 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: "Builtin YAML declarations provide name, type: builtin, init, optional visibility, optional parameters, optional config, and optional emits."
-    traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
+    criterion: "Builtin YAML declarations provide name, type: builtin, init, optional visibility, optional parameters, optional config, optional emits, and planned metrics metadata when a tool owns specialized metric meaning."
+    traces: [R0.1, R0.2, R0.3, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
 
   - id: AC2
     criterion: BuiltinRegistry resolves init names to factories and registration fails for selected builtin tools without a factory.
     traces: [R2.1, R2.2, R2.3, R2.4]
 
   - id: AC3
-    criterion: Builtin tool config is decoded into typed structs at registration time, with clear errors for type mismatches.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+    criterion: Builtin tool config is decoded into typed structs at registration time, with clear errors for type mismatches and metric declarations constrained to safe low-cardinality attributes.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
 
   - id: AC4
     criterion: Builtin tools can be referenced by machine actions or dynamic $tool dispatch, return signals that drive transitions, and validate declared emits against named action transitions.
@@ -198,3 +201,4 @@ implementation:
 
 related_documents:
   - cfg-tool-authoring-standard
+  - sm-tool-metrics-monitoring

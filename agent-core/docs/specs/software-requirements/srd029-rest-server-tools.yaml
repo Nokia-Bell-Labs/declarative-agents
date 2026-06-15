@@ -114,6 +114,9 @@ requirements:
       - R9.2: Traces SHOULD include server name, route ID, method, path template, binding kind, status code, queue depth, duration, and resulting signal.
       - R9.3: REST server tools SHALL redact configured headers, query fields, body fields, credentials, and tokens from traces, logs, errors, and Result output.
       - R9.4: Verbose request or response capture SHALL require explicit configuration and redaction rules.
+      - R9.5: REST server tools MAY declare specialized monitor metrics for launch count, active route count, accepted request count, rejected request count, event enqueue count, queue depth, await duration, stream count, and stop count.
+      - R9.6: REST server metric attributes SHALL use configured server names, route IDs, binding kinds, status classes, queue names, and bounded signals. They SHALL NOT use raw headers, query values, bodies, credentials, request IDs, or arbitrary paths as labels.
+      - R9.7: REST server monitor metrics SHALL report cached server and queue state through the shared recorder path; HTTP handlers SHALL NOT run hidden workflow actions to produce metrics.
 
   R10:
     title: Errors and recovery
@@ -207,8 +210,8 @@ acceptance_criteria:
     traces: [R8.1, R8.2, R8.3, R8.4, R8.5]
 
   - id: AC9
-    criterion: Observability, redaction, error, and recovery requirements cover server launch, requests, streams, queues, awaits, stops, partial failures, and handler failures.
-    traces: [R9.1, R9.2, R9.3, R9.4, R10.1, R10.2, R10.3, R10.4, R10.5]
+    criterion: Observability, redaction, metric, error, and recovery requirements cover server launch, requests, streams, queues, awaits, stops, partial failures, and handler failures.
+    traces: [R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7, R10.1, R10.2, R10.3, R10.4, R10.5]
 
   - id: AC10
     criterion: Server event queues expose named sources for rest_await_event, stopped-source behavior is configurable, and lifecycle control endpoints enqueue signals instead of running hidden lifecycle actions.
@@ -228,6 +231,7 @@ depends_on:
 
 related_documents:
   - docs/specs/semantic-models/tool-language.yaml
+  - docs/specs/semantic-models/tool-metrics-monitoring.yaml
   - boundary-tools-and-async.md
   - rest-tool.md
 

@@ -53,7 +53,7 @@ requirements:
   R4:
     title: Backpressure and concurrency
     items:
-      - R4.1: Blocking input tools SHALL define whether they accept one pending input or multiple queued inputs.
+      - "R4.1": "Blocking input tools SHALL define their pending input policy: one pending input or multiple queued inputs."
       - R4.2: If only one pending input is supported, additional input SHOULD be rejected or backpressured with a clear response.
       - R4.3: Long-running tools SHALL avoid unbounded queues unless explicitly configured.
       - R4.4: State-machine transitions SHALL remain sequential even if the external input source is concurrent.
@@ -65,9 +65,11 @@ requirements:
       - R5.2: Long waits SHOULD include enough span attributes to identify the tool, input source, and resulting signal.
       - R5.3: Sensitive external input SHOULD be redacted or included only when verbose tracing is explicitly enabled.
       - R5.4: Tool duration SHALL reflect the full wait time.
+      - R5.5: Blocking input tools MAY declare specialized monitor metrics for wait duration, cancellation count, timeout count, queue depth, response size, and actor-specific safe counters.
+      - R5.6: Blocking input metrics SHALL use configured low-cardinality attributes and SHALL NOT use raw prompts, full model responses, human-entered text, secrets, or unbounded paths as labels.
 
   R6:
-    title: Concrete tool examples
+    title: Tool examples
     items:
       - R6.1: invoke_llm is a blocking input tool whose external actor is an LLM provider; model output is parsed into tool calls or completion signals.
       - R6.2: serve_ui is a blocking input tool whose external actor is a human using the Bench web UI; posted actions map to signals such as ExperimentRequested or Shutdown.
@@ -96,11 +98,11 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3, R4.4]
 
   - id: AC5
-    criterion: Long-running waits are observable through tracing, duration, resulting signal, and optional redacted input metadata.
-    traces: [R5.1, R5.2, R5.3, R5.4]
+    criterion: Long-running waits are observable through tracing, duration, resulting signal, optional redacted input metadata, and configured monitor metrics with safe labels.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6]
 
   - id: AC6
-    criterion: invoke_llm and serve_ui are documented as concrete blocking input tools following this contract.
+    criterion: invoke_llm and serve_ui are documented as blocking input tools following this contract.
     traces: [R6.1, R6.2, R6.3]
 
 depends_on:
@@ -119,6 +121,7 @@ depends_on:
 
 related_documents:
   - cfg-tool-authoring-standard
+  - sm-tool-metrics-monitoring
 
 implementation_examples:
   - internal/tools/stl/llmtools.go
