@@ -1,0 +1,162 @@
+id: sm-document-resource-language
+title: Document Resource Language Semantic Model
+
+purpose: |
+  Models filesystem documentation corpora as declarative resources. A profile
+  names the corpus root, allowed paths, response modes, and UI placement.
+  Generic document resource code reads files safely. MachineSpec and REST
+  definitions decide when the resource is used.
+
+requirements_source:
+  canonical:
+    - docs/specs/software-requirements/srd031-declarative-document-resources.yaml
+  supporting:
+    - docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
+    - docs/specs/software-requirements/srd030-machine-request-rest-binding.yaml
+    - docs/specs/semantic-models/machine-request-http.yaml
+    - docs/specs/semantic-models/rest-tool-language.yaml
+    - declarative-programming-pattern.md
+
+primary_entities:
+  - name: DocumentResource
+    kind: declarative_filesystem_resource
+    responsibility: Defines a named read-only documentation corpus with root, include rules, extension allowlist, response modes, and parser policy.
+    owns: [corpus_authority, response_modes]
+  - name: CorpusRoot
+    kind: trusted_filesystem_root
+    responsibility: Names the base directory for document reads and list operations.
+    owns: [root_path, root_escape_policy]
+  - name: DocumentSelector
+    kind: runtime_resource_input
+    responsibility: Carries declared path variables, query fields, or machine request input used to select a document.
+    owns: [relative_path, query_values]
+  - name: PathPolicy
+    kind: safety_contract
+    responsibility: Defines normalization, traversal denial, symlink handling, size limits, binary policy, and extension allowlists.
+    owns: [path_safety]
+  - name: DocumentResponseMode
+    kind: output_shape
+    responsibility: Defines configured output shape for raw YAML, parsed YAML, raw Markdown, parsed Markdown, or combined raw and parsed content.
+    owns: [content_shape, parser_policy]
+  - name: DocumentResourceWord
+    kind: vocabulary_word
+    responsibility: Executes one declared document operation such as list, get, search, validate, or suggest.
+    owns: [operation_signal, result_output]
+    references: [DocumentResource, ToolDef, MachineSpec]
+  - name: UIActorConfig
+    kind: human_actor_configuration
+    responsibility: Defines Knowledge Manager UI assets, labels, route/action mapping, grouping, and presentation rules for a human actor.
+    owns: [ui_surface, human_action_contract]
+    references: [DocumentResource]
+
+language_model:
+  corpus_as_resource: |
+    A documentation corpus is a configured resource, not a Go route table. The
+    resource definition supplies authority. Runtime input supplies only declared
+    selectors inside that authority.
+  operations_as_words: |
+    Document list, get, search, validate, and suggest behavior should be
+    visible as resource operations or MachineSpec words. A host may transport
+    requests, but it should not choose a hidden document workflow.
+  ui_as_actor_config: |
+    The Knowledge Manager UI is human actor configuration. It shapes what the
+    human sees and which actions are available, just as a prompt shapes a model
+    actor. Generic server code only serves configured assets and dispatches
+    declared actions.
+  response_modes: |
+    Response modes make output shape explicit. YAML and Markdown can be returned
+    raw, parsed, or both when configuration allows it.
+
+relationships:
+  DocumentResource_to_CorpusRoot:
+    meaning: A resource names the trusted filesystem root for every operation.
+    invariant: Runtime selectors cannot replace the configured root.
+  DocumentResource_to_PathPolicy:
+    meaning: Include patterns, extension allowlists, symlink policy, size limits, and binary policy constrain every read.
+    invariant: A selected path must pass path policy before any file content is read.
+  DocumentSelector_to_PathPolicy:
+    meaning: Runtime request data is normalized into one relative path or query inside the configured policy.
+    invariant: Empty paths, absolute paths, parent segments, encoded traversal, and root escapes fail before dispatch output is produced.
+  DocumentResourceWord_to_DocumentResponseMode:
+    meaning: Each operation returns only the configured output shape.
+    invariant: Parser selection is trusted config, not browser or model input.
+  DocumentResourceWord_to_MachineSpec:
+    meaning: A machine_request run may dispatch document resource words while handling one HTTP request.
+    invariant: The machine sentence owns request-specific sequencing.
+  UIActorConfig_to_DocumentResource:
+    meaning: The UI references named document resources and actions for sidebar grouping, labels, and display rules.
+    invariant: UI config can select known resources but cannot grant new filesystem authority.
+
+operations:
+  list:
+    input: Optional category, prefix, or include filter allowed by the resource.
+    output: path, name, category, extension, size, and configured metadata.
+    signals: [DocumentListReady, DocumentResourceDenied, CommandError]
+  get:
+    input: Resource-relative path from a declared selector.
+    output: path, raw content, parsed content, content type, extension, size, and parse diagnostics according to response mode.
+    signals: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+  search:
+    input: Query text and optional configured category or prefix filter.
+    output: query, matches, count, and redacted excerpts when configured.
+    signals: [DocumentSearchReady, DocumentResourceDenied, CommandError]
+  validate:
+    input: Resource-relative paths or configured validation scope.
+    output: status, findings, checked paths, and parser diagnostics.
+    signals: [DocumentValidationPassed, DocumentValidationFailed, DocumentResourceDenied, CommandError]
+  suggest:
+    input: Resource-relative path and instruction payload from a trusted machine or UI action.
+    output: suggestion ID, path, suggestions, and redacted patch preview.
+    signals: [DocumentSuggestionReady, DocumentResourceDenied, CommandError]
+
+diagrams:
+  profile_configures_resource_and_ui: |
+    ```mermaid
+    flowchart LR
+      P[Profile] --> R[DocumentResource]
+      P --> U[UIActorConfig]
+      R --> ROOT[CorpusRoot docs/]
+      R --> POLICY[PathPolicy]
+      R --> MODE[Response modes]
+      U --> ACTIONS[UI route and action config]
+      ACTIONS --> R
+    ```
+  request_machine_reads_document: |
+    ```mermaid
+    sequenceDiagram
+      participant H as HTTP request
+      participant M as MachineSpec
+      participant W as document resource word
+      participant R as DocumentResource
+      participant P as PathPolicy
+      H->>M: RequestEvent
+      M->>W: dispatch get_document
+      W->>R: resolve configured resource
+      R->>P: validate selector
+      P-->>R: accepted relative path
+      R-->>W: raw or parsed response output
+      W-->>M: DocumentReady signal
+    ```
+
+invariants:
+  - Document resources are configured filesystem resources, not direct Go route policy.
+  - Corpus roots, include patterns, extension allowlists, parser modes, and UI assets come from trusted config.
+  - Runtime request data can select only declared resource fields inside the configured root.
+  - Path traversal and root escape attempts fail before file reads.
+  - YAML and Markdown response modes are explicit per operation.
+  - UI actor config may live under agents/knowledge-manager/documentation-curator.
+  - Generic document resource code remains reusable without Knowledge Manager UI assets.
+  - MachineSpec owns request-handling order when document resources are used by machine_request.
+
+non_goals:
+  - Applying file edits or patch approvals.
+  - Defining a browser UI framework.
+  - Allowing runtime input to choose arbitrary roots, parser modes, or extension policies.
+  - Replacing all existing documentation host routes in this semantic model.
+
+related_documents:
+  - srd031-declarative-document-resources
+  - srd030-machine-request-rest-binding
+  - sm-machine-request-http
+  - sm-rest-tool-language
+  - cfg-rest-tool-format

@@ -105,9 +105,9 @@ what_this_does: |
   Declarative programs use MachineSpec for states, signals, terminal states,
   and transitions. Tool declarations define vocabulary contracts. Tool
   selection narrows the vocabulary available to each configured agent.
-  Boundary config describes model behavior and tool manifest context. Lifecycle
-  config supplies StateStore, Workspace, CheckpointPolicy, rollback behavior,
-  and suspend behavior.
+  Boundary config describes model behavior, human-facing UI surfaces, REST
+  resources, and tool manifest context. Lifecycle config supplies StateStore,
+  Workspace, CheckpointPolicy, rollback behavior, and suspend behavior.
 
   Core runtime code owns the domain-agnostic loop machinery. The state
   machine maps State and Signal values to NextState and ActionFunc behavior.
@@ -173,6 +173,11 @@ why_we_build_this: |
   should not hide decisions, failure paths, or rollback boundaries inside Go
   code.
 
+  Actor configuration shapes each external boundary. Model actors receive
+  prompts and tool lists. Human actors receive configured UI assets, labels,
+  routes, and actions. Both forms belong in agent profiles and tool config, not
+  in mode-specific Go workflow code.
+
   Improvements should accumulate in one place. Better tracing, budget checks,
   panic recovery, response parsing, tool implementations, contract validation,
   and lifecycle recovery benefit every agent that imports agent-core.
@@ -204,7 +209,10 @@ success_criteria:
     Release 03.0 implements standalone REST client and REST server tools as
     declarative boundary tool families. REST behavior is configured by trusted
     agent/profile/tool YAML, not hard-coded into model-provider adapters or
-    hidden inside ordinary tools.
+    hidden inside ordinary tools. Filesystem-backed document resources and
+    Knowledge Manager UI placement are configured as profile-owned resources and
+    human actor config, while Go code provides reusable server and resource
+    capability.
   lifecycle_readiness: |
     Runtime contracts preserve the separation between agent state,
     command/domain state, and workspace/environment state so checkpoint,

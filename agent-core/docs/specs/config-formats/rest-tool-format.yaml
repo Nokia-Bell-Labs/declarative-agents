@@ -55,6 +55,10 @@ schema:
           type: map[string]response_mapping
           required: false
           description: Reusable response mapping profiles.
+        - field: document_resources
+          type: map[string]document_resource
+          required: false
+          description: Named filesystem-backed document resources available to REST endpoints and machine_request runs.
 
   rest_client:
     fields:
@@ -516,6 +520,10 @@ schema:
         type: bool
         required: false
         description: Keeps request-scoped run trace artifacts when true.
+      - field: document_resources
+        type: "[]string"
+        required: false
+        description: Named document resources made available to the request machine.
 
   machine_request_input_mapping:
     fields:
@@ -581,6 +589,110 @@ schema:
         type: json_schema
         required: false
         description: Response body schema that terminal output must satisfy.
+
+  document_resource:
+    fields:
+      - field: root
+        type: string
+        required: true
+        description: Trusted filesystem root for the corpus, relative to the profile directory or agent working directory.
+      - field: include
+        type: "[]string"
+        required: false
+        description: Glob-style include patterns for list and get operations.
+      - field: extensions
+        type: "[]string"
+        required: true
+        description: Allowed file extensions such as .yaml, .yml, or .md.
+      - field: response_modes
+        type: "[]string"
+        required: true
+        description: Allowed modes. Values are raw_yaml, parsed_yaml, raw_markdown, and parsed_markdown.
+      - field: default_response_mode
+        type: string
+        required: false
+        description: Response mode used when an operation does not override it.
+      - field: category_rules
+        type: "[]document_category_rule"
+        required: false
+        description: Path prefix rules used to derive UI or index categories.
+      - field: max_bytes
+        type: int
+        required: false
+        description: Maximum file size returned by one get operation.
+      - field: symlinks
+        type: string
+        required: false
+        description: Symlink policy. Default is deny_escape.
+      - field: binary_policy
+        type: string
+        required: false
+        description: Binary file policy. Default is deny.
+      - field: operations
+        type: map[string]document_resource_operation
+        required: false
+        description: Operation-specific response modes, signals, and output mapping.
+      - field: ui
+        type: document_resource_ui
+        required: false
+        description: Human-facing labels, grouping, and presentation hints for profile-owned UI configuration.
+
+  document_category_rule:
+    fields:
+      - field: prefix
+        type: string
+        required: true
+        description: Resource-relative path prefix.
+      - field: category
+        type: string
+        required: true
+        description: Category label assigned to matching documents.
+
+  document_resource_operation:
+    fields:
+      - field: type
+        type: string
+        required: true
+        description: One of list, get, search, validate, or suggest.
+      - field: response_mode
+        type: string
+        required: false
+        description: Operation-specific response mode chosen from the resource response_modes list.
+      - field: success_signal
+        type: string
+        required: true
+        description: Signal emitted when the operation succeeds.
+      - field: not_found_signal
+        type: string
+        required: false
+        description: Signal emitted when a requested document is missing.
+      - field: denied_signal
+        type: string
+        required: false
+        description: Signal emitted when path policy rejects the selector.
+      - field: output
+        type: map[string]string
+        required: false
+        description: Field selectors copied into Result output or HTTP response data.
+
+  document_resource_ui:
+    fields:
+      - field: label
+        type: string
+        required: false
+        description: Human-facing corpus label.
+      - field: sidebar_grouping
+        type: string
+        required: false
+        description: Grouping strategy such as category, prefix, or flat.
+      - field: actions
+        type: "[]string"
+        required: false
+        description: Profile-local UI action names that may use this resource.
+      - field: asset_ref
+        type: string
+        required: false
+        description: Profile-owned UI asset reference used to present the resource.
 
   shutdown_config:
     fields:
@@ -1017,6 +1129,37 @@ format_examples:
   machine_request_endpoint: |
     rest:
       version: v1
+      document_resources:
+        documentation_corpus:
+          root: docs
+          include: ["**/*.yaml", "**/*.yml", "**/*.md"]
+          extensions: [.yaml, .yml, .md]
+          response_modes: [raw_yaml, parsed_yaml, raw_markdown]
+          default_response_mode: parsed_yaml
+          max_bytes: 262144
+          symlinks: deny_escape
+          binary_policy: deny
+          category_rules:
+            - prefix: specs/software-requirements/
+              category: srd
+            - prefix: specs/semantic-models/
+              category: semantic-model
+            - prefix: specs/config-formats/
+              category: config-format
+          operations:
+            list:
+              type: list
+              success_signal: DocumentListReady
+            get:
+              type: get
+              success_signal: DocumentReady
+              not_found_signal: DocumentMissing
+              denied_signal: DocumentResourceDenied
+          ui:
+            label: Documentation
+            sidebar_grouping: category
+            actions: [doc_list, doc_get, doc_search]
+            asset_ref: agents/knowledge-manager/documentation-curator/ui
       servers:
         knowledge_manager:
           address: 127.0.0.1:19191
@@ -1033,6 +1176,7 @@ format_examples:
                     query: {type: string}
               machine_request:
                 profile: agents/knowledge-manager/documentation-curator/profile.yaml
+                document_resources: [documentation_corpus]
                 request:
                   body:
                     query: $.query
@@ -1095,6 +1239,12 @@ validation_rules:
     rule: machine_request endpoints MUST NOT let runtime HTTP input choose profile, machine, tools, tool_declarations, credentials, URLs, or workspace roots.
   - id: V21
     rule: machine_request responses MUST be selected from configured terminal signals or response word output and MUST NOT be assembled by direct Go demo handlers.
+  - id: V22
+    rule: document_resources entries MUST declare root, extensions, response_modes, and at least one operation before use by REST or machine_request config.
+  - id: V23
+    rule: document resource runtime selectors MUST NOT choose roots, include patterns, extension allowlists, response modes, symlink policy, or binary policy.
+  - id: V24
+    rule: document resource path resolution MUST deny empty paths, absolute paths, parent-directory traversal, and resolved paths outside the configured root.
 
 invalid_examples:
   ambiguous_resource_operation: |
@@ -1202,7 +1352,9 @@ related_documents:
   - srd028-rest-client-tools
   - srd029-rest-server-tools
   - srd030-machine-request-rest-binding
+  - srd031-declarative-document-resources
   - sm-machine-request-http
+  - sm-document-resource-language
   - srd026-lifecycle-tools
 
 implementation_status:
@@ -1213,3 +1365,4 @@ implementation_status:
     - rest_await_event source-filter config.
     - lifecycle_control endpoint config and exit_agent ToolDef config.
     - machine_request endpoint binding config.
+    - document_resource config and filesystem resource words.
