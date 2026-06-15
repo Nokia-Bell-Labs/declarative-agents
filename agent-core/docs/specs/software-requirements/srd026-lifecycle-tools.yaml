@@ -95,12 +95,14 @@ requirements:
     items:
       - R7.1: exit_agent or an equivalent configured lifecycle word SHALL be profile-selectable vocabulary, not a Knowledge Manager-specific handler.
       - R7.2: exit_agent input SHALL include or resolve exit reason, requested status, drain policy, and optional checkpoint policy from ToolDef config or validated runtime input.
-      - R7.3: exit_agent output SHALL include requested status, reason, drain result, checkpoint ID when created, and resulting signal.
+      - R7.3: exit_agent output SHALL be structured JSON and include requested status, reason, drain policy, drain result when present, checkpoint ID when created, and resulting signal.
       - R7.4: exit_agent SHALL emit AgentExitRequested, AgentExited, CommandError, or a profile-declared equivalent signal that MachineSpec handles explicitly.
       - R7.5: exit_agent side effects SHALL declare lifecycle_state mutation, optional checkpoint_state mutation, and optional server shutdown when paired with REST server control.
       - R7.6: exit_agent undo SHALL be noop after process exit and compensatable before exit only when the profile declares a cancellation path.
       - R7.7: Pause, resume, rollback request, and signal injection control words SHALL be selected by ToolDef declarations and MachineSpec transitions rather than hard-coded HTTP handlers.
       - R7.8: Lifecycle control words triggered by REST events SHALL consume validated event payloads from rest_server_await or rest_await_event.
+      - R7.9: exit_agent SHALL use validated REST event payload fields as runtime overrides for ToolDef defaults.
+      - R7.10: exit_agent SHALL emit CommandError when previous Result output intended as event context is malformed.
 
 non_goals:
   - Defining the final request-file schema for lifecycle profiles.
