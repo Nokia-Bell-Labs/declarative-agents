@@ -1,0 +1,81 @@
+id: rel03.0-uc008-rest-await-any-fan-in
+title: Staged REST await-any fan-in adds event sources
+
+summary: |
+  Profiles can launch REST servers in stages and still keep event fan-in
+  visible in MachineSpec. First, the machine launches two REST server sources.
+  Next, rest_await_event waits across those queues and returns one signal. A
+  normal transition handles that signal and launches a third REST server only
+  after the first inbound event has changed machine state. Later, another
+  rest_await_event dispatch waits across all three launched sources.
+  This staged shape matters when a profile must avoid exposing a later route
+  before earlier control or domain input has arrived.
+
+  rest_await_event only selects one configured event. Hidden server launches,
+  workflow choices, and machine mutation stay outside the fan-in word.
+  MachineSpec owns the staged launch order and each post-event transition.
+
+actor: Agent profile author composing staged inbound REST workflows
+
+trigger: |
+  A staged workflow needs first-event behavior before it exposes another REST
+  source to the same await-any word.
+
+flow:
+  - F1: The author declares three REST server definitions with separate event queues and configured signal-producing endpoints.
+  - F2: MachineSpec dispatches rest_server_launch for the first server and routes ServerLaunched to the second launch step.
+  - F3: MachineSpec dispatches rest_server_launch for the second server and routes ServerLaunched to the first await-any step.
+  - F4: The first rest_await_event word uses source filters for the first two launched servers.
+  - F5: An external actor sends an accepted request to either launched server.
+  - F6: rest_await_event returns exactly one selected event with source, route, method, signal, payload, and request metadata.
+  - F7: MachineSpec routes the selected signal to a visible transition that launches the third REST server.
+  - F8: After the third server emits ServerLaunched, MachineSpec dispatches a second rest_await_event word.
+  - F9: The second rest_await_event word includes sources for all three launched servers and returns the first matching event.
+  - F10: MachineSpec routes the second selected signal to the next visible workflow action or shutdown path.
+
+touchpoints:
+  - T1: "srd027-rest-tool-runtime R2.2, R5.4, R5.5, R5.6, R5.7 -- MachineSpec owns staged launch and await sequencing"
+  - T2: "srd027-rest-tool-runtime R10.1, R10.2, R10.3, R10.4, R10.5 -- rest_await_event waits across configured sources and returns one event Result"
+  - T3: "srd029-rest-server-tools R2.3, R2.4, R2.5 -- rest_server_launch registers routes without blocking for inbound requests"
+  - T4: "srd029-rest-server-tools R11.1, R11.2, R11.3 -- launched server queues expose named sources for rest_await_event"
+  - T5: "cfg-rest-tool-format rest_await_event_config and event_source -- source filters, timeout, read policy, and stopped-source behavior are configured"
+  - T6: "sm-rest-tool-language RestEventSource -- fan-in sources are declarative and reference REST server queues"
+  - T7: "rel03.0-uc003-rest-server-signals S5 -- generic REST await selects one matching event across configured sources"
+
+success_criteria:
+  - id: S1
+    criterion: Initial REST server launches are visible MachineSpec actions and do not block on inbound requests.
+    traces:
+      - srd029-rest-server-tools AC2
+  - id: S2
+    criterion: First rest_await_event dispatch waits across only the first two launched sources and returns one selected event.
+    traces:
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+  - id: S3
+    criterion: Later REST server launch happens only after MachineSpec routes the first selected event signal.
+    traces:
+      - srd027-rest-tool-runtime AC5
+      - srd029-rest-server-tools AC7
+  - id: S4
+    criterion: Second rest_await_event dispatch includes all three launched sources and still returns one selected event.
+    traces:
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+  - id: S5
+    criterion: Source, route, signal, timeout, and stopped-source policy remain configured fan-in inputs rather than runtime HTTP caller authority.
+    traces:
+      - srd027-rest-tool-runtime AC2
+      - srd027-rest-tool-runtime AC6
+      - srd029-rest-server-tools AC10
+
+out_of_scope:
+  - Defining a fairness algorithm beyond the configured read policy.
+  - Letting HTTP handlers launch the third server directly.
+  - Adding hidden workflow actions inside rest_await_event.
+  - Replacing single-server rest_server_await coverage.
+
+status: planned
+semantic_model: sm-rest-tool-language
+config_format: cfg-rest-tool-format
+test_suite_trace: test-rel03.0-rest-tools

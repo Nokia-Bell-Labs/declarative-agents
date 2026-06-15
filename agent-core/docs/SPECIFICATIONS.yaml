@@ -4,14 +4,14 @@ title: Agent Core Specification Index
 overview: |
   Specification index for the agent-core framework. Thirty-three SRDs
   define the generic agentic loop engine and its supporting packages across
-  five releases. Release 04.0 implements embedded monitoring. The 00.0 release
+  six releases. Release 04.0 implements embedded monitoring. The 00.0 release
   owns the engine foundation and its support packages. In 01.0, configured
   runtime behavior expands into evaluator and bench contracts. Tool
   declarations also belong to that release. Rollback lifecycle contracts
   belong to 02.0. Declarative REST runtime contracts belong to 03.0. REST
-  client and server contracts sit in the same release. Seventeen use cases
-  exercise the SRDs across the five releases. Six formal YAML test suites cover 199 acceptance test
-  cases across releases 00.0 through 04.0; additional
+  client and server contracts sit in the same release. Twenty use cases
+  exercise the SRDs across the six releases. Seven formal YAML test suites cover 200 acceptance test
+  cases across releases 00.0 through 05.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
 
@@ -51,7 +51,7 @@ roadmap_summary:
   - version: "03.0"
     name: Declarative REST client and server tools
     use_cases_done: 7
-    use_cases_total: 7
+    use_cases_total: 8
     status: in_progress
   - version: "04.0"
     name: Embedded monitor metrics and REST API
@@ -366,6 +366,12 @@ use_case_index:
     status: done
     test_suite: test-rel03.0-rest-tools
     path: docs/specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml
+  - id: rel03.0-uc008-rest-await-any-fan-in
+    title: Staged REST await-any fan-in adds event sources
+    release: "03.0"
+    status: planned
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc008-rest-await-any-fan-in.yaml
   - id: rel04.0-uc001-configurable-tool-metrics
     title: Profile configures tool metrics for embedded monitoring
     release: "04.0"
@@ -430,7 +436,8 @@ test_suite_index:
       - rel03.0-uc005-ollama-openapi-model-listing
       - rel03.0-uc006-documentation-curator
       - rel03.0-uc007-machine-request-documentation-ux
-    formal_test_cases: 35
+      - rel03.0-uc008-rest-await-any-fan-in
+    formal_test_cases: 36
     path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
   - id: test-rel04.0-monitor
     title: Test Suite for Release 04.0 Embedded Monitor
@@ -547,7 +554,9 @@ coverage_gaps: |
     REST event fan-in, route and signal filters, timeout handling, stopped-source
     policy, machine_request configured-profile conformance, Knowledge Manager
     generic route conformance, and REST-triggered lifecycle exit now have formal
-    cases tied to Go tests, uc006, and uc007.
+    cases tied to Go tests, uc006, and uc007. rel03.0-uc008 records the planned
+    staged await-any fan-in proof that will launch a later REST source after the
+    first selected event routes through MachineSpec.
   Release 04.0 package tests cover the monitor store, recorder ownership,
   metric config validation, disabled mode, OpenTelemetry metric export,
   REST/OpenAPI cached-state readers, and the cmd/agent live-store release
