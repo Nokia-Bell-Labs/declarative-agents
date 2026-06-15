@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry/genai"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 )
@@ -188,6 +189,10 @@ type LoopParams struct {
 	// CheckpointPolicy controls when checkpoints are considered. When nil, no
 	// automatic checkpoint decisions are made.
 	CheckpointPolicy CheckpointPolicy
+
+	// MonitorRecorder records optional embedded monitor metrics. Nil preserves
+	// disabled-mode loop, dispatch, tracing, and tool behavior.
+	MonitorRecorder monitor.RuntimeRecorder
 }
 
 // Loop executes the generic agentic loop. It drives the state machine
@@ -286,6 +291,12 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 	if rr.Iterations > 0 {
 		iteration = rr.Iterations
 	}
+	recordMonitorRun(ctx, p.MonitorRecorder, monitor.RunSnapshot{
+		RunID:     p.AgentName,
+		Status:    "running",
+		State:     string(state),
+		Iteration: iteration,
+	})
 
 	for {
 		if ctx.Err() != nil {
@@ -349,7 +360,12 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 			break
 		}
 
-		res = Dispatch(cmd, tr, p.CommandTimeout)
+		res = dispatchWithMonitor(cmd, tr, p.CommandTimeout, p.MonitorRecorder, monitor.DispatchContext{
+			RunID:     p.AgentName,
+			AgentName: p.AgentName,
+			State:     string(state),
+			Iteration: iteration,
+		})
 		sig = res.Signal
 
 		if p.Hooks.AfterDispatch != nil {
@@ -370,7 +386,7 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 			rr = p.Hooks.OnResult(rr, res)
 		}
 
-		rr.Events = append(rr.Events, RunEvent{
+		event := RunEvent{
 			Iteration:   iteration,
 			Timestamp:   time.Now(),
 			CommandName: res.CommandName,
@@ -378,6 +394,15 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 			Cost:        res.Cost,
 			FromState:   fromState,
 			ToState:     state,
+		}
+		rr.Events = append(rr.Events, event)
+		recordMonitorEvent(ctx, p.MonitorRecorder, event)
+		recordMonitorRun(ctx, p.MonitorRecorder, monitor.RunSnapshot{
+			RunID:     p.AgentName,
+			Status:    "running",
+			State:     string(state),
+			Signal:    string(sig),
+			Iteration: iteration,
 		})
 
 		if historyEnabled(p) {
@@ -406,6 +431,13 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 
 	rr.Iterations = iteration
 	rr.Duration = time.Since(start)
+	recordMonitorRun(ctx, p.MonitorRecorder, monitor.RunSnapshot{
+		RunID:     p.AgentName,
+		Status:    string(rr.Status),
+		State:     string(rr.FinalState),
+		Signal:    string(sig),
+		Iteration: iteration,
+	})
 
 	log.Printf("run complete: status=%s iterations=%d tokens_in=%d tokens_out=%d duration=%s",
 		rr.Status, rr.Iterations, rr.TokensIn, rr.TokensOut, rr.Duration)
@@ -466,6 +498,30 @@ func accumulateCost(rr *RunResult, res Result) {
 	rr.TokensIn += res.Cost.TokensIn
 	rr.TokensOut += res.Cost.TokensOut
 	rr.TotalCost += res.Cost.Dollars
+}
+
+func recordMonitorEvent(ctx context.Context, rec monitor.RuntimeRecorder, event RunEvent) {
+	if rec == nil {
+		return
+	}
+	_ = rec.RecordEvent(ctx, monitor.RunEvent{
+		Iteration:   event.Iteration,
+		Timestamp:   event.Timestamp,
+		CommandName: event.CommandName,
+		Signal:      string(event.Signal),
+		FromState:   string(event.FromState),
+		ToState:     string(event.ToState),
+		Duration:    event.Cost.Duration,
+		TokensIn:    event.Cost.TokensIn,
+		TokensOut:   event.Cost.TokensOut,
+	})
+}
+
+func recordMonitorRun(ctx context.Context, rec monitor.RuntimeRecorder, run monitor.RunSnapshot) {
+	if rec == nil {
+		return
+	}
+	_ = rec.RecordRun(ctx, run)
 }
 
 func historyEnabled(p LoopParams) bool {

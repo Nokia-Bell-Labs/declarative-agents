@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 )
 
 // State represents a position in the agentic loop lifecycle.
@@ -57,6 +59,11 @@ type Command interface {
 	Name() string
 	Execute() Result
 	Undo() Result
+}
+
+// MonitorRecorderAware lets commands receive the tool-facing monitor recorder.
+type MonitorRecorderAware interface {
+	SetMonitorRecorder(monitor.ToolMetricsRecorder)
 }
 
 // NoopUndo returns a successful no-op undo result for commands that do not

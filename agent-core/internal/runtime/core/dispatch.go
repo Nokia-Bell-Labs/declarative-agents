@@ -3,11 +3,13 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry/genai"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 )
@@ -15,6 +17,16 @@ import (
 // Dispatch wraps Command.Execute with tracing, timeout, panic
 // recovery, duration measurement, and CommandName assignment.
 func Dispatch(cmd Command, tr tracing.Tracer, timeout time.Duration) Result {
+	return dispatchWithMonitor(cmd, tr, timeout, nil, monitor.DispatchContext{})
+}
+
+func dispatchWithMonitor(
+	cmd Command,
+	tr tracing.Tracer,
+	timeout time.Duration,
+	rec monitor.RuntimeRecorder,
+	dispatchCtx monitor.DispatchContext,
+) Result {
 	spanName := genai.ToolSpanName(cmd.Name())
 	var spanAttrs []attribute.KeyValue
 	spanAttrs = append(spanAttrs, genai.ToolAttrs(cmd.Name(), genai.ToolTypeFunction)...)
@@ -27,10 +39,14 @@ func Dispatch(cmd Command, tr tracing.Tracer, timeout time.Duration) Result {
 	child, done := tr.Push(spanName, spanAttrs...)
 	defer done()
 
+	if aware, ok := cmd.(MonitorRecorderAware); ok && rec != nil {
+		aware.SetMonitorRecorder(rec)
+	}
 	res := SafeExecute(cmd, timeout)
 
 	res.CommandName = cmd.Name()
 	stampSpan(child, cmd.Name(), res)
+	recordDispatchMetrics(child.Context(), rec, dispatchCtx, res)
 	return res
 }
 
@@ -76,6 +92,52 @@ func SafeExecute(cmd Command, timeout time.Duration) (res Result) {
 			Cost:   Cost{Duration: time.Since(start)},
 		}
 	}
+}
+
+func recordDispatchMetrics(ctx context.Context, rec monitor.RuntimeRecorder, dc monitor.DispatchContext, res Result) {
+	if rec == nil {
+		return
+	}
+	base := dispatchSample(dc, res)
+	_ = rec.RecordMetric(ctx, base)
+	count := base
+	count.Name = "dispatch_count"
+	count.Kind = monitor.InstrumentCounter
+	count.Unit = "{dispatch}"
+	count.Value = 1
+	_ = rec.RecordMetric(ctx, count)
+	_ = rec.RecordMetric(ctx, dispatchOutcomeSample(count, res))
+}
+
+func dispatchSample(dc monitor.DispatchContext, res Result) monitor.MetricSample {
+	return monitor.MetricSample{
+		Name:       "dispatch_duration",
+		Kind:       monitor.InstrumentHistogram,
+		Unit:       "ms",
+		Value:      float64(res.Cost.Duration.Milliseconds()),
+		ToolName:   res.CommandName,
+		RunID:      dc.RunID,
+		State:      dc.State,
+		Signal:     string(res.Signal),
+		Status:     dispatchStatus(res),
+		Attributes: map[string]string{"agent.name": dc.AgentName},
+	}
+}
+
+func dispatchOutcomeSample(base monitor.MetricSample, res Result) monitor.MetricSample {
+	if dispatchStatus(res) == "success" {
+		base.Name = "dispatch_success"
+		return base
+	}
+	base.Name = "dispatch_failure"
+	return base
+}
+
+func dispatchStatus(res Result) string {
+	if res.Err != nil || res.Signal == CommandError || res.Signal == ToolFailed {
+		return "failure"
+	}
+	return "success"
 }
 
 // FillDuration sets the result's duration from wall clock if not already set.
