@@ -14,6 +14,7 @@ preconditions:
   - REST monitor tests can use httptest.Server with profile-owned routes.
   - OpenAPI tests can inspect generated or configured endpoint descriptions.
   - Disabled-mode tests can run without monitor config.
+  - A real cmd/agent monitor process can bind a localhost REST listener during tests.
 
 test_cases:
   - use_case: rel04.0-uc001-configurable-tool-metrics
@@ -52,6 +53,34 @@ test_cases:
       - srd033-monitor-rest-api AC2
       - srd033-monitor-rest-api AC3
       - srd033-monitor-rest-api AC4
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: Real CLI monitor process stays queryable until exit
+    go_test: TestMonitorCLIProfileServesUntilControlExit
+    integration_target: mage integration:uc004
+    status: planned
+    description: |
+      Start cmd/agent with agents/monitor/profile.yaml, then wait until the
+      monitor REST listener accepts requests. Request /monitor/state while the
+      process is still running. Before shutdown, ask /monitor/metrics for the
+      live aggregate view and send the configured monitor control exit request.
+      After handling the control request, the process should stop the owned
+      listener and complete with terminal state Done or Succeeded.
+    inputs:
+      profile: agents/monitor/profile.yaml
+      query_routes:
+        - /monitor/state
+        - /monitor/metrics
+      control_route: /monitor/control/exit
+    expected:
+      process_running_after_server_launch: true
+      monitor_state_query_succeeds: true
+      monitor_metrics_query_succeeds: true
+      control_exit_stops_listener: true
+      terminal_status_succeeded: true
+    traces:
+      - rel04.0-uc002-monitor-rest-api S6
+      - srd033-monitor-rest-api AC6
 
   - use_case: rel04.0-uc001-configurable-tool-metrics
     name: Monitor store returns bounded snapshots

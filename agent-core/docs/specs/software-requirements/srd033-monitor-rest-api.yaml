@@ -20,6 +20,12 @@ problem: |
   scrape workspace files. cmd/agent passes the live monitor store into those
   routes when the monitor profile runs.
 
+  Launching a monitor server alone is not enough. REST server tools start the
+  listener in the background, but cmd/agent exits when the MachineSpec reaches a
+  terminal state. To stay observable, the monitor profile follows the local
+  Knowledge Manager pattern: launch, await, accept a configured exit request,
+  stop the owned listener, and then route to a success terminal state.
+
 goals:
   - G1: Define monitor REST endpoints that read cached monitor state.
   - G2: Preserve MachineSpec workflow ownership and avoid hidden HTTP workflows.
@@ -74,6 +80,15 @@ requirements:
       - R5.4: Handler failures SHALL return structured errors with endpoint name, failure stage, redacted message, and correlation metadata.
       - R5.5: REST API failures SHALL NOT change command Result.Signal, monitor store state, or MachineSpec state.
 
+  R6:
+    title: Serving lifecycle
+    items:
+      - R6.1: The monitor profile SHALL keep cmd/agent alive after the monitor REST listener starts.
+      - R6.2: The monitor MachineSpec SHALL route ServerLaunched to a non-terminal serving or awaiting state with a blocking await action.
+      - R6.3: Monitor control routes SHALL be profile-owned and separate from read-only monitor snapshot routes.
+      - R6.4: A configured control exit request SHALL route to a stop step that releases the owned monitor listener.
+      - R6.5: After the listener stops without error, the monitor MachineSpec SHALL route to Done or Succeeded so the run status is succeeded.
+
 implementation_status:
   current: |
     internal/tools/rest supports monitor_view on read_state, static_metadata,
@@ -88,9 +103,11 @@ implementation_status:
     TestMonitorReleaseProfileProof and mage integration:uc004 prove the path
     through cmd/agent with the live store.
   remaining: |
-    No remaining Release 04.0 implementation gap is tracked here. Monitor REST
-    remains read-only and profile-owned. It does not write monitor state. That
-    boundary is intentional.
+    The monitor profile still needs the Knowledge Manager serving lifecycle.
+    The REST listener already starts in the background. The remaining work is
+    to keep the MachineSpec alive in an await state, accept a configured control
+    exit request, stop the owned listener, and prove the real cmd/agent process
+    stays queryable until that exit request.
 
 non_goals:
   - Writing monitor state through REST.
@@ -134,6 +151,12 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
     tests:
       - "test-rel04.0-monitor: Monitor REST failures stay observational"
+
+  - id: AC6
+    criterion: Serving lifecycle requirements keep the monitor profile queryable until a configured control exit request stops the listener and routes to a success terminal state.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+    tests:
+      - "test-rel04.0-monitor: Real CLI monitor process stays queryable until exit"
 
 depends_on:
   - srd_id: srd029-rest-server-tools
