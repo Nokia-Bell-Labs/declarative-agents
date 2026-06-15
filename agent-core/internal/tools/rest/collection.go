@@ -2,7 +2,17 @@
 
 package rest
 
-import "fmt"
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+)
 
 // Collection indexes REST definitions loaded for one profile.
 type Collection struct {
@@ -29,9 +39,33 @@ type ClientOperationDefinition struct {
 
 // ServerDefinition is a resolved server plus its referenced limit profile.
 type ServerDefinition struct {
-	Name   string
-	Server Server
-	Limits LimitProfile
+	Name                 string
+	Server               Server
+	Limits               LimitProfile
+	MachineRequestRunner MachineRequestRunner
+}
+
+// MachineRequestRunner runs one request-scoped machine.
+type MachineRequestRunner interface {
+	RunMachineRequest(context.Context, MachineRequestRun) (MachineRequestResult, error)
+}
+
+// MachineRequestRun is the accepted HTTP request visible to a request machine.
+type MachineRequestRun struct {
+	Server    string                 `json:"server"`
+	Route     string                 `json:"route"`
+	Method    string                 `json:"method"`
+	Path      string                 `json:"path"`
+	RequestID string                 `json:"request_id,omitempty"`
+	Payload   map[string]interface{} `json:"payload,omitempty"`
+	Config    MachineRequest         `json:"-"`
+}
+
+// MachineRequestResult records the short-lived machine outcome.
+type MachineRequestResult struct {
+	TerminalSignal string                 `json:"terminal_signal"`
+	Output         map[string]interface{} `json:"output,omitempty"`
+	Run            core.RunResult         `json:"run"`
 }
 
 // NewCollection creates an empty REST definition collection.
@@ -156,4 +190,214 @@ func operationByName(operations map[string]Operation, name, owner string) (Opera
 		return Operation{}, fmt.Errorf("REST operation %q is not defined on %s", name, owner)
 	}
 	return operation, nil
+}
+
+func machineRequestRunner(runner MachineRequestRunner) MachineRequestRunner {
+	if runner != nil {
+		return runner
+	}
+	return defaultMachineRequestRunner{}
+}
+
+type defaultMachineRequestRunner struct{}
+
+func (defaultMachineRequestRunner) RunMachineRequest(
+	ctx context.Context,
+	req MachineRequestRun,
+) (MachineRequestResult, error) {
+	if req.Config.MachineSpec == nil {
+		return MachineRequestResult{}, fmt.Errorf("machine_config_invalid: machine_request machine spec is not configured")
+	}
+	var last core.Result
+	params := core.LoopParams{
+		MachineSpec:    req.Config.MachineSpec,
+		Registry:       req.Config.Registry,
+		InitFunc:       req.Config.InitFunc,
+		ToolAction:     req.Config.ToolAction,
+		InitialSignal:  core.Seed,
+		InitialResult:  requestSeed(req),
+		Budget:         req.Config.Budget,
+		CommandTimeout: parseDuration(req.Config.CommandTimeout, 0),
+		Trace:          tracing.NoopTracer{},
+		AgentName:      "machine_request",
+		Directory:      ".",
+		Hooks: core.LoopHooks{OnResult: func(rr core.RunResult, res core.Result) core.RunResult {
+			last = res
+			return rr
+		}},
+	}
+	rr, err := core.Loop(params, ctx)
+	if err != nil {
+		return MachineRequestResult{}, fmt.Errorf("machine_config_invalid: %w", err)
+	}
+	if rr.Status == core.StatusCancelled {
+		return MachineRequestResult{}, fmt.Errorf("machine_timeout: request machine timed out")
+	}
+	return machineRequestResult(rr, last)
+}
+
+func requestSeed(req MachineRequestRun) core.Result {
+	data, err := json.Marshal(req)
+	if err != nil {
+		return core.Result{Signal: core.Seed, Output: "{}"}
+	}
+	return core.Result{Signal: core.Seed, Output: string(data)}
+}
+
+func machineRequestResult(rr core.RunResult, last core.Result) (MachineRequestResult, error) {
+	if last.Signal == "" {
+		return MachineRequestResult{}, fmt.Errorf("response_missing: request machine produced no response signal")
+	}
+	output := map[string]interface{}{}
+	if last.Output != "" {
+		if err := json.Unmarshal([]byte(last.Output), &output); err != nil {
+			return MachineRequestResult{}, fmt.Errorf("response_invalid: %w", err)
+		}
+	}
+	return MachineRequestResult{TerminalSignal: string(last.Signal), Output: output, Run: rr}, nil
+}
+
+func (r *serverRuntime) handleMachineRequest(
+	w http.ResponseWriter,
+	req *http.Request,
+	name string,
+	endpoint Endpoint,
+	payload map[string]interface{},
+) {
+	ctx, cancel := context.WithTimeout(req.Context(), r.machineRequestTimeout(endpoint))
+	defer cancel()
+	result, err := r.runner.RunMachineRequest(ctx, MachineRequestRun{
+		Server: r.name, Route: name, Method: req.Method, Path: req.URL.Path,
+		RequestID: req.Header.Get("X-Request-ID"),
+		Payload:   machineRequestPayload(endpoint.MachineRequest.Request, payload),
+		Config:    endpoint.MachineRequest,
+	})
+	if err != nil {
+		writeMachineRequestError(w, err)
+		return
+	}
+	r.writeMachineResponse(w, endpoint, result)
+}
+
+func (r *serverRuntime) machineRequestTimeout(endpoint Endpoint) time.Duration {
+	if timeout := parseDuration(endpoint.MachineRequest.Timeout, 0); timeout > 0 {
+		return timeout
+	}
+	if timeout := parseDuration(r.def.Limits.Timeout, 0); timeout > 0 {
+		return timeout
+	}
+	return defaultAwaitTimeout
+}
+
+func (r *serverRuntime) writeMachineResponse(
+	w http.ResponseWriter,
+	endpoint Endpoint,
+	result MachineRequestResult,
+) {
+	mapping, ok := endpoint.MachineRequest.Response.TerminalSignals[result.TerminalSignal]
+	if !ok {
+		writeMachineRequestError(w, fmt.Errorf("response_missing: terminal signal %q is not mapped", result.TerminalSignal))
+		return
+	}
+	status := mapping.Status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	if mapping.ContentType != "" {
+		w.Header().Set("Content-Type", mapping.ContentType)
+	}
+	for name, value := range mapping.Headers {
+		w.Header().Set(name, value)
+	}
+	body := machineResponseBody(mapping, result)
+	if r.def.Limits.MaxResponseBytes > 0 && encodedJSONSize(body) > r.def.Limits.MaxResponseBytes {
+		writeMachineRequestError(w, fmt.Errorf("response_invalid: response body too large"))
+		return
+	}
+	writeMachineJSON(w, status, body)
+}
+
+func machineResponseBody(mapping MachineResponseMapping, result MachineRequestResult) map[string]interface{} {
+	body := map[string]interface{}{}
+	for name, selector := range mapping.Body {
+		body[name] = machineSelectorValue(selector, result.Output)
+	}
+	if len(body) == 0 {
+		body["data"] = result.Output
+	}
+	body["trace"] = map[string]interface{}{
+		"terminal_signal": result.TerminalSignal,
+		"iterations":      result.Run.Iterations,
+		"status":          result.Run.Status,
+	}
+	return body
+}
+
+func machineSelectorValue(selector string, output map[string]interface{}) interface{} {
+	if !strings.HasPrefix(selector, "$.") {
+		return selector
+	}
+	return nestedValue(output, strings.Split(strings.TrimPrefix(selector, "$."), "."))
+}
+
+func nestedValue(value interface{}, path []string) interface{} {
+	if len(path) == 0 {
+		return value
+	}
+	obj, _ := value.(map[string]interface{})
+	if obj == nil {
+		return nil
+	}
+	return nestedValue(obj[path[0]], path[1:])
+}
+
+func machineRequestPayload(mapping MachineRequestMapping, payload map[string]interface{}) map[string]interface{} {
+	out := map[string]interface{}{}
+	copyMappedValues(out, payload, "body", mapping.Body)
+	copyMappedValues(out, payload, "query", mapping.Query)
+	copyMappedValues(out, payload, "path", mapping.Path)
+	copyMappedValues(out, payload, "headers", mapping.Headers)
+	if len(out) == 0 {
+		return payload
+	}
+	return out
+}
+
+func copyMappedValues(out, payload map[string]interface{}, group string, mapping map[string]string) {
+	source, _ := payload[group].(map[string]interface{})
+	for name, selector := range mapping {
+		out[name] = machineSelectorValue(selector, source)
+	}
+}
+
+func writeMachineRequestError(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "machine_timeout"):
+		status = http.StatusGatewayTimeout
+	case strings.Contains(msg, "response_missing"):
+		status = http.StatusBadGateway
+	case strings.Contains(msg, "response_invalid"):
+		status = http.StatusBadGateway
+	case strings.Contains(msg, "machine_config_invalid"):
+		status = http.StatusInternalServerError
+	}
+	writeJSON(w, status, map[string]interface{}{"error": msg})
+}
+
+func writeMachineJSON(w http.ResponseWriter, status int, payload map[string]interface{}) {
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "application/json")
+	}
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func encodedJSONSize(payload map[string]interface{}) int {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return 0
+	}
+	return len(data)
 }

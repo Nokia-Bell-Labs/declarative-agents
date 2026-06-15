@@ -396,15 +396,17 @@ tools:
     goals:
       - Resolve one configured REST server.
       - Register configured routes and listener state when implemented.
+      - Support configured machine_request endpoints that run request-scoped MachineSpec sentences.
     requirements:
       input:
         - Tool config must reference one trusted REST server definition.
       output:
         - Output must include server name, bound address, route count, and binding kinds when implemented.
       errors:
-        - Config, bind, route conflict, or schema failures emit CommandError.
+        - Config, bind, route conflict, machine_request setup, or schema failures emit CommandError.
     non_goals:
       - Does not let HTTP handlers choose hidden MachineSpec actions.
+      - Does not let runtime HTTP input choose profile, machine, tools, declarations, credentials, URLs, or filesystem roots.
     parameters:
       type: object
       properties: {}
@@ -433,7 +435,7 @@ tools:
       description: Stop the owned server listener through rest_server_stop.
     errors:
       - signal: CommandError
-        condition: Config decode, bind, route conflict, or schema failure.
+        condition: Config decode, bind, route conflict, machine_request setup, or schema failure.
         message_shape: "rest_server_launch: <stage>: <redacted diagnostic>"
         state_after_failure: Partial launch cleans up owned listener state.
     relationships:

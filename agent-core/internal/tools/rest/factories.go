@@ -37,6 +37,7 @@ type FactoryDeps struct {
 	Definitions        Collection
 	ServerState        *ServerState
 	AsyncState         *AsyncState
+	MachineRunner      MachineRequestRunner
 	CredentialResolver CredentialResolver
 }
 
@@ -127,6 +128,7 @@ func newServerBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 	if err != nil {
 		return nil, err
 	}
+	server.MachineRequestRunner = deps.MachineRunner
 	return ServerBuilder{ToolName: def.Name, Init: init, Server: server, State: deps.ServerState}, nil
 }
 

@@ -19,6 +19,7 @@ const (
 	bindingStreamEvents   = "stream_events"
 	bindingHealth         = "health"
 	bindingStaticMetadata = "static_metadata"
+	bindingMachineRequest = "machine_request"
 )
 
 var allowedUndeclaredHeaders = map[string]bool{
@@ -81,6 +82,8 @@ func (r *serverRuntime) handleEndpoint(
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
 	case bindingStaticMetadata:
 		writeJSON(w, http.StatusOK, r.metadataOutput())
+	case bindingMachineRequest:
+		r.handleMachineRequest(w, req, name, endpoint, payload)
 	default:
 		http.Error(w, "endpoint binding is not implemented", http.StatusNotImplemented)
 	}

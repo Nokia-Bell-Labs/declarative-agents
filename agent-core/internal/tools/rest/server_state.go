@@ -72,6 +72,7 @@ type serverRuntime struct {
 	httpServer    *http.Server
 	listener      net.Listener
 	queue         chan InboundEvent
+	runner        MachineRequestRunner
 	pending       []InboundEvent
 	stopped       chan struct{}
 	stopOnce      sync.Once
@@ -184,7 +185,8 @@ func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
 	}
 	runtime := &serverRuntime{
 		name: def.Name, def: def, listener: listener, stopped: make(chan struct{}),
-		queue: make(chan InboundEvent, queueCapacity(def.Server.Queue)), owned: true,
+		runner: machineRequestRunner(def.MachineRequestRunner),
+		queue:  make(chan InboundEvent, queueCapacity(def.Server.Queue)), owned: true,
 	}
 	runtime.httpServer = &http.Server{
 		Handler:           runtime,
