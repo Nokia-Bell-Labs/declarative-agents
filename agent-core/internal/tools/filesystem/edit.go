@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
@@ -20,6 +21,7 @@ type editCmd struct {
 	newString   string
 	snapshot    fileSnapshot
 	hasSnapshot bool
+	recorder    monitor.ToolMetricsRecorder
 }
 
 func (e *editCmd) Name() string { return "edit" }
@@ -83,6 +85,7 @@ func (e *editCmd) apply(resolved, relPath, content string) core.Result {
 	}
 	e.snapshot = snapshot
 	e.hasSnapshot = true
+	e.recordFilesystemMetric("filesystem.bytes_changed", float64(bytesChanged(e.oldString, e.newString)), "By", "Byte delta for one file edit.")
 	return core.Result{
 		Output:      fmt.Sprintf("replacement applied in %s", relPath),
 		Signal:      core.EditDone,

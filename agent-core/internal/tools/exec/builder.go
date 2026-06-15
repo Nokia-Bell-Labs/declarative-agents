@@ -7,7 +7,9 @@ import (
 	"os"
 	osexec "os/exec"
 	"path/filepath"
+	"time"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 )
@@ -49,6 +51,7 @@ type ExecCmd struct {
 	def    catalog.ToolDef
 	root   string
 	params map[string]string
+	rec    monitor.ToolMetricsRecorder
 }
 
 func (c *ExecCmd) Name() string { return c.def.Name }
@@ -78,8 +81,11 @@ func (c *ExecCmd) Execute() core.Result {
 	}
 	cmd := osexec.Command(c.def.Binary, c.buildArgs()...)
 	cmd.Dir = dir
+	start := time.Now()
 	out, err := cmd.CombinedOutput()
+	duration := time.Since(start)
 	res := SubprocessResult(c.def.Name, out, err)
+	c.recordExecMetrics(duration, out, err)
 	if c.def.OutputCap > 0 {
 		res.Output = CapOutput(res.Output, c.def.OutputCap)
 	}

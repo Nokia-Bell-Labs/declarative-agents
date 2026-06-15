@@ -21,6 +21,20 @@ tools:
       required:
       - path
       - bytes_written
+  metrics:
+    instruments:
+    - name: filesystem.bytes_written
+      kind: histogram
+      unit: By
+      description: Bytes written to one workspace file.
+      value_source: bytes_written
+      attributes:
+      - operation
+    attributes:
+    - name: operation
+      source: tool_name
+      cardinality: low
+      redaction: none
   parameters:
     type: object
     properties:

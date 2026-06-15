@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
@@ -23,7 +24,7 @@ type ClientBuilder struct {
 // Build creates one REST client boundary command.
 func (b ClientBuilder) Build(res core.Result) core.Command {
 	params, err := runtimeParams(res.Output)
-	return clientCmd{
+	return &clientCmd{
 		toolName: b.ToolName, init: b.Init, operation: b.Operation,
 		params: params, asyncState: b.AsyncState, credentials: b.Credentials, buildErr: err,
 	}
@@ -37,6 +38,7 @@ type clientCmd struct {
 	asyncState  *AsyncState
 	credentials CredentialResolver
 	buildErr    error
+	recorder    monitor.ToolMetricsRecorder
 }
 
 func (c clientCmd) Name() string { return c.toolName }
@@ -81,6 +83,7 @@ func (c clientCmd) executeRequest(request *http.Request) core.Result {
 	if err != nil {
 		return result
 	}
+	c.recordRESTMetrics(request, result)
 	return result
 }
 
