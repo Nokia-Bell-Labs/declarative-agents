@@ -1,5 +1,6 @@
 id: rel04.0-uc002-monitor-rest-api
 title: Supervisor reads monitor state through REST
+status: done
 
 summary: |
   Supervisors sometimes need a narrow read surface while an agent is still

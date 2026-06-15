@@ -698,13 +698,14 @@ overview:
         - docs/specs/test-suites/test-rel03.0-rest-tools.yaml
 
   embedded_monitor_runtime_architecture:
-    status: in_progress
+    status: current
     summary: |
-      Embedded monitor support runs inside the agent process when a recorder
-      and store are provided to runtime code. This reusable runtime capability
-      is not a Kubernetes sidecar, daemon, or required external service. A
-      bounded in-memory store records tool and loop metrics so readers can
-      expose live progress without waiting for an external collector.
+      Embedded monitor support runs inside the agent process when a profile
+      configures monitor labels, metric declarations, or monitor REST views.
+      This reusable runtime capability is not a Kubernetes sidecar, daemon, or
+      required external service. A bounded in-memory store records tool and loop
+      metrics so readers can expose live progress without waiting for an
+      external collector.
 
       Metric meaning stays with each tool family. File tools can emit changed
       byte counts. Exec tools can emit exit status and output sizes. REST tools
@@ -719,9 +720,8 @@ overview:
       Cached monitor state backs REST and OpenAPI read paths. Handlers return
       snapshots and recent sample windows from trusted in-process state. They
       do not scrape tools, re-run commands, or read arbitrary workspace files.
-      Remaining work wires cmd/agent startup to allocate the live store, pass it
-      to REST monitor routes, and apply MachineSpec workflow labels to emitted
-      samples.
+      cmd/agent startup allocates the live store, passes it to REST monitor
+      routes, and applies MachineSpec workflow labels to emitted samples.
     monitor_flow_diagram: |
       ```mermaid
       flowchart LR
@@ -769,12 +769,10 @@ overview:
         - docs/specs/software-requirements/srd033-monitor-rest-api.yaml
         - docs/specs/semantic-models/tool-metrics-monitoring.yaml
         - docs/specs/test-suites/test-rel04.0-monitor.yaml
-      remaining:
-        - agent-core-xx0f: wire monitor recorder into cmd/agent runtime
-        - agent-core-talk: back monitor REST profile with live store
-        - agent-core-zebe: apply MachineSpec metric labels to monitor samples
-        - agent-core-2gop: make tool metric emission config-driven
-        - agent-core-i07c: add end-to-end monitor release proof
+      proof:
+        - cmd/agent/main_test.go: TestMonitorReleaseProfileProof
+        - internal/tools/rest/monitor_test.go: TestMonitorREST_FactoryUsesLiveMonitorState
+        - magefiles/integration_monitor.go: mage integration:uc004
 
   container_runtime_architecture:
     summary: |
@@ -1473,7 +1471,7 @@ implementation_status:
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd026)
-    - in_progress: Embedded monitor runtime — in-memory store, recorder ports, ToolDef and MachineSpec metric validation, representative tool-owned metric emission, OpenTelemetry metric export, and REST/OpenAPI cached-state readers exist; cmd/agent live-store wiring, workflow label propagation, config-driven emission, and release proof remain open under agent-core-8np6
+    - done: Embedded monitor runtime — in-memory store, recorder ports, ToolDef and MachineSpec metric validation, config-driven tool-owned metric emission, workflow label propagation, OpenTelemetry metric export, REST/OpenAPI cached-state readers, cmd/agent live-store wiring, and mage integration:uc004 release proof
 
 related_documents:
   - doc: docs/VISION.yaml

@@ -13,13 +13,12 @@ problem: |
   read cached monitor state only. Profile-owned REST configuration and OpenAPI
   descriptions must own the exposed routes.
 
-  Monitor REST reader support now exists on the existing REST server path.
+  Monitor REST reader support exists on the existing REST server path.
   Configured endpoints can read monitor views, expose OpenAPI metadata, and
   stream cached monitor updates. The implementation keeps handlers read-only:
   they do not execute tools, dispatch MachineSpec actions, inspect prompts, or
-  scrape workspace files. Follow-up work still needs to pass the live cmd/agent
-  monitor store into those routes before the monitor profile reflects a running
-  agent without test seeding.
+  scrape workspace files. cmd/agent passes the live monitor store into those
+  routes when the monitor profile runs.
 
 goals:
   - G1: Define monitor REST endpoints that read cached monitor state.
@@ -80,19 +79,22 @@ implementation_status:
     internal/tools/rest supports monitor_view on read_state, static_metadata,
     and stream_events endpoints. agents/monitor defines a profile-owned REST
     server with machine, state, tools, metrics, events, event stream, and
-    OpenAPI routes. Monitor REST tests cover cached-state reads, OpenAPI
-    redaction, snapshot endpoints, event stream frames, and observational
-    failure behavior. REST monitor readers reuse the existing REST server launch
-    path instead of a separate monitor server stack.
+    OpenAPI routes. Tests cover cached-state reads, OpenAPI redaction, snapshot
+    endpoints, event stream frames, and observational failure behavior. The
+    monitor profile uses the same REST server launch path as other configured
+    server tools, so there is no separate monitor server stack.
+    A supervisor can call /monitor/metrics after launch and see samples from
+    the same run, not a seeded fixture.
+    TestMonitorReleaseProfileProof and mage integration:uc004 prove the path
+    through cmd/agent with the live store.
   remaining: |
-    agent-core-talk passes live MonitorState from cmd/agent into REST server
-    factory dependencies. agent-core-xx0f allocates the monitor store and
-    recorder during profile startup. agent-core-i07c proves the configured
-    monitor path end to end through cmd/agent.
+    No remaining Release 04.0 implementation gap is tracked here. Monitor REST
+    remains read-only and profile-owned. It does not write monitor state. That
+    boundary is intentional.
 
 non_goals:
   - Writing monitor state through REST.
-  - Treating the monitor profile as live until agent-core-talk wires it to the current process store.
+  - Creating workflow signals from monitor REST read endpoints.
   - Executing tools or MachineSpec actions from monitor HTTP handlers.
   - Replacing REST server tool contracts in srd029-rest-server-tools.
   - Exposing raw prompts, full outputs, secrets, or arbitrary workspace files.
@@ -102,22 +104,36 @@ acceptance_criteria:
   - id: AC1
     criterion: API scope requirements define read-only cached monitor endpoints with profile-owned REST authority and no hidden workflow execution.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+    tests:
+      - "test-rel04.0-monitor: Monitor REST routes read cached state"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC2
     criterion: OpenAPI requirements cover configured endpoint descriptions, stable operation IDs, response schemas, redaction, and no generated Go server code.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+    tests:
+      - "test-rel04.0-monitor: Monitor OpenAPI omits unsafe fields"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC3
     criterion: Snapshot endpoint requirements cover machine spec, current state, tools, per-tool metrics, aggregate metrics, and recent events.
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+    tests:
+      - "test-rel04.0-monitor: Monitor snapshot endpoints return configured views"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC4
     criterion: Event stream requirements expose cached monitor updates without creating workflow signals or retaining tool execution.
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+    tests:
+      - "test-rel04.0-monitor: Monitor event stream reads cached updates"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC5
     criterion: Redaction and failure requirements preserve monitor safety and do not change command or machine state.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+    tests:
+      - "test-rel04.0-monitor: Monitor REST failures stay observational"
 
 depends_on:
   - srd_id: srd029-rest-server-tools

@@ -155,36 +155,31 @@ releases:
   - version: "04.0"
     name: Embedded monitor metrics and REST API
     description: |
-      Embedded monitor support is in progress as a reusable runtime capability
-      inside the agent process. It records tool-owned metric samples in a
-      bounded in-memory store, exports normalized samples through OpenTelemetry
+      Embedded monitor support is a reusable runtime capability inside the
+      agent process. It records tool-owned metric samples in a bounded
+      in-memory store, exports normalized samples through OpenTelemetry
       metrics, and exposes REST/OpenAPI read paths over cached monitor state.
 
       The monitor is not a Kubernetes sidecar, daemon, or required external
       process. External collectors and supervisors may read or receive exported
-      data, but the runtime owns the cache and recorder ports. Remaining work
-      under agent-core-8np6 wires live profile startup, workflow labels,
-      config-driven emission, and the end-to-end release proof.
-    status: in_progress
+      data, but the runtime owns the cache and recorder ports. The release proof
+      is mage integration:uc004.
+    status: done
     srds:
       - srd032-tool-metrics-monitor-store
       - srd033-monitor-rest-api
     semantic_models:
       - sm-tool-metrics-monitoring
     config_formats:
-      - cfg-monitor-rest-api
+      - cfg-rest-tool-format
     use_cases:
       - id: rel04.0-uc001-configurable-tool-metrics
         summary: Agent records tool-owned metrics in the embedded monitor store and exports them through OpenTelemetry
-        status: in_progress
+        status: done
       - id: rel04.0-uc002-monitor-rest-api
         summary: Supervisor reads cached monitor state through configured REST and OpenAPI endpoints
-        status: in_progress
+        status: done
     test_suites:
       - id: test-rel04.0-monitor
         summary: Formal tests for monitor store behavior, metric emission, OpenTelemetry export, and REST/OpenAPI cached-state reads
         status: implemented
-    follow_up:
-      - id: agent-core-8np6
-        summary: Complete embedded monitor runtime wiring and release proof
-        status: in_progress

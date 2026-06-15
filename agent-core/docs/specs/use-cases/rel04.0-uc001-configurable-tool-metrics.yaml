@@ -1,5 +1,6 @@
 id: rel04.0-uc001-configurable-tool-metrics
 title: Profile configures tool metrics for embedded monitoring
+status: done
 
 summary: |
   A profile author enables embedded monitor metrics for a MachineSpec run.
