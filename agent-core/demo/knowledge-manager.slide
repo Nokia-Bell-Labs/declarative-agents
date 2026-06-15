@@ -1,0 +1,13 @@
+Knowledge Manager Demo
+Agent Core
+14 Jun 2026
+
+* Start the Knowledge Manager
+
+Click Run to start the Knowledge Manager documentation server.
+
+Open the running server after it starts:
+
+[[http://localhost:18081][http://localhost:18081]]
+
+.play start_knowledge_manager.go /START OMIT/,/END OMIT/
