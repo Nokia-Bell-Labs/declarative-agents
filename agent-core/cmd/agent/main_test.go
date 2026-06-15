@@ -283,9 +283,17 @@ func TestMonitorReleaseProfileProof(t *testing.T) {
 	requireMainWiresMonitorRecorder(t)
 
 	proof := monitorReleaseProof(t)
-	result, err := core.Loop(proof.params, context.Background())
-	require.NoError(t, err)
-	require.Equal(t, core.State("Serving"), result.FinalState)
+	resultCh := make(chan loopResult, 1)
+	go func() {
+		result, err := core.Loop(proof.params, context.Background())
+		resultCh <- loopResult{result: result, err: err}
+	}()
+	waitForProofMonitorRoute(t, "http://127.0.0.1:18083/monitor/state")
+	postProofMonitorExit(t, "http://127.0.0.1:18083/monitor/control/exit")
+	outcome := receiveLoopResult(t, resultCh)
+	require.NoError(t, outcome.err)
+	require.Equal(t, core.State("Done"), outcome.result.FinalState)
+	require.Equal(t, core.StatusSucceeded, outcome.result.Status)
 
 	snapshot := proof.monitor.Store.Snapshot()
 	requireMonitorSample(t, snapshot.RecentSamples, "dispatch_count")
@@ -303,6 +311,11 @@ func TestMonitorReleaseProfileProof(t *testing.T) {
 	require.Contains(t, metrics, "route_group")
 	require.Contains(t, proofRequestBody(t, baseURL+"/monitor/openapi"), "/monitor/metrics")
 	require.Contains(t, proofRequestBody(t, baseURL+"/monitor/events/stream"), "event: metric_sample")
+}
+
+type loopResult struct {
+	result core.RunResult
+	err    error
 }
 
 func TestControlProfileExitReachesSucceededBeforeDeferredShutdown(t *testing.T) {
@@ -655,6 +668,38 @@ func proofRequestBody(t *testing.T, url string) string {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, body.String())
 	return body.String()
+}
+
+func waitForProofMonitorRoute(t *testing.T, url string) {
+	t.Helper()
+	client := http.Client{Timeout: 100 * time.Millisecond}
+	require.Eventually(t, func() bool {
+		resp, err := client.Get(url)
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func postProofMonitorExit(t *testing.T, url string) {
+	t.Helper()
+	resp, err := http.Post(url, "application/json", strings.NewReader(`{"reason":"test"}`))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusAccepted, resp.StatusCode)
+}
+
+func receiveLoopResult(t *testing.T, resultCh <-chan loopResult) loopResult {
+	t.Helper()
+	select {
+	case outcome := <-resultCh:
+		return outcome
+	case <-time.After(2 * time.Second):
+		require.FailNow(t, "monitor loop did not exit after control request")
+	}
+	return loopResult{}
 }
 
 func requireToolDef(t *testing.T, defs []catalog.ToolDef, name string) catalog.ToolDef {
