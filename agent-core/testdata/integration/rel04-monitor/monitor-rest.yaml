@@ -2,6 +2,7 @@ profile: agents/monitor/profile.yaml
 integration_target: mage integration:uc004
 go_tests:
   - TestMonitorReleaseProfileProof
+  - TestMonitorCLIProfileServesUntilControlExit
   - TestMonitorREST_FactoryUsesLiveMonitorState
 expected_routes:
   - /monitor/machine
