@@ -74,20 +74,14 @@ func (c *ExecCmd) recordExecMetrics(duration time.Duration, output []byte, err e
 	if c.rec == nil {
 		return
 	}
-	attrs := map[string]string{"binary": c.def.Binary}
-	c.recordExecMetric("exec.process_duration", float64(duration.Milliseconds()), "ms", attrs)
-	c.recordExecMetric("exec.output_bytes", float64(len(output)), "By", attrs)
-	c.recordExecMetric("exec.exit_code", float64(exitCode(err)), "1", attrs)
-}
-
-func (c *ExecCmd) recordExecMetric(name string, value float64, unit string, attrs map[string]string) {
-	sample := monitor.MetricSample{
-		Name: name, Kind: monitor.InstrumentHistogram, Unit: unit,
-		Description: "Exec subprocess metric from process result data.",
-		Value:       value, ToolName: c.Name(), Attributes: attrs, Timestamp: time.Now(),
+	values := map[string]float64{
+		"process_duration": float64(duration.Milliseconds()),
+		"output_bytes":     float64(len(output)),
+		"exit_code":        float64(exitCode(err)),
 	}
-	// Monitoring is observational; recorder failures must not change exec behavior.
-	_ = c.rec.RecordMetric(context.Background(), sample)
+	core.RecordDeclaredToolMetrics(context.Background(), c.rec, c.Name(), c.def.Metrics, values, map[string]string{
+		"binary": c.def.Binary,
+	})
 }
 
 func exitCode(err error) int {

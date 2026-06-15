@@ -20,6 +20,7 @@ type writeCmd struct {
 	snapshot    fileSnapshot
 	hasSnapshot bool
 	recorder    monitor.ToolMetricsRecorder
+	metrics     core.MetricConfig
 }
 
 func (w *writeCmd) Name() string { return "write" }
@@ -47,7 +48,7 @@ func (w *writeCmd) Execute() core.Result {
 	}
 	w.snapshot = snapshot
 	w.hasSnapshot = true
-	w.recordFilesystemMetric("filesystem.bytes_written", float64(len(w.content)), "By", "Bytes written to one workspace file.")
+	w.recordFilesystemMetric("bytes_written", float64(len(w.content)))
 	return core.Result{
 		Output:      fmt.Sprintf("wrote %d bytes to %s", len(w.content), RelPath(w.root, resolved)),
 		Signal:      core.ToolDone,
@@ -72,7 +73,8 @@ func writablePath(root, path string) (string, error) {
 
 // WriteBuilder constructs write commands.
 type WriteBuilder struct {
-	Root string
+	Root    string
+	Metrics core.MetricConfig
 }
 
 func (b *WriteBuilder) Build(res core.Result) core.Command {
@@ -84,7 +86,7 @@ func (b *WriteBuilder) Build(res core.Result) core.Command {
 	if c == "" {
 		return missingParam("write", "content")
 	}
-	return &writeCmd{root: b.Root, path: p, content: c}
+	return &writeCmd{root: b.Root, path: p, content: c, metrics: b.Metrics}
 }
 
 // WriteToolSpec returns the ToolSpec for the write tool.

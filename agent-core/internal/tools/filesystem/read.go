@@ -19,6 +19,7 @@ type readCmd struct {
 	startLine int
 	endLine   int
 	recorder  monitor.ToolMetricsRecorder
+	metrics   core.MetricConfig
 }
 
 func (r *readCmd) Name() string      { return "read" }
@@ -40,7 +41,7 @@ func (r *readCmd) Execute() core.Result {
 	if IsBinary(data) {
 		return toolFailed("read", fmt.Sprintf("file appears to be binary: %s", RelPath(r.root, resolved)))
 	}
-	r.recordFilesystemMetric("filesystem.bytes_read", float64(len(data)), "By", "Bytes read from one workspace file.")
+	r.recordFilesystemMetric("bytes_read", float64(len(data)))
 	return readLines(data, r.startLine, r.endLine)
 }
 
@@ -97,7 +98,8 @@ func IsBinary(data []byte) bool {
 
 // ReadBuilder constructs read commands.
 type ReadBuilder struct {
-	Root string
+	Root    string
+	Metrics core.MetricConfig
 }
 
 func (b *ReadBuilder) Build(res core.Result) core.Command {
@@ -110,6 +112,7 @@ func (b *ReadBuilder) Build(res core.Result) core.Command {
 		path:      p,
 		startLine: extractIntParam(res.Output, "start_line"),
 		endLine:   extractIntParam(res.Output, "end_line"),
+		metrics:   b.Metrics,
 	}
 }
 

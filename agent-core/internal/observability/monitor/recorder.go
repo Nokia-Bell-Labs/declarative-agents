@@ -24,6 +24,11 @@ type RuntimeRecorder interface {
 	RecordRun(ctx context.Context, run RunSnapshot) error
 }
 
+// DiagnosticRecorder accepts monitor diagnostics from declaration-driven emitters.
+type DiagnosticRecorder interface {
+	RecordDiagnostic(ctx context.Context, diagnostic Diagnostic) error
+}
+
 // NoopRecorder preserves disabled-mode behavior when monitoring is absent.
 type NoopRecorder struct{}
 
@@ -35,6 +40,9 @@ func (NoopRecorder) RecordEvent(context.Context, RunEvent) error { return nil }
 
 // RecordRun accepts a run snapshot without recording it.
 func (NoopRecorder) RecordRun(context.Context, RunSnapshot) error { return nil }
+
+// RecordDiagnostic accepts a diagnostic without recording it.
+func (NoopRecorder) RecordDiagnostic(context.Context, Diagnostic) error { return nil }
 
 // Recorder records monitor samples in memory and optionally emits OTel metrics.
 type Recorder struct {
@@ -93,6 +101,15 @@ func (r *Recorder) RecordRun(_ context.Context, run RunSnapshot) error {
 		return nil
 	}
 	r.store.UpdateRun(run)
+	return nil
+}
+
+// RecordDiagnostic records one monitor diagnostic in the store.
+func (r *Recorder) RecordDiagnostic(_ context.Context, diagnostic Diagnostic) error {
+	if r == nil || r.store == nil {
+		return nil
+	}
+	r.store.RecordDiagnostic(diagnostic)
 	return nil
 }
 

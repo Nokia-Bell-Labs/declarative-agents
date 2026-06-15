@@ -38,6 +38,7 @@ type invokeLLMCmd struct {
 	verbose      bool
 	ctx          context.Context
 	callTimeout  time.Duration
+	metrics      core.MetricConfig
 	recorder     monitor.ToolMetricsRecorder
 	prevLen      int
 	prevMessages []modelllm.Message
@@ -152,6 +153,7 @@ type InvokeLLMBuilder struct {
 	ContextLimit int
 	NumCtx       int
 	CallTimeout  time.Duration
+	Metrics      core.MetricConfig
 	Verbose      bool
 	Ctx          context.Context
 }
@@ -192,16 +194,23 @@ func NewInvokeLLMBuilder(def catalog.ToolDef, deps InvokeLLMFactoryDeps) (*Invok
 	if deps.OnResolved != nil {
 		deps.OnResolved(resolvedLLMConfig(cfg, parser))
 	}
-	return invokeBuilder(cfg, parser, client, serverAddr, deps), nil
+	return invokeBuilder(def, cfg, parser, client, serverAddr, deps), nil
 }
 
-func invokeBuilder(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser, client modelllm.Client, serverAddr string, deps InvokeLLMFactoryDeps) *InvokeLLMBuilder {
+func invokeBuilder(
+	def catalog.ToolDef,
+	cfg catalog.LLMToolConfig,
+	parser modelllm.ResponseParser,
+	client modelllm.Client,
+	serverAddr string,
+	deps InvokeLLMFactoryDeps,
+) *InvokeLLMBuilder {
 	return &InvokeLLMBuilder{
 		Client: client, History: deps.History, Registry: deps.Registry,
 		Assembler: newLLMAssembler(cfg, parser), State: core.State(cfg.ManifestState),
 		Model: cfg.Model, ProviderName: cfg.Provider, ServerAddr: serverAddr,
 		Tracer: deps.Tracer, NumCtx: cfg.NumCtx, CallTimeout: durationSeconds(cfg.LLMTimeout),
-		Verbose: deps.Verbose, Ctx: deps.Ctx,
+		Metrics: def.Metrics, Verbose: deps.Verbose, Ctx: deps.Ctx,
 	}
 }
 
@@ -214,7 +223,7 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		client: b.Client, history: b.History, registry: b.Registry, assembler: b.Assembler,
 		state: b.State, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
 		userMessage: res.Output, tracer: b.Tracer, contextLimit: b.ContextLimit,
-		numCtx: b.NumCtx, callTimeout: b.CallTimeout, verbose: b.Verbose, ctx: ctx,
+		numCtx: b.NumCtx, callTimeout: b.CallTimeout, metrics: b.Metrics, verbose: b.Verbose, ctx: ctx,
 	}
 }
 

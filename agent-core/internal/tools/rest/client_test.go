@@ -226,6 +226,28 @@ func TestRESTClientRecordsMonitorMetrics(t *testing.T) {
 	}
 }
 
+func TestRESTClientMetricConfigCanDisableSamples(t *testing.T) {
+	t.Parallel()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok"})
+	}))
+	defer upstream.Close()
+	rec := &restMetricRecorder{}
+	cmd := clientCommandWithMetrics(
+		clientDefinition(t, upstream.URL, issueClient()),
+		InitClientGet,
+		"get",
+		params("1"),
+		core.MetricConfig{Disabled: true},
+	)
+	cmd.(core.MonitorRecorderAware).SetMonitorRecorder(rec)
+
+	result := cmd.Execute()
+
+	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal, result.Output)
+	require.Empty(t, rec.samples)
+}
+
 func issueHandler(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/repos/acme/agent-core/issues/boom" {
 		http.Error(w, "boom", http.StatusInternalServerError)
@@ -282,6 +304,27 @@ func clientCommandWithCredentials(
 	input map[string]interface{},
 	credentials CredentialResolver,
 ) core.Command {
+	return clientCommandWithMetricsAndCredentials(def, init, operation, input, restMetrics(), credentials)
+}
+
+func clientCommandWithMetrics(
+	def Definition,
+	init string,
+	operation string,
+	input map[string]interface{},
+	metrics core.MetricConfig,
+) core.Command {
+	return clientCommandWithMetricsAndCredentials(def, init, operation, input, metrics, nil)
+}
+
+func clientCommandWithMetricsAndCredentials(
+	def Definition,
+	init string,
+	operation string,
+	input map[string]interface{},
+	metrics core.MetricConfig,
+	credentials CredentialResolver,
+) core.Command {
 	collection := NewCollection()
 	_ = collection.Add(def)
 	resolved, _ := collection.ResolveClientOperation(ClientToolConfig{
@@ -289,8 +332,20 @@ func clientCommandWithCredentials(
 	})
 	params, _ := json.Marshal(map[string]interface{}{"tool": init, "parameters": input})
 	return ClientBuilder{
-		ToolName: init, Init: init, Operation: resolved, Credentials: credentials,
+		ToolName: init, Init: init, Operation: resolved, Credentials: credentials, Metrics: metrics,
 	}.Build(core.Result{Output: string(params)})
+}
+
+func restMetrics() core.MetricConfig {
+	return core.MetricConfig{
+		Instruments: []core.MetricInstrument{
+			{Name: "rest.http_status_code", Kind: "gauge", Unit: "1", Description: "HTTP status.", ValueSource: "http_status_code", Attributes: []string{"operation"}},
+			{Name: "rest.retry_count", Kind: "counter", Unit: "{retry}", Description: "Retry count.", ValueSource: "retry_count", Attributes: []string{"operation"}},
+			{Name: "rest.request_bytes", Kind: "histogram", Unit: "By", Description: "Request bytes.", ValueSource: "request_bytes", Attributes: []string{"operation"}},
+			{Name: "rest.response_bytes", Kind: "histogram", Unit: "By", Description: "Response bytes.", ValueSource: "response_bytes", Attributes: []string{"operation"}},
+		},
+		Attributes: []core.MetricAttribute{{Name: "operation", Source: "configured_operation", Cardinality: "bounded", AllowedValues: []string{"get"}, Redaction: "none"}},
+	}
 }
 
 func requireClientSignal(t *testing.T, def Definition, init, operation string, input map[string]interface{}, signal string) {

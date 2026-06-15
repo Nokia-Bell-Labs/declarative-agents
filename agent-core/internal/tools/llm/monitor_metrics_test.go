@@ -42,7 +42,7 @@ func TestInvokeLLMRecordsTokenMetrics(t *testing.T) {
 	cmd := &invokeLLMCmd{
 		client: metricClient{}, history: modelllm.NewConversation(nil, "", modelllm.ChatOptions{}),
 		registry: core.NewRegistry(), assembler: metricAssembler{}, model: "qwen", providerName: "ollama",
-		userMessage: "request", tracer: tracing.NoopTracer{}, ctx: context.Background(),
+		userMessage: "request", tracer: tracing.NoopTracer{}, ctx: context.Background(), metrics: llmMetrics(),
 	}
 	cmd.SetMonitorRecorder(rec)
 
@@ -60,7 +60,43 @@ func TestInvokeLLMRecordsTokenMetrics(t *testing.T) {
 	}
 }
 
+func TestInvokeLLMSkipsUndeclaredTokenMetric(t *testing.T) {
+	t.Parallel()
+	rec := &metricRecorder{}
+	cmd := &invokeLLMCmd{
+		client: metricClient{}, history: modelllm.NewConversation(nil, "", modelllm.ChatOptions{}),
+		registry: core.NewRegistry(), assembler: metricAssembler{}, model: "qwen", providerName: "ollama",
+		userMessage: "request", tracer: tracing.NoopTracer{}, ctx: context.Background(),
+		metrics: core.MetricConfig{Instruments: []core.MetricInstrument{{
+			Name: "llm.prompt_tokens", Kind: "histogram", Unit: "1",
+			Description: "Prompt tokens.", ValueSource: "prompt_tokens",
+		}}},
+	}
+	cmd.SetMonitorRecorder(rec)
+
+	res := cmd.Execute()
+
+	if res.Signal != core.LLMResponded {
+		t.Fatalf("signal = %s", res.Signal)
+	}
+	requireMetric(t, rec.samples, "llm.prompt_tokens", 11)
+	requireMissingMetric(t, rec.samples, "llm.completion_tokens")
+}
+
 func (metricAssembler) EnvelopeConfig() (*prompt.Envelope, bool) { return nil, false }
+
+func llmMetrics() core.MetricConfig {
+	return core.MetricConfig{
+		Instruments: []core.MetricInstrument{
+			{Name: "llm.prompt_tokens", Kind: "histogram", Unit: "1", Description: "Prompt tokens.", ValueSource: "prompt_tokens", Attributes: []string{"provider", "model"}},
+			{Name: "llm.completion_tokens", Kind: "histogram", Unit: "1", Description: "Completion tokens.", ValueSource: "completion_tokens", Attributes: []string{"provider", "model"}},
+		},
+		Attributes: []core.MetricAttribute{
+			{Name: "provider", Source: "config_literal", Cardinality: "low", Redaction: "none"},
+			{Name: "model", Source: "config_literal", Cardinality: "low", Redaction: "none"},
+		},
+	}
+}
 
 func requireMetric(t *testing.T, samples []monitor.MetricSample, name string, value float64) {
 	t.Helper()
@@ -70,4 +106,13 @@ func requireMetric(t *testing.T, samples []monitor.MetricSample, name string, va
 		}
 	}
 	t.Fatalf("missing metric %s=%v in %#v", name, value, samples)
+}
+
+func requireMissingMetric(t *testing.T, samples []monitor.MetricSample, name string) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name == name {
+			t.Fatalf("unexpected metric %s in %#v", name, samples)
+		}
+	}
 }
