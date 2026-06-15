@@ -432,6 +432,7 @@ func registerFilesystemFactories() toolregistry.FactoryRegistrar {
 		for _, entry := range fileFactories {
 			registerFileFactory(br, entry.init, entry.builder)
 		}
+		registerResourceFactories(br)
 	}
 }
 
@@ -439,6 +440,31 @@ func registerFileFactory(br *toolregistry.BuiltinRegistry, init string, builder 
 	br.Register(init, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return builder(vars["directory"]), nil
 	})
+}
+
+func registerResourceFactories(br *toolregistry.BuiltinRegistry) {
+	br.Register("list_resource", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		cfg, err := resourceConfig(def)
+		if err != nil {
+			return nil, err
+		}
+		return &filesystem.ListResourceBuilder{Root: vars["directory"], Resources: cfg}, nil
+	})
+	br.Register("read_resource", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		cfg, err := resourceConfig(def)
+		if err != nil {
+			return nil, err
+		}
+		return &filesystem.ReadResourceBuilder{Root: vars["directory"], Resources: cfg}, nil
+	})
+}
+
+func resourceConfig(def catalog.ToolDef) (filesystem.ResourceConfig, error) {
+	var cfg filesystem.ResourceConfig
+	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+		return filesystem.ResourceConfig{}, err
+	}
+	return cfg, nil
 }
 
 func registerLLMFactories(st *agentState) toolregistry.FactoryRegistrar {

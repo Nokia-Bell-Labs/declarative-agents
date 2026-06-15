@@ -243,7 +243,52 @@ builtin_fields:
       LLMToolConfig configures invoke_llm. LoadSuiteConfig configures
       parse_suite_config and evaluator session setup tools. RunPointConfig
       configures run_point. ServeUIToolConfig configures serve_ui.
+      Filesystem document resource words use document_resource_config.
       See cfg-llm-config-format for invoke_llm details.
+
+document_resource_config:
+  purpose: |
+    Defines trusted read-only filesystem resources for list_resource and
+    read_resource builtin words. Runtime input selects a named resource and
+    relative path or prefix inside that resource. It cannot replace roots,
+    include patterns, extension allowlists, parser modes, or size limits.
+  fields:
+    - field: resources
+      type: object
+      required: true
+      description: |
+        Map of resource names to filesystem resource definitions.
+  resource_fields:
+    - field: root
+      type: string
+      required: true
+      description: Workspace-relative or absolute trusted corpus root.
+    - field: include
+      type: "[]string"
+      required: false
+      description: Slash-style include patterns for list and read operations.
+    - field: extensions
+      type: "[]string"
+      required: false
+      description: Extension allowlist without or with leading dots.
+    - field: modes
+      type: "[]string"
+      required: false
+      description: Enabled response modes such as raw_yaml, parsed_yaml, raw_markdown, and parsed_markdown.
+    - field: max_bytes
+      type: int
+      required: false
+      description: Maximum readable file size before size_limit_exceeded.
+  examples:
+    docs_resource: |
+      config:
+        resources:
+          docs:
+            root: docs
+            include: ["**/*.yaml", "*.yaml", "**/*.md", "*.md"]
+            extensions: [yaml, yml, md]
+            modes: [raw_yaml, parsed_yaml, raw_markdown]
+            max_bytes: 65536
 
 child_agent_config:
   purpose: |

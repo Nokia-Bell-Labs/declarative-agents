@@ -56,7 +56,7 @@ func RegisterStandardBuiltinFactories(br *BuiltinRegistry, selected map[string]b
 // StandardFactoryCatalog returns the standard selected-init factory families.
 func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEntry {
 	return []StandardFactoryCatalogEntry{
-		hookFactory("filesystem", []string{"file_read", "file_write", "file_edit", "file_find", "file_list"}, deps.RegisterFilesystem),
+		hookFactory("filesystem", []string{"file_read", "file_write", "file_edit", "file_find", "file_list", "list_resource", "read_resource"}, deps.RegisterFilesystem),
 		hookFactory("llm", []string{"invoke_llm", "parse_response", "report_parse_error", "reset_history", "nudge_reread", "done"}, deps.RegisterLLM),
 		hookFactory("lifecycle", []string{"suspend", "checkpoint_history", "checkpoint_rollback", "exit_agent"}, deps.RegisterLifecycle),
 		hookFactory("validation", []string{"validate"}, deps.RegisterValidation),
