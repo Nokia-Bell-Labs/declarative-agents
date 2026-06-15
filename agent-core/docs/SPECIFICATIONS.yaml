@@ -2,7 +2,7 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Twenty-nine SRDs
+  Specification index for the agent-core framework. Thirty SRDs
   define the generic agentic loop engine and its supporting packages
   across four releases. The 00.0 release owns the engine foundation and
   its support packages. In 01.0, configured runtime behavior expands into
@@ -18,7 +18,7 @@ overview: |
   SRD release assignments are range based. Release 00.0 covers srd001
   through srd018. Release 01.0 covers srd019 through srd024. Release
   02.0 covers srd025 and srd026. Release 03.0 covers srd027 through
-  srd029.
+  srd030.
 
   Source-of-truth note.
   - roll-backs.md and tools-as-dsl.md are historical design notes. Their
@@ -176,6 +176,10 @@ srd_index:
     title: REST Server Tools
     summary: Requirements for declarative inbound REST server words, route launch, await, stop, generic event sources, lifecycle control endpoints, queues, OpenAPI server binding, and request validation.
     path: docs/specs/software-requirements/srd029-rest-server-tools.yaml
+  - id: srd030-machine-request-rest-binding
+    title: Machine Request REST Binding
+    summary: Requirements for binding one inbound HTTP request to one short-lived MachineSpec execution with request mapping, response extraction, errors, timeouts, and tracing.
+    path: docs/specs/software-requirements/srd030-machine-request-rest-binding.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -204,7 +208,7 @@ config_format_index:
     path: docs/specs/config-formats/llm-config-format.yaml
   - id: cfg-rest-tool-format
     title: REST Tool Configuration Format
-    summary: Planned YAML format for declarative REST definitions, clients, servers, event sources, lifecycle control endpoints, OpenAPI imports, auth profiles, limits, retry policies, response mappings, and validation rules.
+    summary: Planned YAML format for declarative REST definitions, clients, servers, event sources, lifecycle control endpoints, machine_request bindings, OpenAPI imports, auth profiles, limits, retry policies, response mappings, and validation rules.
     path: docs/specs/config-formats/rest-tool-format.yaml
 
 semantic_model_index:
@@ -228,6 +232,10 @@ semantic_model_index:
     title: REST Tool Language Semantic Model
     summary: Semantic model for declarative REST client and server boundary words, REST definitions, async request state, inbound event fan-in, lifecycle control routing, and OpenAPI import relationships.
     path: docs/specs/semantic-models/rest-tool-language.yaml
+  - id: sm-machine-request-http
+    title: Machine Request HTTP Semantic Model
+    summary: Semantic model for HTTP requests as grammar input, request-machine sentences as handling behavior, and response words as the bridge back to HTTP responses.
+    path: docs/specs/semantic-models/machine-request-http.yaml
 
 use_case_index:
   - id: rel00.0-uc001-domain-agent-integration
@@ -444,7 +452,9 @@ coverage_gaps: |
   Tool-language migration proofs remain planned follow-up work.
 
   For 03.0, srd027-srd029 have formal YAML coverage in
-  test-rel03.0-rest-tools. internal/tools/rest, tools/builtin/rest declarations,
+  test-rel03.0-rest-tools. srd030-machine-request-rest-binding is indexed as
+  planned follow-up coverage for the Knowledge Manager machine-request demo.
+  internal/tools/rest, tools/builtin/rest declarations,
   OpenAPI import compilation, REST runtime tests, agents/rest profile
   examples, and the documentation-curator profile are implemented. docs/rel03-rest-design-audit.md records the design
   audit result. REST side-effect vocabulary now accepts listener and listener

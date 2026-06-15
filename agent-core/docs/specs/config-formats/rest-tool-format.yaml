@@ -371,7 +371,7 @@ schema:
       - field: binding
         type: string
         required: true
-        description: Endpoint binding kind from srd029-rest-server-tools R5.
+        description: Endpoint binding kind from srd029-rest-server-tools R5 or srd030-machine-request-rest-binding.
       - field: signal
         type: string
         required: false
@@ -384,6 +384,10 @@ schema:
         type: lifecycle_control_config
         required: false
         description: Lifecycle control request mapping used when binding is lifecycle_control.
+      - field: machine_request
+        type: machine_request_config
+        required: false
+        description: Request-to-machine mapping used when binding is machine_request.
       - field: request
         type: request_binding
         required: false
@@ -469,6 +473,114 @@ schema:
         type: string
         required: false
         description: Auth profile required before accepting the control request.
+
+  machine_request_config:
+    fields:
+      - field: profile
+        type: string
+        required: true
+        description: Trusted profile or profile-equivalent config used for the short-lived request machine run.
+      - field: machine
+        type: string
+        required: false
+        description: Optional MachineSpec override inside the trusted profile scope.
+      - field: tools
+        type: string
+        required: false
+        description: Optional selected tools reference inside the trusted profile scope.
+      - field: tool_declarations
+        type: "[]string"
+        required: false
+        description: Optional declaration roots inside the trusted profile scope.
+      - field: initial_state
+        type: string
+        required: false
+        description: Optional initial state override for the request machine.
+      - field: request
+        type: machine_request_input_mapping
+        required: true
+        description: Declared mapping from validated HTTP request fields to RequestEvent input.
+      - field: response
+        type: machine_request_response_mapping
+        required: true
+        description: Mapping from terminal machine output to HTTP status, headers, body, and content type.
+      - field: timeout
+        type: duration string
+        required: false
+        description: Maximum duration for the whole request machine run.
+      - field: error_responses
+        type: map[string]response_mapping
+        required: false
+        description: HTTP response mappings for request_invalid, machine_config_invalid, machine_run_failed, machine_timeout, response_invalid, and response_missing.
+      - field: retain_trace
+        type: bool
+        required: false
+        description: Keeps request-scoped run trace artifacts when true.
+
+  machine_request_input_mapping:
+    fields:
+      - field: path
+        type: map[string]string
+        required: false
+        description: Selector mapping from route path variables to RequestEvent fields.
+      - field: query
+        type: map[string]string
+        required: false
+        description: Selector mapping from query parameters to RequestEvent fields.
+      - field: headers
+        type: map[string]string
+        required: false
+        description: Selector mapping from accepted headers to RequestEvent fields.
+      - field: body
+        type: map[string]string
+        required: false
+        description: Selector mapping from validated body fields to RequestEvent fields.
+      - field: metadata
+        type: "[]string"
+        required: false
+        description: Request metadata fields to include, such as request_id, route, method, path_template, and correlation_id.
+
+  machine_request_response_mapping:
+    fields:
+      - field: terminal_signals
+        type: map[string]machine_request_terminal_response
+        required: true
+        description: HTTP response mapping by allowed terminal signal.
+      - field: default_signal
+        type: string
+        required: false
+        description: Terminal signal used when response word output does not specify one.
+      - field: response_word
+        type: string
+        required: false
+        description: Optional configured response word that must produce structured response output before terminal response mapping.
+      - field: missing_response_stage
+        type: string
+        required: false
+        description: Error stage emitted when terminal output cannot satisfy the response schema. Default is response_missing.
+
+  machine_request_terminal_response:
+    fields:
+      - field: status
+        type: int
+        required: true
+        description: HTTP status code written for this terminal signal.
+      - field: headers
+        type: map[string]string
+        required: false
+        description: Header values or selectors copied from response word output.
+      - field: content_type
+        type: string
+        required: false
+        description: Response content type. Default is application/json.
+      - field: body
+        type: map[string]string
+        required: false
+        description: Selector mapping from response word output to HTTP response body fields.
+      - field: schema
+        type: json_schema
+        required: false
+        description: Response body schema that terminal output must satisfy.
 
   shutdown_config:
     fields:
@@ -902,6 +1014,44 @@ format_examples:
         config:
           drain_policy: stop_servers
 
+  machine_request_endpoint: |
+    rest:
+      version: v1
+      servers:
+        knowledge_manager:
+          address: 127.0.0.1:19191
+          endpoints:
+            get_documentation:
+              method: POST
+              path: /api/docs/query
+              binding: machine_request
+              request:
+                body_schema:
+                  type: object
+                  required: [query]
+                  properties:
+                    query: {type: string}
+              machine_request:
+                profile: agents/knowledge-manager/documentation-curator/profile.yaml
+                request:
+                  body:
+                    query: $.query
+                  metadata: [request_id, route, method, path_template, correlation_id]
+                response:
+                  response_word: prepare_http_response
+                  terminal_signals:
+                    DocumentationReady:
+                      status: 200
+                      content_type: application/json
+                      body:
+                        title: $.title
+                        body: $.body
+                    DocumentationMissing:
+                      status: 404
+                      body:
+                        error: $.message
+                timeout: 10s
+
 validation_rules:
   - id: V1
     rule: A REST config file MUST contain rest.version.
@@ -939,6 +1089,12 @@ validation_rules:
     rule: lifecycle_control endpoints with action inject_signal MUST declare allowed_signals.
   - id: V18
     rule: lifecycle_control endpoints MUST enqueue declared signals and MUST NOT execute lifecycle operations inside HTTP handlers.
+  - id: V19
+    rule: machine_request endpoints MUST declare machine_request.profile, request mapping, response.terminal_signals, and timeout or inherited route timeout.
+  - id: V20
+    rule: machine_request endpoints MUST NOT let runtime HTTP input choose profile, machine, tools, tool_declarations, credentials, URLs, or workspace roots.
+  - id: V21
+    rule: machine_request responses MUST be selected from configured terminal signals or response word output and MUST NOT be assembled by direct Go demo handlers.
 
 invalid_examples:
   ambiguous_resource_operation: |
@@ -1045,6 +1201,8 @@ related_documents:
   - srd027-rest-tool-runtime
   - srd028-rest-client-tools
   - srd029-rest-server-tools
+  - srd030-machine-request-rest-binding
+  - sm-machine-request-http
   - srd026-lifecycle-tools
 
 implementation_status:
@@ -1054,3 +1212,4 @@ implementation_status:
     - OpenAPI import compilation through github.com/getkin/kin-openapi/openapi3.
     - rest_await_event source-filter config.
     - lifecycle_control endpoint config and exit_agent ToolDef config.
+    - machine_request endpoint binding config.
