@@ -24,6 +24,12 @@ summary: |
   awaiting state. Later, a configured control exit request stops the owned
   listener and routes the machine to Done or Succeeded.
 
+  Monitor OpenAPI covers read endpoints and profile-owned lifecycle control
+  routes such as POST /monitor/control/exit. JSON responses use stable
+  lower_snake_case API fields. Metric samples include the same runtime envelope
+  for dispatch and tool-owned specialized metrics: run_id, state, signal,
+  status, tool_name, and trusted workflow labels where present.
+
 actor: Supervisor reading a running agent
 
 trigger: |
@@ -39,20 +45,22 @@ flow:
   - F6: The supervisor requests current machine state and selected tool metadata.
   - F7: The supervisor requests per-tool metrics and aggregate metrics.
   - F8: The supervisor requests recent events or opens the configured event stream.
-  - F9: Handlers read cached monitor snapshots and apply redaction rules.
-  - F10: A configured control exit request stops the owned listener and routes the machine to Done or Succeeded.
-  - F11: Handler failure returns a structured REST error and does not change command or machine state.
+  - F9: The supervisor requests OpenAPI and sees monitor read routes plus the configured control exit route.
+  - F10: Handlers return lower_snake_case fields and runtime envelopes on metric samples.
+  - F11: Handlers read cached monitor snapshots and apply redaction rules.
+  - F12: A configured control exit request stops the owned listener and routes the machine to Done or Succeeded.
+  - F13: Handler failure returns a structured REST error and does not change command or machine state.
 
 touchpoints:
   - T1: "srd033-monitor-rest-api R1.1, R1.2, R1.3, R1.4, R1.5 -- read-only API scope and profile-owned REST authority"
-  - T2: "srd033-monitor-rest-api R2.1, R2.2, R2.3, R2.4, R2.5 -- OpenAPI endpoint documentation"
-  - T3: "srd033-monitor-rest-api R3.1, R3.2, R3.3, R3.4, R3.5, R3.6 -- monitor snapshot endpoints"
+  - T2: "srd033-monitor-rest-api R2.1, R2.2, R2.3, R2.4, R2.5, R2.6 -- OpenAPI endpoint and control-route documentation"
+  - T3: "srd033-monitor-rest-api R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8 -- monitor snapshot endpoints, response field shape, and metric sample envelope"
   - T4: "srd033-monitor-rest-api R4.1, R4.2, R4.3, R4.4, R4.5 -- event stream reads"
   - T5: "srd033-monitor-rest-api R5.1, R5.2, R5.3, R5.4, R5.5 -- redaction and failure behavior"
   - T6: "srd029-rest-server-tools R5.3, R5.5, R5.6, R5.7 -- read_state, stream_events, health, and static_metadata endpoint kinds"
   - T7: "srd032-tool-metrics-monitor-store R1.4, R2.6, R4.4 -- cached snapshots, recorder boundaries, and export diagnostics"
   - T8: "cfg-rest-tool-format rest_server -- profile-owned server routes, limits, auth, and OpenAPI binding"
-  - T9: "srd033-monitor-rest-api R6.1, R6.2, R6.3, R6.4, R6.5 -- background listener, blocking await, control exit, listener stop, and successful terminal routing"
+  - T9: "srd033-monitor-rest-api R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7 -- background listener, blocking await, control exit, listener stop, successful terminal routing, and isolated binding"
 
 success_criteria:
   - id: S1
@@ -60,11 +68,11 @@ success_criteria:
     traces:
       - srd033-monitor-rest-api AC1
   - id: S2
-    criterion: OpenAPI output documents every configured monitor endpoint without exposing secret or prompt data.
+    criterion: OpenAPI output documents every configured monitor read endpoint and profile-owned control endpoint without exposing secret or prompt data.
     traces:
       - srd033-monitor-rest-api AC2
   - id: S3
-    criterion: Snapshot endpoints expose machine, tool, metric, aggregate, and recent-event views from the monitor store.
+    criterion: Snapshot endpoints expose machine, tool, metric, aggregate, and recent-event views from the monitor store with lower_snake_case fields and runtime envelopes on metric samples.
     traces:
       - srd033-monitor-rest-api AC3
   - id: S4
@@ -76,7 +84,7 @@ success_criteria:
     traces:
       - srd033-monitor-rest-api AC5
   - id: S6
-    criterion: The real cmd/agent monitor profile stays running while the REST API is queried and exits successfully after a configured control request.
+    criterion: The real cmd/agent monitor profile stays running while the REST API is queried, uses isolated listener binding for automated proof, and exits successfully after a configured control request.
     traces:
       - srd033-monitor-rest-api AC6
 
