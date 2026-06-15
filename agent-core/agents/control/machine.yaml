@@ -1,4 +1,4 @@
-name: agent-control
+name: control
 purpose: |-
   Generic REST control profile for agent lifecycle requests.
   REST handlers enqueue control signals. MachineSpec routes the selected signal

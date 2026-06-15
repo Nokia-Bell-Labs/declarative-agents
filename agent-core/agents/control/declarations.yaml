@@ -4,6 +4,21 @@ tools:
     init: rest_server_launch
     category: boundary
     description: Launch the generic REST agent control server.
+    problem: Agent control needs profile-owned REST lifecycle endpoints without HTTP handlers running lifecycle behavior directly.
+    goals:
+      - Bind the configured agent_control server.
+      - Register lifecycle control routes from trusted REST config.
+      - Return server launch state to MachineSpec.
+    requirements:
+      input:
+        - Tool config references the trusted agent_control REST server definition.
+      output:
+        - Output includes server name, bound address, route count, and binding kinds.
+      errors:
+        - Config decode, bind, route conflict, and schema failures emit CommandError.
+    non_goals:
+      - Does not call exit, pause, rollback, or signal injection from HTTP handler code.
+      - Does not let runtime input replace REST server authority.
     emits: [ServerLaunched, CommandError]
     parameters:
       type: object
@@ -35,6 +50,21 @@ tools:
     init: rest_await_event
     category: boundary
     description: Await one generic REST lifecycle control event.
+    problem: Agent control needs one grammar-visible wait word for lifecycle events accepted by configured REST routes.
+    goals:
+      - Wait across the configured agent_control event source.
+      - Return the selected lifecycle signal to MachineSpec.
+      - Preserve route, payload, and correlation metadata for lifecycle words.
+    requirements:
+      input:
+        - Tool config references trusted control event sources, route filters, signals, timeout, and stopped-server behavior.
+      output:
+        - Output includes source, route, signal, validated payload, request ID, and redacted diagnostics.
+      errors:
+        - Missing source, timeout, stopped source, queue, and payload decode failures emit declared signals.
+    non_goals:
+      - Does not execute lifecycle actions after selecting an event.
+      - Does not restore consumed queue events after noop undo.
     emits: [ExitRequested, PauseRequested, RollbackRequested, AwaitTimedOut, ServerStopped, CommandError]
     parameters:
       type: object

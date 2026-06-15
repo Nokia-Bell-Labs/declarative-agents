@@ -37,7 +37,8 @@ touchpoints:
   - T5: "srd029-rest-server-tools R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7 -- endpoint binding kinds cover signals, state reads, handlers, streams, health, and metadata"
   - T6: "srd029-rest-server-tools R6.1, R6.2, R6.3, R6.6 -- validation precedes event enqueue and handlers do not choose MachineSpec actions"
   - T7: "cfg-rest-tool-format queue_config and endpoint fields -- queue limits, payload shape, timeout, binding, signal, and allowed_signals are configured"
-  - T8: "srd027-rest-tool-runtime R10 and srd029-rest-server-tools R11 -- rest_await_event fans in across configured server queues and lifecycle routes stay visible"
+  - T8: "srd027-rest-tool-runtime R10.1, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8 -- rest_await_event fans in across configured server queues"
+  - T9: "srd029-rest-server-tools R11 -- lifecycle routes stay visible through configured server event sources"
 
 success_criteria:
   - id: S1
