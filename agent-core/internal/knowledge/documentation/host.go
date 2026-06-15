@@ -3,8 +3,10 @@
 package docsapi
 
 import (
+	"errors"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 
@@ -29,6 +31,13 @@ type Server struct {
 	sourceDir  string
 	assets     fs.FS
 	workflow   WorkflowRunner
+}
+
+// RunningServer is a launched documentation host.
+type RunningServer struct {
+	Addr   string
+	server *http.Server
+	done   chan error
 }
 
 // NewServer creates a standalone documentation server.
@@ -69,8 +78,40 @@ func (s *Server) Handler() http.Handler {
 
 // ListenAndServe starts the documentation UI host.
 func (s *Server) ListenAndServe() error {
-	log.Printf("documentation UI listening on %s (docs=%s)", s.addr, s.docsDir)
-	return http.ListenAndServe(s.addr, s.Handler())
+	running, err := s.Start()
+	if err != nil {
+		return err
+	}
+	return running.Wait()
+}
+
+// Start launches the documentation UI host without blocking.
+func (s *Server) Start() (*RunningServer, error) {
+	listener, err := net.Listen("tcp", s.addr)
+	if err != nil {
+		return nil, err
+	}
+	server := &http.Server{Handler: s.Handler()}
+	running := &RunningServer{Addr: listener.Addr().String(), server: server, done: make(chan error, 1)}
+	log.Printf("documentation UI listening on %s (docs=%s)", running.Addr, s.docsDir)
+	go func() {
+		err := server.Serve(listener)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("documentation UI server stopped with error: %v", err)
+		}
+		running.done <- err
+	}()
+	return running, nil
+}
+
+// Close stops the launched documentation host.
+func (r *RunningServer) Close() error {
+	return r.server.Close()
+}
+
+// Wait blocks until the launched documentation host stops.
+func (r *RunningServer) Wait() error {
+	return <-r.done
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

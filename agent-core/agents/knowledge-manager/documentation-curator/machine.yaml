@@ -18,16 +18,19 @@ invariants:
   - Runtime authority remains in profile, machine, ToolDef, and REST YAML.
   - Documentation API access uses localhost-only REST limits from rest.yaml.
 lifecycle: |-
-  1. Idle -> Serving (Seed): serve_documentation starts the documentation host.
-  2. Serving remains active while the HTTP server is running.
-  3. Serving -> Done (ServerStopped): graceful server shutdown stops the machine.
-  4. Serving -> Failed (CommandError): startup or runtime server failure stops the machine.
+  1. Idle -> LaunchingDocs (Seed): serve_documentation starts the documentation host.
+  2. LaunchingDocs -> LaunchingControl (ServerLaunched): start generic control REST routes.
+  3. LaunchingControl -> AwaitingControl (ServerLaunched): wait for control events.
+  4. AwaitingControl -> Exiting (ExitRequested): run exit_agent.
+  5. Exiting -> Done (AgentExited): exit completed through lifecycle vocabulary.
 pipeline_diagram: |-
   ```mermaid
   flowchart TD
-    A[Idle] -->|Seed| B[Serving]
-    B -->|ServerStopped| C[Done]
-    B -->|CommandError| D[Failed]
+    A[Idle] -->|Seed| B[LaunchingDocs]
+    B -->|ServerLaunched| C[LaunchingControl]
+    C -->|ServerLaunched| D[AwaitingControl]
+    D -->|ExitRequested| E[Exiting]
+    E -->|AgentExited| F[Done]
   ```
 initial_state: Idle
 budget:
@@ -35,8 +38,14 @@ budget:
 states:
   - name: Idle
     meaning: Initial state before the documentation host starts.
-  - name: Serving
-    meaning: The standalone documentation UX and API host is running.
+  - name: LaunchingDocs
+    meaning: The standalone documentation UX and API host is starting.
+  - name: LaunchingControl
+    meaning: The generic lifecycle control REST routes are starting.
+  - name: AwaitingControl
+    meaning: Documentation UX and API are available while the machine waits for a control event.
+  - name: Exiting
+    meaning: The machine routes ExitRequested to exit_agent.
   - name: Failed
     meaning: Terminal. The documentation host could not start or returned an error.
   - name: Done
@@ -49,16 +58,51 @@ signals:
     trigger: Agent startup.
   - name: CommandError
     trigger: Documentation host startup or runtime failure.
+  - name: ServerLaunched
+    trigger: Documentation or control server launch completed.
+  - name: ExitRequested
+    trigger: Generic lifecycle exit endpoint enqueued an exit request.
+  - name: AgentExited
+    trigger: exit_agent completed the controlled exit request.
   - name: ServerStopped
-    trigger: Documentation host shut down cleanly.
+    trigger: Control server stopped while awaiting events.
+  - name: AwaitTimedOut
+    trigger: No matching control event arrived.
 transitions:
   - state: Idle
     signal: Seed
-    next: Serving
+    next: LaunchingDocs
     action: serve_documentation
-  - state: Serving
+  - state: LaunchingDocs
+    signal: ServerLaunched
+    next: LaunchingControl
+    action: launch_curator_control
+  - state: LaunchingDocs
     signal: CommandError
     next: Failed
-  - state: Serving
+  - state: LaunchingControl
+    signal: ServerLaunched
+    next: AwaitingControl
+    action: await_curator_control
+  - state: LaunchingControl
+    signal: CommandError
+    next: Failed
+  - state: AwaitingControl
+    signal: ExitRequested
+    next: Exiting
+    action: exit_agent
+  - state: AwaitingControl
+    signal: AwaitTimedOut
+    next: Failed
+  - state: AwaitingControl
     signal: ServerStopped
+    next: Failed
+  - state: AwaitingControl
+    signal: CommandError
+    next: Failed
+  - state: Exiting
+    signal: AgentExited
     next: Done
+  - state: Exiting
+    signal: CommandError
+    next: Failed

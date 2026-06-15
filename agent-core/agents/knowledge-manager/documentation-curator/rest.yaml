@@ -15,6 +15,17 @@ rest:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
         ports: [18081]
+    local_control_api:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18082]
   response_mappings:
     doc_index:
       output:
@@ -290,3 +301,35 @@ rest:
           compensation:
             operation: doc_patch_reject
             reason: Reject the reopened patch when review should remain closed.
+  servers:
+    documentation_curator_control:
+      address: 127.0.0.1:18082
+      limits_ref: local_control_api
+      queue:
+        name: documentation_curator_control
+        capacity: 8
+        timeout: 30s
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+      endpoints:
+        exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                status:
+                  type: string
+          response:
+            output:
+              accepted: "true"
+        health:
+          method: GET
+          path: /api/lifecycle/health
+          binding: health
