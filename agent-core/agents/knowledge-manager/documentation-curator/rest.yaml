@@ -1,5 +1,12 @@
 rest:
   version: v1
+  openapi:
+    documentation_curator:
+      path: openapi.yaml
+      base_url: http://127.0.0.1:18081
+      expose:
+        - listDocuments
+        - readDocument
   auth:
     none:
       type: none
@@ -26,6 +33,17 @@ rest:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
         ports: [18082]
+    local_machine_request_api:
+      timeout: 10s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18083]
   response_mappings:
     doc_index:
       output:
@@ -302,6 +320,83 @@ rest:
             operation: doc_patch_reject
             reason: Reject the reopened patch when review should remain closed.
   servers:
+    documentation_curator_requests:
+      address: 127.0.0.1:18083
+      limits_ref: local_machine_request_api
+      endpoints:
+        documents:
+          openapi_operation_id: listDocuments
+          method: GET
+          path: /api/v1/docs
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            timeout: 5s
+            request:
+              query:
+                prefix: $.prefix
+            response:
+              terminal_signals:
+                DocumentListReady:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    data: $.documents
+                    count: $.count
+                DocumentResourceDenied:
+                  status: 403
+                  content_type: application/json
+                  body:
+                    error: document_resource_denied
+                CommandError:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    error: command_error
+        document:
+          openapi_operation_id: readDocument
+          method: GET
+          path: /api/v1/docs/{path...}
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            timeout: 5s
+            request:
+              path:
+                path: $.path
+            response:
+              terminal_signals:
+                DocumentReady:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    data: $.parsed
+                    path: $.path
+                    raw: $.raw
+                    content_type: $.content_type
+                DocumentMissing:
+                  status: 404
+                  content_type: application/json
+                  body:
+                    error: document_missing
+                DocumentResourceDenied:
+                  status: 403
+                  content_type: application/json
+                  body:
+                    error: document_resource_denied
+                DocumentParseFailed:
+                  status: 422
+                  content_type: application/json
+                  body:
+                    error: document_parse_failed
+                CommandError:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    error: command_error
+
     documentation_curator_control:
       address: 127.0.0.1:18082
       limits_ref: local_control_api

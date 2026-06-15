@@ -5,6 +5,7 @@ tools:
 tool_declarations:
   - builtin.yaml
   - declarations.yaml
+  - request-declarations.yaml
   - ../../../tools/builtin/lifecycle/exit-agent.yaml
 rest_definitions:
   - rest.yaml

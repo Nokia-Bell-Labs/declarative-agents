@@ -1,0 +1,55 @@
+id: documentation-curator-ui
+title: Knowledge Manager Documentation UI
+source_owner: agents/knowledge-manager/documentation-curator
+routes:
+  - id: docs_index
+    path: /docs
+    label: Documentation
+    action: doc_list
+    resource: docs
+  - id: docs_detail
+    path: /docs/*
+    label: Document Detail
+    action: doc_get
+    resource: docs
+sidebar:
+  title: Documentation
+  groups:
+    overview:
+      label: Overview
+      order: 0
+    semantic-model:
+      label: Semantic Models
+      order: 1
+    config-format:
+      label: Config Formats
+      order: 2
+    srd:
+      label: Software Requirements
+      order: 3
+    use-case:
+      label: Use Cases
+      order: 4
+    test-suite:
+      label: Test Suites
+      order: 5
+actions:
+  list_documents:
+    ui_action: doc_list
+    request_machine_action: doc_list_resource
+    route: docs_index
+  read_document:
+    ui_action: doc_get
+    request_machine_action: doc_read_resource
+    route: docs_detail
+  validate_document:
+    ui_action: doc_validate
+    route: docs_detail
+  suggest_changes:
+    ui_action: doc_suggest_changes
+    route: docs_detail
+presentation:
+  raw_yaml_toggle: true
+  state_diagram: true
+  config_viewer: true
+  source_viewer: true
