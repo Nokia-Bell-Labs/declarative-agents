@@ -147,6 +147,31 @@ func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
 	require.Equal(t, core.ToolDone, command.Undo().Signal)
 }
 
+func TestRESTAwaitEvent_FactoryBuildsStagedFanIn(t *testing.T) {
+	t.Parallel()
+
+	state := NewServerState()
+	collection := stagedFanInCollection(t)
+	launchRESTServerCommand(t, collection, state, "first")
+	defer stopRESTServer(t, state, "first")
+	secondURL := launchRESTServerCommand(t, collection, state, "second")
+	defer stopRESTServer(t, state, "second")
+
+	postStatus(t, secondURL+"/approve/123", `{}`, http.StatusAccepted)
+	firstAwait := awaitEventCommand(t, collection, state, "first", "second")
+	result := firstAwait.Execute()
+	requireAwaitEventOutput(t, result, "second", "SecondApproved")
+	require.Equal(t, core.ToolDone, firstAwait.Undo().Signal)
+
+	thirdURL := launchRESTServerCommand(t, collection, state, "third")
+	defer stopRESTServer(t, state, "third")
+	postStatus(t, thirdURL+"/approve/456", `{}`, http.StatusAccepted)
+	secondAwait := awaitEventCommand(t, collection, state, "first", "second", "third")
+	result = secondAwait.Execute()
+	requireAwaitEventOutput(t, result, "third", "ThirdApproved")
+	require.Equal(t, core.ToolDone, secondAwait.Undo().Signal)
+}
+
 func TestRESTServer_RejectsUndeclaredQueryAndHeader(t *testing.T) {
 	t.Parallel()
 
@@ -359,6 +384,40 @@ func requireRESTCommand(
 	return builder.Build(core.Result{})
 }
 
+func launchRESTServerCommand(t *testing.T, collection Collection, state *ServerState, name string) string {
+	t.Helper()
+	def := requireRESTToolDef(t, InitServerLaunch)
+	def.Name = "launch_" + name
+	def.Config = map[string]interface{}{"rest_ref": name}
+	result := requireRESTCommand(t, def, collection, state).Execute()
+	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
+	var output map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	return "http://" + output["address"].(string)
+}
+
+func awaitEventCommand(t *testing.T, collection Collection, state *ServerState, names ...string) core.Command {
+	t.Helper()
+	def := requireRESTToolDef(t, InitAwaitEvent)
+	def.Config = map[string]interface{}{"sources": awaitEventSources(names)}
+	return requireRESTCommand(t, def, collection, state)
+}
+
+func awaitEventSources(names []string) []interface{} {
+	sources := make([]interface{}, 0, len(names))
+	for _, name := range names {
+		sources = append(sources, map[string]interface{}{"server": name})
+	}
+	return sources
+}
+
+func requireAwaitEventOutput(t *testing.T, result core.Result, source, signal string) {
+	t.Helper()
+	require.Equal(t, core.Signal(signal), result.Signal, result.Output)
+	require.Contains(t, result.Output, `"source":"`+source+`"`)
+	require.Contains(t, result.Output, `"signal":"`+signal+`"`)
+}
+
 func postStatus(t *testing.T, url, body string, want int) {
 	t.Helper()
 	requestStatus(t, http.MethodPost, url, body, want)
@@ -440,6 +499,25 @@ func namedControlServer(name string) Server {
 			"metadata": {Method: "GET", Path: "/metadata", Binding: bindingStaticMetadata},
 		},
 	}
+}
+
+func stagedFanInCollection(t *testing.T) Collection {
+	t.Helper()
+	collection := NewCollection()
+	require.NoError(t, collection.Add(Definition{Servers: map[string]Server{
+		"first":  namedSignalServer("first", "FirstApproved"),
+		"second": namedSignalServer("second", "SecondApproved"),
+		"third":  namedSignalServer("third", "ThirdApproved"),
+	}}))
+	return collection
+}
+
+func namedSignalServer(name, signal string) Server {
+	server := namedControlServer(name)
+	approve := server.Endpoints["approve"]
+	approve.Signal = signal
+	server.Endpoints["approve"] = approve
+	return server
 }
 
 func validationServer() Server {
