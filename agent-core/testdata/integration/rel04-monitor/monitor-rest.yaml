@@ -11,8 +11,10 @@ expected_routes:
   - /monitor/events
   - /monitor/events/stream
   - /monitor/openapi
+  - /monitor/control/exit
 expected_bindings:
   - read_state
   - stream_events
   - static_metadata
+  - emit_signal
 external_dependencies: []

@@ -1,2 +1,4 @@
 tools:
   - launch_monitor_rest
+  - await_monitor_control
+  - stop_monitor_rest

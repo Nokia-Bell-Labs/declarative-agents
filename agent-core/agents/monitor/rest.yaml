@@ -10,7 +10,7 @@ rest:
         hosts: [127.0.0.1, localhost]
   servers:
     monitor:
-      address: 127.0.0.1:0
+      address: 127.0.0.1:18083
       limits_ref: local_monitor
       queue:
         name: monitor
@@ -58,3 +58,17 @@ rest:
           path: /monitor/openapi
           binding: static_metadata
           monitor_view: openapi
+        control_exit:
+          method: POST
+          path: /monitor/control/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+          response:
+            output:
+              accepted: "true"
