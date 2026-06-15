@@ -5,6 +5,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -39,12 +40,19 @@ func dispatchWithMonitor(
 	child, done := tr.Push(spanName, spanAttrs...)
 	defer done()
 
+	var toolMetrics *dispatchMetricRecorder
 	if aware, ok := cmd.(MonitorRecorderAware); ok && rec != nil {
-		aware.SetMonitorRecorder(metricLabelRecorder{rec: rec, labels: dispatchCtx.MetricLabels})
+		toolMetrics = &dispatchMetricRecorder{
+			rec: rec, dc: dispatchCtx, toolName: cmd.Name(),
+		}
+		aware.SetMonitorRecorder(toolMetrics)
 	}
 	res := SafeExecute(cmd, timeout)
 
 	res.CommandName = cmd.Name()
+	if toolMetrics != nil {
+		toolMetrics.Flush(child.Context(), res)
+	}
 	stampSpan(child, cmd.Name(), res)
 	recordDispatchMetrics(child.Context(), rec, dispatchCtx, res)
 	return res
@@ -146,21 +154,56 @@ func dispatchStatus(res Result) string {
 	return "success"
 }
 
-type metricLabelRecorder struct {
-	rec    monitor.RuntimeRecorder
-	labels map[string]string
+type dispatchMetricRecorder struct {
+	rec      monitor.RuntimeRecorder
+	dc       monitor.DispatchContext
+	toolName string
+	mu       sync.Mutex
+	samples  []monitor.MetricSample
 }
 
-func (r metricLabelRecorder) RecordMetric(ctx context.Context, sample monitor.MetricSample) error {
-	sample.Attributes = mergeMetricAttributes(sample.Attributes, r.labels)
-	return r.rec.RecordMetric(ctx, sample)
+func (r *dispatchMetricRecorder) RecordMetric(_ context.Context, sample monitor.MetricSample) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.samples = append(r.samples, sample)
+	return nil
 }
 
-func (r metricLabelRecorder) RecordDiagnostic(ctx context.Context, diagnostic monitor.Diagnostic) error {
+func (r *dispatchMetricRecorder) RecordDiagnostic(ctx context.Context, diagnostic monitor.Diagnostic) error {
 	if diag, ok := r.rec.(monitor.DiagnosticRecorder); ok {
 		return diag.RecordDiagnostic(ctx, diagnostic)
 	}
 	return nil
+}
+
+func (r *dispatchMetricRecorder) Flush(ctx context.Context, res Result) {
+	r.mu.Lock()
+	samples := append([]monitor.MetricSample(nil), r.samples...)
+	r.samples = nil
+	r.mu.Unlock()
+	for _, sample := range samples {
+		_ = r.rec.RecordMetric(ctx, r.envelope(sample, res))
+	}
+}
+
+func (r *dispatchMetricRecorder) envelope(sample monitor.MetricSample, res Result) monitor.MetricSample {
+	if sample.ToolName == "" {
+		sample.ToolName = r.toolName
+	}
+	if sample.RunID == "" {
+		sample.RunID = r.dc.RunID
+	}
+	if sample.State == "" {
+		sample.State = r.dc.State
+	}
+	if sample.Signal == "" {
+		sample.Signal = string(res.Signal)
+	}
+	if sample.Status == "" {
+		sample.Status = dispatchStatus(res)
+	}
+	sample.Attributes = mergeMetricAttributes(sample.Attributes, r.dc.MetricLabels)
+	return sample
 }
 
 func mergeMetricAttributes(base map[string]string, labels map[string]string) map[string]string {

@@ -144,6 +144,7 @@ func workflowMetricLoopParams(rec monitor.RuntimeRecorder) LoopParams {
 	}
 	return LoopParams{
 		MachineSpec:     spec,
+		AgentName:       "workflow-run",
 		Trace:           &loopRecorder{},
 		Budget:          Budget{MaxIterations: 10},
 		MonitorRecorder: rec,
@@ -192,6 +193,22 @@ func requireSampleLabels(t *testing.T, samples []monitor.MetricSample, name stri
 	t.Fatalf("missing sample %s in %#v", name, samples)
 }
 
+func requireSampleEnvelope(t *testing.T, samples []monitor.MetricSample, name string, want monitor.MetricSample) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name != name {
+			continue
+		}
+		require.Equal(t, want.ToolName, sample.ToolName, "sample %#v", sample)
+		require.Equal(t, want.RunID, sample.RunID, "sample %#v", sample)
+		require.Equal(t, want.State, sample.State, "sample %#v", sample)
+		require.Equal(t, want.Signal, sample.Signal, "sample %#v", sample)
+		require.Equal(t, want.Status, sample.Status, "sample %#v", sample)
+		return
+	}
+	t.Fatalf("missing sample %s in %#v", name, samples)
+}
+
 func TestLoop_RunsToCompletion(t *testing.T) {
 	t.Parallel()
 	tr := &loopRecorder{}
@@ -218,9 +235,23 @@ func TestLoopMonitorSamplesIncludeWorkflowMetricLabels(t *testing.T) {
 		"use_case": "rel04.0-monitor",
 		"phase":    "dispatch",
 	})
+	requireSampleEnvelope(t, snapshot.RecentSamples, "dispatch_duration", monitor.MetricSample{
+		ToolName: "emit_metric",
+		RunID:    "workflow-run",
+		State:    "Working",
+		Signal:   string(ToolDone),
+		Status:   "success",
+	})
 	requireSampleLabels(t, snapshot.RecentSamples, "tool.bytes", map[string]string{
 		"use_case": "rel04.0-monitor",
 		"phase":    "dispatch",
+	})
+	requireSampleEnvelope(t, snapshot.RecentSamples, "tool.bytes", monitor.MetricSample{
+		ToolName: "emit_metric",
+		RunID:    "workflow-run",
+		State:    "Working",
+		Signal:   string(ToolDone),
+		Status:   "success",
 	})
 }
 

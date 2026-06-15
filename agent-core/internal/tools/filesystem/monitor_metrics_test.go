@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
@@ -73,6 +74,18 @@ func TestFilesystemMetricsRespectDisabledConfig(t *testing.T) {
 	}
 }
 
+func TestFilesystemMetricsCarryDispatchEnvelope(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	cmd := (&WriteBuilder{Root: root, Metrics: filesystemMetrics("filesystem.bytes_written", "bytes_written")}).
+		Build(toolReq(`{"path":"a.txt","content":"hello"}`))
+
+	samples := runFilesystemMetricLoop(t, cmd, core.ToolDone)
+
+	requireFilesystemMetric(t, samples, "filesystem.bytes_written", 5)
+	requireFilesystemEnvelope(t, samples, "filesystem.bytes_written", cmd.Name())
+}
+
 func filesystemMetrics(name, source string) core.MetricConfig {
 	return core.MetricConfig{
 		Instruments: []core.MetricInstrument{{
@@ -95,4 +108,67 @@ func requireFilesystemMetric(t *testing.T, samples []monitor.MetricSample, name 
 		}
 	}
 	t.Fatalf("missing metric %s=%v in %#v", name, value, samples)
+}
+
+func runFilesystemMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []monitor.MetricSample {
+	t.Helper()
+	store := monitor.NewStore(monitor.Limits{Samples: 10})
+	params := filesystemMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
+	_, err := core.Loop(params, context.Background())
+	if err != nil {
+		t.Fatalf("loop failed: %v", err)
+	}
+	return store.Snapshot().RecentSamples
+}
+
+func filesystemMetricLoopParams(cmd core.Command, signal core.Signal, rec monitor.RuntimeRecorder) core.LoopParams {
+	spec := &core.MachineSpec{
+		Name:           "filesystem-metrics",
+		InitialState:   "Start",
+		MetricLabels:   core.MetricLabels{"use_case": "rel04.0-monitor"},
+		States:         core.StateSpecsFromNames("Start", "Working", "Done"),
+		TerminalStates: []string{"Done"},
+		Signals:        core.SignalSpecsFromNames(string(core.Seed), string(signal)),
+		Transitions: []core.TransitionSpec{
+			{State: "Start", Signal: string(core.Seed), Next: "Working", Action: cmd.Name(), MetricLabels: core.MetricLabels{"phase": "dispatch"}},
+			{State: "Working", Signal: string(signal), Next: "Done"},
+		},
+	}
+	return core.LoopParams{
+		MachineSpec:     spec,
+		AgentName:       "filesystem-run",
+		Trace:           tracing.NoopTracer{},
+		Budget:          core.Budget{MaxIterations: 3},
+		MonitorRecorder: rec,
+		InitFunc: func(reg *core.Registry) error {
+			reg.Register(core.ToolSpec{Name: cmd.Name(), Visibility: core.Internal}, filesystemMetricBuilder{cmd: cmd})
+			return nil
+		},
+		Hooks: core.LoopHooks{TerminalStatus: func(core.State) core.RunStatus { return core.StatusSucceeded }},
+	}
+}
+
+type filesystemMetricBuilder struct {
+	cmd core.Command
+}
+
+func (b filesystemMetricBuilder) Build(core.Result) core.Command {
+	return b.cmd
+}
+
+func requireFilesystemEnvelope(t *testing.T, samples []monitor.MetricSample, name string, toolName string) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name != name {
+			continue
+		}
+		if sample.ToolName != toolName || sample.RunID != "filesystem-run" ||
+			sample.State != "Working" || sample.Signal != string(core.ToolDone) ||
+			sample.Status != "success" || sample.Attributes["use_case"] != "rel04.0-monitor" ||
+			sample.Attributes["phase"] != "dispatch" {
+			t.Fatalf("bad metric envelope: %#v", sample)
+		}
+		return
+	}
+	t.Fatalf("missing metric %s in %#v", name, samples)
 }
