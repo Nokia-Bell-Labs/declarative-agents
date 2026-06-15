@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 )
@@ -187,6 +188,19 @@ func TestExecCmdSkipsDisabledMonitorMetrics(t *testing.T) {
 	require.Empty(t, rec.samples)
 }
 
+func TestExecCmdMetricsCarryDispatchEnvelope(t *testing.T) {
+	t.Parallel()
+	cmd := &ExecCmd{
+		def:  catalog.ToolDef{Name: "greet", Binary: "echo", Args: []string{"hello"}, Metrics: execMetrics()},
+		root: "/tmp",
+	}
+
+	samples := runExecMetricLoop(t, cmd, core.ToolDone)
+
+	requireExecMetric(t, samples, "exec.output_bytes", 6)
+	requireExecEnvelope(t, samples, "exec.output_bytes", cmd.Name())
+}
+
 type execMetricRecorder struct {
 	samples []monitor.MetricSample
 }
@@ -204,6 +218,68 @@ func requireExecMetric(t *testing.T, samples []monitor.MetricSample, name string
 		}
 	}
 	t.Fatalf("missing metric %s=%v in %#v", name, value, samples)
+}
+
+func runExecMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []monitor.MetricSample {
+	t.Helper()
+	store := monitor.NewStore(monitor.Limits{Samples: 10})
+	params := execMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
+	_, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	return store.Snapshot().RecentSamples
+}
+
+func execMetricLoopParams(cmd core.Command, signal core.Signal, rec monitor.RuntimeRecorder) core.LoopParams {
+	spec := &core.MachineSpec{
+		Name:           "exec-metrics",
+		InitialState:   "Start",
+		MetricLabels:   core.MetricLabels{"use_case": "rel04.0-monitor"},
+		States:         core.StateSpecsFromNames("Start", "Working", "Done"),
+		TerminalStates: []string{"Done"},
+		Signals:        core.SignalSpecsFromNames(string(core.Seed), string(signal)),
+		Transitions: []core.TransitionSpec{
+			{State: "Start", Signal: string(core.Seed), Next: "Working", Action: cmd.Name(), MetricLabels: core.MetricLabels{"phase": "dispatch"}},
+			{State: "Working", Signal: string(signal), Next: "Done"},
+		},
+	}
+	return core.LoopParams{
+		MachineSpec:     spec,
+		AgentName:       "exec-run",
+		Trace:           tracing.NoopTracer{},
+		Budget:          core.Budget{MaxIterations: 3},
+		MonitorRecorder: rec,
+		InitFunc: func(reg *core.Registry) error {
+			reg.Register(core.ToolSpec{Name: cmd.Name(), Visibility: core.Internal}, execMetricBuilder{cmd: cmd})
+			return nil
+		},
+		Hooks: core.LoopHooks{TerminalStatus: func(core.State) core.RunStatus { return core.StatusSucceeded }},
+	}
+}
+
+type execMetricBuilder struct {
+	cmd core.Command
+}
+
+func (b execMetricBuilder) Build(core.Result) core.Command {
+	return b.cmd
+}
+
+func requireExecEnvelope(t *testing.T, samples []monitor.MetricSample, name string, toolName string) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name != name {
+			continue
+		}
+		require.Equal(t, toolName, sample.ToolName)
+		require.Equal(t, "exec-run", sample.RunID)
+		require.Equal(t, "Working", sample.State)
+		require.Equal(t, string(core.ToolDone), sample.Signal)
+		require.Equal(t, "success", sample.Status)
+		require.Equal(t, "rel04.0-monitor", sample.Attributes["use_case"])
+		require.Equal(t, "dispatch", sample.Attributes["phase"])
+		return
+	}
+	t.Fatalf("missing metric %s in %#v", name, samples)
 }
 
 func execMetrics() core.MetricConfig {

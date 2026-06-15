@@ -83,6 +83,20 @@ func TestInvokeLLMSkipsUndeclaredTokenMetric(t *testing.T) {
 	requireMissingMetric(t, rec.samples, "llm.completion_tokens")
 }
 
+func TestInvokeLLMMetricsCarryDispatchEnvelope(t *testing.T) {
+	t.Parallel()
+	cmd := &invokeLLMCmd{
+		client: metricClient{}, history: modelllm.NewConversation(nil, "", modelllm.ChatOptions{}),
+		registry: core.NewRegistry(), assembler: metricAssembler{}, model: "qwen", providerName: "ollama",
+		userMessage: "request", tracer: tracing.NoopTracer{}, ctx: context.Background(), metrics: llmMetrics(),
+	}
+
+	samples := runLLMMetricLoop(t, cmd, core.LLMResponded)
+
+	requireMetric(t, samples, "llm.prompt_tokens", 11)
+	requireLLMEnvelope(t, samples, "llm.prompt_tokens", cmd.Name())
+}
+
 func (metricAssembler) EnvelopeConfig() (*prompt.Envelope, bool) { return nil, false }
 
 func llmMetrics() core.MetricConfig {
@@ -115,4 +129,67 @@ func requireMissingMetric(t *testing.T, samples []monitor.MetricSample, name str
 			t.Fatalf("unexpected metric %s in %#v", name, samples)
 		}
 	}
+}
+
+func runLLMMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []monitor.MetricSample {
+	t.Helper()
+	store := monitor.NewStore(monitor.Limits{Samples: 10})
+	params := llmMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
+	_, err := core.Loop(params, context.Background())
+	if err != nil {
+		t.Fatalf("loop failed: %v", err)
+	}
+	return store.Snapshot().RecentSamples
+}
+
+func llmMetricLoopParams(cmd core.Command, signal core.Signal, rec monitor.RuntimeRecorder) core.LoopParams {
+	spec := &core.MachineSpec{
+		Name:           "llm-metrics",
+		InitialState:   "Start",
+		MetricLabels:   core.MetricLabels{"use_case": "rel04.0-monitor"},
+		States:         core.StateSpecsFromNames("Start", "Working", "Done"),
+		TerminalStates: []string{"Done"},
+		Signals:        core.SignalSpecsFromNames(string(core.Seed), string(signal)),
+		Transitions: []core.TransitionSpec{
+			{State: "Start", Signal: string(core.Seed), Next: "Working", Action: cmd.Name(), MetricLabels: core.MetricLabels{"phase": "dispatch"}},
+			{State: "Working", Signal: string(signal), Next: "Done"},
+		},
+	}
+	return core.LoopParams{
+		MachineSpec:     spec,
+		AgentName:       "llm-run",
+		Trace:           tracing.NoopTracer{},
+		Budget:          core.Budget{MaxIterations: 3},
+		MonitorRecorder: rec,
+		InitFunc: func(reg *core.Registry) error {
+			reg.Register(core.ToolSpec{Name: cmd.Name(), Visibility: core.Internal}, llmMetricBuilder{cmd: cmd})
+			return nil
+		},
+		Hooks: core.LoopHooks{TerminalStatus: func(core.State) core.RunStatus { return core.StatusSucceeded }},
+	}
+}
+
+type llmMetricBuilder struct {
+	cmd core.Command
+}
+
+func (b llmMetricBuilder) Build(core.Result) core.Command {
+	return b.cmd
+}
+
+func requireLLMEnvelope(t *testing.T, samples []monitor.MetricSample, name string, toolName string) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name != name {
+			continue
+		}
+		if sample.ToolName != toolName || sample.RunID != "llm-run" ||
+			sample.State != "Working" || sample.Signal != string(core.LLMResponded) ||
+			sample.Status != "success" || sample.Attributes["use_case"] != "rel04.0-monitor" ||
+			sample.Attributes["phase"] != "dispatch" {
+			t.Fatalf("bad metric envelope: %#v", sample)
+		}
+		return
+	}
+	t.Fatalf("missing metric %s in %#v", name, samples)
 }

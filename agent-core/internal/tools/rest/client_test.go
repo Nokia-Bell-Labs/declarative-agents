@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
@@ -248,6 +249,20 @@ func TestRESTClientMetricConfigCanDisableSamples(t *testing.T) {
 	require.Empty(t, rec.samples)
 }
 
+func TestRESTClientMetricsCarryDispatchEnvelope(t *testing.T) {
+	t.Parallel()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok"})
+	}))
+	defer upstream.Close()
+	cmd := clientCommand(clientDefinition(t, upstream.URL, issueClient()), InitClientGet, "get", params("1"))
+
+	samples := runRESTMetricLoop(t, cmd, core.Signal("RESTResourceRead"))
+
+	requireRestMetric(t, samples, "rest.http_status_code", 200)
+	requireRESTEnvelope(t, samples, "rest.http_status_code", cmd.Name())
+}
+
 func issueHandler(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/repos/acme/agent-core/issues/boom" {
 		http.Error(w, "boom", http.StatusInternalServerError)
@@ -291,6 +306,68 @@ func requirePositiveRestMetric(t *testing.T, samples []monitor.MetricSample, nam
 		}
 	}
 	t.Fatalf("missing positive metric %s in %#v", name, samples)
+}
+
+func runRESTMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []monitor.MetricSample {
+	t.Helper()
+	store := monitor.NewStore(monitor.Limits{Samples: 10})
+	params := restMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
+	_, err := core.Loop(params, context.Background())
+	require.NoError(t, err)
+	return store.Snapshot().RecentSamples
+}
+
+func restMetricLoopParams(cmd core.Command, signal core.Signal, rec monitor.RuntimeRecorder) core.LoopParams {
+	spec := &core.MachineSpec{
+		Name:           "rest-metrics",
+		InitialState:   "Start",
+		MetricLabels:   core.MetricLabels{"use_case": "rel04.0-monitor"},
+		States:         core.StateSpecsFromNames("Start", "Working", "Done"),
+		TerminalStates: []string{"Done"},
+		Signals:        core.SignalSpecsFromNames(string(core.Seed), string(signal)),
+		Transitions: []core.TransitionSpec{
+			{State: "Start", Signal: string(core.Seed), Next: "Working", Action: cmd.Name(), MetricLabels: core.MetricLabels{"phase": "dispatch"}},
+			{State: "Working", Signal: string(signal), Next: "Done"},
+		},
+	}
+	return core.LoopParams{
+		MachineSpec:     spec,
+		AgentName:       "rest-run",
+		Trace:           tracing.NoopTracer{},
+		Budget:          core.Budget{MaxIterations: 3},
+		MonitorRecorder: rec,
+		InitFunc: func(reg *core.Registry) error {
+			reg.Register(core.ToolSpec{Name: cmd.Name(), Visibility: core.Internal}, restMetricBuilder{cmd: cmd})
+			return nil
+		},
+		Hooks: core.LoopHooks{TerminalStatus: func(core.State) core.RunStatus { return core.StatusSucceeded }},
+	}
+}
+
+type restMetricBuilder struct {
+	cmd core.Command
+}
+
+func (b restMetricBuilder) Build(core.Result) core.Command {
+	return b.cmd
+}
+
+func requireRESTEnvelope(t *testing.T, samples []monitor.MetricSample, name string, toolName string) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name != name {
+			continue
+		}
+		require.Equal(t, toolName, sample.ToolName)
+		require.Equal(t, "rest-run", sample.RunID)
+		require.Equal(t, "Working", sample.State)
+		require.Equal(t, "RESTResourceRead", sample.Signal)
+		require.Equal(t, "success", sample.Status)
+		require.Equal(t, "rel04.0-monitor", sample.Attributes["use_case"])
+		require.Equal(t, "dispatch", sample.Attributes["phase"])
+		return
+	}
+	t.Fatalf("missing metric %s in %#v", name, samples)
 }
 
 func clientCommand(def Definition, init, operation string, input map[string]interface{}) core.Command {
