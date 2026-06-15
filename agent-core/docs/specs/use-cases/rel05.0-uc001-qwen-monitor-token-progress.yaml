@@ -1,0 +1,64 @@
+id: rel05.0-uc001-qwen-monitor-token-progress
+title: Qwen run exposes increasing token metrics through embedded monitor
+
+summary: |
+  A live Qwen/Ollama integration run starts the embedded monitor from the
+  MachineSpec before invoking the model. The monitor launch is non-blocking:
+  after ServerLaunched, the state machine continues through the normal Qwen REST
+  tool flow. The integration proof polls the monitor metrics endpoint while the
+  run is active and verifies that provider token metrics become visible and
+  increase over time.
+
+actor: Release maintainer proving live monitor observability on Qwen flows
+
+trigger: |
+  The existing Qwen/Ollama proof shows REST tool selection and grounded final
+  answers. A later release needs a live proof that the same model-boundary path
+  can expose monitor state while the state machine continues running, without a
+  sidecar or a blocking monitor action.
+
+flow:
+  - F1: The maintainer starts local Ollama with the configured Qwen 3 family model available.
+  - F2: The integration target generates an isolated monitored Qwen profile with a free loopback monitor address.
+  - F3: The generated MachineSpec handles Seed by running launch_monitor_rest.
+  - F4: launch_monitor_rest emits ServerLaunched without waiting for monitor readers.
+  - F5: The state machine continues to invoke_llm and runs the Qwen Ollama REST model-listing flow.
+  - F6: invoke_llm records declared llm.prompt_tokens and llm.completion_tokens samples when provider usage is returned.
+  - F7: The integration target polls /monitor/metrics while the agent process remains active.
+  - F8: The observed token metric aggregate increases from its initial value.
+  - F9: The integration target posts /monitor/control/exit so the profile stops the monitor listener and exits succeeded.
+
+touchpoints:
+  - T1: "mage integration:uc008 -- live monitored Qwen token progress proof"
+  - T2: "rel03.0-uc005-ollama-openapi-model-listing -- source Qwen REST tool flow"
+  - T3: "rel04.0-uc002-monitor-rest-api -- embedded monitor REST snapshot behavior"
+  - T4: "srd032-tool-metrics-monitor-store AC2 -- tool-owned specialized metrics"
+  - T5: "srd033-monitor-rest-api AC1, AC3 -- cached monitor REST reads"
+
+success_criteria:
+  - id: S1
+    criterion: The monitor REST listener is launched by MachineSpec and becomes queryable before the Qwen run completes.
+    traces:
+      - srd033-monitor-rest-api AC1
+  - id: S2
+    criterion: The Qwen state machine continues into invoke_llm after ServerLaunched instead of blocking on monitor reads.
+    traces:
+      - srd024-blocking-input-tools AC1
+      - srd033-monitor-rest-api AC6
+  - id: S3
+    criterion: /monitor/metrics exposes llm.prompt_tokens or llm.completion_tokens from the live monitor store.
+    traces:
+      - srd032-tool-metrics-monitor-store AC2
+      - srd033-monitor-rest-api AC3
+  - id: S4
+    criterion: The observed token metric total increases while the agent process remains active.
+    traces:
+      - srd032-tool-metrics-monitor-store AC2
+
+out_of_scope:
+  - Pulling or installing Qwen models.
+  - Requiring streaming token telemetry from a provider before a model response completes.
+  - Changing the shared rel03 Qwen/Ollama profile.
+
+semantic_model: sm-tool-metrics-monitoring
+config_format: cfg-machine-format
