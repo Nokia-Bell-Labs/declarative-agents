@@ -18,11 +18,15 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
+	toolrest "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 )
 
 func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
@@ -221,6 +225,47 @@ func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
 			require.NoError(t, catalog.ValidateToolEmits(spec, defs))
 		})
 	}
+}
+
+func TestMonitorRuntimeOptInProfileSetsLoopRecorder(t *testing.T) {
+	t.Parallel()
+	machine := monitorRuntimeMachine()
+
+	optIn := newMonitorRuntime(machine, nil, toolrest.Collection{}, nil)
+	require.NotNil(t, optIn.Store)
+	require.NotNil(t, optIn.Recorder)
+
+	params := core.LoopParams{MonitorRecorder: optIn.Recorder}
+	require.NotNil(t, params.MonitorRecorder)
+
+	disabled := newMonitorRuntime(core.MachineSpec{}, nil, toolrest.Collection{}, nil)
+	require.Nil(t, disabled.Store)
+	require.Nil(t, disabled.Recorder)
+}
+
+func TestMonitorRuntimeRecordsDispatchMetricsInStore(t *testing.T) {
+	t.Parallel()
+	runtime := newMonitorRuntime(monitorRuntimeMachine(), nil, toolrest.Collection{}, nil)
+
+	result := runMonitorRuntimeLoop(t, runtime)
+
+	require.Equal(t, core.StatusSucceeded, result.Status)
+	snapshot := runtime.Store.Snapshot()
+	requireMonitorSample(t, snapshot.RecentSamples, "dispatch_count")
+	requireMonitorSample(t, snapshot.RecentSamples, "dispatch_success")
+}
+
+func TestMonitorRuntimeUsesTelemetryMeter(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	runtime := newMonitorRuntime(monitorRuntimeMachine(), nil, toolrest.Collection{}, provider.Meter("agent"))
+
+	_ = runMonitorRuntimeLoop(t, runtime)
+
+	var data metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &data))
+	requireMetricData(t, data, "dispatch_count")
 }
 
 func TestControlProfileExitReachesSucceededBeforeDeferredShutdown(t *testing.T) {
@@ -424,6 +469,60 @@ func registerStaticSignal(reg *core.Registry, name string, signal core.Signal, o
 	reg.Register(core.ToolSpec{Name: name}, staticSignalBuilder{
 		name: name, signal: signal, output: output, afterExit: afterExit,
 	})
+}
+
+func monitorRuntimeMachine() core.MachineSpec {
+	return core.MachineSpec{
+		Name:         "monitor-runtime-test",
+		MetricLabels: core.MetricLabels{"profile": "monitor"},
+		InitialState: "Idle",
+		States: core.StateSpecs{
+			{Name: "Idle"}, {Name: "Working"}, {Name: "Done"},
+		},
+		TerminalStates: []string{"Done"},
+		Transitions: []core.TransitionSpec{
+			{State: "Idle", Signal: "Seed", Next: "Working", Action: "run"},
+			{State: "Working", Signal: "ToolDone", Next: "Done"},
+		},
+	}
+}
+
+func runMonitorRuntimeLoop(t *testing.T, runtime monitorRuntime) core.RunResult {
+	t.Helper()
+	reg := core.NewRegistry()
+	registerStaticSignal(reg, "run", core.ToolDone, "ok", "")
+	machine := monitorRuntimeMachine()
+	result, err := core.Loop(core.LoopParams{
+		MachineSpec:     &machine,
+		AgentName:       "agent",
+		Registry:        reg,
+		Trace:           tracing.NoopTracer{},
+		MonitorRecorder: runtime.Recorder,
+	}, context.Background())
+	require.NoError(t, err)
+	return result
+}
+
+func requireMonitorSample(t *testing.T, samples []monitor.MetricSample, name string) {
+	t.Helper()
+	for _, sample := range samples {
+		if sample.Name == name {
+			return
+		}
+	}
+	require.Failf(t, "missing monitor sample", "sample %q not found in %#v", name, samples)
+}
+
+func requireMetricData(t *testing.T, data metricdata.ResourceMetrics, name string) {
+	t.Helper()
+	for _, scope := range data.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name == name {
+				return
+			}
+		}
+	}
+	require.Failf(t, "missing OTel metric", "metric %q not found in %#v", name, data)
 }
 
 func (b staticSignalBuilder) Build(previous core.Result) core.Command {
