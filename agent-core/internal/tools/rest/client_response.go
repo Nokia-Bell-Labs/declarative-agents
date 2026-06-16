@@ -35,6 +35,10 @@ func mapClientResponse(
 		return clientOperationError(commandName, "status_mapping", err, def), err
 	}
 	responseBytes := len(body)
+	responseMap := resolvedResponseMapping(def, mapping)
+	if err := validateResponsePayload(responseMap, payload); err != nil {
+		return clientOperationError(commandName, "response_mapping", err, def), err
+	}
 	output := responseOutput(def, mapping, response, payload, attempts)
 	redactOutput(output, redactionSelectors(def, mapping))
 	return core.Result{
@@ -42,6 +46,16 @@ func mapClientResponse(
 		Output:  jsonOutput(output),
 		Metrics: clientMetrics(response.StatusCode, attempts, duration, signal, responseBytes),
 	}, nil
+}
+
+func validateResponsePayload(mapping ResponseMapping, payload map[string]interface{}) error {
+	if len(mapping.Schema) == 0 {
+		return nil
+	}
+	if err := validateBodySchema(mapping.Schema, payload); err != nil {
+		return fmt.Errorf("response schema: %w", err)
+	}
+	return nil
 }
 
 func readResponseBody(response *http.Response, maxBytes int) ([]byte, error) {
@@ -107,16 +121,17 @@ func responseOutput(
 ) map[string]interface{} {
 	responseMap := resolvedResponseMapping(def, mapping)
 	return map[string]interface{}{
-		"rest_ref":    def.RestRef,
-		"resource":    def.Resource,
-		"operation":   def.OperationName,
-		"status":      response.StatusCode,
-		"headers":     headerOutput(response.Header),
-		"body":        payload,
-		"mapped":      mappedOutput(responseMap.Output, payload),
-		"resource_id": selectorValue(responseMap.ResourceID, payload),
-		"request_id":  selectorValue(responseMap.RequestID, payload),
-		"retry_count": attempts - 1,
+		"rest_ref":          def.RestRef,
+		"resource":          def.Resource,
+		"operation":         def.OperationName,
+		"status":            response.StatusCode,
+		"headers":           headerOutput(response.Header),
+		"body":              payload,
+		"mapped":            mappedOutput(responseMap.Output, payload),
+		"resource_id":       selectorValue(responseMap.ResourceID, payload),
+		"request_id":        selectorValue(responseMap.RequestID, payload),
+		"retry_count":       attempts - 1,
+		"domain_error_code": mapping.DomainErrorCode,
 	}
 }
 
@@ -124,13 +139,18 @@ func resolvedResponseMapping(def ClientOperationDefinition, mapping StatusMappin
 	if mapping.ResponseRef != "" {
 		return def.ResponseMappings[mapping.ResponseRef]
 	}
-	if len(mapping.Response.Output) > 0 || len(mapping.Response.Redact) > 0 {
+	if !emptyResponseMapping(mapping.Response) {
 		return mapping.Response
 	}
 	if def.Operation.ResponseRef != "" {
 		return def.ResponseMappings[def.Operation.ResponseRef]
 	}
 	return def.Operation.Response
+}
+
+func emptyResponseMapping(mapping ResponseMapping) bool {
+	return len(mapping.Schema) == 0 && len(mapping.Output) == 0 &&
+		len(mapping.Redact) == 0 && mapping.ResourceID == "" && mapping.RequestID == ""
 }
 
 func mappedOutput(selectors map[string]string, payload map[string]interface{}) map[string]interface{} {

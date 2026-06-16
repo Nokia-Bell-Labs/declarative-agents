@@ -64,14 +64,24 @@ func validateAuthProfiles(profiles map[string]AuthProfile) error {
 func validateLimitProfiles(profiles map[string]LimitProfile) error {
 	for name, profile := range profiles {
 		mode := profile.Redirect.Mode
-		if mode == "" {
-			continue
-		}
-		switch mode {
-		case redirectNone, redirectSameHost, redirectAllowlist:
-			continue
-		default:
+		if mode != "" && !validRedirectMode(mode) {
 			return fmt.Errorf("limit profile %q has unsupported redirect mode %q", name, mode)
+		}
+		if err := validateCIDRConfig(name, profile.Network.CIDRs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validRedirectMode(mode string) bool {
+	return mode == redirectNone || mode == redirectSameHost || mode == redirectAllowlist
+}
+
+func validateCIDRConfig(profile string, cidrs []string) error {
+	for _, raw := range cidrs {
+		if _, _, err := net.ParseCIDR(raw); err != nil {
+			return fmt.Errorf("limit profile %q has invalid CIDR %q", profile, raw)
 		}
 	}
 	return nil
@@ -216,6 +226,9 @@ func validateAsyncOperation(name string, async AsyncClientConfig) error {
 	}
 	if async.Timeout == "" {
 		return fmt.Errorf("operation %q async config requires timeout", name)
+	}
+	if async.AwaitOperation != "" {
+		return fmt.Errorf("operation %q async await_operation is not supported", name)
 	}
 	return nil
 }

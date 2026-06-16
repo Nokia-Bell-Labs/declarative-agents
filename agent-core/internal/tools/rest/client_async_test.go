@@ -67,6 +67,33 @@ func TestRESTClient_AwaitAsyncRequest(t *testing.T) {
 	require.Contains(t, result.Output, "async_state_missing")
 }
 
+func TestRESTClient_AsyncCorrelationAndIdempotencyHeader(t *testing.T) {
+	t.Parallel()
+
+	var idempotencyKey string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		idempotencyKey = req.Header.Get("Idempotency-Key")
+		writeJSON(w, http.StatusOK, map[string]interface{}{"id": "corr"})
+	}))
+	defer upstream.Close()
+	client := asyncPaymentClient()
+	op := client.Operations["create_payment"]
+	op.Params.BodySchema = bodySchema("correlation")
+	op.Async.Correlation = "{{ params.correlation }}"
+	client.Operations["create_payment"] = op
+	def := asyncDefinition(t, upstream.URL, client)
+	state := NewAsyncState()
+
+	send := asyncCommand(def, state, InitClientSend, map[string]interface{}{
+		"order_id": "corr", "correlation": "payment-corr",
+	}).Execute()
+	require.Equal(t, core.Signal("RESTAccepted"), send.Signal, send.Output)
+	require.Eventually(t, func() bool { return idempotencyKey == "corr" }, time.Second, time.Millisecond)
+
+	await := asyncCommand(def, state, InitClientAwait, map[string]interface{}{"correlation": "payment-corr"}).Execute()
+	require.Equal(t, core.Signal("RESTResponded"), await.Signal, await.Output)
+}
+
 func TestRESTClient_AsyncRetryPolicyValidation(t *testing.T) {
 	t.Parallel()
 
@@ -83,6 +110,17 @@ func TestRESTClient_AsyncRetryPolicyValidation(t *testing.T) {
 	op.Async.IdempotencyToken = ""
 	def.Clients["payments"].Operations["create_payment"] = op
 	require.ErrorContains(t, ValidateDefinition(def), "idempotency")
+}
+
+func TestRESTClient_RejectsAwaitOperationPollingConfig(t *testing.T) {
+	t.Parallel()
+
+	def := asyncDefinition(t, "https://api.example", asyncPaymentClient())
+	op := def.Clients["payments"].Operations["create_payment"]
+	op.Async.AwaitOperation = "get_payment"
+	def.Clients["payments"].Operations["create_payment"] = op
+
+	require.ErrorContains(t, ValidateDefinition(def), "await_operation")
 }
 
 func asyncPaymentHandler(w http.ResponseWriter, req *http.Request) {

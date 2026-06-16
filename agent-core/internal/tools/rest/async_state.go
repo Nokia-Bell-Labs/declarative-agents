@@ -57,6 +57,18 @@ func (s *AsyncState) Get(requestID string) (*AsyncRequest, error) {
 	return request, nil
 }
 
+// GetByCorrelation resolves an async request by correlation token.
+func (s *AsyncState) GetByCorrelation(correlation string) (*AsyncRequest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, request := range s.requests {
+		if request.Correlation == correlation {
+			return request, nil
+		}
+	}
+	return nil, fmt.Errorf("async correlation %q is not defined", correlation)
+}
+
 // Consume removes an async request when retention policy requires it.
 func (s *AsyncState) Consume(request *AsyncRequest) {
 	if request.RetentionPolicy != asyncRetentionConsume {
