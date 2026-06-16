@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  listDocs, getDoc, getConfig, getSource, validateDocs, suggestDocChanges,
+  listDocs, getDoc, getConfig, getSource, getUXConfig, validateDocs, suggestDocChanges,
   approvePatch, rejectPatch,
   type DocEntry, type DocDetail, type ConfigDetail, type SourceDetail,
-  type ValidationReport, type SuggestionResponse, type PatchDecision,
+  type UXConfig, type ValidationReport, type SuggestionResponse, type PatchDecision,
 } from './apiClient'
 import mermaid from 'mermaid'
 import hljs from 'highlight.js/lib/core'
@@ -23,17 +23,27 @@ const GITLAB_BLOB = 'https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-
 const CODE_PATH_RE = /(?:pkg|cmd)\/[\w-]+(?:\/[\w.-]+)*/
 const CONFIG_PATH_RE = /configs\/[\w-]+(?:\/[\w.*-]+)*/
 
-const CATEGORY_META: Record<string, { label: string; icon: string; order: number }> = {
-  overview:         { label: 'Overview',              icon: '📋', order: 0 },
-  'semantic-model': { label: 'Semantic Models',       icon: '🔀', order: 1 },
-  'config-format':  { label: 'Config Formats',        icon: '⚙', order: 2 },
-  srd:              { label: 'Software Requirements', icon: '📐', order: 3 },
-  'use-case':       { label: 'Use Cases',             icon: '👤', order: 4 },
-  'test-suite':     { label: 'Test Suites',           icon: '🧪', order: 5 },
+const CATEGORY_ICONS: Record<string, string> = {
+  overview: '📋',
+  'semantic-model': '🔀',
+  'config-format': '⚙',
+  srd: '📐',
+  'use-case': '👤',
+  'test-suite': '🧪',
 }
 
-function categoryMeta(cat: string) {
-  return CATEGORY_META[cat] ?? {
+const DEFAULT_CATEGORY_META: Record<string, { label: string; order: number }> = {
+  overview:         { label: 'Overview',              order: 0 },
+  'semantic-model': { label: 'Semantic Models',       order: 1 },
+  'config-format':  { label: 'Config Formats',        order: 2 },
+  srd:              { label: 'Software Requirements', order: 3 },
+  'use-case':       { label: 'Use Cases',             order: 4 },
+  'test-suite':     { label: 'Test Suites',           order: 5 },
+}
+
+function categoryMeta(cat: string, uxConfig: UXConfig | null) {
+  const configured = uxConfig?.sidebar.groups[cat] ?? DEFAULT_CATEGORY_META[cat]
+  return configured ? { ...configured, icon: CATEGORY_ICONS[cat] ?? '📄' } : {
     label: cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
     icon: '📄',
     order: 99,
@@ -451,15 +461,16 @@ function YamlSection({ label, value, pattern, index, onNavigate }: {
   )
 }
 
-function SidebarCategory({ cat, entries, selectedPath, onSelect }: {
+function SidebarCategory({ cat, entries, selectedPath, onSelect, uxConfig }: {
   cat: string
   entries: DocEntry[]
   selectedPath: string | null
   onSelect: (path: string) => void
+  uxConfig: UXConfig | null
 }) {
   const hasActive = entries.some(d => d.path === selectedPath)
   const [open, setOpen] = useState(hasActive)
-  const meta = categoryMeta(cat)
+  const meta = categoryMeta(cat, uxConfig)
 
   useEffect(() => {
     if (hasActive) setOpen(true)
@@ -915,13 +926,17 @@ export default function Documentation() {
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uxConfig, setUXConfig] = useState<UXConfig | null>(null)
   const [viewingConfig, setViewingConfig] = useState<string | null>(null)
   const [viewingSource, setViewingSource] = useState<string | null>(null)
   const selectedPath = rawPath || null
 
   useEffect(() => {
-    listDocs()
-      .then(setDocs)
+    Promise.all([getUXConfig(), listDocs()])
+      .then(([ux, entries]) => {
+        setUXConfig(ux)
+        setDocs(entries)
+      })
       .catch(() => setError('Failed to load documentation index'))
       .finally(() => setLoading(false))
   }, [])
@@ -951,7 +966,7 @@ export default function Documentation() {
   }, {})
 
   const sortedCategories = Object.keys(grouped).sort((a, b) => {
-    return categoryMeta(a).order - categoryMeta(b).order
+    return categoryMeta(a, uxConfig).order - categoryMeta(b, uxConfig).order
   })
 
   if (loading) return <div className="loading">Loading documentation...</div>
@@ -964,6 +979,7 @@ export default function Documentation() {
   const configBlock = content?.configuration as Record<string, unknown> | undefined
   const machinePath = isSemanticModel && configBlock && typeof configBlock.machine === 'string'
     ? configBlock.machine : null
+  const presentation = uxConfig?.presentation
 
   const topFields = ['id', 'title', 'version']
   const textFields = ['purpose', 'problem', 'overview', 'summary', 'executive_summary', 'what_this_does', 'why_we_build_this', 'trigger', 'lifecycle', 'pipeline_diagram']
@@ -973,7 +989,7 @@ export default function Documentation() {
     <div className="docs-layout">
       <aside className="docs-sidebar">
         <div className="docs-sidebar-header">
-          <h2 className="docs-sidebar-title">Documentation</h2>
+          <h2 className="docs-sidebar-title">{uxConfig?.sidebar.title ?? 'Documentation'}</h2>
           <span className="docs-sidebar-total">{docs.length} docs</span>
         </div>
         {sortedCategories.map(cat => (
@@ -983,6 +999,7 @@ export default function Documentation() {
             entries={grouped[cat]}
             selectedPath={selectedPath}
             onSelect={selectDoc}
+            uxConfig={uxConfig}
           />
         ))}
       </aside>
@@ -990,11 +1007,11 @@ export default function Documentation() {
       <section className="docs-content">
         {!selectedPath && (
           <div className="docs-welcome">
-            <h1>Documentation</h1>
+            <h1>{uxConfig?.title ?? 'Documentation'}</h1>
             <p>Select a document from the sidebar to view its contents.</p>
             <div className="docs-overview-grid">
               {sortedCategories.map(cat => {
-                const meta = categoryMeta(cat)
+                const meta = categoryMeta(cat, uxConfig)
                 return (
                   <div key={cat} className="docs-overview-card" onClick={() => { const first = grouped[cat]?.[0]; if (first) selectDoc(first.path) }} style={{ cursor: 'pointer' }}>
                     <span className="docs-overview-icon">{meta.icon}</span>
@@ -1036,7 +1053,7 @@ export default function Documentation() {
               />
             )}
 
-            {stateDiagram && (
+            {presentation?.state_diagram !== false && stateDiagram && (
               <div className="doc-section">
                 <h3>State Diagram</h3>
                 <ModelDefinitionToggle chart={stateDiagram} machinePath={machinePath} />
@@ -1086,21 +1103,23 @@ export default function Documentation() {
 
             <CuratorWorkflowPanel docPath={detail.path} raw={detail.raw} />
 
-            <div className="doc-section doc-raw-section">
-              <details>
-                <summary className="config-toggle">View raw YAML</summary>
-                <HighlightedYaml raw={detail.raw} className="doc-raw" />
-              </details>
-            </div>
+            {presentation?.raw_yaml_toggle !== false && (
+              <div className="doc-section doc-raw-section">
+                <details>
+                  <summary className="config-toggle">View raw YAML</summary>
+                  <HighlightedYaml raw={detail.raw} className="doc-raw" />
+                </details>
+              </div>
+            )}
           </div>
         )}
       </section>
 
-      {viewingConfig && (
+      {presentation?.config_viewer !== false && viewingConfig && (
         <ConfigViewer configPath={viewingConfig} onClose={() => setViewingConfig(null)} />
       )}
 
-      {viewingSource && (
+      {presentation?.source_viewer !== false && viewingSource && (
         <SourceViewer sourcePath={viewingSource} onClose={() => setViewingSource(null)} />
       )}
     </div>

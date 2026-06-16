@@ -137,6 +137,49 @@ func TestStandaloneServerAcceptsBrowserHeadersForDocsGET(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `"trace"`)
 }
 
+func TestStandaloneServerServesProfileUXConfig(t *testing.T) {
+	t.Parallel()
+	handler := NewServer(HostConfig{
+		ProfilePath: curatorProfilePath(t),
+		Assets:      fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
+	}).Handler()
+
+	rec := getDocsRoute(t, handler, "/api/v1/ux")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body map[string]UXConfig
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Equal(t, "Knowledge Manager Documentation UI", body["data"].Title)
+	require.Equal(t, "doc_list", uxRoutesByID(body["data"].Routes)["docs_index"].Action)
+	require.Equal(t, "doc_get", uxRoutesByID(body["data"].Routes)["docs_detail"].Action)
+}
+
+func TestLoadCuratorUXConfigFallsBackForGeneratedProfile(t *testing.T) {
+	t.Parallel()
+	cfg, err := LoadCuratorUXConfig(filepath.Join(t.TempDir(), "profile.yaml"))
+
+	require.NoError(t, err)
+	require.Equal(t, "Knowledge Manager Documentation UI", cfg.Title)
+	require.Equal(t, "doc_list", uxRoutesByID(cfg.Routes)["docs_index"].Action)
+}
+
+func TestCuratorUXConfigMatchesRouteAndActionContracts(t *testing.T) {
+	t.Parallel()
+	profile, err := catalog.LoadProfile(curatorProfilePath(t))
+	require.NoError(t, err)
+	ux, err := LoadCuratorUXConfig(curatorProfilePath(t))
+	require.NoError(t, err)
+	collection, err := rest.LoadDefinitions(profile.RestDefinitions, profile.RestConfigDirs)
+	require.NoError(t, err)
+	defs, err := loadCuratorProfileDefs(profile)
+	require.NoError(t, err)
+	machine, err := core.LoadMachineSpec(filepath.Join(filepath.Dir(curatorProfilePath(t)), "request-machine.yaml"))
+	require.NoError(t, err)
+
+	requireUXRoutesMatchREST(t, ux, collection.Servers["documentation_curator_requests"].Endpoints)
+	requireUXActionsSelected(t, ux, toolNames(defs), machineActionNames(machine))
+}
+
 func TestLazyMachineRequestProxyOwnsBackendLifecycle(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -489,6 +532,41 @@ func postHTTPJSON(t *testing.T, url, body string) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
+}
+
+func requireUXRoutesMatchREST(t *testing.T, ux UXConfig, endpoints map[string]rest.Endpoint) {
+	t.Helper()
+	routes := uxRoutesByID(ux.Routes)
+	require.Equal(t, restEndpointUIPath(endpoints["documents"].Path), routes["docs_index"].Path)
+	require.Equal(t, endpoints["documents"].Binding, "machine_request")
+	require.Equal(t, restEndpointUIPath(endpoints["document"].Path), routes["docs_detail"].Path)
+	require.Equal(t, endpoints["document"].Binding, "machine_request")
+}
+
+func requireUXActionsSelected(t *testing.T, ux UXConfig, selected, machineActions map[string]bool) {
+	t.Helper()
+	for name, action := range ux.Actions {
+		require.True(t, selected[action.UIAction], "UX action %s selects missing ToolDef %s", name, action.UIAction)
+		if action.RequestMachineAction != "" {
+			require.True(t, machineActions[action.RequestMachineAction], "UX action %s references missing machine action", name)
+		}
+	}
+}
+
+func restEndpointUIPath(path string) string {
+	path = strings.TrimPrefix(path, "/api/v1")
+	path = strings.ReplaceAll(path, "/{path...}", "/*")
+	return strings.ReplaceAll(path, "/{path}", "/*")
+}
+
+func machineActionNames(machine core.MachineSpec) map[string]bool {
+	names := map[string]bool{}
+	for _, transition := range machine.Transitions {
+		if transition.Action != "" {
+			names[transition.Action] = true
+		}
+	}
+	return names
 }
 
 func toolNames(defs []catalog.ToolDef) map[string]bool {

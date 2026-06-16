@@ -77,6 +77,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/reject", docs.Reject)
 	mux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/reopen", docs.Reopen)
 	mux.HandleFunc("POST /api/v1/actions", s.handleAction)
+	mux.HandleFunc("GET /api/v1/ux", s.handleUX)
 	mux.HandleFunc("GET /api/v1/configs/{path...}", s.handleGetConfig)
 	mux.HandleFunc("GET /api/v1/source/{path...}", s.handleGetSource)
 	mux.Handle("/", docsAPIOrSPAHandler(requests, spaHandler(s.assets)))
@@ -171,6 +172,15 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleUX(w http.ResponseWriter, _ *http.Request) {
+	cfg, err := LoadCuratorUXConfig(s.profilePath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeDataFields(w, http.StatusOK, cfg, nil)
 }
 
 type closeAwareHandler struct {
