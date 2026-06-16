@@ -127,6 +127,26 @@ func TestRESTLifecycleControl_ExitAgentSignal(t *testing.T) {
 	require.Equal(t, "operator requested shutdown", requireExitOutput(t, res)["reason"])
 }
 
+func TestRESTLifecycleControl_ModeledEndpointRoutesToExitAgent(t *testing.T) {
+	t.Parallel()
+	state, baseURL := launchModeledControlServer(t)
+	defer func() { _, _ = state.Stop("modeled_control") }()
+
+	postControl(t, baseURL+"/api/lifecycle/exit", `{"reason":"modeled shutdown"}`)
+	event, signal, err := state.AwaitAny(rest.AwaitAnyOptions{
+		Sources: []rest.AwaitSource{{Server: "modeled_control", Routes: []string{"exit"}}},
+		Timeout: time.Second,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "ExitRequested", signal)
+	require.Equal(t, "modeled shutdown", event.Payload["reason"])
+	res := (ExitBuilder{Config: ExitConfig{Status: "success"}, Shutdown: func() {}}).
+		Build(core.Result{Output: mustJSON(t, event)}).Execute()
+	require.Equal(t, core.Signal("AgentExited"), res.Signal)
+	require.Equal(t, "modeled shutdown", requireExitOutput(t, res)["reason"])
+}
+
 func TestRegisterLifecycleFactoriesRegistersExitAgent(t *testing.T) {
 	t.Parallel()
 	br := toolregistry.NewBuiltinRegistry()
@@ -174,6 +194,40 @@ func launchControlServer(t *testing.T) (*rest.ServerState, string) {
 	output, err := state.Launch(def)
 	require.NoError(t, err)
 	return state, "http://" + output["address"].(string)
+}
+
+func launchModeledControlServer(t *testing.T) (*rest.ServerState, string) {
+	t.Helper()
+	state := rest.NewServerState()
+	output, err := state.Launch(rest.ServerDefinition{
+		Name: "modeled_control",
+		Server: rest.Server{
+			Address:   "127.0.0.1:0",
+			Queue:     rest.QueueConfig{Name: "modeled_control", Capacity: 8, Overflow: "reject", Timeout: "30s"},
+			Shutdown:  rest.ShutdownConfig{Timeout: "5s", DrainPolicy: "drain"},
+			Endpoints: map[string]rest.Endpoint{"exit": modeledExitEndpoint()},
+		},
+	})
+	require.NoError(t, err)
+	return state, "http://" + output["address"].(string)
+}
+
+func modeledExitEndpoint() rest.Endpoint {
+	return rest.Endpoint{
+		Method: "POST", Path: "/api/lifecycle/exit", Binding: "lifecycle_control",
+		LifecycleControl: rest.LifecycleControl{
+			Action: "exit", Signal: "ExitRequested", TargetSchema: stringBodySchema("reason"),
+		},
+		Request:  rest.RequestBinding{BodySchema: stringBodySchema("reason")},
+		Response: rest.ResponseMapping{Output: map[string]string{"accepted": "true"}},
+	}
+}
+
+func stringBodySchema(field string) map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object", "required": []interface{}{field},
+		"properties": map[string]interface{}{field: map[string]interface{}{"type": "string"}},
+	}
 }
 
 func postControl(t *testing.T, url, body string) {

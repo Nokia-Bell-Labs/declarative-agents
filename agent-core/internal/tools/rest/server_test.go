@@ -44,6 +44,24 @@ func TestRESTServer_AwaitInboundSignals(t *testing.T) {
 	requireAwaitSignal(t, state, "control", "AwaitTimedOut")
 }
 
+func TestRESTServer_LifecycleControlEnqueuesSignals(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, lifecycleControlServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "lifecycle")
+
+	postStatus(t, baseURL+"/lifecycle/exit", `{"reason":"operator"}`, http.StatusAccepted)
+	event, signal, err := state.AwaitAny(AwaitAnyOptions{
+		Sources: []AwaitSource{{Server: "lifecycle", Routes: []string{"exit"}}},
+		Timeout: time.Second,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "ExitRequested", signal)
+	require.Equal(t, "operator", event.Payload["reason"])
+	require.Equal(t, "exit", event.Route)
+}
+
 func TestRESTAwaitEvent_MultiSourceFanIn(t *testing.T) {
 	t.Parallel()
 
@@ -147,6 +165,25 @@ func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
 	require.Equal(t, core.ToolDone, command.Undo().Signal)
 }
 
+func TestRESTAwaitEvent_RejectsUnsupportedReadPolicy(t *testing.T) {
+	t.Parallel()
+
+	collection := NewCollection()
+	require.NoError(t, collection.Add(Definition{Servers: map[string]Server{"control": controlServer()}}))
+	def := requireRESTToolDef(t, InitAwaitEvent)
+	def.Config = map[string]interface{}{
+		"sources":     []interface{}{map[string]interface{}{"server": "control"}},
+		"read_policy": "round_robin",
+	}
+	br := toolregistry.NewBuiltinRegistry()
+	RegisterFactories(br, FactoryDeps{Definitions: collection, ServerState: NewServerState()})
+	factory, ok := br.Resolve(def.Init)
+	require.True(t, ok)
+
+	_, err := factory(def, nil)
+	require.ErrorContains(t, err, "read_policy")
+}
+
 func TestRESTAwaitEvent_FactoryBuildsStagedFanIn(t *testing.T) {
 	t.Parallel()
 
@@ -244,6 +281,34 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 		require.Equal(t, "stopped", stopRESTServer(t, state, "blocking")["status"])
 		require.Equal(t, core.Signal("ServerStopped"), (<-results).Signal)
+	})
+}
+
+func TestRESTServer_QueueOverflowPolicies(t *testing.T) {
+	t.Parallel()
+
+	t.Run("drop oldest keeps newest event", func(t *testing.T) {
+		server := namedControlServer("drop_oldest")
+		server.Queue = QueueConfig{Name: "drop_oldest", Capacity: 1, Overflow: queueOverflowDropOldest, Timeout: "20ms"}
+		state, baseURL := launchRESTServer(t, server, LimitProfile{})
+
+		postStatus(t, baseURL+"/approve/old", `{}`, http.StatusAccepted)
+		postStatus(t, baseURL+"/approve/new", `{}`, http.StatusAccepted)
+
+		event, signal, err := state.Await("drop_oldest")
+		require.NoError(t, err)
+		require.Equal(t, "Approved", signal)
+		require.Equal(t, "new", event.Payload["id"])
+		require.Equal(t, float64(1), stopRESTServer(t, state, "drop_oldest")["dropped_events"])
+	})
+
+	t.Run("unsupported queue and drain policies fail validation", func(t *testing.T) {
+		server := namedControlServer("invalid")
+		server.Queue.Overflow = "silently_drop"
+		require.ErrorContains(t, ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid": server}}), "overflow")
+		server.Queue.Overflow = queueOverflowReject
+		server.Shutdown.DrainPolicy = "mystery"
+		require.ErrorContains(t, ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid": server}}), "drain_policy")
 	})
 }
 
@@ -535,6 +600,25 @@ func validationServer() Server {
 		Method: "POST", Path: "/handler", Binding: "invoke_handler",
 	}
 	return server
+}
+
+func lifecycleControlServer() Server {
+	return Server{
+		Address:  "127.0.0.1:0",
+		Queue:    QueueConfig{Name: "lifecycle", Capacity: 8, Timeout: "20ms", Overflow: queueOverflowReject},
+		Shutdown: ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain"},
+		Endpoints: map[string]Endpoint{
+			"exit": {
+				Method: "POST", Path: "/lifecycle/exit", Binding: bindingLifecycleControl,
+				LifecycleControl: LifecycleControl{
+					Action: "exit", Signal: "ExitRequested",
+					TargetSchema: bodySchemaWithRequired("reason"),
+				},
+				Request:  RequestBinding{BodySchema: bodySchemaWithRequired("reason")},
+				Response: ResponseMapping{Output: map[string]string{"accepted": "true"}},
+			},
+		},
+	}
 }
 
 func handlerServer() Server {

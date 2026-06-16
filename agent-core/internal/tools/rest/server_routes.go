@@ -13,13 +13,14 @@ import (
 )
 
 const (
-	bindingEmitSignal     = "emit_signal"
-	bindingReadState      = "read_state"
-	bindingInvokeHandler  = "invoke_handler"
-	bindingStreamEvents   = "stream_events"
-	bindingHealth         = "health"
-	bindingStaticMetadata = "static_metadata"
-	bindingMachineRequest = "machine_request"
+	bindingEmitSignal       = "emit_signal"
+	bindingReadState        = "read_state"
+	bindingInvokeHandler    = "invoke_handler"
+	bindingStreamEvents     = "stream_events"
+	bindingHealth           = "health"
+	bindingStaticMetadata   = "static_metadata"
+	bindingMachineRequest   = "machine_request"
+	bindingLifecycleControl = "lifecycle_control"
 )
 
 var allowedUndeclaredHeaders = map[string]bool{
@@ -72,6 +73,8 @@ func (r *serverRuntime) handleEndpoint(
 		r.enqueueSignal(w, req, name, endpoint.Signal, payload, endpoint.Response.Redact)
 	case bindingDynamicSignal:
 		r.enqueueDynamicSignal(w, req, name, endpoint, payload)
+	case bindingLifecycleControl:
+		r.enqueueLifecycleControl(w, req, name, endpoint, payload)
 	case bindingReadState:
 		r.writeReadState(w, name, endpoint)
 	case bindingInvokeHandler:
@@ -99,7 +102,7 @@ func (r *serverRuntime) invokeHandler(
 	if endpoint.Signal != "" {
 		redactServerPayload(payload, endpoint.Response.Redact)
 		event := inboundEvent(r.name, name, req.Method, endpoint.Signal, payload, req.Header.Get("X-Request-ID"))
-		if !r.offerEvent(event) {
+		if !r.offerEvent(event, endpoint.Queue) {
 			http.Error(w, "REST server queue is full", http.StatusTooManyRequests)
 			return
 		}
@@ -126,6 +129,43 @@ func (r *serverRuntime) enqueueDynamicSignal(
 	r.enqueueSignal(w, req, name, signal, payload, endpoint.Response.Redact)
 }
 
+func (r *serverRuntime) enqueueLifecycleControl(
+	w http.ResponseWriter,
+	req *http.Request,
+	name string,
+	endpoint Endpoint,
+	payload map[string]interface{},
+) {
+	signal := lifecycleSignal(endpoint)
+	if endpoint.LifecycleControl.Action == "inject_signal" {
+		signal = signalFromRequest(req, payload)
+		if !allowedSignal(signal, endpoint.LifecycleControl.AllowedSignals) {
+			http.Error(w, "signal is not allowed", http.StatusBadRequest)
+			return
+		}
+	}
+	if err := validateLifecyclePayload(endpoint.LifecycleControl, payload); err != nil {
+		writeRequestError(w, err)
+		return
+	}
+	r.enqueueSignal(w, req, name, signal, payload, endpoint.Response.Redact)
+}
+
+func lifecycleSignal(endpoint Endpoint) string {
+	if endpoint.LifecycleControl.Signal != "" {
+		return endpoint.LifecycleControl.Signal
+	}
+	return endpoint.Signal
+}
+
+func validateLifecyclePayload(control LifecycleControl, payload map[string]interface{}) error {
+	if len(control.TargetSchema) == 0 {
+		return nil
+	}
+	body, _ := payload["body"].(map[string]interface{})
+	return validateBodySchema(control.TargetSchema, body)
+}
+
 func (r *serverRuntime) enqueueSignal(
 	w http.ResponseWriter,
 	req *http.Request,
@@ -140,23 +180,64 @@ func (r *serverRuntime) enqueueSignal(
 	}
 	redactServerPayload(payload, redact)
 	event := inboundEvent(r.name, route, req.Method, signal, payload, req.Header.Get("X-Request-ID"))
-	if !r.offerEvent(event) {
+	if !r.offerEvent(event, r.def.Server.Endpoints[route].Queue) {
 		http.Error(w, "REST server queue is full", http.StatusTooManyRequests)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]interface{}{"accepted": true, "signal": signal})
 }
 
-func (r *serverRuntime) offerEvent(event InboundEvent) bool {
+func (r *serverRuntime) offerEvent(event InboundEvent, queue QueueConfig) bool {
 	select {
 	case r.queue <- event:
 		return true
 	default:
-		r.mu.Lock()
-		r.droppedEvents++
-		r.mu.Unlock()
+		return r.handleQueueOverflow(event, queue)
+	}
+}
+
+func (r *serverRuntime) handleQueueOverflow(event InboundEvent, queue QueueConfig) bool {
+	switch queueOverflow(queue, r.def.Server.Queue) {
+	case queueOverflowDropNewest:
+		r.incrementDroppedEvents()
+		return true
+	case queueOverflowDropOldest:
+		return r.dropOldestAndOffer(event)
+	default:
+		r.incrementDroppedEvents()
 		return false
 	}
+}
+
+func queueOverflow(endpoint, server QueueConfig) string {
+	if endpoint.Overflow != "" {
+		return endpoint.Overflow
+	}
+	if server.Overflow != "" {
+		return server.Overflow
+	}
+	return queueOverflowReject
+}
+
+func (r *serverRuntime) dropOldestAndOffer(event InboundEvent) bool {
+	select {
+	case <-r.queue:
+		r.incrementDroppedEvents()
+	default:
+	}
+	select {
+	case r.queue <- event:
+		return true
+	default:
+		r.incrementDroppedEvents()
+		return false
+	}
+}
+
+func (r *serverRuntime) incrementDroppedEvents() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.droppedEvents++
 }
 
 func inboundEvent(source, route, method, signal string, payload map[string]interface{}, requestID string) InboundEvent {
@@ -211,14 +292,15 @@ func readRequestPayload(req *http.Request, endpoint Endpoint, maxBytes int) (map
 	if maxBytes > 0 {
 		req.Body = http.MaxBytesReader(nil, req.Body, int64(maxBytes))
 	}
-	if len(endpoint.Request.BodySchema) == 0 {
+	bodySchema := endpointBodySchema(endpoint)
+	if len(bodySchema) == 0 {
 		return payload, nil
 	}
 	body := map[string]interface{}{}
 	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 		return nil, err
 	}
-	if err := validateBodySchema(endpoint.Request.BodySchema, body); err != nil {
+	if err := validateBodySchema(bodySchema, body); err != nil {
 		return nil, err
 	}
 	payload["body"] = body
@@ -226,6 +308,16 @@ func readRequestPayload(req *http.Request, endpoint Endpoint, maxBytes int) (map
 		payload[key] = value
 	}
 	return payload, nil
+}
+
+func endpointBodySchema(endpoint Endpoint) map[string]interface{} {
+	if len(endpoint.Request.BodySchema) > 0 {
+		return endpoint.Request.BodySchema
+	}
+	if endpoint.Binding == bindingLifecycleControl {
+		return endpoint.LifecycleControl.TargetSchema
+	}
+	return nil
 }
 
 func addPathValues(payload map[string]interface{}, schema map[string]interface{}, vars map[string]string) error {
