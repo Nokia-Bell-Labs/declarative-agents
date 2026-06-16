@@ -25,6 +25,7 @@ const CONFIG_PATH_RE = /configs\/[\w-]+(?:\/[\w.*-]+)*/
 
 const CATEGORY_ICONS: Record<string, string> = {
   overview: '📋',
+  release: '🗺',
   'semantic-model': '🔀',
   'config-format': '⚙',
   srd: '📐',
@@ -34,11 +35,12 @@ const CATEGORY_ICONS: Record<string, string> = {
 
 const DEFAULT_CATEGORY_META: Record<string, { label: string; order: number }> = {
   overview:         { label: 'Overview',              order: 0 },
-  'semantic-model': { label: 'Semantic Models',       order: 1 },
-  'config-format':  { label: 'Config Formats',        order: 2 },
-  srd:              { label: 'Software Requirements', order: 3 },
-  'use-case':       { label: 'Use Cases',             order: 4 },
-  'test-suite':     { label: 'Test Suites',           order: 5 },
+  release:          { label: 'Releases',              order: 1 },
+  'semantic-model': { label: 'Semantic Models',       order: 2 },
+  'config-format':  { label: 'Config Formats',        order: 3 },
+  srd:              { label: 'Software Requirements', order: 4 },
+  'use-case':       { label: 'Use Cases',             order: 5 },
+  'test-suite':     { label: 'Test Suites',           order: 6 },
 }
 
 function categoryMeta(cat: string, uxConfig: UXConfig | null) {
@@ -77,6 +79,13 @@ interface SemanticState {
   meaning: string
 }
 
+interface RoadmapRelease {
+  version: string
+  name?: string
+  status?: string
+  srds?: string[]
+}
+
 // --- Cross-document + code linking ---
 
 type DocIndex = Map<string, string>
@@ -110,6 +119,21 @@ function buildLinkPattern(index: DocIndex): RegExp {
   return new RegExp(`(${parts.join('|')})`, 'g')
 }
 
+function documentURL(path: string): string {
+  return `/docs/${path.split('/').map(encodeURIComponent).join('/')}`
+}
+
+function decodeRoutePath(path: string | undefined): string | null {
+  if (!path) return null
+  return path.split('/').map(segment => {
+    try {
+      return decodeURIComponent(segment)
+    } catch {
+      return segment
+    }
+  }).join('/')
+}
+
 function linkifyText(
   text: string,
   pattern: RegExp,
@@ -133,7 +157,7 @@ function linkifyText(
       parts.push(
         <a
           key={`d-${match.index}`}
-          href={`/docs/${docTarget}`}
+          href={documentURL(docTarget)}
           className="doc-crosslink"
           onClick={e => { e.preventDefault(); navigate(docTarget) }}
         >
@@ -245,6 +269,60 @@ function extractStateDiagram(content: Record<string, unknown>): string | null {
   return lines.join('\n')
 }
 
+function extractSemanticModelFigure(content: Record<string, unknown>): string | null {
+  const explicit = firstMermaidDiagram(content.diagrams)
+  if (explicit) return explicit
+  return relationshipFlowchart(content.relationships)
+}
+
+function firstMermaidDiagram(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return firstMermaidBlock(value)
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const chart = firstMermaidDiagram(item)
+      if (chart) return chart
+    }
+    return null
+  }
+  if (typeof value === 'object' && value !== null) {
+    for (const item of Object.values(value as Record<string, unknown>)) {
+      const chart = firstMermaidDiagram(item)
+      if (chart) return chart
+    }
+  }
+  return null
+}
+
+function firstMermaidBlock(text: string): string | null {
+  const match = text.match(/```mermaid\s*\n([\s\S]*?)```/)
+  return match ? match[1].trim() : null
+}
+
+function relationshipFlowchart(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
+  const edges = Object.keys(value as Record<string, unknown>)
+    .map(relationshipEdge)
+    .filter((edge): edge is [string, string] => edge !== null)
+  if (edges.length === 0) return null
+  return ['flowchart LR', ...edges.map(([from, to]) => `  ${nodeID(from)}[${nodeLabel(from)}] --> ${nodeID(to)}[${nodeLabel(to)}]`)].join('\n')
+}
+
+function relationshipEdge(name: string): [string, string] | null {
+  const [from, to] = name.split('_to_')
+  if (!from || !to) return null
+  return [from, to]
+}
+
+function nodeID(value: string): string {
+  return value.replace(/[^A-Za-z0-9]/g, '_')
+}
+
+function nodeLabel(value: string): string {
+  return value.replace(/_/g, ' ')
+}
+
 // --- Components ---
 
 function MermaidDiagram({ chart }: { chart: string }) {
@@ -286,6 +364,82 @@ function LinkedText({ text, pattern, index, navigate, onSourceClick }: {
   )
 }
 
+function ProseBlock({ text, pattern, index, navigate }: {
+  text: string
+  pattern: RegExp
+  index: DocIndex
+  navigate: (path: string) => void
+}) {
+  const segments = splitMermaidBlocks(text)
+  return (
+    <div className="doc-text">
+      {segments.map((seg, i) =>
+        seg.type === 'mermaid'
+          ? <MermaidDiagram key={i} chart={seg.content} />
+          : <ProseText key={i} text={seg.content} pattern={pattern} index={index} navigate={navigate} />
+      )}
+    </div>
+  )
+}
+
+function ProseText({ text, pattern, index, navigate }: {
+  text: string
+  pattern: RegExp
+  index: DocIndex
+  navigate: (path: string) => void
+}) {
+  const blocks = text.split(/\n\s*\n/).map(block => block.trim()).filter(Boolean)
+  return (
+    <>
+      {blocks.map((block, i) =>
+        isBulletBlock(block)
+          ? <BulletList key={i} block={block} pattern={pattern} index={index} navigate={navigate} />
+          : (
+            <p key={i} className="doc-paragraph">
+              {linkifyText(reflowText(block), pattern, index, navigate)}
+            </p>
+          )
+      )}
+    </>
+  )
+}
+
+function BulletList({ block, pattern, index, navigate }: {
+  block: string
+  pattern: RegExp
+  index: DocIndex
+  navigate: (path: string) => void
+}) {
+  return (
+    <ul className="doc-bullet-list">
+      {bulletItems(block).map((item, i) => (
+        <li key={i}>{linkifyText(item, pattern, index, navigate)}</li>
+      ))}
+    </ul>
+  )
+}
+
+function isBulletBlock(block: string): boolean {
+  return block.split('\n').some(line => /^\s*-\s+/.test(line))
+}
+
+function bulletItems(block: string): string[] {
+  const items: string[] = []
+  for (const line of block.split('\n')) {
+    const bullet = line.match(/^\s*-\s+(.*)$/)
+    if (bullet) {
+      items.push(bullet[1].trim())
+    } else if (items.length > 0) {
+      items[items.length - 1] = `${items[items.length - 1]} ${line.trim()}`.trim()
+    }
+  }
+  return items
+}
+
+function reflowText(text: string): string {
+  return text.replace(/\s*\n\s*/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 function YamlSection({ label, value, pattern, index, onNavigate }: {
   label: string
   value: unknown
@@ -299,14 +453,16 @@ function YamlSection({ label, value, pattern, index, onNavigate }: {
     return (
       <div className="doc-section">
         <h3>{label}</h3>
-        <pre className="doc-text">
-          <LinkedText text={value} pattern={pattern} index={index} navigate={onNavigate} />
-        </pre>
+        <ProseBlock text={value} pattern={pattern} index={index} navigate={onNavigate} />
       </div>
     )
   }
 
   if (Array.isArray(value)) {
+    if (label === 'Releases' && isRoadmapReleaseArray(value)) {
+      return <RoadmapReleasesTable releases={value} pattern={pattern} index={index} onNavigate={onNavigate} />
+    }
+
     const objects = value.filter((item): item is Record<string, unknown> =>
       typeof item === 'object' && item !== null && !Array.isArray(item)
     )
@@ -490,18 +646,76 @@ function SidebarCategory({ cat, entries, selectedPath, onSelect, uxConfig }: {
             const { prefix, title } = formatSidebarTitle(d)
             return (
               <li key={d.path}>
-                <button
+                <a
+                  href={documentURL(d.path)}
                   className={`docs-link ${selectedPath === d.path ? 'docs-link-active' : ''}`}
-                  onClick={() => onSelect(d.path)}
+                  onClick={e => { e.preventDefault(); onSelect(d.path) }}
                 >
                   {prefix && <span className="docs-link-prefix">{prefix}</span>}
                   <span className="docs-link-title">{title}</span>
-                </button>
+                </a>
               </li>
             )
           })}
         </ul>
       )}
+    </div>
+  )
+}
+
+function isRoadmapReleaseArray(value: unknown[]): value is RoadmapRelease[] {
+  return value.every(item => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) return false
+    const release = item as Record<string, unknown>
+    return typeof release.version === 'string' && Array.isArray(release.srds)
+  })
+}
+
+function RoadmapReleasesTable({ releases, pattern, index, onNavigate }: {
+  releases: RoadmapRelease[]
+  pattern: RegExp
+  index: DocIndex
+  onNavigate: (path: string) => void
+}) {
+  return (
+    <div className="doc-section">
+      <h3>Releases</h3>
+      <div className="table-container">
+        <table className="doc-table roadmap-srd-table">
+          <thead>
+            <tr>
+              <th>Release</th>
+              <th>Name</th>
+              <th>Status</th>
+              <th>SRD Index</th>
+            </tr>
+          </thead>
+          <tbody>
+            {releases.map(release => (
+              <tr key={release.version}>
+                <td><span className="doc-kv-badge">{release.version}</span></td>
+                <td>{release.name ?? ''}</td>
+                <td>
+                  {release.status && (
+                    <span className={`doc-kv-badge doc-kv-${release.status.replace(/_/g, '-')}`}>
+                      {release.status}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <div className="roadmap-srd-list">
+                    {(release.srds ?? []).map(srd => (
+                      <span key={srd} className="roadmap-srd-item">
+                        <LinkedText text={srd} pattern={pattern} index={index} navigate={onNavigate} />
+                      </span>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -929,7 +1143,7 @@ export default function Documentation() {
   const [uxConfig, setUXConfig] = useState<UXConfig | null>(null)
   const [viewingConfig, setViewingConfig] = useState<string | null>(null)
   const [viewingSource, setViewingSource] = useState<string | null>(null)
-  const selectedPath = rawPath || null
+  const selectedPath = decodeRoutePath(rawPath)
 
   useEffect(() => {
     Promise.all([getUXConfig(), listDocs()])
@@ -945,7 +1159,7 @@ export default function Documentation() {
   const linkPattern = useMemo(() => buildLinkPattern(docIndex), [docIndex])
 
   const selectDoc = useCallback((path: string) => {
-    navigate(`/docs/${path}`)
+    navigate(documentURL(path))
   }, [navigate])
 
   useEffect(() => {
@@ -976,6 +1190,7 @@ export default function Documentation() {
   const stateDiagram = content ? extractStateDiagram(content) : null
 
   const isSemanticModel = detail && docs.find(d => d.path === detail.path)?.category === 'semantic-model'
+  const semanticModelFigure = isSemanticModel && content ? extractSemanticModelFigure(content) : null
   const configBlock = content?.configuration as Record<string, unknown> | undefined
   const machinePath = isSemanticModel && configBlock && typeof configBlock.machine === 'string'
     ? configBlock.machine : null
@@ -1051,6 +1266,13 @@ export default function Documentation() {
                 config={configBlock}
                 onConfigClick={setViewingConfig}
               />
+            )}
+
+            {presentation?.state_diagram !== false && semanticModelFigure && (
+              <div className="doc-section semantic-model-figure">
+                <h3>Semantic Model Figure</h3>
+                <MermaidDiagram chart={semanticModelFigure} />
+              </div>
             )}
 
             {presentation?.state_diagram !== false && stateDiagram && (

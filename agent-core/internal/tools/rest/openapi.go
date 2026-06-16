@@ -294,13 +294,27 @@ func endpointFromOperation(operationID string, found openAPIOperation) Endpoint 
 
 func mergeEndpointWithOpenAPI(endpoint Endpoint, compiled Endpoint) Endpoint {
 	endpoint.OpenAPIOperationID = compiled.OpenAPIOperationID
-	endpoint.Method = compiled.Method
-	endpoint.Path = compiled.Path
-	endpoint.Request = compiled.Request
+	if endpoint.Method == "" {
+		endpoint.Method = compiled.Method
+	}
+	if endpoint.Path == "" {
+		endpoint.Path = compiled.Path
+	}
+	if requestBindingIsZero(endpoint.Request) {
+		endpoint.Request = compiled.Request
+	}
 	if len(endpoint.Response.Schema) == 0 {
 		endpoint.Response.Schema = compiled.Response.Schema
 	}
 	return endpoint
+}
+
+func requestBindingIsZero(binding RequestBinding) bool {
+	return len(binding.Query) == 0 &&
+		len(binding.Path) == 0 &&
+		len(binding.Headers) == 0 &&
+		len(binding.BodySchema) == 0 &&
+		binding.BodySource == ""
 }
 
 func httpBindingFromOpenAPI(found openAPIOperation) openAPIHTTPBinding {

@@ -19,6 +19,11 @@ type CapturedResponse = {
   body: Record<string, unknown>
 }
 
+type DocEntry = {
+  path: string
+  category?: string
+}
+
 type NetworkEntry = {
   method: string
   url: string
@@ -74,7 +79,21 @@ async function runProof(browser: Browser) {
   assertMachineRequestTrace(index.body, 'documents', 'DocumentIndexReady')
 
   await expandCategories(page)
+  const sidebarText = await page.$eval('.docs-sidebar', node => node.textContent ?? '')
+  assert(sidebarText.includes('Semantic Models'), 'sidebar groups semantic models')
+  assert(sidebarText.includes('Releases'), 'sidebar groups releases')
+  assert(sidebarText.includes('Use Cases'), 'sidebar groups use cases')
   await page.waitForSelector('.docs-link-title')
+
+  const walk = await walkDocumentation(page, index.body)
+
+  const semanticResponse = waitForGET(page, '/api/v1/docs/specs/semantic-models/machine-request-http.yaml')
+  await clickDocument(page, 'Machine Request Http')
+  await page.waitForSelector('.semantic-model-figure .mermaid-container svg')
+  const semantic = await captureResponse(await semanticResponse)
+  assert(semantic.status === 200, `semantic model response status ${semantic.status}`)
+  assertMachineRequestTrace(semantic.body, 'document', 'DocumentDetailReady')
+
   const detailResponse = waitForGET(page, '/api/v1/docs/SPECIFICATIONS.yaml')
   await clickDocument(page, 'SPECIFICATIONS')
   await page.waitForSelector('.doc-viewer')
@@ -94,7 +113,29 @@ async function runProof(browser: Browser) {
   const rawText = await page.$eval('.doc-raw-section', node => node.textContent ?? '')
   assert(rawText.includes('id: agent-core-specifications'), 'raw YAML view visible')
 
-  await writeArtifacts('success', { index, detail })
+  const nestedPath = 'specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml'
+  const nestedResponse = waitForGET(page, `/api/v1/docs/${nestedPath}`)
+  await clickDocument(page, 'Machine Request Documentation Ux')
+  await page.waitForFunction(
+    () => document.querySelector('.doc-viewer')?.textContent?.includes('Knowledge Manager UX uses machine_request document resources')
+  )
+  const nested = await captureResponse(await nestedResponse)
+  assert(nested.status === 200, `nested detail response status ${nested.status}`)
+  assert(nested.method === 'GET', 'nested detail read used GET')
+  assert(String(nested.body.raw ?? '').includes('id: rel03.0-uc007-machine-request-documentation-ux'), 'nested raw YAML returned')
+  assertMachineRequestTrace(nested.body, 'document', 'DocumentDetailReady')
+
+  const roadmapResponse = waitForGET(page, '/api/v1/docs/road-map.yaml')
+  await clickDocument(page, 'Road Map')
+  await page.waitForSelector('.roadmap-srd-table')
+  const roadmapText = await page.$eval('.roadmap-srd-table', node => node.textContent ?? '')
+  assert(roadmapText.includes('SRD Index'), 'roadmap SRD index rendered as table')
+  assert(roadmapText.includes('srd027-rest-tool-runtime'), 'roadmap SRD table includes linked SRD entries')
+  const roadmap = await captureResponse(await roadmapResponse)
+  assert(roadmap.status === 200, `roadmap response status ${roadmap.status}`)
+  assertMachineRequestTrace(roadmap.body, 'document', 'DocumentDetailReady')
+
+  await writeArtifacts('success', { index, walk, semantic, detail, nested, roadmap })
 }
 
 async function expandCategories(page: Page) {
@@ -115,6 +156,60 @@ async function clickDocument(page: Page, label: string) {
     return Boolean(button)
   }, label)
   assert(clicked, `document button containing ${label} found`)
+}
+
+async function walkDocumentation(page: Page, body: Record<string, unknown>) {
+  const docs = indexDocuments(body)
+  const visited: string[] = []
+  for (const doc of docs) {
+    const response = waitForGET(page, `/api/v1/docs/${documentPath(doc.path)}`)
+    await clickDocumentPath(page, doc.path)
+    await page.waitForFunction(
+      expected => window.location.pathname === expected,
+      {},
+      `/docs/${documentPath(doc.path)}`
+    )
+    const detail = await captureResponse(await response)
+    assert(detail.status === 200, `walk ${doc.path} response status ${detail.status}`)
+    assert(String(detail.body.raw ?? '').length > 0, `walk ${doc.path} raw YAML returned`)
+    assertMachineRequestTrace(detail.body, 'document', 'DocumentDetailReady')
+    await page.waitForSelector('.doc-viewer')
+    await page.waitForSelector('.doc-raw-section')
+    visited.push(doc.path)
+  }
+  return { count: visited.length, paths: visited }
+}
+
+function indexDocuments(body: Record<string, unknown>): DocEntry[] {
+  const docs = body.data
+  assert(Array.isArray(docs), 'walk source document index is an array')
+  return docs.map((doc, i) => {
+    assert(typeof doc === 'object' && doc !== null, `walk index entry ${i} is an object`)
+    const entry = doc as Record<string, unknown>
+    assert(typeof entry.path === 'string', `walk index entry ${i} has a path`)
+    return {
+      path: entry.path,
+      category: typeof entry.category === 'string' ? entry.category : undefined,
+    }
+  })
+}
+
+async function clickDocumentPath(page: Page, path: string) {
+  const route = `/docs/${documentPath(path)}`
+  const clicked = await page.evaluate((wantedRoute: string, wantedPath: string) => {
+    const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('.docs-link'))
+    const link = links.find(item => {
+      const route = new URL(item.href).pathname
+      return route === wantedRoute || decodeURIComponent(route) === `/docs/${wantedPath}`
+    })
+    link?.click()
+    return Boolean(link)
+  }, route, path)
+  assert(clicked, `document link for ${path} found`)
+}
+
+function documentPath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/')
 }
 
 function waitForGET(page: Page, endpoint: string): Promise<HTTPResponse> {

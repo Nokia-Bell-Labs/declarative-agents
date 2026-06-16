@@ -17,6 +17,11 @@ func TestListResourceListsConfiguredDocuments(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeResourceFixture(t, root, "docs/VISION.yaml", "title: Vision\n")
+	writeResourceFixture(t, root, "docs/road-map.yaml", "title: Roadmap\n")
+	writeResourceFixture(t, root, "docs/specs/config-formats/cfg.yaml", "title: Config\n")
+	writeResourceFixture(t, root, "docs/specs/semantic-models/model.yaml", "title: Model\n")
+	writeResourceFixture(t, root, "docs/specs/software-requirements/srd.yaml", "title: SRD\n")
+	writeResourceFixture(t, root, "docs/specs/test-suites/test.yaml", "title: Test\n")
 	writeResourceFixture(t, root, "docs/specs/use-cases/uc.yaml", "title: Use\n")
 	writeResourceFixture(t, root, "docs/ignored.txt", "ignored\n")
 
@@ -26,8 +31,13 @@ func TestListResourceListsConfiguredDocuments(t *testing.T) {
 	var entries []resourceEntry
 	require.NoError(t, json.Unmarshal([]byte(res.Output), &entries))
 	require.Equal(t, []resourceEntry{
-		{Path: "VISION.yaml", Name: "VISION", Category: "root", Extension: "yaml", Size: 14},
-		{Path: "specs/use-cases/uc.yaml", Name: "uc", Category: "specs", Extension: "yaml", Size: 11},
+		{Path: "VISION.yaml", Name: "VISION", Category: "overview", Extension: "yaml", Size: 14},
+		{Path: "road-map.yaml", Name: "road-map", Category: "release", Extension: "yaml", Size: 15},
+		{Path: "specs/config-formats/cfg.yaml", Name: "cfg", Category: "config-format", Extension: "yaml", Size: 14},
+		{Path: "specs/semantic-models/model.yaml", Name: "model", Category: "semantic-model", Extension: "yaml", Size: 13},
+		{Path: "specs/software-requirements/srd.yaml", Name: "srd", Category: "srd", Extension: "yaml", Size: 11},
+		{Path: "specs/test-suites/test.yaml", Name: "test", Category: "test-suite", Extension: "yaml", Size: 12},
+		{Path: "specs/use-cases/uc.yaml", Name: "uc", Category: "use-case", Extension: "yaml", Size: 11},
 	}, entries)
 }
 

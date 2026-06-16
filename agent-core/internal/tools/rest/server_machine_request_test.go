@@ -221,6 +221,37 @@ func TestRESTServerMachineRequestOpenAPIBindPreservesConfig(t *testing.T) {
 	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
 }
 
+func TestRESTServerMachineRequestOpenAPIBindKeepsExplicitCatchAllPath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "docs.yaml"), docsOpenAPI())
+	cfg := machineRequestConfig("DocumentationReady", 0, false)
+	cfg.InitialSignal = "ReadRequested"
+	cfg.Request = MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
+	cfg.MachineSpec = requestReadMachineSpec()
+	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
+	cfg.InitFunc = func(reg *core.Registry) error {
+		reg.Register(core.ToolSpec{Name: "respond"}, pathEchoBuilder{})
+		return nil
+	}
+	def := openAPIMachineRequestDefinition(cfg)
+	endpoint := def.Servers["machine"].Endpoints["document"]
+	endpoint.Method = "GET"
+	endpoint.Path = "/docs/{path...}"
+	endpoint.Request = RequestBinding{Path: map[string]interface{}{"path": map[string]interface{}{"type": "string"}}}
+	def.Servers["machine"].Endpoints["document"] = endpoint
+	require.NoError(t, CompileOpenAPIImports(&def, dir))
+	endpoint = def.Servers["machine"].Endpoints["document"]
+	require.Equal(t, "/docs/{path...}", endpoint.Path)
+	state, baseURL := launchMachineRequestServerWithConfig(t, endpoint.MachineRequest, def.Servers["machine"].Endpoints)
+	defer stopRESTServer(t, state, "machine")
+
+	body := getJSON(t, baseURL+"/docs/specs/use-cases/uc007.yaml")
+
+	require.Equal(t, "specs/use-cases/uc007.yaml", body["path"])
+	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
+}
+
 func TestValidateDefinitionRejectsCatchAllPathErrors(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

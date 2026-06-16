@@ -18,21 +18,24 @@ sidebar:
     overview:
       label: Overview
       order: 0
+    release:
+      label: Releases
+      order: 1
     semantic-model:
       label: Semantic Models
-      order: 1
+      order: 2
     config-format:
       label: Config Formats
-      order: 2
+      order: 3
     srd:
       label: Software Requirements
-      order: 3
+      order: 4
     use-case:
       label: Use Cases
-      order: 4
+      order: 5
     test-suite:
       label: Test Suites
-      order: 5
+      order: 6
 actions:
   list_documents:
     ui_action: doc_list

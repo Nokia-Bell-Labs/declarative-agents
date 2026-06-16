@@ -135,6 +135,7 @@
   transition: background 0.1s, border-color 0.1s;
   font-family: inherit;
   line-height: 1.4;
+  text-decoration: none;
 }
 
 .docs-link:hover {
@@ -258,7 +259,7 @@
   font-family: inherit;
   font-size: 14px;
   line-height: 1.7;
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
   color: var(--text-primary);
   background: var(--bg-tertiary);
@@ -266,6 +267,23 @@
   border-radius: 6px;
   padding: 16px;
   margin: 0;
+}
+
+.doc-paragraph {
+  margin: 0 0 12px 0;
+}
+
+.doc-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.doc-bullet-list {
+  margin: 0 0 12px 20px;
+  padding: 0;
+}
+
+.doc-bullet-list:last-child {
+  margin-bottom: 0;
 }
 
 .doc-list-item {
@@ -376,6 +394,16 @@
 .doc-kv-wip, .doc-kv-in-progress {
   background: rgba(0, 90, 255, 0.1);
   color: var(--accent);
+}
+
+.roadmap-srd-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.roadmap-srd-item {
+  white-space: nowrap;
 }
 
 .doc-raw-section {
