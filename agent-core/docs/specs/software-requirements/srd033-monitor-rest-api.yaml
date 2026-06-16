@@ -15,10 +15,13 @@ problem: |
 
   Monitor REST reader support exists on the existing REST server path.
   Configured endpoints can read monitor views, expose OpenAPI metadata, and
-  stream cached monitor updates. The implementation keeps handlers read-only:
-  they do not execute tools, dispatch MachineSpec actions, inspect prompts, or
-  scrape workspace files. cmd/agent passes the live monitor store into those
-  routes when the monitor profile runs.
+  stream cached monitor updates. The monitor profile may bind to
+  127.0.0.1:0, so supervisors and tests must discover the actual listener
+  address from the REST server launch output instead of assuming the configured
+  address is reachable. The implementation keeps handlers read-only: they do
+  not execute tools, dispatch MachineSpec actions, inspect prompts, or scrape
+  workspace files. cmd/agent passes the live monitor store into those routes
+  when the monitor profile runs.
 
   Launching a monitor server alone is not enough. REST server tools start the
   listener in the background, but cmd/agent exits when the MachineSpec reaches a
@@ -57,6 +60,7 @@ requirements:
       - R2.9: Timestamp fields such as updated_at and timestamp SHALL be strings with date-time format.
       - R2.10: Schema names and property names SHALL match runtime JSON lower_snake_case fields.
       - R2.11: /monitor/openapi SHALL NOT describe scalar fields such as run_id, state, status, iteration, accepted, and signal as shallow all-object schemas.
+      - R2.12: /monitor/openapi SHALL describe /monitor/events/stream as an SSE endpoint with text/event-stream response content when that configured stream route exists.
 
   R3:
     title: Snapshot endpoints
@@ -82,6 +86,8 @@ requirements:
       - R4.3: Event streams SHALL use configured limits for subscriber count, frame size, heartbeat interval, and idle timeout.
       - R4.4: Event streams SHALL NOT create workflow signals, enqueue server events for MachineSpec routing, or keep tools running.
       - R4.5: Event stream disconnects SHALL clean up subscriptions without changing agent state.
+      - R4.6: Monitor SSE frames SHALL use event names run_event and metric_sample for cached run events and cached metric samples.
+      - R4.7: Each monitor SSE frame SHALL include one JSON data payload whose fields match the corresponding /monitor/events recent event object or /monitor/metrics recent sample object.
 
   R5:
     title: Redaction and failure behavior
@@ -102,22 +108,27 @@ requirements:
       - R6.5: After the listener stops without error, the monitor MachineSpec SHALL route to Done or Succeeded so the run status is succeeded.
       - R6.6: CLI proofs and automated tests SHOULD bind the monitor listener to an isolated localhost address from generated profile config or an explicit runtime override.
       - R6.7: A checked-in fixed monitor port is a profile default, not a test isolation guarantee; tests SHALL document or avoid conflicts from parallel runs and stale listeners.
+      - R6.8: When the monitor server is configured with 127.0.0.1:0, supervisors and automated proofs SHALL discover the bound address from the REST server launch output before querying monitor endpoints.
+      - R6.9: The real cmd/agent proof SHALL use agents/monitor/profile.yaml or an equivalent profile-owned path that preserves the full monitor serving lifecycle.
 
 implementation_status:
   current: |
     internal/tools/rest supports monitor_view on read_state, static_metadata,
     and stream_events endpoints. agents/monitor defines a profile-owned REST
     server with machine, state, tools, metrics, events, event stream, OpenAPI,
-    and control exit routes. Tests cover cached-state reads, OpenAPI redaction,
-    snapshot endpoint response shape, event stream frames, observational
-    failure behavior, and profile-owned control endpoint documentation. The
-    monitor profile uses the same REST server launch path as other configured
-    server tools, so there is no separate monitor server stack.
+    and control exit routes. The checked-in monitor REST configuration binds
+    127.0.0.1:0, so the launch output address is the supervisor discovery
+    source. Tests cover cached-state reads, OpenAPI redaction, snapshot
+    endpoint response shape, event stream frames, observational failure
+    behavior, and profile-owned control endpoint documentation. The monitor
+    profile uses the same REST server launch path as other configured server
+    tools, so there is no separate monitor server stack.
     A supervisor can call /monitor/metrics after launch and see samples from
     the same run, not a seeded fixture. The real CLI proof generates an
     isolated loopback listener while preserving the checked-in operator profile
-    default. TestMonitorReleaseProfileProof and mage integration:uc004 prove
-    the path through cmd/agent with the live store.
+    path and discovering the bound address from profile-owned launch output.
+    TestMonitorReleaseProfileProof and mage integration:uc004 prove the path
+    through cmd/agent with the live store.
   remaining: |
     /monitor/openapi currently documents monitor routes and redacts unsafe
     fields. Precise JSON Schema generation for scalar fields, arrays, maps,
@@ -146,7 +157,7 @@ acceptance_criteria:
 
   - id: AC2
     criterion: OpenAPI requirements cover configured endpoint descriptions, stable operation IDs, type-accurate response schemas, profile-owned control endpoints, redaction, lower_snake_case field names, and no generated Go server code.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11]
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R2.12]
     tests:
       - "test-rel04.0-monitor: Monitor OpenAPI omits unsafe fields"
       - "test-rel04.0-monitor: End-to-end monitor release proof"
@@ -160,7 +171,7 @@ acceptance_criteria:
 
   - id: AC4
     criterion: Event stream requirements expose cached monitor updates without creating workflow signals or retaining tool execution.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
     tests:
       - "test-rel04.0-monitor: Monitor event stream reads cached updates"
       - "test-rel04.0-monitor: End-to-end monitor release proof"
@@ -173,7 +184,7 @@ acceptance_criteria:
 
   - id: AC6
     criterion: Serving lifecycle requirements keep the monitor profile queryable until a configured control exit request stops the listener, routes to a success terminal state, and uses isolated binding for automated proofs.
-    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7]
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R6.8, R6.9]
     tests:
       - "test-rel04.0-monitor: Real CLI monitor process stays queryable until exit"
 

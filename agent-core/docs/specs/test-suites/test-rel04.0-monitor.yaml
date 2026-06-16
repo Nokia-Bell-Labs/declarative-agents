@@ -15,6 +15,7 @@ preconditions:
   - OpenAPI tests can inspect generated or configured endpoint descriptions.
   - Disabled-mode tests can run without monitor config.
   - A real cmd/agent monitor process can bind an isolated localhost REST listener during tests.
+  - REST server launch output exposes the bound listener address when the profile config uses 127.0.0.1:0.
 
 test_cases:
   - use_case: rel04.0-uc001-configurable-tool-metrics
@@ -26,8 +27,8 @@ test_cases:
       Load agents/monitor/profile.yaml through cmd/agent startup helpers. Run
       the configured monitor machine with a live MonitorRecorder. Query the
       configured monitor REST views from the same store. The proof also checks
-      workflow labels, OpenTelemetry export, REST OpenAPI output, and cached
-      event-stream frames.
+      workflow labels, OpenTelemetry export, REST OpenAPI output, launch-output
+      bound address discovery, and cached event-stream frames.
     inputs:
       profile: agents/monitor/profile.yaml
       fixture: testdata/integration/rel04-monitor/monitor-rest.yaml
@@ -38,6 +39,8 @@ test_cases:
       openapi_output_present: true
       otel_metrics_exported: true
       workflow_labels_present: true
+      bound_address_discovered_from_launch_output: true
+      profile_owned_monitor_path_used: true
     traces:
       - rel04.0-uc001-configurable-tool-metrics S1
       - rel04.0-uc001-configurable-tool-metrics S2
@@ -60,14 +63,17 @@ test_cases:
     integration_target: mage integration:uc004
     status: implemented
     description: |
-      Start cmd/agent with agents/monitor/profile.yaml, then wait until the
-      monitor REST listener accepts requests. Request /monitor/state while the
-      process is still running. Before shutdown, ask /monitor/metrics for the
-      live aggregate view and send the configured monitor control exit request.
-      After handling the control request, the process should stop the owned
-      listener and complete with terminal state Done or Succeeded. The proof
-      should avoid the checked-in fixed profile port by generating or overriding
-      the monitor bind address for the test run.
+      Start cmd/agent with agents/monitor/profile.yaml or an equivalent
+      profile-owned monitor path, then wait until the monitor REST listener
+      accepts requests. Discover the base URL from REST server launch output
+      when the configured address uses 127.0.0.1:0. Request /monitor/state
+      while the process is still running. Before shutdown, ask /monitor/metrics
+      for the live aggregate view and send the configured monitor control exit
+      request. After handling the control request, the process should stop the
+      owned listener and complete with terminal state Done or Succeeded. The
+      proof should avoid a shared fixed profile port while preserving profile
+      launch, blocking await, control exit, listener stop, and successful
+      terminal routing.
     inputs:
       profile: agents/monitor/profile.yaml
       query_routes:
@@ -75,6 +81,7 @@ test_cases:
         - /monitor/metrics
       control_route: /monitor/control/exit
       binding: isolated_loopback_address
+      discovery: rest_server_launch_output_address
     expected:
       process_running_after_server_launch: true
       monitor_state_query_succeeds: true
@@ -82,6 +89,8 @@ test_cases:
       control_exit_stops_listener: true
       terminal_status_succeeded: true
       avoids_shared_fixed_port: true
+      bound_address_discovered: true
+      stock_or_equivalent_profile_owned_path: true
     traces:
       - rel04.0-uc002-monitor-rest-api S6
       - srd033-monitor-rest-api AC6
@@ -224,7 +233,8 @@ test_cases:
       precise JSON Schema types and omit prompt data or output data. They should
       also omit secret material, workspace paths, and unbounded labels. The
       OpenAPI document should include profile-owned lifecycle control endpoints
-      such as POST /monitor/control/exit.
+      such as POST /monitor/control/exit. It should describe
+      /monitor/events/stream as an SSE endpoint with text/event-stream content.
     inputs:
       endpoints: [machine_spec, current_state, tool_metrics, aggregate_metrics, event_stream, control_exit]
     expected:
@@ -232,6 +242,7 @@ test_cases:
       unsafe_fields_absent: true
       control_exit_documented: true
       generated_go_server_code: false
+      event_stream_content_type: text/event-stream
       lower_snake_case_schema_fields: true
       shallow_all_object_scalar_schemas_absent: true
       monitor_state_schema:
@@ -301,13 +312,18 @@ test_cases:
     status: implemented
     description: |
       Connect to the configured monitor event stream. Frames should reflect
-      cached monitor updates and obey stream limits. A disconnect should clean
-      up the subscription without changing agent state.
+      cached monitor updates and obey stream limits. Frames should use
+      run_event or metric_sample event names and carry one JSON data payload
+      shaped like the cached recent event or recent sample. A disconnect should
+      clean up the subscription without changing agent state.
     inputs:
       subscribers: 2
       store_updates: [state_change, metric_sample, diagnostic]
     expected:
       frames_from_cached_updates: true
+      event_names: [run_event, metric_sample]
+      frame_payloads_are_json: true
+      frame_payload_shape_matches_cached_views: true
       workflow_signals_created: false
       disconnect_changes_agent_state: false
     traces:
