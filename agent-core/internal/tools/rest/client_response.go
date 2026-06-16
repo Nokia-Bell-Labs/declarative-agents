@@ -204,12 +204,7 @@ func clientOperationError(commandName, stage string, err error, def ClientOperat
 }
 
 func redactError(err error, def ClientOperationDefinition, resolver CredentialResolver) error {
-	message := err.Error()
-	for _, secret := range errorRedactionValues(def.Auth, resolver) {
-		if secret != "" {
-			message = strings.ReplaceAll(message, secret, "[REDACTED]")
-		}
-	}
+	message := redactTextValues(err.Error(), errorRedactionValues(def.Auth, resolver))
 	return fmt.Errorf("%s", message)
 }
 

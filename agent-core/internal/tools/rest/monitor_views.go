@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
@@ -279,30 +278,11 @@ func metricAttributeViews(items []core.MetricAttribute) []map[string]interface{}
 func safeLabels(labels map[string]string) map[string]string {
 	out := map[string]string{}
 	for name, value := range labels {
-		if safeMonitorLabel(name, value) {
+		if safeRedactionLabel(name, value) {
 			out[name] = value
 		}
 	}
 	return out
-}
-
-func safeMonitorLabel(name, value string) bool {
-	if name == "" || value == "" {
-		return false
-	}
-	combined := strings.ToLower(name + " " + value)
-	for _, bad := range unsafeMonitorTerms {
-		if strings.Contains(combined, bad) {
-			return false
-		}
-	}
-	return true
-}
-
-var unsafeMonitorTerms = []string{
-	"prompt", "secret", "token", "authorization", "full_output",
-	"request_id", "timestamp", "stack_trace", "command_output", "url",
-	"path", "user_text",
 }
 
 func writeMonitorError(w http.ResponseWriter, route string, err error) {

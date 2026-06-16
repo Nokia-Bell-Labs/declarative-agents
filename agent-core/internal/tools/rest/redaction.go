@@ -8,7 +8,14 @@ const (
 	redactionBody    = "body"
 	redactionHeaders = "headers"
 	redactionQuery   = "query"
+	redactedValue    = "[REDACTED]"
 )
+
+var sensitiveRedactionTerms = []string{
+	"prompt", "secret", "token", "authorization", "full_output",
+	"request_id", "timestamp", "stack_trace", "command_output", "url",
+	"path", "user_text",
+}
 
 func clientRedactionSelectors(def ClientOperationDefinition, mapping StatusMapping) []string {
 	responseMap := resolvedResponseMapping(def, mapping)
@@ -59,16 +66,38 @@ func redactServerField(payload map[string]interface{}, scope, field string) {
 		redactNested(payload["query"], field)
 	}
 	if field != "" {
-		payload[field] = "[REDACTED]"
+		payload[field] = redactedValue
 	}
 }
 
 func redactMappedOutput(output map[string]interface{}, selectors []string) {
 	for _, selector := range selectors {
 		applyRedactionSelector(selector, func(_ string, field string) {
-			output[field] = "[REDACTED]"
+			output[field] = redactedValue
 		})
 	}
+}
+
+func redactTextValues(text string, values []string) string {
+	for _, value := range values {
+		if value != "" {
+			text = strings.ReplaceAll(text, value, redactedValue)
+		}
+	}
+	return text
+}
+
+func safeRedactionLabel(name, value string) bool {
+	if name == "" || value == "" {
+		return false
+	}
+	combined := strings.ToLower(name + " " + value)
+	for _, term := range sensitiveRedactionTerms {
+		if strings.Contains(combined, term) {
+			return false
+		}
+	}
+	return true
 }
 
 func validRedactionSelector(selector string) bool {
@@ -104,6 +133,6 @@ func redactNested(value interface{}, field string) {
 	if !ok || field == "" {
 		return
 	}
-	values[strings.ToLower(field)] = "[REDACTED]"
-	values[field] = "[REDACTED]"
+	values[strings.ToLower(field)] = redactedValue
+	values[field] = redactedValue
 }

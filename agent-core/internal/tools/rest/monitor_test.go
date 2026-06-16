@@ -72,7 +72,9 @@ func TestMonitorREST_SnapshotEndpoints(t *testing.T) {
 	metrics := getJSON(t, baseURL+"/monitor/metrics")
 	require.Contains(t, metrics["metrics"], "dispatch_count")
 	require.NotContains(t, metrics, "secret")
-	requireJSONOmitsGoMonitorFields(t, requestBody(t, http.MethodGet, baseURL+"/monitor/metrics", "", http.StatusOK))
+	body := requestBody(t, http.MethodGet, baseURL+"/monitor/metrics", "", http.StatusOK)
+	require.NotContains(t, body, "synthetic-token")
+	requireJSONOmitsGoMonitorFields(t, body)
 }
 
 func TestMonitorREST_EventStreamCachedUpdates(t *testing.T) {
@@ -206,7 +208,7 @@ func seededMonitorState() MonitorState {
 	_ = rec.RecordMetric(context.Background(), monitor.MetricSample{
 		Name: "dispatch_count", Kind: monitor.InstrumentCounter, Unit: "{dispatch}",
 		Value: 1, ToolName: "file_read", Status: "success",
-		Attributes: map[string]string{"profile": "monitor", "request_id": "unsafe"},
+		Attributes: map[string]string{"profile": "monitor", "credential": "synthetic-token", "request_id": "unsafe"},
 		Timestamp:  time.Now(),
 	})
 	return MonitorState{Store: store, Machine: monitorMachineSpec(), Tools: monitorToolDefs()}
