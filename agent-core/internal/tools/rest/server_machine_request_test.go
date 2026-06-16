@@ -80,16 +80,8 @@ func TestRESTServerMachineRequestCommandError(t *testing.T) {
 
 func TestRESTServerMachineRequestConformanceLoadsConfiguredMachineFile(t *testing.T) {
 	t.Parallel()
-	cfg := machineRequestConfig("DocumentationReady", 0, false)
-	cfg.MachineSpec = nil
-	cfg.InitFunc = nil
-	cfg.Timeout = "2s"
+	cfg := conformanceMachineRequestConfig()
 	dir := writeConformanceProfile(t)
-	cfg.Profile = "profile.yaml"
-	cfg.Machine = "request-machine.yaml"
-	cfg.Response.TerminalSignals = map[string]MachineResponseMapping{
-		"DocumentationReady": {Status: 200, Body: map[string]string{"greeting": "$.greeting"}},
-	}
 	runner := conformanceProfileRunner(dir)
 	state, baseURL := launchMachineRequestServerWithRunner(t, cfg, runner)
 	defer stopRESTServer(t, state, "machine")
@@ -98,6 +90,24 @@ func TestRESTServerMachineRequestConformanceLoadsConfiguredMachineFile(t *testin
 
 	require.Equal(t, "hello profile", body["greeting"])
 	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
+}
+
+func TestRESTDocumentResourcesConfigConformance(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseDefinition([]byte(restDocumentResourcesYAML()))
+	require.ErrorContains(t, err, "rest.document_resources")
+
+	_, err = ParseDefinition([]byte(machineRequestDocumentResourcesYAML()))
+	require.ErrorContains(t, err, "machine_request.document_resources")
+
+	cfg := conformanceMachineRequestConfig()
+	runner := conformanceProfileRunner(writeConformanceProfile(t))
+	state, baseURL := launchMachineRequestServerWithRunner(t, cfg, runner)
+	defer stopRESTServer(t, state, "machine")
+
+	body := postJSON(t, baseURL+"/docs", `{"name":"profile"}`, http.StatusOK)
+	require.Equal(t, "hello profile", body["greeting"])
 }
 
 func TestProfileMachineRequestRunnerRejectsInvalidConfig(t *testing.T) {
@@ -300,6 +310,19 @@ func machineRequestConfig(signal string, delay time.Duration, fail bool) Machine
 			return nil
 		},
 	}
+}
+
+func conformanceMachineRequestConfig() MachineRequest {
+	cfg := machineRequestConfig("DocumentationReady", 0, false)
+	cfg.MachineSpec = nil
+	cfg.InitFunc = nil
+	cfg.Timeout = "2s"
+	cfg.Profile = "profile.yaml"
+	cfg.Machine = "request-machine.yaml"
+	cfg.Response.TerminalSignals = map[string]MachineResponseMapping{
+		"DocumentationReady": {Status: 200, Body: map[string]string{"greeting": "$.greeting"}},
+	}
+	return cfg
 }
 
 func requestMachineSpec() *core.MachineSpec {
@@ -558,3 +581,43 @@ const conformanceDeclarationsYAML = `tools:
     init: test_machine_request_respond
     emits: [DocumentationReady]
 `
+
+func restDocumentResourcesYAML() string {
+	return `rest:
+  version: v1
+  document_resources:
+    documentation_corpus:
+      root: docs
+      extensions: [.yaml]
+      response_modes: [parsed_yaml]
+      operations:
+        get:
+          type: get
+          success_signal: DocumentReady
+`
+}
+
+func machineRequestDocumentResourcesYAML() string {
+	return `rest:
+  version: v1
+  servers:
+    machine:
+      address: 127.0.0.1:0
+      endpoints:
+        docs:
+          method: POST
+          path: /docs
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            timeout: 2s
+            document_resources: [documentation_corpus]
+            request:
+              body:
+                name: $.name
+            response:
+              terminal_signals:
+                DocumentationReady:
+                  status: 200
+`
+}

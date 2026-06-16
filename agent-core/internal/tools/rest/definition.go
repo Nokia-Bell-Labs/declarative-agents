@@ -12,14 +12,15 @@ type DefinitionFile struct {
 
 // Definition is the shared REST model used by hand-authored YAML and imports.
 type Definition struct {
-	Version          string                     `yaml:"version"`
-	Clients          map[string]Client          `yaml:"clients,omitempty"`
-	Servers          map[string]Server          `yaml:"servers,omitempty"`
-	OpenAPI          map[string]OpenAPIImport   `yaml:"openapi,omitempty"`
-	Auth             map[string]AuthProfile     `yaml:"auth,omitempty"`
-	Limits           map[string]LimitProfile    `yaml:"limits,omitempty"`
-	RetryPolicies    map[string]RetryPolicy     `yaml:"retry_policies,omitempty"`
-	ResponseMappings map[string]ResponseMapping `yaml:"response_mappings,omitempty"`
+	Version           string                      `yaml:"version"`
+	Clients           map[string]Client           `yaml:"clients,omitempty"`
+	Servers           map[string]Server           `yaml:"servers,omitempty"`
+	OpenAPI           map[string]OpenAPIImport    `yaml:"openapi,omitempty"`
+	Auth              map[string]AuthProfile      `yaml:"auth,omitempty"`
+	Limits            map[string]LimitProfile     `yaml:"limits,omitempty"`
+	RetryPolicies     map[string]RetryPolicy      `yaml:"retry_policies,omitempty"`
+	ResponseMappings  map[string]ResponseMapping  `yaml:"response_mappings,omitempty"`
+	DocumentResources map[string]DocumentResource `yaml:"document_resources,omitempty"`
 }
 
 // Client defines one configured outbound REST authority.
@@ -163,18 +164,19 @@ type LifecycleControl struct {
 
 // MachineRequest configures one request-scoped MachineSpec run.
 type MachineRequest struct {
-	Profile        string                     `yaml:"profile,omitempty"`
-	Machine        string                     `yaml:"machine,omitempty"`
-	InitialSignal  string                     `yaml:"initial_signal,omitempty"`
-	Request        MachineRequestMapping      `yaml:"request,omitempty"`
-	Response       MachineRequestResponse     `yaml:"response,omitempty"`
-	Timeout        string                     `yaml:"timeout,omitempty"`
-	MachineSpec    *core.MachineSpec          `yaml:"-"`
-	Registry       *core.Registry             `yaml:"-"`
-	InitFunc       func(*core.Registry) error `yaml:"-"`
-	ToolAction     core.ActionFunc            `yaml:"-"`
-	Budget         core.Budget                `yaml:"-"`
-	CommandTimeout string                     `yaml:"-"`
+	Profile           string                     `yaml:"profile,omitempty"`
+	Machine           string                     `yaml:"machine,omitempty"`
+	InitialSignal     string                     `yaml:"initial_signal,omitempty"`
+	Request           MachineRequestMapping      `yaml:"request,omitempty"`
+	Response          MachineRequestResponse     `yaml:"response,omitempty"`
+	Timeout           string                     `yaml:"timeout,omitempty"`
+	DocumentResources []string                   `yaml:"document_resources,omitempty"`
+	MachineSpec       *core.MachineSpec          `yaml:"-"`
+	Registry          *core.Registry             `yaml:"-"`
+	InitFunc          func(*core.Registry) error `yaml:"-"`
+	ToolAction        core.ActionFunc            `yaml:"-"`
+	Budget            core.Budget                `yaml:"-"`
+	CommandTimeout    string                     `yaml:"-"`
 }
 
 // MachineRequestMapping declares which request data seeds the machine.
@@ -197,6 +199,45 @@ type MachineResponseMapping struct {
 	ContentType string            `yaml:"content_type,omitempty"`
 	Headers     map[string]string `yaml:"headers,omitempty"`
 	Body        map[string]string `yaml:"body,omitempty"`
+}
+
+// DocumentResource is reserved target-format config for document corpora.
+type DocumentResource struct {
+	Root                string                       `yaml:"root,omitempty"`
+	Include             []string                     `yaml:"include,omitempty"`
+	Extensions          []string                     `yaml:"extensions,omitempty"`
+	ResponseModes       []string                     `yaml:"response_modes,omitempty"`
+	DefaultResponseMode string                       `yaml:"default_response_mode,omitempty"`
+	CategoryRules       []DocumentCategoryRule       `yaml:"category_rules,omitempty"`
+	MaxBytes            int                          `yaml:"max_bytes,omitempty"`
+	Symlinks            string                       `yaml:"symlinks,omitempty"`
+	BinaryPolicy        string                       `yaml:"binary_policy,omitempty"`
+	Operations          map[string]DocumentOperation `yaml:"operations,omitempty"`
+	UI                  DocumentResourceUI           `yaml:"ui,omitempty"`
+}
+
+// DocumentCategoryRule maps a path prefix to a document category.
+type DocumentCategoryRule struct {
+	Prefix   string `yaml:"prefix,omitempty"`
+	Category string `yaml:"category,omitempty"`
+}
+
+// DocumentOperation is reserved target-format config for document words.
+type DocumentOperation struct {
+	Type           string            `yaml:"type,omitempty"`
+	ResponseMode   string            `yaml:"response_mode,omitempty"`
+	SuccessSignal  string            `yaml:"success_signal,omitempty"`
+	NotFoundSignal string            `yaml:"not_found_signal,omitempty"`
+	DeniedSignal   string            `yaml:"denied_signal,omitempty"`
+	Output         map[string]string `yaml:"output,omitempty"`
+}
+
+// DocumentResourceUI is reserved human-facing resource presentation config.
+type DocumentResourceUI struct {
+	Label           string   `yaml:"label,omitempty"`
+	SidebarGrouping string   `yaml:"sidebar_grouping,omitempty"`
+	Actions         []string `yaml:"actions,omitempty"`
+	AssetRef        string   `yaml:"asset_ref,omitempty"`
 }
 
 // ShutdownConfig defines graceful server shutdown behavior.
