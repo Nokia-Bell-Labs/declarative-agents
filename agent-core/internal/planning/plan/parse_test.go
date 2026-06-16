@@ -3,6 +3,8 @@
 package plan
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,28 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const validPlanYAML = `title: Implement config parser
-summary: Parse YAML configuration files into typed structs.
-files:
-  - path: internal/config/config.go
-    action: create
-    note: Config struct and loader
-  - path: internal/config/config_test.go
-    action: create
-requirements:
-  - id: R1
-    text: Define Config struct with typed fields
-  - id: R2
-    text: Parse YAML files into Config
-design_decisions:
-  - id: D1
-    text: Use yaml.v3 for parsing
-acceptance_criteria:
-  - id: AC1
-    text: Config loads from a valid YAML file
-  - id: AC2
-    text: Error returned for invalid YAML input
-`
+var validPlanYAML = string(mustReadFixture("valid_plan.yaml"))
 
 // TestRel00_1_UC001_PlanRoundTrip verifies ImplementationPlan marshals
 // to YAML and unmarshals back to an identical struct (srd008 AC5).
@@ -64,6 +45,14 @@ func TestRel00_1_UC001_PlanRoundTrip(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(data, &roundTripped))
 
 	assert.Equal(t, original, roundTripped)
+}
+
+func mustReadFixture(name string) []byte {
+	data, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		panic(err)
+	}
+	return data
 }
 
 // TestRel00_1_UC001_ParsePlanHandlesCodeFences verifies ParsePlan

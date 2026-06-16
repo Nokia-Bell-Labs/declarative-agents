@@ -18,6 +18,8 @@ func toolReq(params string) core.Result {
 }
 
 func TestReadBuilder_MissingParam(t *testing.T) {
+	t.Parallel()
+
 	b := &ReadBuilder{Root: t.TempDir()}
 	cmd := b.Build(toolReq(`{}`))
 	res := cmd.Execute()
@@ -26,6 +28,8 @@ func TestReadBuilder_MissingParam(t *testing.T) {
 }
 
 func TestRead_Success(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "hello.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 
@@ -38,6 +42,8 @@ func TestRead_Success(t *testing.T) {
 }
 
 func TestRead_LineRange(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "lines.txt"), []byte("a\nb\nc\nd\ne\n"), 0o644))
 
@@ -51,6 +57,8 @@ func TestRead_LineRange(t *testing.T) {
 }
 
 func TestRead_Directory(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, "subdir"), 0o755))
 
@@ -62,6 +70,8 @@ func TestRead_Directory(t *testing.T) {
 }
 
 func TestRead_Binary(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "bin"), []byte{0x00, 0x01, 0x02}, 0o644))
 
@@ -73,6 +83,8 @@ func TestRead_Binary(t *testing.T) {
 }
 
 func TestRead_NotFound(t *testing.T) {
+	t.Parallel()
+
 	b := &ReadBuilder{Root: t.TempDir()}
 	cmd := b.Build(toolReq(`{"path":"nope.txt"}`))
 	res := cmd.Execute()
@@ -80,6 +92,8 @@ func TestRead_NotFound(t *testing.T) {
 }
 
 func TestWrite_NewFile(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	b := &WriteBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"newdir/file.go","content":"package foo\n"}`))
@@ -93,6 +107,8 @@ func TestWrite_NewFile(t *testing.T) {
 }
 
 func TestWrite_UndoRemovesCreatedFile(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	b := &WriteBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"new.txt","content":"created"}`))
@@ -107,6 +123,8 @@ func TestWrite_UndoRemovesCreatedFile(t *testing.T) {
 }
 
 func TestWrite_Overwrite(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "exist.txt"), []byte("old"), 0o644))
 
@@ -121,6 +139,8 @@ func TestWrite_Overwrite(t *testing.T) {
 }
 
 func TestWrite_UndoRestoresOverwrittenFile(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "exist.txt"), []byte("old"), 0o600))
 
@@ -141,6 +161,8 @@ func TestWrite_UndoRestoresOverwrittenFile(t *testing.T) {
 }
 
 func TestWrite_UndoMementoDeclaresWorkspaceRestore(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	b := &WriteBuilder{Root: root}
 	cmd := b.Build(toolReq(`{"path":"new.txt","content":"created"}`))
@@ -159,6 +181,8 @@ func TestWrite_UndoMementoDeclaresWorkspaceRestore(t *testing.T) {
 }
 
 func TestWrite_MissingParams(t *testing.T) {
+	t.Parallel()
+
 	b := &WriteBuilder{Root: t.TempDir()}
 	cmd := b.Build(toolReq(`{"path":"f.txt"}`))
 	res := cmd.Execute()
@@ -167,6 +191,8 @@ func TestWrite_MissingParams(t *testing.T) {
 }
 
 func TestEdit_SingleMatch(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("hello world"), 0o644))
 
@@ -182,6 +208,8 @@ func TestEdit_SingleMatch(t *testing.T) {
 }
 
 func TestEdit_UndoRestoresOriginalFile(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("hello world"), 0o644))
 
@@ -199,6 +227,8 @@ func TestEdit_UndoRestoresOriginalFile(t *testing.T) {
 }
 
 func TestEdit_NoMatch(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("hello"), 0o644))
 
@@ -212,6 +242,8 @@ func TestEdit_NoMatch(t *testing.T) {
 }
 
 func TestEdit_NoMatchIncludesNumberedLines(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("line1\nline2\nline3"), 0o644))
 
@@ -225,6 +257,8 @@ func TestEdit_NoMatchIncludesNumberedLines(t *testing.T) {
 }
 
 func TestEdit_AmbiguousMatch(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("aaa"), 0o644))
 
@@ -236,6 +270,8 @@ func TestEdit_AmbiguousMatch(t *testing.T) {
 }
 
 func TestListFiles_Basic(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "sub"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "top.txt"), []byte("x"), 0o644))
@@ -251,6 +287,8 @@ func TestListFiles_Basic(t *testing.T) {
 }
 
 func TestListFiles_SubPath(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "a", "b"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "a", "b", "c.txt"), []byte("z"), 0o644))
@@ -263,6 +301,8 @@ func TestListFiles_SubPath(t *testing.T) {
 }
 
 func TestIsBinary(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsBinary([]byte{0x00, 0x01}))
 	assert.False(t, IsBinary([]byte("hello world")))
 	assert.False(t, IsBinary(nil))

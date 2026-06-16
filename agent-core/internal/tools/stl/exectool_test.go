@@ -14,50 +14,10 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 )
 
-const testToolsYAML = `
-tools:
-  - name: greet
-    type: exec
-    binary: echo
-    args: [hello]
-    dir: scripts
-    precondition: git_repo
-    output_cap: 25
-    visibility: external
-    emits: [ToolDone, ToolFailed]
-    side_effects:
-      - kind: stdout
-        description: "Writes greeting text to stdout."
-    description: "Say hello"
-    parameters:
-      type: object
-      properties:
-        name:
-          type: string
-          description: "Name to greet"
-          flag: --name
-        loud:
-          type: boolean
-          description: "Shout"
-          flag: --loud
-          bool_flag: true
-      required: [name]
-  - name: list_dir
-    binary: ls
-    args: [-la]
-    description: "List directory"
-    parameters:
-      type: object
-      properties:
-        path:
-          type: string
-          description: "Directory to list"
-          positional: true
-          default: "."
-`
-
 func TestParseToolDefs(t *testing.T) {
-	defs, err := ParseToolDefs([]byte(testToolsYAML))
+	t.Parallel()
+
+	defs, err := ParseToolDefs(readFixture(t, "exectool_tools.yaml"))
 	require.NoError(t, err)
 	assert.Len(t, defs, 2)
 
@@ -103,6 +63,8 @@ func findMapping(mappings []ParamMapping, name string) *ParamMapping {
 }
 
 func TestParseToolDefs_Errors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		yaml  string
@@ -126,6 +88,8 @@ func TestParseToolDefs_Errors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := ParseToolDefs([]byte(tt.yaml))
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errIs)
@@ -134,6 +98,8 @@ func TestParseToolDefs_Errors(t *testing.T) {
 }
 
 func TestToolDef_ToToolSpec(t *testing.T) {
+	t.Parallel()
+
 	td := ToolDef{
 		Name:        "build",
 		Description: "Compile stuff.",
@@ -172,60 +138,9 @@ func TestToolDef_ToToolSpec(t *testing.T) {
 }
 
 func TestParseToolDefs_ContractFields(t *testing.T) {
-	yaml := `tools:
-  - name: parse_csv
-    type: exec
-    category: word
-    binary: csvtool
-    description: "Parse a CSV file into rows."
-    problem: "The agent needs a typed way to turn CSV files into row data."
-    goals:
-      - "Return deterministic row data for a single CSV input."
-    requirements:
-      input:
-        - "must accept a path to one CSV file"
-      output:
-        - "must return row_count and rows"
-      side_effects:
-        - "must not mutate the workspace"
-      undo:
-        - "must be a no-op"
-      errors:
-        - "must fail when the CSV cannot be parsed"
-    non_goals:
-      - "Does not transform or clean CSV values."
-    output:
-      description: "Parsed CSV rows."
-      schema:
-        type: object
-        properties:
-          row_count:
-            type: integer
-          rows:
-            type: array
-    side_effects:
-      - kind: none
-        description: "Read-only tool."
-    reversibility:
-      classification: reversible
-      undo: noop
-      requires_confirmation: false
-    undo:
-      strategy: noop
-      description: "No state is changed."
-    errors:
-      - signal: ToolFailed
-        condition: "CSV parse error"
-        message_shape: "parse csv: <error>"
-        state_after_failure: unchanged
-    relationships:
-      before: [read]
-      after: [write]
-      overlaps:
-        - tool: read
-          difference: "read returns raw text; parse_csv returns structured rows"
-`
-	defs, err := ParseToolDefs([]byte(yaml))
+	t.Parallel()
+
+	defs, err := ParseToolDefs(readFixture(t, "exectool_contract_fields.yaml"))
 	require.NoError(t, err)
 	require.Len(t, defs, 1)
 
@@ -249,6 +164,8 @@ func TestParseToolDefs_ContractFields(t *testing.T) {
 }
 
 func TestParseToolDefs_LegacySideEffectsString(t *testing.T) {
+	t.Parallel()
+
 	defs, err := ParseToolDefs([]byte(`tools:
   - name: copy_dir
     type: exec
@@ -263,6 +180,8 @@ func TestParseToolDefs_LegacySideEffectsString(t *testing.T) {
 }
 
 func TestToolDef_ToToolSpec_IgnoresStructuredContractFields(t *testing.T) {
+	t.Parallel()
+
 	td := ToolDef{
 		Name:        "parse_csv",
 		Description: "Parse CSV.",
@@ -282,6 +201,8 @@ func TestToolDef_ToToolSpec_IgnoresStructuredContractFields(t *testing.T) {
 }
 
 func TestToolDef_ToToolSpec_Internal(t *testing.T) {
+	t.Parallel()
+
 	td := ToolDef{
 		Name:       "internal_thing",
 		Binary:     "true",
@@ -292,6 +213,8 @@ func TestToolDef_ToToolSpec_Internal(t *testing.T) {
 }
 
 func TestStripCLIExtensions(t *testing.T) {
+	t.Parallel()
+
 	schema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -326,7 +249,9 @@ func TestStripCLIExtensions(t *testing.T) {
 }
 
 func TestRegisterToolDefs(t *testing.T) {
-	defs, err := ParseToolDefs([]byte(testToolsYAML))
+	t.Parallel()
+
+	defs, err := ParseToolDefs(readFixture(t, "exectool_tools.yaml"))
 	require.NoError(t, err)
 
 	reg := core.NewRegistry()
@@ -341,6 +266,8 @@ func TestRegisterToolDefs(t *testing.T) {
 }
 
 func TestMergeToolDefs(t *testing.T) {
+	t.Parallel()
+
 	base := []ToolDef{
 		{
 			Name:     "build",
@@ -383,11 +310,15 @@ func TestMergeToolDefs(t *testing.T) {
 }
 
 func TestExtractParamMappings_Empty(t *testing.T) {
+	t.Parallel()
+
 	td := ToolDef{Name: "noop", Binary: "true"}
 	assert.Nil(t, td.ExtractParamMappings())
 }
 
 func TestExtractParamMappings_Full(t *testing.T) {
+	t.Parallel()
+
 	td := ToolDef{
 		Name:   "test",
 		Binary: "go",
@@ -426,6 +357,8 @@ func TestExtractParamMappings_Full(t *testing.T) {
 }
 
 func TestLoadToolSelection(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := dir + "/tools.yaml"
 	writeFile(t, path, `tools:
@@ -439,6 +372,8 @@ func TestLoadToolSelection(t *testing.T) {
 }
 
 func TestLoadToolSelections(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	writeFile(t, dir+"/a.yaml", "tools:\n  - read\n  - write\n")
@@ -450,6 +385,8 @@ func TestLoadToolSelections(t *testing.T) {
 }
 
 func TestLoadToolSelections_Single(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir+"/tools.yaml", "tools:\n  - read\n  - write\n")
 
@@ -459,6 +396,8 @@ func TestLoadToolSelections_Single(t *testing.T) {
 }
 
 func TestLoadToolDeclarationsFromDirs(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "read.yaml"), `tools:
   - name: read
@@ -483,12 +422,16 @@ func TestLoadToolDeclarationsFromDirs(t *testing.T) {
 }
 
 func TestLoadToolDeclarationsFromDirs_MissingDir(t *testing.T) {
+	t.Parallel()
+
 	_, err := LoadToolDeclarationsFromDirs([]string{"/nonexistent/dir"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "scan tool config dir")
 }
 
 func TestSelectTools(t *testing.T) {
+	t.Parallel()
+
 	decls := []ToolDef{
 		{Name: "read", Type: "builtin", Init: "file_read", Description: "Read files"},
 		{Name: "write", Type: "builtin", Init: "file_write", Description: "Write files"},
@@ -496,6 +439,8 @@ func TestSelectTools(t *testing.T) {
 	}
 
 	t.Run("valid selection", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := SelectTools(decls, []string{"read", "build"})
 		require.NoError(t, err)
 		require.Len(t, result, 2)
@@ -506,6 +451,8 @@ func TestSelectTools(t *testing.T) {
 	})
 
 	t.Run("undeclared tool", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := SelectTools(decls, []string{"read", "missing"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "missing")
@@ -513,6 +460,8 @@ func TestSelectTools(t *testing.T) {
 	})
 
 	t.Run("empty selection", func(t *testing.T) {
+		t.Parallel()
+
 		result, err := SelectTools(decls, []string{})
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -520,6 +469,8 @@ func TestSelectTools(t *testing.T) {
 }
 
 func TestLoadToolDeclarations_Merge(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir+"/a.yaml", `tools:
   - name: foo
@@ -551,4 +502,11 @@ func TestLoadToolDeclarations_Merge(t *testing.T) {
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+}
+
+func readFixture(t *testing.T, name string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", name))
+	require.NoError(t, err)
+	return data
 }
