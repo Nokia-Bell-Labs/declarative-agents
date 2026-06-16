@@ -391,6 +391,33 @@ func TestRESTServer_StreamEvents(t *testing.T) {
 	require.Contains(t, body, `"route":"approve"`)
 }
 
+func TestRESTServer_StreamEventsUnblocksOnStop(t *testing.T) {
+	t.Parallel()
+
+	server := streamServer()
+	server.Queue.Timeout = "1s"
+	state, baseURL := launchRESTServer(t, server, LimitProfile{})
+	bodyC := make(chan string, 1)
+	errC := make(chan error, 1)
+	go streamResponse(baseURL+"/events", bodyC, errC)
+	requireActiveStreams(t, state, "stream", 1)
+
+	start := time.Now()
+	result := stopRESTServer(t, state, "stream")
+	require.Less(t, time.Since(start), 500*time.Millisecond)
+	require.Equal(t, "stopped", result["status"])
+
+	select {
+	case err := <-errC:
+		require.NoError(t, err)
+		body := <-bodyC
+		require.Contains(t, body, "event: server_stopped")
+		require.Contains(t, body, `"signal":"ServerStopped"`)
+	case <-time.After(500 * time.Millisecond):
+		require.Fail(t, "stream did not unblock after server stop")
+	}
+}
+
 func launchRESTServer(t *testing.T, server Server, limits LimitProfile) (*ServerState, string) {
 	t.Helper()
 	state := NewServerState()
@@ -581,6 +608,35 @@ func getJSON(t *testing.T, url string) map[string]interface{} {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&output))
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	return output
+}
+
+func streamResponse(url string, bodyC chan<- string, errC chan<- error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		errC <- err
+		return
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		errC <- err
+		return
+	}
+	bodyC <- string(data)
+	errC <- nil
+}
+
+func requireActiveStreams(t *testing.T, state *ServerState, name string, want int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		runtime, err := state.runtime(name)
+		if err != nil {
+			return false
+		}
+		runtime.mu.Lock()
+		defer runtime.mu.Unlock()
+		return runtime.activeStreams == want
+	}, 500*time.Millisecond, 10*time.Millisecond)
 }
 
 func controlServer() Server {
