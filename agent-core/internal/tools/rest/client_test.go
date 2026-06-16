@@ -5,6 +5,7 @@ package rest
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -106,9 +107,10 @@ func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
 		_, _ = w.Write([]byte(`{"title":"ok","secret":"body-secret"}`))
 	}))
 	defer upstream.Close()
-	client := issueClient()
+	def := clientDefinition(t, upstream.URL, issueClient())
+	client := def.Clients["github"]
 	client.AuthRef = "token"
-	def := clientDefinition(t, upstream.URL, client)
+	def.Clients["github"] = client
 	def.Auth = map[string]AuthProfile{"token": {
 		Type: authHeaderToken, Header: "X-Token", TokenRef: "token_ref",
 	}}
@@ -126,6 +128,36 @@ func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
 	result = clientCommand(badDef, InitClientGet, "get", params("1")).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "status_mapping")
+}
+
+func TestRESTRedactionPolicy_UnifiesOutputErrorsAndMonitorLabels(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok", "secret": "synthetic-token"})
+	}))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+	client := def.Clients["github"]
+	client.AuthRef = "token"
+	def.Clients["github"] = client
+	def.Auth = map[string]AuthProfile{"token": {
+		Type: authHeaderToken, Header: "X-Token", TokenRef: "token_ref",
+	}}
+
+	result := clientCommandWithCredentials(def, InitClientGet, "get", params("1"), authCredentials()).Execute()
+	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal)
+	require.NotContains(t, result.Output, "synthetic-token")
+	require.Contains(t, result.Output, redactedValue)
+
+	redactedErr := redactError(fmt.Errorf("network leaked synthetic-token"), resolvedClientOperation(t, def), authCredentials())
+	require.NotContains(t, redactedErr.Error(), "synthetic-token")
+	require.Contains(t, redactedErr.Error(), redactedValue)
+
+	labels := safeLabels(map[string]string{"operation": "get", "credential": "synthetic-token", "profile": "monitor"})
+	require.Equal(t, "get", labels["operation"])
+	require.Equal(t, "monitor", labels["profile"])
+	require.NotContains(t, labels, "credential")
 }
 
 func TestRESTClient_ResolvesAuthCredentialRefs(t *testing.T) {
@@ -542,6 +574,17 @@ func clientDefinition(t *testing.T, baseURL string, client Client) Definition {
 	}
 	require.NoError(t, ValidateDefinition(def))
 	return def
+}
+
+func resolvedClientOperation(t *testing.T, def Definition) ClientOperationDefinition {
+	t.Helper()
+	collection := NewCollection()
+	require.NoError(t, collection.Add(def))
+	resolved, err := collection.ResolveClientOperation(ClientToolConfig{
+		RestRef: "github", Resource: "issue", Operation: "get",
+	})
+	require.NoError(t, err)
+	return resolved
 }
 
 func issueClient() Client {
