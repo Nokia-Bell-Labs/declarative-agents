@@ -134,8 +134,8 @@ func (s *ServerState) Stop(name string) (map[string]interface{}, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), runtime.stopTimeout())
 	defer cancel()
-	shutdownErr := runtime.httpServer.Shutdown(ctx)
 	runtime.closeStopped()
+	shutdownErr := runtime.httpServer.Shutdown(ctx)
 	s.mu.Lock()
 	delete(s.servers, name)
 	s.mu.Unlock()
