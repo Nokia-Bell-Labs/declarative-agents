@@ -235,12 +235,17 @@ func prepareDocsCuratorIntegration(rootDir string) (docsCuratorIntegrationConfig
 		return docsCuratorIntegrationConfig{}, nil, err
 	}
 	cleanup := func() { _ = os.RemoveAll(tmpDir) }
+	profileRoot, err := resolveAgentProfilesRoot(rootDir)
+	if err != nil {
+		cleanup()
+		return docsCuratorIntegrationConfig{}, nil, err
+	}
 	cfg, err := docsCuratorEphemeralConfig(tmpDir)
 	if err != nil {
 		cleanup()
 		return docsCuratorIntegrationConfig{}, nil, err
 	}
-	if err := writeDocsCuratorProfileFiles(rootDir, tmpDir, cfg); err != nil {
+	if err := writeDocsCuratorProfileFiles(rootDir, profileRoot, tmpDir, cfg); err != nil {
 		cleanup()
 		return docsCuratorIntegrationConfig{}, nil, err
 	}
@@ -268,23 +273,24 @@ func docsCuratorEphemeralConfig(tmpDir string) (docsCuratorIntegrationConfig, er
 	}, nil
 }
 
-func writeDocsCuratorProfileFiles(rootDir, tmpDir string, cfg docsCuratorIntegrationConfig) error {
-	writers := []func(string, string, docsCuratorIntegrationConfig) error{
+func writeDocsCuratorProfileFiles(rootDir, profileRoot, tmpDir string, cfg docsCuratorIntegrationConfig) error {
+	writers := []func(string, string, string, docsCuratorIntegrationConfig) error{
 		writeDocsCuratorProfile,
 		writeDocsCuratorBuiltin,
 		writeDocsCuratorRest,
 		writeDocsCuratorOpenAPI,
 		copyDocsCuratorRequestMachine,
+		copyDocsCuratorUXConfig,
 	}
 	for _, write := range writers {
-		if err := write(rootDir, tmpDir, cfg); err != nil {
+		if err := write(rootDir, profileRoot, tmpDir, cfg); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func writeDocsCuratorProfile(rootDir, tmpDir string, _ docsCuratorIntegrationConfig) error {
+func writeDocsCuratorProfile(rootDir, profileRoot, tmpDir string, _ docsCuratorIntegrationConfig) error {
 	profile := fmt.Sprintf(`name: documentation-curator
 machine: %q
 tools:
@@ -296,16 +302,16 @@ tool_declarations:
   - %q
 rest_definitions:
   - %q
-`, docsCuratorPath(rootDir, "machine.yaml"), docsCuratorPath(rootDir, "tools.yaml"),
-		filepath.Join(tmpDir, "builtin.yaml"), docsCuratorPath(rootDir, "declarations.yaml"),
-		docsCuratorPath(rootDir, "request-declarations.yaml"),
+`, docsCuratorPath(profileRoot, "machine.yaml"), docsCuratorPath(profileRoot, "tools.yaml"),
+		filepath.Join(tmpDir, "builtin.yaml"), docsCuratorPath(profileRoot, "declarations.yaml"),
+		docsCuratorPath(profileRoot, "request-declarations.yaml"),
 		filepath.Join(rootDir, "tools/builtin/lifecycle/exit-agent.yaml"),
 		filepath.Join(tmpDir, "rest.yaml"))
 	return os.WriteFile(filepath.Join(tmpDir, "profile.yaml"), []byte(profile), 0o644)
 }
 
-func writeDocsCuratorBuiltin(rootDir, tmpDir string, cfg docsCuratorIntegrationConfig) error {
-	content, err := readDocsCuratorConfig(rootDir, "builtin.yaml")
+func writeDocsCuratorBuiltin(rootDir, profileRoot, tmpDir string, cfg docsCuratorIntegrationConfig) error {
+	content, err := readDocsCuratorConfig(profileRoot, "builtin.yaml")
 	if err != nil {
 		return err
 	}
@@ -319,8 +325,8 @@ func writeDocsCuratorBuiltin(rootDir, tmpDir string, cfg docsCuratorIntegrationC
 	return os.WriteFile(filepath.Join(tmpDir, "builtin.yaml"), []byte(replaceAll(content, replacements)), 0o644)
 }
 
-func writeDocsCuratorRest(rootDir, tmpDir string, cfg docsCuratorIntegrationConfig) error {
-	content, err := readDocsCuratorConfig(rootDir, "rest.yaml")
+func writeDocsCuratorRest(_ string, profileRoot, tmpDir string, cfg docsCuratorIntegrationConfig) error {
+	content, err := readDocsCuratorConfig(profileRoot, "rest.yaml")
 	if err != nil {
 		return err
 	}
@@ -335,8 +341,8 @@ func writeDocsCuratorRest(rootDir, tmpDir string, cfg docsCuratorIntegrationConf
 	return os.WriteFile(filepath.Join(tmpDir, "rest.yaml"), []byte(replaceAll(content, replacements)), 0o644)
 }
 
-func writeDocsCuratorOpenAPI(rootDir, tmpDir string, cfg docsCuratorIntegrationConfig) error {
-	content, err := readDocsCuratorConfig(rootDir, "openapi.yaml")
+func writeDocsCuratorOpenAPI(_ string, profileRoot, tmpDir string, cfg docsCuratorIntegrationConfig) error {
+	content, err := readDocsCuratorConfig(profileRoot, "openapi.yaml")
 	if err != nil {
 		return err
 	}
@@ -344,24 +350,36 @@ func writeDocsCuratorOpenAPI(rootDir, tmpDir string, cfg docsCuratorIntegrationC
 	return os.WriteFile(filepath.Join(tmpDir, "openapi.yaml"), []byte(content), 0o644)
 }
 
-func copyDocsCuratorRequestMachine(rootDir, tmpDir string, _ docsCuratorIntegrationConfig) error {
-	content, err := readDocsCuratorConfig(rootDir, "request-machine.yaml")
+func copyDocsCuratorRequestMachine(_ string, profileRoot, tmpDir string, _ docsCuratorIntegrationConfig) error {
+	content, err := readDocsCuratorConfig(profileRoot, "request-machine.yaml")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(filepath.Join(tmpDir, "request-machine.yaml"), []byte(content), 0o644)
 }
 
-func readDocsCuratorConfig(rootDir, name string) (string, error) {
-	data, err := os.ReadFile(docsCuratorPath(rootDir, name))
+func copyDocsCuratorUXConfig(_ string, profileRoot, tmpDir string, _ docsCuratorIntegrationConfig) error {
+	content, err := readDocsCuratorConfig(profileRoot, filepath.Join("ui", "ux.yaml"))
+	if err != nil {
+		return err
+	}
+	uiDir := filepath.Join(tmpDir, "ui")
+	if err := os.MkdirAll(uiDir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(uiDir, "ux.yaml"), []byte(content), 0o644)
+}
+
+func readDocsCuratorConfig(profileRoot, name string) (string, error) {
+	data, err := os.ReadFile(docsCuratorPath(profileRoot, name))
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
 }
 
-func docsCuratorPath(rootDir, name string) string {
-	return filepath.Join(rootDir, "agents/knowledge-manager/documentation-curator", name)
+func docsCuratorPath(profileRoot, name string) string {
+	return filepath.Join(profileRoot, "knowledge-manager/documentation-curator", name)
 }
 
 func replaceAll(content string, replacements map[string]string) string {

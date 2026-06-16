@@ -154,13 +154,11 @@ func TestStandaloneServerServesProfileUXConfig(t *testing.T) {
 	require.Equal(t, "doc_get", uxRoutesByID(body["data"].Routes)["docs_detail"].Action)
 }
 
-func TestLoadCuratorUXConfigFallsBackForGeneratedProfile(t *testing.T) {
+func TestLoadCuratorUXConfigRequiresProfileLocalConfig(t *testing.T) {
 	t.Parallel()
-	cfg, err := LoadCuratorUXConfig(filepath.Join(t.TempDir(), "profile.yaml"))
+	_, err := LoadCuratorUXConfig(filepath.Join(t.TempDir(), "profile.yaml"))
 
-	require.NoError(t, err)
-	require.Equal(t, "Knowledge Manager Documentation UI", cfg.Title)
-	require.Equal(t, "doc_list", uxRoutesByID(cfg.Routes)["docs_index"].Action)
+	require.ErrorContains(t, err, "ui/ux.yaml")
 }
 
 func TestCuratorUXConfigMatchesRouteAndActionContracts(t *testing.T) {
