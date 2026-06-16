@@ -159,6 +159,35 @@ func TestRESTServerMachineRequestMatchesCatchAllPath(t *testing.T) {
 	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
 }
 
+func TestRESTServerMachineRequestOpenAPIBindPreservesConfig(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "docs.yaml"), docsOpenAPI())
+	cfg := machineRequestConfig("DocumentationReady", 0, false)
+	cfg.InitialSignal = "ReadRequested"
+	cfg.Request = MachineRequestMapping{Path: map[string]string{"path": "$.path"}}
+	cfg.MachineSpec = requestReadMachineSpec()
+	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"path": "$.path"}}
+	cfg.InitFunc = func(reg *core.Registry) error {
+		reg.Register(core.ToolSpec{Name: "respond"}, pathEchoBuilder{})
+		return nil
+	}
+	def := openAPIMachineRequestDefinition(cfg)
+	require.NoError(t, CompileOpenAPIImports(&def, dir))
+	endpoint := def.Servers["machine"].Endpoints["document"]
+	require.Equal(t, "GET", endpoint.Method)
+	require.Equal(t, "/docs/{path}", endpoint.Path)
+	require.Equal(t, bindingMachineRequest, endpoint.Binding)
+	require.NotEmpty(t, endpoint.MachineRequest.Response.TerminalSignals)
+	state, baseURL := launchMachineRequestServerWithConfig(t, endpoint.MachineRequest, def.Servers["machine"].Endpoints)
+	defer stopRESTServer(t, state, "machine")
+
+	body := getJSON(t, baseURL+"/docs/VISION.yaml")
+
+	require.Equal(t, "VISION.yaml", body["path"])
+	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
+}
+
 func TestValidateDefinitionRejectsCatchAllPathErrors(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -363,6 +392,48 @@ func machineRequestDefinitionWithPath(path string) Definition {
 			}},
 		}},
 	}
+}
+
+func openAPIMachineRequestDefinition(cfg MachineRequest) Definition {
+	return Definition{
+		Version: "v1",
+		OpenAPI: map[string]OpenAPIImport{"docs": {
+			Path: "docs.yaml",
+			Bind: map[string]string{"readDocument": "document"},
+		}},
+		Servers: map[string]Server{"machine": {
+			Address: "127.0.0.1:0",
+			Endpoints: map[string]Endpoint{"document": {
+				Binding:        bindingMachineRequest,
+				MachineRequest: cfg,
+				Response:       ResponseMapping{Output: map[string]string{"path": "$.path"}},
+			}},
+		}},
+	}
+}
+
+func docsOpenAPI() string {
+	return `openapi: 3.0.3
+info: {title: Docs, version: v1}
+paths:
+  /docs/{path}:
+    get:
+      operationId: readDocument
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path: {type: string}
+`
 }
 
 type pathEchoBuilder struct{}

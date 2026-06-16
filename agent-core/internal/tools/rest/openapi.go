@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -59,10 +60,18 @@ func loadOpenAPIOperations(name string, imp OpenAPIImport, baseDir string) (map[
 func loadOpenAPIDocument(imp OpenAPIImport, baseDir string) (*openapi3.T, error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
+	parsed, err := url.Parse(imp.Path)
+	if err == nil && isHTTPURL(parsed) {
+		return loader.LoadFromURI(parsed)
+	}
 	if filepath.IsAbs(imp.Path) {
 		return loader.LoadFromFile(imp.Path)
 	}
 	return loader.LoadFromFile(filepath.Join(baseDir, imp.Path))
+}
+
+func isHTTPURL(parsed *url.URL) bool {
+	return (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
 }
 
 func indexOpenAPIOperations(name, source string, doc *openapi3.T) (map[string]openAPIOperation, error) {
@@ -233,11 +242,7 @@ func endpointFromOpenAPI(
 	if err != nil {
 		return Endpoint{}, err
 	}
-	return Endpoint{
-		OpenAPIOperationID: operationID, Method: found.method, Path: found.path,
-		Request:  requestBindingFromOpenAPI(found.operation),
-		Response: ResponseMapping{Schema: responseSchemaFromOpenAPI(found.operation)},
-	}, nil
+	return endpointFromOperation(operationID, found), nil
 }
 
 func mergeOpenAPIEndpoint(name string, endpoint Endpoint, operations map[string]openAPIOperation) (Endpoint, error) {
@@ -248,13 +253,8 @@ func mergeOpenAPIEndpoint(name string, endpoint Endpoint, operations map[string]
 	if err != nil {
 		return Endpoint{}, err
 	}
-	endpoint.Method = found.method
-	endpoint.Path = found.path
-	endpoint.Request = requestBindingFromOpenAPI(found.operation)
-	if len(endpoint.Response.Schema) == 0 {
-		endpoint.Response.Schema = responseSchemaFromOpenAPI(found.operation)
-	}
-	return endpoint, nil
+	compiled := endpointFromOperation(endpoint.OpenAPIOperationID, found)
+	return mergeEndpointWithOpenAPI(endpoint, compiled), nil
 }
 
 func setBoundEndpoint(def *Definition, endpointName string, compiled Endpoint) error {
@@ -266,16 +266,30 @@ func setBoundEndpoint(def *Definition, endpointName string, compiled Endpoint) e
 		if endpoint.OpenAPIOperationID != "" && endpoint.OpenAPIOperationID != compiled.OpenAPIOperationID {
 			return fmt.Errorf("openapi bind endpoint %q has incompatible operation_id %q", endpointName, endpoint.OpenAPIOperationID)
 		}
-		compiled.Binding = endpoint.Binding
-		compiled.Signal = endpoint.Signal
-		compiled.AllowedSignals = endpoint.AllowedSignals
-		compiled.MonitorView = endpoint.MonitorView
-		compiled.Queue = endpoint.Queue
-		server.Endpoints[endpointName] = compiled
+		server.Endpoints[endpointName] = mergeEndpointWithOpenAPI(endpoint, compiled)
 		def.Servers[serverName] = server
 		return nil
 	}
 	return fmt.Errorf("openapi bind endpoint %q is not configured", endpointName)
+}
+
+func endpointFromOperation(operationID string, found openAPIOperation) Endpoint {
+	return Endpoint{
+		OpenAPIOperationID: operationID, Method: found.method, Path: found.path,
+		Request:  requestBindingFromOpenAPI(found.operation),
+		Response: ResponseMapping{Schema: responseSchemaFromOpenAPI(found.operation)},
+	}
+}
+
+func mergeEndpointWithOpenAPI(endpoint Endpoint, compiled Endpoint) Endpoint {
+	endpoint.OpenAPIOperationID = compiled.OpenAPIOperationID
+	endpoint.Method = compiled.Method
+	endpoint.Path = compiled.Path
+	endpoint.Request = compiled.Request
+	if len(endpoint.Response.Schema) == 0 {
+		endpoint.Response.Schema = compiled.Response.Schema
+	}
+	return endpoint
 }
 
 func requireOpenAPIOperation(name, operationID string, operations map[string]openAPIOperation) (openAPIOperation, error) {
