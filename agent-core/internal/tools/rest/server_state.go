@@ -239,6 +239,7 @@ func (r *serverRuntime) stopOutput() map[string]interface{} {
 	return map[string]interface{}{
 		"server": r.name, "address": r.listener.Addr().String(),
 		"drained_events": drained, "dropped_events": dropped, "status": "stopped",
+		"drain_policy": shutdownDrainPolicy(r.def.Server.Shutdown), "queue_outcome": "drained",
 	}
 }
 
