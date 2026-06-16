@@ -99,6 +99,45 @@ func TestRESTClient_CompensationUndoMemento(t *testing.T) {
 	requireRESTCompensationPayload(t, writeMemento)
 }
 
+func TestRESTClient_CompensationExecutorRunsConfiguredOperation(t *testing.T) {
+	t.Parallel()
+	var restored bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/repos/acme/agent-core/issues/ISS-1" {
+			restored = true
+			require.Equal(t, http.MethodPatch, req.Method)
+			writeJSON(w, http.StatusOK, map[string]interface{}{"title": "restored", "id": "ISS-1"})
+			return
+		}
+		issueHandler(w, req)
+	}))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+	write := clientCommand(def, InitClientSet, "set", params("1", "new"))
+	require.Equal(t, core.Signal("RESTResourceWritten"), write.Execute().Signal)
+
+	result := restCompensationExecutor(t, def).Compensate(context.Background(), requireRESTUndoMemento(t, write))
+
+	require.Equal(t, core.Signal("RESTResourceWritten"), result.Signal, result.Output)
+	require.True(t, restored)
+}
+
+func TestRESTClient_CompensationExecutorReportsMissingOperation(t *testing.T) {
+	t.Parallel()
+	upstream := httptest.NewServer(http.HandlerFunc(issueHandler))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+	write := clientCommand(def, InitClientSet, "set", params("1", "new"))
+	require.Equal(t, core.Signal("RESTResourceWritten"), write.Execute().Signal)
+	memento := requireRESTUndoMemento(t, write)
+	replaceRESTCompensationOperation(t, &memento, "missing")
+
+	result := restCompensationExecutor(t, def).Compensate(context.Background(), memento)
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "compensation_lookup")
+}
+
 func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
 	t.Parallel()
 
@@ -442,9 +481,29 @@ func requireRESTCompensationPayload(t *testing.T, memento core.UndoMemento) {
 	require.Equal(t, "github", compensation.RestRef)
 	require.Equal(t, "issue", compensation.Resource)
 	require.Equal(t, "set", compensation.Operation)
+	require.Equal(t, "acme", compensation.Parameters["owner"])
+	require.Equal(t, "agent-core", compensation.Parameters["repo"])
 	require.Equal(t, "ISS-1", compensation.ResourceID)
 	require.Equal(t, "REQ-1", compensation.RequestID)
-	require.Equal(t, "restore_issue", compensation.Compensation["operation"])
+	require.Equal(t, "set", compensation.Compensation["operation"])
+	require.Equal(t, "restored", compensation.Compensation["parameters"].(map[string]interface{})["title"])
+}
+
+func replaceRESTCompensationOperation(t *testing.T, memento *core.UndoMemento, operation string) {
+	t.Helper()
+	var payload undo.BoundaryCompensationPayload
+	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
+	payload.BoundaryCompensation.Compensation["operation"] = operation
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+	memento.Payload = data
+}
+
+func restCompensationExecutor(t *testing.T, def Definition) CompensationExecutor {
+	t.Helper()
+	collection := NewCollection()
+	require.NoError(t, collection.Add(def))
+	return CompensationExecutor{Definitions: collection}
 }
 
 func runRESTMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []monitor.MetricSample {
@@ -668,7 +727,10 @@ func issueSetOperation() Operation {
 	op.Body = map[string]interface{}{"title": "{{ params.title }}"}
 	op.SideEffects = []SideEffect{{Kind: "external_api", State: "issue_updated"}}
 	op.Reversibility = Reversibility{Classification: "compensatable", Undo: "restore"}
-	op.Compensation = map[string]interface{}{"operation": "restore_issue"}
+	op.Compensation = map[string]interface{}{
+		"operation":  "set",
+		"parameters": map[string]interface{}{"title": "restored"},
+	}
 	return op
 }
 

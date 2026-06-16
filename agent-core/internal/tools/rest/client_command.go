@@ -3,6 +3,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -23,6 +24,12 @@ type ClientBuilder struct {
 	AsyncState  *AsyncState
 	Credentials CredentialResolver
 	Metrics     core.MetricConfig
+}
+
+// CompensationExecutor executes REST compensation from rollback mementos.
+type CompensationExecutor struct {
+	Definitions ClientOperationResolver
+	Credentials CredentialResolver
 }
 
 // Build creates one REST client boundary command.
@@ -107,6 +114,7 @@ func (c *clientCmd) restUndoPayload() undo.BoundaryCompensationPayload {
 		RestRef:          c.operation.RestRef,
 		Resource:         c.operation.Resource,
 		Operation:        c.operation.OperationName,
+		Parameters:       cloneRESTParams(c.params),
 		ResourceID:       c.restResourceID(),
 		RequestID:        c.restRequestID(),
 		IdempotencyToken: c.restIdempotencyToken(),
@@ -146,6 +154,120 @@ func (c *clientCmd) restIdempotencyToken() string {
 		return asyncValue(c.operation.Operation.Async.IdempotencyToken, c.params)
 	}
 	return ""
+}
+
+// Compensate executes the REST operation named by a boundary compensation memento.
+func (e CompensationExecutor) Compensate(_ context.Context, memento core.UndoMemento) core.Result {
+	compensation, err := undo.DecodeBoundaryCompensation(memento)
+	if err != nil {
+		return restCompensationError(memento.CommandName, "compensation_decode", err)
+	}
+	operation, err := e.resolveCompensationOperation(compensation)
+	if err != nil {
+		return restCompensationError(memento.CommandName, "compensation_lookup", err)
+	}
+	cmd := ClientBuilder{
+		ToolName:    compensationToolName(memento.CommandName),
+		Init:        InitClientInvoke,
+		Operation:   operation,
+		Credentials: e.Credentials,
+	}.Build(core.Result{Output: jsonOutput(compensationRuntimeParams(compensation, operation.Operation.Params))})
+	result := cmd.Execute()
+	if result.Signal == core.CommandError {
+		return result
+	}
+	result.CommandName = memento.CommandName
+	return result
+}
+
+func (e CompensationExecutor) resolveCompensationOperation(
+	compensation undo.BoundaryCompensation,
+) (ClientOperationDefinition, error) {
+	if e.Definitions == nil {
+		return ClientOperationDefinition{}, fmt.Errorf("REST compensation definitions are not configured")
+	}
+	operationName, ok := compensation.Compensation["operation"].(string)
+	if !ok || operationName == "" {
+		return ClientOperationDefinition{}, fmt.Errorf("REST compensation operation is not configured")
+	}
+	return e.Definitions.ResolveClientOperation(ClientToolConfig{
+		RestRef: compensation.RestRef, Resource: compensation.Resource, Operation: operationName,
+	})
+}
+
+func compensationToolName(commandName string) string {
+	if commandName == "" {
+		return "rest_compensation"
+	}
+	return commandName + "_compensation"
+}
+
+func compensationRuntimeParams(compensation undo.BoundaryCompensation, binding RequestBinding) map[string]interface{} {
+	params := map[string]interface{}{}
+	declared := declaredParamNames(binding)
+	copyCompensationParams(params, compensation.Parameters)
+	copyCompensationParams(params, compensation.Compensation["parameters"])
+	setCompensationParam(params, declared, "resource_id", compensation.ResourceID)
+	setCompensationParam(params, declared, "id", compensation.ResourceID)
+	setCompensationParam(params, declared, "number", compensation.ResourceID)
+	copyCompensationParam(params, declared, "request_id", compensation.RequestID)
+	copyCompensationParam(params, declared, "idempotency_token", compensation.IdempotencyToken)
+	dropUndeclaredCompensationParams(params, declared)
+	return map[string]interface{}{"parameters": params}
+}
+
+func cloneRESTParams(params map[string]interface{}) map[string]interface{} {
+	if params == nil {
+		return nil
+	}
+	clone := make(map[string]interface{}, len(params))
+	for name, value := range params {
+		clone[name] = value
+	}
+	return clone
+}
+
+func copyCompensationParams(params map[string]interface{}, value interface{}) {
+	configured, ok := value.(map[string]interface{})
+	if !ok {
+		return
+	}
+	for name, param := range configured {
+		params[name] = param
+	}
+}
+
+func copyCompensationParam(params map[string]interface{}, declared map[string]bool, name, value string) {
+	if value == "" || !declared[name] {
+		return
+	}
+	if _, exists := params[name]; !exists {
+		params[name] = value
+	}
+}
+
+func setCompensationParam(params map[string]interface{}, declared map[string]bool, name, value string) {
+	if value == "" || !declared[name] {
+		return
+	}
+	params[name] = value
+}
+
+func dropUndeclaredCompensationParams(params map[string]interface{}, declared map[string]bool) {
+	for name := range params {
+		if !declared[name] {
+			delete(params, name)
+		}
+	}
+}
+
+func restCompensationError(commandName, stage string, err error) core.Result {
+	output := map[string]interface{}{
+		"failure_stage": stage,
+		"message":       err.Error(),
+		"signal":        string(core.CommandError),
+	}
+	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: jsonOutput(output), Err: err}
 }
 
 func (c *clientCmd) captureRESTUndoMetadata(request *http.Request, result core.Result) {

@@ -82,18 +82,50 @@ type RollbackCheckpointResult struct {
 // a new Checkpoint that can be persisted. Workspace restore is NOT performed
 // here — the caller decides how to handle the returned WorkspaceRef.
 func RollbackCheckpoint(cp Checkpoint, targetIteration int) (RollbackCheckpointResult, error) {
+	return RollbackCheckpointWithOptions(RollbackCheckpointOptions{
+		Checkpoint: cp, TargetIteration: targetIteration,
+	})
+}
+
+// RollbackCheckpointOptions configures persisted checkpoint rollback.
+type RollbackCheckpointOptions struct {
+	Checkpoint      Checkpoint
+	TargetIteration int
+	Ctx             context.Context
+	Compensation    CompensationExecutor
+}
+
+// RollbackCheckpointWithOptions rewrites a checkpoint and can execute
+// configured boundary compensation while replaying persisted undo mementos.
+func RollbackCheckpointWithOptions(opts RollbackCheckpointOptions) (RollbackCheckpointResult, error) {
+	cp := opts.Checkpoint
+	targetIteration := opts.TargetIteration
 	if targetIteration < 0 {
 		return RollbackCheckpointResult{}, fmt.Errorf("target iteration must be >= 0, got %d", targetIteration)
 	}
-	restorer := &persistedRollbackRestorer{}
+	restorer := &persistedRollbackRestorer{ctx: opts.Ctx, compensation: opts.Compensation}
 	rollbackResult, err := RollbackTo(RollbackOptions{
 		History:         checkpointHistoryWithPersistedCommands(cp.History, restorer),
 		TargetIteration: targetIteration,
+		Ctx:             opts.Ctx,
+		Compensation:    opts.Compensation,
 	})
 	if err != nil {
 		return RollbackCheckpointResult{}, fmt.Errorf("rollback command restore: %w", err)
 	}
+	out, targetRef, err := rewrittenRollbackCheckpoint(cp, targetIteration, rollbackResult, restorer)
+	if err != nil {
+		return RollbackCheckpointResult{}, err
+	}
+	return RollbackCheckpointResult{Checkpoint: out, WorkspaceRef: targetRef}, nil
+}
 
+func rewrittenRollbackCheckpoint(
+	cp Checkpoint,
+	targetIteration int,
+	rollbackResult RollbackResult,
+	restorer *persistedRollbackRestorer,
+) (Checkpoint, string, error) {
 	out := cp
 	out.ID = fmt.Sprintf("rollback-%s-to-%d-%d", cp.ID, targetIteration, time.Now().UTC().UnixNano())
 	out.Timestamp = time.Now().UTC()
@@ -101,28 +133,12 @@ func RollbackCheckpoint(cp Checkpoint, targetIteration int) (RollbackCheckpointR
 	out.AgentState.Iteration = targetIteration
 	targetState := rollbackResult.State
 	targetRef := rollbackResult.WorkspaceRef
-	switch {
-	case targetIteration == 0:
-		out.History = nil
-	case targetIteration == cp.AgentState.Iteration && len(cp.History) == 0:
-		targetState = cp.AgentState.State
-		targetRef = cp.WorkspaceRef
-	default:
-		found := false
-		history := make([]HistoryDigest, 0, len(cp.History))
-		for _, entry := range cp.History {
-			if entry.Iteration <= targetIteration {
-				history = append(history, entry)
-			}
-			if entry.Iteration == targetIteration {
-				found = true
-			}
-		}
-		if !found {
-			return RollbackCheckpointResult{}, fmt.Errorf("target iteration %d not found in checkpoint %s", targetIteration, cp.ID)
-		}
-		out.History = history
+	history, err := rollbackCheckpointHistory(cp, targetIteration)
+	if err != nil {
+		return Checkpoint{}, "", err
 	}
+	out.History = history
+	targetState, targetRef = rollbackCheckpointTarget(cp, targetIteration, targetState, targetRef)
 	if targetState == "" {
 		targetState = cp.AgentState.State
 	}
@@ -135,7 +151,37 @@ func RollbackCheckpoint(cp Checkpoint, targetIteration int) (RollbackCheckpointR
 	if restorer.domainState != nil {
 		out.DomainState = restorer.domainState
 	}
-	return RollbackCheckpointResult{Checkpoint: out, WorkspaceRef: targetRef}, nil
+	return out, targetRef, nil
+}
+
+func rollbackCheckpointHistory(cp Checkpoint, targetIteration int) ([]HistoryDigest, error) {
+	if targetIteration == 0 {
+		return nil, nil
+	}
+	if targetIteration == cp.AgentState.Iteration && len(cp.History) == 0 {
+		return cp.History, nil
+	}
+	found := false
+	history := make([]HistoryDigest, 0, len(cp.History))
+	for _, entry := range cp.History {
+		if entry.Iteration <= targetIteration {
+			history = append(history, entry)
+		}
+		if entry.Iteration == targetIteration {
+			found = true
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("target iteration %d not found in checkpoint %s", targetIteration, cp.ID)
+	}
+	return history, nil
+}
+
+func rollbackCheckpointTarget(cp Checkpoint, targetIteration int, state State, ref string) (State, string) {
+	if targetIteration == cp.AgentState.Iteration && len(cp.History) == 0 {
+		return cp.AgentState.State, cp.WorkspaceRef
+	}
+	return state, ref
 }
 
 // RollbackFromCheckpointOptions describes a full checkpoint rollback: resolve
@@ -147,6 +193,7 @@ type RollbackFromCheckpointOptions struct {
 	CheckpointID    string
 	TargetIteration int
 	Ctx             context.Context
+	Compensation    CompensationExecutor
 }
 
 // RollbackFromCheckpointResult contains the original and rewritten checkpoints.
@@ -159,14 +206,10 @@ type RollbackFromCheckpointResult struct {
 // iteration, optionally restores the workspace, and persists the new
 // checkpoint. It is the rollback counterpart to ResumeFromCheckpoint.
 func RollbackFromCheckpoint(opts RollbackFromCheckpointOptions) (RollbackFromCheckpointResult, error) {
-	ctx := opts.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx := rollbackContext(opts.Ctx)
 	if opts.Store == nil {
 		return RollbackFromCheckpointResult{}, fmt.Errorf("%w: StateStore is required", ErrCheckpointMissing)
 	}
-
 	checkpointID, err := ResolveLatestCheckpointID(ctx, opts.Store, opts.CheckpointID)
 	if err != nil {
 		return RollbackFromCheckpointResult{}, err
@@ -176,30 +219,45 @@ func RollbackFromCheckpoint(opts RollbackFromCheckpointOptions) (RollbackFromChe
 		return RollbackFromCheckpointResult{}, err
 	}
 
-	rbResult, err := RollbackCheckpoint(cp, opts.TargetIteration)
+	rbResult, err := RollbackCheckpointWithOptions(RollbackCheckpointOptions{
+		Checkpoint:      cp,
+		TargetIteration: opts.TargetIteration,
+		Ctx:             ctx,
+		Compensation:    opts.Compensation,
+	})
 	if err != nil {
 		return RollbackFromCheckpointResult{Original: cp}, err
 	}
-
-	if rbResult.WorkspaceRef != "" && opts.Workspace != nil {
-		if err := opts.Workspace.Restore(ctx, rbResult.WorkspaceRef); err != nil {
-			return RollbackFromCheckpointResult{Original: cp, RollbackCheckpointResult: rbResult},
-				fmt.Errorf("rollback restore workspace to %s: %w", rbResult.WorkspaceRef, err)
-		}
+	result := RollbackFromCheckpointResult{Original: cp, RollbackCheckpointResult: rbResult}
+	if err := restoreRollbackWorkspace(ctx, opts.Workspace, rbResult.WorkspaceRef); err != nil {
+		return result, err
 	}
+	if err := saveRollbackCheckpoint(ctx, opts.Store, rbResult.Checkpoint); err != nil {
+		return result, err
+	}
+	return result, nil
+}
 
-	data, err := json.Marshal(rbResult.Checkpoint)
+func restoreRollbackWorkspace(ctx context.Context, workspace Workspace, ref string) error {
+	if ref == "" || workspace == nil {
+		return nil
+	}
+	if err := workspace.Restore(ctx, ref); err != nil {
+		return fmt.Errorf("rollback restore workspace to %s: %w", ref, err)
+	}
+	return nil
+}
+
+func saveRollbackCheckpoint(ctx context.Context, store StateStore, cp Checkpoint) error {
+	data, err := json.Marshal(cp)
 	if err != nil {
-		return RollbackFromCheckpointResult{Original: cp, RollbackCheckpointResult: rbResult},
-			fmt.Errorf("rollback checkpoint marshal: %w", err)
+		return fmt.Errorf("rollback checkpoint marshal: %w", err)
 	}
-	key := "checkpoint/" + rbResult.Checkpoint.ID
-	if err := opts.Store.Save(ctx, key, data); err != nil {
-		return RollbackFromCheckpointResult{Original: cp, RollbackCheckpointResult: rbResult},
-			fmt.Errorf("rollback checkpoint save %s: %w", key, err)
+	key := "checkpoint/" + cp.ID
+	if err := store.Save(ctx, key, data); err != nil {
+		return fmt.Errorf("rollback checkpoint save %s: %w", key, err)
 	}
-
-	return RollbackFromCheckpointResult{Original: cp, RollbackCheckpointResult: rbResult}, nil
+	return nil
 }
 
 func checkpointHistoryWithPersistedCommands(digest []HistoryDigest, restorer *persistedRollbackRestorer) History {
@@ -251,6 +309,8 @@ func (p persistedHistoryCommand) Undo() Result {
 type persistedRollbackRestorer struct {
 	conversationLog json.RawMessage
 	domainState     json.RawMessage
+	ctx             context.Context
+	compensation    CompensationExecutor
 }
 
 type persistedUndoPayload struct {
@@ -273,11 +333,44 @@ func (p *persistedRollbackRestorer) Restore(entry HistoryDigest) error {
 		return nil
 	case UndoMementoIrreversible:
 		return fmt.Errorf("%w: command %s is irreversible: %s", ErrUndoMementoIncompatible, entry.CommandName, entry.Undo.Description)
-	case UndoMementoReversible, UndoMementoCompensatable:
+	case UndoMementoReversible:
+		return p.restorePayload(entry)
+	case UndoMementoCompensatable:
+		if undoMementoHasBoundaryCompensation(*entry.Undo) {
+			return p.executeBoundaryCompensation(entry)
+		}
 		return p.restorePayload(entry)
 	default:
 		return fmt.Errorf("%w: unsupported undo kind %s", ErrUndoMementoIncompatible, entry.Undo.Kind)
 	}
+}
+
+func (p *persistedRollbackRestorer) executeBoundaryCompensation(entry HistoryDigest) error {
+	if p.compensation == nil {
+		return fmt.Errorf("%w: boundary compensation executor missing for %s", ErrUndoMementoMissing, entry.CommandName)
+	}
+	ctx := p.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	res := p.compensation.Compensate(ctx, *entry.Undo)
+	if res.Err != nil {
+		return fmt.Errorf("compensate %s: %w", entry.CommandName, res.Err)
+	}
+	if res.Signal == CommandError {
+		return fmt.Errorf("compensate %s: %s", entry.CommandName, res.Output)
+	}
+	return nil
+}
+
+func undoMementoHasBoundaryCompensation(memento UndoMemento) bool {
+	var payload struct {
+		BoundaryCompensation json.RawMessage `json:"boundary_compensation"`
+	}
+	if err := json.Unmarshal(memento.Payload, &payload); err != nil {
+		return false
+	}
+	return len(payload.BoundaryCompensation) > 0 && string(payload.BoundaryCompensation) != "null"
 }
 
 func (p *persistedRollbackRestorer) restorePayload(entry HistoryDigest) error {

@@ -3,6 +3,7 @@
 package undo
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
@@ -31,6 +32,7 @@ type BoundaryCompensation struct {
 	RestRef            string                 `json:"rest_ref,omitempty"`
 	Resource           string                 `json:"resource,omitempty"`
 	Operation          string                 `json:"operation,omitempty"`
+	Parameters         map[string]interface{} `json:"parameters,omitempty"`
 	ResourceID         string                 `json:"resource_id,omitempty"`
 	RequestID          string                 `json:"request_id,omitempty"`
 	IdempotencyToken   string                 `json:"idempotency_token,omitempty"`
@@ -54,4 +56,19 @@ func BoundaryCompensationMemento(commandName string, payload BoundaryCompensatio
 func BoundaryCompensationUndo(commandName, description string) core.Result {
 	err := fmt.Errorf("undo %s requires boundary compensation: %s", commandName, description)
 	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+}
+
+// DecodeBoundaryCompensation decodes a boundary compensation undo memento.
+func DecodeBoundaryCompensation(memento core.UndoMemento) (BoundaryCompensation, error) {
+	if err := core.ValidateUndoMemento(memento); err != nil {
+		return BoundaryCompensation{}, err
+	}
+	var payload BoundaryCompensationPayload
+	if err := json.Unmarshal(memento.Payload, &payload); err != nil {
+		return BoundaryCompensation{}, fmt.Errorf("%w: decode boundary compensation for %s: %v", core.ErrUndoMementoIncompatible, memento.CommandName, err)
+	}
+	if payload.BoundaryCompensation.Strategy == "" {
+		return BoundaryCompensation{}, fmt.Errorf("%w: missing boundary compensation for %s", core.ErrUndoMementoIncompatible, memento.CommandName)
+	}
+	return payload.BoundaryCompensation, nil
 }

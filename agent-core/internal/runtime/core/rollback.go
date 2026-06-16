@@ -20,6 +20,12 @@ type RollbackOptions struct {
 	InitialWorkspaceRef string
 	Tracer              tracing.Tracer
 	Ctx                 context.Context
+	Compensation        CompensationExecutor
+}
+
+// CompensationExecutor runs rollback compensation described by an undo memento.
+type CompensationExecutor interface {
+	Compensate(context.Context, UndoMemento) Result
 }
 
 // RollbackResult summarizes the attempted rollback. If Err is non-nil from
@@ -45,15 +51,6 @@ type RollbackUndo struct {
 // any layer failed. This makes partial rollback explicit instead of hiding a
 // mixed state behind the first failure.
 func RollbackTo(opts RollbackOptions) (RollbackResult, error) {
-	ctx := opts.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	tr := opts.Tracer
-	if tr == nil {
-		tr = tracing.NoopTracer{}
-	}
-
 	result := RollbackResult{TargetIteration: opts.TargetIteration}
 	targetState, workspaceRef, err := resolveRollbackTarget(opts.History, opts.TargetIteration, opts.InitialWorkspaceRef)
 	if err != nil {
@@ -63,10 +60,20 @@ func RollbackTo(opts RollbackOptions) (RollbackResult, error) {
 	result.State = targetState
 	result.WorkspaceRef = workspaceRef
 
+	errs := rollbackUndoHistory(opts.History, opts.TargetIteration, &result)
+	errs = append(errs, rollbackRestoreWorkspace(opts, workspaceRef)...)
+	if len(errs) > 0 {
+		result.Partial = true
+		return result, errors.Join(errs...)
+	}
+	return result, nil
+}
+
+func rollbackUndoHistory(history History, targetIteration int, result *RollbackResult) []error {
 	var errs []error
-	for i := len(opts.History) - 1; i >= 0; i-- {
-		entry := opts.History[i]
-		if entry.Iteration <= opts.TargetIteration {
+	for i := len(history) - 1; i >= 0; i-- {
+		entry := history[i]
+		if entry.Iteration <= targetIteration {
 			continue
 		}
 		undo := rollbackUndoEntry(entry)
@@ -75,23 +82,37 @@ func RollbackTo(opts RollbackOptions) (RollbackResult, error) {
 			errs = append(errs, fmt.Errorf("undo %s at iteration %d: %s", undo.CommandName, undo.Iteration, undo.Error))
 		}
 	}
+	return errs
+}
 
-	if opts.Workspace != nil && workspaceRef != "" {
-		if err := opts.Workspace.Restore(ctx, workspaceRef); err != nil {
-			tr.Event("rollback.workspace_restore_failed",
-				attribute.Int("target_iteration", opts.TargetIteration),
-				attribute.String("workspace_ref", workspaceRef),
-				attribute.String("error", err.Error()),
-			)
-			errs = append(errs, fmt.Errorf("restore workspace to %s: %w", workspaceRef, err))
-		}
+func rollbackRestoreWorkspace(opts RollbackOptions, workspaceRef string) []error {
+	if opts.Workspace == nil || workspaceRef == "" {
+		return nil
 	}
+	ctx := rollbackContext(opts.Ctx)
+	if err := opts.Workspace.Restore(ctx, workspaceRef); err != nil {
+		rollbackTracer(opts.Tracer).Event("rollback.workspace_restore_failed",
+			attribute.Int("target_iteration", opts.TargetIteration),
+			attribute.String("workspace_ref", workspaceRef),
+			attribute.String("error", err.Error()),
+		)
+		return []error{fmt.Errorf("restore workspace to %s: %w", workspaceRef, err)}
+	}
+	return nil
+}
 
-	if len(errs) > 0 {
-		result.Partial = true
-		return result, errors.Join(errs...)
+func rollbackContext(ctx context.Context) context.Context {
+	if ctx != nil {
+		return ctx
 	}
-	return result, nil
+	return context.Background()
+}
+
+func rollbackTracer(tr tracing.Tracer) tracing.Tracer {
+	if tr != nil {
+		return tr
+	}
+	return tracing.NoopTracer{}
 }
 
 // Rollback is a convenience wrapper for callers that do not need to provide an
