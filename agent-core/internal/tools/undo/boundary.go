@@ -15,19 +15,26 @@ type BoundaryCompensationPayload struct {
 
 // BoundaryCompensation describes compensation data for boundary effects.
 type BoundaryCompensation struct {
-	Strategy           string   `json:"strategy"`
-	Reason             string   `json:"reason,omitempty"`
-	Requires           []string `json:"requires,omitempty"`
-	WorkspacePaths     []string `json:"workspace_paths,omitempty"`
-	ArtifactPaths      []string `json:"artifact_paths,omitempty"`
-	ChildProfile       string   `json:"child_profile,omitempty"`
-	ChildMachine       string   `json:"child_machine,omitempty"`
-	ChildTools         string   `json:"child_tools,omitempty"`
-	ChildRunID         string   `json:"child_run_id,omitempty"`
-	ServerAddr         string   `json:"server_addr,omitempty"`
-	UserAction         string   `json:"user_action,omitempty"`
-	IssueID            string   `json:"issue_id,omitempty"`
-	CheckpointRequired bool     `json:"checkpoint_required,omitempty"`
+	Strategy           string                 `json:"strategy"`
+	Reason             string                 `json:"reason,omitempty"`
+	Requires           []string               `json:"requires,omitempty"`
+	WorkspacePaths     []string               `json:"workspace_paths,omitempty"`
+	ArtifactPaths      []string               `json:"artifact_paths,omitempty"`
+	ChildProfile       string                 `json:"child_profile,omitempty"`
+	ChildMachine       string                 `json:"child_machine,omitempty"`
+	ChildTools         string                 `json:"child_tools,omitempty"`
+	ChildRunID         string                 `json:"child_run_id,omitempty"`
+	ServerAddr         string                 `json:"server_addr,omitempty"`
+	UserAction         string                 `json:"user_action,omitempty"`
+	IssueID            string                 `json:"issue_id,omitempty"`
+	CheckpointRequired bool                   `json:"checkpoint_required,omitempty"`
+	RestRef            string                 `json:"rest_ref,omitempty"`
+	Resource           string                 `json:"resource,omitempty"`
+	Operation          string                 `json:"operation,omitempty"`
+	ResourceID         string                 `json:"resource_id,omitempty"`
+	RequestID          string                 `json:"request_id,omitempty"`
+	IdempotencyToken   string                 `json:"idempotency_token,omitempty"`
+	Compensation       map[string]interface{} `json:"compensation,omitempty"`
 }
 
 // BoundaryCompensationMemento creates a compensatable undo memento.

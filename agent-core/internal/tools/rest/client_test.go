@@ -15,6 +15,7 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
 
 func TestRESTClient_SyncResourceWords(t *testing.T) {
@@ -74,6 +75,27 @@ func TestRESTClient_MutatingOperationsRequireEffects(t *testing.T) {
 	compensating := validWriteOperation()
 	compensating.Compensation = map[string]interface{}{"operation": "restore_issue"}
 	require.NoError(t, ValidateDefinition(mutatingDefinition(compensating)))
+}
+
+func TestRESTClient_CompensationUndoMemento(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(issueHandler))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+
+	read := clientCommand(def, InitClientGet, "get", params("1"))
+	require.Equal(t, core.Signal("RESTResourceRead"), read.Execute().Signal)
+	readMemento := requireRESTUndoMemento(t, read)
+	require.Equal(t, core.UndoMementoNoop, readMemento.Kind)
+	require.Equal(t, core.ToolDone, read.Undo().Signal)
+
+	write := clientCommand(def, InitClientSet, "set", params("1", "new"))
+	require.Equal(t, core.Signal("RESTResourceWritten"), write.Execute().Signal)
+	writeMemento := requireRESTUndoMemento(t, write)
+	require.Equal(t, core.UndoMementoCompensatable, writeMemento.Kind)
+	require.Equal(t, core.CommandError, write.Undo().Signal)
+	requireRESTCompensationPayload(t, writeMemento)
 }
 
 func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
@@ -325,7 +347,7 @@ func issueHandler(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, `{"error":"domain"}`, http.StatusUnprocessableEntity)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok", "id": "ISS-1"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok", "id": "ISS-1", "request_id": "REQ-1"})
 }
 
 type restMetricRecorder struct {
@@ -355,6 +377,30 @@ func requirePositiveRestMetric(t *testing.T, samples []monitor.MetricSample, nam
 		}
 	}
 	t.Fatalf("missing positive metric %s in %#v", name, samples)
+}
+
+func requireRESTUndoMemento(t *testing.T, cmd core.Command) core.UndoMemento {
+	t.Helper()
+	provider, ok := cmd.(core.UndoMementoProvider)
+	require.True(t, ok)
+	memento, err := provider.UndoMemento()
+	require.NoError(t, err)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+	return memento
+}
+
+func requireRESTCompensationPayload(t *testing.T, memento core.UndoMemento) {
+	t.Helper()
+	var payload undo.BoundaryCompensationPayload
+	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
+	compensation := payload.BoundaryCompensation
+	require.Equal(t, "restore", compensation.Strategy)
+	require.Equal(t, "github", compensation.RestRef)
+	require.Equal(t, "issue", compensation.Resource)
+	require.Equal(t, "set", compensation.Operation)
+	require.Equal(t, "ISS-1", compensation.ResourceID)
+	require.Equal(t, "REQ-1", compensation.RequestID)
+	require.Equal(t, "restore_issue", compensation.Compensation["operation"])
 }
 
 func runRESTMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []monitor.MetricSample {
@@ -554,6 +600,7 @@ func issueOperation(method, signal string) Operation {
 		Failures: []StatusMapping{{Status: []int{404}, Signal: "RESTMissing"}, {Status: []int{422}, Signal: "RESTDomainFailed"}},
 		Response: ResponseMapping{
 			Output: map[string]string{"title": "$.title"}, Redact: []string{"body.secret"},
+			ResourceID: "$.id", RequestID: "$.request_id",
 		},
 		SideEffects:   []SideEffect{{Kind: "external_api", State: "read_only"}},
 		Reversibility: Reversibility{Classification: "reversible", Undo: "noop"},
@@ -566,6 +613,7 @@ func issueSetOperation() Operation {
 	op.Body = map[string]interface{}{"title": "{{ params.title }}"}
 	op.SideEffects = []SideEffect{{Kind: "external_api", State: "issue_updated"}}
 	op.Reversibility = Reversibility{Classification: "compensatable", Undo: "restore"}
+	op.Compensation = map[string]interface{}{"operation": "restore_issue"}
 	return op
 }
 
