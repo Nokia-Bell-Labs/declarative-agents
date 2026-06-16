@@ -820,17 +820,25 @@ overview:
       external configuration repositories. The Dockerfile is multi-stage: the
       builder stage clones the selected GitLab ref, downloads Go dependencies,
       runs the test suite, and builds the `agent` binary; the final Alpine
-      runtime stage copies only the binary, common Unix utilities, and shared
-      YAML assets needed by profiles and tool declarations.
+      runtime stage copies only the binary, common Unix utilities, and
+      core-owned runtime assets.
 
-      Runtime images place shared assets under `/opt/agent-core`, including
-      `tools/`, `agents/generator/`, and `agents/evaluator/`. External
-      evaluation repositories mount their local suites, samples, and profile
-      overrides into `/work` and can reference shared image assets by absolute
-      path. The Go toolchain, source checkout, and test dependencies are not
-      copied into the final image. Exec tools that require Go, golangci-lint,
-      or project-specific CLIs therefore need those tools supplied by the
-      mounted workspace, a derived image, or the host/container environment.
+      Runtime images place shared core assets under `/opt/agent-core`, including
+      core-owned tool declaration roots such as `tools/`. They do not own agent
+      profile directories. Callers provide generator, evaluator, planner, bench,
+      jurist, Knowledge Manager, or other agent profiles by bind mount, release
+      asset unpack, derived image layer, or another explicit external path.
+      Container commands pass `--profile` with the provided profile path and
+      `--directory` with the mounted workspace path.
+
+      External evaluation or profile repositories mount local suites, samples,
+      profile directories, and workspaces into the runtime container. Profiles
+      may reference shared core image assets by absolute path when the contract
+      names those assets as core-owned. The Go toolchain, source checkout, and
+      test dependencies are not copied into the final image. Exec tools that
+      require Go, golangci-lint, or project-specific CLIs therefore need those
+      tools supplied by the mounted workspace, a derived image, or the
+      host/container environment.
 
       `mage docker` is the canonical release-image build wrapper. It
       resolves the latest remote release tag unless `AGENT_CORE_REF` overrides

@@ -220,3 +220,29 @@ releases:
       - id: test-rel05.0-monitor-qwen
         summary: Formal test for monitored Qwen token metric progress through mage integration:uc008
         status: implemented
+
+  - version: "06.0"
+    name: External agent profiles and mounted runtime assets
+    description: |
+      Profile migration separates runtime ownership from agent program
+      ownership. Agent Core keeps the cmd/agent binary, runtime packages,
+      Docker/Mage release machinery, and core-owned shared tool declarations.
+      agent-profiles owns profile.yaml, machine.yaml, tools.yaml, profile-local
+      declarations, REST definitions, UX config, demos, and agent integration
+      fixtures.
+
+      Runtime containers consume profiles from external paths. Callers mount or
+      otherwise provide profile directories, pass --profile to that mounted
+      profile, and pass --directory to the mounted workspace. The runtime image
+      does not copy migrated agent profile directories from agent-core.
+    status: planned
+    srds:
+      - srd034-external-agent-profiles
+    use_cases:
+      - id: rel06.0-uc001-mounted-profile-container-runtime
+        summary: Runtime container runs an externally mounted agent profile
+        status: planned
+    test_suites:
+      - id: test-rel06.0-profile-migration
+        summary: Formal tests for external profile root resolution, runtime image profile exclusion, and mounted-profile container execution
+        status: planned
