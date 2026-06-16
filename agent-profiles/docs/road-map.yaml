@@ -1,0 +1,54 @@
+id: agent-profiles-roadmap
+title: Agent Profiles Release Road Map
+
+releases:
+  - version: "00.1"
+    name: Repository bootstrap
+    description: |
+      Define the repository purpose and ownership boundary before assets move.
+      The first release also adds a documentation index and migration roadmap.
+
+      Issue format rules matter because the next issues touch profile assets,
+      demos, and fixtures. With those rules in place, future Beads issues can
+      move assets without re-opening the runtime ownership decision.
+    status: in_progress
+    deliverables:
+      - README.md documents local usage, container usage, and ownership.
+      - docs/VISION.yaml defines goals and boundaries.
+      - docs/ARCHITECTURE.yaml defines repository structure and mount
+        interfaces.
+      - docs/SPECIFICATIONS.yaml indexes the initial docs.
+      - docs/constitutions/issue-format.yaml defines future issue fields.
+
+  - version: "06.0"
+    name: External agent profiles and mounted runtime assets
+    description: |
+      Move profile-owned programs from agent-core into this repository. Demos
+      and integration fixtures move with the profiles they exercise.
+
+      Runtime code, builtin tool implementations, release image build logic,
+      and core-owned assets stay in agent-core. At execution time, commands
+      load profiles through AGENT_PROFILES_ROOT, /profiles, or another explicit
+      external path.
+    status: planned
+    related_agent_core_release: "06.0"
+    planned_work:
+      - id: agent-profiles-dte
+        summary: Specify agent functional blocks and multi-agent semantics.
+        status: planned
+      - id: agent-profiles-sqe
+        summary: Migrate agent profiles and UX assets from agent-core.
+        status: planned
+      - id: agent-profiles-6ar
+        summary: Move demos and agent integration fixtures into agent-profiles.
+        status: planned
+      - id: agent-profiles-8t8
+        summary: Add profile validation and container usage checks.
+        status: planned
+    success_markers:
+      - Migrated profile.yaml files load through agent-core from this
+        repository.
+      - Knowledge Manager UX config remains profile-local beside its profile.
+      - Demos and fixtures use repository-relative paths, AGENT_PROFILES_ROOT,
+        /profiles, or explicit workspace mounts.
+      - agent-core runtime images do not copy migrated profile directories.

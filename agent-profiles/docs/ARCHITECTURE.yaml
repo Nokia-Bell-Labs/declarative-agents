@@ -1,0 +1,154 @@
+id: architecture-agent-profiles
+title: Agent Profiles Architecture
+
+overview:
+  summary: |
+    agent-profiles is a configuration and asset repository. At runtime,
+    agent-core loads external agent programs from it. Profile directories,
+    profile-local config, demos, integration fixtures, and structured docs live
+    here.
+
+    Runtime ownership remains in agent-core. That repository owns the Go
+    engine, cmd/agent, builtin tool implementations, shared runtime assets, Mage
+    targets, and release image. A local checkout or container run supplies this
+    repository as AGENT_PROFILES_ROOT or /profiles.
+
+  runtime_mount_diagram: |
+    ```mermaid
+    flowchart LR
+      OP[Developer or operator] --> RUNTIME[agent-core runtime]
+      OP --> PROFILES[agent-profiles checkout]
+      OP --> WORK[workspace]
+      PROFILES -->|--profile or AGENT_PROFILES_ROOT| RUNTIME
+      WORK -->|--directory| RUNTIME
+      RUNTIME --> CORE[agent binary and core assets]
+      RUNTIME --> PROGRAM[profile-owned agent program]
+    ```
+
+interfaces:
+  - name: AGENT_PROFILES_ROOT
+    summary: |
+      Host-side environment variable used by agent-core tests and integration
+      targets to resolve this repository as the profile asset root.
+  - name: /profiles mount
+    summary: |
+      Container-side path for this repository. Runtime commands pass
+      --profile /profiles/agents/<name>/profile.yaml.
+  - name: --profile
+    summary: |
+      agent-core CLI argument that points at a profile.yaml supplied from this
+      repository, a release bundle, or another external profile path.
+  - name: --directory
+    summary: |
+      agent-core CLI argument that points at the workspace the selected agent
+      can read, edit, test, or inspect according to its selected tools.
+
+components:
+  - name: agents
+    path: agents/
+    responsibility: |
+      Own migrated profile.yaml files, machines, tool selections, profile-local
+      declarations, boundary configs, lifecycle profiles, monitor profiles, and
+      Knowledge Manager assets.
+  - name: demos
+    path: demo/
+    responsibility: |
+      Own runnable examples that prove external profiles can run from this
+      repository with agent-core.
+  - name: integration fixtures
+    path: testdata/integration/
+    responsibility: |
+      Own profile-related suites and fixture data consumed by agent-core Mage
+      integration targets through AGENT_PROFILES_ROOT.
+  - name: documentation
+    path: docs/
+    responsibility: |
+      Own repository vision, architecture, specification indexes, roadmap, and
+      issue format rules for future migration work.
+
+design_decisions:
+  - id: 1
+    title: Profile assets are external to the runtime image
+    decision: |
+      agent-core release images do not copy profile directories from this
+      repository. Operators mount, check out, or unpack profile assets and pass
+      an explicit profile path at runtime.
+    benefits:
+      - Runtime images stay focused on core-owned binaries and assets.
+      - Profile changes can ship without rebuilding the runtime image.
+      - Ownership of agent behavior remains visible in repository layout.
+  - id: 2
+    title: Runtime code stays in agent-core
+    decision: |
+      No Go runtime packages or builtin tool implementations live in
+      agent-profiles. YAML programs select and configure capabilities that
+      agent-core provides.
+    benefits:
+      - Profile repositories stay reviewable as configuration and fixtures.
+      - Runtime changes stay covered by agent-core build and test gates.
+      - Profile validation can focus on paths, declarations, and contracts.
+  - id: 3
+    title: Fixtures use portable paths
+    decision: |
+      Demos and integration fixtures must use portable roots such as
+      AGENT_PROFILES_ROOT, /profiles, or explicit workspace mounts.
+      Developer-specific absolute paths are not valid fixture contracts.
+    benefits:
+      - Integration targets work across machines and containers.
+      - Container examples match the mounted-profile contract.
+      - Release bundles can preserve the same directory contract.
+
+technology_choices:
+  - component: Profile format
+    technology: YAML
+    purpose: agent-core loads profile, machine, tool selection, and boundary
+      config files from YAML.
+  - component: Issue tracking
+    technology: bd
+    purpose: Beads issues track migration, documentation, validation, and
+      fixture work.
+  - component: Runtime
+    technology: agent-core
+    purpose: agent-core supplies the executable runtime and reusable tool
+      implementations.
+
+project_structure:
+  configuration:
+    - path: agents/
+      role: External agent profile programs and profile-local assets.
+    - path: demo/
+      role: External-profile demos.
+    - path: testdata/integration/
+      role: Profile-owned fixtures consumed by agent-core integration targets.
+  documentation:
+    - path: docs/VISION.yaml
+      role: Goals, boundaries, and success criteria.
+    - path: docs/ARCHITECTURE.yaml
+      role: Repository ownership, interfaces, components, and decisions.
+    - path: docs/SPECIFICATIONS.yaml
+      role: Specification index and coverage notes.
+    - path: docs/road-map.yaml
+      role: Migration release plan.
+    - path: docs/constitutions/issue-format.yaml
+      role: Beads issue shape for future work.
+
+implementation_status:
+  current_focus: Bootstrap repository documentation before profile asset migration.
+  progress:
+    - done: Initial Beads queue exists.
+    - done: Repository purpose and ownership docs are defined.
+    - planned: Agent profiles migrate from agent-core into agents/.
+    - planned: Demos and integration fixtures migrate into demo/ and
+        testdata/integration/.
+    - planned: Profile validation and container usage checks verify the mounted
+        profile contract.
+
+related_documents:
+  - doc: docs/VISION.yaml
+    purpose: Goals, boundaries, and success criteria.
+  - doc: docs/SPECIFICATIONS.yaml
+    purpose: Specification index for future requirements and semantic models.
+  - doc: docs/road-map.yaml
+    purpose: Release plan for profile extraction and mounted runtime usage.
+  - doc: docs/constitutions/issue-format.yaml
+    purpose: Required shape for future Beads issues.
