@@ -461,6 +461,15 @@ func launchRESTServerWithState(
 ) (map[string]interface{}, string) {
 	t.Helper()
 	def := ServerDefinition{Name: serverName(server), Server: server, Limits: limits}
+	return launchRESTServerDefinition(t, state, def)
+}
+
+func launchRESTServerDefinition(
+	t *testing.T,
+	state *ServerState,
+	def ServerDefinition,
+) (map[string]interface{}, string) {
+	t.Helper()
 	result := ServerBuilder{
 		ToolName: "rest_server_launch", Init: InitServerLaunch, Server: def, State: state,
 	}.Build(core.Result{}).Execute()
@@ -468,6 +477,13 @@ func launchRESTServerWithState(
 	var output map[string]interface{}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
 	return output, "http://" + output["address"].(string)
+}
+
+func decodedLaunchAddress(t *testing.T, output string) string {
+	t.Helper()
+	var decoded map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(output), &decoded))
+	return decoded["address"].(string)
 }
 
 func stopRESTServer(t *testing.T, state *ServerState, name string) map[string]interface{} {
@@ -546,9 +562,7 @@ func launchRESTServerCommand(t *testing.T, collection Collection, state *ServerS
 	def.Config = map[string]interface{}{"rest_ref": name}
 	result := requireRESTCommand(t, def, collection, state).Execute()
 	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
-	var output map[string]interface{}
-	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
-	return "http://" + output["address"].(string)
+	return "http://" + decodedLaunchAddress(t, result.Output)
 }
 
 func awaitEventCommand(t *testing.T, collection Collection, state *ServerState, names ...string) core.Command {

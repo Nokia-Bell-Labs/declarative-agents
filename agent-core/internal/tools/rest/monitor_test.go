@@ -54,6 +54,7 @@ func TestMonitorREST_OpenAPIRedaction(t *testing.T) {
 	require.Contains(t, control, "requestBody")
 	require.NotContains(t, control, "monitor_view")
 	requireMonitorOpenAPISchemaTypes(t, doc, control)
+	requireMonitorOpenAPIMatchesRuntimeViews(t, doc, baseURL)
 }
 
 func TestMonitorREST_SnapshotEndpoints(t *testing.T) {
@@ -140,11 +141,8 @@ func launchMonitorRESTServer(
 	state := NewServerState()
 	server := monitorServer(name)
 	def := ServerDefinition{Name: name, Server: server, Monitor: monitorState}
-	result := ServerBuilder{
-		ToolName: "rest_server_launch", Init: InitServerLaunch, Server: def, State: state,
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
-	return state, "http://" + launchAddress(t, result.Output)
+	_, baseURL := launchRESTServerDefinition(t, state, def)
+	return state, baseURL
 }
 
 func launchMonitorRESTServerFromFactory(
@@ -164,7 +162,7 @@ func launchMonitorRESTServerFromFactory(
 	require.NoError(t, err)
 	result := builder.Build(core.Result{}).Execute()
 	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
-	return state, "http://" + launchAddress(t, result.Output)
+	return state, "http://" + decodedLaunchAddress(t, result.Output)
 }
 
 func monitorLaunchTool(name string) catalog.ToolDef {
@@ -173,13 +171,6 @@ func monitorLaunchTool(name string) catalog.ToolDef {
 		Description: "Launch monitor REST test server.",
 		Config:      map[string]interface{}{"rest_ref": name},
 	}
-}
-
-func launchAddress(t *testing.T, output string) string {
-	t.Helper()
-	var decoded map[string]interface{}
-	require.NoError(t, json.Unmarshal([]byte(output), &decoded))
-	return decoded["address"].(string)
 }
 
 func liveMonitorState() (MonitorState, *monitor.Recorder) {
@@ -351,6 +342,35 @@ func requireMonitorOpenAPISchemaTypes(
 	requireMonitorEventsOpenAPISchema(t, doc)
 	requireMonitorStreamOpenAPIContent(t, doc)
 	requireMonitorControlOpenAPISchema(t, doc, control)
+}
+
+func requireMonitorOpenAPIMatchesRuntimeViews(t *testing.T, doc map[string]interface{}, baseURL string) {
+	t.Helper()
+	for _, path := range []string{"/monitor/machine", "/monitor/state", "/monitor/metrics", "/monitor/events"} {
+		schema := monitorOpenAPIResponseSchema(t, doc, path, "get", "200")
+		requireSchemaCoversRuntimeValue(t, schema, getJSON(t, baseURL+path))
+	}
+}
+
+func requireSchemaCoversRuntimeValue(t *testing.T, schema map[string]interface{}, value interface{}) {
+	t.Helper()
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		if _, ok := schema["additionalProperties"]; ok {
+			return
+		}
+		props, _ := schema["properties"].(map[string]interface{})
+		for name, item := range typed {
+			child, _ := props[name].(map[string]interface{})
+			require.NotNil(t, child, "schema should cover runtime field %q", name)
+			requireSchemaCoversRuntimeValue(t, child, item)
+		}
+	case []interface{}:
+		if len(typed) == 0 {
+			return
+		}
+		requireSchemaCoversRuntimeValue(t, schemaItems(t, schema), typed[0])
+	}
 }
 
 func requireMonitorStateOpenAPISchema(t *testing.T, doc map[string]interface{}) {

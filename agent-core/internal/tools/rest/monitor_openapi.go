@@ -146,14 +146,7 @@ func monitorResponseSchema(view string) map[string]interface{} {
 }
 
 func monitorMachineSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"name":            monitorSchemaString(),
-		"states":          monitorSchemaArray(monitorSchemaString()),
-		"signals":         monitorSchemaArray(monitorSchemaString()),
-		"terminal_states": monitorSchemaArray(monitorSchemaString()),
-		"metric_labels":   monitorSchemaMap(monitorSchemaString()),
-		"transitions":     monitorSchemaArray(transitionSchema()),
-	})
+	return monitorSchemaObjectFromFields(monitorMachineFields())
 }
 
 func monitorStateSchema() map[string]interface{} {
@@ -187,39 +180,23 @@ func monitorEventsSchema() map[string]interface{} {
 }
 
 func transitionSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"state": monitorSchemaString(), "signal": monitorSchemaString(), "next": monitorSchemaString(),
-		"action": monitorSchemaString(), "metric_labels": monitorSchemaMap(monitorSchemaString()),
-	})
+	return monitorSchemaObjectFromFields(transitionFields())
 }
 
 func runSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"run_id": monitorSchemaString(), "status": monitorSchemaString(), "state": monitorSchemaString(),
-		"signal": monitorSchemaString(), "iteration": monitorSchemaInteger(), "updated_at": monitorSchemaDateTime(),
-	})
+	return monitorSchemaObjectFromFields(runSnapshotFields())
 }
 
 func diagnosticSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"stage": monitorSchemaString(), "message": monitorSchemaString(), "metric": monitorSchemaString(),
-		"tool_name": monitorSchemaString(), "timestamp": monitorSchemaDateTime(),
-	})
+	return monitorSchemaObjectFromFields(diagnosticFields())
 }
 
 func recentErrorSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"stage": monitorSchemaString(), "message": monitorSchemaString(),
-		"command_name": monitorSchemaString(), "timestamp": monitorSchemaDateTime(),
-	})
+	return monitorSchemaObjectFromFields(recentErrorFields())
 }
 
 func toolSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"name": monitorSchemaString(), "category": monitorSchemaString(), "visibility": monitorSchemaString(),
-		"emits": monitorSchemaArray(monitorSchemaString()), "metrics": metricConfigSchema(),
-		"relationships": relationshipSchema(),
-	})
+	return monitorSchemaObjectFromFields(toolFields())
 }
 
 func metricConfigSchema() map[string]interface{} {
@@ -231,18 +208,11 @@ func metricConfigSchema() map[string]interface{} {
 }
 
 func metricInstrumentSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"name": monitorSchemaString(), "kind": monitorSchemaString(), "unit": monitorSchemaString(),
-		"description": monitorSchemaString(), "value_source": monitorSchemaString(),
-		"attributes": monitorSchemaArray(monitorSchemaString()), "buckets": monitorSchemaArray(monitorSchemaNumber()),
-	})
+	return monitorSchemaObjectFromFields(metricInstrumentFields())
 }
 
 func metricAttributeSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"name": monitorSchemaString(), "source": monitorSchemaString(), "cardinality": monitorSchemaString(),
-		"allowed_values": monitorSchemaArray(monitorSchemaString()), "redaction": monitorSchemaString(),
-	})
+	return monitorSchemaObjectFromFields(metricAttributeFields())
 }
 
 func relationshipSchema() map[string]interface{} {
@@ -256,44 +226,31 @@ func relationshipSchema() map[string]interface{} {
 }
 
 func toolAggregateSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"tool_name": monitorSchemaString(), "dispatches": monitorSchemaInteger(), "successes": monitorSchemaInteger(),
-		"failures": monitorSchemaInteger(), "samples": monitorSchemaInteger(), "total_duration_ms": monitorSchemaNumber(),
-		"last_signal": monitorSchemaString(), "last_status": monitorSchemaString(), "updated_at": monitorSchemaDateTime(),
-	})
+	return monitorSchemaObjectFromFields(toolAggregateFields())
 }
 
 func metricAggregateSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"name": monitorSchemaString(), "kind": monitorSchemaString(), "unit": monitorSchemaString(),
-		"count": monitorSchemaInteger(), "sum": monitorSchemaNumber(), "min": monitorSchemaNumber(),
-		"max": monitorSchemaNumber(), "last_value": monitorSchemaNumber(), "updated_at": monitorSchemaDateTime(),
-	})
+	return monitorSchemaObjectFromFields(metricAggregateFields())
 }
 
 func metricSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"name": monitorSchemaString(), "kind": monitorSchemaString(), "unit": monitorSchemaString(),
-		"description": monitorSchemaString(), "attributes": monitorSchemaArray(monitorSchemaString()),
-	})
+	return monitorSchemaObjectFromFields(metricSchemaFields())
 }
 
 func sampleSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"name": monitorSchemaString(), "kind": monitorSchemaString(), "unit": monitorSchemaString(),
-		"description": monitorSchemaString(), "value": monitorSchemaNumber(), "tool_name": monitorSchemaString(),
-		"run_id": monitorSchemaString(), "state": monitorSchemaString(), "signal": monitorSchemaString(),
-		"status": monitorSchemaString(), "attributes": monitorSchemaMap(monitorSchemaString()), "timestamp": monitorSchemaDateTime(),
-	})
+	return monitorSchemaObjectFromFields(sampleFields())
 }
 
 func runEventSchema() map[string]interface{} {
-	return monitorSchemaObject(map[string]map[string]interface{}{
-		"iteration": monitorSchemaInteger(), "timestamp": monitorSchemaDateTime(),
-		"command_name": monitorSchemaString(), "signal": monitorSchemaString(),
-		"from_state": monitorSchemaString(), "to_state": monitorSchemaString(),
-		"duration_ms": monitorSchemaNumber(), "tokens_in": monitorSchemaInteger(), "tokens_out": monitorSchemaInteger(),
-	})
+	return monitorSchemaObjectFromFields(runEventFields())
+}
+
+func monitorSchemaObjectFromFields[T any](fields []monitorField[T]) map[string]interface{} {
+	properties := map[string]interface{}{}
+	for _, field := range fields {
+		properties[field.name] = field.schema
+	}
+	return map[string]interface{}{"type": "object", "properties": properties}
 }
 
 func monitorSchemaObject(fields map[string]map[string]interface{}) map[string]interface{} {
