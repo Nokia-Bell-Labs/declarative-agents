@@ -4,196 +4,13 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
-	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry/genai"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
 )
-
-// RunStatus describes the outcome of a completed run.
-type RunStatus string
-
-const (
-	StatusSucceeded      RunStatus = "succeeded"
-	StatusFailed         RunStatus = "failed"
-	StatusBudgetExceeded RunStatus = "budget_exceeded"
-	StatusCancelled      RunStatus = "cancelled"
-	StatusSuspended      RunStatus = "suspended"
-)
-
-// Budget controls iteration, token, and wall-clock limits for a run.
-// Domain agents extend budget checking via LoopHooks.BudgetExceeded
-// and LoopHooks.AfterDispatch for domain-specific policies.
-type Budget struct {
-	MaxIterations int
-	MaxTokens     int
-	MaxDuration   time.Duration
-}
-
-// RunEvent records one command dispatch.
-type RunEvent struct {
-	Iteration   int       `json:"iteration"`
-	Timestamp   time.Time `json:"timestamp"`
-	CommandName string    `json:"command_name"`
-	Signal      Signal    `json:"signal"`
-	Cost        Cost      `json:"cost"`
-	FromState   State     `json:"from_state"`
-	ToState     State     `json:"to_state"`
-}
-
-// RunResult carries the outcome of a complete run.
-type RunResult struct {
-	Status     RunStatus     `json:"status"`
-	Iterations int           `json:"iterations"`
-	TokensIn   int           `json:"tokens_in"`
-	TokensOut  int           `json:"tokens_out"`
-	Duration   time.Duration `json:"-"`
-	TotalCost  float64       `json:"total_cost"`
-	FinalState State         `json:"final_state"`
-	LastError  error         `json:"-"`
-	Summary    string        `json:"summary"`
-	Events     []RunEvent    `json:"events"`
-	History    History       `json:"history,omitempty"`
-}
-
-// MarshalJSON implements custom JSON serialization for RunResult.
-func (rr RunResult) MarshalJSON() ([]byte, error) {
-	type Alias RunResult
-
-	var lastErr *string
-	if rr.LastError != nil {
-		s := rr.LastError.Error()
-		lastErr = &s
-	}
-
-	return json.Marshal(&struct {
-		Alias
-		Duration  string  `json:"duration"`
-		LastError *string `json:"last_error"`
-	}{
-		Alias:     Alias(rr),
-		Duration:  rr.Duration.String(),
-		LastError: lastErr,
-	})
-}
-
-// LoopHooks provides domain-specific callbacks for the generic loop.
-// All callbacks are optional; nil means use default behavior.
-type LoopHooks struct {
-	// ValidateParams checks that required builders exist in the registry.
-	// Returns non-nil error to abort the run before it starts.
-	ValidateParams func(reg *Registry) error
-
-	// BudgetExceeded checks domain-specific budget dimensions beyond
-	// the generic iteration/token/duration checks. Called with the
-	// generic budget, current result, and iteration count.
-	// Return true to trigger BudgetExhausted.
-	BudgetExceeded func(budget Budget, rr RunResult, iterations int) bool
-
-	// TerminalStatus maps a terminal State to a RunStatus string.
-	// If nil, Succeeded maps to StatusSucceeded, BudgetExceeded state
-	// maps to StatusBudgetExceeded, everything else to StatusFailed.
-	TerminalStatus func(s State) RunStatus
-
-	// OnResult is called after each command dispatch with the result.
-	// The domain can update its own tracking (e.g., failure counters).
-	// The returned RunResult replaces the current accumulator.
-	OnResult func(rr RunResult, res Result) RunResult
-
-	// AfterDispatch is called after each command dispatch with the
-	// command and result. It may return a replacement signal (e.g. to
-	// enforce domain-specific budget policies like consecutive parse
-	// error limits). Return an empty signal to keep the original.
-	AfterDispatch func(cmd Command, res Result) Signal
-
-	// TaskCompletedSignal is the signal that indicates the task is done
-	// and the summary should be captured. Defaults to "TaskCompleted".
-	TaskCompletedSignal Signal
-
-	// SnapshotConversation returns JSON-owned conversation state for lifecycle
-	// checkpoints. Nil means no conversation state is captured.
-	SnapshotConversation func() (json.RawMessage, error)
-
-	// SnapshotDomain returns JSON-owned domain state for lifecycle checkpoints.
-	// Nil means no domain state is captured.
-	SnapshotDomain func() (json.RawMessage, error)
-}
-
-// LoopParams bundles all inputs for Loop.
-//
-// There are two initialization modes:
-//
-// Manual mode (existing): caller sets Registry, Table, IsTerminal.
-//
-// Declarative mode (new): caller sets MachineFile or MachineSpec (and
-// optionally InitFunc to register tools). Loop loads or reuses the
-// machine, validates actions against the registry, and builds the
-// transition table.
-//
-// When MachineFile or MachineSpec is set, Table and IsTerminal are ignored and
-// built internally. InitialState is derived from the machine spec.
-type LoopParams struct {
-	InitialState   State
-	InitialSignal  Signal
-	InitialResult  Result
-	InitialRun     RunResult
-	Prompt         string
-	Registry       *Registry
-	Table          TransitionTable
-	IsTerminal     TerminalFunc
-	Trace          tracing.Tracer
-	Budget         Budget
-	CommandTimeout time.Duration
-	ModelName      string
-	Directory      string
-	Hooks          LoopHooks
-
-	// Agent identity for OTel GenAI semantic conventions.
-	AgentName    string // e.g. "generator", "planner"
-	AgentVersion string // e.g. "v0.20260605.0"
-	ProviderName string // e.g. "ollama"
-
-	// Declarative initialization: Loop loads the machine from YAML,
-	// validates that every action resolves to a registered tool, and
-	// builds the transition table. Requires Registry to be populated
-	// (either by the caller or via InitFunc).
-	MachineFile string
-	// MachineSpec optionally provides an already-loaded and validated machine
-	// spec. When set, Loop uses it instead of reading MachineFile.
-	MachineSpec *MachineSpec
-
-	// InitFunc is called before the machine is loaded. Use it to
-	// register tools with the registry (e.g. load from YAML, register
-	// Go builders). Called with the registry that Loop will use.
-	// When nil, the caller must populate the registry before calling Loop.
-	InitFunc func(reg *Registry) error
-
-	// ToolAction is the ActionFunc for "$tool" transitions (dynamic
-	// dispatch). Required when the machine uses "$tool" actions.
-	ToolAction ActionFunc
-
-	// StateStore enables agent and command/domain state persistence. When nil,
-	// no state is persisted and loop behavior is unchanged.
-	StateStore StateStore
-
-	// Workspace enables environment/filesystem checkpointing. When nil, the loop
-	// and commands do not track workspace refs.
-	Workspace Workspace
-
-	// CheckpointPolicy controls when checkpoints are considered. When nil, no
-	// automatic checkpoint decisions are made.
-	CheckpointPolicy CheckpointPolicy
-
-	// MonitorRecorder records optional embedded monitor metrics. Nil preserves
-	// disabled-mode loop, dispatch, tracing, and tool behavior.
-	MonitorRecorder monitor.RuntimeRecorder
-}
 
 // Loop executes the generic agentic loop. It drives the state machine
 // from InitialState to a terminal state, dispatching Commands through
@@ -206,53 +23,84 @@ type LoopParams struct {
 //  4. BuildTransitionTable (validates all actions resolve)
 //  5. Freeze registry and enter the loop
 func Loop(params LoopParams, ctx context.Context) (RunResult, error) {
-	if err := initFromMachine(&params); err != nil {
-		if params.Trace != nil {
-			params.Trace.Event("init.machine_failed",
-				attribute.String("error", err.Error()),
-			)
-		}
-		return RunResult{}, fmt.Errorf("loop init: %w", err)
+	sm, ctx, cancel, err := prepareLoop(&params, ctx)
+	if err != nil {
+		return RunResult{}, err
 	}
-
-	if params.Hooks.ValidateParams != nil {
-		if err := params.Hooks.ValidateParams(params.Registry); err != nil {
-			params.Trace.Event("init.validate_failed",
-				attribute.String("error", err.Error()),
-			)
-			return RunResult{}, err
-		}
-	}
-
-	if params.Budget.MaxDuration > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, params.Budget.MaxDuration)
+	if cancel != nil {
 		defer cancel()
 	}
+	runTrace, runDone := startRunTrace(params)
+	defer runDone()
 
+	rr, err := coreLoop(sm, params, runTrace, ctx)
+	recordRunResult(runTrace, rr)
+	return rr, err
+}
+
+func prepareLoop(params *LoopParams, ctx context.Context) (*StateMachine, context.Context, context.CancelFunc, error) {
+	if err := initFromMachine(params); err != nil {
+		recordMachineInitError(params.Trace, err)
+		return nil, nil, nil, fmt.Errorf("loop init: %w", err)
+	}
+	if err := validateLoopParams(params); err != nil {
+		return nil, nil, nil, err
+	}
+	ctx, cancel := loopTimeoutContext(ctx, params.Budget)
 	sm := NewStateMachine(params.Table, params.IsTerminal)
 	params.Registry.Freeze()
 	params.Trace.Event("init.registry_frozen",
 		attribute.Int("tool_count", len(params.Registry.AllToolNames())),
 	)
+	return sm, ctx, cancel, nil
+}
 
-	agentSpanAttrs := append(
+func recordMachineInitError(tr tracing.Tracer, err error) {
+	if tr == nil {
+		return
+	}
+	tr.Event("init.machine_failed", attribute.String("error", err.Error()))
+}
+
+func validateLoopParams(params *LoopParams) error {
+	if params.Hooks.ValidateParams == nil {
+		return nil
+	}
+	if err := params.Hooks.ValidateParams(params.Registry); err != nil {
+		params.Trace.Event("init.validate_failed",
+			attribute.String("error", err.Error()),
+		)
+		return err
+	}
+	return nil
+}
+
+func loopTimeoutContext(ctx context.Context, budget Budget) (context.Context, context.CancelFunc) {
+	if budget.MaxDuration <= 0 {
+		return ctx, nil
+	}
+	return context.WithTimeout(ctx, budget.MaxDuration)
+}
+
+func startRunTrace(params LoopParams) (tracing.Tracer, func()) {
+	return params.Trace.Push(
+		genai.AgentSpanName(params.AgentName),
+		runSpanAttrs(params)...,
+	)
+}
+
+func runSpanAttrs(params LoopParams) []attribute.KeyValue {
+	return append(
 		genai.AgentAttrs(params.AgentName, params.AgentVersion, params.ProviderName, params.ModelName),
 		attribute.String("directory", params.Directory),
 		attribute.Int("budget.max_iterations", params.Budget.MaxIterations),
 		attribute.Int("budget.max_tokens", params.Budget.MaxTokens),
 		attribute.Int64("budget.max_duration_ms", params.Budget.MaxDuration.Milliseconds()),
 	)
+}
 
-	runTrace, runDone := params.Trace.Push(
-		genai.AgentSpanName(params.AgentName),
-		agentSpanAttrs...,
-	)
-	defer runDone()
-
-	rr, err := coreLoop(sm, params, runTrace, ctx)
-
-	runTrace.SetAttributes(
+func recordRunResult(tr tracing.Tracer, rr RunResult) {
+	tr.SetAttributes(
 		attribute.String("run.status", string(rr.Status)),
 		attribute.String("run.final_state", string(rr.FinalState)),
 		attribute.Int("run.iterations", rr.Iterations),
@@ -261,189 +109,6 @@ func Loop(params LoopParams, ctx context.Context) (RunResult, error) {
 		attribute.Int64("run.duration_ms", rr.Duration.Milliseconds()),
 		genai.AttrResponseFinishReasons.String(mapRunStatusToFinishReason(rr.Status)),
 	)
-
-	return rr, err
-}
-
-func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Context) (RunResult, error) {
-	state := p.InitialState
-	sig := Seed
-	res := Result{Output: "Begin.", Signal: Seed}
-	if p.InitialSignal != "" {
-		sig = p.InitialSignal
-		res = p.InitialResult
-		if res.Signal == "" {
-			res.Signal = sig
-		}
-		if res.Output == "" {
-			res.Output = "Resume."
-		}
-	}
-	start := time.Now()
-
-	taskCompletedSig := p.Hooks.TaskCompletedSignal
-	if taskCompletedSig == "" {
-		taskCompletedSig = "TaskCompleted"
-	}
-
-	rr := p.InitialRun
-	var iteration int
-	if rr.Iterations > 0 {
-		iteration = rr.Iterations
-	}
-	recordMonitorRun(ctx, p.MonitorRecorder, monitor.RunSnapshot{
-		RunID:     p.AgentName,
-		Status:    "running",
-		State:     string(state),
-		Iteration: iteration,
-	})
-
-	for {
-		if ctx.Err() != nil {
-			tr.Event("run.cancelled",
-				attribute.String("state", string(state)),
-				attribute.String("reason", ctx.Err().Error()),
-			)
-			rr.Status = StatusCancelled
-			rr.FinalState = state
-			break
-		}
-
-		if coreBudgetExceeded(p.Budget, rr, iteration) || hookBudgetExceeded(p.Hooks, p.Budget, rr, iteration) {
-			tr.Event("budget_exhausted",
-				attribute.Int("iterations", iteration),
-				attribute.Int("max_iterations", p.Budget.MaxIterations),
-				attribute.Int("tokens_total", rr.TokensIn+rr.TokensOut),
-				attribute.Int("max_tokens", p.Budget.MaxTokens),
-			)
-			sig = BudgetExhausted
-		}
-
-		transitionSignal := sig
-		metricLabels := transitionMetricLabels(p.MachineSpec, state, transitionSignal)
-		nextState, cmd, err := sm.Step(state, transitionSignal, res)
-		if err != nil {
-			tr.Event("state.transition.unhandled",
-				attribute.String("state", string(state)),
-				attribute.String("signal", string(sig)),
-				attribute.String("error", err.Error()),
-			)
-		} else {
-			tr.Event("state.transition",
-				attribute.String("from_state", string(state)),
-				attribute.String("signal", string(sig)),
-				attribute.String("to_state", string(nextState)),
-			)
-		}
-
-		if sm.IsTerminal(nextState) {
-			tr.Event("run.terminal",
-				attribute.String("final_state", string(nextState)),
-				attribute.String("status", string(resolveTerminalStatus(p.Hooks, nextState))),
-			)
-			rr.FinalState = nextState
-			rr.Status = resolveTerminalStatus(p.Hooks, nextState)
-			break
-		}
-
-		iteration++
-		fromState := state
-		state = nextState
-
-		if cmd == nil {
-			tr.Event("dispatch.nil_command",
-				attribute.String("state", string(state)),
-				attribute.String("signal", string(sig)),
-			)
-			rr.Status = StatusFailed
-			rr.FinalState = state
-			rr.LastError = fmt.Errorf("nil command in state %s (signal %s)", state, sig)
-			break
-		}
-
-		res = dispatchWithMonitor(cmd, tr, p.CommandTimeout, p.MonitorRecorder, monitor.DispatchContext{
-			RunID:        p.AgentName,
-			AgentName:    p.AgentName,
-			State:        string(state),
-			Iteration:    iteration,
-			MetricLabels: metricLabels,
-		})
-		sig = res.Signal
-
-		if p.Hooks.AfterDispatch != nil {
-			if override := p.Hooks.AfterDispatch(cmd, res); override != "" {
-				sig = override
-			}
-		}
-
-		accumulateCost(&rr, res)
-		if res.Err != nil {
-			rr.LastError = res.Err
-		}
-		if res.Signal == taskCompletedSig {
-			rr.Summary = res.Output
-		}
-
-		if p.Hooks.OnResult != nil {
-			rr = p.Hooks.OnResult(rr, res)
-		}
-
-		event := RunEvent{
-			Iteration:   iteration,
-			Timestamp:   time.Now(),
-			CommandName: res.CommandName,
-			Signal:      res.Signal,
-			Cost:        res.Cost,
-			FromState:   fromState,
-			ToState:     state,
-		}
-		rr.Events = append(rr.Events, event)
-		recordMonitorEvent(ctx, p.MonitorRecorder, event)
-		recordMonitorRun(ctx, p.MonitorRecorder, monitor.RunSnapshot{
-			RunID:     p.AgentName,
-			Status:    "running",
-			State:     string(state),
-			Signal:    string(sig),
-			Iteration: iteration,
-		})
-
-		if historyEnabled(p) {
-			workspaceRef := captureWorkspaceRef(p, tr, ctx, iteration, res.CommandName)
-			rr.History = append(rr.History, newHistoryEntry(iteration, cmd, res, fromState, state, transitionSignal, workspaceRef, tr))
-		}
-
-		emitIterationSpan(tr, iteration, res, fromState, state)
-
-		if sig == AwaitApproval {
-			if err := persistSuspendCheckpoint(ctx, p, tr, &rr, state, sig, iteration); err != nil {
-				rr.Status = StatusFailed
-				rr.FinalState = state
-				rr.LastError = err
-				break
-			}
-			tr.Event("run.suspended",
-				attribute.String("state", string(state)),
-				attribute.Int("iteration", iteration),
-			)
-			rr.Status = StatusSuspended
-			rr.FinalState = state
-			break
-		}
-	}
-
-	rr.Iterations = iteration
-	rr.Duration = time.Since(start)
-	recordMonitorRun(ctx, p.MonitorRecorder, monitor.RunSnapshot{
-		RunID:     p.AgentName,
-		Status:    string(rr.Status),
-		State:     string(rr.FinalState),
-		Signal:    string(sig),
-		Iteration: iteration,
-	})
-
-	log.Printf("run complete: status=%s iterations=%d tokens_in=%d tokens_out=%d duration=%s",
-		rr.Status, rr.Iterations, rr.TokensIn, rr.TokensOut, rr.Duration)
-	return rr, nil
 }
 
 func coreBudgetExceeded(b Budget, rr RunResult, iterations int) bool {
@@ -502,208 +167,6 @@ func accumulateCost(rr *RunResult, res Result) {
 	rr.TotalCost += res.Cost.Dollars
 }
 
-func recordMonitorEvent(ctx context.Context, rec monitor.RuntimeRecorder, event RunEvent) {
-	if rec == nil {
-		return
-	}
-	_ = rec.RecordEvent(ctx, monitor.RunEvent{
-		Iteration:   event.Iteration,
-		Timestamp:   event.Timestamp,
-		CommandName: event.CommandName,
-		Signal:      string(event.Signal),
-		FromState:   string(event.FromState),
-		ToState:     string(event.ToState),
-		Duration:    event.Cost.Duration,
-		TokensIn:    event.Cost.TokensIn,
-		TokensOut:   event.Cost.TokensOut,
-	})
-}
-
-func recordMonitorRun(ctx context.Context, rec monitor.RuntimeRecorder, run monitor.RunSnapshot) {
-	if rec == nil {
-		return
-	}
-	_ = rec.RecordRun(ctx, run)
-}
-
-func historyEnabled(p LoopParams) bool {
-	return p.CheckpointPolicy != nil
-}
-
-func captureWorkspaceRef(p LoopParams, tr tracing.Tracer, ctx context.Context, iteration int, commandName string) string {
-	if p.Workspace == nil {
-		return ""
-	}
-	ref, err := p.Workspace.CurrentRef(ctx)
-	if err != nil {
-		tr.Event("history.workspace_ref_failed",
-			attribute.Int("iteration", iteration),
-			attribute.String("command", commandName),
-			attribute.String("error", err.Error()),
-		)
-		return ""
-	}
-	return ref
-}
-
-func newHistoryEntry(iteration int, cmd Command, res Result, fromState, toState State, signal Signal, workspaceRef string, tr tracing.Tracer) HistoryEntry {
-	undo, undoErr := captureUndoMemento(cmd, res.CommandName, tr, iteration)
-	return HistoryEntry{
-		Iteration:    iteration,
-		Timestamp:    time.Now(),
-		Command:      cmd,
-		CommandName:  res.CommandName,
-		FromState:    fromState,
-		ToState:      toState,
-		Signal:       signal,
-		Result:       digestResult(res),
-		Undo:         undo,
-		UndoError:    undoErr,
-		WorkspaceRef: workspaceRef,
-	}
-}
-
-func captureUndoMemento(cmd Command, commandName string, tr tracing.Tracer, iteration int) (*UndoMemento, string) {
-	provider, ok := cmd.(UndoMementoProvider)
-	if !ok {
-		return nil, ""
-	}
-	memento, err := provider.UndoMemento()
-	if err != nil {
-		return nil, recordUndoMementoError(tr, iteration, commandName, err)
-	}
-	if err := ValidateUndoMemento(memento); err != nil {
-		return nil, recordUndoMementoError(tr, iteration, commandName, err)
-	}
-	return cloneUndoMemento(&memento), ""
-}
-
-func recordUndoMementoError(tr tracing.Tracer, iteration int, commandName string, err error) string {
-	if tr != nil {
-		tr.Event("history.undo_memento_invalid",
-			attribute.Int("iteration", iteration),
-			attribute.String("command", commandName),
-			attribute.String("error", err.Error()),
-		)
-	}
-	return err.Error()
-}
-
-func digestResult(res Result) ResultDigest {
-	digest := ResultDigest{
-		Signal: res.Signal,
-		Output: res.Output,
-		Cost:   res.Cost,
-	}
-	if res.Err != nil {
-		digest.Error = res.Err.Error()
-	}
-	return digest
-}
-
-func persistSuspendCheckpoint(ctx context.Context, p LoopParams, tr tracing.Tracer, rr *RunResult, state State, sig Signal, iteration int) error {
-	if p.StateStore == nil {
-		tr.Event("suspend.checkpoint_skipped",
-			attribute.String("reason", "state_store_not_configured"),
-			attribute.Int("iteration", iteration),
-		)
-		return nil
-	}
-	workspaceRef := latestWorkspaceRef(rr.History)
-	if workspaceRef == "" && p.Workspace != nil {
-		workspaceRef = captureWorkspaceRef(p, tr, ctx, iteration, "suspend")
-	}
-	cp := Checkpoint{
-		ID:        fmt.Sprintf("suspend-%d-%d", iteration, time.Now().UTC().UnixNano()),
-		Iteration: iteration,
-		Timestamp: time.Now().UTC(),
-		AgentState: AgentSnapshot{
-			State:     state,
-			Signal:    sig,
-			Iteration: iteration,
-			TokensIn:  rr.TokensIn,
-			TokensOut: rr.TokensOut,
-			TotalCost: rr.TotalCost,
-		},
-		WorkspaceRef: workspaceRef,
-		History:      historyDigest(rr.History),
-	}
-	if err := validateCheckpointHistory(cp.History); err != nil {
-		return err
-	}
-	if p.Hooks.SnapshotConversation != nil {
-		conversationLog, err := p.Hooks.SnapshotConversation()
-		if err != nil {
-			return fmt.Errorf("suspend checkpoint conversation snapshot: %w", err)
-		}
-		cp.ConversationLog = conversationLog
-	}
-	if p.Hooks.SnapshotDomain != nil {
-		domainState, err := p.Hooks.SnapshotDomain()
-		if err != nil {
-			return fmt.Errorf("suspend checkpoint domain snapshot: %w", err)
-		}
-		cp.DomainState = domainState
-	}
-	data, err := json.Marshal(cp)
-	if err != nil {
-		return fmt.Errorf("suspend checkpoint marshal: %w", err)
-	}
-	key := "checkpoint/" + cp.ID
-	if err := p.StateStore.Save(ctx, key, data); err != nil {
-		return fmt.Errorf("suspend checkpoint save %s: %w", key, err)
-	}
-	tr.Event("suspend.checkpoint_saved",
-		attribute.String("checkpoint_id", cp.ID),
-		attribute.String("checkpoint_key", key),
-		attribute.Int("iteration", iteration),
-	)
-	return nil
-}
-
-func latestWorkspaceRef(history History) string {
-	for i := len(history) - 1; i >= 0; i-- {
-		if history[i].WorkspaceRef != "" {
-			return history[i].WorkspaceRef
-		}
-	}
-	return ""
-}
-
-func historyDigest(history History) []HistoryDigest {
-	if len(history) == 0 {
-		return nil
-	}
-	digest := make([]HistoryDigest, 0, len(history))
-	for _, entry := range history {
-		digest = append(digest, HistoryDigest{
-			Iteration:    entry.Iteration,
-			CommandName:  entry.CommandName,
-			FromState:    entry.FromState,
-			ToState:      entry.ToState,
-			Signal:       entry.Result.Signal,
-			Undo:         cloneUndoMemento(entry.Undo),
-			UndoError:    entry.UndoError,
-			WorkspaceRef: entry.WorkspaceRef,
-		})
-	}
-	return digest
-}
-
-func validateCheckpointHistory(history []HistoryDigest) error {
-	for _, entry := range history {
-		if entry.UndoError != "" {
-			return fmt.Errorf("%w: command %s at iteration %d: %s", ErrUndoMementoIncompatible, entry.CommandName, entry.Iteration, entry.UndoError)
-		}
-		if entry.Undo != nil {
-			if err := ValidateUndoMemento(*entry.Undo); err != nil {
-				return fmt.Errorf("checkpoint history undo memento for %s at iteration %d: %w", entry.CommandName, entry.Iteration, err)
-			}
-		}
-	}
-	return nil
-}
-
 func emitIterationSpan(tr tracing.Tracer, iter int, res Result, from, to State) {
 	tr.SetAttributes(
 		attribute.Int("iteration", iter),
@@ -714,90 +177,4 @@ func emitIterationSpan(tr tracing.Tracer, iter int, res Result, from, to State) 
 		attribute.Int("budget.tokens_in", res.Cost.TokensIn),
 		attribute.Int("budget.tokens_out", res.Cost.TokensOut),
 	)
-}
-
-// initFromMachine handles declarative initialization when MachineFile or
-// MachineSpec is set. It creates the registry, calls InitFunc, loads or reuses
-// the machine, validates actions, and populates Table/IsTerminal/InitialState
-// on params.
-func initFromMachine(params *LoopParams) error {
-	if params.MachineFile == "" && params.MachineSpec == nil {
-		return nil
-	}
-
-	if params.Registry == nil {
-		params.Registry = NewRegistry()
-	}
-
-	if params.InitFunc != nil {
-		if err := params.InitFunc(params.Registry); err != nil {
-			return fmt.Errorf("init tools: %w", err)
-		}
-	}
-
-	var spec MachineSpec
-	if params.MachineSpec != nil {
-		spec = *params.MachineSpec
-	} else {
-		loaded, err := LoadMachineSpec(params.MachineFile)
-		if err != nil {
-			return err
-		}
-		spec = loaded
-	}
-
-	table, isTerminal, err := BuildTransitionTable(spec, params.Registry, params.ToolAction)
-	if err != nil {
-		return err
-	}
-
-	params.Table = table
-	params.IsTerminal = isTerminal
-	if params.InitialState == "" {
-		params.InitialState = State(spec.InitialState)
-	}
-	params.MachineSpec = &spec
-
-	return nil
-}
-
-func transitionMetricLabels(spec *MachineSpec, state State, signal Signal) MetricLabels {
-	if spec == nil {
-		return nil
-	}
-	labels := copyMetricLabels(spec.MetricLabels)
-	for _, tr := range spec.Transitions {
-		if tr.State == string(state) && tr.Signal == string(signal) {
-			mergeMetricLabels(labels, tr.MetricLabels)
-			return labels
-		}
-	}
-	return labels
-}
-
-func copyMetricLabels(labels MetricLabels) MetricLabels {
-	out := make(MetricLabels, len(labels))
-	for name, value := range labels {
-		out[name] = value
-	}
-	return out
-}
-
-func mergeMetricLabels(dst MetricLabels, src MetricLabels) {
-	for name, value := range src {
-		dst[name] = value
-	}
-}
-
-// ValidateBuilders is a convenience for creating ValidateParams hooks
-// that check a list of required builder names.
-func ValidateBuilders(names ...string) func(*Registry) error {
-	return func(reg *Registry) error {
-		for _, n := range names {
-			if _, ok := reg.Resolve(n); !ok {
-				return fmt.Errorf("initialization failed: missing builder %q", n)
-			}
-		}
-		return nil
-	}
 }
