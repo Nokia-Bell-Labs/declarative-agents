@@ -52,6 +52,11 @@ requirements:
       - R2.4: OpenAPI output SHALL omit secrets, raw prompts, full tool output, arbitrary workspace paths, and unbounded labels.
       - R2.5: OpenAPI generation SHALL NOT generate Go server code in the first implementation.
       - R2.6: OpenAPI output SHALL include profile-owned lifecycle control endpoints configured for the monitor server, including POST /monitor/control/exit when that route exists.
+      - R2.7: OpenAPI schemas SHALL use JSON Schema scalar types for scalar monitor fields, including string, integer, number, and boolean.
+      - R2.8: OpenAPI schemas SHALL use array schemas for repeated monitor fields and object schemas with additionalProperties for map-shaped monitor fields.
+      - R2.9: Timestamp fields such as updated_at and timestamp SHALL be strings with date-time format.
+      - R2.10: Schema names and property names SHALL match runtime JSON lower_snake_case fields.
+      - R2.11: /monitor/openapi SHALL NOT describe scalar fields such as run_id, state, status, iteration, accepted, and signal as shallow all-object schemas.
 
   R3:
     title: Snapshot endpoints
@@ -64,6 +69,10 @@ requirements:
       - R3.6: GET recent events endpoint SHALL return a bounded recent event window with state, signal, tool name, timestamp, status, and redacted diagnostics.
       - R3.7: Metric sample responses SHALL include the runtime envelope for both dispatch metrics and tool-owned specialized samples with run_id, state, signal, status, tool_name, and workflow labels where available.
       - R3.8: JSON response field names SHALL use stable API lower_snake_case names and SHALL NOT expose Go struct field names such as RunID, ToolName, or UpdatedAt.
+      - R3.9: /monitor/state OpenAPI response schema SHALL define run as an object with run_id, status, state, signal, iteration, and updated_at, plus diagnostics and errors arrays.
+      - R3.10: /monitor/metrics OpenAPI response schema SHALL define tools, metrics, and schemas as map-shaped objects, recent_samples and diagnostics as arrays, and sample values as numbers.
+      - R3.11: /monitor/events OpenAPI response schema SHALL define recent_events as an array of event objects with string, integer, number, and timestamp fields that match runtime output.
+      - R3.12: POST /monitor/control/exit OpenAPI schemas SHALL define the optional request reason as a string and the accepted response as an object with accepted boolean and signal string fields.
 
   R4:
     title: Event streams
@@ -110,9 +119,14 @@ implementation_status:
     default. TestMonitorReleaseProfileProof and mage integration:uc004 prove
     the path through cmd/agent with the live store.
   remaining: |
-    No remaining Release 04.0 monitor REST API hardening gap is tracked here.
-    Residual limits are product boundaries: monitor readers are profile-owned,
-    read cached state only, and do not provide durable metric history.
+    /monitor/openapi currently documents monitor routes and redacts unsafe
+    fields. Precise JSON Schema generation for scalar fields, arrays, maps,
+    timestamps, and nested objects remains follow-up work. The generated schema
+    must reject shallow all-object descriptions for runtime scalar fields.
+
+    Residual product boundaries remain unchanged: monitor readers are
+    profile-owned, read cached state only, and do not provide durable metric
+    history.
 
 non_goals:
   - Writing monitor state through REST.
@@ -131,15 +145,15 @@ acceptance_criteria:
       - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC2
-    criterion: OpenAPI requirements cover configured endpoint descriptions, stable operation IDs, response schemas, profile-owned control endpoints, redaction, and no generated Go server code.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
+    criterion: OpenAPI requirements cover configured endpoint descriptions, stable operation IDs, type-accurate response schemas, profile-owned control endpoints, redaction, lower_snake_case field names, and no generated Go server code.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11]
     tests:
       - "test-rel04.0-monitor: Monitor OpenAPI omits unsafe fields"
       - "test-rel04.0-monitor: End-to-end monitor release proof"
 
   - id: AC3
-    criterion: Snapshot endpoint requirements cover machine spec, current state, tools, per-tool metrics, aggregate metrics, recent events, stable lower_snake_case response fields, and the runtime envelope on specialized samples.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
+    criterion: Snapshot endpoint requirements cover machine spec, current state, tools, per-tool metrics, aggregate metrics, recent events, stable lower_snake_case response fields, precise OpenAPI schema shapes, and the runtime envelope on specialized samples.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10, R3.11, R3.12]
     tests:
       - "test-rel04.0-monitor: Monitor snapshot endpoints return configured views"
       - "test-rel04.0-monitor: End-to-end monitor release proof"
