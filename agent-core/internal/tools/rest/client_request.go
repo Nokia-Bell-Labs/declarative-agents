@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -46,6 +47,7 @@ func buildClientRequest(
 		return renderRequestBody(def.Operation, params, def.Limits.MaxRequestBytes)
 	}
 	applyHeaders(req, def.Operation.Params.Headers, params)
+	applyIdempotency(req, def.Operation, params)
 	return req, applyAuth(req, def.Auth, resolver)
 }
 
@@ -214,6 +216,16 @@ func applyHeaders(req *http.Request, declared map[string]interface{}, params map
 	}
 }
 
+func applyIdempotency(req *http.Request, operation Operation, params map[string]interface{}) {
+	if operation.Async == nil || operation.Async.IdempotencyToken == "" {
+		return
+	}
+	token := asyncValue(operation.Async.IdempotencyToken, params)
+	if token != "" {
+		req.Header.Set("Idempotency-Key", token)
+	}
+}
+
 func applyAuth(req *http.Request, auth AuthProfile, resolver CredentialResolver) error {
 	switch auth.Type {
 	case "", authNone:
@@ -291,7 +303,47 @@ func validateNetwork(endpoint *url.URL, policy NetworkPolicy) error {
 	if len(policy.Hosts) > 0 && !stringIn(host, policy.Hosts) {
 		return fmt.Errorf("host %q is not allowed", host)
 	}
+	if err := validateCIDR(host, policy); err != nil {
+		return err
+	}
 	return validatePort(endpoint, policy)
+}
+
+func validateCIDR(host string, policy NetworkPolicy) error {
+	if len(policy.CIDRs) == 0 {
+		return nil
+	}
+	ips, err := hostIPs(host)
+	if err != nil {
+		return err
+	}
+	for _, ip := range ips {
+		if ipAllowedByCIDR(ip, policy.CIDRs) {
+			return nil
+		}
+	}
+	return fmt.Errorf("host %q is not allowed by CIDR policy", host)
+}
+
+func hostIPs(host string) ([]net.IP, error) {
+	if ip := net.ParseIP(host); ip != nil {
+		return []net.IP{ip}, nil
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve host %q for CIDR policy: %w", host, err)
+	}
+	return ips, nil
+}
+
+func ipAllowedByCIDR(ip net.IP, cidrs []string) bool {
+	for _, raw := range cidrs {
+		_, network, err := net.ParseCIDR(raw)
+		if err == nil && network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func validatePort(endpoint *url.URL, policy NetworkPolicy) error {

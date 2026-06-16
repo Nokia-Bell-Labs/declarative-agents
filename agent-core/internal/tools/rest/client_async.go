@@ -31,11 +31,7 @@ func (c clientCmd) awaitAsync() core.Result {
 	if c.asyncState == nil {
 		return clientOperationError(c.toolName, "async_state_missing", fmt.Errorf("async state is not configured"), c.operation)
 	}
-	requestID := stringParam(c.params, "request_id", "id")
-	if requestID == "" {
-		return clientOperationError(c.toolName, "async_state_missing", fmt.Errorf("request_id is required"), c.operation)
-	}
-	request, err := c.asyncState.Get(requestID)
+	request, err := c.awaitRequest()
 	if err != nil {
 		return clientOperationError(c.toolName, "async_state_missing", err, c.operation)
 	}
@@ -51,6 +47,18 @@ func (c clientCmd) awaitAsync() core.Result {
 			Output:      jsonOutput(asyncTimeoutOutput(request)),
 		}
 	}
+}
+
+func (c clientCmd) awaitRequest() (*AsyncRequest, error) {
+	requestID := stringParam(c.params, "request_id", "id")
+	if requestID != "" {
+		return c.asyncState.Get(requestID)
+	}
+	correlation := stringParam(c.params, "correlation")
+	if correlation != "" {
+		return c.asyncState.GetByCorrelation(correlation)
+	}
+	return nil, fmt.Errorf("request_id or correlation is required")
 }
 
 func (c clientCmd) completeAsync(request *http.Request, state *AsyncRequest) {

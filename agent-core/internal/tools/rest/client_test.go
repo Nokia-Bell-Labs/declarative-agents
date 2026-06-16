@@ -204,6 +204,55 @@ func TestRESTClient_RequestAndResponseSizeLimits(t *testing.T) {
 	require.NotContains(t, result.Output, strings.Repeat("x", 16))
 }
 
+func TestRESTClient_CIDRAllowlistPolicy(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok"})
+	}))
+	defer upstream.Close()
+
+	allowedCIDR := loopbackCIDR(targetURLHost(upstream))
+	allowed := clientDefinition(t, upstream.URL, issueClient())
+	setNetworkPolicy(allowed, NetworkPolicy{CIDRs: []string{allowedCIDR}})
+	requireClientSignal(t, allowed, InitClientGet, "get", params("1"), "RESTResourceRead")
+
+	blocked := clientDefinition(t, upstream.URL, issueClient())
+	setNetworkPolicy(blocked, NetworkPolicy{CIDRs: []string{"10.0.0.0/8"}})
+	result := clientCommand(blocked, InitClientGet, "get", params("1")).Execute()
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "request_rendering")
+	require.Equal(t, 1, requests)
+}
+
+func TestRESTClient_ResponseSchemaAndDomainErrorOutput(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if strings.Contains(req.URL.Path, "domain") {
+			http.Error(w, `{"error":"invalid"}`, http.StatusUnprocessableEntity)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{"title": 42})
+	}))
+	defer upstream.Close()
+	def := clientDefinition(t, upstream.URL, issueClient())
+	op := def.Clients["github"].Resources["issue"].Operations["get"]
+	op.Response.Schema = bodySchema("title")
+	op.Failures[1].DomainErrorCode = "validation_failed"
+	def.Clients["github"].Resources["issue"].Operations["get"] = op
+
+	result := clientCommand(def, InitClientGet, "get", params("1")).Execute()
+	require.Equal(t, core.CommandError, result.Signal)
+	require.Contains(t, result.Output, "response_mapping")
+
+	result = clientCommand(def, InitClientGet, "get", params("domain")).Execute()
+	require.Equal(t, core.Signal("RESTDomainFailed"), result.Signal, result.Output)
+	require.Contains(t, result.Output, `"domain_error_code":"validation_failed"`)
+}
+
 func TestRESTClientRecordsMonitorMetrics(t *testing.T) {
 	t.Parallel()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -550,6 +599,10 @@ func setResponseLimit(def Definition, limit int) {
 	setClientLimit(def, func(profile *LimitProfile) { profile.MaxResponseBytes = limit })
 }
 
+func setNetworkPolicy(def Definition, policy NetworkPolicy) {
+	setClientLimit(def, func(profile *LimitProfile) { profile.Network = policy })
+}
+
 func setClientLimit(def Definition, mutate func(*LimitProfile)) {
 	profile := def.Limits["test"]
 	mutate(&profile)
@@ -562,4 +615,11 @@ func setClientLimit(def Definition, mutate func(*LimitProfile)) {
 func targetURLHost(server *httptest.Server) string {
 	req, _ := http.NewRequest(http.MethodGet, server.URL, nil)
 	return req.URL.Hostname()
+}
+
+func loopbackCIDR(host string) string {
+	if strings.Contains(host, ":") {
+		return "::1/128"
+	}
+	return "127.0.0.0/8"
 }
