@@ -19,11 +19,15 @@ func (r *recordingTracker) Record(name string) {
 }
 
 type namedBuilder struct {
-	name string
+	name     string
+	executed *bool
 }
 
 func (b namedBuilder) Build(core.Result) core.Command {
-	return namedCmd(b)
+	if b.executed != nil {
+		*b.executed = true
+	}
+	return namedCmd{name: b.name}
 }
 
 type namedCmd struct {
@@ -59,4 +63,24 @@ func TestBuildDynamicToolActionUnknownToolReturnsCommandError(t *testing.T) {
 
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Contains(t, res.Output, "no builder")
+}
+
+func TestBuildDynamicToolActionRejectsInternalTool(t *testing.T) {
+	t.Parallel()
+	reg := core.NewRegistry()
+	var executed bool
+	reg.Register(core.ToolSpec{Name: "launch_monitor_rest", Visibility: core.Internal}, namedBuilder{
+		name: "launch_monitor_rest", executed: &executed,
+	})
+	tracker := &recordingTracker{}
+	action := BuildDynamicToolAction(DynamicToolActionDeps{Registry: reg, Tracker: tracker})
+
+	cmd := action(core.Result{Output: `{"tool":"launch_monitor_rest","parameters":{}}`})
+	res := cmd.Execute()
+
+	require.Equal(t, "fail", cmd.Name())
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Contains(t, res.Output, "not available for dynamic dispatch")
+	require.False(t, executed)
+	require.Empty(t, tracker.names)
 }

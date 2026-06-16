@@ -95,7 +95,7 @@ func validateDynamicEmits(spec core.MachineSpec, transitions []core.TransitionSp
 			continue
 		}
 		for _, def := range defs {
-			if def.Visibility == "internal" || len(def.Emits) == 0 {
+			if !dynamicDispatchVisible(def) || len(def.Emits) == 0 {
 				continue
 			}
 			for _, emit := range def.Emits {
@@ -108,4 +108,8 @@ func validateDynamicEmits(spec core.MachineSpec, transitions []core.TransitionSp
 		}
 	}
 	return errs
+}
+
+func dynamicDispatchVisible(def ToolDef) bool {
+	return def.ToToolSpec().Visibility == core.External
 }
