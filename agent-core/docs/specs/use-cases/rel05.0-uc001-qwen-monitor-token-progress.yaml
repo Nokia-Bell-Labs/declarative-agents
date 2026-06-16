@@ -12,9 +12,9 @@ summary: |
 actor: Release maintainer proving live monitor observability on Qwen flows
 
 trigger: |
-  The existing Qwen/Ollama proof shows REST tool selection and grounded final
-  answers. A later release needs a live proof that the same model-boundary path
-  can expose monitor state while the state machine continues running, without a
+  UC005 already shows REST tool selection and final answers backed by model
+  data. Release 05.0 needs a live proof that the same model-boundary path can
+  expose monitor state while the state machine continues running, without a
   sidecar or a blocking monitor action.
 
 flow:
@@ -32,8 +32,8 @@ touchpoints:
   - T1: "mage integration:uc008 -- live monitored Qwen token progress proof"
   - T2: "rel03.0-uc005-ollama-openapi-model-listing -- source Qwen REST tool flow"
   - T3: "rel04.0-uc002-monitor-rest-api -- embedded monitor REST snapshot behavior"
-  - T4: "srd032-tool-metrics-monitor-store AC2 -- tool-owned specialized metrics"
-  - T5: "srd033-monitor-rest-api AC1, AC3 -- cached monitor REST reads"
+  - T4: "srd032-tool-metrics-monitor-store R2, AC2 -- tool-owned specialized metrics"
+  - T5: "srd033-monitor-rest-api R1, R3, AC1, AC3 -- cached monitor REST reads"
 
 success_criteria:
   - id: S1
