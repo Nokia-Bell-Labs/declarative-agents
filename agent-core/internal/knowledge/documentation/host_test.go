@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -154,9 +155,16 @@ func TestStandaloneServerServesProfileUXConfig(t *testing.T) {
 	require.Equal(t, "doc_get", uxRoutesByID(body["data"].Routes)["docs_detail"].Action)
 }
 
-func TestLoadCuratorUXConfigFallsBackForGeneratedProfile(t *testing.T) {
+func TestLoadCuratorUXConfigReadsGeneratedProfileLocalConfig(t *testing.T) {
 	t.Parallel()
-	cfg, err := LoadCuratorUXConfig(filepath.Join(t.TempDir(), "profile.yaml"))
+	profileDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(profileDir, "ui"), 0o755))
+	source := filepath.Join(filepath.Dir(curatorProfilePath(t)), "ui", "ux.yaml")
+	data, err := os.ReadFile(source)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "ui", "ux.yaml"), data, 0o644))
+
+	cfg, err := LoadCuratorUXConfig(filepath.Join(profileDir, "profile.yaml"))
 
 	require.NoError(t, err)
 	require.Equal(t, "Knowledge Manager Documentation UI", cfg.Title)
