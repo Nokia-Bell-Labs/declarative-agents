@@ -9,6 +9,8 @@ import (
 )
 
 func TestClassify_Clean(t *testing.T) {
+	t.Parallel()
+
 	snaps := []ToolSnapshot{
 		{Tool: "test", Signal: "ToolDone", Total: 4, Passed: 4, Failed: 0},
 		{Tool: "build", Signal: "ToolDone", Total: 0, Passed: 0, Failed: 0},
@@ -18,6 +20,8 @@ func TestClassify_Clean(t *testing.T) {
 }
 
 func TestClassify_Converged(t *testing.T) {
+	t.Parallel()
+
 	snaps := []ToolSnapshot{
 		{Tool: "test", Signal: "ToolFailed", Total: 4, Passed: 1, Failed: 3},
 		{Tool: "test", Signal: "ToolFailed", Total: 4, Passed: 3, Failed: 1},
@@ -28,6 +32,8 @@ func TestClassify_Converged(t *testing.T) {
 }
 
 func TestClassify_Improving(t *testing.T) {
+	t.Parallel()
+
 	snaps := []ToolSnapshot{
 		{Tool: "test", Signal: "ToolFailed", Total: 4, Passed: 0, Failed: 4},
 		{Tool: "test", Signal: "ToolFailed", Total: 4, Passed: 2, Failed: 2},
@@ -38,6 +44,8 @@ func TestClassify_Improving(t *testing.T) {
 }
 
 func TestClassify_Flat(t *testing.T) {
+	t.Parallel()
+
 	snaps := []ToolSnapshot{
 		{Tool: "test", Signal: "ToolFailed", Total: 4, Passed: 2, Failed: 2},
 		{Tool: "test", Signal: "ToolFailed", Total: 4, Passed: 2, Failed: 2},
@@ -48,6 +56,8 @@ func TestClassify_Flat(t *testing.T) {
 }
 
 func TestClassify_Regressing(t *testing.T) {
+	t.Parallel()
+
 	snaps := []ToolSnapshot{
 		{Tool: "test", Signal: "ToolFailed", Total: 4, Passed: 3, Failed: 1},
 		{Tool: "test", Signal: "ToolFailed", Total: 4, Passed: 1, Failed: 3},
@@ -57,11 +67,15 @@ func TestClassify_Regressing(t *testing.T) {
 }
 
 func TestClassify_NoData(t *testing.T) {
+	t.Parallel()
+
 	prog := Classify(nil, false)
 	assert.Equal(t, NoData, prog.Overall)
 }
 
 func TestClassify_MultiTool(t *testing.T) {
+	t.Parallel()
+
 	snaps := []ToolSnapshot{
 		{Tool: "build", Signal: "ToolFailed", Total: 2, Passed: 0, Failed: 2},
 		{Tool: "build", Signal: "ToolDone", Total: 0, Passed: 0, Failed: 0},
@@ -74,6 +88,8 @@ func TestClassify_MultiTool(t *testing.T) {
 }
 
 func TestFormatTimeline(t *testing.T) {
+	t.Parallel()
+
 	snaps := []ToolSnapshot{
 		{Tool: "test", Signal: "ToolFailed", Total: 0, Passed: 0, Failed: 0},
 		{Tool: "test", Signal: "ToolFailed", Total: 4, Passed: 1, Failed: 3},

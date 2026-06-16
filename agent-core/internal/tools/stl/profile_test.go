@@ -12,6 +12,8 @@ import (
 )
 
 func TestLoadProfile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
@@ -36,6 +38,8 @@ tool_declarations:
 }
 
 func TestLoadProfile_AbsolutePaths(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
@@ -52,6 +56,8 @@ tools:
 }
 
 func TestLoadProfile_MissingMachine(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
@@ -66,6 +72,8 @@ tools:
 }
 
 func TestLoadProfile_MissingTools(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
@@ -79,6 +87,8 @@ machine: machine.yaml
 }
 
 func TestLoadProfile_Directory(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`

@@ -11,6 +11,8 @@ import (
 )
 
 func TestFixNewlinesInStrings_LiteralNewlines(t *testing.T) {
+	t.Parallel()
+
 	input := `{"tool":"write","parameters":{"content":"line1` + "\n" + `line2"}}`
 	fixed := FixNewlinesInStrings(input)
 	var v map[string]interface{}
@@ -18,11 +20,15 @@ func TestFixNewlinesInStrings_LiteralNewlines(t *testing.T) {
 }
 
 func TestFixNewlinesInStrings_EscapedNewlines(t *testing.T) {
+	t.Parallel()
+
 	input := `{"tool":"write","parameters":{"content":"line1\nline2"}}`
 	assert.Equal(t, input, FixNewlinesInStrings(input))
 }
 
 func TestFixNewlinesInStrings_Tabs(t *testing.T) {
+	t.Parallel()
+
 	input := `{"content":"has` + "\t" + `tab"}`
 	fixed := FixNewlinesInStrings(input)
 	assert.Contains(t, fixed, `\t`)
@@ -31,6 +37,8 @@ func TestFixNewlinesInStrings_Tabs(t *testing.T) {
 }
 
 func TestExtractFlatParams(t *testing.T) {
+	t.Parallel()
+
 	result := ExtractFlatParams(`{"tool":"edit","path":"f.go","old_string":"x"}`, "edit")
 	var m map[string]interface{}
 	require.NoError(t, json.Unmarshal(result, &m))
@@ -41,22 +49,30 @@ func TestExtractFlatParams(t *testing.T) {
 }
 
 func TestExtractFlatParams_Empty(t *testing.T) {
+	t.Parallel()
+
 	result := ExtractFlatParams(`{"tool":"build"}`, "build")
 	assert.Equal(t, `{}`, string(result))
 }
 
 func TestExtractFlatParams_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	result := ExtractFlatParams(`not json`, "")
 	assert.Equal(t, `{}`, string(result))
 }
 
 func TestCountToolCallBlocks(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, 0, CountToolCallBlocks(`{"tool":"read"}`))
 	assert.Equal(t, 1, CountToolCallBlocks(`[tool_call]{"tool":"read"}[/tool_call]`))
 	assert.Equal(t, 2, CountToolCallBlocks(`[tool_call]{"tool":"read"}[/tool_call] text [tool_call]{"tool":"write"}[/tool_call]`))
 }
 
 func TestEstimateTokens(t *testing.T) {
+	t.Parallel()
+
 	msgs := []Message{
 		{Role: User, Content: "hello world twelve chars"},
 	}
@@ -65,18 +81,24 @@ func TestEstimateTokens(t *testing.T) {
 }
 
 func TestExtractDoneSummary(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "all done", ExtractDoneSummary(json.RawMessage(`{"summary":"all done"}`)))
 	assert.Equal(t, `{"other":"field"}`, ExtractDoneSummary(json.RawMessage(`{"other":"field"}`)))
 	assert.Equal(t, `{}`, ExtractDoneSummary(json.RawMessage(`{}`)))
 }
 
 func TestCheckRequiredFields_AllPresent(t *testing.T) {
+	t.Parallel()
+
 	schema := json.RawMessage(`{"required":["path","content"]}`)
 	params := json.RawMessage(`{"path":"f.go","content":"x"}`)
 	assert.Empty(t, CheckRequiredFields(schema, params))
 }
 
 func TestCheckRequiredFields_Missing(t *testing.T) {
+	t.Parallel()
+
 	schema := json.RawMessage(`{"required":["path","content"]}`)
 	params := json.RawMessage(`{"path":"f.go"}`)
 	missing := CheckRequiredFields(schema, params)
@@ -84,16 +106,22 @@ func TestCheckRequiredFields_Missing(t *testing.T) {
 }
 
 func TestCheckRequiredFields_NoRequired(t *testing.T) {
+	t.Parallel()
+
 	schema := json.RawMessage(`{"type":"object"}`)
 	params := json.RawMessage(`{}`)
 	assert.Empty(t, CheckRequiredFields(schema, params))
 }
 
 func TestCheckRequiredFields_EmptySchema(t *testing.T) {
+	t.Parallel()
+
 	assert.Empty(t, CheckRequiredFields(nil, json.RawMessage(`{}`)))
 }
 
 func TestClassifyParseError(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "malformed_json", ClassifyParseError("malformed JSON: unexpected EOF"))
 	assert.Equal(t, "unknown_tool", ClassifyParseError(`unknown tool "foo"`))
 	assert.Equal(t, "missing_params", ClassifyParseError("missing required parameters: [path]"))
@@ -101,6 +129,8 @@ func TestClassifyParseError(t *testing.T) {
 }
 
 func TestTruncate(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "short", Truncate("short", 100))
 	result := Truncate("this is a longer string", 10)
 	assert.Equal(t, 10, len("this is a "))
