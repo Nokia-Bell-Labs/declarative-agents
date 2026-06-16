@@ -451,6 +451,8 @@ func TestApprovalLifecycleProfileUsesWorkspaceLocalStateStore(t *testing.T) {
 }
 
 func TestStateStoreDirOverridesWorkspaceLocalDefault(t *testing.T) {
+	t.Parallel()
+
 	cfg := runtimeConfig{
 		Directory:     filepath.Join("workspace"),
 		StateStoreDir: filepath.Join("operator", "state"),
@@ -972,6 +974,8 @@ func captureStderr(t *testing.T, fn func() error) (string, error) {
 }
 
 func TestFormatCheckpointHistory(t *testing.T) {
+	t.Parallel()
+
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 
 	out := core.FormatCheckpointHistory(cp)
@@ -984,6 +988,8 @@ func TestFormatCheckpointHistory(t *testing.T) {
 }
 
 func TestResolveCheckpointIDLatest(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := core.NewFileStore(t.TempDir())
 	saveAgentCheckpoint(t, store, sampleCheckpoint("older", time.Unix(100, 0).UTC()))
@@ -996,6 +1002,8 @@ func TestResolveCheckpointIDLatest(t *testing.T) {
 }
 
 func TestRollbackCheckpointToIteration(t *testing.T) {
+	t.Parallel()
+
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 
 	result, err := core.RollbackCheckpoint(cp, 1)
@@ -1012,6 +1020,8 @@ func TestRollbackCheckpointToIteration(t *testing.T) {
 }
 
 func TestRollbackCheckpointToIterationRestoresConversationMemento(t *testing.T) {
+	t.Parallel()
+
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 	cp.History[1].CommandName = "invoke_llm"
 	cp.History[1].Undo = &core.UndoMemento{
@@ -1028,6 +1038,8 @@ func TestRollbackCheckpointToIterationRestoresConversationMemento(t *testing.T) 
 }
 
 func TestRollbackCheckpointToIterationRestoresPipelineDomainMemento(t *testing.T) {
+	t.Parallel()
+
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 	cp.History[1].CommandName = "parse_plan"
 	cp.History[1].Undo = &core.UndoMemento{
@@ -1044,6 +1056,8 @@ func TestRollbackCheckpointToIterationRestoresPipelineDomainMemento(t *testing.T
 }
 
 func TestRollbackCheckpointToIterationReportsMissingUndoMemento(t *testing.T) {
+	t.Parallel()
+
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 	cp.History[1].Undo = nil
 
@@ -1055,6 +1069,8 @@ func TestRollbackCheckpointToIterationReportsMissingUndoMemento(t *testing.T) {
 }
 
 func TestRollbackCheckpointToIterationReportsIrreversibleUndoMemento(t *testing.T) {
+	t.Parallel()
+
 	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
 	irreversible := core.IrreversibleUndoMemento("write", "already published externally")
 	cp.History[1].Undo = &irreversible

@@ -57,6 +57,8 @@ var _ Workspace = stubWorkspace{}
 var _ CheckpointPolicy = alwaysCheckpointPolicy{}
 
 func TestCheckpointContractsCompileAndRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cp := Checkpoint{
 		ID:        "cp-1",
 		Iteration: 2,
@@ -103,6 +105,8 @@ func TestCheckpointContractsCompileAndRoundTrip(t *testing.T) {
 }
 
 func TestNoopUndoReturnsSuccessfulResult(t *testing.T) {
+	t.Parallel()
+
 	res := NoopUndo("read")
 
 	require.Equal(t, ToolDone, res.Signal)
@@ -111,6 +115,8 @@ func TestNoopUndoReturnsSuccessfulResult(t *testing.T) {
 }
 
 func TestStateStoreContractPersistsBytes(t *testing.T) {
+	t.Parallel()
+
 	store := &memoryStateStore{}
 	ctx := context.Background()
 

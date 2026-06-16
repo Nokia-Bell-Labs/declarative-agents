@@ -1,0 +1,67 @@
+tools:
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    emits: [LLMResponded, CommandError]
+    description: Invoke the configured Qwen Ollama model while emitting monitor token metrics.
+    category: boundary
+    output:
+      description: Raw Qwen response and token usage.
+      schema:
+        type: object
+        properties:
+          response: {type: string}
+          provider: {type: string}
+          model: {type: string}
+          prompt_tokens: {type: integer}
+          completion_tokens: {type: integer}
+    metrics:
+      instruments:
+        - name: llm.prompt_tokens
+          kind: histogram
+          unit: "1"
+          description: Prompt tokens returned by the provider.
+          value_source: prompt_tokens
+          attributes: [provider, model]
+        - name: llm.completion_tokens
+          kind: histogram
+          unit: "1"
+          description: Completion tokens returned by the provider.
+          value_source: completion_tokens
+          attributes: [provider, model]
+      attributes:
+        - name: provider
+          source: config_literal
+          cardinality: bounded
+          allowed_values: [ollama]
+        - name: model
+          source: config_literal
+          cardinality: bounded
+          allowed_values: [{{MODEL}}]
+    config:
+      model: {{MODEL}}
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      manifest_state: Composing
+      response_profile: qwen
+      max_time: 120
+      llm_timeout: 120
+      system_prompt: |
+        You list local Ollama models by using the provided REST tool.
+
+        Rules:
+        - First call ollama_list_models. Do not answer from memory.
+        - After the REST result returns, call done with a concise answer.
+        - The final answer must include at least one exact model name from the REST body models array.
+        - Use only these tools: ollama_list_models, done.
+
+        Tool call format:
+        [tool_call]
+        {"tool":"ollama_list_models","parameters":{}}
+        [/tool_call]
+
+        Final answer format:
+        [tool_call]
+        {"tool":"done","parameters":{"summary":"Local Ollama models include: <names from REST result>."}}
+        [/tool_call]

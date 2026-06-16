@@ -1,5 +1,4 @@
-// Copyright (c) 2026 Petar Djukic. All rights reserved.
-// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Nokia. All rights reserved.
 
 package main
 
@@ -90,285 +89,55 @@ func prepareMonitoredQwenRun(rootDir, model string) (monitoredQwenRun, func(), e
 }
 
 func writeMonitoredQwenFiles(rootDir, tmpDir, model, addr string) error {
-	files := map[string]string{
-		"machine.yaml":      monitoredQwenMachine(),
-		"tools.yaml":        monitoredQwenTools(),
-		"llm.yaml":          monitoredQwenLLM(model),
-		"monitor-rest.yaml": monitoredQwenREST(addr),
-		"profile.yaml":      monitoredQwenProfile(rootDir, tmpDir),
+	files := []monitoredQwenFixture{
+		{name: "machine.yaml", fixture: "machine.yaml"},
+		{name: "tools.yaml", fixture: "tools.yaml"},
+		{name: "llm.yaml", fixture: "llm.yaml.tmpl", values: map[string]string{"MODEL": fmt.Sprintf("%q", model)}},
+		{name: "monitor-rest.yaml", fixture: "monitor-rest.yaml.tmpl", values: map[string]string{"ADDRESS": addr}},
+		{name: "profile.yaml", fixture: "profile.yaml.tmpl", values: monitoredQwenProfileValues(rootDir, tmpDir)},
 	}
-	for name, content := range files {
-		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte(content), 0o644); err != nil {
+	for _, file := range files {
+		content, err := renderMonitoredQwenFixture(rootDir, file.fixture, file.values)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(tmpDir, file.name), []byte(content), 0o644); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func monitoredQwenProfile(rootDir, tmpDir string) string {
-	return fmt.Sprintf(`name: monitored-qwen-ollama-rest
-machine: %s
-tools:
-  - %s
-tool_declarations:
-  - %s
-  - %s
-  - %s
-  - %s
-rest_definitions:
-  - %s
-  - %s
-`, filepath.Join(tmpDir, "machine.yaml"), filepath.Join(tmpDir, "tools.yaml"),
-		abs(rootDir, "tools/builtin/llm/all.yaml"), filepath.Join(tmpDir, "llm.yaml"),
-		abs(rootDir, "agents/rest/ollama-declarations.yaml"), abs(rootDir, "agents/monitor/declarations.yaml"),
-		abs(rootDir, "agents/rest/ollama-rest.yaml"), filepath.Join(tmpDir, "monitor-rest.yaml"))
+type monitoredQwenFixture struct {
+	name    string
+	fixture string
+	values  map[string]string
 }
 
-func monitoredQwenTools() string {
-	return `tools:
-  - launch_monitor_rest
-  - invoke_llm
-  - parse_response
-  - report_parse_error
-  - done
-  - ollama_list_models
-  - await_monitor_control
-  - stop_monitor_rest
-`
+func monitoredQwenProfileValues(rootDir, tmpDir string) map[string]string {
+	return map[string]string{
+		"MACHINE_PATH":              filepath.Join(tmpDir, "machine.yaml"),
+		"TOOLS_PATH":                filepath.Join(tmpDir, "tools.yaml"),
+		"LLM_DECLARATIONS_PATH":     abs(rootDir, "tools/builtin/llm/all.yaml"),
+		"LLM_OVERRIDE_PATH":         filepath.Join(tmpDir, "llm.yaml"),
+		"OLLAMA_DECLARATIONS_PATH":  abs(rootDir, "agents/rest/ollama-declarations.yaml"),
+		"MONITOR_DECLARATIONS_PATH": abs(rootDir, "agents/monitor/declarations.yaml"),
+		"OLLAMA_REST_PATH":          abs(rootDir, "agents/rest/ollama-rest.yaml"),
+		"MONITOR_REST_PATH":         filepath.Join(tmpDir, "monitor-rest.yaml"),
+	}
 }
 
-func monitoredQwenMachine() string {
-	return `name: monitored-qwen-ollama-rest
-purpose: Start the embedded monitor without blocking Qwen, then prove token metrics while the run remains queryable.
-initial_state: Idle
-metric_labels:
-  profile: monitored_qwen
-budget:
-  max_iterations: 12
-  max_consecutive_parse_errors: 2
-states:
-  - name: Idle
-  - name: StartingMonitor
-  - name: Composing
-  - name: Parsing
-  - name: AwaitingMonitorExit
-  - name: StoppingMonitor
-  - name: Succeeded
-  - name: Failed
-  - name: BudgetExceeded
-terminal_states:
-  - Succeeded
-  - Failed
-  - BudgetExceeded
-signals:
-  - name: Seed
-  - name: ServerLaunched
-  - name: LLMResponded
-  - name: ToolDone
-  - name: ParseFailed
-  - name: TaskCompleted
-  - name: RESTResponded
-  - name: RESTDomainFailed
-  - name: ExitRequested
-  - name: AwaitTimedOut
-  - name: ServerStopped
-  - name: CommandError
-  - name: BudgetExhausted
-transitions:
-  - state: Idle
-    signal: Seed
-    next: StartingMonitor
-    action: launch_monitor_rest
-    metric_labels:
-      route_group: monitor
-  - state: StartingMonitor
-    signal: ServerLaunched
-    next: Composing
-    action: invoke_llm
-  - state: StartingMonitor
-    signal: CommandError
-    next: Failed
-  - state: Composing
-    signal: LLMResponded
-    next: Parsing
-    action: parse_response
-  - state: Parsing
-    signal: ToolDone
-    next: Composing
-    action: $tool
-  - state: Parsing
-    signal: TaskCompleted
-    next: AwaitingMonitorExit
-    action: await_monitor_control
-  - state: Parsing
-    signal: ParseFailed
-    next: Composing
-    action: report_parse_error
-  - state: Composing
-    signal: ToolDone
-    next: Composing
-    action: invoke_llm
-  - state: Composing
-    signal: RESTResponded
-    next: Composing
-    action: invoke_llm
-  - state: Composing
-    signal: RESTDomainFailed
-    next: Composing
-    action: invoke_llm
-  - state: AwaitingMonitorExit
-    signal: ExitRequested
-    next: StoppingMonitor
-    action: stop_monitor_rest
-  - state: AwaitingMonitorExit
-    signal: AwaitTimedOut
-    next: Failed
-  - state: AwaitingMonitorExit
-    signal: ServerStopped
-    next: Failed
-  - state: StoppingMonitor
-    signal: ServerStopped
-    next: Succeeded
-  - state: Composing
-    signal: CommandError
-    next: Failed
-  - state: Parsing
-    signal: CommandError
-    next: Failed
-  - state: AwaitingMonitorExit
-    signal: CommandError
-    next: Failed
-  - state: StoppingMonitor
-    signal: CommandError
-    next: Failed
-  - state: Composing
-    signal: BudgetExhausted
-    next: BudgetExceeded
-`
-}
-
-func monitoredQwenLLM(model string) string {
-	return fmt.Sprintf(`tools:
-  - name: invoke_llm
-    type: builtin
-    init: invoke_llm
-    visibility: internal
-    emits: [LLMResponded, CommandError]
-    description: Invoke the configured Qwen Ollama model while emitting monitor token metrics.
-    category: boundary
-    output:
-      description: Raw Qwen response and token usage.
-      schema:
-        type: object
-        properties:
-          response: {type: string}
-          provider: {type: string}
-          model: {type: string}
-          prompt_tokens: {type: integer}
-          completion_tokens: {type: integer}
-    metrics:
-      instruments:
-        - name: llm.prompt_tokens
-          kind: histogram
-          unit: "1"
-          description: Prompt tokens returned by the provider.
-          value_source: prompt_tokens
-          attributes: [provider, model]
-        - name: llm.completion_tokens
-          kind: histogram
-          unit: "1"
-          description: Completion tokens returned by the provider.
-          value_source: completion_tokens
-          attributes: [provider, model]
-      attributes:
-        - name: provider
-          source: config_literal
-          cardinality: bounded
-          allowed_values: [ollama]
-        - name: model
-          source: config_literal
-          cardinality: bounded
-          allowed_values: [%q]
-    config:
-      model: %q
-      provider: ollama
-      provider_url: "http://localhost:11434"
-      manifest_state: Composing
-      response_profile: qwen
-      max_time: 120
-      llm_timeout: 120
-      system_prompt: |
-        You list local Ollama models by using the provided REST tool.
-
-        Rules:
-        - First call ollama_list_models. Do not answer from memory.
-        - After the REST result returns, call done with a concise answer.
-        - The final answer must include at least one exact model name from the REST body models array.
-        - Use only these tools: ollama_list_models, done.
-
-        Tool call format:
-        [tool_call]
-        {"tool":"ollama_list_models","parameters":{}}
-        [/tool_call]
-
-        Final answer format:
-        [tool_call]
-        {"tool":"done","parameters":{"summary":"Local Ollama models include: <names from REST result>."}}
-        [/tool_call]
-`, model, model)
-}
-
-func monitoredQwenREST(addr string) string {
-	return fmt.Sprintf(`rest:
-  version: v1
-  limits:
-    local_monitor:
-      timeout: 2s
-      read_timeout: 2s
-      max_request_bytes: 4096
-      max_response_bytes: 1048576
-      network:
-        hosts: [127.0.0.1, localhost]
-  servers:
-    monitor:
-      address: %s
-      limits_ref: local_monitor
-      queue:
-        name: monitor
-        capacity: 8
-        overflow: reject
-        timeout: 30s
-      shutdown:
-        timeout: 2s
-        drain_policy: drain
-        stop_listeners: true
-        unblock_await_signal: ServerStopped
-      endpoints:
-        current_state:
-          method: GET
-          path: /monitor/state
-          binding: read_state
-          monitor_view: current_state
-        metrics:
-          method: GET
-          path: /monitor/metrics
-          binding: read_state
-          monitor_view: metrics
-        control_exit:
-          method: POST
-          path: /monitor/control/exit
-          binding: emit_signal
-          signal: ExitRequested
-          request:
-            body_schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-          response:
-            output:
-              accepted: "true"
-`, addr)
+func renderMonitoredQwenFixture(rootDir, name string, values map[string]string) (string, error) {
+	path := filepath.Join(rootDir, "magefiles", "fixtures", "uc008", name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	content := string(data)
+	for key, value := range values {
+		content = strings.ReplaceAll(content, "{{"+key+"}}", value)
+	}
+	return content, nil
 }
 
 func freeLoopbackAddress() (string, error) {
