@@ -22,7 +22,7 @@ release_03_0_support:
     - async.await_operation and correlation selectors are parsed but not executed as polling selectors; agent-core-tu6t.3 owns support or validation rejection.
     - response_mapping.schema is stored and imported from OpenAPI but response bodies are not validated before success signals; agent-core-tu6t.3 owns client validation.
     - OpenAPI-bound endpoints may drop configured endpoint behavior when import fields are applied; agent-core-tu6t.4 owns preservation.
-    - stopped-source behavior and rest_await_event read_policy need stricter support or validation rejection; agent-core-tu6t.2 owns server policy work.
+    - rest_await_event read_policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
     - Compensation metadata is parsed, but REST client Undo still returns noop for mutating commands; agent-core-tu6t.5 owns compensation mementos.
   reserved:
     - document_resources top-level config and machine_request.document_resources are documented for the target format but are not wired into internal/tools/rest Definition loading in release 03.0; agent-core-tu6t.10 owns the follow-up.
@@ -468,7 +468,7 @@ schema:
       - field: read_policy
         type: string
         required: false
-        description: One of first_available, priority_order, or round_robin. Current behavior needs implementation or validation rejection in agent-core-tu6t.2.
+        description: Optional read policy. Omit this field for the implemented first-available behavior. priority_order and round_robin are rejected until implemented.
       - field: stopped_behavior
         type: string
         required: false
@@ -1417,7 +1417,7 @@ implementation_status:
     - response_mapping.schema storage without response body validation.
     - async.await_operation parsing without polling support.
     - OpenAPI endpoint binding that can overwrite configured endpoint behavior.
-    - stopped-source and read_policy behavior that needs stricter conformance.
+    - read_policy values outside first-available rejected until implemented.
     - compensation metadata parsing without REST client undo mementos.
   reserved:
     - top-level document_resources config.
@@ -1425,7 +1425,6 @@ implementation_status:
     - lifecycle_control endpoint config.
     - machine_request terminal response schema enforcement.
   planned_follow_up:
-    - agent-core-tu6t.2: REST server lifecycle_control, queue, drain, stopped-source, and read_policy behavior.
     - agent-core-tu6t.3: REST client CIDR, response schema, async selector, idempotency, and await_operation behavior.
     - agent-core-tu6t.4: OpenAPI endpoint behavior preservation.
     - agent-core-tu6t.5: REST compensation and undo behavior.

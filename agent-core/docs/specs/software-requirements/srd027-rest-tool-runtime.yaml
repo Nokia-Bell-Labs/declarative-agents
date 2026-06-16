@@ -217,10 +217,9 @@ implementation_status:
   partial:
     - R6.5 network allowlists are implemented for schemes, hosts, and ports. CIDR enforcement remains required by agent-core-tu6t.3.
     - R8.3 and R8.4 compensation metadata is declared and validated for mutating operations. Runtime undo still returns noop for REST client commands until agent-core-tu6t.5.
-    - R10 lifecycle control routing is currently proven through configured emit_signal control routes and MachineSpec exit_agent transitions. Modeled lifecycle_control endpoint config remains required by agent-core-tu6t.2.
-    - R10 read policy and stopped-source behavior need stricter validation or execution policy in agent-core-tu6t.2.
+    - R10 lifecycle control routing is currently proven through configured emit_signal control routes and MachineSpec exit_agent transitions. Modeled lifecycle_control endpoint config remains reserved target-format behavior.
+    - R10 read policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
   planned_follow_up:
-    - agent-core-tu6t.2: REST server lifecycle_control, queue, drain, stopped-source, and read_policy behavior.
     - agent-core-tu6t.3: REST client CIDR allowlists, response schema validation, async selector, idempotency, and await_operation behavior.
     - agent-core-tu6t.4: OpenAPI endpoint import preservation for configured endpoint behavior.
     - agent-core-tu6t.5: REST compensation and undo mementos.

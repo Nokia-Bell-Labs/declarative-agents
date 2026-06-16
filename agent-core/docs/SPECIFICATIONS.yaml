@@ -548,8 +548,10 @@ coverage_gaps: |
   shutdown effects in the contract audit. Credential resolution, redirect
   allowlists, request and response size limits, server query and header
   validation, and redaction now have executable coverage. invoke_handler and
-  stream_events bindings have executable server coverage. The Qwen Ollama
-  OpenAPI E2E flow, documentation-curator ownership proof, and
+  stream_events bindings have executable server coverage. Shutdown policy
+  validation, queue draining, await unblocking, and stream shutdown unblocking
+  have executable coverage. The Qwen Ollama OpenAPI E2E flow,
+  documentation-curator ownership proof, and
     machine_request browser proof now have formal release 03.0 coverage. Generic
     REST event fan-in, route and signal filters, timeout handling,
     machine_request configured-profile conformance, Knowledge Manager generic
@@ -558,9 +560,9 @@ coverage_gaps: |
     await-any fan-in coverage that launches a later REST source after the first
     selected event routes through MachineSpec.
     Remaining release 03.0 REST conformance cases are planned and trace to
-    agent-core-tu6t.2 through agent-core-tu6t.5, agent-core-tu6t.9, and
+    agent-core-tu6t.3 through agent-core-tu6t.5, agent-core-tu6t.9, and
     agent-core-tu6t.10. They cover modeled
-    lifecycle_control endpoints, queue and drain policy, stopped-source and
+    lifecycle_control endpoints, endpoint queue overrides, non-default
     read_policy handling, CIDR allowlists, response schema validation, async
     selector and await_operation behavior, idempotency metadata on outbound
     requests, OpenAPI endpoint config preservation, REST compensation undo,
