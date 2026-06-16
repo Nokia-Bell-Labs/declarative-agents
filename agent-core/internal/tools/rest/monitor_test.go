@@ -347,6 +347,7 @@ func requireMonitorOpenAPISchemaTypes(
 	requireMonitorStateOpenAPISchema(t, doc)
 	requireMonitorMetricsOpenAPISchema(t, doc)
 	requireMonitorEventsOpenAPISchema(t, doc)
+	requireMonitorStreamOpenAPIContent(t, doc)
 	requireMonitorControlOpenAPISchema(t, doc, control)
 }
 
@@ -382,6 +383,16 @@ func requireMonitorEventsOpenAPISchema(t *testing.T, doc map[string]interface{})
 	requireSchemaFormat(t, schemaProperty(t, eventSchema, "timestamp"), "date-time")
 }
 
+func requireMonitorStreamOpenAPIContent(t *testing.T, doc map[string]interface{}) {
+	t.Helper()
+	streamContent := monitorOpenAPIResponseContent(t, doc, "/monitor/events/stream", "get", "200")
+	require.Contains(t, streamContent, "text/event-stream")
+	require.NotContains(t, streamContent, "application/json")
+	eventsContent := monitorOpenAPIResponseContent(t, doc, "/monitor/events", "get", "200")
+	require.Contains(t, eventsContent, "application/json")
+	require.NotContains(t, eventsContent, "text/event-stream")
+}
+
 func requireMonitorControlOpenAPISchema(
 	t *testing.T,
 	doc map[string]interface{},
@@ -410,6 +421,22 @@ func monitorOpenAPIResponseSchema(
 	schema, _ := jsonContent["schema"].(map[string]interface{})
 	require.NotNil(t, schema, "%s %s response %s should have schema", method, path, status)
 	return schema
+}
+
+func monitorOpenAPIResponseContent(
+	t *testing.T,
+	doc map[string]interface{},
+	path string,
+	method string,
+	status string,
+) map[string]interface{} {
+	t.Helper()
+	operation := monitorOpenAPIOperation(t, doc, path, method)
+	responses, _ := operation["responses"].(map[string]interface{})
+	response, _ := responses[status].(map[string]interface{})
+	content, _ := response["content"].(map[string]interface{})
+	require.NotNil(t, content, "%s %s response %s should have content", method, path, status)
+	return content
 }
 
 func monitorOpenAPIRequestSchema(t *testing.T, operation map[string]interface{}, field string) map[string]interface{} {
