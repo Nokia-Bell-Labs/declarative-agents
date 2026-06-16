@@ -1,0 +1,138 @@
+id: test-rel06.0-profile-migration
+title: Test Suite for Release 06.0 Profile Migration
+release: "06.0"
+
+overview: |
+  This suite starts as a migration contract. The first case is documentation
+  proof: the new SRD, use case, and suite must parse and appear in the index.
+
+  Later cases become executable as the code issues land. They cover external
+  profile root discovery, runtime image contents, and one mounted-profile
+  container command. Until then, their status stays planned so the suite does
+  not claim behavior that the Dockerfile and Mage targets have not shipped.
+
+coverage_notes: |
+  Release 06.0 begins with contracts, not runtime changes.
+
+  That ordering matters because the next code issues will change profile lookup
+  and Docker packaging in separate commits. The suite gives those issues stable
+  target names while still marking unimplemented proofs as planned.
+
+  Good.
+
+  Once the implementation issues land, this suite should stop being a set of
+  placeholders and become a small release gate that checks the image contents,
+  the external profile resolver, and the actual container invocation used in the
+  README example.
+
+traces:
+  - rel06.0-uc001-mounted-profile-container-runtime
+
+preconditions:
+  - agent-profiles exists as a checkout, release asset, or mounted fixture with standard agent profiles.
+  - The Agent Core runtime image can be built from Dockerfile.
+  - Core-owned shared tool declaration roots are available from the installed Agent Core runtime path.
+  - Tests can mount an isolated workspace at /work.
+
+test_cases:
+  - use_case: rel06.0-uc001-mounted-profile-container-runtime
+    name: Specification index includes external profile contracts
+    go_test: mage audit
+    status: planned
+    description: |
+      Parse the three Release 06.0 YAML documents through the specification
+      audit. The index and road map should include each new document before code
+      and container changes follow.
+    inputs:
+      srd: docs/specs/software-requirements/srd034-external-agent-profiles.yaml
+      use_case: docs/specs/use-cases/rel06.0-uc001-mounted-profile-container-runtime.yaml
+      test_suite: docs/specs/test-suites/test-rel06.0-profile-migration.yaml
+    expected:
+      yaml_parses: true
+      specifications_indexed: true
+      roadmap_indexed: true
+      architecture_contract_updated: true
+    traces:
+      - rel06.0-uc001-mounted-profile-container-runtime S1
+      - srd034-external-agent-profiles AC1
+
+  - use_case: rel06.0-uc001-mounted-profile-container-runtime
+    name: Runtime resolves profiles from external roots
+    go_test: TestExternalProfileRootResolution
+    status: planned
+    description: |
+      Configure the test or Mage profile root outside the agent-core checkout.
+      Start the runtime with --profile pointing at an external profile.yaml.
+      Relative paths inside that profile should resolve from the external
+      profile directory. The proof should exercise both normal machine assets
+      and profile-local UX config.
+    inputs:
+      profile_root: external_agent_profiles_root
+      profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      workspace: isolated_temp_workspace
+    expected:
+      external_profile_loaded: true
+      profile_relative_paths_resolved: true
+      core_tool_declarations_resolved: true
+      missing_profile_error_names_path: true
+    traces:
+      - rel06.0-uc001-mounted-profile-container-runtime S2
+      - rel06.0-uc001-mounted-profile-container-runtime S3
+      - rel06.0-uc001-mounted-profile-container-runtime S4
+      - srd034-external-agent-profiles AC2
+
+  - use_case: rel06.0-uc001-mounted-profile-container-runtime
+    name: Runtime image excludes migrated profile assets
+    go_test: TestDockerRuntimeImageExcludesProfiles
+    integration_target: mage docker
+    status: planned
+    description: |
+      Build the runtime image and inspect its filesystem. The image should
+      contain the agent binary and core-owned shared declaration roots under
+      /opt/agent-core. Copied profile directories such as agents/generator,
+      agents/evaluator, or Knowledge Manager profiles should be absent.
+    inputs:
+      image: agent-core:latest
+      expected_core_paths:
+        - /usr/local/bin/agent
+        - /opt/agent-core/tools
+      forbidden_profile_paths:
+        - /opt/agent-core/agents/generator
+        - /opt/agent-core/agents/evaluator
+        - /opt/agent-core/agents/knowledge-manager
+    expected:
+      agent_binary_present: true
+      core_tool_assets_present: true
+      profile_directories_absent: true
+      go_toolchain_absent: true
+    traces:
+      - rel06.0-uc001-mounted-profile-container-runtime S1
+      - srd034-external-agent-profiles AC3
+
+  - use_case: rel06.0-uc001-mounted-profile-container-runtime
+    name: Container runs with mounted profile and workspace
+    go_test: TestDockerRuntimeRunsMountedProfile
+    integration_target: mage docker
+    status: planned
+    description: |
+      Run the built image with agent-profiles mounted at /profiles and an
+      isolated workspace mounted at /work. Invoke agent with --profile pointing
+      at the mounted profile path and --directory /work. The proof should show
+      that the runtime uses the mounted profile instead of an image-owned copy.
+    inputs:
+      profile_mount: /profiles
+      workspace_mount: /work
+      command:
+        - agent
+        - --profile
+        - /profiles/agents/generator/profile.yaml
+        - --directory
+        - /work
+    expected:
+      mounted_profile_used: true
+      workspace_used: true
+      image_profile_copy_required: false
+      command_documents_profile_path: true
+    traces:
+      - rel06.0-uc001-mounted-profile-container-runtime S2
+      - srd034-external-agent-profiles AC4

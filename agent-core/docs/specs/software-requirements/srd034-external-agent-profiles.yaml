@@ -1,0 +1,124 @@
+id: srd034-external-agent-profiles
+title: External Agent Profiles and Mounted Runtime Assets
+
+problem: |
+  Agent Core has been carrying two kinds of things. One kind is the reusable Go
+  runtime: cmd/agent and loop execution. Runtime ownership also covers tool
+  loading, observability, release scripts, and shared declarations. The other
+  kind is product behavior expressed as profiles, demos, UI config, and
+  integration fixtures.
+
+  Keeping both in one release image makes the runtime contract harder to read.
+  A container that already has generator and evaluator profiles inside
+  /opt/agent-core looks like it owns those programs, even when a caller intends
+  to mount a profile from another repository.
+
+  The migration moves agent programs to agent-profiles. Before code and Docker
+  changes follow, Agent Core needs a narrow contract. It must say which assets
+  stay in the runtime image. It must also say which assets arrive from an
+  external path at execution time.
+
+goals:
+  - G1: Define agent-core as the owner of the runtime binary and core-owned runtime assets.
+  - G2: Define agent-profiles as the owner of agent YAML programs and profile-local assets.
+  - G3: Specify mounted-profile execution for containers and local tests.
+  - G4: Preserve profile-relative path resolution for tools, REST definitions, UX config, and request machines.
+
+migration_notes: |
+  Short rule: profiles are inputs.
+
+  A runtime image may still be convenient to run, but convenience should come
+  from a clear command and stable mounted paths, not from stale profile copies
+  baked into the image weeks before the profile repository changes again. This
+  keeps the core image smaller, makes profile updates reviewable in the owning
+  repository, and lets tests prove the same path operators use.
+
+requirements:
+  R1:
+    title: Agent Core runtime ownership
+    items:
+      - R1.1: Agent Core SHALL own the cmd/agent binary and Go runtime packages that execute MachineSpec programs.
+      - R1.2: Agent Core SHALL own core-owned tool declarations and runtime assets needed by many profiles, including shared builtin and exec tool declarations under tools/.
+      - R1.3: Agent Core SHALL own build, audit, Docker, and release machinery for the runtime image.
+      - R1.4: Agent Core SHALL NOT define product behavior by copying generator, evaluator, planner, bench, jurist, or Knowledge Manager profile directories into the runtime image.
+
+  R2:
+    title: Agent profile repository ownership
+    items:
+      - R2.1: agent-profiles SHALL own agent YAML programs, including profile.yaml, machine.yaml, tools.yaml, tool declarations, REST definitions, request machines, model-boundary configs, and profile-local UX config.
+      - R2.2: agent-profiles SHALL own demo files and agent integration fixtures whose purpose is to exercise a configured agent program rather than a core runtime package.
+      - R2.3: Profile-local UX config such as agents/knowledge-manager/documentation-curator/ui/ux.yaml SHALL move with the owning profile.
+      - R2.4: Profile repositories MAY reference core-owned tool declaration roots from an installed Agent Core runtime when those declarations are stable runtime vocabulary.
+
+  R3:
+    title: External profile path resolution
+    items:
+      - R3.1: cmd/agent SHALL accept an explicit --profile path that points to a profile supplied outside the Agent Core source tree.
+      - R3.2: Relative paths inside profile.yaml SHALL resolve from the directory that contains that profile.yaml.
+      - R3.3: Tests and Mage targets that need standard profiles SHALL accept a configured external profile root rather than assuming agents/ exists in agent-core.
+      - R3.4: Profile root discovery SHALL fail with a clear diagnostic when a required external profile path is missing.
+
+  R4:
+    title: Mounted-profile container runtime
+    items:
+      - R4.1: Runtime container images SHALL include the agent binary and core-owned runtime assets only.
+      - R4.2: Runtime container images SHALL NOT copy agents/generator, agents/evaluator, agents/planner, agents/bench, agents/jurist, Knowledge Manager profiles, demos, or profile integration fixtures from agent-core.
+      - R4.3: Container callers SHALL provide profiles by bind mount, image layer supplied by another repository, release asset unpack, or another explicit external path.
+      - R4.4: Container proof commands SHALL run cmd/agent with --profile pointing at the mounted profile path and --directory pointing at the mounted workspace.
+      - R4.5: The runtime image MAY expose AGENT_CORE_HOME for core-owned assets under /opt/agent-core, but AGENT_CORE_HOME SHALL NOT imply that agent profiles are present there.
+
+implementation_status:
+  current: |
+    Today the repository still contains profile directories. The current
+    Dockerfile also copies generator and evaluator profiles into the runtime
+    image. Treat those copies as legacy migration state, not as the target
+    contract for Release 06.0.
+  planned: |
+    Follow-up work updates profile root resolution first. Docker packaging,
+    Mage integration targets, and README examples then consume profiles from
+    external paths. A later cleanup removes in-repo profile assets after
+    agent-profiles owns equivalent files.
+
+non_goals:
+  - Rewriting runtime package boundaries while profile ownership moves.
+  - Introducing a compatibility layer for profile paths that have not shipped.
+  - Requiring a specific distribution mechanism for agent-profiles.
+  - Moving core-owned shared tool declarations out of agent-core.
+  - Rewriting git history as part of the profile ownership contract.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Runtime ownership requirements separate agent-core binary and core-owned assets from profile-owned agent programs.
+    traces: [R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R2.4]
+    tests:
+      - "test-rel06.0-profile-migration: Specification index includes external profile contracts"
+
+  - id: AC2
+    criterion: External profile path requirements define --profile behavior, profile-relative resolution, Mage/test root configuration, and missing-path diagnostics.
+    traces: [R3.1, R3.2, R3.3, R3.4]
+    tests:
+      - "test-rel06.0-profile-migration: Runtime resolves profiles from external roots"
+
+  - id: AC3
+    criterion: Container requirements exclude profile copies from the runtime image and require mounted or otherwise provided profile paths.
+    traces: [R4.1, R4.2, R4.3, R4.5]
+    tests:
+      - "test-rel06.0-profile-migration: Runtime image excludes migrated profile assets"
+
+  - id: AC4
+    criterion: Container proof requirements show agent execution with mounted profiles and mounted workspace data.
+    traces: [R4.3, R4.4]
+    tests:
+      - "test-rel06.0-profile-migration: Container runs with mounted profile and workspace"
+
+depends_on:
+  - doc: repository-migration.md
+    symbols_used: [agent-core, agent-profiles, mounted workspace, release image]
+  - doc: docs/specs/config-formats/runtime-contract.yaml
+    symbols_used: [profile.yaml, --profile, profile-relative paths]
+
+related_documents:
+  - rel06.0-uc001-mounted-profile-container-runtime
+  - test-rel06.0-profile-migration
+  - docs/ARCHITECTURE.yaml
+  - docs/road-map.yaml
