@@ -92,7 +92,7 @@ func validateCIDRConfig(profile string, cidrs []string) error {
 
 func validateReservedDocumentResources(def Definition) error {
 	if len(def.DocumentResources) > 0 {
-		return fmt.Errorf("rest.document_resources is reserved and is not supported by REST loading yet")
+		return fmt.Errorf("rest.document_resources is a reserved target-format field; current REST loading rejects it until generic document resource loading is implemented")
 	}
 	return validateMachineRequestDocumentResources(def.Servers)
 }
@@ -102,7 +102,7 @@ func validateMachineRequestDocumentResources(servers map[string]Server) error {
 		for endpointName, endpoint := range server.Endpoints {
 			if len(endpoint.MachineRequest.DocumentResources) > 0 {
 				return fmt.Errorf(
-					"server %q endpoint %q machine_request.document_resources is reserved and is not supported by REST loading yet",
+					"server %q endpoint %q machine_request.document_resources is a reserved target-format field; current request machines use profile-selected filesystem resource ToolDefs",
 					serverName,
 					endpointName,
 				)

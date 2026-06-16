@@ -118,9 +118,11 @@ func TestRESTDocumentResourcesConfigConformance(t *testing.T) {
 
 	_, err := ParseDefinition([]byte(restDocumentResourcesYAML()))
 	require.ErrorContains(t, err, "rest.document_resources")
+	require.ErrorContains(t, err, "reserved target-format field")
 
 	_, err = ParseDefinition([]byte(machineRequestDocumentResourcesYAML()))
 	require.ErrorContains(t, err, "machine_request.document_resources")
+	require.ErrorContains(t, err, "profile-selected filesystem resource ToolDefs")
 
 	cfg := conformanceMachineRequestConfig()
 	runner := conformanceProfileRunner(writeConformanceProfile(t))
