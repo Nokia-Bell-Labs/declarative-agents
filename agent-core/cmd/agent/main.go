@@ -38,6 +38,11 @@ var (
 	flagResumeSignal     string
 )
 
+const (
+	monitorLaunchCommandName = "launch_monitor_rest"
+	monitorServerName        = "monitor"
+)
+
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -350,6 +355,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		MonitorRecorder: deps.MonitorRecorder,
 		Hooks: core.LoopHooks{
 			AfterDispatch:        deps.AfterDispatch,
+			OnResult:             monitorLaunchReporter,
 			SnapshotConversation: deps.State.snapshotConversation,
 		},
 	}
@@ -368,6 +374,29 @@ func runBudget(machine core.MachineSpec, st *agentState) core.Budget {
 
 func defaultRunBudget() core.Budget {
 	return core.Budget{MaxIterations: 100}
+}
+
+func monitorLaunchReporter(rr core.RunResult, res core.Result) core.RunResult {
+	if res.CommandName != monitorLaunchCommandName || res.Signal != core.Signal("ServerLaunched") {
+		return rr
+	}
+	if address := monitorLaunchAddress(res.Output); address != "" {
+		fmt.Fprintf(os.Stderr, "monitor address: %s\n", address)
+	}
+	return rr
+}
+
+func monitorLaunchAddress(output string) string {
+	var decoded map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		return ""
+	}
+	server, _ := decoded["server"].(string)
+	address, _ := decoded["address"].(string)
+	if server != monitorServerName {
+		return ""
+	}
+	return address
 }
 
 func (st *agentState) snapshotConversation() (json.RawMessage, error) {
