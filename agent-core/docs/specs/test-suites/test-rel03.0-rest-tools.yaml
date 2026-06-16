@@ -1160,7 +1160,7 @@ test_cases:
   - use_case: rel03.0-uc003-rest-server-signals
     name: REST server control and queue policies are enforced
     go_test: TestRESTServer_ControlQueueAndReadPolicyConformance
-    status: planned
+    status: done
     description: |
       Validate modeled lifecycle_control enqueueing, endpoint queue overrides,
       and explicit read_policy support beyond the default first-available
@@ -1183,7 +1183,7 @@ test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST client safety and async selectors are enforced
     go_test: TestRESTClient_SafetyAndAsyncConformance
-    status: planned
+    status: done
     description: |
       Validate CIDR allowlists, response schema checks, domain_error_code
       output, async correlation selection, idempotency metadata on outbound

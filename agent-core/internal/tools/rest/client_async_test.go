@@ -70,6 +70,22 @@ func TestRESTClient_AwaitAsyncRequest(t *testing.T) {
 func TestRESTClient_AsyncCorrelationAndIdempotencyHeader(t *testing.T) {
 	t.Parallel()
 
+	requireAsyncCorrelationAndIdempotencyHeader(t)
+}
+
+func TestRESTClient_SafetyAndAsyncConformance(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CIDR allowlist policy", requireCIDRAllowlistPolicy)
+	t.Run("response schema and domain error output", requireResponseSchemaAndDomainErrorOutput)
+	t.Run("async correlation and idempotency header", requireAsyncCorrelationAndIdempotencyHeader)
+	t.Run("async retry policy validation", requireAsyncRetryPolicyValidation)
+	t.Run("await_operation polling rejected", requireAwaitOperationPollingRejected)
+}
+
+func requireAsyncCorrelationAndIdempotencyHeader(t *testing.T) {
+	t.Helper()
+
 	var idempotencyKey string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		idempotencyKey = req.Header.Get("Idempotency-Key")
@@ -97,6 +113,12 @@ func TestRESTClient_AsyncCorrelationAndIdempotencyHeader(t *testing.T) {
 func TestRESTClient_AsyncRetryPolicyValidation(t *testing.T) {
 	t.Parallel()
 
+	requireAsyncRetryPolicyValidation(t)
+}
+
+func requireAsyncRetryPolicyValidation(t *testing.T) {
+	t.Helper()
+
 	def := asyncDefinition(t, "https://api.example", asyncPaymentClient())
 	def.RetryPolicies = map[string]RetryPolicy{"retry": {
 		Attempts: 2, RetryStatus: []int{429}, RequireIdempotency: true,
@@ -114,6 +136,12 @@ func TestRESTClient_AsyncRetryPolicyValidation(t *testing.T) {
 
 func TestRESTClient_RejectsAwaitOperationPollingConfig(t *testing.T) {
 	t.Parallel()
+
+	requireAwaitOperationPollingRejected(t)
+}
+
+func requireAwaitOperationPollingRejected(t *testing.T) {
+	t.Helper()
 
 	def := asyncDefinition(t, "https://api.example", asyncPaymentClient())
 	op := def.Clients["payments"].Operations["create_payment"]
