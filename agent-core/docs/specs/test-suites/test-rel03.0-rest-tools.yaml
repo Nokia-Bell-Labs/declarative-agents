@@ -529,22 +529,26 @@ test_cases:
 
   - use_case: rel03.0-uc003-rest-server-signals
     name: Server stop drains queues and unblocks await
-    go_test: TestRESTServer_StopDrainsAndUnblocks
+    go_test: TestRESTServer_StopDrainsAndUnblocks, TestRESTServer_ShutdownConfigValidation, TestRESTServer_StreamEventsUnblocksOnStop
     status: done
     description: |
       Stop a launched server while events and await calls exist. Shutdown
-      follows configured drain policy, closes listeners, and unblocks await
-      with ServerStopped or CommandError.
+      follows the accepted drain policies, rejects unsupported shutdown fields,
+      closes listeners, and unblocks await and stream_events with ServerStopped.
     inputs:
       server: control_api
-      drain_policy: drain_then_stop
+      drain_policies: [drain, drain_then_stop]
+      rejected_drain_policies: [reject_new, drop_queued, fail_queued]
       pending_events: 2
       awaiting_call: true
+      active_stream: true
     expected:
       signal: ServerStopped
       drained_event_count: 2
       listener_closed: true
       await_unblocked: true
+      stream_unblocked: true
+      unsupported_shutdown_fields_rejected: true
       dropped_events_reported: true
     traces:
       - rel03.0-uc003-rest-server-signals S4
@@ -1158,14 +1162,13 @@ test_cases:
     go_test: TestRESTServer_ControlQueueAndReadPolicyConformance
     status: planned
     description: |
-      Validate lifecycle_control enqueueing, queue overflow behavior, endpoint
-      queue overrides, stopped-source behavior, shutdown drain and unblock
-      policy, and explicit read_policy support or validation rejection.
+      Validate modeled lifecycle_control enqueueing, endpoint queue overrides,
+      and explicit read_policy support beyond the default first-available
+      behavior.
     inputs:
-      issue: agent-core-tu6t.2
       endpoint_bindings: [lifecycle_control, emit_signal]
       queue_policies: [reject, drop_oldest, drop_newest]
-      read_policies: [first_available, priority_order, round_robin]
+      read_policies: [priority_order, round_robin]
     expected:
       lifecycle_handlers_execute_directly: false
       lifecycle_events_enqueued: true
