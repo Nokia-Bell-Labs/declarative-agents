@@ -37,6 +37,16 @@ type actionRequest struct {
 	Params map[string]interface{} `json:"params,omitempty"`
 }
 
+var actionRESTClientInits = map[string]bool{
+	rest.InitClientGet:    true,
+	rest.InitClientSet:    true,
+	rest.InitClientCreate: true,
+	rest.InitClientDelete: true,
+	rest.InitClientInvoke: true,
+	rest.InitClientSend:   true,
+	rest.InitClientAwait:  true,
+}
+
 type restDefinitionLoader func([]string, []string) (rest.ServerResolver, error)
 
 type restServerLifecycle interface {
@@ -121,12 +131,22 @@ func NewProfileWorkflowRunnerFromDefs(collection rest.Collection, defs []catalog
 	reg := core.NewRegistry()
 	builtins := toolregistry.NewBuiltinRegistry()
 	rest.RegisterFactories(builtins, rest.FactoryDeps{Definitions: collection})
-	for _, def := range defs {
+	for _, def := range profileActionToolDefs(defs) {
 		if err := toolregistry.RegisterSingleBuiltin(reg, builtins, def, nil); err != nil {
 			return nil, err
 		}
 	}
 	return &ProfileWorkflowRunner{registry: reg}, nil
+}
+
+func profileActionToolDefs(defs []catalog.ToolDef) []catalog.ToolDef {
+	selected := make([]catalog.ToolDef, 0, len(defs))
+	for _, def := range defs {
+		if def.Type == "builtin" && actionRESTClientInits[def.Init] {
+			selected = append(selected, def)
+		}
+	}
+	return selected
 }
 
 // Run decodes and dispatches one action request.

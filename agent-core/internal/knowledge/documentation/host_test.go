@@ -348,7 +348,9 @@ func TestProfileWorkflowRunnerDispatchesConfiguredRESTTool(t *testing.T) {
 	collection.Clients["documentation"] = client
 	collection.Limits["local_docs_api"] = rest.LimitProfile{}
 
-	defs, err := catalog.LoadToolDefs(curatorDeclarationsPath(t))
+	profile, err := catalog.LoadProfile(curatorProfilePath(t))
+	require.NoError(t, err)
+	defs, err := loadCuratorProfileDefs(profile)
 	require.NoError(t, err)
 	runner, err := NewProfileWorkflowRunnerFromDefs(collection, defs)
 	require.NoError(t, err)
@@ -409,11 +411,6 @@ func (stubWorkflowRunner) Run(r *http.Request) (ActionResponse, error) {
 		Data: map[string]interface{}{"status": "valid"},
 		Tool: "doc_validate", Signal: "RESTResponded",
 	}, nil
-}
-
-func curatorDeclarationsPath(t *testing.T) string {
-	t.Helper()
-	return filepath.Join(repoRootFromDocsTest(t), "agents", "knowledge-manager", "documentation-curator", "declarations.yaml")
 }
 
 func curatorProfilePath(t *testing.T) string {
