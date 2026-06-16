@@ -88,14 +88,14 @@ func (c *launchEvalCmd) Execute() core.Result {
 		}
 	}
 
-	var extraArgs []string
-	extraArgs = append(extraArgs, "--request", suitePath)
+	cfg := c.config
+	cfg.Request = suitePath
 	if outputDir, ok := action.Config["output_dir"].(string); ok && outputDir != "" {
 		c.outputDir = outputDir
-		extraArgs = append(extraArgs, "--output", outputDir)
+		cfg.Output = outputDir
 	}
 
-	result := execute.RunAgent(context.Background(), c.config, extraArgs...)
+	result := execute.RunAgent(context.Background(), cfg)
 
 	if !result.Success() {
 		return core.Result{
