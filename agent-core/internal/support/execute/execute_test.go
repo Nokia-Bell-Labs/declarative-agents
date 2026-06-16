@@ -190,6 +190,26 @@ func TestBuildArgs_ProfileOnly(t *testing.T) {
 	}, args)
 }
 
+func TestBuildArgs_ChildRuntimeData(t *testing.T) {
+	cfg := Config{
+		Profile:     "agents/generator/profile.yaml",
+		Directory:   "/workspace",
+		Request:     "suite.yaml",
+		Output:      "eval-results",
+		OTelLogFile: "child.otel.json",
+	}
+
+	args := cfg.BuildArgs()
+
+	assert.Equal(t, []string{
+		"--profile", "agents/generator/profile.yaml",
+		"--directory", "/workspace",
+		"--request", "suite.yaml",
+		"--output", "eval-results",
+		"--otel-log-file", "child.otel.json",
+	}, args)
+}
+
 func TestBuildArgs_Empty(t *testing.T) {
 	cfg := Config{}
 	args := cfg.BuildArgs()

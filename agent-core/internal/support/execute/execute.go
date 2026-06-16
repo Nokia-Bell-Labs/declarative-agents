@@ -31,10 +31,14 @@ const (
 
 // Config holds execution engine settings.
 type Config struct {
-	Binary  string        // Agent binary path. Default: "agent" (resolved from PATH).
-	Profile string        // --profile flag for the child agent.
-	Timeout time.Duration // Per-invocation timeout. Default: 10 minutes.
-	OTelDir string        // Directory for temporary OTel log files.
+	Binary      string        // Agent binary path. Default: "agent" (resolved from PATH).
+	Profile     string        // --profile flag for the child agent.
+	Directory   string        // --directory flag for the child workspace.
+	Request     string        // --request flag for runtime input.
+	Output      string        // --output flag for runtime artifacts.
+	OTelLogFile string        // --otel-log-file flag for child trace capture.
+	Timeout     time.Duration // Per-invocation timeout. Default: 10 minutes.
+	OTelDir     string        // Directory for temporary OTel log files.
 }
 
 func (c *Config) binary() string {
@@ -52,12 +56,16 @@ func (c *Config) timeout() time.Duration {
 }
 
 // BuildArgs constructs the CLI argument list from the config fields.
-// Callers append runtime-specific args (e.g. --directory, --request) after.
 func (c *Config) BuildArgs() []string {
-	if c.Profile == "" {
-		return nil
+	var args []string
+	if c.Profile != "" {
+		args = append(args, "--profile", c.Profile)
 	}
-	return []string{"--profile", c.Profile}
+	args = appendFlag(args, "--directory", c.Directory)
+	args = appendFlag(args, "--request", c.Request)
+	args = appendFlag(args, "--output", c.Output)
+	args = appendFlag(args, "--otel-log-file", c.OTelLogFile)
+	return args
 }
 
 // Result captures the outcome of an agent invocation.
@@ -66,10 +74,12 @@ type Result struct {
 	Stdout   string
 	Stderr   string
 	Duration time.Duration
+	TimedOut bool
+	Err      error
 }
 
 // Success returns true when the agent exited with code 0.
-func (r *Result) Success() bool { return r.ExitCode == 0 }
+func (r *Result) Success() bool { return r.ExitCode == 0 && r.Err == nil }
 
 // Execute invokes the agent binary with the given plan written to a
 // temporary YAML file. The worktreeDir is passed via --directory and the
@@ -93,27 +103,13 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 
 	otelLogFile := filepath.Join(otelDir(cfg), fmt.Sprintf("agent-%s.otel.json", taskID))
 
-	args := cfg.BuildArgs()
-	args = append(args, "--directory", worktreeDir, "--otel-log-file", otelLogFile)
+	cfg.Directory = worktreeDir
+	cfg.OTelLogFile = otelLogFile
+	result := RunAgent(child.Context(), cfg)
 
-	spec := subprocess.Spec{
-		Binary:        cfg.binary(),
-		Args:          args,
-		Timeout:       cfg.timeout(),
-		PropagateOTel: true,
-	}
-
-	r := subprocess.Run(child.Context(), spec)
-	result := &Result{
-		Stdout:   r.Stdout,
-		Stderr:   r.Stderr,
-		ExitCode: r.ExitCode,
-		Duration: r.Duration,
-	}
-
-	if r.Err != nil {
-		child.RecordError(r.Err)
-		return nil, fmt.Errorf("execute %s: %w", taskID, r.Err)
+	if result.Err != nil {
+		child.RecordError(result.Err)
+		return nil, fmt.Errorf("execute %s: %w", taskID, result.Err)
 	}
 
 	if result.ExitCode != 0 {
@@ -131,22 +127,32 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 // extra args. Unlike Execute, it does not write a task file. Suitable
 // for launch_eval, self_invoke, and other child agent invocations.
 func RunAgent(ctx context.Context, cfg Config, extraArgs ...string) *Result {
-	args := cfg.BuildArgs()
-	args = append(args, extraArgs...)
-
-	spec := subprocess.Spec{
-		Binary:        cfg.binary(),
-		Args:          args,
-		Timeout:       cfg.timeout(),
-		PropagateOTel: true,
-	}
-
-	r := subprocess.Run(ctx, spec)
+	r := subprocess.Run(ctx, cfg.subprocessSpec(extraArgs...))
 	return &Result{
 		Stdout:   r.Stdout,
 		Stderr:   r.Stderr,
 		ExitCode: r.ExitCode,
 		Duration: r.Duration,
+		TimedOut: r.TimedOut,
+		Err:      r.Err,
+	}
+}
+
+func appendFlag(args []string, name, value string) []string {
+	if value == "" {
+		return args
+	}
+	return append(args, name, value)
+}
+
+func (c Config) subprocessSpec(extraArgs ...string) subprocess.Spec {
+	args := c.BuildArgs()
+	args = append(args, extraArgs...)
+	return subprocess.Spec{
+		Binary:        c.binary(),
+		Args:          args,
+		Timeout:       c.timeout(),
+		PropagateOTel: true,
 	}
 }
 

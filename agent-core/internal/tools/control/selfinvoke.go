@@ -68,8 +68,8 @@ func (c *selfInvokeCmd) Execute() core.Result {
 	if cfg.Binary == "" {
 		cfg.Binary = os.Args[0]
 	}
-	extra := c.extraWithTrace(cfg)
-	result := execute.RunAgent(c.ctx, cfg, extra...)
+	cfg = c.configWithTrace(cfg)
+	result := execute.RunAgent(c.ctx, cfg, c.extraArgs...)
 	c.traceResult(cfg, result)
 	return core.Result{
 		Output: result.Stdout, Signal: selfInvokeSignal(result),
@@ -77,13 +77,13 @@ func (c *selfInvokeCmd) Execute() core.Result {
 	}
 }
 
-func (c *selfInvokeCmd) extraWithTrace(cfg execute.Config) []string {
-	extra := append([]string{}, c.extraArgs...)
+func (c *selfInvokeCmd) configWithTrace(cfg execute.Config) execute.Config {
 	if cfg.OTelDir == "" {
-		return extra
+		return cfg
 	}
 	c.tracePath = fmt.Sprintf("%s/child-%s.otel.json", cfg.OTelDir, c.runID)
-	return append(extra, "--otel-log-file", c.tracePath)
+	cfg.OTelLogFile = c.tracePath
+	return cfg
 }
 
 func (c *selfInvokeCmd) traceResult(cfg execute.Config, result *execute.Result) {

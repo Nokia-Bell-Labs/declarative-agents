@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/subprocess"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
 
@@ -50,30 +50,23 @@ func (c *runAgentCmd) Execute() core.Result {
 	c.hasSnapshot = true
 
 	absTrace, _ := filepath.Abs(pc.TracePath)
-	args := []string{
-		"--directory", pc.PointDir,
-		"--otel-log-file", absTrace,
-	}
-
 	if pc.ProfilePath == "" {
 		err := fmt.Errorf("run_agent: profile path is required")
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
 	}
-	args = append(args, "--profile", pc.ProfilePath)
 
-	spec := subprocess.Spec{
-		Binary:        pc.Harness.Binary,
-		Args:          args,
-		Timeout:       pc.Timeout,
-		PropagateOTel: true,
-	}
+	result := execute.RunAgent(c.ctx, execute.Config{
+		Binary:      pc.Harness.Binary,
+		Profile:     pc.ProfilePath,
+		Directory:   pc.PointDir,
+		OTelLogFile: absTrace,
+		Timeout:     pc.Timeout,
+	})
+	pc.Duration = result.Duration
+	pc.ExitCode = result.ExitCode
+	pc.TimedOut = result.TimedOut
 
-	r := subprocess.Run(c.ctx, spec)
-	pc.Duration = r.Duration
-	pc.ExitCode = r.ExitCode
-	pc.TimedOut = r.TimedOut
-
-	_ = os.WriteFile(pc.ResultPath, []byte(r.Stdout), 0o644)
+	_ = os.WriteFile(pc.ResultPath, []byte(result.Stdout), 0o644)
 
 	sig := SigHarnessFinished
 	if pc.TimedOut {
@@ -85,7 +78,7 @@ func (c *runAgentCmd) Execute() core.Result {
 	return core.Result{
 		CommandName: c.Name(),
 		Signal:      sig,
-		Output:      r.Stdout,
+		Output:      result.Stdout,
 		Cost:        core.Cost{Duration: pc.Duration},
 	}
 }
