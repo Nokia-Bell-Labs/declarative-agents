@@ -133,7 +133,7 @@ requirements:
 non_goals:
   - Defining REST client operation execution details; see srd028-rest-client-tools.
   - Defining REST server route binding and HTTP API details; see srd029-rest-server-tools.
-  - Implementing the remaining REST conformance gaps tracked by child code issues.
+  - Implementing rollback-time REST compensation execution or modeled lifecycle_control endpoint config in this documentation update.
   - Generating Go clients or servers from OpenAPI documents.
   - Allowing model text to choose arbitrary REST URLs, methods, authentication, or network destinations.
   - Replacing MachineSpec sequencing with hidden REST tool workflows.
@@ -214,12 +214,15 @@ implementation_status:
     - tools/builtin/rest declarations selected by REST profiles and tests.
     - docs/specs/config-formats/rest-tool-format.yaml and docs/specs/semantic-models/rest-tool-language.yaml.
     - Release 03.0 formal test-suite entries in docs/specs/test-suites/test-rel03.0-rest-tools.yaml.
+    - Client safety and async request metadata: CIDR enforcement, response schema validation, domain_error_code output, correlation lookup, idempotency headers, and await_operation validation rejection.
+    - OpenAPI endpoint config preservation while importing transport and schema fields.
+    - REST compensation undo mementos for mutating client operations that declare compensation metadata.
+    - machine_request terminal response schema validation before success responses.
+    - Typed loading plus explicit validation rejection for reserved rest.document_resources and machine_request.document_resources config.
   partial:
-    - R6.5 network allowlists are implemented for schemes, hosts, and ports. CIDR enforcement remains required by agent-core-tu6t.3.
-    - R8.3 and R8.4 compensation metadata is declared and validated for mutating operations. Runtime undo still returns noop for REST client commands until agent-core-tu6t.5.
     - R10 lifecycle control routing is currently proven through configured emit_signal control routes and MachineSpec exit_agent transitions. Modeled lifecycle_control endpoint config remains reserved target-format behavior.
     - R10 read policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
+    - REST compensation is captured in undo mementos; executing configured REST compensation during rollback traversal remains active follow-up work.
   planned_follow_up:
-    - agent-core-tu6t.3: REST client CIDR allowlists, response schema validation, async selector, idempotency, and await_operation behavior.
-    - agent-core-tu6t.4: OpenAPI endpoint import preservation for configured endpoint behavior.
-    - agent-core-tu6t.5: REST compensation and undo mementos.
+    - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.
+    - agent-core-guhn.5: execute configured REST compensation during rollback traversal.
