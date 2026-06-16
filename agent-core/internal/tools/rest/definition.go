@@ -195,10 +195,11 @@ type MachineRequestResponse struct {
 
 // MachineResponseMapping defines one terminal HTTP response mapping.
 type MachineResponseMapping struct {
-	Status      int               `yaml:"status,omitempty"`
-	ContentType string            `yaml:"content_type,omitempty"`
-	Headers     map[string]string `yaml:"headers,omitempty"`
-	Body        map[string]string `yaml:"body,omitempty"`
+	Status      int                    `yaml:"status,omitempty"`
+	ContentType string                 `yaml:"content_type,omitempty"`
+	Headers     map[string]string      `yaml:"headers,omitempty"`
+	Body        map[string]string      `yaml:"body,omitempty"`
+	Schema      map[string]interface{} `yaml:"schema,omitempty"`
 }
 
 // DocumentResource is reserved target-format config for document corpora.

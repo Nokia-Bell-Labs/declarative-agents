@@ -78,6 +78,27 @@ func TestRESTServerMachineRequestCommandError(t *testing.T) {
 	require.Equal(t, "CommandError", body["trace"].(map[string]interface{})["terminal_signal"])
 }
 
+func TestRESTServerMachineRequestTerminalResponseSchema(t *testing.T) {
+	t.Parallel()
+	cfg := machineRequestConfig("DocumentationReady", 0, false)
+	mapping := cfg.Response.TerminalSignals["DocumentationReady"]
+	mapping.Schema = map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"greeting": map[string]interface{}{"type": "integer"},
+		},
+		"required": []interface{}{"greeting"},
+	}
+	cfg.Response.TerminalSignals["DocumentationReady"] = mapping
+	state, baseURL := launchMachineRequestServerWithConfig(t, cfg)
+	defer stopRESTServer(t, state, "machine")
+
+	body := requestBody(t, http.MethodPost, baseURL+"/docs", `{"name":"schema"}`, http.StatusBadGateway)
+
+	require.Contains(t, body, "response_invalid")
+	require.Contains(t, body, "terminal response schema")
+}
+
 func TestRESTServerMachineRequestConformanceLoadsConfiguredMachineFile(t *testing.T) {
 	t.Parallel()
 	cfg := conformanceMachineRequestConfig()

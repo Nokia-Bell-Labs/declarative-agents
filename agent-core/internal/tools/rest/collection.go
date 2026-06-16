@@ -334,11 +334,25 @@ func (r *serverRuntime) writeMachineResponse(
 		w.Header().Set(name, value)
 	}
 	body := machineResponseBody(mapping, result)
+	if err := validateMachineResponseBody(mapping, body); err != nil {
+		writeMachineRequestError(w, err)
+		return
+	}
 	if r.def.Limits.MaxResponseBytes > 0 && encodedJSONSize(body) > r.def.Limits.MaxResponseBytes {
 		writeMachineRequestError(w, fmt.Errorf("response_invalid: response body too large"))
 		return
 	}
 	writeMachineJSON(w, status, body)
+}
+
+func validateMachineResponseBody(mapping MachineResponseMapping, body map[string]interface{}) error {
+	if len(mapping.Schema) == 0 {
+		return nil
+	}
+	if err := validateBodySchema(mapping.Schema, body); err != nil {
+		return fmt.Errorf("response_invalid: terminal response schema: %w", err)
+	}
+	return nil
 }
 
 func machineResponseBody(mapping MachineResponseMapping, result MachineRequestResult) map[string]interface{} {
