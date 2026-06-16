@@ -27,6 +27,8 @@ transitions:
 `
 
 func TestParseMachineSpec_Valid(t *testing.T) {
+	t.Parallel()
+
 	spec, err := ParseMachineSpec([]byte(validYAML))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -49,6 +51,8 @@ func TestParseMachineSpec_Valid(t *testing.T) {
 }
 
 func TestParseMachineSpec_RichStateAndSignalMetadata(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: rich
 purpose: Coordinate a review workflow.
@@ -203,6 +207,8 @@ func transitionMetricLabelYAML(label string) string {
 }
 
 func TestParseMachineSpec_RichValidationErrorsUseNames(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: rich-bad
 initial_state: Start
@@ -235,6 +241,8 @@ transitions:
 }
 
 func TestParseMachineSpec_MissingInitialState(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: bad
 states: [A]
@@ -255,6 +263,8 @@ transitions:
 }
 
 func TestParseMachineSpec_UnknownStateInTransition(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: bad
 initial_state: A
@@ -276,6 +286,8 @@ transitions:
 }
 
 func TestParseMachineSpec_UnknownSignalInTransition(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: bad
 initial_state: A
@@ -297,6 +309,8 @@ transitions:
 }
 
 func TestParseMachineSpec_TerminalNotInStates(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: bad
 initial_state: A
@@ -318,6 +332,8 @@ transitions:
 }
 
 func TestDiagnoseMachineSpecCleanMachine(t *testing.T) {
+	t.Parallel()
+
 	spec, err := ParseMachineSpec([]byte(validYAML))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -331,6 +347,8 @@ func TestDiagnoseMachineSpecCleanMachine(t *testing.T) {
 }
 
 func TestDiagnoseMachineSpecReportsReachabilityAndDeadGrammar(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: diagnostics
 initial_state: Start
@@ -366,6 +384,8 @@ transitions:
 }
 
 func TestDiagnoseMachineSpecUsesRichNames(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: diagnostics-rich
 initial_state: Start
@@ -409,6 +429,8 @@ type dummyBuilder struct{ name string }
 func (d *dummyBuilder) Build(_ Result) Command { return &dummyCmd{name: d.name} }
 
 func TestBuildTransitionTable(t *testing.T) {
+	t.Parallel()
+
 	spec, err := ParseMachineSpec([]byte(validYAML))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -459,6 +481,8 @@ func TestBuildTransitionTable(t *testing.T) {
 }
 
 func TestBuildTransitionTable_ToolActionSentinel(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: tool-test
 initial_state: A
@@ -497,6 +521,8 @@ transitions:
 }
 
 func TestBuildTransitionTable_ToolActionNil(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: tool-test
 initial_state: A
@@ -522,6 +548,8 @@ transitions:
 }
 
 func TestBuildTransitionTable_UnknownAction(t *testing.T) {
+	t.Parallel()
+
 	yaml := `
 name: bad-action
 initial_state: A
@@ -550,6 +578,8 @@ transitions:
 }
 
 func TestLoadMachineSpec_FileNotFound(t *testing.T) {
+	t.Parallel()
+
 	_, err := LoadMachineSpec("/nonexistent/path/machine.yaml")
 	if err == nil {
 		t.Fatal("expected error for missing file")
@@ -561,6 +591,8 @@ func TestLoadMachineSpec_FileNotFound(t *testing.T) {
 // tag) are chained through state transitions, each emitting ToolDone to
 // advance to the next step. The state machine is the composition layer.
 func TestToolComposition_ViaStateMachine(t *testing.T) {
+	t.Parallel()
+
 	machineYAML := `
 name: commit-workflow
 initial_state: Idle

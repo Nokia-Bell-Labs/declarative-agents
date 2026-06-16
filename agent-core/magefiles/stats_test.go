@@ -1,5 +1,4 @@
-// Copyright (c) 2026 Petar Djukic. All rights reserved.
-// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Nokia. All rights reserved.
 
 package main
 
@@ -32,7 +31,7 @@ func TestConfigsYAMLCategory(t *testing.T) {
 		"agents/planner/machine.yaml":        "planner",
 		"agents/evaluator/machine.yaml":      "evaluator",
 		"agents/bench/machine.yaml":          "bench",
-		"agents/jurist/machine.yaml": "jurist",
+		"agents/jurist/machine.yaml":         "jurist",
 		"configs/experimental/machine.yaml":  "configs_other",
 	}
 	for path, want := range tests {

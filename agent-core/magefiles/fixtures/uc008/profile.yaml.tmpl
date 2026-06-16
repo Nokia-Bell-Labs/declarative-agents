@@ -1,0 +1,12 @@
+name: monitored-qwen-ollama-rest
+machine: {{MACHINE_PATH}}
+tools:
+  - {{TOOLS_PATH}}
+tool_declarations:
+  - {{LLM_DECLARATIONS_PATH}}
+  - {{LLM_OVERRIDE_PATH}}
+  - {{OLLAMA_DECLARATIONS_PATH}}
+  - {{MONITOR_DECLARATIONS_PATH}}
+rest_definitions:
+  - {{OLLAMA_REST_PATH}}
+  - {{MONITOR_REST_PATH}}
