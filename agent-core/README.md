@@ -13,7 +13,7 @@ and jurist agents.
 Shared runtime machinery includes state-machine execution, command dispatch
 with tracing and panic recovery, tool registration, budget enforcement, LLM
 integration, prompt assembly, lifecycle checkpointing, and a standard tool
-library. Agent behavior lives in profile YAML plus shared tool declarations;
+library. Agent behavior lives in `agents/`, `tools/`, and `docs/specs/`;
 changing behavior should usually mean changing YAML rather than adding
 mode-specific Go code.
 
@@ -142,15 +142,13 @@ bin/agent --profile agents/generator/profile.yaml --directory "$PWD"
 Repository builds use a multi-stage Dockerfile for the release runtime image.
 During the builder stage, the image clones Agent Core from GitLab, runs
 `go test ./...`, and builds `agent`. The final Alpine runtime image contains
-only the `agent` binary, git, common Unix utilities, and core-owned shared tool
-assets under `/opt/agent-core/tools`.
+only the `agent` binary, git, common Unix utilities, and shared YAML assets under
+`/opt/agent-core`.
 
 Runtime images intentionally exclude the Go toolchain, source checkout,
-test dependencies, `golangci-lint`, and agent profile trees. Exec tools such as
-`build`, `vet`, `lint`, and `test` require those binaries to come from a mounted
-workspace, a derived image, or another container/host provisioning step. Agent
-profiles come from a mounted `agent-profiles` checkout or unpacked profile
-bundle.
+test dependencies, and `golangci-lint`. Exec tools such as `build`, `vet`,
+`lint`, and `test` require those binaries to come from a mounted workspace, a
+derived image, or another container/host provisioning step.
 
 Build through the Mage target:
 
@@ -227,63 +225,30 @@ DOCKER_BUILDKIT=1 docker build \
   -t agent-core:latest .
 ```
 
-Run the runtime image with profiles and workspaces mounted separately:
+An external evaluation repository can mount its local suites, samples, and
+evaluator config into `/work` while reusing shared runtime files from the
+image:
 
 ```bash
 podman run --rm \
-  -v "$AGENT_PROFILES_ROOT:/profiles/agents:ro" \
   -v "$PWD:/work" \
   -w /work \
   agent-core:latest \
-  --profile /profiles/agents/generator/profile.yaml \
-  --directory /work
-```
-
-Evaluator flows use the same profile mount and keep suites/output under the
-workspace mount:
-
-```bash
-podman run --rm \
-  -v "$AGENT_PROFILES_ROOT:/profiles/agents:ro" \
-  -v "$PWD:/work" \
-  -w /work \
-  agent-core:latest \
-  --profile /profiles/agents/evaluator/profile.yaml \
+  --profile agents/evaluator/profile.yaml \
   --request suites/suite.yaml \
   --output eval-results \
   --directory /work
 ```
 
-The image has no fallback profile tree. Running it without `--profile` or with
-an absent mounted profile path fails at startup with a profile path error.
-
 Profiles inside the mounted repository can reference shared image assets with
-absolute paths such as `/opt/agent-core/tools/builtin` and
-`/opt/agent-core/tools/exec`.
+absolute paths such as `/opt/agent-core/tools/builtin`,
+`/opt/agent-core/tools/exec`, and
+`/opt/agent-core/agents/generator/profile-qwen27b.yaml`.
 If mounted output permissions matter, add `--user "$(id -u):$(id -g)"`.
 
-For integration tests inside a container, build the source-bearing integration
-target and mount profile assets from outside the image:
-
-```bash
-podman build \
-  --target integration \
-  --secret id=git_credentials,src=.netrc \
-  --build-arg AGENT_CORE_REF=v0.20260612.N \
-  -t agent-core-integration:latest .
-
-podman run --rm \
-  -v "$AGENT_PROFILES_ROOT:/profiles/agents:ro" \
-  -w /src \
-  -e AGENT_PROFILES_ROOT=/profiles/agents \
-  agent-core-integration:latest \
-  mage integration:uc006
-```
-
 Recent verification: `mage docker` built `agent-core:latest` from a remote
-release, `podman run --rm agent-core:latest --help` started the packaged
-`agent` binary, and `podman run --rm agent-core:latest` reported that
-`--profile` is required.
+release, and `podman run --rm agent-core:latest --help` started the packaged
+`agent` binary successfully.
 
 ## Installation
 

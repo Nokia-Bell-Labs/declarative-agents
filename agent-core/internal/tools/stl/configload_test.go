@@ -19,49 +19,24 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
-// configDir resolves the active profile root.
+// configDir resolves the absolute path to the top-level agents/ directory.
 func configDir(t *testing.T) string {
 	t.Helper()
-	for _, candidate := range profileRootCandidates(t) {
-		if hasProfile(candidate, "generator") || hasProfile(candidate, "jurist") {
-			return candidate
-		}
-		nested := filepath.Join(candidate, "agents")
-		if hasProfile(nested, "generator") || hasProfile(nested, "jurist") {
-			return nested
-		}
-	}
-	require.FailNow(t, "profile root not found; set AGENT_PROFILES_ROOT")
-	return ""
+	_, thisFile, _, _ := runtime.Caller(0)
+	abs := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "agents")
+	info, err := os.Stat(abs)
+	require.NoError(t, err, "agents directory must exist at %s", abs)
+	require.True(t, info.IsDir())
+	return abs
 }
 
 func repoRootFromConfigDir(cd string) string {
-	_, thisFile, _, _ := runtime.Caller(0)
-	return filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", ".."))
+	return filepath.Dir(cd)
 }
 
 func sharedToolDecl(t *testing.T, cd, name string) string {
 	t.Helper()
 	return filepath.Join(repoRootFromConfigDir(cd), "tools", name)
-}
-
-func profileRootCandidates(t *testing.T) []string {
-	t.Helper()
-	root := repoRootFromConfigDir("")
-	candidates := []string{}
-	if configured := os.Getenv("AGENT_PROFILES_ROOT"); configured != "" {
-		candidates = append(candidates, configured)
-	}
-	return append(candidates,
-		filepath.Join(filepath.Dir(root), "agent-profiles"),
-		filepath.Join(root, "agent-profiles"),
-		filepath.Join(root, "agents"),
-	)
-}
-
-func hasProfile(root, rel string) bool {
-	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel), "profile.yaml"))
-	return err == nil && !info.IsDir()
 }
 
 func TestAgentMachineSemanticMetadataMerged(t *testing.T) {

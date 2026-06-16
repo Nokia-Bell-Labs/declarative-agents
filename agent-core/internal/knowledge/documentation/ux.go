@@ -11,6 +11,7 @@ import (
 )
 
 const uxConfigPath = "ui/ux.yaml"
+const curatorUXConfigPath = "agents/knowledge-manager/documentation-curator/ui/ux.yaml"
 
 // UXConfig defines profile-owned Knowledge Manager UI routes and actions.
 type UXConfig struct {
@@ -68,6 +69,9 @@ func LoadCuratorUXConfig(profilePath string) (UXConfig, error) {
 	cfg, err := LoadUXConfig(primary)
 	if err == nil {
 		return cfg, nil
+	}
+	if fallback := curatorUXFallbackPath(); fallback != "" {
+		return LoadUXConfig(fallback)
 	}
 	return UXConfig{}, err
 }
@@ -139,4 +143,22 @@ func uxRoutesByID(routes []UXRoute) map[string]UXRoute {
 		byID[route.ID] = route
 	}
 	return byID
+}
+
+func curatorUXFallbackPath() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		candidate := filepath.Join(dir, curatorUXConfigPath)
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }
