@@ -33,6 +33,13 @@ func BuildDynamicToolAction(deps DynamicToolActionDeps) core.ActionFunc {
 		if err := json.Unmarshal([]byte(r.Output), &treq); err != nil {
 			return &standardFailCmd{err: fmt.Errorf("failed to unmarshal ToolRequest: %w", err)}
 		}
+		spec, ok := deps.Registry.SpecByName(treq.ToolName)
+		if !ok {
+			return &standardFailCmd{err: fmt.Errorf("no builder for tool %q", treq.ToolName)}
+		}
+		if spec.Visibility != core.External {
+			return &standardFailCmd{err: fmt.Errorf("tool %q is not available for dynamic dispatch", treq.ToolName)}
+		}
 		builder, ok := deps.Registry.Resolve(treq.ToolName)
 		if !ok {
 			return &standardFailCmd{err: fmt.Errorf("no builder for tool %q", treq.ToolName)}
