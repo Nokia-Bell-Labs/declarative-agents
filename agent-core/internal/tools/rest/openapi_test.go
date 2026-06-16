@@ -3,6 +3,8 @@
 package rest
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -45,6 +47,42 @@ func TestRESTOpenAPI_ServerBindMap(t *testing.T) {
 	require.Equal(t, "/webhooks/payment", endpoint.Path)
 	require.Equal(t, "emit_signal", endpoint.Binding)
 	require.Contains(t, endpoint.Request.BodySchema, "properties")
+}
+
+func TestRESTOpenAPI_ServerBindPreservesEndpointConfig(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "payments.yaml"), paymentsOpenAPI(false))
+	writeFile(t, filepath.Join(dir, "rest.yaml"), preservingEndpointConfig("payments.yaml"))
+
+	def, err := LoadDefinition(filepath.Join(dir, "rest.yaml"))
+	require.NoError(t, err)
+	endpoint := def.Servers["payments_webhooks"].Endpoints["payment_webhook"]
+	require.Equal(t, "POST", endpoint.Method)
+	require.Equal(t, "/webhooks/payment", endpoint.Path)
+	require.Equal(t, "read_state", endpoint.Binding)
+	require.Equal(t, "PaymentWebhookReceived", endpoint.Signal)
+	require.ElementsMatch(t, []string{"PaymentWebhookReceived"}, endpoint.AllowedSignals)
+	require.Equal(t, "machine_spec", endpoint.MonitorView)
+	require.Equal(t, "payments", endpoint.Queue.Name)
+	require.Equal(t, map[string]string{"accepted": "true"}, endpoint.Response.Output)
+	require.Equal(t, []string{"body.secret"}, endpoint.Response.Redact)
+}
+
+func TestRESTOpenAPI_LoadsTrustedURLImport(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(paymentsOpenAPI(false)))
+	}))
+	t.Cleanup(server.Close)
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "rest.yaml"), restOpenAPIConfig(server.URL))
+
+	def, err := LoadDefinition(filepath.Join(dir, "rest.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, "GET", def.Clients["payments"].Operations["getPayment"].Method)
 }
 
 func TestRESTOpenAPI_InvalidOperationIDs(t *testing.T) {
@@ -249,6 +287,32 @@ func restOpenAPIConfig(path string) string {
         payment_webhook:
           binding: emit_signal
           signal: PaymentWebhookReceived
+`
+}
+
+func preservingEndpointConfig(path string) string {
+	return `rest:
+  version: v1
+  openapi:
+    payments:
+      path: ` + path + `
+      bind:
+        receivePaymentWebhook: payment_webhook
+  servers:
+    payments_webhooks:
+      address: 127.0.0.1:0
+      endpoints:
+        payment_webhook:
+          binding: read_state
+          signal: PaymentWebhookReceived
+          allowed_signals: [PaymentWebhookReceived]
+          monitor_view: machine_spec
+          queue:
+            name: payments
+          response:
+            output:
+              accepted: "true"
+            redact: [body.secret]
 `
 }
 
