@@ -247,6 +247,7 @@ type AwaitEventToolConfig struct {
 	Sources         []AwaitEventSourceConfig `json:"sources"`
 	AllowedSignals  []string                 `json:"allowed_signals"`
 	Timeout         string                   `json:"timeout"`
+	ReadPolicy      string                   `json:"read_policy"`
 	StoppedBehavior string                   `json:"stopped_behavior"`
 }
 
@@ -356,6 +357,9 @@ func awaitAnyOptions(toolName string, cfg AwaitEventToolConfig, defs Collection)
 	if err != nil {
 		return AwaitAnyOptions{}, err
 	}
+	if err := validateReadPolicy(toolName, cfg.ReadPolicy); err != nil {
+		return AwaitAnyOptions{}, err
+	}
 	options := AwaitAnyOptions{Timeout: timeout, StoppedBehavior: stopped}
 	for _, source := range cfg.Sources {
 		awaitSource, err := awaitSourceConfig(toolName, source, cfg.AllowedSignals, defs)
@@ -403,6 +407,15 @@ func awaitTimeout(toolName, value string) (time.Duration, error) {
 		return 0, fmt.Errorf("tool %q config has invalid timeout %q", toolName, value)
 	}
 	return timeout, nil
+}
+
+func validateReadPolicy(toolName, value string) error {
+	switch value {
+	case "", "first_available":
+		return nil
+	default:
+		return fmt.Errorf("tool %q config has unsupported read_policy %q", toolName, value)
+	}
 }
 
 func signalFilters(toolName string, source, allowed []string) ([]string, error) {

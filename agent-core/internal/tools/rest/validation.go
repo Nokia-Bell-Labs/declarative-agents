@@ -21,6 +21,10 @@ const (
 	redirectAllowlist = "allowlist"
 
 	bindingDynamicSignal = "emit_dynamic_signal"
+
+	queueOverflowReject     = "reject"
+	queueOverflowDropOldest = "drop_oldest"
+	queueOverflowDropNewest = "drop_newest"
 )
 
 var (
@@ -255,6 +259,12 @@ func validateServers(servers map[string]Server, limits map[string]LimitProfile) 
 		if err := validatePublicListener(serverName, server, limits); err != nil {
 			return err
 		}
+		if err := validateQueueConfig("server "+serverName, server.Queue); err != nil {
+			return err
+		}
+		if err := validateShutdownConfig(serverName, server.Shutdown); err != nil {
+			return err
+		}
 		for endpointName, endpoint := range server.Endpoints {
 			if err := validateEndpoint(endpointName, endpoint); err != nil {
 				return err
@@ -279,6 +289,14 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 	if endpoint.Binding == bindingDynamicSignal && len(endpoint.AllowedSignals) == 0 {
 		return fmt.Errorf("endpoint %q emit_dynamic_signal requires allowed_signals", name)
 	}
+	if err := validateQueueConfig("endpoint "+name, endpoint.Queue); err != nil {
+		return err
+	}
+	if endpoint.Binding == bindingLifecycleControl {
+		if err := validateLifecycleControlEndpoint(name, endpoint); err != nil {
+			return err
+		}
+	}
 	if err := validateMonitorView(name, endpoint); err != nil {
 		return err
 	}
@@ -295,6 +313,40 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 		if _, ok := endpoint.Request.Path[param.name]; !ok {
 			return fmt.Errorf("endpoint %q path param %q is not declared", name, param.name)
 		}
+	}
+	return validateResponseMapping(name, endpoint.Response)
+}
+
+func validateQueueConfig(owner string, queue QueueConfig) error {
+	switch queue.Overflow {
+	case "", queueOverflowReject, queueOverflowDropOldest, queueOverflowDropNewest:
+		return nil
+	default:
+		return fmt.Errorf("%s has unsupported queue overflow %q", owner, queue.Overflow)
+	}
+}
+
+func validateShutdownConfig(name string, shutdown ShutdownConfig) error {
+	switch shutdown.DrainPolicy {
+	case "", "drain", "drain_then_stop", "reject_new", "drop_queued", "fail_queued":
+		return nil
+	default:
+		return fmt.Errorf("server %q has unsupported drain_policy %q", name, shutdown.DrainPolicy)
+	}
+}
+
+func validateLifecycleControlEndpoint(name string, endpoint Endpoint) error {
+	control := endpoint.LifecycleControl
+	switch control.Action {
+	case "exit", "pause", "rollback_request", "resume", "inject_signal":
+	default:
+		return fmt.Errorf("endpoint %q lifecycle_control has unsupported action %q", name, control.Action)
+	}
+	if control.Action == "inject_signal" && len(control.AllowedSignals) == 0 {
+		return fmt.Errorf("endpoint %q lifecycle_control inject_signal requires allowed_signals", name)
+	}
+	if control.Action != "inject_signal" && lifecycleSignal(endpoint) == "" {
+		return fmt.Errorf("endpoint %q lifecycle_control requires signal", name)
 	}
 	return validateResponseMapping(name, endpoint.Response)
 }
