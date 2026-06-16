@@ -26,7 +26,7 @@ release_03_0_support:
   partial:
     - rest_await_event read_policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
   reserved:
-    - document_resources top-level config and machine_request.document_resources are typed fields that ValidateDefinition rejects until generic REST document resource loading is implemented.
+    - document_resources top-level config and machine_request.document_resources are typed target-format fields that ValidateDefinition rejects until generic REST document resource loading is implemented. Current request machines use profile-selected filesystem resource ToolDefs.
     - lifecycle_control endpoint config is documented for the target format but current control profiles use emit_signal routes that MachineSpec routes to exit_agent.
 
 schema:
@@ -77,7 +77,7 @@ schema:
         - field: document_resources
           type: map[string]document_resource
           required: false
-          description: Reserved target-format field for named filesystem-backed document resources. Release 03.0 Knowledge Manager behavior uses profile-selected filesystem resource words instead of this REST loader field.
+          description: Reserved target-format field for named filesystem-backed document resources. ValidateDefinition rejects this field in release 03.0. Knowledge Manager behavior uses profile-selected filesystem resource ToolDefs instead.
 
   rest_client:
     fields:
@@ -546,7 +546,7 @@ schema:
       - field: document_resources
         type: "[]string"
         required: false
-        description: Reserved target-format references to document resources. Current request machines select filesystem resource words through trusted profile ToolDefs.
+        description: Reserved target-format references to document resources. ValidateDefinition rejects this field in release 03.0. Current request machines select filesystem resource words through trusted profile ToolDefs.
 
   machine_request_trace_config:
     fields:
@@ -1164,7 +1164,11 @@ format_examples:
         config:
           drain_policy: stop_servers
 
-  machine_request_endpoint: |
+  reserved_document_resource_target_format: |
+    # Reserved target-format sketch. ValidateDefinition rejects
+    # rest.document_resources and machine_request.document_resources in release
+    # 03.0. Use profile-selected filesystem resource ToolDefs for current
+    # Knowledge Manager request machines.
     rest:
       version: v1
       document_resources:
@@ -1278,11 +1282,11 @@ validation_rules:
   - id: V21
     rule: machine_request responses MUST be selected from configured terminal signals or response word output and MUST NOT be assembled by direct Go demo handlers.
   - id: V22
-    rule: document_resources entries MUST declare root, extensions, response_modes, and at least one operation before use by REST or machine_request config.
+    rule: Release 03.0 MUST reject rest.document_resources and machine_request.document_resources as reserved target-format fields until generic REST document resource loading is implemented.
   - id: V23
-    rule: document resource runtime selectors MUST NOT choose roots, include patterns, extension allowlists, response modes, symlink policy, or binary policy.
+    rule: Current request machines MUST use profile-selected filesystem resource ToolDefs, not machine_request.document_resources, to keep roots, include patterns, extension allowlists, response modes, symlink policy, and binary policy under trusted profile control.
   - id: V24
-    rule: document resource path resolution MUST deny empty paths, absolute paths, parent-directory traversal, and resolved paths outside the configured root.
+    rule: Profile-selected filesystem resource ToolDefs MUST deny empty paths, absolute paths, parent-directory traversal, and resolved paths outside the configured root.
   - id: V25
     rule: machine_request profile-backed tool selection MUST use trusted profile declaration roots and MUST fail when any request MachineSpec action is missing from the selected ToolDefs.
   - id: V26
@@ -1416,8 +1420,8 @@ implementation_status:
     - read_policy values outside first-available are rejected until implemented.
     - REST compensation mementos are captured, but rollback-time execution of configured REST compensation remains follow-up work.
   reserved:
-    - top-level document_resources config.
-    - machine_request.document_resources config.
+    - top-level document_resources config. ValidateDefinition rejects this field.
+    - machine_request.document_resources config. ValidateDefinition rejects this field.
     - lifecycle_control endpoint config.
   planned_follow_up:
     - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.

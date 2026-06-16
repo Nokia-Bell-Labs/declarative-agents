@@ -11,6 +11,12 @@ problem: |
   filesystem reading and response rendering without hardcoding Knowledge Manager
   routes. That split keeps the resource reusable.
 
+  Release 03.0 keeps the generic REST document resource loader deferred. The
+  accepted runtime path uses profile-selected filesystem resource ToolDefs such
+  as doc_list_resource and doc_read_resource. Top-level rest.document_resources
+  and machine_request.document_resources remain typed target-format fields that
+  validation rejects before launch.
+
 goals:
   - G1: Define declarative filesystem document resources for REST and machine_request words.
   - G2: Keep reusable file reading capability separate from Knowledge Manager UI configuration.
@@ -75,7 +81,7 @@ requirements:
       - R6.5: Generic document resource capability SHALL remain reusable without the Knowledge Manager UI.
 
 non_goals:
-  - Implementing document resource tools in this issue.
+  - Implementing generic REST document resource loading in this issue.
   - Defining mutating document writes or applying patches to files.
   - Replacing all existing documentation host routes in this issue.
   - Letting browser input choose arbitrary filesystem roots or parser behavior.
@@ -130,5 +136,5 @@ implementation_status:
     - agents/knowledge-manager/documentation-curator owns the Knowledge Manager UI assets, request machine, REST route configuration, and action placement.
     - mage integration:uc007 verifies index, document detail, raw YAML, rendered HTML, nested document path evidence, and machine_request trace metadata.
   reserved:
-    - Top-level rest.document_resources and machine_request.document_resources are typed target-format fields, but ValidateDefinition rejects both with explicit reserved-field errors until generic REST document resource loading is implemented.
+    - Top-level rest.document_resources and machine_request.document_resources are typed target-format fields. ValidateDefinition rejects both with explicit reserved-field errors. Current request machines use profile-selected filesystem resource ToolDefs until generic REST document resource loading is implemented.
   planned_follow_up: []
