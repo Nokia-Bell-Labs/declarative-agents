@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises'
-import http from 'node:http'
 import path from 'node:path'
-import puppeteer, { type Browser, type Page } from 'puppeteer-core'
+import puppeteer, { type Browser, type HTTPResponse, type Page } from 'puppeteer-core'
 
 type Trace = {
   status?: string
@@ -13,6 +12,7 @@ type Trace = {
 }
 
 type CapturedResponse = {
+  method: string
   url: string
   requestId: string
   status: number
@@ -62,25 +62,30 @@ async function runProof(browser: Browser) {
     if (entry) entry.status = res.status()
   })
 
+  const indexResponse = waitForGET(page, '/api/v1/docs')
   await page.goto(new URL('/docs', baseURL).href, { waitUntil: 'networkidle0' })
   await page.waitForSelector('.docs-category-toggle')
 
-  const index = await fetchEndpoint('/api/v1/docs')
+  const index = await captureResponse(await indexResponse)
   assert(index.status === 200, `index response status ${index.status}`)
+  assert(index.method === 'GET', 'index read used GET')
   assert(Array.isArray(index.body.data), 'index data is an array')
   assert(includesDocumentPath(index.body, 'specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml'), 'nested document path listed')
   assertMachineRequestTrace(index.body, 'documents', 'DocumentIndexReady')
 
   await expandCategories(page)
   await page.waitForSelector('.docs-link-title')
+  const detailResponse = waitForGET(page, '/api/v1/docs/SPECIFICATIONS.yaml')
   await clickDocument(page, 'SPECIFICATIONS')
   await page.waitForSelector('.doc-viewer')
   await page.waitForSelector('.doc-raw-section')
 
-  const detail = await fetchEndpoint('/api/v1/docs/SPECIFICATIONS.yaml')
+  const detail = await captureResponse(await detailResponse)
   assert(detail.status === 200, `detail response status ${detail.status}`)
+  assert(detail.method === 'GET', 'detail read used GET')
   assert(String(detail.body.raw ?? '').includes('id: agent-core-specifications'), 'raw YAML returned')
   assertMachineRequestTrace(detail.body, 'document', 'DocumentDetailReady')
+  assertNoActionPostsForReads()
 
   const rendered = await page.$eval('.doc-viewer', node => node.textContent ?? '')
   assert(rendered.includes('Agent Core Specification Index'), 'pretty view rendered title')
@@ -112,30 +117,30 @@ async function clickDocument(page: Page, label: string) {
   assert(clicked, `document button containing ${label} found`)
 }
 
-async function fetchEndpoint(endpoint: string): Promise<CapturedResponse> {
-  const requestId = `km-docs-${Date.now()}-${capturedResponses.length}`
-  const url = new URL(endpoint, baseURL).href
-  const response = await getJSON(url)
-  const captured = { url, requestId, status: response.status, body: response.body }
+function waitForGET(page: Page, endpoint: string): Promise<HTTPResponse> {
+  const expected = new URL(endpoint, baseURL).href
+  return page.waitForResponse(res => res.request().method() === 'GET' && res.url() === expected)
+}
+
+async function captureResponse(response: HTTPResponse): Promise<CapturedResponse> {
+  const body = await response.json() as Record<string, unknown>
+  const captured = {
+    method: response.request().method(),
+    url: response.url(),
+    requestId: `km-docs-${Date.now()}-${capturedResponses.length}`,
+    status: response.status(),
+    body,
+  }
   capturedResponses.push(captured)
   return captured
 }
 
-async function getJSON(url: string): Promise<{ status: number, body: Record<string, unknown> }> {
-  return new Promise((resolve, reject) => {
-    http.get(url, res => {
-      const chunks: Buffer[] = []
-      res.on('data', chunk => chunks.push(Buffer.from(chunk)))
-      res.on('end', () => {
-        const text = Buffer.concat(chunks).toString('utf8')
-        try {
-          resolve({ status: res.statusCode ?? 0, body: JSON.parse(text) as Record<string, unknown> })
-        } catch (err) {
-          reject(new Error(`invalid JSON from ${url}: ${text}`))
-        }
-      })
-    }).on('error', reject)
+function assertNoActionPostsForReads() {
+  const actionPosts = networkLog.filter(item => {
+    const url = new URL(item.url)
+    return item.method === 'POST' && url.pathname === '/api/v1/actions'
   })
+  assert(actionPosts.length === 0, 'browser did not POST /api/v1/actions for document reads')
 }
 
 function includesDocumentPath(body: Record<string, unknown>, path: string) {

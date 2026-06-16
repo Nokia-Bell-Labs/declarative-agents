@@ -113,6 +113,30 @@ func TestStandaloneServerConformanceUsesRESTMachineRequestRoutes(t *testing.T) {
 	require.Equal(t, "DocumentDetailReady", trace["terminal_signal"])
 }
 
+func TestStandaloneServerAcceptsBrowserHeadersForDocsGET(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	docsDir := filepath.Join(root, "docs")
+	writeDocFixture(t, docsDir, "SPECIFICATIONS.yaml", "id: specs\n")
+	handler := NewServer(HostConfig{
+		DocsDir: docsDir, ProfilePath: curatorProfilePath(t),
+		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
+	}).Handler()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/docs", nil)
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Referer", "http://127.0.0.1:18081/docs")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), `"path":"SPECIFICATIONS.yaml"`)
+	require.Contains(t, rec.Body.String(), `"trace"`)
+}
+
 func TestLazyMachineRequestProxyOwnsBackendLifecycle(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -327,7 +351,7 @@ func TestStandaloneServerRunsActionsThroughWorkflowRunner(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `"signal":"RESTResponded"`)
 }
 
-func TestProfileWorkflowRunnerDispatchesConfiguredRESTTool(t *testing.T) {
+func TestProfileWorkflowRunnerDispatchesConfiguredValidationAction(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -355,14 +379,15 @@ func TestProfileWorkflowRunnerDispatchesConfiguredRESTTool(t *testing.T) {
 	runner, err := NewProfileWorkflowRunnerFromDefs(collection, defs)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions", strings.NewReader(`{"type":"doc_get","params":{"path":"VISION.yaml"}}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions", strings.NewReader(`{"type":"doc_validate","params":{"paths":["VISION.yaml"]}}`))
 	result, err := runner.Run(req)
 
 	require.NoError(t, err)
-	require.Equal(t, "doc_get", result.Tool)
-	require.Equal(t, "RESTResourceRead", result.Signal)
+	require.Equal(t, "doc_validate", result.Tool)
+	require.Equal(t, "RESTResponded", result.Signal)
 	data := result.Data.(map[string]interface{})
-	require.Equal(t, "title: Vision\n", data["raw"])
+	require.Contains(t, data, "findings")
+	require.Contains(t, data, "checked_paths")
 }
 
 func TestCuratorProfileSelectsGenericControlExitFlow(t *testing.T) {

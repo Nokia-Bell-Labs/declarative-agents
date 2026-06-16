@@ -83,8 +83,24 @@ async function postAction<T>(type: string, params: Record<string, unknown> = {})
   return postJSON<T>('/actions', { type, params })
 }
 
-export const listDocs = () => postAction<DocEntry[]>('doc_list')
-export const getDoc = (path: string) => postAction<DocDetail>('doc_get', { path })
+function documentPath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/')
+}
+
+async function fetchDoc(path: string): Promise<DocDetail> {
+  const res = await fetch(`${BASE}/docs/${documentPath(path)}`)
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  const body = await res.json()
+  if (body.error) throw new Error(body.error)
+  return {
+    path: body.path ?? path,
+    content: body.data ?? body.content ?? {},
+    raw: body.raw ?? '',
+  }
+}
+
+export const listDocs = () => fetchJSON<DocEntry[]>('/docs')
+export const getDoc = (path: string) => fetchDoc(path)
 export const getConfig = (path: string) => fetchJSON<ConfigDetail>(`/configs/${path}`)
 export const getSource = (path: string) => fetchJSON<SourceDetail>(`/source/${path}`)
 export const validateDocs = (paths: string[], strict = false) => postAction<ValidationReport>('doc_validate', { paths, strict })

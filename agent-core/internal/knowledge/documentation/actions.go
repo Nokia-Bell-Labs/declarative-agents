@@ -399,7 +399,7 @@ func (p *LazyMachineRequestProxy) forward(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	req.Header = r.Header.Clone()
+	req.Header = proxyRequestHeaders(r.Header)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
@@ -407,6 +407,16 @@ func (p *LazyMachineRequestProxy) forward(w http.ResponseWriter, r *http.Request
 	}
 	defer resp.Body.Close()
 	writeProxiedDocumentResponse(w, resp)
+}
+
+func proxyRequestHeaders(headers http.Header) http.Header {
+	forwarded := http.Header{}
+	for _, name := range []string{"Accept", "Content-Type", "X-Request-ID"} {
+		for _, value := range headers.Values(name) {
+			forwarded.Add(name, value)
+		}
+	}
+	return forwarded
 }
 
 func proxyURL(baseURL string, requestURL *url.URL) string {
