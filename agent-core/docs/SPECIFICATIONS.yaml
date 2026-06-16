@@ -2,16 +2,17 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Thirty-three SRDs
+  Specification index for the agent-core framework. Thirty-four SRDs
   define the generic agentic loop engine and its supporting packages across
-  six releases. Release 04.0 implements embedded monitoring. The 00.0 release
+  seven releases. Release 04.0 implements embedded monitoring. The 00.0 release
   owns the engine foundation and its support packages. In 01.0, configured
   runtime behavior expands into evaluator and bench contracts. Tool
   declarations also belong to that release. Rollback lifecycle contracts
   belong to 02.0. Declarative REST runtime contracts belong to 03.0. REST
-  client and server contracts sit in the same release. Twenty use cases
-  exercise the SRDs across the six releases. Seven formal YAML test suites cover 206 acceptance test
-  cases across releases 00.0 through 05.0; additional
+  client and server contracts sit in the same release. Release 06.0 defines the
+  external profile and mounted-profile container contract. Twenty-one use cases
+  exercise the SRDs across the seven releases. Eight formal YAML test suites cover 216 acceptance test
+  cases across releases 00.0 through 06.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
 
@@ -23,7 +24,8 @@ overview: |
   SRD release assignments are range based. Release 00.0 covers srd001
   through srd018. Release 01.0 covers srd019 through srd024. Release
   02.0 covers srd025 and srd026. Release 03.0 covers srd027 through
-  srd031. Release 04.0 covers srd032 and srd033.
+  srd031. Release 04.0 covers srd032 and srd033. Release 06.0 covers
+  srd034.
 
   Source-of-truth note.
   - roll-backs.md and tools-as-dsl.md are historical design notes. Their
@@ -58,6 +60,11 @@ roadmap_summary:
     use_cases_done: 2
     use_cases_total: 2
     status: done
+  - version: "06.0"
+    name: External agent profiles and mounted containers
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
 
 foundation_document_index:
   - id: agent-core
@@ -204,6 +211,11 @@ srd_index:
     summary: Requirements for read-only REST and OpenAPI monitor endpoints over cached monitor state, including machine, tool, metric, event, stream views, and live-store wiring.
     status: done
     path: docs/specs/software-requirements/srd033-monitor-rest-api.yaml
+  - id: srd034-external-agent-profiles
+    title: External Agent Profiles and Container Runtime Contracts
+    summary: Requirements for separating runtime-owned assets from profile-owned YAML programs and running containers with mounted profile paths.
+    status: planned
+    path: docs/specs/software-requirements/srd034-external-agent-profiles.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -390,6 +402,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel05.0-monitor-qwen
     path: docs/specs/use-cases/rel05.0-uc001-qwen-monitor-token-progress.yaml
+  - id: rel06.0-uc001-mounted-profile-container-runtime
+    title: Runtime container runs a mounted agent profile
+    release: "06.0"
+    status: planned
+    test_suite: test-rel06.0-profile-migration
+    path: docs/specs/use-cases/rel06.0-uc001-mounted-profile-container-runtime.yaml
 
 test_suite_index:
   - id: test-rel00.0
@@ -454,6 +472,13 @@ test_suite_index:
       - rel05.0-uc001-qwen-monitor-token-progress
     formal_test_cases: 1
     path: docs/specs/test-suites/test-rel05.0-monitor-qwen.yaml
+  - id: test-rel06.0-profile-migration
+    title: Test Suite for Release 06.0 Profile Migration
+    release: "06.0"
+    traces:
+      - rel06.0-uc001-mounted-profile-container-runtime
+    formal_test_cases: 3
+    path: docs/specs/test-suites/test-rel06.0-profile-migration.yaml
 
 go_test_coverage:
   note: >

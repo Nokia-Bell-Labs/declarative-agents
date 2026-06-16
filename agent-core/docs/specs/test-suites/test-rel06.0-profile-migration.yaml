@@ -1,0 +1,90 @@
+id: test-rel06.0-profile-migration
+title: Test Suite for Release 06.0 Profile Migration
+release: "06.0"
+
+traces:
+  - rel06.0-uc001-mounted-profile-container-runtime
+
+preconditions:
+  - The Agent Core runtime image can be built from the selected repository ref.
+  - An agent-profiles checkout or unpacked profile bundle is available to mount at `/profiles`.
+  - A writable workspace with evaluator suite input is available to mount at `/work`.
+  - The runtime image exposes the `agent` binary on PATH.
+
+test_cases:
+  - use_case: rel06.0-uc001-mounted-profile-container-runtime
+    name: Runtime image owns only core assets
+    go_test: mage docker
+    status: planned
+    description: Build the runtime image, inspect the final filesystem, require `/usr/local/bin/agent` plus core-owned shared tool assets, and reject copied generator or evaluator profile trees under `/opt/agent-core/agents`.
+    inputs:
+      image: agent-core:latest
+      required_paths:
+        - /usr/local/bin/agent
+        - /opt/agent-core/tools
+      forbidden_paths:
+        - /opt/agent-core/agents/generator
+        - /opt/agent-core/agents/evaluator
+    expected:
+      agent_binary_present: true
+      core_tool_assets_present: true
+      generator_profile_absent: true
+      evaluator_profile_absent: true
+    traces:
+      - rel06.0-uc001-mounted-profile-container-runtime S1
+      - srd034-external-agent-profiles AC1
+      - srd034-external-agent-profiles AC3
+
+  - use_case: rel06.0-uc001-mounted-profile-container-runtime
+    name: Runtime container loads mounted profiles
+    go_test: mage integration:uc009
+    status: planned
+    description: Run the release image with agent-profiles mounted read-only at `/profiles`, mount a workspace at `/work`, start the generator profile through `--profile /profiles/generator/profile.yaml`, and require startup evidence that profile-local files resolved from the mounted tree.
+    inputs:
+      profile_mount: /profiles
+      workspace_mount: /work
+      command:
+        - agent
+        - --profile
+        - /profiles/generator/profile.yaml
+        - --directory
+        - /work
+    expected:
+      mounted_profile_loaded: true
+      profile_relative_files_resolved: true
+      baked_in_profile_fallback_used: false
+    traces:
+      - rel06.0-uc001-mounted-profile-container-runtime S2
+      - rel06.0-uc001-mounted-profile-container-runtime S4
+      - srd034-external-agent-profiles AC2
+      - srd034-external-agent-profiles AC3
+      - srd034-external-agent-profiles AC4
+
+  - use_case: rel06.0-uc001-mounted-profile-container-runtime
+    name: Container proof commands use mounted profiles
+    go_test: mage integration:uc009
+    status: planned
+    description: Run an evaluator proof with profile assets mounted at `/profiles`, suite data mounted at `/work`, output under `/work/eval-results`, and evidence that the evaluator profile path came from `/profiles/evaluator/profile.yaml`.
+    inputs:
+      profile_mount: /profiles
+      workspace_mount: /work
+      command:
+        - agent
+        - --profile
+        - /profiles/evaluator/profile.yaml
+        - --request
+        - /work/suites/suite.yaml
+        - --output
+        - /work/eval-results
+        - --directory
+        - /work
+    expected:
+      evaluator_profile_loaded_from_mount: true
+      suite_read_from_workspace: true
+      output_written_under_workspace: true
+      baked_in_profile_fallback_used: false
+    traces:
+      - rel06.0-uc001-mounted-profile-container-runtime S3
+      - rel06.0-uc001-mounted-profile-container-runtime S4
+      - srd034-external-agent-profiles AC3
+      - srd034-external-agent-profiles AC4
