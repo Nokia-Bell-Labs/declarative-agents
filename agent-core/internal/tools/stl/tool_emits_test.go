@@ -129,3 +129,39 @@ func TestValidateToolEmitsDynamicToolHandlesExternalVocabulary(t *testing.T) {
 
 	require.NoError(t, ValidateToolEmits(spec, defs))
 }
+
+func TestValidateToolEmitsDynamicToolIgnoresInternalMachineActions(t *testing.T) {
+	spec := core.MachineSpec{
+		Name:           "monitored-grammar",
+		States:         core.StateSpecsFromNames("Idle", "StartingMonitor", "Parsing", "Composing", "AwaitingMonitorExit", "StoppingMonitor", "Done", "Failed"),
+		TerminalStates: []string{"Done", "Failed"},
+		Signals: core.SignalSpecsFromNames(
+			"Seed", "ServerLaunched", "ToolDone", "RESTResponded", "RESTDomainFailed",
+			"TaskCompleted", "ExitRequested", "AwaitTimedOut", "ServerStopped", "CommandError",
+		),
+		Transitions: []core.TransitionSpec{
+			{State: "Idle", Signal: "Seed", Next: "StartingMonitor", Action: "launch_monitor_rest"},
+			{State: "StartingMonitor", Signal: "ServerLaunched", Next: "Composing"},
+			{State: "Parsing", Signal: "ToolDone", Next: "Composing", Action: "$tool"},
+			{State: "Parsing", Signal: "TaskCompleted", Next: "AwaitingMonitorExit", Action: "await_monitor_control"},
+			{State: "Composing", Signal: "RESTResponded", Next: "Composing"},
+			{State: "Composing", Signal: "RESTDomainFailed", Next: "Composing"},
+			{State: "AwaitingMonitorExit", Signal: "ExitRequested", Next: "StoppingMonitor", Action: "stop_monitor_rest"},
+			{State: "AwaitingMonitorExit", Signal: "AwaitTimedOut", Next: "Failed"},
+			{State: "AwaitingMonitorExit", Signal: "ServerStopped", Next: "Failed"},
+			{State: "StoppingMonitor", Signal: "ServerStopped", Next: "Done"},
+			{State: "StartingMonitor", Signal: "CommandError", Next: "Failed"},
+			{State: "Composing", Signal: "CommandError", Next: "Failed"},
+			{State: "AwaitingMonitorExit", Signal: "CommandError", Next: "Failed"},
+			{State: "StoppingMonitor", Signal: "CommandError", Next: "Failed"},
+		},
+	}
+	defs := []ToolDef{
+		{Name: "launch_monitor_rest", Type: "builtin", Init: "rest_server_launch", Visibility: "internal", Emits: []string{"ServerLaunched", "CommandError"}},
+		{Name: "await_monitor_control", Type: "builtin", Init: "rest_await_event", Visibility: "internal", Emits: []string{"ExitRequested", "AwaitTimedOut", "ServerStopped", "CommandError"}},
+		{Name: "stop_monitor_rest", Type: "builtin", Init: "rest_server_stop", Visibility: "internal", Emits: []string{"ServerStopped", "CommandError"}},
+		{Name: "ollama_list_models", Type: "builtin", Init: "rest_client_invoke", Emits: []string{"RESTResponded", "RESTDomainFailed", "CommandError"}},
+	}
+
+	require.NoError(t, ValidateToolEmits(spec, defs))
+}
