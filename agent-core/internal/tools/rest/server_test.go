@@ -270,6 +270,8 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 		result := stopRESTServer(t, state, "control")
 		require.Equal(t, float64(2), result["drained_events"])
 		require.Equal(t, float64(0), result["dropped_events"])
+		require.Equal(t, "drain_then_stop", result["drain_policy"])
+		require.Equal(t, "drained", result["queue_outcome"])
 	})
 
 	t.Run("unblocks await", func(t *testing.T) {
@@ -307,9 +309,42 @@ func TestRESTServer_QueueOverflowPolicies(t *testing.T) {
 		server.Queue.Overflow = "silently_drop"
 		require.ErrorContains(t, ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid": server}}), "overflow")
 		server.Queue.Overflow = queueOverflowReject
-		server.Shutdown.DrainPolicy = "mystery"
-		require.ErrorContains(t, ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid": server}}), "drain_policy")
+		for _, policy := range []string{"mystery", "reject_new", "drop_queued", "fail_queued"} {
+			server.Shutdown.DrainPolicy = policy
+			require.ErrorContains(t, ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid": server}}), "drain_policy")
+		}
 	})
+}
+
+func TestRESTServer_ShutdownConfigValidation(t *testing.T) {
+	t.Parallel()
+
+	for _, policy := range []string{"", "drain", "drain_then_stop"} {
+		server := shutdownValidationServer("valid_shutdown")
+		server.Shutdown.DrainPolicy = policy
+		server.Shutdown.UnblockAwaitSignal = "ServerStopped"
+		err := ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"valid_shutdown": server}})
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name     string
+		mutate   func(*ShutdownConfig)
+		contains string
+	}{
+		{name: "drain timeout", mutate: func(cfg *ShutdownConfig) { cfg.DrainTimeout = "1s" }, contains: "drain_timeout"},
+		{name: "stop listeners false", mutate: func(cfg *ShutdownConfig) { cfg.StopListeners = boolPointer(false) }, contains: "stop_listeners"},
+		{name: "queue on shutdown", mutate: func(cfg *ShutdownConfig) { cfg.QueueOnShutdown = "drop" }, contains: "queue_on_shutdown"},
+		{name: "unblock await signal", mutate: func(cfg *ShutdownConfig) { cfg.UnblockAwaitSignal = "StoppedCustom" }, contains: "unblock_await_signal"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := shutdownValidationServer("invalid_shutdown")
+			tc.mutate(&server.Shutdown)
+			err := ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid_shutdown": server}})
+			require.ErrorContains(t, err, tc.contains)
+		})
+	}
 }
 
 func TestRESTServer_RequestValidationFailures(t *testing.T) {
@@ -602,6 +637,14 @@ func validationServer() Server {
 	return server
 }
 
+func shutdownValidationServer(name string) Server {
+	server := namedControlServer(name)
+	approve := server.Endpoints["approve"]
+	approve.Request.Path = map[string]interface{}{"id": map[string]interface{}{"type": "string"}}
+	server.Endpoints["approve"] = approve
+	return server
+}
+
 func lifecycleControlServer() Server {
 	return Server{
 		Address:  "127.0.0.1:0",
@@ -664,6 +707,10 @@ func bodySchemaWithRequired(field string) map[string]interface{} {
 		"type": "object", "required": []interface{}{field},
 		"properties": map[string]interface{}{field: map[string]interface{}{"type": "string"}},
 	}
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }
 
 func redactionServer() Server {

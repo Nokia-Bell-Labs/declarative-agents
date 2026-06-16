@@ -246,7 +246,7 @@ type ShutdownConfig struct {
 	Timeout            string `yaml:"timeout,omitempty"`
 	DrainPolicy        string `yaml:"drain_policy,omitempty"`
 	DrainTimeout       string `yaml:"drain_timeout,omitempty"`
-	StopListeners      bool   `yaml:"stop_listeners,omitempty"`
+	StopListeners      *bool  `yaml:"stop_listeners,omitempty"`
 	QueueOnShutdown    string `yaml:"queue_on_shutdown,omitempty"`
 	UnblockAwaitSignal string `yaml:"unblock_await_signal,omitempty"`
 }

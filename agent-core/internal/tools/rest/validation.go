@@ -24,6 +24,9 @@ const (
 	queueOverflowReject     = "reject"
 	queueOverflowDropOldest = "drop_oldest"
 	queueOverflowDropNewest = "drop_newest"
+
+	shutdownPolicyDrain         = "drain"
+	shutdownPolicyDrainThenStop = "drain_then_stop"
 )
 
 // ValidateDefinition validates a declarative REST definition before use.
@@ -328,11 +331,30 @@ func validateQueueConfig(owner string, queue QueueConfig) error {
 
 func validateShutdownConfig(name string, shutdown ShutdownConfig) error {
 	switch shutdown.DrainPolicy {
-	case "", "drain", "drain_then_stop", "reject_new", "drop_queued", "fail_queued":
-		return nil
+	case "", shutdownPolicyDrain, shutdownPolicyDrainThenStop:
 	default:
 		return fmt.Errorf("server %q has unsupported drain_policy %q", name, shutdown.DrainPolicy)
 	}
+	if shutdown.DrainTimeout != "" {
+		return fmt.Errorf("server %q shutdown.drain_timeout is not supported", name)
+	}
+	if shutdown.StopListeners != nil && !*shutdown.StopListeners {
+		return fmt.Errorf("server %q shutdown.stop_listeners=false is not supported", name)
+	}
+	if shutdown.QueueOnShutdown != "" {
+		return fmt.Errorf("server %q shutdown.queue_on_shutdown is not supported", name)
+	}
+	if shutdown.UnblockAwaitSignal != "" && shutdown.UnblockAwaitSignal != "ServerStopped" {
+		return fmt.Errorf("server %q shutdown.unblock_await_signal is not supported", name)
+	}
+	return nil
+}
+
+func shutdownDrainPolicy(shutdown ShutdownConfig) string {
+	if shutdown.DrainPolicy != "" {
+		return shutdown.DrainPolicy
+	}
+	return shutdownPolicyDrainThenStop
 }
 
 func validateLifecycleControlEndpoint(name string, endpoint Endpoint) error {

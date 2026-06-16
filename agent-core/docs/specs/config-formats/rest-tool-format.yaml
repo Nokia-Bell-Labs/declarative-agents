@@ -22,7 +22,7 @@ release_03_0_support:
     - async.await_operation and correlation selectors are parsed but not executed as polling selectors; agent-core-tu6t.3 owns support or validation rejection.
     - response_mapping.schema is stored and imported from OpenAPI but response bodies are not validated before success signals; agent-core-tu6t.3 owns client validation.
     - OpenAPI-bound endpoints may drop configured endpoint behavior when import fields are applied; agent-core-tu6t.4 owns preservation.
-    - queue overflow, shutdown drain policy, stopped-source behavior, and rest_await_event read_policy need stricter support or validation rejection; agent-core-tu6t.2 owns server policy work.
+    - stopped-source behavior and rest_await_event read_policy need stricter support or validation rejection; agent-core-tu6t.2 owns server policy work.
     - Compensation metadata is parsed, but REST client Undo still returns noop for mutating commands; agent-core-tu6t.5 owns compensation mementos.
   reserved:
     - document_resources top-level config and machine_request.document_resources are documented for the target format but are not wired into internal/tools/rest Definition loading in release 03.0; agent-core-tu6t.10 owns the follow-up.
@@ -741,23 +741,23 @@ schema:
       - field: drain_policy
         type: string
         required: false
-        description: One of drain, reject_new, drop_queued, or fail_queued.
+        description: One of drain or drain_then_stop. Target-format values reject_new, drop_queued, and fail_queued are rejected until runtime behavior is implemented.
       - field: drain_timeout
         type: duration string
         required: false
-        description: Maximum time to drain queued events and streams.
+        description: Reserved target-format field. Release 03.0 rejects this field until timed queue and stream draining is implemented.
       - field: stop_listeners
         type: bool
         required: false
-        description: Closes owned listeners during rest_server_stop.
+        description: Optional true value documenting the current listener shutdown behavior. Explicit false is rejected because rest_server_stop closes owned listeners.
       - field: queue_on_shutdown
         type: string
         required: false
-        description: One of keep, drop, or fail.
+        description: Reserved target-format field. Release 03.0 rejects keep, drop, and fail until distinct queue shutdown behavior is implemented.
       - field: unblock_await_signal
         type: string
         required: false
-        description: Signal emitted to blocked awaiters when the server stops.
+        description: Optional ServerStopped value documenting current await unblock behavior. Custom stop signals are rejected until signal-specific unblock behavior is implemented.
 
   request_binding:
     fields:
@@ -1287,6 +1287,8 @@ validation_rules:
     rule: machine_request profile-backed tool selection MUST use trusted profile declaration roots and MUST fail when any request MachineSpec action is missing from the selected ToolDefs.
   - id: V26
     rule: machine_request response trace output MUST identify generic route identity and run outcome when exposed.
+  - id: V27
+    rule: Server shutdown config MUST reject unsupported drain_policy values and reserved shutdown fields before launch.
 
 invalid_examples:
   ambiguous_resource_operation: |
@@ -1415,7 +1417,7 @@ implementation_status:
     - response_mapping.schema storage without response body validation.
     - async.await_operation parsing without polling support.
     - OpenAPI endpoint binding that can overwrite configured endpoint behavior.
-    - server queue, stopped-source, drain, and read_policy behavior that needs stricter conformance.
+    - stopped-source and read_policy behavior that needs stricter conformance.
     - compensation metadata parsing without REST client undo mementos.
   reserved:
     - top-level document_resources config.
