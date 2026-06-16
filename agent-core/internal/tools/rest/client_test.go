@@ -261,6 +261,12 @@ func TestRESTClient_RequestAndResponseSizeLimits(t *testing.T) {
 func TestRESTClient_CIDRAllowlistPolicy(t *testing.T) {
 	t.Parallel()
 
+	requireCIDRAllowlistPolicy(t)
+}
+
+func requireCIDRAllowlistPolicy(t *testing.T) {
+	t.Helper()
+
 	requests := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requests++
@@ -283,6 +289,12 @@ func TestRESTClient_CIDRAllowlistPolicy(t *testing.T) {
 
 func TestRESTClient_ResponseSchemaAndDomainErrorOutput(t *testing.T) {
 	t.Parallel()
+
+	requireResponseSchemaAndDomainErrorOutput(t)
+}
+
+func requireResponseSchemaAndDomainErrorOutput(t *testing.T) {
+	t.Helper()
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if strings.Contains(req.URL.Path, "domain") {

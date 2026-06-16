@@ -47,6 +47,21 @@ func TestRESTServer_AwaitInboundSignals(t *testing.T) {
 func TestRESTServer_LifecycleControlEnqueuesSignals(t *testing.T) {
 	t.Parallel()
 
+	requireLifecycleControlEnqueuesSignal(t)
+}
+
+func TestRESTServer_ControlQueueAndReadPolicyConformance(t *testing.T) {
+	t.Parallel()
+
+	t.Run("lifecycle control enqueues signal", requireLifecycleControlEnqueuesSignal)
+	t.Run("drop oldest keeps newest event", requireDropOldestQueuePolicy)
+	t.Run("unsupported queue and drain policies fail validation", requireUnsupportedQueueAndDrainPoliciesRejected)
+	t.Run("unsupported read policy rejected", requireUnsupportedReadPolicyRejected)
+}
+
+func requireLifecycleControlEnqueuesSignal(t *testing.T) {
+	t.Helper()
+
 	state, baseURL := launchRESTServer(t, lifecycleControlServer(), LimitProfile{})
 	defer stopRESTServer(t, state, "lifecycle")
 
@@ -167,6 +182,12 @@ func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
 
 func TestRESTAwaitEvent_RejectsUnsupportedReadPolicy(t *testing.T) {
 	t.Parallel()
+
+	requireUnsupportedReadPolicyRejected(t)
+}
+
+func requireUnsupportedReadPolicyRejected(t *testing.T) {
+	t.Helper()
 
 	collection := NewCollection()
 	require.NoError(t, collection.Add(Definition{Servers: map[string]Server{"control": controlServer()}}))
@@ -289,31 +310,38 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 func TestRESTServer_QueueOverflowPolicies(t *testing.T) {
 	t.Parallel()
 
-	t.Run("drop oldest keeps newest event", func(t *testing.T) {
-		server := namedControlServer("drop_oldest")
-		server.Queue = QueueConfig{Name: "drop_oldest", Capacity: 1, Overflow: queueOverflowDropOldest, Timeout: "20ms"}
-		state, baseURL := launchRESTServer(t, server, LimitProfile{})
+	t.Run("drop oldest keeps newest event", requireDropOldestQueuePolicy)
+	t.Run("unsupported queue and drain policies fail validation", requireUnsupportedQueueAndDrainPoliciesRejected)
+}
 
-		postStatus(t, baseURL+"/approve/old", `{}`, http.StatusAccepted)
-		postStatus(t, baseURL+"/approve/new", `{}`, http.StatusAccepted)
+func requireDropOldestQueuePolicy(t *testing.T) {
+	t.Helper()
 
-		event, signal, err := state.Await("drop_oldest")
-		require.NoError(t, err)
-		require.Equal(t, "Approved", signal)
-		require.Equal(t, "new", event.Payload["id"])
-		require.Equal(t, float64(1), stopRESTServer(t, state, "drop_oldest")["dropped_events"])
-	})
+	server := namedControlServer("drop_oldest")
+	server.Queue = QueueConfig{Name: "drop_oldest", Capacity: 1, Overflow: queueOverflowDropOldest, Timeout: "20ms"}
+	state, baseURL := launchRESTServer(t, server, LimitProfile{})
 
-	t.Run("unsupported queue and drain policies fail validation", func(t *testing.T) {
-		server := namedControlServer("invalid")
-		server.Queue.Overflow = "silently_drop"
-		require.ErrorContains(t, ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid": server}}), "overflow")
-		server.Queue.Overflow = queueOverflowReject
-		for _, policy := range []string{"mystery", "reject_new", "drop_queued", "fail_queued"} {
-			server.Shutdown.DrainPolicy = policy
-			require.ErrorContains(t, ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid": server}}), "drain_policy")
-		}
-	})
+	postStatus(t, baseURL+"/approve/old", `{}`, http.StatusAccepted)
+	postStatus(t, baseURL+"/approve/new", `{}`, http.StatusAccepted)
+
+	event, signal, err := state.Await("drop_oldest")
+	require.NoError(t, err)
+	require.Equal(t, "Approved", signal)
+	require.Equal(t, "new", event.Payload["id"])
+	require.Equal(t, float64(1), stopRESTServer(t, state, "drop_oldest")["dropped_events"])
+}
+
+func requireUnsupportedQueueAndDrainPoliciesRejected(t *testing.T) {
+	t.Helper()
+
+	server := namedControlServer("invalid")
+	server.Queue.Overflow = "silently_drop"
+	require.ErrorContains(t, ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid": server}}), "overflow")
+	server.Queue.Overflow = queueOverflowReject
+	for _, policy := range []string{"mystery", "reject_new", "drop_queued", "fail_queued"} {
+		server.Shutdown.DrainPolicy = policy
+		require.ErrorContains(t, ValidateDefinition(Definition{Version: "v1", Servers: map[string]Server{"invalid": server}}), "drain_policy")
+	}
 }
 
 func TestRESTServer_ShutdownConfigValidation(t *testing.T) {
