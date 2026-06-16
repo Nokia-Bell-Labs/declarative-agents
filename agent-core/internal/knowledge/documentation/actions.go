@@ -19,19 +19,6 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 )
 
-const defaultCuratorProfilePath = "agents/knowledge-manager/documentation-curator/profile.yaml"
-
-var allowedWorkflowActions = map[string]bool{
-	"doc_list":            true,
-	"doc_get":             true,
-	"doc_search":          true,
-	"doc_validate":        true,
-	"doc_suggest_changes": true,
-	"doc_patch_approve":   true,
-	"doc_patch_reject":    true,
-	"doc_patch_reopen":    true,
-}
-
 // WorkflowRunner executes documentation-curator UI actions through tool words.
 type WorkflowRunner interface {
 	Run(r *http.Request) (ActionResponse, error)
@@ -49,6 +36,15 @@ type actionRequest struct {
 	Type   string                 `json:"type"`
 	Params map[string]interface{} `json:"params,omitempty"`
 }
+
+type restDefinitionLoader func([]string, []string) (rest.ServerResolver, error)
+
+type restServerLifecycle interface {
+	Launch(rest.ServerDefinition) (map[string]interface{}, error)
+	Stop(string) (map[string]interface{}, error)
+}
+
+type restServerFactory func() restServerLifecycle
 
 // LazyProfileWorkflowRunner loads the profile-backed REST tool registry on first use.
 type LazyProfileWorkflowRunner struct {
@@ -126,9 +122,6 @@ func NewProfileWorkflowRunnerFromDefs(collection rest.Collection, defs []catalog
 	builtins := toolregistry.NewBuiltinRegistry()
 	rest.RegisterFactories(builtins, rest.FactoryDeps{Definitions: collection})
 	for _, def := range defs {
-		if !allowedWorkflowActions[def.Name] {
-			continue
-		}
 		if err := toolregistry.RegisterSingleBuiltin(reg, builtins, def, nil); err != nil {
 			return nil, err
 		}
@@ -142,9 +135,6 @@ func (r *ProfileWorkflowRunner) Run(req *http.Request) (ActionResponse, error) {
 	defer req.Body.Close()
 	if err := json.NewDecoder(req.Body).Decode(&action); err != nil {
 		return ActionResponse{}, fmt.Errorf("invalid action payload")
-	}
-	if !allowedWorkflowActions[action.Type] {
-		return ActionResponse{}, fmt.Errorf("unsupported documentation action %q", action.Type)
 	}
 	builder, ok := r.registry.Resolve(action.Type)
 	if !ok {
@@ -216,13 +206,19 @@ type LazyMachineRequestProxy struct {
 	profilePath string
 	docsDir     string
 	mu          sync.Mutex
-	state       *rest.ServerState
+	state       restServerLifecycle
 	baseURL     string
+	loadDefs    restDefinitionLoader
+	newServer   restServerFactory
 }
 
 // NewLazyMachineRequestProxy creates a same-origin proxy for document machine requests.
 func NewLazyMachineRequestProxy(profilePath, docsDir string) *LazyMachineRequestProxy {
-	return &LazyMachineRequestProxy{profilePath: profilePath, docsDir: docsDir}
+	return &LazyMachineRequestProxy{
+		profilePath: profilePath, docsDir: docsDir,
+		loadDefs:  loadRESTDefinitions,
+		newServer: newRESTServerLifecycle,
+	}
 }
 
 func (p *LazyMachineRequestProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -263,12 +259,12 @@ func (p *LazyMachineRequestProxy) backendBaseURL() (string, error) {
 	return p.baseURL, nil
 }
 
-func (p *LazyMachineRequestProxy) launchBackend() (string, *rest.ServerState, error) {
+func (p *LazyMachineRequestProxy) launchBackend() (string, restServerLifecycle, error) {
 	profile, err := catalog.LoadProfile(p.profilePath)
 	if err != nil {
 		return "", nil, err
 	}
-	collection, err := rest.LoadDefinitions(profile.RestDefinitions, profile.RestConfigDirs)
+	collection, err := p.loadDefs(profile.RestDefinitions, profile.RestConfigDirs)
 	if err != nil {
 		return "", nil, err
 	}
@@ -278,7 +274,7 @@ func (p *LazyMachineRequestProxy) launchBackend() (string, *rest.ServerState, er
 	}
 	def.Server.Address = "127.0.0.1:0"
 	def.MachineRequestRunner = p.requestRunner()
-	state := rest.NewServerState()
+	state := p.newServer()
 	output, err := state.Launch(def)
 	if err != nil {
 		return "", nil, err
@@ -496,4 +492,16 @@ func docsResourceRoot(docsDir string) string {
 		return filepath.Dir(abs)
 	}
 	return abs
+}
+
+func loadRESTDefinitions(files []string, dirs []string) (rest.ServerResolver, error) {
+	collection, err := rest.LoadDefinitions(files, dirs)
+	if err != nil {
+		return nil, err
+	}
+	return collection, nil
+}
+
+func newRESTServerLifecycle() restServerLifecycle {
+	return rest.NewServerState()
 }

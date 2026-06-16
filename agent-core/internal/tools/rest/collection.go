@@ -26,6 +26,22 @@ type Collection struct {
 	ResponseMappings map[string]ResponseMapping
 }
 
+// ClientOperationResolver resolves trusted REST client operations.
+type ClientOperationResolver interface {
+	ResolveClientOperation(ClientToolConfig) (ClientOperationDefinition, error)
+}
+
+// ServerResolver resolves trusted REST server definitions.
+type ServerResolver interface {
+	ResolveServer(name string) (ServerDefinition, error)
+}
+
+// DefinitionResolver composes client and server definition lookups.
+type DefinitionResolver interface {
+	ClientOperationResolver
+	ServerResolver
+}
+
 // ClientOperationDefinition is a resolved client operation and trusted policy.
 type ClientOperationDefinition struct {
 	RestRef          string
