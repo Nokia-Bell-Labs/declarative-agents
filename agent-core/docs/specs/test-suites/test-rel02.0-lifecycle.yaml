@@ -15,6 +15,8 @@ preconditions:
 test_cases:
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: Disabled lifecycle preserves existing loop behavior
+    go_test: TestLoop_NilRollbackParamsPreserveBehavior
+    status: done
     description: |
       Run a simple machine with StateStore, Workspace, and CheckpointPolicy unset.
       Expected behavior is completion without checkpoint writes, history persistence, or
@@ -35,6 +37,8 @@ test_cases:
 
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: FileStore persists and lists checkpoint JSON
+    go_test: TestFileStoreSaveLoadListDelete
+    status: done
     description: |
       Save a checkpoint through FileStore, load it by store path, list it by prefix,
       and verify the JSON agent snapshot and domain snapshot are preserved.
@@ -52,6 +56,8 @@ test_cases:
 
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: Checkpoint separates StateStore JSON from Workspace ref
+    go_test: TestCheckpointContractsCompileAndRoundTrip
+    status: done
     description: |
       Build a checkpoint with AgentSnapshot, command/domain JSON, and a
       GitWorkspace ref. Verify the workspace ref is referenced but agent state
@@ -70,6 +76,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: GitWorkspace checkpoints and restores repository state
+    go_test: TestGitWorkspaceCheckpointAndRestore
+    status: done
     description: |
       In a temporary git repository top-level, mutate files, create a
       GitWorkspace checkpoint, mutate again, restore the checkpoint ref, and
@@ -89,6 +97,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: Command undo categories restore owned state
+    go_test: TestNoopUndoReturnsSuccessfulResult, TestRollbackCombinesInMemoryUndoAndGitWorkspaceRestore
+    status: done
     description: |
       Execute representative commands for each undo category, then invoke
       Undo. No-op commands return ToolDone without mutation; conversation and
@@ -113,6 +123,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: History records dispatch entries for rollback target selection
+    go_test: TestLoop_HistoryRecordsDispatchesWhenPolicyEnabled
+    status: done
     description: |
       Execute a multi-step machine with history enabled. Verify each
       HistoryEntry includes iteration, timestamp, command name, from/to state,
@@ -129,6 +141,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: Rollback traverses history backward to target iteration
+    go_test: TestRollbackCallsUndoInReverseOrder, TestRollbackRestoresTargetWorkspaceRef
+    status: done
     description: |
       Given a recorded history with command/domain and workspace mutations,
       roll back from the current iteration to a target iteration. Runtime
@@ -147,6 +161,8 @@ test_cases:
 
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: Approval gate suspends and resumes from checkpoint
+    go_test: TestApprovalLifecycleProfileSuspendsAndResumesApproved, TestResumeFromCheckpointRestoresStateAndReentersLoop
+    status: done
     description: |
       Route a machine through an approval-gate tool that emits a suspend
       signal. Verify the run exits as suspended after persisting a checkpoint,
@@ -169,6 +185,8 @@ test_cases:
 
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: Resume reports checkpoint and restore failure classes
+    go_test: TestResumeFromCheckpointMissingCheckpointError, TestResumeFromCheckpointIncompatibleCheckpointError, TestResumeFromCheckpointRestoreErrorsAreClassified
+    status: done
     description: |
       Attempt resume with missing checkpoint, incompatible checkpoint,
       command/domain restore failure, and workspace restore failure. Each
@@ -189,6 +207,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: Partial rollback reports remaining state after failure
+    go_test: TestRollbackReportsPartialFailureAndContinues
+    status: done
     description: |
       Force a Command.Undo failure during rollback. Rollback reporting should
       identify the failing command, whether workspace restore was attempted,
@@ -206,6 +226,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: Lifecycle history profile dispatches checkpoint_history
+    go_test: TestLifecycleProfilesValidateMachineWiring
+    status: done
     description: |
       Invoke the history lifecycle program through its profile. Confirm the
       profile loads the lifecycle MachineSpec, selects checkpoint_history, and
@@ -227,6 +249,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: Lifecycle rollback profile dispatches checkpoint_rollback
+    go_test: TestLifecycleProfilesValidateMachineWiring
+    status: done
     description: |
       Run the rollback lifecycle program through its profile. Confirm the
       profile loads the rollback MachineSpec, selects checkpoint_rollback, and
@@ -249,6 +273,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: checkpoint_history formats selected checkpoint history
+    go_test: TestCheckpointHistoryExecuteFormatsLatestCheckpoint
+    status: done
     description: |
       With a FileStore containing an older checkpoint and a newer checkpoint,
       call checkpoint_history with the default latest selector. It
@@ -271,6 +297,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: checkpoint_history reports missing StateStore
+    go_test: TestCheckpointHistoryExecuteRequiresStateStore
+    status: done
     description: |
       Call checkpoint_history without a StateStore. Expected behavior should
       return CommandError and leave checkpoint and workspace state unchanged.
@@ -288,6 +316,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: checkpoint_rollback creates rollback checkpoint
+    go_test: TestCheckpointRollbackExecutePersistsNewCheckpoint
+    status: done
     description: |
       Use a persisted checkpoint with history entries and run
       checkpoint_rollback with a target iteration. Adapter behavior should delegate
@@ -313,6 +343,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: checkpoint_rollback reports missing target iteration
+    go_test: TestCheckpointRollbackExecuteRequiresTargetIteration
+    status: done
     description: |
       Omit to_iteration when running checkpoint_rollback. Validation should
       reject the request before traversal and return CommandError.
@@ -333,6 +365,8 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: checkpoint_rollback refuses unmanaged workspace ref
+    go_test: TestCheckpointRollbackExecuteRequiresManagedWorkspaceForRef
+    status: done
     description: |
       Submit checkpoint data that names a
       WorkspaceRef while no managed workspace directory is configured. This

@@ -78,7 +78,7 @@ releases:
     use_cases:
       - id: rel02.0-uc001-approval-suspend-resume
         summary: Agent suspends at approval gate and resumes from checkpoint
-        status: planned
+        status: done
       - id: rel02.0-uc002-history-rollback
         summary: User inspects history and rolls back after a bad tool action
         status: done
