@@ -15,6 +15,8 @@ preconditions:
 test_cases:
   - use_case: rel02.0-uc003-tool-authoring
     name: Tool definition includes all required contract sections
+    go_test: TestValidateToolContractsReportsMissingFields, TestAuditToolContractsClassifiesCoverage
+    status: done
     description: |
       Load a new builtin ToolDef and verify it includes every required
       authoring section named in cfg-tool-authoring-standard.
@@ -38,6 +40,8 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: One-verb rule rejects workflow-shaped ordinary tools
+    go_test: TestToolAuthoringOneVerbRule
+    status: planned
     description: |
       Review a proposed ordinary word whose description performs multiple
       observable verbs. The authoring check should reject it unless it is split
@@ -54,6 +58,8 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Typed input and output contracts are machine-consumable
+    go_test: TestSelectedToolOutputContractsLoad
+    status: done
     description: |
       Load a tool declaration with JSON Schema parameters and output.schema.
       Verify parameter and output contracts are precise enough for another
@@ -71,6 +77,8 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Deterministic result schemas are compatible with next action parameters
+    go_test: TestValidateResultSchemaCompatibilityReportsRequiredFieldMismatch
+    status: done
     description: |
       Given a machine edge where one named action emits a signal that selects
       another named action, compare the producer output.schema with the
@@ -91,6 +99,8 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Side effects and undo strategy are required for mutating tools
+    go_test: TestValidateToolContractsSideEffectModes, TestValidate_ToolUndoConsistency
+    status: done
     description: |
       Check a filesystem-mutating tool and a command/domain-state-mutating
       tool. Both must declare their rollback contract and
@@ -108,6 +118,8 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Irreversible tools require confirmation or compensation
+    go_test: TestToolAuthoringIrreversibleConfirmation
+    status: planned
     description: |
       Assess a boundary tool that affects external user data. If its effects
       are irreversible or compensatable, the ToolDef must declare confirmation
@@ -125,6 +137,8 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Relationships distinguish overlapping vocabulary words
+    go_test: TestToolAuthoringRelationshipReview
+    status: planned
     description: |
       Review a new tool that overlaps with existing words. The ToolDef must
       document likely before/after neighbors and overlap differences so agents
@@ -141,6 +155,8 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Sentence tool migration creates replacement word declarations
+    go_test: TestSentenceToolMigrationCreatesReplacementWords
+    status: planned
     description: |
       Given a legacy aggregate tool, identify each observable verb and create
       one ToolDef per word. Replacement declarations must include the
@@ -164,6 +180,8 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: MachineSpec owns migrated workflow sequence
+    go_test: TestSentenceToolMigrationMachineSequence
+    status: planned
     description: |
       Rewire a migrated workflow so machine.yaml has one state/action step per
       replacement word. Startup validation should confirm each named action is
@@ -182,6 +200,8 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Boundary and nested-machine tools declare their boundary effects
+    go_test: TestSelectedBoundaryToolContractsLoad
+    status: done
     description: |
       Exercise a tool that invokes a child process, nested machine, model, or
       human actor. The declaration must classify it as boundary and describe
@@ -202,6 +222,8 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Deprecated compatibility aggregate is hidden from new workflows
+    go_test: TestBuiltinToolContractAuditClassifiesMigrationCoverage, TestBuiltinMigratedContractsValidateAtErrorLevel
+    status: done
     description: |
       Keep a legacy aggregate only as deprecated compatibility. It should be
       hidden from LLM tool lists when internal-only, documented as a boundary or
@@ -220,6 +242,8 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Migration preserves intermediate failure signals
+    go_test: TestSentenceToolMigrationPreservesFailureSignals
+    status: planned
     description: |
       Split a workflow-shaped tool into multiple words and verify the migrated
       machine exposes intermediate failure transitions that the aggregate had
@@ -238,6 +262,8 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Lifecycle builtin declarations expose full adapter contracts
+    go_test: TestLifecycleProfilesValidateMachineWiring, TestBuiltinMigratedContractsValidateAtErrorLevel
+    status: done
     description: |
       Inspect the checkpoint_history and checkpoint_rollback ToolDefs. Both
       declarations should expose the required adapter contract fields and the
@@ -263,6 +289,8 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Lifecycle tool contracts reject exec-wrapper behavior
+    go_test: TestLifecycleProfilesValidateMachineWiring
+    status: done
     description: |
       Check lifecycle ToolDefs for hidden shelling into the agent binary. Desired
       declarations should be builtin adapters, selected by lifecycle
