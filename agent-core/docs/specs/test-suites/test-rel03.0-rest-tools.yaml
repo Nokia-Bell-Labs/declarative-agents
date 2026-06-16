@@ -1152,3 +1152,143 @@ test_cases:
       - srd028-rest-client-tools AC8
       - srd028-rest-client-tools AC9
       - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: REST server control and queue policies are enforced
+    go_test: TestRESTServer_ControlQueueAndReadPolicyConformance
+    status: planned
+    description: |
+      Validate lifecycle_control enqueueing, queue overflow behavior, endpoint
+      queue overrides, stopped-source behavior, shutdown drain and unblock
+      policy, and explicit read_policy support or validation rejection.
+    inputs:
+      issue: agent-core-tu6t.2
+      endpoint_bindings: [lifecycle_control, emit_signal]
+      queue_policies: [reject, drop_oldest, drop_newest]
+      read_policies: [first_available, priority_order, round_robin]
+    expected:
+      lifecycle_handlers_execute_directly: false
+      lifecycle_events_enqueued: true
+      unsupported_policies_rejected: true
+      configured_policies_honored: true
+    traces:
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC5
+      - srd029-rest-server-tools AC7
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST client safety and async selectors are enforced
+    go_test: TestRESTClient_SafetyAndAsyncConformance
+    status: planned
+    description: |
+      Validate CIDR allowlists, response schema checks, domain_error_code
+      output, async correlation selection, idempotency metadata on outbound
+      requests, and await_operation support or validation rejection.
+    inputs:
+      issue: agent-core-tu6t.3
+      network_policy: cidr_allowlist
+      response_schema: configured
+      async_selectors: [request_id, correlation, await_operation]
+    expected:
+      cidr_allowlist_enforced: true
+      invalid_response_schema_success_signal: false
+      domain_error_code_in_output: true
+      unsupported_async_selectors_rejected: true
+    traces:
+      - srd027-rest-tool-runtime AC6
+      - srd028-rest-client-tools AC5
+      - srd028-rest-client-tools AC7
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc004-openapi-import
+    name: OpenAPI server binding preserves configured endpoint behavior
+    go_test: TestRESTOpenAPI_ServerBindPreservesEndpointConfig
+    status: planned
+    description: |
+      Bind OpenAPI operations to endpoints that already declare response
+      mapping, machine_request, monitor view, queue, signal, and
+      allowed_signals. Import should add transport and schema data without
+      dropping configured endpoint behavior.
+    inputs:
+      issue: agent-core-tu6t.4
+      endpoint_fields:
+        - response
+        - machine_request
+        - monitor_view
+        - queue
+        - signal
+        - allowed_signals
+    expected:
+      configured_fields_preserved: true
+      openapi_method_path_schema_imported: true
+      incompatible_operation_ids_rejected: true
+    traces:
+      - srd027-rest-tool-runtime AC3
+      - srd029-rest-server-tools AC8
+      - srd030-machine-request-rest-binding AC3
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST client compensation creates rollback mementos
+    go_test: TestRESTClient_CompensationUndoMemento
+    status: planned
+    description: |
+      Distinguish read-only noop undo from mutating REST operations that
+      declare configured compensation. The mutating path should capture request
+      and response metadata needed by rollback.
+    inputs:
+      issue: agent-core-tu6t.5
+      operations: [rest_client_get, rest_client_create, rest_client_set, rest_client_delete]
+    expected:
+      read_undo_noop: true
+      mutating_undo_noop: false
+      compensation_payload_valid: true
+      metadata_contains_operation_resource_and_idempotency: true
+    traces:
+      - srd025-rollback-lifecycle AC5
+      - srd027-rest-tool-runtime AC8
+      - srd028-rest-client-tools AC3
+      - srd028-rest-client-tools AC10
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Machine_request validates terminal response schemas
+    go_test: TestRESTServerMachineRequestTerminalResponseSchema
+    status: planned
+    description: |
+      Configure a machine_request terminal response schema and return output
+      that violates it. The binding should reject the response or the public
+      config schema field should be removed.
+    inputs:
+      issue: agent-core-tu6t.9
+      terminal_signal: DocumentationReady
+      response_schema: configured
+    expected:
+      invalid_response_schema_success: false
+      failure_stage: response_invalid
+      diagnostic_redacted: true
+    traces:
+      - srd030-machine-request-rest-binding AC5
+      - srd030-machine-request-rest-binding AC6
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: REST document_resources config is loaded or rejected
+    go_test: TestRESTDocumentResourcesConfigConformance
+    status: planned
+    description: |
+      Load a REST definition that declares top-level document_resources and a
+      machine_request document_resources reference. The runtime should either
+      make those resources available through trusted config or reject the fields
+      with a clear validation error.
+    inputs:
+      issue: agent-core-tu6t.10
+      document_resource: documentation_corpus
+      request_machine: documentation-curator-request
+    expected:
+      unknown_document_resources_silently_ignored: false
+      current_profile_resource_words_still_work: true
+      validation_error_names_field_when_unsupported: true
+    traces:
+      - srd031-declarative-document-resources AC1
+      - srd031-declarative-document-resources AC3
+      - srd031-declarative-document-resources AC7

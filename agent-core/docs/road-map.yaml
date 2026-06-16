@@ -112,6 +112,13 @@ releases:
       reusable resource words. A Puppeteer proof covers the generic REST
       machine_request Knowledge Manager UX path. The command is mage
       integration:uc007.
+
+      Remaining conformance work is tracked by agent-core-tu6t.2 through
+      agent-core-tu6t.5, agent-core-tu6t.9, and agent-core-tu6t.10. It covers
+      server control and queue policy, client safety and async contracts,
+      OpenAPI endpoint config preservation, REST compensation undo,
+      machine_request response schema validation, and document_resources config
+      handling.
     status: in_progress
     srds:
       - srd027-rest-tool-runtime
@@ -152,8 +159,8 @@ releases:
         status: done
     planned_test_suites:
       - id: test-rel03.0-rest-tools
-        summary: Formal tests for REST runtime, client tools, server tools, generic event fan-in, staged await-any fan-in, lifecycle exit payload propagation, terminal routing, listener shutdown, OpenAPI import, Ollama E2E proof, documentation-curator ownership, and Puppeteer machine_request UX coverage
-        status: done
+        summary: Formal tests for REST runtime, client tools, server tools, generic event fan-in, staged await-any fan-in, lifecycle exit payload propagation, terminal routing, listener shutdown, OpenAPI import, Ollama E2E proof, documentation-curator ownership, Puppeteer machine_request UX coverage, and planned conformance gaps tracked by agent-core-tu6t.2 through agent-core-tu6t.5, agent-core-tu6t.9, and agent-core-tu6t.10
+        status: in_progress
 
   - version: "04.0"
     name: Embedded monitor metrics and REST API

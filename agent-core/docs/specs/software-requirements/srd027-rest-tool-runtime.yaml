@@ -133,8 +133,7 @@ requirements:
 non_goals:
   - Defining REST client operation execution details; see srd028-rest-client-tools.
   - Defining REST server route binding and HTTP API details; see srd029-rest-server-tools.
-  - Implementing internal/tools/rest in this issue.
-  - Adding github.com/getkin/kin-openapi/openapi3 to go.mod in this issue.
+  - Implementing the remaining REST conformance gaps tracked by child code issues.
   - Generating Go clients or servers from OpenAPI documents.
   - Allowing model text to choose arbitrary REST URLs, methods, authentication, or network destinations.
   - Replacing MachineSpec sequencing with hidden REST tool workflows.
@@ -210,10 +209,18 @@ related_documents:
   - rest-tool.md
 
 implementation_status:
-  planned:
-    - internal/tools/rest package.
-    - tools/builtin/rest declarations.
-    - docs/specs/config-formats/rest-tool-format.yaml.
-    - docs/specs/semantic-models/rest-tool-language.yaml.
-    - srd028-rest-client-tools.
-    - srd029-rest-server-tools.
+  implemented:
+    - internal/tools/rest package with declarative client, async client, server, OpenAPI import, machine_request, monitor, and fan-in support.
+    - tools/builtin/rest declarations selected by REST profiles and tests.
+    - docs/specs/config-formats/rest-tool-format.yaml and docs/specs/semantic-models/rest-tool-language.yaml.
+    - Release 03.0 formal test-suite entries in docs/specs/test-suites/test-rel03.0-rest-tools.yaml.
+  partial:
+    - R6.5 network allowlists are implemented for schemes, hosts, and ports. CIDR enforcement remains required by agent-core-tu6t.3.
+    - R8.3 and R8.4 compensation metadata is declared and validated for mutating operations. Runtime undo still returns noop for REST client commands until agent-core-tu6t.5.
+    - R10 lifecycle control routing is currently proven through configured emit_signal control routes and MachineSpec exit_agent transitions. Modeled lifecycle_control endpoint config remains required by agent-core-tu6t.2.
+    - R10 read policy and stopped-source behavior need stricter validation or execution policy in agent-core-tu6t.2.
+  planned_follow_up:
+    - agent-core-tu6t.2: REST server lifecycle_control, queue, drain, stopped-source, and read_policy behavior.
+    - agent-core-tu6t.3: REST client CIDR allowlists, response schema validation, async selector, idempotency, and await_operation behavior.
+    - agent-core-tu6t.4: OpenAPI endpoint import preservation for configured endpoint behavior.
+    - agent-core-tu6t.5: REST compensation and undo mementos.

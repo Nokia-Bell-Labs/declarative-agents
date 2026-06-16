@@ -247,8 +247,8 @@ invariants:
   - All traces, errors, metrics, and Result output redact configured secret material.
 
 non_goals:
-  - Defining the full REST tool config YAML schema; see the planned rest-tool-format spec.
-  - Implementing internal/tools/rest.
+  - Defining the full REST tool config YAML schema; see cfg-rest-tool-format.
+  - Implementing the remaining REST conformance gaps tracked by child code issues.
   - Adding generated Go clients or generated Go servers.
   - Replacing MachineSpec control flow with REST handler code.
   - Executing lifecycle control directly inside HTTP handlers or rest_await_event.
@@ -366,10 +366,24 @@ related_documents:
   - cfg-tool-authoring-standard
 
 implementation_status:
-  planned:
-    - internal/tools/rest.
-    - tools/builtin/rest.
+  implemented:
+    - internal/tools/rest and tools/builtin/rest.
     - docs/specs/config-formats/rest-tool-format.yaml.
-    - rest_await_event fan-in word.
-    - exit_agent lifecycle control word.
-    - machine_request endpoint binding.
+    - REST client resource, invoke, send, and await words.
+    - REST server launch, await, stop, and rest_await_event fan-in words.
+    - exit_agent lifecycle control word selected by MachineSpec after REST control events.
+    - machine_request endpoint binding for short-lived request-machine runs.
+  partial:
+    - LifecycleControlEndpoint remains a target semantic entity. Current release 03.0 control routes use emit_signal endpoint bindings and MachineSpec transitions; modeled lifecycle_control endpoint config is tracked by agent-core-tu6t.2.
+    - RestEventSource read policy, stopped-source behavior, and server queue policy need stricter conformance in agent-core-tu6t.2.
+    - OpenAPIImport can populate endpoint transport and schemas, but preserving configured endpoint behavior is tracked by agent-core-tu6t.4.
+    - ResponseMapping schema validation is not complete for client responses or machine_request terminal output; agent-core-tu6t.3 and agent-core-tu6t.9 own those paths.
+    - External service compensation metadata exists, but REST client undo remains noop for mutating operations until agent-core-tu6t.5.
+    - Top-level REST document_resources config is a target-format entity until agent-core-tu6t.10 wires it into loading or rejects it explicitly.
+  planned_follow_up:
+    - agent-core-tu6t.2: server control and queue policies.
+    - agent-core-tu6t.3: client safety and async contracts.
+    - agent-core-tu6t.4: OpenAPI endpoint config preservation.
+    - agent-core-tu6t.5: compensation and undo behavior.
+    - agent-core-tu6t.9: machine_request terminal response schema validation.
+    - agent-core-tu6t.10: REST document_resources config loading or rejection.
