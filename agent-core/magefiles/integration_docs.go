@@ -17,38 +17,41 @@ import (
 	"time"
 )
 
-const (
-	docsCuratorAddr        = "127.0.0.1:18081"
-	docsCuratorControlAddr = "127.0.0.1:18082"
-)
+type docsCuratorIntegrationConfig struct {
+	profilePath string
+	docsAddr    string
+	controlAddr string
+	requestAddr string
+}
 
 // Uc006 runs rel03.0-uc006: documentation-curator serves docs UX and REST tools.
 func (Integration) Uc006() error {
-	if err := requireDocsCuratorPortsFree("uc006"); err != nil {
-		return err
-	}
-	binary, err := buildFreshAgentFor("uc006")
-	if err != nil {
-		return err
-	}
 	rootDir, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	cfg, cleanup, err := prepareDocsCuratorIntegration(rootDir)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	binary, err := buildFreshAgentFor("uc006")
+	if err != nil {
+		return err
+	}
+	cmd, output, cancel := launchDocsCuratorProcess(binary, rootDir, cfg)
 	defer cancel()
-	cmd, output := startDocsCurator(ctx, binary, rootDir)
 	defer stopProcess(cmd, cancel)
-	if err := waitDocsAPI(); err != nil {
+	if err := waitDocsAPI(cfg.docsAddr); err != nil {
 		return fmt.Errorf("uc006: documentation-curator did not become ready: %w\n%s", err, output.String())
 	}
-	if err := assertDocsCuratorHTTP(); err != nil {
+	if err := assertDocsCuratorHTTP(cfg.docsAddr); err != nil {
 		return err
 	}
 	if err := assertBenchDocsRoutesAbsent(); err != nil {
 		return err
 	}
-	if err := requestDocsCuratorExit(); err != nil {
+	if err := requestDocsCuratorExit(cfg.controlAddr); err != nil {
 		return err
 	}
 	if err := waitDocsCuratorExit(cmd, output); err != nil {
@@ -57,21 +60,15 @@ func (Integration) Uc006() error {
 	if err := assertDocsCuratorLifecycleExit(output.String()); err != nil {
 		return err
 	}
-	if err := waitTCPFree(docsCuratorAddr); err != nil {
+	if err := waitDocsCuratorPortsFree("uc006", cfg); err != nil {
 		return err
 	}
-	if err := waitTCPFree(docsCuratorControlAddr); err != nil {
-		return err
-	}
-	fmt.Println("uc006: PASS — documentation-curator served docs UX/API and exited through lifecycle control")
+	fmt.Println("uc006: PASS - documentation-curator served docs UX/API and exited through lifecycle control")
 	return nil
 }
 
 // Uc007 runs rel03.0-uc007: Puppeteer verifies machine_request documentation UX.
 func (Integration) Uc007() error {
-	if err := requireDocsCuratorPortsFree("uc007"); err != nil {
-		return err
-	}
 	browser, err := findPuppeteerBrowser()
 	if err != nil {
 		return skipUC("uc007", err.Error())
@@ -79,28 +76,35 @@ func (Integration) Uc007() error {
 	if _, err := exec.LookPath("npm"); err != nil {
 		return skipUC("uc007", "npm is required to run the Puppeteer harness")
 	}
-	binary, err := buildFreshAgentFor("uc007")
-	if err != nil {
-		return err
-	}
 	rootDir, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	cmd, output := startDocsCurator(ctx, binary, rootDir)
-	defer stopProcess(cmd, cancel)
-	if err := waitDocsAPI(); err != nil {
-		return fmt.Errorf("uc007: documentation-curator did not become ready: %w\n%s", err, output.String())
-	}
-	if err := runDocsPuppeteer(rootDir, browser); err != nil {
+	cfg, cleanup, err := prepareDocsCuratorIntegration(rootDir)
+	if err != nil {
 		return err
 	}
-	if err := requestDocsCuratorExit(); err != nil {
+	defer cleanup()
+	binary, err := buildFreshAgentFor("uc007")
+	if err != nil {
+		return err
+	}
+	cmd, output, cancel := launchDocsCuratorProcess(binary, rootDir, cfg)
+	defer cancel()
+	defer stopProcess(cmd, cancel)
+	if err := waitDocsAPI(cfg.docsAddr); err != nil {
+		return fmt.Errorf("uc007: documentation-curator did not become ready: %w\n%s", err, output.String())
+	}
+	if err := runDocsPuppeteer(rootDir, browser, cfg.docsAddr); err != nil {
+		return err
+	}
+	if err := requestDocsCuratorExit(cfg.controlAddr); err != nil {
 		return err
 	}
 	if err := waitDocsCuratorExit(cmd, output); err != nil {
+		return err
+	}
+	if err := waitDocsCuratorPortsFree("uc007", cfg); err != nil {
 		return err
 	}
 	fmt.Println("uc007: PASS - Puppeteer verified machine_request documentation UX")
@@ -115,22 +119,31 @@ func buildFreshAgentFor(name string) (string, error) {
 	return filepath.Abs(filepath.Join(binDir, "agent"))
 }
 
+func launchDocsCuratorProcess(
+	binary string,
+	rootDir string,
+	cfg docsCuratorIntegrationConfig,
+) (*exec.Cmd, *bytes.Buffer, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd, output := startDocsCurator(ctx, binary, rootDir, cfg.profilePath)
+	return cmd, output, cancel
+}
+
+func freeLocalAddr() (string, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	defer listener.Close()
+	return listener.Addr().String(), nil
+}
+
 func requireTCPFree(addr string) error {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("%s is already in use: %w", addr, err)
 	}
 	return listener.Close()
-}
-
-func requireDocsCuratorPortsFree(id string) error {
-	if err := requireTCPFree(docsCuratorAddr); err != nil {
-		return skipUC(id, err.Error())
-	}
-	if err := requireTCPFree(docsCuratorControlAddr); err != nil {
-		return skipUC(id, err.Error())
-	}
-	return nil
 }
 
 func waitTCPFree(addr string) error {
@@ -147,8 +160,17 @@ func waitTCPFree(addr string) error {
 	return fmt.Errorf("uc006: %s was not released after lifecycle exit: %w", addr, lastErr)
 }
 
-func startDocsCurator(ctx context.Context, binary, rootDir string) (*exec.Cmd, *bytes.Buffer) {
-	args := []string{"--profile", filepath.Join(rootDir, "agents/knowledge-manager/documentation-curator/profile.yaml")}
+func waitDocsCuratorPortsFree(id string, cfg docsCuratorIntegrationConfig) error {
+	for _, addr := range []string{cfg.docsAddr, cfg.controlAddr, cfg.requestAddr} {
+		if err := waitTCPFree(addr); err != nil {
+			return fmt.Errorf("%s: %w", id, err)
+		}
+	}
+	return nil
+}
+
+func startDocsCurator(ctx context.Context, binary, rootDir, profilePath string) (*exec.Cmd, *bytes.Buffer) {
+	args := []string{"--profile", profilePath}
 	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Dir = rootDir
 	var output bytes.Buffer
@@ -161,10 +183,10 @@ func startDocsCurator(ctx context.Context, binary, rootDir string) (*exec.Cmd, *
 	return cmd, &output
 }
 
-func waitDocsAPI() error {
+func waitDocsAPI(addr string) error {
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		resp, err := http.Get("http://" + docsCuratorAddr + "/api/v1/health")
+		resp, err := http.Get("http://" + addr + "/api/v1/health")
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -176,21 +198,21 @@ func waitDocsAPI() error {
 	return fmt.Errorf("timeout waiting for /api/v1/health")
 }
 
-func assertDocsCuratorHTTP() error {
-	if err := requireJSONField("/api/v1/docs", "data"); err != nil {
+func assertDocsCuratorHTTP(addr string) error {
+	if err := requireJSONField(addr, "/api/v1/docs", "data"); err != nil {
 		return err
 	}
-	if err := requirePOSTStatus("/api/v1/docs/validate", `{"paths":["SPECIFICATIONS.yaml"]}`, http.StatusOK); err != nil {
+	if err := requirePOSTStatus(addr, "/api/v1/docs/validate", `{"paths":["SPECIFICATIONS.yaml"]}`, http.StatusOK); err != nil {
 		return err
 	}
-	if err := requirePOSTStatus("/api/v1/docs/suggestions", `{"path":"SPECIFICATIONS.yaml","instruction":"Smoke check proposal."}`, http.StatusAccepted); err != nil {
+	if err := requirePOSTStatus(addr, "/api/v1/docs/suggestions", `{"path":"SPECIFICATIONS.yaml","instruction":"Smoke check proposal."}`, http.StatusAccepted); err != nil {
 		return err
 	}
-	return requireHTML("/docs/SPECIFICATIONS.yaml")
+	return requireHTML(addr, "/docs/SPECIFICATIONS.yaml")
 }
 
-func requireJSONField(path, field string) error {
-	data, status, err := requestDocs(http.MethodGet, path, "")
+func requireJSONField(addr, path, field string) error {
+	data, status, err := requestDocs(addr, http.MethodGet, path, "")
 	if err != nil {
 		return err
 	}
@@ -205,6 +227,156 @@ func requireJSONField(path, field string) error {
 		return fmt.Errorf("%s response missing %q", path, field)
 	}
 	return nil
+}
+
+func prepareDocsCuratorIntegration(rootDir string) (docsCuratorIntegrationConfig, func(), error) {
+	tmpDir, err := os.MkdirTemp("", "docs-curator-profile-*")
+	if err != nil {
+		return docsCuratorIntegrationConfig{}, nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(tmpDir) }
+	cfg, err := docsCuratorEphemeralConfig(tmpDir)
+	if err != nil {
+		cleanup()
+		return docsCuratorIntegrationConfig{}, nil, err
+	}
+	if err := writeDocsCuratorProfileFiles(rootDir, tmpDir, cfg); err != nil {
+		cleanup()
+		return docsCuratorIntegrationConfig{}, nil, err
+	}
+	return cfg, cleanup, nil
+}
+
+func docsCuratorEphemeralConfig(tmpDir string) (docsCuratorIntegrationConfig, error) {
+	docsAddr, err := freeLocalAddr()
+	if err != nil {
+		return docsCuratorIntegrationConfig{}, err
+	}
+	controlAddr, err := freeLocalAddr()
+	if err != nil {
+		return docsCuratorIntegrationConfig{}, err
+	}
+	requestAddr, err := freeLocalAddr()
+	if err != nil {
+		return docsCuratorIntegrationConfig{}, err
+	}
+	return docsCuratorIntegrationConfig{
+		profilePath: filepath.Join(tmpDir, "profile.yaml"),
+		docsAddr:    docsAddr,
+		controlAddr: controlAddr,
+		requestAddr: requestAddr,
+	}, nil
+}
+
+func writeDocsCuratorProfileFiles(rootDir, tmpDir string, cfg docsCuratorIntegrationConfig) error {
+	writers := []func(string, string, docsCuratorIntegrationConfig) error{
+		writeDocsCuratorProfile,
+		writeDocsCuratorBuiltin,
+		writeDocsCuratorRest,
+		writeDocsCuratorOpenAPI,
+		copyDocsCuratorRequestMachine,
+	}
+	for _, write := range writers {
+		if err := write(rootDir, tmpDir, cfg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeDocsCuratorProfile(rootDir, tmpDir string, _ docsCuratorIntegrationConfig) error {
+	profile := fmt.Sprintf(`name: documentation-curator
+machine: %q
+tools:
+  - %q
+tool_declarations:
+  - %q
+  - %q
+  - %q
+  - %q
+rest_definitions:
+  - %q
+`, docsCuratorPath(rootDir, "machine.yaml"), docsCuratorPath(rootDir, "tools.yaml"),
+		filepath.Join(tmpDir, "builtin.yaml"), docsCuratorPath(rootDir, "declarations.yaml"),
+		docsCuratorPath(rootDir, "request-declarations.yaml"),
+		filepath.Join(rootDir, "tools/builtin/lifecycle/exit-agent.yaml"),
+		filepath.Join(tmpDir, "rest.yaml"))
+	return os.WriteFile(filepath.Join(tmpDir, "profile.yaml"), []byte(profile), 0o644)
+}
+
+func writeDocsCuratorBuiltin(rootDir, tmpDir string, cfg docsCuratorIntegrationConfig) error {
+	content, err := readDocsCuratorConfig(rootDir, "builtin.yaml")
+	if err != nil {
+		return err
+	}
+	replacements := map[string]string{
+		"addr: :18081":         "addr: " + fmt.Sprintf("%q", cfg.docsAddr),
+		"docs_dir: docs":       "docs_dir: " + fmt.Sprintf("%q", filepath.Join(rootDir, "docs")),
+		"configs_dir: configs": "configs_dir: " + fmt.Sprintf("%q", filepath.Join(rootDir, "configs")),
+		"source_dir: .":        "source_dir: " + fmt.Sprintf("%q", rootDir),
+		"profile_path: agents/knowledge-manager/documentation-curator/profile.yaml": "profile_path: " + fmt.Sprintf("%q", cfg.profilePath),
+	}
+	return os.WriteFile(filepath.Join(tmpDir, "builtin.yaml"), []byte(replaceAll(content, replacements)), 0o644)
+}
+
+func writeDocsCuratorRest(rootDir, tmpDir string, cfg docsCuratorIntegrationConfig) error {
+	content, err := readDocsCuratorConfig(rootDir, "rest.yaml")
+	if err != nil {
+		return err
+	}
+	replacements := map[string]string{
+		"http://127.0.0.1:18081":   "http://" + cfg.docsAddr,
+		"ports: [18081]":           "ports: [" + localPort(cfg.docsAddr) + "]",
+		"ports: [18082]":           "ports: [" + localPort(cfg.controlAddr) + "]",
+		"ports: [18083]":           "ports: [" + localPort(cfg.requestAddr) + "]",
+		"address: 127.0.0.1:18082": "address: " + cfg.controlAddr,
+		"address: 127.0.0.1:18083": "address: " + cfg.requestAddr,
+	}
+	return os.WriteFile(filepath.Join(tmpDir, "rest.yaml"), []byte(replaceAll(content, replacements)), 0o644)
+}
+
+func writeDocsCuratorOpenAPI(rootDir, tmpDir string, cfg docsCuratorIntegrationConfig) error {
+	content, err := readDocsCuratorConfig(rootDir, "openapi.yaml")
+	if err != nil {
+		return err
+	}
+	content = strings.ReplaceAll(content, "http://127.0.0.1:18081", "http://"+cfg.docsAddr)
+	return os.WriteFile(filepath.Join(tmpDir, "openapi.yaml"), []byte(content), 0o644)
+}
+
+func copyDocsCuratorRequestMachine(rootDir, tmpDir string, _ docsCuratorIntegrationConfig) error {
+	content, err := readDocsCuratorConfig(rootDir, "request-machine.yaml")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(tmpDir, "request-machine.yaml"), []byte(content), 0o644)
+}
+
+func readDocsCuratorConfig(rootDir, name string) (string, error) {
+	data, err := os.ReadFile(docsCuratorPath(rootDir, name))
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func docsCuratorPath(rootDir, name string) string {
+	return filepath.Join(rootDir, "agents/knowledge-manager/documentation-curator", name)
+}
+
+func replaceAll(content string, replacements map[string]string) string {
+	for old, replacement := range replacements {
+		content = strings.ReplaceAll(content, old, replacement)
+	}
+	return content
+}
+
+func localPort(addr string) string {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return ""
+	}
+	return port
 }
 
 func findPuppeteerBrowser() (string, error) {
@@ -232,7 +404,7 @@ func findPuppeteerBrowser() (string, error) {
 	return "", fmt.Errorf("set PUPPETEER_EXECUTABLE_PATH or CHROME_BIN to a local Chrome/Chromium binary")
 }
 
-func runDocsPuppeteer(rootDir, browser string) error {
+func runDocsPuppeteer(rootDir, browser, docsAddr string) error {
 	artifacts, err := os.MkdirTemp("", "uc007-puppeteer-*")
 	if err != nil {
 		return fmt.Errorf("uc007: create artifact dir: %w", err)
@@ -243,7 +415,7 @@ func runDocsPuppeteer(rootDir, browser string) error {
 	cmd.Env = append(os.Environ(),
 		"AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1",
 		"PUPPETEER_EXECUTABLE_PATH="+browser,
-		"KM_DOCS_BASE_URL=http://"+docsCuratorAddr+"/",
+		"KM_DOCS_BASE_URL=http://"+docsAddr+"/",
 		"KM_DOCS_ARTIFACT_DIR="+artifacts,
 	)
 	cmd.Stdout = os.Stdout
@@ -255,8 +427,8 @@ func runDocsPuppeteer(rootDir, browser string) error {
 	return nil
 }
 
-func requirePOSTStatus(path, body string, want int) error {
-	data, status, err := requestDocs(http.MethodPost, path, body)
+func requirePOSTStatus(addr, path, body string, want int) error {
+	data, status, err := requestDocs(addr, http.MethodPost, path, body)
 	if err != nil {
 		return err
 	}
@@ -266,8 +438,8 @@ func requirePOSTStatus(path, body string, want int) error {
 	return nil
 }
 
-func requireHTML(path string) error {
-	data, status, err := requestDocs(http.MethodGet, path, "")
+func requireHTML(addr, path string) error {
+	data, status, err := requestDocs(addr, http.MethodGet, path, "")
 	if err != nil {
 		return err
 	}
@@ -277,8 +449,8 @@ func requireHTML(path string) error {
 	return nil
 }
 
-func requestDocs(method, path, body string) ([]byte, int, error) {
-	req, err := http.NewRequest(method, "http://"+docsCuratorAddr+path, strings.NewReader(body))
+func requestDocs(addr, method, path, body string) ([]byte, int, error) {
+	req, err := http.NewRequest(method, "http://"+addr+path, strings.NewReader(body))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -294,11 +466,11 @@ func requestDocs(method, path, body string) ([]byte, int, error) {
 	return data, resp.StatusCode, err
 }
 
-func requestDocsCuratorExit() error {
+func requestDocsCuratorExit(controlAddr string) error {
 	var lastErr error
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if err := postDocsCuratorExit(); err == nil {
+		if err := postDocsCuratorExit(controlAddr); err == nil {
 			return nil
 		} else {
 			lastErr = err
@@ -308,8 +480,8 @@ func requestDocsCuratorExit() error {
 	return fmt.Errorf("uc006: lifecycle exit was not accepted: %w", lastErr)
 }
 
-func postDocsCuratorExit() error {
-	url := "http://" + docsCuratorControlAddr + "/api/lifecycle/exit"
+func postDocsCuratorExit(controlAddr string) error {
+	url := "http://" + controlAddr + "/api/lifecycle/exit"
 	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(`{"reason":"uc006 smoke exit","status":"success"}`))
 	if err != nil {
 		return err
