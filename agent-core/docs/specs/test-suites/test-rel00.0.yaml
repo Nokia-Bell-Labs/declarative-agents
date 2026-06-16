@@ -382,34 +382,43 @@ test_cases:
     traces:
       - srd002-state-machine AC4
 
-  # --- srd003: command dispatch (verified by loop tests) ---
+  # --- srd003: command dispatch ---
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Dispatch creates child span and stamps attributes
-    go_test: TestLoop_EmitsRegistryFrozenEvent
+    go_test: go test ./internal/runtime/core -run 'TestDispatch_(StampsSpanAttributesAndCommandName|RecordsCommandErrorsOnSpan)|TestDispatchWithMonitor_EmitsDispatchMetrics'
     inputs:
-      tracer: "loopRecorder records spans and events"
+      command: "dispatchResultCmd"
+      tracer: "dispatchTestTracer"
+      monitor: "dispatchRuntimeRecorder"
     expected:
-      spans_recorded: true
+      child_span_recorded: true
+      command_attributes_stamped: true
+      error_recorded: true
+      dispatch_metrics_emitted: true
     traces:
       - srd003-command-dispatch AC1
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: SafeExecute recovers panics and enforces timeout
-    go_test: TestLoop_RunsToCompletion
+    go_test: go test ./internal/runtime/core -run 'TestSafeExecute_(RecoversPanicAndForcesCommandError|TimeoutAndIndefiniteWait)'
     inputs:
-      commands: "dispatched through SafeExecute in Dispatch"
+      commands: "panic command, timeout command, zero-timeout wait command"
     expected:
-      no_panic: true
+      panic_signal: CommandError
+      timeout_signal: CommandError
+      zero_timeout_waits: true
     traces:
       - srd003-command-dispatch AC2
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: FillDuration and ForceErrorSignal operate on Result pointers
-    go_test: TestLoop_DurationTracked
+    go_test: TestFillDurationAndForceErrorSignal
     inputs:
-      result: "FillDuration sets duration when not set by command"
+      result: "Result pointer with zero duration and non-nil error"
     expected:
       duration_positive: true
+      existing_duration_preserved: true
+      signal: CommandError
     traces:
       - srd003-command-dispatch AC3
 
