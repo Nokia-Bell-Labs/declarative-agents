@@ -11,24 +11,34 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// Tracer is the port interface for tracing (ifc-tracer). It abstracts
-// span creation, event recording, and attribute setting. The underlying
-// context is accessible via Context() for propagation and cancellation.
-type Tracer interface {
+// SpanTracer creates child span scopes.
+type SpanTracer interface {
 	// Push creates a child span and returns a Tracer scoped to it
 	// plus a done function that ends the span.
 	Push(name string, attrs ...attribute.KeyValue) (Tracer, func())
+}
 
-	// Event records a point-in-time span event.
+// EventTracer records point-in-time events.
+type EventTracer interface {
 	Event(name string, attrs ...attribute.KeyValue)
+}
 
-	// SetAttributes sets attributes on the current span.
+// AttributeTracer records span attributes and errors.
+type AttributeTracer interface {
 	SetAttributes(attrs ...attribute.KeyValue)
-
-	// RecordError records err on the current span and sets its status
-	// to error with the given message.
 	RecordError(err error)
+}
 
-	// Context returns the context carrying the current span.
+// ContextTracer exposes the context carrying the current span.
+type ContextTracer interface {
 	Context() context.Context
+}
+
+// Tracer is the composed tracing port (ifc-tracer). Keep narrow sub-ports
+// above for consumers that only need part of the tracing contract.
+type Tracer interface {
+	SpanTracer
+	EventTracer
+	AttributeTracer
+	ContextTracer
 }

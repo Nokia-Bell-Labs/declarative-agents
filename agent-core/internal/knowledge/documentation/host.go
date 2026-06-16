@@ -56,7 +56,7 @@ func NewServer(cfg HostConfig) *Server {
 		docsDir:     cfg.DocsDir,
 		configsDir:  cfg.ConfigsDir,
 		sourceDir:   cfg.SourceDir,
-		profilePath: profilePathOrDefault(cfg.ProfilePath),
+		profilePath: cfg.ProfilePath,
 		assets:      assets,
 		workflow:    cfg.Workflow,
 	}
@@ -193,13 +193,6 @@ func docsAPIOrSPAHandler(docs http.Handler, spa http.Handler) http.Handler {
 		}
 		spa.ServeHTTP(w, r)
 	})
-}
-
-func profilePathOrDefault(path string) string {
-	if path != "" {
-		return path
-	}
-	return defaultCuratorProfilePath
 }
 
 func spaHandler(assets fs.FS) http.Handler {

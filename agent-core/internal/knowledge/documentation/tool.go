@@ -175,10 +175,11 @@ func decodeToolConfig(def catalog.ToolDef) (ToolConfig, error) {
 	if abs, err := filepath.Abs(cfg.SourceDir); err == nil {
 		cfg.SourceDir = abs
 	}
-	if cfg.ProfilePath == "" {
-		cfg.ProfilePath = defaultCuratorProfilePath
-	}
-	if abs, err := filepath.Abs(cfg.ProfilePath); err == nil {
+	if cfg.ProfilePath != "" {
+		abs, err := filepath.Abs(cfg.ProfilePath)
+		if err != nil {
+			return ToolConfig{}, err
+		}
 		cfg.ProfilePath = abs
 	}
 	return cfg, nil
