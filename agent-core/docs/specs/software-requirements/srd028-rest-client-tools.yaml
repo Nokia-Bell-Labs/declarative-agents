@@ -134,7 +134,7 @@ requirements:
 
 non_goals:
   - Defining inbound REST server tools; see srd029-rest-server-tools.
-  - Implementing rollback-time execution of configured REST compensation in this documentation update.
+  - Auto-wiring every lifecycle profile to a REST compensation executor; callers opt in through the core rollback options.
   - Allowing runtime input to choose arbitrary URLs, methods, authentication, or network destinations.
   - Generating Go clients from OpenAPI documents.
   - Replacing MachineSpec sequencing with hidden REST client workflows.
@@ -259,7 +259,7 @@ implementation_status:
     - Async await can select by correlation token. await_operation polling config is rejected during validation until implemented.
     - Idempotency metadata is emitted on configured outbound async requests, and retry validation requires idempotency for mutating operations when configured.
     - Mutating REST client commands capture boundary compensation undo mementos with request, resource, idempotency, and compensation metadata. Read-only operations remain noop.
+    - Persisted checkpoint rollback can execute boundary compensation when a caller supplies the core CompensationExecutor. internal/tools/rest provides a CompensationExecutor that decodes REST boundary mementos, resolves the configured compensation operation from trusted definitions, filters runtime parameters to declared inputs, and executes through the REST client path.
+    - TestRESTClient_CompensationExecutorRunsConfiguredOperation, TestRESTClient_CompensationExecutorReportsMissingOperation, TestRollbackCheckpointExecutesBoundaryCompensation, and TestRollbackCheckpointReportsMissingBoundaryCompensationExecutor cover REST compensation execution and bounded failure reporting.
   partial:
-    - R10 compensation mementos are available to rollback, but executing the configured REST compensation operation during rollback traversal remains active follow-up work.
-  planned_follow_up:
-    - agent-core-guhn.5: execute configured REST compensation during rollback traversal.
+    - Lifecycle profile wiring must still choose when to inject a REST CompensationExecutor into checkpoint rollback. Profile injection stays outside the REST client tool contract.
