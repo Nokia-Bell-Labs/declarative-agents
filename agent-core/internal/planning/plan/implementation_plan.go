@@ -1,5 +1,4 @@
-// Copyright (c) 2026 Petar Djukic. All rights reserved.
-// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Nokia. All rights reserved.
 
 // Package plan defines the ImplementationPlan types produced by the
 // planning engine and consumed by the materializer.
