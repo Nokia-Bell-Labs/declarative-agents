@@ -112,6 +112,7 @@ func requireFilesystemMetric(t *testing.T, samples []monitor.MetricSample, name 
 
 func runFilesystemMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []monitor.MetricSample {
 	t.Helper()
+	// Keep this fixture package-local so filesystem assertions name filesystem commands and signals.
 	store := monitor.NewStore(monitor.Limits{Samples: 10})
 	params := filesystemMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
 	_, err := core.Loop(params, context.Background())

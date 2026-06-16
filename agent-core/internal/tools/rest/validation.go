@@ -5,7 +5,6 @@ package rest
 import (
 	"fmt"
 	"net"
-	"regexp"
 	"strings"
 )
 
@@ -25,12 +24,6 @@ const (
 	queueOverflowReject     = "reject"
 	queueOverflowDropOldest = "drop_oldest"
 	queueOverflowDropNewest = "drop_newest"
-)
-
-var (
-	bodyParamPattern     = regexp.MustCompile(`params\.([A-Za-z_][A-Za-z0-9_]*)`)
-	pathParamPattern     = regexp.MustCompile(`\{([A-Za-z_][A-Za-z0-9_]*)(?:\.\.\.)?\}`)
-	pathParamFullPattern = regexp.MustCompile(`^\{([A-Za-z_][A-Za-z0-9_]*)(\.\.\.)?\}$`)
 )
 
 // ValidateDefinition validates a declarative REST definition before use.
@@ -218,24 +211,6 @@ func validateOperation(name string, operation Operation, mutatingResource bool) 
 	return validateResponseMapping(name, operation.Response)
 }
 
-func validateDeclaredInputs(name string, operation Operation) error {
-	params, err := pathParams("operation "+name, operation.Path)
-	if err != nil {
-		return err
-	}
-	for _, param := range params {
-		if _, ok := operation.Params.Path[param.name]; !ok {
-			return fmt.Errorf("operation %q path param %q is not declared", name, param.name)
-		}
-	}
-	for _, field := range bodyTemplateFields(operation.Body) {
-		if !operation.Params.declares(field) {
-			return fmt.Errorf("operation %q body references undeclared param %q", name, field)
-		}
-	}
-	return nil
-}
-
 func validateMutatingOperation(name string, operation Operation) error {
 	if len(operation.SideEffects) == 0 {
 		return fmt.Errorf("operation %q mutates state without side_effects", name)
@@ -407,76 +382,13 @@ func validateMachineRequestEndpoint(name string, endpoint Endpoint) error {
 	return nil
 }
 
-type pathParam struct {
-	name     string
-	catchAll bool
-}
-
-func pathParams(owner, path string) ([]pathParam, error) {
-	seen := map[string]bool{}
-	parts := pathSegments(path)
-	params := []pathParam{}
-	for i, segment := range parts {
-		param, ok, err := pathParamSegment(owner, segment)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		if seen[param.name] {
-			return nil, fmt.Errorf("%s path param %q is ambiguous", owner, param.name)
-		}
-		if param.catchAll && i != len(parts)-1 {
-			return nil, fmt.Errorf("%s catch-all path param %q must be final", owner, param.name)
-		}
-		seen[param.name] = true
-		params = append(params, param)
-	}
-	return params, nil
-}
-
-func pathParamSegment(owner, segment string) (pathParam, bool, error) {
-	if !strings.ContainsAny(segment, "{}") {
-		return pathParam{}, false, nil
-	}
-	match := pathParamFullPattern.FindStringSubmatch(segment)
-	if match == nil {
-		return pathParam{}, false, fmt.Errorf("%s has malformed path param segment %q", owner, segment)
-	}
-	return pathParam{name: match[1], catchAll: match[2] == "..."}, true, nil
-}
-
 func validateResponseMapping(name string, mapping ResponseMapping) error {
 	for _, selector := range mapping.Redact {
-		if !validSelector(selector) {
+		if !validRedactionSelector(selector) {
 			return fmt.Errorf("%q has invalid redaction selector %q", name, selector)
 		}
 	}
 	return nil
-}
-
-func bodyTemplateFields(value interface{}) []string {
-	var fields []string
-	collectBodyTemplateFields(value, &fields)
-	return fields
-}
-
-func collectBodyTemplateFields(value interface{}, fields *[]string) {
-	switch typed := value.(type) {
-	case string:
-		for _, match := range bodyParamPattern.FindAllStringSubmatch(typed, -1) {
-			*fields = append(*fields, match[1])
-		}
-	case []interface{}:
-		for _, item := range typed {
-			collectBodyTemplateFields(item, fields)
-		}
-	case map[string]interface{}:
-		for _, item := range typed {
-			collectBodyTemplateFields(item, fields)
-		}
-	}
 }
 
 func (b RequestBinding) declares(name string) bool {
@@ -537,19 +449,4 @@ func listenerHost(address string) string {
 		return host
 	}
 	return address
-}
-
-func validSelector(selector string) bool {
-	switch {
-	case strings.HasPrefix(selector, "$."):
-		return len(selector) > 2
-	case strings.HasPrefix(selector, "headers."):
-		return len(selector) > len("headers.")
-	case strings.HasPrefix(selector, "query."):
-		return len(selector) > len("query.")
-	case strings.HasPrefix(selector, "body."):
-		return len(selector) > len("body.")
-	default:
-		return false
-	}
 }

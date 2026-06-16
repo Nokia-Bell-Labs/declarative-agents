@@ -133,6 +133,7 @@ func requireMissingMetric(t *testing.T, samples []monitor.MetricSample, name str
 
 func runLLMMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []monitor.MetricSample {
 	t.Helper()
+	// Keep this fixture package-local so LLM assertions name model-boundary commands and signals.
 	store := monitor.NewStore(monitor.Limits{Samples: 10})
 	params := llmMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
 	_, err := core.Loop(params, context.Background())

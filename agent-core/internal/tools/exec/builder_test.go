@@ -222,6 +222,7 @@ func requireExecMetric(t *testing.T, samples []monitor.MetricSample, name string
 
 func runExecMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []monitor.MetricSample {
 	t.Helper()
+	// Keep this fixture package-local so exec assertions name exec commands and signals.
 	store := monitor.NewStore(monitor.Limits{Samples: 10})
 	params := execMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
 	_, err := core.Loop(params, context.Background())
