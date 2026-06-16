@@ -10,7 +10,7 @@ rest:
         hosts: [127.0.0.1, localhost]
   servers:
     monitor:
-      address: 127.0.0.1:18083
+      address: 127.0.0.1:0
       limits_ref: local_monitor
       queue:
         name: monitor

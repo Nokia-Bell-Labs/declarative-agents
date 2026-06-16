@@ -18,4 +18,7 @@ expected_bindings:
   - stream_events
   - static_metadata
   - emit_signal
+binding_strategy:
+  checked_in_default: 127.0.0.1:0
+  cli_proof: generated_profile_owned_loopback_address
 external_dependencies: []

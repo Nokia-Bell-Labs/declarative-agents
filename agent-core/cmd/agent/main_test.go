@@ -334,6 +334,14 @@ func TestMonitorCLIProfileServesUntilControlExit(t *testing.T) {
 	requireProcessSucceeded(t, resultCh, stdout, stderr)
 }
 
+func TestMonitorProfileUsesEphemeralLoopbackDefault(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile(filepath.Join(repoRootFromTest(t), "agents", "monitor", "rest.yaml"))
+	require.NoError(t, err)
+	require.Contains(t, string(data), "address: 127.0.0.1:0")
+	require.NotContains(t, string(data), "address: 127.0.0.1:18083")
+}
+
 type loopResult struct {
 	result core.RunResult
 	err    error
@@ -682,8 +690,23 @@ func writeIsolatedMonitorREST(t *testing.T, root, dir, address string) {
 	t.Helper()
 	data, err := os.ReadFile(absTestPath(root, "agents/monitor/rest.yaml"))
 	require.NoError(t, err)
-	replaced := strings.Replace(string(data), "address: 127.0.0.1:18083", "address: "+address, 1)
+	replaced := monitorRESTWithAddress(t, string(data), address)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "rest.yaml"), []byte(replaced), 0o644))
+}
+
+func monitorRESTWithAddress(t *testing.T, data string, address string) string {
+	t.Helper()
+	lines := strings.Split(data, "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(strings.TrimSpace(line), "address: ") {
+			continue
+		}
+		prefix := line[:strings.Index(line, "address: ")]
+		lines[i] = prefix + "address: " + address
+		return strings.Join(lines, "\n")
+	}
+	require.FailNow(t, "monitor REST config should declare server address")
+	return ""
 }
 
 func isolatedMonitorAddress(t *testing.T) string {
