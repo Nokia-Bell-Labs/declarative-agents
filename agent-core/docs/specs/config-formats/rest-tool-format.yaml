@@ -17,17 +17,17 @@ release_03_0_support:
     - REST client async send and await by request_id.
     - REST server emit_signal, emit_dynamic_signal, read_state, invoke_handler, stream_events, health, static_metadata, machine_request, and monitor endpoints.
     - OpenAPI import from local files into client operations and server endpoints.
+    - network.cidrs parsing and CIDR enforcement.
+    - async correlation selectors, wire-level idempotency metadata, and validation rejection for unsupported await_operation polling configs.
+    - response_mapping.schema validation before client success signals.
+    - OpenAPI-bound endpoint preservation for configured endpoint behavior.
+    - REST client compensation mementos for mutating operations with configured compensation.
+    - machine_request terminal response schema validation before success responses.
   partial:
-    - network.cidrs is parsed but not enforced; agent-core-tu6t.3 owns enforcement.
-    - async.await_operation and correlation selectors are parsed but not executed as polling selectors; agent-core-tu6t.3 owns support or validation rejection.
-    - response_mapping.schema is stored and imported from OpenAPI but response bodies are not validated before success signals; agent-core-tu6t.3 owns client validation.
-    - OpenAPI-bound endpoints may drop configured endpoint behavior when import fields are applied; agent-core-tu6t.4 owns preservation.
     - rest_await_event read_policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
-    - Compensation metadata is parsed, but REST client Undo still returns noop for mutating commands; agent-core-tu6t.5 owns compensation mementos.
   reserved:
-    - document_resources top-level config and machine_request.document_resources are documented for the target format but are not wired into internal/tools/rest Definition loading in release 03.0; agent-core-tu6t.10 owns the follow-up.
+    - document_resources top-level config and machine_request.document_resources are typed fields that ValidateDefinition rejects until generic REST document resource loading is implemented.
     - lifecycle_control endpoint config is documented for the target format but current control profiles use emit_signal routes that MachineSpec routes to exit_agent.
-    - machine_request terminal response schema validation is documented but not enforced yet; agent-core-tu6t.9 owns the follow-up.
 
 schema:
   description: |
@@ -309,7 +309,7 @@ schema:
       - field: cidrs
         type: "[]string"
         required: false
-        description: Allowed destination or listener CIDR ranges. Parsed in release 03.0; enforcement is tracked by agent-core-tu6t.3.
+        description: Allowed destination or listener CIDR ranges. Parsed and enforced in release 03.0.
       - field: ports
         type: "[]int"
         required: false
@@ -626,7 +626,7 @@ schema:
       - field: schema
         type: json_schema
         required: false
-        description: Response body schema that terminal output should satisfy. Validation is not enforced in release 03.0 and needs follow-up work.
+        description: Response body schema that terminal output should satisfy. Validation is enforced before machine_request writes a success response.
 
   document_resource:
     fields:
@@ -849,7 +849,7 @@ schema:
       - field: await_operation
         type: string
         required: false
-        description: Operation intended for rest_client_await polling. Current await reads stored request state by request_id; polling support or validation rejection is tracked by agent-core-tu6t.3.
+        description: Operation intended for rest_client_await polling. Current await reads stored request state by request_id or correlation token; polling configs are rejected during validation until implemented.
       - field: timeout
         type: duration string
         required: false
@@ -1413,20 +1413,12 @@ implementation_status:
     - generic machine_request response trace fields for server, route, and request machine emitted directly by internal/tools/rest.
     - always-on Knowledge Manager conformance coverage for generic machine_request routes under plain go test.
   partial:
-    - network.cidrs parsing without CIDR enforcement.
-    - response_mapping.schema storage without response body validation.
-    - async.await_operation parsing without polling support.
-    - OpenAPI endpoint binding that can overwrite configured endpoint behavior.
-    - read_policy values outside first-available rejected until implemented.
-    - compensation metadata parsing without REST client undo mementos.
+    - read_policy values outside first-available are rejected until implemented.
+    - REST compensation mementos are captured, but rollback-time execution of configured REST compensation remains follow-up work.
   reserved:
     - top-level document_resources config.
     - machine_request.document_resources config.
     - lifecycle_control endpoint config.
-    - machine_request terminal response schema enforcement.
   planned_follow_up:
-    - agent-core-tu6t.3: REST client CIDR, response schema, async selector, idempotency, and await_operation behavior.
-    - agent-core-tu6t.4: OpenAPI endpoint behavior preservation.
-    - agent-core-tu6t.5: REST compensation and undo behavior.
-    - agent-core-tu6t.9: machine_request terminal response schema validation.
-    - agent-core-tu6t.10: REST document_resources config loading or validation rejection.
+    - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.
+    - agent-core-guhn.5: execute configured REST compensation during rollback traversal.

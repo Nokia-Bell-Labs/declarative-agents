@@ -113,13 +113,13 @@ releases:
       machine_request Knowledge Manager UX path. The command is mage
       integration:uc007.
 
-      Remaining conformance work is tracked by agent-core-tu6t.3 through
-      agent-core-tu6t.5, agent-core-tu6t.9, and agent-core-tu6t.10. It covers
-      client safety and async contracts, OpenAPI endpoint config preservation,
-      REST compensation undo, machine_request response schema validation, and
-      document_resources config handling. Modeled lifecycle_control endpoints
-      and non-default rest_await_event read policies remain reserved or rejected
-      until future work implements them.
+      Closed REST conformance work now covers client safety, async request
+      metadata, OpenAPI endpoint preservation, REST compensation mementos,
+      machine_request response schemas, and explicit document_resources
+      reservation. Modeled lifecycle_control endpoints and non-default
+      rest_await_event read policies remain reserved or rejected until future
+      work implements them. Active follow-up work covers named conformance-test
+      alignment and rollback-time REST compensation execution.
     status: in_progress
     srds:
       - srd027-rest-tool-runtime
@@ -160,7 +160,7 @@ releases:
         status: done
     planned_test_suites:
       - id: test-rel03.0-rest-tools
-        summary: Formal tests for REST runtime, client tools, server tools, generic event fan-in, staged await-any fan-in, lifecycle exit payload propagation, terminal routing, listener shutdown, shutdown policy validation, stream shutdown unblocking, OpenAPI import, Ollama E2E proof, documentation-curator ownership, Puppeteer machine_request UX coverage, and planned conformance gaps tracked by agent-core-tu6t.3 through agent-core-tu6t.5, agent-core-tu6t.9, and agent-core-tu6t.10
+        summary: Formal tests for REST runtime, client/server tools, fan-in, lifecycle exit routing, listener shutdown, OpenAPI import, Ollama E2E proof, documentation-curator ownership, Puppeteer machine_request UX coverage, closed REST conformance fixes, and planned named-test alignment tracked by agent-core-guhn.4
         status: in_progress
 
   - version: "04.0"

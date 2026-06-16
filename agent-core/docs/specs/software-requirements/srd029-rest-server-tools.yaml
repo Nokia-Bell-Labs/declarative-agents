@@ -241,10 +241,10 @@ implementation_status:
     - tools/builtin/rest server tool declarations and release 03.0 fixtures.
     - OpenAPI operation ID binding for request and response schema import into configured endpoints.
     - Plain Go tests for launch, await, fan-in filters, timeout, stopped-source signals, stop, shutdown policy validation, stream shutdown unblocking, validation failures, redaction, invoke_handler, stream_events, machine_request, and Knowledge Manager conformance.
+    - OpenAPI server binding preserves configured response mapping, machine_request, monitor view, queue, signal, and allowed_signals while importing method, path, request schema, and response schema.
+    - Queue overflow behavior supports reject, drop_oldest, and drop_newest. Unsupported shutdown queue controls are rejected during ValidateDefinition.
   partial:
     - R5.8 and R11.4 lifecycle control behavior is currently represented by configured emit_signal control routes that MachineSpec routes to exit_agent. Modeled lifecycle_control endpoint config remains reserved target-format behavior.
-    - R7.4 queue overflow behavior supports reject, drop_oldest, and drop_newest. Unsupported shutdown queue controls are rejected during ValidateDefinition.
-    - R8 OpenAPI server binding imports method, path, request schema, and response schema. Preserving configured response mapping, machine_request, monitor view, queue, signal, and allowed_signals remains required by agent-core-tu6t.4.
     - R10 read_policy values other than the default first-available behavior are rejected during ToolDef factory validation.
   planned_follow_up:
-    - agent-core-tu6t.4: preserve configured endpoint behavior when OpenAPI supplies transport and schema fields.
+    - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for server control, queue, and read_policy conformance.

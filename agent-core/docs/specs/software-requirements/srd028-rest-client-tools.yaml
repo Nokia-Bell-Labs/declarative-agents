@@ -134,7 +134,7 @@ requirements:
 
 non_goals:
   - Defining inbound REST server tools; see srd029-rest-server-tools.
-  - Implementing the remaining REST client conformance gaps tracked by agent-core-tu6t.3 and agent-core-tu6t.5.
+  - Implementing rollback-time execution of configured REST compensation in this documentation update.
   - Allowing runtime input to choose arbitrary URLs, methods, authentication, or network destinations.
   - Generating Go clients from OpenAPI documents.
   - Replacing MachineSpec sequencing with hidden REST client workflows.
@@ -254,11 +254,12 @@ implementation_status:
     - Resource operation definitions loaded from YAML and OpenAPI imports.
     - Config-bound method, path, host, auth, redirect, size-limit, request schema, response mapping, redaction, and status-signal behavior.
     - Async request state indexed by request_id with idempotency and correlation metadata recorded in accepted output.
+    - CIDR allowlists are enforced while scheme, host, and port validation remains intact.
+    - Response bodies are validated against configured response schemas before success signals, and domain_error_code is included in structured output when configured.
+    - Async await can select by correlation token. await_operation polling config is rejected during validation until implemented.
+    - Idempotency metadata is emitted on configured outbound async requests, and retry validation requires idempotency for mutating operations when configured.
+    - Mutating REST client commands capture boundary compensation undo mementos with request, resource, idempotency, and compensation metadata. Read-only operations remain noop.
   partial:
-    - R2.3 and R7.3 response schema fields are imported and stored, but response body validation before success signal emission remains required by agent-core-tu6t.3.
-    - R7.4 domain_error_code is documented in status mappings. Structured output propagation remains required by agent-core-tu6t.3.
-    - R8 idempotency metadata is recorded and async retry validation requires idempotency when configured. Wire-level idempotency and mutating retry behavior remain required by agent-core-tu6t.3.
-    - R10 compensation fields are accepted and mutating operations require reversibility. Runtime undo for mutating REST operations remains noop until agent-core-tu6t.5.
+    - R10 compensation mementos are available to rollback, but executing the configured REST compensation operation during rollback traversal remains active follow-up work.
   planned_follow_up:
-    - agent-core-tu6t.3: enforce CIDR allowlists, validate response schemas, handle correlation selectors, apply idempotency metadata to requests, and support or reject await_operation polling.
-    - agent-core-tu6t.5: replace blanket noop undo for mutating REST client commands with compensation mementos or configured compensating actions.
+    - agent-core-guhn.5: execute configured REST compensation during rollback traversal.

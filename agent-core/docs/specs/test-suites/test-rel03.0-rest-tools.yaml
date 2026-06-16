@@ -1189,7 +1189,7 @@ test_cases:
       output, async correlation selection, idempotency metadata on outbound
       requests, and await_operation support or validation rejection.
     inputs:
-      issue: agent-core-tu6t.3
+      issue: agent-core-guhn.4
       network_policy: cidr_allowlist
       response_schema: configured
       async_selectors: [request_id, correlation, await_operation]
@@ -1208,14 +1208,14 @@ test_cases:
   - use_case: rel03.0-uc004-openapi-import
     name: OpenAPI server binding preserves configured endpoint behavior
     go_test: TestRESTOpenAPI_ServerBindPreservesEndpointConfig
-    status: planned
+    status: done
     description: |
       Bind OpenAPI operations to endpoints that already declare response
       mapping, machine_request, monitor view, queue, signal, and
       allowed_signals. Import should add transport and schema data without
       dropping configured endpoint behavior.
     inputs:
-      issue: agent-core-tu6t.4
+      evidence: TestRESTOpenAPI_ServerBindPreservesEndpointConfig
       endpoint_fields:
         - response
         - machine_request
@@ -1235,13 +1235,14 @@ test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST client compensation creates rollback mementos
     go_test: TestRESTClient_CompensationUndoMemento
-    status: planned
+    status: done
     description: |
       Distinguish read-only noop undo from mutating REST operations that
-      declare configured compensation. The mutating path should capture request
-      and response metadata needed by rollback.
+      declare configured compensation. The mutating path captures request and
+      response metadata needed by rollback. agent-core-guhn.5 tracks runtime
+      execution of the configured compensation path.
     inputs:
-      issue: agent-core-tu6t.5
+      evidence: TestRESTClient_CompensationUndoMemento
       operations: [rest_client_get, rest_client_create, rest_client_set, rest_client_delete]
     expected:
       read_undo_noop: true
@@ -1257,13 +1258,13 @@ test_cases:
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Machine_request validates terminal response schemas
     go_test: TestRESTServerMachineRequestTerminalResponseSchema
-    status: planned
+    status: done
     description: |
       Configure a machine_request terminal response schema and return output
       that violates it. The binding should reject the response or the public
       config schema field should be removed.
     inputs:
-      issue: agent-core-tu6t.9
+      evidence: TestRESTServerMachineRequestTerminalResponseSchema
       terminal_signal: DocumentationReady
       response_schema: configured
     expected:
@@ -1277,14 +1278,14 @@ test_cases:
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: REST document_resources config is loaded or rejected
     go_test: TestRESTDocumentResourcesConfigConformance
-    status: planned
+    status: done
     description: |
       Load a REST definition that declares top-level document_resources and a
       machine_request document_resources reference. The runtime should either
       make those resources available through trusted config or reject the fields
       with a clear validation error.
     inputs:
-      issue: agent-core-tu6t.10
+      evidence: TestRESTDocumentResourcesConfigConformance
       document_resource: documentation_corpus
       request_machine: documentation-curator-request
     expected:

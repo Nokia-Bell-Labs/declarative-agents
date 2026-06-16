@@ -559,15 +559,14 @@ coverage_gaps: |
     tied to Go tests, uc006, and uc007. rel03.0-uc008 now has executable staged
     await-any fan-in coverage that launches a later REST source after the first
     selected event routes through MachineSpec.
-    Remaining release 03.0 REST conformance cases are planned and trace to
-    agent-core-tu6t.3 through agent-core-tu6t.5, agent-core-tu6t.9, and
-    agent-core-tu6t.10. They cover modeled
-    lifecycle_control endpoints, endpoint queue overrides, non-default
-    read_policy handling, CIDR allowlists, response schema validation, async
-    selector and await_operation behavior, idempotency metadata on outbound
-    requests, OpenAPI endpoint config preservation, REST compensation undo,
-    machine_request terminal response schema validation, and document_resources
-    config loading or rejection.
+    Closed REST conformance work now covers client safety, async request
+    metadata, OpenAPI endpoint preservation, REST compensation mementos,
+    machine_request terminal response schemas, and document_resources validation
+    rejection. Remaining planned release 03.0 suite work tracks exact named-test
+    alignment in agent-core-guhn.4 plus rollback-time REST compensation execution
+    in agent-core-guhn.5. Modeled lifecycle_control endpoint config and
+    non-default read_policy behavior stay reserved or rejected until separate
+    implementation work.
   Release 04.0 package tests cover the monitor store, recorder ownership,
   metric config validation, disabled mode, OpenTelemetry metric export,
   REST/OpenAPI cached-state readers, and the cmd/agent live-store release
