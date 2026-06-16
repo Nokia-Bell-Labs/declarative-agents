@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -318,10 +319,11 @@ func TestMonitorReleaseProfileProof(t *testing.T) {
 
 func TestMonitorCLIProfileServesUntilControlExit(t *testing.T) {
 	root := repoRootFromTest(t)
-	profilePath, baseURL := isolatedMonitorProfile(t, root)
+	profilePath := filepath.Join(root, "agents", "monitor", "profile.yaml")
 	cmd, stdout, stderr := startMonitorAgentProcess(t, root, profilePath)
 	resultCh := waitForProcess(t, cmd)
 
+	baseURL := waitForMonitorBaseURL(t, stderr)
 	waitForProofMonitorRoute(t, baseURL+"/monitor/state")
 	stateBody := proofRequestBody(t, baseURL+"/monitor/state")
 	require.Contains(t, stateBody, `"state"`)
@@ -794,21 +796,58 @@ func receiveLoopResult(t *testing.T, resultCh <-chan loopResult) loopResult {
 	return loopResult{}
 }
 
-func startMonitorAgentProcess(t *testing.T, root string, profilePath string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer) {
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(data []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(data)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func startMonitorAgentProcess(t *testing.T, root string, profilePath string) (*exec.Cmd, *lockedBuffer, *lockedBuffer) {
 	t.Helper()
 	cmd := exec.Command("go", "run", "./cmd/agent", "--profile", profilePath, "--directory", root)
 	cmd.Dir = root
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdout := &lockedBuffer{}
+	stderr := &lockedBuffer{}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	require.NoError(t, cmd.Start())
 	t.Cleanup(func() {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
 	})
-	return cmd, &stdout, &stderr
+	return cmd, stdout, stderr
+}
+
+func waitForMonitorBaseURL(t *testing.T, stderr *lockedBuffer) string {
+	t.Helper()
+	var baseURL string
+	require.Eventually(t, func() bool {
+		baseURL = monitorBaseURLFromOutput(stderr.String())
+		return baseURL != ""
+	}, 5*time.Second, 10*time.Millisecond)
+	return baseURL
+}
+
+func monitorBaseURLFromOutput(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		address, ok := strings.CutPrefix(line, "monitor address: ")
+		if ok && strings.TrimSpace(address) != "" {
+			return "http://" + strings.TrimSpace(address)
+		}
+	}
+	return ""
 }
 
 func waitForProcess(t *testing.T, cmd *exec.Cmd) <-chan error {
@@ -827,7 +866,7 @@ func requireProcessStillRunning(t *testing.T, resultCh <-chan error) {
 	}
 }
 
-func requireProcessSucceeded(t *testing.T, resultCh <-chan error, stdout, stderr *bytes.Buffer) {
+func requireProcessSucceeded(t *testing.T, resultCh <-chan error, stdout, stderr *lockedBuffer) {
 	t.Helper()
 	select {
 	case err := <-resultCh:
