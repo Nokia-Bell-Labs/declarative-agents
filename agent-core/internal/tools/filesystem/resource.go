@@ -322,10 +322,24 @@ func resourceRel(base, abs string) (string, error) {
 }
 
 func resourceCategory(rel string) string {
-	if dir := path.Dir(rel); dir != "." {
-		return strings.Split(dir, "/")[0]
+	switch {
+	case rel == "road-map.yaml":
+		return "release"
+	case path.Dir(rel) == ".":
+		return "overview"
+	case strings.HasPrefix(rel, "specs/software-requirements/"):
+		return "srd"
+	case strings.HasPrefix(rel, "specs/semantic-models/"):
+		return "semantic-model"
+	case strings.HasPrefix(rel, "specs/config-formats/"):
+		return "config-format"
+	case strings.HasPrefix(rel, "specs/use-cases/"):
+		return "use-case"
+	case strings.HasPrefix(rel, "specs/test-suites/"):
+		return "test-suite"
+	default:
+		return strings.Split(path.Dir(rel), "/")[0]
 	}
-	return "root"
 }
 
 func resourceContentType(rel string) string {
