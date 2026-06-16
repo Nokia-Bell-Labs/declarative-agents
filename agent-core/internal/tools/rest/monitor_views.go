@@ -20,6 +20,36 @@ const (
 	monitorViewEvents  = "events"
 )
 
+type monitorField[T any] struct {
+	name   string
+	schema map[string]interface{}
+	value  func(T) interface{}
+}
+
+func monitorObjectView[T any](fields []monitorField[T], item T) map[string]interface{} {
+	out := map[string]interface{}{}
+	for _, field := range fields {
+		out[field.name] = field.value(item)
+	}
+	return out
+}
+
+func monitorObjectListView[T any](items []T, fields []monitorField[T]) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(items))
+	for _, item := range items {
+		out = append(out, monitorObjectView(fields, item))
+	}
+	return out
+}
+
+func monitorObjectMapView[T any](items map[string]T, fields []monitorField[T]) map[string]interface{} {
+	out := map[string]interface{}{}
+	for name, item := range items {
+		out[name] = monitorObjectView(fields, item)
+	}
+	return out
+}
+
 func (r *serverRuntime) monitorView(route, view string) (map[string]interface{}, error) {
 	switch view {
 	case monitorViewMachine:
@@ -69,25 +99,11 @@ func monitorMachineView(machine *core.MachineSpec) map[string]interface{} {
 	if machine == nil {
 		return map[string]interface{}{"machine": nil}
 	}
-	return map[string]interface{}{
-		"name":            machine.Name,
-		"states":          machine.States.Names(),
-		"signals":         machine.Signals.Names(),
-		"terminal_states": machine.TerminalStates,
-		"metric_labels":   safeLabels(machine.MetricLabels),
-		"transitions":     monitorTransitions(machine.Transitions),
-	}
+	return monitorObjectView(monitorMachineFields(), machine)
 }
 
 func monitorTransitions(transitions []core.TransitionSpec) []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, len(transitions))
-	for _, tr := range transitions {
-		out = append(out, map[string]interface{}{
-			"state": tr.State, "signal": tr.Signal, "next": tr.Next,
-			"action": tr.Action, "metric_labels": safeLabels(tr.MetricLabels),
-		})
-	}
-	return out
+	return monitorObjectListView(transitions, transitionFields())
 }
 
 func monitorStateView(snapshot monitor.Snapshot) map[string]interface{} {
@@ -99,15 +115,7 @@ func monitorStateView(snapshot monitor.Snapshot) map[string]interface{} {
 }
 
 func monitorToolsView(tools []catalog.ToolDef) map[string]interface{} {
-	views := make([]map[string]interface{}, 0, len(tools))
-	for _, tool := range tools {
-		views = append(views, map[string]interface{}{
-			"name": tool.Name, "category": tool.Category,
-			"visibility": tool.Visibility, "emits": tool.Emits,
-			"metrics": metricConfigView(tool.Metrics), "relationships": tool.Relationships,
-		})
-	}
-	return map[string]interface{}{"tools": views}
+	return map[string]interface{}{"tools": monitorObjectListView(tools, toolFields())}
 }
 
 func monitorMetricsView(snapshot monitor.Snapshot) map[string]interface{} {
@@ -151,97 +159,35 @@ func writeMonitorSSE(w http.ResponseWriter, flusher http.Flusher, eventType stri
 }
 
 func runSnapshotView(run monitor.RunSnapshot) map[string]interface{} {
-	return map[string]interface{}{
-		"run_id": run.RunID, "status": run.Status, "state": run.State,
-		"signal": run.Signal, "iteration": run.Iteration, "updated_at": run.UpdatedAt,
-	}
+	return monitorObjectView(runSnapshotFields(), run)
 }
 
 func sampleViews(samples []monitor.MetricSample) []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, len(samples))
-	for _, sample := range samples {
-		out = append(out, map[string]interface{}{
-			"name": sample.Name, "kind": sample.Kind, "unit": sample.Unit,
-			"description": sample.Description, "value": sample.Value,
-			"tool_name": sample.ToolName, "run_id": sample.RunID,
-			"state": sample.State, "signal": sample.Signal, "status": sample.Status,
-			"attributes": safeLabels(sample.Attributes), "timestamp": sample.Timestamp,
-		})
-	}
-	return out
+	return monitorObjectListView(samples, sampleFields())
 }
 
 func runEventViews(events []monitor.RunEvent) []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, len(events))
-	for _, event := range events {
-		out = append(out, map[string]interface{}{
-			"iteration": event.Iteration, "timestamp": event.Timestamp,
-			"command_name": event.CommandName, "signal": event.Signal,
-			"from_state": event.FromState, "to_state": event.ToState,
-			"duration_ms": event.Duration.Milliseconds(),
-			"tokens_in":   event.TokensIn, "tokens_out": event.TokensOut,
-		})
-	}
-	return out
+	return monitorObjectListView(events, runEventFields())
 }
 
 func diagnosticViews(items []monitor.Diagnostic) []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, len(items))
-	for _, item := range items {
-		out = append(out, map[string]interface{}{
-			"stage": item.Stage, "message": item.Message, "metric": item.Metric,
-			"tool_name": item.ToolName, "timestamp": item.Timestamp,
-		})
-	}
-	return out
+	return monitorObjectListView(items, diagnosticFields())
 }
 
 func recentErrorViews(items []monitor.RecentError) []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, len(items))
-	for _, item := range items {
-		out = append(out, map[string]interface{}{
-			"stage": item.Stage, "message": item.Message,
-			"command_name": item.CommandName, "timestamp": item.Timestamp,
-		})
-	}
-	return out
+	return monitorObjectListView(items, recentErrorFields())
 }
 
 func toolAggregateViews(items map[string]monitor.ToolAggregate) map[string]interface{} {
-	out := map[string]interface{}{}
-	for name, item := range items {
-		out[name] = map[string]interface{}{
-			"tool_name": item.ToolName, "dispatches": item.Dispatches,
-			"successes": item.Successes, "failures": item.Failures,
-			"samples": item.Samples, "total_duration_ms": item.TotalDuration.Milliseconds(),
-			"last_signal": item.LastSignal, "last_status": item.LastStatus,
-			"updated_at": item.UpdatedAt,
-		}
-	}
-	return out
+	return monitorObjectMapView(items, toolAggregateFields())
 }
 
 func metricAggregateViews(items map[string]monitor.MetricAggregate) map[string]interface{} {
-	out := map[string]interface{}{}
-	for name, item := range items {
-		out[name] = map[string]interface{}{
-			"name": item.Name, "kind": item.Kind, "unit": item.Unit,
-			"count": item.Count, "sum": item.Sum, "min": item.Min,
-			"max": item.Max, "last_value": item.LastValue, "updated_at": item.UpdatedAt,
-		}
-	}
-	return out
+	return monitorObjectMapView(items, metricAggregateFields())
 }
 
 func metricSchemaViews(items map[string]monitor.MetricSchema) map[string]interface{} {
-	out := map[string]interface{}{}
-	for name, item := range items {
-		out[name] = map[string]interface{}{
-			"name": item.Name, "kind": item.Kind, "unit": item.Unit,
-			"description": item.Description, "attributes": item.Attributes,
-		}
-	}
-	return out
+	return monitorObjectMapView(items, metricSchemaFields())
 }
 
 func metricConfigView(cfg core.MetricConfig) map[string]interface{} {
@@ -253,26 +199,164 @@ func metricConfigView(cfg core.MetricConfig) map[string]interface{} {
 }
 
 func metricInstrumentViews(items []core.MetricInstrument) []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, len(items))
-	for _, item := range items {
-		out = append(out, map[string]interface{}{
-			"name": item.Name, "kind": item.Kind, "unit": item.Unit,
-			"description": item.Description, "value_source": item.ValueSource,
-			"attributes": item.Attributes, "buckets": item.Buckets,
-		})
-	}
-	return out
+	return monitorObjectListView(items, metricInstrumentFields())
 }
 
 func metricAttributeViews(items []core.MetricAttribute) []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, len(items))
-	for _, item := range items {
-		out = append(out, map[string]interface{}{
-			"name": item.Name, "source": item.Source, "cardinality": item.Cardinality,
-			"allowed_values": item.AllowedValues, "redaction": item.Redaction,
-		})
+	return monitorObjectListView(items, metricAttributeFields())
+}
+
+func monitorMachineFields() []monitorField[*core.MachineSpec] {
+	return []monitorField[*core.MachineSpec]{
+		{"name", monitorSchemaString(), func(m *core.MachineSpec) interface{} { return m.Name }},
+		{"states", monitorSchemaArray(monitorSchemaString()), func(m *core.MachineSpec) interface{} { return m.States.Names() }},
+		{"signals", monitorSchemaArray(monitorSchemaString()), func(m *core.MachineSpec) interface{} { return m.Signals.Names() }},
+		{"terminal_states", monitorSchemaArray(monitorSchemaString()), func(m *core.MachineSpec) interface{} { return m.TerminalStates }},
+		{"metric_labels", monitorSchemaMap(monitorSchemaString()), func(m *core.MachineSpec) interface{} { return safeLabels(m.MetricLabels) }},
+		{"transitions", monitorSchemaArray(transitionSchema()), func(m *core.MachineSpec) interface{} { return monitorTransitions(m.Transitions) }},
 	}
-	return out
+}
+
+func transitionFields() []monitorField[core.TransitionSpec] {
+	return []monitorField[core.TransitionSpec]{
+		{"state", monitorSchemaString(), func(t core.TransitionSpec) interface{} { return t.State }},
+		{"signal", monitorSchemaString(), func(t core.TransitionSpec) interface{} { return t.Signal }},
+		{"next", monitorSchemaString(), func(t core.TransitionSpec) interface{} { return t.Next }},
+		{"action", monitorSchemaString(), func(t core.TransitionSpec) interface{} { return t.Action }},
+		{"metric_labels", monitorSchemaMap(monitorSchemaString()), func(t core.TransitionSpec) interface{} { return safeLabels(t.MetricLabels) }},
+	}
+}
+
+func runSnapshotFields() []monitorField[monitor.RunSnapshot] {
+	return []monitorField[monitor.RunSnapshot]{
+		{"run_id", monitorSchemaString(), func(r monitor.RunSnapshot) interface{} { return r.RunID }},
+		{"status", monitorSchemaString(), func(r monitor.RunSnapshot) interface{} { return r.Status }},
+		{"state", monitorSchemaString(), func(r monitor.RunSnapshot) interface{} { return r.State }},
+		{"signal", monitorSchemaString(), func(r monitor.RunSnapshot) interface{} { return r.Signal }},
+		{"iteration", monitorSchemaInteger(), func(r monitor.RunSnapshot) interface{} { return r.Iteration }},
+		{"updated_at", monitorSchemaDateTime(), func(r monitor.RunSnapshot) interface{} { return r.UpdatedAt }},
+	}
+}
+
+func toolFields() []monitorField[catalog.ToolDef] {
+	return []monitorField[catalog.ToolDef]{
+		{"name", monitorSchemaString(), func(t catalog.ToolDef) interface{} { return t.Name }},
+		{"category", monitorSchemaString(), func(t catalog.ToolDef) interface{} { return t.Category }},
+		{"visibility", monitorSchemaString(), func(t catalog.ToolDef) interface{} { return t.Visibility }},
+		{"emits", monitorSchemaArray(monitorSchemaString()), func(t catalog.ToolDef) interface{} { return t.Emits }},
+		{"metrics", metricConfigSchema(), func(t catalog.ToolDef) interface{} { return metricConfigView(t.Metrics) }},
+		{"relationships", relationshipSchema(), func(t catalog.ToolDef) interface{} { return t.Relationships }},
+	}
+}
+
+func sampleFields() []monitorField[monitor.MetricSample] {
+	return []monitorField[monitor.MetricSample]{
+		{"name", monitorSchemaString(), func(s monitor.MetricSample) interface{} { return s.Name }},
+		{"kind", monitorSchemaString(), func(s monitor.MetricSample) interface{} { return s.Kind }},
+		{"unit", monitorSchemaString(), func(s monitor.MetricSample) interface{} { return s.Unit }},
+		{"description", monitorSchemaString(), func(s monitor.MetricSample) interface{} { return s.Description }},
+		{"value", monitorSchemaNumber(), func(s monitor.MetricSample) interface{} { return s.Value }},
+		{"tool_name", monitorSchemaString(), func(s monitor.MetricSample) interface{} { return s.ToolName }},
+		{"run_id", monitorSchemaString(), func(s monitor.MetricSample) interface{} { return s.RunID }},
+		{"state", monitorSchemaString(), func(s monitor.MetricSample) interface{} { return s.State }},
+		{"signal", monitorSchemaString(), func(s monitor.MetricSample) interface{} { return s.Signal }},
+		{"status", monitorSchemaString(), func(s monitor.MetricSample) interface{} { return s.Status }},
+		{"attributes", monitorSchemaMap(monitorSchemaString()), func(s monitor.MetricSample) interface{} { return safeLabels(s.Attributes) }},
+		{"timestamp", monitorSchemaDateTime(), func(s monitor.MetricSample) interface{} { return s.Timestamp }},
+	}
+}
+
+func runEventFields() []monitorField[monitor.RunEvent] {
+	return []monitorField[monitor.RunEvent]{
+		{"iteration", monitorSchemaInteger(), func(e monitor.RunEvent) interface{} { return e.Iteration }},
+		{"timestamp", monitorSchemaDateTime(), func(e monitor.RunEvent) interface{} { return e.Timestamp }},
+		{"command_name", monitorSchemaString(), func(e monitor.RunEvent) interface{} { return e.CommandName }},
+		{"signal", monitorSchemaString(), func(e monitor.RunEvent) interface{} { return e.Signal }},
+		{"from_state", monitorSchemaString(), func(e monitor.RunEvent) interface{} { return e.FromState }},
+		{"to_state", monitorSchemaString(), func(e monitor.RunEvent) interface{} { return e.ToState }},
+		{"duration_ms", monitorSchemaNumber(), func(e monitor.RunEvent) interface{} { return e.Duration.Milliseconds() }},
+		{"tokens_in", monitorSchemaInteger(), func(e monitor.RunEvent) interface{} { return e.TokensIn }},
+		{"tokens_out", monitorSchemaInteger(), func(e monitor.RunEvent) interface{} { return e.TokensOut }},
+	}
+}
+
+func diagnosticFields() []monitorField[monitor.Diagnostic] {
+	return []monitorField[monitor.Diagnostic]{
+		{"stage", monitorSchemaString(), func(d monitor.Diagnostic) interface{} { return d.Stage }},
+		{"message", monitorSchemaString(), func(d monitor.Diagnostic) interface{} { return d.Message }},
+		{"metric", monitorSchemaString(), func(d monitor.Diagnostic) interface{} { return d.Metric }},
+		{"tool_name", monitorSchemaString(), func(d monitor.Diagnostic) interface{} { return d.ToolName }},
+		{"timestamp", monitorSchemaDateTime(), func(d monitor.Diagnostic) interface{} { return d.Timestamp }},
+	}
+}
+
+func recentErrorFields() []monitorField[monitor.RecentError] {
+	return []monitorField[monitor.RecentError]{
+		{"stage", monitorSchemaString(), func(e monitor.RecentError) interface{} { return e.Stage }},
+		{"message", monitorSchemaString(), func(e monitor.RecentError) interface{} { return e.Message }},
+		{"command_name", monitorSchemaString(), func(e monitor.RecentError) interface{} { return e.CommandName }},
+		{"timestamp", monitorSchemaDateTime(), func(e monitor.RecentError) interface{} { return e.Timestamp }},
+	}
+}
+
+func toolAggregateFields() []monitorField[monitor.ToolAggregate] {
+	return []monitorField[monitor.ToolAggregate]{
+		{"tool_name", monitorSchemaString(), func(a monitor.ToolAggregate) interface{} { return a.ToolName }},
+		{"dispatches", monitorSchemaInteger(), func(a monitor.ToolAggregate) interface{} { return a.Dispatches }},
+		{"successes", monitorSchemaInteger(), func(a monitor.ToolAggregate) interface{} { return a.Successes }},
+		{"failures", monitorSchemaInteger(), func(a monitor.ToolAggregate) interface{} { return a.Failures }},
+		{"samples", monitorSchemaInteger(), func(a monitor.ToolAggregate) interface{} { return a.Samples }},
+		{"total_duration_ms", monitorSchemaNumber(), func(a monitor.ToolAggregate) interface{} { return a.TotalDuration.Milliseconds() }},
+		{"last_signal", monitorSchemaString(), func(a monitor.ToolAggregate) interface{} { return a.LastSignal }},
+		{"last_status", monitorSchemaString(), func(a monitor.ToolAggregate) interface{} { return a.LastStatus }},
+		{"updated_at", monitorSchemaDateTime(), func(a monitor.ToolAggregate) interface{} { return a.UpdatedAt }},
+	}
+}
+
+func metricAggregateFields() []monitorField[monitor.MetricAggregate] {
+	return []monitorField[monitor.MetricAggregate]{
+		{"name", monitorSchemaString(), func(a monitor.MetricAggregate) interface{} { return a.Name }},
+		{"kind", monitorSchemaString(), func(a monitor.MetricAggregate) interface{} { return a.Kind }},
+		{"unit", monitorSchemaString(), func(a monitor.MetricAggregate) interface{} { return a.Unit }},
+		{"count", monitorSchemaInteger(), func(a monitor.MetricAggregate) interface{} { return a.Count }},
+		{"sum", monitorSchemaNumber(), func(a monitor.MetricAggregate) interface{} { return a.Sum }},
+		{"min", monitorSchemaNumber(), func(a monitor.MetricAggregate) interface{} { return a.Min }},
+		{"max", monitorSchemaNumber(), func(a monitor.MetricAggregate) interface{} { return a.Max }},
+		{"last_value", monitorSchemaNumber(), func(a monitor.MetricAggregate) interface{} { return a.LastValue }},
+		{"updated_at", monitorSchemaDateTime(), func(a monitor.MetricAggregate) interface{} { return a.UpdatedAt }},
+	}
+}
+
+func metricSchemaFields() []monitorField[monitor.MetricSchema] {
+	return []monitorField[monitor.MetricSchema]{
+		{"name", monitorSchemaString(), func(s monitor.MetricSchema) interface{} { return s.Name }},
+		{"kind", monitorSchemaString(), func(s monitor.MetricSchema) interface{} { return s.Kind }},
+		{"unit", monitorSchemaString(), func(s monitor.MetricSchema) interface{} { return s.Unit }},
+		{"description", monitorSchemaString(), func(s monitor.MetricSchema) interface{} { return s.Description }},
+		{"attributes", monitorSchemaArray(monitorSchemaString()), func(s monitor.MetricSchema) interface{} { return s.Attributes }},
+	}
+}
+
+func metricInstrumentFields() []monitorField[core.MetricInstrument] {
+	return []monitorField[core.MetricInstrument]{
+		{"name", monitorSchemaString(), func(i core.MetricInstrument) interface{} { return i.Name }},
+		{"kind", monitorSchemaString(), func(i core.MetricInstrument) interface{} { return i.Kind }},
+		{"unit", monitorSchemaString(), func(i core.MetricInstrument) interface{} { return i.Unit }},
+		{"description", monitorSchemaString(), func(i core.MetricInstrument) interface{} { return i.Description }},
+		{"value_source", monitorSchemaString(), func(i core.MetricInstrument) interface{} { return i.ValueSource }},
+		{"attributes", monitorSchemaArray(monitorSchemaString()), func(i core.MetricInstrument) interface{} { return i.Attributes }},
+		{"buckets", monitorSchemaArray(monitorSchemaNumber()), func(i core.MetricInstrument) interface{} { return i.Buckets }},
+	}
+}
+
+func metricAttributeFields() []monitorField[core.MetricAttribute] {
+	return []monitorField[core.MetricAttribute]{
+		{"name", monitorSchemaString(), func(a core.MetricAttribute) interface{} { return a.Name }},
+		{"source", monitorSchemaString(), func(a core.MetricAttribute) interface{} { return a.Source }},
+		{"cardinality", monitorSchemaString(), func(a core.MetricAttribute) interface{} { return a.Cardinality }},
+		{"allowed_values", monitorSchemaArray(monitorSchemaString()), func(a core.MetricAttribute) interface{} { return a.AllowedValues }},
+		{"redaction", monitorSchemaString(), func(a core.MetricAttribute) interface{} { return a.Redaction }},
+	}
 }
 
 func safeLabels(labels map[string]string) map[string]string {

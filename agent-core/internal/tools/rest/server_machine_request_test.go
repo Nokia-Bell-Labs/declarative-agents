@@ -261,13 +261,8 @@ func launchMachineRequestServerWithConfig(
 		server.Endpoints = endpoints[0]
 	}
 	def := ServerDefinition{Name: "machine", Server: server, MachineRequestRunner: nil}
-	result := ServerBuilder{
-		ToolName: "rest_server_launch", Init: InitServerLaunch, Server: def, State: state,
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
-	var output map[string]interface{}
-	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
-	return state, "http://" + output["address"].(string)
+	_, baseURL := launchRESTServerDefinition(t, state, def)
+	return state, baseURL
 }
 
 func launchMachineRequestServerWithRunner(
@@ -279,13 +274,8 @@ func launchMachineRequestServerWithRunner(
 	state := NewServerState()
 	server := machineRequestServer(cfg)
 	def := ServerDefinition{Name: "machine", Server: server, MachineRequestRunner: runner}
-	result := ServerBuilder{
-		ToolName: "rest_server_launch", Init: InitServerLaunch, Server: def, State: state,
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
-	var output map[string]interface{}
-	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
-	return state, "http://" + output["address"].(string)
+	_, baseURL := launchRESTServerDefinition(t, state, def)
+	return state, baseURL
 }
 
 func catchAllDocsEndpoint(cfg MachineRequest) map[string]Endpoint {
