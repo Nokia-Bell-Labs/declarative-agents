@@ -2,6 +2,7 @@ tools:
   - name: launch_monitor_rest
     type: builtin
     init: rest_server_launch
+    visibility: internal
     category: boundary
     description: Launch read-only REST endpoints for cached monitor state.
     problem: Operators need a profile-owned monitor reader that does not run tools or inspect prompts.
@@ -58,6 +59,7 @@ tools:
   - name: await_monitor_control
     type: builtin
     init: rest_await_event
+    visibility: internal
     category: boundary
     description: Await the monitor REST control exit event.
     problem: The monitor profile needs one grammar-visible wait word so cmd/agent stays alive while REST snapshots are served.
@@ -117,6 +119,7 @@ tools:
   - name: stop_monitor_rest
     type: builtin
     init: rest_server_stop
+    visibility: internal
     category: boundary
     description: Stop the owned monitor REST listener.
     problem: The monitor profile must release its background listener before reaching a success terminal state.
