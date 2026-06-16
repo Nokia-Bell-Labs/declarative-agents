@@ -25,7 +25,7 @@ func (r *serverRuntime) monitorOpenAPI() map[string]interface{} {
 func monitorEndpointOperation(name string, endpoint Endpoint) map[string]interface{} {
 	switch {
 	case endpoint.MonitorView != "" && endpoint.MonitorView != "openapi":
-		return monitorReadOperation(name, endpoint.MonitorView)
+		return monitorReadOperation(name, endpoint)
 	case monitorControlEndpoint(endpoint):
 		return monitorControlOperation(name, endpoint)
 	default:
@@ -33,10 +33,20 @@ func monitorEndpointOperation(name string, endpoint Endpoint) map[string]interfa
 	}
 }
 
-func monitorReadOperation(name, view string) map[string]interface{} {
+func monitorReadOperation(name string, endpoint Endpoint) map[string]interface{} {
+	if endpoint.Binding == bindingStreamEvents {
+		return monitorStreamOperation(name)
+	}
 	return map[string]interface{}{
 		"operationId": monitorOperationID(name),
-		"responses":   monitorResponses("200", "Cached monitor state", monitorResponseSchema(view)),
+		"responses":   monitorResponses("200", "Cached monitor state", monitorResponseSchema(endpoint.MonitorView)),
+	}
+}
+
+func monitorStreamOperation(name string) map[string]interface{} {
+	return map[string]interface{}{
+		"operationId": monitorOperationID(name),
+		"responses":   monitorStreamResponses(),
 	}
 }
 
@@ -80,6 +90,17 @@ func monitorResponses(status, description string, schema map[string]interface{})
 			"description": description,
 			"content": map[string]interface{}{
 				"application/json": map[string]interface{}{"schema": schema},
+			},
+		},
+	}
+}
+
+func monitorStreamResponses() map[string]interface{} {
+	return map[string]interface{}{
+		"200": map[string]interface{}{
+			"description": "Cached monitor event stream",
+			"content": map[string]interface{}{
+				"text/event-stream": map[string]interface{}{},
 			},
 		},
 	}
