@@ -7,29 +7,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/metric"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation/bench"
-	benchui "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation/bench/ui"
-	docsapi "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/knowledge/documentation"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/pipeline"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/control"
-	toolexec "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/exec"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/filesystem"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
 	toollm "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/llm"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	toolrest "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
@@ -48,8 +37,6 @@ var (
 	flagResumeCheckpoint string
 	flagResumeSignal     string
 )
-
-const defaultStateStoreDirName = ".agent-state"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -122,629 +109,311 @@ func (s *deferredShutdown) Apply() {
 }
 
 func run(cmd *cobra.Command, args []string) error {
+	prepared, err := prepareRun(cmd)
+	if err != nil {
+		return err
+	}
+	defer prepared.Close()
+	result, err := runOrResume(prepared.Config, resumeDeps{
+		Params: prepared.Params,
+		State:  prepared.State,
+		Ctx:    prepared.Ctx,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "terminal state: %s\n", result.Status)
+	prepared.Shutdown.Apply()
+	return nil
+}
+
+type preparedRun struct {
+	Config            runtimeConfig
+	Params            core.LoopParams
+	State             *agentState
+	Ctx               context.Context
+	Cancel            context.CancelFunc
+	Shutdown          *deferredShutdown
+	shutdownTelemetry func()
+}
+
+type runResources struct {
+	Config            runtimeConfig
+	Tracer            tracing.Tracer
+	Meter             metric.Meter
+	Definitions       []catalog.ToolDef
+	RestDefinitions   toolrest.Collection
+	Machine           core.MachineSpec
+	shutdownTelemetry func()
+}
+
+func (r preparedRun) Close() {
+	if r.Cancel != nil {
+		r.Cancel()
+	}
+	if r.shutdownTelemetry != nil {
+		r.shutdownTelemetry()
+	}
+}
+
+func prepareRun(cmd *cobra.Command) (preparedRun, error) {
+	resources, err := loadRunResources()
+	if err != nil {
+		return preparedRun{}, err
+	}
+	return buildPreparedRun(cmd, resources)
+}
+
+func loadRunResources() (runResources, error) {
 	cfg, err := loadRuntimeConfig()
 	if err != nil {
-		return err
+		return runResources{}, err
 	}
-
-	var tracer tracing.Tracer = tracing.NoopTracer{}
-	var meter metric.Meter
-	if cfg.OTelLog != "" {
-		parentCtx, _ := telemetry.ParseParentSpan(cfg.OTelParent)
-		exporter := telemetry.ExporterConfig{FilePath: cfg.OTelLog}
-		t, shutdown, err := telemetry.NewRoot("agent", "agent.run", exporter, parentCtx)
-		if err != nil {
-			return fmt.Errorf("otel init: %w", err)
-		}
-		defer shutdown()
-		meter = t.Meter()
-		tracer = telemetry.TraceAdapter{T: t}
+	tracer, meter, shutdownTelemetry, err := initRunTelemetry(cfg)
+	if err != nil {
+		return runResources{}, err
 	}
+	defs, restDefs, err := loadRuntimeDefinitions(cfg)
+	if err != nil {
+		shutdownTelemetry()
+		return runResources{}, err
+	}
+	machineSpec, err := core.LoadMachineSpec(cfg.Machine)
+	if err != nil {
+		shutdownTelemetry()
+		return runResources{}, fmt.Errorf("load machine spec for budget: %w", err)
+	}
+	if err := catalog.ValidateToolEmits(machineSpec, defs); err != nil {
+		shutdownTelemetry()
+		return runResources{}, err
+	}
+	return runResources{
+		Config: cfg, Tracer: tracer, Meter: meter, Definitions: defs,
+		RestDefinitions: restDefs, Machine: machineSpec,
+		shutdownTelemetry: shutdownTelemetry,
+	}, nil
+}
 
+func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, error) {
+	cfg := resources.Config
+	stateStore := resolveStateStore(resources.Config)
+	loopCtx, loopCancel := context.WithCancel(commandContext(cmd))
+	shutdown := newDeferredShutdown(loopCancel)
+	monitorRuntime := newMonitorRuntime(resources.Machine, resources.Definitions, resources.RestDefinitions, resources.Meter)
+	selectedInits := selectedBuiltinInits(resources.Definitions)
+	reg := core.NewRegistry()
+	builtins := toolregistry.NewBuiltinRegistry()
+	policy := parseErrorPolicy(resources.Machine, selectedInits)
+	st := newAgentState(cfg, agentStateDeps{
+		Registry:     reg,
+		Tracer:       resources.Tracer,
+		StateStore:   stateStore,
+		Ctx:          loopCtx,
+		Monitor:      monitorState(monitorRuntime.Store, &resources.Machine, resources.Definitions),
+		RestDefs:     resources.RestDefinitions,
+		shutdown:     shutdown.Request,
+		ParseRetries: policy.Retries,
+	})
+
+	registerBuiltinFactories(builtins, st, selectedInits)
+	if err := registerRuntimeTools(reg, builtins, cfg, resources.Definitions); err != nil {
+		loopCancel()
+		resources.shutdownTelemetry()
+		return preparedRun{}, fmt.Errorf("register tools: %w", err)
+	}
+	params := loopParams(cfg, loopParamDeps{
+		Machine: resources.Machine, State: st, Registry: reg, Tracer: resources.Tracer,
+		StateStore: stateStore, MonitorRecorder: monitorRuntime.Recorder,
+		AfterDispatch: policy.AfterDispatch,
+	})
+	return preparedRun{
+		Config: cfg, Params: params, State: st, Ctx: loopCtx,
+		Cancel: loopCancel, Shutdown: shutdown, shutdownTelemetry: resources.shutdownTelemetry,
+	}, nil
+}
+
+func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), error) {
+	if cfg.OTelLog == "" {
+		return tracing.NoopTracer{}, nil, func() {}, nil
+	}
+	parentCtx, _ := telemetry.ParseParentSpan(cfg.OTelParent)
+	exporter := telemetry.ExporterConfig{FilePath: cfg.OTelLog}
+	t, shutdown, err := telemetry.NewRoot("agent", "agent.run", exporter, parentCtx)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("otel init: %w", err)
+	}
+	return telemetry.TraceAdapter{T: t}, t.Meter(), shutdown, nil
+}
+
+func loadRuntimeDefinitions(cfg runtimeConfig) ([]catalog.ToolDef, toolrest.Collection, error) {
 	defs, err := loadProfileToolDefs(cfg)
 	if err != nil {
-		return err
+		return nil, toolrest.Collection{}, err
 	}
 	restDefs, err := toolrest.LoadDefinitions(cfg.RestDefinitions, cfg.RestConfigDirs)
 	if err != nil {
-		return fmt.Errorf("load REST definitions: %w", err)
+		return nil, toolrest.Collection{}, fmt.Errorf("load REST definitions: %w", err)
 	}
+	return defs, restDefs, nil
+}
 
-	conversation := llm.NewConversation(nil, "", llm.ChatOptions{})
-	tracker := validation.NewToolTracker()
-	stateStore := resolveStateStore(cfg)
-	loopCtx, loopCancel := context.WithCancel(commandContext(cmd))
-	defer loopCancel()
-	shutdown := newDeferredShutdown(loopCancel)
+type parsePolicy struct {
+	Retries       *toollm.ParseErrorRetryTracker
+	AfterDispatch func(core.Command, core.Result) core.Signal
+}
 
+func parseErrorPolicy(machine core.MachineSpec, selected map[string]bool) parsePolicy {
+	limit := parseErrorLimit(machine)
+	if limit == 0 {
+		return parsePolicy{}
+	}
+	if selected["report_parse_error"] {
+		return parsePolicy{Retries: &toollm.ParseErrorRetryTracker{MaxConsecutive: limit}}
+	}
+	return parsePolicy{AfterDispatch: toollm.ParseErrorPolicy(limit)}
+}
+
+func parseErrorLimit(machine core.MachineSpec) int {
+	if machine.BudgetSpec == nil {
+		return 0
+	}
+	return machine.BudgetSpec.MaxConsecutiveParseErrors
+}
+
+type agentStateDeps struct {
+	Registry     *core.Registry
+	Tracer       tracing.Tracer
+	StateStore   core.StateStore
+	Ctx          context.Context
+	Monitor      toolrest.MonitorState
+	RestDefs     toolrest.Collection
+	shutdown     func()
+	ParseRetries *toollm.ParseErrorRetryTracker
+}
+
+func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
+	return &agentState{
+		conversation: llm.NewConversation(nil, "", llm.ChatOptions{}),
+		tracker:      validation.NewToolTracker(),
+		registry:     deps.Registry,
+		tracer:       deps.Tracer,
+		parseRetries: deps.ParseRetries,
+		verbose:      cfg.VerboseTrace,
+		ctx:          deps.Ctx,
+		directory:    cfg.Directory,
+		request:      cfg.Request,
+		output:       cfg.Output,
+		stateStore:   deps.StateStore,
+		monitor:      deps.Monitor,
+		restDefs:     deps.RestDefs,
+		shutdown:     deps.shutdown,
+	}
+}
+
+func registerRuntimeTools(reg *core.Registry, builtins *toolregistry.BuiltinRegistry, cfg runtimeConfig, defs []catalog.ToolDef) error {
 	vars := map[string]string{
 		"directory": cfg.Directory,
 		"request":   cfg.Request,
 	}
+	return toolregistry.RegisterUnifiedTools(reg, builtins, cfg.Directory, defs, vars, execBuilder)
+}
 
-	machineSpec, err := core.LoadMachineSpec(cfg.Machine)
-	if err != nil {
-		return fmt.Errorf("load machine spec for budget: %w", err)
-	}
-	if err := catalog.ValidateToolEmits(machineSpec, defs); err != nil {
-		return err
-	}
-	monitorRuntime := newMonitorRuntime(machineSpec, defs, restDefs, meter)
-	budgetDefaults := core.Budget{
-		MaxIterations: 100,
-	}
-	budget := machineSpec.BudgetSpec.ToBudget(budgetDefaults)
+type loopParamDeps struct {
+	Machine         core.MachineSpec
+	State           *agentState
+	Registry        *core.Registry
+	Tracer          tracing.Tracer
+	StateStore      core.StateStore
+	MonitorRecorder monitor.RuntimeRecorder
+	AfterDispatch   func(core.Command, core.Result) core.Signal
+}
 
-	selectedInits := selectedBuiltinInits(defs)
-	parseErrorLimit := 0
-	if machineSpec.BudgetSpec != nil {
-		parseErrorLimit = machineSpec.BudgetSpec.MaxConsecutiveParseErrors
+func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
+	toolAction := toolregistry.BuildDynamicToolAction(toolregistry.DynamicToolActionDeps{
+		Registry: deps.Registry,
+		Tracker:  deps.State.tracker,
+		Tracer:   deps.Tracer,
+		Verbose:  cfg.VerboseTrace,
+	})
+	return core.LoopParams{
+		MachineFile:     cfg.Machine,
+		MachineSpec:     &deps.Machine,
+		AgentName:       "agent",
+		ModelName:       deps.State.model,
+		ProviderName:    deps.State.providerName,
+		Trace:           deps.Tracer,
+		Budget:          runBudget(deps.Machine, deps.State),
+		ToolAction:      toolAction,
+		Registry:        deps.Registry,
+		Directory:       cfg.Directory,
+		StateStore:      deps.StateStore,
+		MonitorRecorder: deps.MonitorRecorder,
+		Hooks: core.LoopHooks{
+			AfterDispatch:        deps.AfterDispatch,
+			SnapshotConversation: deps.State.snapshotConversation,
+		},
 	}
-	var parseRetries *toollm.ParseErrorRetryTracker
-	var afterDispatch func(core.Command, core.Result) core.Signal
-	if parseErrorLimit > 0 {
-		if selectedInits["report_parse_error"] {
-			parseRetries = &toollm.ParseErrorRetryTracker{MaxConsecutive: parseErrorLimit}
-		} else {
-			afterDispatch = toollm.ParseErrorPolicy(parseErrorLimit)
-		}
-	}
+}
 
-	reg := core.NewRegistry()
-	builtins := toolregistry.NewBuiltinRegistry()
-	st := &agentState{
-		conversation: conversation,
-		tracker:      tracker,
-		registry:     reg,
-		tracer:       tracer,
-		parseRetries: parseRetries,
-		verbose:      cfg.VerboseTrace,
-		ctx:          loopCtx,
-		directory:    cfg.Directory,
-		request:      cfg.Request,
-		output:       cfg.Output,
-		stateStore:   stateStore,
-		monitor:      monitorState(monitorRuntime.Store, &machineSpec, defs),
-		restDefs:     restDefs,
-		shutdown:     shutdown.Request,
-	}
-
-	registerBuiltinFactories(builtins, st, selectedInits)
-
-	if err := toolregistry.RegisterUnifiedTools(reg, builtins, cfg.Directory, defs, vars, execBuilder); err != nil {
-		return fmt.Errorf("register tools: %w", err)
-	}
+func runBudget(machine core.MachineSpec, st *agentState) core.Budget {
+	budget := machine.BudgetSpec.ToBudget(defaultRunBudget())
 	if st.maxDuration > 0 {
 		budget.MaxDuration = st.maxDuration
 	}
 	if st.maxTokens > 0 {
 		budget.MaxTokens = st.maxTokens
 	}
+	return budget
+}
 
-	toolAction := toolregistry.BuildDynamicToolAction(toolregistry.DynamicToolActionDeps{
-		Registry: reg,
-		Tracker:  tracker,
-		Tracer:   tracer,
-		Verbose:  cfg.VerboseTrace,
-	})
+func defaultRunBudget() core.Budget {
+	return core.Budget{MaxIterations: 100}
+}
 
-	params := core.LoopParams{
-		MachineFile:     cfg.Machine,
-		MachineSpec:     &machineSpec,
-		AgentName:       "agent",
-		ModelName:       st.model,
-		ProviderName:    st.providerName,
-		Trace:           tracer,
-		Budget:          budget,
-		ToolAction:      toolAction,
-		Registry:        reg,
-		Directory:       cfg.Directory,
-		StateStore:      stateStore,
-		MonitorRecorder: monitorRuntime.Recorder,
-		Hooks: core.LoopHooks{
-			AfterDispatch: afterDispatch,
-			SnapshotConversation: func() (json.RawMessage, error) {
-				return json.Marshal(conversation.Snapshot())
-			},
-		},
-	}
+func (st *agentState) snapshotConversation() (json.RawMessage, error) {
+	return json.Marshal(st.conversation.Snapshot())
+}
 
-	var result core.RunResult
-	if cfg.ResumeCheckpoint != "" {
-		if stateStore == nil {
-			return fmt.Errorf("--resume-checkpoint requires --directory or --state-store-dir")
-		}
-		resumeResult, err := core.ResumeFromCheckpoint(core.ResumeOptions{
-			Store:        stateStore,
-			CheckpointID: cfg.ResumeCheckpoint,
-			Params:       params,
-			ResumeSignal: core.Signal(cfg.ResumeSignal),
-			RestoreConversation: func(data json.RawMessage) error {
-				var messages []llm.Message
-				if err := json.Unmarshal(data, &messages); err != nil {
-					return err
-				}
-				conversation.Restore(messages)
-				return nil
-			},
-			Ctx: loopCtx,
-		})
+type resumeDeps struct {
+	Params core.LoopParams
+	State  *agentState
+	Ctx    context.Context
+}
+
+func runOrResume(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
+	if cfg.ResumeCheckpoint == "" {
+		result, err := core.Loop(deps.Params, deps.Ctx)
 		if err != nil {
-			return fmt.Errorf("resume: %w", err)
+			return core.RunResult{}, fmt.Errorf("loop: %w", err)
 		}
-		result = resumeResult.Run
-	} else {
-		result, err = core.Loop(params, loopCtx)
+		return result, nil
 	}
-	if err != nil {
-		return fmt.Errorf("loop: %w", err)
-	}
+	return resumeRun(cfg, deps)
+}
 
-	fmt.Fprintf(os.Stderr, "terminal state: %s\n", result.Status)
-	shutdown.Apply()
+func resumeRun(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
+	if deps.State.stateStore == nil {
+		return core.RunResult{}, fmt.Errorf("--resume-checkpoint requires --directory or --state-store-dir")
+	}
+	result, err := core.ResumeFromCheckpoint(core.ResumeOptions{
+		Store:               deps.State.stateStore,
+		CheckpointID:        cfg.ResumeCheckpoint,
+		Params:              deps.Params,
+		ResumeSignal:        core.Signal(cfg.ResumeSignal),
+		RestoreConversation: deps.State.restoreConversation,
+		Ctx:                 deps.Ctx,
+	})
+	if err != nil {
+		return core.RunResult{}, fmt.Errorf("resume: %w", err)
+	}
+	return result.Run, nil
+}
+
+func (st *agentState) restoreConversation(data json.RawMessage) error {
+	var messages []llm.Message
+	if err := json.Unmarshal(data, &messages); err != nil {
+		return err
+	}
+	st.conversation.Restore(messages)
 	return nil
-}
-
-type runtimeConfig struct {
-	Machine          string
-	Tools            []string
-	ToolDeclarations []string
-	ToolConfigDirs   []string
-	RestDefinitions  []string
-	RestConfigDirs   []string
-	Directory        string
-	Request          string
-	Output           string
-	OTelLog          string
-	OTelParent       string
-	VerboseTrace     bool
-	StateStoreDir    string
-	ResumeCheckpoint string
-	ResumeSignal     string
-}
-
-func loadRuntimeConfig() (runtimeConfig, error) {
-	if flagProfile == "" {
-		return runtimeConfig{}, fmt.Errorf("--profile is required")
-	}
-	p, err := catalog.LoadProfile(flagProfile)
-	if err != nil {
-		return runtimeConfig{}, fmt.Errorf("load profile: %w", err)
-	}
-	directory := flagDirectory
-	if directory == "" {
-		directory = p.Directory
-	}
-	return runtimeConfig{
-		Machine:          p.Machine,
-		Tools:            append([]string(nil), p.Tools...),
-		ToolDeclarations: append([]string(nil), p.ToolDeclarations...),
-		ToolConfigDirs:   append([]string(nil), p.ToolConfigDirs...),
-		RestDefinitions:  append([]string(nil), p.RestDefinitions...),
-		RestConfigDirs:   append([]string(nil), p.RestConfigDirs...),
-		Directory:        directory,
-		Request:          flagRequest,
-		Output:           flagOutput,
-		OTelLog:          flagOTelLog,
-		OTelParent:       flagOTelParent,
-		VerboseTrace:     flagVerboseTrace,
-		StateStoreDir:    flagStateStoreDir,
-		ResumeCheckpoint: flagResumeCheckpoint,
-		ResumeSignal:     flagResumeSignal,
-	}, nil
-}
-
-func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
-	declarations, err := catalog.LoadToolDeclarationsFromDirs(cfg.ToolConfigDirs)
-	if err != nil {
-		return nil, fmt.Errorf("load tool config dirs: %w", err)
-	}
-	explicit, err := catalog.LoadToolDeclarations(cfg.ToolDeclarations)
-	if err != nil {
-		return nil, fmt.Errorf("load tool declarations: %w", err)
-	}
-	selection, err := catalog.LoadToolSelections(cfg.Tools)
-	if err != nil {
-		return nil, fmt.Errorf("load tool selection: %w", err)
-	}
-	defs, err := catalog.SelectTools(catalog.MergeToolDefs(declarations, explicit), selection)
-	if err != nil {
-		return nil, fmt.Errorf("select tools: %w", err)
-	}
-	return defs, nil
-}
-
-func resolveStateStore(cfg runtimeConfig) core.StateStore {
-	root := resolveStateStoreRoot(cfg)
-	if root == "" {
-		return nil
-	}
-	return core.NewFileStore(root)
-}
-
-func resolveStateStoreRoot(cfg runtimeConfig) string {
-	if cfg.StateStoreDir != "" {
-		return cfg.StateStoreDir
-	}
-	if cfg.Directory != "" {
-		return filepath.Join(cfg.Directory, defaultStateStoreDirName)
-	}
-	return ""
-}
-
-type monitorRuntime struct {
-	Store    *monitor.Store
-	Recorder monitor.RuntimeRecorder
-}
-
-func newMonitorRuntime(
-	machine core.MachineSpec,
-	defs []catalog.ToolDef,
-	restDefs toolrest.Collection,
-	meter metric.Meter,
-) monitorRuntime {
-	if !monitorConfigured(machine, defs, restDefs) {
-		return monitorRuntime{}
-	}
-	store := monitor.NewStore(monitor.Limits{})
-	return monitorRuntime{Store: store, Recorder: monitor.NewRecorder(store, meter)}
-}
-
-func monitorState(store *monitor.Store, machine *core.MachineSpec, defs []catalog.ToolDef) toolrest.MonitorState {
-	if store == nil {
-		return toolrest.MonitorState{}
-	}
-	return toolrest.MonitorState{Store: store, Machine: machine, Tools: defs}
-}
-
-func monitorConfigured(machine core.MachineSpec, defs []catalog.ToolDef, restDefs toolrest.Collection) bool {
-	if len(machine.MetricLabels) > 0 || transitionsHaveMetricLabels(machine.Transitions) {
-		return true
-	}
-	for _, def := range defs {
-		if len(def.Metrics.Instruments) > 0 || len(def.Metrics.Attributes) > 0 || def.Metrics.Disabled {
-			return true
-		}
-	}
-	return restDefinitionsHaveMonitorViews(restDefs)
-}
-
-func transitionsHaveMetricLabels(transitions []core.TransitionSpec) bool {
-	for _, transition := range transitions {
-		if len(transition.MetricLabels) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func restDefinitionsHaveMonitorViews(defs toolrest.Collection) bool {
-	for _, server := range defs.Servers {
-		for _, endpoint := range server.Endpoints {
-			if endpoint.MonitorView != "" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func commandContext(cmd *cobra.Command) context.Context {
-	if ctx := cmd.Context(); ctx != nil {
-		return ctx
-	}
-	return context.Background()
-}
-
-func selectedBuiltinInits(defs []catalog.ToolDef) map[string]bool {
-	return toolregistry.SelectedBuiltinInits(defs)
-}
-
-func execBuilder(def catalog.ToolDef, root string) core.Builder {
-	return &toolexec.ExecBuilder{Def: def, Root: root}
-}
-
-func registerBuiltinFactories(br *toolregistry.BuiltinRegistry, st *agentState, selected map[string]bool) {
-	toolregistry.RegisterStandardBuiltinFactories(br, selected, standardFactoryDeps(st))
-}
-
-type builtinFactoryCatalogEntry struct {
-	Name  string
-	Inits []string
-}
-
-func (e builtinFactoryCatalogEntry) selectedBy(selected map[string]bool) bool {
-	return toolregistry.StandardFactoryCatalogEntry{Name: e.Name, Inits: e.Inits}.SelectedBy(selected)
-}
-
-func builtinFactoryCatalog(st *agentState) []builtinFactoryCatalogEntry {
-	entries := toolregistry.StandardFactoryCatalog(standardFactoryDeps(st))
-	out := make([]builtinFactoryCatalogEntry, 0, len(entries))
-	for _, entry := range entries {
-		out = append(out, builtinFactoryCatalogEntry{Name: entry.Name, Inits: entry.Inits})
-	}
-	return out
-}
-
-func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
-	return toolregistry.StandardFactoryDeps{
-		RegisterFilesystem:     registerFilesystemFactories(),
-		RegisterLLM:            registerLLMFactories(st),
-		RegisterLifecycle:      registerLifecycleFactories(st),
-		RegisterValidation:     registerValidationFactory(st),
-		RegisterControl:        registerControlFactories(st),
-		RegisterPlanning:       registerPlanningFactories(st),
-		RegisterEvaluation:     registerEvaluationFactories(st),
-		RegisterBench:          registerBenchFactories(),
-		RegisterSpecValidation: registerSpecValidationFactories(st),
-		RegisterREST:           registerRESTFactories(st),
-		RegisterDocumentation:  registerDocumentationFactories(),
-	}
-}
-
-func registerFilesystemFactories() toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		fileFactories := []struct {
-			init    string
-			builder func(string, core.MetricConfig) core.Builder
-		}{
-			{"file_read", func(root string, metrics core.MetricConfig) core.Builder {
-				return &filesystem.ReadBuilder{Root: root, Metrics: metrics}
-			}},
-			{"file_write", func(root string, metrics core.MetricConfig) core.Builder {
-				return &filesystem.WriteBuilder{Root: root, Metrics: metrics}
-			}},
-			{"file_edit", func(root string, metrics core.MetricConfig) core.Builder {
-				return &filesystem.EditBuilder{Root: root, Metrics: metrics}
-			}},
-			{"file_find", func(root string, _ core.MetricConfig) core.Builder { return &filesystem.FindBuilder{Root: root} }},
-			{"file_list", func(root string, _ core.MetricConfig) core.Builder { return &filesystem.ListFilesBuilder{Root: root} }},
-		}
-		for _, entry := range fileFactories {
-			registerFileFactory(br, entry.init, entry.builder)
-		}
-		registerResourceFactories(br)
-	}
-}
-
-func registerFileFactory(br *toolregistry.BuiltinRegistry, init string, builder func(string, core.MetricConfig) core.Builder) {
-	br.Register(init, func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return builder(vars["directory"], def.Metrics), nil
-	})
-}
-
-func registerResourceFactories(br *toolregistry.BuiltinRegistry) {
-	br.Register("list_resource", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		cfg, err := resourceConfig(def)
-		if err != nil {
-			return nil, err
-		}
-		return &filesystem.ListResourceBuilder{Root: vars["directory"], Resources: cfg}, nil
-	})
-	br.Register("read_resource", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		cfg, err := resourceConfig(def)
-		if err != nil {
-			return nil, err
-		}
-		return &filesystem.ReadResourceBuilder{Root: vars["directory"], Resources: cfg}, nil
-	})
-}
-
-func resourceConfig(def catalog.ToolDef) (filesystem.ResourceConfig, error) {
-	var cfg filesystem.ResourceConfig
-	if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-		return filesystem.ResourceConfig{}, err
-	}
-	return cfg, nil
-}
-
-func registerLLMFactories(st *agentState) toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		br.Register("invoke_llm", invokeLLMFactory(st))
-		br.Register("parse_response", parseResponseFactory(st))
-		br.Register("report_parse_error", reportParseErrorFactory(st))
-		br.Register("reset_history", resetHistoryFactory(st))
-		br.Register("nudge_reread", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &control.NudgeRereadBuilder{Tracer: st.tracer}, nil
-		})
-		br.Register("done", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-			return control.DoneBuilder{}, nil
-		})
-	}
-}
-
-func invokeLLMFactory(st *agentState) toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return toollm.NewInvokeLLMBuilder(def, toollm.InvokeLLMFactoryDeps{
-			History:    st.conversation,
-			Registry:   st.registry,
-			Tracer:     st.tracer,
-			Verbose:    st.verbose,
-			Ctx:        st.ctx,
-			OnResolved: onModelResolved(st),
-		})
-	}
-}
-
-func onModelResolved(st *agentState) func(toollm.InvokeLLMResolvedConfig) {
-	return func(cfg toollm.InvokeLLMResolvedConfig) {
-		st.parser = cfg.Parser
-		st.model = cfg.Model
-		st.providerName = cfg.ProviderName
-		st.maxDuration = cfg.MaxTime
-		st.maxTokens = cfg.MaxTokens
-	}
-}
-
-func parseResponseFactory(st *agentState) toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &toollm.ParseResponseBuilder{
-			Registry: st.registry,
-			Parser:   st.parser,
-			Tracer:   st.tracer,
-			Verbose:  st.verbose,
-			Retry:    st.parseRetries,
-		}, nil
-	}
-}
-
-func reportParseErrorFactory(st *agentState) toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &toollm.ReportParseErrorBuilder{Tracer: st.tracer, Retry: st.parseRetries}, nil
-	}
-}
-
-func resetHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &toollm.ResetHistoryBuilder{History: st.conversation, Tracer: st.tracer}, nil
-	}
-}
-
-func registerLifecycleFactories(st *agentState) toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		lifecycle.RegisterFactories(br, lifecycle.FactoryDeps{
-			StateStore: st.stateStore, Tracer: st.tracer, Shutdown: st.shutdown,
-		})
-		br.Register("checkpoint_history", checkpointHistoryFactory(st))
-		br.Register("checkpoint_rollback", checkpointRollbackFactory(st))
-	}
-}
-
-func checkpointHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var cfg catalog.CheckpointHistoryConfig
-		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-			return nil, err
-		}
-		return &lifecycle.CheckpointHistoryBuilder{Config: cfg, StateStore: st.stateStore, Ctx: st.ctx}, nil
-	}
-}
-
-func checkpointRollbackFactory(st *agentState) toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var cfg catalog.CheckpointRollbackConfig
-		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-			return nil, err
-		}
-		return &lifecycle.CheckpointRollbackBuilder{Config: cfg, StateStore: st.stateStore, Directory: st.directory, Tracer: st.tracer, Ctx: st.ctx}, nil
-	}
-}
-
-func registerValidationFactory(st *agentState) toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		br.Register("validate", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &validation.ValidateBuilder{Tracker: st.tracker, Registry: st.registry, Tracer: st.tracer, Verbose: st.verbose}, nil
-		})
-	}
-}
-
-func registerControlFactories(st *agentState) toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		br.Register("self_invoke", selfInvokeFactory(st))
-	}
-}
-
-func selfInvokeFactory(st *agentState) toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		parsed, err := decodeChildAgent(def)
-		if err != nil {
-			return nil, err
-		}
-		return &control.SelfInvokeBuilder{
-			Config:    childExecuteConfig(parsed),
-			ExtraArgs: directoryArgs(vars["directory"]),
-			Ctx:       st.ctx,
-			Tracer:    st.tracer,
-		}, nil
-	}
-}
-
-func decodeChildAgent(def catalog.ToolDef) (catalog.ChildAgentConfig, error) {
-	var parsed catalog.ChildAgentConfig
-	if err := catalog.DecodeToolConfig(def, &parsed); err != nil {
-		return catalog.ChildAgentConfig{}, err
-	}
-	if err := catalog.ValidateChildAgentConfig(def.Name, parsed); err != nil {
-		return catalog.ChildAgentConfig{}, err
-	}
-	return parsed, nil
-}
-
-func childExecuteConfig(parsed catalog.ChildAgentConfig) execute.Config {
-	return execute.Config{
-		Profile: parsed.Profile,
-	}
-}
-
-func directoryArgs(directory string) []string {
-	if directory == "" {
-		return nil
-	}
-	return []string{"--directory", directory}
-}
-
-func registerSpecValidationFactories(st *agentState) toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		validation.RegisterSpecFactories(br, st.directory)
-	}
-}
-
-func registerPlanningFactories(st *agentState) toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		pipeline.RegisterFactories(br, pipeline.FactoryDeps{
-			Directory: st.directory,
-			Tracer:    st.tracer,
-			Ctx:       st.ctx,
-		})
-	}
-}
-
-func registerEvaluationFactories(st *agentState) toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		evaluation.RegisterEvalFactories(br, evaluation.EvalFactoryDeps{
-			Ctx:       st.ctx,
-			Registry:  st.registry,
-			Stderr:    os.Stderr,
-			SuitePath: st.request,
-			OutputDir: st.output,
-		})
-	}
-}
-
-func registerBenchFactories() toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		bench.RegisterFactories(br, benchui.Assets())
-	}
-}
-
-func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		toolrest.RegisterFactories(br, toolrest.FactoryDeps{
-			Definitions:        st.restDefs,
-			MachineRunner:      profileMachineRequestRunner(st),
-			Monitor:            st.monitor,
-			CredentialResolver: toolrest.EmptyCredentialResolver{},
-		})
-	}
-}
-
-func profileMachineRequestRunner(st *agentState) toolrest.MachineRequestRunner {
-	return toolrest.NewProfileMachineRequestRunner(toolrest.ProfileMachineRequestRunnerDeps{
-		BaseDir:   filepath.Dir(flagProfile),
-		Directory: st.directory,
-		Vars: map[string]string{
-			"directory": st.directory,
-			"request":   st.request,
-		},
-		RegisterBuiltins: func(br *toolregistry.BuiltinRegistry, selected map[string]bool) {
-			registerBuiltinFactories(br, st, selected)
-		},
-		ExecBuilder: execBuilder,
-	})
-}
-
-func registerDocumentationFactories() toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		docsapi.RegisterFactories(br)
-	}
 }

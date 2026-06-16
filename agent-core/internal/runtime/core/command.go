@@ -1,9 +1,7 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-// Package core provides the generic agentic loop engine: a state
-// machine, command dispatch, tool registry, budget tracking, and
-// tracing. Domain-specific agents import core and supply their own
-// states, signals, tools, and transition tables.
+// Package core provides the generic agentic loop engine: a state machine,
+// command dispatch, tool registry, budget tracking, and tracing.
 package core
 
 import (
@@ -85,9 +83,7 @@ type Cost struct {
 	Dollars   float64       `json:"dollars"`
 }
 
-// ToolMetrics carries structured success/failure counts for a tool
-// invocation, enabling the evaluator to track tool progression
-// (e.g. "5 tests failing → 2 → 0") without parsing free text.
+// ToolMetrics carries structured success/failure counts for a tool invocation.
 type ToolMetrics struct {
 	Total   int            `json:"total"`
 	Passed  int            `json:"passed"`
@@ -106,9 +102,7 @@ type Result struct {
 }
 
 // SpanOverride allows Commands to customize the Dispatch span name and
-// creation-time attributes. Without it, Dispatch defaults to semconv
-// execute_tool naming. LLM commands implement this to emit inference
-// (chat) spans instead.
+// creation-time attributes.
 type SpanOverride interface {
 	SpanName() string
 	SpanCreationAttrs() []attribute.KeyValue
