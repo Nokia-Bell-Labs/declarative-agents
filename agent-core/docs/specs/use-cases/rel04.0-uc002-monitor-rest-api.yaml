@@ -29,6 +29,8 @@ summary: |
   lower_snake_case API fields. Metric samples include the same runtime envelope
   for dispatch and tool-owned specialized metrics: run_id, state, signal,
   status, tool_name, and trusted workflow labels where present.
+  The OpenAPI schema uses precise JSON Schema types for these fields. It does
+  not hide scalar fields behind generic object schemas.
 
 actor: Supervisor reading a running agent
 
@@ -46,15 +48,16 @@ flow:
   - F7: The supervisor requests per-tool metrics and aggregate metrics.
   - F8: The supervisor requests recent events or opens the configured event stream.
   - F9: The supervisor requests OpenAPI and sees monitor read routes plus the configured control exit route.
-  - F10: Handlers return lower_snake_case fields and runtime envelopes on metric samples.
-  - F11: Handlers read cached monitor snapshots and apply redaction rules.
-  - F12: A configured control exit request stops the owned listener and routes the machine to Done or Succeeded.
-  - F13: Handler failure returns a structured REST error and does not change command or machine state.
+  - F10: The OpenAPI document describes /monitor/state, /monitor/metrics, /monitor/events, and /monitor/control/exit with type-accurate schemas.
+  - F11: Handlers return lower_snake_case fields and runtime envelopes on metric samples.
+  - F12: Handlers read cached monitor snapshots and apply redaction rules.
+  - F13: A configured control exit request stops the owned listener and routes the machine to Done or Succeeded.
+  - F14: Handler failure returns a structured REST error and does not change command or machine state.
 
 touchpoints:
   - T1: "srd033-monitor-rest-api R1.1, R1.2, R1.3, R1.4, R1.5 -- read-only API scope and profile-owned REST authority"
-  - T2: "srd033-monitor-rest-api R2.1, R2.2, R2.3, R2.4, R2.5, R2.6 -- OpenAPI endpoint and control-route documentation"
-  - T3: "srd033-monitor-rest-api R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8 -- monitor snapshot endpoints, response field shape, and metric sample envelope"
+  - T2: "srd033-monitor-rest-api R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11 -- OpenAPI endpoint, control-route, redaction, and precise schema documentation"
+  - T3: "srd033-monitor-rest-api R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10, R3.11, R3.12 -- monitor snapshot endpoints, response field shape, OpenAPI schema shape, and metric sample envelope"
   - T4: "srd033-monitor-rest-api R4.1, R4.2, R4.3, R4.4, R4.5 -- event stream reads"
   - T5: "srd033-monitor-rest-api R5.1, R5.2, R5.3, R5.4, R5.5 -- redaction and failure behavior"
   - T6: "srd029-rest-server-tools R5.3, R5.5, R5.6, R5.7 -- read_state, stream_events, health, and static_metadata endpoint kinds"
@@ -68,11 +71,11 @@ success_criteria:
     traces:
       - srd033-monitor-rest-api AC1
   - id: S2
-    criterion: OpenAPI output documents every configured monitor read endpoint and profile-owned control endpoint without exposing secret or prompt data.
+    criterion: OpenAPI output documents every configured monitor read endpoint and profile-owned control endpoint without exposing secret or prompt data, and it uses precise JSON Schema types for runtime payload fields.
     traces:
       - srd033-monitor-rest-api AC2
   - id: S3
-    criterion: Snapshot endpoints expose machine, tool, metric, aggregate, and recent-event views from the monitor store with lower_snake_case fields and runtime envelopes on metric samples.
+    criterion: Snapshot endpoints expose machine, tool, metric, aggregate, and recent-event views from the monitor store with lower_snake_case fields, matching OpenAPI schemas, and runtime envelopes on metric samples.
     traces:
       - srd033-monitor-rest-api AC3
   - id: S4

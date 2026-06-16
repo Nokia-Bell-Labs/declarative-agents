@@ -220,11 +220,11 @@ test_cases:
     status: implemented
     description: |
       Inspect the configured OpenAPI document for monitor endpoints. Operation
-      IDs should be stable. Schemas should describe safe monitor responses and
-      omit prompt data or output data. They should also omit secret material,
-      workspace paths, and unbounded labels. The OpenAPI document should include
-      profile-owned lifecycle control endpoints such as POST
-      /monitor/control/exit.
+      IDs should be stable. Schemas should describe safe monitor responses with
+      precise JSON Schema types and omit prompt data or output data. They should
+      also omit secret material, workspace paths, and unbounded labels. The
+      OpenAPI document should include profile-owned lifecycle control endpoints
+      such as POST /monitor/control/exit.
     inputs:
       endpoints: [machine_spec, current_state, tool_metrics, aggregate_metrics, event_stream, control_exit]
     expected:
@@ -232,9 +232,40 @@ test_cases:
       unsafe_fields_absent: true
       control_exit_documented: true
       generated_go_server_code: false
+      lower_snake_case_schema_fields: true
+      shallow_all_object_scalar_schemas_absent: true
+      monitor_state_schema:
+        run_id: string
+        status: string
+        state: string
+        signal: string
+        iteration: integer
+        updated_at: string_date_time
+        diagnostics: array_of_objects
+        errors: array_of_objects
+      monitor_metrics_schema:
+        tools: object_map
+        metrics: object_map
+        schemas: object_map
+        recent_samples: array_of_objects
+        sample_value: number
+        timestamp: string_date_time
+      monitor_events_schema:
+        recent_events: array_of_objects
+        iteration: integer
+        duration_ms: number
+        tokens_in: integer
+        tokens_out: integer
+        timestamp: string_date_time
+      monitor_control_exit_schema:
+        request_reason: string
+        accepted: boolean
+        signal: string
     traces:
       - rel04.0-uc002-monitor-rest-api S2
+      - rel04.0-uc002-monitor-rest-api S3
       - srd033-monitor-rest-api AC2
+      - srd033-monitor-rest-api AC3
 
   - use_case: rel04.0-uc002-monitor-rest-api
     name: Monitor snapshot endpoints return configured views
@@ -259,6 +290,7 @@ test_cases:
       source_is_monitor_store: true
       lower_snake_case_fields: true
       go_struct_field_names_absent: [RunID, ToolName, UpdatedAt]
+      openapi_schema_matches_payload_fields: true
     traces:
       - rel04.0-uc002-monitor-rest-api S3
       - srd033-monitor-rest-api AC3
