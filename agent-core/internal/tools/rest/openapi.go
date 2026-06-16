@@ -21,6 +21,13 @@ type openAPIOperation struct {
 	operation *openapi3.Operation
 }
 
+type openAPIHTTPBinding struct {
+	method   string
+	path     string
+	request  RequestBinding
+	response ResponseMapping
+}
+
 // CompileOpenAPIImports loads OpenAPI imports into the internal REST model.
 func CompileOpenAPIImports(def *Definition, baseDir string) error {
 	if len(def.OpenAPI) == 0 {
@@ -220,11 +227,12 @@ func mergeOpenAPIOperation(
 }
 
 func mergeCompiledOperation(operation Operation, found openAPIOperation) Operation {
-	operation.Method = found.method
-	operation.Path = found.path
-	operation.Params = requestBindingFromOpenAPI(found.operation)
+	binding := httpBindingFromOpenAPI(found)
+	operation.Method = binding.method
+	operation.Path = binding.path
+	operation.Params = binding.request
 	if len(operation.Response.Schema) == 0 {
-		operation.Response.Schema = responseSchemaFromOpenAPI(found.operation)
+		operation.Response.Schema = binding.response.Schema
 	}
 	return operation
 }
@@ -274,10 +282,13 @@ func setBoundEndpoint(def *Definition, endpointName string, compiled Endpoint) e
 }
 
 func endpointFromOperation(operationID string, found openAPIOperation) Endpoint {
+	binding := httpBindingFromOpenAPI(found)
 	return Endpoint{
-		OpenAPIOperationID: operationID, Method: found.method, Path: found.path,
-		Request:  requestBindingFromOpenAPI(found.operation),
-		Response: ResponseMapping{Schema: responseSchemaFromOpenAPI(found.operation)},
+		OpenAPIOperationID: operationID,
+		Method:             binding.method,
+		Path:               binding.path,
+		Request:            binding.request,
+		Response:           binding.response,
 	}
 }
 
@@ -290,6 +301,15 @@ func mergeEndpointWithOpenAPI(endpoint Endpoint, compiled Endpoint) Endpoint {
 		endpoint.Response.Schema = compiled.Response.Schema
 	}
 	return endpoint
+}
+
+func httpBindingFromOpenAPI(found openAPIOperation) openAPIHTTPBinding {
+	return openAPIHTTPBinding{
+		method:   found.method,
+		path:     found.path,
+		request:  requestBindingFromOpenAPI(found.operation),
+		response: ResponseMapping{Schema: responseSchemaFromOpenAPI(found.operation)},
+	}
 }
 
 func requireOpenAPIOperation(name, operationID string, operations map[string]openAPIOperation) (openAPIOperation, error) {

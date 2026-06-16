@@ -359,6 +359,7 @@ func requirePositiveRestMetric(t *testing.T, samples []monitor.MetricSample, nam
 
 func runRESTMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []monitor.MetricSample {
 	t.Helper()
+	// Keep this fixture package-local so REST assertions name REST commands and signals.
 	store := monitor.NewStore(monitor.Limits{Samples: 10})
 	params := restMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
 	_, err := core.Loop(params, context.Background())

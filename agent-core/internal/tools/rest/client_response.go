@@ -40,7 +40,7 @@ func mapClientResponse(
 		return clientOperationError(commandName, "response_mapping", err, def), err
 	}
 	output := responseOutput(def, mapping, response, payload, attempts)
-	redactOutput(output, redactionSelectors(def, mapping))
+	redactClientOutput(output, clientRedactionSelectors(def, mapping))
 	return core.Result{
 		Signal: core.Signal(signal), CommandName: commandName,
 		Output:  jsonOutput(output),
@@ -182,40 +182,6 @@ func headerOutput(headers http.Header) map[string]interface{} {
 		output[strings.ToLower(name)] = values
 	}
 	return output
-}
-
-func redactionSelectors(def ClientOperationDefinition, mapping StatusMapping) []string {
-	responseMap := resolvedResponseMapping(def, mapping)
-	selectors := append([]string{}, responseMap.Redact...)
-	if def.Auth.Header != "" {
-		selectors = append(selectors, "headers."+strings.ToLower(def.Auth.Header))
-	}
-	if def.Auth.Query != "" {
-		selectors = append(selectors, "query."+def.Auth.Query)
-	}
-	return selectors
-}
-
-func redactOutput(output map[string]interface{}, selectors []string) {
-	for _, selector := range selectors {
-		switch {
-		case strings.HasPrefix(selector, "body."):
-			redactNested(output["body"], strings.TrimPrefix(selector, "body."))
-		case strings.HasPrefix(selector, "$."):
-			redactNested(output["body"], strings.TrimPrefix(selector, "$."))
-		case strings.HasPrefix(selector, "headers."):
-			redactNested(output["headers"], strings.TrimPrefix(selector, "headers."))
-		}
-	}
-}
-
-func redactNested(value interface{}, field string) {
-	values, ok := value.(map[string]interface{})
-	if !ok || field == "" {
-		return
-	}
-	values[strings.ToLower(field)] = "[REDACTED]"
-	values[field] = "[REDACTED]"
 }
 
 func clientMetrics(status, attempts int, duration time.Duration, signal string, responseBytes int) *core.ToolMetrics {
