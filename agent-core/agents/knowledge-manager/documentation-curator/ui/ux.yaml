@@ -48,6 +48,15 @@ actions:
   suggest_changes:
     ui_action: doc_suggest_changes
     route: docs_detail
+  approve_patch:
+    ui_action: doc_patch_approve
+    route: docs_detail
+  reject_patch:
+    ui_action: doc_patch_reject
+    route: docs_detail
+  reopen_patch:
+    ui_action: doc_patch_reopen
+    route: docs_detail
 presentation:
   raw_yaml_toggle: true
   state_diagram: true
