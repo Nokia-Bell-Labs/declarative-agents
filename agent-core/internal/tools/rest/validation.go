@@ -44,6 +44,9 @@ func ValidateDefinition(def Definition) error {
 	if err := validateLimitProfiles(def.Limits); err != nil {
 		return err
 	}
+	if err := validateReservedDocumentResources(def); err != nil {
+		return err
+	}
 	if err := validateOpenAPINameCollisions(def); err != nil {
 		return err
 	}
@@ -86,6 +89,28 @@ func validateCIDRConfig(profile string, cidrs []string) error {
 	for _, raw := range cidrs {
 		if _, _, err := net.ParseCIDR(raw); err != nil {
 			return fmt.Errorf("limit profile %q has invalid CIDR %q", profile, raw)
+		}
+	}
+	return nil
+}
+
+func validateReservedDocumentResources(def Definition) error {
+	if len(def.DocumentResources) > 0 {
+		return fmt.Errorf("rest.document_resources is reserved and is not supported by REST loading yet")
+	}
+	return validateMachineRequestDocumentResources(def.Servers)
+}
+
+func validateMachineRequestDocumentResources(servers map[string]Server) error {
+	for serverName, server := range servers {
+		for endpointName, endpoint := range server.Endpoints {
+			if len(endpoint.MachineRequest.DocumentResources) > 0 {
+				return fmt.Errorf(
+					"server %q endpoint %q machine_request.document_resources is reserved and is not supported by REST loading yet",
+					serverName,
+					endpointName,
+				)
+			}
 		}
 	}
 	return nil
