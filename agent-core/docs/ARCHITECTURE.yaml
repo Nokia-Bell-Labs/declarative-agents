@@ -820,23 +820,39 @@ overview:
       external configuration repositories. The Dockerfile is multi-stage: the
       builder stage clones the selected GitLab ref, downloads Go dependencies,
       runs the test suite, and builds the `agent` binary; the final Alpine
-      runtime stage copies only the binary, common Unix utilities, and shared
-      YAML assets needed by profiles and tool declarations.
+      runtime stage copies only the binary, common Unix utilities, and
+      core-owned shared tool assets.
 
-      Runtime images place shared assets under `/opt/agent-core`, including
-      `tools/`, `agents/generator/`, and `agents/evaluator/`. External
-      evaluation repositories mount their local suites, samples, and profile
-      overrides into `/work` and can reference shared image assets by absolute
-      path. The Go toolchain, source checkout, and test dependencies are not
-      copied into the final image. Exec tools that require Go, golangci-lint,
-      or project-specific CLIs therefore need those tools supplied by the
-      mounted workspace, a derived image, or the host/container environment.
+      Runtime images do not own agent profile trees. Generator, evaluator,
+      planner, bench, jurist, Knowledge Manager, monitor, lifecycle, demos,
+      profile-local UX config, and integration fixtures belong to an external
+      profile source such as an agent-profiles checkout or release bundle.
+      Callers provide those profiles at execution time through bind mounts,
+      volume mounts, unpacked bundles, or another explicit profile-root
+      mechanism. Container commands pass `--profile` to the mounted profile
+      path, for example `/profiles/generator/profile.yaml` or
+      `/profiles/evaluator/profile.yaml`.
+
+      Core-owned shared tool assets may live under `/opt/agent-core/tools`.
+      Mounted profiles can reference that tool root by absolute path or through
+      profile-root resolution. Runtime data such as suites, samples, requests,
+      and output remains under the mounted workspace, commonly `/work`. The Go
+      toolchain, source checkout, and test dependencies are not copied into the
+      final image. Exec tools that require Go, golangci-lint, or
+      project-specific CLIs therefore need those tools supplied by the mounted
+      workspace, a derived image, or the host/container environment.
 
       `mage docker` is the canonical release-image build wrapper. It
       resolves the latest remote release tag unless `AGENT_CORE_REF` overrides
       it, passes repository-local `.netrc` credentials as a BuildKit secret
       when present, chooses Docker when available and Podman as fallback, and
       prints the exact build command before running it.
+
+      Mounted-profile proof commands use separate profile and workspace mounts:
+      `agent --profile /profiles/generator/profile.yaml --directory /work` for
+      agent startup, and `agent --profile /profiles/evaluator/profile.yaml
+      --request /work/suites/suite.yaml --output /work/eval-results --directory
+      /work` for evaluator flows.
 
   rollback_lifecycle_architecture:
     status: |

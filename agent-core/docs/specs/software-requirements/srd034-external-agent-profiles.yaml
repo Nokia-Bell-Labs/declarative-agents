@@ -1,0 +1,92 @@
+id: srd034-external-agent-profiles
+title: External Agent Profiles and Container Runtime Contracts
+
+problem: Agent Core needs a release-image contract that keeps runtime assets in agent-core, moves behavior-owned profile assets to agent-profiles, and runs containers from mounted or otherwise caller-provided profile paths.
+
+goals:
+  - G1: Define the runtime-owned and profile-owned asset boundary.
+  - G2: Require runtime containers to consume profiles supplied at execution time.
+  - G3: Define mounted-profile proof commands for agent startup and integration tests.
+  - G4: Keep profile behavior independent from runtime image contents.
+
+requirements:
+  R1:
+    title: Runtime ownership
+    items:
+      - R1.1: agent-core SHALL own the `agent` binary, Go runtime packages, Mage build targets, Dockerfile, and minimal core-owned tool declaration assets.
+      - R1.2: agent-core SHALL own reusable builtin tool declaration files needed by the runtime to register core capabilities.
+      - R1.3: agent-core SHALL NOT own product agent YAML programs as release-image contents after external profile loading is implemented.
+      - R1.4: agent-core SHALL document any core-owned asset copied into a runtime image by path and purpose.
+
+  R2:
+    title: Profile ownership
+    items:
+      - R2.1: agent-profiles SHALL own agent YAML programs such as generator, evaluator, planner, bench, jurist, Knowledge Manager, monitor, and lifecycle profiles when those programs are extracted.
+      - R2.2: agent-profiles SHALL own profile-local UX configuration, demo request files, sample suites, and agent integration fixtures.
+      - R2.3: Profile-owned paths SHALL include `profile.yaml`, `machine.yaml`, `tools.yaml`, local tool declarations, REST definitions, LLM config, UI config, and demo input files when a profile uses them.
+      - R2.4: Profile repositories MAY reference core-owned tool declaration roots by absolute mount path, release bundle path, or configured profile root.
+
+  R3:
+    title: Runtime container contract
+    items:
+      - R3.1: Runtime containers SHALL NOT copy agent profile trees such as `agents/generator` or `agents/evaluator` into the final image after this migration is implemented.
+      - R3.2: Callers SHALL provide profile paths at execution time through bind mounts, volume mounts, unpacked profile bundles, or another explicit profile-root mechanism.
+      - R3.3: The final runtime image SHALL include the `agent` binary, common Unix tools needed by exec words, and core-owned shared tool assets only.
+      - R3.4: Runtime profile arguments SHALL name mounted or otherwise provided profile paths. They SHALL NOT rely on generator or evaluator profile trees baked into the image.
+      - R3.5: Exec words that need Go, golangci-lint, or project-specific CLIs SHALL continue to receive those tools from the mounted workspace, a derived image, or the host/container environment.
+
+  R4:
+    title: Proof commands
+    items:
+      - R4.1: The container proof for agent startup SHALL run `agent --profile /profiles/generator/profile.yaml --directory /work` or an equivalent mounted profile path.
+      - R4.2: The container proof for evaluator flows SHALL mount profile assets and runtime data separately, then run `agent --profile /profiles/evaluator/profile.yaml --request /work/suites/suite.yaml --output /work/eval-results --directory /work`.
+      - R4.3: Integration proof commands SHALL mount the agent-profiles checkout read-only when tests only read profile assets.
+      - R4.4: Integration proof commands SHALL mount workspaces read-write only when tools need to create run output.
+      - R4.5: Proof output SHALL show that the runtime loaded the requested mounted profile path rather than `/opt/agent-core/agents/generator` or `/opt/agent-core/agents/evaluator`.
+
+implementation_status:
+  current: The existing Dockerfile still copies `tools/`, `agents/generator/`, and `agents/evaluator/` into `/opt/agent-core`, while this SRD defines the target contract for removing profile trees from the final runtime image.
+  remaining: Follow-up code work must update Dockerfile, Mage docker helpers, tests, and profile-root resolution so mounted profile paths are the normal container contract.
+
+non_goals:
+  - Splitting Go packages into a new module.
+  - Moving `pkg/spec` out of agent-core.
+  - Rewriting git history or removing tracked generated assets.
+  - Defining a release registry for profile bundles.
+  - Providing Go, golangci-lint, or project CLIs in the base runtime image.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Runtime ownership requirements limit agent-core release images to the binary, core packages, Mage/Docker packaging, and minimal core-owned tool assets.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+    tests:
+      - "test-rel06.0-profile-migration: Runtime image owns only core assets"
+
+  - id: AC2
+    criterion: Profile ownership requirements assign YAML programs, profile-local UX config, demos, and integration fixtures to agent-profiles.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+    tests:
+      - "test-rel06.0-profile-migration: Profile repository owns agent programs and fixtures"
+
+  - id: AC3
+    criterion: Runtime container requirements define mounted or caller-provided profile paths and prohibit baked-in generator or evaluator profile trees.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+    tests:
+      - "test-rel06.0-profile-migration: Runtime container loads mounted profiles"
+
+  - id: AC4
+    criterion: Proof command requirements cover mounted-profile startup, evaluator execution, read-only profile mounts, writable workspace mounts, and evidence of the resolved profile path.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+    tests:
+      - "test-rel06.0-profile-migration: Container proof commands use mounted profiles"
+
+depends_on:
+  - srd_id: srd018-cli-flag-contract
+    symbols_used: [profile flag, directory flag, request flag, output flag]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [builtin tool declarations, selected tool definitions]
+
+related_documents:
+  - repository-migration.md
+  - docs/specs/use-cases/rel06.0-uc001-mounted-profile-container-runtime.yaml
+  - docs/specs/test-suites/test-rel06.0-profile-migration.yaml
