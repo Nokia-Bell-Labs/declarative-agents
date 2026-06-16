@@ -10,11 +10,8 @@ import (
 )
 
 const (
-	defaultContainerImage   = "agent-core:latest"
-	defaultIntegrationImage = "agent-core-integration:latest"
-	defaultContainerNetRC   = ".netrc"
-	defaultProfilesMount    = "/profiles/agents"
-	defaultWorkMount        = "/work"
+	defaultContainerImage = "agent-core:latest"
+	defaultContainerNetRC = ".netrc"
 
 	envContainerEngine = "AGENT_CORE_CONTAINER_ENGINE"
 	envContainerImage  = "AGENT_CORE_IMAGE"
@@ -130,9 +127,6 @@ func containerBuildSummary(opts dockerBuildOptions, args []string) string {
 	}
 	fmt.Fprintln(&b, "  container output: streamed directly")
 	fmt.Fprintf(&b, "command: %s\n", displayBuildCommand(opts, args))
-	fmt.Fprintf(&b, "mounted profile example: %s\n", displayRuntimeCommand(opts))
-	fmt.Fprintf(&b, "integration image command: %s\n", displayIntegrationBuildCommand(opts))
-	fmt.Fprintf(&b, "integration container example: %s\n", displayIntegrationCommand(opts))
 	return b.String()
 }
 
@@ -142,43 +136,6 @@ func displayBuildCommand(opts dockerBuildOptions, args []string) string {
 		cmd = append([]string{"DOCKER_BUILDKIT=1"}, cmd...)
 	}
 	return shellCommand(cmd)
-}
-
-func displayRuntimeCommand(opts dockerBuildOptions) string {
-	return shellCommand([]string{
-		opts.Engine, "run", "--rm",
-		"-v", "$AGENT_PROFILES_ROOT:" + defaultProfilesMount + ":ro",
-		"-v", "$PWD:" + defaultWorkMount,
-		"-w", defaultWorkMount,
-		opts.Image,
-		"--profile", defaultProfilesMount + "/generator/profile.yaml",
-		"--directory", defaultWorkMount,
-	})
-}
-
-func displayIntegrationBuildCommand(opts dockerBuildOptions) string {
-	args := containerBuildArgs(opts)
-	for i, arg := range args {
-		if arg == opts.Image && i > 0 && args[i-1] == "-t" {
-			args[i] = defaultIntegrationImage
-			break
-		}
-	}
-	if len(args) > 0 {
-		args = append(args[:len(args)-1], "--target", "integration", args[len(args)-1])
-	}
-	return displayBuildCommand(opts, args)
-}
-
-func displayIntegrationCommand(opts dockerBuildOptions) string {
-	return shellCommand([]string{
-		opts.Engine, "run", "--rm",
-		"-v", "$AGENT_PROFILES_ROOT:" + defaultProfilesMount + ":ro",
-		"-w", "/src",
-		"-e", "AGENT_PROFILES_ROOT=" + defaultProfilesMount,
-		defaultIntegrationImage,
-		"mage", "integration:uc006",
-	})
 }
 
 func shellCommand(args []string) string {

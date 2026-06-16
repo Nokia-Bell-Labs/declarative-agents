@@ -26,10 +26,6 @@ RUN go test ./...
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/agent ./cmd/agent
 
-FROM builder AS integration
-
-RUN go install github.com/magefile/mage@latest
-
 FROM ${RUNTIME_IMAGE} AS runtime
 
 RUN apk add --no-cache \
@@ -52,30 +48,10 @@ WORKDIR /work
 
 COPY --from=builder /out/agent /usr/local/bin/agent
 
-# Core-owned runtime YAML assets used by mounted profiles.
+# Runtime YAML assets used by profiles mounted from evaluation repositories.
 COPY --from=builder /src/tools /opt/agent-core/tools
-
-RUN <<'EOF'
-cat > /usr/local/bin/agent-entrypoint <<'SCRIPT'
-#!/bin/sh
-for arg in "$@"; do
-    case "$arg" in
-        --help|-h|help|--version|version)
-            exec agent "$@"
-            ;;
-        --profile|--profile=*)
-            has_profile=1
-            ;;
-    esac
-done
-if [ "${has_profile:-0}" != "1" ]; then
-    echo "Error: --profile is required; mount profiles and pass --profile /profiles/agents/<name>/profile.yaml" >&2
-    exit 1
-fi
-exec agent "$@"
-SCRIPT
-chmod +x /usr/local/bin/agent-entrypoint
-EOF
+COPY --from=builder /src/agents/generator /opt/agent-core/agents/generator
+COPY --from=builder /src/agents/evaluator /opt/agent-core/agents/evaluator
 
 RUN addgroup -S agent \
     && adduser -S agent -G agent \
@@ -89,10 +65,10 @@ ENV AGENT_CORE_HOME=/opt/agent-core \
 USER agent:agent
 
 LABEL org.opencontainers.image.title="Agent Core" \
-      org.opencontainers.image.description="Declarative Grammar Machine agent runtime for mounted profiles" \
+      org.opencontainers.image.description="Declarative Grammar Machine agent runtime with shared evaluator/generator configuration" \
       org.opencontainers.image.source="https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core" \
       org.opencontainers.image.vendor="Nokia"
 
 STOPSIGNAL SIGTERM
 
-ENTRYPOINT ["agent-entrypoint"]
+ENTRYPOINT ["agent"]

@@ -27,7 +27,6 @@ const (
 	RoadmapFile = "docs/road-map.yaml"
 	SpecFile    = "docs/SPECIFICATIONS.yaml"
 	AgentsDir   = "agents"
-	ProfilesEnv = "AGENT_PROFILES_ROOT"
 	SMSubdir    = "docs/specs/semantic-models"
 	CFSubdir    = "docs/specs/config-formats"
 )
@@ -208,13 +207,13 @@ func discoverAndParseTestSuites(rootDir string) (map[string]TestSuite, error) {
 }
 
 func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[string][]string, []string, error) {
-	profilesPath := resolveProfileAssetsRoot(rootDir)
-	entries, err := os.ReadDir(profilesPath)
+	agentsPath := filepath.Join(rootDir, AgentsDir)
+	entries, err := os.ReadDir(agentsPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil, nil, nil
 		}
-		return nil, nil, nil, fmt.Errorf("read profile root: %w", err)
+		return nil, nil, nil, fmt.Errorf("read agents dir: %w", err)
 	}
 
 	machines := make(map[string]core.MachineSpec)
@@ -226,7 +225,7 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 			continue
 		}
 		agentName := entry.Name()
-		machPath := filepath.Join(profilesPath, agentName, "machine.yaml")
+		machPath := filepath.Join(agentsPath, agentName, "machine.yaml")
 		if _, err := os.Stat(machPath); err != nil {
 			continue
 		}
@@ -237,7 +236,7 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 		machines[agentName] = ms
 		order = append(order, agentName)
 
-		toolsPath := filepath.Join(profilesPath, agentName, "tools.yaml")
+		toolsPath := filepath.Join(agentsPath, agentName, "tools.yaml")
 		if data, err := os.ReadFile(toolsPath); err == nil {
 			if tools := parseToolSelection(data); len(tools) > 0 {
 				toolSel[agentName] = tools
@@ -315,18 +314,18 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 	declFiles = append(declFiles, yamlFilesInDir(filepath.Join(rootDir, "tools", "builtin"))...)
 	declFiles = append(declFiles, yamlFilesInDir(filepath.Join(rootDir, "tools", "exec"))...)
 
-	profilesPath := resolveProfileAssetsRoot(rootDir)
-	if entries, err := os.ReadDir(profilesPath); err == nil {
+	agentsPath := filepath.Join(rootDir, AgentsDir)
+	if entries, err := os.ReadDir(agentsPath); err == nil {
 		for _, entry := range entries {
 			if !entry.IsDir() {
 				continue
 			}
-			override := filepath.Join(profilesPath, entry.Name(), "builtin.yaml")
+			override := filepath.Join(agentsPath, entry.Name(), "builtin.yaml")
 			if _, err := os.Stat(override); err == nil {
 				declFiles = append(declFiles, override)
 			}
-			declFiles = append(declFiles, yamlFilesInDir(filepath.Join(profilesPath, entry.Name(), "llm"))...)
-			declFiles = append(declFiles, declarationFilesFromProfile(filepath.Join(profilesPath, entry.Name(), "profile.yaml"))...)
+			declFiles = append(declFiles, yamlFilesInDir(filepath.Join(agentsPath, entry.Name(), "llm"))...)
+			declFiles = append(declFiles, declarationFilesFromProfile(filepath.Join(agentsPath, entry.Name(), "profile.yaml"))...)
 		}
 	}
 
@@ -373,41 +372,6 @@ func yamlFilesInDir(dir string) []string {
 	}
 	sort.Strings(matches)
 	return matches
-}
-
-func resolveProfileAssetsRoot(rootDir string) string {
-	for _, candidate := range profileRootCandidates(rootDir) {
-		if root := normalizeProfileRoot(candidate); root != "" {
-			return root
-		}
-	}
-	return filepath.Join(rootDir, AgentsDir)
-}
-
-func profileRootCandidates(rootDir string) []string {
-	candidates := []string{}
-	if configured := os.Getenv(ProfilesEnv); configured != "" {
-		candidates = append(candidates, configured)
-	}
-	return append(candidates,
-		filepath.Join(filepath.Dir(rootDir), "agent-profiles"),
-		filepath.Join(rootDir, "agent-profiles"),
-		filepath.Join(rootDir, AgentsDir),
-	)
-}
-
-func normalizeProfileRoot(candidate string) string {
-	for _, root := range []string{candidate, filepath.Join(candidate, AgentsDir)} {
-		if profileExists(root, "generator") || profileExists(root, "jurist") {
-			return root
-		}
-	}
-	return ""
-}
-
-func profileExists(root, rel string) bool {
-	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel), "profile.yaml"))
-	return err == nil && !info.IsDir()
 }
 
 func declarationFilesFromProfile(path string) []string {

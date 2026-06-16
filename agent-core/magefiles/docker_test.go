@@ -4,7 +4,6 @@ package main
 
 import (
 	"errors"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -129,9 +128,6 @@ func TestContainerBuildSummaryForPodman(t *testing.T) {
 		"  podman tls verify: false",
 		"  container output: streamed directly",
 		"command: podman build --tls-verify=false --secret id=git_credentials,src=/home/user/.netrc --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core:latest .",
-		"mounted profile example: podman run --rm -v '$AGENT_PROFILES_ROOT:/profiles/agents:ro' -v '$PWD:/work' -w /work agent-core:latest --profile /profiles/agents/generator/profile.yaml --directory /work",
-		"integration image command: podman build --tls-verify=false --secret id=git_credentials,src=/home/user/.netrc --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core-integration:latest --target integration .",
-		"integration container example: podman run --rm -v '$AGENT_PROFILES_ROOT:/profiles/agents:ro' -w /src -e AGENT_PROFILES_ROOT=/profiles/agents agent-core-integration:latest mage integration:uc006",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("containerBuildSummary missing %q in:\n%s", want, got)
@@ -150,67 +146,6 @@ func TestDisplayBuildCommandForDockerIncludesBuildkit(t *testing.T) {
 	if got != want {
 		t.Fatalf("displayBuildCommand = %q, want %q", got, want)
 	}
-}
-
-func TestDisplayIntegrationBuildCommandUsesTarget(t *testing.T) {
-	opts := dockerBuildOptions{
-		Engine: "docker",
-		Image:  "agent-core:latest",
-		Ref:    "v0.20260612.1",
-	}
-	got := displayIntegrationBuildCommand(opts)
-	want := "DOCKER_BUILDKIT=1 docker build --progress=plain --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core-integration:latest --target integration ."
-	if got != want {
-		t.Fatalf("displayIntegrationBuildCommand = %q, want %q", got, want)
-	}
-}
-
-func TestDockerfileRuntimeExcludesAgentProfiles(t *testing.T) {
-	content := readDockerfile(t)
-	for _, forbidden := range []string{
-		"/src/agents/generator",
-		"/src/agents/evaluator",
-		"/opt/agent-core/agents",
-	} {
-		if strings.Contains(content, forbidden) {
-			t.Fatalf("Dockerfile contains forbidden profile copy path %q", forbidden)
-		}
-	}
-	if !strings.Contains(content, "COPY --from=builder /src/tools /opt/agent-core/tools") {
-		t.Fatal("Dockerfile should copy core-owned tools into the runtime image")
-	}
-	for _, want := range []string{
-		"Error: --profile is required; mount profiles and pass --profile /profiles/agents/<name>/profile.yaml",
-		"ENTRYPOINT [\"agent-entrypoint\"]",
-	} {
-		if !strings.Contains(content, want) {
-			t.Fatalf("Dockerfile missing %q", want)
-		}
-	}
-}
-
-func TestDockerfileDefinesIntegrationTarget(t *testing.T) {
-	content := readDockerfile(t)
-	for _, want := range []string{
-		"FROM builder AS integration",
-		"RUN go install github.com/magefile/mage@latest",
-	} {
-		if !strings.Contains(content, want) {
-			t.Fatalf("Dockerfile missing %q", want)
-		}
-	}
-}
-
-func readDockerfile(t *testing.T) string {
-	t.Helper()
-	for _, path := range []string{"Dockerfile", "../Dockerfile"} {
-		data, err := os.ReadFile(path)
-		if err == nil {
-			return string(data)
-		}
-	}
-	t.Fatal("read Dockerfile")
-	return ""
 }
 
 func TestShellCommand(t *testing.T) {

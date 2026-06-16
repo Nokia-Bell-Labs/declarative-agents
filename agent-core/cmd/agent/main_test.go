@@ -213,21 +213,21 @@ func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
-	profileRoot := profileRootFromTest(t)
+	root := repoRootFromTest(t)
 	profiles := []string{
-		"generator/profile.yaml",
-		"evaluator/profile.yaml",
-		"bench/profile.yaml",
-		"jurist/profile.yaml",
-		"lifecycle/history/profile.yaml",
-		"lifecycle/rollback/profile.yaml",
-		"lifecycle/approval/profile.yaml",
-		"knowledge-manager/documentation-curator/profile.yaml",
+		"agents/generator/profile.yaml",
+		"agents/evaluator/profile.yaml",
+		"agents/bench/profile.yaml",
+		"agents/jurist/profile.yaml",
+		"agents/lifecycle/history/profile.yaml",
+		"agents/lifecycle/rollback/profile.yaml",
+		"agents/lifecycle/approval/profile.yaml",
+		"agents/knowledge-manager/documentation-curator/profile.yaml",
 	}
 	for _, rel := range profiles {
 		t.Run(rel, func(t *testing.T) {
 			clearAgentFlags()
-			flagProfile = filepath.Join(profileRoot, filepath.FromSlash(rel))
+			flagProfile = filepath.Join(root, rel)
 
 			cfg, err := loadRuntimeConfig()
 			require.NoError(t, err)
@@ -319,7 +319,7 @@ func TestMonitorReleaseProfileProof(t *testing.T) {
 
 func TestMonitorCLIProfileServesUntilControlExit(t *testing.T) {
 	root := repoRootFromTest(t)
-	profilePath := profilePathFromTest(t, "monitor/profile.yaml")
+	profilePath := filepath.Join(root, "agents", "monitor", "profile.yaml")
 	cmd, stdout, stderr := startMonitorAgentProcess(t, root, profilePath)
 	resultCh := waitForProcess(t, cmd)
 
@@ -338,7 +338,7 @@ func TestMonitorCLIProfileServesUntilControlExit(t *testing.T) {
 
 func TestMonitorProfileUsesEphemeralLoopbackDefault(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(profilePathFromTest(t, "monitor/rest.yaml"))
+	data, err := os.ReadFile(filepath.Join(repoRootFromTest(t), "agents", "monitor", "rest.yaml"))
 	require.NoError(t, err)
 	require.Contains(t, string(data), "address: 127.0.0.1:0")
 	require.NotContains(t, string(data), "address: 127.0.0.1:18083")
@@ -355,7 +355,7 @@ func TestControlProfileExitReachesSucceededBeforeDeferredShutdown(t *testing.T) 
 	shutdown := newDeferredShutdown(func() { cancelled = true })
 
 	result := runExitMachine(t, exitMachineCase{
-		machinePath: profilePathFromTest(t, "control/machine.yaml"),
+		machinePath: "agents/control/machine.yaml",
 		launch:      "launch_agent_control",
 		await:       "await_agent_control",
 		terminal:    "Succeeded",
@@ -376,7 +376,7 @@ func TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown(t *testing.T)
 	shutdown := newDeferredShutdown(func() { cancelled = true })
 
 	result := runExitMachine(t, exitMachineCase{
-		machinePath:  profilePathFromTest(t, "knowledge-manager/documentation-curator/machine.yaml"),
+		machinePath:  "agents/knowledge-manager/documentation-curator/machine.yaml",
 		launch:       "serve_documentation",
 		secondLaunch: "launch_curator_control",
 		await:        "await_curator_control",
@@ -396,7 +396,7 @@ func TestApprovalLifecycleProfileSuspendsAndResumesApproved(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
-	profilePath := profilePathFromTest(t, "lifecycle/approval/profile.yaml")
+	profilePath := filepath.Join(repoRootFromTest(t), "agents", "lifecycle", "approval", "profile.yaml")
 	storeDir := t.TempDir()
 
 	clearAgentFlags()
@@ -430,7 +430,7 @@ func TestApprovalLifecycleProfileUsesWorkspaceLocalStateStore(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
-	profilePath := profilePathFromTest(t, "lifecycle/approval/profile.yaml")
+	profilePath := filepath.Join(repoRootFromTest(t), "agents", "lifecycle", "approval", "profile.yaml")
 	workspace := t.TempDir()
 
 	clearAgentFlags()
@@ -476,7 +476,7 @@ func TestResumeCheckpointRequiresResolvableStateStore(t *testing.T) {
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
 	clearAgentFlags()
-	flagProfile = profilePathFromTest(t, "lifecycle/approval/profile.yaml")
+	flagProfile = filepath.Join(repoRootFromTest(t), "agents", "lifecycle", "approval", "profile.yaml")
 	flagResumeCheckpoint = "missing"
 
 	_, err := captureStderr(t, func() error {
@@ -525,11 +525,7 @@ func assertMainDeclsAbsent(t *testing.T, forbidden map[string]bool) {
 
 func runExitMachine(t *testing.T, tc exitMachineCase) core.RunResult {
 	t.Helper()
-	machinePath := tc.machinePath
-	if !filepath.IsAbs(machinePath) {
-		machinePath = filepath.Join(repoRootFromTest(t), machinePath)
-	}
-	machine, err := core.LoadMachineSpec(machinePath)
+	machine, err := core.LoadMachineSpec(filepath.Join(repoRootFromTest(t), tc.machinePath))
 	require.NoError(t, err)
 	reg := core.NewRegistry()
 	launchStopSignal := core.Signal("")
@@ -604,7 +600,7 @@ func monitorReleaseProof(t *testing.T) monitorProof {
 	t.Helper()
 	clearAgentFlags()
 	root := repoRootFromTest(t)
-	profilePath, baseURL := isolatedMonitorProfile(t, profileRootFromTest(t))
+	profilePath, baseURL := isolatedMonitorProfile(t, root)
 	flagProfile = profilePath
 	flagDirectory = root
 
@@ -670,11 +666,11 @@ func monitorProofAgentState(
 	}
 }
 
-func isolatedMonitorProfile(t *testing.T, profileRoot string) (string, string) {
+func isolatedMonitorProfile(t *testing.T, root string) (string, string) {
 	t.Helper()
 	dir := t.TempDir()
 	address := isolatedMonitorAddress(t)
-	writeIsolatedMonitorREST(t, profileRoot, dir, address)
+	writeIsolatedMonitorREST(t, root, dir, address)
 	profilePath := filepath.Join(dir, "profile.yaml")
 	profile := fmt.Sprintf(`name: monitor
 machine: %s
@@ -684,17 +680,17 @@ tool_declarations:
   - %s
 rest_definitions:
   - %s
-`, profilePathFromRoot(profileRoot, "monitor/machine.yaml"),
-		profilePathFromRoot(profileRoot, "monitor/tools.yaml"),
-		profilePathFromRoot(profileRoot, "monitor/declarations.yaml"),
+`, absTestPath(root, "agents/monitor/machine.yaml"),
+		absTestPath(root, "agents/monitor/tools.yaml"),
+		absTestPath(root, "agents/monitor/declarations.yaml"),
 		filepath.Join(dir, "rest.yaml"))
 	require.NoError(t, os.WriteFile(profilePath, []byte(profile), 0o644))
 	return profilePath, "http://" + address
 }
 
-func writeIsolatedMonitorREST(t *testing.T, profileRoot, dir, address string) {
+func writeIsolatedMonitorREST(t *testing.T, root, dir, address string) {
 	t.Helper()
-	data, err := os.ReadFile(profilePathFromRoot(profileRoot, "monitor/rest.yaml"))
+	data, err := os.ReadFile(absTestPath(root, "agents/monitor/rest.yaml"))
 	require.NoError(t, err)
 	replaced := monitorRESTWithAddress(t, string(data), address)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "rest.yaml"), []byte(replaced), 0o644))
@@ -722,6 +718,10 @@ func isolatedMonitorAddress(t *testing.T) string {
 	address := listener.Addr().String()
 	require.NoError(t, listener.Close())
 	return address
+}
+
+func absTestPath(root, rel string) string {
+	return filepath.Join(root, filepath.FromSlash(rel))
 }
 
 func launchProofMonitorREST(t *testing.T, proof monitorProof) (*toolrest.ServerState, string) {
@@ -1016,48 +1016,6 @@ func repoRootFromTest(t *testing.T) string {
 	_, currentFile, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
-}
-
-func profileRootFromTest(t *testing.T) string {
-	t.Helper()
-	root := repoRootFromTest(t)
-	for _, candidate := range profileRootCandidates(root) {
-		if hasTestProfile(candidate, "generator") || hasTestProfile(candidate, "monitor") {
-			return candidate
-		}
-		nested := filepath.Join(candidate, "agents")
-		if hasTestProfile(nested, "generator") || hasTestProfile(nested, "monitor") {
-			return nested
-		}
-	}
-	t.Fatalf("profile root not found; set AGENT_PROFILES_ROOT")
-	return ""
-}
-
-func profileRootCandidates(root string) []string {
-	candidates := []string{}
-	if configured := os.Getenv("AGENT_PROFILES_ROOT"); configured != "" {
-		candidates = append(candidates, configured)
-	}
-	return append(candidates,
-		filepath.Join(filepath.Dir(root), "agent-profiles"),
-		filepath.Join(root, "agent-profiles"),
-		filepath.Join(root, "agents"),
-	)
-}
-
-func hasTestProfile(root, rel string) bool {
-	_, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel), "profile.yaml"))
-	return err == nil
-}
-
-func profilePathFromTest(t *testing.T, rel string) string {
-	t.Helper()
-	return profilePathFromRoot(profileRootFromTest(t), rel)
-}
-
-func profilePathFromRoot(root, rel string) string {
-	return filepath.Join(root, filepath.FromSlash(rel))
 }
 
 func captureStderr(t *testing.T, fn func() error) (string, error) {

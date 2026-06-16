@@ -73,17 +73,12 @@ func prepareMonitoredQwenRun(rootDir, model string) (monitoredQwenRun, func(), e
 		return monitoredQwenRun{}, nil, err
 	}
 	cleanup := func() { os.RemoveAll(tmpDir) }
-	profileRoot, err := resolveAgentProfilesRoot(rootDir)
-	if err != nil {
-		cleanup()
-		return monitoredQwenRun{}, nil, err
-	}
 	addr, err := freeLoopbackAddress()
 	if err != nil {
 		cleanup()
 		return monitoredQwenRun{}, nil, err
 	}
-	if err := writeMonitoredQwenFiles(rootDir, profileRoot, tmpDir, model, addr); err != nil {
+	if err := writeMonitoredQwenFiles(rootDir, tmpDir, model, addr); err != nil {
 		cleanup()
 		return monitoredQwenRun{}, nil, err
 	}
@@ -93,13 +88,13 @@ func prepareMonitoredQwenRun(rootDir, model string) (monitoredQwenRun, func(), e
 	}, cleanup, nil
 }
 
-func writeMonitoredQwenFiles(rootDir, profileRoot, tmpDir, model, addr string) error {
+func writeMonitoredQwenFiles(rootDir, tmpDir, model, addr string) error {
 	files := []monitoredQwenFixture{
 		{name: "machine.yaml", fixture: "machine.yaml"},
 		{name: "tools.yaml", fixture: "tools.yaml"},
 		{name: "llm.yaml", fixture: "llm.yaml.tmpl", values: map[string]string{"MODEL": fmt.Sprintf("%q", model)}},
 		{name: "monitor-rest.yaml", fixture: "monitor-rest.yaml.tmpl", values: map[string]string{"ADDRESS": addr}},
-		{name: "profile.yaml", fixture: "profile.yaml.tmpl", values: monitoredQwenProfileValues(rootDir, profileRoot, tmpDir)},
+		{name: "profile.yaml", fixture: "profile.yaml.tmpl", values: monitoredQwenProfileValues(rootDir, tmpDir)},
 	}
 	for _, file := range files {
 		content, err := renderMonitoredQwenFixture(rootDir, file.fixture, file.values)
@@ -119,15 +114,15 @@ type monitoredQwenFixture struct {
 	values  map[string]string
 }
 
-func monitoredQwenProfileValues(rootDir, profileRoot, tmpDir string) map[string]string {
+func monitoredQwenProfileValues(rootDir, tmpDir string) map[string]string {
 	return map[string]string{
 		"MACHINE_PATH":              filepath.Join(tmpDir, "machine.yaml"),
 		"TOOLS_PATH":                filepath.Join(tmpDir, "tools.yaml"),
 		"LLM_DECLARATIONS_PATH":     abs(rootDir, "tools/builtin/llm/all.yaml"),
 		"LLM_OVERRIDE_PATH":         filepath.Join(tmpDir, "llm.yaml"),
-		"OLLAMA_DECLARATIONS_PATH":  profileAbs(profileRoot, "rest/ollama-declarations.yaml"),
-		"MONITOR_DECLARATIONS_PATH": profileAbs(profileRoot, "monitor/declarations.yaml"),
-		"OLLAMA_REST_PATH":          profileAbs(profileRoot, "rest/ollama-rest.yaml"),
+		"OLLAMA_DECLARATIONS_PATH":  abs(rootDir, "agents/rest/ollama-declarations.yaml"),
+		"MONITOR_DECLARATIONS_PATH": abs(rootDir, "agents/monitor/declarations.yaml"),
+		"OLLAMA_REST_PATH":          abs(rootDir, "agents/rest/ollama-rest.yaml"),
 		"MONITOR_REST_PATH":         filepath.Join(tmpDir, "monitor-rest.yaml"),
 	}
 }

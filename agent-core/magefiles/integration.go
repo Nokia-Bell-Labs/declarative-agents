@@ -94,13 +94,9 @@ func (Integration) Uc001() error {
 	if err != nil {
 		return err
 	}
-	profileRoot, err := resolveAgentProfilesRoot(rootDir)
-	if err != nil {
-		return fmt.Errorf("uc001: resolve profile root: %w", err)
-	}
 
 	args := []string{
-		"--profile", agentProfilePath(profileRoot, "generator"),
+		"--profile", filepath.Join(rootDir, "agents/generator/profile.yaml"),
 		"--directory", workDir,
 	}
 
@@ -133,10 +129,6 @@ func (Integration) Uc002() error {
 	if err != nil {
 		return err
 	}
-	profileRoot, err := resolveAgentProfilesRoot(rootDir)
-	if err != nil {
-		return fmt.Errorf("uc002: resolve profile root: %w", err)
-	}
 
 	outputDir, err := os.MkdirTemp("", "eval-results-*")
 	if err != nil {
@@ -153,7 +145,7 @@ func (Integration) Uc002() error {
 	os.Setenv("PATH", binAbs+":"+os.Getenv("PATH"))
 
 	args := []string{
-		"--profile", agentProfilePath(profileRoot, "evaluator"),
+		"--profile", filepath.Join(rootDir, "agents/evaluator/profile.yaml"),
 		"--request", filepath.Join(rootDir, evaluatorSuite),
 		"--output", outputDir,
 	}
