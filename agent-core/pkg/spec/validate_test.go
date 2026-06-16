@@ -5,6 +5,7 @@ package spec
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,6 +36,23 @@ func TestValidate_ReturnsFindings(t *testing.T) {
 
 	assert.Greater(t, byCheck["orphaned-srd"], 0, "srd003-storage has no UC touchpoint")
 	assert.Greater(t, byCheck["uncovered-req-item"], 0, "some items lack AC coverage")
+}
+
+func TestPackageProductionFilesStaySplit(t *testing.T) {
+	t.Parallel()
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		require.NotEqual(t, "types.go", entry.Name())
+		data, err := os.ReadFile(entry.Name())
+		require.NoError(t, err)
+		lines := strings.Count(string(data), "\n")
+		require.LessOrEqual(t, lines, 500, "%s exceeds production file limit", entry.Name())
+	}
 }
 
 func TestValidate_OrphanedSRD(t *testing.T) {
