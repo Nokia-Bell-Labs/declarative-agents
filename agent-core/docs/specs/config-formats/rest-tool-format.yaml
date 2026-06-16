@@ -10,6 +10,25 @@ purpose: |
   references named clients, servers, resources, operations, and endpoints.
   Runtime input supplies only declared request values.
 
+release_03_0_support:
+  implemented:
+    - rest.version, clients, servers, openapi, auth, limits, retry_policies, and response_mappings.
+    - REST client resource operations and RPC-shaped operations.
+    - REST client async send and await by request_id.
+    - REST server emit_signal, emit_dynamic_signal, read_state, invoke_handler, stream_events, health, static_metadata, machine_request, and monitor endpoints.
+    - OpenAPI import from local files into client operations and server endpoints.
+  partial:
+    - network.cidrs is parsed but not enforced; agent-core-tu6t.3 owns enforcement.
+    - async.await_operation and correlation selectors are parsed but not executed as polling selectors; agent-core-tu6t.3 owns support or validation rejection.
+    - response_mapping.schema is stored and imported from OpenAPI but response bodies are not validated before success signals; agent-core-tu6t.3 owns client validation.
+    - OpenAPI-bound endpoints may drop configured endpoint behavior when import fields are applied; agent-core-tu6t.4 owns preservation.
+    - queue overflow, shutdown drain policy, stopped-source behavior, and rest_await_event read_policy need stricter support or validation rejection; agent-core-tu6t.2 owns server policy work.
+    - Compensation metadata is parsed, but REST client Undo still returns noop for mutating commands; agent-core-tu6t.5 owns compensation mementos.
+  reserved:
+    - document_resources top-level config and machine_request.document_resources are documented for the target format but are not wired into internal/tools/rest Definition loading in release 03.0; agent-core-tu6t.10 owns the follow-up.
+    - lifecycle_control endpoint config is documented for the target format but current control profiles use emit_signal routes that MachineSpec routes to exit_agent.
+    - machine_request terminal response schema validation is documented but not enforced yet; agent-core-tu6t.9 owns the follow-up.
+
 schema:
   description: |
     A REST definition file MAY live beside an agent profile, a tool declaration
@@ -58,7 +77,7 @@ schema:
         - field: document_resources
           type: map[string]document_resource
           required: false
-          description: Named filesystem-backed document resources available to REST endpoints and machine_request runs.
+          description: Reserved target-format field for named filesystem-backed document resources. Release 03.0 Knowledge Manager behavior uses profile-selected filesystem resource words instead of this REST loader field.
 
   rest_client:
     fields:
@@ -290,7 +309,7 @@ schema:
       - field: cidrs
         type: "[]string"
         required: false
-        description: Allowed destination or listener CIDR ranges.
+        description: Allowed destination or listener CIDR ranges. Parsed in release 03.0; enforcement is tracked by agent-core-tu6t.3.
       - field: ports
         type: "[]int"
         required: false
@@ -348,7 +367,7 @@ schema:
       - field: event_sources
         type: map[string]event_source
         required: false
-        description: Named source filters that rest_await_event can read for fan-in across server queues.
+        description: Target-format source filters for rest_await_event. Current ToolDef configs can provide sources directly; server-level event_sources need follow-up validation and wiring.
       - field: endpoints
         type: map[string]endpoint
         required: true
@@ -387,7 +406,7 @@ schema:
       - field: lifecycle_control
         type: lifecycle_control_config
         required: false
-        description: Lifecycle control request mapping used when binding is lifecycle_control.
+        description: Reserved target-format lifecycle control request mapping. Current profiles use emit_signal control endpoints routed through MachineSpec.
       - field: machine_request
         type: machine_request_config
         required: false
@@ -449,7 +468,7 @@ schema:
       - field: read_policy
         type: string
         required: false
-        description: One of first_available, priority_order, or round_robin.
+        description: One of first_available, priority_order, or round_robin. Current behavior needs implementation or validation rejection in agent-core-tu6t.2.
       - field: stopped_behavior
         type: string
         required: false
@@ -527,7 +546,7 @@ schema:
       - field: document_resources
         type: "[]string"
         required: false
-        description: Named document resources made available to the request machine.
+        description: Reserved target-format references to document resources. Current request machines select filesystem resource words through trusted profile ToolDefs.
 
   machine_request_trace_config:
     fields:
@@ -607,7 +626,7 @@ schema:
       - field: schema
         type: json_schema
         required: false
-        description: Response body schema that terminal output must satisfy.
+        description: Response body schema that terminal output should satisfy. Validation is not enforced in release 03.0 and needs follow-up work.
 
   document_resource:
     fields:
@@ -830,7 +849,7 @@ schema:
       - field: await_operation
         type: string
         required: false
-        description: Operation used by rest_client_await when polling is required.
+        description: Operation intended for rest_client_await polling. Current await reads stored request state by request_id; polling support or validation rejection is tracked by agent-core-tu6t.3.
       - field: timeout
         type: duration string
         required: false
@@ -1385,10 +1404,28 @@ implementation_status:
     - internal/tools/rest typed config structs.
     - internal/tools/rest YAML loader.
     - OpenAPI import compilation through github.com/getkin/kin-openapi/openapi3.
-    - rest_await_event source-filter config.
-    - lifecycle_control endpoint config and exit_agent ToolDef config.
+    - rest_await_event source-filter config through ToolDef config.
+    - emit_signal lifecycle exit routes and exit_agent ToolDef config.
     - machine_request endpoint binding config.
-    - document_resource config and filesystem resource words.
-  planned_follow_up:
+    - filesystem resource words used by the Knowledge Manager request machine.
     - generic machine_request response trace fields for server, route, and request machine emitted directly by internal/tools/rest.
     - always-on Knowledge Manager conformance coverage for generic machine_request routes under plain go test.
+  partial:
+    - network.cidrs parsing without CIDR enforcement.
+    - response_mapping.schema storage without response body validation.
+    - async.await_operation parsing without polling support.
+    - OpenAPI endpoint binding that can overwrite configured endpoint behavior.
+    - server queue, stopped-source, drain, and read_policy behavior that needs stricter conformance.
+    - compensation metadata parsing without REST client undo mementos.
+  reserved:
+    - top-level document_resources config.
+    - machine_request.document_resources config.
+    - lifecycle_control endpoint config.
+    - machine_request terminal response schema enforcement.
+  planned_follow_up:
+    - agent-core-tu6t.2: REST server lifecycle_control, queue, drain, stopped-source, and read_policy behavior.
+    - agent-core-tu6t.3: REST client CIDR, response schema, async selector, idempotency, and await_operation behavior.
+    - agent-core-tu6t.4: OpenAPI endpoint behavior preservation.
+    - agent-core-tu6t.5: REST compensation and undo behavior.
+    - agent-core-tu6t.9: machine_request terminal response schema validation.
+    - agent-core-tu6t.10: REST document_resources config loading or validation rejection.

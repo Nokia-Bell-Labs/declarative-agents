@@ -10,7 +10,7 @@ overview: |
   declarations also belong to that release. Rollback lifecycle contracts
   belong to 02.0. Declarative REST runtime contracts belong to 03.0. REST
   client and server contracts sit in the same release. Twenty use cases
-  exercise the SRDs across the six releases. Seven formal YAML test suites cover 200 acceptance test
+  exercise the SRDs across the six releases. Seven formal YAML test suites cover 206 acceptance test
   cases across releases 00.0 through 05.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -232,7 +232,7 @@ config_format_index:
     path: docs/specs/config-formats/llm-config-format.yaml
   - id: cfg-rest-tool-format
     title: REST Tool Configuration Format
-    summary: YAML format for declarative REST definitions, clients, servers, event sources, lifecycle control endpoints, machine_request bindings, document_resources, OpenAPI imports, auth profiles, limits, retry policies, response mappings, and validation rules.
+    summary: YAML format for declarative REST definitions, clients, servers, OpenAPI imports, auth profiles, limits, retry policies, response mappings, machine_request bindings, and target-format event source, lifecycle control, and document resource fields. Release 03.0 support status is recorded in the spec.
     path: docs/specs/config-formats/rest-tool-format.yaml
 
 semantic_model_index:
@@ -437,7 +437,7 @@ test_suite_index:
       - rel03.0-uc006-documentation-curator
       - rel03.0-uc007-machine-request-documentation-ux
       - rel03.0-uc008-rest-await-any-fan-in
-    formal_test_cases: 36
+    formal_test_cases: 42
     path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
   - id: test-rel04.0-monitor
     title: Test Suite for Release 04.0 Embedded Monitor
@@ -468,7 +468,7 @@ go_test_coverage:
     mage integration:uc003 target records a skipped/manual-precondition result,
     not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
-    The 03.0 YAML coverage (36 cases) names implemented Go tests for REST
+    The 03.0 YAML coverage (42 cases) names implemented Go tests for REST
     config loading, client execution, async send/await, server signal handling,
     OpenAPI import, credential resolution, redirect and size policies, server
     validation, redaction behavior, live Ollama OpenAPI model-listing, and
@@ -551,12 +551,21 @@ coverage_gaps: |
   stream_events bindings have executable server coverage. The Qwen Ollama
   OpenAPI E2E flow, documentation-curator ownership proof, and
     machine_request browser proof now have formal release 03.0 coverage. Generic
-    REST event fan-in, route and signal filters, timeout handling, stopped-source
-    policy, machine_request configured-profile conformance, Knowledge Manager
-    generic route conformance, and REST-triggered lifecycle exit now have formal
-    cases tied to Go tests, uc006, and uc007. rel03.0-uc008 now has executable
-    staged await-any fan-in coverage that launches a later REST source after the
-    first selected event routes through MachineSpec.
+    REST event fan-in, route and signal filters, timeout handling,
+    machine_request configured-profile conformance, Knowledge Manager generic
+    route conformance, and REST-triggered lifecycle exit now have formal cases
+    tied to Go tests, uc006, and uc007. rel03.0-uc008 now has executable staged
+    await-any fan-in coverage that launches a later REST source after the first
+    selected event routes through MachineSpec.
+    Remaining release 03.0 REST conformance cases are planned and trace to
+    agent-core-tu6t.2 through agent-core-tu6t.5, agent-core-tu6t.9, and
+    agent-core-tu6t.10. They cover modeled
+    lifecycle_control endpoints, queue and drain policy, stopped-source and
+    read_policy handling, CIDR allowlists, response schema validation, async
+    selector and await_operation behavior, idempotency metadata on outbound
+    requests, OpenAPI endpoint config preservation, REST compensation undo,
+    machine_request terminal response schema validation, and document_resources
+    config loading or rejection.
   Release 04.0 package tests cover the monitor store, recorder ownership,
   metric config validation, disabled mode, OpenTelemetry metric export,
   REST/OpenAPI cached-state readers, and the cmd/agent live-store release

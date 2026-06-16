@@ -136,3 +136,7 @@ implementation_status:
     - internal/tools/rest emits server, route, request machine, terminal signal, iteration, and run status trace fields in the generic machine_request response envelope.
     - internal/knowledge/documentation owns the documentation_curator_requests lifecycle through a same-origin proxy that stays a transport adapter over the generic REST server.
     - mage integration:uc007 and plain go test cover request-to-machine response behavior, trace evidence, selected request factories, and same-origin proxy lifecycle cleanup.
+  partial:
+    - R4.4 response schema rejection is not yet enforced for machine_request terminal output. Current implementation maps configured terminal signal body fields and reports missing response data, but it does not validate a terminal response schema.
+  planned_follow_up:
+    - agent-core-tu6t.9: add machine_request terminal response schema validation or remove that public config promise from cfg-rest-tool-format.

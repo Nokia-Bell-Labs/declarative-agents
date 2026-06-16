@@ -578,7 +578,7 @@ overview:
       - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
 
   rest_tool_runtime_architecture:
-    status: current
+    status: partial
     summary: |
       Release 03.0 implements declarative REST client and REST server tools as
       boundary tool families. The runtime package is internal/tools/rest. This
@@ -608,6 +608,16 @@ overview:
       through reusable resource words. Knowledge Manager UI assets, labels,
       routes, actions, and placement live with the documentation-curator profile
       as human actor configuration.
+
+      Remaining release 03.0 conformance work is narrow and tracked in Beads.
+      agent-core-tu6t.2 owns server lifecycle_control, queue, drain,
+      stopped-source, and read_policy behavior. agent-core-tu6t.3 owns client
+      CIDR allowlists, response schema validation, async selector, idempotency,
+      and await_operation behavior. agent-core-tu6t.4 owns OpenAPI endpoint
+      config preservation. agent-core-tu6t.5 owns REST compensation and undo
+      mementos. agent-core-tu6t.9 owns machine_request terminal response schema
+      validation. agent-core-tu6t.10 owns REST document_resources config loading
+      or validation rejection.
     machine_request_ux_diagram: |
       ```mermaid
       flowchart LR
@@ -1496,7 +1506,7 @@ implementation_status:
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats, docker
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
-    - done: REST runtime package — declarative client, async client, server, and OpenAPI import behavior in internal/tools/rest
+    - partial: REST runtime package — declarative client, async client, server, fan-in, machine_request, monitor, and OpenAPI import behavior in internal/tools/rest; remaining conformance gaps are tracked by agent-core-tu6t.2 through agent-core-tu6t.5, agent-core-tu6t.9, and agent-core-tu6t.10
     - done: REST sample profile — agents/rest and testdata/integration/rel03-rest-tools fixtures for release 03.0 flows
     - done: Machine request REST path — documentation_curator_requests machine_request routes execute agents/knowledge-manager/documentation-curator/request-machine.yaml for document index and detail requests, with request-machine actions selected from trusted profile declarations
     - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior

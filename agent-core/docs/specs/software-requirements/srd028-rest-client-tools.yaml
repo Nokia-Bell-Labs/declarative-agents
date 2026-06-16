@@ -134,8 +134,7 @@ requirements:
 
 non_goals:
   - Defining inbound REST server tools; see srd029-rest-server-tools.
-  - Implementing internal/tools/rest in this issue.
-  - Adding github.com/getkin/kin-openapi/openapi3 to go.mod in this issue.
+  - Implementing the remaining REST client conformance gaps tracked by agent-core-tu6t.3 and agent-core-tu6t.5.
   - Allowing runtime input to choose arbitrary URLs, methods, authentication, or network destinations.
   - Generating Go clients from OpenAPI documents.
   - Replacing MachineSpec sequencing with hidden REST client workflows.
@@ -249,7 +248,17 @@ related_documents:
   - rest-tool.md
 
 implementation_status:
-  planned:
-    - internal/tools/rest client commands.
-    - tools/builtin/rest client tool declarations.
-    - resource operation definitions loaded from YAML or OpenAPI.
+  implemented:
+    - internal/tools/rest client commands for synchronous resource words, RPC-shaped invoke, async send, and async await.
+    - tools/builtin/rest client tool declarations and release 03.0 fixtures.
+    - Resource operation definitions loaded from YAML and OpenAPI imports.
+    - Config-bound method, path, host, auth, redirect, size-limit, request schema, response mapping, redaction, and status-signal behavior.
+    - Async request state indexed by request_id with idempotency and correlation metadata recorded in accepted output.
+  partial:
+    - R2.3 and R7.3 response schema fields are imported and stored, but response body validation before success signal emission remains required by agent-core-tu6t.3.
+    - R7.4 domain_error_code is documented in status mappings. Structured output propagation remains required by agent-core-tu6t.3.
+    - R8 idempotency metadata is recorded and async retry validation requires idempotency when configured. Wire-level idempotency and mutating retry behavior remain required by agent-core-tu6t.3.
+    - R10 compensation fields are accepted and mutating operations require reversibility. Runtime undo for mutating REST operations remains noop until agent-core-tu6t.5.
+  planned_follow_up:
+    - agent-core-tu6t.3: enforce CIDR allowlists, validate response schemas, handle correlation selectors, apply idempotency metadata to requests, and support or reject await_operation polling.
+    - agent-core-tu6t.5: replace blanket noop undo for mutating REST client commands with compensation mementos or configured compensating actions.
