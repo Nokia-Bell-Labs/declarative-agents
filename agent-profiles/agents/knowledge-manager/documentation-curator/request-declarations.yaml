@@ -57,8 +57,9 @@ tools:
         docs:
           root: docs
           include:
-            - "*.yaml"
-            - "specs/**/*.yaml"
+            - "**/*.yaml"
+            - "**/*.yml"
+            - "**/*.md"
           extensions: [yaml, yml, md]
           modes: [raw_yaml, parsed_yaml, raw_markdown]
           max_bytes: 1048576
@@ -130,8 +131,9 @@ tools:
         docs:
           root: docs
           include:
-            - "*.yaml"
-            - "specs/**/*.yaml"
+            - "**/*.yaml"
+            - "**/*.yml"
+            - "**/*.md"
           extensions: [yaml, yml, md]
           modes: [raw_yaml, parsed_yaml, raw_markdown]
           max_bytes: 1048576

@@ -215,3 +215,31 @@ acceptance_criteria:
   - id: AC5
     text: Profile validation, mounted container execution, integration targets,
       or documentation review can check every acceptance criterion.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Profile migration needs a requirements document tha..."] --> Goals["Goals: Agent Functional Blocks"]
+      Goals --> R1["R1: Profile ownership boundary"]
+      Goals --> R2["R2: Generator functional block"]
+      Goals --> R3["R3: Evaluator functional block"]
+      Goals --> R4["R4: Planner functional block"]
+      Goals --> R5["R5: Jurist functional block"]
+      Goals --> R6["R6: Bench functional block"]
+      Goals --> R7["R7: REST functional block"]
+      Goals --> R8["R8: Monitor functional block"]
+      Goals --> R9["R9: Lifecycle functional blocks"]
+      Goals --> R10["R10: Control functional block"]
+      Goals --> R11["R11: Knowledge Manager functional block"]
+      AC1["AC1: The SRD includes numbered requirement groups for genera..."]
+      R11 --> AC1
+      AC2["AC2: Each requirement group names profile-owned behavior sep..."]
+      R11 --> AC2
+      AC3["AC3: Requirements mention actor boundaries, inputs, outputs,..."]
+      R11 --> AC3
+      AC4["AC4: Migration issues can cite this SRD as required reading..."]
+      R11 --> AC4
+      AC5["AC5: Profile validation, mounted container execution, integr..."]
+      R11 --> AC5
+    ```
