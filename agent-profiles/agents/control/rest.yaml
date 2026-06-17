@@ -1,0 +1,94 @@
+rest:
+  version: v1
+  limits:
+    local_control:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        hosts: [127.0.0.1, localhost]
+        ports: [0]
+  servers:
+    agent_control:
+      address: 127.0.0.1:0
+      limits_ref: local_control
+      queue:
+        name: agent_control
+        capacity: 16
+        timeout: 30s
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+      endpoints:
+        exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                status:
+                  type: string
+          response:
+            output:
+              accepted: "true"
+        pause:
+          method: POST
+          path: /api/lifecycle/pause
+          binding: emit_signal
+          signal: PauseRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+          response:
+            output:
+              accepted: "true"
+        rollback:
+          method: POST
+          path: /api/lifecycle/rollback
+          binding: emit_signal
+          signal: RollbackRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                checkpoint:
+                  type: string
+                to_iteration:
+                  type: number
+          response:
+            output:
+              accepted: "true"
+        inject:
+          method: POST
+          path: /api/lifecycle/inject
+          binding: emit_dynamic_signal
+          allowed_signals: [OperatorSignal]
+          request:
+            query:
+              signal:
+                type: string
+            body_schema:
+              type: object
+              properties:
+                operator:
+                  type: string
+                note:
+                  type: string
+          response:
+            output:
+              accepted: "true"
+        health:
+          method: GET
+          path: /health
+          binding: health

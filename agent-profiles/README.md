@@ -10,8 +10,10 @@ in `agent-core`.
 
 ## Repository Contract
 
-Profile-owned programs live under `agents/`, grouped by agent family. Runnable
-examples belong in `demo/`; integration suites and fixture data belong in
+Profile-owned programs live under `agents/`, grouped by agent family. The
+migrated tree includes generator, evaluator, planner, jurist, bench, REST,
+monitor, control, lifecycle, and Knowledge Manager profiles. Runnable examples
+belong in `demo/`; integration suites and fixture data belong in
 `testdata/integration/`.
 
 Documentation under `docs/` records purpose, structure, indexes, roadmap
@@ -29,6 +31,9 @@ agent --profile "$AGENT_PROFILES_ROOT/agents/generator/profile.yaml" --directory
 
 `agent-core` tests and Mage integration targets use `AGENT_PROFILES_ROOT` to
 resolve profiles, demos, and integration fixtures from this repository.
+Profiles reference shared core-owned tool declarations through
+`/opt/agent-core/tools`, the installed runtime asset root used by the
+agent-core container image.
 
 ## Container Usage
 

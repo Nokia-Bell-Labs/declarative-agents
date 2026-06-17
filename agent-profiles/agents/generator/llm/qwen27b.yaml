@@ -1,0 +1,112 @@
+# LLM tool declaration for the generator agent — Qwen 3.6 27B.
+# Loaded through a generator profile tool_declarations entry.
+
+tools:
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    emits: [LLMResponded, CommandError]
+    description: "Invoke the LLM with the current conversation history."
+    category: boundary
+    problem: |
+      The generator machine needs a boundary word that asks the configured
+      model to choose the next tool call from the current conversation and
+      tool manifest. This is not an ordinary deterministic word because it
+      crosses the model/provider boundary and may return different text for
+      the same prompt.
+    goals:
+      - "Return one raw model response for the current conversation state."
+      - "Append the model response to conversation history exactly once on success."
+      - "Expose provider, model, and manifest-state configuration through the tool declaration."
+    requirements:
+      input:
+        - "must read the current conversation history and selected tool manifest from agent state"
+        - "must use the configured provider, provider_url, model, system_prompt, tool_prompt, manifest_state, and max_time values"
+      output:
+        - "must emit LLMResponded with the raw response text when the provider call succeeds"
+        - "must return provider/model metadata and token usage when the provider exposes it"
+      side_effects:
+        - "must perform one external model/provider API call"
+        - "must append the model response to conversation history only after a successful provider response"
+      undo:
+        - "must be reversible by restoring or truncating conversation history to the pre-call checkpoint"
+      errors:
+        - "must emit CommandError when provider configuration is invalid, the provider call fails, or max_time is exceeded"
+        - "must leave conversation history unchanged when no provider response was appended"
+    non_goals:
+      - "Does not parse the response into a tool call."
+      - "Does not execute any requested tool."
+      - "Does not guarantee deterministic text across provider calls."
+    output:
+      description: "Raw model response and provider metadata."
+      schema:
+        type: object
+        properties:
+          response:
+            type: string
+          provider:
+            type: string
+          model:
+            type: string
+          prompt_tokens:
+            type: integer
+          completion_tokens:
+            type: integer
+          elapsed_ms:
+            type: integer
+        required: [response, provider, model]
+    side_effects:
+      - kind: external_api_call
+        target: llm_provider
+        description: "Sends the current prompt and tool manifest to the configured model provider."
+      - kind: state_mutation
+        target: conversation_history
+        state: appended
+        description: "Appends the model response to the in-memory conversation history."
+    reversibility:
+      classification: reversible
+      undo: conversation_truncate
+      requires_confirmation: false
+    undo:
+      strategy: conversation_truncate
+      description: "Restore the conversation history checkpoint captured before invoking the model."
+      requires: [conversation_checkpoint]
+    errors:
+      - signal: CommandError
+        condition: "provider configuration is invalid or the model call fails"
+        message_shape: "invoke_llm: <provider/model>: <error>"
+        state_after_failure: "conversation history unchanged unless the provider response was already appended"
+    relationships:
+      before: [assemble_prompt, report_parse_error, nudge_reread, reset_history]
+      after: [parse_response, parse_plan]
+      overlaps:
+        - tool: serve_ui
+          difference: "serve_ui blocks on human UI events; invoke_llm blocks on a model/provider response."
+    config:
+      model: "qwen3.6:27b-mlx"
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      manifest_state: Composing
+      response_profile: qwen
+      system_prompt: |
+        You are a Go developer following specification-driven development. You
+        read specifications before writing code. You make minimal, focused
+        changes that satisfy requirements and pass acceptance criteria.
+
+        Read the specifications in the doc/ directory to understand what needs
+        to be built. The specifications follow SRD format with numbered
+        requirements (R-items) and acceptance criteria (ACs). Implement the
+        code changes described in the specifications. The existing tests in
+        the workspace serve as the oracle — your implementation must pass them.
+
+        Constraints:
+        - Read the SRD in doc/specs/software-requirements/ first
+        - Implement only what the requirements specify
+        - Do not modify test files
+        - All existing tests must pass after your changes
+
+        Use the tools to read the spec files, read existing code, make edits,
+        and signal done when the implementation satisfies the requirements.
+
+      max_time: 600

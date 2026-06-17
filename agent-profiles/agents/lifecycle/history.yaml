@@ -1,0 +1,54 @@
+name: lifecycle-history
+purpose: |-
+  Inspect checkpoint history through the normal agent runtime.
+  The machine runs one declared history action, then exits with a
+  success or failure state based on the tool signal.
+configuration:
+  machine: agents/lifecycle/history.yaml
+  tools: agents/lifecycle/tools.yaml
+invariants:
+- Checkpoint history inspection is a machine action.
+- The operation reads checkpoint state and does not mutate checkpoints.
+- Missing or unreadable checkpoints fail through the CommandError path.
+lifecycle: |-
+  1. Idle -> ReadingHistory (Seed): run checkpoint_history.
+  2. ReadingHistory -> Done (ToolDone): history was printed.
+  3. ReadingHistory -> Failed (ToolFailed or CommandError): history failed.
+initial_state: Idle
+budget:
+  max_iterations: 3
+states:
+- name: Idle
+  meaning: Initial state before history inspection starts.
+- name: ReadingHistory
+  meaning: The checkpoint history command is running.
+- name: Done
+  meaning: Terminal. Checkpoint history was read.
+- name: Failed
+  meaning: Terminal. Checkpoint history could not be read.
+terminal_states:
+- Done
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: checkpoint_history completed successfully.
+- name: ToolFailed
+  trigger: checkpoint_history exited non-zero.
+- name: CommandError
+  trigger: Runtime or command infrastructure failed.
+transitions:
+- state: Idle
+  signal: Seed
+  next: ReadingHistory
+  action: checkpoint_history
+- state: ReadingHistory
+  signal: ToolDone
+  next: Done
+- state: ReadingHistory
+  signal: ToolFailed
+  next: Failed
+- state: ReadingHistory
+  signal: CommandError
+  next: Failed

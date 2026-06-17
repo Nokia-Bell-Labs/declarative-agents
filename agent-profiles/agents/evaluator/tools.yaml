@@ -1,0 +1,13 @@
+# Tool selection for the evaluator session machine (machine.yaml).
+# Per-point tools live in agents/evaluator/tools-point.yaml and are loaded
+# by run_point for the nested point machine.
+
+tools:
+  - parse_suite_config
+  - discover_suite_samples
+  - expand_eval_grid
+  - init_eval_session
+  - report_suite_summary
+  - next_point
+  - run_point
+  - report_session

@@ -47,9 +47,11 @@ components:
   - name: agents
     path: agents/
     responsibility: |
-      Own migrated profile.yaml files, machines, tool selections, profile-local
-      declarations, boundary configs, lifecycle profiles, monitor profiles, and
-      Knowledge Manager assets.
+      Own migrated profile.yaml files, machines, tool selections,
+      profile-local declarations, boundary configs, lifecycle profiles, monitor
+      profiles, REST profiles, control profiles, and Knowledge Manager assets.
+      Profiles may reference core-owned shared tool declarations through
+      /opt/agent-core/tools.
   - name: demos
     path: demo/
     responsibility: |
@@ -133,12 +135,13 @@ project_structure:
       role: Beads issue shape for future work.
 
 implementation_status:
-  current_focus: Specify profile functional blocks before profile asset migration.
+  current_focus: Profile assets migrated before demo and fixture migration.
   progress:
     - done: Initial Beads queue exists.
     - done: Repository purpose and ownership docs are defined.
     - done: Agent functional block requirements and semantic models are defined.
-    - planned: Agent profiles migrate from agent-core into agents/.
+    - done: Agent profiles and Knowledge Manager UX assets migrated from
+        agent-core into agents/.
     - planned: Demos and integration fixtures migrate into demo/ and
         testdata/integration/.
     - planned: Profile validation and container usage checks verify the mounted

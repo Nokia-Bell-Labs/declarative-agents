@@ -1,0 +1,6 @@
+name: lifecycle-rollback
+machine: ../rollback.yaml
+tools:
+  - ../tools.yaml
+tool_config_dirs:
+  - /opt/agent-core/tools/builtin/lifecycle

@@ -1,0 +1,13 @@
+tools:
+  - serve_documentation
+  - launch_curator_control
+  - await_curator_control
+  - exit_agent
+  - doc_list
+  - doc_get
+  - doc_search
+  - doc_validate
+  - doc_suggest_changes
+  - doc_patch_approve
+  - doc_patch_reject
+  - doc_patch_reopen

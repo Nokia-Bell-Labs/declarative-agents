@@ -1,0 +1,125 @@
+name: documentation-curator
+purpose: |-
+  The documentation-curator serves the Knowledge Manager documentation UX and
+  exposes the configured documentation REST workflow. Its first boundary word
+  starts the standalone documentation host. The profile also selects document
+  read, search, trace, validate, suggest, and patch-review REST tools so future
+  curator workflows use configured REST contracts instead of bench-owned routes.
+configuration:
+  machine: agents/knowledge-manager/documentation-curator/machine.yaml
+  tools: agents/knowledge-manager/documentation-curator/tools.yaml
+  tool_declarations:
+    - agents/knowledge-manager/documentation-curator/builtin.yaml
+    - agents/knowledge-manager/documentation-curator/declarations.yaml
+  rest_definitions:
+    - agents/knowledge-manager/documentation-curator/rest.yaml
+invariants:
+  - The documentation host owns docs UI serving for Knowledge Manager documentation.
+  - Runtime authority remains in profile, machine, ToolDef, and REST YAML.
+  - Documentation API access uses localhost-only REST limits from rest.yaml.
+lifecycle: |-
+  1. Idle -> LaunchingDocs (Seed): serve_documentation starts the documentation host.
+  2. LaunchingDocs -> LaunchingControl (ServerLaunched): start generic control REST routes.
+  3. LaunchingControl -> AwaitingControl (ServerLaunched): wait for control events.
+  4. AwaitingControl -> Exiting (ExitRequested): run exit_agent.
+  5. Exiting -> StoppingDocs (AgentExited): stop the owned documentation host.
+  6. StoppingDocs -> Done (ServerStopped): exit completed and the documentation listener is released.
+pipeline_diagram: |-
+  ```mermaid
+  flowchart TD
+    A[Idle] -->|Seed| B[LaunchingDocs]
+    B -->|ServerLaunched| C[LaunchingControl]
+    C -->|ServerLaunched| D[AwaitingControl]
+    D -->|ExitRequested| E[Exiting]
+    E -->|AgentExited| F[StoppingDocs]
+    F -->|ServerStopped| G[Done]
+  ```
+initial_state: Idle
+budget:
+  max_iterations: 10000
+states:
+  - name: Idle
+    meaning: Initial state before the documentation host starts.
+  - name: LaunchingDocs
+    meaning: The standalone documentation UX and API host is starting.
+  - name: LaunchingControl
+    meaning: The generic lifecycle control REST routes are starting.
+  - name: AwaitingControl
+    meaning: Documentation UX and API are available while the machine waits for a control event.
+  - name: Exiting
+    meaning: The machine routes ExitRequested to exit_agent.
+  - name: StoppingDocs
+    meaning: The machine stops the owned documentation host listener.
+  - name: Failed
+    meaning: Terminal. The documentation host could not start or returned an error.
+  - name: Done
+    meaning: Terminal. The documentation host shut down cleanly.
+terminal_states:
+  - Done
+  - Failed
+signals:
+  - name: Seed
+    trigger: Agent startup.
+  - name: CommandError
+    trigger: Documentation host startup or runtime failure.
+  - name: ServerLaunched
+    trigger: Documentation or control server launch completed.
+  - name: ExitRequested
+    trigger: Generic lifecycle exit endpoint enqueued an exit request.
+  - name: AgentExited
+    trigger: exit_agent completed the controlled exit request.
+  - name: ServerStopped
+    trigger: Control server stopped while awaiting events or the documentation host stopped during exit.
+  - name: AwaitTimedOut
+    trigger: No matching control event arrived.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: LaunchingDocs
+    action: serve_documentation
+  - state: LaunchingDocs
+    signal: ServerLaunched
+    next: LaunchingControl
+    action: launch_curator_control
+  - state: LaunchingDocs
+    signal: CommandError
+    next: Failed
+  - state: LaunchingDocs
+    signal: ServerStopped
+    next: Failed
+  - state: LaunchingControl
+    signal: ServerLaunched
+    next: AwaitingControl
+    action: await_curator_control
+  - state: LaunchingControl
+    signal: CommandError
+    next: Failed
+  - state: AwaitingControl
+    signal: ExitRequested
+    next: Exiting
+    action: exit_agent
+  - state: AwaitingControl
+    signal: AwaitTimedOut
+    next: Failed
+  - state: AwaitingControl
+    signal: ServerStopped
+    next: Failed
+  - state: AwaitingControl
+    signal: CommandError
+    next: Failed
+  - state: Exiting
+    signal: AgentExited
+    next: StoppingDocs
+    action: serve_documentation
+  - state: Exiting
+    signal: CommandError
+    next: Failed
+  - state: StoppingDocs
+    signal: ServerStopped
+    next: Done
+  - state: StoppingDocs
+    signal: ServerLaunched
+    next: Failed
+  - state: StoppingDocs
+    signal: CommandError
+    next: Failed

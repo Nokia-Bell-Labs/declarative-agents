@@ -1,0 +1,17 @@
+# Tool selection for the evaluator point machine (point.yaml).
+# Loaded by run_point to build the nested point registry.
+
+tools:
+  - create_point_dir
+  - copy_sample_workspace
+  - copy_sample_docs
+  - init_workspace_repo
+  - stage_workspace_baseline
+  - commit_workspace_baseline
+  - dump_config
+  - run_agent
+  - run_oracle_check
+  - collect_trace_tokens
+  - check_agent_version
+  - summarize_point_results
+  - collect_metrics

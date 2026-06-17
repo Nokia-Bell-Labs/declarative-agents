@@ -1,0 +1,87 @@
+name: control
+purpose: |-
+  Generic REST control profile for agent lifecycle requests.
+  REST handlers enqueue control signals. MachineSpec routes the selected signal
+  to lifecycle vocabulary.
+configuration:
+  machine: agents/control/machine.yaml
+  tools: agents/control/tools.yaml
+invariants:
+  - HTTP handlers enqueue signals only.
+  - rest_await_event selects one control event.
+  - exit_agent owns exit behavior as visible lifecycle vocabulary.
+initial_state: Idle
+budget:
+  max_iterations: 5
+states:
+  - name: Idle
+    meaning: Initial state before the control server starts.
+  - name: LaunchingControl
+    meaning: The REST control server is starting.
+  - name: AwaitingControl
+    meaning: The machine waits for a configured control event.
+  - name: Exiting
+    meaning: The machine dispatches exit_agent after ExitRequested.
+  - name: Succeeded
+    meaning: Terminal. The agent exit request completed.
+  - name: Failed
+    meaning: Terminal. Control routing or lifecycle execution failed.
+terminal_states:
+  - Succeeded
+  - Failed
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: ServerLaunched
+    trigger: REST control server launched.
+  - name: ExitRequested
+    trigger: Operator requested exit through REST control.
+  - name: PauseRequested
+    trigger: Operator requested pause through REST control.
+  - name: RollbackRequested
+    trigger: Operator requested rollback through REST control.
+  - name: AwaitTimedOut
+    trigger: No matching control event arrived.
+  - name: ServerStopped
+    trigger: Control server stopped while awaiting an event.
+  - name: AgentExited
+    trigger: exit_agent requested runtime shutdown.
+  - name: CommandError
+    trigger: Runtime or lifecycle infrastructure failed.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: LaunchingControl
+    action: launch_agent_control
+  - state: LaunchingControl
+    signal: ServerLaunched
+    next: AwaitingControl
+    action: await_agent_control
+  - state: LaunchingControl
+    signal: CommandError
+    next: Failed
+  - state: AwaitingControl
+    signal: ExitRequested
+    next: Exiting
+    action: exit_agent
+  - state: AwaitingControl
+    signal: PauseRequested
+    next: Failed
+  - state: AwaitingControl
+    signal: RollbackRequested
+    next: Failed
+  - state: AwaitingControl
+    signal: AwaitTimedOut
+    next: Failed
+  - state: AwaitingControl
+    signal: ServerStopped
+    next: Failed
+  - state: AwaitingControl
+    signal: CommandError
+    next: Failed
+  - state: Exiting
+    signal: AgentExited
+    next: Succeeded
+  - state: Exiting
+    signal: CommandError
+    next: Failed
