@@ -135,17 +135,22 @@ project_structure:
       role: Beads issue shape for future work.
 
 implementation_status:
-  current_focus: Profile assets migrated before demo and fixture migration.
+  current_focus: Formal migration use cases and test suites after completed asset migration.
   progress:
     - done: Initial Beads queue exists.
     - done: Repository purpose and ownership docs are defined.
     - done: Agent functional block requirements and semantic models are defined.
     - done: Agent profiles and Knowledge Manager UX assets migrated from
         agent-core into agents/.
-    - planned: Demos and integration fixtures migrate into demo/ and
+    - done: Demos and integration fixtures migrated into demo/ and
         testdata/integration/.
-    - planned: Profile validation and container usage checks verify the mounted
+    - done: Profile bundle release tagging is implemented through mage tag.
+    - done: Profile validation and container usage checks verify the mounted
         profile contract.
+    - done: Variant profile discovery covers profile.yaml, profile-*.yaml, and
+        *-profile.yaml files.
+    - planned: Formal migration use cases and test suites document the
+        implemented profile repository workflow.
 
 related_documents:
   - doc: docs/VISION.yaml

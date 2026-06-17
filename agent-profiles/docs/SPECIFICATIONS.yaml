@@ -6,25 +6,28 @@ overview: |
   Foundation documents come first because the migration needs a stable
   ownership boundary before assets move.
 
-  The first SRD defines migrated profile families as functional blocks. Semantic
-  models describe role boundaries, dependency directions, and validation views.
-  Later issues add use cases, test suites, and validation specs as profile
-  families leave agent-core.
+  With the first migration complete, srd001 defines migrated profile families
+  as functional blocks rather than runtime packages. The semantic models record
+  role boundaries, dependency directions, and validation views. Later issues add
+  formal use cases and test suites so the specification corpus catches up with
+  the checked-in profile repository workflow.
 
 roadmap_summary:
   - version: "00.1"
     name: Repository bootstrap
-    status: in_progress
+    status: done
     scope: |
-      Replace the template README and add the foundation docs needed for future
-      structured Beads issues.
+      Replace the template README, add the foundation docs needed for future
+      structured Beads issues, migrate profile assets, add release tagging, and
+      validate mounted-profile references.
   - version: "06.0"
     name: External agent profiles and mounted runtime assets
-    status: planned
+    status: in_progress
     scope: |
-      Move profile-owned agent assets, demos, and integration fixtures into
+      Profile-owned agent assets, demos, and integration fixtures now live in
       this repository. agent-core consumes them from AGENT_PROFILES_ROOT,
-      /profiles, or release bundles.
+      /profiles, or release bundles. Remaining work adds formal use cases and
+      test suites for the completed migration path.
 
 foundation_document_index:
   - id: agent-profiles
@@ -52,7 +55,7 @@ srd_index:
     summary: Requirements for generator, evaluator, planner, jurist, bench,
       REST, monitor, lifecycle, control, and Knowledge Manager profiles as
       configured functional blocks.
-    status: planned
+    status: implemented
     path: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
 
 config_format_index: []
@@ -62,11 +65,13 @@ semantic_model_index:
     title: Multi-Agent Profile System
     summary: Role groups, actor boundaries, dependency directions, and
       validation views for profile-owned agent programs.
+    status: implemented
     path: docs/specs/semantic-models/multi-agent-profile-system.yaml
   - id: sm-agent-role-taxonomy
     title: Agent Role Taxonomy
     summary: Per-profile role, inputs, outputs, selected tool families,
       runtime dependencies, outcomes, and checks.
+    status: implemented
     path: docs/specs/semantic-models/agent-role-taxonomy.yaml
 
 use_case_index: []
@@ -74,11 +79,13 @@ use_case_index: []
 test_suite_index: []
 
 coverage_gaps: |
-  The initial SRD and semantic models describe ownership, role boundaries, and
-  functional-block requirements for migrated profile families. Use cases,
-  formal test suites, and validation command specs remain planned follow-up
-  work.
+  The SRD and semantic models describe ownership, role boundaries, and
+  functional-block requirements for migrated profile families. Profile assets,
+  demos, integration fixtures, release tagging, profile validation, and
+  mounted-container smoke checks are implemented.
 
-  Beads tracks the operational proof work separately. That work covers profile
-  asset migration, demo migration, integration fixture migration, profile
-  validation, and mounted container execution checks.
+  Traceability documentation is the remaining gap. Formal use cases and test
+  suites still need to name the implemented commands, mounted-profile paths,
+  fixture roots, and release-bundle expectations. That coverage belongs beside
+  the working migration commands already present in this repository, but Beads
+  tracks it as separate specification work.

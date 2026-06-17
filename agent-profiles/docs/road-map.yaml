@@ -11,7 +11,7 @@ releases:
       Issue format rules matter because the next issues touch profile assets,
       demos, and fixtures. With those rules in place, future Beads issues can
       move assets without re-opening the runtime ownership decision.
-    status: in_progress
+    status: done
     deliverables:
       - README.md documents local usage, container usage, and ownership.
       - docs/VISION.yaml defines goals and boundaries.
@@ -25,18 +25,21 @@ releases:
         profile role groups and dependency directions.
       - docs/specs/semantic-models/agent-role-taxonomy.yaml classifies each
         profile family by boundary, inputs, outputs, tools, and checks.
+      - magefiles/release.go adds profile bundle release tagging.
+      - magefiles/validation.go validates migrated profiles and mounted
+        container usage against an external agent-core runtime.
 
   - version: "06.0"
     name: External agent profiles and mounted runtime assets
     description: |
-      Move profile-owned programs from agent-core into this repository. Demos
-      and integration fixtures move with the profiles they exercise.
+      Profile-owned programs have moved from agent-core into this repository.
+      Demos and integration fixtures moved with the profiles they exercise.
 
       Runtime code, builtin tool implementations, release image build logic,
       and core-owned assets stay in agent-core. At execution time, commands
       load profiles through AGENT_PROFILES_ROOT, /profiles, or another explicit
       external path.
-    status: planned
+    status: in_progress
     related_agent_core_release: "06.0"
     planned_work:
       - id: agent-profiles-dte
@@ -44,12 +47,21 @@ releases:
         status: done
       - id: agent-profiles-sqe
         summary: Migrate agent profiles and UX assets from agent-core.
-        status: planned
+        status: done
       - id: agent-profiles-6ar
         summary: Move demos and agent integration fixtures into agent-profiles.
-        status: planned
+        status: done
+      - id: agent-profiles-73s
+        summary: Add Mage release tag target for profile bundles.
+        status: done
       - id: agent-profiles-8t8
         summary: Add profile validation and container usage checks.
+        status: done
+      - id: agent-profiles-dqm
+        summary: Validate all profile variants in agent-profiles.
+        status: done
+      - id: agent-profiles-0g7
+        summary: Add formal profile migration use cases and test suites.
         status: planned
     success_markers:
       - Migrated profile.yaml files load through agent-core from this
