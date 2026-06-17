@@ -3,7 +3,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -101,9 +103,16 @@ func Audit() error {
 		"--profile", filepath.Join(rootDir, "agents/jurist/profile.yaml"),
 		"--directory", rootDir,
 	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	var output bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &output)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &output)
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	if auditRunFailed(output.String()) {
+		return fmt.Errorf("audit failed: jurist reported failed terminal status")
+	}
+	return nil
 }
 
 // Lint runs golangci-lint on the project.
