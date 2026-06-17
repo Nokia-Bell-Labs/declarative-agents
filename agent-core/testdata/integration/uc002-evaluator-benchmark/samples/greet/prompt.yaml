@@ -1,4 +1,0 @@
-prompt: |
-  Implement the Hello function in greet.go according to the SRD
-  in doc/specs/software-requirements/srd001-greet.yaml.
-  All tests in greet_test.go must pass.

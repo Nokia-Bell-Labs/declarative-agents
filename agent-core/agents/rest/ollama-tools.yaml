@@ -1,6 +1,0 @@
-tools:
-  - invoke_llm
-  - parse_response
-  - report_parse_error
-  - done
-  - ollama_list_models

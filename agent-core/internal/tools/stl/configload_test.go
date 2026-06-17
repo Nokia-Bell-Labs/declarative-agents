@@ -72,7 +72,6 @@ func profileRootCandidates(repoRoot string) []string {
 	return append(candidates,
 		filepath.Join(filepath.Dir(repoRoot), "agent-profiles"),
 		filepath.Join(repoRoot, "agent-profiles"),
-		filepath.Join(repoRoot, "agents"),
 	)
 }
 

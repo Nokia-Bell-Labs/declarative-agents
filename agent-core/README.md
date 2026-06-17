@@ -46,16 +46,17 @@ domains include `internal/observability` for tracing and telemetry, and
 
 ## Agent Profiles
 
-Profiles are the normal runtime entry points. The standard profiles are
-`agents/generator/profile.yaml` for the coding generator loop,
-`agents/evaluator/profile.yaml` for evaluator suites,
-`agents/planner/profile.yaml` for planning and task execution,
-`agents/bench/profile.yaml` for the bench web UI, and
-`agents/jurist/profile.yaml` for spec validation.
+Profiles are normal runtime entry points, but standard agent programs now live
+outside this repository. Set `AGENT_PROFILES_ROOT` to an `agent-profiles`
+checkout or bundle, then pass explicit paths such as
+`$AGENT_PROFILES_ROOT/agents/generator/profile.yaml`,
+`$AGENT_PROFILES_ROOT/agents/evaluator/profile.yaml`, or
+`$AGENT_PROFILES_ROOT/agents/jurist/profile.yaml`.
 
-Lifecycle operators use the same profile path.
-`agents/lifecycle/history/profile.yaml` inspects checkpoint history through
-`checkpoint_history`. `agents/lifecycle/rollback/profile.yaml` rolls back a
+Lifecycle operators use the same external profile path shape.
+`$AGENT_PROFILES_ROOT/agents/lifecycle/history/profile.yaml` inspects
+checkpoint history through `checkpoint_history`.
+`$AGENT_PROFILES_ROOT/agents/lifecycle/rollback/profile.yaml` rolls back a
 checkpoint through `checkpoint_rollback`. The removed `agent history` and
 `agent rollback` aliases are not part of the runtime surface.
 
@@ -85,10 +86,10 @@ Browser document requests enter the generic REST server through
 document index. `documentation_curator_requests.document` serves document
 detail responses.
 
-After validation, each accepted request runs one short-lived
-`agents/knowledge-manager/documentation-curator/request-machine.yaml` sentence.
-That sentence reads the configured `documentation_corpus` document resource. A
-response word maps machine output back to HTTP.
+After validation, each accepted request runs one short-lived request-machine
+sentence from the external documentation-curator profile. That sentence reads
+the configured `documentation_corpus` document resource. A response word maps
+machine output back to HTTP.
 
 Run the proof with:
 
@@ -113,11 +114,11 @@ safety.
 For history and rollback, use the universal runtime flags:
 
 ```bash
-bin/agent --profile agents/lifecycle/history/profile.yaml \
+bin/agent --profile "$AGENT_PROFILES_ROOT/agents/lifecycle/history/profile.yaml" \
   --directory "$WORKSPACE" \
   --request requests/history.yaml
 
-bin/agent --profile agents/lifecycle/rollback/profile.yaml \
+bin/agent --profile "$AGENT_PROFILES_ROOT/agents/lifecycle/rollback/profile.yaml" \
   --directory "$WORKSPACE" \
   --request requests/rollback.yaml
 ```
@@ -134,7 +135,8 @@ storage, retained artifacts, or isolated tests.
 
 ```bash
 mage build
-bin/agent --profile agents/generator/profile.yaml --directory "$PWD"
+AGENT_PROFILES_ROOT=../agent-profiles \
+  bin/agent --profile "$AGENT_PROFILES_ROOT/agents/generator/profile.yaml" --directory "$PWD"
 ```
 
 ## Docker Runtime

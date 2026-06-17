@@ -1,4 +1,0 @@
-tools:
-  - launch_agent_control
-  - await_agent_control
-  - exit_agent

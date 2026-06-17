@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -20,6 +21,20 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
 )
+
+func TestMain(m *testing.M) {
+	previous, hadPrevious := os.LookupEnv("AGENT_CORE_HOME")
+	if !hadPrevious {
+		_ = os.Setenv("AGENT_CORE_HOME", repoRootFromLifecycleRuntime())
+	}
+	code := m.Run()
+	if hadPrevious {
+		_ = os.Setenv("AGENT_CORE_HOME", previous)
+	} else {
+		_ = os.Unsetenv("AGENT_CORE_HOME")
+	}
+	os.Exit(code)
+}
 
 func TestExitAgentEmitsAgentExited(t *testing.T) {
 	t.Parallel()
@@ -244,16 +259,62 @@ func postControl(t *testing.T, url, body string) {
 
 func controlRestPath(t *testing.T) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	return filepath.Join(filepath.Dir(file), "..", "..", "..", "agents", "control", "rest.yaml")
+	return controlProfileAssetPath(t, "rest.yaml")
 }
 
 func controlProfilePath(t *testing.T) string {
 	t.Helper()
+	return controlProfileAssetPath(t, "profile.yaml")
+}
+
+func controlProfileAssetPath(t *testing.T, rel string) string {
+	t.Helper()
+	return filepath.Join(lifecycleProfileRoot(t), "control", filepath.FromSlash(rel))
+}
+
+func lifecycleProfileRoot(t *testing.T) string {
+	t.Helper()
+	root := repoRootFromLifecycleTest(t)
+	for _, candidate := range lifecycleProfileRootCandidates(root) {
+		if hasLifecycleProfile(candidate, "control/profile.yaml") {
+			return candidate
+		}
+		nested := filepath.Join(candidate, "agents")
+		if hasLifecycleProfile(nested, "control/profile.yaml") {
+			return nested
+		}
+	}
+	t.Fatalf("profile root not found; set AGENT_PROFILES_ROOT")
+	return ""
+}
+
+func lifecycleProfileRootCandidates(root string) []string {
+	candidates := []string{}
+	if configured := os.Getenv("AGENT_PROFILES_ROOT"); configured != "" {
+		candidates = append(candidates, configured)
+	}
+	return append(candidates,
+		filepath.Join(filepath.Dir(root), "agent-profiles"),
+		filepath.Join(root, "agent-profiles"),
+	)
+}
+
+func hasLifecycleProfile(root, rel string) bool {
+	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel)))
+	return err == nil && !info.IsDir()
+}
+
+func repoRootFromLifecycleTest(t *testing.T) string {
+	t.Helper()
+	return repoRootFromLifecycleRuntime()
+}
+
+func repoRootFromLifecycleRuntime() string {
 	_, file, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	return filepath.Join(filepath.Dir(file), "..", "..", "..", "agents", "control", "profile.yaml")
+	if !ok {
+		panic("resolve test file")
+	}
+	return filepath.Join(filepath.Dir(file), "..", "..", "..")
 }
 
 func toolNames(defs []catalog.ToolDef) map[string]bool {

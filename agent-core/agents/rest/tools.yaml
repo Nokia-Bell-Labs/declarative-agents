@@ -1,7 +1,0 @@
-tools:
-  - get_payment
-  - create_payment
-  - await_payment
-  - launch_payment_webhooks
-  - await_payment_webhook
-  - stop_payment_webhooks

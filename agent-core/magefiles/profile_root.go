@@ -31,7 +31,6 @@ func agentProfileRootCandidates(rootDir string) []string {
 	candidates = append(candidates,
 		filepath.Join(filepath.Dir(rootDir), "agent-profiles"),
 		filepath.Join(rootDir, "agent-profiles"),
-		filepath.Join(rootDir, "agents"),
 	)
 	return candidates
 }
@@ -61,4 +60,31 @@ func agentProfilePath(root, rel string) string {
 
 func agentProfileAsset(root, rel string) string {
 	return filepath.Join(root, filepath.FromSlash(rel))
+}
+
+func resolveAgentProfilesRepoRoot(rootDir string) (string, error) {
+	for _, candidate := range agentProfileRootCandidates(rootDir) {
+		root := normalizeAgentProfilesRepoRoot(candidate)
+		if root != "" {
+			return root, nil
+		}
+	}
+	return "", fmt.Errorf("agent profiles repository root not found; set %s", agentProfilesRootEnv)
+}
+
+func normalizeAgentProfilesRepoRoot(candidate string) string {
+	if candidate == "" {
+		return ""
+	}
+	for _, root := range []string{candidate, filepath.Dir(candidate)} {
+		if hasProfile(filepath.Join(root, "agents"), "generator") && hasIntegrationFixtureRoot(root) {
+			return root
+		}
+	}
+	return ""
+}
+
+func hasIntegrationFixtureRoot(root string) bool {
+	info, err := os.Stat(filepath.Join(root, "testdata", "integration"))
+	return err == nil && info.IsDir()
 }

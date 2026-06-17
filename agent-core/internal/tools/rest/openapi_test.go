@@ -16,6 +16,20 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 )
 
+func TestMain(m *testing.M) {
+	previous, hadPrevious := os.LookupEnv("AGENT_CORE_HOME")
+	if !hadPrevious {
+		_ = os.Setenv("AGENT_CORE_HOME", repoRootFromRuntime())
+	}
+	code := m.Run()
+	if hadPrevious {
+		_ = os.Setenv("AGENT_CORE_HOME", previous)
+	} else {
+		_ = os.Unsetenv("AGENT_CORE_HOME")
+	}
+	os.Exit(code)
+}
+
 func TestRESTOpenAPI_ImportAllowlist(t *testing.T) {
 	t.Parallel()
 
@@ -114,8 +128,8 @@ func TestRESTOpenAPI_InvalidOperationIDs(t *testing.T) {
 func TestRESTOpenAPI_LoadsOllamaProfileConfig(t *testing.T) {
 	t.Parallel()
 
-	root := repoRoot(t)
-	def, err := LoadDefinition(filepath.Join(root, "agents/rest/ollama-rest.yaml"))
+	root := profileRoot(t)
+	def, err := LoadDefinition(filepath.Join(root, "rest/ollama-rest.yaml"))
 	require.NoError(t, err)
 	operation := def.Clients["ollama"].Operations["listOllamaModels"]
 	require.Equal(t, "http://127.0.0.1:11434", def.Clients["ollama"].BaseURL)
@@ -123,7 +137,7 @@ func TestRESTOpenAPI_LoadsOllamaProfileConfig(t *testing.T) {
 	require.Equal(t, "/api/tags", operation.Path)
 	require.NotContains(t, def.Clients["ollama"].Operations, "generate")
 
-	profile, err := catalog.LoadProfile(filepath.Join(root, "agents/rest/ollama-profile.yaml"))
+	profile, err := catalog.LoadProfile(filepath.Join(root, "rest/ollama-profile.yaml"))
 	require.NoError(t, err)
 	selection, err := catalog.LoadToolSelections(profile.Tools)
 	require.NoError(t, err)
@@ -175,9 +189,46 @@ func externalToolNames(defs []catalog.ToolDef) []string {
 
 func repoRoot(t *testing.T) string {
 	t.Helper()
+	return repoRootFromRuntime()
+}
+
+func repoRootFromRuntime() string {
 	_, file, _, ok := runtime.Caller(0)
-	require.True(t, ok)
+	if !ok {
+		panic("resolve test file")
+	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "..")
+}
+
+func profileRoot(t *testing.T) string {
+	t.Helper()
+	for _, candidate := range profileRootCandidates(repoRoot(t)) {
+		if hasProfile(candidate, "rest/ollama-profile.yaml") {
+			return candidate
+		}
+		nested := filepath.Join(candidate, "agents")
+		if hasProfile(nested, "rest/ollama-profile.yaml") {
+			return nested
+		}
+	}
+	t.Fatalf("profile root not found; set AGENT_PROFILES_ROOT")
+	return ""
+}
+
+func profileRootCandidates(root string) []string {
+	candidates := []string{}
+	if configured := os.Getenv("AGENT_PROFILES_ROOT"); configured != "" {
+		candidates = append(candidates, configured)
+	}
+	return append(candidates,
+		filepath.Join(filepath.Dir(root), "agent-profiles"),
+		filepath.Join(root, "agent-profiles"),
+	)
+}
+
+func hasProfile(root, rel string) bool {
+	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel)))
+	return err == nil && !info.IsDir()
 }
 
 func paymentsOpenAPI(duplicate bool) string {

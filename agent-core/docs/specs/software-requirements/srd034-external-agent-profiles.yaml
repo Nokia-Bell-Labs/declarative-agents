@@ -69,15 +69,15 @@ requirements:
 
 implementation_status:
   current: |
-    Today the repository still contains profile directories. The current
-    Dockerfile also copies generator and evaluator profiles into the runtime
-    image. Treat those copies as legacy migration state, not as the target
-    contract for Release 06.0.
+    Agent Core no longer stores standard agent profile directories, demos, or
+    profile-owned integration fixtures. Docker packaging, Mage integration
+    targets, tests, and README examples consume those assets from an external
+    agent-profiles checkout or bundle through AGENT_PROFILES_ROOT.
   planned: |
-    Follow-up work updates profile root resolution first. Docker packaging,
-    Mage integration targets, and README examples then consume profiles from
-    external paths. A later cleanup removes in-repo profile assets after
-    agent-profiles owns equivalent files.
+    Future runtime work should keep this boundary: profile-owned agent programs
+    move in agent-profiles, while agent-core keeps the binary, Go runtime,
+    shared tool implementations, core-owned tool declarations, and runtime
+    packaging.
 
 non_goals:
   - Rewriting runtime package boundaries while profile ownership moves.
@@ -111,13 +111,9 @@ acceptance_criteria:
     tests:
       - "test-rel06.0-profile-migration: Container runs with mounted profile and workspace"
 
-depends_on:
-  - doc: repository-migration.md
-    symbols_used: [agent-core, agent-profiles, mounted workspace, release image]
-  - doc: docs/specs/config-formats/runtime-contract.yaml
-    symbols_used: [profile.yaml, --profile, profile-relative paths]
-
 related_documents:
+  - repository-migration.md
+  - docs/specs/config-formats/runtime-contract.yaml
   - rel06.0-uc001-mounted-profile-container-runtime
   - test-rel06.0-profile-migration
   - docs/ARCHITECTURE.yaml

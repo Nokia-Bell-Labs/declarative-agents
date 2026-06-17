@@ -82,14 +82,6 @@ func (Integration) Uc001() error {
 		return err
 	}
 
-	workDir, cleanup, err := tempWorkspace(generatorSample)
-	if err != nil {
-		return fmt.Errorf("uc001: prepare workspace: %w", err)
-	}
-	defer cleanup()
-
-	fmt.Printf("uc001: workspace at %s\n", workDir)
-
 	rootDir, err := os.Getwd()
 	if err != nil {
 		return err
@@ -98,6 +90,18 @@ func (Integration) Uc001() error {
 	if err != nil {
 		return err
 	}
+	profilesRepoRoot, err := resolveAgentProfilesRepoRoot(rootDir)
+	if err != nil {
+		return err
+	}
+
+	workDir, cleanup, err := tempWorkspace(filepath.Join(profilesRepoRoot, generatorSample))
+	if err != nil {
+		return fmt.Errorf("uc001: prepare workspace: %w", err)
+	}
+	defer cleanup()
+
+	fmt.Printf("uc001: workspace at %s\n", workDir)
 
 	args := []string{
 		"--profile", agentProfilePath(profileRoot, "generator"),
@@ -137,6 +141,10 @@ func (Integration) Uc002() error {
 	if err != nil {
 		return err
 	}
+	profilesRepoRoot, err := resolveAgentProfilesRepoRoot(rootDir)
+	if err != nil {
+		return err
+	}
 
 	outputDir, err := os.MkdirTemp("", "eval-results-*")
 	if err != nil {
@@ -154,7 +162,7 @@ func (Integration) Uc002() error {
 
 	args := []string{
 		"--profile", agentProfilePath(profileRoot, "evaluator"),
-		"--request", filepath.Join(rootDir, evaluatorSuite),
+		"--request", filepath.Join(profilesRepoRoot, evaluatorSuite),
 		"--output", outputDir,
 	}
 

@@ -43,3 +43,27 @@ terminal state: failed
 		})
 	}
 }
+
+func TestEnvWithDefault(t *testing.T) {
+	t.Parallel()
+
+	got := envWithDefault([]string{"PATH=/bin"}, "AGENT_CORE_HOME", "/repo")
+	if !containsEnv(got, "AGENT_CORE_HOME=/repo") {
+		t.Fatalf("envWithDefault() = %v, want AGENT_CORE_HOME default", got)
+	}
+
+	existing := []string{"AGENT_CORE_HOME=/custom"}
+	got = envWithDefault(existing, "AGENT_CORE_HOME", "/repo")
+	if len(got) != 1 || got[0] != "AGENT_CORE_HOME=/custom" {
+		t.Fatalf("envWithDefault() = %v, want existing value preserved", got)
+	}
+}
+
+func containsEnv(env []string, want string) bool {
+	for _, entry := range env {
+		if entry == want {
+			return true
+		}
+	}
+	return false
+}
