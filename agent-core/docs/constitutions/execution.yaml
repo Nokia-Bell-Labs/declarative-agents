@@ -81,6 +81,27 @@ articles:
     not be rewritten.
 
     '
+  formal_reference_scope: 'Whole-file structural metrics are advisory for formal
+
+    reference documents whose required shape is YAML, tables, enumerated
+
+    requirements, field lists, or trace lists. This includes ARCHITECTURE,
+
+    SPECIFICATIONS, road-map, SRDs, config-format specs, semantic models, use
+
+    cases, and test suites. For those files, treat lexical findings and
+
+    suspicious or likely-ai findings in touched prose blocks as the blocking
+
+    gate. Record residual list-heavy, colon-heavy, tricolon-heavy,
+
+    exhaustive-list-heavy, and uniform-paragraph findings as accepted formal
+
+    document structure when three focused rewrite passes would weaken the
+
+    reference format.
+
+    '
 - id: E8
   title: Function size limit
   rule: 'Keep Go functions at or below 40 lines unless existing code already
