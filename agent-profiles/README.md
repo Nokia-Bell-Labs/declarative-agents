@@ -52,6 +52,28 @@ docker run --rm \
 
 The mounted `/profiles` path is the container form of `AGENT_PROFILES_ROOT`.
 
+## Release Tags
+
+Profile bundle releases use the same revision shape as `agent-core` runtime
+releases:
+
+```text
+v0.YYYYMMDD.N
+```
+
+Create a tag from `main` after profile changes are ready for mounted-path,
+checkout, or release-bundle consumers:
+
+```bash
+mage tag
+```
+
+The target reads existing local tags for the current date and creates the next
+daily revision, such as `v0.20260617.0` or `v0.20260617.1`. It does not query
+`agent-core`; profile bundle tags version this repository's YAML programs,
+demos, UI assets, and integration fixtures. Runtime image tags still belong to
+`agent-core`.
+
 ## Validation
 
 This repository is specification and asset focused. Run the documented audit
