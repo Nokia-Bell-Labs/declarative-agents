@@ -127,6 +127,24 @@ quality_gates:
   - mage audit
   - bash .cursor/skills/de-ai/scripts/detect-lexical.sh <touched-doc>
   - python3 .cursor/skills/de-ai/scripts/detect-structural.py <touched-doc>
+documentation_de_ai_scope:
+  lexical: Full touched-document lexical scans are blocking for documentation
+    issues.
+  structural: |
+    Structural scans are blocking for touched prose blocks in Markdown and YAML
+    block scalars when they report suspicious or likely-ai prose that can be
+    rewritten without changing formal meaning.
+
+    Formal reference docs may keep whole-file structural warnings caused by
+    required YAML shape. Required lists, field inventories, trace matrices, and
+    examples can trigger those metrics. Compact status sections may show the
+    same pattern. Accept residual warnings about list density and punctuation
+    density when lexical scans are clean.
+    The same exception covers inline inventories, parenthetical text, and
+    paragraph length when three focused rewrite passes would make the reference
+    less precise.
+  close_comment: Record any accepted formal-document residuals in the Beads
+    stats comment.
   config_or_profile:
   - mage audit
   - go test ./...
