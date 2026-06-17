@@ -2,6 +2,10 @@
 
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
+## Documentation authority
+
+YAML under `docs/` and `docs/constitutions/` in this repository is the source of truth for agent-core behavior contracts. When workspace-wide editor rules or other guidance disagrees with that corpus, follow the repository docs.
+
 > **Architecture in one line:** Issues live in a local Dolt database
 > (`.beads/dolt/`); cross-machine sync uses `bd dolt push/pull` (a
 > git-compatible protocol), stored under `refs/dolt/data` on your git
@@ -88,7 +92,7 @@ bd close <id>         # Complete work
 6. **Verify** - All changes committed AND pushed
 7. **Hand off** - Provide context for next session
 
-**CRITICAL RULES:**
+### Must-follow rules
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push

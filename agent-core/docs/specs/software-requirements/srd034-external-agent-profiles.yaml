@@ -55,7 +55,7 @@ requirements:
     items:
       - R3.1: cmd/agent SHALL accept an explicit --profile path that points to a profile supplied outside the Agent Core source tree.
       - R3.2: Relative paths inside profile.yaml SHALL resolve from the directory that contains that profile.yaml.
-      - R3.3: Tests and Mage targets that need standard profiles SHALL accept a configured external profile root rather than assuming agents/ exists in agent-core.
+      - R3.3: Tests and Mage targets that need standard profiles SHALL resolve an external agent-profiles checkout or bundle path, then pass explicit file paths (for example --profile) rather than assuming agents/ exists in agent-core or relying on process environment variables as the semantic profile-root channel.
       - R3.4: Profile root discovery SHALL fail with a clear diagnostic when a required external profile path is missing.
 
   R4:
@@ -65,14 +65,15 @@ requirements:
       - R4.2: Runtime container images SHALL NOT copy agents/generator, agents/evaluator, agents/planner, agents/bench, agents/jurist, Knowledge Manager profiles, demos, or profile integration fixtures from agent-core.
       - R4.3: Container callers SHALL provide profiles by bind mount, image layer supplied by another repository, release asset unpack, or another explicit external path.
       - R4.4: Container proof commands SHALL run cmd/agent with --profile pointing at the mounted profile path and --directory pointing at the mounted workspace.
-      - R4.5: The runtime image MAY expose AGENT_CORE_HOME for core-owned assets under /opt/agent-core, but AGENT_CORE_HOME SHALL NOT imply that agent profiles are present there.
+      - R4.5: The runtime image SHALL install core-owned assets under a fixed path such as /opt/agent-core. That install path SHALL NOT imply that agent profiles are present there. Operators reference core-owned declaration trees with absolute paths in configuration when needed.
 
 implementation_status:
   current: |
     Agent Core no longer stores standard agent profile directories, demos, or
     profile-owned integration fixtures. Docker packaging, Mage integration
     targets, tests, and README examples consume those assets from an external
-    agent-profiles checkout or bundle through AGENT_PROFILES_ROOT.
+    agent-profiles checkout or bundle using explicit paths passed to --profile,
+    bind mounts, and documented mage inputs.
   planned: |
     Future runtime work should keep this boundary: profile-owned agent programs
     move in agent-profiles, while agent-core keeps the binary, Go runtime,

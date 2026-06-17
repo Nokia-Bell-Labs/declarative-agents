@@ -8,20 +8,36 @@ purpose: |
   exist. As a universal runtime, the binary gets its behavior
   entirely from the config files it receives.
 
+configuration_authority: |
+  We treat YAML under docs/ and docs/constitutions/ in this repository as the
+  single authority for agent-core behavior contracts, including this runtime
+  contract. Workspace-wide editor or agent rules defer to that corpus when they
+  disagree.
+
+operator_paths: |
+  Operators supply profile and workspace locations through explicit argv flags
+  and file paths, not through process environment variables that redefine where
+  the agent program lives. Tests and mage targets resolve checkout directories
+  in code or shell, then pass those locations as absolute or cwd-relative paths
+  on the command line (for example --profile and --directory) or in printed
+  container bind mounts. Environment variables must not be the semantic channel
+  for profile root or core install layout for cmd/agent.
+
 invocation: |
-  Normal invocation.
-    agent --profile "$AGENT_PROFILES_ROOT/<agent>/profile.yaml" \
+  Normal invocation. Replace /work/agent-profiles with your agent-profiles
+  checkout or bundle root.
+    agent --profile /work/agent-profiles/agents/<agent>/profile.yaml \
           [--request <file>] [--output <dir>] \
           [--directory <path>] \
           [--state-store-dir <dir>] \
           [--resume-checkpoint <id>] [--resume-signal <signal>]
 
   Lifecycle profile invocations.
-    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/history/profile.yaml" \
+    agent --profile /work/agent-profiles/agents/lifecycle/history/profile.yaml \
           --directory <workspace> \
           --request requests/history.yaml
 
-    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/rollback/profile.yaml" \
+    agent --profile /work/agent-profiles/agents/lifecycle/rollback/profile.yaml \
           --directory <workspace> \
           --request requests/rollback.yaml
 
@@ -315,7 +331,7 @@ config_file_layout: |
     exec/                   # Individual shared exec tool declarations
     builtin.yaml            # Legacy aggregate builtin declarations
     exec.yaml               # Legacy aggregate exec declarations
-  AGENT_PROFILES_ROOT/
+  <agent-profiles-checkout>/agents/
     generator/
       profile.yaml          # Preferred generator runtime entry point
       machine.yaml          # Generator state machine and semantics
@@ -375,10 +391,11 @@ container_runtime_layout: |
   complete language build environment.
 
   `mage docker` is the canonical build wrapper. It resolves the latest remote
-  release tag unless AGENT_CORE_REF overrides it, passes AGENT_CORE_REF to the
-  Dockerfile, defaults build credentials to a repository-local .netrc BuildKit
-  secret, prefers Docker when available and Podman as fallback, and prints the
-  exact build command before execution.
+  release tag unless the operator passes a different source revision to mage,
+  forwards that revision to the Dockerfile build-arg for the clone step, defaults
+  build credentials to a repository-local .netrc BuildKit secret, prefers Docker
+  when available and Podman as fallback, and prints the exact build command before
+  execution.
 
 invariants:
   - Every agent mode uses the same binary with the same startup sequence.
