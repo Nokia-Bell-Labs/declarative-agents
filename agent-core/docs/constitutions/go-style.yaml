@@ -101,6 +101,7 @@ files:
 configuration:
   rules:
   - Runtime agent behavior belongs in YAML profiles, machines, tools, and tool declarations.
+  - cmd/agent SHALL take its program shape from argv flags (for example --profile) and from files those flags reference. Do not use os.Getenv for runtime configuration channels such as profile roots, core install prefixes, or workspace defaults.
   - Do not add mode-specific branches to cmd/agent when a profile, machine, or ToolDef can express the behavior.
   - Use typed config structs when decoding ToolDef config.
   - Keep compatibility paths explicit and tested.

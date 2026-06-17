@@ -842,8 +842,8 @@ overview:
       host/container environment.
 
       `mage docker` is the canonical release-image build wrapper. It
-      resolves the latest remote release tag unless `AGENT_CORE_REF` overrides
-      it, passes repository-local `.netrc` credentials as a BuildKit secret
+      resolves the latest remote release tag unless the operator passes a
+      different revision through mage, passes repository-local `.netrc` credentials as a BuildKit secret
       when present, chooses Docker when available and Podman as fallback, and
       prints the exact build command before running it.
 
@@ -1493,7 +1493,7 @@ implementation_status:
     - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching
     - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
     - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
-    - done: External agent profiles and configurations — generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from agent-profiles through AGENT_PROFILES_ROOT
+    - done: External agent profiles and configurations — generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from agent-profiles through explicit --profile paths to a checkout or bundle mounted or copied beside the workspace
     - done: Grammar Machine alignment — selected-tool contract enforcement, rollback strategy vocabulary, profile-first child boundaries, and centralized builtin factory catalog
     - done: Rollback lifecycle core operations — StateStore, FileStore, Workspace, GitWorkspace, checkpoints, history, resume, and rollback traversal
     - done: Lifecycle STL adapters and external profiles — checkpoint_history and checkpoint_rollback selected by agent-profiles lifecycle profiles
