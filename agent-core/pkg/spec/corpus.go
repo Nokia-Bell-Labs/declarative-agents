@@ -27,8 +27,6 @@ const (
 	RoadmapFile = "docs/road-map.yaml"
 	SpecFile    = "docs/SPECIFICATIONS.yaml"
 	AgentsDir   = "agents"
-	ProfilesEnv = "AGENT_PROFILES_ROOT"
-	CoreHomeEnv = "AGENT_CORE_HOME"
 	CoreInstall = "/opt/agent-core"
 	SMSubdir    = "docs/specs/semantic-models"
 	CFSubdir    = "docs/specs/config-formats"

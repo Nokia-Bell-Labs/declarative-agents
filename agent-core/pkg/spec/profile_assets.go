@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -30,14 +29,10 @@ func resolveProfileAssetsRoot(rootDir string) string {
 }
 
 func profileRootCandidates(rootDir string) []string {
-	candidates := []string{}
-	if configured := os.Getenv(ProfilesEnv); configured != "" {
-		candidates = append(candidates, configured)
-	}
-	return append(candidates,
+	return []string{
 		filepath.Join(filepath.Dir(rootDir), "agent-profiles"),
 		filepath.Join(rootDir, "agent-profiles"),
-	)
+	}
 }
 
 func normalizeProfileRoot(candidate string) string {
@@ -78,7 +73,7 @@ func declarationFilesFromProfile(path string) []string {
 }
 
 func resolveProfilePath(base, p string) string {
-	if mapped := resolveInstalledCorePath(p); mapped != "" {
+	if mapped := MapInstalledCorePath(p); mapped != "" {
 		return mapped
 	}
 	if filepath.IsAbs(p) {
@@ -87,16 +82,3 @@ func resolveProfilePath(base, p string) string {
 	return filepath.Join(base, p)
 }
 
-func resolveInstalledCorePath(p string) string {
-	clean := filepath.ToSlash(filepath.Clean(p))
-	if clean != CoreInstall && !strings.HasPrefix(clean, CoreInstall+"/") {
-		return ""
-	}
-	root := strings.TrimSpace(os.Getenv(CoreHomeEnv))
-	if root == "" {
-		return ""
-	}
-	rel := strings.TrimPrefix(clean, CoreInstall)
-	rel = strings.TrimPrefix(rel, "/")
-	return filepath.Join(root, filepath.FromSlash(rel))
-}

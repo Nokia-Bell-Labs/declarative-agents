@@ -32,21 +32,13 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
-	toolrest "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
+	toolrest 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
 func TestMain(m *testing.M) {
-	previous, hadPrevious := os.LookupEnv("AGENT_CORE_HOME")
-	if !hadPrevious {
-		_ = os.Setenv("AGENT_CORE_HOME", repoRootFromRuntime())
-	}
-	code := m.Run()
-	if hadPrevious {
-		_ = os.Setenv("AGENT_CORE_HOME", previous)
-	} else {
-		_ = os.Unsetenv("AGENT_CORE_HOME")
-	}
-	os.Exit(code)
+	spec.SetAgentCoreInstallRoot(repoRootFromRuntime())
+	os.Exit(m.Run())
 }
 
 func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
@@ -829,7 +821,7 @@ func (b *lockedBuffer) String() string {
 
 func startMonitorAgentProcess(t *testing.T, root string, profilePath string) (*exec.Cmd, *lockedBuffer, *lockedBuffer) {
 	t.Helper()
-	cmd := exec.Command("go", "run", "./cmd/agent", "--profile", profilePath, "--directory", root)
+	cmd := exec.Command("go", "run", "./cmd/agent", "--profile", profilePath, "--directory", root, "--core-root", root)
 	cmd.Dir = root
 	stdout := &lockedBuffer{}
 	stderr := &lockedBuffer{}
@@ -982,6 +974,7 @@ func assertGenDeclNamesAbsent(t *testing.T, decl *ast.GenDecl, forbidden map[str
 
 type agentFlagSnapshot struct {
 	profile          string
+	coreRoot         string
 	otelLog          string
 	otelParent       string
 	directory        string
@@ -996,6 +989,7 @@ type agentFlagSnapshot struct {
 func snapshotAgentFlags() agentFlagSnapshot {
 	return agentFlagSnapshot{
 		profile:          flagProfile,
+		coreRoot:         flagCoreRoot,
 		otelLog:          flagOTelLog,
 		otelParent:       flagOTelParent,
 		directory:        flagDirectory,
@@ -1010,6 +1004,7 @@ func snapshotAgentFlags() agentFlagSnapshot {
 
 func restoreAgentFlags(s agentFlagSnapshot) {
 	flagProfile = s.profile
+	flagCoreRoot = s.coreRoot
 	flagOTelLog = s.otelLog
 	flagOTelParent = s.otelParent
 	flagDirectory = s.directory
@@ -1050,19 +1045,15 @@ func profileRootFromTest(t *testing.T) string {
 			return nested
 		}
 	}
-	t.Fatalf("profile root not found; set AGENT_PROFILES_ROOT")
+	t.Fatalf("profile root not found; place agent-profiles next to agent-core or under ./agent-profiles")
 	return ""
 }
 
 func profileRootCandidates(root string) []string {
-	candidates := []string{}
-	if configured := os.Getenv("AGENT_PROFILES_ROOT"); configured != "" {
-		candidates = append(candidates, configured)
-	}
-	return append(candidates,
+	return []string{
 		filepath.Join(filepath.Dir(root), "agent-profiles"),
 		filepath.Join(root, "agent-profiles"),
-	)
+	}
 }
 
 func hasTestProfile(root, rel string) bool {

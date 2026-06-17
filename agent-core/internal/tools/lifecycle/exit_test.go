@@ -20,20 +20,12 @@ import (
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
 func TestMain(m *testing.M) {
-	previous, hadPrevious := os.LookupEnv("AGENT_CORE_HOME")
-	if !hadPrevious {
-		_ = os.Setenv("AGENT_CORE_HOME", repoRootFromLifecycleRuntime())
-	}
-	code := m.Run()
-	if hadPrevious {
-		_ = os.Setenv("AGENT_CORE_HOME", previous)
-	} else {
-		_ = os.Unsetenv("AGENT_CORE_HOME")
-	}
-	os.Exit(code)
+	spec.SetAgentCoreInstallRoot(filepath.Clean(repoRootFromLifecycleRuntime()))
+	os.Exit(m.Run())
 }
 
 func TestExitAgentEmitsAgentExited(t *testing.T) {
@@ -284,19 +276,15 @@ func lifecycleProfileRoot(t *testing.T) string {
 			return nested
 		}
 	}
-	t.Fatalf("profile root not found; set AGENT_PROFILES_ROOT")
+	t.Fatalf("profile root not found; place agent-profiles next to agent-core or under ./agent-profiles")
 	return ""
 }
 
 func lifecycleProfileRootCandidates(root string) []string {
-	candidates := []string{}
-	if configured := os.Getenv("AGENT_PROFILES_ROOT"); configured != "" {
-		candidates = append(candidates, configured)
-	}
-	return append(candidates,
+	return []string{
 		filepath.Join(filepath.Dir(root), "agent-profiles"),
 		filepath.Join(root, "agent-profiles"),
-	)
+	}
 }
 
 func hasLifecycleProfile(root, rel string) bool {

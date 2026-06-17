@@ -24,20 +24,12 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
 func TestMain(m *testing.M) {
-	previous, hadPrevious := os.LookupEnv("AGENT_CORE_HOME")
-	if !hadPrevious {
-		_ = os.Setenv("AGENT_CORE_HOME", repoRootFromDocsRuntime())
-	}
-	code := m.Run()
-	if hadPrevious {
-		_ = os.Setenv("AGENT_CORE_HOME", previous)
-	} else {
-		_ = os.Unsetenv("AGENT_CORE_HOME")
-	}
-	os.Exit(code)
+	spec.SetAgentCoreInstallRoot(filepath.Clean(repoRootFromDocsRuntime()))
+	os.Exit(m.Run())
 }
 
 func TestStandaloneServerServesDocsAPIAndSPA(t *testing.T) {
@@ -620,19 +612,15 @@ func docsProfileRoot(t *testing.T) string {
 			return nested
 		}
 	}
-	t.Fatalf("profile root not found; set AGENT_PROFILES_ROOT")
+	t.Fatalf("profile root not found; place agent-profiles next to agent-core or under ./agent-profiles")
 	return ""
 }
 
 func docsProfileRootCandidates(root string) []string {
-	candidates := []string{}
-	if configured := os.Getenv("AGENT_PROFILES_ROOT"); configured != "" {
-		candidates = append(candidates, configured)
-	}
-	return append(candidates,
+	return []string{
 		filepath.Join(filepath.Dir(root), "agent-profiles"),
 		filepath.Join(root, "agent-profiles"),
-	)
+	}
 }
 
 func hasDocsProfile(root, rel string) bool {

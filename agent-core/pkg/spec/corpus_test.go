@@ -73,7 +73,8 @@ func TestIsAgentLocalToolDeclarationExternalProfilePath(t *testing.T) {
 }
 
 func TestResolveProfilePathMapsInstalledCoreHome(t *testing.T) {
-	t.Setenv(CoreHomeEnv, "/repo/core")
+	SetAgentCoreInstallRoot("/repo/core")
+	t.Cleanup(func() { SetAgentCoreInstallRoot("") })
 
 	got := resolveProfilePath("/profiles/agents/control", "/opt/agent-core/tools/builtin/lifecycle")
 
@@ -81,7 +82,8 @@ func TestResolveProfilePathMapsInstalledCoreHome(t *testing.T) {
 }
 
 func TestResolveProfilePathLeavesInstalledCorePathWithoutOverride(t *testing.T) {
-	t.Parallel()
+	SetAgentCoreInstallRoot("")
+	t.Cleanup(func() { SetAgentCoreInstallRoot("") })
 
 	got := resolveProfilePath("/profiles/agents/control", "/opt/agent-core/tools/builtin/lifecycle")
 

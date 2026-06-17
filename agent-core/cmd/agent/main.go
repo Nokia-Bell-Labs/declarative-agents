@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -23,10 +24,12 @@ import (
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	toolrest "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/validation"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
 var (
 	flagProfile          string
+	flagCoreRoot         string
 	flagOTelLog          string
 	flagOTelParent       string
 	flagDirectory        string
@@ -59,6 +62,7 @@ var rootCmd = &cobra.Command{
 func init() {
 	f := rootCmd.PersistentFlags()
 	f.StringVar(&flagProfile, "profile", "", "path to agent profile YAML")
+	f.StringVar(&flagCoreRoot, "core-root", "", "maps /opt/agent-core paths in the profile to this directory (development checkout)")
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
@@ -114,6 +118,9 @@ func (s *deferredShutdown) Apply() {
 }
 
 func run(cmd *cobra.Command, args []string) error {
+	if f := cmd.Flags().Lookup("core-root"); f != nil && f.Changed && strings.TrimSpace(flagCoreRoot) != "" {
+		spec.SetAgentCoreInstallRoot(flagCoreRoot)
+	}
 	prepared, err := prepareRun(cmd)
 	if err != nil {
 		return err

@@ -129,9 +129,9 @@ func TestContainerBuildSummaryForPodman(t *testing.T) {
 		"  podman tls verify: false",
 		"  container output: streamed directly",
 		"command: podman build --tls-verify=false --secret id=git_credentials,src=/home/user/.netrc --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core:latest .",
-		"mounted profile example: podman run --rm -v '$AGENT_PROFILES_ROOT:/profiles/agents:ro' -v '$PWD:/work' -w /work agent-core:latest --profile /profiles/agents/generator/profile.yaml --directory /work",
+		"mounted profile example: podman run --rm -v /path/to/agent-profiles:/profiles/agents:ro -v '$PWD:/work' -w /work agent-core:latest --profile /profiles/agents/agents/generator/profile.yaml --directory /work",
 		"integration image command: podman build --tls-verify=false --secret id=git_credentials,src=/home/user/.netrc --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core-integration:latest --target integration .",
-		"integration container example: podman run --rm -v '$AGENT_PROFILES_ROOT:/profiles/agents:ro' -w /src -e AGENT_PROFILES_ROOT=/profiles/agents agent-core-integration:latest mage integration:uc006",
+		"integration container example: podman run --rm -v /path/to/agent-profiles:/profiles/agents:ro -w /src agent-core-integration:latest mage integration:uc006",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("containerBuildSummary missing %q in:\n%s", want, got)
