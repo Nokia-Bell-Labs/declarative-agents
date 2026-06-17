@@ -39,7 +39,18 @@ releases:
       and core-owned assets stay in agent-core. At execution time, commands
       load profiles through AGENT_PROFILES_ROOT, /profiles, or another explicit
       external path.
-    status: in_progress
+
+      Release 06.0 is complete for this repository when the profile assets can
+      be validated, tagged, mounted into a runtime container, and consumed by
+      agent-core integration targets. The remaining ownership boundary belongs
+      to agent-core release work, not to this profile bundle.
+      Done here means the profile bundle has its own evidence.
+
+      Operators still need a compatible agent-core runtime image or checkout,
+      but this repository now supplies the profile programs, fixtures, UI
+      assets, validation target, smoke target, release tag target, and formal
+      traceability records that the runtime consumes.
+    status: done
     related_agent_core_release: "06.0"
     planned_work:
       - id: agent-profiles-dte
@@ -62,7 +73,28 @@ releases:
         status: done
       - id: agent-profiles-0g7
         summary: Add formal profile migration use cases and test suites.
-        status: planned
+        status: done
+    use_cases:
+      - id: rel06.0-uc001-mounted-profile-execution
+        summary: Runtime executes profile-owned programs mounted from agent-profiles.
+        status: implemented
+      - id: rel06.0-uc002-profile-validation
+        summary: Profile validation and release bundle tagging prove repository readiness.
+        status: implemented
+    test_suites:
+      - id: test-rel06.0-agent-profiles
+        summary: Formal proof suite for profile validation, mounted container execution, tagging, and agent-core integrations.
+        status: implemented
+    proof:
+      - mage validate
+      - mage containerSmoke
+      - mage tag
+      - go test ./magefiles
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc001
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc002
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc006
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc007
     success_markers:
       - Migrated profile.yaml files load through agent-core from this
         repository.
