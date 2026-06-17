@@ -19,7 +19,8 @@ const (
 	redirectSameHost  = "same_host"
 	redirectAllowlist = "allowlist"
 
-	bindingDynamicSignal = "emit_dynamic_signal"
+	bindingDynamicSignal  = "emit_dynamic_signal"
+	bindingStaticAssets   = "static_assets"
 
 	queueOverflowReject     = "reject"
 	queueOverflowDropOldest = "drop_oldest"
@@ -308,6 +309,17 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 			return err
 		}
 	}
+	if endpoint.StaticAssets != nil && endpoint.Binding != bindingStaticAssets {
+		return fmt.Errorf(
+			"endpoint %q has static_assets config but binding is %q (want %q)",
+			name, endpoint.Binding, bindingStaticAssets,
+		)
+	}
+	if endpoint.Binding == bindingStaticAssets {
+		if err := validateStaticAssetsEndpoint(name, endpoint); err != nil {
+			return err
+		}
+	}
 	params, err := pathParams("endpoint "+name, endpoint.Path)
 	if err != nil {
 		return err
@@ -402,6 +414,61 @@ func validateMachineRequestEndpoint(name string, endpoint Endpoint) error {
 		return fmt.Errorf("endpoint %q machine_request requires timeout", name)
 	}
 	return nil
+}
+
+func validateStaticAssetsEndpoint(name string, endpoint Endpoint) error {
+	if endpoint.StaticAssets == nil {
+		return fmt.Errorf("endpoint %q static_assets binding requires static_assets config", name)
+	}
+	if strings.TrimSpace(endpoint.StaticAssets.Root) == "" {
+		return fmt.Errorf("endpoint %q static_assets requires non-empty root", name)
+	}
+	if strings.TrimSpace(endpoint.Method) == "" || strings.ToUpper(strings.TrimSpace(endpoint.Method)) != "GET" {
+		return fmt.Errorf("endpoint %q static_assets requires GET method", name)
+	}
+	return validateStaticAssetsNoConflicts(name, endpoint)
+}
+
+func validateStaticAssetsNoConflicts(name string, endpoint Endpoint) error {
+	if endpoint.Signal != "" {
+		return fmt.Errorf("endpoint %q static_assets must not set signal", name)
+	}
+	if len(endpoint.AllowedSignals) > 0 {
+		return fmt.Errorf("endpoint %q static_assets must not set allowed_signals", name)
+	}
+	if lifecycleControlSet(endpoint.LifecycleControl) {
+		return fmt.Errorf("endpoint %q static_assets must not set lifecycle_control", name)
+	}
+	if machineRequestYAMLSet(endpoint.MachineRequest) {
+		return fmt.Errorf("endpoint %q static_assets must not set machine_request", name)
+	}
+	if endpoint.MonitorView != "" {
+		return fmt.Errorf("endpoint %q static_assets must not set monitor_view", name)
+	}
+	if queueConfigSet(endpoint.Queue) {
+		return fmt.Errorf("endpoint %q static_assets must not set queue", name)
+	}
+	return nil
+}
+
+func lifecycleControlSet(c LifecycleControl) bool {
+	return c.Action != "" || c.Signal != "" || len(c.AllowedSignals) > 0 ||
+		len(c.TargetSchema) > 0 || c.RequireAuthRef != ""
+}
+
+func machineRequestYAMLSet(cfg MachineRequest) bool {
+	if cfg.Profile != "" || cfg.Machine != "" || cfg.InitialSignal != "" || cfg.Timeout != "" {
+		return true
+	}
+	if len(cfg.DocumentResources) > 0 || len(cfg.Response.TerminalSignals) > 0 {
+		return true
+	}
+	m := cfg.Request
+	return len(m.Body) > 0 || len(m.Query) > 0 || len(m.Path) > 0 || len(m.Headers) > 0 || len(m.Metadata) > 0
+}
+
+func queueConfigSet(q QueueConfig) bool {
+	return q.Name != "" || q.Capacity != 0 || q.Overflow != "" || q.Timeout != "" || len(q.PayloadShape) > 0
 }
 
 func validateResponseMapping(name string, mapping ResponseMapping) error {

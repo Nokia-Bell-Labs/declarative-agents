@@ -139,18 +139,19 @@ type Server struct {
 
 // Endpoint defines one inbound route and binding behavior.
 type Endpoint struct {
-	OpenAPIOperationID string           `yaml:"openapi_operation_id,omitempty"`
-	Method             string           `yaml:"method,omitempty"`
-	Path               string           `yaml:"path,omitempty"`
-	Binding            string           `yaml:"binding"`
-	Signal             string           `yaml:"signal,omitempty"`
-	AllowedSignals     []string         `yaml:"allowed_signals,omitempty"`
-	LifecycleControl   LifecycleControl `yaml:"lifecycle_control,omitempty"`
-	MonitorView        string           `yaml:"monitor_view,omitempty"`
-	Request            RequestBinding   `yaml:"request,omitempty"`
-	Response           ResponseMapping  `yaml:"response,omitempty"`
-	Queue              QueueConfig      `yaml:"queue,omitempty"`
-	MachineRequest     MachineRequest   `yaml:"machine_request,omitempty"`
+	OpenAPIOperationID string              `yaml:"openapi_operation_id,omitempty"`
+	Method             string              `yaml:"method,omitempty"`
+	Path               string              `yaml:"path,omitempty"`
+	Binding            string              `yaml:"binding"`
+	Signal             string              `yaml:"signal,omitempty"`
+	AllowedSignals     []string            `yaml:"allowed_signals,omitempty"`
+	LifecycleControl   LifecycleControl    `yaml:"lifecycle_control,omitempty"`
+	MonitorView        string              `yaml:"monitor_view,omitempty"`
+	Request            RequestBinding      `yaml:"request,omitempty"`
+	Response           ResponseMapping     `yaml:"response,omitempty"`
+	Queue              QueueConfig         `yaml:"queue,omitempty"`
+	MachineRequest     MachineRequest      `yaml:"machine_request,omitempty"`
+	StaticAssets       *StaticAssetsConfig `yaml:"static_assets,omitempty"`
 }
 
 // LifecycleControl validates and maps lifecycle control HTTP requests.
@@ -160,6 +161,13 @@ type LifecycleControl struct {
 	AllowedSignals []string               `yaml:"allowed_signals,omitempty"`
 	TargetSchema   map[string]interface{} `yaml:"target_schema,omitempty"`
 	RequireAuthRef string                 `yaml:"require_auth_ref,omitempty"`
+}
+
+// StaticAssetsConfig is filesystem-backed static file settings for binding static_assets.
+type StaticAssetsConfig struct {
+	Root  string `yaml:"root"`
+	Index string `yaml:"index,omitempty"`
+	SPA   bool   `yaml:"spa,omitempty"`
 }
 
 // MachineRequest configures one request-scoped MachineSpec run.
