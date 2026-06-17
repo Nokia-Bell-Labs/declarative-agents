@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 )
 
-const agentProfilesRootEnv = "AGENT_PROFILES_ROOT"
-
 func resolveAgentProfilesRoot(rootDir string) (string, error) {
 	for _, candidate := range agentProfileRootCandidates(rootDir) {
 		root := normalizeAgentProfilesRoot(candidate)
@@ -20,19 +18,14 @@ func resolveAgentProfilesRoot(rootDir string) (string, error) {
 			return root, nil
 		}
 	}
-	return "", fmt.Errorf("agent profiles root not found; set %s", agentProfilesRootEnv)
+	return "", fmt.Errorf("agent profiles root not found; clone agent-profiles beside this repository or under ./agent-profiles")
 }
 
 func agentProfileRootCandidates(rootDir string) []string {
-	candidates := []string{}
-	if configured := os.Getenv(agentProfilesRootEnv); configured != "" {
-		candidates = append(candidates, configured)
-	}
-	candidates = append(candidates,
+	return []string{
 		filepath.Join(filepath.Dir(rootDir), "agent-profiles"),
 		filepath.Join(rootDir, "agent-profiles"),
-	)
-	return candidates
+	}
 }
 
 func normalizeAgentProfilesRoot(candidate string) string {
@@ -69,7 +62,7 @@ func resolveAgentProfilesRepoRoot(rootDir string) (string, error) {
 			return root, nil
 		}
 	}
-	return "", fmt.Errorf("agent profiles repository root not found; set %s", agentProfilesRootEnv)
+	return "", fmt.Errorf("agent profiles repository root not found; clone agent-profiles beside this repository or under ./agent-profiles")
 }
 
 func normalizeAgentProfilesRepoRoot(candidate string) string {

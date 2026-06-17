@@ -6,14 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 	"gopkg.in/yaml.v3"
-)
-
-const (
-	agentCoreHomeEnv      = "AGENT_CORE_HOME"
-	installedAgentCoreDir = "/opt/agent-core"
 )
 
 // AgentProfile bundles all configuration an agent needs into a single file.
@@ -79,22 +74,5 @@ func resolveProfilePath(base, p string) string {
 }
 
 func resolveInstalledAgentCorePath(p string) string {
-	clean := filepath.Clean(p)
-	if filepath.ToSlash(clean) == installedAgentCoreDir {
-		return envOrEmpty(agentCoreHomeEnv)
-	}
-	prefix := installedAgentCoreDir + "/"
-	if !strings.HasPrefix(filepath.ToSlash(clean), prefix) {
-		return ""
-	}
-	root := envOrEmpty(agentCoreHomeEnv)
-	if root == "" {
-		return ""
-	}
-	rel := strings.TrimPrefix(filepath.ToSlash(clean), prefix)
-	return filepath.Join(root, filepath.FromSlash(rel))
-}
-
-func envOrEmpty(name string) string {
-	return strings.TrimSpace(os.Getenv(name))
+	return spec.MapInstalledCorePath(p)
 }

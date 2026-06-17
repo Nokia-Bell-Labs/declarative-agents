@@ -5,11 +5,14 @@ package catalog
 import (
 	"path/filepath"
 	"testing"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
 func TestResolveProfilePathMapsInstalledCoreHome(t *testing.T) {
 	coreHome := t.TempDir()
-	t.Setenv(agentCoreHomeEnv, coreHome)
+	spec.SetAgentCoreInstallRoot(coreHome)
+	t.Cleanup(func() { spec.SetAgentCoreInstallRoot("") })
 
 	got := resolveProfilePath("/profiles/agents/generator", "/opt/agent-core/tools/builtin/llm")
 	want := filepath.Join(coreHome, "tools", "builtin", "llm")
@@ -19,7 +22,8 @@ func TestResolveProfilePathMapsInstalledCoreHome(t *testing.T) {
 }
 
 func TestResolveProfilePathLeavesInstalledCorePathWithoutOverride(t *testing.T) {
-	t.Setenv(agentCoreHomeEnv, "")
+	spec.SetAgentCoreInstallRoot("")
+	t.Cleanup(func() { spec.SetAgentCoreInstallRoot("") })
 
 	got := resolveProfilePath("/profiles/agents/generator", "/opt/agent-core/tools/builtin/llm")
 	want := "/opt/agent-core/tools/builtin/llm"

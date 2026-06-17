@@ -17,20 +17,12 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
 func TestMain(m *testing.M) {
-	previous, hadPrevious := os.LookupEnv("AGENT_CORE_HOME")
-	if !hadPrevious {
-		_ = os.Setenv("AGENT_CORE_HOME", repoRootFromRuntime())
-	}
-	code := m.Run()
-	if hadPrevious {
-		_ = os.Setenv("AGENT_CORE_HOME", previous)
-	} else {
-		_ = os.Unsetenv("AGENT_CORE_HOME")
-	}
-	os.Exit(code)
+	spec.SetAgentCoreInstallRoot(repoRootFromRuntime())
+	os.Exit(m.Run())
 }
 
 // configDir resolves the absolute path to the standard agent profile root.
@@ -46,7 +38,7 @@ func configDir(t *testing.T) string {
 			return nested
 		}
 	}
-	t.Fatalf("profile root not found; set AGENT_PROFILES_ROOT")
+	t.Fatalf("profile root not found; place agent-profiles next to agent-core or under ./agent-profiles")
 	return ""
 }
 
@@ -65,14 +57,10 @@ func sharedToolDecl(t *testing.T, cd, name string) string {
 }
 
 func profileRootCandidates(repoRoot string) []string {
-	candidates := []string{}
-	if configured := os.Getenv("AGENT_PROFILES_ROOT"); configured != "" {
-		candidates = append(candidates, configured)
-	}
-	return append(candidates,
+	return []string{
 		filepath.Join(filepath.Dir(repoRoot), "agent-profiles"),
 		filepath.Join(repoRoot, "agent-profiles"),
-	)
+	}
 }
 
 func hasProfile(root, rel string) bool {

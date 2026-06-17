@@ -104,8 +104,8 @@ func Audit() error {
 	cmd := exec.Command(binary,
 		"--profile", agentProfilePath(profileRoot, "jurist"),
 		"--directory", rootDir,
+		"--core-root", rootDir,
 	)
-	cmd.Env = envWithDefault(os.Environ(), "AGENT_CORE_HOME", rootDir)
 	var output bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &output)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &output)

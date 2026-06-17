@@ -14,20 +14,17 @@ import (
 
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
 )
 
 func TestMain(m *testing.M) {
-	previous, hadPrevious := os.LookupEnv("AGENT_CORE_HOME")
-	if !hadPrevious {
-		_ = os.Setenv("AGENT_CORE_HOME", repoRootFromRuntime())
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("caller")
 	}
-	code := m.Run()
-	if hadPrevious {
-		_ = os.Setenv("AGENT_CORE_HOME", previous)
-	} else {
-		_ = os.Unsetenv("AGENT_CORE_HOME")
-	}
-	os.Exit(code)
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
+	spec.SetAgentCoreInstallRoot(root)
+	os.Exit(m.Run())
 }
 
 func TestRESTOpenAPI_ImportAllowlist(t *testing.T) {
@@ -211,19 +208,15 @@ func profileRoot(t *testing.T) string {
 			return nested
 		}
 	}
-	t.Fatalf("profile root not found; set AGENT_PROFILES_ROOT")
+	t.Fatalf("profile root not found; place agent-profiles next to agent-core or under ./agent-profiles")
 	return ""
 }
 
 func profileRootCandidates(root string) []string {
-	candidates := []string{}
-	if configured := os.Getenv("AGENT_PROFILES_ROOT"); configured != "" {
-		candidates = append(candidates, configured)
-	}
-	return append(candidates,
+	return []string{
 		filepath.Join(filepath.Dir(root), "agent-profiles"),
 		filepath.Join(root, "agent-profiles"),
-	)
+	}
 }
 
 func hasProfile(root, rel string) bool {

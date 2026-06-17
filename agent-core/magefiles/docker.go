@@ -147,11 +147,11 @@ func displayBuildCommand(opts dockerBuildOptions, args []string) string {
 func displayRuntimeCommand(opts dockerBuildOptions) string {
 	return shellCommand([]string{
 		opts.Engine, "run", "--rm",
-		"-v", "$AGENT_PROFILES_ROOT:" + defaultProfilesMount + ":ro",
+		"-v", "/path/to/agent-profiles:" + defaultProfilesMount + ":ro",
 		"-v", "$PWD:" + defaultWorkMount,
 		"-w", defaultWorkMount,
 		opts.Image,
-		"--profile", defaultProfilesMount + "/generator/profile.yaml",
+		"--profile", defaultProfilesMount + "/agents/generator/profile.yaml",
 		"--directory", defaultWorkMount,
 	})
 }
@@ -173,9 +173,8 @@ func displayIntegrationBuildCommand(opts dockerBuildOptions) string {
 func displayIntegrationCommand(opts dockerBuildOptions) string {
 	return shellCommand([]string{
 		opts.Engine, "run", "--rm",
-		"-v", "$AGENT_PROFILES_ROOT:" + defaultProfilesMount + ":ro",
+		"-v", "/path/to/agent-profiles:" + defaultProfilesMount + ":ro",
 		"-w", "/src",
-		"-e", "AGENT_PROFILES_ROOT=" + defaultProfilesMount,
 		defaultIntegrationImage,
 		"mage", "integration:uc006",
 	})

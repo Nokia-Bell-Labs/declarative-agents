@@ -47,14 +47,14 @@ terminal state: failed
 func TestEnvWithDefault(t *testing.T) {
 	t.Parallel()
 
-	got := envWithDefault([]string{"PATH=/bin"}, "AGENT_CORE_HOME", "/repo")
-	if !containsEnv(got, "AGENT_CORE_HOME=/repo") {
-		t.Fatalf("envWithDefault() = %v, want AGENT_CORE_HOME default", got)
+	got := envWithDefault([]string{"PATH=/bin"}, "TEST_OVERRIDE_PATH", "/repo")
+	if !containsEnv(got, "TEST_OVERRIDE_PATH=/repo") {
+		t.Fatalf("envWithDefault() = %v, want TEST_OVERRIDE_PATH default", got)
 	}
 
-	existing := []string{"AGENT_CORE_HOME=/custom"}
-	got = envWithDefault(existing, "AGENT_CORE_HOME", "/repo")
-	if len(got) != 1 || got[0] != "AGENT_CORE_HOME=/custom" {
+	existing := []string{"TEST_OVERRIDE_PATH=/custom"}
+	got = envWithDefault(existing, "TEST_OVERRIDE_PATH", "/repo")
+	if len(got) != 1 || got[0] != "TEST_OVERRIDE_PATH=/custom" {
 		t.Fatalf("envWithDefault() = %v, want existing value preserved", got)
 	}
 }
