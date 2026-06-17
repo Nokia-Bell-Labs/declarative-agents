@@ -6,8 +6,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	agentCoreHomeEnv      = "AGENT_CORE_HOME"
+	installedAgentCoreDir = "/opt/agent-core"
 )
 
 // AgentProfile bundles all configuration an agent needs into a single file.
@@ -63,8 +69,32 @@ func LoadProfile(path string) (AgentProfile, error) {
 }
 
 func resolveProfilePath(base, p string) string {
+	if mapped := resolveInstalledAgentCorePath(p); mapped != "" {
+		return mapped
+	}
 	if filepath.IsAbs(p) {
 		return p
 	}
 	return filepath.Join(base, p)
+}
+
+func resolveInstalledAgentCorePath(p string) string {
+	clean := filepath.Clean(p)
+	if filepath.ToSlash(clean) == installedAgentCoreDir {
+		return envOrEmpty(agentCoreHomeEnv)
+	}
+	prefix := installedAgentCoreDir + "/"
+	if !strings.HasPrefix(filepath.ToSlash(clean), prefix) {
+		return ""
+	}
+	root := envOrEmpty(agentCoreHomeEnv)
+	if root == "" {
+		return ""
+	}
+	rel := strings.TrimPrefix(filepath.ToSlash(clean), prefix)
+	return filepath.Join(root, filepath.FromSlash(rel))
+}
+
+func envOrEmpty(name string) string {
+	return strings.TrimSpace(os.Getenv(name))
 }

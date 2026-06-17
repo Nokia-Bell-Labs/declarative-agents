@@ -35,6 +35,20 @@ import (
 	toolrest "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 )
 
+func TestMain(m *testing.M) {
+	previous, hadPrevious := os.LookupEnv("AGENT_CORE_HOME")
+	if !hadPrevious {
+		_ = os.Setenv("AGENT_CORE_HOME", repoRootFromRuntime())
+	}
+	code := m.Run()
+	if hadPrevious {
+		_ = os.Setenv("AGENT_CORE_HOME", previous)
+	} else {
+		_ = os.Unsetenv("AGENT_CORE_HOME")
+	}
+	os.Exit(code)
+}
+
 func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
 	t.Parallel()
 
@@ -1013,8 +1027,14 @@ func clearAgentFlags() {
 
 func repoRootFromTest(t *testing.T) string {
 	t.Helper()
+	return repoRootFromRuntime()
+}
+
+func repoRootFromRuntime() string {
 	_, currentFile, _, ok := runtime.Caller(0)
-	require.True(t, ok)
+	if !ok {
+		panic("resolve test file")
+	}
 	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
 }
 
