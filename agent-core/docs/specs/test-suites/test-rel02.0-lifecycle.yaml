@@ -233,8 +233,8 @@ test_cases:
       profile loads the lifecycle MachineSpec, selects checkpoint_history, and
       registers the builtin adapter before the machine dispatches the action.
     inputs:
-      profile: agents/lifecycle/history/profile.yaml
-      tool_selection: agents/lifecycle/tools.yaml
+      profile: ${AGENT_PROFILES_ROOT}/lifecycle/history/profile.yaml
+      tool_selection: lifecycle/tools.yaml
       selected_tool: checkpoint_history
       state_store: FileStore
     expected:
@@ -256,8 +256,8 @@ test_cases:
       profile loads the rollback MachineSpec, selects checkpoint_rollback, and
       registers the builtin adapter before the machine dispatches the action.
     inputs:
-      profile: agents/lifecycle/rollback/profile.yaml
-      tool_selection: agents/lifecycle/tools.yaml
+      profile: ${AGENT_PROFILES_ROOT}/lifecycle/rollback/profile.yaml
+      tool_selection: lifecycle/tools.yaml
       selected_tool: checkpoint_rollback
       state_store: FileStore
       workspace: GitWorkspace

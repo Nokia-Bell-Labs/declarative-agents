@@ -19,7 +19,7 @@ trigger: |
 
 flow:
   - F1: The maintainer starts a local Ollama server on http://127.0.0.1:11434 with at least one Qwen 3 family model available.
-  - F2: The profile loads agents/rest/openapi/ollama.yaml and exposes only operationId listOllamaModels.
+  - F2: The profile loads rest/openapi/ollama.yaml under AGENT_PROFILES_ROOT and exposes only operationId listOllamaModels.
   - F3: The profile declares ollama_list_models as a boundary ToolDef backed by rest_client_invoke.
   - F4: The selected tools manifest gives the model ollama_list_models and does not expose mutating Ollama REST operations.
   - F5: The user asks the agent to list local Ollama models.
@@ -34,7 +34,7 @@ touchpoints:
   - T2: "srd024-blocking-input-tools R0.2, R1.1, R1.3, R2.1, R2.2 -- invoke_llm blocks at the model boundary and returns one Result for MachineSpec routing"
   - T3: "srd027-rest-tool-runtime R2.1, R2.4, R2.5, R3.1, R3.3 -- REST definitions and OpenAPI imports stay declarative and runtime input cannot choose transport authority"
   - T4: "srd028-rest-client-tools R1.2, R1.3, R2.1, R2.3, R2.6, R4.1, R4.3 -- rest_client_invoke calls a configured OpenAPI-backed operation"
-  - T5: "agents/rest/openapi/ollama.yaml listOllamaModels -- GET /api/tags is the only Ollama OpenAPI operation required for this proof"
+  - T5: "rest/openapi/ollama.yaml under AGENT_PROFILES_ROOT listOllamaModels -- GET /api/tags is the only Ollama OpenAPI operation required for this proof"
   - T6: "test-rel03.0-rest-tools planned mage integration:uc005 -- live proof must show tool invocation and final-answer grounding"
 
 success_criteria:

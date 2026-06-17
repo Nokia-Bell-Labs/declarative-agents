@@ -259,4 +259,4 @@ releases:
     follow_up:
       - id: agent-core-xcbg
         summary: Normalize stale in-repo agent path references after profile migration
-        status: planned
+        status: done

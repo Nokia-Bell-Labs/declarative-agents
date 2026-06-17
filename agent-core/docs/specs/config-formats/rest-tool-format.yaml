@@ -1201,7 +1201,7 @@ format_examples:
             label: Documentation
             sidebar_grouping: category
             actions: [doc_list, doc_get, doc_search]
-            asset_ref: agents/knowledge-manager/documentation-curator/ui
+            asset_ref: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/ui
       servers:
         knowledge_manager:
           address: 127.0.0.1:19191
@@ -1217,7 +1217,7 @@ format_examples:
                   properties:
                     query: {type: string}
               machine_request:
-                profile: agents/knowledge-manager/documentation-curator/profile.yaml
+                profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
                 document_resources: [documentation_corpus]
                 request:
                   body:

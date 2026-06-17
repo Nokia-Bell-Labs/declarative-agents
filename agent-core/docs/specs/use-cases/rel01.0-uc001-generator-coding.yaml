@@ -2,7 +2,7 @@ id: rel01.0-uc001-generator-coding
 title: Generator agent solves Go coding tasks using YAML config
 
 summary: |
-  agents/generator/profile.yaml configures the generator agent. It points to
+  The external generator profile configures the generator agent. It points to
   the machine, tool selection, shared tool declarations, and per-model LLM tool
   declaration. During a run, the agent invokes an LLM, parses tool calls,
   executes file/build/test tools, and stops after validation passes. The same
@@ -19,7 +19,7 @@ actor: Developer invoking the agent binary
 
 trigger: |
   A developer, or mage integration:uc001, runs:
-    agent --profile agents/generator/profile.yaml \
+    agent --profile "$AGENT_PROFILES_ROOT/generator/profile.yaml" \
           --directory <workspace>
 
 preconditions:
@@ -28,18 +28,18 @@ preconditions:
   - The workspace contains go.mod, an SRD, a source stub, and oracle tests
 
 flow:
-  - F1: cmd/agent parses CLI flags and loads agents/generator/profile.yaml, resolving machine, tool selection, tool declaration files, and tool config directories relative to the profile file (cfg-runtime-contract, srd013).
-  - F2: Tool declarations are loaded from explicit profile files and configured directories; tool selection filters the declarations to the subset listed in agents/generator/tools.yaml (cfg-tool-selection-format).
+  - F1: cmd/agent parses CLI flags and loads the external generator profile, resolving machine, tool selection, tool declaration files, and tool config directories relative to the profile file (cfg-runtime-contract, srd013).
+  - F2: Tool declarations are loaded from explicit profile files and configured directories; tool selection filters the declarations to the subset listed in generator/tools.yaml relative to the profile root (cfg-tool-selection-format).
   - F3: The invoke_llm tool definition provides model, provider URL, and system prompt. cmd/agent extracts this to configure the Ollama adapter (srd009, srd017).
   - F4: The invoke_llm config selects response_profile to configure per-model parsing pipelines (srd017).
   - F5: The LLM profile registry matches the "qwen" prefix and selects the qwen profile with [tool_call] envelope and strip_thinking_blocks pipeline (srd017, internal/model/llm/profiles/qwen.yaml).
   - F6: Builtin and exec tool factories are registered (file tools, LLM tools, build/lint/test, done, etc.) and matched to their YAML declarations (srd013).
-  - F7: The state machine is loaded from agents/generator/machine.yaml and validated against the registered tools (srd006).
+  - F7: The state machine is loaded from generator/machine.yaml relative to the profile root and validated against the registered tools (srd006).
   - F8: core.Loop drives the state machine. Idle → Composing via invoke_llm sends the task prompt to the LLM (srd005, srd009).
   - F9: Qwen 3.6 responds with a <think>...</think> block followed by a [tool_call]...[/tool_call] envelope containing a JSON tool call.
   - F10: parse_response runs the qwen extraction pipeline — strip_thinking_blocks removes <think> content, extract_envelope isolates the tool call JSON (srd017).
-  - F11: The extracted tool call dispatches via $tool to file tools (read, write, edit) for code changes (srd013, agents/generator/machine.yaml).
-  - F12: The Composing ↔ Parsing cycle repeats until the LLM calls done (agents/generator/machine.yaml).
+  - F11: The extracted tool call dispatches via $tool to file tools (read, write, edit) for code changes (srd013, generator/machine.yaml).
+  - F12: The Composing ↔ Parsing cycle repeats until the LLM calls done (generator/machine.yaml).
   - F13: After done, machine-declared validation runs build → lint → test. All oracle tests pass, transitioning to Succeeded (srd006, srd013).
 
 touchpoints:
@@ -50,9 +50,9 @@ touchpoints:
   - T5: "cfg-runtime-contract -- profile-first invocation and compatibility flags"
   - T6: "cfg-tool-declaration-format -- builtin, exec, and llm tool declarations"
   - T7: "cfg-tool-selection-format -- tools.yaml name-list filtering"
-  - T8: "agents/generator/machine.yaml -- state machine states, signals, lifecycle"
+  - T8: "generator/machine.yaml -- state machine states, signals, lifecycle"
   - T9: "internal/model/llm/profiles/qwen.yaml -- model-specific parsing pipeline"
-  - T10: "agents/generator/profile.yaml -- profile-relative runtime entry point"
+  - T10: "generator/profile.yaml -- profile-relative runtime entry point under AGENT_PROFILES_ROOT"
 
 success_criteria:
   - id: S1
@@ -101,4 +101,4 @@ out_of_scope:
   - Custom tool implementations not in builtin.yaml or exec.yaml.
   - Comparison with other model families (handled by the evaluator use case).
 
-machine_config: agents/generator/machine.yaml
+machine_config: generator/machine.yaml

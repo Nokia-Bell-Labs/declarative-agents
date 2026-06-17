@@ -435,13 +435,13 @@ child_agent_config:
   examples:
     execute_task: |
       config:
-        profile: agents/generator/profile.yaml
+        profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
     launch_eval: |
       config:
-        profile: agents/evaluator/profile.yaml
+        profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
     self_invoke: |
       config:
-        profile: agents/generator/profile.yaml
+        profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
 
 exec_fields:
   - field: binary
@@ -534,7 +534,7 @@ declaration_files:
       completion and control (done, suspend, nudge_reread, self_invoke),
       compatibility aggregate validation (validate), planner tools,
       evaluator session and point tools, bench tools, and spec validation
-      tools. Note: invoke_llm is declared per-agent in agents/*/llm/*.yaml,
+      tools. Note: invoke_llm is declared per-agent in <profile-root>/*/llm/*.yaml,
       not in this directory. The tool count evolves with the codebase;
       consult the directory directly for the current set.
 
@@ -549,7 +549,7 @@ declaration_files:
       tool count evolves with the codebase; consult the directory
       directly for the current set.
 
-  - file: "agents/*/llm/*.yaml"
+  - file: "<profile-root>/*/llm/*.yaml"
     description: |
       Per-model invoke_llm declarations with config blocks specifying
       model name, provider, endpoint URL, and prompts. Each agent
@@ -572,7 +572,7 @@ boundary_compensation_example: |
     {
       "boundary_compensation": {
         "strategy": "child_eval_artifact_compensation",
-        "child_profile": "agents/evaluator/profile.yaml",
+        "child_profile": "${AGENT_PROFILES_ROOT}/evaluator/profile.yaml",
         "workspace_paths": ["/tmp/eval-output-123"],
         "artifact_paths": ["/path/to/suite.yaml"]
       }
@@ -623,9 +623,9 @@ mode_local_overrides: |
   blocks to tools declared in tools/builtin/. These are loaded after
   the shared declaration directory through profile tool_declarations:
 
-    agents/bench/builtin.yaml — bench-specific config (serve_ui, launch_eval)
-    agents/evaluator/builtin.yaml — evaluator-specific config (suite/point tools)
-    agents/planner/builtin.yaml — planner-specific config (child agent, issue tools)
+    <profile-root>/bench/builtin.yaml — bench-specific config (serve_ui, launch_eval)
+    <profile-root>/evaluator/builtin.yaml — evaluator-specific config (suite/point tools)
+    <profile-root>/planner/builtin.yaml — planner-specific config (child agent, issue tools)
 
   The generator and jurist agents do not have mode-local overrides;
   they use the shared builtin declaration directory directly.
@@ -655,7 +655,7 @@ target_grouped_layout:
     - path: tools/builtin/llm/
       owns: [parse_response, report_parse_error, reset_history, nudge_reread, done]
       kind: shared
-      note: invoke_llm remains agent-local under agents/*/llm/*.yaml because its config binds model, provider, prompt, and profile behavior.
+      note: invoke_llm remains agent-local under <profile-root>/*/llm/*.yaml because its config binds model, provider, prompt, and profile behavior.
     - path: tools/builtin/lifecycle/
       owns: [suspend, checkpoint_history, checkpoint_rollback]
       kind: shared
@@ -705,11 +705,11 @@ target_grouped_layout:
     - path: tools/builtin/generator.yaml
       role: Planned optional bundle for generator shared builtins; profiles may instead load the needed groups directly.
     - path: tools/builtin/planner.yaml
-      role: Planned optional bundle for planner shared builtins; agent-local overrides still live under agents/planner/.
+      role: Planned optional bundle for planner shared builtins; agent-local overrides still live under <profile-root>/planner/.
     - path: tools/builtin/evaluator.yaml
-      role: Planned optional bundle for evaluator session and point builtins; agent-local config still lives under agents/evaluator/.
+      role: Planned optional bundle for evaluator session and point builtins; agent-local config still lives under <profile-root>/evaluator/.
     - path: tools/builtin/bench.yaml
-      role: Planned optional bundle for bench builtins; agent-local config still lives under agents/bench/.
+      role: Planned optional bundle for bench builtins; agent-local config still lives under <profile-root>/bench/.
     - path: tools/builtin/jurist.yaml
       role: Planned optional bundle for spec validation builtins.
     - path: tools/builtin/lifecycle.yaml

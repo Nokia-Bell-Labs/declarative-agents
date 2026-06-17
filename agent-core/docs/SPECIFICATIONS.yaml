@@ -612,6 +612,9 @@ coverage_gaps: |
   Manager UX assets through AGENT_PROFILES_ROOT. The matching agent-profiles
   containerSmoke target runs the installed image with the profile repository
   mounted at /profiles.
+  Current examples no longer imply that agent-core ships standard agent
+  profiles under its source tree or under /opt/agent-core. Profile examples use
+  AGENT_PROFILES_ROOT, /profiles/agents, or profile-root-relative paths.
 
   Current `go list ./...` output defines package coverage. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.

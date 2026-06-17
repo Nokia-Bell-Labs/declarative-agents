@@ -2,7 +2,7 @@ id: rel01.0-uc002-evaluator-benchmark
 title: Evaluator runs generator profiles and collects results
 
 summary: |
-  agents/evaluator/profile.yaml configures the agent binary to load a suite
+  The external evaluator profile configures the agent binary to load a suite
   YAML with generator profiles, samples, optional grid parameters, and
   repetitions, then a session-level state machine walks the
   profile/grid/sample/rep combinations. For each point, a nested core.Loop
@@ -12,15 +12,15 @@ summary: |
   inspectable after the run.
 
   mage integration:uc002 exercises this path with two generator profiles:
-  agents/generator/profile-qwen35b.yaml (qwen3.6:35b-mlx) and
-  agents/generator/profile-qwen27b.yaml (qwen3.6:27b-mlx). It reuses the same
+  generator/profile-qwen35b.yaml (qwen3.6:35b-mlx) and
+  generator/profile-qwen27b.yaml (qwen3.6:27b-mlx). It reuses the same
   sample workspace as the generator integration target.
 
 actor: Developer benchmarking model performance
 
 trigger: |
   A developer, or mage integration:uc002, runs:
-    agent --profile agents/evaluator/profile.yaml \
+    agent --profile "$AGENT_PROFILES_ROOT/evaluator/profile.yaml" \
           --request testdata/integration/uc002-evaluator-benchmark/suite.yaml \
           --output eval-results
 
@@ -34,7 +34,7 @@ flow:
   - F1: The session machine runs parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary to prepare suite input and create the session output directory (srd019).
   - F2: parse_suite_config reads the suite's profiles list, resolves each profile relative to the suite file, and rejects obsolete suite fields that bypass profile-selected runtime configuration (srd019).
   - F3: The session machine enters AdvancingPoint; next_point returns the first (profile, gridpoint, sample, rep) combination. For the integration suite this means generator-qwen35b, then generator-qwen27b, over the discovered samples (srd019).
-  - F4: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (agents/evaluator/point.yaml) (srd005, agents/evaluator/machine.yaml, agents/evaluator/point.yaml).
+  - F4: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (evaluator/point.yaml relative to the profile root) (srd005, evaluator/machine.yaml, evaluator/point.yaml).
   - F5: The point machine runs create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline to prepare an isolated workspace (srd019).
   - F6: dump_config serializes the resolved profile path, model, harness label, sample, timeout, and repetition into experiment.yaml for reproducibility (srd019).
   - F7: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation and passes --profile for profile-based points (srd016, srd018, srd019).
@@ -49,9 +49,9 @@ touchpoints:
   - T2: "srd006-yaml-machine-config R1, R2, R3, R4 -- session and point machine.yaml loading and validation"
   - T3: "srd016-traceparent R2, R3 -- W3C traceparent formatting and parent-span context propagation to subprocess"
   - T4: "srd019-eval-harness R0, R1, R2, R3, R4, R5 -- suite parsing, grid eval, all eval tools, result analysis"
-  - T5: "agents/evaluator/*.yaml -- two-level state machine: session states, point states, signals, lifecycle"
+  - T5: "evaluator/*.yaml under AGENT_PROFILES_ROOT -- two-level state machine: session states, point states, signals, lifecycle"
   - T6: "testdata/integration/uc002-evaluator-benchmark/suite.yaml -- profile-based qwen35b/qwen27b integration suite"
-  - T7: "agents/generator/profile-qwen35b.yaml and profile-qwen27b.yaml -- generator profiles under evaluation"
+  - T7: "generator/profile-qwen35b.yaml and profile-qwen27b.yaml -- generator profiles under evaluation"
   - T8: "srd018-cli-flag-contract R1, R2, R3 -- standard flags, traceparent propagation, model/directory/runtime data, remaining budget"
 
 success_criteria:
@@ -99,5 +99,5 @@ out_of_scope:
   - Performance regression analysis.
 
 machine_configs:
-  - agents/evaluator/machine.yaml
-  - agents/evaluator/point.yaml
+  - evaluator/machine.yaml
+  - evaluator/point.yaml

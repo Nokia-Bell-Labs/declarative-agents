@@ -37,7 +37,7 @@ cli_mapping:
     --tool-config-dir startup flags. Profile YAML owns those paths.
 
 selection_files:
-  - file: agents/generator/tools.yaml
+  - file: <profile-root>/generator/tools.yaml
     tool_count: 15
     description: |
       Selects file operations (read, write, edit, find, list_files),
@@ -47,18 +47,18 @@ selection_files:
       validation order is declared directly in machine.yaml as
       build → lint → test.
 
-  - file: agents/evaluator/tools.yaml
+  - file: <profile-root>/evaluator/tools.yaml
     tool_count: 8
     description: |
-      Selects session-level tools for agents/evaluator/machine.yaml:
+      Selects session-level tools for <profile-root>/evaluator/machine.yaml:
       parse_suite_config, discover_suite_samples, expand_eval_grid,
       init_eval_session, report_suite_summary, next_point, run_point,
       and report_session.
 
-  - file: agents/evaluator/tools-point.yaml
+  - file: <profile-root>/evaluator/tools-point.yaml
     tool_count: 13
     description: |
-      Selects per-point tools for agents/evaluator/point.yaml:
+      Selects per-point tools for <profile-root>/evaluator/point.yaml:
       create_point_dir, copy_sample_workspace, copy_sample_docs,
       init_workspace_repo, stage_workspace_baseline,
       commit_workspace_baseline, dump_config, run_agent,
@@ -66,7 +66,7 @@ selection_files:
       summarize_point_results, and collect_metrics. Loaded by run_point
       to build the nested point registry.
 
-  - file: agents/planner/tools.yaml
+  - file: <profile-root>/planner/tools.yaml
     tool_count: 12
     description: |
       Selects planning tools (extract_task, extract_all,
@@ -74,21 +74,21 @@ selection_files:
       check_result), LLM tools (invoke_llm, reset_history),
       and direct build/test transition tools (build, vet, test).
 
-  - file: agents/jurist/tools.yaml
+  - file: <profile-root>/jurist/tools.yaml
     tool_count: 3
     description: |
       Name-only selection of 3 tools (load_corpus, validate_specs,
       format_report). Declarations are loaded from the profile's
       shared builtin declaration directory.
 
-  - file: agents/bench/tools.yaml
+  - file: <profile-root>/bench/tools.yaml
     tool_count: 2
     description: |
       Selects the two bench agent tools: serve_ui (blocks on
       user input via web UI) and launch_eval (spawns the configured
       evaluator profile as a child process). Shared declarations are
       loaded from tools/builtin/ and bench-specific config comes from
-      agents/bench/builtin.yaml.
+      <profile-root>/bench/builtin.yaml.
 
 grouped_declaration_loading:
   status: planned
@@ -104,21 +104,21 @@ grouped_declaration_loading:
     - A selected name must resolve after all shared groups, bundles, and local overrides are merged.
   agent_selection_intent: |
     Generator profiles load builtin/filesystem, builtin/llm, and exec/go shared
-    groups, then load agents/generator/llm/*.yaml for model-boundary config.
+    groups, then load <profile-root>/generator/llm/*.yaml for model-boundary config.
     The build, lint, and test order remains in machine.yaml.
 
     Planner profiles load builtin/planner, builtin/llm, and exec/go groups.
-    They add agents/planner/builtin.yaml for child-agent config and
-    agents/planner/llm/*.yaml for model config.
+    They add <profile-root>/planner/builtin.yaml for child-agent config and
+    <profile-root>/planner/llm/*.yaml for model config.
 
     Evaluator profiles load builtin/evaluator-session and
     builtin/evaluator-point declarations. The agent-local
-    agents/evaluator/builtin.yaml file supplies suite and point-machine config,
-    and run_point loads agents/evaluator/tools-point.yaml for the nested point
+    <profile-root>/evaluator/builtin.yaml file supplies suite and point-machine config,
+    and run_point loads <profile-root>/evaluator/tools-point.yaml for the nested point
     machine.
 
     Bench profiles load builtin/bench declarations and keep evaluator child
-    profile config in agents/bench/builtin.yaml. Jurist profiles load only
+    profile config in <profile-root>/bench/builtin.yaml. Jurist profiles load only
     builtin/spec-validation. Lifecycle history and rollback profiles load
     builtin/lifecycle; approval profiles add suspend and done through their own
     tools.yaml.

@@ -20,8 +20,8 @@ test_cases:
     name: Generator profile loads machine and validation sequence
     go_test: TestGeneratorConfig_MachineLoads
     inputs:
-      profile: agents/generator/profile.yaml
-      machine: agents/generator/machine.yaml
+      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+      machine: generator/machine.yaml
       validation_actions: [build, lint, test]
     expected:
       machine_loaded: true
@@ -35,7 +35,7 @@ test_cases:
     name: Generator selected tools load from YAML declarations
     go_test: TestGeneratorConfig_ToolsLoad
     inputs:
-      tools: agents/generator/tools.yaml
+      tools: generator/tools.yaml
       declarations:
         - tools/builtin
         - tools/exec
@@ -59,8 +59,8 @@ test_cases:
     name: Generator transition table validates selected tool emits
     go_test: TestGeneratorConfig_TransitionTable
     inputs:
-      machine: agents/generator/machine.yaml
-      selected_tools: agents/generator/tools.yaml
+      machine: generator/machine.yaml
+      selected_tools: generator/tools.yaml
     expected:
       transition_table_builds: true
       selected_tool_emits_handled: true
@@ -73,7 +73,7 @@ test_cases:
     name: Qwen profile strips thinking blocks and extracts tool envelope
     go_test: mage integration:uc001
     inputs:
-      profile: agents/generator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
       sample: testdata/integration/uc001-generator-coding
       model: qwen3.6:35b-mlx
     expected:
@@ -131,7 +131,7 @@ test_cases:
     name: Generator solves sample and passes validation
     go_test: mage integration:uc001
     inputs:
-      profile: agents/generator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
       workspace: testdata/integration/uc001-generator-coding
       validation: build_lint_test
     expected:
@@ -146,8 +146,8 @@ test_cases:
     name: Evaluator session machine loads from profile config
     go_test: TestEvaluatorConfig_SessionMachineLoads
     inputs:
-      profile: agents/evaluator/profile.yaml
-      machine: agents/evaluator/machine.yaml
+      profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
+      machine: evaluator/machine.yaml
     expected:
       machine_loaded: true
       terminal_states: [Done, Failed]
@@ -160,9 +160,9 @@ test_cases:
     name: Evaluator session tools load from selected declarations
     go_test: TestEvaluatorConfig_ToolsLoad
     inputs:
-      tools: agents/evaluator/tools.yaml
+      tools: evaluator/tools.yaml
       declarations:
-        - agents/evaluator/builtin.yaml
+        - evaluator/builtin.yaml
         - tools/builtin
     expected:
       selected_tools_include:
@@ -183,8 +183,8 @@ test_cases:
     name: Evaluator session transition table validates emitted signals
     go_test: TestEvaluatorConfig_TransitionTable
     inputs:
-      machine: agents/evaluator/machine.yaml
-      selected_tools: agents/evaluator/tools.yaml
+      machine: evaluator/machine.yaml
+      selected_tools: evaluator/tools.yaml
     expected:
       transition_table_builds: true
       emitted_signals_have_transitions: true
@@ -197,8 +197,8 @@ test_cases:
     name: Evaluator point machine prepares isolated workspace
     go_test: TestEvaluatorConfig_PointTransitionTable
     inputs:
-      point_machine: agents/evaluator/point.yaml
-      point_tools: agents/evaluator/tools-point.yaml
+      point_machine: evaluator/point.yaml
+      point_tools: evaluator/tools-point.yaml
     expected:
       workspace_tools_selected: true
       run_agent_selected: true
@@ -228,8 +228,8 @@ test_cases:
     go_test: TestNextPointIteratesProfiles
     inputs:
       profiles:
-        - agents/generator/profile-qwen35b.yaml
-        - agents/generator/profile-qwen27b.yaml
+        - generator/profile-qwen35b.yaml
+        - generator/profile-qwen27b.yaml
       samples: discovered_samples
     expected:
       first_profile_selected: true
@@ -243,7 +243,7 @@ test_cases:
     name: Evaluator integration writes result directory
     go_test: mage integration:uc002
     inputs:
-      profile: agents/evaluator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
       suite: testdata/integration/uc002-evaluator-benchmark/suite.yaml
       output: eval-results
     expected:
@@ -273,8 +273,8 @@ test_cases:
     name: Bench profile loads state machine
     go_test: TestBenchConfig_MachineLoads
     inputs:
-      profile: agents/bench/profile.yaml
-      machine: agents/bench/machine.yaml
+      profile: ${AGENT_PROFILES_ROOT}/bench/profile.yaml
+      machine: bench/machine.yaml
     expected:
       machine_loaded: true
       terminal_states: [Done, Failed]
@@ -287,8 +287,8 @@ test_cases:
     name: Bench tools load serve_ui and launch_eval
     go_test: TestBenchConfig_ToolsLoad
     inputs:
-      tools: agents/bench/tools.yaml
-      declarations: agents/bench/builtin.yaml
+      tools: bench/tools.yaml
+      declarations: bench/builtin.yaml
     expected:
       serve_ui_selected: true
       launch_eval_selected: true
@@ -301,8 +301,8 @@ test_cases:
     name: Bench transition table validates UI action flow
     go_test: TestBenchConfig_TransitionTable
     inputs:
-      machine: agents/bench/machine.yaml
-      selected_tools: agents/bench/tools.yaml
+      machine: bench/machine.yaml
+      selected_tools: bench/tools.yaml
     expected:
       serving_action: serve_ui
       launching_action: launch_eval
@@ -317,7 +317,7 @@ test_cases:
     go_test: TestLaunchEvalFactoryAcceptsProfileConfig
     inputs:
       tool: launch_eval
-      profile: agents/evaluator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
     expected:
       profile_config_accepted: true
       legacy_machine_flags_not_required: true
@@ -393,7 +393,7 @@ test_cases:
     name: Agent child process args stay profile-first
     go_test: TestBuildArgs_ProfileOnly
     inputs:
-      profile: agents/generator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
     expected:
       profile_flag_present: true
       machine_and_model_flags_absent: true
