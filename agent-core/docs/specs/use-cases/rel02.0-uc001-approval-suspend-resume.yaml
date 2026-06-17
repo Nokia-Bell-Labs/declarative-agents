@@ -18,23 +18,23 @@ trigger: |
   transition that routes a risky action through an approval-gate tool.
 
 reference_profile:
-  path: agents/lifecycle/approval/profile.yaml
+  path: lifecycle/approval/profile.yaml under AGENT_PROFILES_ROOT
   first_run: |
-    agent --profile agents/lifecycle/approval/profile.yaml \
+    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
           --state-store-dir <store-dir>
   resume_approved: |
-    agent --profile agents/lifecycle/approval/profile.yaml \
+    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
           --state-store-dir <store-dir> \
           --resume-checkpoint <checkpoint-id> \
           --resume-signal Approved
   resume_rejected: |
-    agent --profile agents/lifecycle/approval/profile.yaml \
+    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
           --state-store-dir <store-dir> \
           --resume-checkpoint <checkpoint-id> \
           --resume-signal Rejected
 
 flow:
-  - F1: Agent startup enables lifecycle behavior with StateStore, optional Workspace, and agents/lifecycle/approval/profile.yaml; disabled lifecycle defaults remain unchanged (srd025 R10).
+  - F1: Agent startup enables lifecycle behavior with StateStore, optional Workspace, and lifecycle/approval/profile.yaml under AGENT_PROFILES_ROOT; disabled lifecycle defaults remain unchanged (srd025 R10).
   - F2: core.Loop drives MachineSpec normally until a transition invokes an approval-gate or suspend tool (srd005 R5, srd025 R8).
   - F3: The approval-gate tool emits a machine-declared suspend signal rather than failing the run (srd024 R2, srd025 R8).
   - F4: Loop builds a Checkpoint with AgentSnapshot, optional command/domain JSON, optional WorkspaceRef, and HistoryDigest (srd025 R1, R6).

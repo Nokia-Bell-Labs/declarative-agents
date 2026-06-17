@@ -15,7 +15,7 @@ trigger: |
   machine_request-backed documentation server with configured document resources.
 
 flow:
-  - F1: The agent loads agents/knowledge-manager/documentation-curator/profile.yaml with machine_request endpoints and the documentation_corpus document resource selected.
+  - F1: The agent loads the external documentation-curator profile with machine_request endpoints and the documentation_corpus document resource selected.
   - F2: The browser opens the Knowledge Manager documentation URL served from profile-owned UI assets.
   - F3: The UI requests the document index through the generic REST documentation_curator_requests.documents machine_request route. Request validation runs before one short-lived request machine starts.
   - F4: The request machine dispatches a document list word against the configured docs/ corpus and emits DocumentListReady.
@@ -74,8 +74,8 @@ out_of_scope:
 
 successor_to: rel03.0-uc006-documentation-curator
 status: done
-machine_config: agents/knowledge-manager/documentation-curator/machine.yaml
-rest_definitions: agents/knowledge-manager/documentation-curator/rest.yaml
+machine_config: knowledge-manager/documentation-curator/machine.yaml
+rest_definitions: knowledge-manager/documentation-curator/rest.yaml
 document_resource: documentation_corpus
 browser_harness: Puppeteer
 integration_target: mage integration:uc007

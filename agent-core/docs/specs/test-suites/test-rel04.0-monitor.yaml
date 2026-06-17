@@ -24,13 +24,13 @@ test_cases:
     integration_target: mage integration:uc004
     status: implemented
     description: |
-      Load agents/monitor/profile.yaml through cmd/agent startup helpers. Run
+      Load the external monitor profile through cmd/agent startup helpers. Run
       the configured monitor machine with a live MonitorRecorder. Query the
       configured monitor REST views from the same store. The proof also checks
       workflow labels, OpenTelemetry export, REST OpenAPI output, launch-output
       bound address discovery, and cached event-stream frames.
     inputs:
-      profile: agents/monitor/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/monitor/profile.yaml
       fixture: testdata/integration/rel04-monitor/monitor-rest.yaml
     expected:
       cmd_agent_monitor_recorder_wired: true
@@ -63,8 +63,8 @@ test_cases:
     integration_target: mage integration:uc004
     status: implemented
     description: |
-      Start cmd/agent with agents/monitor/profile.yaml or an equivalent
-      profile-owned monitor path, then wait until the monitor REST listener
+      Start cmd/agent with ${AGENT_PROFILES_ROOT}/monitor/profile.yaml or an
+      equivalent profile-owned monitor path, then wait until the monitor REST listener
       accepts requests. Discover the base URL from REST server launch output
       when the configured address uses 127.0.0.1:0. Request /monitor/state
       while the process is still running. Before shutdown, ask /monitor/metrics
@@ -75,7 +75,7 @@ test_cases:
       launch, blocking await, control exit, listener stop, and successful
       terminal routing.
     inputs:
-      profile: agents/monitor/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/monitor/profile.yaml
       query_routes:
         - /monitor/state
         - /monitor/metrics

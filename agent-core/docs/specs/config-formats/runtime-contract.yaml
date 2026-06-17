@@ -10,18 +10,18 @@ purpose: |
 
 invocation: |
   Normal invocation.
-    agent --profile agents/<agent>/profile.yaml \
+    agent --profile "$AGENT_PROFILES_ROOT/<agent>/profile.yaml" \
           [--request <file>] [--output <dir>] \
           [--directory <path>] \
           [--state-store-dir <dir>] \
           [--resume-checkpoint <id>] [--resume-signal <signal>]
 
   Lifecycle profile invocations.
-    agent --profile agents/lifecycle/history/profile.yaml \
+    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/history/profile.yaml" \
           --directory <workspace> \
           --request requests/history.yaml
 
-    agent --profile agents/lifecycle/rollback/profile.yaml \
+    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/rollback/profile.yaml" \
           --directory <workspace> \
           --request requests/rollback.yaml
 
@@ -195,15 +195,15 @@ suite_input_contract: |
 
 llm_parser_ownership: |
   LLM response parsing is boundary-tool configuration. A selected agent
-  profile loads an invoke_llm ToolDef from agents/*/llm/*.yaml. That ToolDef
+  profile loads an invoke_llm ToolDef from <profile-root>/*/llm/*.yaml. That ToolDef
   owns model and provider_url. It also owns prompt fields, manifest_state, and
   the response_profile parser selector.
 
   response_profile names a parser profile from internal/model/llm/profiles/.
   Parser profiles are not agent profiles. They describe model-output
   extraction with match_prefixes, envelope, strict_format, and
-  extraction_pipeline. Agent profiles live under agents/*/profile.yaml and
-  select the configured program.
+  extraction_pipeline. Agent profiles live under the external profile root and select the
+  configured program.
 
   Current code resolves parser behavior from response_profile in invoke_llm
   config. Without response_profile, it falls back to model-name prefix
@@ -315,7 +315,7 @@ config_file_layout: |
     exec/                   # Individual shared exec tool declarations
     builtin.yaml            # Legacy aggregate builtin declarations
     exec.yaml               # Legacy aggregate exec declarations
-  agents/
+  AGENT_PROFILES_ROOT/
     generator/
       profile.yaml          # Preferred generator runtime entry point
       machine.yaml          # Generator state machine and semantics
@@ -358,14 +358,14 @@ container_runtime_layout: |
   Shared image assets are installed under /opt/agent-core.
 
     /opt/agent-core/tools/
-    /opt/agent-core/agents/generator/
-    /opt/agent-core/agents/evaluator/
+
+  Runtime images do not install an agents/ directory under /opt/agent-core.
 
   External evaluation repositories mount local suites, samples, and
-  configuration into /work. Their profiles may reference the shared image
-  declaration directories or generator profiles using absolute paths under
-  /opt/agent-core, while keeping repository-specific suites and outputs under
-  /work.
+  profile configuration into /work or a separate profile mount. Their profiles
+  may reference the shared image declaration directories under
+  /opt/agent-core/tools, while keeping profile-owned suites, outputs, and agent
+  programs outside the runtime image.
 
   Runtime images intentionally exclude the Go toolchain, source checkout, test
   dependencies, and golangci-lint from the final runtime stage. Exec tools that

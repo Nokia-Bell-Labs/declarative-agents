@@ -75,7 +75,7 @@ test_cases:
       and Knowledge Manager profile-local UX config.
     inputs:
       profile_root: external_agent_profiles_root
-      profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
       workspace: isolated_temp_workspace
     expected:
       external_profile_loaded: true
@@ -97,19 +97,19 @@ test_cases:
     description: |
       Inspect Dockerfile and build-command behavior. The runtime stage copies
       the agent binary and core-owned shared declaration roots under
-      /opt/agent-core/tools. During the Dockerfile test, forbidden profile copy
-      paths such as agents/generator, agents/evaluator, and Knowledge Manager
-      profiles must stay absent. The mage docker target is the release-image
-      build wrapper for the same Dockerfile.
+      /opt/agent-core/tools. During the Dockerfile test, standard profile
+      directories such as generator, evaluator, and Knowledge Manager must stay
+      absent from runtime-image copy rules. The mage docker target is the
+      release-image build wrapper for the same Dockerfile.
     inputs:
       image: agent-core:latest
       expected_core_paths:
         - /usr/local/bin/agent
         - /opt/agent-core/tools
       forbidden_profile_paths:
-        - /opt/agent-core/agents/generator
-        - /opt/agent-core/agents/evaluator
-        - /opt/agent-core/agents/knowledge-manager
+        - migrated_generator_profile_dir
+        - migrated_evaluator_profile_dir
+        - migrated_knowledge_manager_profile_dir
     expected:
       agent_binary_present: true
       core_tool_assets_present: true
@@ -138,7 +138,7 @@ test_cases:
       command:
         - agent
         - --profile
-        - /profiles/agents/generator/profile.yaml
+        - /profiles/agents/<agent>/profile.yaml
         - --directory
         - /work
     expected:

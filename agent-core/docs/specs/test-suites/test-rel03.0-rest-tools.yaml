@@ -759,9 +759,9 @@ test_cases:
       listOllamaModels operation, and that the final answer contains model
       names returned by /api/tags.
     inputs:
-      profile: agents/rest/ollama-profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/rest/ollama-profile.yaml
       model_family: qwen3
-      openapi_document: agents/rest/openapi/ollama.yaml
+      openapi_document: rest/openapi/ollama.yaml
       operation_id: listOllamaModels
       tool_name: ollama_list_models
       live_endpoint: http://127.0.0.1:11434/api/tags
@@ -796,7 +796,7 @@ test_cases:
       documentation-curator profile must resolve its machine, serve_documentation
       builtin declaration, selected doc_* REST tools, and REST definitions.
     inputs:
-      profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
       builtin_tool: serve_documentation
       rest_tools:
         - doc_list
@@ -877,14 +877,14 @@ test_cases:
     status: done
     description: |
       Build the agent with production assets, start
-      agents/knowledge-manager/documentation-curator/profile.yaml, probe the
+      the external documentation-curator profile, probe the
       documentation health, docs index, validation, suggestion, and SPA routes,
       run the bench docs-route absence test, post a generic lifecycle exit
       request, and require clean agent shutdown through the declared Done path.
       The target checks process output for succeeded terminal state text and
       confirms both documentation and control listeners are released.
     inputs:
-      profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
       listener: 127.0.0.1:18081
       frontend_builds:
         - internal/evaluation/bench/ui
@@ -927,7 +927,7 @@ test_cases:
       launch Puppeteer against the local UX. The page must load from
       profile-owned UI assets without using bench routes.
     inputs:
-      profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
       browser_harness: Puppeteer
       entry_point: internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts
       integration_target: mage integration:uc007
@@ -1069,8 +1069,8 @@ test_cases:
       identity.
     inputs:
       conformance_env: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1
-      profile: agents/knowledge-manager/documentation-curator/profile.yaml
-      machine: agents/knowledge-manager/documentation-curator/request-machine.yaml
+      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
+      machine: knowledge-manager/documentation-curator/request-machine.yaml
       endpoint_path: /api/v1/docs/{path...}
     expected:
       configured_profile_loaded: true

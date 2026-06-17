@@ -6,53 +6,44 @@ This inventory records the conformance audit that produced
 
 ## Verification Baseline
 
-- `agent-core-9iol.1` through `agent-core-9iol.6` are complete.
-- `mage audit` succeeds with selected-tool contract checks wired into
-  `pkg/spec.Validate`.
-- Warning-era undo strategy drift has been resolved by aligning
-  `pkg/spec/checkToolUndoConsistency` with the rollback vocabulary.
-- Active agent profiles inspected:
-  - `agents/generator/profile.yaml`
-  - `agents/generator/profile-qwen35b.yaml`
-  - `agents/generator/profile-qwen27b.yaml`
-  - `agents/planner/profile.yaml`
-  - `agents/evaluator/profile.yaml`
-  - `agents/bench/profile.yaml`
-  - `agents/jurist/profile.yaml`
+`agent-core-9iol.1` through `agent-core-9iol.6` are complete. `mage audit`
+succeeds with selected-tool contract checks wired into `pkg/spec.Validate`.
+Warning-era undo strategy drift has been resolved by aligning
+`pkg/spec/checkToolUndoConsistency` with the rollback vocabulary.
+
+The conformance pass inspected `AGENT_PROFILES_ROOT/generator/profile.yaml`,
+`AGENT_PROFILES_ROOT/generator/profile-qwen35b.yaml`,
+`AGENT_PROFILES_ROOT/generator/profile-qwen27b.yaml`,
+`AGENT_PROFILES_ROOT/planner/profile.yaml`,
+`AGENT_PROFILES_ROOT/evaluator/profile.yaml`,
+`AGENT_PROFILES_ROOT/bench/profile.yaml`, and
+`AGENT_PROFILES_ROOT/jurist/profile.yaml`.
 
 ## Pattern Requirements Used As Audit Criteria
 
-Source: `declarative-programming-pattern.md`.
-
-- Grammar is data: workflows belong in `machine.yaml` transition tables.
-- Words are configured commands: each `ToolDef` is the program interpreted by
-  the tool implementation.
-- Signals are closed vocabulary: emitted signals must be declared and handled by
-  the grammar.
-- The engine is fixed: domain behavior should come from grammars and lexicons,
-  not conditionals in the runtime.
-- Boundary words are explicit: model, human, child-agent, and nested-machine
-  boundaries must declare actor configuration, side effects, undo, and signals.
-- Undo is word-level: every word has an undo strategy that the engine can reason
-  about through the recorded sentence.
+The audit criteria come from `declarative-programming-pattern.md`. Workflows
+belong in `machine.yaml` transition tables. Each `ToolDef` is the configured
+program interpreted by a tool implementation. Emitted signals must be declared
+and handled by the grammar. Domain behavior should come from grammars and
+lexicons, not runtime conditionals. Boundary words for models, humans,
+child-agents, and nested machines must declare actor configuration, side
+effects, undo, and signals. Undo remains word-level so the engine can reason
+about the recorded sentence.
 
 ## Tool Contract Alignment
 
-Resolved by `agent-core-9iol.2` and `agent-core-9iol.3`.
-
-Active selected tool declarations now carry Grammar Machine word contracts:
-`category`, `problem`, `goals`, `requirements`, `non_goals`, `emits`,
+`agent-core-9iol.2` and `agent-core-9iol.3` resolved this area. Active
+selected tool declarations now carry Grammar Machine word contracts.
+They include `category`, `problem`, `goals`, `requirements`, `non_goals`, `emits`,
 `output.schema`, `side_effects`, `reversibility`, `undo`, `errors`, and
 `relationships`. The normal spec audit path enforces these fields for selected
 tools. Missing contract fields are errors for migrated/default declarations and
 warnings only for declarations explicitly classified as legacy.
 
-Relevant source:
-
-- `internal/tools/stl/tool_contracts.go` defines the full contract shape.
-- `pkg/spec/validate.go` enforces selected-tool completeness in `Validate`.
-- `pkg/spec/corpus.go` resolves active profile selections, including
-  agent-local overrides and configured evaluator point tools.
+`internal/tools/stl/tool_contracts.go` defines the full contract shape.
+`pkg/spec/validate.go` enforces selected-tool completeness in `Validate`.
+`pkg/spec/corpus.go` resolves active profile selections, including agent-local
+overrides and configured evaluator point tools.
 
 ## Legacy And Aggregate Declaration Scope
 
@@ -68,9 +59,8 @@ keeps them synchronized.
 
 ## Child Boundary Configuration Shape
 
-Resolved by `agent-core-9iol.5`.
-
-Child-agent boundary configuration is profile-first. `execute.Config` accepts
+`agent-core-9iol.5` resolved child-agent boundary configuration. The shape is
+profile-first. `execute.Config` accepts
 `Profile`, `BuildArgs` emits `--profile` when set, and child boundary tools
 propagate profile values through planner, bench, launch-eval, and self-invoke
 factories. Legacy `machine`, `tools`, `tools_declarations`, `model`, and
@@ -78,19 +68,17 @@ factories. Legacy `machine`, `tools`, `tools_declarations`, `model`, and
 
 ## Factory Registration Shape
 
-Resolved by `agent-core-9iol.6`.
-
-The core engine remains generic, and the composition root now centralizes
-builtin factory-family wiring in `builtinFactoryCatalog`. Each entry is keyed
-by selected tool init names and registers a capability family only when the
+`agent-core-9iol.6` resolved factory registration shape. The core engine
+remains generic, and the composition root now centralizes
+builtin factory-family wiring in `builtinFactoryCatalog`. Each entry maps
+selected tool init names and registers a capability family only when the
 active YAML selections require it. Adding a new builtin family still needs
 runtime wiring, but the mode-specific branching has been reduced to a single
 catalog.
 
 ## Undo Strategy Vocabulary
 
-Resolved by `agent-core-9iol.4`.
-
+`agent-core-9iol.4` resolved undo strategy vocabulary.
 `pkg/spec/checkToolUndoConsistency` recognizes the structured rollback
 strategy vocabulary by reversibility class, including workspace restore,
 session/domain restore, conversation truncation/restore, child command undo,
@@ -98,9 +86,8 @@ boundary compensation, and compensating actions.
 
 ## Documentation Refresh
 
-Resolved by `agent-core-9iol.7`.
-
-Active docs describe the aligned design: profile-first child boundaries,
+`agent-core-9iol.7` resolved the documentation refresh. Active docs describe the
+aligned design through profile-first child boundaries,
 profile-resolved evaluator terminology, selected-tool contract enforcement,
-expanded undo strategy vocabulary, centralized builtin factory registration,
-and explicit legacy compatibility paths for older machine/tools invocations.
+expanded undo strategy vocabulary, centralized builtin factory registration, and
+explicit legacy compatibility paths for older machine/tools invocations.

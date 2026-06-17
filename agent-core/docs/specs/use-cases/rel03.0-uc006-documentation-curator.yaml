@@ -2,7 +2,7 @@ id: rel03.0-uc006-documentation-curator
 title: Knowledge Manager serves documentation curator UX and REST tools
 
 summary: |
-  Start agents/knowledge-manager/documentation-curator/profile.yaml to run the
+  Start the external documentation-curator profile to run the
   docs host. The host serves the React documentation app and /api/v1/docs from
   internal/knowledge/documentation, where handlers live after the migration away
   from bench. Profile-selected doc_* words keep REST behavior in YAML instead
@@ -16,7 +16,7 @@ trigger: |
   proposed documentation patches through the Knowledge Manager boundary.
 
 flow:
-  - F1: The agent loads agents/knowledge-manager/documentation-curator/profile.yaml and resolves machine, tool selection, builtin declarations, REST declarations, and REST definitions relative to that profile.
+  - F1: The agent loads the external documentation-curator profile and resolves machine, tool selection, builtin declarations, REST declarations, and REST definitions relative to that profile.
   - F2: The documentation-curator machine starts in Idle and dispatches serve_documentation on Seed.
   - F3: serve_documentation reads addr and docs_dir from the ToolDef config block, starts the documentation host without blocking the machine, and emits ServerLaunched.
   - F4: The machine launches the profile-owned lifecycle control server and then dispatches await_curator_control.
@@ -30,7 +30,7 @@ touchpoints:
   - T2: "srd027-rest-tool-runtime R5 and R10 -- serve_documentation launches without blocking and rest_await_event waits for lifecycle control"
   - T3: "srd027-rest-tool-runtime R2, R3 -- documentation REST tooling is defined by ToolDef and REST YAML"
   - T4: "srd028-rest-client-tools R1, R2, R6 -- doc_* words call configured REST operations and emit REST result signals"
-  - T5: "agents/knowledge-manager/documentation-curator/profile.yaml -- profile-owned documentation host entry point"
+  - T5: "knowledge-manager/documentation-curator/profile.yaml -- profile-owned documentation host entry point under AGENT_PROFILES_ROOT"
   - T6: "internal/knowledge/documentation -- documentation HTTP server, API handlers, and embedded UI assets"
   - T7: "srd029-rest-server-tools R7 and R11 -- lifecycle control endpoints enqueue events for MachineSpec routing and shutdown releases the owned documentation listener"
 
@@ -62,9 +62,9 @@ success_criteria:
 
 out_of_scope:
   - Editing documentation content without explicit patch approval.
-  - Routing documentation UX through agents/bench/profile.yaml.
+  - Routing documentation UX through bench/profile.yaml under AGENT_PROFILES_ROOT.
   - Replacing the declarative REST runtime with generated clients.
 
-machine_config: agents/knowledge-manager/documentation-curator/machine.yaml
-rest_definitions: agents/knowledge-manager/documentation-curator/rest.yaml
+machine_config: knowledge-manager/documentation-curator/machine.yaml
+rest_definitions: knowledge-manager/documentation-curator/rest.yaml
 test_suite_trace: test-rel03.0-rest-tools

@@ -57,7 +57,7 @@ flow:
   - F3: The image build does not copy agent profile directories from agent-core.
   - F4: The maintainer checks out or unpacks agent-profiles outside the runtime image.
   - F5: The container command mounts agent-profiles at /profiles and the target workspace at /work.
-  - F6: The container command starts agent with --profile /profiles/agents/generator/profile.yaml and --directory /work.
+  - F6: The container command starts agent with --profile /profiles/agents/<agent>/profile.yaml and --directory /work.
   - F7: profile.yaml resolves its machine, tools, tool declarations, REST definitions, request machines, and UX config relative to the mounted profile directory.
   - F8: The runtime loads core-owned shared declarations from /opt/agent-core when the mounted profile references them.
   - F9: Missing mounted profile paths fail before the loop starts with a diagnostic that names the missing path.
@@ -67,8 +67,8 @@ touchpoints:
   - T2: "README.md -- mounted-profile container command"
   - T3: "mage docker -- release-image build wrapper"
   - T4: "srd034-external-agent-profiles R1, R2, R3, R4 -- ownership and mounted runtime contract"
-  - T5: "agents/knowledge-manager/documentation-curator/profile.yaml -- profile-relative asset example"
-  - T6: "agents/knowledge-manager/documentation-curator/ui/ux.yaml -- profile-local UX config example"
+  - T5: "knowledge-manager/documentation-curator/profile.yaml -- profile-relative asset example under /profiles/agents"
+  - T6: "knowledge-manager/documentation-curator/ui/ux.yaml -- profile-local UX config example under /profiles/agents"
 
 success_criteria:
   - id: S1
