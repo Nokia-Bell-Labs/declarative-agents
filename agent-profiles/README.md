@@ -113,12 +113,27 @@ demos, UI assets, and integration fixtures. Runtime image tags still belong to
 
 ## Validation
 
-This repository is specification and asset focused. Run the documented audit
-target when it is available:
+This repository validates profiles against an external `agent-core` checkout or
+runtime image. Local validation reads every `agents/**/profile.yaml`, resolves
+profile-local files from this repository, and resolves `/opt/agent-core/tools`
+against `AGENT_CORE_ROOT` without copying agent assets into the core image.
 
 ```bash
-mage audit
+AGENT_CORE_ROOT=/path/to/agent-core mage validate
 ```
 
-Until a local Mage target exists, validate YAML syntax for changed docs and
-profile assets.
+When `AGENT_CORE_ROOT` is unset, `mage validate` defaults to the sibling
+`../agent-core` checkout.
+
+Run the mounted-profile container smoke check with an `agent-core` image:
+
+```bash
+AGENT_CORE_IMAGE=agent-core:latest \
+AGENT_CORE_ROOT=/path/to/agent-core \
+mage containerSmoke
+```
+
+The smoke target first fails if the image contains `/opt/agent-core/agents`.
+It then mounts this repository at `/profiles`, mounts core-owned tools at
+`/opt/agent-core/tools`, and runs
+`--profile /profiles/agents/jurist/profile.yaml --directory /work`.
