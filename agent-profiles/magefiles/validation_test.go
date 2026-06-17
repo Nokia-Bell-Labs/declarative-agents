@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -15,6 +16,39 @@ func TestValidateProfilesResolvesExternalCoreToolRefs(t *testing.T) {
 	root := t.TempDir()
 	coreRoot := t.TempDir()
 	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+
+	if err := validateProfiles(root, coreRoot); err != nil {
+		t.Fatalf("validateProfiles returned error: %v", err)
+	}
+}
+
+func TestDiscoverProfilesIncludesVariants(t *testing.T) {
+	root := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	writeNamedProfileFixture(t, root, "generator", "profile-qwen35b.yaml")
+	writeNamedProfileFixture(t, root, "generator", "profile-qwen27b.yaml")
+	writeNamedProfileFixture(t, root, "rest", "ollama-profile.yaml")
+	writeFile(t, filepath.Join(root, "agents", "rest", "profile-notyaml.yml"), "name: ignore\n")
+
+	profiles, err := discoverProfiles(filepath.Join(root, "agents"))
+	if err != nil {
+		t.Fatalf("discoverProfiles returned error: %v", err)
+	}
+	got := profileBaseNames(profiles)
+	want := []string{"ollama-profile.yaml", "profile-qwen27b.yaml", "profile-qwen35b.yaml", "profile.yaml"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("profiles = %#v, want %#v", got, want)
+	}
+}
+
+func TestValidateProfilesValidatesProfileVariants(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	writeNamedProfileFixture(t, root, "generator", "profile-qwen35b.yaml")
+	writeNamedProfileFixture(t, root, "generator", "profile-qwen27b.yaml")
+	writeNamedProfileFixture(t, root, "rest", "ollama-profile.yaml")
 	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
 
 	if err := validateProfiles(root, coreRoot); err != nil {
@@ -98,17 +132,31 @@ func TestRunContainerSmokeCommands(t *testing.T) {
 
 func writeProfileFixture(t *testing.T, root, name string) {
 	t.Helper()
+	writeNamedProfileFixture(t, root, name, "profile.yaml")
+}
+
+func writeNamedProfileFixture(t *testing.T, root, name, profileName string) {
+	t.Helper()
 	dir := filepath.Join(root, "agents", name)
 	mkdir(t, dir)
 	writeFile(t, filepath.Join(dir, "machine.yaml"), "name: test\n")
 	writeFile(t, filepath.Join(dir, "tools.yaml"), "tools: []\n")
-	writeFile(t, filepath.Join(dir, "profile.yaml"), `name: test
+	writeFile(t, filepath.Join(dir, profileName), `name: test
 machine: machine.yaml
 tools:
   - tools.yaml
 tool_config_dirs:
   - /opt/agent-core/tools/builtin/llm
 `)
+}
+
+func profileBaseNames(paths []string) []string {
+	names := make([]string, len(paths))
+	for i, path := range paths {
+		names[i] = filepath.Base(path)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func mkdir(t *testing.T, path string) {

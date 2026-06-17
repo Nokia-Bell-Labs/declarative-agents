@@ -64,7 +64,7 @@ func validateProfiles(root, coreRoot string) error {
 		return err
 	}
 	if len(profiles) == 0 {
-		return fmt.Errorf("no profile.yaml files found under agents")
+		return fmt.Errorf("no profile-shaped YAML files found under agents")
 	}
 	for _, profile := range profiles {
 		if err := validateProfile(profile, coreRoot); err != nil {
@@ -81,12 +81,22 @@ func discoverProfiles(root string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if !entry.IsDir() && entry.Name() == "profile.yaml" {
+		if !entry.IsDir() && isProfileFile(entry.Name()) {
 			profiles = append(profiles, path)
 		}
 		return nil
 	})
 	return profiles, err
+}
+
+func isProfileFile(name string) bool {
+	if name == "profile.yaml" {
+		return true
+	}
+	if strings.HasPrefix(name, "profile-") && strings.HasSuffix(name, ".yaml") {
+		return true
+	}
+	return strings.HasSuffix(name, "-profile.yaml")
 }
 
 func validateProfile(path, coreRoot string) error {

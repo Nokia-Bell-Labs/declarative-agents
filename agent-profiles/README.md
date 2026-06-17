@@ -114,9 +114,11 @@ demos, UI assets, and integration fixtures. Runtime image tags still belong to
 ## Validation
 
 This repository validates profiles against an external `agent-core` checkout or
-runtime image. Local validation reads every `agents/**/profile.yaml`, resolves
-profile-local files from this repository, and resolves `/opt/agent-core/tools`
-against `AGENT_CORE_ROOT` without copying agent assets into the core image.
+runtime image. Local validation reads every profile-shaped YAML file under
+`agents/`, including `profile.yaml`, `profile-*.yaml`, and `*-profile.yaml`
+variants. It resolves profile-local files from this repository and resolves
+`/opt/agent-core/tools` against `AGENT_CORE_ROOT` without copying agent assets
+into the core image.
 
 ```bash
 AGENT_CORE_ROOT=/path/to/agent-core mage validate
