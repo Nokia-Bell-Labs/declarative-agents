@@ -235,14 +235,28 @@ releases:
       otherwise provide profile directories, pass --profile to that mounted
       profile, and pass --directory to the mounted workspace. The runtime image
       does not copy migrated agent profile directories from agent-core.
-    status: planned
+    status: in_progress
     srds:
       - srd034-external-agent-profiles
     use_cases:
       - id: rel06.0-uc001-mounted-profile-container-runtime
         summary: Runtime container runs an externally mounted agent profile
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel06.0-profile-migration
         summary: Formal tests for external profile root resolution, runtime image profile exclusion, and mounted-profile container execution
+        status: implemented
+    proof:
+      - go test ./pkg/spec -run TestResolveProfilePathMapsInstalledCoreHome
+      - go test ./magefiles -run TestDockerfileRuntimeExcludesAgentProfiles
+      - go test ./magefiles -run TestContainerBuildSummaryForPodman
+      - mage docker
+      - mage integration:uc001
+      - mage integration:uc002
+      - mage integration:uc006
+      - mage integration:uc007
+      - agent-profiles mage containerSmoke
+    follow_up:
+      - id: agent-core-xcbg
+        summary: Normalize stale in-repo agent path references after profile migration
         status: planned

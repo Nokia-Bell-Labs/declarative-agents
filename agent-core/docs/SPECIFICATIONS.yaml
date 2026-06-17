@@ -10,8 +10,9 @@ overview: |
   declarations also belong to that release. Rollback lifecycle contracts
   belong to 02.0. Declarative REST runtime contracts belong to 03.0. REST
   client and server contracts sit in the same release. Profile migration and
-  mounted-profile runtime contracts belong to 06.0. Twenty-one use cases
-  exercise the SRDs across the seven releases. Eight formal YAML test suites cover 210 acceptance test
+  mounted-profile runtime contracts belong to 06.0, where the mounted-profile
+  use case and profile-migration suite now name implemented proof commands.
+  Twenty-one use cases exercise the SRDs across the seven releases. Eight formal YAML test suites cover 210 acceptance test
   cases across releases 00.0 through 06.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -62,9 +63,9 @@ roadmap_summary:
     status: done
   - version: "06.0"
     name: External agent profiles and mounted runtime assets
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 1
-    status: planned
+    status: in_progress
 
 foundation_document_index:
   - id: agent-core
@@ -214,7 +215,7 @@ srd_index:
   - id: srd034-external-agent-profiles
     title: External Agent Profiles and Mounted Runtime Assets
     summary: Requirements for separating agent-core runtime assets from profile-owned programs and running containers with externally supplied profiles.
-    status: planned
+    status: implemented
     path: docs/specs/software-requirements/srd034-external-agent-profiles.yaml
 
 config_format_index:
@@ -405,7 +406,7 @@ use_case_index:
   - id: rel06.0-uc001-mounted-profile-container-runtime
     title: Runtime container runs an externally mounted agent profile
     release: "06.0"
-    status: planned
+    status: implemented
     test_suite: test-rel06.0-profile-migration
     path: docs/specs/use-cases/rel06.0-uc001-mounted-profile-container-runtime.yaml
 
@@ -478,6 +479,7 @@ test_suite_index:
     traces:
       - rel06.0-uc001-mounted-profile-container-runtime
     formal_test_cases: 4
+    status: implemented
     path: docs/specs/test-suites/test-rel06.0-profile-migration.yaml
 
 go_test_coverage:
@@ -599,6 +601,17 @@ coverage_gaps: |
   Lifecycle exit coverage asserts event payload propagation, structured
   exit_agent output, terminal Done or Succeeded routing, absence of cancelled
   status, and documentation/control listener release.
+
+  Release 06.0 coverage now names implemented proof points for mounted profile
+  execution. mage audit indexes srd034, rel06.0-uc001, and
+  test-rel06.0-profile-migration. pkg/spec tests cover installed
+  /opt/agent-core/tools mapping through AGENT_CORE_HOME. magefiles Docker tests
+  cover profile exclusion, the required --profile entrypoint, mounted profile
+  command output, and the Dockerfile integration target. mage integration:uc001,
+  uc002, uc006, and uc007 consume profiles, demos, fixtures, and Knowledge
+  Manager UX assets through AGENT_PROFILES_ROOT. The matching agent-profiles
+  containerSmoke target runs the installed image with the profile repository
+  mounted at /profiles.
 
   Current `go list ./...` output defines package coverage. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.

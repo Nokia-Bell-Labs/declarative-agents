@@ -6,14 +6,14 @@ summary: |
   binary plus core-owned assets, not a bundled catalog of agent profiles.
 
   At run time, the selected program comes from a mounted profile repository.
-  The command points --profile at that mounted file. It points --directory at
-  the workspace mounted for the task.
+  Commands point --profile at that mounted file and --directory at the
+  workspace mounted for the task.
 
 actor: Release maintainer proving mounted-profile container execution
 
 trigger: |
-  Agent profile assets are moving to agent-profiles. Container users still need
-  a simple command that runs configured agents. That command should depend on an
+  Agent profile assets have moved to agent-profiles. Container users still need
+  a simple command that runs configured agents. That command depends on an
   explicit profile mount, not on profile directories copied into the Agent Core
   image.
 
@@ -25,12 +25,31 @@ runtime_notes: |
   let the existing runtime load the program from that path. No hidden image
   fallback should make the proof pass.
 
-  Failure matters too. When /profiles is absent or the
-  selected profile.yaml does not exist, startup should stop before core.Loop
-  runs and the diagnostic should name the bad path.
+  Failure matters too. Before core.Loop runs, the runtime image entrypoint
+  rejects profile-less startup. In Mage and package tests, missing external
+  roots fail with diagnostics that name AGENT_PROFILES_ROOT.
 
-  The container remains boring on purpose. It owns the executable runtime, while
-  the mounted profile owns the program under test.
+  On purpose, the container remains boring. It owns the executable runtime,
+  while the mounted profile owns the program under test.
+
+implementation_status: implemented
+
+proof:
+  - TestResolveProfilePathMapsInstalledCoreHome maps /opt/agent-core/tools to
+    AGENT_CORE_HOME for installed runtime assets.
+  - TestDockerfileRuntimeExcludesAgentProfiles verifies that the runtime image
+    copies /opt/agent-core/tools and does not copy migrated profile directories.
+  - TestContainerBuildSummaryForPodman documents the mounted /profiles/agents
+    runtime command emitted by mage docker.
+  - TestDockerfileDefinesIntegrationTarget verifies the Dockerfile integration
+    target used for Mage integration runs inside the image.
+  - mage integration:uc001 and mage integration:uc002 consume generator and
+    evaluator profiles plus fixtures through AGENT_PROFILES_ROOT.
+  - mage integration:uc006 and mage integration:uc007 consume the
+    documentation-curator profile and profile-local UX config through
+    AGENT_PROFILES_ROOT.
+  - agent-profiles mage containerSmoke runs the installed runtime image with the
+    profile repository mounted at /profiles.
 
 flow:
   - F1: The maintainer builds the Agent Core runtime image from agent-core.
@@ -74,7 +93,7 @@ success_criteria:
 out_of_scope:
   - Building or publishing agent-profiles release artifacts.
   - Choosing between bind mounts, submodules, release tarballs, or derived images as the only profile distribution model.
-  - Removing in-repo profile assets before equivalent files exist in agent-profiles.
+  - Reintroducing in-repo profile assets after equivalent files exist in agent-profiles.
   - Rewriting Agent Core runtime packages during the profile migration.
 
 srd: srd034-external-agent-profiles
