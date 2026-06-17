@@ -3,6 +3,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,32 +11,97 @@ import (
 	"strings"
 )
 
-const (
-	knowledgeManagerProfile = "agents/knowledge-manager/documentation-curator/profile.yaml"
-	agentBinaryEnv          = "AGENT_BINARY"
-	agentCoreHomeEnv        = "AGENT_CORE_HOME"
-	agentCoreRootEnv        = "AGENT_CORE_ROOT"
-	agentProfilesRootEnv    = "AGENT_PROFILES_ROOT"
-)
+const knowledgeManagerProfile = "agents/knowledge-manager/documentation-curator/profile.yaml"
 
 var buildAgentBinaryFunc = buildAgentBinary
 
+// demoConfig holds resolved paths for the knowledge-manager demo launcher.
+type demoConfig struct {
+	ProfilesRoot string
+	CoreRoot     string
+	Workspace    string
+	AgentBinary  string
+}
+
 // START OMIT
 func main() {
-	StartAgent(knowledgeManagerProfile)
+	flagProfiles := flag.String("profiles-root", "", "path to agent-profiles repository root (default: walk upward from the working directory)")
+	flagCore := flag.String("core-root", "", "path to agent-core checkout for --core-root and builtin overlay (default: sibling ../agent-core of profiles root)")
+	flagWorkspace := flag.String("workspace", "", "workspace directory for cmd/agent --directory (default: core-root if set, otherwise profiles root)")
+	flagAgent := flag.String("agent", "", "path to agent binary (default: build from core-root when set, otherwise agent on PATH)")
+	flag.Parse()
+
+	cfg, err := ResolveDemoConfig(*flagProfiles, *flagCore, *flagWorkspace, *flagAgent)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	StartAgent(knowledgeManagerProfile, cfg)
 }
 
 // END OMIT
 
-func StartAgent(profile string) {
-	profilesRoot := resolveProfilesRoot()
-	coreRoot := resolveAgentCoreRoot()
-	profilePath := filepath.Join(profilesRoot, profile)
-	if coreRoot != "" {
-		profilePath = prepareDemoProfile(profilePath, profilesRoot, coreRoot)
+// ResolveDemoConfig resolves launcher paths from explicit flags or repository layout.
+func ResolveDemoConfig(profilesFlag, coreFlag, workspaceFlag, agentFlag string) (demoConfig, error) {
+	profilesRoot, err := profilesRootFromFlagOrWalk(profilesFlag)
+	if err != nil {
+		return demoConfig{}, err
 	}
-	workspace := envOrDefault("AGENT_WORKSPACE", envOrDefaultRoot(coreRoot, profilesRoot))
-	cmd := agentCommand(profilePath, workspace, profilesRoot, coreRoot)
+	coreRoot := coreRootFromFlagOrSibling(profilesRoot, coreFlag)
+	workspace := strings.TrimSpace(workspaceFlag)
+	if workspace == "" {
+		workspace = workspaceDefault(coreRoot, profilesRoot)
+	}
+	return demoConfig{
+		ProfilesRoot: profilesRoot,
+		CoreRoot:     coreRoot,
+		Workspace:    workspace,
+		AgentBinary:  strings.TrimSpace(agentFlag),
+	}, nil
+}
+
+func profilesRootFromFlagOrWalk(profilesFlag string) (string, error) {
+	if root := strings.TrimSpace(profilesFlag); root != "" {
+		return filepath.Clean(root), nil
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("get working directory: %w", err)
+	}
+	if root := findProfilesRoot(wd); root != "" {
+		return root, nil
+	}
+	return "", fmt.Errorf(
+		"agent-profiles root not found; run from the repository checkout or pass -profiles-root with the path that contains %s",
+		knowledgeManagerProfile,
+	)
+}
+
+func coreRootFromFlagOrSibling(profilesRoot, coreFlag string) string {
+	if root := strings.TrimSpace(coreFlag); root != "" {
+		return filepath.Clean(root)
+	}
+	candidate := filepath.Join(filepath.Dir(profilesRoot), "agent-core")
+	if pathExists(filepath.Join(candidate, "cmd", "agent", "main.go")) {
+		return candidate
+	}
+	return ""
+}
+
+func workspaceDefault(coreRoot, profilesRoot string) string {
+	if strings.TrimSpace(coreRoot) != "" {
+		return coreRoot
+	}
+	return profilesRoot
+}
+
+// StartAgent runs cmd/agent for the given profile path segment under cfg.ProfilesRoot.
+func StartAgent(profile string, cfg demoConfig) {
+	profilePath := filepath.Join(cfg.ProfilesRoot, profile)
+	if cfg.CoreRoot != "" {
+		profilePath = prepareDemoProfile(profilePath, cfg.ProfilesRoot, cfg.CoreRoot)
+	}
+	cmd := agentCommand(profilePath, cfg.Workspace, cfg)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -43,18 +109,23 @@ func StartAgent(profile string) {
 	}
 }
 
-func agentCommand(profile, workspace, profilesRoot, coreRoot string) *exec.Cmd {
-	if agentBinary := strings.TrimSpace(os.Getenv(agentBinaryEnv)); agentBinary != "" {
-		cmd := exec.Command(agentBinary, "--profile", profile, "--directory", workspace)
-		cmd.Dir = profilesRoot
-		return withAgentCoreHome(cmd, coreRoot)
+func agentCommand(profile, workspace string, cfg demoConfig) *exec.Cmd {
+	if bin := cfg.AgentBinary; bin != "" {
+		return execAgent(bin, profile, workspace, cfg.CoreRoot, cfg.ProfilesRoot)
 	}
+	if cfg.CoreRoot != "" {
+		bin := buildAgentBinaryFunc(cfg.CoreRoot)
+		return execAgent(bin, profile, workspace, cfg.CoreRoot, cfg.ProfilesRoot)
+	}
+	return execAgent("agent", profile, workspace, "", cfg.ProfilesRoot)
+}
+
+func execAgent(bin, profile, workspace, coreRoot, profilesRoot string) *exec.Cmd {
+	args := []string{"--profile", profile, "--directory", workspace}
 	if coreRoot != "" {
-		cmd := exec.Command(buildAgentBinaryFunc(coreRoot), "--profile", profile, "--directory", workspace)
-		cmd.Dir = profilesRoot
-		return withAgentCoreHome(cmd, coreRoot)
+		args = append(args, "--core-root", coreRoot)
 	}
-	cmd := exec.Command("agent", "--profile", profile, "--directory", workspace)
+	cmd := exec.Command(bin, args...)
 	cmd.Dir = profilesRoot
 	return cmd
 }
@@ -140,48 +211,6 @@ func buildAgentBinary(coreRoot string) string {
 	return binary
 }
 
-func withAgentCoreHome(cmd *exec.Cmd, coreRoot string) *exec.Cmd {
-	if coreRoot != "" && strings.TrimSpace(os.Getenv(agentCoreHomeEnv)) == "" {
-		cmd.Env = withEnv(os.Environ(), agentCoreHomeEnv, coreRoot)
-	}
-	return cmd
-}
-
-func withEnv(env []string, name, value string) []string {
-	prefix := name + "="
-	for i, entry := range env {
-		if strings.HasPrefix(entry, prefix) {
-			env[i] = prefix + value
-			return env
-		}
-	}
-	return append(env, prefix+value)
-}
-
-func resolveAgentCoreRoot() string {
-	if coreRoot := strings.TrimSpace(os.Getenv(agentCoreRootEnv)); coreRoot != "" {
-		return coreRoot
-	}
-	profilesRoot := resolveProfilesRoot()
-	candidate := filepath.Join(filepath.Dir(profilesRoot), "agent-core")
-	if pathExists(filepath.Join(candidate, "cmd", "agent", "main.go")) {
-		return candidate
-	}
-	return ""
-}
-
-func resolveProfilesRoot() string {
-	if profilesRoot := strings.TrimSpace(os.Getenv(agentProfilesRootEnv)); profilesRoot != "" {
-		return profilesRoot
-	}
-	if wd, err := os.Getwd(); err == nil {
-		if root := findProfilesRoot(wd); root != "" {
-			return root
-		}
-	}
-	return "/profiles"
-}
-
 func findProfilesRoot(start string) string {
 	dir := filepath.Clean(start)
 	for {
@@ -194,20 +223,6 @@ func findProfilesRoot(start string) string {
 		}
 		dir = parent
 	}
-}
-
-func envOrDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return fallback
-}
-
-func envOrDefaultRoot(preferred, fallback string) string {
-	if strings.TrimSpace(preferred) != "" {
-		return preferred
-	}
-	return fallback
 }
 
 func pathExists(path string) bool {

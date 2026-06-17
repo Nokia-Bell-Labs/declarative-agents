@@ -10,23 +10,56 @@ import (
 	"testing"
 )
 
-func TestResolveProfilesRootFromWorkingDirectory(t *testing.T) {
+func TestResolveDemoConfigFindsProfilesByWalking(t *testing.T) {
 	root := t.TempDir()
 	writeDemoFile(t, filepath.Join(root, knowledgeManagerProfile), "name: documentation-curator\n")
 	demoDir := filepath.Join(root, "demo")
 	mkdirDemoDir(t, demoDir)
 	withWorkingDirectory(t, demoDir)
-	t.Setenv(agentProfilesRootEnv, "")
 
-	if got := cleanPath(t, resolveProfilesRoot()); got != cleanPath(t, root) {
-		t.Fatalf("resolveProfilesRoot() = %q, want %q", got, root)
+	cfg, err := ResolveDemoConfig("", "", "", "")
+	if err != nil {
+		t.Fatalf("ResolveDemoConfig: %v", err)
+	}
+	if got := cleanPath(t, cfg.ProfilesRoot); got != cleanPath(t, root) {
+		t.Fatalf("ProfilesRoot = %q, want %q", got, cleanPath(t, root))
+	}
+}
+
+func TestResolveDemoConfigExplicitProfilesRoot(t *testing.T) {
+	root := t.TempDir()
+	writeDemoFile(t, filepath.Join(root, knowledgeManagerProfile), "name: documentation-curator\n")
+
+	cfg, err := ResolveDemoConfig(root, "", "", "")
+	if err != nil {
+		t.Fatalf("ResolveDemoConfig: %v", err)
+	}
+	if got := cleanPath(t, cfg.ProfilesRoot); got != cleanPath(t, root) {
+		t.Fatalf("ProfilesRoot = %q, want %q", got, root)
+	}
+}
+
+func TestResolveDemoConfigMissingProfilesReturnsError(t *testing.T) {
+	tmp := t.TempDir()
+	withWorkingDirectory(t, tmp)
+
+	_, err := ResolveDemoConfig("", "", "", "")
+	if err == nil {
+		t.Fatal("expected error when profile tree is missing")
+	}
+	if !strings.Contains(err.Error(), "agent-profiles root not found") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestAgentCommandUsesConfiguredBinary(t *testing.T) {
-	t.Setenv(agentBinaryEnv, "/tmp/current-agent")
+	cfg := demoConfig{
+		ProfilesRoot: "/profiles",
+		Workspace:    "/work",
+		AgentBinary:  "/tmp/current-agent",
+	}
 
-	cmd := agentCommand("/profiles/agent/profile.yaml", "/work", "/profiles", "")
+	cmd := agentCommand("/profiles/agent/profile.yaml", "/work", cfg)
 
 	want := []string{"/tmp/current-agent", "--profile", "/profiles/agent/profile.yaml", "--directory", "/work"}
 	if !reflect.DeepEqual(cmd.Args, want) {
@@ -37,24 +70,29 @@ func TestAgentCommandUsesConfiguredBinary(t *testing.T) {
 	}
 }
 
-func TestAgentCommandUsesConfiguredCoreCheckout(t *testing.T) {
+func TestAgentCommandUsesCoreRootAddsFlag(t *testing.T) {
 	coreRoot := t.TempDir()
-	t.Setenv(agentBinaryEnv, "")
-	t.Setenv(agentCoreHomeEnv, "")
-	t.Setenv(agentCoreRootEnv, coreRoot)
 	stubBuildAgentBinary(t, "/tmp/current-source-agent")
 
-	cmd := agentCommand("/profiles/agent/profile.yaml", "/work", "/profiles", coreRoot)
+	cfg := demoConfig{
+		ProfilesRoot: "/profiles",
+		CoreRoot:     coreRoot,
+		Workspace:    "/work",
+	}
 
-	want := []string{"/tmp/current-source-agent", "--profile", "/profiles/agent/profile.yaml", "--directory", "/work"}
+	cmd := agentCommand("/profiles/agent/profile.yaml", "/work", cfg)
+
+	want := []string{
+		"/tmp/current-source-agent",
+		"--profile", "/profiles/agent/profile.yaml",
+		"--directory", "/work",
+		"--core-root", coreRoot,
+	}
 	if !reflect.DeepEqual(cmd.Args, want) {
 		t.Fatalf("cmd.Args = %#v, want %#v", cmd.Args, want)
 	}
 	if cmd.Dir != "/profiles" {
 		t.Fatalf("cmd.Dir = %q, want /profiles", cmd.Dir)
-	}
-	if got := envValue(cmd.Env, agentCoreHomeEnv); got != coreRoot {
-		t.Fatalf("%s = %q, want %q", agentCoreHomeEnv, got, coreRoot)
 	}
 }
 
@@ -64,13 +102,17 @@ func TestAgentCommandDiscoversSiblingCoreCheckout(t *testing.T) {
 	coreRoot := filepath.Join(parent, "agent-core")
 	writeDemoFile(t, filepath.Join(profilesRoot, knowledgeManagerProfile), "name: documentation-curator\n")
 	writeDemoFile(t, filepath.Join(coreRoot, "cmd", "agent", "main.go"), "package main\n")
-	t.Setenv(agentBinaryEnv, "")
-	t.Setenv(agentCoreHomeEnv, "")
-	t.Setenv(agentCoreRootEnv, "")
-	t.Setenv(agentProfilesRootEnv, profilesRoot)
 	stubBuildAgentBinary(t, "/tmp/current-source-agent")
 
-	cmd := agentCommand("/profiles/agent/profile.yaml", "/work", profilesRoot, resolveAgentCoreRoot())
+	cfg, err := ResolveDemoConfig(profilesRoot, "", "", "")
+	if err != nil {
+		t.Fatalf("ResolveDemoConfig: %v", err)
+	}
+	if cfg.CoreRoot != coreRoot {
+		t.Fatalf("CoreRoot = %q, want %q", cfg.CoreRoot, coreRoot)
+	}
+
+	cmd := agentCommand("/profiles/agent/profile.yaml", "/work", cfg)
 
 	if cmd.Args[0] != "/tmp/current-source-agent" {
 		t.Fatalf("agent binary = %q, want /tmp/current-source-agent", cmd.Args[0])
@@ -78,8 +120,8 @@ func TestAgentCommandDiscoversSiblingCoreCheckout(t *testing.T) {
 	if cmd.Dir != profilesRoot {
 		t.Fatalf("cmd.Dir = %q, want %q", cmd.Dir, profilesRoot)
 	}
-	if got := envValue(cmd.Env, agentCoreHomeEnv); got != coreRoot {
-		t.Fatalf("%s = %q, want %q", agentCoreHomeEnv, got, coreRoot)
+	if got := strings.Join(cmd.Args, " "); !strings.Contains(got, "--core-root") {
+		t.Fatalf("expected --core-root in args: %#v", cmd.Args)
 	}
 }
 
@@ -177,14 +219,4 @@ func stubBuildAgentBinary(t *testing.T, binary string) {
 
 func quotePath(path string) string {
 	return `"` + path + `"`
-}
-
-func envValue(env []string, name string) string {
-	prefix := name + "="
-	for _, value := range env {
-		if strings.HasPrefix(value, prefix) {
-			return strings.TrimPrefix(value, prefix)
-		}
-	}
-	return ""
 }
