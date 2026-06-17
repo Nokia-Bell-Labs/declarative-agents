@@ -52,6 +52,43 @@ docker run --rm \
 
 The mounted `/profiles` path is the container form of `AGENT_PROFILES_ROOT`.
 
+## Demos and Fixtures
+
+Profile-owned demos live in `demo/`. The Knowledge Manager demo starts the
+documentation-curator profile from `AGENT_PROFILES_ROOT` or `/profiles` and
+uses `AGENT_WORKSPACE` or `/work` as the workspace path:
+
+```bash
+docker run --rm \
+  -v "$PWD:/profiles:ro" \
+  -v "$WORKSPACE:/work" \
+  agent-core:latest \
+  --profile /profiles/agents/knowledge-manager/documentation-curator/profile.yaml \
+  --directory /work
+```
+
+Profile-owned integration fixtures live in `testdata/integration/`:
+
+- `uc001-generator-coding/` contains the generator coding sample workspace.
+- `uc002-evaluator-benchmark/` contains the evaluator suite and sample
+  workspace. Its profile references resolve from this repository root.
+- `rel04-monitor/monitor-rest.yaml` records the monitor profile proof metadata.
+
+`agent-core` Mage integration targets should resolve these files through
+`AGENT_PROFILES_ROOT`, for example:
+
+```bash
+AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc001
+AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc002
+AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004
+```
+
+Core-only runtime fixtures remain in `agent-core` when they exercise reusable
+tool implementation behavior rather than a profile-owned sample or suite. REST
+runtime conformance fixtures such as standalone REST tool definitions and
+OpenAPI documents stay with `agent-core` until a profile issue explicitly moves
+them.
+
 ## Release Tags
 
 Profile bundle releases use the same revision shape as `agent-core` runtime
