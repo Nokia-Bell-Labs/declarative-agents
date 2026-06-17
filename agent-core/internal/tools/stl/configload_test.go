@@ -19,11 +19,24 @@ import (
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/stl"
 )
 
+func TestMain(m *testing.M) {
+	previous, hadPrevious := os.LookupEnv("AGENT_CORE_HOME")
+	if !hadPrevious {
+		_ = os.Setenv("AGENT_CORE_HOME", repoRootFromRuntime())
+	}
+	code := m.Run()
+	if hadPrevious {
+		_ = os.Setenv("AGENT_CORE_HOME", previous)
+	} else {
+		_ = os.Unsetenv("AGENT_CORE_HOME")
+	}
+	os.Exit(code)
+}
+
 // configDir resolves the absolute path to the standard agent profile root.
 func configDir(t *testing.T) string {
 	t.Helper()
-	_, thisFile, _, _ := runtime.Caller(0)
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", ".."))
+	repoRoot := repoRootFromRuntime()
 	for _, candidate := range profileRootCandidates(repoRoot) {
 		if hasProfile(candidate, "generator") || hasProfile(candidate, "jurist") {
 			return candidate
@@ -38,6 +51,10 @@ func configDir(t *testing.T) string {
 }
 
 func repoRootFromConfigDir(cd string) string {
+	return repoRootFromRuntime()
+}
+
+func repoRootFromRuntime() string {
 	_, thisFile, _, _ := runtime.Caller(0)
 	return filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", ".."))
 }
