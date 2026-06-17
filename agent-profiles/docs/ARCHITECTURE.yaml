@@ -10,8 +10,14 @@ overview:
 
     Runtime ownership remains in agent-core. That repository owns the Go
     engine, cmd/agent, builtin tool implementations, shared runtime assets, Mage
-    targets, and release image. A local checkout or container run supplies this
-    repository as AGENT_PROFILES_ROOT or /profiles.
+    targets, and release image. Operators supply this checkout through explicit
+    --profile paths (often after bind-mounting it at a stable container path such
+    as /profiles).
+
+    Bootstrap authority for argv, mounts, and file-only configuration lives in
+    agent-core docs and constitutions. Track the umbrella work there as Beads
+    epic agent-core-tj96; the runtime contract text is anchored in
+    docs/specs/config-formats/runtime-contract.yaml (see agent-core-tj96.1).
 
   runtime_mount_diagram: |
     ```mermaid
@@ -19,17 +25,19 @@ overview:
       OP[Developer or operator] --> RUNTIME[agent-core runtime]
       OP --> PROFILES[agent-profiles checkout]
       OP --> WORK[workspace]
-      PROFILES -->|--profile or AGENT_PROFILES_ROOT| RUNTIME
+      PROFILES -->|--profile path| RUNTIME
       WORK -->|--directory| RUNTIME
       RUNTIME --> CORE[agent binary and core assets]
       RUNTIME --> PROGRAM[profile-owned agent program]
     ```
 
 interfaces:
-  - name: AGENT_PROFILES_ROOT
+  - name: External profile checkout path
     summary: |
-      Host-side environment variable used by agent-core tests and integration
-      targets to resolve this repository as the profile asset root.
+      Filesystem location of this repository on the host or inside a container.
+      cmd/agent receives a profile file path through --profile; mounts such
+      as /profiles are a packaging convention, not a separate env-based contract
+      defined here.
   - name: /profiles mount
     summary: |
       Container-side path for this repository. Runtime commands pass
@@ -61,7 +69,8 @@ components:
     path: testdata/integration/
     responsibility: |
       Own profile-related suites and fixture data consumed by agent-core Mage
-      integration targets through AGENT_PROFILES_ROOT.
+      integration targets when those runs point --profile at paths under this
+      checkout.
   - name: documentation
     path: docs/
     responsibility: |
@@ -92,9 +101,10 @@ design_decisions:
   - id: 3
     title: Fixtures use portable paths
     decision: |
-      Demos and integration fixtures must use portable roots such as
-      AGENT_PROFILES_ROOT, /profiles, or explicit workspace mounts.
-      Developer-specific absolute paths are not valid fixture contracts.
+      Demos and integration fixtures must use portable roots such as repository
+      mount points (/profiles in examples), argv-resolved profile paths, or
+      explicit workspace mounts. Developer-specific absolute paths are not valid
+      fixture contracts.
     benefits:
       - Integration targets work across machines and containers.
       - Container examples match the mounted-profile contract.
@@ -153,6 +163,10 @@ implementation_status:
         implemented profile repository workflow.
 
 related_documents:
+  - doc: ../agent-core/docs/specs/config-formats/runtime-contract.yaml
+    purpose: Canonical cmd/agent startup, argv flags, and file-only operator path contract.
+  - doc: ../agent-core/docs/specs/software-requirements/srd034-external-agent-profiles.yaml
+    purpose: External profile ownership and mounted-profile requirements owned by agent-core.
   - doc: docs/VISION.yaml
     purpose: Goals, boundaries, and success criteria.
   - doc: docs/SPECIFICATIONS.yaml

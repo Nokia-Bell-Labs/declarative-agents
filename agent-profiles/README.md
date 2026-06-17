@@ -20,20 +20,31 @@ Documentation under `docs/` records purpose, structure, indexes, roadmap
 entries, and issue format rules. Core-owned runtime assets stay in
 `agent-core`.
 
+## Runtime contract and authority
+
+This repository does not define how `cmd/agent` bootstraps paths. That contract
+lives in **agent-core**: `docs/specs/config-formats/runtime-contract.yaml`,
+`docs/specs/software-requirements/srd034-external-agent-profiles.yaml`, and the
+constitution set under `docs/constitutions/`. Related work is tracked in
+**agent-core** Beads as epic **`agent-core-tj96`** (single configuration
+authority), with the file-and-flag documentation milestone **`agent-core-tj96.1`**.
+
+Operators should treat **`--profile`** and **`--directory`** (plus request and
+telemetry flags from the runtime contract) as the primary inputs. Profile YAML,
+machines, tool selections, and mounts supply the rest.
+
 ## Local Usage
 
-For local runs, point `agent-core` at this checkout as the profile root:
+Run `cmd/agent` with explicit paths. Replace `/path/to/workspace` with your
+workspace.
 
 ```bash
-export AGENT_PROFILES_ROOT="$(pwd)"
-agent --profile "$AGENT_PROFILES_ROOT/agents/generator/profile.yaml" --directory /path/to/workspace
+agent --profile "$(pwd)/agents/generator/profile.yaml" --directory /path/to/workspace
 ```
 
-`agent-core` tests and Mage integration targets use `AGENT_PROFILES_ROOT` to
-resolve profiles, demos, and integration fixtures from this repository.
-Profiles reference shared core-owned tool declarations through
-`/opt/agent-core/tools`, the installed runtime asset root used by the
-agent-core container image.
+From the **agent-core** checkout, integration Mage targets consume this tree
+through the external profile path rules documented there. Read the agent-core
+README and runtime contract before wiring CI.
 
 ## Container Usage
 
@@ -50,14 +61,14 @@ docker run --rm \
   --directory /work
 ```
 
-Mounted at `/profiles`, this repository plays the same role as
-`AGENT_PROFILES_ROOT` on the host.
+Mount this repository read-only at `/profiles` (or another mount point). Pass
+that mount path to **`--profile`**. Mount the workspace and pass it to
+**`--directory`**.
 
 ## Demos and Fixtures
 
-Profile-owned demos live in `demo/`. For Knowledge Manager, the demo starts the
-documentation-curator profile from `AGENT_PROFILES_ROOT` or `/profiles` and
-uses `AGENT_WORKSPACE` or `/work` as the workspace path:
+Profile-owned demos live in `demo/`. The Knowledge Manager example uses the same
+explicit argv pattern:
 
 ```bash
 docker run --rm \
@@ -74,15 +85,6 @@ Integration fixtures owned by profiles live in `testdata/integration/`:
 - `uc002-evaluator-benchmark/` contains the evaluator suite and sample
   workspace. Its profile references resolve from this repository root.
 - `rel04-monitor/monitor-rest.yaml` records the monitor profile proof metadata.
-
-`agent-core` Mage integration targets should resolve these files through
-`AGENT_PROFILES_ROOT`:
-
-```bash
-AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc001
-AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc002
-AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004
-```
 
 Core-only runtime fixtures remain in `agent-core` when they exercise reusable
 tool implementation behavior rather than a profile-owned sample or suite. REST
@@ -121,24 +123,27 @@ Runtime image tags still belong to `agent-core`.
 Validation uses an external `agent-core` checkout or runtime image. Local
 validation reads every profile-shaped YAML file under `agents/`, including
 `profile.yaml`, `profile-*.yaml`, and `*-profile.yaml` variants. It resolves
-profile-local files from this repository and resolves `/opt/agent-core/tools`
-against `AGENT_CORE_ROOT` without copying agent assets into the core image.
+profile-local files from this repository and checks `/opt/agent-core/tools`
+references against the resolved agent-core tree.
 
 ```bash
-AGENT_CORE_ROOT=/path/to/agent-core mage validate
+mage validate
 ```
 
-When `AGENT_CORE_ROOT` is unset, `mage validate` defaults to the sibling
-`../agent-core` checkout.
+By default, `mage validate` expects an **agent-core** checkout as a sibling
+directory named `agent-core` next to this repository. To point at a different
+checkout, use the optional core-root input defined in `magefiles/validation.go`
+(constant `agentCoreRootEnv`).
 
 With an `agent-core` image available, run the mounted-profile container smoke
 check:
 
 ```bash
-AGENT_CORE_IMAGE=agent-core:latest \
-AGENT_CORE_ROOT=/path/to/agent-core \
 mage containerSmoke
 ```
+
+Optional image selection uses the constant `agentCoreImageEnv` in
+`magefiles/validation.go` (defaults to `agent-core:latest`).
 
 Before running the profile, the smoke target fails if the image contains
 `/opt/agent-core/agents`. It then mounts this repository at `/profiles`, mounts
