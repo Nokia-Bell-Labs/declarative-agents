@@ -139,3 +139,30 @@ implementation_status:
     - Configured machine_request terminal response schemas are enforced before success responses; invalid terminal output maps to response_invalid error handling.
   partial: []
   planned_follow_up: []
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Knowledge Manager demo requests need to enter Agent C..."] --> Goals["Goals: Machine Request REST Binding"]
+      Goals --> R1["R1: Binding scope"]
+      Goals --> R2["R2: Configured machine authority"]
+      Goals --> R3["R3: Request input mapping"]
+      Goals --> R4["R4: Response extraction"]
+      Goals --> R5["R5: Error and timeout mapping"]
+      Goals --> R6["R6: Trace and lifecycle behavior"]
+      AC1["AC1: The SRD defines machine_request as a REST server binding..."]
+      R1 --> AC1
+      AC2["AC2: The SRD states that direct Go handlers are not the compos..."]
+      R1 --> AC2
+      AC3["AC3: Configuration owns profile, machine, selected tools, init..."]
+      R2 --> AC3
+      AC4["AC4: Request input mapping validates HTTP fields, builds struc..."]
+      R3 --> AC4
+      AC5["AC5: Response extraction uses configured response words or ter..."]
+      R4 --> AC5
+      AC6["AC6: Error and timeout mapping cover validation, config, run,..."]
+      R5 --> AC6
+      AC7["AC7: Generic trace and lifecycle requirements record request-s..."]
+      R6 --> AC7
+    ```

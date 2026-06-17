@@ -126,3 +126,30 @@ related_documents:
 implementation_examples:
   - internal/tools/stl/llmtools.go
   - internal/evaluation/bench/serve_ui.go
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Some tools intentionally pause the state-machine loop..."] --> Goals["Goals: Blocking Input Tools"]
+      Goals --> R0["R0: Tool authoring standard"]
+      Goals --> R1["R1: Blocking command execution"]
+      Goals --> R2["R2: External input to Result mapping"]
+      Goals --> R3["R3: Cancellation, timeout, and shutdown"]
+      Goals --> R4["R4: Backpressure and concurrency"]
+      Goals --> R5["R5: Observability"]
+      Goals --> R6["R6: Tool examples"]
+      AC1["AC1: Blocking input tools execute as normal Commands that bloc..."]
+      R0 --> AC1
+      R1 --> AC1
+      AC2["AC2: External input maps to structured Result.Output and a mac..."]
+      R2 --> AC2
+      AC3["AC3: Blocking input tools support cancellation, optional timeo..."]
+      R3 --> AC3
+      AC4["AC4: Blocking input tools define concurrency/backpressure beha..."]
+      R4 --> AC4
+      AC5["AC5: Long-running waits are observable through tracing, durati..."]
+      R5 --> AC5
+      AC6["AC6: invoke_llm and serve_ui are documented as blocking input..."]
+      R6 --> AC6
+    ```

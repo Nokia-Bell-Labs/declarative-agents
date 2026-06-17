@@ -81,3 +81,24 @@ acceptance_criteria:
 depends_on:
   - srd_id: srd007-tracer-interface
     symbols_used: [attribute.KeyValue]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: OpenTelemetry defines semantic conventions for GenAI..."] --> Goals["Goals: GenAI Semantic Convention Helpers"]
+      Goals --> R1["R1: Attribute key constants"]
+      Goals --> R2["R2: Operation name constants"]
+      Goals --> R3["R3: Provider, tool type, and output type constants"]
+      Goals --> R4["R4: Span name builders"]
+      Goals --> R5["R5: Attribute builders"]
+      AC1["AC1: All gen_ai.* attribute key constants match the OTel GenAI..."]
+      R1 --> AC1
+      AC2["AC2: Span name builders produce '(operation) (name)' format, f..."]
+      R2 --> AC2
+      R4 --> AC2
+      AC3["AC3: Attribute builders return correct attribute slices for in..."]
+      R5 --> AC3
+      AC4["AC4: Output type constants (text, json, image) and provider/to..."]
+      R3 --> AC4
+    ```

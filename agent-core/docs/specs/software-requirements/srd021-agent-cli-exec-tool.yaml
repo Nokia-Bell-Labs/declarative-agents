@@ -110,3 +110,26 @@ depends_on:
 
 related_documents:
   - cfg-tool-authoring-standard
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: The agent binary can run any configured program by re..."] --> Goals["Goals: Agent CLI as an Exec Tool"]
+      Goals --> R0["R0: Tool authoring standard"]
+      Goals --> R1["R1: Agent exec tool declaration"]
+      Goals --> R2["R2: Declarative child program selection"]
+      Goals --> R3["R3: Trace and process propagation"]
+      Goals --> R4["R4: Result mapping"]
+      Goals --> R5["R5: Migration from bespoke subprocess paths"]
+      AC1["AC1: An agent exec tool declaration can represent profile plus..."]
+      R0 --> AC1
+      R1 --> AC1
+      AC2["AC2: Child program selection is driven by profile YAML, allowi..."]
+      R2 --> AC2
+      AC3["AC3: Child agent execution propagates trace context, observes..."]
+      R3 --> AC3
+      AC4["AC4: Child process outcomes are mapped to parent machine signa..."]
+      R4 --> AC4
+      R5 --> AC4
+    ```

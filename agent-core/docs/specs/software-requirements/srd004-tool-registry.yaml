@@ -76,3 +76,25 @@ acceptance_criteria:
 depends_on:
   - srd_id: srd001-core-types
     symbols_used: [State, Builder, CommandResolver]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agentic agents need to register tools at startup and..."] --> Goals["Goals: Tool Registry"]
+      Goals --> R1["R1: Visibility and ToolSpec"]
+      Goals --> R2["R2: Registry operations"]
+      Goals --> R3["R3: Manifest generation"]
+      Goals --> R4["R4: Name listing"]
+      Goals --> R5["R5: Interface conformance"]
+      AC1["AC1: Visibility enum with External and Internal. ToolSpec with..."]
+      R1 --> AC1
+      AC2["AC2: Registry supports Register (with panic on violations), Fr..."]
+      R2 --> AC2
+      AC3["AC3: Manifest returns sorted External tools filtered by PhaseM..."]
+      R3 --> AC3
+      AC4["AC4: AllToolNames and ExternalToolNames return sorted name lis..."]
+      R4 --> AC4
+      AC5["AC5: Registry satisfies CommandResolver interface."]
+      R5 --> AC5
+    ```

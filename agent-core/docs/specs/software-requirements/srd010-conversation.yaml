@@ -114,3 +114,37 @@ acceptance_criteria:
     traces: [R7.1, R7.2, R7.3]
 
 depends_on: []
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agent-core provides a Conversation type that manages..."] --> Goals["Goals: Conversation Management"]
+      Goals --> R1["R1: Message types"]
+      Goals --> R2["R2: Conversation struct"]
+      Goals --> R3["R3: Managed mode (Send)"]
+      Goals --> R4["R4: Manual mode (Append)"]
+      Goals --> R5["R5: History access"]
+      Goals --> R6["R6: System prompt"]
+      Goals --> R7["R7: Reset"]
+      Goals --> R8["R8: No-compaction boundary"]
+      AC1["AC1: Append(msg) adds a message without calling Chat. Appended..."]
+      R1 --> AC1
+      R4 --> AC1
+      AC2["AC2: Send and Append can be mixed. History preserves insertion..."]
+      R2 --> AC2
+      R3 --> AC2
+      R4 --> AC2
+      AC3["AC3: History and Messages return defensive copies. Mutations d..."]
+      R5 --> AC3
+      R8 --> AC3
+      AC4["AC4: AssembleMessages returns system prompt + history. Empty s..."]
+      R5 --> AC4
+      R6 --> AC4
+      AC5["AC5: Generator can replace ConversationHistory with Conversati..."]
+      R4 --> AC5
+      R5 --> AC5
+      R7 --> AC5
+      AC6["AC6: Reset clears history. Append and Send work after Reset. S..."]
+      R7 --> AC6
+    ```

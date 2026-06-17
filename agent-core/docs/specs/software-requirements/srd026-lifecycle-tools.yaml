@@ -184,3 +184,31 @@ implementation_status:
   planned:
     - exit_agent lifecycle control word.
     - REST-triggered lifecycle control profiles for exit, pause, rollback request, resume, and signal injection.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: History and rollback must run through the same declar..."] --> Goals["Goals: Lifecycle Tool Adapters"]
+      Goals --> R1["R1: Adapter boundary"]
+      Goals --> R2["R2: checkpoint_history"]
+      Goals --> R3["R3: checkpoint_rollback"]
+      Goals --> R4["R4: Typed config and runtime inputs"]
+      Goals --> R5["R5: Tool declarations and machine integration"]
+      Goals --> R6["R6: Observability and errors"]
+      Goals --> R7["R7: Generic lifecycle control vocabulary"]
+      AC1["AC1: Lifecycle adapters are documented as STL builtin tools ar..."]
+      R1 --> AC1
+      AC2["AC2: checkpoint_history requirements define typed config, Stat..."]
+      R2 --> AC2
+      AC3["AC3: checkpoint_rollback requirements define typed config, Sta..."]
+      R3 --> AC3
+      AC4["AC4: Runtime inputs stay outside hidden lifecycle subcommand f..."]
+      R4 --> AC4
+      AC5["AC5: ToolDef declarations and lifecycle MachineSpec transition..."]
+      R5 --> AC5
+      AC6["AC6: Lifecycle adapter failures and partial rollback states ar..."]
+      R6 --> AC6
+      AC7["AC7: Generic lifecycle control vocabulary defines exit_agent i..."]
+      R7 --> AC7
+    ```

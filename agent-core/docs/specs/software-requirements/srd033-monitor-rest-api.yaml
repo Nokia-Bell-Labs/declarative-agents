@@ -198,3 +198,28 @@ related_documents:
   - sm-tool-metrics-monitoring
   - cfg-rest-tool-format
   - boundary-tools-and-async.md
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Embedded monitor state is useful only if profiles can..."] --> Goals["Goals: Monitor REST API"]
+      Goals --> R1["R1: API scope and authority"]
+      Goals --> R2["R2: OpenAPI contract"]
+      Goals --> R3["R3: Snapshot endpoints"]
+      Goals --> R4["R4: Event streams"]
+      Goals --> R5["R5: Redaction and failure behavior"]
+      Goals --> R6["R6: Serving lifecycle"]
+      AC1["AC1: API scope requirements define read-only cached monitor en..."]
+      R1 --> AC1
+      AC2["AC2: OpenAPI requirements cover configured endpoint descriptio..."]
+      R2 --> AC2
+      AC3["AC3: Snapshot endpoint requirements cover machine spec, curren..."]
+      R3 --> AC3
+      AC4["AC4: Event stream requirements expose cached monitor updates w..."]
+      R4 --> AC4
+      AC5["AC5: Redaction and failure requirements preserve monitor safet..."]
+      R5 --> AC5
+      AC6["AC6: Serving lifecycle requirements keep the monitor profile q..."]
+      R6 --> AC6
+    ```

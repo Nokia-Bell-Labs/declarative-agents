@@ -202,3 +202,30 @@ implementation:
 related_documents:
   - cfg-tool-authoring-standard
   - sm-tool-metrics-monitoring
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Builtin tools are Go-implemented capabilities exposed..."] --> Goals["Goals: Builtin Tool Declarations and Factories"]
+      Goals --> R0["R0: Tool authoring standard"]
+      Goals --> R1["R1: Builtin declaration schema"]
+      Goals --> R2["R2: BuiltinRegistry factory resolution"]
+      Goals --> R3["R3: Builtin config validation"]
+      Goals --> R4["R4: State-machine integration"]
+      Goals --> R5["R5: Reusable declarations and mode-local overrides"]
+      Goals --> R6["R6: Unified child agent invocation"]
+      AC1["AC1: Builtin YAML declarations provide name, type: builtin, in..."]
+      R0 --> AC1
+      R1 --> AC1
+      AC2["AC2: BuiltinRegistry resolves init names to factories and regi..."]
+      R2 --> AC2
+      AC3["AC3: Builtin tool config is decoded into typed structs at regi..."]
+      R3 --> AC3
+      AC4["AC4: Builtin tools can be referenced by machine actions or dyn..."]
+      R4 --> AC4
+      AC5["AC5: Reusable builtin declarations are separated from mode-loc..."]
+      R5 --> AC5
+      AC6["AC6: All child agent invocations share execute.Config and exec..."]
+      R6 --> AC6
+    ```

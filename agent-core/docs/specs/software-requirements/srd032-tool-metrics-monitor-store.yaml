@@ -153,3 +153,25 @@ related_documents:
   - sm-tool-metrics-monitoring
   - cfg-tool-declaration-format
   - cfg-machine-format
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agent Core needs runtime metrics that remain close to..."] --> Goals["Goals: Tool Metrics Monitor Store"]
+      Goals --> R1["R1: Monitor store scope"]
+      Goals --> R2["R2: ToolMetricsRecorder port"]
+      Goals --> R3["R3: Metric schema and label validation"]
+      Goals --> R4["R4: OpenTelemetry metric export"]
+      Goals --> R5["R5: Disabled mode and overhead"]
+      AC1["AC1: The SRD defines monitor store scope, bounded cached state..."]
+      R1 --> AC1
+      AC2["AC2: Recorder requirements distinguish runtime-owned standard..."]
+      R2 --> AC2
+      AC3["AC3: Metric validation requirements cover instrument names, ki..."]
+      R3 --> AC3
+      AC4["AC4: OpenTelemetry export requirements consume normalized samp..."]
+      R4 --> AC4
+      AC5["AC5: Disabled mode keeps monitoring opt-in and preserves curre..."]
+      R5 --> AC5
+    ```

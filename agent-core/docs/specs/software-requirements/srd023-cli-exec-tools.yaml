@@ -156,3 +156,27 @@ implementation:
 
 related_documents:
   - cfg-tool-authoring-standard
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Declarative state machines need to invoke external CL..."] --> Goals["Goals: CLI and Exec Tool Declarations"]
+      Goals --> R0["R0: Tool authoring standard"]
+      Goals --> R1["R1: Exec declaration schema"]
+      Goals --> R2["R2: Parameter-to-argv mapping"]
+      Goals --> R3["R3: Subprocess execution"]
+      Goals --> R4["R4: Declaration loading and selection"]
+      Goals --> R5["R5: Relationship to builtin tools"]
+      AC1["AC1: Exec declarations support name, type, binary, args, dir,..."]
+      R0 --> AC1
+      R1 --> AC1
+      AC2["AC2: Parameter mapping converts JSON tool parameters into argv..."]
+      R2 --> AC2
+      AC3["AC3: Exec tools run subprocesses in the correct directory, cap..."]
+      R3 --> AC3
+      AC4["AC4: Declaration includes and declaration+selection loading su..."]
+      R4 --> AC4
+      AC5["AC5: Architecture guidance prefers exec tools for external CLI..."]
+      R5 --> AC5
+    ```

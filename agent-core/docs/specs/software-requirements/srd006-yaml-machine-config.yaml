@@ -76,3 +76,22 @@ depends_on:
     symbols_used: [TransitionTable, TransitionInput, TransitionValue, ActionFunc, TerminalFunc]
   - srd_id: srd004-tool-registry
     symbols_used: [Registry]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Hardcoded transition tables require Go code changes t..."] --> Goals["Goals: YAML State Machine Configuration"]
+      Goals --> R1["R1: YAML schema (MachineSpec)"]
+      Goals --> R2["R2: Validation"]
+      Goals --> R3["R3: BuildTransitionTable"]
+      Goals --> R4["R4: File loading"]
+      AC1["AC1: MachineSpec has name, initial_state, states, terminal_sta..."]
+      R1 --> AC1
+      AC2["AC2: Validation checks referential integrity for initial_state..."]
+      R2 --> AC2
+      AC3["AC3: BuildTransitionTable resolves named actions from Registry..."]
+      R3 --> AC3
+      AC4["AC4: LoadMachineSpec reads and parses YAML files. ParseMachine..."]
+      R4 --> AC4
+    ```

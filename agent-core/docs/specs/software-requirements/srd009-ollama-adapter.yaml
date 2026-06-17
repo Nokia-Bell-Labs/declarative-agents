@@ -101,3 +101,30 @@ acceptance_criteria:
 depends_on:
   - srd_id: srd007-tracer-interface
     symbols_used: [Tracer, Event, Push, SetAttributes]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Every agent built on agent-core needs to talk to an L..."] --> Goals["Goals: Ollama LLM Adapter"]
+      Goals --> R1["R1: Adapter struct"]
+      Goals --> R2["R2: Chat (POST /api/chat)"]
+      Goals --> R3["R3: ListModels (GET /api/tags)"]
+      Goals --> R4["R4: Model availability check"]
+      Goals --> R5["R5: Tracing"]
+      Goals --> R6["R6: Error handling"]
+      AC1["AC1: NewAdapter returns a working llm.Client. Chat round-trips..."]
+      R1 --> AC1
+      R2 --> AC1
+      R3 --> AC1
+      AC2["AC2: NewAdapter verifies model availability via /api/tags. Cas..."]
+      R4 --> AC2
+      AC3["AC3: WithTracer enables span events for check_model, list_mode..."]
+      R5 --> AC3
+      AC4["AC4: Connection failures, bad HTTP status, and malformed JSON..."]
+      R6 --> AC4
+      AC5["AC5: WithHTTPClient overrides the default 5-minute-timeout cli..."]
+      R1 --> AC5
+      AC6["AC6: Generator imports internal/model/llm/ollama and deletes i..."]
+      R3 --> AC6
+    ```
