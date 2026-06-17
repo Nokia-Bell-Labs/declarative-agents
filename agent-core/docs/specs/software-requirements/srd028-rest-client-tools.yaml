@@ -263,3 +263,51 @@ implementation_status:
     - TestRESTClient_CompensationExecutorRunsConfiguredOperation, TestRESTClient_CompensationExecutorReportsMissingOperation, TestRollbackCheckpointExecutesBoundaryCompensation, and TestRollbackCheckpointReportsMissingBoundaryCompensationExecutor cover REST compensation execution and bounded failure reporting.
   partial:
     - Lifecycle profile wiring must still choose when to inject a REST CompensationExecutor into checkpoint rollback. Profile injection stays outside the REST client tool contract.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agent profiles need outbound REST tools that are decl..."] --> Goals["Goals: REST Client Tools"]
+      Goals --> R1["R1: Client tool scope"]
+      Goals --> R2["R2: Config-bound operation authority"]
+      Goals --> R3["R3: Resource-oriented words"]
+      Goals --> R4["R4: rest_client_invoke"]
+      Goals --> R5["R5: Asynchronous client words"]
+      Goals --> R6["R6: Result signals"]
+      Goals --> R7["R7: Response shaping and output"]
+      Goals --> R8["R8: Idempotency and retries"]
+      Goals --> R9["R9: Metrics, tracing, and redaction"]
+      Goals --> R10["R10: Undo and compensation"]
+      Goals --> R11["R11: Errors and recovery"]
+      AC1["AC1: REST client tools are documented as first-class boundary..."]
+      R1 --> AC1
+      R2 --> AC1
+      AC2["AC2: Tool config fixes client, resource, operation, transport..."]
+      R2 --> AC2
+      AC3["AC3: Resource-oriented get, set, create, and delete words are..."]
+      R3 --> AC3
+      R10 --> AC3
+      AC4["AC4: rest_client_invoke is reserved for RPC-shaped endpoints a..."]
+      R4 --> AC4
+      R10 --> AC4
+      AC5["AC5: Async send and await requirements define request state, r..."]
+      R5 --> AC5
+      R10 --> AC5
+      AC6["AC6: Result signal requirements distinguish resource reads, wr..."]
+      R6 --> AC6
+      R11 --> AC6
+      AC7["AC7: Response shaping maps status, headers, body, resource met..."]
+      R7 --> AC7
+      AC8["AC8: Idempotency, retry, metrics, tracing, and redaction requi..."]
+      R8 --> AC8
+      R9 --> AC8
+      R10 --> AC8
+      AC9["AC9: Error and recovery requirements distinguish domain failur..."]
+      R11 --> AC9
+      AC10["AC10: Each planned client tool word lists inputs, outputs, sign..."]
+      R3 --> AC10
+      R4 --> AC10
+      R5 --> AC10
+      R10 --> AC10
+    ```

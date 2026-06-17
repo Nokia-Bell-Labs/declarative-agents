@@ -118,3 +118,23 @@ related_documents:
   - test-rel06.0-profile-migration
   - docs/ARCHITECTURE.yaml
   - docs/road-map.yaml
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agent Core has been carrying two kinds of things."] --> Goals["Goals: External Agent Profiles and Mounted Runtime Ass..."]
+      Goals --> R1["R1: Agent Core runtime ownership"]
+      Goals --> R2["R2: Agent profile repository ownership"]
+      Goals --> R3["R3: External profile path resolution"]
+      Goals --> R4["R4: Mounted-profile container runtime"]
+      AC1["AC1: Runtime ownership requirements separate agent-core binary..."]
+      R1 --> AC1
+      R2 --> AC1
+      AC2["AC2: External profile path requirements define --profile behav..."]
+      R3 --> AC2
+      AC3["AC3: Container requirements exclude profile copies from the ru..."]
+      R4 --> AC3
+      AC4["AC4: Container proof requirements show agent execution with mo..."]
+      R4 --> AC4
+    ```

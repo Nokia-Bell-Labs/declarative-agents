@@ -209,3 +209,38 @@ depends_on:
     symbols_used: [ExecBuilder]
   - srd_id: srd024-blocking-input-tools
     symbols_used: [invoke_llm, serve_ui]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Every agentic agent needs a common set of tools: file..."] --> Goals["Goals: Standard Tool Library (STL)"]
+      Goals --> R1["R1: File tools"]
+      Goals --> R2["R2: Build tools"]
+      Goals --> R3["R3: LLM tools"]
+      Goals --> R4["R4: Subprocess utilities"]
+      Goals --> R7["R7: Metrics helpers"]
+      Goals --> R5["R5: Tool registration"]
+      Goals --> R6["R6: Workspace utilities"]
+      Goals --> R8["R8: Validation tool"]
+      Goals --> R9["R9: Nudge and done tools"]
+      Goals --> R10["R10: Evaluation harness tools"]
+      AC1["AC1: File tools (read, write, edit, find, list_files) operate..."]
+      R1 --> AC1
+      R6 --> AC1
+      AC2["AC2: Build tools (build, vet, lint, test) execute Go toolchain..."]
+      R2 --> AC2
+      AC3["AC3: LLM tools (invoke_llm, parse_response, report_parse_error..."]
+      R3 --> AC3
+      AC4["AC4: SubprocessResult maps output to ToolDone/ToolFailed. Proc..."]
+      R4 --> AC4
+      AC7["AC7: ParseTestMetrics and ParseBuildMetrics extract structured..."]
+      R7 --> AC7
+      AC5["AC5: BuiltinRegistry maps init names to factory functions. YAM..."]
+      R5 --> AC5
+      AC8["AC8: Generator validation order is visible in machine.yaml; va..."]
+      R8 --> AC8
+      R9 --> AC8
+      AC9["AC9: Evaluation harness tools orchestrate a complete evaluatio..."]
+      R10 --> AC9
+    ```

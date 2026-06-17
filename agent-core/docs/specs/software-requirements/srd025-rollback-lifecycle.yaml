@@ -228,3 +228,43 @@ implementation_status:
     - Lifecycle history and rollback profiles backed by STL builtin adapters.
   remaining_gaps:
     - Approval-gate reference agent for suspend and resume is tracked by agent-core-6xm3.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Long-running agent programs need a safe way to record..."] --> Goals["Goals: Rollback, Checkpoint, Suspend, and Resume Lifec..."]
+      Goals --> R1["R1: State layers"]
+      Goals --> R2["R2: StateStore and FileStore"]
+      Goals --> R3["R3: Workspace and GitWorkspace"]
+      Goals --> R4["R4: Command undo and rollback ownership"]
+      Goals --> R5["R5: Execution history"]
+      Goals --> R6["R6: Checkpoint policy and checkpoint data"]
+      Goals --> R7["R7: Rollback traversal"]
+      Goals --> R8["R8: Suspend and approval gates"]
+      Goals --> R9["R9: Resume"]
+      Goals --> R10["R10: Feature flags and zero-overhead defaults"]
+      Goals --> R11["R11: Tool contract integration"]
+      Goals --> R12["R12: Declarative lifecycle tools and profiles"]
+      AC1["AC1: Requirements define separate agent, command/domain, and w..."]
+      R1 --> AC1
+      AC2["AC2: StateStore/FileStore and Workspace/GitWorkspace requireme..."]
+      R2 --> AC2
+      R3 --> AC2
+      AC3["AC3: Command.Undo and History requirements support reverse tra..."]
+      R4 --> AC3
+      R5 --> AC3
+      AC4["AC4: Checkpoint and rollback requirements define checkpoint da..."]
+      R6 --> AC4
+      R7 --> AC4
+      AC5["AC5: Suspend, approval gate, and resume requirements define cl..."]
+      R8 --> AC5
+      R9 --> AC5
+      AC6["AC6: Lifecycle behavior is opt-in, disabled behavior preserves..."]
+      R10 --> AC6
+      R11 --> AC6
+      AC7["AC7: Desired history and rollback operations are profile-first..."]
+      R5 --> AC7
+      R7 --> AC7
+      R12 --> AC7
+    ```

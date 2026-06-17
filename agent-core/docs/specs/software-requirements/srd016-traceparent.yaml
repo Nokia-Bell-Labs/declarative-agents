@@ -53,3 +53,19 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3]
 
 depends_on: []
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agents that receive a parent trace context from an ex..."] --> Goals["Goals: W3C Traceparent Parse and Format"]
+      Goals --> R1["R1: ParseTraceparent"]
+      Goals --> R2["R2: FormatTraceparent"]
+      Goals --> R3["R3: ParseParentSpan"]
+      AC1["AC1: ParseTraceparent correctly parses valid version-00 tracep..."]
+      R1 --> AC1
+      AC2["AC2: FormatTraceparent round-trips with ParseTraceparent. Inva..."]
+      R2 --> AC2
+      AC3["AC3: ParseParentSpan returns a context with remote span, handl..."]
+      R3 --> AC3
+    ```

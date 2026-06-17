@@ -251,10 +251,13 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 		Trace:          tracing.NoopTracer{},
 		AgentName:      "machine_request",
 		Directory:      ".",
-		Hooks: core.LoopHooks{OnResult: func(rr core.RunResult, res core.Result) core.RunResult {
-			last = res
-			return rr
-		}},
+		Hooks: core.LoopHooks{
+			TerminalStatus: machineRequestTerminalStatus(req.Config),
+			OnResult: func(rr core.RunResult, res core.Result) core.RunResult {
+				last = res
+				return rr
+			},
+		},
 	}
 	rr, err := core.Loop(params, ctx)
 	if err != nil {
@@ -264,6 +267,25 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 		return MachineRequestResult{}, fmt.Errorf("machine_timeout: request machine timed out")
 	}
 	return machineRequestResult(req, rr, last)
+}
+
+func machineRequestTerminalStatus(cfg MachineRequest) func(core.State) core.RunStatus {
+	return func(state core.State) core.RunStatus {
+		if mapping, ok := cfg.Response.TerminalSignals[string(state)]; ok {
+			if mapping.Status >= 200 && mapping.Status < 400 {
+				return core.StatusSucceeded
+			}
+			return core.StatusFailed
+		}
+		switch state {
+		case core.State("Succeeded"), core.State("Done"), core.State("Passed"):
+			return core.StatusSucceeded
+		case core.State("BudgetExceeded"):
+			return core.StatusBudgetExceeded
+		default:
+			return core.StatusFailed
+		}
+	}
 }
 
 func machineRequestInitialSignal(cfg MachineRequest) core.Signal {

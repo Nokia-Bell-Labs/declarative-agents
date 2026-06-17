@@ -106,3 +106,34 @@ acceptance_criteria:
   - id: AC6
     criterion: Empty Task returns error from both LoadPrompt and LoadPromptFromString.
     traces: [R7.1, R7.2, R4.2]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Every agent needs a structured system prompt assemble..."] --> Goals["Goals: Prompt Schema and Loading"]
+      Goals --> R1["R1: Prompt struct"]
+      Goals --> R2["R2: YAML schema"]
+      Goals --> R3["R3: LoadPrompt function"]
+      Goals --> R4["R4: LoadPromptFromString"]
+      Goals --> R5["R5: Compiled defaults"]
+      Goals --> R6["R6: Assembly"]
+      Goals --> R7["R7: Validation"]
+      AC1["AC1: Prompt struct has four string fields. Assemble concatenat..."]
+      R1 --> AC1
+      R6 --> AC1
+      AC2["AC2: Structured YAML with task loads into a Prompt with defaul..."]
+      R2 --> AC2
+      R3 --> AC2
+      AC3["AC3: Both task and prompt returns error. Unknown fields ignore..."]
+      R2 --> AC3
+      R3 --> AC3
+      AC4["AC4: LoadPrompt returns LoadResult with Mode, FileSize, TaskLe..."]
+      R3 --> AC4
+      R4 --> AC4
+      AC5["AC5: Compiled defaults provide Role, Constraints, OutputFormat..."]
+      R5 --> AC5
+      AC6["AC6: Empty Task returns error from both LoadPrompt and LoadPro..."]
+      R7 --> AC6
+      R4 --> AC6
+    ```

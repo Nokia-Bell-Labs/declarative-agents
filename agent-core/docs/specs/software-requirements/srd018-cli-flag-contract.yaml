@@ -71,3 +71,22 @@ depends_on:
     symbols_used: [FormatTraceparent, ParseTraceparent]
   - srd_id: srd009-ollama-adapter
     symbols_used: [Adapter]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agent CLIs share a common set of flags for telemetry..."] --> Goals["Goals: CLI Standard Flag Contract"]
+      Goals --> R1["R1: Standard flag name constants"]
+      Goals --> R2["R2: PropagateArgs struct and Build method"]
+      Goals --> R3["R3: RemainingBudget helper"]
+      Goals --> R4["R4: FormatFlag helper"]
+      AC1["AC1: Eight standard flag name constants are exported and match..."]
+      R1 --> AC1
+      AC2["AC2: PropagateArgs.Build() produces a correct flag slice, omit..."]
+      R2 --> AC2
+      AC3["AC3: RemainingBudget returns 0 for unlimited or exhausted budg..."]
+      R3 --> AC3
+      AC4["AC4: FormatFlag returns a two-element slice with the prefixed..."]
+      R4 --> AC4
+    ```

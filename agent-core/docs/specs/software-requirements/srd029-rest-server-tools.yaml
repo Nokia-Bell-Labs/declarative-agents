@@ -248,3 +248,42 @@ implementation_status:
     - R10 read_policy values other than the default first-available behavior are rejected during ToolDef factory validation.
   planned_follow_up:
     - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for server control, queue, and read_policy conformance.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agent profiles need a declarative way to expose inbou..."] --> Goals["Goals: REST Server Tools"]
+      Goals --> R1["R1: Server tool scope"]
+      Goals --> R2["R2: rest_server_launch"]
+      Goals --> R3["R3: rest_server_await"]
+      Goals --> R4["R4: rest_server_stop"]
+      Goals --> R5["R5: Endpoint binding kinds"]
+      Goals --> R6["R6: Request validation and responses"]
+      Goals --> R7["R7: Lifecycle and shared server state"]
+      Goals --> R8["R8: OpenAPI server binding"]
+      Goals --> R9["R9: Observability and redaction"]
+      Goals --> R10["R10: Errors and recovery"]
+      Goals --> R11["R11: Event aggregation sources and lifecycle control"]
+      AC1["AC1: REST server tools are documented as first-class boundary..."]
+      R1 --> AC1
+      AC2["AC2: rest_server_launch requirements define inputs, outputs, s..."]
+      R2 --> AC2
+      AC3["AC3: rest_server_await requirements define blocking event rece..."]
+      R3 --> AC3
+      AC4["AC4: rest_server_stop requirements define graceful shutdown, d..."]
+      R4 --> AC4
+      AC5["AC5: Endpoint binding requirements cover emit_signal, emit_dyn..."]
+      R5 --> AC5
+      AC6["AC6: Inbound HTTP requests become grammar-visible signals or s..."]
+      R6 --> AC6
+      AC7["AC7: Server lifecycle requirements cover shared server state,..."]
+      R7 --> AC7
+      AC8["AC8: OpenAPI operation IDs can bind configured server handlers..."]
+      R8 --> AC8
+      AC9["AC9: Observability, redaction, metric, error, and recovery req..."]
+      R9 --> AC9
+      R10 --> AC9
+      AC10["AC10: Server event queues expose named sources for rest_await_e..."]
+      R11 --> AC10
+    ```
