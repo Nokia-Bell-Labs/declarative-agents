@@ -6,9 +6,10 @@ overview: |
   Foundation documents come first because the migration needs a stable
   ownership boundary before assets move.
 
-  Later issues add requirements and validation specs as profile families leave
-  agent-core. Semantic models will describe role boundaries. Use cases and test
-  suites will prove mounted execution, fixture lookup, and profile validation.
+  The first SRD defines migrated profile families as functional blocks. Semantic
+  models describe role boundaries, dependency directions, and validation views.
+  Later issues add use cases, test suites, and validation specs as profile
+  families leave agent-core.
 
 roadmap_summary:
   - version: "00.1"
@@ -45,21 +46,39 @@ foundation_document_index:
     summary: Required Beads issue fields and scope rules for future work.
     path: docs/constitutions/issue-format.yaml
 
-srd_index: []
+srd_index:
+  - id: srd001-agent-functional-blocks
+    title: Agent Functional Blocks
+    summary: Requirements for generator, evaluator, planner, jurist, bench,
+      REST, monitor, lifecycle, control, and Knowledge Manager profiles as
+      configured functional blocks.
+    status: planned
+    path: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
 
 config_format_index: []
 
-semantic_model_index: []
+semantic_model_index:
+  - id: sm-multi-agent-profile-system
+    title: Multi-Agent Profile System
+    summary: Role groups, actor boundaries, dependency directions, and
+      validation views for profile-owned agent programs.
+    path: docs/specs/semantic-models/multi-agent-profile-system.yaml
+  - id: sm-agent-role-taxonomy
+    title: Agent Role Taxonomy
+    summary: Per-profile role, inputs, outputs, selected tool families,
+      runtime dependencies, outcomes, and checks.
+    path: docs/specs/semantic-models/agent-role-taxonomy.yaml
 
 use_case_index: []
 
 test_suite_index: []
 
 coverage_gaps: |
-  The initial repository docs describe ownership and mount contracts. Detailed
-  SRDs and semantic models for migrated profile families remain planned
-  follow-up work.
+  The initial SRD and semantic models describe ownership, role boundaries, and
+  functional-block requirements for migrated profile families. Use cases,
+  formal test suites, and validation command specs remain planned follow-up
+  work.
 
   Beads tracks the operational proof work separately. That work covers profile
-  validation, container execution checks, demo migration, and integration
-  fixture migration.
+  asset migration, demo migration, integration fixture migration, profile
+  validation, and mounted container execution checks.

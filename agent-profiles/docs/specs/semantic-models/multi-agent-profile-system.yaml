@@ -1,0 +1,190 @@
+id: sm-multi-agent-profile-system
+title: Multi-Agent Profile System
+purpose: |
+  Define how migrated profile families relate to each other as configured
+  functional blocks. The model describes roles, boundaries, and dependency
+  directions without treating profiles as Go packages.
+
+overview: |
+  Think of the profile system as a directed graph of configured behaviors.
+  Work-producing agents sit beside evaluators and operational boundary agents,
+  but their edges carry different meaning. Migration has to preserve those
+  edges after the files leave agent-core; otherwise profile ownership becomes
+  visible while behavior quietly changes.
+
+  When planner delegates task execution, the edge points to generator. A
+  benchmark point uses a similar edge when evaluator runs a subject profile.
+  From the human side, bench starts evaluator through an operator action in the
+  web UI. Boundary-oriented profiles face outward toward REST callers,
+  supervisors, checkpoint stores, document corpora, and browser users.
+
+  These links do not turn agent-profiles into a runtime implementation
+  repository. They name configuration, actor contracts, and dependency
+  direction. MachineSpec interpretation, tool dispatch, nested loop execution,
+  and reusable runtime ports remain in agent-core.
+
+system_boundary:
+  profile_repository: agent-profiles
+  runtime_repository: agent-core
+  rule: |
+    agent-profiles owns configured agent programs and profile-local assets.
+    agent-core owns runtime execution, builtin implementations, shared runtime
+    assets, and container build mechanics.
+
+role_groups:
+  - id: production_work
+    profiles:
+      - generator
+      - planner
+    summary: |
+      Production work covers task planning and coding. Planner decomposes
+      requirements and invokes generator. Generator edits a target workspace,
+      then lets machine-declared validation decide the terminal outcome.
+  - id: evaluation_work
+    profiles:
+      - evaluator
+      - bench
+    summary: |
+      Evaluation work measures agent behavior. Bench accepts human launch
+      requests, while evaluator expands suites and runs point pipelines.
+      Configured child profile execution stays inside the evaluator point flow.
+  - id: validation_work
+    profiles:
+      - jurist
+    summary: |
+      Validation work reads documentation and specification corpora through a
+      deterministic tool pipeline. No model boundary participates in this role.
+  - id: boundary_runtime_work
+    profiles:
+      - rest
+      - monitor
+      - control
+      - lifecycle
+      - documentation-curator
+    summary: |
+      Boundary runtime work exposes REST, monitor, control, lifecycle, and
+      human-facing documentation surfaces. Each boundary appears as explicit
+      MachineSpec steps rather than hidden runtime branching.
+
+dependency_directions:
+  - from: planner
+    to: generator
+    kind: child_profile_execution
+    meaning: Planner materializes and executes tasks through the generator
+      profile. Generator does not depend on planner.
+  - from: evaluator
+    to: generator
+    kind: benchmark_subject_execution
+    meaning: Evaluator point runs can invoke generator or another configured
+      profile as the benchmark subject.
+  - from: bench
+    to: evaluator
+    kind: human_launched_evaluation
+    meaning: Bench serves the human UI and launches evaluator runs.
+  - from: monitor
+    to: agent-core monitor store
+    kind: runtime_state_read
+    meaning: Monitor exposes cached runtime state supplied by agent-core.
+  - from: control
+    to: lifecycle vocabulary
+    kind: signal_to_lifecycle_action
+    meaning: Control routes REST events to visible lifecycle words such as
+      exit_agent.
+  - from: documentation-curator
+    to: control
+    kind: embedded_control_flow
+    meaning: The Knowledge Manager documentation profile launches control routes
+      and waits for explicit exit events.
+  - from: lifecycle profiles
+    to: agent-core lifecycle ports
+    kind: checkpoint_operation
+    meaning: Lifecycle profiles select checkpoint, rollback, suspend, and resume
+      vocabulary implemented by agent-core.
+  - from: rest
+    to: external HTTP systems
+    kind: configured_boundary
+    meaning: REST profile definitions describe trusted outbound and inbound HTTP
+      boundaries.
+
+actor_boundaries:
+  - profile: generator
+    actors:
+      - model
+      - workspace
+      - validation commands
+    boundary: LLM responses choose selected tools; filesystem and validation
+      commands mutate or inspect the workspace.
+  - profile: evaluator
+    actors:
+      - suite author
+      - child agent process
+      - oracle command
+    boundary: Suites define points; nested point runs execute child profiles and
+      collect result artifacts.
+  - profile: planner
+    actors:
+      - requirement graph
+      - model
+      - Beads queue
+      - child generator process
+    boundary: Planner turns requirements into issues and invokes generator for
+      execution.
+  - profile: jurist
+    actors:
+      - specification corpus
+    boundary: Jurist reads local docs and emits validation reports.
+  - profile: bench
+    actors:
+      - human operator
+      - evaluator process
+    boundary: Human HTTP actions launch evaluator runs.
+  - profile: rest
+    actors:
+      - configured upstream HTTP service
+      - inbound webhook sender
+    boundary: REST definitions constrain client calls and server events.
+  - profile: monitor
+    actors:
+      - supervisor
+      - runtime monitor store
+    boundary: Supervisor reads cached monitor state and may request controlled
+      exit.
+  - profile: control
+    actors:
+      - lifecycle supervisor
+    boundary: REST events become MachineSpec signals.
+  - profile: lifecycle
+    actors:
+      - operator
+      - checkpoint store
+      - workspace
+    boundary: Lifecycle tools read or rewrite checkpoints and route approval
+      decisions.
+  - profile: documentation-curator
+    actors:
+      - human browser
+      - documentation corpus
+      - local REST API
+    boundary: Browser requests read or manage documentation through configured
+      document resource and control routes.
+
+profile_asset_rules:
+  - Profiles may depend on agent-core builtin declarations through documented
+    core tool roots.
+  - Profile-local declarations stay beside the profile that owns their behavior.
+  - REST definitions stay profile-owned when they define trusted external API
+    authority.
+  - UI placement and human actor config stay profile-owned.
+  - MachineSpec owns sequencing between tools, child profiles, REST events,
+    monitor events, and lifecycle actions.
+
+validation_views:
+  - Profile validation checks profile.yaml references, machine paths, tool
+    selections, declarations, and REST definitions.
+  - Mounted container execution checks that /profiles paths can run selected
+    profiles without bundled agent directories in the runtime image.
+  - Integration tests check profile relationships such as bench to evaluator,
+    evaluator to generator, planner to generator, and Knowledge Manager control
+    exit.
+  - Documentation review checks that requirements describe profiles as
+    configured blocks rather than Go packages.

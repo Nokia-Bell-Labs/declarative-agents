@@ -133,10 +133,11 @@ project_structure:
       role: Beads issue shape for future work.
 
 implementation_status:
-  current_focus: Bootstrap repository documentation before profile asset migration.
+  current_focus: Specify profile functional blocks before profile asset migration.
   progress:
     - done: Initial Beads queue exists.
     - done: Repository purpose and ownership docs are defined.
+    - done: Agent functional block requirements and semantic models are defined.
     - planned: Agent profiles migrate from agent-core into agents/.
     - planned: Demos and integration fixtures migrate into demo/ and
         testdata/integration/.
@@ -152,3 +153,9 @@ related_documents:
     purpose: Release plan for profile extraction and mounted runtime usage.
   - doc: docs/constitutions/issue-format.yaml
     purpose: Required shape for future Beads issues.
+  - doc: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
+    purpose: Functional requirements for migrated profile families.
+  - doc: docs/specs/semantic-models/multi-agent-profile-system.yaml
+    purpose: Profile role groups, actor boundaries, and dependency directions.
+  - doc: docs/specs/semantic-models/agent-role-taxonomy.yaml
+    purpose: Per-profile role taxonomy for migration and validation work.

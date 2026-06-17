@@ -19,6 +19,12 @@ releases:
         interfaces.
       - docs/SPECIFICATIONS.yaml indexes the initial docs.
       - docs/constitutions/issue-format.yaml defines future issue fields.
+      - docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
+        defines migrated profile families as functional blocks.
+      - docs/specs/semantic-models/multi-agent-profile-system.yaml defines
+        profile role groups and dependency directions.
+      - docs/specs/semantic-models/agent-role-taxonomy.yaml classifies each
+        profile family by boundary, inputs, outputs, tools, and checks.
 
   - version: "06.0"
     name: External agent profiles and mounted runtime assets
@@ -35,7 +41,7 @@ releases:
     planned_work:
       - id: agent-profiles-dte
         summary: Specify agent functional blocks and multi-agent semantics.
-        status: planned
+        status: done
       - id: agent-profiles-sqe
         summary: Migrate agent profiles and UX assets from agent-core.
         status: planned
