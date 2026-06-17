@@ -87,22 +87,25 @@ func Audit() error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(binary); err != nil {
-		fmt.Println("building agent binary...")
-		if err := Build(); err != nil {
-			return fmt.Errorf("build agent: %w", err)
-		}
+	fmt.Println("building agent binary...")
+	if err := Build(); err != nil {
+		return fmt.Errorf("build agent: %w", err)
 	}
 
 	rootDir, err := os.Getwd()
 	if err != nil {
 		return err
 	}
+	profileRoot, err := resolveAgentProfilesRoot(rootDir)
+	if err != nil {
+		return err
+	}
 
 	cmd := exec.Command(binary,
-		"--profile", filepath.Join(rootDir, "agents/jurist/profile.yaml"),
+		"--profile", agentProfilePath(profileRoot, "jurist"),
 		"--directory", rootDir,
 	)
+	cmd.Env = envWithDefault(os.Environ(), "AGENT_CORE_HOME", rootDir)
 	var output bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &output)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &output)

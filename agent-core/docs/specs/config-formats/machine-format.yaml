@@ -316,7 +316,7 @@ diagnostics: |
   code, message, and the affected state/signal/transition index.
 
 examples:
-  - file: agents/generator/machine.yaml
+  - file: ../agent-profiles/agents/generator/machine.yaml
     description: |
       7 states, 11 signals, rich state/signal metadata. LLM-driven
       loop with $tool dispatch. The generator iterates between
@@ -324,15 +324,15 @@ examples:
       LLM-chosen tools. Includes purpose, invariants, lifecycle,
       configuration cross-references, and a Mermaid pipeline diagram.
 
-  - file: agents/evaluator/machine.yaml
+  - file: ../agent-profiles/agents/evaluator/machine.yaml
     description: |
       11 states, session-level orchestration with nested core.Loop.
       Drives grid iteration over (harness, model, sample, rep) points.
       Each point runs the per-point pipeline via a nested core.Loop
-      using agents/evaluator/point.yaml. Rich state/signal metadata
+      using ../agent-profiles/agents/evaluator/point.yaml. Rich state/signal metadata
       throughout.
 
-  - file: agents/evaluator/point.yaml
+  - file: ../agent-profiles/agents/evaluator/point.yaml
     description: |
       15 states, 17 signals, linear pipeline with no LLM interaction.
       Walks through workspace preparation, config snapshot, agent
@@ -340,14 +340,14 @@ examples:
       fixed sequence with error handling. All states carry meaning
       metadata and all signals carry trigger metadata.
 
-  - file: agents/planner/machine.yaml
+  - file: ../agent-profiles/agents/planner/machine.yaml
     description: |
       16 states, complex branching with retry logic. Orchestrates
       multi-step planning with LLM reasoning, sub-task decomposition,
       issue creation, and error recovery paths. Rich metadata
       including a Mermaid pipeline diagram.
 
-  - file: agents/bench/machine.yaml
+  - file: ../agent-profiles/agents/bench/machine.yaml
     description: |
       5 states, human-in-the-loop interactive agent. Serves a web UI
       and blocks waiting for user actions. Loops between serving and
@@ -355,7 +355,7 @@ examples:
       invoke_llm. Rich state/signal metadata with purpose and
       invariants.
 
-  - file: agents/jurist/machine.yaml
+  - file: ../agent-profiles/agents/jurist/machine.yaml
     description: |
       6 states, linear 3-tool pipeline. The jurist
       loads the specification corpus, runs consistency checks across

@@ -1,6 +1,0 @@
-name: jurist
-machine: machine.yaml
-tools:
-  - tools.yaml
-tool_config_dirs:
-  - ../../tools/builtin/spec-validation

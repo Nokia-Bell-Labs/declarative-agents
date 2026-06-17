@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -24,6 +25,20 @@ import (
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
 )
+
+func TestMain(m *testing.M) {
+	previous, hadPrevious := os.LookupEnv("AGENT_CORE_HOME")
+	if !hadPrevious {
+		_ = os.Setenv("AGENT_CORE_HOME", repoRootFromDocsRuntime())
+	}
+	code := m.Run()
+	if hadPrevious {
+		_ = os.Setenv("AGENT_CORE_HOME", previous)
+	} else {
+		_ = os.Unsetenv("AGENT_CORE_HOME")
+	}
+	os.Exit(code)
+}
 
 func TestStandaloneServerServesDocsAPIAndSPA(t *testing.T) {
 	t.Parallel()
@@ -276,7 +291,7 @@ func newServeDocumentationCommand(t *testing.T, host *DocumentationHostLifecycle
 
 func curatorExitLoopParams(t *testing.T, host *DocumentationHostLifecycle, launchedAddr *string) core.LoopParams {
 	t.Helper()
-	machine, err := core.LoadMachineSpec(filepath.Join(repoRootFromDocsTest(t), "agents", "knowledge-manager", "documentation-curator", "machine.yaml"))
+	machine, err := core.LoadMachineSpec(curatorProfileAssetPath(t, "machine.yaml"))
 	require.NoError(t, err)
 	reg := core.NewRegistry()
 	reg.Register(core.ToolSpec{Name: "serve_documentation"}, newServeDocumentationCommand(t, host))
@@ -481,12 +496,17 @@ func (stubWorkflowRunner) Run(r *http.Request) (ActionResponse, error) {
 
 func curatorProfilePath(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(repoRootFromDocsTest(t), "agents", "knowledge-manager", "documentation-curator", "profile.yaml")
+	return curatorProfileAssetPath(t, "profile.yaml")
 }
 
 func curatorRestPath(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(repoRootFromDocsTest(t), "agents", "knowledge-manager", "documentation-curator", "rest.yaml")
+	return curatorProfileAssetPath(t, "rest.yaml")
+}
+
+func curatorProfileAssetPath(t *testing.T, rel string) string {
+	t.Helper()
+	return filepath.Join(docsProfileRoot(t), "knowledge-manager", "documentation-curator", filepath.FromSlash(rel))
 }
 
 func loadCuratorProfileDefs(profile catalog.AgentProfile) ([]catalog.ToolDef, error) {
@@ -577,7 +597,45 @@ func toolNames(defs []catalog.ToolDef) map[string]bool {
 
 func repoRootFromDocsTest(t *testing.T) string {
 	t.Helper()
+	return repoRootFromDocsRuntime()
+}
+
+func repoRootFromDocsRuntime() string {
 	_, file, _, ok := runtime.Caller(0)
-	require.True(t, ok)
+	if !ok {
+		panic("resolve test file")
+	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "..")
+}
+
+func docsProfileRoot(t *testing.T) string {
+	t.Helper()
+	root := repoRootFromDocsTest(t)
+	for _, candidate := range docsProfileRootCandidates(root) {
+		if hasDocsProfile(candidate, "knowledge-manager/documentation-curator/profile.yaml") {
+			return candidate
+		}
+		nested := filepath.Join(candidate, "agents")
+		if hasDocsProfile(nested, "knowledge-manager/documentation-curator/profile.yaml") {
+			return nested
+		}
+	}
+	t.Fatalf("profile root not found; set AGENT_PROFILES_ROOT")
+	return ""
+}
+
+func docsProfileRootCandidates(root string) []string {
+	candidates := []string{}
+	if configured := os.Getenv("AGENT_PROFILES_ROOT"); configured != "" {
+		candidates = append(candidates, configured)
+	}
+	return append(candidates,
+		filepath.Join(filepath.Dir(root), "agent-profiles"),
+		filepath.Join(root, "agent-profiles"),
+	)
+}
+
+func hasDocsProfile(root, rel string) bool {
+	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel)))
+	return err == nil && !info.IsDir()
 }

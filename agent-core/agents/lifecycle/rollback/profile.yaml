@@ -1,6 +1,0 @@
-name: lifecycle-rollback
-machine: ../rollback.yaml
-tools:
-  - ../tools.yaml
-tool_config_dirs:
-  - ../../../tools/builtin/lifecycle

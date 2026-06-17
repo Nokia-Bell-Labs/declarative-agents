@@ -33,9 +33,10 @@ overview:
     parses and validates the specification corpus without importing internal
     tool packages.
 
-    Agents, tools, and docs/specs YAML make up the configuration layer.
-    Profiles choose machines, tool selections, declarations, and boundary-tool
-    configs. Specification YAML explains the requirements, semantic models, use
+    External agent profile YAML, core-owned tools, and docs/specs YAML make up
+    the configuration layer. Profiles choose machines, tool selections,
+    declarations, and boundary-tool configs from an agent-profiles checkout or
+    bundle. Specification YAML explains the requirements, semantic models, use
     cases, and formal tests. Configuration is the agent program; changing agent
     behavior should not require new Go code.
 
@@ -43,10 +44,10 @@ overview:
     ```mermaid
     flowchart TB
       subgraph Config["Configuration and Specifications"]
-        MACH[agents/*/machine.yaml]
-        SEL[agents/*/tools.yaml]
+        MACH[agent-profiles/agents/*/machine.yaml]
+        SEL[agent-profiles/agents/*/tools.yaml]
         DEF[tools/*.yaml]
-        BCFG[agents/*/llm/*.yaml boundary tool configs]
+        BCFG[agent-profiles/agents/*/llm/*.yaml boundary tool configs]
         SPECS[docs/specs/*.yaml]
       end
 
@@ -654,9 +655,9 @@ overview:
         config allows it.
       human_ui_actor_config: |
         Human-facing UI assets and route/action configuration are actor
-        configuration. They may live under
-        agents/knowledge-manager/documentation-curator while generic server and
-        document resource code stays reusable across profiles.
+        configuration. They live with the external documentation-curator
+        profile while generic server and document resource code stays reusable
+        across profiles.
       openapi: |
         Runtime code uses github.com/getkin/kin-openapi/openapi3 to load,
         resolve, and validate OpenAPI 3 documents referenced by REST tool
@@ -680,13 +681,13 @@ overview:
       - REST definitions live with agent/profile/tool configuration.
       - Runtime credentials are referenced by configuration and resolved by the agent runtime.
       - Document resource roots, include patterns, extension allowlists, and response modes live with trusted profile or REST configuration.
-      - Knowledge Manager UI assets and UI-specific action placement live with the documentation-curator profile.
+      - Knowledge Manager UI assets and UI-specific action placement live with the documentation-curator profile in agent-profiles.
       - Generated Go REST clients and servers are out of scope for the first implementation.
     source_files:
       current:
         - internal/tools/rest/
         - tools/builtin/rest/all.yaml
-        - agents/rest/
+        - external agent-profiles/agents/rest/
         - testdata/integration/rel03-rest-tools/
         - docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
         - docs/specs/software-requirements/srd028-rest-client-tools.yaml
@@ -743,7 +744,7 @@ overview:
       output must include both read endpoints and profile-owned lifecycle
       control endpoints such as POST /monitor/control/exit.
 
-      The checked-in agents/monitor/rest.yaml profile uses 127.0.0.1:18083 by
+      The external agent-profiles monitor REST config uses 127.0.0.1:18083 by
       default. Tests and CLI proofs should avoid sharing that fixed port by
       binding an isolated localhost address from generated profile config or an
       explicit runtime override.
@@ -783,8 +784,8 @@ overview:
       serving_lifecycle: |
         Monitor REST listeners are background servers. Profile grammar keeps
         cmd/agent alive by awaiting a control event after launch. This follows
-        agents/knowledge-manager/documentation-curator/machine.yaml: launch,
-        await, exit, stop, and reach a success terminal.
+        the agent-profiles documentation-curator machine: launch, await, exit,
+        stop, and reach a success terminal.
       isolated_binding: |
         Operator profiles may name a fixed local port. Automated tests and CLI
         proofs should bind an isolated loopback address so
@@ -801,8 +802,8 @@ overview:
         - internal/tools/rest/monitor_views.go
         - internal/tools/rest/monitor_openapi.go
         - internal/tools/exec/metrics.go
-        - agents/monitor/
-        - testdata/integration/rel04-monitor/
+        - external agent-profiles/agents/monitor/
+        - external agent-profiles/testdata/integration/rel04-monitor/
         - docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
         - docs/specs/software-requirements/srd033-monitor-rest-api.yaml
         - docs/specs/semantic-models/tool-metrics-monitoring.yaml
@@ -963,7 +964,7 @@ overview:
     profile_first_lifecycle_diagram: |
       ```mermaid
       flowchart LR
-        P[agents/lifecycle/*/profile.yaml] --> M[Lifecycle MachineSpec]
+        P[agent-profiles/agents/lifecycle/*/profile.yaml] --> M[Lifecycle MachineSpec]
         P --> S[tools.yaml selection]
         P --> D[ToolDef declarations]
         S --> D
@@ -1424,20 +1425,8 @@ project_structure:
       role: Public specification corpus parsing, graph construction, cross-artifact validation, and mirrored tool declaration completeness checks
 
   configuration:
-    - path: agents/generator/
-      role: Generator agent — machine.yaml, tools.yaml, model-boundary configs
-    - path: agents/evaluator/
-      role: Evaluator agent — machine.yaml, tools.yaml, model-boundary configs
-    - path: agents/planner/
-      role: Planner agent — machine.yaml variants, tools.yaml, model-boundary configs
-    - path: agents/jurist/
-      role: Validation agent — machine.yaml, tools.yaml
-    - path: agents/bench/
-      role: Bench agent — machine.yaml, tools.yaml, serve_ui.yaml
-    - path: agents/knowledge-manager/documentation-curator/
-      role: Knowledge Manager documentation curator — machine.yaml, tools.yaml, human-facing UI assets, UI action config, document resources, documentation host, and REST tool declarations
-    - path: agents/lifecycle/
-      role: Lifecycle configured programs — approval, history, and rollback profiles, machines, and tool selection
+    - path: external agent-profiles/agents/
+      role: Standard agent programs, including generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profile assets
     - path: tools/
       role: Shared tool declarations — builtin.yaml and exec.yaml
     - path: internal/model/llm/profiles/
@@ -1504,16 +1493,16 @@ implementation_status:
     - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching
     - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
     - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
-    - done: Agent profiles and configurations — generator, evaluator, planner, jurist, bench profiles with machine/tools/llm selections
+    - done: External agent profiles and configurations — generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from agent-profiles through AGENT_PROFILES_ROOT
     - done: Grammar Machine alignment — selected-tool contract enforcement, rollback strategy vocabulary, profile-first child boundaries, and centralized builtin factory catalog
     - done: Rollback lifecycle core operations — StateStore, FileStore, Workspace, GitWorkspace, checkpoints, history, resume, and rollback traversal
-    - done: Lifecycle STL adapters and profiles — checkpoint_history and checkpoint_rollback selected by agents/lifecycle profiles
+    - done: Lifecycle STL adapters and external profiles — checkpoint_history and checkpoint_rollback selected by agent-profiles lifecycle profiles
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats, docker
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
     - partial: REST runtime package -- internal/tools/rest implements declarative client, async client, server, fan-in, machine_request, monitor, OpenAPI import behavior, reserved-field validation, and compensation mementos; active follow-up work is limited to agent-core-guhn.4 named conformance-test alignment and agent-core-guhn.5 rollback-time REST compensation execution
-    - done: REST sample profile — agents/rest and testdata/integration/rel03-rest-tools fixtures for release 03.0 flows
-    - done: Machine request REST path — documentation_curator_requests machine_request routes execute agents/knowledge-manager/documentation-curator/request-machine.yaml for document index and detail requests, with request-machine actions selected from trusted profile declarations
+    - done: REST sample profile — agent-profiles owns REST profile assets while agent-core keeps core REST runtime conformance fixtures under testdata/integration/rel03-rest-tools
+    - done: Machine request REST path — documentation_curator_requests machine_request routes execute the external documentation-curator request machine for document index and detail requests, with request-machine actions selected from trusted profile declarations
     - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior
     - done: Knowledge Manager machine_request proof — mage integration:uc007 and plain go test verify generic REST route trace evidence, owned same-origin proxy lifecycle, raw YAML, rendered HTML, and nested document path evidence
     - done: cobbler-scaffold dependency removed

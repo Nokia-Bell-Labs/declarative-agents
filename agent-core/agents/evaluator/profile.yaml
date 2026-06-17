@@ -1,9 +1,0 @@
-name: evaluator
-machine: machine.yaml
-tools:
-  - tools.yaml
-tool_config_dirs:
-  - ../../tools/builtin/evaluator-session
-  - ../../tools/builtin/evaluator-point
-tool_declarations:
-  - builtin.yaml

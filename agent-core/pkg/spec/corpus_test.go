@@ -64,6 +64,30 @@ func TestLoadCorpus_ToolDeclarations(t *testing.T) {
 	assert.Equal(t, "tools/builtin.yaml", td.SourceFile)
 }
 
+func TestIsAgentLocalToolDeclarationExternalProfilePath(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, isAgentLocalToolDeclaration("../agent-profiles/agents/generator/llm/default.yaml"))
+	assert.True(t, isAgentLocalToolDeclaration("/profiles/agents/evaluator/builtin.yaml"))
+	assert.False(t, isAgentLocalToolDeclaration("tools/builtin/llm/default.yaml"))
+}
+
+func TestResolveProfilePathMapsInstalledCoreHome(t *testing.T) {
+	t.Setenv(CoreHomeEnv, "/repo/core")
+
+	got := resolveProfilePath("/profiles/agents/control", "/opt/agent-core/tools/builtin/lifecycle")
+
+	assert.Equal(t, filepath.Join("/repo/core", "tools", "builtin", "lifecycle"), got)
+}
+
+func TestResolveProfilePathLeavesInstalledCorePathWithoutOverride(t *testing.T) {
+	t.Parallel()
+
+	got := resolveProfilePath("/profiles/agents/control", "/opt/agent-core/tools/builtin/lifecycle")
+
+	assert.Equal(t, "/opt/agent-core/tools/builtin/lifecycle", got)
+}
+
 func TestLoadCorpus_NoAgentsDir(t *testing.T) {
 	tmp := t.TempDir()
 	setupTestCorpus(t, tmp)

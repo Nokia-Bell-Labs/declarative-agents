@@ -15,3 +15,13 @@ func auditRunFailed(output string) bool {
 	}
 	return false
 }
+
+func envWithDefault(env []string, name, value string) []string {
+	prefix := name + "="
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			return env
+		}
+	}
+	return append(env, prefix+value)
+}
