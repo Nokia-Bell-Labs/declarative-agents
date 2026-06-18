@@ -234,3 +234,94 @@ func bodySchema(field string) map[string]interface{} {
 		},
 	}
 }
+
+func validStaticAssetsEndpoint() Endpoint {
+	return Endpoint{
+		Method:  "GET",
+		Path:    "/ui/{path...}",
+		Binding: bindingStaticAssets,
+		StaticAssets: &StaticAssetsConfig{
+			Root: "/tmp/static-root",
+		},
+		Request: RequestBinding{Path: map[string]interface{}{
+			"path": map[string]interface{}{"type": "string"},
+		}},
+	}
+}
+
+func singleServerDefinition(ep Endpoint) Definition {
+	return Definition{
+		Version: "v1",
+		Servers: map[string]Server{
+			"srv": {
+				Address: "127.0.0.1:0",
+				Endpoints: map[string]Endpoint{
+					"e": ep,
+				},
+			},
+		},
+	}
+}
+
+func TestValidateDefinition_staticAssetsRejectsInvalidConfigs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		ep      Endpoint
+		wantErr string
+	}{
+		{
+			name: "wrong http method",
+			ep: func() Endpoint {
+				e := validStaticAssetsEndpoint()
+				e.Method = "POST"
+				return e
+			}(),
+			wantErr: "requires GET method",
+		},
+		{
+			name: "blank assets root",
+			ep: func() Endpoint {
+				e := validStaticAssetsEndpoint()
+				e.StaticAssets = &StaticAssetsConfig{Root: "  "}
+				return e
+			}(),
+			wantErr: "non-empty root",
+		},
+		{
+			name: "missing static_assets block",
+			ep: func() Endpoint {
+				e := validStaticAssetsEndpoint()
+				e.StaticAssets = nil
+				return e
+			}(),
+			wantErr: "requires static_assets config",
+		},
+		{
+			name: "signal conflicts with static binding",
+			ep: func() Endpoint {
+				e := validStaticAssetsEndpoint()
+				e.Signal = "Noise"
+				return e
+			}(),
+			wantErr: "must not set signal",
+		},
+		{
+			name: "static_assets config with wrong binding",
+			ep: func() Endpoint {
+				e := validStaticAssetsEndpoint()
+				e.Binding = bindingEmitSignal
+				e.Signal = "Y"
+				return e
+			}(),
+			wantErr: "static_assets config but binding",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.ErrorContains(t, ValidateDefinition(singleServerDefinition(tc.ep)), tc.wantErr)
+		})
+	}
+}
