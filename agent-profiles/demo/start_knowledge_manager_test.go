@@ -3,11 +3,18 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestResolveDemoConfigFindsProfilesByWalking(t *testing.T) {
@@ -212,6 +219,72 @@ func TestPrepareDemoProfileCopiesMonitorAssetsAndRewritesRest(t *testing.T) {
 	}
 }
 
+func TestDocumentationCuratorMonitorIntegrationHTTP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration needs a local agent build; skipped under -short")
+	}
+	profilesRoot := repoProfilesRootFromTest(t)
+	coreRoot := filepath.Join(profilesRoot, "..", "agent-core")
+	if _, err := os.Stat(filepath.Join(coreRoot, "cmd", "agent", "main.go")); err != nil {
+		t.Skipf("sibling agent-core not found at %s", coreRoot)
+	}
+	distIndex := filepath.Join(profilesRoot, "agents", "knowledge-manager", "documentation-curator", "ui", "monitor", "dist", "index.html")
+	if _, err := os.Stat(distIndex); err != nil {
+		t.Skipf("monitor UX dist missing (build the monitor bundle first): %v", err)
+	}
+
+	agentBin := buildCuratorIntegrationAgent(t, coreRoot)
+	tmpProfile := prepareDemoProfile(filepath.Join(profilesRoot, knowledgeManagerProfile), profilesRoot, coreRoot)
+
+	var logBuf bytes.Buffer
+	cmd := exec.Command(agentBin, "--profile", tmpProfile, "--directory", coreRoot, "--core-root", coreRoot)
+	cmd.Dir = profilesRoot
+	cmd.Stdout = &logBuf
+	cmd.Stderr = &logBuf
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start agent: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		if t.Failed() {
+			t.Log(logBuf.String())
+		}
+	})
+
+	base := "http://127.0.0.1:18084"
+	pollHTTPStatus(t, base+"/monitor/state", http.StatusOK, 60*time.Second)
+	stateBody := mustGETBody(t, base+"/monitor/state")
+	if !strings.Contains(stateBody, `"run"`) {
+		t.Fatalf("monitor state missing run field: %s", truncateForLog(stateBody, 400))
+	}
+	eventsBody := mustGETBody(t, base+"/monitor/events")
+	if !strings.Contains(eventsBody, "recent_events") {
+		t.Fatalf("monitor events missing recent_events: %s", truncateForLog(eventsBody, 400))
+	}
+	uiBody := mustGETBody(t, base+"/ui/index.html")
+	if !strings.Contains(uiBody, `id="app"`) {
+		t.Fatalf("monitor UI shell missing app root: %s", truncateForLog(uiBody, 200))
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Get(base + "/")
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("GET / status = %d want %d", resp.StatusCode, http.StatusFound)
+	}
+	if got := resp.Header.Get("Location"); got != "/ui/" {
+		t.Fatalf("Location = %q want /ui/", got)
+	}
+}
+
 func withWorkingDirectory(t *testing.T, dir string) {
 	t.Helper()
 	old, err := os.Getwd()
@@ -265,4 +338,72 @@ func stubBuildAgentBinary(t *testing.T, binary string) {
 
 func quotePath(path string) string {
 	return `"` + path + `"`
+}
+
+func repoProfilesRootFromTest(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
+}
+
+func buildCuratorIntegrationAgent(t *testing.T, coreRoot string) string {
+	t.Helper()
+	out := filepath.Join(t.TempDir(), "agent-integration")
+	cmd := exec.Command("go", "build", "-tags", "production", "-o", out, "./cmd/agent")
+	cmd.Dir = coreRoot
+	combined, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go build agent: %v\n%s", err, combined)
+	}
+	return out
+}
+
+func pollHTTPStatus(t *testing.T, url string, want int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last string
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(url)
+		if err != nil {
+			last = err.Error()
+			time.Sleep(150 * time.Millisecond)
+			continue
+		}
+		code := resp.StatusCode
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if code == want {
+			return
+		}
+		last = fmt.Sprintf("status %d", code)
+		time.Sleep(150 * time.Millisecond)
+	}
+	t.Fatalf("poll %s want status %d: last=%s", url, want, last)
+}
+
+func mustGETBody(t *testing.T, url string) string {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body %s: %v", url, err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s: status %d body %s", url, resp.StatusCode, truncateForLog(string(b), 400))
+	}
+	return string(b)
+}
+
+func truncateForLog(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "...(truncated)"
 }
