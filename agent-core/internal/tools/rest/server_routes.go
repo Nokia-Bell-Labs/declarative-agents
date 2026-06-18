@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -50,13 +53,29 @@ func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *serverRuntime) matchEndpoint(req *http.Request) (string, Endpoint, map[string]string, bool) {
+	bestName := ""
+	var best Endpoint
+	var bestVars map[string]string
+	bestScore := -1
 	for name, endpoint := range r.def.Server.Endpoints {
 		vars, ok := matchPath(endpoint.Path, req.URL.Path)
-		if ok {
-			return name, endpoint, vars, true
+		if !ok {
+			continue
+		}
+		score := 0
+		for _, seg := range pathSegments(endpoint.Path) {
+			if !strings.HasPrefix(seg, "{") {
+				score++
+			}
+		}
+		if score > bestScore || (score == bestScore && (bestName == "" || name < bestName)) {
+			bestScore, bestName, best, bestVars = score, name, endpoint, vars
 		}
 	}
-	return "", Endpoint{}, nil, false
+	if bestScore < 0 {
+		return "", Endpoint{}, nil, false
+	}
+	return bestName, best, bestVars, true
 }
 
 func (r *serverRuntime) handleEndpoint(
@@ -85,9 +104,92 @@ func (r *serverRuntime) handleEndpoint(
 		r.writeStaticMetadata(w, endpoint)
 	case bindingMachineRequest:
 		r.handleMachineRequest(w, req, name, endpoint, payload)
+	case bindingStaticAssets:
+		r.serveStaticAssets(w, req, endpoint)
 	default:
 		http.Error(w, "endpoint binding is not implemented", http.StatusNotImplemented)
 	}
+}
+
+func (r *serverRuntime) serveStaticAssets(w http.ResponseWriter, req *http.Request, endpoint Endpoint) {
+	cfg := endpoint.StaticAssets
+	if cfg == nil {
+		http.Error(w, "static_assets is not configured", http.StatusInternalServerError)
+		return
+	}
+	vars, ok := matchPath(endpoint.Path, req.URL.Path)
+	if !ok {
+		http.NotFound(w, req)
+		return
+	}
+	rel := ""
+	for _, seg := range pathSegments(endpoint.Path) {
+		if n, ok := catchAllParam(seg); ok {
+			rel = vars[n]
+			break
+		}
+	}
+	idx := cfg.Index
+	if idx == "" {
+		idx = "index.html"
+	}
+	f, info, err := openStaticAssetFile(http.Dir(filepath.Clean(cfg.Root)), rel, idx, cfg.SPA)
+	if err != nil {
+		http.NotFound(w, req)
+		return
+	}
+	defer f.Close()
+	http.ServeContent(w, req, info.Name(), info.ModTime(), f)
+}
+
+func openStaticAssetFile(d http.Dir, rel, idx string, spa bool) (http.File, os.FileInfo, error) {
+	key := strings.TrimPrefix(path.Clean("/"+rel), "/")
+	if key == "." || key == "" {
+		return openStaticLeafFile(d, idx)
+	}
+	f, err := d.Open(key)
+	if err != nil {
+		if spa {
+			return openStaticLeafFile(d, idx)
+		}
+		return nil, nil, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		if spa {
+			return openStaticLeafFile(d, idx)
+		}
+		return nil, nil, err
+	}
+	if !info.IsDir() {
+		return f, info, nil
+	}
+	f.Close()
+	if f2, info2, err := openStaticLeafFile(d, path.Join(key, idx)); err == nil {
+		return f2, info2, nil
+	}
+	if spa {
+		return openStaticLeafFile(d, idx)
+	}
+	return nil, nil, os.ErrNotExist
+}
+
+func openStaticLeafFile(d http.Dir, name string) (http.File, os.FileInfo, error) {
+	f, err := d.Open(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, nil, err
+	}
+	if info.IsDir() {
+		f.Close()
+		return nil, nil, os.ErrNotExist
+	}
+	return f, info, nil
 }
 
 func (r *serverRuntime) invokeHandler(
@@ -277,51 +379,6 @@ func writeSSEEvent(w http.ResponseWriter, flusher http.Flusher, eventType string
 	}
 	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, data)
 	flusher.Flush()
-}
-
-func validateBodySchema(schema map[string]interface{}, payload map[string]interface{}) error {
-	props, _ := schema["properties"].(map[string]interface{})
-	required, _ := schema["required"].([]interface{})
-	for _, raw := range required {
-		field, _ := raw.(string)
-		if _, ok := payload[field]; !ok {
-			return fmt.Errorf("body field %q is required", field)
-		}
-	}
-	for field, spec := range props {
-		if err := validateJSONType(field, spec, payload[field]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateJSONType(field string, spec interface{}, value interface{}) error {
-	if value == nil {
-		return nil
-	}
-	rules, _ := spec.(map[string]interface{})
-	want, _ := rules["type"].(string)
-	if want == "" || jsonTypeMatches(want, value) {
-		return nil
-	}
-	return fmt.Errorf("body field %q must be %s", field, want)
-}
-
-func jsonTypeMatches(want string, value interface{}) bool {
-	switch want {
-	case "string":
-		_, ok := value.(string)
-		return ok
-	case "number", "integer":
-		_, ok := value.(float64)
-		return ok
-	case "object":
-		_, ok := value.(map[string]interface{})
-		return ok
-	default:
-		return true
-	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload map[string]interface{}) {
