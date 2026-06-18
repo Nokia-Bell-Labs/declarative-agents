@@ -93,20 +93,13 @@ func TestDocumentationCuratorRESTDefinitionsLoad(t *testing.T) {
 	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br, FactoryDeps{Definitions: collection})
 
-	skipFactoryUntilRestMonitor := map[string]bool{
-		"launch_monitor_rest":   true,
-		"await_monitor_control": true,
-		"stop_monitor_rest":     true,
-	}
-
 	for _, def := range defs {
 		require.Equal(t, "builtin", def.Type)
 		require.Equal(t, "boundary", def.Category)
 		requireNoAuthorityParameters(t, def.Parameters)
-		if skipFactoryUntilRestMonitor[def.Name] {
-			continue
+		if def.Name != "await_monitor_control" {
+			requireConfigUsesNamedRefs(t, def)
 		}
-		requireConfigUsesNamedRefs(t, def)
 		factory, ok := br.Resolve(def.Init)
 		require.True(t, ok, "factory for init %q should be registered", def.Init)
 		builder, err := factory(def, nil)
