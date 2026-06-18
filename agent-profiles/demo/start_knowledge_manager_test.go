@@ -174,12 +174,11 @@ func TestPrepareDemoProfileCopiesMonitorAssetsAndRewritesRest(t *testing.T) {
 	writeDemoFile(t, filepath.Join(profileDir, "tools.yaml"), "tools: []\n")
 	writeDemoFile(t, filepath.Join(profileDir, "declarations.yaml"), "tools: []\n")
 	writeDemoFile(t, filepath.Join(profileDir, "request-declarations.yaml"), "tools: []\n")
-	writeDemoFile(t, filepath.Join(profileDir, "rest.yaml"), "rest:\n  version: v1\n  servers:\n    monitor:\n      endpoints:\n        monitor_ui:\n          static_assets:\n            root: "+monitorDistYAMLPath+"\n        root_redirect:\n          static_assets:\n            root: "+monitorRedirectYAMLPath+"\n")
+	writeDemoFile(t, filepath.Join(profileDir, "rest.yaml"), "rest:\n  version: v1\n  servers:\n    monitor:\n      endpoints:\n        monitor_ui:\n          static_assets:\n            root: "+monitorDistYAMLPath+"\n        root_redirect:\n          method: GET\n          path: /\n          binding: redirect\n          redirect:\n            location: \"/ui/\"\n            status: 302\n")
 	writeDemoFile(t, filepath.Join(profileDir, "openapi.yaml"), "openapi: 3.0.0\n")
 	writeDemoFile(t, filepath.Join(profileDir, "request-machine.yaml"), "name: request\n")
 	writeDemoFile(t, filepath.Join(profileDir, "ui", "ux.yaml"), "id: documentation-curator-ui\n")
 	writeDemoFile(t, filepath.Join(profileDir, "ui", "monitor", "dist", "index.html"), "<html>monitor</html>\n")
-	writeDemoFile(t, filepath.Join(profileDir, "ui", "monitor", "root-redirect", "index.html"), "<html>redirect</html>\n")
 	writeDemoFile(t, filepath.Join(profileDir, "builtin.yaml"), `tools:
   - name: serve_documentation
     config:
@@ -197,19 +196,19 @@ func TestPrepareDemoProfileCopiesMonitorAssetsAndRewritesRest(t *testing.T) {
 	if gotDist != "<html>monitor</html>\n" {
 		t.Fatalf("copied monitor dist index = %q", gotDist)
 	}
-	gotRedirect := readFile(filepath.Join(tmpDir, "ui", "monitor", "root-redirect", "index.html"))
-	if gotRedirect != "<html>redirect</html>\n" {
-		t.Fatalf("copied monitor redirect index = %q", gotRedirect)
-	}
 
 	rest := readFile(filepath.Join(tmpDir, "rest.yaml"))
 	wantDist := filepath.ToSlash(filepath.Join(tmpDir, "ui", "monitor", "dist"))
-	wantRedirect := filepath.ToSlash(filepath.Join(tmpDir, "ui", "monitor", "root-redirect"))
 	if !strings.Contains(rest, wantDist) || strings.Contains(rest, monitorDistYAMLPath) {
 		t.Fatalf("rest.yaml should rewrite monitor dist root to %q; got:\n%s", wantDist, rest)
 	}
-	if !strings.Contains(rest, wantRedirect) || strings.Contains(rest, monitorRedirectYAMLPath) {
-		t.Fatalf("rest.yaml should rewrite monitor redirect root to %q; got:\n%s", wantRedirect, rest)
+	if !strings.Contains(rest, `binding: redirect`) || !strings.Contains(rest, `location: "/ui/"`) {
+		t.Fatalf("rest.yaml should keep redirect root config; got:\n%s", rest)
+	}
+	if _, err := os.Stat(filepath.Join(tmpDir, "ui", "monitor", "root-redirect")); err == nil {
+		t.Fatal("expected no copied root-redirect tree under temp profile")
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat root-redirect: %v", err)
 	}
 }
 

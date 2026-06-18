@@ -192,10 +192,7 @@ func copyFile(src, dst string) {
 	writeFile(dst, readFile(src))
 }
 
-const (
-	monitorDistYAMLPath     = "agents/knowledge-manager/documentation-curator/ui/monitor/dist"
-	monitorRedirectYAMLPath = "agents/knowledge-manager/documentation-curator/ui/monitor/root-redirect"
-)
+const monitorDistYAMLPath = "agents/knowledge-manager/documentation-curator/ui/monitor/dist"
 
 // copyMonitorAssetsIntoDemoProfile copies bundled monitor UX into the temp profile
 // and rewrites static_assets roots in rest.yaml to absolute paths under tmpDir.
@@ -208,13 +205,6 @@ func copyMonitorAssetsIntoDemoProfile(profileDir, tmpDir string) {
 	if err := copyDir(srcDist, dstDist); err != nil {
 		panic(err)
 	}
-	srcRedirect := filepath.Join(profileDir, "ui", "monitor", "root-redirect")
-	if pathExists(srcRedirect) {
-		dstRedirect := filepath.Join(tmpDir, "ui", "monitor", "root-redirect")
-		if err := copyDir(srcRedirect, dstRedirect); err != nil {
-			panic(err)
-		}
-	}
 	rewriteDemoMonitorRestRoots(tmpDir)
 }
 
@@ -222,12 +212,8 @@ func rewriteDemoMonitorRestRoots(tmpDir string) {
 	restPath := filepath.Join(tmpDir, "rest.yaml")
 	content := readFile(restPath)
 	distAbs := filepath.ToSlash(filepath.Join(tmpDir, "ui", "monitor", "dist"))
-	redirectAbs := filepath.ToSlash(filepath.Join(tmpDir, "ui", "monitor", "root-redirect"))
 	if strings.Contains(content, monitorDistYAMLPath) {
 		content = strings.ReplaceAll(content, monitorDistYAMLPath, distAbs)
-	}
-	if strings.Contains(content, monitorRedirectYAMLPath) {
-		content = strings.ReplaceAll(content, monitorRedirectYAMLPath, redirectAbs)
 	}
 	writeFile(restPath, content)
 }

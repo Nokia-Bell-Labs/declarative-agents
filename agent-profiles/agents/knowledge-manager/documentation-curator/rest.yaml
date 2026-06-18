@@ -519,8 +519,7 @@ rest:
         root_redirect:
           method: GET
           path: /
-          binding: static_assets
-          static_assets:
-            root: agents/knowledge-manager/documentation-curator/ui/monitor/root-redirect
-            index: index.html
-            spa: false
+          binding: redirect
+          redirect:
+            location: "/ui/"
+            status: 302
