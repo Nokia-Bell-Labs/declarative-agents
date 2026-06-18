@@ -1,0 +1,619 @@
+tools:
+  - name: doc_list
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: List documentation entries through the configured documentation API.
+    problem: Documentation-curator needs a read word whose HTTP authority stays in REST config.
+    goals:
+      - Resolve the configured documentation index resource.
+      - Return document index data as a grammar-visible REST read result.
+    requirements:
+      input:
+        - Runtime input supplies no transport authority.
+      output:
+        - Output includes document entries and count when the service returns them.
+      errors:
+        - Config, schema, network, timeout, and mapping failures emit CommandError.
+    non_goals:
+      - Does not accept runtime URL, method, host, auth, or redirect policy values.
+    parameters:
+      type: object
+      properties:
+        params: {type: object}
+    emits: [RESTResourceRead, RESTDomainFailed, CommandError]
+    output:
+      description: Documentation index response.
+      schema:
+        type: object
+        properties:
+          documents: {type: array}
+          count: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: documentation.index
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Listing documents does not mutate service or workspace state.
+    errors:
+      - signal: CommandError
+        condition: REST config, schema, network, timeout, or response mapping failure.
+        state_after_failure: No REST command state changes.
+    relationships:
+      before: [doc_get, doc_search]
+    config:
+      rest_ref: documentation
+      resource: document_index
+      operation: get
+
+  - name: doc_get
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: Fetch one documentation document through the configured documentation API.
+    problem: Documentation-curator needs document reads without model-supplied paths becoming transport authority.
+    goals:
+      - Resolve the configured document resource.
+      - Return parsed and raw document data for a declared path.
+    requirements:
+      input:
+        - Runtime input supplies only the declared document path parameter.
+      output:
+        - Output includes path, parsed content, and raw text when available.
+      errors:
+        - Missing documents emit RESTMissing; infrastructure failures emit CommandError.
+    non_goals:
+      - Does not read files directly from the workspace.
+    parameters:
+      type: object
+      properties:
+        params:
+          type: object
+          properties:
+            path: {type: string}
+    emits: [RESTResourceRead, RESTMissing, RESTDomainFailed, CommandError]
+    output:
+      description: Documentation detail response.
+      schema:
+        type: object
+        properties:
+          path: {type: string}
+          content: {type: object}
+          raw: {type: string}
+    side_effects:
+      - kind: external_api
+        target: documentation.document
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Fetching a document does not mutate service or workspace state.
+    errors:
+      - signal: CommandError
+        condition: REST config, schema, network, timeout, or response mapping failure.
+        state_after_failure: No REST command state changes.
+    relationships:
+      after: [doc_list]
+      before: [doc_validate, doc_suggest_changes]
+    config:
+      rest_ref: documentation
+      resource: document
+      operation: get
+
+  - name: doc_search
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Search documentation through the configured documentation API.
+    problem: Documentation-curator needs search as one configured RPC-shaped REST word.
+    goals:
+      - Submit declared search parameters to the documentation service.
+      - Return matches without exposing arbitrary REST authority.
+    requirements:
+      input:
+        - Runtime input supplies query, optional category, and optional limit fields.
+      output:
+        - Output includes query, matches, and count when returned by the service.
+      errors:
+        - Config, schema, network, timeout, and mapping failures emit CommandError.
+    non_goals:
+      - Does not crawl the docs corpus directly.
+    parameters:
+      type: object
+      properties:
+        params:
+          type: object
+          properties:
+            query: {type: string}
+            category: {type: string}
+            limit: {type: integer}
+    emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
+    output:
+      description: Documentation search response.
+      schema:
+        type: object
+        properties:
+          query: {type: string}
+          matches: {type: array}
+          count: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: documentation.search
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Searching documents does not mutate service or workspace state.
+    errors:
+      - signal: CommandError
+        condition: REST config, schema, network, timeout, or response mapping failure.
+        state_after_failure: No REST command state changes.
+    relationships:
+      after: [doc_list]
+      before: [doc_get]
+    config:
+      rest_ref: documentation
+      operation: doc_search
+
+  - name: doc_validate
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Validate selected documentation paths through the configured documentation API.
+    problem: Documentation-curator needs validation findings as structured service output.
+    goals:
+      - Submit declared validation scope.
+      - Distinguish valid responses from domain validation failures.
+    requirements:
+      input:
+        - Runtime input supplies paths and strict mode only.
+      output:
+        - Output includes status, findings, and checked paths.
+      errors:
+        - Validation-domain failures emit RESTDomainFailed; infrastructure failures emit CommandError.
+    non_goals:
+      - Does not run local validation commands directly.
+    parameters:
+      type: object
+      properties:
+        params:
+          type: object
+          properties:
+            paths: {type: array, items: {type: string}}
+            strict: {type: boolean}
+    emits: [RESTResponded, RESTDomainFailed, CommandError]
+    output:
+      description: Documentation validation response.
+      schema:
+        type: object
+        properties:
+          status: {type: string}
+          findings: {type: array}
+          checked_paths: {type: array}
+    side_effects:
+      - kind: external_api
+        target: documentation.validation
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Validation does not mutate service or workspace state.
+    errors:
+      - signal: CommandError
+        condition: REST config, schema, network, timeout, or response mapping failure.
+        state_after_failure: No REST command state changes.
+    relationships:
+      after: [doc_get]
+      before: [doc_suggest_changes]
+    config:
+      rest_ref: documentation
+      operation: doc_validate
+
+  - name: doc_suggest_changes
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Request documentation change suggestions through the configured documentation API.
+    problem: Documentation-curator needs suggestion creation to expose patch state and compensation.
+    goals:
+      - Submit one declared documentation change request.
+      - Return a patch ID for later approval handling.
+    requirements:
+      input:
+        - Runtime input supplies path, instruction, and optional context.
+      output:
+        - Output includes patch ID, path, and suggestions.
+      errors:
+        - Config, schema, network, timeout, and mapping failures emit CommandError.
+    non_goals:
+      - Does not apply patches directly.
+    parameters:
+      type: object
+      properties:
+        params:
+          type: object
+          properties:
+            path: {type: string}
+            instruction: {type: string}
+            context: {type: string}
+    emits: [RESTAccepted, RESTResponded, RESTDomainFailed, CommandError]
+    output:
+      description: Documentation suggestion response.
+      schema:
+        type: object
+        properties:
+          patch_id: {type: string}
+          path: {type: string}
+          suggestions: {type: array}
+    side_effects:
+      - kind: external_api
+        target: documentation.suggestions
+        state: patch_suggestion_created
+    reversibility:
+      classification: compensatable
+      undo: doc_patch_reject
+    undo:
+      strategy: compensating_action
+      description: Reject the created suggestion while it is still pending.
+    errors:
+      - signal: CommandError
+        condition: REST config, schema, network, timeout, or response mapping failure.
+        state_after_failure: Patch suggestion state exists only after accepted submission.
+    relationships:
+      after: [doc_get, doc_validate]
+      before: [doc_patch_approve, doc_patch_reject]
+    config:
+      rest_ref: documentation
+      operation: doc_suggest_changes
+
+  - name: doc_patch_approve
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Approve a pending documentation patch through the configured documentation API.
+    problem: Future patch approval must be explicit because it changes documentation patch state.
+    goals:
+      - Resolve one configured patch approval operation.
+      - Return the patch decision state for machine routing.
+    requirements:
+      input:
+        - Runtime input supplies patch ID, approver identity, and optional note.
+      output:
+        - Output includes patch ID, status, and decision owner.
+      errors:
+        - Missing patches emit RESTMissing; infrastructure failures emit CommandError.
+    non_goals:
+      - Does not accept arbitrary patch service routes.
+    parameters:
+      type: object
+      properties:
+        params:
+          type: object
+          properties:
+            patch_id: {type: string}
+            decided_by: {type: string}
+            note: {type: string}
+    emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
+    output:
+      description: Documentation patch approval response.
+      schema:
+        type: object
+        properties:
+          patch_id: {type: string}
+          status: {type: string}
+          decided_by: {type: string}
+    side_effects:
+      - kind: external_api
+        target: documentation.patch
+        state: patch_approved
+    reversibility:
+      classification: compensatable
+      undo: doc_patch_reject
+    undo:
+      strategy: compensating_action
+      description: Reject the pending patch before it is applied.
+    errors:
+      - signal: CommandError
+        condition: REST config, schema, network, timeout, or response mapping failure.
+        state_after_failure: Remote patch state may record the approval attempt.
+    relationships:
+      after: [doc_suggest_changes]
+    config:
+      rest_ref: documentation
+      operation: doc_patch_approve
+
+  - name: doc_patch_reject
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Reject a pending documentation patch through the configured documentation API.
+    problem: Future patch rejection must be explicit because it changes documentation patch state.
+    goals:
+      - Resolve one configured patch rejection operation.
+      - Return the patch decision state for machine routing.
+    requirements:
+      input:
+        - Runtime input supplies patch ID, decision owner, and optional reason.
+      output:
+        - Output includes patch ID, status, and decision owner.
+      errors:
+        - Missing patches emit RESTMissing; infrastructure failures emit CommandError.
+    non_goals:
+      - Does not delete patch history.
+    parameters:
+      type: object
+      properties:
+        params:
+          type: object
+          properties:
+            patch_id: {type: string}
+            decided_by: {type: string}
+            reason: {type: string}
+    emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
+    output:
+      description: Documentation patch rejection response.
+      schema:
+        type: object
+        properties:
+          patch_id: {type: string}
+          status: {type: string}
+          decided_by: {type: string}
+    side_effects:
+      - kind: external_api
+        target: documentation.patch
+        state: patch_rejected
+    reversibility:
+      classification: compensatable
+      undo: doc_patch_reopen
+    undo:
+      strategy: compensating_action
+      description: Reopen the pending patch when the service supports it.
+    errors:
+      - signal: CommandError
+        condition: REST config, schema, network, timeout, or response mapping failure.
+        state_after_failure: Remote patch state may record the rejection attempt.
+    relationships:
+      after: [doc_suggest_changes]
+    config:
+      rest_ref: documentation
+      operation: doc_patch_reject
+
+  - name: doc_patch_reopen
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Reopen a rejected documentation patch through the configured documentation API.
+    problem: Patch rejection compensation must resolve to an implemented REST operation.
+    goals:
+      - Resolve one configured patch reopen operation.
+      - Return the reopened patch decision state for machine routing.
+    requirements:
+      input:
+        - Runtime input supplies patch ID, decision owner, and optional reason.
+      output:
+        - Output includes patch ID, status, and decision owner.
+      errors:
+        - Missing patches emit RESTMissing; infrastructure failures emit CommandError.
+    non_goals:
+      - Does not apply or rewrite the patch.
+    parameters:
+      type: object
+      properties:
+        params:
+          type: object
+          properties:
+            patch_id: {type: string}
+            decided_by: {type: string}
+            reason: {type: string}
+    emits: [RESTResponded, RESTDomainFailed, RESTMissing, CommandError]
+    output:
+      description: Documentation patch reopen response.
+      schema:
+        type: object
+        properties:
+          patch_id: {type: string}
+          status: {type: string}
+          decided_by: {type: string}
+    side_effects:
+      - kind: external_api
+        target: documentation.patch
+        state: patch_reopened
+    reversibility:
+      classification: compensatable
+      undo: doc_patch_reject
+    undo:
+      strategy: compensating_action
+      description: Reject the reopened patch when review should remain closed.
+    errors:
+      - signal: CommandError
+        condition: REST config, schema, network, timeout, or response mapping failure.
+        state_after_failure: Remote patch state may record the reopen attempt.
+    relationships:
+      after: [doc_patch_reject]
+    config:
+      rest_ref: documentation
+      operation: doc_patch_reopen
+
+  - name: launch_monitor_rest
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch read-only REST endpoints for cached monitor state.
+    problem: Operators need a profile-owned monitor reader that does not run tools or inspect prompts.
+    goals:
+      - Register monitor snapshot, metadata, and stream routes.
+      - Keep monitor access inside the existing REST server tool path.
+    requirements:
+      input:
+        - Tool config references the trusted monitor REST server definition.
+      output:
+        - Output reports server name, bound address, route count, and binding kinds.
+      errors:
+        - Config, bind, route conflict, and schema failures emit CommandError.
+    non_goals:
+      - Does not execute monitor reads as MachineSpec workflow actions.
+      - Does not require a sidecar, collector, or external database.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerLaunched, CommandError]
+    output:
+      description: Monitor REST server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+          bindings: {type: array}
+    side_effects:
+      - kind: network_listen
+        target: monitor_rest_server
+        state: listener_started
+      - kind: state_mutation
+        target: rest_server_state
+        state: routes_registered
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the REST server if the launch command owns the listener.
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server config, bind, route, or schema failure.
+        state_after_failure: No monitor route is exposed.
+    relationships:
+      overlaps:
+        - tool: rest_server_launch
+          difference: This profile-specific word binds only the monitor REST route set.
+    config:
+      rest_ref: monitor
+
+  - name: await_monitor_control
+    type: builtin
+    init: rest_await_event
+    visibility: internal
+    category: boundary
+    description: Await the monitor REST control exit event.
+    problem: The monitor profile needs one grammar-visible wait word so cmd/agent stays alive while REST snapshots are served.
+    goals:
+      - Wait on the monitor server queue after launch.
+      - Accept only configured monitor control events.
+      - Return the selected lifecycle signal to MachineSpec.
+    requirements:
+      input:
+        - Tool config references the trusted monitor REST server queue.
+      output:
+        - Output reports source, route, signal, payload, and request ID.
+      errors:
+        - Missing server, timeout, stopped server, and queue failures emit declared signals.
+    non_goals:
+      - Does not read or mutate monitor snapshots.
+      - Does not execute lifecycle behavior inside HTTP handlers.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    output:
+      description: Selected monitor control event.
+      schema:
+        type: object
+        properties:
+          source: {type: string}
+          route: {type: string}
+          signal: {type: string}
+          payload: {type: object}
+          request_id: {type: string}
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: selected_event_consumed
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Queue restore is not implemented.
+    errors:
+      - signal: CommandError
+        condition: Monitor control source is missing or stopped with command_error policy.
+        state_after_failure: Monitor listener state is unchanged.
+    relationships:
+      after: [launch_monitor_rest]
+      before: [stop_monitor_rest]
+    config:
+      sources:
+        - server: monitor
+          routes: [control_exit]
+          signals: [ExitRequested]
+      timeout: 30s
+      stopped_behavior: emit_server_stopped
+
+  - name: stop_monitor_rest
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: Stop the owned monitor REST listener.
+    problem: The monitor profile must release its background listener before reaching a success terminal state.
+    goals:
+      - Stop the configured monitor REST server.
+      - Drain queued monitor control events according to server shutdown config.
+      - Emit ServerStopped so MachineSpec can route to Done.
+    requirements:
+      input:
+        - Tool config references the trusted monitor REST server definition.
+      output:
+        - Output reports server name, bound address, drained events, dropped events, and stopped status.
+      errors:
+        - Missing server, shutdown timeout, and cleanup failures emit CommandError.
+    non_goals:
+      - Does not write monitor metrics or snapshots.
+      - Does not relaunch the monitor server.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerStopped, CommandError]
+    output:
+      description: Monitor REST server stop result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          drained_events: {type: integer}
+          dropped_events: {type: integer}
+          status: {type: string}
+    side_effects:
+      - kind: network_listener_shutdown
+        target: monitor_rest_server
+        state: listener_stopped
+      - kind: state_mutation
+        target: rest_server_state
+        state: server_stopped
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Relaunch is a separate MachineSpec action.
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server is missing, shutdown times out, or cleanup fails.
+        state_after_failure: Monitor listener state may be partially stopped.
+    relationships:
+      after: [await_monitor_control]
+    config:
+      rest_ref: monitor

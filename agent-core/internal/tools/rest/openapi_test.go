@@ -125,8 +125,8 @@ func TestRESTOpenAPI_InvalidOperationIDs(t *testing.T) {
 func TestRESTOpenAPI_LoadsOllamaProfileConfig(t *testing.T) {
 	t.Parallel()
 
-	root := profileRoot(t)
-	def, err := LoadDefinition(filepath.Join(root, "rest/ollama-rest.yaml"))
+	root := ollamaRESTFixtureDir(t)
+	def, err := LoadDefinition(filepath.Join(root, "ollama-rest.yaml"))
 	require.NoError(t, err)
 	operation := def.Clients["ollama"].Operations["listOllamaModels"]
 	require.Equal(t, "http://127.0.0.1:11434", def.Clients["ollama"].BaseURL)
@@ -134,7 +134,7 @@ func TestRESTOpenAPI_LoadsOllamaProfileConfig(t *testing.T) {
 	require.Equal(t, "/api/tags", operation.Path)
 	require.NotContains(t, def.Clients["ollama"].Operations, "generate")
 
-	profile, err := catalog.LoadProfile(filepath.Join(root, "rest/ollama-profile.yaml"))
+	profile, err := catalog.LoadProfile(filepath.Join(root, "ollama-profile.yaml"))
 	require.NoError(t, err)
 	selection, err := catalog.LoadToolSelections(profile.Tools)
 	require.NoError(t, err)
@@ -184,44 +184,11 @@ func externalToolNames(defs []catalog.ToolDef) []string {
 	return names
 }
 
-func repoRoot(t *testing.T) string {
+func ollamaRESTFixtureDir(t *testing.T) string {
 	t.Helper()
-	return repoRootFromRuntime()
-}
-
-func repoRootFromRuntime() string {
 	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		panic("resolve test file")
-	}
-	return filepath.Join(filepath.Dir(file), "..", "..", "..")
-}
-
-func profileRoot(t *testing.T) string {
-	t.Helper()
-	for _, candidate := range profileRootCandidates(repoRoot(t)) {
-		if hasProfile(candidate, "rest/ollama-profile.yaml") {
-			return candidate
-		}
-		nested := filepath.Join(candidate, "agents")
-		if hasProfile(nested, "rest/ollama-profile.yaml") {
-			return nested
-		}
-	}
-	t.Fatalf("profile root not found; place agent-profiles next to agent-core or under ./agent-profiles")
-	return ""
-}
-
-func profileRootCandidates(root string) []string {
-	return []string{
-		filepath.Join(filepath.Dir(root), "agent-profiles"),
-		filepath.Join(root, "agent-profiles"),
-	}
-}
-
-func hasProfile(root, rel string) bool {
-	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel)))
-	return err == nil && !info.IsDir()
+	require.True(t, ok)
+	return filepath.Join(filepath.Dir(file), "testdata", "ollama_profile")
 }
 
 func paymentsOpenAPI(duplicate bool) string {
