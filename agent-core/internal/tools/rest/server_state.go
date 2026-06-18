@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 )
 
 const (
@@ -67,19 +69,20 @@ type AwaitAnyOptions struct {
 }
 
 type serverRuntime struct {
-	name          string
-	def           ServerDefinition
-	httpServer    *http.Server
-	listener      net.Listener
-	queue         chan InboundEvent
-	runner        MachineRequestRunner
-	pending       []InboundEvent
-	stopped       chan struct{}
-	stopOnce      sync.Once
-	activeStreams int
-	droppedEvents int
-	owned         bool
-	mu            sync.Mutex
+	name           string
+	def            ServerDefinition
+	httpServer     *http.Server
+	listener       net.Listener
+	queue          chan InboundEvent
+	runner         MachineRequestRunner
+	requestMonitor monitor.RuntimeRecorder
+	pending        []InboundEvent
+	stopped        chan struct{}
+	stopOnce       sync.Once
+	activeStreams  int
+	droppedEvents  int
+	owned          bool
+	mu             sync.Mutex
 }
 
 // Launch starts a configured REST server without waiting for requests.
@@ -183,10 +186,15 @@ func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bind REST server %q: %w", def.Name, err)
 	}
+	var requestMon monitor.RuntimeRecorder
+	if def.Monitor.Store != nil {
+		requestMon = monitor.NewRecorder(def.Monitor.Store, nil)
+	}
 	runtime := &serverRuntime{
 		name: def.Name, def: def, listener: listener, stopped: make(chan struct{}),
-		runner: machineRequestRunner(def.MachineRequestRunner),
-		queue:  make(chan InboundEvent, queueCapacity(def.Server.Queue)), owned: true,
+		runner:         machineRequestRunner(def.MachineRequestRunner),
+		requestMonitor: requestMon,
+		queue:          make(chan InboundEvent, queueCapacity(def.Server.Queue)), owned: true,
 	}
 	runtime.httpServer = &http.Server{
 		Handler:           runtime,

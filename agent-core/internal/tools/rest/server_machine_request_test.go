@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
 	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
 	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
@@ -28,6 +29,31 @@ func TestRESTServerMachineRequestSuccess(t *testing.T) {
 
 	require.Equal(t, "hello alice", body["greeting"])
 	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
+}
+
+func TestRESTServerMachineRequestRecordsMonitorEvents(t *testing.T) {
+	t.Parallel()
+	store := monitor.NewStore(monitor.Limits{Events: 32, Samples: 8})
+	state := NewServerState()
+	server := machineRequestServer(machineRequestConfig("DocumentationReady", 0, false))
+	def := ServerDefinition{
+		Name: "machine", Server: server, Limits: LimitProfile{},
+		Monitor: MonitorState{Store: store},
+	}
+	_, baseURL := launchRESTServerDefinition(t, state, def)
+	defer stopRESTServer(t, state, "machine")
+
+	_ = postJSON(t, baseURL+"/docs", `{"name":"mon"}`, http.StatusOK)
+
+	snap := store.Snapshot()
+	var sawRespond bool
+	for _, ev := range snap.RecentEvents {
+		if ev.CommandName == "respond" {
+			sawRespond = true
+			break
+		}
+	}
+	require.True(t, sawRespond, "expected request-machine dispatch in monitor events: %#v", snap.RecentEvents)
 }
 
 func TestRESTServerMachineRequestTraceEnvelope(t *testing.T) {
