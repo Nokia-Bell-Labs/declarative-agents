@@ -106,9 +106,25 @@ func (r *serverRuntime) handleEndpoint(
 		r.handleMachineRequest(w, req, name, endpoint, payload)
 	case bindingStaticAssets:
 		r.serveStaticAssets(w, req, endpoint)
+	case bindingRedirect:
+		r.writeRedirect(w, endpoint)
 	default:
 		http.Error(w, "endpoint binding is not implemented", http.StatusNotImplemented)
 	}
+}
+
+func (r *serverRuntime) writeRedirect(w http.ResponseWriter, endpoint Endpoint) {
+	cfg := endpoint.Redirect
+	if cfg == nil {
+		http.Error(w, "redirect is not configured", http.StatusInternalServerError)
+		return
+	}
+	status := cfg.Status
+	if status == 0 {
+		status = http.StatusFound
+	}
+	w.Header().Set("Location", cfg.Location)
+	w.WriteHeader(status)
 }
 
 func (r *serverRuntime) serveStaticAssets(w http.ResponseWriter, req *http.Request, endpoint Endpoint) {
