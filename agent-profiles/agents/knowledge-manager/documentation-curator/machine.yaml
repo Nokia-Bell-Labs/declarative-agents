@@ -17,21 +17,26 @@ invariants:
   - The documentation host owns docs UI serving for Knowledge Manager documentation.
   - Runtime authority remains in profile, machine, ToolDef, and REST YAML.
   - Documentation API access uses localhost-only REST limits from rest.yaml.
+  - The monitor REST listener on the profile monitor port serves read-only snapshots and static UX while the machine awaits control events.
 lifecycle: |-
   1. Idle -> LaunchingDocs (Seed): serve_documentation starts the documentation host.
   2. LaunchingDocs -> LaunchingControl (ServerLaunched): start generic control REST routes.
-  3. LaunchingControl -> AwaitingControl (ServerLaunched): wait for control events.
-  4. AwaitingControl -> Exiting (ExitRequested): run exit_agent.
-  5. Exiting -> StoppingDocs (AgentExited): stop the owned documentation host.
-  6. StoppingDocs -> Done (ServerStopped): exit completed and the documentation listener is released.
+  3. LaunchingControl -> LaunchingMonitor (ServerLaunched): launch_monitor_rest starts the monitor REST listener.
+  4. LaunchingMonitor -> AwaitingControl (ServerLaunched): await_curator_control waits for lifecycle control events.
+  5. AwaitingControl -> Exiting (ExitRequested): run exit_agent.
+  6. Exiting -> StoppingMonitor (AgentExited): stop_monitor_rest stops the monitor listener.
+  7. StoppingMonitor -> StoppingDocs (ServerStopped): serve_documentation stops the documentation host.
+  8. StoppingDocs -> Done (ServerStopped): exit completed and the documentation listener is released.
 pipeline_diagram: |-
   ```mermaid
   flowchart TD
     A[Idle] -->|Seed| B[LaunchingDocs]
     B -->|ServerLaunched| C[LaunchingControl]
-    C -->|ServerLaunched| D[AwaitingControl]
+    C -->|ServerLaunched| M[LaunchingMonitor]
+    M -->|ServerLaunched| D[AwaitingControl]
     D -->|ExitRequested| E[Exiting]
-    E -->|AgentExited| F[StoppingDocs]
+    E -->|AgentExited| SM[StoppingMonitor]
+    SM -->|ServerStopped| F[StoppingDocs]
     F -->|ServerStopped| G[Done]
   ```
 initial_state: Idle
@@ -46,10 +51,14 @@ states:
     meaning: The standalone documentation UX and API host is starting.
   - name: LaunchingControl
     meaning: The generic lifecycle control REST routes are starting.
+  - name: LaunchingMonitor
+    meaning: The read-only monitor REST listener and static monitor UX routes are starting.
   - name: AwaitingControl
-    meaning: Documentation UX and API are available while the machine waits for a control event.
+    meaning: Documentation UX and API are available while the machine waits for a control event; monitor endpoints stay up.
   - name: Exiting
     meaning: The machine routes ExitRequested to exit_agent.
+  - name: StoppingMonitor
+    meaning: The machine stops the owned monitor REST listener.
   - name: StoppingDocs
     meaning: The machine stops the owned documentation host listener.
   - name: Failed
@@ -63,15 +72,15 @@ signals:
   - name: Seed
     trigger: Agent startup.
   - name: CommandError
-    trigger: Documentation host startup or runtime failure.
+    trigger: Documentation host, control or monitor REST startup, or runtime failure.
   - name: ServerLaunched
-    trigger: Documentation or control server launch completed.
+    trigger: Documentation, control, or monitor server launch completed.
   - name: ExitRequested
     trigger: Generic lifecycle exit endpoint enqueued an exit request.
   - name: AgentExited
     trigger: exit_agent completed the controlled exit request.
   - name: ServerStopped
-    trigger: Control server stopped while awaiting events or the documentation host stopped during exit.
+    trigger: Control or monitor server stopped while awaiting events, or the documentation host stopped during exit.
   - name: AwaitTimedOut
     trigger: No matching control event arrived.
 transitions:
@@ -99,15 +108,31 @@ transitions:
       phase: failed_docs_stop
   - state: LaunchingControl
     signal: ServerLaunched
-    next: AwaitingControl
-    action: await_curator_control
+    next: LaunchingMonitor
+    action: launch_monitor_rest
     metric_labels:
-      phase: control_await
+      phase: monitor_launch
   - state: LaunchingControl
     signal: CommandError
     next: Failed
     metric_labels:
       phase: failed_control
+  - state: LaunchingMonitor
+    signal: ServerLaunched
+    next: AwaitingControl
+    action: await_curator_control
+    metric_labels:
+      phase: control_await
+  - state: LaunchingMonitor
+    signal: CommandError
+    next: Failed
+    metric_labels:
+      phase: failed_monitor
+  - state: LaunchingMonitor
+    signal: ServerStopped
+    next: Failed
+    metric_labels:
+      phase: failed_monitor_stop
   - state: AwaitingControl
     signal: ExitRequested
     next: Exiting
@@ -131,15 +156,31 @@ transitions:
       phase: failed_await_cmd
   - state: Exiting
     signal: AgentExited
-    next: StoppingDocs
-    action: serve_documentation
+    next: StoppingMonitor
+    action: stop_monitor_rest
     metric_labels:
-      phase: docs_shutdown
+      phase: monitor_stop
   - state: Exiting
     signal: CommandError
     next: Failed
     metric_labels:
       phase: failed_exit
+  - state: StoppingMonitor
+    signal: ServerStopped
+    next: StoppingDocs
+    action: serve_documentation
+    metric_labels:
+      phase: docs_shutdown
+  - state: StoppingMonitor
+    signal: CommandError
+    next: Failed
+    metric_labels:
+      phase: failed_monitor_stop_cmd
+  - state: StoppingMonitor
+    signal: ServerLaunched
+    next: Failed
+    metric_labels:
+      phase: failed_monitor_stop_state
   - state: StoppingDocs
     signal: ServerStopped
     next: Done
