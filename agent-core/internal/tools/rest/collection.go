@@ -78,13 +78,14 @@ type MachineRequestRunner interface {
 
 // MachineRequestRun is the accepted HTTP request visible to a request machine.
 type MachineRequestRun struct {
-	Server    string                 `json:"server"`
-	Route     string                 `json:"route"`
-	Method    string                 `json:"method"`
-	Path      string                 `json:"path"`
-	RequestID string                 `json:"request_id,omitempty"`
-	Payload   map[string]interface{} `json:"payload,omitempty"`
-	Config    MachineRequest         `json:"-"`
+	Server            string                 `json:"server"`
+	Route             string                 `json:"route"`
+	Method            string                 `json:"method"`
+	Path              string                 `json:"path"`
+	RequestID         string                 `json:"request_id,omitempty"`
+	Payload           map[string]interface{} `json:"payload,omitempty"`
+	Config            MachineRequest         `json:"-"`
+	MonitorRecorder   monitor.RuntimeRecorder `json:"-"`
 }
 
 // MachineRequestResult records the short-lived machine outcome.
@@ -240,17 +241,18 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 	var last core.Result
 	initialSignal := machineRequestInitialSignal(req.Config)
 	params := core.LoopParams{
-		MachineSpec:    req.Config.MachineSpec,
-		Registry:       req.Config.Registry,
-		InitFunc:       req.Config.InitFunc,
-		ToolAction:     req.Config.ToolAction,
-		InitialSignal:  initialSignal,
-		InitialResult:  requestSeed(req, initialSignal),
-		Budget:         req.Config.Budget,
-		CommandTimeout: parseDuration(req.Config.CommandTimeout, 0),
-		Trace:          tracing.NoopTracer{},
-		AgentName:      "machine_request",
-		Directory:      ".",
+		MachineSpec:     req.Config.MachineSpec,
+		Registry:        req.Config.Registry,
+		InitFunc:        req.Config.InitFunc,
+		ToolAction:      req.Config.ToolAction,
+		InitialSignal:   initialSignal,
+		InitialResult:   requestSeed(req, initialSignal),
+		Budget:          req.Config.Budget,
+		CommandTimeout:  parseDuration(req.Config.CommandTimeout, 0),
+		Trace:           tracing.NoopTracer{},
+		AgentName:       machineRequestAgentName(req),
+		Directory:       ".",
+		MonitorRecorder: req.MonitorRecorder,
 		Hooks: core.LoopHooks{
 			TerminalStatus: machineRequestTerminalStatus(req.Config),
 			OnResult: func(rr core.RunResult, res core.Result) core.RunResult {
@@ -267,6 +269,16 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 		return MachineRequestResult{}, fmt.Errorf("machine_timeout: request machine timed out")
 	}
 	return machineRequestResult(req, rr, last)
+}
+
+func machineRequestAgentName(req MachineRequestRun) string {
+	if req.RequestID != "" {
+		return "machine_request:" + req.RequestID
+	}
+	if req.Server != "" && req.Route != "" {
+		return "machine_request:" + req.Server + "/" + req.Route
+	}
+	return "machine_request"
 }
 
 func machineRequestTerminalStatus(cfg MachineRequest) func(core.State) core.RunStatus {
@@ -330,9 +342,10 @@ func (r *serverRuntime) handleMachineRequest(
 	defer cancel()
 	result, err := r.runner.RunMachineRequest(ctx, MachineRequestRun{
 		Server: r.name, Route: name, Method: req.Method, Path: req.URL.Path,
-		RequestID: req.Header.Get("X-Request-ID"),
-		Payload:   machineRequestPayload(endpoint.MachineRequest.Request, payload),
-		Config:    endpoint.MachineRequest,
+		RequestID:       req.Header.Get("X-Request-ID"),
+		Payload:         machineRequestPayload(endpoint.MachineRequest.Request, payload),
+		Config:          endpoint.MachineRequest,
+		MonitorRecorder: r.requestMonitor,
 	})
 	if err != nil {
 		writeMachineRequestError(w, err)
