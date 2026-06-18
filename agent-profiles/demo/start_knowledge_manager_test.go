@@ -166,6 +166,53 @@ func TestPrepareDemoProfilePointsAtCoreDocs(t *testing.T) {
 	}
 }
 
+func TestPrepareDemoProfileCopiesMonitorAssetsAndRewritesRest(t *testing.T) {
+	profilesRoot := t.TempDir()
+	coreRoot := t.TempDir()
+	profileDir := filepath.Join(profilesRoot, filepath.Dir(knowledgeManagerProfile))
+	writeDemoFile(t, filepath.Join(profileDir, "machine.yaml"), "name: documentation-curator\n")
+	writeDemoFile(t, filepath.Join(profileDir, "tools.yaml"), "tools: []\n")
+	writeDemoFile(t, filepath.Join(profileDir, "declarations.yaml"), "tools: []\n")
+	writeDemoFile(t, filepath.Join(profileDir, "request-declarations.yaml"), "tools: []\n")
+	writeDemoFile(t, filepath.Join(profileDir, "rest.yaml"), "rest:\n  version: v1\n  servers:\n    monitor:\n      endpoints:\n        monitor_ui:\n          static_assets:\n            root: "+monitorDistYAMLPath+"\n        root_redirect:\n          static_assets:\n            root: "+monitorRedirectYAMLPath+"\n")
+	writeDemoFile(t, filepath.Join(profileDir, "openapi.yaml"), "openapi: 3.0.0\n")
+	writeDemoFile(t, filepath.Join(profileDir, "request-machine.yaml"), "name: request\n")
+	writeDemoFile(t, filepath.Join(profileDir, "ui", "ux.yaml"), "id: documentation-curator-ui\n")
+	writeDemoFile(t, filepath.Join(profileDir, "ui", "monitor", "dist", "index.html"), "<html>monitor</html>\n")
+	writeDemoFile(t, filepath.Join(profileDir, "ui", "monitor", "root-redirect", "index.html"), "<html>redirect</html>\n")
+	writeDemoFile(t, filepath.Join(profileDir, "builtin.yaml"), `tools:
+  - name: serve_documentation
+    config:
+      docs_dir: docs
+      configs_dir: configs
+      source_dir: .
+      profile_path: agents/knowledge-manager/documentation-curator/profile.yaml
+      timeout: 30s
+`)
+
+	tmpProfile := prepareDemoProfile(filepath.Join(profilesRoot, knowledgeManagerProfile), profilesRoot, coreRoot)
+	tmpDir := filepath.Dir(tmpProfile)
+
+	gotDist := readFile(filepath.Join(tmpDir, "ui", "monitor", "dist", "index.html"))
+	if gotDist != "<html>monitor</html>\n" {
+		t.Fatalf("copied monitor dist index = %q", gotDist)
+	}
+	gotRedirect := readFile(filepath.Join(tmpDir, "ui", "monitor", "root-redirect", "index.html"))
+	if gotRedirect != "<html>redirect</html>\n" {
+		t.Fatalf("copied monitor redirect index = %q", gotRedirect)
+	}
+
+	rest := readFile(filepath.Join(tmpDir, "rest.yaml"))
+	wantDist := filepath.ToSlash(filepath.Join(tmpDir, "ui", "monitor", "dist"))
+	wantRedirect := filepath.ToSlash(filepath.Join(tmpDir, "ui", "monitor", "root-redirect"))
+	if !strings.Contains(rest, wantDist) || strings.Contains(rest, monitorDistYAMLPath) {
+		t.Fatalf("rest.yaml should rewrite monitor dist root to %q; got:\n%s", wantDist, rest)
+	}
+	if !strings.Contains(rest, wantRedirect) || strings.Contains(rest, monitorRedirectYAMLPath) {
+		t.Fatalf("rest.yaml should rewrite monitor redirect root to %q; got:\n%s", wantRedirect, rest)
+	}
+}
+
 func withWorkingDirectory(t *testing.T, dir string) {
 	t.Helper()
 	old, err := os.Getwd()

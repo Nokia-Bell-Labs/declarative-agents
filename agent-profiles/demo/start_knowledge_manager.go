@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -157,6 +158,7 @@ rest_definitions:
 		filepath.Join(tmpDir, "rest.yaml")))
 	writeFile(filepath.Join(tmpDir, "builtin.yaml"), demoBuiltinConfig(profileDir, coreRoot, tmpProfile))
 	copyFile(filepath.Join(profileDir, "rest.yaml"), filepath.Join(tmpDir, "rest.yaml"))
+	copyMonitorAssetsIntoDemoProfile(profileDir, tmpDir)
 	copyFile(filepath.Join(profileDir, "openapi.yaml"), filepath.Join(tmpDir, "openapi.yaml"))
 	copyFile(filepath.Join(profileDir, "request-machine.yaml"), filepath.Join(tmpDir, "request-machine.yaml"))
 	copyFile(filepath.Join(profileDir, "ui", "ux.yaml"), filepath.Join(tmpDir, "ui", "ux.yaml"))
@@ -188,6 +190,71 @@ func readFile(path string) string {
 
 func copyFile(src, dst string) {
 	writeFile(dst, readFile(src))
+}
+
+const (
+	monitorDistYAMLPath     = "agents/knowledge-manager/documentation-curator/ui/monitor/dist"
+	monitorRedirectYAMLPath = "agents/knowledge-manager/documentation-curator/ui/monitor/root-redirect"
+)
+
+// copyMonitorAssetsIntoDemoProfile copies bundled monitor UX into the temp profile
+// and rewrites static_assets roots in rest.yaml to absolute paths under tmpDir.
+func copyMonitorAssetsIntoDemoProfile(profileDir, tmpDir string) {
+	srcDist := filepath.Join(profileDir, "ui", "monitor", "dist")
+	if !pathExists(srcDist) {
+		return
+	}
+	dstDist := filepath.Join(tmpDir, "ui", "monitor", "dist")
+	if err := copyDir(srcDist, dstDist); err != nil {
+		panic(err)
+	}
+	srcRedirect := filepath.Join(profileDir, "ui", "monitor", "root-redirect")
+	if pathExists(srcRedirect) {
+		dstRedirect := filepath.Join(tmpDir, "ui", "monitor", "root-redirect")
+		if err := copyDir(srcRedirect, dstRedirect); err != nil {
+			panic(err)
+		}
+	}
+	rewriteDemoMonitorRestRoots(tmpDir)
+}
+
+func rewriteDemoMonitorRestRoots(tmpDir string) {
+	restPath := filepath.Join(tmpDir, "rest.yaml")
+	content := readFile(restPath)
+	distAbs := filepath.ToSlash(filepath.Join(tmpDir, "ui", "monitor", "dist"))
+	redirectAbs := filepath.ToSlash(filepath.Join(tmpDir, "ui", "monitor", "root-redirect"))
+	if strings.Contains(content, monitorDistYAMLPath) {
+		content = strings.ReplaceAll(content, monitorDistYAMLPath, distAbs)
+	}
+	if strings.Contains(content, monitorRedirectYAMLPath) {
+		content = strings.ReplaceAll(content, monitorRedirectYAMLPath, redirectAbs)
+	}
+	writeFile(restPath, content)
+}
+
+func copyDir(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return os.MkdirAll(dst, 0o755)
+		}
+		out := filepath.Join(dst, rel)
+		if entry.IsDir() {
+			return os.MkdirAll(out, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		writeFile(out, string(data))
+		return nil
+	})
 }
 
 func writeFile(path, content string) {
