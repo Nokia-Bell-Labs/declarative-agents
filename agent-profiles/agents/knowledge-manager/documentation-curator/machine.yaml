@@ -37,6 +37,8 @@ pipeline_diagram: |-
 initial_state: Idle
 budget:
   max_iterations: 10000
+metric_labels:
+  workflow: documentation_curator
 states:
   - name: Idle
     meaning: Initial state before the documentation host starts.
@@ -77,49 +79,79 @@ transitions:
     signal: Seed
     next: LaunchingDocs
     action: serve_documentation
+    metric_labels:
+      phase: docs_launch
   - state: LaunchingDocs
     signal: ServerLaunched
     next: LaunchingControl
     action: launch_curator_control
+    metric_labels:
+      phase: control_launch
   - state: LaunchingDocs
     signal: CommandError
     next: Failed
+    metric_labels:
+      phase: failed_docs
   - state: LaunchingDocs
     signal: ServerStopped
     next: Failed
+    metric_labels:
+      phase: failed_docs_stop
   - state: LaunchingControl
     signal: ServerLaunched
     next: AwaitingControl
     action: await_curator_control
+    metric_labels:
+      phase: control_await
   - state: LaunchingControl
     signal: CommandError
     next: Failed
+    metric_labels:
+      phase: failed_control
   - state: AwaitingControl
     signal: ExitRequested
     next: Exiting
     action: exit_agent
+    metric_labels:
+      phase: exit_agent
   - state: AwaitingControl
     signal: AwaitTimedOut
     next: Failed
+    metric_labels:
+      phase: failed_await_timeout
   - state: AwaitingControl
     signal: ServerStopped
     next: Failed
+    metric_labels:
+      phase: failed_await_stop
   - state: AwaitingControl
     signal: CommandError
     next: Failed
+    metric_labels:
+      phase: failed_await_cmd
   - state: Exiting
     signal: AgentExited
     next: StoppingDocs
     action: serve_documentation
+    metric_labels:
+      phase: docs_shutdown
   - state: Exiting
     signal: CommandError
     next: Failed
+    metric_labels:
+      phase: failed_exit
   - state: StoppingDocs
     signal: ServerStopped
     next: Done
+    metric_labels:
+      phase: complete
   - state: StoppingDocs
     signal: ServerLaunched
     next: Failed
+    metric_labels:
+      phase: failed_stop_state
   - state: StoppingDocs
     signal: CommandError
     next: Failed
+    metric_labels:
+      phase: failed_stop_cmd
