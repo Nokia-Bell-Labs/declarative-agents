@@ -152,6 +152,13 @@ type Endpoint struct {
 	Queue              QueueConfig         `yaml:"queue,omitempty"`
 	MachineRequest     MachineRequest      `yaml:"machine_request,omitempty"`
 	StaticAssets       *StaticAssetsConfig `yaml:"static_assets,omitempty"`
+	Redirect           *RedirectConfig     `yaml:"redirect,omitempty"`
+}
+
+// RedirectConfig is HTTP redirect response settings for binding redirect.
+type RedirectConfig struct {
+	Location string `yaml:"location"`
+	Status   int    `yaml:"status,omitempty"`
 }
 
 // LifecycleControl validates and maps lifecycle control HTTP requests.

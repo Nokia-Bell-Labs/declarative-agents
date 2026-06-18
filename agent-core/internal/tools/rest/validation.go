@@ -5,6 +5,7 @@ package rest
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 )
 
@@ -19,8 +20,9 @@ const (
 	redirectSameHost  = "same_host"
 	redirectAllowlist = "allowlist"
 
-	bindingDynamicSignal  = "emit_dynamic_signal"
-	bindingStaticAssets   = "static_assets"
+	bindingDynamicSignal = "emit_dynamic_signal"
+	bindingStaticAssets  = "static_assets"
+	bindingRedirect      = "redirect"
 
 	queueOverflowReject     = "reject"
 	queueOverflowDropOldest = "drop_oldest"
@@ -315,8 +317,19 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 			name, endpoint.Binding, bindingStaticAssets,
 		)
 	}
+	if endpoint.Redirect != nil && endpoint.Binding != bindingRedirect {
+		return fmt.Errorf(
+			"endpoint %q has redirect config but binding is %q (want %q)",
+			name, endpoint.Binding, bindingRedirect,
+		)
+	}
 	if endpoint.Binding == bindingStaticAssets {
 		if err := validateStaticAssetsEndpoint(name, endpoint); err != nil {
+			return err
+		}
+	}
+	if endpoint.Binding == bindingRedirect {
+		if err := validateRedirectEndpoint(name, endpoint); err != nil {
 			return err
 		}
 	}
@@ -430,23 +443,59 @@ func validateStaticAssetsEndpoint(name string, endpoint Endpoint) error {
 }
 
 func validateStaticAssetsNoConflicts(name string, endpoint Endpoint) error {
+	return validateInboundAssetLikeNoConflicts(name, "static_assets", endpoint)
+}
+
+func validateRedirectEndpoint(name string, endpoint Endpoint) error {
+	if endpoint.Redirect == nil {
+		return fmt.Errorf("endpoint %q redirect binding requires redirect config", name)
+	}
+	if strings.TrimSpace(endpoint.Redirect.Location) == "" {
+		return fmt.Errorf("endpoint %q redirect requires non-empty location", name)
+	}
+	if strings.TrimSpace(endpoint.Method) == "" || strings.ToUpper(strings.TrimSpace(endpoint.Method)) != "GET" {
+		return fmt.Errorf("endpoint %q redirect requires GET method", name)
+	}
+	if st := endpoint.Redirect.Status; st != 0 && !validInboundRedirectStatus(st) {
+		return fmt.Errorf("endpoint %q redirect status must be 301, 302, 303, 307, or 308 (got %d)", name, st)
+	}
+	return validateInboundAssetLikeNoConflicts(name, "redirect", endpoint)
+}
+
+func validInboundRedirectStatus(status int) bool {
+	switch status {
+	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther,
+		http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
+		return true
+	default:
+		return false
+	}
+}
+
+func validateInboundAssetLikeNoConflicts(name, bindingLabel string, endpoint Endpoint) error {
 	if endpoint.Signal != "" {
-		return fmt.Errorf("endpoint %q static_assets must not set signal", name)
+		return fmt.Errorf("endpoint %q %s must not set signal", name, bindingLabel)
 	}
 	if len(endpoint.AllowedSignals) > 0 {
-		return fmt.Errorf("endpoint %q static_assets must not set allowed_signals", name)
+		return fmt.Errorf("endpoint %q %s must not set allowed_signals", name, bindingLabel)
 	}
 	if lifecycleControlSet(endpoint.LifecycleControl) {
-		return fmt.Errorf("endpoint %q static_assets must not set lifecycle_control", name)
+		return fmt.Errorf("endpoint %q %s must not set lifecycle_control", name, bindingLabel)
 	}
 	if machineRequestYAMLSet(endpoint.MachineRequest) {
-		return fmt.Errorf("endpoint %q static_assets must not set machine_request", name)
+		return fmt.Errorf("endpoint %q %s must not set machine_request", name, bindingLabel)
 	}
 	if endpoint.MonitorView != "" {
-		return fmt.Errorf("endpoint %q static_assets must not set monitor_view", name)
+		return fmt.Errorf("endpoint %q %s must not set monitor_view", name, bindingLabel)
 	}
 	if queueConfigSet(endpoint.Queue) {
-		return fmt.Errorf("endpoint %q static_assets must not set queue", name)
+		return fmt.Errorf("endpoint %q %s must not set queue", name, bindingLabel)
+	}
+	if endpoint.StaticAssets != nil && bindingLabel == "redirect" {
+		return fmt.Errorf("endpoint %q redirect must not set static_assets", name)
+	}
+	if endpoint.Redirect != nil && bindingLabel == "static_assets" {
+		return fmt.Errorf("endpoint %q static_assets must not set redirect", name)
 	}
 	return nil
 }
