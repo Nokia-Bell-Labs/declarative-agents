@@ -26,21 +26,29 @@ type demoConfig struct {
 
 // START OMIT
 func main() {
-	flagProfiles := flag.String("profiles-root", "", "path to agent-profiles repository root (default: walk upward from the working directory)")
-	flagCore := flag.String("core-root", "", "path to agent-core checkout for --core-root and builtin overlay (default: sibling ../agent-core of profiles root)")
-	flagWorkspace := flag.String("workspace", "", "workspace directory for cmd/agent --directory (default: core-root if set, otherwise profiles root)")
-	flagAgent := flag.String("agent", "", "path to agent binary (default: build from core-root when set, otherwise agent on PATH)")
+	if err := runKnowledgeManagerDemo(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+}
+
+// END OMIT
+
+// runKnowledgeManagerDemo parses CLI flags, resolves paths, and runs StartAgent until the process exits.
+func runKnowledgeManagerDemo() error {
+	flagProfiles := flag.String("profiles-root", "", "agent-profiles repo root (walk upward from cwd if empty)")
+	flagCore := flag.String("core-root", "", "agent-core checkout for demo overlay (default: sibling ../agent-core)")
+	flagWorkspace := flag.String("workspace", "", "workspace for agent --directory (default: core or profiles root)")
+	flagAgent := flag.String("agent", "", "agent binary (default: build from core-root, else agent on PATH)")
 	flag.Parse()
 
 	cfg, err := ResolveDemoConfig(*flagProfiles, *flagCore, *flagWorkspace, *flagAgent)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
+		return err
 	}
 	StartAgent(knowledgeManagerProfile, cfg)
+	return nil
 }
-
-// END OMIT
 
 // ResolveDemoConfig resolves launcher paths from explicit flags or repository layout.
 func ResolveDemoConfig(profilesFlag, coreFlag, workspaceFlag, agentFlag string) (demoConfig, error) {
