@@ -69,30 +69,67 @@ func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.handleEndpoint(w, req, name, endpoint, payload)
 }
 
+type routeMatch struct {
+	name     string
+	endpoint Endpoint
+	vars     map[string]string
+	score    int
+	catchAll bool
+}
+
 func (r *serverRuntime) matchEndpoint(req *http.Request) (string, Endpoint, map[string]string, bool) {
-	bestName := ""
-	var best Endpoint
-	var bestVars map[string]string
-	bestScore := -1
+	best := routeMatch{}
+	found := false
 	for name, endpoint := range r.def.Server.Endpoints {
 		vars, ok := matchPath(endpoint.Path, req.URL.Path)
 		if !ok {
 			continue
 		}
-		score := 0
-		for _, seg := range pathSegments(endpoint.Path) {
-			if !strings.HasPrefix(seg, "{") {
-				score++
-			}
+		candidate := routeMatch{
+			name: name, endpoint: endpoint, vars: vars,
+			score:    literalSegmentScore(endpoint.Path),
+			catchAll: pathHasCatchAll(endpoint.Path),
 		}
-		if score > bestScore || (score == bestScore && (bestName == "" || name < bestName)) {
-			bestScore, bestName, best, bestVars = score, name, endpoint, vars
+		if !found || moreSpecificRoute(candidate, best) {
+			best, found = candidate, true
 		}
 	}
-	if bestScore < 0 {
+	if !found {
 		return "", Endpoint{}, nil, false
 	}
-	return bestName, best, bestVars, true
+	return best.name, best.endpoint, best.vars, true
+}
+
+// moreSpecificRoute reports whether candidate should win over the current best.
+// Higher literal-segment count wins; on a tie an exact route beats a trailing
+// catch-all; otherwise the lexicographically smaller name wins for stability.
+func moreSpecificRoute(candidate, best routeMatch) bool {
+	if candidate.score != best.score {
+		return candidate.score > best.score
+	}
+	if candidate.catchAll != best.catchAll {
+		return !candidate.catchAll
+	}
+	return candidate.name < best.name
+}
+
+func literalSegmentScore(path string) int {
+	score := 0
+	for _, seg := range pathSegments(path) {
+		if !strings.HasPrefix(seg, "{") {
+			score++
+		}
+	}
+	return score
+}
+
+func pathHasCatchAll(path string) bool {
+	segs := pathSegments(path)
+	if len(segs) == 0 {
+		return false
+	}
+	_, ok := catchAllParam(segs[len(segs)-1])
+	return ok
 }
 
 func (r *serverRuntime) handleEndpoint(
@@ -477,7 +514,7 @@ func pathSegmentCountsMatch(want, got []string) bool {
 		return len(got) == 0
 	}
 	if _, ok := catchAllParam(want[len(want)-1]); ok {
-		return len(got) >= len(want)
+		return len(got) >= len(want)-1
 	}
 	return len(want) == len(got)
 }
