@@ -81,6 +81,72 @@ func TestStaticAssets_SPAServesIndexForUnknownPath(t *testing.T) {
 	require.Equal(t, "<html>spa</html>", out)
 }
 
+func TestStaticAssets_SPARootServesIndex(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("<html>root</html>"), 0o644))
+
+	srv := Server{
+		Address: "127.0.0.1:0",
+		Queue:   QueueConfig{Name: "static_root", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]Endpoint{
+			"ui": {
+				Method: "GET", Path: "/ui/{path...}",
+				Binding: bindingStaticAssets,
+				StaticAssets: &StaticAssetsConfig{
+					Root: root,
+					SPA:  true,
+				},
+				Request: RequestBinding{Path: map[string]interface{}{
+					"path": map[string]interface{}{"type": "string"},
+				}},
+			},
+		},
+	}
+	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	defer stopRESTServer(t, state, "static_root")
+
+	for _, p := range []string{"/ui/", "/ui"} {
+		out := requestBody(t, http.MethodGet, baseURL+p, "", http.StatusOK)
+		require.Equal(t, "<html>root</html>", out, "path %q should serve the index", p)
+	}
+}
+
+func TestStaticAssets_exactRouteWinsOverEmptyCatchAll(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("idx"), 0o644))
+
+	srv := Server{
+		Address: "127.0.0.1:0",
+		Queue:   QueueConfig{Name: "exact_vs_catch", Capacity: 4, Timeout: "20ms"},
+		Endpoints: map[string]Endpoint{
+			"index": {Method: "GET", Path: "/docs", Binding: bindingHealth},
+			"docs": {
+				Method: "GET", Path: "/docs/{path...}",
+				Binding: bindingStaticAssets,
+				StaticAssets: &StaticAssetsConfig{
+					Root: root,
+					SPA:  true,
+				},
+				Request: RequestBinding{Path: map[string]interface{}{
+					"path": map[string]interface{}{"type": "string"},
+				}},
+			},
+		},
+	}
+	state, baseURL := launchRESTServer(t, srv, LimitProfile{})
+	defer stopRESTServer(t, state, "exact_vs_catch")
+
+	exact := requestBody(t, http.MethodGet, baseURL+"/docs", "", http.StatusOK)
+	require.Contains(t, exact, "ok", "/docs must resolve to the literal route, not the empty-tail catch-all")
+
+	nested := requestBody(t, http.MethodGet, baseURL+"/docs/anything", "", http.StatusOK)
+	require.Equal(t, "idx", nested)
+}
+
 func TestStaticAssets_missingFile404WithoutSPA(t *testing.T) {
 	t.Parallel()
 
@@ -153,11 +219,11 @@ func TestStaticAssets_metadataIncludesEndpointNames(t *testing.T) {
 		Address: "127.0.0.1:0",
 		Queue:   QueueConfig{Name: "static_meta", Capacity: 4, Timeout: "20ms"},
 		Endpoints: map[string]Endpoint{
-			"health": {Method: "GET", Path: "/health", Binding: bindingHealth},
+			"health":   {Method: "GET", Path: "/health", Binding: bindingHealth},
 			"metadata": {Method: "GET", Path: "/metadata", Binding: bindingStaticMetadata},
 			"assets": {
 				Method: "GET", Path: "/files/{path...}",
-				Binding: bindingStaticAssets,
+				Binding:      bindingStaticAssets,
 				StaticAssets: &StaticAssetsConfig{Root: root},
 				Request: RequestBinding{Path: map[string]interface{}{
 					"path": map[string]interface{}{"type": "string"},
