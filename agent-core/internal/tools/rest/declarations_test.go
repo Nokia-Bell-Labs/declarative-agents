@@ -117,12 +117,19 @@ func restDeclarationsPath(t *testing.T) string {
 
 func documentationCuratorDeclarationsPath(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(profileRoot(t), "knowledge-manager", "documentation-curator", "declarations.yaml")
+	return filepath.Join(documentationCuratorFixtureDir(t), "declarations.yaml")
 }
 
 func documentationCuratorRestPath(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(profileRoot(t), "knowledge-manager", "documentation-curator", "rest.yaml")
+	return filepath.Join(documentationCuratorFixtureDir(t), "rest.yaml")
+}
+
+func documentationCuratorFixtureDir(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	return filepath.Join(filepath.Dir(file), "testdata", "documentation-curator")
 }
 
 func toolDefNames(defs []catalog.ToolDef) []string {

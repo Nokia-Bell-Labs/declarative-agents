@@ -1,0 +1,84 @@
+openapi: 3.0.3
+info:
+  title: Ollama Local API
+  version: v1
+  description: |
+    Minimal OpenAPI fixture for the Ollama List Local Models endpoint.
+    Source: https://github.com/ollama/ollama/blob/main/docs/api.md#list-local-models
+servers:
+  - url: http://127.0.0.1:11434
+paths:
+  /api/tags:
+    get:
+      operationId: listOllamaModels
+      summary: List local models
+      description: List models that are available locally.
+      responses:
+        "200":
+          description: A single JSON object containing locally available models.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - models
+                properties:
+                  models:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - name
+                        - model
+                        - modified_at
+                        - size
+                        - digest
+                        - details
+                      properties:
+                        name:
+                          type: string
+                          example: deepseek-r1:latest
+                        model:
+                          type: string
+                          example: deepseek-r1:latest
+                        modified_at:
+                          type: string
+                          format: date-time
+                          example: "2025-05-10T08:06:48.639712648-07:00"
+                        size:
+                          type: integer
+                          format: int64
+                          example: 4683075271
+                        digest:
+                          type: string
+                          example: 0a8c266910232fd3291e71e5ba1e058cc5af9d411192cf88b6d30e92b6e73163
+                        details:
+                          type: object
+                          required:
+                            - parent_model
+                            - format
+                            - family
+                            - families
+                            - parameter_size
+                            - quantization_level
+                          properties:
+                            parent_model:
+                              type: string
+                            format:
+                              type: string
+                              example: gguf
+                            family:
+                              type: string
+                              example: qwen2
+                            families:
+                              type: array
+                              items:
+                                type: string
+                              example:
+                                - qwen2
+                            parameter_size:
+                              type: string
+                              example: 7.6B
+                            quantization_level:
+                              type: string
+                              example: Q4_K_M

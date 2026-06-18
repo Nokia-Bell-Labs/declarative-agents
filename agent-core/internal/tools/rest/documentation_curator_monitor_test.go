@@ -14,7 +14,7 @@ import (
 func TestDocumentationCuratorMonitorREST_StateEventsAndUI(t *testing.T) {
 	t.Parallel()
 
-	def, err := LoadDefinition(documentationCuratorRestPath(t))
+	def, err := LoadDefinition(filepath.Join(documentationCuratorFixtureDir(t), "rest.yaml"))
 	require.NoError(t, err)
 
 	srv, limits := curatorMonitorServerForTest(t, def)
@@ -56,7 +56,8 @@ func curatorMonitorServerForTest(t *testing.T, def Definition) (Server, LimitPro
 	srv, ok := def.Servers["monitor"]
 	require.True(t, ok, "documentation-curator rest.yaml should define servers.monitor")
 	srv.Address = "127.0.0.1:0"
-	prof := profileRoot(t)
+	fixture := documentationCuratorFixtureDir(t)
+	const curatorPrefix = "agents/knowledge-manager/documentation-curator/"
 	for name, ep := range srv.Endpoints {
 		if ep.StaticAssets == nil || ep.StaticAssets.Root == "" {
 			continue
@@ -65,8 +66,11 @@ func curatorMonitorServerForTest(t *testing.T, def Definition) (Server, LimitPro
 		if filepath.IsAbs(r) {
 			continue
 		}
-		rel := strings.TrimPrefix(r, "agents/")
-		ep.StaticAssets.Root = filepath.Join(prof, filepath.FromSlash(rel))
+		if !strings.HasPrefix(r, curatorPrefix) {
+			t.Fatalf("unexpected static_assets root %q", r)
+		}
+		rel := strings.TrimPrefix(r, curatorPrefix)
+		ep.StaticAssets.Root = filepath.Join(fixture, filepath.FromSlash(rel))
 		srv.Endpoints[name] = ep
 	}
 	lim, ok := def.Limits[srv.LimitsRef]
