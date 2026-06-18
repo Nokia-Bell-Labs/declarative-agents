@@ -90,6 +90,7 @@ func addHeaderValues(payload map[string]interface{}, schema map[string]interface
 		field := strings.ToLower(name)
 		spec, declared := lookupHeaderSchema(schema, field)
 		if !declared {
+			// Tolerate standard browser and transport headers; see allowedUndeclaredHeaders in server_routes.go.
 			if allowedUndeclaredHeaders[field] {
 				continue
 			}

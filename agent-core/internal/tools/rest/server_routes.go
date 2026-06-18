@@ -25,9 +25,26 @@ const (
 )
 
 var allowedUndeclaredHeaders = map[string]bool{
-	"accept": true, "accept-encoding": true, "connection": true,
-	"content-length": true, "content-type": true, "user-agent": true,
-	"x-request-id": true,
+	"accept": true, "accept-encoding": true, "accept-language": true,
+	"cache-control": true, "connection": true,
+	"content-length": true, "content-type": true,
+	"cookie": true, "dnt": true,
+	"host":              true,
+	"if-modified-since": true, "if-none-match": true,
+	"origin": true,
+	"pragma": true, "priority": true,
+	"range":                       true,
+	"referer":                     true,
+	"sec-ch-prefers-color-scheme": true,
+	"sec-ch-ua":                   true, "sec-ch-ua-arch": true, "sec-ch-ua-bitness": true,
+	"sec-ch-ua-full-version": true, "sec-ch-ua-full-version-list": true,
+	"sec-ch-ua-mobile": true, "sec-ch-ua-model": true, "sec-ch-ua-platform": true,
+	"sec-ch-ua-wow64": true,
+	"sec-fetch-dest":  true, "sec-fetch-mode": true, "sec-fetch-site": true,
+	"sec-fetch-storage-access": true, "sec-fetch-user": true,
+	"upgrade-insecure-requests": true,
+	"user-agent":                true,
+	"x-request-id":              true,
 }
 
 func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
