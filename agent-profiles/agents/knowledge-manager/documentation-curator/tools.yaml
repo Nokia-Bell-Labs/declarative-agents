@@ -2,6 +2,9 @@ tools:
   - serve_documentation
   - launch_curator_control
   - await_curator_control
+  - launch_monitor_rest
+  - await_monitor_control
+  - stop_monitor_rest
   - exit_agent
   - doc_list
   - doc_get
