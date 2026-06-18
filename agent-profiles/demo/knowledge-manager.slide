@@ -6,8 +6,9 @@ Agent Profiles
 
 Click Run to start the Knowledge Manager documentation server.
 
-Open the running server after it starts:
+Open the running servers after they start:
 
-[[http://localhost:18081][http://localhost:18081]]
+- Documentation: [[http://localhost:18081][http://localhost:18081]]
+- Monitor: [[http://localhost:18084/ui/][http://localhost:18084/ui/]]
 
 .play start_knowledge_manager.go /START OMIT/,/END OMIT/
