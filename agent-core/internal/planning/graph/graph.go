@@ -9,7 +9,7 @@ import (
 
 	dag "github.com/dominikbraun/graph"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 // Graph wraps a dominikbraun/graph DAG of requirement nodes with

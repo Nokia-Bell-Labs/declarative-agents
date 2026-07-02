@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation"
 	"gopkg.in/yaml.v3"
 )
 

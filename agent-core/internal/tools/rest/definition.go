@@ -3,7 +3,7 @@
 // Package rest loads and validates declarative REST boundary definitions.
 package rest
 
-import "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+import "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 
 // DefinitionFile is the top-level YAML document for REST config files.
 type DefinitionFile struct {

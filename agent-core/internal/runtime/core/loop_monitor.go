@@ -5,7 +5,7 @@ package core
 import (
 	"context"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 )
 
 func recordMonitorEvent(ctx context.Context, rec monitor.RuntimeRecorder, event RunEvent) {

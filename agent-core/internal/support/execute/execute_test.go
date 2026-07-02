@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 
-	agentllm "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
-	agenttel "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
+	agentllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
+	agenttel "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 )
 
 func TestFormatTraceparent(t *testing.T) {

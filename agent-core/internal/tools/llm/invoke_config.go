@@ -5,7 +5,7 @@ package llm
 import (
 	"fmt"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 // DecodeInvokeLLMConfig decodes and validates invoke_llm config.

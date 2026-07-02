@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 )
 
 const (

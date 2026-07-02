@@ -3,7 +3,7 @@
 package stl
 
 import (
-	toollifecycle "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/lifecycle"
+	toollifecycle "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
 )
 
 type (

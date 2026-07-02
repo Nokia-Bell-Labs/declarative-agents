@@ -5,7 +5,7 @@ ARG RUNTIME_IMAGE=alpine:3.22
 
 FROM ${GO_IMAGE} AS builder
 
-ARG AGENT_CORE_REPO=https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git
+ARG AGENT_CORE_REPO=https://github.com/Nokia-Bell-Labs/declarative-agents/agent-core.git
 ARG AGENT_CORE_REF=main
 
 WORKDIR /src
@@ -91,7 +91,7 @@ USER agent:agent
 
 LABEL org.opencontainers.image.title="Agent Core" \
       org.opencontainers.image.description="Declarative Grammar Machine agent runtime for mounted profiles" \
-      org.opencontainers.image.source="https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core" \
+      org.opencontainers.image.source="https://github.com/Nokia-Bell-Labs/declarative-agents/agent-core" \
       org.opencontainers.image.vendor="Nokia"
 
 STOPSIGNAL SIGTERM

@@ -8,7 +8,7 @@ package extract
 import (
 	"fmt"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/graph"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
 )
 
 const defaultMaxWeight = 5

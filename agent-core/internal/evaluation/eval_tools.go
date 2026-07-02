@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 // Signals emitted by atomic evaluator workspace preparation commands.

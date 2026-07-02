@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/evaluation"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation"
 )
 
 func TestSessionAPIsReturnEvaluationArtifacts(t *testing.T) {

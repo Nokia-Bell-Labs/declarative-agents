@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 const defaultOutputLineCap = 200

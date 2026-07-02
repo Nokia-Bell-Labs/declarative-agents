@@ -1,4 +1,4 @@
-module gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-profiles
+module github.com/Nokia-Bell-Labs/declarative-agents/agent-profiles
 
 go 1.26.3
 

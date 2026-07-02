@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/knowledge/documentation/ui"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/knowledge/documentation/ui"
 )
 
 // HostConfig configures the standalone documentation UI host.

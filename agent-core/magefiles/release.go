@@ -17,7 +17,7 @@ const (
 	baseBranch           = "main"
 	agentCoreRefEnvVar   = "AGENT_CORE_REF"
 	agentCoreRepoEnvVar  = "AGENT_CORE_REPO"
-	defaultAgentCoreRepo = "https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git"
+	defaultAgentCoreRepo = "https://github.com/Nokia-Bell-Labs/declarative-agents/agent-core.git"
 )
 
 // Tag creates a documentation release tag (v0.YYYYMMDD.N).

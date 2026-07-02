@@ -1,4 +1,4 @@
-module gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core
+module github.com/Nokia-Bell-Labs/declarative-agents/agent-core
 
 go 1.26.3
 
