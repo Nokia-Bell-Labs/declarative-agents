@@ -1,0 +1,8 @@
+tools:
+- name: diff_stat
+  binary: git
+  args:
+  - diff
+  - --stat
+  description: Show a summary of uncommitted changes (files changed, insertions, deletions).
+  precondition: git_repo

@@ -1,0 +1,168 @@
+id: srd030-machine-request-rest-binding
+title: Machine Request REST Binding
+
+problem: |
+  Knowledge Manager demo requests need to enter Agent Core through REST without
+  moving request-specific workflow into Go HTTP handlers. A direct handler can
+  validate transport data and write a response. It still hides the sentence
+  that handles the request.
+
+  For REST server runtime, we need a binding that turns one inbound HTTP
+  request into one short-lived MachineSpec execution. Request data becomes
+  grammar input. Declared words handle the request inside the selected machine.
+  Only a response word can carry HTTP response data back to the transport layer.
+
+goals:
+  - G1: Define a REST server binding that starts one short-lived machine run for one inbound HTTP request.
+  - G2: Keep request handling composition in MachineSpec transitions instead of direct Go handlers.
+  - G3: Define request input mapping, response extraction, error mapping, timeout behavior, and trace recording.
+  - G4: Keep profile, machine, tool selection, and response policy under trusted configuration.
+
+requirements:
+  R1:
+    title: Binding scope
+    items:
+      - R1.1: REST server endpoints MAY use binding machine_request when one HTTP request should execute one configured MachineSpec run.
+      - R1.2: The machine_request binding SHALL be a REST server boundary binding under internal/tools/rest.
+      - R1.3: The binding SHALL use the same core.Loop execution model as other configured agent programs.
+      - R1.4: The binding SHALL NOT implement demo request behavior as direct Go handler workflow composition.
+      - R1.5: The binding SHALL support short-lived request/response executions, not long-running background agent sessions.
+
+  R2:
+    title: Configured machine authority
+    items:
+      - R2.1: Trusted REST configuration SHALL name the profile or profile-equivalent runtime inputs used for the request machine.
+      - R2.2: Configuration SHALL name or resolve the MachineSpec, selected ToolDefs, boundary tool config, initial state, terminal states, and allowed response signals.
+      - R2.3: Runtime HTTP callers SHALL NOT choose the machine file, profile path, tool declarations, model boundary config, or filesystem roots.
+      - R2.4: The request machine SHALL use selected vocabulary words exactly like any other MachineSpec execution.
+      - R2.5: The binding SHALL reject configuration that references missing machines, missing tools, unresolved response words, or undeclared terminal signals.
+      - R2.6: Profile-backed request runners SHALL load ToolDefs only from trusted profile declaration roots and SHALL narrow the selected vocabulary to action names used by the configured request MachineSpec.
+      - R2.7: A request MachineSpec action that is missing from the trusted selected vocabulary SHALL fail configuration validation before any HTTP request starts a machine run.
+
+  R3:
+    title: Request input mapping
+    items:
+      - R3.1: The binding SHALL validate method, path, query, headers, and body before starting the machine run.
+      - R3.2: Configuration SHALL declare which path, query, header, and body fields become machine request input.
+      - R3.3: Request input SHALL be provided to the initial machine action through structured Result output or an equivalent configured seed payload.
+      - R3.4: Request metadata SHALL include request ID, route name, method, path template, correlation ID, remote address policy, and redacted diagnostics.
+      - R3.5: Invalid HTTP input SHALL return the configured validation error response and SHALL NOT start a machine run.
+
+  R4:
+    title: Response extraction
+    items:
+      - R4.1: A machine_request run SHALL produce an HTTP response only from configured terminal response data.
+      - R4.2: Response words SHALL be the only bridge from machine output back to HTTP status, headers, and body.
+      - R4.3: Configuration SHALL map allowed terminal signals or response word output to status code, headers, body fields, and content type.
+      - R4.4: The binding SHALL reject terminal output that cannot satisfy the configured response schema.
+      - R4.5: Missing response output SHALL map to a configured default response or a structured server error.
+
+  R5:
+    title: Error and timeout mapping
+    items:
+      - R5.1: Machine construction, validation, dispatch, tool, timeout, cancellation, and terminal response failures SHALL map to configured HTTP error responses.
+      - R5.2: The binding SHALL distinguish request_invalid, machine_config_invalid, machine_run_failed, machine_timeout, response_invalid, and response_missing stages.
+      - R5.3: Request-scoped timeout SHALL bound the whole machine run and SHALL cancel the run context when it expires.
+      - R5.4: A timed-out run SHALL return the configured timeout status and redacted diagnostic output.
+      - R5.5: Error responses SHALL NOT expose secrets, raw prompts, internal paths, credentials, or unredacted request bodies.
+
+  R6:
+    title: Trace and lifecycle behavior
+    items:
+      - R6.1: The binding SHALL emit generic machine_request trace metadata from internal/tools/rest for server name, route name, request machine identity, terminal signal, iteration count, and run status.
+      - R6.2: Trace attributes and events SHALL redact configured secret material.
+      - R6.3: The machine run SHALL record normal RunResult and RunEvent data for the short-lived sentence.
+      - R6.4: If lifecycle ports are enabled, checkpoints SHALL keep HTTP request metadata separate from command/domain state and workspace state.
+      - R6.5: The binding SHALL clean up request-scoped machine state after the response unless configuration declares retained trace or audit artifacts.
+      - R6.6: Same-origin host proxies MAY own the lifecycle of a configured request server when the proxy is only a transport adapter, launches the generic REST server from trusted profile configuration, and exposes the same machine_request trace envelope as a server launched by rest_server_launch.
+
+non_goals:
+  - Replacing rest_server_await or rest_await_event for long-lived event queues.
+  - Letting HTTP callers choose arbitrary machines, tools, prompts, credentials, URLs, or filesystem roots.
+  - Generating Go handlers from MachineSpec or OpenAPI documents.
+  - Encoding Knowledge Manager demo behavior in direct Go HTTP handlers.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The SRD defines machine_request as a REST server binding that turns one inbound HTTP request into one short-lived MachineSpec execution.
+    traces: [R1.1, R1.2, R1.3, R1.5]
+
+  - id: AC2
+    criterion: The SRD states that direct Go handlers are not the composition mechanism for demo request behavior.
+    traces: [R1.4]
+
+  - id: AC3
+    criterion: Configuration owns profile, machine, selected tools, initial state, terminal state, and response signal authority; runtime callers cannot choose those values, and request-machine actions must resolve through trusted profile ToolDefs.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
+
+  - id: AC4
+    criterion: Request input mapping validates HTTP fields, builds structured machine input, carries request metadata, and rejects invalid input before machine execution.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+
+  - id: AC5
+    criterion: Response extraction uses configured response words or terminal output to shape HTTP status, headers, body, and content type.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+
+  - id: AC6
+    criterion: Error and timeout mapping cover validation, config, run, timeout, cancellation, response, and redaction behavior.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+
+  - id: AC7
+    criterion: Generic trace and lifecycle requirements record request-scoped machine execution, identify the server route and request machine, and keep request metadata separate from command/domain and workspace state.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6]
+
+depends_on:
+  - srd_id: srd005-agentic-loop
+    symbols_used: [Loop, RunResult, RunEvent, LoopParams]
+  - srd_id: srd006-yaml-machine-config
+    symbols_used: [MachineSpec]
+  - srd_id: srd027-rest-tool-runtime
+    symbols_used: [internal/tools/rest, request validation, tracing, timeout, redaction]
+  - srd_id: srd029-rest-server-tools
+    symbols_used: [REST server endpoint binding, request validation, response mapping]
+
+related_documents:
+  - docs/specs/semantic-models/machine-request-http.yaml
+  - docs/specs/semantic-models/rest-tool-language.yaml
+  - docs/specs/config-formats/rest-tool-format.yaml
+  - docs/ARCHITECTURE.yaml
+
+implementation_status:
+  implemented:
+    - internal/tools/rest implements the machine_request endpoint binding.
+    - agents/knowledge-manager/documentation-curator/rest.yaml routes document index and detail requests through documentation_curator_requests machine_request endpoints.
+    - agents/knowledge-manager/documentation-curator/request-machine.yaml defines the short-lived request machine used by the generic REST server path.
+    - ProfileMachineRequestRunner loads request ToolDefs from trusted profile declaration roots and selects only request MachineSpec action names.
+    - internal/tools/rest emits server, route, request machine, terminal signal, iteration, and run status trace fields in the generic machine_request response envelope.
+    - internal/knowledge/documentation owns the documentation_curator_requests lifecycle through a same-origin proxy that stays a transport adapter over the generic REST server.
+    - mage integration:uc007 and plain go test cover request-to-machine response behavior, trace evidence, selected request factories, and same-origin proxy lifecycle cleanup.
+    - Configured machine_request terminal response schemas are enforced before success responses; invalid terminal output maps to response_invalid error handling.
+  partial: []
+  planned_follow_up: []
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Knowledge Manager demo requests need to enter Agent C..."] --> Goals["Goals: Machine Request REST Binding"]
+      Goals --> R1["R1: Binding scope"]
+      Goals --> R2["R2: Configured machine authority"]
+      Goals --> R3["R3: Request input mapping"]
+      Goals --> R4["R4: Response extraction"]
+      Goals --> R5["R5: Error and timeout mapping"]
+      Goals --> R6["R6: Trace and lifecycle behavior"]
+      AC1["AC1: The SRD defines machine_request as a REST server binding..."]
+      R1 --> AC1
+      AC2["AC2: The SRD states that direct Go handlers are not the compos..."]
+      R1 --> AC2
+      AC3["AC3: Configuration owns profile, machine, selected tools, init..."]
+      R2 --> AC3
+      AC4["AC4: Request input mapping validates HTTP fields, builds struc..."]
+      R3 --> AC4
+      AC5["AC5: Response extraction uses configured response words or ter..."]
+      R4 --> AC5
+      AC6["AC6: Error and timeout mapping cover validation, config, run,..."]
+      R5 --> AC6
+      AC7["AC7: Generic trace and lifecycle requirements record request-s..."]
+      R6 --> AC7
+    ```

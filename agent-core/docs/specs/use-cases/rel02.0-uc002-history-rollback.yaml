@@ -1,0 +1,71 @@
+id: rel02.0-uc002-history-rollback
+title: User inspects history and rolls back after a bad tool action
+
+summary: |
+  A user notices that an agent took a bad action, such as an incorrect edit or
+  a child process that generated unwanted artifacts. With lifecycle recording
+  enabled, the user inspects the ordered History, chooses a target iteration,
+  and asks the runtime to roll back. Rollback walks History backward, calls
+  Command.Undo for command/domain state, restores Workspace to the target ref,
+  and returns a state-machine position from which execution can resume.
+
+actor: Developer reviewing an agent run
+
+trigger: |
+  The developer finds an undesirable result in the workspace or conversation
+  after a run with history and workspace checkpointing enabled.
+
+flow:
+  - F1: During execution, Loop records a HistoryEntry for each dispatched Command when lifecycle recording is enabled (srd025 R5).
+  - F2: Mutating commands record enough pre-execution state or workspace refs to support Command.Undo and Workspace.Restore (srd025 R4, R5).
+  - F3: The developer inspects History entries, including iteration, command name, from/to states, result signal, result summary, and workspace ref through the checkpoint_history lifecycle adapter when a profile selects it (srd026 R2, R5).
+  - F4: The developer selects the last known-good iteration as the rollback target.
+  - F5: Rollback traverses History in reverse dispatch order from the current iteration to the target through core rollback traversal or the checkpoint_rollback lifecycle adapter (srd025 R7, srd026 R3).
+  - F6: For each traversed command, rollback calls Command.Undo to restore command/domain state such as conversation, planner, or evaluator state (srd025 R4, R7).
+  - F7: Rollback restores Workspace to the target workspace ref or initial ref for full rollback (srd025 R3, R7).
+  - F8: Rollback reports the resumed agent state and any partial failure details so the developer can choose to continue, retry, or stop (srd025 R7).
+
+touchpoints:
+  - T1: "srd001-core-types R2, R8 -- Command.Undo and rollback foundation types"
+  - T2: "srd005-agentic-loop R4, R7 -- optional rollback ports preserve nil behavior"
+  - T3: "srd025-rollback-lifecycle R1, R3, R4, R5, R7, R10 -- history, command undo, workspace restore, rollback traversal"
+  - T4: "sm-rollback-lifecycle -- reverse traversal and layer ownership"
+  - T5: "sm-command-undo-audit -- current command-specific undo migration checklist"
+  - T6: "srd026-lifecycle-tools R1, R2, R3, R4, R5, R6 -- checkpoint_history and checkpoint_rollback adapters, typed config, ToolDef declarations, errors"
+
+success_criteria:
+  - id: S1
+    criterion: History exposes enough information to choose a rollback target without inspecting private command objects.
+    traces:
+      - srd025-rollback-lifecycle AC3
+  - id: S2
+    criterion: Rollback restores command/domain state through Command.Undo in reverse dispatch order.
+    traces:
+      - srd025-rollback-lifecycle AC3
+  - id: S3
+    criterion: Rollback restores filesystem/environment state through Workspace refs instead of StateStore JSON.
+    traces:
+      - srd025-rollback-lifecycle AC4
+  - id: S4
+    criterion: Partial rollback failures name the failed layer, such as command undo, workspace restore, or checkpoint/state-store restore.
+    traces:
+      - srd025-rollback-lifecycle AC4
+
+failure_scenarios:
+  - id: E1
+    scenario: A traversed command has only NoopUndo but mutated command/domain state.
+    expected: The rollback report identifies the missing real undo strategy as a residual risk.
+  - id: E2
+    scenario: Workspace ref is missing for a mutating command.
+    expected: Rollback stops or reports partial rollback rather than silently claiming success.
+  - id: E3
+    scenario: A tool is irreversible or compensatable rather than reversible.
+    expected: Rollback reports the compensation or confirmation requirement declared in ToolDef.
+
+out_of_scope:
+  - Replaying a full run forward from scratch.
+  - Designing the final rollback CLI syntax.
+  - Rolling back external systems that only support manual compensation.
+
+semantic_model: sm-rollback-lifecycle
+test_suite_trace: test-rel02.0-lifecycle

@@ -1,0 +1,1038 @@
+id: test-rel00.0
+title: Test Suite for Release 00.0 (Core Engine Import)
+release: "00.0"
+
+traces:
+  - rel00.0-uc001-domain-agent-integration
+  - rel00.0-uc002-spec-corpus-validation
+
+preconditions:
+  - Go toolchain installed (go 1.26+)
+  - internal/runtime/core, internal/observability/tracing, and internal/observability/telemetry packages buildable
+
+test_cases:
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Loop runs a two-step state machine to completion
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      table: "Start->Working->Finished (two commands)"
+      budget: "MaxIterations=100"
+    expected:
+      status: succeeded
+      final_state: Finished
+      iterations: 2
+    traces:
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Loop stops when iteration budget is exhausted
+    go_test: TestLoop_BudgetExhausted
+    inputs:
+      budget: "MaxIterations=1"
+    expected:
+      status: budget_exceeded
+      final_state: OverBudget
+    traces:
+      - srd005-agentic-loop AC1
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Loop produces cancelled status on context cancellation
+    go_test: TestLoop_ContextCancellation
+    inputs:
+      context: "pre-cancelled"
+    expected:
+      status: cancelled
+    traces:
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: ValidateParams hook aborts the run on error
+    go_test: TestLoop_ValidateParamsHook
+    inputs:
+      hooks: "ValidateParams checks for nonexistent builder"
+    expected:
+      error: "contains 'nonexistent'"
+    traces:
+      - srd005-agentic-loop AC3
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: ValidateBuilders helper checks named builders
+    go_test: TestLoop_ValidateBuildersHelper
+    inputs:
+      registry: "one builder named 'a'"
+    expected:
+      validate_a: pass
+      validate_a_b: fail
+    traces:
+      - srd005-agentic-loop AC6
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: OnResult hook is called after each dispatch
+    go_test: TestLoop_OnResultHook
+    inputs:
+      hooks: "OnResult increments a counter"
+    expected:
+      call_count: 2
+    traces:
+      - srd005-agentic-loop AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Custom BudgetExceeded hook triggers budget exhaustion
+    go_test: TestLoop_CustomBudgetHook
+    inputs:
+      hooks: "BudgetExceeded returns true at iteration >= 1"
+    expected:
+      status: budget_exceeded
+    traces:
+      - srd005-agentic-loop AC1
+      - srd005-agentic-loop AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Core source contains no mode-specific tool policy literals
+    go_test: TestCoreSourceDoesNotEmbedModeOrToolPolicyNames
+    inputs:
+      source: "internal/runtime/core/*.go excluding tests"
+      forbidden_literals: "agent mode names and workflow tool init names"
+    expected:
+      policy_boundary: "workflow behavior stays in MachineSpec and tool config"
+    traces:
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Agent runtime does not branch on agent mode names
+    go_test: TestMainRuntimeDoesNotBranchOnAgentModeNames
+    inputs:
+      source: "cmd/agent/main.go"
+      forbidden_branches: "if/switch comparisons against generator, planner, evaluator, bench, validate"
+    expected:
+      bootstrap_boundary: "selected tool init gates are allowed; mode branches are not"
+    traces:
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Token counts are accumulated in RunResult
+    go_test: TestLoop_AccumulatesTokens
+    inputs:
+      command_cost: "50 tokens in, 50 tokens out"
+    expected:
+      tokens_in: 50
+      tokens_out: 50
+    traces:
+      - srd005-agentic-loop AC2
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Loop emits init.registry_frozen OTel event
+    go_test: TestLoop_EmitsRegistryFrozenEvent
+    inputs:
+      trace: "loopRecorder"
+    expected:
+      event: "init.registry_frozen"
+    traces:
+      - srd005-agentic-loop AC5
+      - srd004-tool-registry AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: RunResult.Duration is positive after completion
+    go_test: TestLoop_DurationTracked
+    inputs:
+      table: "two-step state machine"
+    expected:
+      duration: "> 0"
+    traces:
+      - srd005-agentic-loop AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Default terminal status maps Succeeded, BudgetExceeded, and others
+    go_test: TestLoop_DefaultTerminalStatus
+    inputs:
+      states: "[Succeeded, BudgetExceeded, Anything]"
+    expected:
+      succeeded_status: succeeded
+      budget_status: budget_exceeded
+      other_status: failed
+    traces:
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Core budget check on iteration and token limits
+    go_test: TestCoreBudgetExceeded
+    inputs:
+      budget_scenarios: "zero limits, iteration limits, token limits"
+    expected:
+      zero_unlimited: false
+      at_limit: true
+      below_limit: false
+    traces:
+      - srd005-agentic-loop AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Token budget triggers BudgetExhausted signal
+    go_test: TestLoop_TokenBudgetExhausted
+    inputs:
+      budget: "MaxTokens=1"
+      command_cost: "50 tokens"
+    expected:
+      status: budget_exceeded
+    traces:
+      - srd005-agentic-loop AC1
+      - srd005-agentic-loop AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Valid YAML parses into correct MachineSpec
+    go_test: TestParseMachineSpec_Valid
+    inputs:
+      yaml: "4 states, 2 terminals, 3 transitions"
+    expected:
+      name: test-machine
+      states: 4
+      terminals: 2
+      transitions: 3
+    traces:
+      - srd006-yaml-machine-config AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Missing initial_state produces validation error
+    go_test: TestParseMachineSpec_MissingInitialState
+    inputs:
+      yaml: "no initial_state field"
+    expected:
+      error: "initial_state is required"
+    traces:
+      - srd006-yaml-machine-config AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Unknown state in transition produces validation error
+    go_test: TestParseMachineSpec_UnknownStateInTransition
+    inputs:
+      yaml: "transition references state 'C' not in states list"
+    expected:
+      error: "state \"C\" not in states list"
+    traces:
+      - srd006-yaml-machine-config AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Unknown signal in transition produces validation error
+    go_test: TestParseMachineSpec_UnknownSignalInTransition
+    inputs:
+      yaml: "transition references signal 'Unknown' not in signals list"
+    expected:
+      error: "signal \"Unknown\" not in signals list"
+    traces:
+      - srd006-yaml-machine-config AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Terminal state not in states list produces validation error
+    go_test: TestParseMachineSpec_TerminalNotInStates
+    inputs:
+      yaml: "terminal_states: [Z] but Z not in states"
+    expected:
+      error: "terminal_state \"Z\" not in states list"
+    traces:
+      - srd006-yaml-machine-config AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: BuildTransitionTable resolves named actions from registry
+    go_test: TestBuildTransitionTable
+    inputs:
+      spec: "valid YAML with do_work action"
+      registry: "do_work builder registered"
+    expected:
+      table_size: 3
+      done_terminal: true
+      error_terminal: true
+    traces:
+      - srd006-yaml-machine-config AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: $tool sentinel invokes the caller-supplied toolAction
+    go_test: TestBuildTransitionTable_ToolActionSentinel
+    inputs:
+      spec: "transition with action: $tool"
+      tool_action: "sets called=true"
+    expected:
+      called: true
+    traces:
+      - srd006-yaml-machine-config AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: $tool with nil toolAction produces an error
+    go_test: TestBuildTransitionTable_ToolActionNil
+    inputs:
+      spec: "transition with action: $tool"
+      tool_action: nil
+    expected:
+      error: "not nil"
+    traces:
+      - srd006-yaml-machine-config AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Unknown action name produces an error
+    go_test: TestBuildTransitionTable_UnknownAction
+    inputs:
+      spec: "transition with action: nonexistent"
+      registry: empty
+    expected:
+      error: "\"nonexistent\" not found in registry"
+    traces:
+      - srd006-yaml-machine-config AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Loading a nonexistent file produces an error
+    go_test: TestLoadMachineSpec_FileNotFound
+    inputs:
+      path: "/nonexistent/path/machine.yaml"
+    expected:
+      error: "not nil"
+    traces:
+      - srd006-yaml-machine-config AC4
+
+  # --- srd001: core types (verified by compilation and loop tests) ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: State and Signal are named string types with three generic constants
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      signals: "Seed, BudgetExhausted, CommandError used in loop setup"
+    expected:
+      compiles: true
+    traces:
+      - srd001-core-types AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Command interface has Name, Execute, and Undo methods
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      commands: "fakeCmd implements Command with Name(), Execute(), and Undo()"
+    expected:
+      dispatched: true
+    traces:
+      - srd001-core-types AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Cost struct has Duration, TokensIn, TokensOut, and Dollars
+    go_test: TestLoop_AccumulatesTokens
+    inputs:
+      cost: "tokenFakeCmd returns Cost{TokensIn: 50, TokensOut: 50}"
+    expected:
+      accumulated: true
+    traces:
+      - srd001-core-types AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Result struct has Output, Signal, Cost, Err, and CommandName
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      result: "fakeCmd returns Result{Signal, CommandName}"
+    expected:
+      fields_used: true
+    traces:
+      - srd001-core-types AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Builder has Build(Result) Command, CommandResolver has Resolve
+    go_test: TestLoop_ValidateBuildersHelper
+    inputs:
+      registry: "registers fakeBuilder, resolves by name"
+    expected:
+      builder_resolved: true
+    traces:
+      - srd001-core-types AC5
+
+  # --- srd002: state machine (verified by loop and machine tests) ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: TransitionTable maps state-signal pairs to transitions
+    go_test: TestBuildTransitionTable
+    inputs:
+      table: "3 transitions built from YAML"
+    expected:
+      table_size: 3
+    traces:
+      - srd002-state-machine AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: TerminalFunc is domain-supplied predicate
+    go_test: TestBuildTransitionTable
+    inputs:
+      terminals: "[Done, Error]"
+    expected:
+      done_terminal: true
+      idle_not_terminal: true
+    traces:
+      - srd002-state-machine AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Step performs lookup, calls ActionFunc, handles missing entries
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      state_machine: "Start->Working->Finished via Step calls"
+    expected:
+      transitions: 3
+    traces:
+      - srd002-state-machine AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: IsTerminal delegates to TerminalFunc
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      terminal: "Finished, OverBudget, Broken"
+    expected:
+      loop_stops: true
+    traces:
+      - srd002-state-machine AC4
+
+  # --- srd003: command dispatch ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Dispatch creates child span and stamps attributes
+    go_test: go test ./internal/runtime/core -run 'TestDispatch_(StampsSpanAttributesAndCommandName|RecordsCommandErrorsOnSpan)|TestDispatchWithMonitor_EmitsDispatchMetrics'
+    inputs:
+      command: "dispatchResultCmd"
+      tracer: "dispatchTestTracer"
+      monitor: "dispatchRuntimeRecorder"
+    expected:
+      child_span_recorded: true
+      command_attributes_stamped: true
+      error_recorded: true
+      dispatch_metrics_emitted: true
+    traces:
+      - srd003-command-dispatch AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: SafeExecute recovers panics and enforces timeout
+    go_test: go test ./internal/runtime/core -run 'TestSafeExecute_(RecoversPanicAndForcesCommandError|TimeoutAndIndefiniteWait)'
+    inputs:
+      commands: "panic command, timeout command, zero-timeout wait command"
+    expected:
+      panic_signal: CommandError
+      timeout_signal: CommandError
+      zero_timeout_waits: true
+    traces:
+      - srd003-command-dispatch AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: FillDuration and ForceErrorSignal operate on Result pointers
+    go_test: TestFillDurationAndForceErrorSignal
+    inputs:
+      result: "Result pointer with zero duration and non-nil error"
+    expected:
+      duration_positive: true
+      existing_duration_preserved: true
+      signal: CommandError
+    traces:
+      - srd003-command-dispatch AC3
+
+  # --- srd004: tool registry (additional coverage) ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Manifest returns sorted External tools filtered by PhaseMatch
+    go_test: TestBuildTransitionTable
+    inputs:
+      registry: "do_work registered with Phases: [Running]"
+    expected:
+      phase_match: true
+    traces:
+      - srd004-tool-registry AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: AllToolNames and ExternalToolNames return sorted lists
+    go_test: TestLoop_EmitsRegistryFrozenEvent
+    inputs:
+      registry: "multiple tools registered"
+    expected:
+      tool_count: "> 0"
+    traces:
+      - srd004-tool-registry AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Registry satisfies CommandResolver interface
+    go_test: TestLoop_ValidateBuildersHelper
+    inputs:
+      registry: "resolves builders by name"
+    expected:
+      resolves: true
+    traces:
+      - srd004-tool-registry AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Visibility enum with External and Internal, ToolSpec fields
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      registry: "tools with Internal visibility registered"
+    expected:
+      visibility_set: true
+    traces:
+      - srd004-tool-registry AC1
+
+  # --- srd005: agentic loop (additional coverage) ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: LoopParams bundles all inputs for Loop
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      params: "InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, Hooks"
+    expected:
+      loop_runs: true
+    traces:
+      - srd005-agentic-loop AC4
+
+  # --- srd007: tracer interface ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Tracer interface has Push, Event, SetAttributes methods
+    go_test: TestLoop_EmitsRegistryFrozenEvent
+    inputs:
+      tracer: "loopRecorder implements Tracer with Push, Event, SetAttributes"
+    expected:
+      interface_satisfied: true
+    traces:
+      - srd007-tracer-interface AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: internal/observability/tracing depends only on otel/attribute
+    go_test: TestLoop_RunsToCompletion
+    inputs:
+      imports: "internal/observability/tracing imports only go.opentelemetry.io/otel/attribute"
+    expected:
+      no_sdk_import: true
+    traces:
+      - srd007-tracer-interface AC2
+
+  # --- srd008: telemetry ---
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: NewRoot rejects empty ExporterConfig
+    go_test: TestNewRoot_EmptyConfig
+    inputs:
+      config: "ExporterConfig{} (both fields empty)"
+    expected:
+      error: "at least one exporter required"
+    traces:
+      - srd008-telemetry AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Trace Push creates child, Event records event, SetAttributes sets attributes
+    go_test: TestTrace_PushEventSetAttributes
+    inputs:
+      trace: "Trace from NewRoot with file exporter"
+    expected:
+      child_created: true
+      event_recorded: true
+      attributes_set: true
+    traces:
+      - srd008-telemetry AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Trace Context returns context, Meter returns meter
+    go_test: TestTrace_ContextAndMeter
+    inputs:
+      trace: "Trace from NewRoot"
+    expected:
+      context_not_nil: true
+      meter_not_nil: true
+    traces:
+      - srd008-telemetry AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: NewRoot with file exporter creates providers and root span
+    go_test: TestNewRoot_FileExporter
+    inputs:
+      config: "ExporterConfig{FilePath: tempfile}"
+    expected:
+      trace_not_zero: true
+      shutdown_not_nil: true
+    traces:
+      - srd008-telemetry AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Shutdown is idempotent and flushes providers
+    go_test: TestNewRoot_ShutdownIdempotent
+    inputs:
+      shutdown: "called twice"
+    expected:
+      no_panic: true
+    traces:
+      - srd008-telemetry AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: File exporter writes temp file and renames atomically
+    go_test: TestNewRoot_FileExporterAtomicRename
+    inputs:
+      config: "ExporterConfig{FilePath: target}"
+    expected:
+      temp_file_during: true
+      final_file_after: true
+    traces:
+      - srd008-telemetry AC6
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: OTLP exporter configuration accepted
+    go_test: TestNewRoot_OTLPExporter
+    inputs:
+      config: "ExporterConfig{OTLPEndpoint: localhost:4317}"
+    expected:
+      trace_not_zero: true
+    traces:
+      - srd008-telemetry AC7
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: TraceAdapter satisfies tracing.Tracer and wraps Push
+    go_test: TestTraceAdapter_SatisfiesInterface
+    inputs:
+      adapter: "TraceAdapter{T: trace}"
+    expected:
+      interface_check: "compile-time var _ tracing.Tracer = TraceAdapter{}"
+      push_returns_adapter: true
+    traces:
+      - srd008-telemetry AC8
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: ReplayFile reads OTLP JSON and sends spans
+    go_test: TestReplayFile_InvalidPath
+    inputs:
+      path: "/nonexistent/trace.json"
+    expected:
+      error: "not nil"
+    traces:
+      - srd008-telemetry AC9
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Checkpoint contracts compile and round-trip
+    go_test: TestCheckpointContractsCompileAndRoundTrip
+    inputs:
+      checkpoint: "agent snapshot, domain JSON, workspace ref, history digest"
+    expected:
+      state_layers_separate: true
+      json_round_trip: true
+    traces:
+      - srd001-core-types AC8
+      - srd005-agentic-loop AC7
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Conversation append mode avoids Chat calls
+    go_test: TestConversation_AppendDoesNotCallChat
+    inputs:
+      message: "manual user message"
+    expected:
+      chat_called: false
+      history_contains_message: true
+    traces:
+      - srd010-conversation AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Conversation send and append preserve order
+    go_test: TestConversation_AppendThenSend
+    inputs:
+      operations: "append, send"
+    expected:
+      history_order_preserved: true
+      assistant_response_appended: true
+    traces:
+      - srd010-conversation AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Conversation history uses defensive copies
+    go_test: TestConversation_HistoryCopySemantics
+    inputs:
+      mutation: "modify returned history"
+    expected:
+      internal_history_unchanged: true
+    traces:
+      - srd010-conversation AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Conversation assembles system prompt and history
+    go_test: TestConversation_AssembleMessages
+    inputs:
+      system_prompt: "non-empty"
+      history: "user and assistant messages"
+    expected:
+      system_first: true
+      history_included: true
+    traces:
+      - srd010-conversation AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Conversation compatibility methods support generator history migration
+    go_test: TestConversation_Messages
+    inputs:
+      methods: "Append, Messages, Reset"
+    expected:
+      messages_alias_history: true
+      reset_clears_history: true
+    traces:
+      - srd010-conversation AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Conversation reset preserves reuse
+    go_test: TestConversation_ResetThenSend
+    inputs:
+      operations: "send, reset, send"
+    expected:
+      history_cleared: true
+      second_send_succeeds: true
+    traces:
+      - srd010-conversation AC6
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Prompt struct assembles deterministic sections
+    go_test: TestLoadPrompt_StructuredFull
+    inputs:
+      prompt: "role, task, constraints, output_format"
+    expected:
+      sections_counted: true
+      assemble_deterministic: true
+    traces:
+      - srd011-prompt-schema AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Prompt YAML loads structured and simple modes
+    go_test: TestLoadPrompt_StructuredDefaults
+    inputs:
+      yaml_modes: "structured task and simple prompt"
+    expected:
+      defaults_applied: true
+      simple_maps_to_task: true
+    traces:
+      - srd011-prompt-schema AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Prompt loader reports conflicts and file errors
+    go_test: TestLoadPrompt_BothFieldsError
+    inputs:
+      yaml: "task and prompt both set"
+    expected:
+      error_reported: true
+    traces:
+      - srd011-prompt-schema AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Prompt load result records mode and lengths
+    go_test: TestLoadPromptFromString_Success
+    inputs:
+      prompt_string: "inline task"
+    expected:
+      mode: string
+      task_length_recorded: true
+    traces:
+      - srd011-prompt-schema AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Prompt defaults are exported and overridable
+    go_test: TestLoadPrompt_StructuredPartialOverride
+    inputs:
+      yaml: "task plus role override"
+    expected:
+      compiled_defaults_used: true
+      override_applied: true
+    traces:
+      - srd011-prompt-schema AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Prompt loading rejects empty tasks
+    go_test: TestLoadPrompt_EmptyTask
+    inputs:
+      task: ""
+    expected:
+      error_reported: true
+    traces:
+      - srd011-prompt-schema AC6
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: System prompt emits embedded template sections conditionally
+    go_test: go test ./internal/model/prompt
+    inputs:
+      prompt_data: "role, task, tool manifest"
+    expected:
+      role_and_task_rendered: true
+      tool_manifest_rendered: true
+    traces:
+      - srd012-system-prompt-template AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: PromptData envelope and strict format control output
+    go_test: TestRender_WithEnvelope
+    inputs:
+      envelope: "<tool> tags"
+      strict_format: true
+    expected:
+      envelope_instructions_rendered: true
+      strict_format_instructions_rendered: true
+    traces:
+      - srd012-system-prompt-template AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: System prompt output has no trailing newline
+    go_test: TestRender_NoTrailingNewlines
+    inputs:
+      prompt_data: "role, task, tool manifest"
+    expected:
+      trailing_newline: false
+    traces:
+      - srd012-system-prompt-template AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Custom system prompt template succeeds or errors
+    go_test: TestRenderWith_CustomTemplate
+    inputs:
+      template: "ROLE and TASK fields"
+    expected:
+      rendered: true
+      invalid_template_errors: true
+    traces:
+      - srd012-system-prompt-template AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: SerializeManifest emits headings and schema fences
+    go_test: TestSerializeManifest_SingleToolWithSchema
+    inputs:
+      tools: "one ToolSpec with JSON schema"
+    expected:
+      heading_present: true
+      json_fence_present: true
+    traces:
+      - srd012-system-prompt-template AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: SerializeManifest normalizes schema JSON
+    go_test: TestNormalizeSchema_ReIndents
+    inputs:
+      schema: "compact JSON object"
+    expected:
+      schema_indented_two_spaces: true
+      invalid_json_preserved: true
+    traces:
+      - srd012-system-prompt-template AC6
+
+  - use_case: rel00.0-uc002-spec-corpus-validation
+    name: Spec parsers load typed YAML artifacts
+    go_test: TestParseSpecIndex
+    inputs:
+      artifacts: "SRD, use case, test suite, roadmap, spec index"
+    expected:
+      typed_structs_loaded: true
+    traces:
+      - srd014-spec-graph AC1
+
+  - use_case: rel00.0-uc002-spec-corpus-validation
+    name: Spec graph builds node and edge relationships
+    go_test: TestBuildGraph_NodeCounts
+    inputs:
+      corpus: "valid fixture corpus"
+    expected:
+      node_kinds_present: true
+      edges_present: true
+    traces:
+      - srd014-spec-graph AC2
+
+  - use_case: rel00.0-uc002-spec-corpus-validation
+    name: Spec validation reports graph findings
+    go_test: TestValidate_ReturnsFindings
+    inputs:
+      corpus: "fixture with validation findings"
+    expected:
+      findings_have_check_and_message: true
+    traces:
+      - srd014-spec-graph AC3
+
+  - use_case: rel00.0-uc002-spec-corpus-validation
+    name: Spec corpus loader discovers standard docs layout
+    go_test: TestLoadCorpus_Valid
+    inputs:
+      root: "pkg/spec/testdata/valid"
+    expected:
+      srds_loaded: true
+      use_cases_loaded: true
+      test_suites_loaded: true
+    traces:
+      - srd014-spec-graph AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: GenAI attribute constants and output types are exported
+    go_test: TestInferenceAttrs
+    inputs:
+      provider: ollama
+      model: qwen
+    expected:
+      genai_attributes_present: true
+      provider_and_output_constants_present: true
+    traces:
+      - srd015-genai-semconv AC1
+      - srd015-genai-semconv AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: GenAI span names follow operation target format
+    go_test: TestAgentSpanName
+    inputs:
+      names: "agent, tool, workflow, inference"
+    expected:
+      operation_target_format: true
+      empty_name_falls_back: true
+    traces:
+      - srd015-genai-semconv AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: GenAI attribute builders return expected slices
+    go_test: TestToolAttrs
+    inputs:
+      attrs: "inference, agent, tool, workflow, usage, error"
+    expected:
+      operation_attrs_present: true
+      optional_empty_values_omitted: true
+    traces:
+      - srd015-genai-semconv AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Traceparent formats valid and invalid contexts
+    go_test: TestFormatTraceparent_Valid
+    inputs:
+      span_context: valid
+    expected:
+      traceparent_round_trips: true
+      invalid_context_returns_empty: true
+    traces:
+      - srd016-traceparent AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Traceparent parent span parsing builds remote context
+    go_test: TestParseParentSpan_Valid
+    inputs:
+      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    expected:
+      remote_context_created: true
+      empty_input_background: true
+      invalid_input_errors: true
+    traces:
+      - srd016-traceparent AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: PropagateArgs builds child process flags
+    go_test: TestPropagateArgs_Build_Full
+    inputs:
+      span_context: valid
+      durations: "5m, 2m"
+    expected:
+      traceparent_formatted: true
+      zero_values_omitted: true
+    traces:
+      - srd018-cli-flag-contract AC2
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: RemainingBudget computes wall-clock remainder
+    go_test: TestRemainingBudget
+    inputs:
+      cases: "unlimited, remaining, exhausted"
+    expected:
+      zero_for_unlimited: true
+      zero_for_exhausted: true
+      remainder_computed: true
+    traces:
+      - srd018-cli-flag-contract AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Standard CLI flag constants match contract
+    go_test: TestFlagConstants
+    inputs:
+      constants: "standard child-agent flags"
+    expected:
+      flag_names_match: true
+    traces:
+      - srd018-cli-flag-contract AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: FormatFlag emits prefixed flag pair
+    go_test: TestFormatFlag
+    inputs:
+      name: model
+      value: qwen
+    expected:
+      args: ["--model", "qwen"]
+    traces:
+      - srd018-cli-flag-contract AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: LLM tools parse responses and manage retry state
+    go_test: go test ./internal/tools/stl -run 'Test(InvokeLLM|ParseResponse|ReportParseError|ResetHistory)'
+    inputs:
+      llm_tools: "invoke_llm, parse_response, report_parse_error, reset_history"
+    expected:
+      conversation_updated: true
+      parser_validates_tools: true
+      retry_counter_managed: true
+      timeout_and_context_limits_enforced: true
+    traces:
+      - srd013-standard-tool-library AC3
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Subprocess helpers map output and process groups
+    go_test: go test ./internal/tools/stl -run 'Test(SubprocessResult|CapOutput|ExtractStringParam|ProcGroupCmd|RunProcGroup)'
+    inputs:
+      subprocesses: "success, non-zero exit, timeout, missing binary"
+    expected:
+      result_signals_mapped: true
+      output_capped: true
+      params_extracted: true
+      process_group_timeout_handled: true
+    traces:
+      - srd013-standard-tool-library AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Tool declarations load and register selected tools
+    go_test: go test ./internal/tools/stl -run 'Test(LoadToolDeclarations|SelectTools|RegisterToolDefs|ParseToolDefs)'
+    inputs:
+      declarations: "builtin and exec tool YAML"
+      selection: "selected tool names"
+    expected:
+      declarations_loaded: true
+      selection_validated: true
+      registry_populated: true
+      legacy_paths_available: true
+    traces:
+      - srd013-standard-tool-library AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Tool metrics parse test and build output
+    go_test: go test ./internal/tools/stl -run 'TestParse(Test|Build)Metrics'
+    inputs:
+      outputs: "go test and go build output samples"
+    expected:
+      pass_fail_skip_counts: true
+      build_failed_detected: true
+      file_error_counts: true
+    traces:
+      - srd013-standard-tool-library AC7
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: SpanOverride customizes dispatch span
+    go_test: TestSpanOverrideCustomizesDispatchSpan
+    inputs:
+      command: spanOverrideCmd
+      span_name: custom-span
+      span_attr: custom.attr
+    expected:
+      command_signal: ToolDone
+      command_name_stamped: true
+      custom_span_name_used: true
+      custom_attrs_used: true
+    traces:
+      - srd001-core-types AC6
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: ToolMetrics JSON tags preserve structured counts
+    go_test: TestToolMetricsJSONTagsAndOmitEmptyDetails
+    inputs:
+      metrics: "total, passed, failed, details"
+    expected:
+      json_tags_match_contract: true
+      details_omitted_when_empty: true
+    traces:
+      - srd001-core-types AC7
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: NoopTracer satisfies and discards tracer operations
+    go_test: TestNoopTracerSatisfiesInterfaceAndDiscardsOperations
+    inputs:
+      operations: "Push, Event, SetAttributes, RecordError, Context"
+    expected:
+      compile_time_interface: true
+      child_tracer_noop: true
+      context_background: true
+      operations_do_not_panic: true
+    traces:
+      - srd007-tracer-interface AC3

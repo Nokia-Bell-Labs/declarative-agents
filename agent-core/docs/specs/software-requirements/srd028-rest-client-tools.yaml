@@ -1,0 +1,313 @@
+id: srd028-rest-client-tools
+title: REST Client Tools
+
+problem: |
+  Agent profiles need outbound REST tools that are declared as vocabulary
+  words, not coded as one adapter per service. That matters. When an endpoint
+  behaves like stored state, the configured program should choose a resource
+  word so the operation's effect and rollback story stay visible in ToolDef.
+  Invoke is reserved for RPC-shaped endpoints that do not fit that resource
+  model.
+
+  REST client definitions must keep transport authority in trusted
+  configuration. Tool config fixes the upstream and operation. Runtime input
+  supplies only declared request parameters, usually from explicit tool input
+  or the previous Result. The generic client code sends the HTTP request
+  through net/http; then it maps the response into structured output and a
+  signal that MachineSpec can route.
+
+goals:
+  - G1: Define outbound REST client tools as first-class ToolDef vocabulary words.
+  - G2: Define resource-oriented get, set, create, and delete words.
+  - G3: Define rest_client_invoke for RPC-shaped REST operations.
+  - G4: Define asynchronous rest_client_send and rest_client_await behavior.
+  - G5: Define result signals for reads, writes, missing resources, async sends, responses, domain failures, and infrastructure failures.
+  - G6: Define config-bound authority, runtime parameters, response shaping, tracing, metrics, idempotency, and undo expectations.
+
+requirements:
+  R1:
+    title: Client tool scope
+    items:
+      - R1.1: REST client tools SHALL be declared as type builtin ToolDefs with category boundary.
+      - R1.2: REST client tools SHALL call outbound HTTP operations through net/http.
+      - R1.3: REST client tools SHALL use configured REST operation definitions loaded from hand-authored YAML or OpenAPI imports.
+      - R1.4: REST client tools SHALL use shared runtime rules from srd027-rest-tool-runtime.
+      - R1.5: REST client tools SHALL keep workflow order in MachineSpec transitions, not inside service-specific Go adapters.
+
+  R2:
+    title: Config-bound operation authority
+    items:
+      - R2.1: Tool config SHALL fix the REST client or upstream identity.
+      - R2.2: Tool config SHALL fix the resource and operation when a tool is operation-specific.
+      - R2.3: Tool config SHALL define method, path template, allowed query parameters, allowed header parameters, request schema, response schema, success status mapping, and failure status mapping.
+      - R2.4: Runtime input SHALL supply only declared path, query, header, and body parameters.
+      - R2.5: Runtime input MAY come from explicit tool parameters, previous Result output, or command state when declared by the tool.
+      - R2.6: Runtime input SHALL NOT supply arbitrary method, URL, authentication, redirect policy, or destination host.
+
+  R3:
+    title: Resource-oriented words
+    items:
+      - R3.1: rest_client_get SHALL read one configured resource or collection without mutating the upstream service.
+      - R3.2: rest_client_set SHALL replace or update an existing configured resource when the REST definition declares update semantics.
+      - R3.3: rest_client_create SHALL create a configured resource when the REST definition declares create semantics.
+      - R3.4: rest_client_delete SHALL delete or deactivate a configured resource when the REST definition declares delete semantics.
+      - R3.5: Resource-oriented words SHOULD be preferred over rest_client_invoke when the endpoint maps to read, update, create, or delete behavior.
+      - R3.6: Resource-oriented words SHALL declare side effects and undo expectations based on the resource operation.
+
+  R4:
+    title: rest_client_invoke
+    items:
+      - R4.1: rest_client_invoke SHALL call a configured REST operation whose semantics are action-like or RPC-shaped.
+      - R4.2: rest_client_invoke SHALL be used for operations such as approve, reject, trigger, search, calculate, exchange, or provider-specific actions that are not simple resource reads or writes.
+      - R4.3: rest_client_invoke SHALL still resolve an operation name from trusted config, not from model-supplied transport data.
+      - R4.4: rest_client_invoke SHALL declare the domain signal mapping for success, accepted async work, domain failure, and infrastructure failure.
+      - R4.5: rest_client_invoke SHALL declare if the action is reversible, compensatable, or irreversible.
+
+  R5:
+    title: Asynchronous client words
+    items:
+      - R5.1: rest_client_send SHALL start one configured outbound operation and return before the final response when the operation is declared asynchronous.
+      - R5.2: rest_client_send SHALL emit RESTAccepted or CommandError.
+      - R5.3: rest_client_send output SHALL include request ID, operation ID, idempotency token when configured, submitted payload summary, and correlation metadata.
+      - R5.4: rest_client_send SHALL store async operation state in command state or shared request state indexed by request ID.
+      - R5.5: rest_client_await SHALL wait for completion of a previously sent REST operation by request ID, correlation token, or configured operation state.
+      - R5.6: rest_client_await SHALL emit RESTResponded, RESTDomainFailed, RESTMissing, RESTAwaitTimedOut, or CommandError.
+      - R5.7: rest_client_await SHALL consume or update async operation state according to configured retention policy.
+
+  R6:
+    title: Result signals
+    items:
+      - R6.1: RESTResourceRead SHALL signal a successful read of a configured resource.
+      - R6.2: RESTResourceWritten SHALL signal a successful create, update, set, delete, or deactivation operation.
+      - R6.3: RESTMissing SHALL signal a configured not-found or already-absent response.
+      - R6.4: RESTAccepted SHALL signal that an asynchronous request was accepted and can be awaited later.
+      - R6.5: RESTResponded SHALL signal that a configured non-resource or awaited operation returned a successful response.
+      - R6.6: RESTDomainFailed SHALL signal a service-level failure that is part of the operation contract.
+      - R6.7: CommandError SHALL signal infrastructure failure, config failure, schema failure, auth failure, network I/O failure, timeout, redaction failure, or response mapping failure.
+
+  R7:
+    title: Response shaping and output
+    items:
+      - R7.1: REST client tools SHALL map HTTP response status, headers, and body into structured Result output according to configured response mappings.
+      - R7.2: REST client tools SHALL preserve raw status code and operation identity in output or diagnostics.
+      - R7.3: REST client tools SHALL validate response body against configured response schema when one is declared.
+      - R7.4: REST client tools SHALL support configured extraction of resource ID, version, ETag, request ID, domain error code, and retry-after metadata.
+      - R7.5: REST client tools SHALL redact configured secret fields before producing Result output.
+      - R7.6: REST client tools SHOULD expose output schemas in ToolDef output fields so downstream machine actions can consume structured results.
+
+  R8:
+    title: Idempotency and retries
+    items:
+      - R8.1: REST client tools SHOULD support configured idempotency tokens for create, set, delete, invoke, and send operations.
+      - R8.2: Idempotency tokens MAY come from config, runtime input, previous Result output, or generated request state when declared.
+      - R8.3: Retry policy SHALL be configured per operation and SHALL respect srd027 timeout, redirect, and size-limit rules.
+      - R8.4: Retries SHALL not be enabled for non-idempotent operations unless config declares an idempotency token or safe retry policy.
+      - R8.5: Tool output and traces SHOULD include retry count and idempotency metadata when available.
+
+  R9:
+    title: Metrics, tracing, and redaction
+    items:
+      - R9.1: REST client tools SHOULD trace operation ID, resource name, method, configured host, status code, elapsed time, retry count, request byte count, response byte count, and resulting signal.
+      - R9.2: ToolMetrics SHOULD include status code, retry count, response size, operation ID, and domain outcome when available.
+      - R9.3: REST client tools SHALL redact configured headers, query fields, body fields, credentials, and tokens from traces, metrics, errors, and Result output.
+      - R9.4: Verbose request or response body capture SHALL require explicit configuration and redaction rules.
+
+  R10:
+    title: Undo and compensation
+    items:
+      - R10.1: rest_client_get undo SHALL be noop because read operations do not mutate upstream state.
+      - R10.2: rest_client_set undo SHOULD use a configured previous-state restore or compensating action when the prior state is available.
+      - R10.3: rest_client_create undo SHOULD use a configured delete or deactivate compensation when the created resource ID is available.
+      - R10.4: rest_client_delete undo SHOULD use a configured restore or recreate compensation when the prior state is available.
+      - R10.5: rest_client_invoke undo SHALL be noop unless the operation declares a compensating action.
+      - R10.6: rest_client_send undo SHALL record async request metadata and compensation state when the submitted operation can be cancelled or compensated.
+      - R10.7: rest_client_await undo SHALL be noop unless await mutates command state that can be restored.
+      - R10.8: Irreversible REST client operations SHOULD require confirmation before affecting user data, external services, or shared infrastructure.
+
+  R11:
+    title: Errors and recovery
+    items:
+      - R11.1: REST client errors SHALL distinguish config_decode, operation_lookup, schema_invalid, request_rendering, auth_resolution, network_io, timeout, status_mapping, response_mapping, async_state_missing, and compensation_missing stages.
+      - R11.2: Error output SHALL include operation ID, resource name when known, failure stage, status code when present, redacted diagnostic text, and resulting signal.
+      - R11.3: Domain failure status codes SHALL map to RESTDomainFailed or RESTMissing when declared by the operation.
+      - R11.4: Infrastructure failures SHALL map to CommandError and SHALL not be confused with service-domain failures.
+
+non_goals:
+  - Defining inbound REST server tools; see srd029-rest-server-tools.
+  - Auto-wiring every lifecycle profile to a REST compensation executor; callers opt in through the core rollback options.
+  - Allowing runtime input to choose arbitrary URLs, methods, authentication, or network destinations.
+  - Generating Go clients from OpenAPI documents.
+  - Replacing MachineSpec sequencing with hidden REST client workflows.
+
+tool_words:
+  - name: rest_client_get
+    input: declared path, query, header parameters, and optional previous Result source.
+    output: resource payload, status code, headers, resource ID, version metadata, operation ID.
+    signals: [RESTResourceRead, RESTMissing, RESTDomainFailed, CommandError]
+    side_effects: [external_api_read]
+    errors: [operation_lookup, schema_invalid, auth_resolution, network_io, timeout, response_mapping]
+    undo: noop.
+  - name: rest_client_set
+    input: declared path, query, header, and body parameters for an existing resource.
+    output: written resource payload or summary, status code, resource ID, version metadata, operation ID.
+    signals: [RESTResourceWritten, RESTMissing, RESTDomainFailed, CommandError]
+    side_effects: [external_api_write]
+    errors: [operation_lookup, schema_invalid, request_rendering, auth_resolution, network_io, timeout, status_mapping]
+    undo: previous-state restore or compensating action when configured; otherwise noop with irreversible or compensatable contract.
+  - name: rest_client_create
+    input: declared path, query, header, and body parameters for a new resource.
+    output: created resource payload or summary, status code, resource ID, location header, operation ID.
+    signals: [RESTResourceWritten, RESTDomainFailed, CommandError]
+    side_effects: [external_api_write]
+    errors: [operation_lookup, schema_invalid, request_rendering, auth_resolution, network_io, timeout, status_mapping]
+    undo: configured delete or deactivate compensation when resource ID is available.
+  - name: rest_client_delete
+    input: declared path, query, header, and optional body parameters for a resource delete or deactivate operation.
+    output: delete summary, status code, resource ID, operation ID.
+    signals: [RESTResourceWritten, RESTMissing, RESTDomainFailed, CommandError]
+    side_effects: [external_api_write]
+    errors: [operation_lookup, schema_invalid, auth_resolution, network_io, timeout, status_mapping]
+    undo: configured restore or recreate compensation when prior state is available.
+  - name: rest_client_invoke
+    input: declared operation parameters for an RPC-shaped REST operation.
+    output: mapped response payload, status code, operation ID, domain outcome.
+    signals: [RESTResponded, RESTAccepted, RESTDomainFailed, RESTMissing, CommandError]
+    side_effects: [external_api_read, external_api_write]
+    errors: [operation_lookup, schema_invalid, request_rendering, auth_resolution, network_io, timeout, response_mapping]
+    undo: noop unless a compensating action is configured.
+  - name: rest_client_send
+    input: declared operation parameters for an async REST operation.
+    output: request ID, operation ID, idempotency token, submitted payload summary, correlation metadata.
+    signals: [RESTAccepted, CommandError]
+    side_effects: [external_api_call, command_state]
+    errors: [operation_lookup, schema_invalid, request_rendering, auth_resolution, network_io, timeout]
+    undo: cancel or compensate when configured; otherwise record request metadata for audit.
+  - name: rest_client_await
+    input: request ID, correlation token, operation state selector, timeout, and response mapping.
+    output: final response payload, status code, request ID, operation ID, retry and timing metadata.
+    signals: [RESTResponded, RESTDomainFailed, RESTMissing, RESTAwaitTimedOut, CommandError]
+    side_effects: [command_state]
+    errors: [async_state_missing, timeout, network_io, response_mapping, status_mapping]
+    undo: noop unless await mutates command state that can be restored.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: REST client tools are documented as first-class boundary ToolDef words backed by declarative client, resource, and operation definitions.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2]
+
+  - id: AC2
+    criterion: Tool config fixes client, resource, operation, transport policy, and schemas while runtime input supplies only declared path, query, header, and body parameters.
+    traces: [R2.3, R2.4, R2.5, R2.6]
+
+  - id: AC3
+    criterion: Resource-oriented get, set, create, and delete words are preferred for resource-shaped endpoints and declare resource-specific effects and undo expectations.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R10.1, R10.2, R10.3, R10.4]
+
+  - id: AC4
+    criterion: rest_client_invoke is reserved for RPC-shaped endpoints and still resolves operation authority from trusted config.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R10.5]
+
+  - id: AC5
+    criterion: Async send and await requirements define request state, request IDs, idempotency metadata, accepted signals, final response signals, timeout signals, and state retention.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R10.6, R10.7]
+
+  - id: AC6
+    criterion: Result signal requirements distinguish resource reads, writes, missing resources, accepted async sends, successful REST responses, REST domain failures, and CommandError infrastructure failures.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R11.3, R11.4]
+
+  - id: AC7
+    criterion: Response shaping maps status, headers, body, resource metadata, request IDs, domain error codes, retry metadata, and redacted fields into structured output.
+    traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6]
+
+  - id: AC8
+    criterion: Idempotency, retry, metrics, tracing, and redaction requirements are explicit for external API calls.
+    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R9.1, R9.2, R9.3, R9.4, R10.8]
+
+  - id: AC9
+    criterion: Error and recovery requirements distinguish domain failures from infrastructure failures and report operation identity, failure stage, status, diagnostics, and resulting signal.
+    traces: [R11.1, R11.2, R11.3, R11.4]
+
+  - id: AC10
+    criterion: Each planned client tool word lists inputs, outputs, signals, side effects, errors, and undo strategy expectations.
+    traces: [R3.1, R3.2, R3.3, R3.4, R4.1, R5.1, R5.5, R10.1, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Command, Result, Signal, Builder]
+  - srd_id: srd005-agentic-loop
+    symbols_used: [Loop, MachineSpec]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry, ToolDef]
+  - srd_id: srd027-rest-tool-runtime
+    symbols_used: [internal/tools/rest, net/http, OpenAPI import model, REST request state]
+
+related_documents:
+  - docs/specs/config-formats/tool-declaration-format.yaml
+  - docs/specs/config-formats/tool-authoring-standard.yaml
+  - docs/specs/semantic-models/tool-language.yaml
+  - rest-tool.md
+
+implementation_status:
+  implemented:
+    - internal/tools/rest client commands for synchronous resource words, RPC-shaped invoke, async send, and async await.
+    - tools/builtin/rest client tool declarations and release 03.0 fixtures.
+    - Resource operation definitions loaded from YAML and OpenAPI imports.
+    - Config-bound method, path, host, auth, redirect, size-limit, request schema, response mapping, redaction, and status-signal behavior.
+    - Async request state indexed by request_id with idempotency and correlation metadata recorded in accepted output.
+    - CIDR allowlists are enforced while scheme, host, and port validation remains intact.
+    - Response bodies are validated against configured response schemas before success signals, and domain_error_code is included in structured output when configured.
+    - Async await can select by correlation token. await_operation polling config is rejected during validation until implemented.
+    - Idempotency metadata is emitted on configured outbound async requests, and retry validation requires idempotency for mutating operations when configured.
+    - Mutating REST client commands capture boundary compensation undo mementos with request, resource, idempotency, and compensation metadata. Read-only operations remain noop.
+    - Persisted checkpoint rollback can execute boundary compensation when a caller supplies the core CompensationExecutor. internal/tools/rest provides a CompensationExecutor that decodes REST boundary mementos, resolves the configured compensation operation from trusted definitions, filters runtime parameters to declared inputs, and executes through the REST client path.
+    - TestRESTClient_CompensationExecutorRunsConfiguredOperation, TestRESTClient_CompensationExecutorReportsMissingOperation, TestRollbackCheckpointExecutesBoundaryCompensation, and TestRollbackCheckpointReportsMissingBoundaryCompensationExecutor cover REST compensation execution and bounded failure reporting.
+  partial:
+    - Lifecycle profile wiring must still choose when to inject a REST CompensationExecutor into checkpoint rollback. Profile injection stays outside the REST client tool contract.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agent profiles need outbound REST tools that are decl..."] --> Goals["Goals: REST Client Tools"]
+      Goals --> R1["R1: Client tool scope"]
+      Goals --> R2["R2: Config-bound operation authority"]
+      Goals --> R3["R3: Resource-oriented words"]
+      Goals --> R4["R4: rest_client_invoke"]
+      Goals --> R5["R5: Asynchronous client words"]
+      Goals --> R6["R6: Result signals"]
+      Goals --> R7["R7: Response shaping and output"]
+      Goals --> R8["R8: Idempotency and retries"]
+      Goals --> R9["R9: Metrics, tracing, and redaction"]
+      Goals --> R10["R10: Undo and compensation"]
+      Goals --> R11["R11: Errors and recovery"]
+      AC1["AC1: REST client tools are documented as first-class boundary..."]
+      R1 --> AC1
+      R2 --> AC1
+      AC2["AC2: Tool config fixes client, resource, operation, transport..."]
+      R2 --> AC2
+      AC3["AC3: Resource-oriented get, set, create, and delete words are..."]
+      R3 --> AC3
+      R10 --> AC3
+      AC4["AC4: rest_client_invoke is reserved for RPC-shaped endpoints a..."]
+      R4 --> AC4
+      R10 --> AC4
+      AC5["AC5: Async send and await requirements define request state, r..."]
+      R5 --> AC5
+      R10 --> AC5
+      AC6["AC6: Result signal requirements distinguish resource reads, wr..."]
+      R6 --> AC6
+      R11 --> AC6
+      AC7["AC7: Response shaping maps status, headers, body, resource met..."]
+      R7 --> AC7
+      AC8["AC8: Idempotency, retry, metrics, tracing, and redaction requi..."]
+      R8 --> AC8
+      R9 --> AC8
+      R10 --> AC8
+      AC9["AC9: Error and recovery requirements distinguish domain failur..."]
+      R11 --> AC9
+      AC10["AC10: Each planned client tool word lists inputs, outputs, sign..."]
+      R3 --> AC10
+      R4 --> AC10
+      R5 --> AC10
+      R10 --> AC10
+    ```

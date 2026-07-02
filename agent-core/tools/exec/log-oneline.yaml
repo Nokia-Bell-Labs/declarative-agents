@@ -1,0 +1,9 @@
+tools:
+- name: log_oneline
+  binary: git
+  args:
+  - log
+  - --oneline
+  - -10
+  description: Show the last 10 commits as one-line summaries.
+  precondition: git_repo

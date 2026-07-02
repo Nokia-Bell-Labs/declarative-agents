@@ -1,0 +1,130 @@
+id: srd009-ollama-adapter
+title: Ollama LLM Adapter
+
+problem: |
+  Every agent built on agent-core needs to talk to an LLM backend. The
+  first supported backend is Ollama, a local inference server. Both
+  generator and planner independently implemented Ollama HTTP adapters
+  that satisfy the llm.Client interface. The duplicated code drifted:
+  generator's adapter has tracing, model checks, and ListModels;
+  planner's has only a minimal Chat stub.
+
+  A single, well-tested adapter in agent-core eliminates the duplication
+  and gives every agent the full feature set (model validation, tracing,
+  model discovery) out of the box.
+
+goals:
+  - G1: Provide a production-ready Ollama adapter in internal/model/llm/ollama satisfying llm.Client.
+  - G2: Validate model availability at construction time (fail-fast).
+  - G3: Support optional tracing via the internal/observability/tracing.Tracer interface.
+  - G4: Replace generator's internal/llm/adapter.go and planner's cmd/planner/ollama.go.
+
+requirements:
+  R1:
+    title: Adapter struct
+    items:
+      - R1.1: Adapter holds the Ollama base URL, model name, an http.Client, and an optional tracing.Tracer.
+      - R1.2: NewAdapter accepts the base URL, model name, and variadic Option functions. It verifies the model is available and returns an error if not.
+      - R1.3: The default http.Client has a 5-minute timeout. WithHTTPClient overrides it.
+      - R1.4: Adapter.Model() returns the model name the adapter was created for.
+      - R1.5: WithSkipModelCheck disables the startup model-availability check (useful for ListModels-only usage).
+
+  R2:
+    title: Chat (POST /api/chat)
+    items:
+      - R2.1: Chat converts []llm.Message to the Ollama JSON schema and sends a non-streaming POST to /api/chat.
+      - R2.2: "The request body includes model, messages, stream=false, and options (temperature, seed, num_ctx) from ChatOptions. NumCtx is omitted when zero."
+      - R2.3: The response JSON is parsed into llm.ChatResponse with Content from message.content, TokensIn from prompt_eval_count, TokensOut from eval_count.
+      - R2.4: Missing token counts default to zero.
+
+  R3:
+    title: ListModels (GET /api/tags)
+    items:
+      - R3.1: ListModels sends GET /api/tags and parses the full response including size, digest, and model details.
+      - R3.2: Each model is returned as llm.ModelInfo with Provider set to "ollama" and Details populated from the Ollama response.
+      - R3.3: Tracing events are emitted for start, completion, and errors.
+
+  R4:
+    title: Model availability check
+    items:
+      - R4.1: NewAdapter calls GET /api/tags and verifies the model name is present. Matching is case-insensitive.
+      - R4.2: If the model name omits a tag (no ":"), it matches entries with any tag.
+      - R4.3: If the model is not found, NewAdapter returns an error naming the model and suggesting "ollama pull".
+      - R4.4: If /api/tags fails (connection refused, bad status), NewAdapter returns a connection error. The adapter does not auto-pull models.
+
+  R5:
+    title: Tracing
+    items:
+      - R5.1: WithTracer injects a tracing.Tracer. When set, the adapter emits span events for check_model and list_models lifecycle, and creates a semconv inference span (via chatSpan) for each Chat() call with genai attributes (model, provider, server address, port, token counts, response model).
+      - R5.2: Events include start, done, and error variants with relevant attributes (base URL, model, count, HTTP status).
+      - R5.3: A nil tracer is safe — all tracing is no-op by default.
+
+  R6:
+    title: Error handling
+    items:
+      - R6.1: Connection failures, non-200 HTTP status, and malformed JSON each produce distinct error messages.
+      - R6.2: Chat propagates context cancellation via http.NewRequestWithContext.
+      - R6.3: The adapter does not retry. Retry logic belongs to the caller.
+
+non_goals:
+  - Streaming responses.
+  - Adapters for non-Ollama providers (OpenAI, vLLM).
+  - Automatic model pulling.
+  - Prompt assembly or conversation history (those are separate packages).
+  - Cost/pricing calculation (zero for local Ollama).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: NewAdapter returns a working llm.Client. Chat round-trips messages (including NumCtx) and extracts tokens. ListModels returns model metadata with Provider "ollama". Adapter.Model() returns the configured model name.
+    traces: [R1.1, R1.2, R1.4, R2.1, R2.2, R2.3, R2.4, R3.1, R3.2]
+
+  - id: AC2
+    criterion: NewAdapter verifies model availability via /api/tags. Case-insensitive matching with optional tag. Missing model returns a descriptive error with pull suggestion.
+    traces: [R4.1, R4.2, R4.3, R4.4]
+
+  - id: AC3
+    criterion: WithTracer enables span events for check_model, list_models, and Chat inference spans. Nil tracer is safe.
+    traces: [R5.1, R5.2, R5.3]
+
+  - id: AC4
+    criterion: Connection failures, bad HTTP status, and malformed JSON produce distinct errors. Context cancellation propagates. No retry.
+    traces: [R6.1, R6.2, R6.3]
+
+  - id: AC5
+    criterion: WithHTTPClient overrides the default 5-minute-timeout client. WithSkipModelCheck skips startup model validation.
+    traces: [R1.3, R1.5]
+
+  - id: AC6
+    criterion: Generator imports internal/model/llm/ollama and deletes internal/llm/adapter.go. Planner imports internal/model/llm/ollama and deletes cmd/planner/ollama.go.
+    traces: [R3.3]
+
+depends_on:
+  - srd_id: srd007-tracer-interface
+    symbols_used: [Tracer, Event, Push, SetAttributes]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Every agent built on agent-core needs to talk to an L..."] --> Goals["Goals: Ollama LLM Adapter"]
+      Goals --> R1["R1: Adapter struct"]
+      Goals --> R2["R2: Chat (POST /api/chat)"]
+      Goals --> R3["R3: ListModels (GET /api/tags)"]
+      Goals --> R4["R4: Model availability check"]
+      Goals --> R5["R5: Tracing"]
+      Goals --> R6["R6: Error handling"]
+      AC1["AC1: NewAdapter returns a working llm.Client. Chat round-trips..."]
+      R1 --> AC1
+      R2 --> AC1
+      R3 --> AC1
+      AC2["AC2: NewAdapter verifies model availability via /api/tags. Cas..."]
+      R4 --> AC2
+      AC3["AC3: WithTracer enables span events for check_model, list_mode..."]
+      R5 --> AC3
+      AC4["AC4: Connection failures, bad HTTP status, and malformed JSON..."]
+      R6 --> AC4
+      AC5["AC5: WithHTTPClient overrides the default 5-minute-timeout cli..."]
+      R1 --> AC5
+      AC6["AC6: Generator imports internal/model/llm/ollama and deletes i..."]
+      R3 --> AC6
+    ```

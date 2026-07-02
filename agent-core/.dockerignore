@@ -1,0 +1,5 @@
+# The Dockerfile clones Agent Core from GitLab in the builder stage.
+# Keep the local build context tiny and avoid sending node_modules/.git data.
+*
+!Dockerfile
+!.dockerignore

@@ -1,0 +1,11 @@
+name: planner
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_config_dirs:
+  - /opt/agent-core/tools/builtin/planner
+  - /opt/agent-core/tools/builtin/llm
+  - /opt/agent-core/tools/exec/go
+tool_declarations:
+  - builtin.yaml
+  - llm/default.yaml

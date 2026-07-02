@@ -1,0 +1,10 @@
+name: ollama-rest
+machine: ollama-machine.yaml
+tools:
+  - ollama-tools.yaml
+tool_declarations:
+  - /opt/agent-core/tools/builtin/llm/all.yaml
+  - ollama-llm.yaml
+  - ollama-declarations.yaml
+rest_definitions:
+  - ollama-rest.yaml

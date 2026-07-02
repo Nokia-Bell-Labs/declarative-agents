@@ -1,0 +1,251 @@
+tools:
+  - name: serve_documentation
+    type: builtin
+    init: serve_documentation
+    visibility: internal
+    emits:
+      - ServerLaunched
+      - ServerStopped
+      - CommandError
+    description: Start the standalone Knowledge Manager documentation UI and API host.
+    category: boundary
+    problem: The documentation-curator profile needs one host boundary word that starts the documentation UX without relying on bench routes.
+    goals:
+      - Start the documentation UI and API host from profile-owned config.
+      - Serve documentation content from the configured docs root.
+      - Keep bind address and docs path outside cmd/agent code.
+    requirements:
+      input:
+        - must read addr and docs_dir from ToolDef config
+      output:
+        - must emit ServerLaunched when the host starts
+        - must emit ServerStopped when the owned host stops
+        - must emit CommandError when the host cannot start or exits with an error
+      side_effects:
+        - must bind a local HTTP server
+      undo:
+        - must stop the owned documentation host listener
+      errors:
+        - must emit CommandError when docs_dir is missing or the server cannot bind
+    non_goals:
+      - Does not validate or mutate documentation content.
+      - Does not run evaluator or bench workflows.
+      - Does not call an LLM.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    output:
+      description: Documentation host lifecycle status.
+      schema:
+        type: object
+        properties:
+          signal:
+            type: string
+          addr:
+            type: string
+    side_effects:
+      - kind: server
+        target: documentation_curator_http
+        state: running
+        description: Starts the local documentation UX and API server.
+      - kind: external_api
+        target: documentation.host
+        state: read_only
+        description: Exposes read-only documentation list/get/search routes through localhost.
+    reversibility:
+      classification: compensatable
+      undo: server_shutdown
+      requires_confirmation: false
+    undo:
+      strategy: compensating_action
+      description: Stop the owned documentation host listener and release the bound address.
+      requires:
+        - addr
+    errors:
+      - signal: CommandError
+        condition: docs_dir is missing, address binding fails, or the HTTP server exits with an error
+        message_shape: 'serve_documentation: <error>'
+        state_after_failure: no durable docs state is changed
+      - signal: CommandError
+        condition: stop is requested but no documentation host is running
+        message_shape: 'documentation host is not running'
+        state_after_failure: no durable docs state is changed
+    relationships:
+      before:
+        - Idle
+      after:
+        - doc_list
+        - doc_get
+        - doc_search
+        - doc_validate
+        - doc_suggest_changes
+      overlaps:
+        - tool: serve_ui
+          difference: serve_documentation hosts Knowledge Manager docs only; serve_ui hosts bench experiment workflows.
+    config:
+      addr: :18081
+      docs_dir: docs
+      configs_dir: configs
+      source_dir: .
+      profile_path: agents/knowledge-manager/documentation-curator/profile.yaml
+
+  - name: launch_curator_control
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    description: Launch generic lifecycle control routes for documentation-curator.
+    emits: [ServerLaunched, CommandError]
+    parameters:
+      type: object
+      properties: {}
+    output:
+      description: Control server launch result.
+      schema:
+        type: object
+    side_effects:
+      - kind: network_listen
+        target: documentation_curator_control
+        state: listener_started
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the documentation-curator control server.
+    errors:
+      - signal: CommandError
+        condition: Control server config, bind, or route setup failed.
+    relationships:
+      before: [await_curator_control]
+    config:
+      rest_ref: documentation_curator_control
+
+  - name: await_curator_control
+    type: builtin
+    init: rest_await_event
+    category: boundary
+    description: Await generic lifecycle control events for documentation-curator.
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    parameters:
+      type: object
+      properties: {}
+    output:
+      description: Selected control event.
+      schema:
+        type: object
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: selected_event_consumed
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Queue restore is not implemented.
+    errors:
+      - signal: CommandError
+        condition: Control source is missing or stopped with command_error policy.
+    relationships:
+      after: [launch_curator_control]
+      before: [exit_agent]
+    config:
+      sources:
+        - server: documentation_curator_control
+          routes: [exit]
+          signals: [ExitRequested]
+      timeout: 30s
+      stopped_behavior: emit_server_stopped
+
+  - name: doc_index_response
+    type: builtin
+    init: doc_index_response
+    visibility: internal
+    emits:
+      - DocumentIndexReady
+    description: Shape document index resource output for machine_request HTTP responses.
+    category: response
+    problem: The document index request machine needs a configured word that maps list_resource output into the terminal HTTP response body.
+    goals:
+      - Return the listed documents under both data and documents keys.
+      - Count listed documents for the REST response mapping.
+      - Keep response shaping inside the selected request machine vocabulary.
+    requirements:
+      input:
+        - must receive JSON array output from doc_list_resource
+      output:
+        - must emit DocumentIndexReady with data, documents, and count fields
+        - must emit CommandError when list output is not valid JSON
+      side_effects: []
+      undo:
+        - no durable state is changed
+      errors:
+        - must emit CommandError when response output cannot be encoded
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    output:
+      description: Document index response body.
+      schema:
+        type: object
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    undo:
+      strategy: noop
+      description: Response shaping has no durable effect.
+    errors:
+      - signal: CommandError
+        condition: Resource output cannot be decoded or response output cannot be encoded.
+        message_shape: '<json error>'
+        state_after_failure: no durable docs state is changed
+
+  - name: doc_detail_response
+    type: builtin
+    init: doc_detail_response
+    visibility: internal
+    emits:
+      - DocumentDetailReady
+    description: Shape document read resource output for machine_request HTTP responses.
+    category: response
+    problem: The document detail request machine needs a configured word that maps read_resource output into the terminal HTTP response body.
+    goals:
+      - Return parsed content, raw content, path, and content type.
+      - Keep the detail response shape stable for the Knowledge Manager SPA.
+      - Keep response shaping inside the selected request machine vocabulary.
+    requirements:
+      input:
+        - must receive JSON object output from doc_read_resource
+      output:
+        - must emit DocumentDetailReady with data, path, content, raw, and content_type fields
+        - must emit CommandError when read output is not valid JSON
+      side_effects: []
+      undo:
+        - no durable state is changed
+      errors:
+        - must emit CommandError when response output cannot be encoded
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    output:
+      description: Document detail response body.
+      schema:
+        type: object
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    undo:
+      strategy: noop
+      description: Response shaping has no durable effect.
+    errors:
+      - signal: CommandError
+        condition: Resource output cannot be decoded or response output cannot be encoded.
+        message_shape: '<json error>'
+        state_after_failure: no durable docs state is changed

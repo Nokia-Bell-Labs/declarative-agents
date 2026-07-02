@@ -1,0 +1,106 @@
+name: monitored-qwen-ollama-rest
+purpose: Start the embedded monitor without blocking Qwen, then prove token metrics while the run remains queryable.
+initial_state: Idle
+metric_labels:
+  profile: monitored_qwen
+budget:
+  max_iterations: 12
+  max_consecutive_parse_errors: 2
+states:
+  - name: Idle
+  - name: StartingMonitor
+  - name: Composing
+  - name: Parsing
+  - name: AwaitingMonitorExit
+  - name: StoppingMonitor
+  - name: Succeeded
+  - name: Failed
+  - name: BudgetExceeded
+terminal_states:
+  - Succeeded
+  - Failed
+  - BudgetExceeded
+signals:
+  - name: Seed
+  - name: ServerLaunched
+  - name: LLMResponded
+  - name: ToolDone
+  - name: ParseFailed
+  - name: TaskCompleted
+  - name: RESTResponded
+  - name: RESTDomainFailed
+  - name: ExitRequested
+  - name: AwaitTimedOut
+  - name: ServerStopped
+  - name: CommandError
+  - name: BudgetExhausted
+transitions:
+  - state: Idle
+    signal: Seed
+    next: StartingMonitor
+    action: launch_monitor_rest
+    metric_labels:
+      route_group: monitor
+  - state: StartingMonitor
+    signal: ServerLaunched
+    next: Composing
+    action: invoke_llm
+  - state: StartingMonitor
+    signal: CommandError
+    next: Failed
+  - state: Composing
+    signal: LLMResponded
+    next: Parsing
+    action: parse_response
+  - state: Parsing
+    signal: ToolDone
+    next: Composing
+    action: $tool
+  - state: Parsing
+    signal: TaskCompleted
+    next: AwaitingMonitorExit
+    action: await_monitor_control
+  - state: Parsing
+    signal: ParseFailed
+    next: Composing
+    action: report_parse_error
+  - state: Composing
+    signal: ToolDone
+    next: Composing
+    action: invoke_llm
+  - state: Composing
+    signal: RESTResponded
+    next: Composing
+    action: invoke_llm
+  - state: Composing
+    signal: RESTDomainFailed
+    next: Composing
+    action: invoke_llm
+  - state: AwaitingMonitorExit
+    signal: ExitRequested
+    next: StoppingMonitor
+    action: stop_monitor_rest
+  - state: AwaitingMonitorExit
+    signal: AwaitTimedOut
+    next: Failed
+  - state: AwaitingMonitorExit
+    signal: ServerStopped
+    next: Failed
+  - state: StoppingMonitor
+    signal: ServerStopped
+    next: Succeeded
+  - state: Composing
+    signal: CommandError
+    next: Failed
+  - state: Parsing
+    signal: CommandError
+    next: Failed
+  - state: AwaitingMonitorExit
+    signal: CommandError
+    next: Failed
+  - state: StoppingMonitor
+    signal: CommandError
+    next: Failed
+  - state: Composing
+    signal: BudgetExhausted
+    next: BudgetExceeded

@@ -1,0 +1,167 @@
+id: test-rel06.0-agent-profiles
+title: Test Suite for Release 06.0 Agent Profiles
+release: "06.0"
+
+overview: |
+  This suite records executable proof for the agent-profiles side of the
+  Release 06.0 migration. The proofs stay split by ownership boundary.
+  agent-profiles validates profile references, mounted container usage, and
+  release bundle tagging. agent-core integration targets consume these profiles,
+  demos, fixtures, and UI assets through AGENT_PROFILES_ROOT.
+
+  Implemented cases name commands, Go tests, or Mage targets. No case depends
+  on copied profile directories inside an agent-core runtime image.
+
+  The suite does not make container availability universal. mage containerSmoke
+  requires an agent-core image and a container engine. When that environment is
+  present, the target proves mounted execution from /profiles; local validation
+  and Go tests cover the same command construction without a live image.
+
+traces:
+  - rel06.0-uc001-mounted-profile-execution
+  - rel06.0-uc002-profile-validation
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../agent-core checkout.
+  - An agent-core runtime image is available before running mage containerSmoke.
+  - agent-core integration targets are run from the agent-core repository with AGENT_PROFILES_ROOT pointing at this repository.
+  - mage tag is run from main and creates only a local tag unless the maintainer pushes it later.
+
+test_cases:
+  - use_case: rel06.0-uc002-profile-validation
+    name: Profile validation resolves migrated profile references
+    go_test: go test ./magefiles -run 'Test(ValidateProfilesResolvesExternalCoreToolRefs|DiscoverProfilesIncludesVariants|ValidateProfilesValidatesProfileVariants|ValidateProfilesRejectsCopiedCoreAgentRefs|ValidateProfilesReportsMissingReference)$'
+    integration_target: mage validate
+    status: implemented
+    description: |
+      Validate every profile-shaped YAML file under agents/. The proof covers
+      profile.yaml, profile-*.yaml, and *-profile.yaml discovery. It also checks
+      that /opt/agent-core/tools maps to AGENT_CORE_ROOT while references to
+      /opt/agent-core/agents fail.
+    inputs:
+      profile_root: agents/
+      core_root: AGENT_CORE_ROOT
+      supported_profile_names:
+        - profile.yaml
+        - profile-*.yaml
+        - "*-profile.yaml"
+    expected:
+      profile_variants_discovered: true
+      profile_local_paths_resolved: true
+      core_tool_root_resolved: true
+      copied_core_agent_refs_rejected: true
+      missing_refs_reported: true
+    traces:
+      - rel06.0-uc002-profile-validation S1
+      - rel06.0-uc002-profile-validation S2
+      - rel06.0-uc002-profile-validation S3
+      - srd001-agent-functional-blocks R1.1
+      - srd001-agent-functional-blocks R1.2
+      - srd001-agent-functional-blocks R1.3
+
+  - use_case: rel06.0-uc001-mounted-profile-execution
+    name: Mounted container smoke runs a profile from /profiles
+    go_test: go test ./magefiles -run TestRunContainerSmokeCommands
+    integration_target: mage containerSmoke
+    status: implemented
+    description: |
+      Verify the mounted-profile container command. The smoke target first
+      checks that /opt/agent-core/agents is absent, then mounts this repository
+      at /profiles, mounts core-owned tools at /opt/agent-core/tools, and runs
+      the jurist profile with --directory /work.
+    inputs:
+      image: ${AGENT_CORE_IMAGE}
+      profile_mount: /profiles
+      workspace_mount: /work
+      profile: /profiles/agents/jurist/profile.yaml
+    expected:
+      runtime_image_agent_dir_absent: true
+      profiles_mounted_read_only: true
+      core_tools_mounted_read_only: true
+      profile_flag_uses_profiles_mount: true
+      workspace_flag_uses_work_mount: true
+    traces:
+      - rel06.0-uc001-mounted-profile-execution S1
+      - rel06.0-uc001-mounted-profile-execution S3
+      - rel06.0-uc001-mounted-profile-execution S4
+      - sm-multi-agent-profile-system validation_views
+
+  - use_case: rel06.0-uc002-profile-validation
+    name: Profile bundle tags use local daily revisions
+    go_test: go test ./magefiles -run 'Test(CreateReleaseTag|NextRevisionFromTags|ValidateReleaseBranch)'
+    integration_target: mage tag
+    status: implemented
+    description: |
+      Create the next v0.YYYYMMDD.N tag from existing local tags when the
+      current branch is main. The target versions profile-owned YAML programs,
+      demos, UI assets, and fixtures. It does not create or inspect agent-core
+      runtime image tags.
+    inputs:
+      branch: main
+      tag_shape: v0.YYYYMMDD.N
+    expected:
+      main_branch_required: true
+      next_daily_revision_created: true
+      local_tags_used: true
+      agent_core_image_tags_untouched: true
+    traces:
+      - rel06.0-uc002-profile-validation S5
+      - srd001-agent-functional-blocks R1.3
+
+  - use_case: rel06.0-uc001-mounted-profile-execution
+    name: Agent Core generator and evaluator integrations consume profile fixtures
+    go_test: agent-core integration targets
+    integration_target: AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc001; AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc002
+    status: implemented
+    description: |
+      Run agent-core integration targets from the agent-core repository while
+      AGENT_PROFILES_ROOT points at agent-profiles. uc001 consumes the generator
+      coding fixture. uc002 consumes the evaluator suite, generator profile
+      variants, samples, and oracle workspace from this repository.
+    inputs:
+      profile_root: AGENT_PROFILES_ROOT
+      generator_fixture: testdata/integration/uc001-generator-coding
+      evaluator_suite: testdata/integration/uc002-evaluator-benchmark/suite.yaml
+    expected:
+      generator_fixture_external: true
+      evaluator_suite_external: true
+      generator_profile_variants_external: true
+      developer_absolute_paths_absent: true
+    traces:
+      - rel06.0-uc001-mounted-profile-execution S5
+      - srd001-agent-functional-blocks R2.1
+      - srd001-agent-functional-blocks R2.3
+      - srd001-agent-functional-blocks R3.1
+      - srd001-agent-functional-blocks R3.3
+      - sm-agent-role-taxonomy generator
+      - sm-agent-role-taxonomy evaluator
+
+  - use_case: rel06.0-uc001-mounted-profile-execution
+    name: Agent Core monitor and Knowledge Manager integrations consume profile assets
+    go_test: agent-core integration targets
+    integration_target: AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004; AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc006; AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc007
+    status: implemented
+    description: |
+      Run agent-core integration targets from the agent-core repository with
+      AGENT_PROFILES_ROOT pointing at agent-profiles. uc004 consumes the monitor
+      profile proof metadata. uc006 and uc007 consume Knowledge Manager profile
+      assets, REST definitions, request machines, UI assets, and control flow.
+    inputs:
+      monitor_fixture: testdata/integration/rel04-monitor/monitor-rest.yaml
+      knowledge_manager_profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      knowledge_manager_ui: agents/knowledge-manager/documentation-curator/ui/ux.yaml
+    expected:
+      monitor_metadata_external: true
+      knowledge_manager_profile_external: true
+      profile_local_ui_assets_used: true
+      control_exit_profile_flow_used: true
+    traces:
+      - rel06.0-uc001-mounted-profile-execution S2
+      - rel06.0-uc001-mounted-profile-execution S5
+      - srd001-agent-functional-blocks R8.1
+      - srd001-agent-functional-blocks R8.2
+      - srd001-agent-functional-blocks R11.1
+      - srd001-agent-functional-blocks R11.2
+      - srd001-agent-functional-blocks R11.3
+      - sm-agent-role-taxonomy monitor
+      - sm-agent-role-taxonomy documentation-curator

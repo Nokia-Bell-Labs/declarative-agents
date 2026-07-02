@@ -1,0 +1,309 @@
+# Exec tool declarations — CLI-wrapper tools.
+# Pass via: agent --tools-declaration tools/exec.yaml
+
+tools:
+  # --- build tools ---
+  - name: build
+    type: exec
+    binary: go
+    args: [build, "./..."]
+    emits: [ToolDone, ToolFailed]
+    description: "Compile all Go packages with go build ./... Returns compiler errors on failure."
+
+  - name: vet
+    type: exec
+    binary: go
+    args: [vet, "./..."]
+    emits: [ToolDone, ToolFailed]
+    description: "Run go vet ./... on the workspace. Reports suspicious constructs."
+
+  - name: lint
+    type: exec
+    binary: golangci-lint
+    args: [run, "./..."]
+    emits: [ToolDone, ToolFailed]
+    description: "Run golangci-lint run ./... on the Go workspace."
+
+  - name: test
+    type: exec
+    binary: go
+    args: [test, "-count=1"]
+    emits: [ToolDone, ToolFailed]
+    description: "Run go test -count=1 on the workspace. Returns test output including pass/fail results."
+    output:
+      description: "Go test result summary and raw command output."
+      schema:
+        type: object
+        properties:
+          package:
+            type: string
+          passed:
+            type: boolean
+          output:
+            type: string
+          exit_code:
+            type: integer
+        required: [passed, output]
+    output_cap: 200
+    parameters:
+      type: object
+      properties:
+        package:
+          type: string
+          description: "Go package path (default ./...)"
+          positional: true
+          default: "./..."
+
+  # --- workspace tools ---
+  - name: copy_dir
+    type: exec
+    binary: cp
+    args: [-a]
+    description: "Copy a directory tree. Provide source and destination paths."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: workspace_directory
+        description: "Creates or overwrites files in the destination directory."
+    reversibility:
+      classification: reversible
+      undo: workspace_restore
+    undo:
+      strategy: workspace_restore
+      description: "Restore the workspace ref captured before the copy."
+      requires: [Workspace]
+    parameters:
+      type: object
+      properties:
+        source:
+          type: string
+          description: "Source directory path (appends /. for contents)"
+          positional: true
+        destination:
+          type: string
+          description: "Destination directory path"
+          positional: true
+      required: [source, destination]
+
+  - name: make_dir
+    type: exec
+    binary: mkdir
+    args: [-p]
+    description: "Create a directory and any missing parent directories."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: workspace_directory
+        description: "Creates a directory and any missing parent directories."
+    reversibility:
+      classification: reversible
+      undo: workspace_restore
+    undo:
+      strategy: workspace_restore
+      description: "Restore the workspace ref captured before directory creation."
+      requires: [Workspace]
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Directory path to create"
+          positional: true
+      required: [path]
+
+  # --- git tools ---
+  - name: git_init
+    type: exec
+    binary: git
+    args: [init]
+    description: "Initialize a new git repository in the current directory."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: workspace_git_metadata
+        paths: [.git]
+        description: "Creates .git metadata in the workspace."
+    reversibility:
+      classification: reversible
+      undo: workspace_restore
+    undo:
+      strategy: workspace_restore
+      description: "Restore the workspace ref captured before git init."
+      requires: [Workspace]
+
+  - name: stage_all
+    type: exec
+    binary: git
+    args: [add, -A]
+    description: "Stage all changes including untracked files (git add -A)."
+    precondition: git_repo
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: git_index
+        description: "Moves working tree changes into the Git index."
+    reversibility:
+      classification: reversible
+      undo: workspace_restore
+    undo:
+      strategy: workspace_restore
+      description: "Restore the workspace ref and index captured before staging."
+      requires: [Workspace]
+
+  - name: workspace_status
+    binary: git
+    args: [status, --porcelain]
+    description: "Report git workspace state: changed files with status codes (M/A/D/??)."
+    precondition: git_repo
+    output:
+      description: "Porcelain git status entries for changed workspace files."
+      schema:
+        type: object
+        properties:
+          clean:
+            type: boolean
+          files:
+            type: array
+            items:
+              type: object
+              properties:
+                path:
+                  type: string
+                status:
+                  type: string
+        required: [clean, files]
+
+  - name: commit
+    type: exec
+    binary: git
+    args: [commit]
+    description: "Create a git commit from staged changes. Fails if nothing is staged."
+    precondition: git_repo
+    category: boundary
+    side_effects:
+      - kind: filesystem_write
+        target: git_repository
+        description: "Creates a commit object and moves the current branch ref."
+    reversibility:
+      classification: compensatable
+      undo: workspace_restore_or_revert_commit
+    undo:
+      strategy: compensating_action
+      description: "Restore the workspace ref when checkpointed; otherwise compensate with an explicit revert/reset policy."
+      payload: boundary_compensation
+      captures: [workspace_paths, git_ref]
+      requires: [Workspace, git_ref]
+    parameters:
+      type: object
+      properties:
+        message:
+          type: string
+          description: "Commit message"
+          flag: -m
+      required: [message]
+
+  - name: rev_parse
+    binary: git
+    args: [rev-parse, --short, HEAD]
+    description: "Return the short hash of HEAD."
+    precondition: git_repo
+
+  - name: diff_stat
+    binary: git
+    args: [diff, --stat]
+    description: "Show a summary of uncommitted changes (files changed, insertions, deletions)."
+    precondition: git_repo
+
+  - name: log_oneline
+    binary: git
+    args: [log, --oneline, -10]
+    description: "Show the last 10 commits as one-line summaries."
+    precondition: git_repo
+
+  # --- issue tools (bd CLI) ---
+  - name: issue_create
+    type: exec
+    binary: bd
+    args: [create, --json]
+    description: "Create a new beads issue. Returns the issue ID."
+    category: boundary
+    side_effects:
+      - kind: filesystem_write
+        target: beads_store
+        paths: [.beads]
+        description: "Writes issue and interaction records into the Beads store."
+    reversibility:
+      classification: compensatable
+      undo: close_or_delete_created_issue
+    undo:
+      strategy: compensating_action
+      description: "Capture the created issue ID and compensate by closing/deleting it or restoring the workspace ref."
+      payload: boundary_compensation
+      captures: [created_issue_id, workspace_paths]
+      requires: [created_issue_id]
+    parameters:
+      type: object
+      properties:
+        title:
+          type: string
+          description: "Issue title"
+          flag: --title
+        body:
+          type: string
+          description: "Issue body/description"
+          flag: --body
+        type:
+          type: string
+          description: "Issue type (default: task)"
+          flag: -t
+        priority:
+          type: string
+          description: "Priority level (default: P2)"
+          flag: -p
+        deps:
+          type: string
+          description: "Comma-separated dependency issue IDs"
+          flag: --deps
+      required: [title]
+
+  - name: issue_close
+    type: exec
+    binary: bd
+    args: [close]
+    description: "Close an issue by ID."
+    category: boundary
+    side_effects:
+      - kind: filesystem_write
+        target: beads_store
+        paths: [.beads]
+        description: "Changes issue status in the Beads store."
+    reversibility:
+      classification: compensatable
+      undo: reopen_issue_or_workspace_restore
+    undo:
+      strategy: compensating_action
+      description: "Capture the previous issue status and compensate by reopening it or restoring the workspace ref."
+      payload: boundary_compensation
+      captures: [issue_id, previous_issue_status, workspace_paths]
+      requires: [issue_id, previous_issue_status]
+    parameters:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Issue ID to close"
+          positional: true
+      required: [id]
+
+  - name: issue_list
+    binary: bd
+    args: [list]
+    description: "List beads issues. Defaults to open issues only."
+    parameters:
+      type: object
+      properties:
+        all:
+          type: boolean
+          description: "Include closed issues"
+          flag: --all
+          bool_flag: true

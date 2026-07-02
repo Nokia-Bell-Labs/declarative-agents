@@ -1,0 +1,7 @@
+# Specification validation builtin declarations.
+includes:
+  - ../load-corpus.yaml
+  - ../validate-specs.yaml
+  - ../format-report.yaml
+
+tools: []

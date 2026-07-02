@@ -1,0 +1,115 @@
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package catalog
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+)
+
+// ValidateToolEmits checks declared tool output signals against a machine.
+func ValidateToolEmits(spec core.MachineSpec, defs []ToolDef) error {
+	signalSet := make(map[string]bool, len(spec.Signals))
+	for _, sig := range spec.Signals.Names() {
+		signalSet[sig] = true
+	}
+	terminalSet := make(map[string]bool, len(spec.TerminalStates))
+	for _, state := range spec.TerminalStates {
+		terminalSet[state] = true
+	}
+
+	transitionSet := make(map[core.TransitionInput]bool, len(spec.Transitions))
+	actions := make(map[string][]core.TransitionSpec)
+	actionNames := make(map[string]bool)
+	var dynamicTransitions []core.TransitionSpec
+	for _, tr := range spec.Transitions {
+		transitionSet[core.TransitionInput{State: core.State(tr.State), Signal: core.Signal(tr.Signal)}] = true
+		switch {
+		case tr.Action == "$tool":
+			dynamicTransitions = append(dynamicTransitions, tr)
+		case tr.Action != "":
+			actions[tr.Action] = append(actions[tr.Action], tr)
+			actionNames[tr.Action] = true
+		}
+	}
+
+	defsByName := make(map[string]ToolDef, len(defs))
+	for _, def := range defs {
+		defsByName[def.Name] = def
+	}
+
+	var errs []string
+	for _, def := range defs {
+		if !actionNames[def.Name] {
+			continue
+		}
+		for _, emit := range def.Emits {
+			if !signalSet[emit] {
+				errs = append(errs, fmt.Sprintf("tool %q emits signal %q not declared by machine %q", def.Name, emit, spec.Name))
+			}
+		}
+	}
+	errs = append(errs, validateNamedActionEmits(spec, actions, defsByName, transitionSet, terminalSet)...)
+	errs = append(errs, validateDynamicEmits(spec, dynamicTransitions, defs, transitionSet, terminalSet)...)
+	if len(errs) > 0 {
+		return fmt.Errorf("tool emits validation: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func validateNamedActionEmits(spec core.MachineSpec, actions map[string][]core.TransitionSpec, defsByName map[string]ToolDef, transitionSet map[core.TransitionInput]bool, terminalSet map[string]bool) []string {
+	var errs []string
+	for action, transitions := range actions {
+		def, ok := defsByName[action]
+		if !ok || len(def.Emits) == 0 {
+			continue
+		}
+		for _, tr := range transitions {
+			errs = append(errs, validateActionTransitionEmits(spec, def, tr, transitionSet, terminalSet)...)
+		}
+	}
+	return errs
+}
+
+func validateActionTransitionEmits(spec core.MachineSpec, def ToolDef, tr core.TransitionSpec, transitionSet map[core.TransitionInput]bool, terminalSet map[string]bool) []string {
+	if terminalSet[tr.Next] {
+		return nil
+	}
+	var errs []string
+	for _, emit := range def.Emits {
+		key := core.TransitionInput{State: core.State(tr.Next), Signal: core.Signal(emit)}
+		if !transitionSet[key] {
+			errs = append(errs, fmt.Sprintf("tool %q emits %q after %s/%s -> %s, but machine %q has no transition for %s/%s",
+				def.Name, emit, tr.State, tr.Signal, tr.Next, spec.Name, tr.Next, emit))
+		}
+	}
+	return errs
+}
+
+func validateDynamicEmits(spec core.MachineSpec, transitions []core.TransitionSpec, defs []ToolDef, transitionSet map[core.TransitionInput]bool, terminalSet map[string]bool) []string {
+	var errs []string
+	for _, tr := range transitions {
+		if terminalSet[tr.Next] {
+			continue
+		}
+		for _, def := range defs {
+			if !dynamicDispatchVisible(def) || len(def.Emits) == 0 {
+				continue
+			}
+			for _, emit := range def.Emits {
+				key := core.TransitionInput{State: core.State(tr.Next), Signal: core.Signal(emit)}
+				if !transitionSet[key] {
+					errs = append(errs, fmt.Sprintf("dynamic $tool may dispatch tool %q which emits %q after %s/%s -> %s, but machine %q has no transition for %s/%s",
+						def.Name, emit, tr.State, tr.Signal, tr.Next, spec.Name, tr.Next, emit))
+				}
+			}
+		}
+	}
+	return errs
+}
+
+func dynamicDispatchVisible(def ToolDef) bool {
+	return def.ToToolSpec().Visibility == core.External
+}

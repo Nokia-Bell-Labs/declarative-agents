@@ -1,0 +1,28 @@
+{
+  "name": "documentation-curator-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test:e2e:machine-request": "tsx e2e/machine-request-docs.spec.ts"
+  },
+  "dependencies": {
+    "highlight.js": "^11.11.1",
+    "mermaid": "^11.15.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "puppeteer-core": "^25.1.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}

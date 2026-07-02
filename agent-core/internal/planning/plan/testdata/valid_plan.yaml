@@ -1,0 +1,21 @@
+title: Implement config parser
+summary: Parse YAML configuration files into typed structs.
+files:
+  - path: internal/config/config.go
+    action: create
+    note: Config struct and loader
+  - path: internal/config/config_test.go
+    action: create
+requirements:
+  - id: R1
+    text: Define Config struct with typed fields
+  - id: R2
+    text: Parse YAML files into Config
+design_decisions:
+  - id: D1
+    text: Use yaml.v3 for parsing
+acceptance_criteria:
+  - id: AC1
+    text: Config loads from a valid YAML file
+  - id: AC2
+    text: Error returned for invalid YAML input

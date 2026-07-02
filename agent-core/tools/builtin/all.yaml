@@ -1,0 +1,15 @@
+# Full shared builtin declaration bundle.
+includes:
+  - filesystem/all.yaml
+  - llm/all.yaml
+  - lifecycle/all.yaml
+  - validation/all.yaml
+  - planner/all.yaml
+  - evaluator-session/all.yaml
+  - evaluator-point/all.yaml
+  - bench/all.yaml
+  - spec-validation/all.yaml
+
+# REST declarations live in rest/all.yaml and are selected explicitly by
+# profiles that load REST definition files.
+tools: []

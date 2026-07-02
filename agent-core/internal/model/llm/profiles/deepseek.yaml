@@ -1,0 +1,14 @@
+name: deepseek
+match_prefixes: ["deepseek"]
+machine: deepseek-coding-agent
+
+envelope:
+  open: "[tool_call]"
+  close: "[/tool_call]"
+strict_format: true
+
+extraction_pipeline:
+  - strip_code_fences
+  - extract_envelope:
+      open: "[tool_call]"
+      close: "[/tool_call]"

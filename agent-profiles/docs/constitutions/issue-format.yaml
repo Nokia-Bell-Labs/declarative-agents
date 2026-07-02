@@ -1,0 +1,97 @@
+id: issue-format
+title: Issue Format Constitution
+purpose: |
+  We use this constitution when writing Beads issues for agent-profiles.
+  A valid issue names the asset boundary, required files, requirements, and
+  acceptance criteria. That shape lets agents complete one issue without
+  changing unrelated runtime code.
+
+articles:
+  - id: I1
+    title: Name the deliverable type
+    rule: |
+      Set deliverable_type to documentation, code, asset, fixture, validation,
+      or migration. When one issue changes docs alongside moved assets, name
+      the type migration.
+  - id: I2
+    title: List required reading
+    rule: |
+      Include required_reading paths. Prefer paths in this repository. Use
+      ../agent-core paths only when the issue depends on source material or
+      runtime contracts that still live there.
+  - id: I3
+    title: List files in scope
+    rule: |
+      List files or directories that may be changed. Runtime code, builtin tool
+      implementations, and container build files belong in agent-core issues,
+      not agent-profiles issues.
+  - id: I4
+    title: Use numbered requirements
+    rule: |
+      Requirements use stable IDs such as R1, R2, and R3. Acceptance criteria
+      use AC1, AC2, and AC3. Each criterion checks a requirement, a migrated
+      path, a validation command, or a documented runtime usage.
+  - id: I5
+    title: Preserve the ownership boundary
+    rule: |
+      Issues must distinguish profile-owned behavior from agent-core-owned
+      runtime capability. Profiles configure behavior. agent-core executes it.
+
+required_fields:
+  - deliverable_type
+  - required_reading
+  - files
+  - requirements
+  - acceptance_criteria
+
+file_entry_fields:
+  - path
+  - action
+
+allowed_file_actions:
+  - create
+  - modify
+  - move
+  - delete
+
+requirement_numbering:
+  requirements: R1, R2, R3
+  acceptance_criteria: AC1, AC2, AC3
+
+issue_templates:
+  documentation: |
+    deliverable_type: documentation
+    required_reading:
+      - docs/VISION.yaml
+      - docs/ARCHITECTURE.yaml
+    files:
+      - path: docs/path.yaml
+        action: create
+    requirements:
+      - id: R1
+        text: Define the document purpose and ownership boundary.
+    acceptance_criteria:
+      - id: AC1
+        text: The document parses as YAML and is indexed when applicable.
+  migration: |
+    deliverable_type: migration
+    required_reading:
+      - docs/ARCHITECTURE.yaml
+      - ../agent-core/path/to/source
+    files:
+      - path: agents/name/
+        action: create
+    requirements:
+      - id: R1
+        text: Move profile-owned files into the target path.
+    acceptance_criteria:
+      - id: AC1
+        text: The migrated profile loads from AGENT_PROFILES_ROOT without
+          developer-specific absolute paths.
+
+validation_notes:
+  - Documentation issues run YAML parsing and de-AI checks on touched docs.
+  - Profile or fixture migration issues run the repository audit command when
+    available.
+  - Container usage checks must use mounted profile paths such as /profiles.
+  - Follow-up issues must be created for unrelated validation failures.

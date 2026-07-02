@@ -1,0 +1,22 @@
+tools:
+- name: git_init
+  type: exec
+  binary: git
+  args:
+  - init
+  description: Initialize a new git repository in the current directory.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: workspace_git_metadata
+    paths:
+    - .git
+    description: Creates .git metadata in the workspace.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore the workspace ref captured before git init.
+    requires:
+    - Workspace

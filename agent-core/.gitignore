@@ -1,0 +1,19 @@
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.netrc
+/agent
+/eval-analyze
+
+# Bench UI
+pkg/bench/ui/dist/
+pkg/bench/ui/node_modules/
+internal/evaluation/bench/ui/node_modules/
+internal/knowledge/documentation/ui/node_modules/
+bin/
+magefiles/mage_output_file.go
+
+# Podman may leave this behind if an interrupted build used --secret.
+podman-build-secret-*

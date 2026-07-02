@@ -1,0 +1,187 @@
+tools:
+- name: serve_ui
+  type: builtin
+  init: serve_ui
+  visibility: internal
+  emits:
+  - ExperimentRequested
+  - Shutdown
+  - CommandError
+  description: Start the bench web UI server and block waiting for user actions (bench equivalent of invoke_llm).
+  config:
+    addr: :8080
+    data_dir: eval-results
+    configs_dir: agents
+    docs_dir: docs
+    profiles_dir: internal/model/llm/profiles
+  category: boundary
+  problem: The bench machine needs one human-boundary word that serves the UI and blocks until the operator emits an action signal.
+  goals:
+  - Start or reuse the bench HTTP server from YAML configuration.
+  - Translate user actions into declared machine signals.
+  - Keep UI address, data, docs, config, and profile paths in tool config.
+  requirements:
+    input:
+    - must read addr, data_dir, configs_dir, docs_dir, and profiles_dir from config
+    output:
+    - must emit ExperimentRequested, Shutdown, or CommandError
+    side_effects:
+    - must start or reuse an HTTP server and mutate bench UI state
+    undo:
+    - must compensate by stopping or marking the UI session when supported
+    errors:
+    - must emit CommandError when the server cannot start or action payload is invalid
+  non_goals:
+  - Does not run evaluator sessions itself.
+  - Does not inspect oracle results directly.
+  - Does not call an LLM.
+  output:
+    description: Bench UI action selected by the human operator.
+    schema:
+      type: object
+      properties:
+        action:
+          type: string
+        suite_path:
+          type: string
+        output_dir:
+          type: string
+        request_id:
+          type: string
+      required:
+      - action
+  side_effects:
+  - kind: human_boundary
+    target: bench_operator
+    description: Blocks waiting for operator input through the web UI.
+  - kind: state_mutation
+    target: bench_ui_state
+    state: server_running_or_action_received
+    description: Starts/reuses server state and records the received action.
+  reversibility:
+    classification: compensatable
+    undo: compensating_action
+    requires_confirmation: false
+  errors:
+  - signal: CommandError
+    condition: server startup fails or action payload cannot be decoded
+    message_shape: 'serve_ui: <error>'
+    state_after_failure: server may still be running and must be handled by bench lifecycle cleanup
+  relationships:
+    before:
+    - Idle
+    - Launching
+    after:
+    - launch_eval
+    overlaps:
+    - tool: invoke_llm
+      difference: serve_ui waits for human actions; invoke_llm waits for model responses.
+  undo:
+    strategy: compensating_action
+    description: Stop, ignore, or mark the pending UI action according to bench lifecycle policy.
+- name: launch_eval
+  type: builtin
+  init: launch_eval
+  visibility: internal
+  emits:
+  - EvalCompleted
+  - EvalFailed
+  - CommandError
+  description: Spawn a child agent as a subprocess to run an experiment.
+  category: boundary
+  problem: 'The bench machine needs a boundary word that starts a complete
+
+    evaluator session from a UI experiment request. This is not an
+
+    ordinary deterministic word because it spawns another agent program
+
+    that runs its own state machine and writes evaluation artifacts.
+
+    '
+  goals:
+  - Run the configured evaluator profile for the experiment requested by serve_ui.
+  - Propagate profile and trace configuration into the child agent invocation.
+  - Return evaluator completion status to the bench UI loop.
+  requirements:
+    input:
+    - must require profile in config
+    - must consume the experiment request emitted by serve_ui
+    output:
+    - must emit EvalCompleted when the evaluator child exits successfully
+    - must emit EvalFailed when the evaluator child exits with a failed run status
+    side_effects:
+    - must spawn one evaluator child agent process
+    - must allow the evaluator child to create session directories and result artifacts
+    - must propagate trace context to the child process
+    undo:
+    - must compensate by deleting, archiving, or marking the created eval session artifacts
+    errors:
+    - must emit CommandError when required config is missing or the child process cannot be started
+  non_goals:
+  - Does not run individual evaluation points itself.
+  - Does not inspect oracle results or aggregate metrics directly.
+  - Does not provide literal undo for results already exposed outside the workspace.
+  output:
+    description: Evaluator child process result.
+    schema:
+      type: object
+      properties:
+        experiment_id:
+          type: string
+        exit_code:
+          type: integer
+        stdout:
+          type: string
+        stderr:
+          type: string
+        elapsed_ms:
+          type: integer
+        result_dir:
+          type: string
+        traceparent:
+          type: string
+      required:
+      - exit_code
+  side_effects:
+  - kind: child_process
+    target: agent_cli
+    description: Starts the configured evaluator agent as a child process.
+  - kind: filesystem_write
+    target: eval_results
+    paths:
+    - eval-results
+    description: The evaluator child may create session directories and artifact files.
+  - kind: state_mutation
+    target: bench_ui_state
+    state: experiment_result_recorded
+    description: Returns evaluator status to the bench UI loop.
+  reversibility:
+    classification: compensatable
+    undo: artifact_compensation
+    requires_confirmation: false
+  undo:
+    strategy: compensating_action
+    description: Delete, archive, or mark the generated eval result directory according to the bench retention policy.
+    requires:
+    - result_dir
+  errors:
+  - signal: CommandError
+    condition: config is missing, experiment request is invalid, or child process cannot be started
+    message_shape: 'launch_eval: <error>'
+    state_after_failure: no new eval artifacts unless the child process already started
+  - signal: EvalFailed
+    condition: evaluator child exits with failed run status
+    message_shape: 'launch_eval failed: <status/output>'
+    state_after_failure: eval artifacts may exist and require compensation if rollback is requested
+  relationships:
+    before:
+    - serve_ui
+    after:
+    - serve_ui
+    overlaps:
+    - tool: execute_task
+      difference: execute_task starts a generator for one planner task; launch_eval starts a full evaluator session.
+    - tool: run_point
+      difference: run_point runs one point inside evaluator; launch_eval starts the evaluator process.
+  config:
+    profile: agents/evaluator/profile.yaml

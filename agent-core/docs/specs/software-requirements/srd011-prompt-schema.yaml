@@ -1,0 +1,139 @@
+id: srd011-prompt-schema
+title: Prompt Schema and Loading
+
+problem: |
+  Every agent needs a structured system prompt assembled from multiple
+  parts: a persona (role), the caller's task, behavioral constraints,
+  and an output format description. The generator implemented this in
+  its internal/prompt package with a Prompt struct, YAML loading with
+  mode detection, compiled defaults, and an Assemble method.
+
+  Without a shared prompt package, each new agent reimplements the same
+  schema, loading, and assembly logic. Moving this to agent-core gives
+  all agents a consistent prompt format with override points for their
+  domain-specific defaults.
+
+goals:
+  - G1: Prompt struct with typed fields for each section of the system message.
+  - G2: YAML schema supporting both structured and simple prompt files.
+  - G3: LoadPrompt function with mode detection, defaults, and validation.
+  - G4: Assembly contract producing the system-role message text.
+  - G5: Replace generator's internal/prompt package with agent-core internal/model/prompt.
+
+requirements:
+  R1:
+    title: Prompt struct
+    items:
+      - R1.1: "Prompt is a Go struct with four string fields: Role, Task, Constraints, OutputFormat."
+      - R1.2: Role is the system persona describing what kind of assistant the LLM is.
+      - R1.3: Task is the caller's objective for the current run.
+      - R1.4: Constraints is a free-text block of behavioral rules.
+      - R1.5: OutputFormat describes the expected response structure.
+
+  R2:
+    title: YAML schema
+    items:
+      - R2.1: "Structured mode: the YAML file contains task (required), role, constraints, and output_format (all optional)."
+      - R2.2: "Simple mode: the YAML file contains a single prompt field. The value maps to Task."
+      - R2.3: If both task and prompt exist, LoadPrompt returns an error.
+      - R2.4: Unknown top-level fields are ignored for forward compatibility.
+
+  R3:
+    title: LoadPrompt function
+    items:
+      - R3.1: LoadPrompt(path) reads a YAML file, detects mode, maps fields, applies defaults, and validates.
+      - R3.2: In simple mode, the prompt value maps to Task. Other fields receive compiled defaults.
+      - R3.3: In structured mode, missing optional fields receive compiled defaults.
+      - R3.4: File errors include the path in the error message.
+      - R3.5: Returns LoadResult (Prompt, Mode, FileSize, TaskLen, Sections) or error. Never a partial struct.
+
+  R4:
+    title: LoadPromptFromString
+    items:
+      - R4.1: LoadPromptFromString(task) creates a LoadResult from an inline string using simple-mode defaults.
+      - R4.2: Empty or whitespace-only input returns an error.
+      - R4.3: Mode is set to "string".
+
+  R5:
+    title: Compiled defaults
+    items:
+      - R5.1: DefaultRole describes a general-purpose coding assistant persona.
+      - R5.2: DefaultConstraints provides baseline behavioral rules (JSON-only, single tool per turn, workspace confinement).
+      - R5.3: DefaultOutputFormat describes the expected JSON response structure.
+      - R5.4: Defaults are compiled into the binary. Agents override them with domain-specific values.
+
+  R6:
+    title: Assembly
+    items:
+      - R6.1: Assemble() concatenates the four fields in order with blank-line separators.
+      - R6.2: Sections that are empty after trimming are omitted.
+      - R6.3: Assemble is deterministic — calling it twice produces identical output.
+      - R6.4: SectionCount() returns the number of non-empty sections.
+
+  R7:
+    title: Validation
+    items:
+      - R7.1: Task must be non-empty after loading and defaults. Empty or whitespace-only Task returns an error.
+      - R7.2: The caller receives either a valid LoadResult or an error, never a partial struct.
+
+non_goals:
+  - System prompt template rendering (srd for system prompt template).
+  - Tool manifest serialization.
+  - Conversation history management.
+  - Prompt templating or variable substitution.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Prompt struct has four string fields. Assemble concatenates them with blank-line separators, omitting empty sections. Deterministic.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R6.1, R6.2, R6.3, R6.4]
+
+  - id: AC2
+    criterion: Structured YAML with task loads into a Prompt with defaults for missing fields. Simple YAML with prompt maps to Task.
+    traces: [R2.1, R2.2, R3.1, R3.2, R3.3]
+
+  - id: AC3
+    criterion: Both task and prompt returns error. Unknown fields ignored. File errors include path.
+    traces: [R2.3, R2.4, R3.4]
+
+  - id: AC4
+    criterion: LoadPrompt returns LoadResult with Mode, FileSize, TaskLen, Sections. LoadPromptFromString returns Mode "string".
+    traces: [R3.5, R4.1, R4.3]
+
+  - id: AC5
+    criterion: Compiled defaults provide Role, Constraints, OutputFormat. They are exported and overridable.
+    traces: [R5.1, R5.2, R5.3, R5.4]
+
+  - id: AC6
+    criterion: Empty Task returns error from both LoadPrompt and LoadPromptFromString.
+    traces: [R7.1, R7.2, R4.2]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Every agent needs a structured system prompt assemble..."] --> Goals["Goals: Prompt Schema and Loading"]
+      Goals --> R1["R1: Prompt struct"]
+      Goals --> R2["R2: YAML schema"]
+      Goals --> R3["R3: LoadPrompt function"]
+      Goals --> R4["R4: LoadPromptFromString"]
+      Goals --> R5["R5: Compiled defaults"]
+      Goals --> R6["R6: Assembly"]
+      Goals --> R7["R7: Validation"]
+      AC1["AC1: Prompt struct has four string fields. Assemble concatenat..."]
+      R1 --> AC1
+      R6 --> AC1
+      AC2["AC2: Structured YAML with task loads into a Prompt with defaul..."]
+      R2 --> AC2
+      R3 --> AC2
+      AC3["AC3: Both task and prompt returns error. Unknown fields ignore..."]
+      R2 --> AC3
+      R3 --> AC3
+      AC4["AC4: LoadPrompt returns LoadResult with Mode, FileSize, TaskLe..."]
+      R3 --> AC4
+      R4 --> AC4
+      AC5["AC5: Compiled defaults provide Role, Constraints, OutputFormat..."]
+      R5 --> AC5
+      AC6["AC6: Empty Task returns error from both LoadPrompt and LoadPro..."]
+      R7 --> AC6
+      R4 --> AC6
+    ```

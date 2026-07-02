@@ -1,0 +1,14 @@
+name: laguna
+match_prefixes: ["laguna"]
+
+envelope:
+  open: "[tool_call]"
+  close: "[/tool_call]"
+strict_format: false
+
+extraction_pipeline:
+  - strip_code_fences
+  - extract_envelope:
+      open: "[tool_call]"
+      close: "[/tool_call]"
+  - extract_braces

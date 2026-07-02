@@ -1,0 +1,220 @@
+id: sm-command-undo-audit
+title: Command Undo Audit
+
+purpose: |
+  Tracks which commands satisfy the mechanical Command.Undo contract and which
+  commands also provide persisted UndoMemento payloads for checkpoint rollback.
+  It documents the current rollback coverage and the remaining places where
+  external compensation is explicit rather than automatic.
+
+current_contract: |
+  Every core.Command implementation exposes Undo() Result. Read-only words
+  intentionally return core.NoopUndo. State-mutating words now use in-memory
+  snapshots where the command owns enough state to restore directly: LLM
+  conversation/retry state, planner pipeline state, file snapshots, evaluator
+  session state, point context, and validation state.
+
+  Persisted rollback is driven by HistoryDigest.Undo. Commands that implement
+  core.UndoMementoProvider write serializable undo payloads into checkpoint
+  history so rollback after restart can distinguish reversible state restore,
+  workspace restore, compensatable boundary effects, no-op words, and
+  irreversible gaps without serializing live Command objects.
+
+noop_contract:
+  signal: ToolDone
+  output: "undo: no-op"
+  command_name: "the command being undone"
+
+compensation_boundaries:
+  description: |
+    These commands have persisted compensatable mementos. Rollback can preserve
+    the child run, artifact, issue, workspace, or approval metadata needed for
+    operator or higher-level compensation, but it does not pretend external
+    audit history, subprocess behavior, or human/model decisions can be erased.
+  commands:
+    - command: create_issue
+      compensation_payload: issue_id_and_pipeline_snapshot
+    - command: execute_task
+      compensation_payload: child_task_and_workspace_paths
+    - command: self_invoke
+      compensation_payload: child_run_id_machine_tools_and_trace_artifact
+    - command: launch_eval
+      compensation_payload: suite_output_dir_child_machine_and_tools
+    - command: serve_ui
+      compensation_payload: server_addr_and_user_action
+    - command: run_agent
+      compensation_payload: point_context_workspace_and_artifact_paths
+    - command: run_point
+      compensation_payload: eval_session_snapshot_and_nested_machine
+    - command: suspend
+      compensation_payload: approval_reason_and_checkpoint_requirement
+    - command: validate
+      compensation_payload: ran_child_tools
+
+expected_noop_long_term:
+  - read
+  - find
+  - list_files
+  - done
+  - assemble_prompt
+  - nudge_reread
+  - format_report
+  - summarize_point_results
+  - report_suite_summary
+  - read_only_exec_tools:
+      - build
+      - vet
+      - lint
+      - test
+      - workspace_status
+      - rev_parse
+      - diff_stat
+      - log_oneline
+      - issue_list
+  - FailedParamCmd
+  - failCmd
+
+implemented_memento_undo:
+  conversation_and_retry_state:
+    - command: invoke_llm
+      strategy: conversation_truncate
+      memento: reversible_conversation_snapshot
+    - command: reset_history
+      strategy: conversation_restore
+      memento: reversible_conversation_snapshot
+    - command: parse_response
+      strategy: parse_retry_counter_restore_when_tracker_enabled
+      memento: reversible_parse_retry_counter_snapshot
+    - command: report_parse_error
+      strategy: parse_retry_counter_restore_when_tracker_enabled
+      memento: reversible_parse_retry_counter_snapshot
+  planner_state:
+    - command: extract_task
+      strategy: pipeline_state_restore
+      memento: reversible_pipeline_snapshot
+    - command: extract_all
+      strategy: pipeline_state_restore
+      memento: reversible_pipeline_snapshot
+    - command: parse_plan
+      strategy: pipeline_state_restore
+      memento: reversible_pipeline_snapshot
+    - command: check_result
+      strategy: pipeline_state_restore
+      memento: reversible_pipeline_snapshot
+    - command: create_issue
+      strategy: pipeline_state_restore_only
+      memento: compensatable_pipeline_snapshot
+  workspace_state:
+    - command: write
+      strategy: file_snapshot_restore_and_workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: edit
+      strategy: file_snapshot_restore_and_workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: copy_dir
+      strategy: workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: make_dir
+      strategy: workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: git_init
+      strategy: workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: stage_all
+      strategy: workspace_restore
+      memento: reversible_workspace_restore_paths
+    - command: commit
+      strategy: compensating_action
+      memento: compensatable_boundary_compensation
+    - command: issue_create
+      strategy: compensating_action
+      memento: compensatable_boundary_compensation
+    - command: issue_close
+      strategy: compensating_action
+      memento: compensatable_boundary_compensation
+  evaluator_state:
+    - command: parse_suite_config
+      strategy: evaluator_session_restore
+      memento: reversible_eval_session_snapshot
+    - command: discover_suite_samples
+      strategy: evaluator_session_restore
+      memento: reversible_eval_session_snapshot
+    - command: expand_eval_grid
+      strategy: evaluator_session_restore
+      memento: reversible_eval_session_snapshot
+    - command: init_eval_session
+      strategy: evaluator_session_restore
+      memento: reversible_eval_session_snapshot
+    - command: next_point
+      strategy: evaluator_session_restore
+      memento: reversible_eval_session_snapshot
+    - command: run_point
+      strategy: evaluator_session_restore
+      memento: compensatable_eval_session_snapshot
+    - command: report_session
+      strategy: evaluator_session_restore
+      memento: reversible_eval_session_snapshot
+    - command: create_point_dir
+      strategy: point_context_restore
+      memento: reversible_point_context_snapshot
+    - command: run_oracle_check
+      strategy: point_context_restore
+      memento: reversible_point_context_snapshot
+    - command: collect_trace_tokens
+      strategy: point_context_restore
+      memento: reversible_point_context_snapshot
+    - command: check_agent_version
+      strategy: point_context_restore
+      memento: reversible_point_context_snapshot
+  validation_state:
+    - command: load_corpus
+      strategy: validation_state_restore
+      memento: reversible_validation_state_snapshot
+    - command: validate_specs
+      strategy: validation_state_restore
+      memento: reversible_validation_state_snapshot
+  boundary_compensation:
+    - command: validate
+      strategy: child_command_undo
+      memento: compensatable_boundary_compensation
+      captures: [ran_child_tools]
+    - command: suspend
+      strategy: resume_or_checkpoint_rollback
+      memento: compensatable_boundary_compensation
+      captures: [reason, checkpoint_required]
+    - command: create_issue
+      strategy: close_or_delete_created_issue
+      memento: compensatable_pipeline_snapshot_and_boundary_compensation
+      captures: [issue_id, pipeline_state_snapshot]
+    - command: execute_task
+      strategy: child_agent_workspace_restore
+      memento: compensatable_boundary_compensation
+      captures: [child_run_id, workspace_paths]
+    - command: self_invoke
+      strategy: child_agent_workspace_restore
+      memento: compensatable_boundary_compensation
+      captures: [child_run_id, child_machine, child_tools, trace_artifact]
+    - command: run_point
+      strategy: nested_machine_rollback
+      memento: compensatable_eval_session_snapshot_and_boundary_compensation
+      captures: [eval_session_snapshot, nested_machine_history, child_machine]
+    - command: run_agent
+      strategy: point_workspace_restore_and_child_process_compensation
+      memento: compensatable_boundary_compensation
+      captures: [point_context_snapshot, workspace_paths, artifact_paths]
+    - command: launch_eval
+      strategy: child_eval_artifact_compensation
+      memento: compensatable_boundary_compensation
+      captures: [suite_path, output_dir, child_machine, child_tools]
+    - command: serve_ui
+      strategy: server_shutdown_or_user_action_compensation
+      memento: compensatable_boundary_compensation
+      captures: [server_addr, user_action]
+
+declaration_mismatches: []
+
+related_issues:
+  - agent-core-gm-rollback.5
+  - agent-core-gm-rollback.6
+  - agent-core-gm-rollback.7
+  - agent-core-gm-rollback.8

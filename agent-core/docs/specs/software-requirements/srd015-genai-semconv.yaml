@@ -1,0 +1,104 @@
+id: srd015-genai-semconv
+title: GenAI Semantic Convention Helpers
+
+problem: |
+  OpenTelemetry defines semantic conventions for GenAI operations
+  (chat, invoke_agent, execute_tool, invoke_workflow). Without shared
+  constants and span-naming helpers, each package that emits GenAI spans
+  hard-codes attribute keys and operation names, leading to inconsistency
+  and drift from the upstream specification.
+
+goals:
+  - G1: Centralized OTel GenAI semantic convention attribute key constants.
+  - G2: Span name builders following the "{operation} {target}" convention.
+  - G3: Attribute builder helpers for inference, agent, tool, and workflow spans.
+
+requirements:
+  R1:
+    title: Attribute key constants
+    items:
+      - R1.1: Define gen_ai.operation.name, gen_ai.provider.name, gen_ai.request.model, gen_ai.response.model constants.
+      - R1.2: Define gen_ai.agent.name, gen_ai.agent.id, gen_ai.agent.version, gen_ai.agent.description constants.
+      - R1.3: Define gen_ai.tool.name, gen_ai.tool.type, gen_ai.tool.call.id, gen_ai.tool.description, gen_ai.tool.call.arguments, gen_ai.tool.call.result, gen_ai.tool.definitions constants.
+      - R1.4: Define gen_ai.usage.input_tokens, gen_ai.usage.output_tokens constants.
+      - R1.5: Define gen_ai.response.finish_reasons, gen_ai.response.id constants.
+      - R1.6: Define error.type, server.address, server.port constants.
+      - R1.7: Define gen_ai.output.type, gen_ai.workflow.name, gen_ai.conversation.id constants.
+      - R1.8: Define content attribute keys for opt-in data capture — gen_ai.input.messages, gen_ai.output.messages, gen_ai.system_instructions.
+
+  R2:
+    title: Operation name constants
+    items:
+      - R2.1: "Define operation names: chat, create_agent, invoke_agent, execute_tool, invoke_workflow, embeddings, retrieval, text_completion."
+
+  R3:
+    title: Provider, tool type, and output type constants
+    items:
+      - R3.1: "Define provider names: ollama, openai, anthropic, deepseek."
+      - R3.2: "Define tool types: function, extension, datastore."
+      - R3.3: "Define output type constants: text, json, image."
+
+  R4:
+    title: Span name builders
+    items:
+      - R4.1: "InferenceSpanName(model) returns \"chat {model}\"."
+      - R4.2: "AgentSpanName(name) returns \"invoke_agent {name}\"."
+      - R4.3: "ToolSpanName(name) returns \"execute_tool {name}\"."
+      - R4.4: "WorkflowSpanName(name) returns \"invoke_workflow {name}\"."
+
+  R5:
+    title: Attribute builders
+    items:
+      - R5.1: InferenceAttrs returns gen_ai.operation.name, gen_ai.provider.name, optional gen_ai.request.model and server.address.
+      - R5.2: AgentAttrs returns gen_ai.operation.name and optional provider, agent name, version, and model attributes.
+      - R5.3: ToolAttrs returns gen_ai.operation.name, gen_ai.tool.name, and optional gen_ai.tool.type.
+      - R5.4: UsageAttrs returns gen_ai.usage.input_tokens and gen_ai.usage.output_tokens.
+      - R5.5: ErrorAttrs returns error.type, defaulting to "_OTHER" for empty input.
+      - R5.6: WorkflowAttrs returns gen_ai.operation.name (invoke_workflow) and optional gen_ai.workflow.name.
+
+non_goals:
+  - Span creation or lifecycle management.
+  - OTel SDK setup or provider configuration.
+  - Metric semantic conventions.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: All gen_ai.* attribute key constants match the OTel GenAI semantic convention specification. Content, workflow, conversation, and output-type keys are defined.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
+
+  - id: AC2
+    criterion: "Span name builders produce \"{operation} {name}\" format, falling back to bare operation name for empty input."
+    traces: [R2.1, R4.1, R4.2, R4.3, R4.4]
+
+  - id: AC3
+    criterion: Attribute builders return correct attribute slices for inference, agent, tool, workflow, usage, and error spans.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6]
+
+  - id: AC4
+    criterion: Output type constants (text, json, image) and provider/tool type constants are exported.
+    traces: [R3.1, R3.2, R3.3]
+
+depends_on:
+  - srd_id: srd007-tracer-interface
+    symbols_used: [attribute.KeyValue]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: OpenTelemetry defines semantic conventions for GenAI..."] --> Goals["Goals: GenAI Semantic Convention Helpers"]
+      Goals --> R1["R1: Attribute key constants"]
+      Goals --> R2["R2: Operation name constants"]
+      Goals --> R3["R3: Provider, tool type, and output type constants"]
+      Goals --> R4["R4: Span name builders"]
+      Goals --> R5["R5: Attribute builders"]
+      AC1["AC1: All gen_ai.* attribute key constants match the OTel GenAI..."]
+      R1 --> AC1
+      AC2["AC2: Span name builders produce '(operation) (name)' format, f..."]
+      R2 --> AC2
+      R4 --> AC2
+      AC3["AC3: Attribute builders return correct attribute slices for in..."]
+      R5 --> AC3
+      AC4["AC4: Output type constants (text, json, image) and provider/to..."]
+      R3 --> AC4
+    ```
