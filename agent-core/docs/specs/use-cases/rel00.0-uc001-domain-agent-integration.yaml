@@ -1,0 +1,111 @@
+id: rel00.0-uc001-domain-agent-integration
+title: Domain agent imports agent-core and runs an agentic loop
+
+summary: |
+  A domain agent (e.g., Go coding agent, research agent) imports the
+  agent-core library to build and run an agentic loop. The agent creates
+  a Registry, registers tools, defines a TransitionTable (programmatically
+  or from YAML), supplies a Tracer, and calls Loop. The generic engine
+  drives the state machine, dispatches commands, enforces budget, and
+  returns a structured RunResult.
+
+actor: Domain agent developer
+
+trigger: |
+  The domain agent calls core.Loop(params, ctx) with a configured
+  LoopParams struct containing the registry, transition table, budget,
+  and hooks.
+
+flow:
+  - F1: Domain agent imports internal/runtime/core for types, state machine, dispatch, registry, and loop. Imports internal/observability/tracing for the Tracer interface (srd001, srd007).
+  - F2: Agent creates a Registry via NewRegistry and registers ToolSpec-Builder pairs for its domain tools (srd004).
+  - F3: Agent defines a TransitionTable either programmatically or by loading a YAML MachineSpec via ParseMachineSpec and BuildTransitionTable (srd002, srd006).
+  - F4: Agent sets up telemetry via telemetry.NewRoot with an ExporterConfig, receiving a Trace and shutdown function. Wraps Trace in a TraceAdapter to satisfy the Tracer interface (srd008, srd007).
+  - F5: Agent can use shared conversation and prompt packages to assemble model input with conversation history, prompt sections, system templates, and registered tool text (srd010, srd011, srd012).
+  - F6: Agent constructs LoopParams with InitialState, Registry, Table, IsTerminal, Trace, Budget, and optional LoopHooks (srd005).
+  - F7: Agent calls Loop(params, ctx). Loop freezes the registry, creates OTel spans, and enters the iteration loop (srd005, srd015).
+  - F8: Each iteration checks context cancellation and budget, steps the state machine, dispatches the command via Dispatch with tracing and timeout (srd003, srd005).
+  - F9: Loop reaches a terminal state, resolves RunStatus, and returns RunResult with status, iterations, tokens, cost, events, and summary (srd005).
+  - F10: Agent calls the shutdown function to flush exporters, end the root span, and close files. Optionally replays recorded traces via ReplayFile (srd008).
+
+touchpoints:
+  - T1: "srd001-core-types R1, R2, R3, R4, R5 -- State, Signal, Command, Result, Cost, Builder, CommandResolver types"
+  - T2: "srd002-state-machine R1, R2, R3 -- TransitionTable, StateMachine, Step, TerminalFunc"
+  - T3: "srd003-command-dispatch R1, R2, R3 -- Dispatch, SafeExecute, FillDuration, ForceErrorSignal"
+  - T4: "srd004-tool-registry R1, R2, R3, R4, R5 -- ToolSpec, Registry, Manifest, PhaseMatch"
+  - T5: "srd005-agentic-loop R1, R2, R3, R4, R5, R6 -- Budget, RunResult, LoopHooks, LoopParams, Loop, ValidateBuilders"
+  - T6: "srd006-yaml-machine-config R1, R2, R3, R4 -- MachineSpec, validation, BuildTransitionTable, LoadMachineSpec"
+  - T7: "srd007-tracer-interface R1, R2 -- Tracer interface, minimal dependencies"
+  - T8: "srd008-telemetry R1, R2, R3, R4, R5, R6, R7 -- ExporterConfig, Trace, NewRoot, file/OTLP exporters, TraceAdapter, ReplayFile"
+  - T9: "srd010-conversation R1, R2, R4, R5, R6, R7 -- Message, Conversation, append-only history, assembly, system prompt, reset"
+  - T10: "srd011-prompt-schema R1, R2, R3, R4, R5, R6, R7 -- Prompt, YAML loading, defaults, validation, assembly"
+  - T11: "srd012-system-prompt-template R1, R2, R3, R4, R5, R6 -- embedded system template, PromptData, Envelope, rendering, manifest serialization"
+  - T12: "srd015-genai-semconv R1, R2, R3, R4, R5 -- GenAI attribute constants, operation names, providers, span names, attribute builders"
+
+success_criteria:
+  - id: S1
+    criterion: Domain agent can create a Registry, register ToolSpec-Builder pairs, and freeze it.
+    traces:
+      - srd004-tool-registry AC2
+      - srd004-tool-registry AC5
+  - id: S2
+    criterion: Domain agent can build a TransitionTable from a YAML MachineSpec or programmatically.
+    traces:
+      - srd002-state-machine AC1
+      - srd006-yaml-machine-config AC3
+  - id: S3
+    criterion: Domain agent can call Loop with LoopParams and receive a RunResult.
+    traces:
+      - srd005-agentic-loop AC4
+      - srd005-agentic-loop AC5
+  - id: S4
+    criterion: Budget enforcement stops the loop when limits are exceeded.
+    traces:
+      - srd005-agentic-loop AC1
+      - srd005-agentic-loop AC5
+  - id: S5
+    criterion: LoopHooks inject domain-specific behavior (validation, budget, status, result processing).
+    traces:
+      - srd005-agentic-loop AC3
+  - id: S6
+    criterion: Dispatch wraps command execution with tracing, timeout, and panic recovery.
+    traces:
+      - srd003-command-dispatch AC1
+      - srd003-command-dispatch AC2
+  - id: S7
+    criterion: MachineSpec YAML is validated for referential integrity before building the table.
+    traces:
+      - srd006-yaml-machine-config AC2
+      - srd006-yaml-machine-config AC4
+  - id: S8
+    criterion: Tracer interface is satisfied by TraceAdapter from internal/observability/telemetry.
+    traces:
+      - srd007-tracer-interface AC1
+      - srd008-telemetry AC8
+  - id: S9
+    criterion: NewRoot creates providers from ExporterConfig and returns a Trace and shutdown function.
+    traces:
+      - srd008-telemetry AC1
+      - srd008-telemetry AC4
+      - srd008-telemetry AC5
+  - id: S10
+    criterion: Trace supports Push, Event, SetAttributes, Context, and Meter methods.
+    traces:
+      - srd008-telemetry AC2
+      - srd008-telemetry AC3
+  - id: S11
+    criterion: File exporter writes atomically via temp file rename. OTLP exporter sends via gRPC.
+    traces:
+      - srd008-telemetry AC6
+      - srd008-telemetry AC7
+  - id: S12
+    criterion: ReplayFile sends recorded spans to a collector endpoint.
+    traces:
+      - srd008-telemetry AC9
+
+out_of_scope:
+  - Domain-specific tool implementations.
+  - TLS or authenticated OTLP connections.
+  - CLI integration (domain agent responsibility).
+
+test_suite: test-rel00.0

@@ -1,0 +1,676 @@
+id: agent-core-specifications
+title: Agent Core Specification Index
+
+overview: |
+  Specification index for the agent-core framework. Thirty-four SRDs
+  define the generic agentic loop engine and its supporting packages across
+  seven releases. Release 04.0 implements embedded monitoring. The 00.0 release
+  owns the engine foundation and its support packages. In 01.0, configured
+  runtime behavior expands into evaluator and bench contracts. Tool
+  declarations also belong to that release. Rollback lifecycle contracts
+  belong to 02.0. Declarative REST runtime contracts belong to 03.0. REST
+  client and server contracts sit in the same release. Profile migration and
+  mounted-profile runtime contracts belong to 06.0, where the mounted-profile
+  use case and profile-migration suite now name implemented proof commands.
+  Twenty-one use cases exercise the SRDs across the seven releases. Eight formal YAML test suites cover 210 acceptance test
+  cases across releases 00.0 through 06.0; additional
+  coverage comes from Go test functions across all packages (run
+  `go test ./... -v` for current counts).
+
+  The monitor release adds embedded runtime monitoring. Current code defines
+  the monitor store, recorder, metric validation, disabled mode, OpenTelemetry
+  metric export, REST/OpenAPI reads from cached monitor state, live cmd/agent
+  startup wiring, workflow labels, and the Release 04.0 proof.
+
+  SRD release assignments are range based. Release 00.0 covers srd001
+  through srd018. Release 01.0 covers srd019 through srd024. Release
+  02.0 covers srd025 and srd026. Release 03.0 covers srd027 through
+  srd031. Release 04.0 covers srd032 and srd033. Release 06.0 covers
+  srd034.
+
+  Source-of-truth note.
+  - roll-backs.md and tools-as-dsl.md are historical design notes. Their
+    requirements have been consolidated into srd025, cfg-tool-authoring-standard,
+    sm-rollback-lifecycle, and sm-tool-language. Release 02.0 use cases and
+    formal test suites carry the scenario coverage. Future requirements changes
+    should update those canonical documents first.
+
+roadmap_summary:
+  - version: "00.0"
+    name: Core engine and telemetry import
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
+  - version: "01.0"
+    name: Unified agent binary and configuration-driven architecture
+    use_cases_done: 3
+    use_cases_total: 3
+    status: done
+  - version: "02.0"
+    name: Rollback lifecycle and tool language documentation
+    use_cases_done: 2
+    use_cases_total: 4
+    status: in_progress
+  - version: "03.0"
+    name: Declarative REST client and server tools
+    use_cases_done: 8
+    use_cases_total: 8
+    status: in_progress
+  - version: "04.0"
+    name: Embedded monitor metrics and REST API
+    use_cases_done: 2
+    use_cases_total: 2
+    status: done
+  - version: "06.0"
+    name: External agent profiles and mounted runtime assets
+    use_cases_done: 1
+    use_cases_total: 1
+    status: in_progress
+
+foundation_document_index:
+  - id: agent-core
+    title: "Agent Core: Framework for Declarative Tool-Language Agents"
+    summary: Vision, problem statement, success criteria, boundaries, and canonical links for declarative tool-language agents.
+    path: docs/VISION.yaml
+  - id: architecture-agent-core
+    title: Agent Core Architecture
+    summary: Runtime, package, configuration, tool-language, lifecycle, telemetry, and specification architecture with Mermaid diagrams.
+    path: docs/ARCHITECTURE.yaml
+
+srd_index:
+  - id: srd001-core-types
+    title: Core Types
+    summary: State, Signal, Command, Result, Cost, Builder, and CommandResolver types. Three generic Signal constants.
+    path: docs/specs/software-requirements/srd001-core-types.yaml
+  - id: srd002-state-machine
+    title: State Machine
+    summary: TransitionTable mapping (State, Signal) to (NextState, ActionFunc). StateMachine.Step, TerminalFunc, NewStateMachine.
+    path: docs/specs/software-requirements/srd002-state-machine.yaml
+  - id: srd003-command-dispatch
+    title: Command Dispatch
+    summary: Dispatch wrapping Command.Execute with tracing, timeout, panic recovery. SafeExecute, FillDuration, ForceErrorSignal.
+    path: docs/specs/software-requirements/srd003-command-dispatch.yaml
+  - id: srd004-tool-registry
+    title: Tool Registry
+    summary: ToolSpec with Visibility and Phases. Registry pairing specs with Builders. Manifest filtering, freeze semantics.
+    path: docs/specs/software-requirements/srd004-tool-registry.yaml
+  - id: srd005-agentic-loop
+    title: Agentic Loop
+    summary: Loop function driving state machine with budget enforcement, event recording, LoopHooks, RunResult, and OTel tracing.
+    path: docs/specs/software-requirements/srd005-agentic-loop.yaml
+  - id: srd006-yaml-machine-config
+    title: YAML State Machine Configuration
+    summary: MachineSpec YAML schema, validation, BuildTransitionTable, LoadMachineSpec, ParseMachineSpec.
+    path: docs/specs/software-requirements/srd006-yaml-machine-config.yaml
+  - id: srd007-tracer-interface
+    title: Tracer Port Interface
+    summary: "Tracer interface with five methods: Push, Event, SetAttributes, RecordError, Context. Includes NoopTracer."
+    path: docs/specs/software-requirements/srd007-tracer-interface.yaml
+  - id: srd008-telemetry
+    title: Telemetry Implementation
+    summary: OTel setup with Trace, TraceAdapter, NewRoot, ExporterConfig, file/OTLP exporters, and ReplayFile.
+    path: docs/specs/software-requirements/srd008-telemetry.yaml
+  - id: srd009-ollama-adapter
+    title: Ollama LLM Adapter
+    summary: Production-ready Ollama adapter in internal/model/llm/ollama satisfying llm.Client. Model validation, tracing, model discovery.
+    path: docs/specs/software-requirements/srd009-ollama-adapter.yaml
+  - id: srd010-conversation
+    title: Conversation Management
+    summary: Single Conversation type supporting managed (Send) and manual (Append) modes with thread-safe history and system prompt management.
+    path: docs/specs/software-requirements/srd010-conversation.yaml
+  - id: srd011-prompt-schema
+    title: Prompt Schema and Loading
+    summary: Prompt struct with Role, Task, Constraints, OutputFormat. YAML loading with mode detection, defaults, validation, and assembly.
+    path: docs/specs/software-requirements/srd011-prompt-schema.yaml
+  - id: srd012-system-prompt-template
+    title: System Prompt Template and Manifest Serialization
+    summary: Embedded Go text/template for system prompts, PromptData struct, SerializeManifest, and custom template support.
+    path: docs/specs/software-requirements/srd012-system-prompt-template.yaml
+  - id: srd013-standard-tool-library
+    title: Standard Tool Library (STL)
+    summary: Overview of shared standard tools, planned internal/tools package split, grouped declaration layout, and temporary compatibility facades.
+    path: docs/specs/software-requirements/srd013-standard-tool-library.yaml
+  - id: srd014-spec-graph
+    title: Specification Graph Loader and Validator
+    summary: Parses SRDs, use cases, test suites into typed structs. Builds a labeled property graph for cross-artifact validation.
+    path: docs/specs/software-requirements/srd014-spec-graph.yaml
+  - id: srd015-genai-semconv
+    title: GenAI Semantic Convention Helpers
+    summary: OTel GenAI semantic convention constants, span name builders, and attribute helpers in internal/observability/telemetry/genai.
+    path: docs/specs/software-requirements/srd015-genai-semconv.yaml
+  - id: srd016-traceparent
+    title: W3C Traceparent Parse and Format
+    summary: W3C traceparent version-00 parser, formatter, and context builder in internal/observability/telemetry.
+    path: docs/specs/software-requirements/srd016-traceparent.yaml
+  - id: srd017-llm-extensions
+    title: LLM Package Extensions
+    summary: Parse utilities, response parser profiles, invoke_llm parser selection, and domain interfaces in internal/model/llm.
+    path: docs/specs/software-requirements/srd017-llm-extensions.yaml
+  - id: srd018-cli-flag-contract
+    title: CLI Standard Flag Contract
+    summary: Canonical flag name constants in internal/support/cli, PropagateArgs for child-process argument building, RemainingBudget, and FormatFlag.
+    path: docs/specs/software-requirements/srd018-cli-flag-contract.yaml
+  - id: srd019-eval-harness
+    title: Evaluation Harness Infrastructure
+    summary: Suite configuration, grid evaluation, session execution, atomic point workspace tools, dump_config, run_agent, oracle/trace/version point result tools, collect_metrics, result analysis, and convergence tracking in internal/evaluation.
+    path: docs/specs/software-requirements/srd019-eval-harness.yaml
+  - id: srd020-bench-web-ui
+    title: Bench Web UI
+    summary: HTTP server with embedded React frontend, REST API for sessions/points/traces/experiments/configs/source/actions, SPA routing, documentation-route exclusion, and dual-mode asset loading in internal/evaluation/bench.
+    path: docs/specs/software-requirements/srd020-bench-web-ui.yaml
+  - id: srd021-agent-cli-exec-tool
+    title: Agent CLI as an Exec Tool
+    summary: Requirements for declaring the agent binary as a configured exec tool for child program invocation instead of bespoke Go subprocess paths.
+    path: docs/specs/software-requirements/srd021-agent-cli-exec-tool.yaml
+  - id: srd022-builtin-tools
+    title: Builtin Tool Declarations and Factories
+    summary: Requirements for builtin declarations, grouped builtin declaration paths, target catalog and registry package ownership, typed config validation, state-machine integration, and mode-local overrides.
+    path: docs/specs/software-requirements/srd022-builtin-tools.yaml
+  - id: srd023-cli-exec-tools
+    title: CLI and Exec Tool Declarations
+    summary: Requirements for declaring external CLIs as exec tools, grouped exec declaration paths, JSON-to-argv mapping, subprocess execution, output capture, declaration selection, and target exec package ownership.
+    path: docs/specs/software-requirements/srd023-cli-exec-tools.yaml
+  - id: srd024-blocking-input-tools
+    title: Blocking Input Tools
+    summary: Requirements for tools like invoke_llm and serve_ui that intentionally block the loop while waiting for external model, human, or approval input.
+    path: docs/specs/software-requirements/srd024-blocking-input-tools.yaml
+  - id: srd025-rollback-lifecycle
+    title: Rollback, Checkpoint, Suspend, and Resume Lifecycle
+    summary: Requirements for three-layer state, StateStore/FileStore, Workspace/GitWorkspace, history, checkpoints, rollback traversal, suspend, resume, approval gates, and opt-in lifecycle behavior.
+    path: docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+  - id: srd026-lifecycle-tools
+    title: Lifecycle Tool Adapters
+    summary: Requirements for checkpoint_history, checkpoint_rollback, and generic lifecycle control words such as exit_agent, selected by ToolDef declarations and MachineSpec transitions.
+    path: docs/specs/software-requirements/srd026-lifecycle-tools.yaml
+  - id: srd027-rest-tool-runtime
+    title: Declarative REST Tool Runtime
+    summary: Shared REST runtime requirements for declarative client and server boundary tools, OpenAPI imports, net/http execution, event fan-in, lifecycle control routing, safety controls, observability, and rollback.
+    path: docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
+  - id: srd028-rest-client-tools
+    title: REST Client Tools
+    summary: Requirements for declarative outbound REST client words, resource operations, RPC-shaped invoke, async send/await, response shaping, retries, redaction, and compensation.
+    path: docs/specs/software-requirements/srd028-rest-client-tools.yaml
+  - id: srd029-rest-server-tools
+    title: REST Server Tools
+    summary: Requirements for declarative inbound REST server words, route launch, await, stop, generic event sources, lifecycle control endpoints, queues, OpenAPI server binding, and request validation.
+    path: docs/specs/software-requirements/srd029-rest-server-tools.yaml
+  - id: srd030-machine-request-rest-binding
+    title: Machine Request REST Binding
+    summary: Requirements for binding one inbound HTTP request to one short-lived MachineSpec execution with request mapping, response extraction, errors, timeouts, and tracing.
+    path: docs/specs/software-requirements/srd030-machine-request-rest-binding.yaml
+  - id: srd031-declarative-document-resources
+    title: Declarative Document Resources
+    summary: Requirements for filesystem-backed documentation resources with safe path resolution, include patterns, extension allowlists, YAML and Markdown response modes, and profile-owned UI placement.
+    path: docs/specs/software-requirements/srd031-declarative-document-resources.yaml
+  - id: srd032-tool-metrics-monitor-store
+    title: Tool Metrics Monitor Store
+    summary: Requirements for a bounded in-memory monitor store, ToolMetricsRecorder, metric validation, OpenTelemetry metric export, disabled-mode behavior, profile startup wiring, workflow labels, and release proof.
+    status: done
+    path: docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
+  - id: srd033-monitor-rest-api
+    title: Monitor REST API
+    summary: Requirements for read-only REST and OpenAPI monitor endpoints over cached monitor state, including machine, tool, metric, event, stream views, and live-store wiring.
+    status: done
+    path: docs/specs/software-requirements/srd033-monitor-rest-api.yaml
+  - id: srd034-external-agent-profiles
+    title: External Agent Profiles and Mounted Runtime Assets
+    summary: Requirements for separating agent-core runtime assets from profile-owned programs and running containers with externally supplied profiles.
+    status: implemented
+    path: docs/specs/software-requirements/srd034-external-agent-profiles.yaml
+
+config_format_index:
+  - id: cfg-machine-format
+    title: Machine Configuration Format
+    summary: MachineSpec YAML schema for agent state machines, states, signals, transitions, actions, budgets, and validation.
+    path: docs/specs/config-formats/machine-format.yaml
+  - id: cfg-runtime-contract
+    title: Machine + Tools Runtime Contract
+    summary: Universal profile-first startup contract for runtime data flags, tool declarations, LLM boundary config, lifecycle ports, and nested machines.
+    path: docs/specs/config-formats/runtime-contract.yaml
+  - id: cfg-tool-authoring-standard
+    title: Tool Definition Authoring Standard
+    summary: Source-of-truth guidance for authoring tools as vocabulary words with typed contracts, declaration placement, side effects, reversibility, undo, errors, and machine-composed workflows.
+    path: docs/specs/config-formats/tool-authoring-standard.yaml
+  - id: cfg-tool-declaration-format
+    title: Tool Declaration Format
+    summary: YAML schema for builtin and exec tool declarations, grouped declaration files, include ordering, local overrides, and compatibility bundles.
+    path: docs/specs/config-formats/tool-declaration-format.yaml
+  - id: cfg-tool-selection-format
+    title: Tool Selection Format
+    summary: Name-only tools.yaml selection format used to choose available vocabulary from shared grouped declaration files and local overrides.
+    path: docs/specs/config-formats/tool-selection-format.yaml
+  - id: cfg-llm-config-format
+    title: LLM Configuration Format
+    summary: Per-agent invoke_llm declaration format for model/provider config, prompts, manifest state, response_profile parser selection, and time/token limits.
+    path: docs/specs/config-formats/llm-config-format.yaml
+  - id: cfg-rest-tool-format
+    title: REST Tool Configuration Format
+    summary: YAML format for declarative REST definitions, clients, servers, OpenAPI imports, auth profiles, limits, retry policies, response mappings, machine_request bindings, and target-format event source, lifecycle control, and document resource fields. Release 03.0 support status is recorded in the spec.
+    path: docs/specs/config-formats/rest-tool-format.yaml
+
+semantic_model_index:
+  - id: sm-command-undo-audit
+    title: Command Undo Audit
+    summary: Migration checklist for commands that need real undo implementations versus long-term no-op undo behavior.
+    path: docs/specs/semantic-models/command-undo-audit.yaml
+  - id: sm-tool-vocabulary-audit
+    title: Tool Vocabulary Audit
+    summary: Audit classifying current tools as words, stateful internal tools, boundaries, or sentence-shaped migration candidates.
+    path: docs/specs/semantic-models/tool-vocabulary-audit.yaml
+  - id: sm-rollback-lifecycle
+    title: Rollback Lifecycle Semantic Model
+    summary: Semantic model for three-layer state ownership, lifecycle stores, checkpoints, suspend/resume, and rollback traversal.
+    path: docs/specs/semantic-models/rollback-lifecycle.yaml
+  - id: sm-tool-language
+    title: Tool Language Semantic Model
+    summary: Semantic model for tools as vocabulary words, MachineSpec composition, boundary tools, contracts, and legacy sentence migration.
+    path: docs/specs/semantic-models/tool-language.yaml
+  - id: sm-rest-tool-language
+    title: REST Tool Language Semantic Model
+    summary: Semantic model for declarative REST client and server boundary words, REST definitions, async request state, inbound event fan-in, lifecycle control routing, and OpenAPI import relationships.
+    path: docs/specs/semantic-models/rest-tool-language.yaml
+  - id: sm-machine-request-http
+    title: Machine Request HTTP Semantic Model
+    summary: Semantic model for HTTP requests as grammar input, request-machine sentences as handling behavior, and response words as the bridge back to HTTP responses.
+    path: docs/specs/semantic-models/machine-request-http.yaml
+  - id: sm-document-resource-language
+    title: Document Resource Language Semantic Model
+    summary: Semantic model for configured filesystem documentation corpora, safe path policy, response modes, document resource words, and human UI actor configuration.
+    path: docs/specs/semantic-models/document-resource-language.yaml
+  - id: sm-tool-metrics-monitoring
+    title: Tool Metrics Monitoring Semantic Model
+    summary: Semantic model for standard tool metrics, specialized metrics, recorder ownership, workflow labels, low-cardinality attributes, and monitor snapshots.
+    path: docs/specs/semantic-models/tool-metrics-monitoring.yaml
+
+use_case_index:
+  - id: rel00.0-uc001-domain-agent-integration
+    title: Domain agent imports agent-core and runs an agentic loop
+    release: "00.0"
+    status: done
+    test_suite: test-rel00.0
+    path: docs/specs/use-cases/rel00.0-uc001-domain-agent-integration.yaml
+  - id: rel00.0-uc002-spec-corpus-validation
+    title: Maintainer validates the specification corpus graph
+    release: "00.0"
+    status: done
+    test_suite: test-rel00.0
+    path: docs/specs/use-cases/rel00.0-uc002-spec-corpus-validation.yaml
+  - id: rel01.0-uc001-generator-coding
+    title: Generator agent solves Go coding tasks using YAML config
+    release: "01.0"
+    status: done
+    test_suite: test-rel01.0
+    path: docs/specs/use-cases/rel01.0-uc001-generator-coding.yaml
+  - id: rel01.0-uc002-evaluator-benchmark
+    title: Evaluator runs generator across models and collects results
+    release: "01.0"
+    status: done
+    test_suite: test-rel01.0
+    path: docs/specs/use-cases/rel01.0-uc002-evaluator-benchmark.yaml
+  - id: rel01.0-uc003-bench-visualization
+    title: Bench serves web UI for evaluation result exploration
+    release: "01.0"
+    status: done
+    test_suite: test-rel01.0
+    path: docs/specs/use-cases/rel01.0-uc003-bench-visualization.yaml
+  - id: rel02.0-uc001-approval-suspend-resume
+    title: Agent suspends at approval gate and resumes from checkpoint
+    release: "02.0"
+    status: done
+    test_suite: test-rel02.0-lifecycle
+    path: docs/specs/use-cases/rel02.0-uc001-approval-suspend-resume.yaml
+  - id: rel02.0-uc002-history-rollback
+    title: User inspects history and rolls back after a bad tool action
+    release: "02.0"
+    status: done
+    test_suite: test-rel02.0-lifecycle
+    path: docs/specs/use-cases/rel02.0-uc002-history-rollback.yaml
+  - id: rel02.0-uc003-tool-authoring
+    title: Developer authors a new tool as a vocabulary word
+    release: "02.0"
+    status: planned
+    test_suite: test-rel02.0-tool-contracts
+    path: docs/specs/use-cases/rel02.0-uc003-tool-authoring.yaml
+  - id: rel02.0-uc004-sentence-tool-migration
+    title: Developer migrates a sentence-shaped tool into machine-composed words
+    release: "02.0"
+    status: planned
+    test_suite: test-rel02.0-tool-contracts
+    path: docs/specs/use-cases/rel02.0-uc004-sentence-tool-migration.yaml
+  - id: rel03.0-uc001-rest-client-sync
+    title: Grammar invokes synchronous REST client resource words
+    release: "03.0"
+    status: done
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc001-rest-client-sync.yaml
+  - id: rel03.0-uc002-rest-client-async
+    title: Grammar sends and awaits an asynchronous REST client operation
+    release: "03.0"
+    status: done
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc002-rest-client-async.yaml
+  - id: rel03.0-uc003-rest-server-signals
+    title: Grammar receives inbound REST server signals
+    release: "03.0"
+    status: done
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc003-rest-server-signals.yaml
+  - id: rel03.0-uc004-openapi-import
+    title: OpenAPI import defines REST operations and endpoint bindings
+    release: "03.0"
+    status: done
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc004-openapi-import.yaml
+  - id: rel03.0-uc005-ollama-openapi-model-listing
+    title: Qwen agent lists Ollama models through an OpenAPI REST tool
+    release: "03.0"
+    status: done
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc005-ollama-openapi-model-listing.yaml
+  - id: rel03.0-uc006-documentation-curator
+    title: Knowledge Manager serves documentation curator UX and REST tools
+    release: "03.0"
+    status: done
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc006-documentation-curator.yaml
+  - id: rel03.0-uc007-machine-request-documentation-ux
+    title: Knowledge Manager UX uses machine_request document resources
+    release: "03.0"
+    status: done
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml
+  - id: rel03.0-uc008-rest-await-any-fan-in
+    title: Staged REST await-any fan-in adds event sources
+    release: "03.0"
+    status: done
+    test_suite: test-rel03.0-rest-tools
+    path: docs/specs/use-cases/rel03.0-uc008-rest-await-any-fan-in.yaml
+  - id: rel04.0-uc001-configurable-tool-metrics
+    title: Profile configures tool metrics for embedded monitoring
+    release: "04.0"
+    status: done
+    test_suite: test-rel04.0-monitor
+    path: docs/specs/use-cases/rel04.0-uc001-configurable-tool-metrics.yaml
+  - id: rel04.0-uc002-monitor-rest-api
+    title: Supervisor reads monitor state through REST
+    release: "04.0"
+    status: done
+    test_suite: test-rel04.0-monitor
+    path: docs/specs/use-cases/rel04.0-uc002-monitor-rest-api.yaml
+  - id: rel05.0-uc001-qwen-monitor-token-progress
+    title: Qwen run exposes increasing token metrics through embedded monitor
+    release: "05.0"
+    status: implemented
+    test_suite: test-rel05.0-monitor-qwen
+    path: docs/specs/use-cases/rel05.0-uc001-qwen-monitor-token-progress.yaml
+  - id: rel06.0-uc001-mounted-profile-container-runtime
+    title: Runtime container runs an externally mounted agent profile
+    release: "06.0"
+    status: implemented
+    test_suite: test-rel06.0-profile-migration
+    path: docs/specs/use-cases/rel06.0-uc001-mounted-profile-container-runtime.yaml
+
+test_suite_index:
+  - id: test-rel00.0
+    title: Test Suite for Release 00.0 (Core Engine Import)
+    release: "00.0"
+    traces:
+      - rel00.0-uc001-domain-agent-integration
+      - rel00.0-uc002-spec-corpus-validation
+    formal_test_cases: 92
+    path: docs/specs/test-suites/test-rel00.0.yaml
+  - id: test-rel01.0
+    title: Test Suite for Release 01.0 Unified Agent Runtime
+    release: "01.0"
+    traces:
+      - rel01.0-uc001-generator-coding
+      - rel01.0-uc002-evaluator-benchmark
+      - rel01.0-uc003-bench-visualization
+    formal_test_cases: 37
+    path: docs/specs/test-suites/test-rel01.0.yaml
+  - id: test-rel02.0-lifecycle
+    title: Test Suite for Release 02.0 Rollback Lifecycle
+    release: "02.0"
+    traces:
+      - rel02.0-uc001-approval-suspend-resume
+      - rel02.0-uc002-history-rollback
+    formal_test_cases: 17
+    path: docs/specs/test-suites/test-rel02.0-lifecycle.yaml
+  - id: test-rel02.0-tool-contracts
+    title: Test Suite for Release 02.0 Tool Contracts
+    release: "02.0"
+    traces:
+      - rel02.0-uc003-tool-authoring
+      - rel02.0-uc004-sentence-tool-migration
+    formal_test_cases: 13
+    path: docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
+  - id: test-rel03.0-rest-tools
+    title: Test Suite for Release 03.0 REST Tools
+    release: "03.0"
+    traces:
+      - rel03.0-uc001-rest-client-sync
+      - rel03.0-uc002-rest-client-async
+      - rel03.0-uc003-rest-server-signals
+      - rel03.0-uc004-openapi-import
+      - rel03.0-uc005-ollama-openapi-model-listing
+      - rel03.0-uc006-documentation-curator
+      - rel03.0-uc007-machine-request-documentation-ux
+      - rel03.0-uc008-rest-await-any-fan-in
+    formal_test_cases: 42
+    path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
+  - id: test-rel04.0-monitor
+    title: Test Suite for Release 04.0 Embedded Monitor
+    release: "04.0"
+    traces:
+      - rel04.0-uc001-configurable-tool-metrics
+      - rel04.0-uc002-monitor-rest-api
+    formal_test_cases: 11
+    path: docs/specs/test-suites/test-rel04.0-monitor.yaml
+  - id: test-rel05.0-monitor-qwen
+    title: Test Suite for Release 05.0 Qwen Monitor Integration
+    release: "05.0"
+    traces:
+      - rel05.0-uc001-qwen-monitor-token-progress
+    formal_test_cases: 1
+    path: docs/specs/test-suites/test-rel05.0-monitor-qwen.yaml
+  - id: test-rel06.0-profile-migration
+    title: Test Suite for Release 06.0 Profile Migration
+    release: "06.0"
+    traces:
+      - rel06.0-uc001-mounted-profile-container-runtime
+    formal_test_cases: 4
+    status: implemented
+    path: docs/specs/test-suites/test-rel06.0-profile-migration.yaml
+
+go_test_coverage:
+  note: >
+    Go test functions across all packages provide coverage beyond the
+    formal YAML test suites. Release 00.0 YAML coverage (92 cases) covers
+    srd001-srd018 where Go tests already prove behavior. For release 01.0,
+    the YAML suite (37 cases) indexes generator and evaluator integration
+    targets. It also covers bench integration targets plus Go tests for
+    profile and machine behavior. Tool behavior and child-agent behavior are
+    covered there too. Builtin, exec, Ollama, and LLM extraction contracts have
+    focused cases. Bench API and result behavior now have direct cases. The
+    mage integration:uc003 target records a skipped/manual-precondition result,
+    not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
+    rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
+    The 03.0 YAML coverage (42 cases) names implemented Go tests for REST
+    config loading, client execution, async send/await, server signal handling,
+    OpenAPI import, credential resolution, redirect and size policies, server
+    validation, redaction behavior, live Ollama OpenAPI model-listing, and
+    documentation-curator ownership, curator validation workflows, generic REST fan-in, lifecycle-control routing, payload propagation, terminal-state routing, listener shutdown, migration smoke coverage, machine_request conformance checks, and Puppeteer coverage for machine_request documentation UX. Package tests cover
+    srd009-srd018 and domain packages. Release 04.0 has package tests for the
+    monitor store, metric export, REST API SRDs, and the cmd/agent release
+    proof. mage integration:uc004 runs the release proof. Release 05.0 starts
+    with mage integration:uc008 for monitored Qwen token progress. Run `go test
+    ./... -v | grep -c '=== RUN'` for the current test function count.
+
+srd_to_use_case_mapping:
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd001-core-types
+    why_required: Domain agent uses State, Signal, Command, Result, Cost, Builder types from internal/runtime/core.
+    coverage: Full. Covers AC1 through AC5 via SC1 through SC8.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd002-state-machine
+    why_required: Domain agent builds a TransitionTable and StateMachine to drive the loop.
+    coverage: Full. Covers AC1 through AC4 via SC2 and test cases.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd003-command-dispatch
+    why_required: Dispatch wraps every command execution with tracing, timeout, and recovery.
+    coverage: Full. Covers AC1 through AC3 via SC6 and test cases.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd004-tool-registry
+    why_required: Domain agent registers tools in a Registry and generates tool lists.
+    coverage: Full. Covers AC1 through AC5 via SC1 and test cases.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd005-agentic-loop
+    why_required: Domain agent calls Loop with LoopParams to run the agentic loop.
+    coverage: Full. Covers AC1 through AC6 via SC3, SC4, SC5 and test cases.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd006-yaml-machine-config
+    why_required: Domain agent can define state machines via YAML using ParseMachineSpec and BuildTransitionTable.
+    coverage: Full. Covers AC1 through AC4 via SC2, SC7 and test cases.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd007-tracer-interface
+    why_required: Domain agent supplies a Tracer implementation satisfying the port interface.
+    coverage: Full. Covers AC1 and AC2 via SC8.
+  - use_case: rel00.0-uc001-domain-agent-integration
+    srd: srd008-telemetry
+    why_required: Domain agent uses internal/observability/telemetry to set up OTel providers, create root spans, and adapt Trace to the Tracer interface.
+    coverage: Full. Covers AC1 through AC9 via SC8 and telemetry initialization.
+
+coverage_gaps: |
+  Original core SRDs srd001-srd008 have use case touchpoints and
+  formal YAML test suite coverage in release 00.0. Release 00.0 now also has
+  formal YAML cases for implemented conversation and prompt behavior. Spec
+  graph behavior is covered too. GenAI, traceparent, CLI helper, and STL
+  behavior now have cases. Core span override behavior, ToolMetrics JSON
+  structure, and the no-op tracer contract now have focused formal YAML cases
+  tied to dedicated Go tests in the owning packages.
+  Ollama options and Ollama migration proof now have focused formal YAML cases.
+  LLM extraction functions have a focused case as well. SRDs srd019-srd024 (01.0) now have formal YAML
+  suite coverage tied to integration targets and package tests.
+  The release 00.0 warning set is now narrower, without reopening broad adapter
+  or parser questions that the current tests already answer.
+  srd025-srd026 (02.0) have formal YAML coverage in the release 02.0
+  lifecycle and tool-contract test suites. Core checkpoint, history, resume,
+  and rollback behavior is implemented and tested. Lifecycle profile and
+  lifecycle STL adapter behavior is implemented too. The approval-gate
+  reference profile is implemented and tested.
+  Tool-language migration proofs remain planned follow-up work.
+
+  For 03.0, srd027-srd031 have formal YAML coverage in
+  test-rel03.0-rest-tools. rel03.0-uc007 covers the Knowledge Manager
+  machine-request demo with mage integration:uc007. That proof drives the
+  browser through the profile-owned documentation UI, fetches machine_request
+  document responses through the generic REST server routes
+  documentation_curator_requests.documents and
+  documentation_curator_requests.document, checks raw YAML and rendered
+  content, and records request trace evidence.
+  internal/tools/rest, tools/builtin/rest declarations,
+  OpenAPI import compilation, REST runtime tests, agents/rest profile
+  examples, and the documentation-curator profile are implemented. docs/rel03-rest-design-audit.md records the design
+  audit result. REST side-effect vocabulary now accepts listener and listener
+  shutdown effects in the contract audit. Credential resolution, redirect
+  allowlists, request and response size limits, server query and header
+  validation, and redaction now have executable coverage. invoke_handler and
+  stream_events bindings have executable server coverage. Shutdown policy
+  validation, queue draining, await unblocking, and stream shutdown unblocking
+  have executable coverage. The Qwen Ollama OpenAPI E2E flow,
+  documentation-curator ownership proof, and
+    machine_request browser proof now have formal release 03.0 coverage. Generic
+    REST event fan-in, route and signal filters, timeout handling,
+    machine_request configured-profile conformance, Knowledge Manager generic
+    route conformance, and REST-triggered lifecycle exit now have formal cases
+    tied to Go tests, uc006, and uc007. rel03.0-uc008 now has executable staged
+    await-any fan-in coverage that launches a later REST source after the first
+    selected event routes through MachineSpec.
+    Closed REST conformance work now covers client safety, async request
+    metadata, OpenAPI endpoint preservation, REST compensation mementos,
+    machine_request terminal response schemas, and document_resources validation
+    rejection. Remaining planned release 03.0 suite work tracks exact named-test
+    alignment in agent-core-guhn.4 plus rollback-time REST compensation execution
+    in agent-core-guhn.5. Modeled lifecycle_control endpoint config and
+    non-default read_policy behavior stay reserved or rejected until separate
+    implementation work.
+  Release 04.0 package tests cover the monitor store, recorder ownership,
+  metric config validation, disabled mode, OpenTelemetry metric export,
+  REST/OpenAPI cached-state readers, and the cmd/agent live-store release
+  proof.
+  Lifecycle exit coverage asserts event payload propagation, structured
+  exit_agent output, terminal Done or Succeeded routing, absence of cancelled
+  status, and documentation/control listener release.
+
+  Release 06.0 coverage now names implemented proof points for mounted profile
+  execution. mage audit indexes srd034, rel06.0-uc001, and
+  test-rel06.0-profile-migration. pkg/spec tests cover installed
+  /opt/agent-core/tools mapping through AGENT_CORE_HOME. magefiles Docker tests
+  cover profile exclusion, the required --profile entrypoint, mounted profile
+  command output, and the Dockerfile integration target. mage integration:uc001,
+  uc002, uc006, and uc007 consume profiles, demos, fixtures, and Knowledge
+  Manager UX assets through AGENT_PROFILES_ROOT. The matching agent-profiles
+  containerSmoke target runs the installed image with the profile repository
+  mounted at /profiles.
+  Current examples no longer imply that agent-core ships standard agent
+  profiles under its source tree or under /opt/agent-core. Profile examples use
+  AGENT_PROFILES_ROOT, /profiles/agents, or profile-root-relative paths.
+
+  Current `go list ./...` output defines package coverage. Direct SRD
+  coverage is clear for runtime core through srd001-srd006 and srd025.
+  Observability and model-boundary packages map to srd007-srd018 plus
+  srd022-srd024 and srd026. Prompt, tool adapter, CLI, and spec graph packages
+  map there too. Those direct mappings cover runtime support and model
+  boundaries. They also cover tools, CLI support, and spec validation.
+
+  Uncovered release 01.0 and 02.0 criteria are deferred for specific
+  follow-up. Core type and tracer coverage now has focused YAML cases.
+  Tool declaration coverage now has focused YAML cases for STL, builtin, and
+  exec criteria. Ollama and LLM extraction coverage has focused cases too. CLI
+  helper and evaluator statistics now have focused formal YAML cases. Bench API
+  and child-agent outcome criteria have focused cases too. Blocking-input
+  criteria remain covered by the focused cases added earlier.
+  Keeping those follow-up issue IDs in this index lets a reader separate
+  planned documentation cleanup from missing runtime behavior that would change
+  the product contract.
+  A future maintainer can follow each issue ID back to the exact missing proof,
+  which keeps shipped behavior separate from work that still waits for release
+  planning during a later cleanup pass.
+
+  Use cases and formal suites cover package groups that implement
+  configured agent behavior. The cmd/agent package is covered by
+  cfg-runtime-contract, release 01.0 use cases, and test-rel01.0. Lifecycle use
+  cases and Go tests cover the remaining cmd/agent behavior. Evaluation
+  packages are covered by srd019, srd020, rel01.0-uc002, and rel01.0-uc003.
+  test-rel01.0 and package tests add the executable proof. Agent subprocess
+  execution is covered by srd021 and srd022 AC6. rel01.0-uc002, test-rel01.0,
+  and Go tests provide the scenarios.
+
+  Semantic models cover cross-cutting packages that do not need separate SRDs
+  today. The internal/planning packages are covered by planner machine configs
+  and sm-tool-language. sm-tool-vocabulary-audit and planning tests add
+  validation coverage. internal/support/subprocess is covered by srd013 STL
+  delegation and srd021 child-agent execution. Execute and STL integration
+  tests provide the package proof.
+
+  Root packages and assets are not specification gaps. internal/model,
+  internal/observability, and internal/planning are package roots or
+  documentation stubs with no standalone runtime behavior. internal/runtime,
+  internal/support, and internal/tools have the same status.
+  internal/evaluation/bench/ui embeds React assets behind the bench API.
+  internal/knowledge/documentation/ui embeds React assets behind the
+  documentation-curator host. srd020 and rel03.0-uc006 cover the ownership
+  boundary. rel03.0-uc007 extends that boundary to implemented human actor
+  configuration for a machine_request-backed Knowledge Manager UX through the
+  generic REST server path.
+
+  Residual documentation cleanup is tracked as follow-up work. Historical
+  roll-backs.md and tools-as-dsl.md references should be normalized to canonical
+  spec IDs. lifecycle-rollback.md needs the same treatment. Remaining
+  uncovered-AC warnings track missing formal YAML test cases for packages that
+  already have Go tests.
+  This split matters because YAML suites provide traceability evidence, while
+  package tests remain the executable proof for implemented behavior.
+  Browser-level bench UI proof can become an integration target when a browser
+  harness joins the quality gate. Planner package SRDs are optional unless
+  planner behavior becomes a stable product surface outside profile configs.

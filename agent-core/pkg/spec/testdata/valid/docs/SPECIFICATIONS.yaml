@@ -1,0 +1,47 @@
+id: test-specifications
+title: Test Specification Index
+
+overview: |
+  Three SRDs covering authentication, REST API, and storage.
+
+  SRD release assignments.
+  - 00.0: srd001-auth (authentication), srd002-api (REST API)
+  - 00.1: srd003-storage (data persistence)
+
+roadmap_summary:
+  - version: "00.0"
+    name: Foundation
+    use_cases_done: 0
+    use_cases_total: 1
+    status: open
+
+srd_index:
+  - id: srd001-auth
+    title: Authentication
+    summary: Secure authentication.
+    path: docs/specs/software-requirements/srd001-auth.yaml
+  - id: srd002-api
+    title: REST API
+    summary: RESTful endpoints.
+    path: docs/specs/software-requirements/srd002-api.yaml
+  - id: srd003-storage
+    title: Storage Layer
+    summary: Data persistence.
+    path: docs/specs/software-requirements/srd003-storage.yaml
+
+use_case_index:
+  - id: rel00.0-uc001-login
+    title: Login flow
+    release: "00.0"
+    status: open
+    test_suite: test-rel00.0
+    path: docs/specs/use-cases/rel00.0-uc001-login.yaml
+
+test_suite_index:
+  - id: test-rel00.0
+    title: Release 00.0 Tests
+    release: "00.0"
+    test_case_count: 2
+    traces:
+      - rel00.0-uc001-login
+    path: docs/specs/test-suites/test-rel00.0.yaml

@@ -1,0 +1,27 @@
+tools:
+- name: workspace_status
+  binary: git
+  args:
+  - status
+  - --porcelain
+  description: 'Report git workspace state: changed files with status codes (M/A/D/??).'
+  precondition: git_repo
+  output:
+    description: Porcelain git status entries for changed workspace files.
+    schema:
+      type: object
+      properties:
+        clean:
+          type: boolean
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              status:
+                type: string
+      required:
+      - clean
+      - files

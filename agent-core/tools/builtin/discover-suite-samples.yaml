@@ -1,0 +1,57 @@
+tools:
+- name: discover_suite_samples
+  type: builtin
+  init: discover_suite_samples
+  visibility: internal
+  emits:
+  - SuiteSamplesDiscovered
+  - CommandError
+  description: Discover evaluator samples from the parsed suite samples directory.
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: eval_session_state
+    state: suite_samples_discovered
+    description: Sets EvalSessionState.Suite.Samples from the resolved samples directory.
+  reversibility:
+    classification: reversible
+    undo: session_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore evaluator session state to the snapshot before discovering samples.
+  problem: The machine needs a declared word for discovering evaluator suite samples without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the discover_suite_samples action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'discover_suite_samples: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: discover_suite_samples command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

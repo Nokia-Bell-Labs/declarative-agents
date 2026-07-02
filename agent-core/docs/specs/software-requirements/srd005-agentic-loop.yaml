@@ -1,0 +1,162 @@
+id: srd005-agentic-loop
+title: Agentic Loop
+
+problem: |
+  The core iteration pattern -- check budget, step the state machine,
+  dispatch the command, accumulate cost, record the event -- recurs in
+  every agentic agent. Domain agents differ in their states, tools, and
+  budget dimensions, but the loop skeleton is identical. Agent-core
+  provides a generic Loop function that domain agents customize through
+  hooks.
+
+goals:
+  - G1: Generic Loop function driving the state machine to a terminal state.
+  - G2: Budget enforcement (iterations, tokens, wall-clock, domain hooks).
+  - G3: Event recording and cost accumulation.
+  - G4: LoopHooks for domain-specific behavior injection.
+  - G5: RunResult carrying structured outcome data.
+
+requirements:
+  R1:
+    title: Budget
+    items:
+      - R1.1: "Budget struct has three fields: MaxIterations (int), MaxTokens (int), MaxDuration (time.Duration)."
+      - R1.2: Zero values mean unlimited for that dimension.
+      - R1.3: Domain agents extend budget checking via LoopHooks.BudgetExceeded.
+
+  R2:
+    title: RunStatus and RunResult
+    items:
+      - R2.1: "RunStatus is a string type with four constants: StatusSucceeded, StatusFailed, StatusBudgetExceeded, StatusCancelled."
+      - R2.2: "RunResult has ten fields: Status, Iterations, TokensIn, TokensOut, Duration, TotalCost, FinalState, LastError, Summary, Events."
+      - R2.3: RunResult has custom MarshalJSON that serializes Duration as a string and LastError as a nullable string pointer.
+      - R2.4: "RunEvent records one command dispatch with fields: Iteration, Timestamp, CommandName, Signal, Cost, FromState, ToState."
+
+  R3:
+    title: LoopHooks
+    items:
+      - R3.1: ValidateParams checks that required builders exist in the registry. Non-nil error aborts the run.
+      - R3.2: BudgetExceeded checks domain-specific budget dimensions. Returns true to trigger BudgetExhausted signal.
+      - R3.3: TerminalStatus maps a terminal State to a RunStatus. Nil uses default mapping.
+      - R3.4: OnResult is called after each dispatch. The returned RunResult replaces the accumulator.
+      - R3.5: TaskCompletedSignal specifies the signal that captures the task summary. Defaults to "TaskCompleted".
+      - R3.6: All hooks are optional. Nil means default behavior.
+
+  R4:
+    title: LoopParams
+    items:
+      - R4.1: "LoopParams bundles: InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, CommandTimeout, ModelName, Directory, Hooks, AgentName, AgentVersion, ProviderName, MachineFile, MachineSpec, InitFunc, ToolAction, StateStore, Workspace, and CheckpointPolicy."
+      - R4.2: AgentName, AgentVersion, and ProviderName supply agent identity for OTel GenAI semantic conventions.
+      - R4.3: Declarative initialization SHALL accept either MachineFile for path-based loading or MachineSpec for an already-loaded machine, using MachineSpec without rereading MachineFile when both are provided.
+      - R4.4: StateStore, Workspace, and CheckpointPolicy are optional rollback foundations; nil values SHALL preserve current loop behavior and perform no persistence or workspace checkpointing.
+
+  R5:
+    title: Loop function
+    items:
+      - R5.1: Loop(params LoopParams, ctx context.Context) returns (RunResult, error).
+      - R5.2: If ValidateParams hook returns error, Loop returns immediately with the error.
+      - R5.3: If Budget.MaxDuration > 0, Loop wraps ctx with context.WithTimeout.
+      - R5.4: Loop freezes the Registry before entering the iteration loop.
+      - R5.5: Each iteration checks context cancellation, budget, steps the state machine, and dispatches the command.
+      - R5.6: Context cancellation produces StatusCancelled.
+      - R5.7: BudgetExhausted signal is injected when core or hook budget checks trigger.
+      - R5.8: Terminal states are resolved to RunStatus via TerminalStatus hook or defaults.
+      - R5.9: Cost is accumulated across iterations (TokensIn, TokensOut, TotalCost).
+      - R5.10: Events are appended with per-iteration metadata.
+      - R5.11: "Loop emits OTel spans using GenAI semconv naming: an invoke_agent {AgentName} root span for the run, and events for transitions, budget, and termination."
+      - R5.12: When monitor recording is configured, Loop SHALL provide runtime-owned workflow context for standard metrics. Context includes agent name, iteration, command name, from-state, to-state, signal, run status, and budget outcome. Tool-specific metric meaning remains owned by the dispatched tool.
+
+  R6:
+    title: ValidateBuilders helper
+    items:
+      - R6.1: ValidateBuilders(names ...string) returns a ValidateParams hook that checks all named builders exist in the registry.
+
+  R7:
+    title: Rollback foundation interfaces
+    items:
+      - R7.1: StateStore SHALL persist JSON blobs for agent and command/domain state via Save, Load, List, and Delete.
+      - R7.2: Workspace SHALL track external filesystem/environment state via Checkpoint, Restore, and CurrentRef.
+      - R7.3: CheckpointPolicy SHALL decide whether a checkpoint should be considered for a CheckpointEvent.
+      - R7.4: Checkpoint SHALL capture agent state, optional domain state, optional workspace ref, and optional history digest as independent layers.
+      - R7.5: GitWorkspace SHALL provide the default Workspace implementation by creating checkpoint commits, restoring refs with git reset --hard, and returning HEAD with CurrentRef.
+      - R7.6: GitWorkspace SHALL be opt-in and SHALL fail clearly when configured outside a git repository or below the repository top-level.
+
+non_goals:
+  - Domain-specific budget dimensions (those use the BudgetExceeded hook).
+  - Parallel command execution.
+  - History management or context window management.
+  - Result persistence.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Budget has MaxIterations, MaxTokens, and MaxDuration. Zero values mean unlimited.
+    traces: [R1.1, R1.2, R1.3]
+
+  - id: AC2
+    criterion: RunStatus has four constants. RunResult carries status, iterations, tokens, duration, cost, events, and summary. Custom JSON marshaling.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC3
+    criterion: LoopHooks has ValidateParams, BudgetExceeded, TerminalStatus, OnResult, and TaskCompletedSignal. All optional.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+
+  - id: AC4
+    criterion: LoopParams bundles all inputs for Loop including AgentName, AgentVersion, and ProviderName for GenAI semconv, supports path-based or preloaded declarative machine initialization, and carries optional rollback interfaces without changing nil behavior.
+    traces: [R4.1, R4.2, R4.3, R4.4]
+
+  - id: AC5
+    criterion: Loop drives state machine from InitialState to terminal, checking budget and context, dispatching commands, accumulating cost, recording events, and emitting OTel spans.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10, R5.11, R5.12]
+
+  - id: AC6
+    criterion: ValidateBuilders returns a ValidateParams hook checking named builders.
+    traces: [R6.1]
+
+  - id: AC7
+    criterion: Rollback foundation interfaces compile and model agent state, command/domain state, and external workspace state as independent layers, with GitWorkspace as an opt-in filesystem implementation.
+    traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [State, Signal, Command, Result, Cost, Seed, BudgetExhausted, StateStore, Workspace, CheckpointPolicy, Checkpoint, GitWorkspace]
+  - srd_id: srd002-state-machine
+    symbols_used: [TransitionTable, StateMachine, TerminalFunc, NewStateMachine]
+  - srd_id: srd003-command-dispatch
+    symbols_used: [Dispatch]
+  - srd_id: srd004-tool-registry
+    symbols_used: [Registry]
+  - srd_id: srd007-tracer-interface
+    symbols_used: [Tracer]
+  - srd_id: srd015-genai-semconv
+    symbols_used: [AgentSpanName, AgentAttrs, AttrUsageInputTokens, AttrUsageOutputTokens, AttrResponseFinishReasons]
+
+related_documents:
+  - docs/specs/semantic-models/tool-metrics-monitoring.yaml
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: The core iteration pattern -- check budget, step the..."] --> Goals["Goals: Agentic Loop"]
+      Goals --> R1["R1: Budget"]
+      Goals --> R2["R2: RunStatus and RunResult"]
+      Goals --> R3["R3: LoopHooks"]
+      Goals --> R4["R4: LoopParams"]
+      Goals --> R5["R5: Loop function"]
+      Goals --> R6["R6: ValidateBuilders helper"]
+      Goals --> R7["R7: Rollback foundation interfaces"]
+      AC1["AC1: Budget has MaxIterations, MaxTokens, and MaxDuration. Zer..."]
+      R1 --> AC1
+      AC2["AC2: RunStatus has four constants. RunResult carries status, i..."]
+      R2 --> AC2
+      AC3["AC3: LoopHooks has ValidateParams, BudgetExceeded, TerminalSta..."]
+      R3 --> AC3
+      AC4["AC4: LoopParams bundles all inputs for Loop including AgentNam..."]
+      R4 --> AC4
+      AC5["AC5: Loop drives state machine from InitialState to terminal,..."]
+      R5 --> AC5
+      AC6["AC6: ValidateBuilders returns a ValidateParams hook checking n..."]
+      R6 --> AC6
+      AC7["AC7: Rollback foundation interfaces compile and model agent st..."]
+      R7 --> AC7
+    ```

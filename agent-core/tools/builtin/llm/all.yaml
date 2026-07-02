@@ -1,0 +1,9 @@
+# LLM pipeline and completion builtin declarations.
+includes:
+  - ../parse-response.yaml
+  - ../report-parse-error.yaml
+  - ../reset-history.yaml
+  - ../nudge-reread.yaml
+  - ../done.yaml
+
+tools: []

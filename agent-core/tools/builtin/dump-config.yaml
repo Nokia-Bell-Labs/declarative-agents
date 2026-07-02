@@ -1,0 +1,60 @@
+tools:
+- name: dump_config
+  type: builtin
+  init: dump_config
+  visibility: internal
+  emits:
+  - ConfigDumped
+  - CommandError
+  description: Serialize the full experiment configuration (harness, model, tools, prompts) into experiment.yaml.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: experiment_config
+    paths:
+    - experiment.yaml
+    description: Writes resolved experiment configuration for reproducibility.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore experiment artifacts to a previous workspace ref.
+    requires:
+    - Workspace
+  problem: The machine needs a declared word for dumping evaluator point configuration without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the dump_config action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'dump_config: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: dump_config command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

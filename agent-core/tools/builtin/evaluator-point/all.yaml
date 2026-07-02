@@ -1,0 +1,17 @@
+# Evaluator point builtin declarations.
+includes:
+  - ../create-point-dir.yaml
+  - ../copy-sample-workspace.yaml
+  - ../copy-sample-docs.yaml
+  - ../init-workspace-repo.yaml
+  - ../stage-workspace-baseline.yaml
+  - ../commit-workspace-baseline.yaml
+  - ../dump-config.yaml
+  - ../run-agent.yaml
+  - ../run-oracle-check.yaml
+  - ../collect-trace-tokens.yaml
+  - ../check-agent-version.yaml
+  - ../summarize-point-results.yaml
+  - ../collect-metrics.yaml
+
+tools: []

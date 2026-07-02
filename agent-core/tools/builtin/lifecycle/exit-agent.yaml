@@ -1,0 +1,93 @@
+tools:
+- name: exit_agent
+  type: builtin
+  contract: migrated
+  init: exit_agent
+  visibility: internal
+  emits:
+  - AgentExited
+  - CommandError
+  description: Request a controlled agent exit through lifecycle vocabulary.
+  category: boundary
+  problem: |
+    Profiles need an explicit lifecycle word for operator-requested exit,
+    instead of hidden process handlers or REST handlers that terminate the run.
+  goals:
+  - Report AgentExited after the configured runtime shutdown hook is invoked.
+  - Return CommandError when no shutdown hook is wired.
+  - Keep exit routing visible in MachineSpec transitions.
+  requirements:
+    input:
+    - must receive reason, status, and drain policy from ToolDef config or validated event context.
+    - must prefer validated runtime event payload fields over ToolDef defaults.
+    output:
+    - must report requested status, reason, drain policy, resulting signal, and optional drain or checkpoint result fields as structured JSON.
+    side_effects:
+    - must mutate lifecycle run state through the injected shutdown dependency.
+    undo:
+    - must document operator-managed restart or checkpoint resume compensation.
+    errors:
+    - must fail when the shutdown dependency is missing.
+  non_goals:
+  - Does not call os.Exit.
+  - Does not bypass MachineSpec routing.
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: Agent exit request summary.
+    schema:
+      type: object
+      properties:
+        status:
+          type: string
+        reason:
+          type: string
+        drain_policy:
+          type: string
+        signal:
+          type: string
+        drain_result:
+          type: string
+        checkpoint_id:
+          type: string
+  side_effects:
+  - kind: state_mutation
+    target: lifecycle_state
+    state: exit_requested
+    description: Records controlled exit intent through an injected runtime dependency.
+  reversibility:
+    classification: compensatable
+    undo: compensating_action
+    requires_confirmation: true
+  undo:
+    strategy: compensating_action
+    description: Operator can restart the agent or resume from a checkpoint.
+    payload: boundary_compensation
+    captures:
+    - reason
+    - status
+    - drain_policy
+    requires:
+    - operator_decision
+    - profile
+    - checkpoint_id
+  errors:
+  - signal: CommandError
+    condition: shutdown dependency is missing
+    message_shape: "exit_agent requires shutdown dependency"
+    state_after_failure: run continues until MachineSpec handles CommandError
+  - signal: CommandError
+    condition: previous Result output is malformed or contains non-string lifecycle payload fields
+    message_shape: "decode exit_agent previous result: <error>"
+    state_after_failure: run continues until MachineSpec handles CommandError
+  relationships:
+    after:
+    - rest_await_event
+    overlaps:
+    - tool: suspend
+      difference: "suspend pauses for later resume; exit_agent requests terminal shutdown."
+  config:
+    reason: operator requested shutdown
+    status: success
+    drain_policy: stop_servers

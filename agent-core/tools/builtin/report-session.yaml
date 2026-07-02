@@ -1,0 +1,60 @@
+tools:
+- name: report_session
+  type: builtin
+  init: report_session
+  visibility: internal
+  emits:
+  - SessionReported
+  - CommandError
+  description: Print session summary with pass/fail/timeout counts and total duration.
+  category: word
+  side_effects:
+  - kind: stderr_write
+    target: evaluator_output
+    description: Prints evaluator session summary.
+  - kind: state_mutation
+    target: eval_session_state
+    state: session_duration_finalized
+    description: Sets the final session duration on EvalSessionState.Result.
+  reversibility:
+    classification: reversible
+    undo: evaluator_session_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore evaluator session state to the snapshot before finalizing session duration.
+  problem: The machine needs a declared word for reporting evaluator session results without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the report_session action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'report_session: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: report_session command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

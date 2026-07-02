@@ -1,0 +1,12 @@
+name: default
+match_prefixes: []
+
+envelope:
+  open: "[tool_call]"
+  close: "[/tool_call]"
+strict_format: false
+
+extraction_pipeline:
+  - extract_envelope:
+      open: "[tool_call]"
+      close: "[/tool_call]"

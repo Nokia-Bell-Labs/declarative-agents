@@ -1,0 +1,1298 @@
+id: test-rel03.0-rest-tools
+title: Test Suite for Release 03.0 REST Tools
+release: "03.0"
+
+traces:
+  - rel03.0-uc001-rest-client-sync
+  - rel03.0-uc002-rest-client-async
+  - rel03.0-uc003-rest-server-signals
+  - rel03.0-uc004-openapi-import
+  - rel03.0-uc005-ollama-openapi-model-listing
+  - rel03.0-uc006-documentation-curator
+  - rel03.0-uc007-machine-request-documentation-ux
+  - rel03.0-uc008-rest-await-any-fan-in
+
+preconditions:
+  - internal/tools/rest contains the REST runtime and executable Go coverage for this suite.
+  - Test fixtures can provide hand-authored REST config files and OpenAPI 3 documents.
+  - HTTP client tests can use httptest.Server with local-only addresses.
+  - HTTP server tests can bind listener port 0 and use per-test queues.
+  - Redaction tests can use synthetic credentials and payload fields.
+  - Live Ollama E2E coverage requires Ollama on 127.0.0.1:11434 and a Qwen 3 family model.
+  - Documentation-curator tests use local fixture directories and do not require a browser.
+  - Machine-request documentation UX coverage uses Puppeteer through mage integration:uc007 and internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts.
+  - Generic machine_request trace metadata should be covered by internal/tools/rest Go tests without relying on Knowledge Manager proxy enrichment.
+  - Knowledge Manager generic REST route conformance runs under plain go test without browser prerequisites.
+
+test_cases:
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST definitions load into boundary ToolDefs
+    go_test: TestRESTConfig_LoadsToolDefinitions
+    status: done
+    description: |
+      After loading a REST config file and its tool declaration file, inspect
+      each REST ToolDef. It should name one boundary word and reference
+      configured REST definitions without embedding arbitrary transport
+      authority fields.
+    inputs:
+      config: rest_client_and_server_minimal
+      declarations:
+        - rest_client_get
+        - rest_client_set
+        - rest_server_launch
+    expected:
+      definitions_loaded: true
+      tooldefs_category_boundary: true
+      tooldefs_reference_named_rest_config: true
+      arbitrary_url_from_tool_input_allowed: false
+      package_layout: internal/tools/rest
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd027-rest-tool-runtime AC1
+      - srd027-rest-tool-runtime AC2
+      - srd027-rest-tool-runtime AC9
+      - srd028-rest-client-tools AC1
+      - srd028-rest-client-tools AC2
+      - srd028-rest-client-tools AC10
+      - srd029-rest-server-tools AC1
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: Synchronous resource words build configured requests
+    go_test: TestRESTClient_SyncResourceWords
+    status: done
+    description: |
+      Against an httptest.Server, run rest_client_get and rest_client_set with
+      configured operations. net/http should receive the expected method and
+      path. Response mapping then produces structured output for MachineSpec.
+      The case checks the two resource paths together because their signals
+      prove that read, write, missing, domain-failure, and infrastructure
+      outcomes stay separate at the grammar boundary.
+      This matters when a remote service returns a valid HTTP response that
+      still represents a business failure, because the machine must route that
+      case through RESTDomainFailed while reserving CommandError for transport,
+      schema, auth, timeout, and mapping failures.
+    inputs:
+      client: github_like_issue_client
+      operations: [get_issue, set_issue]
+      server_responses: [read_ok, update_ok, missing, domain_failed]
+    expected:
+      get_signal: RESTResourceRead
+      set_signal: RESTResourceWritten
+      missing_signal: RESTMissing
+      domain_failure_signal: RESTDomainFailed
+      command_error_signal: CommandError
+      output_contains_status_and_operation: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S2
+      - rel03.0-uc001-rest-client-sync S3
+      - rel03.0-uc001-rest-client-sync S4
+      - srd027-rest-tool-runtime AC4
+      - srd028-rest-client-tools AC3
+      - srd028-rest-client-tools AC6
+      - srd028-rest-client-tools AC7
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: Runtime input cannot override configured authority
+    go_test: TestRESTClient_RejectsAuthorityOverride
+    status: done
+    description: |
+      A malicious input tries to replace transport authority at runtime. The
+      client rejects it before any HTTP request leaves the process.
+    inputs:
+      operation: get_issue
+      forbidden_runtime_fields:
+        - method
+        - url
+        - auth_ref
+        - redirect_policy
+        - host
+    expected:
+      signal: CommandError
+      failure_stage: schema_validation
+      request_sent: false
+      diagnostic_redacted: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd027-rest-tool-runtime AC2
+      - srd027-rest-tool-runtime AC6
+      - srd028-rest-client-tools AC2
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST auth references resolve through trusted runtime credentials
+    go_test: TestRESTClient_ResolvesAuthCredentialRefs
+    status: done
+    description: |
+      Configure basic, bearer, header_token, and query_token auth profiles with
+      credential reference names. The runtime resolves synthetic credentials
+      through an injected resolver, sends resolved values to net/http, and does
+      not treat reference names as secret values.
+    inputs:
+      auth_profiles:
+        - basic
+        - bearer
+        - header_token
+        - query_token
+      credential_refs:
+        - github_token
+        - user_ref
+        - password_ref
+    expected:
+      resolved_credentials_sent: true
+      literal_refs_sent: false
+      result_output_contains_secret: false
+      missing_ref_go_test: TestRESTClient_MissingCredentialReferenceFailsAuthResolution
+      missing_ref_failure_stage: auth_resolution
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd027-rest-tool-runtime AC6
+      - srd027-rest-tool-runtime AC7
+      - srd028-rest-client-tools AC2
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST redirect and body size policies fail closed
+    go_test: TestRESTClient_RedirectAllowlistPolicy
+    status: done
+    description: |
+      Exercise outbound redirect and body-size policies with local httptest
+      servers. Allowlisted redirect hosts succeed. Unlisted redirect hosts fail.
+      Oversized request bodies fail before send, and oversized responses return
+      a size_limit CommandError without returning response content.
+    inputs:
+      redirect_mode: allowlist
+      request_limit: max_request_bytes
+      response_limit: max_response_bytes
+      size_limit_go_test: TestRESTClient_RequestAndResponseSizeLimits
+    expected:
+      allowed_redirect_succeeds: true
+      blocked_redirect_signal: CommandError
+      oversized_request_sent: false
+      oversized_response_failure_stage: size_limit
+      oversized_response_content_returned: false
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - rel03.0-uc001-rest-client-sync S2
+      - srd027-rest-tool-runtime AC6
+      - srd027-rest-tool-runtime AC7
+      - srd028-rest-client-tools AC2
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: Mutating REST operations declare effects and compensation
+    go_test: TestRESTClient_MutatingOperationsRequireEffects
+    status: done
+    description: |
+      Review mutating resource operations beside an RPC-shaped invoke
+      operation. Each one must declare its side-effect contract and
+      reversibility before selection; compensation or confirmation metadata
+      completes the contract.
+    inputs:
+      operations:
+        - rest_client_create
+        - rest_client_set
+        - rest_client_delete
+        - rest_client_invoke
+      invalid_case: missing_reversibility
+    expected:
+      valid_mutations_accepted: true
+      missing_reversibility_rejected: true
+      irreversible_requires_confirmation: true
+      compensation_metadata_captured: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S3
+      - srd027-rest-tool-runtime AC8
+      - srd028-rest-client-tools AC3
+      - srd028-rest-client-tools AC4
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC10
+
+  - use_case: rel03.0-uc002-rest-client-async
+    name: Async send records request state and returns RESTAccepted
+    go_test: TestRESTClient_SendRecordsAsyncRequest
+    status: done
+    description: |
+      Dispatch rest_client_send for an async operation and confirm the command
+      returns before final completion. AsyncRequest state is stored by request
+      ID, then RESTAccepted carries correlation metadata back to the grammar.
+    inputs:
+      operation: create_payment
+      async_config:
+        request_id: $.id
+        idempotency_token: "{{ params.order_id }}"
+        state_retention: consume
+    expected:
+      signal: RESTAccepted
+      request_state_written: true
+      request_id_present: true
+      idempotency_metadata_present: true
+      final_response_waited_for: false
+    traces:
+      - rel03.0-uc002-rest-client-async S1
+      - rel03.0-uc002-rest-client-async S2
+      - srd027-rest-tool-runtime AC5
+      - srd028-rest-client-tools AC5
+      - srd028-rest-client-tools AC8
+
+  - use_case: rel03.0-uc002-rest-client-async
+    name: Async await maps completion and timeout signals
+    go_test: TestRESTClient_AwaitAsyncRequest
+    status: done
+    description: |
+      Begin with stored AsyncRequest state. Completion, domain failure,
+      absence, timeout, and missing state each map to a declared signal.
+      The table uses separate outcomes so RESTDomainFailed is not confused
+      with CommandError or the timeout path.
+      Await behavior also proves that stored async state is consumed according
+      to policy after the final signal is chosen.
+    inputs:
+      request_state: pending_payment
+      outcomes:
+        - responded
+        - domain_failed
+        - missing
+        - timed_out
+        - async_state_missing
+    expected:
+      responded_signal: RESTResponded
+      domain_failed_signal: RESTDomainFailed
+      missing_signal: RESTMissing
+      timeout_signal: RESTAwaitTimedOut
+      missing_state_signal: CommandError
+      state_retention_applied: true
+    traces:
+      - rel03.0-uc002-rest-client-async S1
+      - rel03.0-uc002-rest-client-async S3
+      - srd027-rest-tool-runtime AC5
+      - srd028-rest-client-tools AC5
+      - srd028-rest-client-tools AC6
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc002-rest-client-async
+    name: Async retry policy requires idempotency metadata
+    go_test: TestRESTClient_AsyncRetryPolicyValidation
+    status: done
+    description: |
+      For async operations, check retry policy at config validation time.
+      Non-idempotent requests reject retry settings unless config declares
+      safe duplicate suppression.
+    inputs:
+      operation: create_payment
+      retry_policy: retry_on_429
+      invalid_case: retry_without_idempotency
+    expected:
+      safe_retry_accepted: true
+      unsafe_retry_rejected: true
+      retry_count_traced: true
+      idempotency_token_redacted: true
+    traces:
+      - rel03.0-uc002-rest-client-async S4
+      - srd027-rest-tool-runtime AC6
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server launch registers routes without blocking
+    go_test: TestRESTServer_LaunchRegistersRoutes
+    status: done
+    description: |
+      Dispatch rest_server_launch with a listener on port 0. The command binds
+      the server, registers configured routes, records shared state, and
+      returns ServerLaunched without waiting for inbound requests.
+    inputs:
+      server: control_api
+      address: 127.0.0.1:0
+      endpoints:
+        - approve
+        - reject
+        - pause
+    expected:
+      signal: ServerLaunched
+      route_count: 3
+      shared_server_state_written: true
+      network_listen_side_effect_declared: true
+      blocks_for_inbound_request: false
+    traces:
+      - rel03.0-uc003-rest-server-signals S1
+      - srd027-rest-tool-runtime AC5
+      - srd029-rest-server-tools AC2
+      - srd029-rest-server-tools AC7
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server await emits queued inbound signals
+    go_test: TestRESTServer_AwaitInboundSignals
+    status: done
+    description: |
+      Send validated inbound HTTP requests to signal-producing endpoints.
+      rest_server_await consumes queued events and returns the configured
+      signal to MachineSpec.
+    inputs:
+      server: control_api
+      endpoint_bindings:
+        - emit_signal
+        - emit_dynamic_signal
+      queued_events:
+        - Approved
+        - Rejected
+        - PauseRequested
+        - DomainEventReceived
+    expected:
+      approved_route_visible: true
+      rejected_route_visible: true
+      pause_route_visible: true
+      domain_event_route_visible: true
+      invalid_request_enqueued: false
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - rel03.0-uc003-rest-server-signals S3
+      - srd029-rest-server-tools AC3
+      - srd029-rest-server-tools AC5
+      - srd029-rest-server-tools AC6
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Generic REST await fan-in selects one event across servers
+    go_test: TestRESTAwaitEvent_MultiSourceFanIn
+    status: done
+    description: |
+      Launch two configured REST servers with separate queues. Enqueue accepted
+      events on each server, then dispatch rest_await_event with both sources.
+      One Result carries the selected event. MachineSpec owns the workflow
+      route after that signal.
+    inputs:
+      servers:
+        - control_api
+        - domain_webhooks
+      queued_events:
+        - server: control_api
+          signal: Approved
+        - server: domain_webhooks
+          signal: DomainEventReceived
+    expected:
+      selected_event_returned_once: true
+      output_contains_source_and_route: true
+      hidden_workflow_action_selected: false
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - rel03.0-uc003-rest-server-signals S3
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc008-rest-await-any-fan-in
+    name: Staged REST await-any fan-in adds a later source
+    go_test: TestRESTAwaitEvent_FactoryBuildsStagedFanIn
+    status: done
+    description: |
+      Build a MachineSpec-shaped factory path with three configured REST server
+      sources. Launch the first two servers, dispatch rest_await_event across
+      those two sources, and route the selected event to a visible third launch.
+      Then dispatch rest_await_event across all three launched sources. The
+      test should prove that each await returns one event and that the third
+      source is included only after the first selected event routes through the
+      machine.
+    inputs:
+      initial_servers:
+        - control_api
+        - domain_webhooks
+      later_server: audit_webhooks
+      first_await_sources: [control_api, domain_webhooks]
+      second_await_sources: [control_api, domain_webhooks, audit_webhooks]
+      factory_init: rest_await_event
+    expected:
+      first_selected_event_returned_once: true
+      third_server_launch_is_visible_transition: true
+      second_selected_event_returned_once: true
+      second_await_includes_later_source: true
+      hidden_workflow_action_selected: false
+    traces:
+      - rel03.0-uc008-rest-await-any-fan-in S1
+      - rel03.0-uc008-rest-await-any-fan-in S2
+      - rel03.0-uc008-rest-await-any-fan-in S3
+      - rel03.0-uc008-rest-await-any-fan-in S4
+      - rel03.0-uc008-rest-await-any-fan-in S5
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Generic REST await applies route and signal filters
+    go_test: TestRESTAwaitEvent_SourceFiltersPreserveUnrelatedEvents
+    status: done
+    description: |
+      Configure rest_await_event with server, route, and signal filters. Events
+      outside the route or signal allowlist remain queued or are skipped
+      according to policy. Matching input drives the emitted signal.
+    inputs:
+      sources:
+        - server: control_api
+          routes: [approve, reject]
+          signals: [Approved, Rejected]
+      queued_events:
+        - route: pause
+          signal: PauseRequested
+        - route: approve
+          signal: Approved
+    expected:
+      disallowed_route_selected: false
+      allowed_signal_selected: Approved
+      filter_diagnostics_reported: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S3
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Generic REST await reports timeout without consuming events
+    go_test: TestRESTAwaitEvent_Timeout
+    status: done
+    description: |
+      Dispatch rest_await_event with no matching events before the configured
+      timeout. AwaitTimedOut reports the active source filters
+      without inventing a lifecycle or domain signal.
+    inputs:
+      sources:
+        - server: control_api
+          routes: [approve]
+          signals: [Approved]
+      timeout: 10ms
+    expected:
+      signal: AwaitTimedOut
+      matching_event_consumed: false
+      hidden_workflow_action_selected: false
+    traces:
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Generic REST await handles stopped sources by policy
+    go_test: TestRESTAwaitEvent_ServerStopped
+    status: done
+    description: |
+      Stop one configured source while rest_await_event is waiting. Run the
+      ignore, emit_server_stopped, and command_error policies and verify each
+      policy returns the declared signal or continues waiting as configured.
+    inputs:
+      stopped_behaviors:
+        - ignore
+        - emit_server_stopped
+        - command_error
+    expected:
+      ignore_continues_to_other_sources: true
+      emit_server_stopped_signal: ServerStopped
+      command_error_signal: CommandError
+      command_error_go_test: TestRESTAwaitEvent_StoppedSourceCommandError
+    traces:
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Lifecycle exit through REST routes to exit_agent
+    go_test: TestRESTLifecycleControl_ExitAgentSignal
+    status: done
+    description: |
+      A configured lifecycle_control exit endpoint receives an operator
+      request. Handler validation enqueues ExitRequested. rest_await_event
+      returns that event, and MachineSpec routes it to exit_agent as explicit
+      lifecycle vocabulary. Command-level coverage also proves that runtime
+      payload fields reach structured exit_agent output, shutdown is requested
+      by exit_agent, and cancellation is deferred until after the loop records
+      AgentExited and resolves the terminal MachineSpec state.
+    inputs:
+      endpoint: POST /api/lifecycle/exit
+      payload:
+        reason: operator requested shutdown
+        status: success
+      machine_route:
+        signal: ExitRequested
+        action: exit_agent
+    expected:
+      handler_executed_exit_directly: false
+      await_signal: ExitRequested
+      exit_agent_action_visible: true
+      exit_result_signal: AgentExited
+      exit_output_json: true
+      exit_output_reason_from_event: true
+      exit_output_status_from_event: true
+      control_profile_terminal_state: Succeeded
+      documentation_profile_terminal_state: Done
+      run_status_cancelled: false
+      deferred_shutdown_after_loop_return: true
+      control_profile_go_test: TestControlProfileExitReachesSucceededBeforeDeferredShutdown
+      documentation_profile_go_test: TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown
+      payload_go_test: TestExitAgentUsesRuntimeEventPayload
+      profile_smoke_target: mage integration:uc006
+    traces:
+      - rel03.0-uc003-rest-server-signals S3
+      - srd026-lifecycle-tools AC7
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC5
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server stop drains queues and unblocks await
+    go_test: TestRESTServer_StopDrainsAndUnblocks, TestRESTServer_ShutdownConfigValidation, TestRESTServer_StreamEventsUnblocksOnStop
+    status: done
+    description: |
+      Stop a launched server while events and await calls exist. Shutdown
+      follows the accepted drain policies, rejects unsupported shutdown fields,
+      closes listeners, and unblocks await and stream_events with ServerStopped.
+    inputs:
+      server: control_api
+      drain_policies: [drain, drain_then_stop]
+      rejected_drain_policies: [reject_new, drop_queued, fail_queued]
+      pending_events: 2
+      awaiting_call: true
+      active_stream: true
+    expected:
+      signal: ServerStopped
+      drained_event_count: 2
+      listener_closed: true
+      await_unblocked: true
+      stream_unblocked: true
+      unsupported_shutdown_fields_rejected: true
+      dropped_events_reported: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S4
+      - srd029-rest-server-tools AC4
+      - srd029-rest-server-tools AC7
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server validation rejects unsafe inbound traffic
+    go_test: TestRESTServer_RequestValidationFailures
+    status: done
+    description: |
+      Bad inbound traffic reaches the configured routes. The server returns
+      configured HTTP errors and avoids hidden MachineSpec actions.
+    inputs:
+      invalid_requests:
+        - wrong_method
+        - schema_invalid
+        - body_too_large
+        - queue_full
+        - handler_failed
+    expected:
+      grammar_event_enqueued: false
+      configured_http_status_returned: true
+      queue_overflow_reported: true
+      handler_failure_signal_or_response_declared: true
+      diagnostics_redacted: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - srd027-rest-tool-runtime AC6
+      - srd029-rest-server-tools AC6
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server query header and output redaction policies fail closed
+    go_test: TestRESTServer_RejectsUndeclaredQueryAndHeader
+    status: done
+    description: |
+      Send unsafe inbound requests with undeclared query and header fields, then
+      send schema-invalid path and header values. The server rejects them before
+      enqueueing grammar events. Separate redaction checks prove await output,
+      SSE output, and handler responses redact configured query, header, and
+      body secrets.
+    inputs:
+      invalid_requests:
+        - undeclared_query
+        - undeclared_header
+        - schema_invalid_path
+        - schema_invalid_header
+      redaction_go_tests:
+        - TestRESTServer_RedactsAwaitAndStreamOutput
+        - TestRESTServer_RedactsHandlerResponses
+    expected:
+      invalid_request_status: 400
+      invalid_request_enqueued: false
+      await_output_redacted: true
+      stream_output_redacted: true
+      handler_response_redacted: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - rel03.0-uc003-rest-server-signals S3
+      - srd027-rest-tool-runtime AC6
+      - srd027-rest-tool-runtime AC7
+      - srd029-rest-server-tools AC6
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server invoke handler returns configured responses
+    go_test: TestRESTServer_InvokeHandlerBindings
+    status: done
+    description: |
+      Send requests to configured invoke_handler endpoints. The server validates
+      requests, returns mapped JSON, and enqueues only a declared signal when
+      the endpoint configuration names one.
+    inputs:
+      endpoint_bindings:
+        - invoke_handler
+      valid_request: handler_response
+      signal_request: handler_signal
+      invalid_request: handler_not_configured
+    expected:
+      mapped_response_returned: true
+      declared_signal_enqueued: true
+      unconfigured_handler_fails: true
+      hidden_workflow_action_selected: false
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - srd029-rest-server-tools AC5
+      - srd029-rest-server-tools AC6
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Server streams queued events as SSE
+    go_test: TestRESTServer_StreamEvents
+    status: done
+    description: |
+      Queue a validated inbound event, then call a stream_events endpoint. The
+      endpoint writes one server-sent event containing the configured signal and
+      route metadata without choosing the next MachineSpec action.
+    inputs:
+      endpoint_bindings:
+        - emit_signal
+        - stream_events
+      queued_event: Approved
+    expected:
+      content_type: text/event-stream
+      streamed_signal: Approved
+      streamed_route: approve
+      hidden_workflow_action_selected: false
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - srd029-rest-server-tools AC5
+      - srd029-rest-server-tools AC7
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc004-openapi-import
+    name: OpenAPI import exposes allowlisted operations
+    go_test: TestRESTOpenAPI_ImportAllowlist
+    status: done
+    description: |
+      Load an OpenAPI 3 document with several operations, but import only the
+      allowlisted operation IDs. The import compiles them into RestDefinition
+      while ToolDef declarations stay explicit.
+    inputs:
+      openapi_document: payments_openapi
+      expose:
+        - getPayment
+        - createPayment
+      tooldefs:
+        - get_payment
+        - create_payment
+    expected:
+      imported_operations:
+        - getPayment
+        - createPayment
+      unlisted_operation_imported: false
+      tooldefs_explicit: true
+      generated_go_code: false
+    traces:
+      - rel03.0-uc004-openapi-import S1
+      - rel03.0-uc004-openapi-import S3
+      - rel03.0-uc004-openapi-import S4
+      - srd027-rest-tool-runtime AC3
+      - srd027-rest-tool-runtime AC9
+      - srd028-rest-client-tools AC1
+
+  - use_case: rel03.0-uc004-openapi-import
+    name: OpenAPI server bind maps operation IDs to endpoints
+    go_test: TestRESTOpenAPI_ServerBindMap
+    status: done
+    description: |
+      Bind selected OpenAPI operation IDs to configured server endpoint names.
+      Imported paths and schemas attach to endpoint binding kinds while server
+      ToolDefs remain explicit vocabulary words.
+    inputs:
+      openapi_document: payments_openapi
+      bind:
+        receivePaymentWebhook: payment_webhook
+      endpoint_binding: emit_signal
+    expected:
+      endpoint_bound: payment_webhook
+      request_schema_compiled: true
+      response_schema_compiled: true
+      server_tooldef_explicit: true
+      generated_server_code: false
+    traces:
+      - rel03.0-uc004-openapi-import S2
+      - rel03.0-uc004-openapi-import S3
+      - rel03.0-uc004-openapi-import S4
+      - srd029-rest-server-tools AC8
+
+  - use_case: rel03.0-uc004-openapi-import
+    name: OpenAPI import reports invalid operation IDs
+    go_test: TestRESTOpenAPI_InvalidOperationIDs
+    status: done
+    description: |
+      When an import names a missing or duplicated operation ID, validation
+      fails before ToolDefs register. An incompatible server binding fails the
+      same way, with document and operation context in the error.
+    inputs:
+      invalid_imports:
+        - missing_operation_id
+        - duplicate_operation_id
+        - incompatible_server_binding
+    expected:
+      import_rejected: true
+      source_document_reported: true
+      operation_identity_reported: true
+      schema_location_reported_when_available: true
+      no_partial_tooldefs_registered: true
+    traces:
+      - rel03.0-uc004-openapi-import S1
+      - rel03.0-uc004-openapi-import S2
+      - srd027-rest-tool-runtime AC3
+      - srd027-rest-tool-runtime AC7
+      - srd029-rest-server-tools AC8
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc005-ollama-openapi-model-listing
+    name: Qwen agent lists Ollama models through OpenAPI REST tool
+    go_test: mage integration:uc005
+    status: done
+    description: |
+      Run the Ollama REST profile with a Qwen 3 family model and the
+      ollama_list_models tool selected. Ask the agent to list local Ollama
+      models. The integration target must prove that the model invoked the REST
+      tool, that the REST tool called GET /api/tags through the imported
+      listOllamaModels operation, and that the final answer contains model
+      names returned by /api/tags.
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/rest/ollama-profile.yaml
+      model_family: qwen3
+      openapi_document: rest/openapi/ollama.yaml
+      operation_id: listOllamaModels
+      tool_name: ollama_list_models
+      live_endpoint: http://127.0.0.1:11434/api/tags
+      prompt: List the local Ollama models available on this machine.
+    expected:
+      selected_tool_manifest_contains:
+        - ollama_list_models
+      selected_tool_manifest_excludes_mutating_ollama_tools: true
+      rest_tool_invoked: true
+      rest_operation_called: listOllamaModels
+      final_answer_contains_api_model_names: true
+      final_answer_excludes_absent_model_names: true
+    traces:
+      - rel03.0-uc005-ollama-openapi-model-listing S1
+      - rel03.0-uc005-ollama-openapi-model-listing S2
+      - rel03.0-uc005-ollama-openapi-model-listing S3
+      - rel03.0-uc005-ollama-openapi-model-listing S4
+      - srd009-ollama-adapter AC1
+      - srd024-blocking-input-tools AC1
+      - srd024-blocking-input-tools AC2
+      - srd027-rest-tool-runtime AC2
+      - srd027-rest-tool-runtime AC3
+      - srd028-rest-client-tools AC4
+      - srd028-rest-client-tools AC7
+
+  - use_case: rel03.0-uc006-documentation-curator
+    name: Documentation curator profile loads host and REST tooling
+    go_test: TestProfileStartupLoadsActiveProfiles
+    status: done
+    description: |
+      Load active profiles through cmd/agent startup coverage. The
+      documentation-curator profile must resolve its machine, serve_documentation
+      builtin declaration, selected doc_* REST tools, and REST definitions.
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
+      builtin_tool: serve_documentation
+      rest_tools:
+        - doc_list
+        - doc_get
+        - doc_search
+        - doc_validate
+        - doc_suggest_changes
+        - doc_patch_approve
+        - doc_patch_reject
+    expected:
+      profile_loads: true
+      documentation_factory_registered: true
+      rest_tooldefs_selected: true
+    traces:
+      - rel03.0-uc006-documentation-curator S1
+      - rel03.0-uc006-documentation-curator S4
+      - srd022-builtin-tools AC1
+      - srd027-rest-tool-runtime AC2
+      - srd028-rest-client-tools AC1
+
+  - use_case: rel03.0-uc006-documentation-curator
+    name: Standalone documentation server serves docs API and SPA
+    go_test: TestStandaloneServerServesDocsAPIAndSPA
+    status: done
+    description: |
+      Start the documentation server handler with fixture docs and assets. Verify
+      /api/v1/docs returns documentation entries, a document detail route returns
+      parsed content, and a non-API route returns the SPA asset. Bench is not in
+      the request path.
+    inputs:
+      server_package: internal/knowledge/documentation
+      docs_fixture: temporary_docs_root
+      route_prefix: /api/v1/docs
+    expected:
+      docs_list_returned: true
+      docs_detail_returned: true
+      spa_fallback_returned: true
+      bench_route_delegation: false
+    traces:
+      - rel03.0-uc006-documentation-curator S2
+      - rel03.0-uc006-documentation-curator S3
+      - srd020-bench-web-ui AC4
+      - srd024-blocking-input-tools AC1
+      - srd027-rest-tool-runtime AC2
+
+  - use_case: rel03.0-uc006-documentation-curator
+    name: Documentation curator exposes validation and patch proposal workflow
+    go_test: TestHandlerServesCuratorSearchValidationAndPatchReview
+    status: done
+    description: |
+      Call the standalone documentation host APIs for search, validation,
+      suggestion generation, and patch review. The handler returns structured
+      findings and a pending patch proposal. Approval records the review
+      decision but does not write documentation files.
+    inputs:
+      routes:
+        - POST /api/v1/docs/search
+        - POST /api/v1/docs/validate
+        - POST /api/v1/docs/suggestions
+        - POST /api/v1/docs/patches/{patch_id}/approve
+      docs_fixture: temporary_docs_root
+      strict_validation: true
+    expected:
+      search_results_returned: true
+      validation_findings_structured: true
+      suggestion_status: pending_review
+      approval_recorded: true
+      documentation_write_applied: false
+    traces:
+      - rel03.0-uc006-documentation-curator S4
+      - srd027-rest-tool-runtime AC2
+      - srd028-rest-client-tools AC4
+      - srd028-rest-client-tools AC7
+
+  - use_case: rel03.0-uc006-documentation-curator
+    name: Documentation curator migration and lifecycle exit smoke test
+    go_test: mage integration:uc006
+    status: done
+    description: |
+      Build the agent with production assets, start
+      the external documentation-curator profile, probe the
+      documentation health, docs index, validation, suggestion, and SPA routes,
+      run the bench docs-route absence test, post a generic lifecycle exit
+      request, and require clean agent shutdown through the declared Done path.
+      The target checks process output for succeeded terminal state text and
+      confirms both documentation and control listeners are released.
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
+      listener: 127.0.0.1:18081
+      frontend_builds:
+        - internal/evaluation/bench/ui
+        - internal/knowledge/documentation/ui
+      bench_route_test: TestDocsAPIRoutesAreNotMounted
+      lifecycle_exit_endpoint: POST /api/lifecycle/exit
+    expected:
+      documentation_health_ok: true
+      documentation_index_returned: true
+      validation_endpoint_returned: true
+      suggestion_endpoint_returned: true
+      spa_route_returned_html: true
+      bench_docs_routes_absent: true
+      lifecycle_exit_requested: true
+      terminal_state_output_succeeded: true
+      run_result_output_succeeded: true
+      cancelled_output_absent: true
+      documentation_listener_released: true
+      control_listener_released: true
+      documentation_host_stop_go_test: TestCuratorMachineExitStopsDocumentationHost
+      serve_documentation_undo_go_test: TestServeDocumentationUndoStopsOwnedListener
+      clean_shutdown: true
+    traces:
+      - rel03.0-uc006-documentation-curator S1
+      - rel03.0-uc006-documentation-curator S2
+      - rel03.0-uc006-documentation-curator S3
+      - rel03.0-uc006-documentation-curator S4
+      - srd020-bench-web-ui AC4
+      - srd024-blocking-input-tools AC1
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Puppeteer loads machine-request Knowledge Manager UX
+    go_test: mage integration:uc007
+    status: done
+    description: |
+      Build the agent and Knowledge Manager UI assets, start the
+      documentation-curator profile with machine_request document endpoints, and
+      launch Puppeteer against the local UX. The page must load from
+      profile-owned UI assets without using bench routes.
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
+      browser_harness: Puppeteer
+      entry_point: internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts
+      integration_target: mage integration:uc007
+      page_url: http://127.0.0.1:18081/
+    expected:
+      page_loaded: true
+      profile_ui_assets_served: true
+      bench_route_delegation: false
+      screenshot_on_failure: true
+      console_log_captured_on_failure: true
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S1
+      - srd031-declarative-document-resources AC6
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Puppeteer verifies document index machine_request sentence
+    go_test: mage integration:uc007
+    status: done
+    description: |
+      Puppeteer waits for the document index network request. The server should
+      validate the browser request, run one short-lived MachineSpec sentence,
+      return a document list, and render sidebar categories in the page.
+    inputs:
+      browser_request: GET or POST document index endpoint configured as machine_request
+      document_resource: documentation_corpus
+      expected_document: SPECIFICATIONS.yaml
+    expected:
+      index_response_ok: true
+      sidebar_contains_specifications: true
+      request_run_count: 1
+      terminal_signal: DocumentIndexReady
+      machine_request_trace_required: true
+      generic_rest_route_used: documentation_curator_requests.documents
+      direct_docs_handler_restored_fails: true
+      document_resource_root: docs
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S2
+      - srd030-machine-request-rest-binding AC1
+      - srd030-machine-request-rest-binding AC4
+      - srd031-declarative-document-resources AC1
+      - srd031-declarative-document-resources AC7
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Puppeteer opens raw YAML document through document resource
+    go_test: mage integration:uc007
+    status: done
+    description: |
+      After the sidebar appears, Puppeteer selects a YAML document. The browser
+      request must run one request machine, pass document resource path policy,
+      and return raw YAML plus configured parsed content.
+    inputs:
+      selected_document: SPECIFICATIONS.yaml
+      nested_index_document: specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml
+      response_modes: [raw_yaml, parsed_yaml]
+      blocked_paths:
+        - ../go.mod
+        - internal/knowledge/documentation/host.go
+    expected:
+      raw_yaml_returned: true
+      nested_document_path_listed: true
+      parsed_content_returned: true
+      rendered_title_visible: true
+      terminal_signal: DocumentDetailReady
+      generic_rest_route_used: documentation_curator_requests.document
+      traversal_request_denied: true
+      disallowed_extension_denied: true
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S3
+      - rel03.0-uc007-machine-request-documentation-ux S4
+      - srd030-machine-request-rest-binding AC5
+      - srd031-declarative-document-resources AC3
+      - srd031-declarative-document-resources AC4
+      - srd031-declarative-document-resources AC5
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Puppeteer verifies rendered HTML and raw YAML view
+    go_test: mage integration:uc007
+    status: done
+    description: |
+      Puppeteer checks the document viewer after navigation. The rendered HTML
+      should show parsed document fields, and the raw YAML view should expose
+      the exact YAML text returned by the document resource response.
+    inputs:
+      selected_document: SPECIFICATIONS.yaml
+      rendered_selectors:
+        - .doc-viewer
+        - .doc-raw-section
+      raw_text_contains: "id: agent-core-specifications"
+    expected:
+      rendered_html_visible: true
+      raw_yaml_visible: true
+      parsed_fields_match_raw_document: true
+      browser_observed_detail_response_trace: true
+      browser_console_errors: 0
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S3
+      - rel03.0-uc007-machine-request-documentation-ux S5
+      - srd031-declarative-document-resources AC5
+      - srd031-declarative-document-resources AC6
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Puppeteer captures auditable machine_request trace evidence
+    go_test: mage integration:uc007
+    status: done
+    description: |
+      The Puppeteer proof collects trace evidence for the index and document
+      requests. A failure report must include screenshot path, page URL, browser
+      console output, network log, request ID, machine name, terminal signal,
+      and RunResult summary for each machine_request run.
+    inputs:
+      requests:
+        - document_index
+        - document_detail
+      failure_artifacts_dir: testdata/integration/rel03-rest-tools/artifacts/uc007
+    expected:
+      request_ids_present: true
+      machine_names_present: true
+      terminal_signals_present: true
+      run_result_summaries_present: true
+      generic_server_route_present: true
+      captured_responses_recorded_on_failure: true
+      network_log_captured: true
+      screenshot_path_reported_on_failure: true
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S5
+      - rel03.0-uc007-machine-request-documentation-ux S6
+      - srd030-machine-request-rest-binding AC6
+      - srd030-machine-request-rest-binding AC7
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Machine_request conformance loads configured profile machine
+    go_test: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 go test ./internal/tools/rest -run TestRESTServerMachineRequestConformance
+    status: done
+    description: |
+      Run the opt-in conformance tests for machine_request endpoints. The tests
+      require a configured profile and request-machine file, not an injected
+      MachineSpec, and cover nested catch-all document paths. The generic
+      internal/tools/rest trace envelope now carries server, route, and machine
+      identity.
+    inputs:
+      conformance_env: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1
+      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
+      machine: knowledge-manager/documentation-curator/request-machine.yaml
+      endpoint_path: /api/v1/docs/{path...}
+    expected:
+      configured_profile_loaded: true
+      injected_machine_spec_required: false
+      nested_path_captured: true
+      terminal_signal_mapped: DocumentDetailReady
+      profile_declaration_roots_used: true
+      request_machine_actions_select_tools: true
+      generic_trace_envelope_go_test: TestRESTServerMachineRequestTraceEnvelope
+      generic_trace_contains_server_route_machine: true
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S2
+      - rel03.0-uc007-machine-request-documentation-ux S3
+      - srd030-machine-request-rest-binding AC1
+      - srd030-machine-request-rest-binding AC3
+      - srd030-machine-request-rest-binding AC5
+      - srd030-machine-request-rest-binding AC7
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Knowledge Manager routes docs API through generic machine_request
+    go_test: go test ./internal/knowledge/documentation -run TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
+    status: done
+    description: |
+      Run the always-on Knowledge Manager conformance check. The docs API
+      response trace must identify the generic REST machine_request server
+      route, request machine, terminal signal, and request-scoped run summary.
+      Puppeteer remains under mage integration:uc007.
+    inputs:
+      conformance_env: none
+      routes:
+        - GET /api/v1/docs
+        - GET /api/v1/docs/{path...}
+      request_machine: documentation-curator-request
+    expected:
+      generic_rest_route_used: true
+      docs_specific_runner_used: false
+      route_trace_present: true
+      machine_name_present: true
+      terminal_signal_present: true
+      run_summary_present: true
+      current_conformance_gate: none
+      always_on_go_test: TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
+      puppeteer_remains_in_integration_target: true
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S2
+      - rel03.0-uc007-machine-request-documentation-ux S5
+      - srd030-machine-request-rest-binding AC1
+      - srd030-machine-request-rest-binding AC2
+      - srd030-machine-request-rest-binding AC3
+      - srd030-machine-request-rest-binding AC5
+      - srd030-machine-request-rest-binding AC7
+      - srd031-declarative-document-resources AC2
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST observability redacts secrets and reports failure stages
+    go_test: TestRESTTools_TracingRedactionAndErrors
+    status: done
+    description: |
+      Exercise client and server error paths with synthetic secret material.
+      Traces and Result output report identity, status, timing data, byte
+      counts, failure stage, and resulting signal. Configured secrets stay out.
+    inputs:
+      failures:
+        - auth_resolution
+        - network_io
+        - timeout
+        - response_mapping
+        - route_validation
+        - shutdown_failed
+      redaction_selectors:
+        - headers.authorization
+        - query.token
+        - body.secret
+    expected:
+      traces_include_operation_or_route: true
+      traces_include_status_and_timing: true
+      failure_stage_reported: true
+      secrets_redacted: true
+      verbose_body_capture_requires_config: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S2
+      - srd027-rest-tool-runtime AC7
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC9
+      - srd029-rest-server-tools AC9
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: REST server control and queue policies are enforced
+    go_test: TestRESTServer_ControlQueueAndReadPolicyConformance
+    status: done
+    description: |
+      Validate modeled lifecycle_control enqueueing, endpoint queue overrides,
+      and explicit read_policy support beyond the default first-available
+      behavior.
+    inputs:
+      endpoint_bindings: [lifecycle_control, emit_signal]
+      queue_policies: [reject, drop_oldest, drop_newest]
+      read_policies: [priority_order, round_robin]
+    expected:
+      lifecycle_handlers_execute_directly: false
+      lifecycle_events_enqueued: true
+      unsupported_policies_rejected: true
+      configured_policies_honored: true
+    traces:
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC5
+      - srd029-rest-server-tools AC7
+      - srd029-rest-server-tools AC10
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST client safety and async selectors are enforced
+    go_test: TestRESTClient_SafetyAndAsyncConformance
+    status: done
+    description: |
+      Validate CIDR allowlists, response schema checks, domain_error_code
+      output, async correlation selection, idempotency metadata on outbound
+      requests, and await_operation support or validation rejection.
+    inputs:
+      issue: agent-core-guhn.4
+      network_policy: cidr_allowlist
+      response_schema: configured
+      async_selectors: [request_id, correlation, await_operation]
+    expected:
+      cidr_allowlist_enforced: true
+      invalid_response_schema_success_signal: false
+      domain_error_code_in_output: true
+      unsupported_async_selectors_rejected: true
+    traces:
+      - srd027-rest-tool-runtime AC6
+      - srd028-rest-client-tools AC5
+      - srd028-rest-client-tools AC7
+      - srd028-rest-client-tools AC8
+      - srd028-rest-client-tools AC9
+
+  - use_case: rel03.0-uc004-openapi-import
+    name: OpenAPI server binding preserves configured endpoint behavior
+    go_test: TestRESTOpenAPI_ServerBindPreservesEndpointConfig
+    status: done
+    description: |
+      Bind OpenAPI operations to endpoints that already declare response
+      mapping, machine_request, monitor view, queue, signal, and
+      allowed_signals. Import should add transport and schema data without
+      dropping configured endpoint behavior.
+    inputs:
+      evidence: TestRESTOpenAPI_ServerBindPreservesEndpointConfig
+      endpoint_fields:
+        - response
+        - machine_request
+        - monitor_view
+        - queue
+        - signal
+        - allowed_signals
+    expected:
+      configured_fields_preserved: true
+      openapi_method_path_schema_imported: true
+      incompatible_operation_ids_rejected: true
+    traces:
+      - srd027-rest-tool-runtime AC3
+      - srd029-rest-server-tools AC8
+      - srd030-machine-request-rest-binding AC3
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST client compensation creates rollback mementos
+    go_test: TestRESTClient_CompensationUndoMemento
+    status: done
+    description: |
+      Distinguish read-only noop undo from mutating REST operations that
+      declare configured compensation. The mutating path captures request and
+      response metadata needed by rollback. agent-core-guhn.5 tracks runtime
+      execution of the configured compensation path.
+    inputs:
+      evidence: TestRESTClient_CompensationUndoMemento
+      operations: [rest_client_get, rest_client_create, rest_client_set, rest_client_delete]
+    expected:
+      read_undo_noop: true
+      mutating_undo_noop: false
+      compensation_payload_valid: true
+      metadata_contains_operation_resource_and_idempotency: true
+    traces:
+      - srd025-rollback-lifecycle AC5
+      - srd027-rest-tool-runtime AC8
+      - srd028-rest-client-tools AC3
+      - srd028-rest-client-tools AC10
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Machine_request validates terminal response schemas
+    go_test: TestRESTServerMachineRequestTerminalResponseSchema
+    status: done
+    description: |
+      Configure a machine_request terminal response schema and return output
+      that violates it. The binding should reject the response or the public
+      config schema field should be removed.
+    inputs:
+      evidence: TestRESTServerMachineRequestTerminalResponseSchema
+      terminal_signal: DocumentationReady
+      response_schema: configured
+    expected:
+      invalid_response_schema_success: false
+      failure_stage: response_invalid
+      diagnostic_redacted: true
+    traces:
+      - srd030-machine-request-rest-binding AC5
+      - srd030-machine-request-rest-binding AC6
+
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: REST document_resources config is loaded or rejected
+    go_test: TestRESTDocumentResourcesConfigConformance
+    status: done
+    description: |
+      Load a REST definition that declares top-level document_resources and a
+      machine_request document_resources reference. The runtime should either
+      make those resources available through trusted config or reject the fields
+      with a clear validation error.
+    inputs:
+      evidence: TestRESTDocumentResourcesConfigConformance
+      document_resource: documentation_corpus
+      request_machine: documentation-curator-request
+    expected:
+      unknown_document_resources_silently_ignored: false
+      current_profile_resource_words_still_work: true
+      validation_error_names_field_when_unsupported: true
+    traces:
+      - srd031-declarative-document-resources AC1
+      - srd031-declarative-document-resources AC3
+      - srd031-declarative-document-resources AC7

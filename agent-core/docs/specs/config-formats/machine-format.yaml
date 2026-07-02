@@ -1,0 +1,369 @@
+id: cfg-machine-format
+title: Machine Configuration Format (machine.yaml)
+
+purpose: |
+  Defines the MachineSpec YAML schema used by all five agent modes
+  (generator, evaluator, planner, jurist, bench). Each machine.yaml
+  declares the finite state machine that drives an agent's execution
+  loop: its states, signals, transitions, actions, and budget constraints.
+
+  MachineSpec also carries optional semantic metadata — purpose,
+  invariants, lifecycle narrative, configuration cross-references, and
+  a pipeline diagram — that make the YAML file a self-contained
+  specification of agent behavior.
+
+schema:
+  - field: name
+    type: string
+    required: true
+    description: |
+      Unique agent identifier. Used in logging, metrics, and
+      cross-references between agents.
+
+  - field: purpose
+    type: string
+    required: false
+    description: |
+      Free-form prose describing the agent's role, architecture, and
+      high-level behavior. Intended for human readers and tooling that
+      presents machine descriptions. All production agents include a
+      multi-line purpose block.
+
+  - field: invariants
+    type: "[]string"
+    required: false
+    description: |
+      Behavioral invariants the machine is expected to uphold. Each
+      entry is a single prose statement. These are documentation only
+      and are not enforced by the runtime, but specification tooling
+      may reference them for consistency checks.
+
+  - field: lifecycle
+    type: string
+    required: false
+    description: |
+      A numbered narrative describing the agent's typical execution
+      flow — the sequence of states, transitions, and actions from
+      startup to termination. Captures the "story" that the transition
+      table encodes declaratively.
+
+  - field: configuration
+    type: "map[string]any"
+    required: false
+    description: |
+      Cross-references to related configuration files. Common entries
+      include machine (self-reference), tools (tool selection file),
+      llm_configs (LLM config glob), tool_declarations (shared YAML
+      declaration files), and variants (alternative machine files).
+      Not consumed by the runtime; serves as a documentation index.
+
+  - field: metric_labels
+    type: object
+    required: false
+    status: planned
+    description: |
+      Planned monitor metadata for stable workflow labels. These labels come
+      from trusted MachineSpec YAML and may be attached to tool metric samples
+      by the runtime recorder. They are documentation only until monitor
+      validation and recorder code land.
+
+      Values must be low-cardinality. They should name workflow phases,
+      profile-owned use cases, or other bounded categories. They must not
+      include raw prompts, full outputs, secrets, unbounded paths, arbitrary
+      URLs, request IDs, timestamps, or user free text.
+
+  - field: pipeline_diagram
+    type: string
+    required: false
+    description: |
+      A Mermaid diagram (or other markup) depicting the agent's state
+      flow. Embedded in the YAML as a multi-line string. Renderers
+      that support Mermaid can display it as a visual graph.
+
+  - field: initial_state
+    type: string
+    required: true
+    description: |
+      The state the machine enters on startup. Must reference a state
+      present in the states list.
+
+  - field: budget
+    type: object
+    required: false
+    description: |
+      Resource limits that bound the agent's execution.
+    sub_fields:
+      - field: max_iterations
+        type: int
+        description: |
+          Maximum number of state transitions before halting. When
+          exceeded, the machine transitions via the BudgetExhausted
+          signal.
+      - field: max_tokens
+        type: int
+        description: |
+          Maximum total tokens consumed across all LLM calls. When
+          exceeded, transitions via BudgetExhausted.
+      - field: max_duration
+        type: duration string
+        description: |
+          Wall-clock time limit (e.g. "5m0s"). Enforced via
+          context.WithTimeout — when elapsed, the loop terminates
+          with StatusCancelled (not BudgetExhausted).
+      - field: max_consecutive_parse_errors
+        type: int
+        description: |
+          Maximum consecutive LLM parse failures before the machine
+          transitions via BudgetExhausted. For grammars that route
+          ParseFailed through report_parse_error, the value is read from
+          machine YAML and enforced by that explicit internal word. Machines
+          without report_parse_error may still use the compatibility
+          stl.ParseErrorPolicy AfterDispatch hook.
+
+  - field: states
+    type: "StateSpecs ([]string | []StateSpec)"
+    required: true
+    description: |
+      The set of valid machine states. Accepts two forms:
+
+      Scalar form (legacy): a plain list of state name strings.
+        states:
+        - Idle
+        - Running
+        - Done
+
+      Rich object form: a list of objects with name and optional
+      meaning metadata. The meaning field documents the state's
+      semantic purpose.
+        states:
+        - name: Idle
+          meaning: Initial state before any work begins.
+        - name: Running
+          meaning: The main working state where tools execute.
+        - name: Done
+          meaning: Terminal. All work completed.
+
+      Both forms may be mixed in the same list. The parser
+      (StateSpecs.UnmarshalYAML) detects scalars vs mappings
+      per element.
+
+      Every state referenced in transitions, initial_state, and
+      terminal_states must appear here.
+
+  - field: terminal_states
+    type: "[]string"
+    required: true
+    description: |
+      Subset of states where the machine halts. Once the machine
+      enters a terminal state, no further transitions are processed.
+
+  - field: signals
+    type: "SignalSpecs ([]string | []SignalSpec)"
+    required: true
+    description: |
+      The set of valid signals. Accepts two forms:
+
+      Scalar form (legacy): a plain list of signal name strings.
+        signals:
+        - Seed
+        - ToolDone
+        - CommandError
+
+      Rich object form: a list of objects with name and optional
+      trigger metadata. The trigger field documents what event
+      causes the signal to be emitted.
+        signals:
+        - name: Seed
+          trigger: Loop initialization.
+        - name: ToolDone
+          trigger: A tool executed successfully.
+        - name: CommandError
+          trigger: Infrastructure-level error.
+
+      Both forms may be mixed in the same list. The parser
+      (SignalSpecs.UnmarshalYAML) detects scalars vs mappings
+      per element.
+
+  - field: transitions
+    type: "[]object"
+    required: true
+    description: |
+      The transition table. Each entry maps a (state, signal) pair to
+      a next state and an optional action.
+    sub_fields:
+      - field: state
+        type: string
+        description: Current state the machine must be in.
+      - field: signal
+        type: string
+        description: Signal that triggers this transition.
+      - field: next
+        type: string
+        description: Target state after the transition.
+      - field: action
+        type: string
+        description: |
+          Tool to execute during the transition. See action_semantics
+          for the three modes. May be omitted for terminal transitions.
+      - field: metric_labels
+        type: object
+        status: planned
+        description: |
+          Planned transition-level metric labels. These labels refine the
+          workflow context for samples emitted by the action on this
+          transition. Transition labels override or extend machine-level
+          labels by label name. They must follow the same low-cardinality safety
+          policy as top-level metric_labels.
+
+action_semantics:
+  - mode: Named tool
+    description: |
+      A literal tool name (e.g. invoke_llm, prepare_workspace, validate).
+      The tool is resolved from the tool registry at build time via
+      BuildTransitionTable. If the name is not found, the build fails.
+    example: invoke_llm
+
+  - mode: $tool
+    description: |
+      Dynamic dispatch sentinel. At runtime, the actual tool name is
+      extracted from the parsed LLM output. This lets the LLM
+      choose which tool to call (e.g. read, write, edit, build).
+      Used in the generator's Parsing → Composing transition.
+    example: $tool
+
+  - mode: Empty/omitted
+    description: |
+      No command is executed. Used for terminal transitions where the
+      machine simply moves to a halting state (e.g. Succeeded, Failed,
+      BudgetExceeded).
+
+workflow_metric_labels:
+  status: planned
+  purpose: |
+    Defines planned MachineSpec metadata for grouping embedded monitor metrics
+    by workflow context. Tool declarations define metric instruments.
+    MachineSpec labels define where in the grammar those instruments ran.
+  ownership_rules:
+    - MachineSpec owns workflow label values because it owns sequencing.
+    - ToolDef owns metric instrument names and specialized metric meaning.
+    - Runtime dispatch may attach machine and transition labels to samples.
+    - Labels are trusted config values, not runtime input chosen by the model.
+  allowed_label_examples:
+    - phase: validation
+    - use_case: rel04.0-monitor
+    - boundary: rest_server
+    - checkpoint_policy: disabled
+  prohibited_label_sources:
+    - raw prompts
+    - full tool outputs
+    - secrets
+    - absolute paths
+    - arbitrary URLs
+    - request IDs
+    - timestamps
+    - user free text
+  example: |
+    metric_labels:
+      use_case: rel04.0-monitor
+      phase: main_loop
+
+    transitions:
+      - state: WaitingForRequest
+        signal: ServerLaunched
+        next: ReadingMonitor
+        action: monitor_snapshot
+        metric_labels:
+          phase: monitor_read
+
+validation_rules: |
+  Validation occurs in two phases at startup:
+
+  Phase 1 — validateSpec() during ParseMachineSpec():
+  - name is required (non-empty)
+  - initial_state is required
+  - At least one state, one terminal state, and one transition must exist
+  - Every state in transitions must exist in the states list
+  - Every signal in transitions must exist in the signals list
+  - initial_state must be a member of states
+  - terminal_states must be a subset of states
+
+  Phase 2 — BuildTransitionTable():
+  - Named actions (not $tool, not empty) must resolve to a registered tool
+  - $tool requires a non-nil ToolAction callback
+
+  Validation failures cause the agent to abort before processing any input.
+
+diagnostics: |
+  After structural validation passes, DiagnoseMachineSpec() performs
+  optional static analysis that reports non-fatal warnings. Callers
+  decide which warnings to treat as policy violations.
+
+  Diagnostic codes:
+
+  unreachable_state — A state is declared but not reachable from
+  initial_state via the transition graph. May indicate dead grammar.
+
+  unreachable_transition — A transition starts from a state that is
+  itself unreachable from initial_state.
+
+  terminal_transition — A transition starts from a terminal state.
+  Terminal states should have no outgoing transitions.
+
+  unused_signal — A signal is declared but no transition references it.
+  May indicate a removed feature or a typo.
+
+  Diagnostics are returned as []MachineDiagnostic with severity,
+  code, message, and the affected state/signal/transition index.
+
+examples:
+  - file: ../agent-profiles/agents/generator/machine.yaml
+    description: |
+      7 states, 11 signals, rich state/signal metadata. LLM-driven
+      loop with $tool dispatch. The generator iterates between
+      Composing and Parsing, using dynamic tool dispatch to execute
+      LLM-chosen tools. Includes purpose, invariants, lifecycle,
+      configuration cross-references, and a Mermaid pipeline diagram.
+
+  - file: ../agent-profiles/agents/evaluator/machine.yaml
+    description: |
+      11 states, session-level orchestration with nested core.Loop.
+      Drives grid iteration over (harness, model, sample, rep) points.
+      Each point runs the per-point pipeline via a nested core.Loop
+      using ../agent-profiles/agents/evaluator/point.yaml. Rich state/signal metadata
+      throughout.
+
+  - file: ../agent-profiles/agents/evaluator/point.yaml
+    description: |
+      15 states, 17 signals, linear pipeline with no LLM interaction.
+      Walks through workspace preparation, config snapshot, agent
+      execution, oracle check, trace collection, and metrics in a
+      fixed sequence with error handling. All states carry meaning
+      metadata and all signals carry trigger metadata.
+
+  - file: ../agent-profiles/agents/planner/machine.yaml
+    description: |
+      16 states, complex branching with retry logic. Orchestrates
+      multi-step planning with LLM reasoning, sub-task decomposition,
+      issue creation, and error recovery paths. Rich metadata
+      including a Mermaid pipeline diagram.
+
+  - file: ../agent-profiles/agents/bench/machine.yaml
+    description: |
+      5 states, human-in-the-loop interactive agent. Serves a web UI
+      and blocks waiting for user actions. Loops between serving and
+      launching evaluations. serve_ui is the bench equivalent of
+      invoke_llm. Rich state/signal metadata with purpose and
+      invariants.
+
+  - file: ../agent-profiles/agents/jurist/machine.yaml
+    description: |
+      6 states, linear 3-tool pipeline. The jurist
+      loads the specification corpus, runs consistency checks across
+      SRDs, machine grammars, and tool declarations, and formats the
+      report. No LLM calls. Rich state/signal metadata with purpose,
+      invariants, and lifecycle narrative.
+
+related_documents:
+  - srd006
+
+implementation: internal/runtime/core/machine.go

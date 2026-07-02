@@ -1,0 +1,311 @@
+id: test-rel02.0-tool-contracts
+title: Test Suite for Release 02.0 Tool Contracts
+release: "02.0"
+
+traces:
+  - rel02.0-uc003-tool-authoring
+  - rel02.0-uc004-sentence-tool-migration
+
+preconditions:
+  - Tool declarations can be loaded from YAML into ToolDef values.
+  - MachineSpec validation can check selected action names and declared emitted signals.
+  - Contract validation can run in authoring review or future strict mode.
+  - Legacy sentence tools can be represented as deprecated compatibility declarations while replacement words are selected.
+
+test_cases:
+  - use_case: rel02.0-uc003-tool-authoring
+    name: Tool definition includes all required contract sections
+    go_test: TestValidateToolContractsReportsMissingFields, TestAuditToolContractsClassifiesCoverage
+    status: done
+    description: |
+      Load a new builtin ToolDef and verify it includes every required
+      authoring section named in cfg-tool-authoring-standard.
+    inputs:
+      tool_category: word
+      declaration: complete_builtin_tooldef
+    expected:
+      problem_present: true
+      goals_present: true
+      requirements_present: true
+      non_goals_present: true
+      output_schema_present: true
+      side_effects_present: true
+      reversibility_present: true
+      undo_present: true
+      errors_present: true
+      relationships_present: true
+    traces:
+      - srd022-builtin-tools AC1
+      - srd025-rollback-lifecycle AC6
+
+  - use_case: rel02.0-uc003-tool-authoring
+    name: One-verb rule rejects workflow-shaped ordinary tools
+    go_test: TestToolAuthoringOneVerbRule
+    status: planned
+    description: |
+      Review a proposed ordinary word whose description performs multiple
+      observable verbs. The authoring check should reject it unless it is split
+      into separate words or classified as an explicit boundary.
+    inputs:
+      proposed_tool: "load config and discover samples and initialize session"
+      category: word
+    expected:
+      authoring_result: rejected
+      remediation: split_into_words_or_mark_boundary
+    traces:
+      - srd022-builtin-tools AC1
+      - srd023-cli-exec-tools AC5
+
+  - use_case: rel02.0-uc003-tool-authoring
+    name: Typed input and output contracts are machine-consumable
+    go_test: TestSelectedToolOutputContractsLoad
+    status: done
+    description: |
+      Load a tool declaration with JSON Schema parameters and output.schema.
+      Verify parameter and output contracts are precise enough for another
+      tool or machine transition to consume without prose interpretation.
+    inputs:
+      parameters_schema: object_with_required_fields
+      output_schema: object_with_result_fields
+    expected:
+      parameters_schema_valid: true
+      output_schema_valid: true
+      llm_visible_schema_excludes_implementation_extensions: true
+    traces:
+      - srd022-builtin-tools AC1
+      - srd023-cli-exec-tools AC2
+
+  - use_case: rel02.0-uc003-tool-authoring
+    name: Deterministic result schemas are compatible with next action parameters
+    go_test: TestValidateResultSchemaCompatibilityReportsRequiredFieldMismatch
+    status: done
+    description: |
+      Given a machine edge where one named action emits a signal that selects
+      another named action, compare the producer output.schema with the
+      consumer parameters schema. Missing required fields should be reported
+      clearly, while dynamic $tool dispatch should be documented as an
+      info-level limitation.
+    inputs:
+      producer_output_schema: object_with_plan_id
+      consumer_parameters_schema: object_requiring_plan_id
+      dynamic_dispatch_edge: parse_response_to_tool_request
+    expected:
+      compatible_chain_findings: []
+      missing_required_field_severity: error_in_strict_mode
+      dynamic_dispatch_limitation: info
+    traces:
+      - srd022-builtin-tools AC1
+      - srd023-cli-exec-tools AC2
+
+  - use_case: rel02.0-uc003-tool-authoring
+    name: Side effects and undo strategy are required for mutating tools
+    go_test: TestValidateToolContractsSideEffectModes, TestValidate_ToolUndoConsistency
+    status: done
+    description: |
+      Check a filesystem-mutating tool and a command/domain-state-mutating
+      tool. Both must declare their rollback contract and
+      state_after_failure error semantics.
+    inputs:
+      tools:
+        - filesystem_write_word
+        - conversation_state_word
+    expected:
+      filesystem_tool_declares_workspace_restore: true
+      state_tool_declares_command_state_restore: true
+      errors_include_state_after_failure: true
+    traces:
+      - srd025-rollback-lifecycle AC6
+
+  - use_case: rel02.0-uc003-tool-authoring
+    name: Irreversible tools require confirmation or compensation
+    go_test: TestToolAuthoringIrreversibleConfirmation
+    status: planned
+    description: |
+      Assess a boundary tool that affects external user data. If its effects
+      are irreversible or compensatable, the ToolDef must declare confirmation
+      or a compensating action before it is selected by a user-facing machine.
+    inputs:
+      tool_category: boundary
+      reversibility: irreversible
+      side_effect_target: external_service
+    expected:
+      requires_confirmation: true
+      compensation_or_irreversible_reason_documented: true
+    traces:
+      - srd024-blocking-input-tools AC1
+      - srd025-rollback-lifecycle AC6
+
+  - use_case: rel02.0-uc003-tool-authoring
+    name: Relationships distinguish overlapping vocabulary words
+    go_test: TestToolAuthoringRelationshipReview
+    status: planned
+    description: |
+      Review a new tool that overlaps with existing words. The ToolDef must
+      document likely before/after neighbors and overlap differences so agents
+      can choose the correct word.
+    inputs:
+      new_tool: collect_artifact_metadata
+      overlaps_with: [collect_metrics, dump_config]
+    expected:
+      relationships_before_present: true
+      relationships_after_present: true
+      overlaps_explain_differences: true
+    traces:
+      - srd022-builtin-tools AC1
+
+  - use_case: rel02.0-uc004-sentence-tool-migration
+    name: Sentence tool migration creates replacement word declarations
+    go_test: TestSentenceToolMigrationCreatesReplacementWords
+    status: planned
+    description: |
+      Given a legacy aggregate tool, identify each observable verb and create
+      one ToolDef per word. Replacement declarations must include the
+      required contract metadata.
+    inputs:
+      legacy_tool: load_suite
+      identified_words:
+        - parse_suite_config
+        - discover_suite_samples
+        - expand_eval_grid
+        - init_eval_session
+        - report_suite_summary
+    expected:
+      replacement_tooldefs_created: true
+      each_replacement_has_contract_metadata: true
+      aggregate_not_selected_by_default: true
+    traces:
+      - srd013-standard-tool-library AC9
+      - srd022-builtin-tools AC1
+      - srd025-rollback-lifecycle AC6
+
+  - use_case: rel02.0-uc004-sentence-tool-migration
+    name: MachineSpec owns migrated workflow sequence
+    go_test: TestSentenceToolMigrationMachineSequence
+    status: planned
+    description: |
+      Rewire a migrated workflow so machine.yaml has one state/action step per
+      replacement word. Startup validation should confirm each named action is
+      registered and each emitted signal has a transition.
+    inputs:
+      machine: migrated_workflow_machine
+      replacement_words: [word_a, word_b, word_c]
+    expected:
+      named_actions_registered: true
+      emitted_signals_declared: true
+      emitted_signals_have_transitions: true
+      sequence_visible_in_machine_yaml: true
+    traces:
+      - srd006-yaml-machine-config AC3
+      - srd022-builtin-tools AC4
+
+  - use_case: rel02.0-uc004-sentence-tool-migration
+    name: Boundary and nested-machine tools declare their boundary effects
+    go_test: TestSelectedBoundaryToolContractsLoad
+    status: done
+    description: |
+      Exercise a tool that invokes a child process, nested machine, model, or
+      human actor. The declaration must classify it as boundary and describe
+      the external state and workspace effects rollback may need to compensate.
+    inputs:
+      boundary_tools:
+        - run_agent
+        - serve_ui
+        - invoke_llm
+    expected:
+      category_boundary: true
+      emitted_signals_declared: true
+      child_or_external_effects_declared: true
+      undo_or_compensation_declared: true
+    traces:
+      - srd024-blocking-input-tools AC1
+      - srd025-rollback-lifecycle AC6
+
+  - use_case: rel02.0-uc004-sentence-tool-migration
+    name: Deprecated compatibility aggregate is hidden from new workflows
+    go_test: TestBuiltinToolContractAuditClassifiesMigrationCoverage, TestBuiltinMigratedContractsValidateAtErrorLevel
+    status: done
+    description: |
+      Keep a legacy aggregate only as deprecated compatibility. It should be
+      hidden from LLM tool lists when internal-only, documented as a boundary or
+      deprecated compatibility tool, and excluded from new machine selections.
+    inputs:
+      legacy_aggregate: validate
+      replacement_sequence: [build, lint, test]
+    expected:
+      visibility: internal
+      deprecated_compatibility_documented: true
+      replacement_sequence_documented: true
+      new_machine_selection_excludes_aggregate: true
+    traces:
+      - srd013-standard-tool-library AC8
+      - srd022-builtin-tools AC1
+
+  - use_case: rel02.0-uc004-sentence-tool-migration
+    name: Migration preserves intermediate failure signals
+    go_test: TestSentenceToolMigrationPreservesFailureSignals
+    status: planned
+    description: |
+      Split a workflow-shaped tool into multiple words and verify the migrated
+      machine exposes intermediate failure transitions that the aggregate had
+      hidden or collapsed.
+    inputs:
+      migrated_sequence: [run_oracle_check, collect_trace_tokens, check_agent_version, summarize_point_results]
+      failure_points: [oracle_failed, trace_missing, version_mismatch]
+    expected:
+      oracle_failure_transition: explicit
+      trace_missing_result: documented_success_or_failure
+      version_mismatch_warning_transition: explicit
+      summary_uses_collected_state: true
+    traces:
+      - srd006-yaml-machine-config AC3
+      - srd013-standard-tool-library AC9
+
+  - use_case: rel02.0-uc003-tool-authoring
+    name: Lifecycle builtin declarations expose full adapter contracts
+    go_test: TestLifecycleProfilesValidateMachineWiring, TestBuiltinMigratedContractsValidateAtErrorLevel
+    status: done
+    description: |
+      Inspect the checkpoint_history and checkpoint_rollback ToolDefs. Both
+      declarations should expose the required adapter contract fields and the
+      correct builtin init value.
+    inputs:
+      lifecycle_tools:
+        - checkpoint_history
+        - checkpoint_rollback
+    expected:
+      type_builtin: true
+      init_present: true
+      emits_present: true
+      output_present: true
+      side_effects_present: true
+      reversibility_present: true
+      undo_present: true
+      errors_present: true
+      relationships_present: true
+    traces:
+      - srd022-builtin-tools AC1
+      - srd025-rollback-lifecycle AC6
+      - srd026-lifecycle-tools AC5
+
+  - use_case: rel02.0-uc003-tool-authoring
+    name: Lifecycle tool contracts reject exec-wrapper behavior
+    go_test: TestLifecycleProfilesValidateMachineWiring
+    status: done
+    description: |
+      Check lifecycle ToolDefs for hidden shelling into the agent binary. Desired
+      declarations should be builtin adapters, selected by lifecycle
+      profiles, and invoked by MachineSpec actions.
+    inputs:
+      lifecycle_tools:
+        - checkpoint_history
+        - checkpoint_rollback
+      forbidden_shape: exec_wrapper_around_agent_binary
+    expected:
+      shells_into_agent_binary: false
+      selected_by_lifecycle_profile: true
+      machine_action_visible: true
+      core_operation_boundary_documented: true
+    traces:
+      - srd025-rollback-lifecycle AC7
+      - srd026-lifecycle-tools AC1
+      - srd026-lifecycle-tools AC5

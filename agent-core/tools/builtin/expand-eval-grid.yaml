@@ -1,0 +1,57 @@
+tools:
+- name: expand_eval_grid
+  type: builtin
+  init: expand_eval_grid
+  visibility: internal
+  emits:
+  - EvalGridExpanded
+  - CommandError
+  description: Expand evaluator suite grid parameters into concrete grid points.
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: eval_session_state
+    state: eval_grid_expanded
+    description: Sets the EvalSessionState grid point iterator input.
+  reversibility:
+    classification: reversible
+    undo: session_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore evaluator session state to the snapshot before expanding the grid.
+  problem: The machine needs a declared word for expanding evaluator grid points without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the expand_eval_grid action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'expand_eval_grid: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: expand_eval_grid command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

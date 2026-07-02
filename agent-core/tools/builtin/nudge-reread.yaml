@@ -1,0 +1,54 @@
+tools:
+- name: nudge_reread
+  type: builtin
+  init: nudge_reread
+  visibility: internal
+  emits:
+  - ToolDone
+  description: Append a re-read instruction after file edits to prompt the model to verify changes.
+  category: word
+  side_effects:
+  - kind: none
+    description: Formats the previous edit result with a re-read instruction without mutating state.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: The nudge only changes the command output passed to the next transition.
+  problem: The machine needs a declared word for nudging the model to reread edited files without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the nudge_reread action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'nudge_reread: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: nudge_reread command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

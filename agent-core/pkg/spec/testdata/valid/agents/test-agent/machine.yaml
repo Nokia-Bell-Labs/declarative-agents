@@ -1,0 +1,32 @@
+name: test-agent
+initial_state: Idle
+states:
+- name: Idle
+  meaning: Waiting for input.
+- name: Running
+  meaning: Processing the request.
+- name: Done
+  meaning: Terminal success.
+- name: Failed
+  meaning: Terminal failure.
+terminal_states:
+- Done
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A tool completed successfully.
+- name: CommandError
+  trigger: Infrastructure-level error.
+transitions:
+- state: Idle
+  signal: Seed
+  next: Running
+  action: do_work
+- state: Running
+  signal: ToolDone
+  next: Done
+- state: Running
+  signal: CommandError
+  next: Failed

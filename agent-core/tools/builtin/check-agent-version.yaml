@@ -1,0 +1,61 @@
+tools:
+- name: check_agent_version
+  type: builtin
+  init: check_agent_version
+  visibility: internal
+  emits:
+  - AgentVersionChecked
+  - AgentVersionMismatch
+  - CommandError
+  description: Compare the configured harness agent version with the version reported in the point trace.
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: agent_version_checked
+    description: Sets PointContext.TraceVersion and PointContext.VersionMismatch when a traced version differs from the harness config.
+  - kind: stderr_write
+    target: evaluator_output
+    description: Writes a warning when the configured and traced agent versions differ.
+  reversibility:
+    classification: reversible
+    undo: point_context_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore PointContext version fields from the prior snapshot.
+  problem: The machine needs a declared word for checking traced agent version metadata without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the check_agent_version action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'check_agent_version: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: check_agent_version command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

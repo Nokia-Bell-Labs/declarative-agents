@@ -1,0 +1,69 @@
+id: agent-profiles
+title: Agent Profiles Repository Vision
+
+executive_summary: |
+  agent-profiles owns external agent programs and profile assets for
+  agent-core. Under that boundary, YAML agent programs, profile-local config,
+  demos, and integration fixtures describe agent behavior.
+
+  agent-core owns the runtime. It provides the agent binary, Go packages,
+  builtin tool implementations, shared runtime assets, and release container
+  machinery. Runtime containers consume this repository by mount, checkout, or
+  release bundle instead of copying profile directories into the image.
+
+problem: |
+  Agent behavior is easier to review when profile assets live outside the
+  runtime repository. Profile changes should not require a new agent-core image
+  when the runtime contract is unchanged.
+
+  Bundling every profile into the runtime image blurs ownership. From a user
+  view, the image can appear responsible for each agent family rather than the
+  reusable runtime. Those behaviors are profile programs, so the Go runtime
+  should load them from an explicit external path.
+
+what_this_does: |
+  This repository collects profile-owned agent assets under stable paths. The
+  `agents/` tree stores profile.yaml files, MachineSpec YAML, tools.yaml
+  selections, profile-local declarations, boundary config, and UI assets.
+
+  Future `demo/` and `testdata/integration/` trees store profile-owned demos,
+  suites, and fixtures used by agent-core integration targets through
+  AGENT_PROFILES_ROOT.
+
+why_we_build_this: |
+  Separate ownership lets agent-core stay a reusable runtime. Profile authors
+  can change configured behavior, sample suites, and human actor assets without
+  editing runtime packages or rebuilding release images.
+
+  Mounted profiles also make container use explicit. Operators provide a
+  profile path and workspace path. The runtime image provides only the binary
+  and core-owned assets.
+
+success_criteria:
+  profile_ownership: |
+    Profile-owned files live in this repository. Runtime packages, builtin tool
+    implementations, and container build logic stay in agent-core.
+  mounted_runtime_contract: |
+    Local and container commands can run with AGENT_PROFILES_ROOT or a mounted
+    /profiles path and an explicit --profile argument.
+  integration_fixture_contract: |
+    agent-core integration targets can consume profile-owned demos and fixtures
+    from this repository without developer-specific absolute paths.
+  traceable_docs: |
+    VISION, ARCHITECTURE, SPECIFICATIONS, road-map, and issue-format docs give
+    future Beads issues enough structure to name scope, files, requirements,
+    and acceptance criteria.
+
+not:
+  - This repository does not own agent-core Go packages.
+  - This repository does not own the cmd/agent binary.
+  - This repository does not own builtin tool implementations.
+  - This repository does not own release container build logic.
+  - This repository does not copy developer-specific absolute paths into
+    profiles, demos, or fixtures.
+
+canonical_documents:
+  - docs/ARCHITECTURE.yaml
+  - docs/SPECIFICATIONS.yaml
+  - docs/road-map.yaml
+  - docs/constitutions/issue-format.yaml

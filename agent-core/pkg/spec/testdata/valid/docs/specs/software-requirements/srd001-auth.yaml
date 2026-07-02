@@ -1,0 +1,31 @@
+id: srd001-auth
+title: Authentication
+
+problem: |
+  Users need to log in.
+
+goals:
+  - G1: Secure authentication.
+
+requirements:
+  R1:
+    title: Login
+    items:
+      - R1.1: Accept username and password.
+      - R1.2: Validate credentials against the database.
+        weight: 2
+      - R1.3: Return a session token on success.
+
+  R2:
+    title: Logout
+    items:
+      - R2.1: Invalidate the session token.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Login returns a token for valid credentials.
+    traces: [R1.1, R1.2, R1.3]
+
+  - id: AC2
+    criterion: Logout invalidates the session.
+    traces: [R2.1]

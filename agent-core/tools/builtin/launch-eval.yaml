@@ -1,0 +1,32 @@
+tools:
+- name: launch_eval
+  type: builtin
+  init: launch_eval
+  visibility: internal
+  emits:
+  - EvalCompleted
+  - EvalFailed
+  - CommandError
+  description: Spawn a child agent as a subprocess to run an experiment.
+  category: boundary
+  side_effects:
+  - kind: child_process
+    target: evaluator_agent
+    description: Launches an evaluator agent subprocess.
+  - kind: filesystem_write
+    target: eval_results
+    description: Evaluator subprocess writes experiment artifacts and metrics.
+  reversibility:
+    classification: compensatable
+    undo: child_run_artifact_cleanup_or_workspace_restore
+  undo:
+    strategy: compensating_action
+    description: Use evaluator output cleanup, child history, or workspace restore for generated artifacts.
+    payload: boundary_compensation
+    captures:
+    - suite_path
+    - output_dir
+    - child_machine
+    - child_tools
+    requires:
+    - Workspace

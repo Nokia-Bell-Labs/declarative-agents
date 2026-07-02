@@ -1,0 +1,29 @@
+id: srd003-storage
+title: Storage Layer
+
+problem: |
+  Data needs to be persisted.
+
+goals:
+  - G1: Persist data reliably.
+
+depends_on:
+  - srd_id: srd001-auth
+    symbols_used: [User]
+
+requirements:
+  R1:
+    title: Database
+    items:
+      - R1.1: Connect to PostgreSQL.
+        weight: 3
+      - R1.2: Run migrations on startup.
+
+non_goals:
+  - N1: NoSQL support.
+  - N2: Distributed transactions.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Database connection works.
+    traces: [R1.1]

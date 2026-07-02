@@ -1,0 +1,183 @@
+id: architecture-agent-profiles
+title: Agent Profiles Architecture
+
+overview:
+  summary: |
+    agent-profiles is a configuration and asset repository. At runtime,
+    agent-core loads external agent programs from it. Profile directories,
+    profile-local config, demos, integration fixtures, and structured docs live
+    here.
+
+    Runtime ownership remains in agent-core. That repository owns the Go
+    engine, cmd/agent, builtin tool implementations, shared runtime assets, Mage
+    targets, and release image. Operators supply this checkout through explicit
+    --profile paths (often after bind-mounting it at a stable container path such
+    as /profiles).
+
+    Bootstrap authority for argv, mounts, and file-only configuration lives in
+    agent-core docs and constitutions. Track the umbrella work there as Beads
+    epic agent-core-tj96; the runtime contract text is anchored in
+    docs/specs/config-formats/runtime-contract.yaml (see agent-core-tj96.1).
+
+  runtime_mount_diagram: |
+    ```mermaid
+    flowchart LR
+      OP[Developer or operator] --> RUNTIME[agent-core runtime]
+      OP --> PROFILES[agent-profiles checkout]
+      OP --> WORK[workspace]
+      PROFILES -->|--profile path| RUNTIME
+      WORK -->|--directory| RUNTIME
+      RUNTIME --> CORE[agent binary and core assets]
+      RUNTIME --> PROGRAM[profile-owned agent program]
+    ```
+
+interfaces:
+  - name: External profile checkout path
+    summary: |
+      Filesystem location of this repository on the host or inside a container.
+      cmd/agent receives a profile file path through --profile; mounts such
+      as /profiles are a packaging convention, not a separate env-based contract
+      defined here.
+  - name: /profiles mount
+    summary: |
+      Container-side path for this repository. Runtime commands pass
+      --profile /profiles/agents/<name>/profile.yaml.
+  - name: --profile
+    summary: |
+      agent-core CLI argument that points at a profile.yaml supplied from this
+      repository, a release bundle, or another external profile path.
+  - name: --directory
+    summary: |
+      agent-core CLI argument that points at the workspace the selected agent
+      can read, edit, test, or inspect according to its selected tools.
+
+components:
+  - name: agents
+    path: agents/
+    responsibility: |
+      Own migrated profile.yaml files, machines, tool selections,
+      profile-local declarations, boundary configs, lifecycle profiles, monitor
+      profiles, REST profiles, control profiles, and Knowledge Manager assets.
+      Profiles may reference core-owned shared tool declarations through
+      /opt/agent-core/tools.
+  - name: demos
+    path: demo/
+    responsibility: |
+      Own runnable examples that prove external profiles can run from this
+      repository with agent-core.
+  - name: integration fixtures
+    path: testdata/integration/
+    responsibility: |
+      Own profile-related suites and fixture data consumed by agent-core Mage
+      integration targets when those runs point --profile at paths under this
+      checkout.
+  - name: documentation
+    path: docs/
+    responsibility: |
+      Own repository vision, architecture, specification indexes, roadmap, and
+      issue format rules for future migration work.
+
+design_decisions:
+  - id: 1
+    title: Profile assets are external to the runtime image
+    decision: |
+      agent-core release images do not copy profile directories from this
+      repository. Operators mount, check out, or unpack profile assets and pass
+      an explicit profile path at runtime.
+    benefits:
+      - Runtime images stay focused on core-owned binaries and assets.
+      - Profile changes can ship without rebuilding the runtime image.
+      - Ownership of agent behavior remains visible in repository layout.
+  - id: 2
+    title: Runtime code stays in agent-core
+    decision: |
+      No Go runtime packages or builtin tool implementations live in
+      agent-profiles. YAML programs select and configure capabilities that
+      agent-core provides.
+    benefits:
+      - Profile repositories stay reviewable as configuration and fixtures.
+      - Runtime changes stay covered by agent-core build and test gates.
+      - Profile validation can focus on paths, declarations, and contracts.
+  - id: 3
+    title: Fixtures use portable paths
+    decision: |
+      Demos and integration fixtures must use portable roots such as repository
+      mount points (/profiles in examples), argv-resolved profile paths, or
+      explicit workspace mounts. Developer-specific absolute paths are not valid
+      fixture contracts.
+    benefits:
+      - Integration targets work across machines and containers.
+      - Container examples match the mounted-profile contract.
+      - Release bundles can preserve the same directory contract.
+
+technology_choices:
+  - component: Profile format
+    technology: YAML
+    purpose: agent-core loads profile, machine, tool selection, and boundary
+      config files from YAML.
+  - component: Issue tracking
+    technology: bd
+    purpose: Beads issues track migration, documentation, validation, and
+      fixture work.
+  - component: Runtime
+    technology: agent-core
+    purpose: agent-core supplies the executable runtime and reusable tool
+      implementations.
+
+project_structure:
+  configuration:
+    - path: agents/
+      role: External agent profile programs and profile-local assets.
+    - path: demo/
+      role: External-profile demos.
+    - path: testdata/integration/
+      role: Profile-owned fixtures consumed by agent-core integration targets.
+  documentation:
+    - path: docs/VISION.yaml
+      role: Goals, boundaries, and success criteria.
+    - path: docs/ARCHITECTURE.yaml
+      role: Repository ownership, interfaces, components, and decisions.
+    - path: docs/SPECIFICATIONS.yaml
+      role: Specification index and coverage notes.
+    - path: docs/road-map.yaml
+      role: Migration release plan.
+    - path: docs/constitutions/issue-format.yaml
+      role: Beads issue shape for future work.
+
+implementation_status:
+  current_focus: Formal migration use cases and test suites after completed asset migration.
+  progress:
+    - done: Initial Beads queue exists.
+    - done: Repository purpose and ownership docs are defined.
+    - done: Agent functional block requirements and semantic models are defined.
+    - done: Agent profiles and Knowledge Manager UX assets migrated from
+        agent-core into agents/.
+    - done: Demos and integration fixtures migrated into demo/ and
+        testdata/integration/.
+    - done: Profile bundle release tagging is implemented through mage tag.
+    - done: Profile validation and container usage checks verify the mounted
+        profile contract.
+    - done: Variant profile discovery covers profile.yaml, profile-*.yaml, and
+        *-profile.yaml files.
+    - planned: Formal migration use cases and test suites document the
+        implemented profile repository workflow.
+
+related_documents:
+  - doc: ../agent-core/docs/specs/config-formats/runtime-contract.yaml
+    purpose: Canonical cmd/agent startup, argv flags, and file-only operator path contract.
+  - doc: ../agent-core/docs/specs/software-requirements/srd034-external-agent-profiles.yaml
+    purpose: External profile ownership and mounted-profile requirements owned by agent-core.
+  - doc: docs/VISION.yaml
+    purpose: Goals, boundaries, and success criteria.
+  - doc: docs/SPECIFICATIONS.yaml
+    purpose: Specification index for future requirements and semantic models.
+  - doc: docs/road-map.yaml
+    purpose: Release plan for profile extraction and mounted runtime usage.
+  - doc: docs/constitutions/issue-format.yaml
+    purpose: Required shape for future Beads issues.
+  - doc: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
+    purpose: Functional requirements for migrated profile families.
+  - doc: docs/specs/semantic-models/multi-agent-profile-system.yaml
+    purpose: Profile role groups, actor boundaries, and dependency directions.
+  - doc: docs/specs/semantic-models/agent-role-taxonomy.yaml
+    purpose: Per-profile role taxonomy for migration and validation work.

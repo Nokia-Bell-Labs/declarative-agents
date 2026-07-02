@@ -1,0 +1,54 @@
+name: lifecycle-rollback
+purpose: |-
+  Roll back a checkpoint through the normal agent runtime.
+  The machine runs one declared rollback action, then exits with a
+  success or failure state based on the tool signal.
+configuration:
+  machine: agents/lifecycle/rollback.yaml
+  tools: agents/lifecycle/tools.yaml
+invariants:
+- Rollback is a machine action with explicit checkpoint and target inputs.
+- Rollback persists a rewritten checkpoint.
+- Workspace restore is handled by the underlying lifecycle operation.
+lifecycle: |-
+  1. Idle -> RollingBack (Seed): run checkpoint_rollback.
+  2. RollingBack -> Done (ToolDone): rollback completed.
+  3. RollingBack -> Failed (ToolFailed or CommandError): rollback failed.
+initial_state: Idle
+budget:
+  max_iterations: 3
+states:
+- name: Idle
+  meaning: Initial state before rollback starts.
+- name: RollingBack
+  meaning: The checkpoint rollback command is running.
+- name: Done
+  meaning: Terminal. Rollback completed.
+- name: Failed
+  meaning: Terminal. Rollback failed.
+terminal_states:
+- Done
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: checkpoint_rollback completed successfully.
+- name: ToolFailed
+  trigger: checkpoint_rollback exited non-zero.
+- name: CommandError
+  trigger: Runtime or command infrastructure failed.
+transitions:
+- state: Idle
+  signal: Seed
+  next: RollingBack
+  action: checkpoint_rollback
+- state: RollingBack
+  signal: ToolDone
+  next: Done
+- state: RollingBack
+  signal: ToolFailed
+  next: Failed
+- state: RollingBack
+  signal: CommandError
+  next: Failed
