@@ -1,0 +1,32 @@
+tools:
+- name: suspend
+  type: builtin
+  init: suspend
+  visibility: internal
+  emits:
+  - AwaitApproval
+  - CommandError
+  description: Suspend the run at an approval gate. The loop persists a checkpoint when StateStore is configured.
+  category: boundary
+  config:
+    label: approval
+    reason: awaiting approval
+    require_checkpoint: false
+  side_effects:
+  - kind: state_mutation
+    target: lifecycle_checkpoint
+    state: suspended
+    description: Requests suspension; the loop persists a checkpoint when StateStore is configured.
+  - kind: human_boundary
+    target: operator_approval
+    description: Hands control to an operator approval decision before resume.
+  reversibility:
+    classification: compensatable
+    undo: resume_with_rejected_or_rollback_checkpoint
+  undo:
+    strategy: compensating_action
+    description: Resume with an explicit approval/rejection signal or roll back to an earlier checkpoint.
+    payload: boundary_compensation
+    captures:
+    - reason
+    - checkpoint_required

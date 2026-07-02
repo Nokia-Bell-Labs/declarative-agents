@@ -1,0 +1,86 @@
+tools:
+- name: write
+  type: builtin
+  category: word
+  init: file_write
+  emits:
+  - ToolDone
+  - ToolFailed
+  description: "Create or overwrite a file. Provide the complete file content \u2014 this replaces the entire file. Parent directories are created automatically."
+  output:
+    description: Write result describing the file path and bytes written.
+    schema:
+      type: object
+      properties:
+        path:
+          type: string
+        bytes_written:
+          type: integer
+        created_parent_dirs:
+          type: boolean
+      required:
+      - path
+      - bytes_written
+  metrics:
+    instruments:
+    - name: filesystem.bytes_written
+      kind: histogram
+      unit: By
+      description: Bytes written to one workspace file.
+      value_source: bytes_written
+      attributes:
+      - operation
+    attributes:
+    - name: operation
+      source: tool_name
+      cardinality: low
+      redaction: none
+  parameters:
+    type: object
+    properties:
+      path:
+        type: string
+        description: File path relative to workspace root
+      content:
+        type: string
+        description: Full file content to write
+    required:
+    - path
+    - content
+  side_effects:
+  - kind: filesystem_write
+    target: workspace_file
+    description: Creates or overwrites one workspace file and may create parent directories.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore the workspace to the ref captured before or after the file write.
+    requires:
+    - Workspace
+  problem: The machine needs a declared word for writing one workspace file without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the write action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'write: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor

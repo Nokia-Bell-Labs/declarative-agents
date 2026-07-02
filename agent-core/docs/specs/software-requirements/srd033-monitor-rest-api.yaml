@@ -1,0 +1,225 @@
+id: srd033-monitor-rest-api
+title: Monitor REST API
+
+problem: |
+  Embedded monitor state is useful only if profiles can expose it safely.
+  Operators need to inspect a running agent. They need enough context to match
+  the visible machine with metric snapshots that arrived during the same run.
+  Recent events matter too. Streams keep the view fresh.
+
+  A generic HTTP handler could make this unsafe. A handler that executes tools
+  or chooses workflow steps becomes another hidden control plane. Prompt reads
+  and workspace scraping are also outside the monitor contract. The API must
+  read cached monitor state only. Profile-owned REST configuration and OpenAPI
+  descriptions must own the exposed routes.
+
+  Monitor REST reader support exists on the existing REST server path.
+  Configured endpoints can read monitor views, expose OpenAPI metadata, and
+  stream cached monitor updates. The monitor profile may bind to
+  127.0.0.1:0, so supervisors and tests must discover the actual listener
+  address from the REST server launch output instead of assuming the configured
+  address is reachable. The implementation keeps handlers read-only: they do
+  not execute tools, dispatch MachineSpec actions, inspect prompts, or scrape
+  workspace files. cmd/agent passes the live monitor store into those routes
+  when the monitor profile runs.
+
+  Launching a monitor server alone is not enough. REST server tools start the
+  listener in the background, but cmd/agent exits when the MachineSpec reaches a
+  terminal state. To stay observable, the monitor profile follows the local
+  Knowledge Manager pattern: launch, await, accept a configured exit request,
+  stop the owned listener, and then route to a success terminal state.
+
+goals:
+  - G1: Define monitor REST endpoints that read cached monitor state.
+  - G2: Preserve MachineSpec workflow ownership and avoid hidden HTTP workflows.
+  - G3: Keep REST authority and OpenAPI documentation profile-owned.
+  - G4: Define endpoint coverage for machine, tool, metric, event, and stream reads.
+  - G5: Define redaction, caching, and failure behavior for monitor readers.
+
+requirements:
+  R1:
+    title: API scope and authority
+    items:
+      - R1.1: The monitor REST API SHALL expose read-only endpoints over cached monitor store snapshots from srd032-tool-metrics-monitor-store.
+      - R1.2: Monitor REST handlers SHALL NOT execute tools, dispatch MachineSpec actions, inspect prompts, scrape workspace files, or call external collectors.
+      - R1.3: Profile-owned REST configuration SHALL define server address, route paths, endpoint bindings, auth references, limits, and OpenAPI exposure.
+      - R1.4: Runtime input SHALL NOT choose arbitrary monitor routes, methods, authentication, OpenAPI documents, or network destinations.
+      - R1.5: Monitor REST endpoints SHALL be documented as boundary read endpoints, not workflow actions.
+
+  R2:
+    title: OpenAPI contract
+    items:
+      - R2.1: The monitor API SHALL provide an OpenAPI description for every configured monitor endpoint.
+      - R2.2: OpenAPI operation IDs SHALL be stable and derived from configured monitor endpoint names.
+      - R2.3: Response schemas SHALL describe machine spec metadata, current state, selected tools, per-tool metrics, aggregate metrics, recent events, event stream frames, errors, and diagnostics.
+      - R2.4: OpenAPI output SHALL omit secrets, raw prompts, full tool output, arbitrary workspace paths, and unbounded labels.
+      - R2.5: OpenAPI generation SHALL NOT generate Go server code in the first implementation.
+      - R2.6: OpenAPI output SHALL include profile-owned lifecycle control endpoints configured for the monitor server, including POST /monitor/control/exit when that route exists.
+      - R2.7: OpenAPI schemas SHALL use JSON Schema scalar types for scalar monitor fields, including string, integer, number, and boolean.
+      - R2.8: OpenAPI schemas SHALL use array schemas for repeated monitor fields and object schemas with additionalProperties for map-shaped monitor fields.
+      - R2.9: Timestamp fields such as updated_at and timestamp SHALL be strings with date-time format.
+      - R2.10: Schema names and property names SHALL match runtime JSON lower_snake_case fields.
+      - R2.11: /monitor/openapi SHALL NOT describe scalar fields such as run_id, state, status, iteration, accepted, and signal as shallow all-object schemas.
+      - R2.12: /monitor/openapi SHALL describe /monitor/events/stream as an SSE endpoint with text/event-stream response content when that configured stream route exists.
+
+  R3:
+    title: Snapshot endpoints
+    items:
+      - R3.1: GET machine spec endpoint SHALL return configured machine name, states, signals, transitions, terminal states, and safe metric_labels metadata.
+      - R3.2: GET current state endpoint SHALL return current run ID, status, state, last signal, iteration, updated_at, and bounded diagnostics.
+      - R3.3: GET tools endpoint SHALL return selected tool names, categories, visibility, emitted signals, configured metric instruments, and safe relationship metadata.
+      - R3.4: GET per-tool metrics endpoint SHALL return per-tool aggregates and recent samples grouped only by allowed low-cardinality attributes.
+      - R3.5: GET aggregate metrics endpoint SHALL return run-level counters, histograms, gauges, status summaries, and monitor diagnostics.
+      - R3.6: GET recent events endpoint SHALL return a bounded recent event window with state, signal, tool name, timestamp, status, and redacted diagnostics.
+      - R3.7: Metric sample responses SHALL include the runtime envelope for both dispatch metrics and tool-owned specialized samples with run_id, state, signal, status, tool_name, and workflow labels where available.
+      - R3.8: JSON response field names SHALL use stable API lower_snake_case names and SHALL NOT expose Go struct field names such as RunID, ToolName, or UpdatedAt.
+      - R3.9: /monitor/state OpenAPI response schema SHALL define run as an object with run_id, status, state, signal, iteration, and updated_at, plus diagnostics and errors arrays.
+      - R3.10: /monitor/metrics OpenAPI response schema SHALL define tools, metrics, and schemas as map-shaped objects, recent_samples and diagnostics as arrays, and sample values as numbers.
+      - R3.11: /monitor/events OpenAPI response schema SHALL define recent_events as an array of event objects with string, integer, number, and timestamp fields that match runtime output.
+      - R3.12: POST /monitor/control/exit OpenAPI schemas SHALL define the optional request reason as a string and the accepted response as an object with accepted boolean and signal string fields.
+
+  R4:
+    title: Event streams
+    items:
+      - R4.1: The monitor API MAY expose an event stream endpoint for cached monitor updates.
+      - R4.2: Event stream frames SHALL be derived from accepted monitor samples, run state changes, diagnostics, or recent events already present in the monitor store.
+      - R4.3: Event streams SHALL use configured limits for subscriber count, frame size, heartbeat interval, and idle timeout.
+      - R4.4: Event streams SHALL NOT create workflow signals, enqueue server events for MachineSpec routing, or keep tools running.
+      - R4.5: Event stream disconnects SHALL clean up subscriptions without changing agent state.
+      - R4.6: Monitor SSE frames SHALL use event names run_event and metric_sample for cached run events and cached metric samples.
+      - R4.7: Each monitor SSE frame SHALL include one JSON data payload whose fields match the corresponding /monitor/events recent event object or /monitor/metrics recent sample object.
+
+  R5:
+    title: Redaction and failure behavior
+    items:
+      - R5.1: Monitor responses SHALL apply the attribute safety rules from sm-tool-metrics-monitoring before returning labels or samples.
+      - R5.2: Responses SHALL NOT include raw prompts, full model responses, full tool output, secrets, arbitrary URLs, request IDs as labels, timestamps as labels, stack traces, command output, or user free text.
+      - R5.3: Missing monitor state SHALL return a configured empty snapshot or a documented not-ready response.
+      - R5.4: Handler failures SHALL return structured errors with endpoint name, failure stage, redacted message, and correlation metadata.
+      - R5.5: REST API failures SHALL NOT change command Result.Signal, monitor store state, or MachineSpec state.
+
+  R6:
+    title: Serving lifecycle
+    items:
+      - R6.1: The monitor profile SHALL keep cmd/agent alive after the monitor REST listener starts.
+      - R6.2: The monitor MachineSpec SHALL route ServerLaunched to a non-terminal serving or awaiting state with a blocking await action.
+      - R6.3: Monitor control routes SHALL be profile-owned and separate from read-only monitor snapshot routes.
+      - R6.4: A configured control exit request SHALL route to a stop step that releases the owned monitor listener.
+      - R6.5: After the listener stops without error, the monitor MachineSpec SHALL route to Done or Succeeded so the run status is succeeded.
+      - R6.6: CLI proofs and automated tests SHOULD bind the monitor listener to an isolated localhost address from generated profile config or an explicit runtime override.
+      - R6.7: A checked-in fixed monitor port is a profile default, not a test isolation guarantee; tests SHALL document or avoid conflicts from parallel runs and stale listeners.
+      - R6.8: When the monitor server is configured with 127.0.0.1:0, supervisors and automated proofs SHALL discover the bound address from the REST server launch output before querying monitor endpoints.
+      - R6.9: The real cmd/agent proof SHALL use agents/monitor/profile.yaml or an equivalent profile-owned path that preserves the full monitor serving lifecycle.
+
+implementation_status:
+  current: |
+    internal/tools/rest supports monitor_view on read_state, static_metadata,
+    and stream_events endpoints. agents/monitor defines a profile-owned REST
+    server with machine, state, tools, metrics, events, event stream, OpenAPI,
+    and control exit routes. The checked-in monitor REST configuration binds
+    127.0.0.1:0, so the launch output address is the supervisor discovery
+    source. Tests cover cached-state reads, OpenAPI redaction, snapshot
+    endpoint response shape, event stream frames, observational failure
+    behavior, and profile-owned control endpoint documentation. The monitor
+    profile uses the same REST server launch path as other configured server
+    tools, so there is no separate monitor server stack.
+    A supervisor can call /monitor/metrics after launch and see samples from
+    the same run, not a seeded fixture. The real CLI proof generates an
+    isolated loopback listener while preserving the checked-in operator profile
+    path and discovering the bound address from profile-owned launch output.
+    TestMonitorReleaseProfileProof and mage integration:uc004 prove the path
+    through cmd/agent with the live store.
+  remaining: |
+    /monitor/openapi currently documents monitor routes and redacts unsafe
+    fields. Precise JSON Schema generation for scalar fields, arrays, maps,
+    timestamps, and nested objects remains follow-up work. The generated schema
+    must reject shallow all-object descriptions for runtime scalar fields.
+
+    Residual product boundaries remain unchanged: monitor readers are
+    profile-owned, read cached state only, and do not provide durable metric
+    history.
+
+non_goals:
+  - Writing monitor state through REST.
+  - Creating workflow signals from monitor REST read endpoints.
+  - Executing tools or MachineSpec actions from monitor HTTP handlers.
+  - Replacing REST server tool contracts in srd029-rest-server-tools.
+  - Exposing raw prompts, full outputs, secrets, or arbitrary workspace files.
+  - Defining durable metric history.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: API scope requirements define read-only cached monitor endpoints with profile-owned REST authority and no hidden workflow execution.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+    tests:
+      - "test-rel04.0-monitor: Monitor REST routes read cached state"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
+
+  - id: AC2
+    criterion: OpenAPI requirements cover configured endpoint descriptions, stable operation IDs, type-accurate response schemas, profile-owned control endpoints, redaction, lower_snake_case field names, and no generated Go server code.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11, R2.12]
+    tests:
+      - "test-rel04.0-monitor: Monitor OpenAPI omits unsafe fields"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
+
+  - id: AC3
+    criterion: Snapshot endpoint requirements cover machine spec, current state, tools, per-tool metrics, aggregate metrics, recent events, stable lower_snake_case response fields, precise OpenAPI schema shapes, and the runtime envelope on specialized samples.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10, R3.11, R3.12]
+    tests:
+      - "test-rel04.0-monitor: Monitor snapshot endpoints return configured views"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
+
+  - id: AC4
+    criterion: Event stream requirements expose cached monitor updates without creating workflow signals or retaining tool execution.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
+    tests:
+      - "test-rel04.0-monitor: Monitor event stream reads cached updates"
+      - "test-rel04.0-monitor: End-to-end monitor release proof"
+
+  - id: AC5
+    criterion: Redaction and failure requirements preserve monitor safety and do not change command or machine state.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+    tests:
+      - "test-rel04.0-monitor: Monitor REST failures stay observational"
+
+  - id: AC6
+    criterion: Serving lifecycle requirements keep the monitor profile queryable until a configured control exit request stops the listener, routes to a success terminal state, and uses isolated binding for automated proofs.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R6.8, R6.9]
+    tests:
+      - "test-rel04.0-monitor: Real CLI monitor process stays queryable until exit"
+
+depends_on:
+  - srd_id: srd029-rest-server-tools
+    symbols_used: [read_state, stream_events, health, static_metadata]
+  - srd_id: srd032-tool-metrics-monitor-store
+    symbols_used: [ToolMetricsRecorder, monitor snapshot, diagnostics]
+
+related_documents:
+  - sm-tool-metrics-monitoring
+  - cfg-rest-tool-format
+  - boundary-tools-and-async.md
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Embedded monitor state is useful only if profiles can..."] --> Goals["Goals: Monitor REST API"]
+      Goals --> R1["R1: API scope and authority"]
+      Goals --> R2["R2: OpenAPI contract"]
+      Goals --> R3["R3: Snapshot endpoints"]
+      Goals --> R4["R4: Event streams"]
+      Goals --> R5["R5: Redaction and failure behavior"]
+      Goals --> R6["R6: Serving lifecycle"]
+      AC1["AC1: API scope requirements define read-only cached monitor en..."]
+      R1 --> AC1
+      AC2["AC2: OpenAPI requirements cover configured endpoint descriptio..."]
+      R2 --> AC2
+      AC3["AC3: Snapshot endpoint requirements cover machine spec, curren..."]
+      R3 --> AC3
+      AC4["AC4: Event stream requirements expose cached monitor updates w..."]
+      R4 --> AC4
+      AC5["AC5: Redaction and failure requirements preserve monitor safet..."]
+      R5 --> AC5
+      AC6["AC6: Serving lifecycle requirements keep the monitor profile q..."]
+      R6 --> AC6
+    ```

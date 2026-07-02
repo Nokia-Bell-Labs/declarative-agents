@@ -1,0 +1,102 @@
+tools:
+- name: validate
+  type: builtin
+  contract: migrated
+  init: validate
+  visibility: internal
+  emits:
+  - ValidationPassed
+  - ValidationFailed
+  - CommandError
+  description: Deprecated compatibility aggregator for replaying skipped validation tools; new machines should declare validation
+    sequences explicitly.
+  category: boundary
+  problem: 'Some older generator flows needed one internal action that could inspect
+
+    which validation tools the LLM had not already run and replay those
+
+    tools before declaring the task complete. Current generator behavior
+
+    expresses build, lint, and test as direct machine transitions, so this
+
+    tool remains only as a compatibility boundary aggregator.
+
+    '
+  goals:
+  - 'G1: Preserve compatibility for machines that explicitly select validate.'
+  - 'G2: Make aggregate validation status available as ValidationPassed or ValidationFailed.'
+  - 'G3: Keep validate hidden from LLM tool manifests.'
+  requirements:
+    input:
+    - must receive its validation tool order from program configuration, not from the LLM.
+    - must derive the skipped tool list from ToolTracker state.
+    output:
+    - must emit ValidationPassed when all replayed tools pass or when no tools were skipped.
+    - must emit ValidationFailed when a replayed validation tool reports ToolFailed.
+    - must emit CommandError when a replayed validation tool reports CommandError.
+    side_effects:
+    - must run selected child tool commands in the configured order until one fails or all pass.
+    - must not expose itself as an LLM-callable tool.
+    undo:
+    - must rely on child tool undo/workspace checkpoint mechanisms for effects created by replayed tools.
+    - must have no direct undo beyond aggregating child command results.
+    errors:
+    - must report which child validation tool failed.
+    - must preserve infrastructure errors from child validation commands.
+  non_goals:
+  - Does not define the preferred generator validation sequence; use machine.yaml transitions for that.
+  - Does not replace build, lint, test, or other atomic validation tools.
+  - Does not interpret LLM output or choose validation tools dynamically.
+  - Does not provide rollback for child tool side effects.
+  output:
+    description: Aggregate validation status and summary of replayed tools.
+    schema:
+      type: object
+      properties:
+        passed:
+          type: boolean
+        ran:
+          type: array
+          items:
+            type: string
+        failing_tool:
+          type: string
+        message:
+          type: string
+      required:
+      - passed
+      - message
+  side_effects:
+  - kind: child_tool_execution
+    target: configured_validation_tools
+    description: Executes skipped validation tools through their registered builders.
+  reversibility:
+    classification: compensatable
+    undo: Replay child command undo or restore a workspace checkpoint created before aggregate validation.
+  undo:
+    strategy: child_command_undo
+    description: Undo is delegated to the commands validate executed; validate has no independent state to reverse.
+    payload: boundary_compensation
+    captures:
+    - ran_child_tools
+  errors:
+  - signal: ValidationFailed
+    condition: A replayed validation tool returned ToolFailed.
+    message_shape: 'validation failed at <tool>: <output>'
+    state_after_failure: child tool effects may already exist and require child undo or workspace restore
+  - signal: CommandError
+    condition: A replayed validation tool returned CommandError.
+    message_shape: 'validation infrastructure error in <tool>: <output>'
+    state_after_failure: child tool effects may already exist and require child undo or workspace restore
+  relationships:
+    before:
+    - compatibility machines after TaskCompleted
+    after:
+    - terminal pass/fail transitions
+    overlaps:
+    - tool: build
+      difference: build is one validation word; validate aggregates configured validation tools.
+    - tool: lint
+      difference: lint is one validation word; validate aggregates configured validation tools.
+    - tool: test
+      difference: test is one validation word; validate aggregates configured validation tools.

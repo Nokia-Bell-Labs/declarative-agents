@@ -1,0 +1,214 @@
+id: srd026-lifecycle-tools
+title: Lifecycle Tool Adapters
+
+problem: |
+  History and rollback must run through the same declarative path as ordinary
+  agent actions, otherwise lifecycle work stays hidden behind command-line
+  glue. The core runtime already owns checkpoint algorithms. The machine still
+  needs words it can dispatch. Lifecycle tool adapters fill that gap:
+  checkpoint_history reads a checkpoint for inspection, and checkpoint_rollback
+  moves a checkpoint back to a chosen iteration while using core rollback
+  traversal. Each adapter has typed config and declared signals. Each one also
+  documents output, effects, errors, and undo behavior.
+
+  These adapters are not shell wrappers around the agent binary. They are thin
+  Go Commands that call internal/runtime/core operations. MachineSpec decides
+  when they run. ToolDef declarations define the contract that startup
+  validation can check.
+
+goals:
+  - G1: Define checkpoint_history and checkpoint_rollback as first-class STL builtin tool adapters.
+  - G2: Define typed config, emitted signals, output summaries, and failure behavior for lifecycle tools.
+  - G3: Define StateStore and Workspace requirements for history and rollback execution.
+  - G4: Define undo metadata and reversibility for lifecycle adapter effects.
+  - G5: Require lifecycle tools to be selected by ToolDef declarations and invoked by MachineSpec transitions.
+  - G6: Define generic lifecycle control vocabulary for profile-owned pause, rollback, signal injection, and exit behavior.
+
+requirements:
+  R1:
+    title: Adapter boundary
+    items:
+      - R1.1: Lifecycle tool adapters SHALL be implemented as STL builtin tools that satisfy core.Command through core.Builder.
+      - R1.2: Lifecycle tool adapters SHALL call core checkpoint operations instead of duplicating checkpoint traversal or formatting logic.
+      - R1.3: Lifecycle tool adapters SHALL NOT shell into the agent binary to perform history or rollback.
+      - R1.4: Lifecycle tool adapters SHALL keep Cobra, profile loading, and CLI flag parsing outside internal/runtime/core.
+      - R1.5: MachineSpec transitions SHALL invoke lifecycle adapter tools by declared tool name.
+
+  R2:
+    title: checkpoint_history
+    items:
+      - R2.1: checkpoint_history SHALL inspect one checkpoint selected by explicit ID or the latest checkpoint selector.
+      - R2.2: checkpoint_history config SHALL decode into CheckpointHistoryConfig.
+      - R2.3: checkpoint_history SHALL require a StateStore resolved from --state-store-dir or from <directory>/.agent-state when a workspace directory is available.
+      - R2.4: checkpoint_history SHALL resolve the selected checkpoint through core.ResolveLatestCheckpointID.
+      - R2.5: checkpoint_history SHALL load checkpoint data through core.LoadCheckpoint.
+      - R2.6: checkpoint_history SHALL format output through core.FormatCheckpointHistory.
+      - R2.7: checkpoint_history SHALL emit ToolDone on success and CommandError on missing store, missing checkpoint, load failure, or format failure.
+      - R2.8: checkpoint_history SHALL declare no side effects beyond Result.Output.
+      - R2.9: checkpoint_history SHALL use noop undo metadata.
+
+  R3:
+    title: checkpoint_rollback
+    items:
+      - R3.1: checkpoint_rollback SHALL roll back one checkpoint selected by explicit ID or the latest checkpoint selector.
+      - R3.2: checkpoint_rollback config SHALL decode into CheckpointRollbackConfig.
+      - R3.3: checkpoint_rollback SHALL require a StateStore resolved from --state-store-dir or from <directory>/.agent-state when a workspace directory is available.
+      - R3.4: checkpoint_rollback SHALL call core.RollbackFromCheckpoint for traversal and checkpoint rewriting.
+      - R3.5: checkpoint_rollback SHALL create or use a managed Workspace when workspace restore is required.
+      - R3.6: checkpoint_rollback SHALL refuse rollback when checkpoint data references a workspace ref but no managed workspace is configured.
+      - R3.7: checkpoint_rollback SHALL emit ToolDone on success and CommandError on missing store, missing target iteration, checkpoint failure, rollback failure, or workspace restore failure.
+      - R3.8: checkpoint_rollback output SHALL include the original checkpoint ID, target iteration, new checkpoint ID, and restored workspace ref when present.
+      - R3.9: checkpoint_rollback SHALL classify its undo as compensatable because rollback can rewrite checkpoint state and restore workspace state.
+      - R3.10: checkpoint_rollback UndoMemento SHALL include operator compensation metadata naming checkpoint_id and operator_decision as required context.
+
+  R4:
+    title: Typed config and runtime inputs
+    items:
+      - R4.1: Lifecycle tool config SHALL use typed structs decoded at builtin registration time.
+      - R4.2: Checkpoint selector config SHALL default to latest when omitted.
+      - R4.3: Rollback target iteration SHALL be represented so missing and zero are distinguishable.
+      - R4.4: Runtime store override, workspace directory, request path, and active profile SHALL remain runtime inputs rather than hidden lifecycle subcommand flags.
+      - R4.5: Config decode errors SHALL include the tool name and mismatched field.
+      - R4.6: When --state-store-dir is absent and --directory is present, lifecycle adapters SHALL use the workspace-local <directory>/.agent-state FileStore root supplied by runtime wiring.
+      - R4.7: --state-store-dir SHALL remain available for shared operator storage, external artifact retention, and tests that need an isolated store.
+
+  R5:
+    title: Tool declarations and machine integration
+    items:
+      - R5.1: Lifecycle adapters SHALL be declared as type builtin ToolDefs.
+      - R5.2: Lifecycle adapter declarations SHALL include init, visibility, emits, parameters or config, output, side_effects, reversibility, undo, errors, and relationships.
+      - R5.3: Lifecycle adapter declarations SHOULD be internal unless a profile intentionally exposes them to dynamic tool dispatch.
+      - R5.4: Lifecycle profiles or tool-selection files SHALL select checkpoint_history and checkpoint_rollback by name.
+      - R5.5: Startup validation SHALL reject lifecycle MachineSpec actions whose declared emits are not handled by transitions.
+      - R5.6: Lifecycle adapter tools SHALL remain reusable across lifecycle profiles by changing ToolDef config, not Go source.
+
+  R6:
+    title: Observability and errors
+    items:
+      - R6.1: Lifecycle adapters SHOULD record command name, selected checkpoint, target iteration, workspace ref, and resulting signal in command output, tracing, or structured diagnostics.
+      - R6.2: Error messages SHALL distinguish StateStore errors, checkpoint selection errors, rollback traversal errors, and workspace restore errors.
+      - R6.3: Partial rollback failures SHALL preserve the core error detail needed by an operator to choose retry, resume, or stop.
+      - R6.4: Lifecycle adapters SHALL not report success when workspace restore was required but skipped.
+
+  R7:
+    title: Generic lifecycle control vocabulary
+    items:
+      - R7.1: exit_agent or an equivalent configured lifecycle word SHALL be profile-selectable vocabulary, not a Knowledge Manager-specific handler.
+      - R7.2: exit_agent input SHALL include or resolve exit reason, requested status, drain policy, and optional checkpoint policy from ToolDef config or validated runtime input.
+      - R7.3: exit_agent output SHALL be structured JSON and include requested status, reason, drain policy, drain result when present, checkpoint ID when created, and resulting signal.
+      - R7.4: exit_agent SHALL emit AgentExitRequested, AgentExited, CommandError, or a profile-declared equivalent signal that MachineSpec handles explicitly.
+      - R7.5: exit_agent side effects SHALL declare lifecycle_state mutation, optional checkpoint_state mutation, and optional server shutdown when paired with REST server control.
+      - R7.6: exit_agent undo SHALL be noop after process exit and compensatable before exit only when the profile declares a cancellation path.
+      - R7.7: Pause, resume, rollback request, and signal injection control words SHALL be selected by ToolDef declarations and MachineSpec transitions rather than hard-coded HTTP handlers.
+      - R7.8: Lifecycle control words triggered by REST events SHALL consume validated event payloads from rest_server_await or rest_await_event.
+      - R7.9: exit_agent SHALL use validated REST event payload fields as runtime overrides for ToolDef defaults.
+      - R7.10: exit_agent SHALL emit CommandError when previous Result output intended as event context is malformed.
+
+non_goals:
+  - Defining the final request-file schema for lifecycle profiles.
+  - Defining the complete operator CLI syntax for running lifecycle profiles.
+  - Replacing core checkpoint operations.
+  - Requiring all existing tools to have specialized rollback behavior before lifecycle adapters ship.
+  - Defining lifecycle behavior that only one agent profile or Knowledge Manager handler can use.
+  - Letting REST handlers exit, pause, resume, roll back, or inject signals without a declared lifecycle word.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Lifecycle adapters are documented as STL builtin tools around core checkpoint operations, not shell wrappers around the agent binary.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+
+  - id: AC2
+    criterion: checkpoint_history requirements define typed config, StateStore dependency, core delegation, output, emitted signals, side effects, and noop undo metadata.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9]
+
+  - id: AC3
+    criterion: checkpoint_rollback requirements define typed config, StateStore dependency, target iteration, workspace restore behavior, output, emitted signals, and compensatable undo metadata.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10]
+
+  - id: AC4
+    criterion: Runtime inputs stay outside hidden lifecycle subcommand flags, typed config keeps required values explicit, and lifecycle adapters use the resolved workspace-local StateStore unless an override is supplied.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
+
+  - id: AC5
+    criterion: ToolDef declarations and lifecycle MachineSpec transitions select lifecycle adapters by name and validate emitted signals.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6]
+
+  - id: AC6
+    criterion: Lifecycle adapter failures and partial rollback states are observable enough for operator recovery.
+    traces: [R6.1, R6.2, R6.3, R6.4]
+
+  - id: AC7
+    criterion: Generic lifecycle control vocabulary defines exit_agent inputs, outputs, signals, side effects, undo behavior, and REST-triggered routing through MachineSpec.
+    traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7, R7.8, R7.9, R7.10]
+
+test_trace_plan:
+  - test_suite: test-rel02.0-lifecycle
+    covers: [AC1, AC2, AC3, AC4, AC5, AC6]
+  - test_suite: test-rel03.0-rest-tools
+    covers: [AC7]
+  - existing_go_tests:
+      - internal/tools/stl/checkpoint_lifecycle_test.go
+      - internal/runtime/core/checkpoint_ops_test.go
+      - internal/runtime/core/rollback_test.go
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Builder, Command, Result, StateStore, Workspace, UndoMemento]
+  - srd_id: srd005-agentic-loop
+    symbols_used: [MachineSpec]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry, ToolDef]
+  - srd_id: srd025-rollback-lifecycle
+    symbols_used: [Checkpoint, HistoryEntry, WorkspaceRef]
+
+related_documents:
+  - cfg-tool-authoring-standard
+  - cfg-tool-declaration-format
+  - cfg-runtime-contract
+  - cfg-rest-tool-format
+  - srd022-builtin-tools
+  - srd025-rollback-lifecycle
+  - srd027-rest-tool-runtime
+
+implementation:
+  - internal/tools/stl/checkpoint_lifecycle.go
+  - internal/tools/stl/toolconfig.go
+  - internal/runtime/core/checkpoint_ops.go
+
+implementation_status:
+  done:
+    - checkpoint_history is implemented as a builtin STL adapter around core checkpoint loading and formatting.
+    - checkpoint_rollback is implemented as a builtin STL adapter around core rollback traversal.
+    - agents/lifecycle/history/profile.yaml and agents/lifecycle/rollback/profile.yaml select the lifecycle machines and builtin tool declarations.
+    - Hidden lifecycle subcommands have been removed from cmd/agent; lifecycle operations use the universal profile-first runtime path.
+  planned:
+    - exit_agent lifecycle control word.
+    - REST-triggered lifecycle control profiles for exit, pause, rollback request, resume, and signal injection.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: History and rollback must run through the same declar..."] --> Goals["Goals: Lifecycle Tool Adapters"]
+      Goals --> R1["R1: Adapter boundary"]
+      Goals --> R2["R2: checkpoint_history"]
+      Goals --> R3["R3: checkpoint_rollback"]
+      Goals --> R4["R4: Typed config and runtime inputs"]
+      Goals --> R5["R5: Tool declarations and machine integration"]
+      Goals --> R6["R6: Observability and errors"]
+      Goals --> R7["R7: Generic lifecycle control vocabulary"]
+      AC1["AC1: Lifecycle adapters are documented as STL builtin tools ar..."]
+      R1 --> AC1
+      AC2["AC2: checkpoint_history requirements define typed config, Stat..."]
+      R2 --> AC2
+      AC3["AC3: checkpoint_rollback requirements define typed config, Sta..."]
+      R3 --> AC3
+      AC4["AC4: Runtime inputs stay outside hidden lifecycle subcommand f..."]
+      R4 --> AC4
+      AC5["AC5: ToolDef declarations and lifecycle MachineSpec transition..."]
+      R5 --> AC5
+      AC6["AC6: Lifecycle adapter failures and partial rollback states ar..."]
+      R6 --> AC6
+      AC7["AC7: Generic lifecycle control vocabulary defines exit_agent i..."]
+      R7 --> AC7
+    ```

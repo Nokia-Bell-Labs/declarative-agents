@@ -1,0 +1,70 @@
+id: rel02.0-uc004-sentence-tool-migration
+title: Developer migrates a sentence-shaped tool into machine-composed words
+
+summary: |
+  A developer finds a legacy tool that hides a workflow behind one name. The
+  developer decomposes it into single-purpose tools, declares each word's
+  contract, rewires machine.yaml to express the sequence through states and
+  signals, and marks the aggregate as deprecated compatibility behavior until
+  callers migrate.
+
+actor: Developer maintaining tool declarations and machines
+
+trigger: |
+  A tool audit or implementation review identifies a tool that performs
+  multiple observable steps, such as loading config and discovering samples, or
+  running checks and summarizing results.
+
+flow:
+  - F1: The developer classifies the existing tool as a legacy sentence because it hides sequencing that should be visible in MachineSpec (cfg-tool-authoring-standard, sm-tool-language).
+  - F2: The developer identifies each observable verb and creates one ToolDef per word with name, type, init/binary, parameters, emits, output, side_effects, reversibility, undo, errors, and relationships (srd022 R0, srd023 R0).
+  - F3: The developer moves order into machine.yaml by adding states and transitions for each word's emitted signals (srd006 R3, R4).
+  - F4: The developer updates tool selection files so the machine selects the new words instead of the aggregate (cfg-tool-selection-format).
+  - F5: Boundary or nested-machine tools remain allowed only when the boundary itself is the word and side effects are explicit (srd024 R0, srd025 R11).
+  - F6: The developer updates semantic/audit docs to mark the aggregate as deprecated_compatibility or remove it from active sentence-tool lists (sm-tool-vocabulary-audit).
+  - F7: The developer adds tests or future test cases proving the new machine sequence preserves behavior and exposes intermediate failure signals.
+
+touchpoints:
+  - T1: "srd006-yaml-machine-config R3, R4 -- machine.yaml owns visible sequencing and transition validation"
+  - T2: "srd013-standard-tool-library R8, R10 -- validation and evaluator workflows use machine-declared atomic tools"
+  - T3: "srd022-builtin-tools R0, R4, R5 -- builtin words declare emits and reusable metadata"
+  - T4: "srd023-cli-exec-tools R0, R5 -- exec tools model one CLI verb before bespoke wrappers"
+  - T5: "srd025-rollback-lifecycle R4, R11 -- split tools declare undo and side effects for rollback"
+  - T6: "sm-tool-language -- migration states for legacy_sentence and deprecated_compatibility"
+
+success_criteria:
+  - id: S1
+    criterion: The old aggregate workflow is represented as multiple declared word tools.
+    traces:
+      - srd013-standard-tool-library AC9
+  - id: S2
+    criterion: machine.yaml expresses the sequence and handles each declared success/failure signal.
+    traces:
+      - srd006-yaml-machine-config AC3
+  - id: S3
+    criterion: The aggregate tool is removed from active selection or documented as deprecated compatibility.
+    traces:
+      - srd022-builtin-tools AC1
+  - id: S4
+    criterion: Each replacement word declares side effects, reversibility, undo, and relationships for rollback and composition.
+    traces:
+      - srd025-rollback-lifecycle AC6
+
+failure_scenarios:
+  - id: E1
+    scenario: A split word lacks an emitted signal used by machine.yaml.
+    expected: Startup validation fails before the machine runs.
+  - id: E2
+    scenario: The migration changes behavior by dropping an intermediate error path.
+    expected: Tests or formal cases fail until the missing transition is restored.
+  - id: E3
+    scenario: The legacy aggregate is still selected by a production machine without deprecation metadata.
+    expected: Tool vocabulary audit flags it as a remaining sentence-tool migration risk.
+
+out_of_scope:
+  - Removing compatibility tools before all callers migrate.
+  - Refactoring helper functions that are not user-visible tools.
+  - Changing the semantics of the original workflow beyond exposing its steps.
+
+semantic_model: sm-tool-language
+test_suite_trace: test-rel02.0-tool-contracts

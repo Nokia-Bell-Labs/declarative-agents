@@ -1,0 +1,262 @@
+id: agent-core-roadmap
+title: Agent Core Release Road Map
+
+releases:
+  - version: "00.0"
+    name: Core engine and supporting packages
+    description: |
+      Import the generic agentic loop engine from the generator project and add
+      the support packages that make it usable as a library.
+    status: done
+    srds:
+      - srd001-core-types
+      - srd002-state-machine
+      - srd003-command-dispatch
+      - srd004-tool-registry
+      - srd005-agentic-loop
+      - srd006-yaml-machine-config
+      - srd007-tracer-interface
+      - srd008-telemetry
+      - srd009-ollama-adapter
+      - srd010-conversation
+      - srd011-prompt-schema
+      - srd012-system-prompt-template
+      - srd013-standard-tool-library
+      - srd014-spec-graph
+      - srd015-genai-semconv
+      - srd016-traceparent
+      - srd017-llm-extensions
+      - srd018-cli-flag-contract
+    use_cases:
+      - id: rel00.0-uc001-domain-agent-integration
+        summary: Domain agent imports agent-core and runs an agentic loop
+        status: done
+      - id: rel00.0-uc002-spec-corpus-validation
+        summary: Maintainer validates the specification corpus graph
+        status: done
+
+  - version: "01.0"
+    name: Unified agent binary and configuration-driven architecture
+    description: |
+      Consolidate generator behavior into the cmd/agent binary. Planner and
+      evaluator behavior move there too, but YAML profiles still choose the
+      active machine and selected tools. Profile-driven machines and selected
+      tool declarations become the normal runtime path. Model configuration,
+      planner packages, evaluator support, bench UI support, native Mage
+      targets, and Go tests round out the release.
+    status: done
+    srds:
+      - srd019-eval-harness
+      - srd020-bench-web-ui
+      - srd021-agent-cli-exec-tool
+      - srd022-builtin-tools
+      - srd023-cli-exec-tools
+      - srd024-blocking-input-tools
+    use_cases:
+      - id: rel01.0-uc001-generator-coding
+        summary: Generator agent solves Go coding tasks using YAML config
+        status: done
+      - id: rel01.0-uc002-evaluator-benchmark
+        summary: Evaluator runs generator across models and collects results
+        status: done
+      - id: rel01.0-uc003-bench-visualization
+        summary: Bench serves web UI for evaluation result exploration
+        status: done
+
+  - version: "02.0"
+    name: Rollback lifecycle and tool language documentation
+    description: |
+      Runtime checkpoint behavior is implemented. Suspend, resume, and rollback
+      foundations are implemented too. Lifecycle profiles expose checkpoint
+      history and rollback through first-class STL builtin tools. Remaining
+      work covers documentation cleanup and the planned internal/tools package
+      split.
+    status: in_progress
+    srds:
+      - srd025-rollback-lifecycle
+      - srd026-lifecycle-tools
+    use_cases:
+      - id: rel02.0-uc001-approval-suspend-resume
+        summary: Agent suspends at approval gate and resumes from checkpoint
+        status: done
+      - id: rel02.0-uc002-history-rollback
+        summary: User inspects history and rolls back after a bad tool action
+        status: done
+      - id: rel02.0-uc003-tool-authoring
+        summary: Developer authors a new tool as a vocabulary word
+        status: planned
+      - id: rel02.0-uc004-sentence-tool-migration
+        summary: Developer migrates a sentence-shaped tool into machine-composed words
+        status: planned
+    follow_up:
+      - id: agent-core-vk8j
+        summary: Reorganize standard tool library packages and tool declarations
+        status: in_progress
+
+  - version: "03.0"
+    name: Declarative REST client and server tools
+    description: |
+      REST client and REST server tools are declarative boundary tool families.
+      Outbound words call configured upstreams; inbound words launch from agent
+      profiles and bind configured addresses. Generic await words can fan in
+      events across configured server queues, including lifecycle control
+      requests that route through MachineSpec. OpenAPI documents and REST
+      definitions live with configuration. The runtime package is
+      internal/tools/rest. net/http supplies client and server behavior.
+      OpenAPI 3 loading uses kin-openapi. Shared REST definitions and async
+      inbox support are implemented, while generated Go clients and servers are
+      excluded. The Knowledge Manager demo uses machine_request server bindings
+      so one inbound HTTP request can run one short-lived MachineSpec sentence
+      and map terminal output back to HTTP. Declarative document resources
+      connect that request grammar to filesystem documentation corpora through
+      reusable resource words. A Puppeteer proof covers the generic REST
+      machine_request Knowledge Manager UX path. The command is mage
+      integration:uc007.
+
+      Closed REST conformance work now covers client safety, async request
+      metadata, OpenAPI endpoint preservation, REST compensation mementos,
+      machine_request response schemas, and explicit document_resources
+      reservation. Modeled lifecycle_control endpoints and non-default
+      rest_await_event read policies remain reserved or rejected until future
+      work implements them. Active follow-up work covers named conformance-test
+      alignment and rollback-time REST compensation execution.
+    status: in_progress
+    srds:
+      - srd027-rest-tool-runtime
+      - srd028-rest-client-tools
+      - srd029-rest-server-tools
+      - srd030-machine-request-rest-binding
+      - srd031-declarative-document-resources
+    semantic_models:
+      - sm-rest-tool-language
+      - sm-machine-request-http
+      - sm-document-resource-language
+    config_formats:
+      - cfg-rest-tool-format
+    planned_use_cases:
+      - id: rel03.0-uc001-rest-client-sync
+        summary: Grammar invokes configured REST client resource words
+        status: done
+      - id: rel03.0-uc002-rest-client-async
+        summary: Grammar sends and awaits an asynchronous REST client operation
+        status: done
+      - id: rel03.0-uc003-rest-server-signals
+        summary: Grammar receives inbound REST server signals
+        status: done
+      - id: rel03.0-uc004-openapi-import
+        summary: OpenAPI import defines REST operations and endpoint bindings
+        status: done
+      - id: rel03.0-uc005-ollama-openapi-model-listing
+        summary: Qwen agent lists Ollama models through an OpenAPI REST tool
+        status: done
+      - id: rel03.0-uc006-documentation-curator
+        summary: Knowledge Manager serves documentation curator UX and REST tools
+        status: done
+      - id: rel03.0-uc007-machine-request-documentation-ux
+        summary: Knowledge Manager UX requests use machine_request and declarative document resources
+        status: done
+      - id: rel03.0-uc008-rest-await-any-fan-in
+        summary: Staged REST await-any fan-in adds a later event source after the first selected event
+        status: done
+    planned_test_suites:
+      - id: test-rel03.0-rest-tools
+        summary: Formal tests for REST runtime, client/server tools, fan-in, lifecycle exit routing, listener shutdown, OpenAPI import, Ollama E2E proof, documentation-curator ownership, Puppeteer machine_request UX coverage, closed REST conformance fixes, and planned named-test alignment tracked by agent-core-guhn.4
+        status: in_progress
+
+  - version: "04.0"
+    name: Embedded monitor metrics and REST API
+    description: |
+      Embedded monitor support is a reusable runtime capability inside the
+      agent process. It records tool-owned metric samples in a bounded
+      in-memory store, exports normalized samples through OpenTelemetry
+      metrics, and exposes REST/OpenAPI read paths over cached monitor state.
+
+      The monitor is not a Kubernetes sidecar, daemon, or required external
+      process. External collectors and supervisors may read or receive exported
+      data, but the runtime owns the cache and recorder ports. The release proof
+      is mage integration:uc004.
+    status: done
+    srds:
+      - srd032-tool-metrics-monitor-store
+      - srd033-monitor-rest-api
+    semantic_models:
+      - sm-tool-metrics-monitoring
+    config_formats:
+      - cfg-rest-tool-format
+    use_cases:
+      - id: rel04.0-uc001-configurable-tool-metrics
+        summary: Agent records tool-owned metrics in the embedded monitor store and exports them through OpenTelemetry
+        status: done
+      - id: rel04.0-uc002-monitor-rest-api
+        summary: Supervisor reads cached monitor state through configured REST and OpenAPI endpoints
+        status: done
+    test_suites:
+      - id: test-rel04.0-monitor
+        summary: Formal tests for monitor store behavior, metric emission, OpenTelemetry export, and REST/OpenAPI cached-state reads
+        status: implemented
+
+  - version: "05.0"
+    name: Monitored live model integrations
+    description: |
+      Later live integration proofs combine reusable embedded monitor behavior
+      with model-boundary flows. The first proof starts the monitor from the
+      Qwen/Ollama state machine without blocking model progress, polls cached
+      token metrics while the agent process remains active, and exits through
+      monitor control.
+    status: planned
+    srds:
+      - srd032-tool-metrics-monitor-store
+      - srd033-monitor-rest-api
+    semantic_models:
+      - sm-tool-metrics-monitoring
+    config_formats:
+      - cfg-machine-format
+      - cfg-rest-tool-format
+    use_cases:
+      - id: rel05.0-uc001-qwen-monitor-token-progress
+        summary: Qwen run exposes increasing token metrics through the embedded monitor
+        status: implemented
+    test_suites:
+      - id: test-rel05.0-monitor-qwen
+        summary: Formal test for monitored Qwen token metric progress through mage integration:uc008
+        status: implemented
+
+  - version: "06.0"
+    name: External agent profiles and mounted runtime assets
+    description: |
+      Profile migration separates runtime ownership from agent program
+      ownership. Agent Core keeps the cmd/agent binary, runtime packages,
+      Docker/Mage release machinery, and core-owned shared tool declarations.
+      agent-profiles owns profile.yaml, machine.yaml, tools.yaml, profile-local
+      declarations, REST definitions, UX config, demos, and agent integration
+      fixtures.
+
+      Runtime containers consume profiles from external paths. Callers mount or
+      otherwise provide profile directories, pass --profile to that mounted
+      profile, and pass --directory to the mounted workspace. The runtime image
+      does not copy migrated agent profile directories from agent-core.
+    status: in_progress
+    srds:
+      - srd034-external-agent-profiles
+    use_cases:
+      - id: rel06.0-uc001-mounted-profile-container-runtime
+        summary: Runtime container runs an externally mounted agent profile
+        status: implemented
+    test_suites:
+      - id: test-rel06.0-profile-migration
+        summary: Formal tests for external profile root resolution, runtime image profile exclusion, and mounted-profile container execution
+        status: implemented
+    proof:
+      - go test ./pkg/spec -run TestResolveProfilePathMapsInstalledCoreHome
+      - go test ./magefiles -run TestDockerfileRuntimeExcludesAgentProfiles
+      - go test ./magefiles -run TestContainerBuildSummaryForPodman
+      - mage docker
+      - mage integration:uc001
+      - mage integration:uc002
+      - mage integration:uc006
+      - mage integration:uc007
+      - agent-profiles mage containerSmoke
+    follow_up:
+      - id: agent-core-xcbg
+        summary: Normalize stale in-repo agent path references after profile migration
+        status: done

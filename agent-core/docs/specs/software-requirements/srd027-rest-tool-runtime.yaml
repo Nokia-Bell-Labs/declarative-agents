@@ -1,0 +1,265 @@
+id: srd027-rest-tool-runtime
+title: Declarative REST Tool Runtime
+
+problem: |
+  Agent Core needs REST client and REST server tools that behave like declared
+  boundary words. REST already fits model providers and issue trackers. It
+  also fits webhooks, internal control planes, evaluation harnesses, and
+  agent-to-agent links. A separate Go adapter for each service would put
+  transport authority and service policy in compiled code, which makes the
+  configured program less visible and harder to audit.
+
+  The runtime should read REST definitions as data. MachineSpec decides when a
+  REST word runs, sends, awaits, launches, stops, retries, or handles a signal.
+  ToolDef and REST configuration decide the allowed operations and routes. They
+  also own schemas, authentication references, limits, and side effects. The
+  generic implementation in internal/tools/rest interprets those definitions.
+  It does not give models or callers control over arbitrary methods, URLs,
+  credentials, or network destinations.
+
+goals:
+  - G1: Define shared REST runtime requirements used by REST client and REST server tools.
+  - G2: Keep REST behavior declarative through ToolDef, profile, OpenAPI, and REST configuration data.
+  - G3: Define synchronous and asynchronous boundary semantics for REST tools.
+  - G4: Define the internal REST definition model shared by hand-authored YAML and OpenAPI imports.
+  - G5: Define common safety, validation, observability, error, and rollback requirements.
+  - G6: Name the planned package, declaration, and config-format layout without implementing code.
+  - G7: Define generic REST event fan-in and lifecycle control routing without hiding workflow actions in handlers.
+
+requirements:
+  R1:
+    title: Runtime scope
+    items:
+      - R1.1: internal/tools/rest SHALL be the planned package for shared REST runtime behavior.
+      - R1.2: REST runtime requirements SHALL apply to both REST client tools and REST server tools.
+      - R1.3: Client-specific operation execution requirements SHALL be defined by srd028-rest-client-tools.
+      - R1.4: Server-specific route binding and request handling requirements SHALL be defined by srd029-rest-server-tools.
+      - R1.5: internal/tools/stl SHALL remain a temporary compatibility facade and SHALL NOT own long-term REST implementations.
+
+  R2:
+    title: Declarative REST definitions
+    items:
+      - R2.1: REST definitions SHALL be declarative data interpreted by generic REST tools.
+      - R2.2: MachineSpec SHALL own workflow sequencing for REST actions, including run, send, await, launch, stop, retry routing, and signal handling.
+      - R2.3: ToolDef SHALL declare each REST tool as one boundary word with name, init, category, visibility, parameters, emits, output, side_effects, reversibility, undo, errors, and relationships.
+      - R2.4: REST configuration SHALL define allowed operations, routes, methods, paths, schemas, authentication references, success codes, response mappings, limits, and side effects.
+      - R2.5: Runtime requests SHALL resolve against configured operation or route names; models and external callers SHALL NOT supply arbitrary methods, URLs, authentication, or network destinations.
+      - R2.6: REST definitions SHALL live with agent, profile, tool, or config-format assets rather than compiled service-specific Go code.
+
+  R3:
+    title: OpenAPI import model
+    items:
+      - R3.1: OpenAPI 3 SHALL be an optional import or source format for REST definitions.
+      - R3.2: github.com/getkin/kin-openapi/openapi3 SHALL load, resolve, and validate OpenAPI 3 documents.
+      - R3.3: Imported OpenAPI operations SHALL compile into the same internal REST definition model as hand-authored YAML.
+      - R3.4: Hand-authored REST YAML SHALL remain valid without an OpenAPI document.
+      - R3.5: OpenAPI imports SHALL NOT generate Go clients or Go servers in the first implementation.
+      - R3.6: OpenAPI validation errors SHALL identify the source document, operation or route, and schema location when available.
+
+  R4:
+    title: Runtime HTTP platform
+    items:
+      - R4.1: net/http SHALL provide planned runtime HTTP client and server behavior.
+      - R4.2: REST runtime code SHALL support typed config decoding through internal/tools/catalog.
+      - R4.3: REST builtin factories SHALL register through internal/tools/registry.
+      - R4.4: REST commands SHALL return core.Result values whose Signal drives MachineSpec transitions.
+      - R4.5: REST commands SHALL preserve core.Loop sequential semantics even when HTTP work runs in background goroutines.
+
+  R5:
+    title: Synchronous and asynchronous semantics
+    items:
+      - R5.1: A blocking REST word MAY fuse send plus await or launch plus await into one Execute call.
+      - R5.2: A blocking REST word SHALL return one Result after response, request input, timeout, cancellation, or shutdown.
+      - R5.3: A non-blocking REST send word SHALL start outbound work and return a sent signal without waiting for the final response.
+      - R5.4: A non-blocking REST launch word SHALL bind or activate server behavior and return a launched signal without waiting for inbound input.
+      - R5.5: An await REST word SHALL receive completed REST client responses from request state or inbound REST server events from a shared inbox.
+      - R5.6: Await words SHALL declare all signals they can emit in the machine state where they run.
+      - R5.7: REST request state and shared inbox messages SHALL carry source, signal, payload, and correlation metadata needed by later machine actions.
+
+  R6:
+    title: Validation and safety controls
+    items:
+      - R6.1: REST runtime SHALL validate runtime parameters against configured schemas before rendering requests or accepting inbound payloads.
+      - R6.2: REST runtime SHALL support authentication strategy abstraction with credentials referenced by trusted configuration.
+      - R6.3: REST runtime SHALL enforce configured timeout, retry, redirect, request-size, response-size, and body-read policies.
+      - R6.4: Redirect behavior SHALL be disabled by default or constrained by configured scheme, host, port, or network policy.
+      - R6.5: REST runtime SHOULD support configured network allowlists for schemes, hosts, CIDRs, and ports.
+      - R6.6: REST runtime SHALL reject unknown operations, unknown routes, schema-invalid parameters, and disallowed destinations with structured errors.
+      - R6.7: REST runtime SHALL redact configured secrets from Result output, traces, logs, and error messages.
+
+  R7:
+    title: Observability and structured errors
+    items:
+      - R7.1: REST runtime SHOULD trace operation or route name, method, configured host, status code, elapsed time, retry count, byte counts, and resulting signal.
+      - R7.2: REST runtime SHALL omit secrets from trace attributes and span events.
+      - R7.3: Full request and response bodies SHALL be captured only when explicit verbose tracing and redaction rules are enabled.
+      - R7.4: REST errors SHALL identify the failure stage, such as definition_load, schema_validation, request_rendering, auth_resolution, network_io, timeout, status_mapping, response_mapping, route_validation, or shutdown.
+      - R7.5: REST error output SHALL include operation or route identity, status code when present, redacted diagnostic text, and the resulting signal.
+      - R7.6: REST tools MAY declare specialized monitor metrics for configured operation or route identity, status code, elapsed time, retry count, request size, response size, queue depth, and resulting signal.
+      - R7.7: REST metric attributes SHALL use configured operation IDs, route IDs, status classes, method names, and bounded signal names. They SHALL NOT use arbitrary URLs, raw headers, request bodies, response bodies, credentials, or user free text as labels.
+      - R7.8: REST monitor metric emission SHALL use the shared recorder path and SHALL NOT introduce hidden REST workflows outside MachineSpec transitions.
+
+  R8:
+    title: Side effects and rollback
+    items:
+      - R8.1: REST tools SHALL declare external_api, network_listen, state_mutation, or other relevant side effects in ToolDef contracts.
+      - R8.2: REST operations with external side effects SHALL declare reversibility as reversible, compensatable, or irreversible.
+      - R8.3: REST tools SHALL use noop undo only when no generic rollback is possible and no configured compensation action exists.
+      - R8.4: REST tools that can compensate external effects SHALL declare the compensating action and captured metadata.
+      - R8.5: REST tools that mutate command/domain state SHALL capture enough state for command-specific undo.
+      - R8.6: Irreversible REST operations SHOULD require confirmation before affecting user data, external services, or shared infrastructure.
+
+  R9:
+    title: Planned layout
+    items:
+      - R9.1: Planned source code SHALL live under internal/tools/rest.
+      - R9.2: Shared REST builtin declarations SHALL live under tools/builtin/rest.
+      - R9.3: REST config format documentation SHALL live at docs/specs/config-formats/rest-tool-format.yaml.
+      - R9.4: Shared REST semantic model documentation SHALL live at docs/specs/semantic-models/rest-tool-language.yaml.
+      - R9.5: REST runtime tests and release test-suite entries SHALL trace to srd027 acceptance criteria before release 03.0 is closed.
+
+  R10:
+    title: Event aggregation and lifecycle control routing
+    items:
+      - R10.1: REST runtime SHALL provide a generic rest_await_event boundary word that waits across multiple configured REST server event queues and returns one core.Result for the selected event.
+      - R10.2: rest_await_event input SHALL include or resolve source filters for server names, route names, allowed signals, timeout, queue read policy, and stopped-server behavior.
+      - R10.3: rest_await_event SHALL emit the selected event signal, AwaitTimedOut, ServerStopped, or CommandError according to configuration and runtime state.
+      - R10.4: rest_await_event output SHALL include selected source name, route name, method, signal, validated payload, request ID, correlation metadata, and redacted diagnostics.
+      - R10.5: rest_await_event SHALL wait and route only; it SHALL NOT execute hidden workflow actions inside HTTP handlers or inside the aggregator.
+      - R10.6: Profile-owned REST servers MAY expose lifecycle control endpoints for exit, pause, rollback request, resume, and signal injection when those endpoint bindings are declared by trusted config.
+      - R10.7: Lifecycle control endpoints SHALL validate requests and enqueue configured signals or lifecycle request events; they SHALL NOT call lifecycle operations directly from HTTP handlers.
+      - R10.8: MachineSpec SHALL route lifecycle control signals to visible actions such as exit_agent, checkpoint_rollback, suspend, resume, or other profile-selected vocabulary.
+
+non_goals:
+  - Defining REST client operation execution details; see srd028-rest-client-tools.
+  - Defining REST server route binding and HTTP API details; see srd029-rest-server-tools.
+  - Implementing rollback-time REST compensation execution or modeled lifecycle_control endpoint config in this documentation update.
+  - Generating Go clients or servers from OpenAPI documents.
+  - Allowing model text to choose arbitrary REST URLs, methods, authentication, or network destinations.
+  - Replacing MachineSpec sequencing with hidden REST tool workflows.
+  - Letting lifecycle HTTP handlers pause, roll back, exit, or inject signals without a MachineSpec transition.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: REST runtime requirements define shared platform scope for client and server tools while leaving client-specific and server-specific behavior to SRD028 and SRD029.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+
+  - id: AC2
+    criterion: REST definitions are declarative data, MachineSpec owns sequencing, ToolDef owns the boundary word contract, and runtime requests cannot choose arbitrary transport authority.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
+
+  - id: AC3
+    criterion: OpenAPI 3 is documented as an optional source format compiled into the same internal model as hand-authored YAML, with openapi3 used for loading, resolution, and validation, and no generated Go client or server code.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+
+  - id: AC4
+    criterion: Runtime platform requirements name net/http, internal/tools/catalog, internal/tools/registry, core.Result, and sequential core.Loop behavior.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+
+  - id: AC5
+    criterion: Synchronous and asynchronous REST semantics define blocking fused words, non-blocking send and launch words, await words, request state, shared inbox messages, and declared emitted signals.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7]
+
+  - id: AC6
+    criterion: Safety controls cover schema validation, auth abstraction, timeouts, retries, redirects, size limits, network allowlists, destination rejection, and secret redaction.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7]
+
+  - id: AC7
+    criterion: Observability and error requirements preserve redaction while exposing operation identity, status, timing, byte counts, failure stage, diagnostics, resulting signal, and configured monitor metrics through the shared recorder path.
+    traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7, R7.8]
+
+  - id: AC8
+    criterion: Side-effect, reversibility, undo, compensation, command-state, and confirmation requirements are traceable by future REST use cases and test suites.
+    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6]
+
+  - id: AC9
+    criterion: Planned layout names internal/tools/rest, tools/builtin/rest, rest-tool-format.yaml, rest-tool-language.yaml, and future release 03.0 test traces.
+    traces: [R9.1, R9.2, R9.3, R9.4, R9.5]
+
+  - id: AC10
+    criterion: Generic REST event aggregation waits across configured server sources, applies source filters, returns one event Result, and keeps lifecycle control endpoints routed through visible MachineSpec actions.
+    traces: [R10.1, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Command, Result, Signal, Builder]
+  - srd_id: srd003-command-dispatch
+    symbols_used: [Dispatch]
+  - srd_id: srd005-agentic-loop
+    symbols_used: [Loop, MachineSpec]
+  - srd_id: srd013-standard-tool-library
+    symbols_used: [internal/tools package family]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry, ToolDef]
+  - srd_id: srd024-blocking-input-tools
+    symbols_used: [blocking input tool, shared inbox]
+  - srd_id: srd025-rollback-lifecycle
+    symbols_used: [Undo, side effects, compensation]
+  - srd_id: srd026-lifecycle-tools
+    symbols_used: [typed config, profile-first tools]
+
+related_documents:
+  - docs/ARCHITECTURE.yaml
+  - docs/specs/semantic-models/tool-language.yaml
+  - docs/specs/semantic-models/tool-metrics-monitoring.yaml
+  - docs/specs/config-formats/tool-declaration-format.yaml
+  - docs/specs/config-formats/rest-tool-format.yaml
+  - docs/specs/semantic-models/rest-tool-language.yaml
+  - boundary-tools-and-async.md
+  - rest-tool.md
+
+implementation_status:
+  implemented:
+    - internal/tools/rest package with declarative client, async client, server, OpenAPI import, machine_request, monitor, and fan-in support.
+    - tools/builtin/rest declarations selected by REST profiles and tests.
+    - docs/specs/config-formats/rest-tool-format.yaml and docs/specs/semantic-models/rest-tool-language.yaml.
+    - Release 03.0 formal test-suite entries in docs/specs/test-suites/test-rel03.0-rest-tools.yaml.
+    - Client safety and async request metadata: CIDR enforcement, response schema validation, domain_error_code output, correlation lookup, idempotency headers, and await_operation validation rejection.
+    - OpenAPI endpoint config preservation while importing transport and schema fields.
+    - REST compensation undo mementos for mutating client operations that declare compensation metadata.
+    - machine_request terminal response schema validation before success responses.
+    - Typed loading plus explicit validation rejection for reserved rest.document_resources and machine_request.document_resources config.
+  partial:
+    - R10 lifecycle control routing is currently proven through configured emit_signal control routes and MachineSpec exit_agent transitions. Modeled lifecycle_control endpoint config remains reserved target-format behavior.
+    - R10 read policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
+    - REST compensation is captured in undo mementos; executing configured REST compensation during rollback traversal remains active follow-up work.
+  planned_follow_up:
+    - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.
+    - agent-core-guhn.5: execute configured REST compensation during rollback traversal.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agent Core needs REST client and REST server tools th..."] --> Goals["Goals: Declarative REST Tool Runtime"]
+      Goals --> R1["R1: Runtime scope"]
+      Goals --> R2["R2: Declarative REST definitions"]
+      Goals --> R3["R3: OpenAPI import model"]
+      Goals --> R4["R4: Runtime HTTP platform"]
+      Goals --> R5["R5: Synchronous and asynchronous semantics"]
+      Goals --> R6["R6: Validation and safety controls"]
+      Goals --> R7["R7: Observability and structured errors"]
+      Goals --> R8["R8: Side effects and rollback"]
+      Goals --> R9["R9: Planned layout"]
+      Goals --> R10["R10: Event aggregation and lifecycle control routing"]
+      AC1["AC1: REST runtime requirements define shared platform scope fo..."]
+      R1 --> AC1
+      AC2["AC2: REST definitions are declarative data, MachineSpec owns s..."]
+      R2 --> AC2
+      AC3["AC3: OpenAPI 3 is documented as an optional source format comp..."]
+      R3 --> AC3
+      AC4["AC4: Runtime platform requirements name net/http, internal/too..."]
+      R4 --> AC4
+      AC5["AC5: Synchronous and asynchronous REST semantics define blocki..."]
+      R5 --> AC5
+      AC6["AC6: Safety controls cover schema validation, auth abstraction..."]
+      R6 --> AC6
+      AC7["AC7: Observability and error requirements preserve redaction w..."]
+      R7 --> AC7
+      AC8["AC8: Side-effect, reversibility, undo, compensation, command-s..."]
+      R8 --> AC8
+      AC9["AC9: Planned layout names internal/tools/rest, tools/builtin/r..."]
+      R9 --> AC9
+      AC10["AC10: Generic REST event aggregation waits across configured se..."]
+      R10 --> AC10
+    ```

@@ -1,0 +1,91 @@
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package registry
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"go.opentelemetry.io/otel/attribute"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+)
+
+// ToolTracker records dynamically dispatched tool names.
+type ToolTracker interface {
+	Record(name string)
+}
+
+// DynamicToolActionDeps are the runtime ports for $tool dispatch.
+type DynamicToolActionDeps struct {
+	Registry *core.Registry
+	Tracker  ToolTracker
+	Tracer   tracing.Tracer
+	Verbose  bool
+}
+
+// BuildDynamicToolAction builds the ActionFunc used by dynamic $tool dispatch.
+func BuildDynamicToolAction(deps DynamicToolActionDeps) core.ActionFunc {
+	return func(r core.Result) core.Command {
+		var treq llm.ToolRequest
+		if err := json.Unmarshal([]byte(r.Output), &treq); err != nil {
+			return &standardFailCmd{err: fmt.Errorf("failed to unmarshal ToolRequest: %w", err)}
+		}
+		spec, ok := deps.Registry.SpecByName(treq.ToolName)
+		if !ok {
+			return &standardFailCmd{err: fmt.Errorf("no builder for tool %q", treq.ToolName)}
+		}
+		if spec.Visibility != core.External {
+			return &standardFailCmd{err: fmt.Errorf("tool %q is not available for dynamic dispatch", treq.ToolName)}
+		}
+		builder, ok := deps.Registry.Resolve(treq.ToolName)
+		if !ok {
+			return &standardFailCmd{err: fmt.Errorf("no builder for tool %q", treq.ToolName)}
+		}
+		if deps.Tracker != nil {
+			deps.Tracker.Record(treq.ToolName)
+		}
+		cmd := builder.Build(core.Result{Output: r.Output})
+		if !deps.Verbose {
+			return cmd
+		}
+		return &tracedDynamicToolCmd{inner: cmd, tracer: deps.Tracer, toolName: treq.ToolName, params: string(treq.Params)}
+	}
+}
+
+type standardFailCmd struct {
+	err error
+}
+
+func (f *standardFailCmd) Name() string      { return "fail" }
+func (f *standardFailCmd) Undo() core.Result { return core.NoopUndo(f.Name()) }
+
+func (f *standardFailCmd) Execute() core.Result {
+	return core.Result{Signal: core.CommandError, Err: f.err, Output: f.err.Error(), CommandName: "fail"}
+}
+
+type tracedDynamicToolCmd struct {
+	inner    core.Command
+	tracer   tracing.Tracer
+	toolName string
+	params   string
+}
+
+func (t *tracedDynamicToolCmd) Name() string      { return t.inner.Name() }
+func (t *tracedDynamicToolCmd) Undo() core.Result { return t.inner.Undo() }
+
+func (t *tracedDynamicToolCmd) Execute() core.Result {
+	child, done := t.tracer.Push("dispatch/"+t.toolName,
+		attribute.String("tool.name", t.toolName),
+		attribute.String("tool.params", t.params),
+	)
+	defer done()
+	res := t.inner.Execute()
+	child.SetAttributes(
+		attribute.String("tool.output", llm.Truncate(res.Output, 8192)),
+		attribute.String("tool.signal", string(res.Signal)),
+	)
+	return res
+}

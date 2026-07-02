@@ -1,0 +1,541 @@
+id: test-rel01.0
+title: Test Suite for Release 01.0 Unified Agent Runtime
+release: "01.0"
+
+traces:
+  - rel01.0-uc001-generator-coding
+  - rel01.0-uc002-evaluator-benchmark
+  - rel01.0-uc003-bench-visualization
+
+preconditions:
+  - Go toolchain installed and repository packages buildable.
+  - bin/agent is buildable through mage build or the integration target helper.
+  - Ollama is available for live generator and evaluator integration targets.
+  - qwen3.6:35b-mlx is available for mage integration:uc001.
+  - qwen3.6:35b-mlx and qwen3.6:27b-mlx artifacts are available for mage integration:uc002.
+  - Bench visualization requires an eval-results directory and a free port; mage integration:uc003 records the current skip behavior.
+
+test_cases:
+  - use_case: rel01.0-uc001-generator-coding
+    name: Generator profile loads machine and validation sequence
+    go_test: TestGeneratorConfig_MachineLoads
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+      machine: generator/machine.yaml
+      validation_actions: [build, lint, test]
+    expected:
+      machine_loaded: true
+      terminal_states: [Succeeded, Failed, BudgetExceeded]
+      validation_sequence: build_then_lint_then_test
+    traces:
+      - srd006-yaml-machine-config AC3
+      - srd013-standard-tool-library AC2
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Generator selected tools load from YAML declarations
+    go_test: TestGeneratorConfig_ToolsLoad
+    inputs:
+      tools: generator/tools.yaml
+      declarations:
+        - tools/builtin
+        - tools/exec
+    expected:
+      selected_tools_include:
+        - read
+        - write
+        - edit
+        - build
+        - lint
+        - test
+        - invoke_llm
+        - parse_response
+        - done
+    traces:
+      - srd013-standard-tool-library AC1
+      - srd022-builtin-tools AC1
+      - srd023-cli-exec-tools AC4
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Generator transition table validates selected tool emits
+    go_test: TestGeneratorConfig_TransitionTable
+    inputs:
+      machine: generator/machine.yaml
+      selected_tools: generator/tools.yaml
+    expected:
+      transition_table_builds: true
+      selected_tool_emits_handled: true
+      succeeded_is_terminal: true
+    traces:
+      - srd006-yaml-machine-config AC3
+      - srd022-builtin-tools AC4
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Qwen profile strips thinking blocks and extracts tool envelope
+    go_test: mage integration:uc001
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+      sample: testdata/integration/uc001-generator-coding
+      model: qwen3.6:35b-mlx
+    expected:
+      qwen_profile_selected: true
+      thinking_blocks_stripped: true
+      tool_call_envelope_extracted: true
+    traces:
+      - srd009-ollama-adapter AC1
+      - srd017-llm-extensions AC1
+      - srd017-llm-extensions AC2
+      - srd017-llm-extensions AC3
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Ollama adapter validates model availability
+    go_test: TestNewAdapter_ModelFound
+    inputs:
+      ollama_tags: "model list with requested model and tag variants"
+    expected:
+      model_found: true
+      case_insensitive_match: true
+      missing_model_error_mentions_pull: true
+    traces:
+      - srd009-ollama-adapter AC2
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Ollama adapter emits tracing around check, list, and chat
+    go_test: TestChat_EmitsSemconvInferenceSpan
+    inputs:
+      tracer: "recording tracer"
+      chat_request: "non-streaming /api/chat"
+    expected:
+      check_model_events: true
+      list_models_events: true
+      inference_span_attrs: true
+      nil_tracer_safe: true
+    traces:
+      - srd009-ollama-adapter AC3
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Ollama adapter reports HTTP and JSON failures
+    go_test: TestChat_HTTPError
+    inputs:
+      failures:
+        - connection_refused
+        - bad_http_status
+        - malformed_json
+        - cancelled_context
+    expected:
+      distinct_errors: true
+      no_retry: true
+    traces:
+      - srd009-ollama-adapter AC4
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Generator solves sample and passes validation
+    go_test: mage integration:uc001
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+      workspace: testdata/integration/uc001-generator-coding
+      validation: build_lint_test
+    expected:
+      run_status: succeeded
+      oracle_tests_pass: true
+      workspace_changes_validated: true
+    traces:
+      - srd005-agentic-loop AC5
+      - srd013-standard-tool-library AC2
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator session machine loads from profile config
+    go_test: TestEvaluatorConfig_SessionMachineLoads
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
+      machine: evaluator/machine.yaml
+    expected:
+      machine_loaded: true
+      terminal_states: [Done, Failed]
+      transitions_present: true
+    traces:
+      - srd006-yaml-machine-config AC3
+      - srd019-eval-harness AC0
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator session tools load from selected declarations
+    go_test: TestEvaluatorConfig_ToolsLoad
+    inputs:
+      tools: evaluator/tools.yaml
+      declarations:
+        - evaluator/builtin.yaml
+        - tools/builtin
+    expected:
+      selected_tools_include:
+        - parse_suite_config
+        - discover_suite_samples
+        - expand_eval_grid
+        - init_eval_session
+        - report_suite_summary
+        - next_point
+        - run_point
+        - report_session
+    traces:
+      - srd019-eval-harness AC0
+      - srd022-builtin-tools AC1
+      - srd022-builtin-tools AC5
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator session transition table validates emitted signals
+    go_test: TestEvaluatorConfig_TransitionTable
+    inputs:
+      machine: evaluator/machine.yaml
+      selected_tools: evaluator/tools.yaml
+    expected:
+      transition_table_builds: true
+      emitted_signals_have_transitions: true
+      done_and_failed_terminal: true
+    traces:
+      - srd006-yaml-machine-config AC3
+      - srd022-builtin-tools AC4
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator point machine prepares isolated workspace
+    go_test: TestEvaluatorConfig_PointTransitionTable
+    inputs:
+      point_machine: evaluator/point.yaml
+      point_tools: evaluator/tools-point.yaml
+    expected:
+      workspace_tools_selected: true
+      run_agent_selected: true
+      point_terminal_states: [Done, Failed]
+    traces:
+      - srd019-eval-harness AC2
+      - srd021-agent-cli-exec-tool AC3
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator setup tools expand suite grid and initialize session
+    go_test: TestEvaluatorSessionSetupToolSequence
+    inputs:
+      suite: synthetic_profile_suite
+      grid: effort_low_high
+      repetitions: 2
+    expected:
+      suite_parsed: true
+      samples_discovered: true
+      grid_points: 2
+      reported_points: 4
+    traces:
+      - srd019-eval-harness AC0
+      - srd019-eval-harness AC1
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator profile suite iterates generator profiles
+    go_test: TestNextPointIteratesProfiles
+    inputs:
+      profiles:
+        - generator/profile-qwen35b.yaml
+        - generator/profile-qwen27b.yaml
+      samples: discovered_samples
+    expected:
+      first_profile_selected: true
+      second_profile_selected: true
+      all_points_done_signal: true
+    traces:
+      - srd019-eval-harness AC1
+      - srd019-eval-harness AC2
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator integration writes result directory
+    go_test: mage integration:uc002
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
+      suite: testdata/integration/uc002-evaluator-benchmark/suite.yaml
+      output: eval-results
+    expected:
+      generator_profiles_run: true
+      result_entries_created: true
+      meta_and_experiment_files_available: true
+    traces:
+      - srd019-eval-harness AC1
+      - srd019-eval-harness AC2
+      - srd016-traceparent AC1
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Point result tools classify output and collect metrics
+    go_test: TestSummarizePointResultsUsesCollectedState
+    inputs:
+      point_context: collected_trace_and_oracle_state
+      metrics: duration_and_outcome
+    expected:
+      summary_uses_collected_state: true
+      outcome_classified: true
+      metrics_available_on_failure: true
+    traces:
+      - srd019-eval-harness AC2
+      - srd019-eval-harness AC4
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: Bench profile loads state machine
+    go_test: TestBenchConfig_MachineLoads
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/bench/profile.yaml
+      machine: bench/machine.yaml
+    expected:
+      machine_loaded: true
+      terminal_states: [Done, Failed]
+      serve_and_launch_states_present: true
+    traces:
+      - srd006-yaml-machine-config AC3
+      - srd020-bench-web-ui AC1
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: Bench tools load serve_ui and launch_eval
+    go_test: TestBenchConfig_ToolsLoad
+    inputs:
+      tools: bench/tools.yaml
+      declarations: bench/builtin.yaml
+    expected:
+      serve_ui_selected: true
+      launch_eval_selected: true
+    traces:
+      - srd020-bench-web-ui AC1
+      - srd022-builtin-tools AC1
+      - srd024-blocking-input-tools AC6
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: Bench transition table validates UI action flow
+    go_test: TestBenchConfig_TransitionTable
+    inputs:
+      machine: bench/machine.yaml
+      selected_tools: bench/tools.yaml
+    expected:
+      serving_action: serve_ui
+      launching_action: launch_eval
+      emitted_signals_have_transitions: true
+    traces:
+      - srd005-agentic-loop AC5
+      - srd020-bench-web-ui AC4
+      - srd022-builtin-tools AC4
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: launch_eval accepts profile-first evaluator config
+    go_test: TestLaunchEvalFactoryAcceptsProfileConfig
+    inputs:
+      tool: launch_eval
+      profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
+    expected:
+      profile_config_accepted: true
+      legacy_machine_flags_not_required: true
+    traces:
+      - srd020-bench-web-ui AC4
+      - srd021-agent-cli-exec-tool AC2
+      - srd022-builtin-tools AC6
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: Bench integration target records manual UI preconditions
+    go_test: mage integration:uc003
+    inputs:
+      eval_results_dir: required
+      free_port: required
+    expected:
+      current_target_status: skipped
+      skip_reason_documents_manual_preconditions: false
+      skip_reason_documents_browser_preconditions: true
+      no_automated_ui_success_claim: true
+    traces:
+      - srd020-bench-web-ui AC3
+      - srd024-blocking-input-tools AC1
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator model statistics aggregate run outcomes
+    go_test: TestComputeModelStatsAggregatesRuns
+    inputs:
+      grouped_runs: "passed and failed runs for one model"
+    expected:
+      success_rate_computed: true
+      convergence_rates_computed: true
+      mean_tokens_and_duration_computed: true
+    traces:
+      - srd019-eval-harness AC3
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Evaluator detailed rows aggregate sample and model results
+    go_test: TestComputeDetailedAggregatesSampleModelRows
+    inputs:
+      grouped_runs: "one sample and model result group"
+    expected:
+      sample_model_row_created: true
+      convergence_counts_computed: true
+      means_computed: true
+    traces:
+      - srd019-eval-harness AC3
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: Bench session APIs return evaluation artifacts
+    go_test: TestSessionAPIsReturnEvaluationArtifacts
+    inputs:
+      eval_results: "meta.json, trace.ndjson, experiment.yaml"
+    expected:
+      sessions_returned: true
+      points_returned: true
+      trace_returned: true
+      experiment_returned: true
+    traces:
+      - srd020-bench-web-ui AC2
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: Bench documentation API routes are not mounted
+    go_test: TestDocsAPIRoutesAreNotMounted
+    inputs:
+      route_prefix: /api/v1/docs
+    expected:
+      list_route_status: 404
+      detail_route_status: 404
+    traces:
+      - srd020-bench-web-ui AC4
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Agent child process args stay profile-first
+    go_test: TestBuildArgs_ProfileOnly
+    inputs:
+      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+    expected:
+      profile_flag_present: true
+      machine_and_model_flags_absent: true
+    traces:
+      - srd021-agent-cli-exec-tool AC1
+
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Self invoke maps child process success and failure
+    go_test: go test ./internal/tools/stl -run 'TestSelfInvokeBuilder_Execute_(Success|Failure)$'
+    inputs:
+      child_binary: echo
+      failure_binary: false
+    expected:
+      success_maps_to_tool_done: true
+      failure_maps_to_tool_failed: true
+      duration_recorded: true
+    traces:
+      - srd021-agent-cli-exec-tool AC4
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: invoke_llm handles call timeout as command error
+    go_test: TestInvokeLLM_CallTimeout
+    inputs:
+      client: "waits for context cancellation"
+      call_timeout: 1ms
+    expected:
+      deadline_error_returned: true
+      command_error_signal: true
+      duration_recorded: true
+    traces:
+      - srd024-blocking-input-tools AC3
+
+  - use_case: rel01.0-uc003-bench-visualization
+    name: Bench action endpoint applies single pending action backpressure
+    go_test: TestActionEndpointAppliesSinglePendingActionBackpressure
+    inputs:
+      action_queue_capacity: 1
+    expected:
+      first_action_accepted: true
+      second_action_rejected: true
+    traces:
+      - srd024-blocking-input-tools AC4
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: invoke_llm records duration and token usage
+    go_test: TestInvokeLLM_Success
+    inputs:
+      chat_response: "content plus token counts"
+    expected:
+      duration_recorded: true
+      token_usage_recorded: true
+      result_signal_returned: true
+    traces:
+      - srd024-blocking-input-tools AC5
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Builtin registry resolves factories and rejects unknown init
+    go_test: go test ./internal/tools/registry -run 'Test(BuiltinRegistryRegisterResolveOverride|RegisterUnifiedToolsUnknownInit|RegisterSingleBuiltinOverrides)'
+    inputs:
+      builtin_defs: "registered and missing init names"
+    expected:
+      init_resolved: true
+      unknown_init_rejected: true
+      registration_overrides_existing_tool: true
+    traces:
+      - srd022-builtin-tools AC2
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Builtin tool config decodes typed structs and errors
+    go_test: go test ./internal/tools/stl -run 'TestDecodeToolConfig'
+    inputs:
+      configs: "child agent, LLM, load suite, run point, serve_ui"
+    expected:
+      typed_configs_decoded: true
+      type_mismatch_mentions_tool: true
+      extra_fields_ignored: true
+    traces:
+      - srd022-builtin-tools AC3
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Exec declarations parse schema and contract fields
+    go_test: TestParseToolDefs
+    inputs:
+      declaration: "exec tool with args, dir, emits, output cap, precondition, parameters, and side effects"
+    expected:
+      schema_fields_loaded: true
+      emits_loaded: true
+      side_effects_loaded: true
+      visibility_loaded: true
+    traces:
+      - srd023-cli-exec-tools AC1
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Exec tools map argv, process outcomes, caps, and timeouts
+    go_test: go test ./internal/tools/exec ./internal/tools/stl -run 'Test(ExecCmd_(BuildArgs|Execute)|ExecBuilder_|RunProcGroup)'
+    inputs:
+      exec_defs: "argv mapping, working dir, output cap, precondition, process group timeout"
+    expected:
+      args_mapped: true
+      output_and_exit_mapped: true
+      output_cap_applied: true
+      timeout_handled: true
+    traces:
+      - srd023-cli-exec-tools AC3
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Ollama adapter options configure client and skip check
+    go_test: TestNewAdapter_OptionsConfigureClientAndSkipModelCheck
+    inputs:
+      http_client_timeout: 37s
+      model_check: skipped
+    expected:
+      custom_client_used: true
+      startup_model_check_skipped: true
+    traces:
+      - srd009-ollama-adapter AC5
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: Ollama migration removes legacy adapter paths
+    go_test: TestOllamaMigrationRemovesLegacyAdapterPaths
+    inputs:
+      legacy_paths:
+        - internal/llm/adapter.go
+        - cmd/planner/ollama.go
+      import_path: internal/model/llm/ollama
+    expected:
+      legacy_generator_adapter_absent: true
+      legacy_planner_adapter_absent: true
+      current_invoke_imports_adapter: true
+    traces:
+      - srd009-ollama-adapter AC6
+
+  - use_case: rel01.0-uc001-generator-coding
+    name: LLM extraction functions handle fences and native tokens
+    go_test: go test ./internal/model/llm -run 'Test(StripCodeFences|ExtractWithEnvelope|StripThinkingBlocks|ExtractBraces|MakeNativeTokenExtractor)'
+    inputs:
+      extraction_inputs: "code fences, envelopes, thinking blocks, braces, native tokens"
+    expected:
+      code_fences_removed: true
+      envelope_extracted: true
+      thinking_blocks_stripped: true
+      braces_extracted: true
+      native_token_extracted: true
+    traces:
+      - srd017-llm-extensions AC4

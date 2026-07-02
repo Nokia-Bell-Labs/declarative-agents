@@ -1,0 +1,30 @@
+tools:
+- name: execute_task
+  type: builtin
+  init: execute_task
+  description: Execute the current task via the code generator agent.
+  visibility: internal
+  emits:
+  - ExecutionDone
+  - ExecutionFailed
+  - CommandError
+  category: boundary
+  side_effects:
+  - kind: child_agent_execution
+    target: generator_agent
+    description: Runs a child agent configured by machine/tool selection paths.
+  - kind: filesystem_write
+    target: child_workspace
+    description: Child agent may mutate its configured workspace.
+  reversibility:
+    classification: compensatable
+    undo: child_command_undo_or_workspace_restore
+  undo:
+    strategy: compensating_action
+    description: Rely on child agent history, command undo, and workspace restore for side effects.
+    payload: boundary_compensation
+    captures:
+    - child_run_id
+    - child_workspace_ref
+    requires:
+    - Workspace

@@ -1,0 +1,22 @@
+tools:
+- name: stage_all
+  type: exec
+  binary: git
+  args:
+  - add
+  - -A
+  description: Stage all changes including untracked files (git add -A).
+  precondition: git_repo
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: git_index
+    description: Moves working tree changes into the Git index.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore
+  undo:
+    strategy: workspace_restore
+    description: Restore the workspace ref and index captured before staging.
+    requires:
+    - Workspace

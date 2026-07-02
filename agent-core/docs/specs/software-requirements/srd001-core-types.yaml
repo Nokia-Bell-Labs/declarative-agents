@@ -1,0 +1,143 @@
+id: srd001-core-types
+title: Core Types
+
+problem: |
+  Every agentic loop needs a common vocabulary: executable units of work,
+  their outcomes, the signals those outcomes carry, and the cost of
+  execution. Without shared types, each agent reimplements these concepts
+  with incompatible interfaces. Agent-core defines these types once so
+  domain agents import them rather than redefine them.
+
+goals:
+  - G1: Domain-agnostic types for commands, results, signals, and costs.
+  - G2: Interfaces for command construction (Builder) and lookup (CommandResolver).
+  - G3: Foundation interfaces for rollback state storage, workspace refs, and checkpoint metadata.
+
+requirements:
+  R1:
+    title: State and Signal types
+    items:
+      - R1.1: State is a named string type representing a position in the agentic loop lifecycle.
+      - R1.2: Signal is a named string type carrying the outcome of a Command back to the state machine.
+      - R1.3: "Three generic Signal constants are defined: Seed, BudgetExhausted, CommandError."
+      - R1.4: "Three standard tool Signal constants are defined: ToolDone, ToolFailed, EditDone."
+      - R1.5: "Three LLM Signal constants are defined: LLMResponded, ParseFailed, TaskCompleted."
+
+  R2:
+    title: Command interface
+    items:
+      - R2.1: Command is an interface with three methods -- Name() string, Execute() Result, and Undo() Result.
+      - R2.2: Commands embed their parameters at creation time. Execute takes no domain parameters.
+      - R2.3: NoopUndo returns a successful ToolDone Result for commands whose rollback behavior is not yet specialized.
+
+  R3:
+    title: Cost struct
+    items:
+      - R3.1: "Cost has four fields: Duration (time.Duration), TokensIn (int), TokensOut (int), Dollars (float64)."
+      - R3.2: All Cost fields carry JSON tags for serialization.
+
+  R4:
+    title: Result struct
+    items:
+      - R4.1: "Result has six fields: Output (string), Signal (Signal), Cost (Cost), Err (error), CommandName (string), Metrics (*ToolMetrics)."
+      - R4.2: Err carries infrastructure errors. Signal carries domain outcomes.
+      - R4.3: Metrics is nil when the tool does not report structured metrics.
+
+  R7:
+    title: ToolMetrics struct
+    items:
+      - R7.1: "ToolMetrics has four fields: Total (int), Passed (int), Failed (int), Details (map[string]any)."
+      - R7.2: All ToolMetrics fields carry JSON tags for serialization. Details uses omitempty.
+      - R7.3: ToolMetrics enables structured progress tracking (e.g. test counts) without parsing free text.
+
+  R5:
+    title: Builder and CommandResolver interfaces
+    items:
+      - R5.1: Builder interface has Build(res Result) Command. It constructs a ready-to-execute Command from the previous Result.
+      - R5.2: CommandResolver interface has Resolve(name string) (Builder, bool). It looks up a Builder by command name.
+
+  R6:
+    title: SpanOverride interface
+    items:
+      - R6.1: SpanOverride allows Commands to customize the Dispatch span name and creation-time attributes.
+      - R6.2: "SpanOverride has two methods: SpanName() string and SpanCreationAttrs() []attribute.KeyValue."
+      - R6.3: Without SpanOverride, Dispatch defaults to GenAI semconv execute_tool naming.
+
+  R8:
+    title: Rollback foundation types
+    items:
+      - R8.1: StateStore persists JSON blobs for agent and command/domain state with Save, Load, List, and Delete.
+      - R8.2: Workspace tracks external environment state with Checkpoint, Restore, and CurrentRef.
+      - R8.3: CheckpointPolicy decides whether to checkpoint a CheckpointEvent.
+      - R8.4: Checkpoint captures AgentSnapshot, optional domain JSON, optional WorkspaceRef, and optional HistoryDigest entries.
+      - R8.5: GitWorkspace implements Workspace using git add, git commit --allow-empty, git reset --hard, and git rev-parse HEAD.
+      - R8.6: GitWorkspace SHALL require the configured directory to be the git top-level before checkpoint or restore operations.
+
+non_goals:
+  - Domain-specific state or signal constants.
+  - Command implementations (those live in domain agents).
+  - JSON serialization of Result (Result.Err is not serializable by default).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: State and Signal are named string types. Generic signals (Seed, BudgetExhausted, CommandError), tool signals (ToolDone, ToolFailed, EditDone), and LLM signals (LLMResponded, ParseFailed, TaskCompleted) are exported.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+
+  - id: AC2
+    criterion: Command interface has Name(), Execute(), and Undo() methods. Execute and Undo return Result.
+    traces: [R2.1, R2.2, R2.3]
+
+  - id: AC3
+    criterion: Cost struct has Duration, TokensIn, TokensOut, and Dollars fields with JSON tags.
+    traces: [R3.1, R3.2]
+
+  - id: AC4
+    criterion: Result struct has Output, Signal, Cost, Err, CommandName, and Metrics (*ToolMetrics) fields. Metrics is nil when not reported.
+    traces: [R4.1, R4.2, R4.3]
+
+  - id: AC7
+    criterion: ToolMetrics struct has Total, Passed, Failed (int) and Details (map[string]any) with JSON tags. Details uses omitempty.
+    traces: [R7.1, R7.2, R7.3]
+
+  - id: AC5
+    criterion: Builder has Build(Result) Command. CommandResolver has Resolve(string) (Builder, bool).
+    traces: [R5.1, R5.2]
+
+  - id: AC6
+    criterion: SpanOverride interface has SpanName() and SpanCreationAttrs() for customizing Dispatch span naming.
+    traces: [R6.1, R6.2, R6.3]
+
+  - id: AC8
+    criterion: Rollback foundation interfaces, checkpoint structs, and GitWorkspace model agent state, command/domain state, and external workspace state separately.
+    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Every agentic loop needs a common vocabulary: executa..."] --> Goals["Goals: Core Types"]
+      Goals --> R1["R1: State and Signal types"]
+      Goals --> R2["R2: Command interface"]
+      Goals --> R3["R3: Cost struct"]
+      Goals --> R4["R4: Result struct"]
+      Goals --> R7["R7: ToolMetrics struct"]
+      Goals --> R5["R5: Builder and CommandResolver interfaces"]
+      Goals --> R6["R6: SpanOverride interface"]
+      Goals --> R8["R8: Rollback foundation types"]
+      AC1["AC1: State and Signal are named string types. Generic signals..."]
+      R1 --> AC1
+      AC2["AC2: Command interface has Name(), Execute(), and Undo() metho..."]
+      R2 --> AC2
+      AC3["AC3: Cost struct has Duration, TokensIn, TokensOut, and Dollar..."]
+      R3 --> AC3
+      AC4["AC4: Result struct has Output, Signal, Cost, Err, CommandName,..."]
+      R4 --> AC4
+      AC7["AC7: ToolMetrics struct has Total, Passed, Failed (int) and De..."]
+      R7 --> AC7
+      AC5["AC5: Builder has Build(Result) Command. CommandResolver has Re..."]
+      R5 --> AC5
+      AC6["AC6: SpanOverride interface has SpanName() and SpanCreationAtt..."]
+      R6 --> AC6
+      AC8["AC8: Rollback foundation interfaces, checkpoint structs, and G..."]
+      R8 --> AC8
+    ```

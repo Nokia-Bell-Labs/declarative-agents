@@ -1,0 +1,35 @@
+tools:
+- name: commit
+  type: exec
+  binary: git
+  args:
+  - commit
+  description: Create a git commit from staged changes. Fails if nothing is staged.
+  precondition: git_repo
+  category: boundary
+  side_effects:
+  - kind: filesystem_write
+    target: git_repository
+    description: Creates a commit object and moves the current branch ref.
+  reversibility:
+    classification: compensatable
+    undo: workspace_restore_or_revert_commit
+  undo:
+    strategy: compensating_action
+    description: Restore the workspace ref when checkpointed; otherwise compensate with an explicit revert/reset policy.
+    payload: boundary_compensation
+    captures:
+    - workspace_paths
+    - git_ref
+    requires:
+    - Workspace
+    - git_ref
+  parameters:
+    type: object
+    properties:
+      message:
+        type: string
+        description: Commit message
+        flag: -m
+    required:
+    - message

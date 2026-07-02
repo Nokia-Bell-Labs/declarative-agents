@@ -1,0 +1,70 @@
+id: rel03.0-uc006-documentation-curator
+title: Knowledge Manager serves documentation curator UX and REST tools
+
+summary: |
+  Start the external documentation-curator profile to run the
+  docs host. The host serves the React documentation app and /api/v1/docs from
+  internal/knowledge/documentation, where handlers live after the migration away
+  from bench. Profile-selected doc_* words keep REST behavior in YAML instead
+  of bench code. The profile also exposes a generic lifecycle exit route that
+  feeds rest_await_event and exit_agent. No bench handler participates.
+
+actor: Developer browsing or curating Agent Core documentation
+
+trigger: |
+  A developer starts the curator when they need to browse the corpus or review
+  proposed documentation patches through the Knowledge Manager boundary.
+
+flow:
+  - F1: The agent loads the external documentation-curator profile and resolves machine, tool selection, builtin declarations, REST declarations, and REST definitions relative to that profile.
+  - F2: The documentation-curator machine starts in Idle and dispatches serve_documentation on Seed.
+  - F3: serve_documentation reads addr and docs_dir from the ToolDef config block, starts the documentation host without blocking the machine, and emits ServerLaunched.
+  - F4: The machine launches the profile-owned lifecycle control server and then dispatches await_curator_control.
+  - F5: The host serves the documentation SPA and documentation API from internal/knowledge/documentation without bench route delegation.
+  - F6: The selected doc_list, doc_get, doc_search, doc_validate, doc_suggest_changes, doc_patch_approve, doc_patch_reject, and doc_patch_reopen words use configured REST contracts instead of hard-coded bench APIs.
+  - F7: A POST to /api/lifecycle/exit enqueues ExitRequested. await_curator_control returns the event. MachineSpec routes it to exit_agent, then routes AgentExited to serve_documentation so the owned documentation host stops before Done.
+  - F8: Startup, control launch, await, or lifecycle failure emits CommandError or another declared failure signal and moves the machine to Failed.
+
+touchpoints:
+  - T1: "srd020-bench-web-ui R6 -- bench does not mount documentation API routes"
+  - T2: "srd027-rest-tool-runtime R5 and R10 -- serve_documentation launches without blocking and rest_await_event waits for lifecycle control"
+  - T3: "srd027-rest-tool-runtime R2, R3 -- documentation REST tooling is defined by ToolDef and REST YAML"
+  - T4: "srd028-rest-client-tools R1, R2, R6 -- doc_* words call configured REST operations and emit REST result signals"
+  - T5: "knowledge-manager/documentation-curator/profile.yaml -- profile-owned documentation host entry point under AGENT_PROFILES_ROOT"
+  - T6: "internal/knowledge/documentation -- documentation HTTP server, API handlers, and embedded UI assets"
+  - T7: "srd029-rest-server-tools R7 and R11 -- lifecycle control endpoints enqueue events for MachineSpec routing and shutdown releases the owned documentation listener"
+
+success_criteria:
+  - id: S1
+    criterion: The documentation-curator profile loads with serve_documentation, generic control, exit_agent, and doc_* tool selections.
+    traces:
+      - srd022-builtin-tools AC1
+      - srd027-rest-tool-runtime AC2
+  - id: S2
+    criterion: The standalone documentation host serves the SPA and /api/v1/docs from internal/knowledge/documentation.
+    traces:
+      - srd024-blocking-input-tools AC1
+      - srd027-rest-tool-runtime AC2
+  - id: S3
+    criterion: Bench /api/v1/docs routes return 404.
+    traces:
+      - srd020-bench-web-ui AC4
+  - id: S4
+    criterion: Documentation curator REST declarations cover read, search, validation, suggestion, approval, rejection, and reopen words.
+    traces:
+      - srd028-rest-client-tools AC1
+      - srd028-rest-client-tools AC7
+  - id: S5
+    criterion: The generic lifecycle exit endpoint causes ExitRequested, AgentExited, serve_documentation listener shutdown, and Done through MachineSpec routing.
+    traces:
+      - srd027-rest-tool-runtime AC10
+      - srd029-rest-server-tools AC10
+
+out_of_scope:
+  - Editing documentation content without explicit patch approval.
+  - Routing documentation UX through bench/profile.yaml under AGENT_PROFILES_ROOT.
+  - Replacing the declarative REST runtime with generated clients.
+
+machine_config: knowledge-manager/documentation-curator/machine.yaml
+rest_definitions: knowledge-manager/documentation-curator/rest.yaml
+test_suite_trace: test-rel03.0-rest-tools

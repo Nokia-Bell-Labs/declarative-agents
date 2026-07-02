@@ -1,0 +1,14 @@
+tools:
+- name: issue_list
+  binary: bd
+  args:
+  - list
+  description: List beads issues. Defaults to open issues only.
+  parameters:
+    type: object
+    properties:
+      all:
+        type: boolean
+        description: Include closed issues
+        flag: --all
+        bool_flag: true

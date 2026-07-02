@@ -1,0 +1,18 @@
+id: test-roadmap
+title: Test Road Map
+
+releases:
+  - version: "00.0"
+    name: Foundation
+    description: |
+      Core authentication and API.
+    status: open
+    use_cases:
+      - id: uc001-login
+        summary: User login flow
+        status: open
+  - version: "00.1"
+    name: Extensions
+    description: |
+      Advanced features.
+    status: future

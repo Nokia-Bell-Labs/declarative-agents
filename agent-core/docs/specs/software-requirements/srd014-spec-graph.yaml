@@ -1,0 +1,95 @@
+id: srd014-spec-graph
+title: Specification Graph Loader and Validator
+
+problem: |
+  As the number of SRDs, use cases, and test suites grows, manually
+  verifying cross-references becomes error-prone. Broken touchpoints,
+  orphaned SRDs, uncovered requirements, and stale citations can hide
+  silently. A specification graph loads all artifacts into a labeled
+  property graph and runs automated consistency checks.
+
+goals:
+  - G1: Parse SRDs, use cases, test suites, roadmaps, and SPECIFICATIONS.yaml into typed structs.
+  - G2: Build a labeled property graph connecting all artifacts by their relationships.
+  - G3: Validate cross-artifact consistency and report findings.
+  - G4: Corpus-level loading from a project directory.
+
+requirements:
+  R1:
+    title: Parsing
+    items:
+      - R1.1: ParseSRD reads a single SRD YAML file into an SRD struct with requirements, acceptance criteria, and dependencies.
+      - R1.2: ParseUseCase reads a use case YAML file into a UseCase struct with flow, touchpoints, and success criteria.
+      - R1.3: ParseTestSuite reads a test suite YAML file into a TestSuite struct with test cases and traces.
+      - R1.4: ParseRoadmap reads road-map.yaml into a Roadmap struct with releases and use case references.
+      - R1.5: ParseSpecIndex reads SPECIFICATIONS.yaml into a SpecIndex struct.
+
+  R2:
+    title: Graph construction
+    items:
+      - R2.1: "Graph uses a directed labeled property graph with node kinds: release, srd, req-group, req-item, ac, use-case, test-suite, test-case."
+      - R2.2: "Edge relationships include: contains, depends-on, traces, covers, tests."
+      - R2.3: BuildGraph populates the graph from a Corpus of all parsed artifacts.
+
+  R3:
+    title: Validation checks
+    items:
+      - R3.1: Detect orphaned SRDs not referenced by any use case.
+      - R3.2: Detect broken touchpoints referencing non-existent SRDs.
+      - R3.3: Detect broken citations in test cases referencing non-existent acceptance criteria.
+      - R3.4: Detect uncovered requirement items without test case traces.
+      - R3.5: Detect uncovered acceptance criteria without test case traces.
+      - R3.6: Detect depends_on violations referencing non-existent SRDs.
+      - R3.7: Detect releases without test suites.
+      - R3.8: Findings carry check identifier, severity level, and human-readable message.
+
+  R4:
+    title: Corpus loading
+    items:
+      - R4.1: LoadCorpus reads all specification artifacts from a project directory tree.
+      - R4.2: SRD files are discovered under docs/specs/software-requirements/.
+      - R4.3: Use case files under docs/specs/use-cases/, test suites under docs/specs/test-suites/.
+      - R4.4: Road-map from docs/road-map.yaml, spec index from docs/SPECIFICATIONS.yaml.
+
+non_goals:
+  - Generating specifications from code.
+  - Modifying specification files.
+  - UI or interactive reporting.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: ParseSRD, ParseUseCase, ParseTestSuite, ParseRoadmap, ParseSpecIndex produce typed structs from YAML files.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+
+  - id: AC2
+    criterion: BuildGraph constructs a directed labeled property graph from a Corpus with correct node kinds and edge relationships.
+    traces: [R2.1, R2.2, R2.3]
+
+  - id: AC3
+    criterion: Validate detects orphaned SRDs, broken touchpoints and citations, uncovered items and ACs, depends_on violations, and releases without test suites.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
+
+  - id: AC4
+    criterion: LoadCorpus discovers and parses all artifacts from the standard directory layout.
+    traces: [R4.1, R4.2, R4.3, R4.4]
+
+depends_on: []
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: As the number of SRDs, use cases, and test suites gro..."] --> Goals["Goals: Specification Graph Loader and Validator"]
+      Goals --> R1["R1: Parsing"]
+      Goals --> R2["R2: Graph construction"]
+      Goals --> R3["R3: Validation checks"]
+      Goals --> R4["R4: Corpus loading"]
+      AC1["AC1: ParseSRD, ParseUseCase, ParseTestSuite, ParseRoadmap, Par..."]
+      R1 --> AC1
+      AC2["AC2: BuildGraph constructs a directed labeled property graph f..."]
+      R2 --> AC2
+      AC3["AC3: Validate detects orphaned SRDs, broken touchpoints and ci..."]
+      R3 --> AC3
+      AC4["AC4: LoadCorpus discovers and parses all artifacts from the st..."]
+      R4 --> AC4
+    ```

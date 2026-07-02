@@ -1,0 +1,12 @@
+# Evaluator session builtin declarations.
+includes:
+  - ../parse-suite-config.yaml
+  - ../discover-suite-samples.yaml
+  - ../expand-eval-grid.yaml
+  - ../init-eval-session.yaml
+  - ../report-suite-summary.yaml
+  - ../next-point.yaml
+  - ../run-point.yaml
+  - ../report-session.yaml
+
+tools: []

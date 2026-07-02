@@ -1,0 +1,64 @@
+id: rel03.0-uc001-rest-client-sync
+title: Grammar invokes synchronous REST client resource words
+
+summary: |
+  An agent profile needs to read and update an external resource through REST.
+  The profile declares narrow REST client words that point to configured
+  resources and operations. MachineSpec routes the resulting signals. Nothing
+  else decides the workflow. Inside the boundary word, generic runtime code
+  builds the configured request, sends it with net/http, maps the response, and
+  returns Result.Signal with redacted diagnostics.
+
+actor: Agent profile author configuring outbound resource access
+
+trigger: |
+  Before the grammar can choose its next action, it needs fresh state from a
+  remote service. A later state may update the same resource after local
+  checks finish.
+
+flow:
+  - F1: The author defines a rest.clients entry with base_url, auth_ref, limits_ref, and one resource with get and set operations.
+  - F2: The author declares rest_client_get and rest_client_set ToolDefs that reference the client, resource, and operation by name.
+  - F3: MachineSpec dispatches rest_client_get from a ReadRemoteResource state.
+  - F4: rest_client_get validates declared path/query/header input, sends the configured GET request, and emits RESTResourceRead, RESTMissing, RESTDomainFailed, or CommandError.
+  - F5: MachineSpec routes RESTResourceRead to a DecideUpdate state and routes RESTMissing, RESTDomainFailed, and CommandError to explicit recovery states.
+  - F6: After a local decision, MachineSpec dispatches rest_client_set from UpdateRemoteResource.
+  - F7: rest_client_set validates the declared body input, sends the configured update request, and emits RESTResourceWritten, RESTDomainFailed, or CommandError.
+  - F8: MachineSpec routes RESTResourceWritten to ContinueWorkflow and routes failure signals to compensation or operator review.
+
+touchpoints:
+  - T1: "srd027-rest-tool-runtime R2.1, R2.2, R2.3, R2.4, R2.5 -- REST definitions are declarative and MachineSpec owns sequencing"
+  - T2: "srd027-rest-tool-runtime R4.1, R4.4 -- net/http executes REST work and core.Result drives transitions"
+  - T3: "srd028-rest-client-tools R2.1, R2.2, R2.3, R2.4, R2.6 -- config fixes operation authority and runtime input supplies declared parameters"
+  - T4: "srd028-rest-client-tools R3.1, R3.2, R3.5, R3.6 -- resource words cover read and update behavior"
+  - T5: "srd028-rest-client-tools R6.1, R6.2, R6.3, R6.6, R6.7 -- result signals distinguish reads, writes, missing resources, domain failure, and CommandError"
+  - T6: "cfg-rest-tool-format validation rules V4, V5, V7 -- request bindings, resource verbs, and side effects are validated"
+
+success_criteria:
+  - id: S1
+    criterion: The REST client ToolDefs reference named REST definitions instead of embedding full HTTP requests.
+    traces:
+      - srd028-rest-client-tools AC1
+      - srd028-rest-client-tools AC2
+  - id: S2
+    criterion: MachineSpec visibly routes RESTResourceRead, RESTResourceWritten, RESTDomainFailed, RESTMissing, and CommandError signals.
+    traces:
+      - srd027-rest-tool-runtime AC2
+      - srd028-rest-client-tools AC6
+  - id: S3
+    criterion: Resource get and set operations declare side effects and undo expectations.
+    traces:
+      - srd028-rest-client-tools AC3
+  - id: S4
+    criterion: The implementation uses net/http and configured operation definitions.
+    traces:
+      - srd027-rest-tool-runtime AC4
+
+out_of_scope:
+  - Implementing internal/tools/rest.
+  - Defining provider-specific client code.
+  - Allowing model-selected URLs or methods.
+  - Creating the release 03.0 test suite.
+
+semantic_model: sm-rest-tool-language
+config_format: cfg-rest-tool-format

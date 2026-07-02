@@ -1,0 +1,37 @@
+{{- .Role}}
+
+{{.Task}}
+{{- if .Constraints}}
+
+{{.Constraints}}
+{{- end}}
+{{- if .OutputFormat}}
+
+{{.OutputFormat}}
+{{- end}}
+{{- if .ToolManifest}}
+
+## Available Tools
+
+IMPORTANT: Every response must be exactly one tool call.{{if .Envelope}} Wrap it in {{.Envelope.Open}} / {{.Envelope.Close}} tags.{{end}} Call one tool at a time.{{if .StrictFormat}} Do not include any other text.{{end}} The format is:
+{{if .Envelope}}
+{{.Envelope.Open}}
+{"tool": "<tool_name>", "parameters": {<parameters>}}
+{{.Envelope.Close}}
+{{- else}}
+{"tool": "<tool_name>", "parameters": {<parameters>}}
+{{- end}}
+
+When you have completed the task, call the done tool:
+{{if .Envelope}}
+{{.Envelope.Open}}
+{"tool": "done", "parameters": {"summary": "<brief summary of what you did>"}}
+{{.Envelope.Close}}
+{{- else}}
+{"tool": "done", "parameters": {"summary": "<brief summary of what you did>"}}
+{{- end}}
+
+The available tools and their parameter schemas are listed below.
+
+{{.ToolManifest}}
+{{- end}}
