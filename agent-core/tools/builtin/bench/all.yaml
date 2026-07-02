@@ -1,0 +1,6 @@
+# Bench builtin declarations.
+includes:
+  - ../serve-ui.yaml
+  - ../launch-eval.yaml
+
+tools: []

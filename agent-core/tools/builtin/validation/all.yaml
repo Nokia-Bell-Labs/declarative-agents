@@ -1,0 +1,5 @@
+# Compatibility aggregate validation builtin declarations.
+includes:
+  - ../validate.yaml
+
+tools: []

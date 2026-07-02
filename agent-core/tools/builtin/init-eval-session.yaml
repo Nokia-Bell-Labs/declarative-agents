@@ -1,0 +1,62 @@
+tools:
+- name: init_eval_session
+  type: builtin
+  init: init_eval_session
+  visibility: internal
+  emits:
+  - EvalSessionInitialized
+  - CommandError
+  description: Create the evaluator session output directory and resolve runtime defaults.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: evaluator_session_dir
+    description: Creates the evaluator session output directory.
+  - kind: state_mutation
+    target: eval_session_state
+    state: eval_session_initialized
+    description: Sets session directory, reps, timeout, Ollama URL, and iteration start time.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore_and_session_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore evaluator session state and workspace artifacts from the prior checkpoint.
+    requires:
+    - Workspace
+  problem: The machine needs a declared word for initializing evaluator session state without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the init_eval_session action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'init_eval_session: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: init_eval_session command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

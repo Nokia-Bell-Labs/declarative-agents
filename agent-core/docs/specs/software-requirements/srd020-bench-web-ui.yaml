@@ -1,0 +1,129 @@
+id: srd020-bench-web-ui
+title: Bench Web UI
+
+problem: |
+  Evaluation results (session summaries, per-point metrics, trace
+  timelines, experiment configurations) are stored as JSON and YAML
+  files across nested directories. Without a visualization layer,
+  analyzing benchmark outcomes requires manual file inspection and
+  ad-hoc scripting.
+
+goals:
+  - G1: Serve an embedded web UI for interactive evaluation result exploration.
+  - G2: Provide REST API endpoints for session, point, trace, experiment, config, source, and action data.
+  - G3: Support dual-mode asset loading (filesystem for dev, embedded for prod).
+  - G4: Display LLM configuration profiles and agent configs alongside results.
+
+requirements:
+  R1:
+    title: HTTP server and SPA routing
+    items:
+      - R1.1: The bench web UI is started via `agent --profile "$AGENT_PROFILES_ROOT/bench/profile.yaml"`. The profile resolves the bench machine, selected tools, and tool declarations; the serve_ui tool starts the HTTP server with address and data directory configured in the tool YAML config block.
+      - R1.2: API routes are namespaced under /api/v1/.
+      - R1.3: Non-API routes serve the embedded frontend assets with SPA fallback to index.html (200 OK).
+      - R1.4: Assets are loaded via Go build tags — os.DirFS in dev mode, embed.FS with -tags production.
+
+  R2:
+    title: Session API
+    items:
+      - R2.1: GET /api/v1/sessions lists all sessions with pass/fail/timeout counts.
+      - R2.2: GET /api/v1/sessions/{suite}/{ts} returns session detail with model stats and sample stats.
+      - R2.3: GET /api/v1/sessions/{suite}/{ts}/points lists all evaluation points with metrics.
+      - R2.4: GET /api/v1/sessions/{suite}/{ts}/points/{pointId} returns trace data with spans and snapshots.
+      - R2.5: GET /api/v1/sessions/{suite}/{ts}/points/{pointId}/experiment returns the parsed experiment.yaml config.
+      - R2.6: Non-existent data directories return empty arrays, not 500 errors.
+
+  R3:
+    title: Config API
+    items:
+      - R3.1: GET /api/v1/configs lists available configuration files.
+      - R3.2: GET /api/v1/configs/{path} returns the contents of a config file.
+      - R3.3: GET /api/v1/profiles lists available LLM response profiles.
+
+  R4:
+    title: Frontend pages
+    items:
+      - R4.1: Dashboard page lists sessions as cards with pass rate bars.
+      - R4.2: Session detail page shows model leaderboard table, pass count chart, and sample-model heatmap.
+      - R4.3: Trace viewer page shows experiment configuration panel and tool call timeline.
+      - R4.4: Experiment config panel displays model, harness, budget, LLM config (including system prompt), state machine states, registered tools, and expandable transitions table.
+      - R4.5: Launch page allows configuring and launching evaluation suites via the bench state machine.
+      - R4.6: Documentation browsing is outside the bench UI and belongs to the Knowledge Manager documentation-curator profile.
+
+  R5:
+    title: Build integration
+    items:
+      - R5.1: Mage Build target builds the frontend in internal/evaluation/bench/ui/ and compiles cmd/agent with -tags production.
+      - R5.2: Production binary is compiled with -tags production to embed frontend assets from internal/evaluation/bench/ui/dist/.
+
+  R6:
+    title: Documentation ownership boundary
+    items:
+      - R6.1: The bench server SHALL NOT mount /api/v1/docs routes.
+      - R6.2: Documentation browsing and documentation REST workflows belong to agents/knowledge-manager/documentation-curator/profile.yaml.
+
+  R7:
+    title: Source API
+    items:
+      - R7.1: GET /api/v1/source/{path} serves source code files with language metadata.
+      - R7.2: Path traversal outside the source root is rejected.
+      - R7.3: Only allowed file extensions (.go, .yaml, .ts, .tsx, etc.) are served.
+
+  R8:
+    title: Actions API
+    items:
+      - R8.1: POST /api/v1/actions accepts UserAction payloads from the frontend.
+      - R8.2: Actions are forwarded to the serve_ui tool via the BenchState action channel.
+
+non_goals:
+  - Real-time streaming of in-progress evaluations.
+  - Editing configurations through the UI.
+  - User authentication or multi-tenancy.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The agent, configured with the bench machine, serves the React frontend and API from a single binary with embedded assets.
+    traces: [R1.1, R1.2, R1.3, R1.4, R5.1, R5.2]
+
+  - id: AC2
+    criterion: Session, point, trace, and experiment API endpoints return correct data from the eval-results directory structure.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
+
+  - id: AC3
+    criterion: The dashboard, session detail, trace viewer, and launch pages render, and documentation browsing is absent from bench.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
+
+  - id: AC4
+    criterion: Config, source, and actions API endpoints work, and documentation API routes are not mounted by bench.
+    traces: [R3.1, R3.2, R3.3, R6.1, R6.2, R7.1, R7.2, R7.3, R8.1, R8.2]
+
+depends_on:
+  - srd_id: srd019-eval-harness
+    symbols_used: [EvalRunResult, ComputeModelStats, ComputeDetailed, ReadTraceFile, ExtractToolSnapshots]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Evaluation results (session summaries, per-point metr..."] --> Goals["Goals: Bench Web UI"]
+      Goals --> R1["R1: HTTP server and SPA routing"]
+      Goals --> R2["R2: Session API"]
+      Goals --> R3["R3: Config API"]
+      Goals --> R4["R4: Frontend pages"]
+      Goals --> R5["R5: Build integration"]
+      Goals --> R6["R6: Documentation ownership boundary"]
+      Goals --> R7["R7: Source API"]
+      Goals --> R8["R8: Actions API"]
+      AC1["AC1: The agent, configured with the bench machine, serves the..."]
+      R1 --> AC1
+      R5 --> AC1
+      AC2["AC2: Session, point, trace, and experiment API endpoints retur..."]
+      R2 --> AC2
+      AC3["AC3: The dashboard, session detail, trace viewer, and launch p..."]
+      R4 --> AC3
+      AC4["AC4: Config, source, and actions API endpoints work, and docum..."]
+      R3 --> AC4
+      R6 --> AC4
+      R7 --> AC4
+      R8 --> AC4
+    ```

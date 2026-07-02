@@ -1,0 +1,157 @@
+id: srd008-telemetry
+title: Telemetry Implementation
+
+problem: |
+  Every agent built on agent-core needs OpenTelemetry wiring: provider
+  setup, exporter configuration, root span lifecycle, shutdown
+  sequencing, and an implementation of the Tracer adapter. Without a shared
+  implementation each agent reimplements the same boilerplate.
+
+goals:
+  - G1: Provide a ready-to-use OpenTelemetry setup for file and OTLP export.
+  - G2: Satisfy the internal/observability/tracing.Tracer interface with a TraceAdapter implementation.
+  - G3: Support offline replay of recorded trace files.
+  - G4: Provide OpenTelemetry metric export paths that can consume normalized monitor samples.
+
+requirements:
+  R1:
+    title: ExporterConfig
+    items:
+      - R1.1: ExporterConfig struct with FilePath and OTLPEndpoint string fields.
+      - R1.2: At least one of FilePath or OTLPEndpoint must be non-empty. NewRoot returns an error otherwise.
+
+  R2:
+    title: Trace type
+    items:
+      - R2.1: Trace struct bundles an OTel tracer, context, and meter. Immutable after construction.
+      - R2.2: "Push(name, attrs) starts a child span, returns a new Trace and a done function."
+      - R2.3: "Event(name, attrs) records a span event on the current span."
+      - R2.4: "SetAttributes(attrs) sets attributes on the current span."
+      - R2.5: Context() returns the underlying context.Context.
+      - R2.6: Meter() returns the OpenTelemetry Meter.
+      - R2.7: "RecordError(err) records err on the current span and sets the span status to error."
+
+  R3:
+    title: NewRoot
+    items:
+      - R3.1: NewRoot accepts a service name (string), a root span name (string), ExporterConfig, and parent context.
+      - R3.1b: The service name is used for the OTel resource attribute, tracer name, meter name, and temp file prefix. Each agent supplies its own name (e.g. "generator", "planner").
+      - R3.2: Creates trace and metric providers with the configured exporters.
+      - R3.3: Starts a root span and returns a Trace, shutdown function, and error.
+      - R3.4: The shutdown function flushes providers, ends the root span, and closes file handles.
+      - R3.5: Shutdown is idempotent (sync.Once).
+
+  R4:
+    title: File exporter
+    items:
+      - R4.1: Writes traces and metrics to a temporary file in the target directory.
+      - R4.2: On shutdown, renames the temp file to the final path for atomic delivery.
+
+  R5:
+    title: OTLP exporter
+    items:
+      - R5.1: Sends traces via gRPC to the configured endpoint.
+      - R5.2: Sends metrics via gRPC to the configured endpoint.
+      - R5.3: Uses insecure credentials (no TLS).
+
+  R6:
+    title: TraceAdapter
+    items:
+      - R6.1: TraceAdapter wraps a Trace to satisfy the tracing.Tracer interface.
+      - R6.2: Push returns a TraceAdapter so the interface return type is met.
+      - R6.3: Compile-time check (var _ tracing.Tracer = TraceAdapter{}).
+
+  R7:
+    title: Offline replay
+    items:
+      - R7.1: ReplayFile reads an OTLP JSON trace file and sends spans to a remote endpoint.
+      - R7.2: Accepts an optional tracing.Tracer to record replay lifecycle events.
+      - R7.3: Replay is idempotent; replaying the same file produces duplicate spans on the collector.
+
+  R8:
+    title: Monitor metric export
+    items:
+      - R8.1: Telemetry setup SHALL preserve the existing Tracer interface and span export behavior while exposing a Meter for metric instruments.
+      - R8.2: Monitor metric export SHALL consume normalized samples from the monitor recorder or store instead of reading tool internals.
+      - R8.3: Metric export SHALL use the same service resource identity as tracing so spans and metrics can be correlated by the collector.
+      - R8.4: Metric export SHALL apply the low-cardinality and redaction rules from sm-tool-metrics-monitoring before emitting attributes.
+      - R8.5: Metric export failure SHALL be reported as telemetry or monitor diagnostics and SHALL NOT change command Result.Signal.
+
+non_goals:
+  - TLS or authenticated OTLP connections.
+  - Defining tool-specific metric meaning; ToolDef declarations and tool families own that vocabulary.
+  - Custom resource attributes beyond service name.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: ExporterConfig requires at least one exporter. NewRoot rejects empty config with an error.
+    traces: [R1.1, R1.2]
+
+  - id: AC2
+    criterion: Trace.Push creates a child span. Trace.Event records an event. Trace.SetAttributes sets attributes. Trace.RecordError records an error and sets span status.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.7]
+
+  - id: AC3
+    criterion: Trace.Context returns a context.Context. Trace.Meter returns a metric.Meter.
+    traces: [R2.5, R2.6]
+
+  - id: AC4
+    criterion: NewRoot accepts a service name used for OTel resource, tracer, meter, and temp file prefix. Creates providers, starts a root span, returns a Trace and shutdown function.
+    traces: [R3.1, R3.1b, R3.2, R3.3]
+
+  - id: AC5
+    criterion: Shutdown flushes, ends the root span, closes files, and is idempotent.
+    traces: [R3.4, R3.5]
+
+  - id: AC6
+    criterion: File exporter writes to a temp file and renames atomically on shutdown.
+    traces: [R4.1, R4.2]
+
+  - id: AC7
+    criterion: OTLP exporter sends traces and metrics via insecure gRPC, and monitor metric export preserves tracing behavior, resource identity, redaction, and command results.
+    traces: [R5.1, R5.2, R5.3, R8.1, R8.2, R8.3, R8.4, R8.5]
+
+  - id: AC8
+    criterion: TraceAdapter satisfies tracing.Tracer at compile time. Push wraps the child Trace in an adapter.
+    traces: [R6.1, R6.2, R6.3]
+
+  - id: AC9
+    criterion: ReplayFile reads an OTLP JSON file, sends spans to the endpoint, and optionally logs lifecycle events.
+    traces: [R7.1, R7.2, R7.3]
+
+related_documents:
+  - docs/specs/semantic-models/tool-metrics-monitoring.yaml
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Every agent built on agent-core needs OpenTelemetry w..."] --> Goals["Goals: Telemetry Implementation"]
+      Goals --> R1["R1: ExporterConfig"]
+      Goals --> R2["R2: Trace type"]
+      Goals --> R3["R3: NewRoot"]
+      Goals --> R4["R4: File exporter"]
+      Goals --> R5["R5: OTLP exporter"]
+      Goals --> R6["R6: TraceAdapter"]
+      Goals --> R7["R7: Offline replay"]
+      Goals --> R8["R8: Monitor metric export"]
+      AC1["AC1: ExporterConfig requires at least one exporter. NewRoot re..."]
+      R1 --> AC1
+      AC2["AC2: Trace.Push creates a child span. Trace.Event records an e..."]
+      R2 --> AC2
+      AC3["AC3: Trace.Context returns a context.Context. Trace.Meter retu..."]
+      R2 --> AC3
+      AC4["AC4: NewRoot accepts a service name used for OTel resource, tr..."]
+      R3 --> AC4
+      AC5["AC5: Shutdown flushes, ends the root span, closes files, and i..."]
+      R3 --> AC5
+      AC6["AC6: File exporter writes to a temp file and renames atomicall..."]
+      R4 --> AC6
+      AC7["AC7: OTLP exporter sends traces and metrics via insecure gRPC,..."]
+      R5 --> AC7
+      R8 --> AC7
+      AC8["AC8: TraceAdapter satisfies tracing.Tracer at compile time. Pu..."]
+      R6 --> AC8
+      AC9["AC9: ReplayFile reads an OTLP JSON file, sends spans to the en..."]
+      R7 --> AC9
+    ```

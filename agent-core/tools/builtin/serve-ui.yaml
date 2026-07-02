@@ -1,0 +1,28 @@
+tools:
+- name: serve_ui
+  type: builtin
+  init: serve_ui
+  visibility: internal
+  emits:
+  - ExperimentRequested
+  - Shutdown
+  - CommandError
+  description: Start the bench web UI server and block waiting for user actions (bench equivalent of invoke_llm).
+  category: boundary
+  side_effects:
+  - kind: child_process
+    target: bench_http_server
+    description: Starts an HTTP server and waits for operator requests.
+  - kind: human_boundary
+    target: bench_operator
+    description: Receives experiment requests or shutdown from a user.
+  reversibility:
+    classification: compensatable
+    undo: server_shutdown
+  undo:
+    strategy: compensating_action
+    description: Stop the server or issue a shutdown signal; completed user-triggered work requires its own rollback.
+    payload: boundary_compensation
+    captures:
+    - server_addr
+    - user_action

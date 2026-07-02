@@ -1,0 +1,174 @@
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package validation
+
+import (
+	"encoding/json"
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
+)
+
+func TestToolTracker_Record_And_Skipped(t *testing.T) {
+	t.Parallel()
+	tr := NewToolTracker()
+	order := []string{"build", "lint", "test"}
+	require.Equal(t, order, tr.Skipped(order))
+	tr.Record("build")
+	require.Equal(t, []string{"lint", "test"}, tr.Skipped(order))
+	tr.Record("lint")
+	tr.Record("test")
+	require.Nil(t, tr.Skipped(order))
+}
+
+func TestToolTracker_SkippedUsesCallerOrder(t *testing.T) {
+	t.Parallel()
+	tr := NewToolTracker()
+	tr.Record("lint")
+	require.Equal(t, []string{"test", "build"}, tr.Skipped([]string{"test", "lint", "build"}))
+}
+
+func TestToolTracker_Reset(t *testing.T) {
+	t.Parallel()
+	tr := NewToolTracker()
+	order := []string{"build", "lint", "test"}
+	tr.Record("build")
+	require.Nil(t, tr.Skipped([]string{"build"}))
+	tr.Reset()
+	require.Equal(t, order, tr.Skipped(order))
+}
+
+func TestValidateCmd_NoneSkipped(t *testing.T) {
+	t.Parallel()
+	res := (&validateCmd{}).Execute()
+	require.Equal(t, core.ValidationPassed, res.Signal)
+	require.Contains(t, res.Output, "no tools were skipped")
+}
+
+func TestValidateCmd_AllPass(t *testing.T) {
+	t.Parallel()
+	cmd := &validateCmd{
+		skipped: []string{"build", "lint", "test"},
+		builders: map[string]core.Builder{
+			"build": &valStubBuilder{signal: core.ToolDone},
+			"lint":  &valStubBuilder{signal: core.ToolDone},
+			"test":  &valStubBuilder{signal: core.ToolDone},
+		},
+	}
+	res := cmd.Execute()
+	require.Equal(t, core.ValidationPassed, res.Signal)
+	require.Contains(t, res.Output, "build")
+	require.Contains(t, res.Output, "lint")
+	require.Contains(t, res.Output, "test")
+}
+
+func TestValidateCmdUndoMementoCapturesChildCommands(t *testing.T) {
+	t.Parallel()
+	cmd := &validateCmd{
+		skipped: []string{"build", "lint"},
+		builders: map[string]core.Builder{
+			"build": &valStubBuilder{signal: core.ToolDone},
+			"lint":  &valStubBuilder{signal: core.ToolDone},
+		},
+	}
+	require.Equal(t, core.ValidationPassed, cmd.Execute().Signal)
+	memento, err := cmd.UndoMemento()
+	require.NoError(t, err)
+	require.NoError(t, core.ValidateUndoMemento(memento))
+	var payload undo.BoundaryCompensationPayload
+	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
+	require.Equal(t, "child_command_undo", payload.BoundaryCompensation.Strategy)
+	require.Equal(t, []string{"build", "lint"}, payload.BoundaryCompensation.Requires)
+}
+
+func TestValidateCmd_BuildFails_ShortCircuits(t *testing.T) {
+	t.Parallel()
+	lintCalled := false
+	cmd := &validateCmd{
+		skipped: []string{"build", "lint", "test"},
+		builders: map[string]core.Builder{
+			"build": &valStubBuilder{signal: core.ToolFailed, output: "compilation errors"},
+			"lint":  &valCallTracker{called: &lintCalled, signal: core.ToolDone},
+			"test":  &valStubBuilder{signal: core.ToolDone},
+		},
+	}
+	res := cmd.Execute()
+	require.Equal(t, core.ValidationFailed, res.Signal)
+	require.Contains(t, res.Output, "build")
+	require.False(t, lintCalled)
+}
+
+func TestValidateCmd_CommandError_Propagates(t *testing.T) {
+	t.Parallel()
+	cmd := &validateCmd{
+		skipped:  []string{"build"},
+		builders: map[string]core.Builder{"build": &valStubBuilder{signal: core.CommandError, err: fmt.Errorf("go not found")}},
+	}
+	res := cmd.Execute()
+	require.Equal(t, core.CommandError, res.Signal)
+	require.ErrorContains(t, res.Err, "go not found")
+}
+
+func TestValidateBuilder_Build(t *testing.T) {
+	t.Parallel()
+	tracker := NewToolTracker()
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "build"}, &valStubBuilder{signal: core.ToolDone})
+	b := &ValidateBuilder{Tracker: tracker, Registry: reg, Tools: []string{"build"}}
+	require.Equal(t, core.ValidationPassed, b.Build(core.Result{}).Execute().Signal)
+}
+
+func TestValidateToolSpec(t *testing.T) {
+	t.Parallel()
+	spec := ValidateToolSpec()
+	require.Equal(t, "validate", spec.Name)
+	require.Equal(t, core.Internal, spec.Visibility)
+}
+
+type valStubBuilder struct {
+	signal core.Signal
+	output string
+	err    error
+}
+
+func (s *valStubBuilder) Build(_ core.Result) core.Command {
+	return &valStubCmd{name: "stub", signal: s.signal, output: s.output, err: s.err}
+}
+
+type valStubCmd struct {
+	name   string
+	signal core.Signal
+	output string
+	err    error
+}
+
+func (s *valStubCmd) Name() string      { return s.name }
+func (s *valStubCmd) Undo() core.Result { return core.NoopUndo(s.Name()) }
+func (s *valStubCmd) Execute() core.Result {
+	return core.Result{Output: s.output, Signal: s.signal, Err: s.err, CommandName: s.name}
+}
+
+type valCallTracker struct {
+	called *bool
+	signal core.Signal
+}
+
+func (c *valCallTracker) Build(_ core.Result) core.Command {
+	return &valCallTrackerCmd{called: c.called, signal: c.signal}
+}
+
+type valCallTrackerCmd struct {
+	called *bool
+	signal core.Signal
+}
+
+func (c *valCallTrackerCmd) Name() string      { return "tracker" }
+func (c *valCallTrackerCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *valCallTrackerCmd) Execute() core.Result {
+	*c.called = true
+	return core.Result{Signal: c.signal, CommandName: "tracker"}
+}

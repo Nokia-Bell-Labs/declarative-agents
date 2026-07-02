@@ -1,0 +1,142 @@
+id: srd019-eval-harness
+title: Evaluation Harness Infrastructure
+
+problem: |
+  Running reproducible benchmarks across multiple LLM profiles and coding
+  tasks requires orchestrating workspace preparation, agent subprocess
+  execution, result validation, metrics collection, and configuration
+  snapshotting. Without a shared harness, each benchmark script
+  reimplements this pipeline with inconsistent result formats and no
+  configuration traceability.
+
+goals:
+  - G1: Provide a deterministic evaluation pipeline driven by the core state machine.
+  - G2: Support grid evaluation across agent profiles, samples, grid parameters, and repetitions.
+  - G3: Capture full experiment configuration alongside results for reproducibility.
+  - G4: Produce structured metrics (meta.json) and trace data (trace.ndjson) per evaluation point.
+  - G5: Analyze results with convergence tracking, model statistics, and detailed breakdowns.
+
+requirements:
+  R0:
+    title: Declarative boundary
+    items:
+      - R0.1: The evaluator program SHALL be defined by agents/evaluator/machine.yaml, agents/evaluator/point.yaml, agents/evaluator/tools.yaml, and tool declarations.
+      - R0.2: Suite YAML SHALL be treated as input data to evaluator tools, not as a third program-definition mechanism.
+      - R0.3: parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary SHALL parse and validate suite input data before the evaluator session can iterate points.
+      - R0.4: run_agent SHALL consume each resolved suite profile as subprocess input data for the current evaluation point and SHALL invoke the child agent with --profile when ProfilePath is set.
+      - R0.5: dump_config SHALL snapshot the resolved suite profile, model, harness label, and point configuration into experiment.yaml for reproducibility.
+
+  R1:
+    title: Suite configuration
+    items:
+      - R1.1: SuiteConfig defines name, profiles, grid parameters, samples directory, timeout, and repetitions. Profile paths are the required suite dimension.
+      - R1.2: SuiteProfile resolves each profile path relative to the suite file, loads the AgentProfile, derives a display name and model from the profile-selected invoke_llm declaration, and uses the agent binary as the harness process.
+      - R1.3: DiscoverSamples scans a directory for subdirectories containing workspace/ and prompt.yaml files.
+      - R1.4: LoadSuite reads a YAML suite file and resolves samples relative to the suite's base directory.
+      - R1.5: expandGrid generates the Cartesian product of all grid parameter values.
+      - R1.6: Suite parsing SHALL reject suites without profiles and SHALL reject obsolete suite fields that bypass profile-selected runtime configuration.
+      - R1.7: Suite YAML SHALL NOT define child binary flags directly; each referenced profile owns its machine, tool selection, declarations, and boundary-tool config.
+
+  R2:
+    title: Evaluation session execution
+    items:
+      - R2.1: The session state machine (agents/evaluator/machine.yaml) initializes the suite via parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary, then iterates suites in (profile, gridPoint, sample, repetition) order via next_point, run_point, and report_session, running each point through a nested core.Loop.
+      - R2.2: PointContext holds per-point mutable state (directories, trace path, tokens, results, timing).
+      - R2.3: EvalState is the shared state container whose PC field is updated before each point's loop run.
+      - R2.4: SessionResult and PointResult capture aggregate and per-point outcomes.
+      - R2.5: run_point SHALL require point_machine and point_tools in its tool config and fail registration when either field is missing.
+
+  R3:
+    title: Evaluation tools
+    items:
+      - "R3.1": "agents/evaluator/point.yaml SHALL express workspace preparation as separate tools: create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline."
+      - R3.1.1: create_point_dir SHALL create the point directory and set PointContext.PointDir and PointContext.TracePath.
+      - R3.1.2: copy_sample_workspace SHALL copy only sample workspace files into PointContext.PointDir.
+      - R3.1.3: copy_sample_docs SHALL copy sample docs into PointContext.PointDir/doc when docs exist and SHALL no-op successfully when they do not.
+      - R3.1.4: init_workspace_repo SHALL initialize git only in PointContext.PointDir.
+      - R3.1.5: stage_workspace_baseline SHALL stage all current point workspace files.
+      - R3.1.6: commit_workspace_baseline SHALL create the baseline commit for the point workspace.
+      - R3.2: dump_config serializes the resolved profile path, harness label, model, timeout, repetition, and sample into experiment.yaml.
+      - R3.3: run_agent executes the harness binary as a subprocess with timeout and OTel context. Each point passes --profile <path>.
+      - R3.4: run_oracle_check runs oracle tests and records pass/fail output independently from trace parsing.
+      - R3.5: collect_trace_tokens parses trace files for token counts and treats a missing trace as a successful zero-token result.
+      - R3.6: check_agent_version compares configured harness version with traced agent version and emits a warning signal on mismatch.
+      - R3.7: summarize_point_results emits ResultsCollected after oracle, trace, and version fields are populated.
+      - R3.8: collect_metrics writes meta.json with exit code, duration, test results, token counts, and convergence data.
+
+  R4:
+    title: Result analysis
+    items:
+      - R4.1: LoadMultiple reads meta.json and trace.ndjson from session directories into EvalRunResult groups.
+      - R4.2: ComputeModelStats aggregates per-model success rate, clean rate, recovery rate, stuck rate, mean iterations, tokens, and duration.
+      - R4.3: ComputeDetailed produces per-sample-per-model breakdowns.
+      - R4.4: ConvergenceTracker classifies tool call patterns as Clean, Recovery, Stuck, or Divergent based on edit-test-pass sequences.
+
+  R5:
+    title: Trace and span utilities
+    items:
+      - R5.1: ReadTraceFile parses OTLP JSON ndjson files into Span structs.
+      - R5.2: ExtractToolSnapshots extracts ordered tool call summaries from spans.
+      - R5.3: StrAttr and IntAttr extract typed attribute values from spans.
+      - R5.4: AgentVersion extracts the agent.version attribute from trace spans.
+
+non_goals:
+  - LLM-based evaluation (the evaluator is deterministic, no LLM calls).
+  - Parallel point execution within a single session.
+  - Automatic LLM artifact management.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The session state machine executes all grid points and produces SessionResult with correct pass/fail/timeout counts.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+
+  - id: AC0
+    criterion: Suite YAML is documented and validated as evaluator tool input data, with session setup/run_agent/dump_config boundaries clear.
+    traces: [R0.1, R0.2, R0.3, R0.4, R0.5, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
+
+  - id: AC2
+    criterion: Each evaluation point creates an isolated workspace with git baseline, experiment.yaml config snapshot, trace.ndjson, and meta.json.
+    traces: [R3.1, R3.1.1, R3.1.2, R3.1.3, R3.1.4, R3.1.5, R3.1.6, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
+
+  - id: AC3
+    criterion: ComputeModelStats and ComputeDetailed produce accurate statistics from session results.
+    traces: [R4.1, R4.2, R4.3, R5.1, R5.2, R5.3, R5.4]
+
+  - id: AC4
+    criterion: ConvergenceTracker correctly classifies agent behavior patterns from trace data.
+    traces: [R4.4]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Command, Result, Signal, Builder]
+  - srd_id: srd005-agentic-loop
+    symbols_used: [Loop, LoopParams, Budget]
+  - srd_id: srd006-yaml-machine-config
+    symbols_used: [MachineSpec, LoadMachineSpec]
+  - srd_id: srd013-standard-tool-library
+    symbols_used: [BuiltinRegistry, RegisterSingleBuiltin]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Running reproducible benchmarks across multiple LLM p..."] --> Goals["Goals: Evaluation Harness Infrastructure"]
+      Goals --> R0["R0: Declarative boundary"]
+      Goals --> R1["R1: Suite configuration"]
+      Goals --> R2["R2: Evaluation session execution"]
+      Goals --> R3["R3: Evaluation tools"]
+      Goals --> R4["R4: Result analysis"]
+      Goals --> R5["R5: Trace and span utilities"]
+      AC1["AC1: The session state machine executes all grid points and pr..."]
+      R2 --> AC1
+      AC0["AC0: Suite YAML is documented and validated as evaluator tool..."]
+      R0 --> AC0
+      R1 --> AC0
+      AC2["AC2: Each evaluation point creates an isolated workspace with..."]
+      R3 --> AC2
+      AC3["AC3: ComputeModelStats and ComputeDetailed produce accurate st..."]
+      R4 --> AC3
+      R5 --> AC3
+      AC4["AC4: ConvergenceTracker correctly classifies agent behavior pa..."]
+      R4 --> AC4
+    ```

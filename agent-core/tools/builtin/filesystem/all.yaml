@@ -1,0 +1,119 @@
+# Filesystem builtin declarations.
+includes:
+  - ../read.yaml
+  - ../write.yaml
+  - ../edit.yaml
+  - ../find.yaml
+  - ../list-files.yaml
+
+tools:
+  - name: list_resource
+    type: builtin
+    category: boundary
+    init: list_resource
+    description: List documents from a configured filesystem resource.
+    problem: Machine and REST words need document corpus listing without letting runtime input choose filesystem authority.
+    goals:
+      - List files under a trusted resource root.
+      - Return path, name, category, extension, size, and configured metadata.
+      - Keep include rules and extension policy in trusted tool config.
+    requirements:
+      input:
+        - Runtime input may choose only the configured resource name and optional prefix.
+      output:
+        - Output includes resource-relative document entries with path, name, category, extension, and size.
+      errors:
+        - Unknown resources, root failures, traversal denial, and scan failures emit declared signals.
+    non_goals:
+      - Does not read document body content.
+      - Does not let runtime input choose roots, include patterns, extension allowlists, or parser modes.
+    parameters:
+      type: object
+      properties:
+        resource:
+          type: string
+          description: Configured resource name.
+        prefix:
+          type: string
+          description: Optional resource-relative prefix filter.
+      required: [resource]
+    emits: [DocumentListReady, DocumentResourceDenied, CommandError]
+    output:
+      description: Structured document list entries from the configured resource.
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            path: {type: string}
+            name: {type: string}
+            category: {type: string}
+            extension: {type: string}
+            size: {type: integer}
+    side_effects:
+      - kind: filesystem_read
+        target: configured_document_resource
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Resource listing is read-only.
+    config:
+      resources: {}
+
+  - name: read_resource
+    type: builtin
+    category: boundary
+    init: read_resource
+    description: Read one document from a configured filesystem resource.
+    problem: Machine and REST words need safe document reads whose corpus authority stays in trusted configuration.
+    goals:
+      - Read one resource-relative document path.
+      - Enforce configured include rules, extension allowlists, size limits, and response modes.
+      - Return raw content, parsed content, content type, extension, and size when configured.
+    requirements:
+      input:
+        - Runtime input may choose only the configured resource name and resource-relative path.
+      output:
+        - Output includes path, content metadata, raw content when enabled, and parsed content when enabled.
+      errors:
+        - Missing files, denied paths, parse failures, and infrastructure failures emit distinct declared signals.
+    non_goals:
+      - Does not mutate documents or approve patch suggestions.
+      - Does not let runtime input choose parser mode, maximum bytes, root, include patterns, or extension policy.
+    parameters:
+      type: object
+      properties:
+        resource:
+          type: string
+          description: Configured resource name.
+        path:
+          type: string
+          description: Resource-relative document path.
+      required: [resource, path]
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    output:
+      description: Structured document detail from the configured resource.
+      schema:
+        type: object
+        properties:
+          path: {type: string}
+          raw: {type: string}
+          parsed: {type: object}
+          content_type: {type: string}
+          extension: {type: string}
+          size: {type: integer}
+    side_effects:
+      - kind: filesystem_read
+        target: configured_document_resource
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Resource reading is read-only.
+    config:
+      resources: {}

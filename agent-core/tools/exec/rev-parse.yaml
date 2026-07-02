@@ -1,0 +1,9 @@
+tools:
+- name: rev_parse
+  binary: git
+  args:
+  - rev-parse
+  - --short
+  - HEAD
+  description: Return the short hash of HEAD.
+  precondition: git_repo

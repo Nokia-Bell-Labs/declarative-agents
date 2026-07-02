@@ -1,0 +1,246 @@
+id: srd013-standard-tool-library
+title: Standard Tool Library (STL)
+
+problem: |
+  Every agentic agent needs a common set of tools: file operations (read,
+  write, edit, find, list), build tools (build, vet, lint, test), LLM
+  interaction commands (invoke_llm, parse_response), and subprocess
+  utilities. Without a shared library, each agent reimplements these tools
+  with inconsistent interfaces and behavior. The STL provides production-
+  ready implementations that any agent can import and register.
+
+  This SRD is the overview for the shared standard tool library. The current
+  internal/tools/stl package is a compatibility facade during migration. The
+  long-term implementation is split across focused packages under
+  internal/tools. Focused tool architecture contracts live in:
+  - srd021-agent-cli-exec-tool for treating agent as a configured CLI tool
+  - srd022-builtin-tools for builtin declarations and factories
+  - srd023-cli-exec-tools for external CLI/exec tool declarations
+  - srd024-blocking-input-tools for tools that block waiting for input
+
+goals:
+  - G1: Shared file tools (read, write, edit, find, list_files) confined to a workspace root.
+  - G2: Shared build tools (build, vet, lint, test) for Go projects.
+  - G3: LLM interaction commands (invoke_llm, parse_response, report_parse_error, reset_history, nudge_reread, done) with tracing.
+  - G4: Subprocess execution utilities with process group management.
+  - G5: YAML-based tool registration via BuiltinRegistry and tool declaration files.
+  - G6: Evaluation harness tools for atomic point workspace setup, config dumping, agent execution, result checking, and metrics collection.
+  - G7: Machine-declared validation sequences using atomic build, lint, and test tools; validate remains only as an internal compatibility aggregator.
+  - G8: Cross-reference focused tool SRDs rather than duplicating their detailed architectural contracts.
+  - G9: Split long-term tool implementations into focused internal/tools packages while keeping internal/tools/stl as a temporary facade.
+
+requirements:
+  R1:
+    title: File tools
+    items:
+      - R1.1: read tool reads file contents with optional line range (startLine, endLine).
+      - R1.2: write tool creates or overwrites a file at a validated path.
+      - R1.3: edit tool performs search-and-replace operations on files.
+      - R1.4: find tool searches file contents using ripgrep with workspace confinement.
+      - R1.5: list_files tool lists directory contents.
+      - R1.6: All file tools validate paths against the workspace root via ValidatePath.
+
+  R2:
+    title: Build tools
+    items:
+      - R2.1: build runs go build ./... in the workspace root.
+      - R2.2: vet runs go vet ./... in the workspace root.
+      - R2.3: lint runs golangci-lint run in the workspace root.
+      - R2.4: test runs go test ./... in the workspace root.
+
+  R3:
+    title: LLM tools
+    items:
+      - R3.1: invoke_llm assembles messages via PromptAssembler, calls Chat, and appends the response to the conversation.
+      - R3.2: parse_response extracts tool calls from LLM output using a ResponseParser. The "done" tool call is recognised inside parse_response at the LLM pipeline level to signal TaskCompleted. DoneBuilder also exists as a standalone builtin (see R9.2).
+      - R3.3: report_parse_error feeds parse failure feedback back to the LLM, classifying the error via ClassifyParseError.
+      - R3.4: reset_history clears the Conversation for a fresh LLM context, emitting the previous message count as a span attribute.
+      - R3.5: invoke_llm checks ContextLimit; if estimated tokens exceed the limit it returns CommandError before calling Chat.
+      - R3.6: invoke_llm supports CallTimeout (per-call context deadline) and NumCtx (Ollama context window size forwarded via ChatOptions).
+      - R3.7: invoke_llm emits verbose OTel attributes (genai input/output messages) when Verbose is true.
+
+  R4:
+    title: Subprocess utilities
+    items:
+      - R4.1: SubprocessResult maps subprocess output and error to a core.Result with ToolDone or ToolFailed signals.
+      - R4.2: ProcGroupCmd sets up a command to run in its own process group for clean cancellation.
+      - R4.3: RunInProcGroup executes a command with process group management, capturing stdout, stderr, exit code, and elapsed time.
+      - R4.4: CapOutput truncates output to a maximum line count, appending an omission summary. DefaultOutputLineCap (200) is the default limit.
+      - R4.5: ExtractStringParam extracts a named string parameter from a serialised JSON tool request for use by tool builders.
+
+  R7:
+    title: Metrics helpers
+    items:
+      - R7.1: ParseTestMetrics extracts pass/fail/skip counts from go test output. Detects build-failed state (no tests ran).
+      - R7.2: ParseBuildMetrics extracts unique file-level error counts from go build output.
+
+  R5:
+    title: Tool registration
+    items:
+      - R5.1: BuiltinRegistry maps tool init names to factory functions that produce core.Builder instances.
+      - R5.2: Tool declaration YAML files (builtin.yaml, exec.yaml) define tool metadata (name, type, init, visibility, description, parameters).
+      - R5.3: RegisterSingleBuiltin resolves a ToolDef against the BuiltinRegistry and registers the resulting Builder in the core.Registry.
+      - R5.4: LoadToolDefs parses YAML tool declaration files and returns ToolDef slices. This is the legacy path; production uses LoadToolDeclarations + LoadToolSelection + SelectTools.
+      - R5.5: Legacy RegisterFileTools, RegisterBuildTools, and RegisterAll helpers remain for programmatic use.
+
+  R6:
+    title: Workspace utilities
+    items:
+      - R6.1: ValidatePath normalizes paths against the workspace root, resolves symlinks, and rejects escapes.
+
+  R8:
+    title: Validation tool
+    items:
+      - R8.1: Final generator validation SHOULD be declared in machine.yaml as explicit tool transitions (for example build → lint → test), not hidden inside a composite Go tool.
+      - R8.2: validate MAY run an explicitly supplied validation tool sequence and emit ValidationPassed or ValidationFailed only for compatibility machines that explicitly select aggregate validation.
+      - R8.3: validate SHALL be internal-only and SHALL NOT appear in LLM tool lists.
+      - R8.4: validate SHALL be documented as a boundary aggregator, not a normal vocabulary word.
+
+  R9:
+    title: Nudge and done tools
+    items:
+      - R9.1: nudge_reread appends a re-read instruction after file edits to prompt the model to verify changes.
+      - R9.2: done is a standalone builtin tool that signals TaskCompleted with a summary message.
+
+  R10:
+    title: Evaluation harness tools
+    items:
+      - R10.0: The evaluator session machine uses atomic suite setup tools rather than a composite load_suite tool.
+      - R10.0.1: parse_suite_config reads and validates suite YAML metadata and resolves the samples directory.
+      - R10.0.2: discover_suite_samples discovers sample workspaces and docs from the resolved samples directory.
+      - R10.0.3: expand_eval_grid expands suite grid parameters into specific grid points.
+      - R10.0.4: init_eval_session creates the evaluator session output directory and resolves runtime defaults.
+      - R10.0.5: report_suite_summary reports suite dimensions and total point count.
+      - R10.1: The evaluator point machine uses atomic workspace preparation tools rather than a composite prepare_workspace tool.
+      - R10.1.1: create_point_dir creates a point directory and sets PointContext.PointDir and PointContext.TracePath.
+      - R10.1.2: copy_sample_workspace copies sample workspace files into the current point directory.
+      - R10.1.3: copy_sample_docs copies optional sample docs into the current point directory.
+      - R10.1.4: init_workspace_repo initializes git in the current point directory.
+      - R10.1.5: stage_workspace_baseline stages the baseline workspace contents.
+      - R10.1.6: commit_workspace_baseline creates the baseline git commit.
+      - R10.2: dump_config serializes the full experiment configuration (harness, model, tools, tool declarations, LLM config, budget) into experiment.yaml.
+      - R10.3: run_agent executes the generator binary as a subprocess with flag propagation and collects exit code, timing, and output.
+      - R10.4: run_oracle_check runs oracle tests and records PointContext.TestsPassed and PointContext.TestOutput, using OracleCheckPassed or OracleCheckFailed to distinguish domain failure from CommandError.
+      - R10.5: collect_trace_tokens parses trace files to extract token usage into PointContext.Tokens; a missing trace file is a successful zero-token result.
+      - R10.6: check_agent_version compares configured harness version against trace metadata and emits AgentVersionMismatch as a warning signal when they differ.
+      - R10.7: summarize_point_results emits ResultsCollected from already-populated oracle, trace, and version state.
+      - R10.8: collect_metrics writes evaluation metadata (exit code, duration, test results, tokens) to meta.json.
+
+target_package_layout:
+  status: planned
+  notes:
+    - Tool declaration loading, selection, ToolDef contracts, ToolSpec conversion, and config decoding move to internal/tools/catalog.
+    - BuiltinRegistry, RegisterSingleBuiltin, RegisterUnifiedTools, selected init discovery, and standard factory catalog wiring move to internal/tools/registry.
+    - ExecBuilder, ExecCmd, parameter-to-argv mapping, output caps, preconditions, and exec undo mementos move to internal/tools/exec.
+    - read, write, edit, find, list_files, path validation, file snapshots, and workspace restore mementos move to internal/tools/filesystem.
+    - invoke_llm, parse_response, report_parse_error, reset_history, nudge_reread, done, and conversation undo mementos move to internal/tools/llm.
+    - suspend, checkpoint_history, checkpoint_rollback, and lifecycle checkpoint adapters move to internal/tools/lifecycle.
+    - self_invoke and other child-agent or loop-control boundary tools move to internal/tools/control.
+    - validate compatibility aggregation and spec audit commands move to internal/tools/validation.
+    - Shared UndoMemento payloads, workspace restore payloads, and boundary compensation helpers move to internal/tools/undo.
+    - internal/tools/stl remains only as a temporary compatibility facade while callers migrate.
+
+target_declaration_layout:
+  status: planned
+  notes:
+    - Builtin declarations move from flat tools/builtin/ files into grouped shared families under tools/builtin/filesystem, llm, lifecycle, control, validation, planner, evaluator-session, evaluator-point, bench, and spec-validation.
+    - Exec declarations move from flat tools/exec/ files into grouped shared families under tools/exec/go, workspace, git, and beads.
+    - tools/builtin.yaml and tools/exec.yaml remain compatibility bundles during migration.
+    - Planned all.yaml and agent-family bundles may include grouped files for profiles, direct CLI startup, and tests.
+    - Agent-local overrides remain under agents/<agent>/builtin.yaml and agents/<agent>/llm/*.yaml.
+    - Agent tools.yaml files remain name-only selections.
+
+non_goals:
+  - Domain-specific tools (those are registered by individual agents).
+  - Tool parameter validation beyond path confinement.
+  - Retry or error recovery logic.
+  - Full builtin declaration/factory contract (see srd022-builtin-tools).
+  - Full CLI/exec declaration and argv mapping contract (see srd023-cli-exec-tools).
+  - Agent-as-child-CLI invocation contract (see srd021-agent-cli-exec-tool).
+  - Blocking input tool lifecycle contract (see srd024-blocking-input-tools).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: File tools (read, write, edit, find, list_files) operate within workspace root boundaries. ValidatePath rejects path escapes.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R6.1]
+
+  - id: AC2
+    criterion: Build tools (build, vet, lint, test) execute Go toolchain commands and return structured results.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC3
+    criterion: LLM tools (invoke_llm, parse_response, report_parse_error, reset_history) integrate with Conversation, ResponseParser, and PromptAssembler. invoke_llm enforces ContextLimit, CallTimeout, and NumCtx. The "done" tool call is handled by parse_response at the LLM pipeline level; DoneBuilder exists as a standalone builtin.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7]
+
+  - id: AC4
+    criterion: SubprocessResult maps output to ToolDone/ToolFailed. ProcGroupCmd enables process group cancellation. CapOutput and ExtractStringParam support tool builders.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+
+  - id: AC7
+    criterion: ParseTestMetrics and ParseBuildMetrics extract structured ToolMetrics from go test and go build output.
+    traces: [R7.1, R7.2]
+
+  - id: AC5
+    criterion: BuiltinRegistry maps init names to factory functions. YAML tool declarations are loaded via LoadToolDeclarations + LoadToolSelection + SelectTools (production path) or the legacy LoadToolDefs, and registered via RegisterSingleBuiltin. Legacy Register* helpers remain available.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+
+  - id: AC8
+    criterion: Generator validation order is visible in machine.yaml; validate only runs an explicitly supplied sequence when selected, remains internal-only, and is documented as a compatibility boundary aggregator. nudge_reread appends re-read instructions. done signals TaskCompleted.
+    traces: [R8.1, R8.2, R8.3, R8.4, R9.1, R9.2]
+
+  - id: AC9
+    criterion: Evaluation harness tools orchestrate a complete evaluation point lifecycle with machine-declared atomic workspace setup, workspace isolation, config snapshotting, oracle checking, trace token extraction, version checking, result summarization, and metrics persistence.
+    traces: [R10.0, R10.0.1, R10.0.2, R10.0.3, R10.0.4, R10.0.5, R10.1, R10.1.1, R10.1.2, R10.1.3, R10.1.4, R10.1.5, R10.1.6, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Command, Result, Signal, Cost, Builder, ToolDone, ToolFailed, CommandError]
+  - srd_id: srd004-tool-registry
+    symbols_used: [Registry, ToolSpec, Register]
+  - srd_id: srd010-conversation
+    symbols_used: [Conversation]
+  - srd_id: srd007-tracer-interface
+    symbols_used: [Tracer]
+  - srd_id: srd021-agent-cli-exec-tool
+    symbols_used: [agent]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry, RegisterSingleBuiltin, ToolDef]
+  - srd_id: srd023-cli-exec-tools
+    symbols_used: [ExecBuilder]
+  - srd_id: srd024-blocking-input-tools
+    symbols_used: [invoke_llm, serve_ui]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Every agentic agent needs a common set of tools: file..."] --> Goals["Goals: Standard Tool Library (STL)"]
+      Goals --> R1["R1: File tools"]
+      Goals --> R2["R2: Build tools"]
+      Goals --> R3["R3: LLM tools"]
+      Goals --> R4["R4: Subprocess utilities"]
+      Goals --> R7["R7: Metrics helpers"]
+      Goals --> R5["R5: Tool registration"]
+      Goals --> R6["R6: Workspace utilities"]
+      Goals --> R8["R8: Validation tool"]
+      Goals --> R9["R9: Nudge and done tools"]
+      Goals --> R10["R10: Evaluation harness tools"]
+      AC1["AC1: File tools (read, write, edit, find, list_files) operate..."]
+      R1 --> AC1
+      R6 --> AC1
+      AC2["AC2: Build tools (build, vet, lint, test) execute Go toolchain..."]
+      R2 --> AC2
+      AC3["AC3: LLM tools (invoke_llm, parse_response, report_parse_error..."]
+      R3 --> AC3
+      AC4["AC4: SubprocessResult maps output to ToolDone/ToolFailed. Proc..."]
+      R4 --> AC4
+      AC7["AC7: ParseTestMetrics and ParseBuildMetrics extract structured..."]
+      R7 --> AC7
+      AC5["AC5: BuiltinRegistry maps init names to factory functions. YAM..."]
+      R5 --> AC5
+      AC8["AC8: Generator validation order is visible in machine.yaml; va..."]
+      R8 --> AC8
+      R9 --> AC8
+      AC9["AC9: Evaluation harness tools orchestrate a complete evaluatio..."]
+      R10 --> AC9
+    ```

@@ -1,0 +1,73 @@
+tools:
+- name: run_agent
+  type: builtin
+  init: run_agent
+  visibility: internal
+  emits:
+  - HarnessFinished
+  - HarnessFailed
+  - HarnessTimedOut
+  - CommandError
+  description: Run the agent binary on the prepared workspace and collect exit code, timing, and output.
+  category: boundary
+  side_effects:
+  - kind: child_process
+    target: harness_agent
+    description: Runs the configured agent binary for the current point.
+  - kind: filesystem_write
+    target: point_workspace
+    description: The harness agent may mutate files in the point workspace.
+  - kind: state_mutation
+    target: point_context
+    state: harness_result_recorded
+    description: Records exit code, timing, stdout, stderr, timeout, and trace path.
+  reversibility:
+    classification: compensatable
+    undo: workspace_restore_and_point_context_restore
+  undo:
+    strategy: compensating_action
+    description: Restore point context and workspace refs; external child process effects may require compensation.
+    payload: boundary_compensation
+    captures:
+    - point_context_snapshot
+    - point_workspace
+    - trace_path
+    - result_path
+    requires:
+    - Workspace
+  problem: The machine needs a declared word for running one evaluator harness agent without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the run_agent action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'run_agent: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: run_agent command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

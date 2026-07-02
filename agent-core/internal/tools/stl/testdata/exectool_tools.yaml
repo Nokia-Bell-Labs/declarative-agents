@@ -1,0 +1,39 @@
+tools:
+  - name: greet
+    type: exec
+    binary: echo
+    args: [hello]
+    dir: scripts
+    precondition: git_repo
+    output_cap: 25
+    visibility: external
+    emits: [ToolDone, ToolFailed]
+    side_effects:
+      - kind: stdout
+        description: "Writes greeting text to stdout."
+    description: "Say hello"
+    parameters:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "Name to greet"
+          flag: --name
+        loud:
+          type: boolean
+          description: "Shout"
+          flag: --loud
+          bool_flag: true
+      required: [name]
+  - name: list_dir
+    binary: ls
+    args: [-la]
+    description: "List directory"
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Directory to list"
+          positional: true
+          default: "."

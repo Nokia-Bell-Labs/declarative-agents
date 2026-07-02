@@ -1,0 +1,134 @@
+id: cfg-tool-selection-format
+title: Tool Selection Format (tools.yaml)
+
+purpose: |
+  Defines the simple name-list format used by each agent's tools.yaml
+  to select which declared tools are available to that agent. This
+  separates tool declaration semantics from per-agent availability, enabling
+  tool reuse across agents with different toolsets.
+
+schema:
+  - field: tools
+    type: "[]string"
+    required: true
+    description: |
+      List of tool names to make available to the agent. Each name
+      must match a tool declared by the selected profile's
+      tool_config_dirs and tool_declarations. Unknown names cause a
+      startup error.
+
+cli_mapping:
+  description: |
+    Startup uses an agent profile. It points at one or more tools.yaml
+    selection files, tool_config_dirs containing individual declaration YAML
+    files, and optional explicit tool_declarations such as agent-local LLM or
+    override files. The normal CLI exposes only --profile for agent identity.
+    Tool selection paths and declaration paths belong to the profile.
+  flags:
+    - flag: --profile
+      repeatable: false
+      description: |
+        Preferred agent entry point. The profile supplies tool selection
+        files, declaration directories, and explicit declaration files.
+        Relative paths are resolved from the profile file.
+
+  removed_flags: |
+    cmd/agent no longer accepts --tools, --tools-declaration, or
+    --tool-config-dir startup flags. Profile YAML owns those paths.
+
+selection_files:
+  - file: <profile-root>/generator/tools.yaml
+    tool_count: 15
+    description: |
+      Selects file operations (read, write, edit, find, list_files),
+      build/test tools (build, vet, lint, test), and internal pipeline
+      tools for the LLM-driven coding loop (invoke_llm, parse_response,
+      report_parse_error, reset_history, nudge_reread, done). Final
+      validation order is declared directly in machine.yaml as
+      build → lint → test.
+
+  - file: <profile-root>/evaluator/tools.yaml
+    tool_count: 8
+    description: |
+      Selects session-level tools for <profile-root>/evaluator/machine.yaml:
+      parse_suite_config, discover_suite_samples, expand_eval_grid,
+      init_eval_session, report_suite_summary, next_point, run_point,
+      and report_session.
+
+  - file: <profile-root>/evaluator/tools-point.yaml
+    tool_count: 13
+    description: |
+      Selects per-point tools for <profile-root>/evaluator/point.yaml:
+      create_point_dir, copy_sample_workspace, copy_sample_docs,
+      init_workspace_repo, stage_workspace_baseline,
+      commit_workspace_baseline, dump_config, run_agent,
+      run_oracle_check, collect_trace_tokens, check_agent_version,
+      summarize_point_results, and collect_metrics. Loaded by run_point
+      to build the nested point registry.
+
+  - file: <profile-root>/planner/tools.yaml
+    tool_count: 12
+    description: |
+      Selects planning tools (extract_task, extract_all,
+      assemble_prompt, parse_plan, create_issue, execute_task,
+      check_result), LLM tools (invoke_llm, reset_history),
+      and direct build/test transition tools (build, vet, test).
+
+  - file: <profile-root>/jurist/tools.yaml
+    tool_count: 3
+    description: |
+      Name-only selection of 3 tools (load_corpus, validate_specs,
+      format_report). Declarations are loaded from the profile's
+      shared builtin declaration directory.
+
+  - file: <profile-root>/bench/tools.yaml
+    tool_count: 2
+    description: |
+      Selects the two bench agent tools: serve_ui (blocks on
+      user input via web UI) and launch_eval (spawns the configured
+      evaluator profile as a child process). Shared declarations are
+      loaded from tools/builtin/ and bench-specific config comes from
+      <profile-root>/bench/builtin.yaml.
+
+grouped_declaration_loading:
+  status: planned
+  rule: |
+    Tool selection files stay name-only during and after the declaration
+    grouping migration. A selection file never names tools/builtin/*,
+    tools/exec/*, or bundle files. Profiles and CLI flags choose declaration
+    sources; tools.yaml chooses tool names from those sources.
+  compatibility:
+    - Existing profiles must keep loading while declarations move into grouped files.
+    - tools/builtin.yaml and tools/exec.yaml remain compatibility bundles for direct CLI startup.
+    - Profile-local tool_declarations continue to load after shared groups so local config can override shared identity.
+    - A selected name must resolve after all shared groups, bundles, and local overrides are merged.
+  agent_selection_intent: |
+    Generator profiles load builtin/filesystem, builtin/llm, and exec/go shared
+    groups, then load <profile-root>/generator/llm/*.yaml for model-boundary config.
+    The build, lint, and test order remains in machine.yaml.
+
+    Planner profiles load builtin/planner, builtin/llm, and exec/go groups.
+    They add <profile-root>/planner/builtin.yaml for child-agent config and
+    <profile-root>/planner/llm/*.yaml for model config.
+
+    Evaluator profiles load builtin/evaluator-session and
+    builtin/evaluator-point declarations. The agent-local
+    <profile-root>/evaluator/builtin.yaml file supplies suite and point-machine config,
+    and run_point loads <profile-root>/evaluator/tools-point.yaml for the nested point
+    machine.
+
+    Bench profiles load builtin/bench declarations and keep evaluator child
+    profile config in <profile-root>/bench/builtin.yaml. Jurist profiles load only
+    builtin/spec-validation. Lifecycle history and rollback profiles load
+    builtin/lifecycle; approval profiles add suspend and done through their own
+    tools.yaml.
+
+related_documents:
+  - cfg-tool-declaration-format
+  - srd013
+  - srd022
+  - srd023
+
+implementation:
+  - internal/tools/catalog/loading.go
+  - internal/tools/catalog/profile.go

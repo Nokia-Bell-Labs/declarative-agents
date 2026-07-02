@@ -1,0 +1,71 @@
+id: srd016-traceparent
+title: W3C Traceparent Parse and Format
+
+problem: |
+  Agents that receive a parent trace context from an external caller need
+  to parse the W3C traceparent header and inject it into the Go context
+  so that OTel spans are linked to the parent trace. Without a shared
+  parser, each agent implements its own traceparent handling.
+
+goals:
+  - G1: Parse W3C traceparent version-00 headers into OTel SpanContext.
+  - G2: Format SpanContext back to a W3C traceparent string.
+  - G3: Convenience function to create a context with a remote parent span.
+
+requirements:
+  R1:
+    title: ParseTraceparent
+    items:
+      - R1.1: "ParseTraceparent(tp string) parses a W3C traceparent header with format \"00-<traceID>-<spanID>-<flags>\"."
+      - R1.2: Returns a remote SpanContext on success, error on malformed input.
+      - R1.3: Rejects non-00 version prefixes.
+      - R1.4: Validates trace-id, span-id, and trace-flags hex encoding.
+
+  R2:
+    title: FormatTraceparent
+    items:
+      - R2.1: "FormatTraceparent(sc SpanContext) builds a W3C traceparent string from a SpanContext."
+      - R2.2: Returns empty string for invalid SpanContext.
+
+  R3:
+    title: ParseParentSpan
+    items:
+      - R3.1: ParseParentSpan(raw string) parses a traceparent and returns a context carrying the remote span.
+      - R3.2: Empty input returns context.Background() with no error.
+      - R3.3: Invalid input returns a descriptive error.
+
+non_goals:
+  - W3C tracestate parsing.
+  - Version negotiation beyond version 00.
+  - Trace context propagation middleware.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: ParseTraceparent correctly parses valid version-00 traceparent headers and rejects malformed input.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+
+  - id: AC2
+    criterion: FormatTraceparent round-trips with ParseTraceparent. Invalid SpanContext returns empty string.
+    traces: [R2.1, R2.2]
+
+  - id: AC3
+    criterion: ParseParentSpan returns a context with remote span, handles empty input, and wraps errors.
+    traces: [R3.1, R3.2, R3.3]
+
+depends_on: []
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Agents that receive a parent trace context from an ex..."] --> Goals["Goals: W3C Traceparent Parse and Format"]
+      Goals --> R1["R1: ParseTraceparent"]
+      Goals --> R2["R2: FormatTraceparent"]
+      Goals --> R3["R3: ParseParentSpan"]
+      AC1["AC1: ParseTraceparent correctly parses valid version-00 tracep..."]
+      R1 --> AC1
+      AC2["AC2: FormatTraceparent round-trips with ParseTraceparent. Inva..."]
+      R2 --> AC2
+      AC3["AC3: ParseParentSpan returns a context with remote span, handl..."]
+      R3 --> AC3
+    ```

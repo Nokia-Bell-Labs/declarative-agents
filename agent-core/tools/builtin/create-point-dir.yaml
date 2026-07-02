@@ -1,0 +1,62 @@
+tools:
+- name: create_point_dir
+  type: builtin
+  init: create_point_dir
+  visibility: internal
+  emits:
+  - PointDirCreated
+  - CommandError
+  description: Create the per-point evaluation directory and record trace artifact paths.
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: point_artifacts
+    description: Creates the point output directory under the evaluator session directory.
+  - kind: state_mutation
+    target: point_context
+    state: point_dir_and_trace_path_set
+    description: Sets PointContext.PointDir and PointContext.TracePath for later point tools.
+  reversibility:
+    classification: reversible
+    undo: workspace_restore_and_point_context_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore point context and artifact workspace state from the prior checkpoint.
+    requires:
+    - Workspace
+  problem: The machine needs a declared word for creating one evaluator point directory without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the create_point_dir action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'create_point_dir: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: create_point_dir command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

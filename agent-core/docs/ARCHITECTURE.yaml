@@ -1,0 +1,1527 @@
+id: architecture-agent-core
+title: Agent Core Architecture
+
+overview:
+  summary: |
+    Agent Core is a Go framework for declarative tool-language agents. The
+    cmd/agent binary runs generator, evaluator, planner, jurist, and bench
+    profiles from YAML configuration. Machine specs define state flow. Tool
+    selections define the vocabulary. Boundary-tool configs define model,
+    process, lifecycle, and REST behavior. Bench also serves an embedded web UI
+    for experiment browsing and evaluation launch.
+
+    Four layers cooperate at runtime. The engine layer is internal/runtime/core.
+    Domain-neutral loop machinery, command dispatch, registry behavior,
+    checkpoint operations, and machine configuration live there. Adapters call core
+    operations for run, resume, rollback, and history. The engine understands
+    State, Signal, and Command values. It does not know coding tools, model
+    providers, or workspace files.
+
+    Infrastructure packages are shared by all agent profiles. Observability
+    packages own tracing, telemetry, traceparent, GenAI attributes, and the
+    embedded monitor store. Model packages own the LLM boundary, conversations,
+    profiles, parsing, and prompt assembly. Focused internal/tools packages own
+    catalog, registry, exec, filesystem, LLM, REST, lifecycle, control,
+    validation, undo, and temporary STL facade behavior. Monitor readers expose
+    cached runtime metrics through OpenTelemetry and REST/OpenAPI read models
+    for live agent state. Evaluation and support packages provide session
+    runtime, result artifacts, metrics, CLI helpers, and subprocess utilities.
+
+    Domain packages support specific workflows. Planning packages parse plans,
+    extract tasks, build requirement graphs, and materialize issues.
+    internal/support/execute runs child agents with process groups. pkg/spec
+    parses and validates the specification corpus without importing internal
+    tool packages.
+
+    External agent profile YAML, core-owned tools, and docs/specs YAML make up
+    the configuration layer. Profiles choose machines, tool selections,
+    declarations, and boundary-tool configs from an agent-profiles checkout or
+    bundle. Specification YAML explains the requirements, semantic models, use
+    cases, and formal tests. Configuration is the agent program; changing agent
+    behavior should not require new Go code.
+
+  layer_diagram: |
+    ```mermaid
+    flowchart TB
+      subgraph Config["Configuration and Specifications"]
+        MACH[agent-profiles/agents/*/machine.yaml]
+        SEL[agent-profiles/agents/*/tools.yaml]
+        DEF[tools/*.yaml]
+        BCFG[agent-profiles/agents/*/llm/*.yaml boundary tool configs]
+        SPECS[docs/specs/*.yaml]
+      end
+
+      subgraph Binary["Unified Binary"]
+        AGENT[cmd/agent]
+      end
+
+      subgraph Domain["Domain Workflow Packages"]
+        PIPE[internal/planning/pipeline]
+        PLAN[internal/planning/plan]
+        EXTRACT[internal/planning/extract]
+        REQGRAPH[internal/planning/graph]
+        MAT[internal/planning/materialize]
+        EXEC[internal/support/execute]
+        SPEC[pkg/spec]
+        BENCH[internal/evaluation/bench]
+      end
+
+      subgraph Infra["Reusable Infrastructure"]
+        MODEL[internal/model/llm and internal/model/llm/ollama]
+        PROMPT[internal/model/prompt]
+        TOOLS[internal/tools focused packages]
+        STL[internal/tools/stl compatibility facade]
+        TELE[internal/observability/telemetry]
+        TRACE[internal/observability/tracing]
+        CLI[internal/support/cli]
+        SUB[internal/support/subprocess]
+      end
+
+      subgraph Engine["Engine"]
+        CORE[internal/runtime/core]
+      end
+
+      Config --> AGENT
+      AGENT --> CORE
+      AGENT --> Domain
+      AGENT --> Infra
+      PIPE --> PLAN
+      PIPE --> EXTRACT
+      PIPE --> MAT
+      EXTRACT --> REQGRAPH
+      EXEC --> SUB
+      EXEC --> CLI
+      BENCH --> TOOLS
+      STL --> TOOLS
+      TOOLS --> CORE
+      MODEL --> CORE
+      TELE --> TRACE
+      CORE --> TRACE
+    ```
+
+  system_context_diagram: |
+    ```mermaid
+    flowchart LR
+      DEV[Developer or operator] --> AGENT[cmd/agent]
+      AGENT --> CFG[Machine and tool YAML]
+      AGENT --> LOOP[internal/runtime/core Loop]
+      LOOP --> TOOLS[Registered tools]
+      TOOLS --> FS[Workspace filesystem]
+      TOOLS --> MODEL_BOUNDARY[Model boundary]
+      TOOLS --> CHILD[Child agent or external CLI]
+      LOOP --> OTEL[Telemetry exporters]
+      LOOP --> STORE[Optional StateStore]
+      LOOP --> WORK[Optional Workspace]
+      SPEC[docs/specs and pkg/spec] --> CFG
+    ```
+
+  config_dataflow_diagram: |
+    ```mermaid
+    flowchart TD
+      MF[machine.yaml] --> MS[MachineSpec]
+      TSF[tools.yaml] --> SELECT[Tool selection]
+      TDF[tool declaration YAML] --> TD[ToolDef]
+      BCF[boundary tool config YAML] --> BCFG[Boundary tool config]
+
+      TD --> SELECTED[Selected ToolDefs]
+      SELECT --> SELECTED
+      SELECTED --> SPEC[ToolSpec metadata]
+      SELECTED --> BUILDER[Builder factory]
+      SPEC --> REG[Registry]
+      BUILDER --> REG
+      MS --> TABLE[TransitionTable]
+      REG --> TABLE
+      TABLE --> LOOP[core.Loop]
+      BCFG --> BUILDER
+    ```
+
+  target_tool_package_layout:
+    status: current
+    summary: |
+      Long-term tool implementation is split across focused
+      internal/tools packages. The temporary internal/tools/stl package remains
+      only as a compatibility facade for older internal imports.
+
+      MachineSpec still owns sequencing. ToolDef still owns one vocabulary
+      contract for input, output, emitted signals, side effects, errors, and
+      undo or compensation. The package split must not move workflow order out of
+      machine.yaml or make Go tool packages define hidden sentences.
+    packages:
+      - path: internal/tools/catalog/
+        responsibility: |
+          Catalog owns ToolDef, ToolDefsFile, ToolSelectionFile, declaration includes,
+          declaration loading, selection filtering, ToolSpec conversion,
+          LLM-facing schema cleanup, runtime ToolDef contract validation,
+          result-schema compatibility checks, and typed config decoding helpers.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core for ToolSpec conversion
+            - gopkg.in/yaml.v3 for declaration parsing
+            - Go standard library
+          must_not_depend_on:
+            - internal/tools/registry
+            - internal/tools/exec
+            - internal/tools/filesystem
+            - internal/tools/llm
+            - internal/tools/lifecycle
+            - internal/tools/control
+            - internal/tools/validation
+      - path: internal/tools/registry/
+        responsibility: |
+          Registry owns BuiltinRegistry, RegisterSingleBuiltin, RegisterUnifiedTools,
+          selected builtin init discovery, and the standard factory catalog.
+          Factory coordination belongs here, but tool command
+          implementations.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/tools/catalog
+            - tool implementation packages only through narrow factory registration hooks
+          must_not_depend_on:
+            - cmd/agent
+            - internal/evaluation
+            - internal/planning
+      - path: internal/tools/exec/
+        responsibility: |
+          Exec owns ExecBuilder, ExecCmd, CLI parameter-to-argv mapping,
+          precondition handling, output caps, subprocess result conversion,
+          and exec undo memento creation.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/tools/catalog
+            - internal/tools/undo
+            - internal/support/subprocess when execution moves off os/exec
+          must_not_depend_on:
+            - internal/model/llm
+            - internal/evaluation
+            - internal/planning
+      - path: internal/tools/filesystem/
+        responsibility: |
+          Filesystem owns read, write, edit, find, list_files, ValidatePath, path
+          normalization, binary detection, file snapshots, and workspace
+          restore mementos for direct filesystem effects.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/tools/undo
+            - Go standard library
+          must_not_depend_on:
+            - internal/model/llm
+            - internal/support/execute
+      - path: internal/tools/llm/
+        responsibility: |
+          LLM tools own invoke_llm, parse_response, report_parse_error, reset_history,
+          nudge_reread, done, model profile resolution for boundary tools,
+          parse retry state, and conversation undo mementos.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/model/llm
+            - internal/model/llm/ollama
+            - internal/model/prompt
+            - internal/observability/tracing
+            - internal/observability/telemetry/genai
+            - internal/tools/catalog
+            - internal/tools/undo
+          must_not_depend_on:
+            - cmd/agent
+            - internal/evaluation
+            - internal/planning
+      - path: internal/tools/rest/
+        responsibility: |
+          Planned package for declarative REST client and REST server boundary
+          tools. It owns configured REST operation definitions, OpenAPI 3
+          loading and validation, request rendering, response mapping, runtime
+          HTTP client behavior, runtime HTTP server binding, async inbox
+          integration, and shared client/server REST definition types.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/tools/catalog
+            - internal/tools/undo
+            - Go standard library net/http
+            - github.com/getkin/kin-openapi/openapi3
+          must_not_depend_on:
+            - cmd/agent
+            - internal/evaluation
+            - internal/planning
+      - path: internal/tools/lifecycle/
+        responsibility: |
+          Lifecycle owns suspend, checkpoint_history, checkpoint_rollback, lifecycle
+          config structs, and tool adapters that call internal/runtime/core
+          checkpoint operations.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/observability/tracing
+            - internal/tools/catalog
+            - internal/tools/undo
+          must_not_depend_on:
+            - cmd/agent
+            - internal/evaluation
+            - internal/planning
+      - path: internal/tools/control/
+        responsibility: |
+          Control owns state-machine control tools that are not file, exec, LLM, or
+          lifecycle words. This includes self_invoke and child-agent boundary
+          wiring that maps ToolDef config into execute.Config.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/support/execute
+            - internal/observability/tracing
+            - internal/tools/catalog
+            - internal/tools/undo
+          must_not_depend_on:
+            - cmd/agent
+            - internal/evaluation
+            - internal/planning
+      - path: internal/tools/validation/
+        responsibility: |
+          Validation owns validate compatibility aggregation, spec audit tools, validation
+          report formatting, and any validation-only ToolTracker behavior. New
+          build, lint, and test order stays in MachineSpec transitions.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/tools/catalog
+            - internal/tools/registry
+            - pkg/spec for specification audit commands
+          must_not_depend_on:
+            - cmd/agent
+      - path: internal/tools/undo/
+        responsibility: |
+          Undo owns shared UndoMemento payload structs, workspace restore payloads,
+          boundary compensation payloads, and helpers used by tool packages.
+          Rollback traversal order stays outside this package.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - Go standard library
+          must_not_depend_on:
+            - tool implementation packages
+      - path: internal/tools/stl/
+        responsibility: |
+          Remain as a temporary compatibility facade. It may re-export
+          constructor functions, types, and registration helpers needed by
+          existing callers that have not moved yet. It must not receive new
+          long-term tool implementations.
+        dependencies:
+          may_depend_on:
+            - internal/tools/catalog
+            - internal/tools/registry
+            - internal/tools/exec
+            - internal/tools/filesystem
+            - internal/tools/llm
+            - internal/tools/rest
+            - internal/tools/lifecycle
+            - internal/tools/control
+            - internal/tools/validation
+            - internal/tools/undo
+          must_not_depend_on:
+            - cmd/agent
+    dependency_rules:
+      - internal/runtime/core stays below all tool packages. It must not import internal/tools/*.
+      - Tool packages may import internal/runtime/core for Command, Result, Builder, ToolSpec, StateStore, Workspace, and signals.
+      - Tool packages may import internal/tools/catalog for ToolDef and config decoding.
+      - Tool implementation packages may import internal/tools/undo. internal/tools/undo must not import tool implementation packages.
+      - internal/tools/registry may coordinate factory registration through explicit hooks. It must not import cmd/agent or domain packages.
+      - cmd/agent imports target tool packages or registration packages, not the stl facade.
+      - internal/evaluation and internal/planning may import target tool packages only for tool builders they own or reuse. They must not depend on the stl facade.
+      - internal/model/llm remains the model-boundary client package. internal/tools/llm depends on it; internal/model/llm does not depend on tools.
+      - internal/tools/rest owns REST transport behavior. Model-provider HTTP calls may use REST definitions, but model semantics stay in internal/tools/llm.
+    migration_sequence:
+      - step: M1
+        work: Extract internal/tools/catalog first so ToolDef, declaration loading, selection, and config decoding have one source of truth.
+      - step: M2
+        work: Extract internal/tools/registry and keep the standard factory catalog selected by init names.
+      - step: M3
+        work: Move filesystem tools to internal/tools/filesystem and leave stl aliases for existing callers.
+      - step: M4
+        work: Move exec builders and subprocess tool command code to internal/tools/exec.
+      - step: M5
+        work: Move LLM and control tools to internal/tools/llm and internal/tools/control.
+      - step: M6
+        work: Move lifecycle, validation, and undo helpers to their target packages.
+      - step: M6a
+        work: Add internal/tools/rest for configured REST client/server tools without adding new long-term behavior to internal/tools/stl.
+      - step: M7
+        work: Move callers from internal/tools/stl to target packages in cmd/agent, internal/evaluation, internal/planning, internal/model/llm integration points, and internal/runtime/core tests where needed.
+      - step: M8
+        work: Shrink internal/tools/stl to a temporary facade, then remove it when no caller imports it.
+    compatibility_policy: |
+      internal/tools/stl may keep type aliases and wrapper functions for older
+      import paths. New code should import the target package that owns the
+      behavior. Compatibility wrappers must stay thin, must not duplicate logic,
+      and must be removed once callers migrate.
+
+  lifecycle: |
+    Runs proceed through three phases.
+
+    Initialization. The domain agent creates a Registry, registers
+    ToolSpec-Builder pairs, and builds (or loads) a TransitionTable.
+    Budget and LoopHooks are configured before the call to core.Loop.
+
+    Execution. Loop freezes the registry, starts a root span, and
+    enters the iteration loop. Each iteration checks context cancellation and
+    budget before calling StateMachine.Step. Non-terminal states dispatch the
+    returned Command through Dispatch. The loop then accumulates cost, records
+    the event, and calls the OnResult hook. Terminal states resolve RunStatus
+    and exit.
+
+    Completion. Loop sets Duration, logs a summary, and returns
+    RunResult to the caller. The domain agent can extend RunResult
+    with its own fields by embedding core.RunResult.
+
+  loop_flow: |
+    ```mermaid
+    flowchart TD
+      A[Initialize Registry] --> B[Configure Budget]
+      B --> C[core.Loop]
+      C --> D{Context cancelled}
+      D -->|Yes| J[StatusCancelled]
+      D -->|No| E{Budget exceeded}
+      E -->|Yes| K[StatusBudgetExceeded]
+      E -->|No| F[StateMachine.Step]
+      F --> G{Terminal state}
+      G -->|Yes| L[Resolve RunStatus]
+      G -->|No| H[Dispatch Command]
+      H --> I[Accumulate cost]
+      I --> D
+      L --> M[Return RunResult]
+    ```
+
+  runtime_sequence: |
+    ```mermaid
+    sequenceDiagram
+      participant A as cmd/agent
+      participant CFG as YAML config
+      participant R as Registry
+      participant M as MachineSpec
+      participant L as core.Loop
+      participant SM as StateMachine
+      participant D as Dispatch
+      participant C as Command
+      participant T as Tracer
+
+      A->>CFG: load machine, tool selection, declarations
+      A->>R: register selected ToolSpec and Builder pairs
+      A->>M: parse and validate machine.yaml
+      A->>L: call Loop with registry, table, hooks, budget
+      L->>R: freeze registry
+      L->>SM: Step(current state, previous signal)
+      SM-->>L: next state and Command
+      L->>D: Dispatch(Command)
+      D->>T: start execute_tool span
+      D->>C: Execute()
+      C-->>D: Result
+      D-->>L: Result with Signal, Cost, Metrics
+      L->>SM: next Step uses Result.Signal
+    ```
+
+  dispatch_tracing_sequence: |
+    ```mermaid
+    sequenceDiagram
+      participant L as Loop
+      participant D as Dispatch
+      participant C as Command
+      participant T as Tracer
+
+      L->>D: Dispatch(ctx, command, timeout, tracer)
+      D->>T: Push execute_tool span
+      D->>C: Execute()
+      alt command succeeds
+        C-->>D: Result.Signal
+        D->>T: SetAttributes cost and command metadata
+      else command panics or times out
+        D->>T: RecordError
+        D-->>L: CommandError Result
+      end
+      D-->>L: Result with duration filled
+    ```
+
+  tool_language_architecture:
+    summary: |
+      Agent Core treats tools as vocabulary and machine.yaml as grammar. A tool
+      should be a reusable word with a declared contract. A workflow is a
+      sentence, and sentences belong in MachineSpec transitions where states,
+      signals, and actions are visible, validated, traced, and eventually
+      recoverable.
+
+      Separating grammar from vocabulary keeps the program auditable. Hidden Go workflows conceal
+      intermediate signals from startup validation. They also weaken telemetry
+      and rollback because the runtime cannot name each changed state layer.
+      When order lives in machine.yaml, tools stay small and the machine owns
+      branching, retry, validation, and approval gates.
+
+      Current runtime enforcement applies this split to active selected tools through
+      the normal spec audit path. Selected declarations must include complete
+      Grammar Machine contract metadata unless explicitly marked legacy. Child
+      agent boundaries are profile-first (`profile` -> `--profile`), with
+      machine/tools/tool-declaration triples retained only as compatibility
+      fallback. cmd/agent wires builtin capabilities through a centralized
+      factory catalog selected by init names rather than repeated
+      mode-specific branches.
+
+    categories:
+      word: |
+        Normal vocabulary words are single deterministic verbs with typed
+        input, typed output, declared side effects, explicit errors, and a
+        rollback story. Examples include read, edit, build, run_oracle_check,
+        and collect_trace_tokens.
+      stateful_internal: |
+        Stateful internal words mutate agent or command/domain state rather
+        than visible workspace state. Examples include report_parse_error,
+        reset_history, nudge_reread, parse_suite_config, and next_point. These
+        are usually machine actions, not LLM-visible manifest entries.
+      boundary: |
+        Boundary tools intentionally cross into a model, human, child
+        process, nested machine, external CLI, external API, or workspace. It
+        is still a word from the parent machine's point of view, but its
+        contract must make the boundary, emitted signals, side effects, and
+        undo/compensation explicit. Examples include invoke_llm, serve_ui,
+        run_agent, run_point, launch_eval, and self_invoke.
+      sentence: |
+        Sentence tools hide multiple observable verbs behind one name. New
+        tools should not use this category except to mark legacy compatibility.
+        Sentence tools migrate by identifying each verb, declaring word tools,
+        and moving sequencing into machine.yaml.
+
+    composition_rules:
+      - machine.yaml owns workflows, ordering, branching, retries, validation sequences, and approval gates.
+      - ToolDef owns the meaning of one word: problem, parameters, output, emits, side effects, reversibility, undo, errors, and relationships.
+      - ToolSpec is runtime metadata derived from selected ToolDefs and used to register or expose tools.
+      - Builder turns prior Result state or parsed tool input into a Command.
+      - Command.Execute performs the word; Result.Signal returns control to the machine.
+      - Dynamic $tool dispatch selects one vocabulary word dynamically; it does not license hidden workflows inside the selected tool.
+
+    machine_composes_words_diagram: |
+      ```mermaid
+      flowchart TD
+        subgraph Machine["machine.yaml sentence"]
+          A[State: Parsing]
+          B[State: ValidatingBuild]
+          C[State: ValidatingLint]
+          D[State: ValidatingTest]
+          E[State: Succeeded]
+        end
+
+        subgraph Words["tool vocabulary"]
+          W1[done]
+          W2[build]
+          W3[lint]
+          W4[test]
+        end
+
+        A -->|TaskCompleted / action build| B
+        B -->|ToolDone / action lint| C
+        C -->|ToolDone / action test| D
+        D -->|ToolDone| E
+
+        W1 -. returns TaskCompleted .-> A
+        W2 -. returns ToolDone or ToolFailed .-> B
+        W3 -. yields ToolDone or ToolFailed .-> C
+        W4 -. reports ToolDone or ToolFailed .-> D
+      ```
+
+    tool_contract_pipeline_diagram: |
+      ```mermaid
+      sequenceDiagram
+        participant YAML as ToolDef YAML
+        participant Select as Tool selection
+        participant Reg as Registry
+        participant Build as Builder
+        participant Cmd as Command
+        participant Loop as Loop
+        participant Machine as MachineSpec
+
+        YAML->>Select: available vocabulary
+        Select->>Reg: selected ToolSpec and factory config
+        Machine->>Loop: action name from transition
+        Loop->>Reg: Resolve(action)
+        Reg-->>Loop: Builder
+        Loop->>Build: Build(previous Result)
+        Build-->>Loop: Command
+        Loop->>Cmd: Execute()
+        Cmd-->>Loop: Result.Signal
+        Loop->>Machine: transition on signal
+      ```
+
+    boundary_tool_diagram: |
+      ```mermaid
+      flowchart LR
+        P[Parent MachineSpec] -->|action run_agent| B[Boundary ToolDef]
+        B --> C[Command]
+        C --> X[Child process or nested machine]
+        X --> C
+        C -->|declared Result.Signal| P
+        C -->|declared side effects| L[Lifecycle and rollback model]
+        L --> W[Workspace restore or compensation]
+        L --> S[Command/domain state restore]
+      ```
+
+    sentence_tool_migration_diagram: |
+      ```mermaid
+      flowchart LR
+        A[Legacy sentence tool] --> B[Name observable verbs]
+        B --> C[Declare one ToolDef per verb]
+        C --> D[Add emits and side effects]
+        D --> E[Wire sequence in machine.yaml]
+        E --> F[Validate transitions]
+        F --> G[Mark aggregate deprecated compatibility]
+      ```
+
+    references:
+      - docs/specs/config-formats/tool-authoring-standard.yaml
+      - docs/specs/semantic-models/tool-language.yaml
+      - docs/specs/semantic-models/tool-vocabulary-audit.yaml
+      - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
+
+  rest_tool_runtime_architecture:
+    status: partial
+    summary: |
+      Release 03.0 implements declarative REST client and REST server tools as
+      boundary tool families. The runtime package is internal/tools/rest. This
+      package sits beside internal/tools/llm, internal/tools/control, and
+      internal/tools/lifecycle rather than inside internal/tools/stl. The stl
+      package remains a temporary facade only and must not receive long-term
+      REST implementations.
+
+      REST client tools call configured upstreams. REST server tools are
+      launched by configured agent profiles and bind configured addresses.
+      OpenAPI documents and REST definitions live with agent/profile/tool
+      configuration, not compiled code.
+
+      Client and server tools share REST definition types for operations,
+      paths, schemas, auth references, status mapping, side effects, and
+      compensation notes. The runtime validates those definitions before a
+      machine dispatches them.
+
+      Machine request bindings and document resources extend this model for the
+      Knowledge Manager demo. For the document index,
+      documentation_curator_requests.documents is the generic REST server route.
+      For document detail requests, documentation_curator_requests.document is
+      the route. Each accepted request runs one short-lived MachineSpec
+      sentence. The same-origin documentation host owns that request server
+      lazily as a transport adapter over trusted REST profile configuration.
+      Document resources expose a configured filesystem corpus such as docs/
+      through reusable resource words. Knowledge Manager UI assets, labels,
+      routes, actions, and placement live with the documentation-curator profile
+      as human actor configuration.
+
+      Release 03.0 conformance is mostly implemented. Closed REST work now covers
+      client safety, async request metadata, OpenAPI endpoint preservation, REST
+      compensation mementos, machine_request terminal schemas, and explicit
+      document_resources reservation. Active follow-up work is limited to named
+      conformance-test alignment in agent-core-guhn.4 and rollback-time REST
+      compensation execution in agent-core-guhn.5.
+    machine_request_ux_diagram: |
+      ```mermaid
+      flowchart LR
+        B[Browser] --> RS[REST server endpoint]
+        RS --> MR[machine_request binding]
+        MR --> MS[MachineSpec request sentence]
+        MS --> DR[document resource word]
+        DR --> DOC[configured docs corpus]
+        DR --> RW[response word]
+        RW --> HTTP[HTTP response]
+        HTTP --> B
+      ```
+    responsibilities:
+      client: |
+        REST client tools resolve configured operations, validate runtime
+        parameters, render requests, apply configured authentication, call
+        upstreams through net/http, map responses to structured Result output,
+        and emit declared REST signals.
+      server: |
+        REST server tools load configured routes, bind configured addresses,
+        validate incoming requests, map accepted requests to inbox messages or
+        declared grammar signals, expose health/state endpoints when configured,
+        and shut down through tool lifecycle or agent shutdown.
+      machine_request: |
+        Machine request bindings validate one inbound HTTP request, seed a
+        configured request machine, run core.Loop for that short-lived sentence,
+        and map terminal response word output back to HTTP. The Knowledge
+        Manager proof uses the generic REST server routes
+        documentation_curator_requests.documents and
+        documentation_curator_requests.document, not a docs-specific runner.
+        Profile-backed request runners load ToolDefs from trusted declaration
+        roots and select only actions named by the request MachineSpec.
+      document_resources: |
+        Document resources resolve configured filesystem roots, include
+        patterns, extension allowlists, response modes, and path safety policy.
+        They return raw or parsed YAML and Markdown content only when trusted
+        config allows it.
+      human_ui_actor_config: |
+        Human-facing UI assets and route/action configuration are actor
+        configuration. They live with the external documentation-curator
+        profile while generic server and document resource code stays reusable
+        across profiles.
+      openapi: |
+        Runtime code uses github.com/getkin/kin-openapi/openapi3 to load,
+        resolve, and validate OpenAPI 3 documents referenced by REST tool
+        configuration. OpenAPI augments REST definitions; it does not generate
+        Go client or server code in the first implementation.
+      async: |
+        Server-side input and long-running client calls use the boundary inbox
+        model described by the async boundary design. Launch words can bind
+        servers or start requests, and await words can receive REST events
+        alongside human, model, or child-agent events.
+      catalog_and_registry: |
+        internal/tools/catalog owns ToolDef loading, selection, and typed
+        config decoding. internal/tools/registry owns builtin factory
+        registration. internal/tools/rest provides factories and command
+        implementations that those packages wire into configured profiles.
+    deployment:
+      - REST server tools are launched by configured agent profiles or by same-origin host proxies that own a configured request server lifecycle as thin adapters over generic REST machine_request routes.
+      - REST server tools bind addresses declared in profile or tool configuration.
+      - REST client tools call upstreams declared in profile or tool configuration.
+      - OpenAPI documents live with agent/profile/tool configuration.
+      - REST definitions live with agent/profile/tool configuration.
+      - Runtime credentials are referenced by configuration and resolved by the agent runtime.
+      - Document resource roots, include patterns, extension allowlists, and response modes live with trusted profile or REST configuration.
+      - Knowledge Manager UI assets and UI-specific action placement live with the documentation-curator profile in agent-profiles.
+      - Generated Go REST clients and servers are out of scope for the first implementation.
+    source_files:
+      current:
+        - internal/tools/rest/
+        - tools/builtin/rest/all.yaml
+        - external agent-profiles/agents/rest/
+        - testdata/integration/rel03-rest-tools/
+        - docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
+        - docs/specs/software-requirements/srd028-rest-client-tools.yaml
+        - docs/specs/software-requirements/srd029-rest-server-tools.yaml
+        - docs/specs/software-requirements/srd030-machine-request-rest-binding.yaml
+        - docs/specs/software-requirements/srd031-declarative-document-resources.yaml
+        - docs/specs/semantic-models/rest-tool-language.yaml
+        - docs/specs/semantic-models/machine-request-http.yaml
+        - docs/specs/semantic-models/document-resource-language.yaml
+        - docs/specs/config-formats/rest-tool-format.yaml
+        - docs/specs/use-cases/rel03.0-uc001-rest-client-sync.yaml
+        - docs/specs/use-cases/rel03.0-uc002-rest-client-async.yaml
+        - docs/specs/use-cases/rel03.0-uc003-rest-server-signals.yaml
+        - docs/specs/use-cases/rel03.0-uc004-openapi-import.yaml
+        - docs/specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml
+        - docs/specs/test-suites/test-rel03.0-rest-tools.yaml
+
+  embedded_monitor_runtime_architecture:
+    status: current
+    summary: |
+      Embedded monitor support runs inside the agent process when a profile
+      configures monitor labels, metric declarations, or monitor REST views.
+      This reusable runtime capability is not a Kubernetes sidecar, daemon, or
+      required external service. A bounded in-memory store records tool and loop
+      metrics so readers can expose live progress without waiting for an
+      external collector.
+
+      Metric meaning stays with each tool family. File tools can emit changed
+      byte counts. Exec tools can emit exit status and output sizes. REST tools
+      can emit operation names, status codes, retry counts, and body sizes.
+      Runtime code owns the common envelope: run ID, tool name, state, signal,
+      timestamp, duration, and status. Tool-owned specialized samples carry
+      that same low-cardinality envelope and trusted workflow labels when those
+      labels are available.
+
+      OpenTelemetry metric export reads normalized samples through the monitor
+      recorder. Export behavior stays separate from tool execution. Export
+      failure does not break the agent loop.
+
+      Cached monitor state backs REST and OpenAPI read paths. Handlers return
+      snapshots and recent sample windows from trusted in-process state. They
+      do not scrape tools, re-run commands, or read arbitrary workspace files.
+      cmd/agent startup allocates the live store, passes it to REST monitor
+      routes, and applies MachineSpec workflow labels to emitted samples.
+      JSON responses use lower_snake_case API field names instead of Go
+      struct field names.
+
+      Monitor serving uses the same lifecycle shape as the Knowledge Manager
+      documentation curator. After a launch word, the REST listener runs in the
+      background. A monitor MachineSpec must not make that launch state
+      terminal. Its next step should be a serving or awaiting state with a
+      blocking await word. A configured control exit request then stops the
+      owned listener and routes the machine to Done or Succeeded. OpenAPI
+      output must include both read endpoints and profile-owned lifecycle
+      control endpoints such as POST /monitor/control/exit.
+
+      The external agent-profiles monitor REST config uses 127.0.0.1:18083 by
+      default. Tests and CLI proofs should avoid sharing that fixed port by
+      binding an isolated localhost address from generated profile config or an
+      explicit runtime override.
+    monitor_flow_diagram: |
+      ```mermaid
+      flowchart LR
+        T[Tool command] -->|metric sample| R[Monitor recorder port]
+        L[Loop runtime] -->|run envelope| R
+        R --> S[In-memory monitor store]
+        S --> M[OpenTelemetry metric exporter]
+        S --> API[REST and OpenAPI read handlers]
+        API --> UI[Monitor UI or supervisor]
+      ```
+    responsibilities:
+      recorder_port: |
+        Recorder ports accept normalized samples from tools and runtime code.
+        Agents without monitor config keep the current disabled-mode behavior.
+      in_memory_store: |
+        Bounded recent state covers active and recent runs. Store reads are
+        optimized for a local UI or supervisor, not durable history.
+      tool_metric_emission: |
+        Each tool family owns specialized metric fields in its ToolDef and
+        command implementation. Shared runtime code must not know every
+        tool-specific metric name.
+      otel_export: |
+        Metric export converts normalized samples into OpenTelemetry metric
+        instruments and attributes. Exporter failures are reported as monitor
+        diagnostics rather than command failures.
+      rest_openapi_reads: |
+        REST handlers expose cached monitor state through configured routes and
+        OpenAPI descriptions. Read handlers return snapshots, time windows, and
+        known metric schemas from trusted monitor state.
+      response_shape: |
+        Stable monitor payloads expose lower_snake_case field names. API
+        readers should not depend on Go struct field names such as RunID,
+        ToolName, or UpdatedAt.
+      serving_lifecycle: |
+        Monitor REST listeners are background servers. Profile grammar keeps
+        cmd/agent alive by awaiting a control event after launch. This follows
+        the agent-profiles documentation-curator machine: launch, await, exit,
+        stop, and reach a success terminal.
+      isolated_binding: |
+        Operator profiles may name a fixed local port. Automated tests and CLI
+        proofs should bind an isolated loopback address so
+        parallel runs and stale listeners do not affect the result.
+    source_files:
+      current:
+        - internal/observability/monitor/
+        - internal/runtime/core/dispatch.go
+        - internal/runtime/core/loop.go
+        - internal/runtime/core/metric_config.go
+        - internal/tools/filesystem/monitor_metrics.go
+        - internal/tools/llm/monitor_metrics.go
+        - internal/tools/rest/monitor_metrics.go
+        - internal/tools/rest/monitor_views.go
+        - internal/tools/rest/monitor_openapi.go
+        - internal/tools/exec/metrics.go
+        - external agent-profiles/agents/monitor/
+        - external agent-profiles/testdata/integration/rel04-monitor/
+        - docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
+        - docs/specs/software-requirements/srd033-monitor-rest-api.yaml
+        - docs/specs/semantic-models/tool-metrics-monitoring.yaml
+        - docs/specs/test-suites/test-rel04.0-monitor.yaml
+      proof:
+        - cmd/agent/main_test.go: TestMonitorReleaseProfileProof
+        - internal/tools/rest/monitor_test.go: TestMonitorREST_FactoryUsesLiveMonitorState
+        - magefiles/integration_monitor.go: mage integration:uc004
+      planned_proof:
+        - cmd/agent/main_test.go: TestMonitorCLIProfileServesUntilControlExit
+
+  container_runtime_architecture:
+    summary: |
+      Release containers package Agent Core as an installed runtime for
+      external configuration repositories. The Dockerfile is multi-stage: the
+      builder stage clones the selected GitLab ref, downloads Go dependencies,
+      runs the test suite, and builds the `agent` binary; the final Alpine
+      runtime stage copies only the binary, common Unix utilities, and
+      core-owned runtime assets.
+
+      Runtime images place shared core assets under `/opt/agent-core`, including
+      core-owned tool declaration roots such as `tools/`. They do not own agent
+      profile directories. Callers provide generator, evaluator, planner, bench,
+      jurist, Knowledge Manager, or other agent profiles by bind mount, release
+      asset unpack, derived image layer, or another explicit external path.
+      Container commands pass `--profile` with the provided profile path and
+      `--directory` with the mounted workspace path.
+
+      External evaluation or profile repositories mount local suites, samples,
+      profile directories, and workspaces into the runtime container. Profiles
+      may reference shared core image assets by absolute path when the contract
+      names those assets as core-owned. The Go toolchain, source checkout, and
+      test dependencies are not copied into the final image. Exec tools that
+      require Go, golangci-lint, or project-specific CLIs therefore need those
+      tools supplied by the mounted workspace, a derived image, or the
+      host/container environment.
+
+      `mage docker` is the canonical release-image build wrapper. It
+      resolves the latest remote release tag unless the operator passes a
+      different revision through mage, passes repository-local `.netrc` credentials as a BuildKit secret
+      when present, chooses Docker when available and Podman as fallback, and
+      prints the exact build command before running it.
+
+  rollback_lifecycle_architecture:
+    status: |
+      Core lifecycle ports, checkpoint operations, history recording, resume,
+      rollback traversal, lifecycle STL adapters, and history/rollback profiles
+      are implemented. Disabled-mode behavior remains the default: when
+      StateStore, Workspace, and CheckpointPolicy are nil or disabled, existing
+      machines run without checkpoint persistence, full history recording, or
+      workspace restore behavior. The remaining release 02.0 proof is an
+      approval-gate reference agent that exercises suspend and resume end to end.
+
+    summary: |
+      Rollback and lifecycle support is architectural because agent programs
+      mutate more than one kind of state. The runtime must keep those state
+      layers separate. Agent state is loop bookkeeping for current position,
+      budget, cost, status, and run summary. Command or domain state is mutable
+      in-process data owned by commands and domains, such as conversation
+      history or evaluator session state. Workspace and environment state is the
+      external filesystem or environment changed by tools, child agents, and
+      evaluator point tools.
+
+      StateStore stores JSON snapshots for agent and command/domain state.
+      Workspace stores external environment refs, with GitWorkspace as the
+      default filesystem implementation. A Checkpoint references all relevant
+      layers without pretending one layer can serialize another.
+
+      Lifecycle history and rollback follow the same profile-first runtime
+      path as other configured programs. Lifecycle profiles select their
+      MachineSpec, tools.yaml selection, and builtin ToolDefs. The selected STL
+      lifecycle tools call reusable core checkpoint operations.
+
+    state_layer_diagram: |
+      ```mermaid
+      flowchart TB
+        subgraph Runtime["Loop runtime"]
+          L[Loop]
+          RR[RunResult]
+          H[History]
+        end
+
+        subgraph AgentState["Agent state JSON"]
+          AS[State, Signal, Iteration, Budget, Cost, Status]
+        end
+
+        subgraph DomainState["Command/domain state JSON"]
+          CONV[Conversation]
+          PLAN[Planner state]
+          EVAL[Evaluator session and PointContext]
+        end
+
+        subgraph WorkspaceState["Workspace/environment state"]
+          FS[Filesystem tree]
+          ART[Generated artifacts]
+          CHILD[Child process effects]
+        end
+
+        L --> AS
+        L --> H
+        RR --> AS
+        CONV --> STORE[StateStore or command snapshot]
+        PLAN --> STORE
+        EVAL --> STORE
+        FS --> WORK[Workspace]
+        ART --> WORK
+        CHILD --> WORK
+        WORK --> GIT[GitWorkspace ref]
+      ```
+
+    checkpoint_capture_diagram: |
+      ```mermaid
+      sequenceDiagram
+        participant L as Loop
+        participant P as CheckpointPolicy
+        participant C as Command or domain owner
+        participant W as Workspace
+        participant S as StateStore
+
+        L->>P: inspect lifecycle event
+        P-->>L: checkpoint enabled
+        L->>L: build AgentSnapshot
+        L->>C: collect command/domain snapshot
+        C-->>L: domain JSON or no snapshot
+        L->>W: CurrentRef or Checkpoint(label)
+        W-->>L: WorkspaceRef
+        L->>S: Save checkpoint JSON
+      ```
+
+    suspend_resume_diagram: |
+      ```mermaid
+      stateDiagram-v2
+        [*] --> Running
+        Running --> AwaitingApproval: machine action emits approval signal
+        AwaitingApproval --> SavingCheckpoint: lifecycle enabled
+        SavingCheckpoint --> Suspended: checkpoint saved
+        Suspended --> LoadingCheckpoint: resume requested
+        LoadingCheckpoint --> RestoringState: checkpoint compatible
+        RestoringState --> Running: StateStore and Workspace restored
+        LoadingCheckpoint --> Failed: missing or incompatible checkpoint
+        SavingCheckpoint --> Failed: required StateStore unavailable
+      ```
+
+    rollback_traversal_diagram: |
+      ```mermaid
+      flowchart TD
+        A[Current iteration] --> B[Load History]
+        B --> C{Reached target iteration?}
+        C -- no --> D[Call Command.Undo]
+        D --> E{Undo succeeded?}
+        E -- yes --> F[Move to previous HistoryEntry]
+        F --> C
+        E -- no --> G[Report partial rollback and remaining state]
+        C -- yes --> H[Restore Workspace target ref]
+        H --> I[Return resumable agent state]
+      ```
+
+    profile_first_lifecycle_diagram: |
+      ```mermaid
+      flowchart LR
+        P[agent-profiles/agents/lifecycle/*/profile.yaml] --> M[Lifecycle MachineSpec]
+        P --> S[tools.yaml selection]
+        P --> D[ToolDef declarations]
+        S --> D
+        D --> R[Registry and BuiltinRegistry]
+        M -->|action checkpoint_history| H[STL checkpoint_history]
+        M -->|action checkpoint_rollback| RB[STL checkpoint_rollback]
+        H --> C[core checkpoint operations]
+        RB --> C
+        C --> STORE[StateStore]
+        C --> WORK[Workspace]
+      ```
+
+    tool_effects_to_lifecycle_diagram: |
+      ```mermaid
+      flowchart LR
+        TD[ToolDef contract] --> SE[side_effects]
+        TD --> RV[reversibility]
+        TD --> UNDO[undo strategy]
+        TD --> ERR[errors and state_after_failure]
+
+        SE --> CLASS{Effect layer}
+        CLASS -->|state_mutation| CMD[Command/domain restore]
+        CLASS -->|filesystem| WS[Workspace restore]
+        CLASS -->|boundary| COMP[Compensation or confirmation]
+
+        CMD --> HIST[HistoryEntry]
+        WS --> HIST
+        COMP --> HIST
+        HIST --> RB[Rollback traversal]
+      ```
+
+    ownership_rules:
+      - StateStore owns JSON blobs for agent and command/domain state; it does not store filesystem trees.
+      - Workspace owns external environment refs; GitWorkspace refs do not serialize conversation history or state-machine position.
+      - Command.Undo owns command/domain restoration because each command knows the state it changed.
+      - MachineSpec owns approval and suspend routing through explicit states and signals.
+      - Loop owns traversal order, checkpoint timing, and lifecycle status, but not domain-specific compensation logic.
+
+    references:
+      - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+      - docs/specs/software-requirements/srd026-lifecycle-tools.yaml
+      - docs/specs/semantic-models/rollback-lifecycle.yaml
+      - docs/specs/test-suites/test-rel02.0-lifecycle.yaml
+      - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
+      - roll-backs.md
+
+  engine_operations:
+    summary: |
+      internal/runtime/core exposes four domain operations.
+      These are the state machine's capabilities, independent of any CLI or
+      build system adapter. Run executes a grammar from its initial state
+      through core.Loop. Resume loads a suspended checkpoint and re-enters the
+      loop through core.ResumeFromCheckpoint. Rollback rewrites a checkpoint to
+      a target iteration by walking the sentence backward through each word's
+      Undo memento. History formats a persisted checkpoint as a readable
+      execution digest. Supporting helpers resolve the latest checkpoint ID and
+      deserialize checkpoint data from a StateStore.
+
+    hexagonal_view: |
+      Core knows nothing about CLI flags, Cobra commands, or Mage targets.
+      Adapters are thin wiring layers that parse external input and call core:
+
+        Profile runtime (cmd/agent)       -> core.Loop / core.ResumeFromCheckpoint
+        checkpoint_history STL adapter    -> core.FormatCheckpointHistory
+        checkpoint_rollback STL adapter   -> core.RollbackFromCheckpoint
+        Mage audit target                 -> runs agent binary with --profile
+
+      Resume and rollback have different dependency requirements:
+      - Resume needs the full engine stack (machine spec, tool definitions,
+        LLM adapter) because it re-enters core.Loop.
+      - Rollback is a pure checkpoint operation: it only needs a StateStore
+        and optionally a Workspace. No grammar or lexicon is loaded.
+
+      That dependency boundary is why lifecycle profiles dispatch separate tool
+      adapters instead of forcing rollback through the resume path. History and
+      rollback are machine actions selected by profiles, not CLI subcommands.
+
+    source_files:
+      - internal/runtime/core/checkpoint_ops.go
+      - internal/runtime/core/checkpoint_ops_test.go
+      - internal/runtime/core/resume.go
+      - internal/runtime/core/rollback.go
+      - internal/tools/lifecycle/checkpoint.go
+      - internal/tools/stl/checkpoint_lifecycle_test.go
+
+  coordination_pattern: |
+    Work flows through the state machine. The loop holds the current
+    State and last Result. StateMachine.Step returns the next State
+    plus a Command (via ActionFunc). The loop dispatches that Command
+    via Dispatch and repeats.
+
+    Domain agents control behavior by supplying State and Signal constants,
+    transition tables, registered tool builders, terminal predicates, and
+    optional LoopHooks. Core only executes the protocol because those inputs
+    remain domain-owned.
+
+    Dependency rules keep the engine below adapters. internal/runtime/core may
+    use tracing ports, GenAI attributes, YAML parsing, and the Go standard
+    library. Observability packages depend on tracing contracts and telemetry
+    SDK packages without importing core. Model packages depend on core, prompt
+    assembly, and tracing. Focused internal/tools packages own catalog,
+    registry, exec, filesystem, LLM, lifecycle, control, validation, and undo
+    responsibilities while internal/tools/stl remains a facade. Domain packages
+    in evaluation and planning depend on core plus the focused tools they use.
+    Support packages own subprocess, CLI, and child-agent execution boundaries.
+    cmd/agent wires core, tools, telemetry, planning, bench, execution, and
+    tracing together.
+
+interfaces:
+  - name: Tracer interface
+    summary: |
+      Port interface for OpenTelemetry tracing (internal/observability/tracing). Five
+      methods: Push (child span), Event (span event), SetAttributes
+      (span metadata), RecordError (error recording with status),
+      Context (span context access). The engine imports this interface;
+      the implementation lives in internal/observability/telemetry (TraceAdapter).
+      Tests and optional tracing paths use NoopTracer.
+
+  - name: Command interface
+    summary: |
+      Single interface for all executable units of work (internal/runtime/core).
+      Three methods: Name() string, Execute() Result, and Undo() Result.
+      Both internal commands (model-boundary invoke, response parsing) and external
+      tools (file I/O, build, test) implement Command. The loop dispatches
+      them uniformly through Dispatch. Undo gives every command an explicit
+      rollback contract, even when the current implementation is a no-op.
+
+  - name: Builder interface
+    summary: |
+      Stateless factory that constructs a ready-to-execute Command
+      from the previous Result (internal/runtime/core). One method: Build(res
+      Result) Command. Builders are registered in the Registry and
+      resolved by name during state machine transitions and YAML
+      machine config loading.
+
+  - name: CommandResolver interface
+    summary: |
+      Lookup interface satisfied by Registry (internal/runtime/core). One method:
+      Resolve(name string) (Builder, bool). Used by domain code that
+      needs to resolve builders without depending on the full Registry
+      type.
+
+components:
+  - name: Types
+    responsibility: |
+      Core type definitions shared across all components. Defines
+      State (string), Signal (string), Command interface, Result
+      struct, Cost struct, ToolMetrics struct, Builder interface,
+      CommandResolver interface, SpanOverride interface, and rollback
+      foundation interfaces for StateStore, Workspace, CheckpointPolicy,
+      Checkpoint, and GitWorkspace. Defines
+      generic signals (Seed, BudgetExhausted, CommandError), standard
+      tool signals (ToolDone, ToolFailed, EditDone), and LLM signals
+      (LLMResponded, ParseFailed, TaskCompleted).
+    capabilities:
+      - Define the State and Signal string types
+      - Define the Command interface (Name, Execute, Undo)
+      - Define Result, Cost, and ToolMetrics structs for command output
+      - Define ToolMetrics for structured success/failure tracking on Result
+      - Define Builder and CommandResolver interfaces
+      - Define SpanOverride interface for custom dispatch span naming
+      - Define StateStore, Workspace, CheckpointPolicy, Checkpoint, and GitWorkspace
+      - Define generic signals (Seed, BudgetExhausted, CommandError)
+      - Define standard tool signals (ToolDone, ToolFailed, EditDone)
+      - Define LLM signals (LLMResponded, ParseFailed, TaskCompleted)
+
+  - name: State Machine
+    responsibility: |
+      Holds an immutable transition table and a terminal-state
+      predicate. Step performs a single (State, Signal) lookup and
+      returns the next state and a Command built by the matching
+      ActionFunc. IsTerminal delegates to the domain-supplied
+      TerminalFunc.
+    capabilities:
+      - Map (State, Signal) pairs to (NextState, ActionFunc) transitions
+      - Build Commands via ActionFunc from the previous Result
+      - Detect terminal states via TerminalFunc
+      - Report unhandled state-signal pairs as errors
+
+  - name: Dispatch
+    responsibility: |
+      Wraps Command.Execute with tracing, timeout, panic recovery,
+      duration measurement, and signal normalization. SafeExecute
+      runs the command in a goroutine with a timer. Dispatch adds
+      an OpenTelemetry child span using GenAI semconv execute_tool
+      naming. Commands implementing SpanOverride customize the span.
+    capabilities:
+      - Execute commands with panic recovery
+      - Enforce per-command timeout
+      - Measure and fill command duration
+      - Normalize error signals (ForceErrorSignal)
+      - Emit GenAI semconv execute_tool spans per dispatch
+      - Support SpanOverride for custom span naming (e.g. LLM inference)
+
+  - name: Registry
+    responsibility: |
+      Pairs ToolSpec metadata (name, description, JSON schema,
+      visibility, phases) with Builders. Supports state-filtered
+      manifest generation. Freezes before the loop starts to prevent
+      mutation during execution.
+    capabilities:
+      - Register ToolSpec-Builder pairs (panics on duplicate or post-freeze)
+      - Freeze the registry to prevent further registration
+      - Resolve a Builder by name
+      - Look up a ToolSpec by name
+      - Generate state-filtered tool listings
+      - Report all tool names or external-only tool names
+
+  - name: Loop
+    responsibility: |
+      Main agentic loop. Drives the state machine from an initial
+      state to a terminal state, dispatching Commands, tracking budget,
+      and collecting events. Domain-specific behavior is injected
+      through LoopHooks callbacks.
+    capabilities:
+      - Drive the state machine through initialization, iteration, and completion
+      - Enforce iteration, token, and wall-clock budget limits
+      - Support domain-specific budget hooks (BudgetExceeded)
+      - Accumulate token usage, cost, and events per iteration
+      - Capture task summary from TaskCompletedSignal
+      - Emit GenAI semconv invoke_agent spans for the entire run and events for each iteration
+      - Support pre-run validation (ValidateParams hook)
+      - Support post-dispatch processing (OnResult hook)
+      - Handle context cancellation
+
+  - name: Machine Config
+    responsibility: |
+      Provides YAML-based declarative state machine configuration.
+      MachineSpec defines states, signals, terminal states, and
+      transitions. ParseMachineSpec validates referential integrity.
+      BuildTransitionTable resolves action names from the Registry.
+    capabilities:
+      - Parse MachineSpec from YAML bytes or file
+      - Validate referential integrity (states, signals, terminals, transitions)
+      - Build a TransitionTable from a MachineSpec and Registry
+      - Support the $tool sentinel for dynamic dispatch
+      - Support empty actions for terminal transitions
+
+  - name: Telemetry
+    responsibility: |
+      OpenTelemetry implementation satisfying the Tracer port
+      interface. Sets up trace and metric providers, manages root span
+      lifecycle, handles file and OTLP export, and provides offline
+      trace replay.
+    capabilities:
+      - Create providers with file and/or OTLP exporters (NewRoot)
+      - Manage root span lifecycle with idempotent shutdown
+      - Atomic file delivery via temp-file-then-rename
+      - Satisfy tracing.Tracer via TraceAdapter
+      - Replay recorded OTLP JSON trace files to a remote collector
+
+design_decisions:
+  - id: 1
+    title: Domain-agnostic engine
+    decision: |
+      Engine types define State, Signal, Command, Budget, Result, registry,
+      state machine, loop, dispatch, and lifecycle ports as abstract runtime
+      concepts. All domain-specific states, signals, tools, and budget
+      dimensions are supplied by the configured agent. No import in internal/runtime/core
+      references coding tools, model-boundary implementations, or any specific domain.
+    benefits:
+      - Multiple agent types share one loop engine
+      - Engine improvements propagate to all agents
+      - Clean testing without domain dependencies
+    alternatives_rejected:
+      - "Embedded domain logic: couples engine to one agent type"
+
+  - id: 2
+    title: Hooks for domain injection
+    decision: |
+      LoopHooks is a struct of optional function callbacks. The domain
+      agent populates only the hooks it needs. No interface
+      implementation or subclassing required.
+    benefits:
+      - Zero-cost for unused hooks (nil check)
+      - New hooks can be added without breaking existing agents
+      - Simpler than interface hierarchies
+    alternatives_rejected:
+      - "Interface with many methods: forces empty stubs"
+      - "Plugin system: overengineered for a Go library"
+
+  - id: 3
+    title: OpenTelemetry for observability
+    decision: |
+      Engine instrumentation emits OpenTelemetry spans and events for state
+      transitions, budget checks, and command dispatch. The Tracer
+      port interface decouples span creation from the OTel SDK setup.
+    benefits:
+      - Industry-standard API, stable Go SDK
+      - Instrumentation decoupled from export destination
+      - Domain agents supply their own OTel configuration
+    alternatives_rejected:
+      - "Custom logging: not interoperable"
+      - "No tracing: loses observability"
+
+  - id: 4
+    title: YAML declarative state machine
+    decision: |
+      State machines can be defined in YAML files (MachineSpec) and
+      converted to TransitionTables at runtime. This separates behavior
+      definition from code.
+    benefits:
+      - Non-programmers can read and modify agent behavior
+      - Machine configuration is version-controlled alongside code
+      - Validation catches errors before the loop starts
+    alternatives_rejected:
+      - "Code-only tables: harder to audit, harder to diff"
+
+  - id: 5
+    title: Tool composition via machine.yaml sequences
+    decision: |
+      Complex workflows (e.g. "stage all then commit") are NOT encoded
+      as compound Go tools. Instead, each atomic verb is a separate
+      declared tool (stage_all, commit), and the machine.yaml
+      wires them together via state transitions:
+
+        - state: Staging
+          signal: ToolDone
+          next: Committing
+          action: commit
+
+      State machine configuration is the composition layer. This eliminates
+      compound tool code entirely — the workflow lives in YAML where
+      it can be audited, diffed, and modified without recompilation.
+    benefits:
+      - Workflows are visible in machine.yaml diffs
+      - Each tool stays atomic and independently testable
+      - New workflows require zero Go code changes
+      - State machine validation catches broken compositions at init
+    alternatives_rejected:
+      - "Compound Go tools: embed workflow logic in code, untestable"
+      - "Shell script tools: opaque, no validation, no tracing"
+
+  - id: 6
+    title: Declarative tool initialization
+    decision: |
+      When LoopParams.MachineFile is set, Loop owns the full init
+      sequence: create registry, call InitFunc to register tools,
+      load machine YAML, validate all actions resolve, enter loop.
+      That structure enforces the ordering invariant.
+    benefits:
+      - Impossible to validate the machine before tools are registered
+      - Eliminates per-agent init boilerplate
+      - Single function call replaces multi-step setup
+    alternatives_rejected:
+      - "Caller manages ordering: error-prone, duplicated in every agent"
+
+  - id: 7
+    title: Registry freeze before loop
+    decision: |
+      Registry state is mutable during initialization and frozen before
+      the loop starts. Post-freeze registration panics. This ensures
+      the tool set is stable during execution.
+    benefits:
+      - No race conditions during the loop
+      - Manifest generation is deterministic
+      - Early detection of initialization errors
+    alternatives_rejected:
+      - "Immutable from construction: harder to build incrementally"
+      - "No freeze: risk of mutation during dispatch"
+
+technology_choices:
+  - component: Language
+    technology: Go
+    purpose: Implementation language
+  - component: Observability
+    technology: OpenTelemetry (go.opentelemetry.io/otel/attribute)
+    purpose: Span attribute types for tracing interface
+  - component: YAML parsing
+    technology: gopkg.in/yaml.v3
+    purpose: Machine spec parsing and validation
+  - component: REST runtime HTTP
+    technology: net/http
+    purpose: Planned REST client requests and REST server bindings
+  - component: REST OpenAPI
+    technology: github.com/getkin/kin-openapi/openapi3
+    purpose: Planned OpenAPI 3 loading, resolution, and validation
+  - component: REST code generation
+    technology: none
+    purpose: No generated Go REST clients or servers in the first implementation
+  - component: Test assertions
+    technology: testify (stretchr/testify)
+    purpose: Test assertions and helpers
+
+project_structure:
+  binaries:
+    - path: cmd/agent/
+      role: Unified agent binary — generator, evaluator, planner, jurist, bench modes via YAML config
+
+  bench:
+    - path: internal/evaluation/
+      role: Evaluator session/point runtime, result artifacts, metrics, convergence, and trace analysis
+    - path: internal/evaluation/bench/
+      role: Bench server, API handlers, state machine tools (serve_ui, launch_eval)
+    - path: internal/evaluation/bench/ui/
+      role: Embedded React frontend for experiment browsing and launching
+
+  engine:
+    - path: internal/runtime/core/
+      role: Generic agentic loop engine (types, state machine, dispatch, registry, loop, machine config)
+
+  infrastructure:
+    - path: internal/observability/tracing/
+      role: Tracer port interface for OpenTelemetry (5 methods) and NoopTracer
+    - path: internal/observability/telemetry/
+      role: OTel implementation (providers, exporters, adapter, traceparent, replay)
+    - path: internal/observability/telemetry/genai/
+      role: OTel GenAI semantic convention constants, span name builders, attribute helpers
+    - path: internal/observability/monitor/
+      role: Embedded monitor store, recorder ports, metric schema registry, and OpenTelemetry metric export for normalized samples
+    - path: internal/model/llm/
+      role: Model-boundary client, conversation, profiles, parse utilities, domain interfaces
+    - path: internal/model/llm/ollama/
+      role: Ollama client implementation used by model boundary tools
+    - path: internal/model/prompt/
+      role: Prompt struct, YAML loading, system prompt template, and manifest serialization
+    - path: internal/tools/stl/
+      role: Temporary standard tool library compatibility facade
+    - path: internal/tools/catalog/
+      role: Planned ToolDef, declaration loading, tool selection, ToolSpec conversion, and config decoding package
+    - path: internal/tools/registry/
+      role: Planned BuiltinRegistry, registration, and standard factory catalog package
+    - path: internal/tools/exec/
+      role: Planned exec tool builder, argv mapping, subprocess command, and exec undo package
+    - path: internal/tools/filesystem/
+      role: Planned file tools, path validation, snapshots, and workspace restore package
+    - path: internal/tools/llm/
+      role: Planned model-boundary, response parsing, conversation state, and done tool package
+    - path: internal/tools/rest/
+      role: Planned REST client/server boundary tool package with OpenAPI loading, operation definitions, async inbox integration, and net/http runtime behavior
+    - path: internal/tools/lifecycle/
+      role: Planned checkpoint history, rollback, and lifecycle adapter package
+    - path: internal/tools/control/
+      role: Planned child-agent and loop-control boundary tool package
+    - path: internal/tools/validation/
+      role: Planned validation and audit tool adapter package
+    - path: internal/tools/undo/
+      role: Planned shared undo memento and compensation payload package
+    - path: internal/support/cli/
+      role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
+    - path: internal/support/subprocess/
+      role: Subprocess execution utilities (Run, EnvVar)
+
+  domain:
+    - path: internal/support/execute/
+      role: Agent subprocess execution with process groups and timeouts
+    - path: internal/planning/pipeline/
+      role: Planner pipeline tools (extract, assemble, parse, create issue, execute, check)
+    - path: internal/planning/plan/
+      role: Implementation plan parsing and prompt assembly
+    - path: internal/planning/extract/
+      role: Task extraction from requirement graphs
+    - path: internal/planning/graph/
+      role: Requirement DAG construction, traversal, and persistence
+    - path: internal/planning/materialize/
+      role: Plan-to-issue materialization (bd create)
+    - path: pkg/spec/
+      role: Public specification corpus parsing, graph construction, cross-artifact validation, and mirrored tool declaration completeness checks
+
+  configuration:
+    - path: external agent-profiles/agents/
+      role: Standard agent programs, including generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profile assets
+    - path: tools/
+      role: Shared tool declarations — builtin.yaml and exec.yaml
+    - path: internal/model/llm/profiles/
+      role: Embedded LLM response profiles (9 model families)
+
+  build:
+    - path: magefiles/
+      role: Mage build targets (build, lint, install, clean, tag, stats)
+    - path: docs/
+      role: Documentation, specifications, and roadmap
+    - path: internal/knowledge/documentation/
+      role: Standalone documentation HTTP server, API handlers, and embedded React UI
+
+package_specification_coverage: |
+  `go list ./...` defines the current Go package set. Coverage is layered
+  by design. Engine, telemetry, model, prompt, STL, CLI, and spec graph packages
+  map directly to srd001-srd018, srd022-srd026, or both. That direct mapping
+  covers internal/runtime/core, internal/observability, internal/model,
+  the internal/tools package family with internal/tools/stl as a temporary
+  facade, internal/support/cli, and pkg/spec behavior.
+
+  Configured-agent packages are covered at the release layer. cmd/agent is
+  governed by cfg-runtime-contract, release 01.0 use cases, lifecycle use cases,
+  test-rel01.0, and Go tests. internal/evaluation and internal/evaluation/bench
+  are covered by srd019, srd020, rel01.0 evaluator and bench use cases,
+  test-rel01.0, and package tests. internal/support/execute is covered by
+  srd021, srd022 AC6, evaluator use cases, and child-agent tests.
+
+  Planning and subprocess packages are cross-cutting support packages.
+  Planner packages are covered by planner machine configs,
+  sm-tool-language, sm-tool-vocabulary-audit, and package tests.
+  internal/support/subprocess is covered by STL delegation, child-agent
+  execution, and execute or STL integration tests.
+
+  Package roots such as internal/model, internal/observability,
+  internal/planning, internal/runtime, internal/support, and internal/tools do
+  not define standalone runtime behavior. internal/evaluation/bench/ui embeds
+  React assets behind the bench API. internal/knowledge/documentation/ui embeds
+  React assets behind the documentation-curator host.
+
+  Remaining gaps are narrow. Browser-level bench UI proof remains manual or
+  skipped until an automated browser harness joins the quality gate. Planner
+  SRDs are optional unless planner behavior becomes a stable product surface
+  outside profile configs.
+
+implementation_status:
+  current_focus: Release 03.0 REST conformance and Knowledge Manager documentation UX verification
+  progress:
+    - done: Core engine (internal/runtime/core) — types, state machine, dispatch, registry, loop, machine config
+    - done: Tracing port (internal/observability/tracing) — 5-method Tracer interface with NoopTracer
+    - done: Telemetry (internal/observability/telemetry) — OTel providers, exporters, adapter, traceparent, replay
+    - done: GenAI semconv (internal/observability/telemetry/genai) — constants, span builders, attribute helpers
+    - done: Model boundary support (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
+    - done: Ollama client implementation (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
+    - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
+    - done: Standard tool library behavior — file, build, model boundary, lifecycle adapters, config loading
+    - done: Standard tool library package split — internal/tools/catalog, registry, exec, filesystem, llm, lifecycle, control, validation, undo, and temporary stl facade
+    - done: CLI flags (internal/support/cli) — standard flag constants, PropagateArgs, RemainingBudget
+    - done: Subprocess (internal/support/subprocess) — process execution utilities
+    - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph, internal/planning/materialize)
+    - done: Agent execution (internal/support/execute) — subprocess execution with process groups
+    - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
+    - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, jurist, bench
+    - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching
+    - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
+    - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
+    - done: External agent profiles and configurations — generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from agent-profiles through explicit --profile paths to a checkout or bundle mounted or copied beside the workspace
+    - done: Grammar Machine alignment — selected-tool contract enforcement, rollback strategy vocabulary, profile-first child boundaries, and centralized builtin factory catalog
+    - done: Rollback lifecycle core operations — StateStore, FileStore, Workspace, GitWorkspace, checkpoints, history, resume, and rollback traversal
+    - done: Lifecycle STL adapters and external profiles — checkpoint_history and checkpoint_rollback selected by agent-profiles lifecycle profiles
+    - done: LLM profiles — 9 model families with extraction pipelines
+    - done: Mage build targets — build, lint, install, clean, tag, stats, docker
+    - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
+    - partial: REST runtime package -- internal/tools/rest implements declarative client, async client, server, fan-in, machine_request, monitor, OpenAPI import behavior, reserved-field validation, and compensation mementos; active follow-up work is limited to agent-core-guhn.4 named conformance-test alignment and agent-core-guhn.5 rollback-time REST compensation execution
+    - done: REST sample profile — agent-profiles owns REST profile assets while agent-core keeps core REST runtime conformance fixtures under testdata/integration/rel03-rest-tools
+    - done: Machine request REST path — documentation_curator_requests machine_request routes execute the external documentation-curator request machine for document index and detail requests, with request-machine actions selected from trusted profile declarations
+    - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior
+    - done: Knowledge Manager machine_request proof — mage integration:uc007 and plain go test verify generic REST route trace evidence, owned same-origin proxy lifecycle, raw YAML, rendered HTML, and nested document path evidence
+    - done: cobbler-scaffold dependency removed
+    - done: Go test suite across all packages
+    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd026)
+    - done: Embedded monitor runtime — in-memory store, recorder ports, ToolDef and MachineSpec metric validation, config-driven tool-owned metric emission, workflow label propagation, OpenTelemetry metric export, REST/OpenAPI cached-state readers, cmd/agent live-store wiring, and mage integration:uc004 release proof
+
+related_documents:
+  - doc: docs/VISION.yaml
+    purpose: What we build and why; success criteria and boundaries
+  - doc: docs/SPECIFICATIONS.yaml
+    purpose: Canonical specification index for SRDs, use cases, semantic models, and test suites
+  - doc: docs/specs/config-formats/tool-authoring-standard.yaml
+    purpose: Tool vocabulary authoring contract used by tool declarations
+  - doc: docs/specs/semantic-models/tool-language.yaml
+    purpose: Semantic model for MachineSpec composition, ToolDef vocabulary, boundaries, and sentence-tool migration
+  - doc: docs/specs/semantic-models/rollback-lifecycle.yaml
+    purpose: Semantic model for checkpoint, suspend/resume, rollback traversal, and state layer ownership
+  - doc: docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+    purpose: Requirements for lifecycle state, history, rollback, suspend, resume, and approval gates
+  - doc: docs/specs/software-requirements/srd026-lifecycle-tools.yaml
+    purpose: Requirements for lifecycle tool adapters and their core checkpoint operation boundary

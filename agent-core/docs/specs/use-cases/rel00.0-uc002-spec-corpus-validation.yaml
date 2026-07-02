@@ -1,0 +1,49 @@
+id: rel00.0-uc002-spec-corpus-validation
+title: Maintainer validates the specification corpus graph
+
+summary: |
+  A maintainer runs the spec graph loader and validator against the repository
+  documentation corpus. The validator parses SRDs, use cases, test suites,
+  the roadmap, and SPECIFICATIONS.yaml into a graph, then reports broken
+  references, orphaned SRDs, uncovered criteria, and release coverage gaps.
+
+actor: Specification maintainer
+
+trigger: |
+  A maintainer changes docs/specs or runs mage audit before closing a
+  documentation task.
+
+flow:
+  - F1: LoadCorpus discovers SRDs, use cases, test suites, road-map.yaml, and SPECIFICATIONS.yaml from the standard documentation layout (srd014 R4).
+  - F2: The parser reads each artifact into typed structs for SRDs, use cases, test suites, roadmap releases, and the spec index (srd014 R1).
+  - F3: BuildGraph creates release, SRD, requirement, acceptance criterion, use case, test suite, and test case nodes with contains, depends-on, traces, covers, and tests edges (srd014 R2).
+  - F4: Validate reports orphaned SRDs, broken touchpoints, invalid test citations, uncovered requirement items, uncovered acceptance criteria, dependency errors, and releases without test suites (srd014 R3).
+  - F5: The maintainer fixes the corpus or files follow-up issues for warnings that are intentionally deferred.
+
+touchpoints:
+  - T1: "srd014-spec-graph R1 -- typed parsers for SRDs, use cases, test suites, roadmap, and SPECIFICATIONS.yaml"
+  - T2: "srd014-spec-graph R2 -- graph node kinds and relationship edges"
+  - T3: "srd014-spec-graph R3 -- validation findings for broken, orphaned, and uncovered documentation links"
+  - T4: "srd014-spec-graph R4 -- standard corpus discovery paths"
+
+success_criteria:
+  - id: S1
+    criterion: The loader parses all standard documentation artifacts into typed structs.
+    traces:
+      - srd014-spec-graph AC1
+      - srd014-spec-graph AC4
+  - id: S2
+    criterion: The graph contains the expected artifact, requirement, acceptance, use-case, suite, and test-case relationships.
+    traces:
+      - srd014-spec-graph AC2
+  - id: S3
+    criterion: The validator reports actionable findings with check identifiers and messages.
+    traces:
+      - srd014-spec-graph AC3
+
+out_of_scope:
+  - Generating new specifications.
+  - Changing audit warning policy.
+  - Interactive graph visualization.
+
+test_suite: test-rel00.0

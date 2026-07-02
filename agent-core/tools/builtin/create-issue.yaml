@@ -1,0 +1,65 @@
+tools:
+- name: create_issue
+  type: builtin
+  init: create_issue
+  description: Create a bd issue from the parsed implementation plan.
+  visibility: internal
+  emits:
+  - Materialized
+  - MaterializeFailed
+  - CommandError
+  category: boundary
+  side_effects:
+  - kind: external_api
+    target: beads_issue_tracker
+    description: Materializes the parsed plan as a bd issue and records the issue ID in pipeline state.
+  - kind: state_mutation
+    target: pipeline_state
+    state: issue_id_recorded
+    description: Stores the materialized issue ID for downstream task execution.
+  reversibility:
+    classification: compensatable
+    undo: pipeline_state_restore_and_issue_compensation
+  undo:
+    strategy: compensating_action
+    description: Restore pipeline state; issue tracker side effects require explicit close/delete compensation.
+    payload: boundary_compensation
+    captures:
+    - issue_id
+    - pipeline_state_snapshot
+  problem: The machine needs a declared word for creating an issue from a plan without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the create_issue action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'create_issue: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: create_issue command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

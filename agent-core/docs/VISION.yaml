@@ -1,0 +1,304 @@
+id: agent-core
+title: "Agent Core: Framework for Declarative Tool-Language Agents"
+
+executive_summary: |
+  This framework builds agents as declarative Go programs.
+  A program is a state machine wired to a vocabulary of tools. The machine
+  owns sequencing. Tool declarations describe typed inputs, typed outputs,
+  side effects, failure semantics, and rollback behavior.
+
+  Runtime support interprets the program and records what happens. It executes
+  state machines, dispatches commands, manages registry behavior, tracks
+  budgets, records traces, and loads YAML programs through cmd/agent.
+  Monitor packages provide cached runtime metrics and read APIs inside the
+  agent process. Normal profile startup can opt into the live monitor store.
+
+  internal/runtime/core stays domain-agnostic. It drives the loop without
+  knowing which tools exist, which model boundary a machine calls, or which
+  workflow the machine expresses. Higher-level packages provide model, prompt,
+  telemetry, specification, and tool infrastructure for configured agents.
+
+problem: |
+  Agentic loop behavior recurs across agent types. A coding agent loops
+  until tests pass. Research agents loop until they find an answer.
+  Orchestrators loop until subtasks complete. Each one needs state transitions,
+  budget enforcement, command dispatch, tracing, model boundary calls, prompt
+  assembly, and standard tools.
+
+  When this machinery is coupled to a specific domain, it cannot be reused.
+  Building a new agent means reimplementing the same loop plumbing plus
+  boundary-tool and vocabulary boilerplate. Bugs fixed in one agent stay
+  unfixed in another. Improvements to budget tracking, tracing, or model
+  boundary handling require changes in every agent.
+
+  Procedural tool wiring also hides program structure. When a tool secretly
+  performs a workflow, the machine cannot show the sequence. Validation loses
+  intermediate signals. Rollback cannot see which state layer changed. Tools
+  that write files, mutate conversation state, or invoke child programs need
+  declared effects, undo behavior, and boundary metadata.
+
+  To solve this, Agent Core extracts the loop engine and its supporting infrastructure into a
+  standalone Go library, then makes the configured machine and selected tools
+  the program. Domain agents become declarative machines plus tool
+  declarations. Go packages provide reusable vocabulary and runtime services.
+
+vision_model_diagram: |
+  ```mermaid
+  flowchart TD
+    U[User task or scheduler] --> CFG[Configured Agent Program]
+
+    subgraph Program[Agent Program]
+      M[MachineSpec: states, signals, transitions]
+      TS[Tool selection]
+      TD[ToolDef vocabulary contracts]
+      BOUNDARY[Boundary tool config and prompt]
+    end
+
+    M -->|names actions| TS
+    TS -->|selects| TD
+    CFG --> Program
+    Program --> R[Loop runtime interpreter]
+    R --> REG[Registry and Builders]
+    REG --> C[Command instance]
+    C -->|Result.Signal| R
+    R -->|next transition| M
+
+    TD --> LC[Lifecycle model: side effects, undo, rollback]
+    C --> W[Workspace and command/domain state]
+    LC --> W
+  ```
+
+tool_language_diagram: |
+  ```mermaid
+  flowchart LR
+    subgraph Vocabulary
+      A[ToolDef: read]
+      B[ToolDef: edit]
+      C[ToolDef: build]
+      D[Boundary ToolDef: invoke_llm]
+    end
+
+    subgraph Grammar
+      M[MachineSpec]
+      S1[Composing]
+      S2[Parsing]
+      S3[ValidatingBuild]
+      S4[ValidatingTest]
+    end
+
+    M --> S1
+    S1 -->|LLMResponded| S2
+    S2 -->|ToolDone via selected word| S1
+    S2 -->|TaskCompleted| S3
+    S3 -->|ToolDone| S4
+
+    A --> M
+    B --> M
+    C --> M
+    D --> M
+  ```
+
+what_this_does: |
+  The project ships library packages and a
+  cmd/agent binary. That binary drives generator, evaluator, planner, jurist,
+  and bench profiles from YAML configuration. Library packages supply the
+  layered runtime behind those configured programs.
+
+  Declarative programs use MachineSpec for states, signals, terminal states,
+  and transitions. Tool declarations define vocabulary contracts. Tool
+  selection narrows the vocabulary available to each configured agent.
+  Boundary config describes model behavior, human-facing UI surfaces, REST
+  resources, and tool manifest context. Lifecycle config supplies StateStore,
+  Workspace, CheckpointPolicy, rollback behavior, and suspend behavior.
+
+  Core runtime code owns the domain-agnostic loop machinery. The state
+  machine maps State and Signal values to NextState and ActionFunc behavior.
+  Command dispatch wraps Execute with tracing, timeout, panic recovery,
+  duration measurement, and signal normalization. Registry behavior pairs
+  ToolSpec metadata with builders, filters tool listings by state, and freezes
+  before a run. Loop execution tracks budget and delegates domain-specific
+  behavior to LoopHooks. YAML machine config validates declarative state
+  machines and supports dynamic $tool dispatch.
+
+  Model boundary support in internal/model/llm includes clients,
+  conversations, model profiles, response parsing utilities, and ChatOptions
+  used by boundary tools.
+
+  Prompt assembly in internal/model/prompt provides the Prompt struct, YAML loading,
+  system prompt Go template, and tool manifest serialization for
+  LLM context injection.
+
+  Reusable tool implementations live in the internal/tools package family.
+  These packages cover file tools, build tools, model-boundary commands,
+  subprocess execution, workspace tools, lifecycle adapters, and REST boundary
+  tools. Tool metrics extraction lives there too. The current internal/tools/stl package is
+  a compatibility facade while focused target packages take ownership. Tools in
+  these packages should behave as vocabulary words or documented boundaries, not
+  hidden workflows.
+
+  internal/support/cli provides CLI flag constants and argument propagation as
+  a utility library. cmd/agent does not import it directly.
+
+  internal/observability/tracing defines the Tracer port with Push, Event,
+  SetAttributes, RecordError, and Context methods. This port decouples the
+  engine from OpenTelemetry internals and includes NoopTracer for tests.
+
+  Telemetry code implements OpenTelemetry provider setup, exporter config, root
+  span lifecycle, TraceAdapter, GenAI semantic convention helpers, W3C
+  traceparent parsing, and offline trace replay.
+
+  Monitor support records structured samples emitted by tools into an
+  in-memory runtime store. Cached samples feed OpenTelemetry metrics and REST
+  or OpenAPI read paths without a Kubernetes sidecar, daemon, or separate
+  monitor process. cmd/agent profile runs allocate the live store when monitor
+  configuration is present.
+
+  pkg/spec parses SRD, use case, and test suite YAML. It also builds dependency
+  graphs, validates cross-artifact links, and manages the corpus.
+
+  Lifecycle and Rollback Foundations. Optional StateStore, Workspace, and
+  CheckpointPolicy ports let agents record state and recover from bad actions
+  without changing normal behavior when disabled.
+
+why_we_build_this: |
+  The agentic-loop project needs more than one agent type.
+  Generator was the first agent on this engine. Future orchestrator,
+  research, and testing agents can reuse loop machinery instead of rebuilding
+  state machines, dispatch, or budget tracking.
+
+  Shared infrastructure belongs above the engine layer. Model boundary tools,
+  prompt assembly, and standard tools are needed by every agent. Centralizing
+  them in agent-core avoids duplicate implementations and keeps behavior
+  consistent across agents.
+
+  Inspectable programs are easier to review. machine.yaml should show the
+  workflow. Tool declarations should show each word's meaning, emitted signals,
+  state changes, and reversal path. Reviewers can inspect the program, and
+  validation tooling can reason about it.
+
+  Vocabulary and grammar stay separate. Tools are reusable words with clear
+  contracts. Machines compose those words into sentences. Workflow-shaped tools
+  should not hide decisions, failure paths, or rollback boundaries inside Go
+  code.
+
+  Actor configuration shapes each external boundary. Model actors receive
+  prompts and tool lists. Human actors receive configured UI assets, labels,
+  routes, and actions. Both forms belong in agent profiles and tool config, not
+  in mode-specific Go workflow code.
+
+  Improvements should accumulate in one place. Better tracing, budget checks,
+  panic recovery, response parsing, tool implementations, contract validation,
+  and lifecycle recovery benefit every agent that imports agent-core.
+
+success_criteria:
+  engine_agnosticism: |
+    Core engine code does not import model-boundary
+    implementations, file system operations, or domain-specific tool implementations. It
+    depends only on internal/observability/tracing, internal/observability/telemetry/genai, the Go standard
+    library, OTel attributes, and a YAML parser.
+  composability: |
+    Domain agents can build a working agentic loop from State and Signal
+    constants, a TransitionTable or YAML machine file, registered tool
+    builders, a TerminalFunc, and optional LoopHooks. No subclassing or code
+    generation is required.
+  declarative_programs: |
+    YAML makes agent behavior visible. machine.yaml owns workflow sequencing,
+    tool selections identify available vocabulary, and tool declarations define
+    each word's meaning and contract.
+  tool_contract_completeness: |
+    New tools declare the problem, goals, requirements, and non-goals. They
+    also declare typed contracts, emitted signals, side effects, reversibility,
+    undo behavior, errors, and neighboring-tool relationships.
+  explicit_boundaries: |
+    Boundary tools cross model, human, child-process, nested-machine, external API,
+    or workspace boundaries are classified and documented as boundary tools
+    rather than mistaken for ordinary deterministic words.
+  rest_boundary_tools: |
+    Release 03.0 implements standalone REST client and REST server tools as
+    declarative boundary tool families. REST behavior is configured by trusted
+    agent/profile/tool YAML, not hard-coded into model-provider adapters or
+    hidden inside ordinary tools. Filesystem-backed document resources and
+    Knowledge Manager UI placement are configured as profile-owned resources and
+    human actor config, while Go code provides reusable server and resource
+    capability.
+  human_actor_configuration: |
+    Human-facing UX surfaces are part of the declarative agent program when a
+    profile exposes a browser or operator workflow. Profile config owns UI
+    assets, route labels, actions, resource references, and presentation rules.
+    For the planned Knowledge Manager machine-request demo, browser document
+    requests should enter REST, run short-lived MachineSpec sentences, read
+    configured document resources, and return response word output.
+  lifecycle_readiness: |
+    Runtime contracts preserve the separation between agent state,
+    command/domain state, and workspace/environment state so checkpoint,
+    suspend, resume, and rollback behavior can be enabled without changing
+    disabled-mode execution.
+  reusable_infrastructure: |
+    Reusable model boundary support, prompt assembly, standard tools, and tracing are
+    shared across agents through internal/model/llm, internal/model/prompt,
+    internal/tools, and internal/observability/tracing. Domain agents compose
+    these packages without reimplementing them.
+  budget_enforcement: |
+    Generic loop execution enforces iteration, token, and wall-clock-time
+    limits. Domain-specific limits such as max build failures plug in through
+    the BudgetExceeded hook.
+  observability: |
+    Command dispatch is recorded as a RunEvent. The loop emits
+    OpenTelemetry spans and events for state transitions, budget
+    checks, and dispatch outcomes. ToolMetrics on Result enable
+    structured progress tracking.
+  embedded_monitoring: |
+    Embedded monitoring is a reusable runtime capability. Tools emit metric
+    samples through a recorder, and the monitor store caches recent values in
+    process. Optional exporters and REST readers consume that cached state. No
+    Kubernetes sidecar or external process is required.
+  backward_compatibility: |
+    Generator, planner, and evaluator are now configuration-only
+    repositories. All Go code lives in agent-core and is consumed by
+    the unified cmd/agent binary via YAML configurations.
+
+not:
+  - We do not define deployment, packaging, or container images.
+  - Domain-specific behavior is defined in YAML configurations, not in
+    Go code within the library packages.
+  - We do not treat tool declarations as mere wrapper metadata; they are
+    vocabulary contracts.
+  - We do not hide new workflows inside ordinary tools. Workflows belong in
+    machine.yaml unless the tool is explicitly a documented boundary.
+  - We do not require lifecycle persistence or workspace checkpointing when
+    those ports are disabled.
+  - We do not let models choose arbitrary REST URLs, methods, authentication,
+    or network destinations at runtime.
+  - We do not generate Go REST clients or servers for the first REST tool
+    implementation.
+
+canonical_documents:
+  - docs/specs/config-formats/tool-authoring-standard.yaml
+  - docs/specs/semantic-models/tool-language.yaml
+  - docs/specs/semantic-models/rollback-lifecycle.yaml
+  - docs/specs/software-requirements/srd022-builtin-tools.yaml
+  - docs/specs/software-requirements/srd023-cli-exec-tools.yaml
+  - docs/specs/software-requirements/srd024-blocking-input-tools.yaml
+  - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+  - docs/specs/software-requirements/srd030-machine-request-rest-binding.yaml
+  - docs/specs/software-requirements/srd031-declarative-document-resources.yaml
+  - docs/specs/use-cases/rel02.0-uc003-tool-authoring.yaml
+  - docs/specs/use-cases/rel02.0-uc004-sentence-tool-migration.yaml
+  - docs/specs/use-cases/rel03.0-uc007-machine-request-documentation-ux.yaml
+  - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
+
+dependencies:
+  direct:
+    - go.opentelemetry.io/otel for attributes, trace, and metric APIs
+    - go.opentelemetry.io/otel/sdk for trace and metric providers
+    - go.opentelemetry.io/otel/exporters for OTLP gRPC and stdout exporters
+    - go.opentelemetry.io/proto/otlp for replay proto types
+    - google.golang.org/grpc for OTLP transport
+    - google.golang.org/protobuf for proto serialization
+    - gopkg.in/yaml.v3 for YAML parsing
+    - github.com/stretchr/testify for test assertions
+    - github.com/getkin/kin-openapi/openapi3 for OpenAPI 3 loading, resolution, and validation for REST tools
+  indirect:
+    - github.com/dominikbraun/graph for spec dependency graphs
+    - github.com/google/uuid for trace IDs
+    - github.com/cenkalti/backoff/v5 for OTLP retry

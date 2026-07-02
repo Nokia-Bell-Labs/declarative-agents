@@ -1,0 +1,88 @@
+id: rel02.0-uc001-approval-suspend-resume
+title: Agent suspends at approval gate and resumes from checkpoint
+
+summary: |
+  A long-running agent reaches a machine-declared approval gate before
+  performing a risky or irreversible action. Lifecycle features are enabled,
+  so the runtime persists a checkpoint containing agent state, command/domain
+  state, history digest, and workspace ref. The process exits with a suspended
+  status. After a user approves the action, the agent resumes from the
+  checkpoint, restores the workspace and command/domain state, validates the
+  current machine and tools, and continues from the suspended state.
+
+actor: Operator supervising a long-running agent
+
+trigger: |
+  The operator runs an agent with lifecycle storage enabled, a configured
+  StateStore/FileStore, an optional Workspace/GitWorkspace, and a machine.yaml
+  transition that routes a risky action through an approval-gate tool.
+
+reference_profile:
+  path: lifecycle/approval/profile.yaml under AGENT_PROFILES_ROOT
+  first_run: |
+    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
+          --state-store-dir <store-dir>
+  resume_approved: |
+    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
+          --state-store-dir <store-dir> \
+          --resume-checkpoint <checkpoint-id> \
+          --resume-signal Approved
+  resume_rejected: |
+    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
+          --state-store-dir <store-dir> \
+          --resume-checkpoint <checkpoint-id> \
+          --resume-signal Rejected
+
+flow:
+  - F1: Agent startup enables lifecycle behavior with StateStore, optional Workspace, and lifecycle/approval/profile.yaml under AGENT_PROFILES_ROOT; disabled lifecycle defaults remain unchanged (srd025 R10).
+  - F2: core.Loop drives MachineSpec normally until a transition invokes an approval-gate or suspend tool (srd005 R5, srd025 R8).
+  - F3: The approval-gate tool emits a machine-declared suspend signal rather than failing the run (srd024 R2, srd025 R8).
+  - F4: Loop builds a Checkpoint with AgentSnapshot, optional command/domain JSON, optional WorkspaceRef, and HistoryDigest (srd025 R1, R6).
+  - F5: StateStore persists the Checkpoint under a structured store path; Workspace supplies or restores a GitWorkspace ref without serializing agent state into git (srd025 R2, R3).
+  - F6: RunResult returns StatusSuspended with enough detail for the operator to find the checkpoint (srd025 R8).
+  - F7: The operator approves or rejects the pending action outside the original process.
+  - F8: Resume loads the checkpoint, validates machine/tool compatibility, restores command/domain state, restores Workspace, and re-enters Loop from the checkpointed state (srd025 R9).
+  - F9: Approved and rejected outcomes route through explicit MachineSpec signals, preserving auditability (srd025 R8).
+
+touchpoints:
+  - T1: "srd005-agentic-loop R4, R5 -- LoopParams carry optional lifecycle ports and Loop drives the machine normally"
+  - T2: "srd024-blocking-input-tools R0, R1, R2, R3 -- approval gates behave as boundary/blocking tools with declared signals"
+  - T3: "srd025-rollback-lifecycle R1, R2, R3, R6, R8, R9, R10 -- checkpoint, suspend, resume, and opt-in lifecycle behavior"
+  - T4: "sm-rollback-lifecycle -- checkpoint, suspend, resume, and failure data flow"
+
+success_criteria:
+  - id: S1
+    criterion: The agent exits as suspended, not failed, after reaching the approval gate.
+    traces:
+      - srd025-rollback-lifecycle AC5
+  - id: S2
+    criterion: The persisted checkpoint separates JSON agent/command state from the workspace git ref.
+    traces:
+      - srd025-rollback-lifecycle AC1
+  - id: S3
+    criterion: Resume restores StateStore-backed state and WorkspaceRef before continuing.
+    traces:
+      - srd025-rollback-lifecycle AC5
+  - id: S4
+    criterion: Approval and rejection are explicit machine signals, not hidden control flow.
+    traces:
+      - srd024-blocking-input-tools AC2
+
+failure_scenarios:
+  - id: E1
+    scenario: StateStore is required but unavailable.
+    expected: Suspend returns a documented CommandError or explicit no-op behavior as configured.
+  - id: E2
+    scenario: The checkpoint was created by incompatible machine/tool declarations.
+    expected: Resume refuses to continue and reports an incompatible checkpoint error.
+  - id: E3
+    scenario: Workspace restore fails.
+    expected: Resume reports workspace restore failure with the target ref and workspace path.
+
+out_of_scope:
+  - Implementing the human approval UI.
+  - Defining every operator CLI variant beyond the reference profile invocation.
+  - Making approval gates concurrent.
+
+semantic_model: sm-rollback-lifecycle
+test_suite_trace: test-rel02.0-lifecycle

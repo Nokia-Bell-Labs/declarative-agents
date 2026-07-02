@@ -1,0 +1,12 @@
+id: sm-test-model
+title: Test Semantic Model
+
+purpose: A test semantic model for corpus validation.
+
+requirements_source:
+  canonical:
+    - docs/specs/software-requirements/srd001-auth.yaml
+
+related_documents:
+  - srd001-auth
+  - cfg-test-format

@@ -1,0 +1,562 @@
+id: cfg-runtime-contract
+title: Machine + Tools Runtime Contract
+
+purpose: |
+  Documents the contract that governs how the agent binary assembles
+  a running agent from declarative YAML configuration. All current agent modes
+  follow the same contract. No mode-specific subcommands or procedural code paths
+  exist. As a universal runtime, the binary gets its behavior
+  entirely from the config files it receives.
+
+configuration_authority: |
+  We treat YAML under docs/ and docs/constitutions/ in this repository as the
+  single authority for agent-core behavior contracts, including this runtime
+  contract. Workspace-wide editor or agent rules defer to that corpus when they
+  disagree.
+
+operator_paths: |
+  Operators supply profile and workspace locations through explicit argv flags
+  and file paths, not through process environment variables that redefine where
+  the agent program lives. Tests and mage targets resolve checkout directories
+  in code or shell, then pass those locations as absolute or cwd-relative paths
+  on the command line (for example --profile and --directory) or in printed
+  container bind mounts. Environment variables must not be the semantic channel
+  for profile root or core install layout for cmd/agent.
+
+invocation: |
+  Normal invocation. Replace /work/agent-profiles with your agent-profiles
+  checkout or bundle root.
+    agent --profile /work/agent-profiles/agents/<agent>/profile.yaml \
+          [--request <file>] [--output <dir>] \
+          [--directory <path>] \
+          [--state-store-dir <dir>] \
+          [--resume-checkpoint <id>] [--resume-signal <signal>]
+
+  Lifecycle profile invocations.
+    agent --profile /work/agent-profiles/agents/lifecycle/history/profile.yaml \
+          --directory <workspace> \
+          --request requests/history.yaml
+
+    agent --profile /work/agent-profiles/agents/lifecycle/rollback/profile.yaml \
+          --directory <workspace> \
+          --request requests/rollback.yaml
+
+  There is no lifecycle subcommand syntax. Profiles select history and rollback
+  behavior through machine, tool selection, and builtin declarations.
+
+  Agent identity flag.
+    --profile            Path to an agent profile YAML. The profile supplies
+                         machine and tool selection paths. It also supplies
+                         declarations, config directories, and optional directory.
+                         Relative paths resolve
+                         against the profile file's directory.
+
+  Runtime data flags.
+    --request            Request file. Evaluator suites, lifecycle history
+                         requests, rollback requests, and similar per-run data
+                         flow through this channel.
+    --output             Output directory for artifacts such as eval results.
+    --directory          Workspace root for file tools, exec tools, child
+                         agents, and workspace restore.
+    --state-store-dir    Advanced override for lifecycle checkpoint storage.
+    --resume-checkpoint  Checkpoint ID to load before re-entering the loop.
+    --resume-signal      Signal used for the first resumed transition
+                         (default: Approved).
+
+  Diagnostic flags.
+    --verbose-trace      Record boundary-tool input/output in OTel traces.
+    --otel-log-file      OTel trace output file.
+    --otel-parent-span   W3C traceparent for distributed tracing.
+
+  Removed configuration flags.
+    cmd/agent does not expose --machine, --tools, --tools-declaration,
+    --tool-config-dir, --profiles-dir, or --input. Runtime surface is
+    --profile plus runtime data and diagnostics.
+
+  Request files carry lifecycle data. Targets for history and rollback are
+  lifecycle tool input. A request file can name
+  checkpoint: <id|latest>, to_iteration: <n>, and restore_workspace: true.
+  Active lifecycle profile and ToolDef config decide how that request maps to
+  checkpoint_history or checkpoint_rollback config.
+
+  By default, lifecycle state lives under the workspace.
+  With --directory set and --state-store-dir absent, cmd/agent uses
+  <directory>/.agent-state. Runtime code owns that hidden directory and stores
+  FileStore JSON paths such as checkpoint/<id>. Use
+  --state-store-dir only for shared operator storage, external artifact
+  retention, or tests that need an isolated store outside the workspace.
+
+startup_sequence:
+  - step: 1
+    name: Apply profile
+    description: |
+      At startup, cmd/agent loads the AgentProfile and fills runtime
+      configuration from it. Profile data supplies machine and tool selection
+      files. It also supplies tool declarations, config directories, and
+      optional workspace directory.
+      Normal CLI startup does not expose machine, tool selection, or
+      declaration paths as choices.
+    implementation: catalog.LoadProfile, loadRuntimeConfig
+
+  - step: 2
+    name: Load tool definitions
+    description: |
+      From the profile, cmd/agent loads explicit declaration files,
+      declaration directories, and name-only tool selection files. It then
+      computes the selected declaration set with SelectTools.
+      Registration receives []ToolDef.
+    implementation: catalog.LoadToolDeclarations, catalog.LoadToolDeclarationsFromDirs, catalog.LoadToolSelections, catalog.SelectTools
+
+  - step: 3
+    name: Preserve tool-owned boundary config
+    description: |
+      Selected factories decode ToolDef config blocks. Boundary tools such as
+      invoke_llm own model, endpoint, and response_profile. They also own
+      prompt, timeout, manifest_state, and provider-specific settings. Model
+      clients are not created by cmd/agent as a startup step.
+    implementation: catalog.ToolDef, catalog.DecodeToolConfig
+
+  - step: 4
+    name: Register tool factories
+    description: |
+      For each ToolDef, cmd/agent resolves and registers a Builder in the
+      core.Registry. BuiltinRegistry resolves builtin tools from the "init"
+      field. ExecBuilder wraps exec tools. Tool config from the
+      declaration YAML is passed to factories for parametrization.
+    implementation: registry.RegisterUnifiedTools
+
+  - step: 5
+    name: Load machine and validate tool signal contracts
+    description: |
+      Before entering the loop, cmd/agent loads and validates the machine spec
+      from the resolved profile machine path. Validation extracts budget
+      defaults and checks declared tool emits metadata for tools used as named
+      transition actions. Emitted signals must be declared by the machine. Each
+      emitted signal must also have a transition from the action target state
+      unless that target state is terminal.
+    implementation: core.LoadMachineSpec, catalog.ValidateToolEmits
+
+  - step: 6
+    name: Configure lifecycle ports
+    description: |
+      Checkpoint persistence is opt-in. When --state-store-dir is present, cmd/agent
+      uses that path for StateStore. When only --directory is set, it uses
+      <directory>/.agent-state. Without either path, checkpoint persistence
+      stays disabled. FileStore is
+      passed to LoopParams.StateStore and
+      lifecycle-aware builtin factories. History and rollback
+      profiles use the same StateStore path and register checkpoint_history or
+      checkpoint_rollback through the normal builtin factory flow. Suspend
+      checkpoints can include AgentSnapshot, conversation JSON from
+      LoopHooks.SnapshotConversation, optional DomainState JSON, optional
+      WorkspaceRef, and HistoryDigest entries. Each HistoryDigest can carry an
+      UndoMemento captured from commands that implement UndoMementoProvider.
+      Resume requires --resume-checkpoint plus a resolved StateStore. That store
+      comes from <directory>/.agent-state by default or from --state-store-dir
+      when an operator supplies an override.
+    implementation: core.FileStore, core.ResumeFromCheckpoint, core.LoopHooks.SnapshotConversation
+
+  - step: 7
+    name: Run the loop
+    description: |
+      After startup, cmd/agent passes the already-loaded MachineSpec to core.Loop, and
+      core.Loop builds the transition table mapping (state, signal) pairs
+      to (next_state, Builder). Named actions are resolved from the registry;
+      $tool resolves to a dynamic dispatch function. Path-only callers may
+      still set MachineFile and let Loop load the spec itself, but the agent
+      binary's startup path owns the single read used for budget defaults,
+      emits validation, parse-error policy, and transition-table building.
+      Execution starts in the initial state with a Seed signal and runs the
+      finite state machine to completion. Each transition fires its action's
+      Builder.Build(result).Execute(), producing a new Result with a Signal
+      that drives the next transition. core.Loop terminates when a terminal
+      state is reached or a budget limit is exceeded.
+    implementation: core.Loop, core.LoopParams.MachineSpec, core.BuildTransitionTable
+
+tool_parametrization: |
+  Tool behavior is configured through the "config" block in tool
+  declaration YAML. Registration passes the config map to the BuiltinFactory
+  at registration time (step 4). Factories read config values with
+  typed config structs, making tools reusable across modes. Program-
+  shaping child and nested invocation config is required and validated
+  at registration time. Child-agent boundaries require profile config.
+  Nested in-process machines still use explicit point_machine and point_tools
+  config because they do not spawn a child agent process.
+
+  Examples use one config owner per tool.
+  invoke_llm reads model and provider_url from its own config. It also reads
+  prompt fields, timeout fields, manifest_state, and response_profile.
+  launch_eval reads "profile" from its config and invokes the child evaluator
+  with --profile. execute_task reads "profile" and invokes the child generator
+  with --profile. self_invoke reads "profile" and invokes a configured child
+  agent with --profile. parse_suite_config and evaluator session setup tools
+  read "output_dir", "reps", and "timeout" from config. run_point reads
+  "point_machine" and "point_tools" to locate the nested machine YAML and build
+  its point-specific registry. serve_ui reads UI server config such as "addr",
+  "data_dir", and "configs_dir".
+
+suite_input_contract: |
+  Evaluator suite YAML is request data for evaluator tools, not a program
+  definition layer beside machine.yaml and tools.yaml. Evaluator session
+  machine prepares suite input with parse_suite_config, discover_suite_samples,
+  expand_eval_grid, init_eval_session, and report_suite_summary. run_agent
+  consumes each resolved profile as subprocess data for the current point.
+  dump_config snapshots the profile, harness label, model, and timeout. It also
+  records repetition and sample in experiment.yaml for reproducibility.
+
+  CLI flags such as --request and --output serve as universal runtime data
+  channels. Profile-selected tools decide how to interpret the request file.
+  Model and provider selection comes from the selected boundary tool
+  declaration, not from the agent binary.
+
+llm_parser_ownership: |
+  LLM response parsing is boundary-tool configuration. A selected agent
+  profile loads an invoke_llm ToolDef from <profile-root>/*/llm/*.yaml. That ToolDef
+  owns model and provider_url. It also owns prompt fields, manifest_state, and
+  the response_profile parser selector.
+
+  response_profile names a parser profile from internal/model/llm/profiles/.
+  Parser profiles are not agent profiles. They describe model-output
+  extraction with match_prefixes, envelope, strict_format, and
+  extraction_pipeline. Agent profiles live under the external profile root and select the
+  configured program.
+
+  Current code resolves parser behavior from response_profile in invoke_llm
+  config. Without response_profile, it falls back to model-name prefix
+  matching through ProfileRegistry and then the default parser profile. Custom
+  parser behavior should be added as a parser profile YAML and referenced by
+  response_profile from the agent-local LLM declaration.
+
+nested_machines: |
+  Some tools spawn nested core.Loop instances (run_point) or child
+  agent processes (launch_eval, execute_task, self_invoke). For nested loops,
+  the machine path is read from the tool's config block, not hardcoded.
+
+  Nested core.Loop (same process):
+    run_point reads config.point_machine and config.point_tools
+    → builds a point-specific registry
+    → core.Loop(LoopParams{MachineFile: ..., Registry: pointRegistry})
+
+  Child process:
+    launch_eval reads config.profile
+    → subprocess.Run("agent", "--profile", ...)
+
+    execute_task reads config.profile
+    → subprocess.Run with the same flag
+
+    self_invoke reads config.profile
+    → execute.RunAgent with the same flag
+
+  Child agent process boundaries do not take child machine, tools, or tool
+  declaration paths directly. Child profiles own those paths.
+
+  This design allows swapping nested machines by changing YAML config
+  without recompiling the binary.
+
+child_agent_boundaries: |
+  Child agent boundary tools are profile-only in the normal runtime contract.
+  execute_task, self_invoke, and launch_eval decode child-agent config from
+  their ToolDef config block. Config must include profile. Child processes
+  receive that value as --profile with --directory, --request, --output, and
+  telemetry flags.
+
+  Referenced child profiles supply the child machine, tools.yaml,
+  tool_config_dirs, and tool_declarations. They also supply LLM boundary
+  declarations and optional default directory. Parent tools do not pass those
+  program-shaping paths as process flags.
+
+  internal/support/execute.Config and internal/tools/catalog.ChildAgentConfig
+  are profile-only for child agent process boundaries. execute_task,
+  self_invoke, and launch_eval require profile at registration time.
+
+lifecycle: |
+  Lifecycle features are runtime ports around the same machine contract, not a
+  separate programming model. History and rollback are ordinary lifecycle
+  profiles. Their MachineSpec files dispatch checkpoint_history or
+  checkpoint_rollback. Their tools.yaml files select those tools, and their
+  ToolDef declarations bind typed config and emitted signals.
+
+  State layers remain independent.
+  Agent state is JSON loop bookkeeping in Checkpoint.agent_state.
+  Command/domain state is command-owned undo state or JSON snapshots. Examples
+  include conversation logs, pipeline snapshots, evaluator session state, point
+  context, validation state, and boundary compensation payloads. Workspace
+  state is represented by Workspace refs, usually GitWorkspace commits, and is
+  not stored in StateStore.
+
+  Undo memento kinds are explicit.
+  Noop means the command has no rollback-managed state. Reversible carries
+  enough JSON to restore command/domain state or point rollback at workspace
+  refs. Compensatable carries metadata for effects that need child command undo,
+  workspace restore, or explicit operator/API compensation. Irreversible records
+  why rollback cannot safely undo the effect.
+
+  Safety rules apply at the lifecycle boundary.
+  Disabled lifecycle ports preserve existing runtime behavior. Rollback and
+  resume must refuse unmanaged workspace restore or require explicit operator
+  configuration. Irreversible and compensatable tools must declare side effects,
+  reversibility, undo strategy, and confirmation requirements in the tool
+  contract.
+
+history_and_rollback_profiles: |
+  checkpoint_history reads a persisted checkpoint through core checkpoint
+  operations and prints a stable digest. The digest contains iteration, command,
+  from state, to state, result signal, undo memento status, and workspace ref.
+
+  checkpoint_rollback resolves a checkpoint, targets an iteration, traverses the
+  persisted history digest through core rollback operations, restores supported
+  UndoMemento payloads into the new checkpoint, writes a rollback checkpoint,
+  and restores the target workspace ref only when --directory identifies a
+  managed GitWorkspace.
+
+  Persisted rollback currently restores conversation and domain-state payloads
+  recorded in mementos and reports missing, irreversible, or compensatable
+  payloads explicitly. Boundary compensation payloads preserve child run IDs,
+  artifact paths, issue IDs, server/user-action details, or nested-machine
+  context for a follow-up compensating action instead of silently treating those
+  effects as reversible.
+
+  History and rollback are profile-selected machine actions. Operators pass
+  checkpoint, target iteration, and workspace restore choices through request
+  data or typed tool config. cmd/agent no longer exposes history or rollback
+  compatibility aliases.
+
+  By default, lifecycle profiles read checkpoints from <directory>/.agent-state
+  when --directory is set. --state-store-dir remains an override for storage
+  outside the workspace.
+
+config_file_layout: |
+  tools/
+    builtin/                # Individual shared builtin tool declarations
+    exec/                   # Individual shared exec tool declarations
+    builtin.yaml            # Legacy aggregate builtin declarations
+    exec.yaml               # Legacy aggregate exec declarations
+  <agent-profiles-checkout>/agents/
+    generator/
+      profile.yaml          # Preferred generator runtime entry point
+      machine.yaml          # Generator state machine and semantics
+      tools.yaml            # Tool selection (names only)
+      llm/                  # Per-model boundary tool configs
+    planner/
+      profile.yaml
+      machine.yaml          # Full planner with execution
+      machine-passthrough.yaml
+      machine-plan-only.yaml
+      tools.yaml
+      llm/
+    evaluator/
+      profile.yaml
+      machine.yaml          # Session-level eval orchestration and semantics
+      point.yaml            # Per-point eval pipeline and semantics
+      tools.yaml            # Session-level tool selection
+      tools-point.yaml      # Per-point tool selection loaded by run_point
+    bench/
+      profile.yaml
+      machine.yaml          # Interactive web UI loop and semantics
+      tools.yaml            # serve_ui + launch_eval
+    jurist/
+      profile.yaml
+      machine.yaml          # Spec validation pipeline and semantics
+      tools.yaml            # load_corpus + validate_specs + format_report
+    lifecycle/
+      history/profile.yaml  # Lifecycle history configured program
+      history.yaml          # History MachineSpec
+      rollback/profile.yaml # Lifecycle rollback configured program
+      rollback.yaml         # Rollback MachineSpec
+      tools.yaml            # checkpoint_history + checkpoint_rollback selection
+
+container_runtime_layout: |
+  Release images package the same profile-first runtime contract. During image
+  builds, the multi-stage Dockerfile builds and tests the `agent` binary in a Go builder
+  stage, then copies only the binary, common Unix utilities, and shared YAML
+  assets into a slim Alpine runtime image.
+
+  Shared image assets are installed under /opt/agent-core.
+
+    /opt/agent-core/tools/
+
+  Runtime images do not install an agents/ directory under /opt/agent-core.
+
+  External evaluation repositories mount local suites, samples, and
+  profile configuration into /work or a separate profile mount. Their profiles
+  may reference the shared image declaration directories under
+  /opt/agent-core/tools, while keeping profile-owned suites, outputs, and agent
+  programs outside the runtime image.
+
+  Runtime images intentionally exclude the Go toolchain, source checkout, test
+  dependencies, and golangci-lint from the final runtime stage. Exec tools that
+  need those binaries require a mounted workspace that provides them, a derived
+  image, or another container/host provisioning step. Base release images are
+  the portable Agent Core runtime plus common shell and git utilities, not a
+  complete language build environment.
+
+  `mage docker` is the canonical build wrapper. It resolves the latest remote
+  release tag unless the operator passes a different source revision to mage,
+  forwards that revision to the Dockerfile build-arg for the clone step, defaults
+  build credentials to a repository-local .netrc BuildKit secret, prefers Docker
+  when available and Podman as fallback, and prints the exact build command before
+  execution.
+
+invariants:
+  - Every agent mode uses the same binary with the same startup sequence.
+  - No mode-specific run subcommands exist; lifecycle history and rollback run
+    through the same profile, machine, tool-selection, and builtin registration
+    flow as other configured programs.
+  - Mode-specific tool configuration lives in YAML config blocks. A small set
+    of universal CLI flags such as --request, --output, --directory, and
+    lifecycle/telemetry flags serve as runtime data channels. Model/provider
+    settings are boundary-tool config.
+  - Machine files reference tools by name; tools are resolved from the registry.
+  - Named action tools may declare emitted signals with emits; declared emits
+    are checked against the machine's signal and transition contract at startup.
+  - Nested machine paths are declarative (read from tool config).
+  - The transition table is fully validated at startup before any work begins.
+  - Adding a new agent mode requires only new YAML files and (optionally)
+    new Go builtin tool implementations registered in the BuiltinRegistry.
+
+runtime_safety_boundary: |
+  Fixed engine code may own universal safety and observability
+  mechanics that apply to every machine, even though those mechanics are not
+  ordinary grammar words.
+
+  Budget exhaustion is universal runtime safety. Iteration and token limits are
+  checked before each transition; when they are exceeded, core.Loop injects the
+  generic BudgetExhausted signal and lets the configured MachineSpec route it.
+  Wall-clock limits are enforced through context cancellation and terminate with
+  StatusCancelled because a cancelled process may not be in a state where
+  another grammar transition can safely run.
+
+  Dispatch protection is interpreter infrastructure. Command timeout, panic
+  recovery, error-signal normalization, cost accumulation, RunEvent history, and
+  tracing spans describe how the runtime executes a word. Workflow choice
+  remains in profiles, machines, and selected tools.
+
+  Suspension is a runtime boundary around an explicit grammar signal.
+  A machine or tool emits AwaitApproval; the engine then persists checkpoint
+  state, marks the run suspended, and stops. Resume, history, and rollback
+  operate on checkpoints and undo mementos, not on mode-specific branches.
+  History and rollback are lifecycle profile runs that dispatch declared
+  lifecycle tools. Disabled lifecycle ports preserve the normal no-persistence
+  runtime.
+
+  Domain behavior remains in YAML and tool declarations: states, signals,
+  transitions, selected words, per-tool config, emitted-signal contracts, and
+  word-level undo metadata. If a policy depends on a specific workflow or state
+  name, it should be a machine transition, machine metadata, or an internal word
+  rather than a core.Loop branch.
+
+engine_policy_audit:
+  fixed_engine_invariants:
+    - item: State machine interpretation
+      symbols: [core.Loop, core.StateMachine.Step, core.BuildTransitionTable]
+      rationale: |
+        Engine code owns lookup, command dispatch, and routing on Result.Signal.
+        MachineSpec transitions and selected tools own agent behavior.
+    - item: Budget and cancellation safety
+      symbols: [core.Budget, core.BudgetExhausted, core.LoopHooks.BudgetExceeded]
+      rationale: |
+        Iteration, token, wall-clock, and opt-in extra budget checks are
+        universal runtime safety controls. BudgetExhausted is routed through
+        the grammar, while context cancellation terminates as StatusCancelled.
+    - item: Dispatch accounting
+      symbols: [core.Dispatch, core.RunEvent, core.Cost]
+      rationale: |
+        Panic recovery, command timeout, tracing, event recording, and cost
+        accumulation are interpreter responsibilities, not mode behavior.
+
+  lifecycle_infrastructure:
+    - item: Pre-loop validation hook
+      symbols: [core.LoopHooks.ValidateParams]
+      rationale: |
+        Startup validation is infrastructure when it checks runtime wiring
+        before the registry freezes. Behavior-specific validation should remain
+        in machine/tool contract checks rather than become a new policy hook.
+    - item: Suspend checkpoints
+      symbols: [core.AwaitApproval, core.LoopHooks.SnapshotConversation, core.LoopHooks.SnapshotDomain]
+      rationale: |
+        A machine emits the lifecycle signal, then the runtime persists agent,
+        command/domain, and workspace references through lifecycle ports.
+        The hook surface only supplies domain-owned JSON snapshots.
+    - item: Resume seeding
+      symbols: [core.ResumeFromCheckpoint, core.LoopParams.InitialSignal, core.LoopParams.InitialRun]
+      rationale: |
+        Resume restores checkpoint layers and re-enters the same machine without
+        replaying bootstrap work. By default, the resume signal is an approval-gate
+        convention, not a separate agent mode.
+    - item: Lifecycle history and rollback tools
+      symbols: [checkpoint_history, checkpoint_rollback, core.RollbackFromCheckpoint, core.FormatCheckpointHistory]
+      rationale: |
+        Lifecycle profiles dispatch declared builtin tools. Those tools operate
+        on persisted checkpoint data and undo mementos, then delegate checkpoint
+        selection, formatting, traversal, and rewriting to core operations.
+        Hidden CLI subcommands are transitional compatibility only.
+
+  domain_policy_hooks:
+    - item: Terminal status mapping
+      symbols: [core.LoopHooks.TerminalStatus]
+      rationale: |
+        Default behavior maps common terminal states, but custom success/failure
+        interpretation is domain policy and should stay narrow.
+    - item: Task summary capture
+      symbols: [core.LoopHooks.TaskCompletedSignal]
+      rationale: |
+        Selecting which grammar signal copies Result.Output into the summary is
+        agent semantics. Long term this can move into machine metadata.
+    - item: Factory-family registration gates
+      symbols: [registerBuiltinFactories, builtinFactoryCatalog]
+      rationale: |
+        Factory-family registration in cmd/agent uses a centralized
+        catalog selected by tool init names, not by mode names. This is
+        configuration infrastructure. ToolDef selection activates catalog
+        entries, while machine.yaml still defines the workflow.
+
+  migration_candidates:
+    - item: Parse-error retry fallback
+      symbols: [core.LoopHooks.AfterDispatch, stl.ParseErrorPolicy]
+      rationale: |
+        Generator-style grammars enforce max_consecutive_parse_errors through
+        the explicit report_parse_error word, which emits BudgetExhausted at
+        the configured limit. A remaining AfterDispatch hook is a
+        compatibility fallback for machines that do not route ParseFailed
+        through that internal word.
+    - item: Result accumulator mutation
+      symbols: [core.LoopHooks.OnResult]
+      rationale: |
+        OnResult can mutate the run accumulator outside visible grammar
+        transitions. It has no production cmd/agent use today and should remain
+        test-only or be replaced by explicit words/domain state when needed.
+    - item: Boundary tool manifest-state fallback
+      symbols: [manifest_state]
+      rationale: |
+        Composing is a generator-shaped fallback state name. Agent configs
+        should declare manifest_state explicitly so the universal runtime does
+        not encode a domain state name.
+
+historical_background:
+  - lifecycle-rollback.md
+  - roll-backs.md
+  - tools-as-dsl.md
+
+related_documents:
+  - cfg-machine-format
+  - cfg-tool-declaration-format
+  - cfg-tool-selection-format
+  - cfg-llm-config-format
+  - cfg-tool-authoring-standard
+  - srd006
+  - srd021
+  - srd022
+  - srd023
+  - srd024
+  - srd025-rollback-lifecycle
+  - srd026-lifecycle-tools
+
+implementation:
+  - cmd/agent/main.go
+  - internal/runtime/core/loop.go
+  - internal/runtime/core/machine.go
+  - internal/runtime/core/checkpoint_ops.go
+  - internal/tools/lifecycle/checkpoint.go
+  - internal/tools/catalog/loading.go
+  - internal/tools/catalog/emits.go
+  - internal/tools/registry/builtin.go

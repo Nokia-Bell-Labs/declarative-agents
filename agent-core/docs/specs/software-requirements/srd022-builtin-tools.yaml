@@ -1,0 +1,231 @@
+id: srd022-builtin-tools
+title: Builtin Tool Declarations and Factories
+
+problem: |
+  Builtin tools are Go-implemented capabilities exposed to declarative
+  state machines through YAML tool declarations. Without a focused contract
+  for builtin tools, reusable tool identity, factory wiring, tool-specific
+  configuration, and emitted signal behavior can drift into ad hoc
+  procedural code. A builtin tool should be an opaque capability: the
+  machine knows its name and possible signals, while Go owns the
+  implementation behind a declared factory. The current implementation lives
+  in internal/tools/stl. The target layout moves declaration contracts to
+  internal/tools/catalog, factory wiring to internal/tools/registry, tool
+  builtin packages to their focused internal/tools/* homes, and keeps
+  internal/tools/stl only as a temporary facade.
+
+goals:
+  - "G1": "Define the YAML contract for type: builtin tool declarations."
+  - G2: Define the BuiltinRegistry factory lookup and registration lifecycle.
+  - G3: Define expectations for typed builtin config validation.
+  - G4: Define how builtin tools relate to state-machine actions and dynamic $tool dispatch.
+  - G5: Distinguish reusable builtin declarations from mode-specific config overrides.
+  - G6: Define the package split for builtin declaration contracts, registry wiring, and tool implementations.
+
+requirements:
+  R0:
+    title: Tool authoring standard
+    items:
+      - R0.1: Builtin tool declarations SHOULD follow cfg-tool-authoring-standard for vocabulary category, problem, goals, requirements, non-goals, output, side effects, reversibility, undo, errors, and relationships.
+      - R0.2: Builtin tools SHOULD be single vocabulary words unless explicitly classified and documented as boundary or deprecated compatibility tools.
+      - R0.3: Builtin tool declarations that emit specialized monitor metrics SHOULD follow sm-tool-metrics-monitoring for metric ownership, low-cardinality attributes, and prohibited label sources.
+
+  R1:
+    title: Builtin declaration schema
+    items:
+      - R1.1: A builtin tool declaration SHALL set type to builtin.
+      - R1.2: A builtin tool declaration SHALL provide name, the registry-visible tool name.
+      - R1.3: A builtin tool declaration SHALL provide init, the BuiltinRegistry factory name.
+      - R1.4: A builtin tool declaration MAY provide visibility, with internal tools hidden from LLM tool lists.
+      - R1.5: A builtin tool declaration MAY provide parameters as JSON Schema for LLM-visible or externally supplied inputs.
+      - R1.6: A builtin tool declaration MAY provide config for tool-specific runtime configuration.
+      - R1.7: A builtin tool declaration MAY provide emits, the set of Result.Signal values the tool can return.
+      - R1.8: A builtin tool declaration MAY provide metrics, the planned metric instrument and attribute schema for values the tool can safely emit through a shared recorder.
+
+  R2:
+    title: BuiltinRegistry factory resolution
+    items:
+      - R2.1: BuiltinRegistry SHALL map init names to factory functions that produce core.Builder instances.
+      - R2.2: RegisterSingleBuiltin SHALL resolve a ToolDef init name through BuiltinRegistry before registering with core.Registry.
+      - R2.3: Registration SHALL fail if a selected builtin tool has no matching factory.
+      - R2.4: Factory functions SHALL receive the full ToolDef and runtime vars so they can configure Builders from YAML and runtime context.
+
+  R3:
+    title: Builtin config validation
+    items:
+      - R3.1: Builtin factories SHALL decode tool-specific config into typed structs via DecodeToolConfig at registration time.
+      - R3.2: Required behavior-shaping config such as child profiles, nested machine paths, tool selection paths, artifact paths, or server addresses SHALL be explicit typed fields.
+      - R3.3: Config decode errors SHALL include the tool name and type mismatch details.
+      - R3.4: Defaults MAY exist for backwards compatibility, but defaults that change program behavior SHALL be documented.
+      - R3.5: Typed config structs SHALL exist for each config shape (ChildAgentConfig, LLMToolConfig, LoadSuiteConfig, RunPointConfig, ServeUIToolConfig).
+      - R3.6: Metric declaration validation SHALL reject attributes sourced from raw prompts, full outputs, secrets, unbounded paths, arbitrary URLs, request IDs, timestamps, or user free text.
+
+  R4:
+    title: State-machine integration
+    items:
+      - R4.1: A machine transition action MAY reference a builtin tool by its declared name.
+      - R4.2: BuildTransitionTable SHALL fail if a named builtin action is not registered in the core.Registry.
+      - R4.3: Dynamic $tool dispatch MAY resolve to builtin tools selected for the current agent.
+      - R4.4: Builtin tools SHALL return core.Result values whose Signal drives the next state-machine transition.
+      - R4.5: Builtin tools used as named transition actions SHOULD declare their possible emitted signals using emits.
+      - R4.6: Startup validation SHALL reject a named action tool whose declared emitted signal is not in the machine signal list.
+      - R4.7: Startup validation SHALL reject a named action tool whose declared emitted signal has no transition from the action target state, unless that target state is terminal.
+
+  R5:
+    title: Reusable declarations and mode-local overrides
+    items:
+      - R5.1: Shared builtin declarations SHOULD describe reusable tool identity, parameters, visibility, and init names.
+      - R5.2: Mode-specific configuration SHOULD live in mode-local declaration or override files when it binds a tool to a specific program.
+      - R5.3: Shared declarations SHOULD NOT require editing when adding a new machine configuration that reuses an existing builtin tool.
+      - R5.4: Mode-local overrides SHALL preserve the same builtin name/init pair unless intentionally replacing the capability.
+
+  R6:
+    title: Unified child agent invocation
+    items:
+      - R6.1: All child agent invocations (execute_task, launch_eval, self_invoke) SHALL use execute.Config as the canonical runtime config type.
+      - R6.2: CLI argument construction SHALL be centralized in execute.Config.BuildArgs; callers SHALL NOT duplicate flag construction.
+      - R6.3: execute.RunAgent SHALL be the shared entry point for child invocations that do not require task-file writing.
+      - R6.4: Child agent invocations SHALL propagate OTel tracing via subprocess.Run with PropagateOTel enabled.
+      - R6.5: YAML-declared child agent config SHALL provide profile, decode via ChildAgentConfig, and map to execute.Config at registration time.
+      - R6.6: Child agent builtin factories SHALL fail registration when profile is missing; they SHALL NOT substitute behavior-shaping hardcoded profile, machine, tools, or tools_declarations paths.
+      - R6.7: Legacy machine/tools/tools_declarations fields in ChildAgentConfig are implementation drift and SHALL be removed by the follow-up code issue.
+      - R6.8: The follow-up code issue SHALL update internal/support/execute, internal/tools/catalog, internal/tools/control, internal/planning/pipeline, and internal/evaluation/bench.
+
+package_ownership:
+  status: planned
+  notes:
+    - Builtin declaration structs and config decoding move to internal/tools/catalog.
+    - BuiltinRegistry, RegisterSingleBuiltin, RegisterUnifiedTools, and selected-init factory catalog behavior move to internal/tools/registry.
+    - Builtin implementations move to filesystem, llm, lifecycle, control, validation, exec, and undo packages.
+    - internal/tools/stl exposes only thin aliases or wrappers during migration and is not the long-term builtin implementation package.
+
+declaration_layout:
+  status: planned
+  shared_groups:
+    - tools/builtin/filesystem/
+    - tools/builtin/llm/
+    - tools/builtin/lifecycle/
+    - tools/builtin/control/
+    - tools/builtin/validation/
+    - tools/builtin/planner/
+    - tools/builtin/evaluator-session/
+    - tools/builtin/evaluator-point/
+    - tools/builtin/bench/
+    - tools/builtin/spec-validation/
+  compatibility_bundles:
+    - tools/builtin.yaml
+    - tools/builtin/all.yaml
+    - tools/builtin/generator.yaml
+    - tools/builtin/planner.yaml
+    - tools/builtin/evaluator.yaml
+    - tools/builtin/bench.yaml
+    - tools/builtin/jurist.yaml
+    - tools/builtin/lifecycle.yaml
+  mode_local_overrides:
+    - agents/planner/builtin.yaml
+    - agents/evaluator/builtin.yaml
+    - agents/bench/builtin.yaml
+    - agents/*/llm/*.yaml
+  rules:
+    - Shared groups own reusable builtin identity, parameters, visibility, emits, and contract fields.
+    - Mode-local overrides own config that binds a shared tool to one agent profile.
+    - Compatibility bundles include shared groups so existing profile and direct CLI startup keep working during migration.
+    - Tool selection files remain name-only.
+
+non_goals:
+  - Defining external CLI/exec tools; see the CLI/exec tool SRD work.
+  - Defining every builtin tool's internal algorithm.
+  - Replacing core.Registry or ToolSpec.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: "Builtin YAML declarations provide name, type: builtin, init, optional visibility, optional parameters, optional config, optional emits, and planned metrics metadata when a tool owns specialized metric meaning."
+    traces: [R0.1, R0.2, R0.3, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
+
+  - id: AC2
+    criterion: BuiltinRegistry resolves init names to factories and registration fails for selected builtin tools without a factory.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC3
+    criterion: Builtin tool config is decoded into typed structs at registration time, with clear errors for type mismatches and metric declarations constrained to safe low-cardinality attributes.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+
+  - id: AC4
+    criterion: Builtin tools can be referenced by machine actions or dynamic $tool dispatch, return signals that drive transitions, and validate declared emits against named action transitions.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
+
+  - id: AC5
+    criterion: Reusable builtin declarations are separated from mode-local config overrides.
+    traces: [R5.1, R5.2, R5.3, R5.4]
+
+  - id: AC6
+    criterion: All child agent invocations share execute.Config and execute.BuildArgs/RunAgent with OTel propagation; no duplicated argument construction remains; profile config invokes children with --profile; missing profile fails clearly at registration; legacy child machine/tools/tools_declarations support is removed.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R6.8]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Builder, Command, Result, Signal]
+  - srd_id: srd004-tool-registry
+    symbols_used: [Registry, ToolSpec]
+  - srd_id: srd006-yaml-machine-config
+    symbols_used: [BuildTransitionTable]
+  - srd_id: srd013-standard-tool-library
+    symbols_used: [BuiltinRegistry, RegisterSingleBuiltin, ToolDef]
+
+implementation:
+  - tools/builtin/ (current flat shared builtin declarations)
+  - tools/builtin/filesystem/ (planned grouped declarations)
+  - tools/builtin/llm/ (planned grouped declarations)
+  - tools/builtin/lifecycle/ (planned grouped declarations)
+  - tools/builtin/control/ (planned grouped declarations)
+  - tools/builtin/validation/ (planned grouped declarations)
+  - tools/builtin/planner/ (planned grouped declarations)
+  - tools/builtin/evaluator-session/ (planned grouped declarations)
+  - tools/builtin/evaluator-point/ (planned grouped declarations)
+  - tools/builtin/bench/ (planned grouped declarations)
+  - tools/builtin/spec-validation/ (planned grouped declarations)
+  - tools/builtin.yaml (compatibility bundle)
+  - tools/builtin/all.yaml (planned compatibility bundle)
+  - internal/support/execute/execute.go
+  - internal/tools/catalog/ (planned ToolDef and config decoding)
+  - internal/tools/control/ (planned child-agent boundary tools)
+  - internal/planning/pipeline/ (current execute_task factory)
+  - internal/evaluation/bench/ (current launch_eval factory)
+  - internal/tools/registry/ (planned BuiltinRegistry and factory catalog)
+  - internal/tools/filesystem/ (planned file builtin tools)
+  - internal/tools/llm/ (planned model-boundary builtin tools)
+  - internal/tools/lifecycle/ (planned lifecycle builtin tools)
+  - internal/tools/validation/ (planned validation builtin tools)
+  - internal/tools/undo/ (planned undo payload helpers)
+  - internal/tools/stl/ (temporary compatibility facade)
+
+related_documents:
+  - cfg-tool-authoring-standard
+  - sm-tool-metrics-monitoring
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Builtin tools are Go-implemented capabilities exposed..."] --> Goals["Goals: Builtin Tool Declarations and Factories"]
+      Goals --> R0["R0: Tool authoring standard"]
+      Goals --> R1["R1: Builtin declaration schema"]
+      Goals --> R2["R2: BuiltinRegistry factory resolution"]
+      Goals --> R3["R3: Builtin config validation"]
+      Goals --> R4["R4: State-machine integration"]
+      Goals --> R5["R5: Reusable declarations and mode-local overrides"]
+      Goals --> R6["R6: Unified child agent invocation"]
+      AC1["AC1: Builtin YAML declarations provide name, type: builtin, in..."]
+      R0 --> AC1
+      R1 --> AC1
+      AC2["AC2: BuiltinRegistry resolves init names to factories and regi..."]
+      R2 --> AC2
+      AC3["AC3: Builtin tool config is decoded into typed structs at regi..."]
+      R3 --> AC3
+      AC4["AC4: Builtin tools can be referenced by machine actions or dyn..."]
+      R4 --> AC4
+      AC5["AC5: Reusable builtin declarations are separated from mode-loc..."]
+      R5 --> AC5
+      AC6["AC6: All child agent invocations share execute.Config and exec..."]
+      R6 --> AC6
+    ```

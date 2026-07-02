@@ -1,0 +1,58 @@
+tools:
+- name: run_oracle_check
+  type: builtin
+  init: run_oracle_check
+  visibility: internal
+  emits:
+  - OracleCheckPassed
+  - OracleCheckFailed
+  - CommandError
+  description: Run the point workspace oracle tests and record pass/fail output.
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: test_result_recorded
+    description: Sets PointContext.TestsPassed and PointContext.TestOutput from go test ./... in the point workspace.
+  reversibility:
+    classification: reversible
+    undo: point_context_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore PointContext test result fields from the prior snapshot.
+  problem: The machine needs a declared word for running deterministic oracle checks without embedding that workflow step in Go control flow.
+  goals:
+  - Perform the run_oracle_check action as one machine-selected word.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  - Keep sequencing outside the tool implementation and in machine.yaml.
+  requirements:
+    input:
+    - must consume parameters from tool input, prior Result, or configured command/domain state
+    output:
+    - must emit one declared signal and return machine-readable output when available
+    errors:
+    - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not hide unrelated tool execution behind this word.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'run_oracle_check: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - machine-selected successor
+  output:
+    description: run_oracle_check command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

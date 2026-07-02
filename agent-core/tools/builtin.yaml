@@ -1,0 +1,1077 @@
+# Builtin tool declarations — Go-implemented tools.
+# Contains reusable tool identity, init, parameters, emits, and visibility.
+# Mode-specific config lives in per-mode override files (e.g.
+# agents/planner/builtin.yaml, agents/evaluator/builtin.yaml).
+# Pass via: agent --tools-declaration tools/builtin.yaml \
+#                 --tools-declaration agents/<mode>/builtin.yaml
+
+includes:
+  - builtin/checkpoint-history.yaml
+  - builtin/checkpoint-rollback.yaml
+
+tools:
+  # --- file tools ---
+  - name: read
+    type: builtin
+    category: word
+    init: file_read
+    emits: [ToolDone, ToolFailed]
+    description: "Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths first."
+    output:
+      description: "Line-numbered text content from the requested file range."
+      schema:
+        type: object
+        properties:
+          path:
+            type: string
+          content:
+            type: string
+          start_line:
+            type: integer
+          end_line:
+            type: integer
+        required: [path, content]
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File path relative to workspace root (must be a file, not a directory)"
+        start_line:
+          type: integer
+          description: "Start line (1-indexed, inclusive)"
+        end_line:
+          type: integer
+          description: "End line (1-indexed, inclusive)"
+      required: [path]
+    side_effects:
+      - kind: filesystem_read
+        target: workspace_file
+        description: "Reads file contents from the configured workspace without mutating state."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "Read-only command has no effects to reverse."
+
+  - name: write
+    type: builtin
+    category: word
+    init: file_write
+    emits: [ToolDone, ToolFailed]
+    description: "Create or overwrite a file. Provide the complete file content — this replaces the entire file. Parent directories are created automatically."
+    output:
+      description: "Write result describing the file path and bytes written."
+      schema:
+        type: object
+        properties:
+          path:
+            type: string
+          bytes_written:
+            type: integer
+          created_parent_dirs:
+            type: boolean
+        required: [path, bytes_written]
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File path relative to workspace root"
+        content:
+          type: string
+          description: "Full file content to write"
+      required: [path, content]
+    side_effects:
+      - kind: filesystem_write
+        target: workspace_file
+        description: "Creates or overwrites one workspace file and may create parent directories."
+    reversibility:
+      classification: reversible
+      undo: "workspace_restore"
+    undo:
+      strategy: workspace_restore
+      description: "Restore the workspace to the ref captured before or after the file write."
+      requires: [Workspace]
+
+  - name: edit
+    type: builtin
+    category: word
+    init: file_edit
+    emits: [EditDone, ToolFailed]
+    description: "Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match."
+    output:
+      description: "Edit result describing the changed file and replacement count."
+      schema:
+        type: object
+        properties:
+          path:
+            type: string
+          replacements:
+            type: integer
+          ambiguous_matches:
+            type: integer
+        required: [path, replacements]
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File path relative to workspace root"
+        old_string:
+          type: string
+          description: "Exact text to find"
+        new_string:
+          type: string
+          description: "Replacement text"
+      required: [path, old_string, new_string]
+    side_effects:
+      - kind: filesystem_write
+        target: workspace_file
+        description: "Replaces text in one workspace file."
+    reversibility:
+      classification: reversible
+      undo: "workspace_restore"
+    undo:
+      strategy: workspace_restore
+      description: "Restore the workspace to the ref captured before or after the edit."
+      requires: [Workspace]
+
+  - name: find
+    type: builtin
+    category: word
+    init: file_find
+    emits: [ToolDone, ToolFailed]
+    description: "Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob — use \\.go$ to find Go files, not *.go. Returns matching lines with file paths and line numbers."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Regex pattern (ripgrep syntax, not glob). Example: \\.go$ for Go files, func main for function search"
+        path:
+          type: string
+          description: "Subdirectory to scope the search (optional)"
+      required: [query]
+    side_effects:
+      - kind: filesystem_read
+        target: workspace_tree
+        description: "Reads matching file paths and lines from the workspace without mutating state."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "Search is read-only and has no effects to reverse."
+
+  - name: list_files
+    type: builtin
+    category: word
+    init: file_list
+    emits: [ToolDone, ToolFailed]
+    description: "List files and directories in a tree format. Use this first to understand the workspace layout before reading files."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Subdirectory to list (default: workspace root)"
+        max_depth:
+          type: integer
+          description: "Maximum directory depth to traverse (default: 4)"
+    side_effects:
+      - kind: filesystem_read
+        target: workspace_tree
+        description: "Reads workspace directory entries without mutating state."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "Directory listing is read-only and has no effects to reverse."
+
+  # --- LLM tools ---
+  # invoke_llm is NOT declared here — it is defined per-agent via
+  # --llm config files (e.g. agents/generator/llm/default.yaml).
+  # Multiple LLM tools can be registered with different names/models.
+
+  - name: parse_response
+    type: builtin
+    contract: legacy
+    init: parse_response
+    visibility: internal
+    emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
+    description: "Parse raw LLM output into a tool call or task-completed signal."
+    category: word
+    side_effects:
+      - kind: command_state
+        description: "Parses the prior command output and may reset the parse retry counter after a non-ParseFailed result."
+    reversibility:
+      classification: reversible
+      undo: "parse_retry_counter_restore"
+    undo:
+      strategy: parse_retry_counter_restore
+      description: "Restores the parse retry counter snapshot captured before parsing."
+
+  - name: report_parse_error
+    type: builtin
+    init: report_parse_error
+    visibility: internal
+    emits: [ToolDone, BudgetExhausted]
+    description: "Report a parse error back to the LLM for correction."
+    category: word
+    side_effects:
+      - kind: command_state
+        description: "Increments the parse retry counter and emits BudgetExhausted when the configured retry limit is reached."
+    reversibility:
+      classification: reversible
+      undo: "parse_retry_counter_restore"
+    undo:
+      strategy: parse_retry_counter_restore
+      description: "Restores the parse retry counter snapshot captured before reporting the parse error."
+
+  - name: reset_history
+    type: builtin
+    init: reset_history
+    visibility: internal
+    emits: [ToolDone, CommandError]
+    description: "Clear the conversation history and restart the LLM context."
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: conversation_history
+        state: reset_to_empty
+        description: "Clears the in-memory LLM conversation history."
+    reversibility:
+      classification: reversible
+      undo: "conversation_restore"
+    undo:
+      strategy: conversation_restore
+      description: "Restore the conversation snapshot captured before clearing history."
+
+  # --- validation ---
+  - name: validate
+    type: builtin
+    contract: migrated
+    init: validate
+    visibility: internal
+    emits: [ValidationPassed, ValidationFailed, CommandError]
+    description: "Deprecated compatibility aggregator for replaying skipped validation tools; new machines should declare validation sequences explicitly."
+    category: boundary
+    problem: |
+      Some older generator flows needed one internal action that could inspect
+      which validation tools the LLM had not already run and replay those
+      tools before declaring the task complete. Current generator behavior
+      expresses build, lint, and test as direct machine transitions, so this
+      tool remains only as a compatibility boundary aggregator.
+    goals:
+      - "G1: Preserve compatibility for machines that explicitly select validate."
+      - "G2: Make aggregate validation status available as ValidationPassed or ValidationFailed."
+      - "G3: Keep validate hidden from LLM tool manifests."
+    requirements:
+      input:
+        - "must receive its validation tool order from program configuration, not from the LLM."
+        - "must derive the skipped tool list from ToolTracker state."
+      output:
+        - "must emit ValidationPassed when all replayed tools pass or when no tools were skipped."
+        - "must emit ValidationFailed when a replayed validation tool reports ToolFailed."
+        - "must emit CommandError when a replayed validation tool reports CommandError."
+      side_effects:
+        - "must run selected child tool commands in the configured order until one fails or all pass."
+        - "must not expose itself as an LLM-callable tool."
+      undo:
+        - "must rely on child tool undo/workspace checkpoint mechanisms for effects created by replayed tools."
+        - "must have no direct undo beyond aggregating child command results."
+      errors:
+        - "must report which child validation tool failed."
+        - "must preserve infrastructure errors from child validation commands."
+    non_goals:
+      - "Does not define the preferred generator validation sequence; use machine.yaml transitions for that."
+      - "Does not replace build, lint, test, or other atomic validation tools."
+      - "Does not interpret LLM output or choose validation tools dynamically."
+      - "Does not provide rollback for child tool side effects."
+    output:
+      description: "Aggregate validation status and summary of replayed tools."
+      schema:
+        type: object
+        properties:
+          passed:
+            type: boolean
+          ran:
+            type: array
+            items:
+              type: string
+          failing_tool:
+            type: string
+          message:
+            type: string
+        required: [passed, message]
+    side_effects:
+      - kind: child_tool_execution
+        target: configured_validation_tools
+        description: "Executes skipped validation tools through their registered builders."
+    reversibility:
+      classification: compensatable
+      undo: "Replay child command undo or restore a workspace checkpoint created before aggregate validation."
+    undo:
+      strategy: child_command_undo
+      description: "Undo is delegated to the commands validate executed; validate has no independent state to reverse."
+      payload: boundary_compensation
+      captures: [ran_child_tools]
+    errors:
+      - signal: ValidationFailed
+        condition: "A replayed validation tool returned ToolFailed."
+        message_shape: "validation failed at <tool>: <output>"
+        state_after_failure: "child tool effects may already exist and require child undo or workspace restore"
+      - signal: CommandError
+        condition: "A replayed validation tool returned CommandError."
+        message_shape: "validation infrastructure error in <tool>: <output>"
+        state_after_failure: "child tool effects may already exist and require child undo or workspace restore"
+    relationships:
+      before:
+        - "compatibility machines after TaskCompleted"
+      after:
+        - "terminal pass/fail transitions"
+      overlaps:
+        - tool: build
+          difference: "build is one validation word; validate aggregates configured validation tools."
+        - tool: lint
+          difference: "lint is one validation word; validate aggregates configured validation tools."
+        - tool: test
+          difference: "test is one validation word; validate aggregates configured validation tools."
+
+  - name: nudge_reread
+    type: builtin
+    init: nudge_reread
+    visibility: internal
+    emits: [ToolDone]
+    description: "Append a re-read instruction after file edits to prompt the model to verify changes."
+    category: word
+    side_effects:
+      - kind: none
+        description: "Formats the previous edit result with a re-read instruction without mutating state."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "The nudge only changes the command output passed to the next transition."
+
+  - name: done
+    type: builtin
+    init: done
+    visibility: internal
+    emits: [TaskCompleted]
+    description: "Signal that the generation task is complete."
+    category: word
+    side_effects:
+      - kind: none
+        description: "Emits TaskCompleted and does not mutate state."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "Completion signaling has no effects to reverse."
+
+  - name: suspend
+    type: builtin
+    init: suspend
+    visibility: internal
+    emits: [AwaitApproval, CommandError]
+    description: "Suspend the run at an approval gate. The loop persists a checkpoint when StateStore is configured."
+    category: boundary
+    config:
+      label: approval
+      reason: "awaiting approval"
+      require_checkpoint: false
+    side_effects:
+      - kind: state_mutation
+        target: lifecycle_checkpoint
+        state: suspended
+        description: "Requests suspension; the loop persists a checkpoint when StateStore is configured."
+      - kind: human_boundary
+        target: operator_approval
+        description: "Hands control to an operator approval decision before resume."
+    reversibility:
+      classification: compensatable
+      undo: "resume_with_rejected_or_rollback_checkpoint"
+    undo:
+      strategy: compensating_action
+      description: "Resume with an explicit approval/rejection signal or roll back to an earlier checkpoint."
+      payload: boundary_compensation
+      captures: [reason, checkpoint_required]
+
+  # --- pipeline/planner tools ---
+  - name: extract_task
+    type: builtin
+    init: extract_task
+    description: "Extract the next unblocked task from the dependency graph."
+    visibility: internal
+    emits: [TaskExtracted, AllDone, Blocked, BatchLimitReached, CommandError]
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: pipeline_state
+        state: current_task_selected
+        description: "Updates the current task cursor and graph task status."
+    reversibility:
+      classification: reversible
+      undo: "pipeline_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore the pipeline state snapshot captured before extraction."
+
+  - name: extract_all
+    type: builtin
+    init: extract_all
+    description: "Extract all requirements as a single task group (passthrough mode)."
+    visibility: internal
+    emits: [TaskExtracted, AllDone, Blocked, CommandError]
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: pipeline_state
+        state: passthrough_task_group_selected
+        description: "Updates the current task to represent the full requirement group."
+    reversibility:
+      classification: reversible
+      undo: "pipeline_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore the pipeline state snapshot captured before extraction."
+
+  - name: assemble_prompt
+    type: builtin
+    init: assemble_prompt
+    description: "Assemble the LLM prompt from task context and SRD requirements."
+    visibility: internal
+    emits: [ToolDone, CommandError]
+    category: word
+    side_effects:
+      - kind: none
+        description: "Formats prompt text from current pipeline context without mutating state."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "Prompt assembly has no effects to reverse."
+
+  - name: parse_plan
+    type: builtin
+    init: parse_plan
+    description: "Parse the LLM YAML response into an ImplementationPlan."
+    visibility: internal
+    emits: [PlanReady, ParseFailed, CommandError]
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: pipeline_state
+        state: current_plan_parsed
+        description: "Sets the parsed implementation plan on pipeline state."
+    reversibility:
+      classification: reversible
+      undo: "pipeline_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore the pipeline state snapshot captured before parsing."
+
+  - name: create_issue
+    type: builtin
+    init: create_issue
+    description: "Create a bd issue from the parsed implementation plan."
+    visibility: internal
+    emits: [Materialized, MaterializeFailed, CommandError]
+    category: boundary
+    side_effects:
+      - kind: external_api
+        target: beads_issue_tracker
+        description: "Materializes the parsed plan as a bd issue and records the issue ID in pipeline state."
+      - kind: state_mutation
+        target: pipeline_state
+        state: issue_id_recorded
+        description: "Stores the materialized issue ID for downstream task execution."
+    reversibility:
+      classification: compensatable
+      undo: "pipeline_state_restore_and_issue_compensation"
+    undo:
+      strategy: compensating_action
+      description: "Restore pipeline state; issue tracker side effects require explicit close/delete compensation."
+      payload: boundary_compensation
+      captures: [issue_id, pipeline_state_snapshot]
+
+  - name: execute_task
+    type: builtin
+    init: execute_task
+    description: "Execute the current task via the code generator agent."
+    visibility: internal
+    emits: [ExecutionDone, ExecutionFailed, CommandError]
+    category: boundary
+    side_effects:
+      - kind: child_agent_execution
+        target: generator_agent
+        description: "Runs a child agent configured by machine/tool selection paths."
+      - kind: filesystem_write
+        target: child_workspace
+        description: "Child agent may mutate its configured workspace."
+    reversibility:
+      classification: compensatable
+      undo: "child_command_undo_or_workspace_restore"
+    undo:
+      strategy: compensating_action
+      description: "Rely on child agent history, command undo, and workspace restore for side effects."
+      payload: boundary_compensation
+      captures: [child_run_id, child_workspace_ref]
+      requires: [Workspace]
+
+  - name: check_result
+    type: builtin
+    init: check_result
+    description: "Evaluate validation results and decide retry vs. advance vs. fail."
+    visibility: internal
+    emits: [ValidationPassed, RetryAvailable, RetriesExhausted, CommandError]
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: pipeline_state
+        state: retry_count_or_task_status_updated
+        description: "Updates retry counters and task status based on execution result."
+    reversibility:
+      classification: reversible
+      undo: "pipeline_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore the pipeline state snapshot captured before result evaluation."
+
+  # --- evaluator session tools ---
+  - name: parse_suite_config
+    type: builtin
+    init: parse_suite_config
+    visibility: internal
+    emits: [SuiteConfigParsed, CommandError]
+    description: "Read and validate evaluator suite YAML metadata without discovering samples or creating session artifacts."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: eval_session_state
+        state: suite_config_parsed
+        description: "Sets EvalSessionState.Suite with suite metadata and resolved samples directory."
+    reversibility:
+      classification: reversible
+      undo: "session_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore evaluator session state to the snapshot before parsing suite config."
+
+  - name: discover_suite_samples
+    type: builtin
+    init: discover_suite_samples
+    visibility: internal
+    emits: [SuiteSamplesDiscovered, CommandError]
+    description: "Discover evaluator samples from the parsed suite samples directory."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: eval_session_state
+        state: suite_samples_discovered
+        description: "Sets EvalSessionState.Suite.Samples from the resolved samples directory."
+    reversibility:
+      classification: reversible
+      undo: "session_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore evaluator session state to the snapshot before discovering samples."
+
+  - name: expand_eval_grid
+    type: builtin
+    init: expand_eval_grid
+    visibility: internal
+    emits: [EvalGridExpanded, CommandError]
+    description: "Expand evaluator suite grid parameters into concrete grid points."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: eval_session_state
+        state: eval_grid_expanded
+        description: "Sets the EvalSessionState grid point iterator input."
+    reversibility:
+      classification: reversible
+      undo: "session_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore evaluator session state to the snapshot before expanding the grid."
+
+  - name: init_eval_session
+    type: builtin
+    init: init_eval_session
+    visibility: internal
+    emits: [EvalSessionInitialized, CommandError]
+    description: "Create the evaluator session output directory and resolve runtime defaults."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: evaluator_session_dir
+        description: "Creates the evaluator session output directory."
+      - kind: state_mutation
+        target: eval_session_state
+        state: eval_session_initialized
+        description: "Sets session directory, reps, timeout, Ollama URL, and iteration start time."
+    reversibility:
+      classification: reversible
+      undo: "workspace_restore_and_session_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore evaluator session state and workspace artifacts from the prior checkpoint."
+      requires: [Workspace]
+
+  - name: report_suite_summary
+    type: builtin
+    init: report_suite_summary
+    visibility: internal
+    emits: [SuiteLoaded, CommandError]
+    description: "Report suite point count after config parsing, sample discovery, grid expansion, and session initialization."
+    category: word
+    side_effects:
+      - kind: stderr_write
+        target: evaluator_output
+        description: "Prints suite summary to evaluator stderr."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "Summary reporting writes only diagnostic output and has no state to restore."
+
+  - name: next_point
+    type: builtin
+    init: next_point
+    visibility: internal
+    emits: [PointReady, AllPointsDone, CommandError]
+    description: "Advance to the next evaluation point in the grid. Returns PointReady or AllPointsDone."
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: eval_session_state
+        state: current_point_advanced
+        description: "Advances the evaluator session cursor to the next grid point."
+    reversibility:
+      classification: reversible
+      undo: "session_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore the evaluator session cursor from a prior snapshot."
+
+  - name: run_point
+    type: builtin
+    init: run_point
+    visibility: internal
+    emits: [PointDone, CommandError]
+    description: "Run the per-point evaluation pipeline via a nested core.Loop with the point machine."
+    category: boundary
+    side_effects:
+      - kind: nested_machine_execution
+        target: evaluator_point_machine
+        description: "Runs a nested point machine that may mutate point state and workspace artifacts."
+    reversibility:
+      classification: compensatable
+      undo: "nested_machine_rollback"
+    undo:
+      strategy: child_command_undo
+      description: "Use nested point machine history and workspace refs to roll back point effects."
+      payload: boundary_compensation
+      captures: [eval_session_snapshot, nested_machine_history]
+
+  - name: report_session
+    type: builtin
+    init: report_session
+    visibility: internal
+    emits: [SessionReported, CommandError]
+    description: "Print session summary with pass/fail/timeout counts and total duration."
+    category: word
+    side_effects:
+      - kind: stderr_write
+        target: evaluator_output
+        description: "Prints evaluator session summary."
+      - kind: state_mutation
+        target: eval_session_state
+        state: session_duration_finalized
+        description: "Sets the final session duration on EvalSessionState.Result."
+    reversibility:
+      classification: reversible
+      undo: "evaluator_session_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore evaluator session state to the snapshot before finalizing session duration."
+
+  # --- evaluator per-point tools ---
+  - name: create_point_dir
+    type: builtin
+    init: create_point_dir
+    visibility: internal
+    emits: [PointDirCreated, CommandError]
+    description: "Create the per-point evaluation directory and record trace artifact paths."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_artifacts
+        description: "Creates the point output directory under the evaluator session directory."
+      - kind: state_mutation
+        target: point_context
+        state: point_dir_and_trace_path_set
+        description: "Sets PointContext.PointDir and PointContext.TracePath for later point tools."
+    reversibility:
+      classification: reversible
+      undo: "workspace_restore_and_point_context_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore point context and artifact workspace state from the prior checkpoint."
+      requires: [Workspace]
+
+  - name: copy_sample_workspace
+    type: builtin
+    init: copy_sample_workspace
+    visibility: internal
+    emits: [SampleWorkspaceCopied, CommandError]
+    description: "Copy the sample workspace contents into the current point directory."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_workspace
+        description: "Copies sample workspace files into PointContext.PointDir."
+    reversibility:
+      classification: reversible
+      undo: "workspace_restore"
+    undo:
+      strategy: workspace_restore
+      description: "Restore point workspace files from a previous workspace ref."
+      requires: [Workspace]
+
+  - name: copy_sample_docs
+    type: builtin
+    init: copy_sample_docs
+    visibility: internal
+    emits: [SampleDocsCopied, CommandError]
+    description: "Copy optional sample docs into the current point directory, or no-op when the sample has no docs."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_docs
+        paths: [doc]
+        description: "Copies sample docs into PointContext.PointDir/doc when docs exist."
+    reversibility:
+      classification: reversible
+      undo: "workspace_restore"
+    undo:
+      strategy: workspace_restore
+      description: "Restore copied point documentation from a previous workspace ref."
+      requires: [Workspace]
+
+  - name: init_workspace_repo
+    type: builtin
+    init: init_workspace_repo
+    visibility: internal
+    emits: [WorkspaceRepoInitialized, CommandError]
+    description: "Initialize a git repository in the current point workspace."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_workspace_git_metadata
+        paths: [.git]
+        description: "Creates git metadata in PointContext.PointDir."
+    reversibility:
+      classification: compensatable
+      undo: "remove_git_metadata_or_recreate_workspace"
+    undo:
+      strategy: compensating_action
+      description: "Remove generated git metadata or recreate the point workspace from source artifacts."
+
+  - name: stage_workspace_baseline
+    type: builtin
+    init: stage_workspace_baseline
+    visibility: internal
+    emits: [WorkspaceBaselineStaged, CommandError]
+    description: "Stage all current point workspace files for the baseline commit."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: git_index
+        state: all_changes_staged
+        description: "Stages all files in the point workspace git index."
+    reversibility:
+      classification: reversible
+      undo: "git_index_restore"
+    undo:
+      strategy: workspace_restore
+      description: "Restore the point workspace git index from a previous workspace ref."
+      requires: [Workspace]
+
+  - name: commit_workspace_baseline
+    type: builtin
+    init: commit_workspace_baseline
+    visibility: internal
+    emits: [WorkspaceBaselineCommitted, CommandError]
+    description: "Create the baseline git commit for the current point workspace."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_workspace_git_history
+        paths: [.git]
+        description: "Creates the baseline commit in the point workspace repository."
+    reversibility:
+      classification: compensatable
+      undo: "reset_or_recreate_workspace_repo"
+    undo:
+      strategy: compensating_action
+      description: "Reset the point repository to the intended baseline or recreate the point workspace."
+
+  - name: run_agent
+    type: builtin
+    init: run_agent
+    visibility: internal
+    emits: [HarnessFinished, HarnessFailed, HarnessTimedOut, CommandError]
+    description: "Run the agent binary on the prepared workspace and collect exit code, timing, and output."
+    category: boundary
+    side_effects:
+      - kind: child_process
+        target: harness_agent
+        description: "Runs the configured agent binary for the current point."
+      - kind: filesystem_write
+        target: point_workspace
+        description: "The harness agent may mutate files in the point workspace."
+      - kind: state_mutation
+        target: point_context
+        state: harness_result_recorded
+        description: "Records exit code, timing, stdout, stderr, timeout, and trace path."
+    reversibility:
+      classification: compensatable
+      undo: "workspace_restore_and_point_context_restore"
+    undo:
+      strategy: compensating_action
+      description: "Restore point context and workspace refs; external child process effects may require compensation."
+      payload: boundary_compensation
+      captures: [point_context_snapshot, point_workspace, trace_path, result_path]
+      requires: [Workspace]
+
+  - name: run_oracle_check
+    type: builtin
+    init: run_oracle_check
+    visibility: internal
+    emits: [OracleCheckPassed, OracleCheckFailed, CommandError]
+    description: "Run the point workspace oracle tests and record pass/fail output."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: test_result_recorded
+        description: "Sets PointContext.TestsPassed and PointContext.TestOutput from go test ./... in the point workspace."
+    reversibility:
+      classification: reversible
+      undo: "point_context_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore PointContext test result fields from the prior snapshot."
+
+  - name: collect_trace_tokens
+    type: builtin
+    init: collect_trace_tokens
+    visibility: internal
+    emits: [TraceTokensCollected, CommandError]
+    description: "Read the point trace file and record total GenAI input/output token usage."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: trace_tokens_recorded
+        description: "Sets PointContext.Tokens from gen_ai.usage input and output token attributes in the trace file."
+    reversibility:
+      classification: reversible
+      undo: "point_context_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore PointContext token fields from the prior snapshot."
+
+  - name: check_agent_version
+    type: builtin
+    init: check_agent_version
+    visibility: internal
+    emits: [AgentVersionChecked, AgentVersionMismatch, CommandError]
+    description: "Compare the configured harness agent version with the version reported in the point trace."
+    category: word
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: agent_version_checked
+        description: "Sets PointContext.TraceVersion and PointContext.VersionMismatch when a traced version differs from the harness config."
+      - kind: stderr_write
+        target: evaluator_output
+        description: "Writes a warning when the configured and traced agent versions differ."
+    reversibility:
+      classification: reversible
+      undo: "point_context_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore PointContext version fields from the prior snapshot."
+
+  - name: summarize_point_results
+    type: builtin
+    init: summarize_point_results
+    visibility: internal
+    emits: [ResultsCollected, CommandError]
+    description: "Summarize previously collected point oracle, trace, and version state."
+    category: word
+    side_effects:
+      - kind: state_read
+        target: point_context
+        description: "Reads PointContext test, token, and version fields without mutating them."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "Summarization is read-only and has no effects to reverse."
+
+  - name: collect_metrics
+    type: builtin
+    init: collect_metrics
+    visibility: internal
+    emits: [MetricsCollected, CommandError]
+    description: "Write evaluation metadata (exit code, duration, test results, tokens) to meta.json."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: point_metrics
+        paths: [meta.json]
+        description: "Writes point metadata to meta.json."
+    reversibility:
+      classification: reversible
+      undo: "workspace_restore"
+    undo:
+      strategy: workspace_restore
+      description: "Restore point artifact files to a previous workspace ref."
+      requires: [Workspace]
+
+  - name: dump_config
+    type: builtin
+    init: dump_config
+    visibility: internal
+    emits: [ConfigDumped, CommandError]
+    description: "Serialize the full experiment configuration (harness, model, tools, prompts) into experiment.yaml."
+    category: word
+    side_effects:
+      - kind: filesystem_write
+        target: experiment_config
+        paths: [experiment.yaml]
+        description: "Writes resolved experiment configuration for reproducibility."
+    reversibility:
+      classification: reversible
+      undo: "workspace_restore"
+    undo:
+      strategy: workspace_restore
+      description: "Restore experiment artifacts to a previous workspace ref."
+      requires: [Workspace]
+
+  # --- bench tools ---
+  - name: serve_ui
+    type: builtin
+    init: serve_ui
+    visibility: internal
+    emits: [ExperimentRequested, Shutdown, CommandError]
+    description: "Start the bench web UI server and block waiting for user actions (bench equivalent of invoke_llm)."
+    category: boundary
+    side_effects:
+      - kind: child_process
+        target: bench_http_server
+        description: "Starts an HTTP server and waits for operator requests."
+      - kind: human_boundary
+        target: bench_operator
+        description: "Receives experiment requests or shutdown from a user."
+    reversibility:
+      classification: compensatable
+      undo: "server_shutdown"
+    undo:
+      strategy: compensating_action
+      description: "Stop the server or issue a shutdown signal; completed user-triggered work requires its own rollback."
+      payload: boundary_compensation
+      captures: [server_addr, user_action]
+
+  - name: launch_eval
+    type: builtin
+    init: launch_eval
+    visibility: internal
+    emits: [EvalCompleted, EvalFailed, CommandError]
+    description: "Spawn a child agent as a subprocess to run an experiment."
+    category: boundary
+    side_effects:
+      - kind: child_process
+        target: evaluator_agent
+        description: "Launches an evaluator agent subprocess."
+      - kind: filesystem_write
+        target: eval_results
+        description: "Evaluator subprocess writes experiment artifacts and metrics."
+    reversibility:
+      classification: compensatable
+      undo: "child_run_artifact_cleanup_or_workspace_restore"
+    undo:
+      strategy: compensating_action
+      description: "Use evaluator output cleanup, child history, or workspace restore for generated artifacts."
+      payload: boundary_compensation
+      captures: [suite_path, output_dir, child_machine, child_tools]
+      requires: [Workspace]
+
+  # --- spec validation tools ---
+  - name: load_corpus
+    type: builtin
+    init: load_corpus
+    visibility: internal
+    emits: [ToolDone, CommandError]
+    description: "Load the specification corpus from the project directory."
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: validation_state
+        state: corpus_loaded
+        description: "Loads specification documents into validation state."
+    reversibility:
+      classification: reversible
+      undo: "validation_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore validation state to the snapshot before loading the corpus."
+
+  - name: validate_specs
+    type: builtin
+    init: validate_specs
+    visibility: internal
+    emits: [ValidationPassed, ValidationFailed, CommandError]
+    description: "Run consistency checks on the loaded specification corpus."
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: validation_state
+        state: validation_results_recorded
+        description: "Records validation findings in validation state."
+    reversibility:
+      classification: reversible
+      undo: "validation_state_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore validation state to the snapshot before running checks."
+
+  - name: format_report
+    type: builtin
+    init: format_report
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: "Format the validation results as a human-readable report."
+    category: word
+    side_effects:
+      - kind: none
+        description: "Formats validation state into command output without mutating state."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "Report formatting has no effects to reverse."

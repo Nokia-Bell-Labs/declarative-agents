@@ -1,0 +1,1110 @@
+id: sm-tool-vocabulary-audit
+title: Tool Vocabulary Audit
+
+purpose: |
+  Classifies current agent-core tools using the vocabulary rule:
+  tools are words, machines compose sentences. A good tool is a single
+  deterministic verb with typed input, typed output, declared side effects,
+  explicit reversibility, and clear composition relationships.
+
+scope:
+  shared_declarations:
+    - tools/builtin/
+    - tools/exec/
+  mode_declarations:
+    - agents/*/builtin.yaml
+    - agents/*/llm/*.yaml
+  selections:
+    - agents/generator/tools.yaml
+    - agents/planner/tools.yaml
+    - agents/evaluator/tools.yaml
+    - agents/evaluator/tools-point.yaml
+    - agents/bench/tools.yaml
+    - agents/jurist/tools.yaml
+    - agents/lifecycle/tools.yaml
+
+role_legend:
+  word: |
+    A single deterministic verb. It can be composed freely by a state
+    machine or by LLM-selected $tool dispatch.
+  sentence: |
+    A workflow hidden behind one tool name. These should usually be split
+    so machine.yaml owns the sequence.
+  boundary: |
+    A tool that crosses a program boundary: LLM call, child agent,
+    nested machine, web UI event source, or external CLI with broad
+    side effects. Boundary tools can remain, but require explicit contracts.
+  stateful_internal: |
+    An internal machine action that mutates agent/domain state. It may be
+    one word, but undo must be command-state undo rather than workspace undo.
+
+overall_findings:
+  - Most file and simple exec tools are close to vocabulary words.
+  - |
+    Tool declarations now include structured side_effects (14 kind values),
+    reversibility classification, and undo strategy for most tools. Contract
+    metadata (problem, goals, non_goals) is populated for many but not all
+    tools. output.schema is declared for file tools and test but is not yet
+    broadly populated.
+  - |
+    All boundary tools now have UndoMementoProvider implementations that emit
+    compensatable mementos with boundary_compensation payloads. Undo contracts
+    are declared in tools/builtin/ and tools/exec/ declaration files with
+    payload and captures fields.
+  - The remaining high-priority sentence-shaped tools are now mostly planner
+    or lifecycle follow-ups; evaluator session and point workflows have been
+    split into machine-composed words.
+  - |
+    The desired lifecycle history and rollback tools are first-class STL
+    builtin adapters selected by lifecycle profiles. Legacy exec wrappers and
+    hidden Cobra history/rollback commands are migration artifacts only.
+  - validate is retained as a deprecated internal boundary aggregator for
+    compatibility, but current generator validation is machine-declared.
+  - Boundary tools carry explicit category (boundary) classification in their
+    declarations.
+  - Runtime output is still mostly human-readable core.Result.Output strings.
+    Existing output.schema declarations are contract targets, not yet
+    guaranteed serialized Result.Data.
+
+tools:
+  # File tools
+  - name: read
+    role: word
+    selected_by: [generator]
+    inputs_from: [find, list_files, prior_tool_output, user_task]
+    feeds_into: [edit, write, LLM_reasoning]
+    side_effects: none
+    output_contract: declared
+    undo: noop
+    overlaps:
+      - tool: list_files
+        difference: read returns file content; list_files returns directory shape
+      - tool: find
+        difference: read returns known file content; find discovers matching paths
+    issues:
+      - needs full problem/goals/non_goals/reversibility metadata
+    migration_priority: low
+
+  - name: write
+    role: word
+    selected_by: [generator]
+    inputs_from: [LLM_tool_call]
+    feeds_into: [read, build, lint, test, nudge_reread]
+    side_effects: filesystem_write
+    output_contract: declared
+    undo: workspace_restore
+    overlaps:
+      - tool: edit
+        difference: write replaces an entire file; edit replaces one exact occurrence
+    issues:
+      - needs structured side_effects and reversibility contract
+      - runtime output is still prose, not Result.Data
+    migration_priority: medium
+
+  - name: edit
+    role: word
+    selected_by: [generator]
+    inputs_from: [read, LLM_tool_call]
+    feeds_into: [read, build, lint, test, nudge_reread]
+    side_effects: filesystem_write
+    output_contract: declared
+    undo: workspace_restore
+    overlaps:
+      - tool: write
+        difference: edit is safer for localized changes and fails on ambiguous matches
+    issues:
+      - needs structured side_effects and reversibility contract
+      - runtime output is still prose, not Result.Data
+    migration_priority: medium
+
+  - name: find
+    role: word
+    selected_by: [generator]
+    inputs_from: [LLM_tool_call]
+    feeds_into: [read, edit]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: list_files
+        difference: find searches file contents with regex; list_files lists paths
+    issues:
+      - needs output.schema for path/match/line tuples
+      - needs contract metadata
+    migration_priority: low
+
+  - name: list_files
+    role: word
+    selected_by: [generator]
+    inputs_from: [LLM_tool_call]
+    feeds_into: [read, find]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: find
+        difference: list_files explores directory structure; find searches text
+    issues:
+      - needs output.schema for tree entries
+      - implementation silently skips unreadable subdirectories in walkTree
+    migration_priority: low
+
+  # LLM and conversation tools
+  - name: invoke_llm
+    role: boundary
+    selected_by: [generator, planner]
+    inputs_from: [conversation_history, registry_manifest, prompt_assembler]
+    feeds_into: [parse_response, parse_plan]
+    side_effects: conversation_append, external_model_call
+    output_contract: missing
+    undo: conversation_truncate
+    overlaps: []
+    issues:
+      - not deterministic despite temperature/seed controls
+      - should declare output.schema for raw response plus token usage
+    migration_priority: medium
+
+  - name: parse_response
+    role: word
+    selected_by: [generator]
+    inputs_from: [invoke_llm]
+    feeds_into: [$tool_dispatch, done, report_parse_error]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: parse_plan
+        difference: parse_response extracts a tool call or done signal; parse_plan extracts planner YAML
+    issues:
+      - needs output.schema for parsed tool request and completion summary
+    migration_priority: low
+
+  - name: report_parse_error
+    role: stateful_internal
+    selected_by: [generator]
+    inputs_from: [parse_response]
+    feeds_into: [invoke_llm, BudgetExceeded]
+    side_effects: parse_retry_counter_update
+    output_contract: missing
+    undo: parse_retry_counter_restore
+    overlaps: []
+    issues:
+      - output.schema should distinguish retry feedback from retry-limit exhaustion
+    migration_priority: medium
+
+  - name: reset_history
+    role: stateful_internal
+    selected_by: [generator, planner]
+    inputs_from: [machine_recovery_path]
+    feeds_into: [invoke_llm]
+    side_effects: conversation_replace
+    output_contract: missing
+    undo: conversation_restore
+    overlaps: []
+    issues:
+      - irreversible today unless prior messages are captured by command undo
+    migration_priority: medium
+
+  - name: nudge_reread
+    role: stateful_internal
+    selected_by: [generator]
+    inputs_from: [edit]
+    feeds_into: [invoke_llm]
+    side_effects: conversation_append
+    output_contract: missing
+    undo: conversation_truncate
+    overlaps: []
+    issues:
+      - should declare why this is state mutation rather than workflow logic
+    migration_priority: medium
+
+  - name: done
+    role: word
+    selected_by: [generator]
+    inputs_from: [LLM_tool_call]
+    feeds_into: [generator_validation_sequence]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps: []
+    issues:
+      - needs output.schema for completion summary
+    migration_priority: low
+
+  - name: suspend
+    role: boundary
+    selected_by: []
+    inputs_from: [machine_transition]
+    feeds_into: [resume_or_checkpoint]
+    side_effects: state_mutation
+    output_contract: missing
+    undo: boundary_compensation (compensating_action, captures reason + checkpoint_required)
+    overlaps: []
+    issues:
+      - output.schema for suspension reason and checkpoint reference
+    migration_priority: low
+
+  - name: checkpoint_history
+    role: stateful_internal
+    status: desired_lifecycle_adapter
+    selected_by: [lifecycle_history]
+    inputs_from: [lifecycle_profile, checkpoint_selector, StateStore]
+    feeds_into: [history_machine_terminal, operator_review]
+    side_effects: none
+    output_contract: declared_by_srd026
+    undo: noop
+    overlaps:
+      - tool: legacy_history_exec_wrapper
+        difference: checkpoint_history calls core checkpoint operations directly; the legacy wrapper shells through compatibility CLI behavior
+      - tool: checkpoint_rollback
+        difference: checkpoint_history inspects checkpoint history without rewriting checkpoint or workspace state
+    issues:
+      - ToolDef declaration still needs to replace legacy exec wrapper in lifecycle config
+    migration_priority: high
+
+  - name: checkpoint_rollback
+    role: boundary
+    status: desired_lifecycle_adapter
+    selected_by: [lifecycle_rollback]
+    inputs_from: [lifecycle_profile, checkpoint_selector, to_iteration, StateStore, Workspace]
+    feeds_into: [rollback_machine_terminal, resume_decision]
+    side_effects: checkpoint_state_rewrite, workspace_restore
+    output_contract: declared_by_srd026
+    undo: boundary_compensation (operator_checkpoint_selection, captures checkpoint_id + operator_decision)
+    overlaps:
+      - tool: legacy_rollback_exec_wrapper
+        difference: checkpoint_rollback calls core rollback operations directly; the legacy wrapper shells through compatibility CLI behavior
+      - tool: checkpoint_history
+        difference: checkpoint_rollback mutates checkpoint state and may restore workspace state
+    issues:
+      - ToolDef declaration still needs to replace legacy exec wrapper in lifecycle config
+      - Requires lifecycle profile wiring before it is the desired operator path
+    migration_priority: high
+
+  - name: self_invoke
+    role: boundary
+    selected_by: []
+    inputs_from: [machine_transition]
+    feeds_into: [child_agent_result]
+    side_effects: child_agent_execution
+    output_contract: missing
+    undo: boundary_compensation (child_agent_workspace_restore, captures child_machine + child_tools + child_run_id + trace_path)
+    overlaps:
+      - tool: execute_task
+        difference: self_invoke re-invokes the agent binary directly; execute_task runs a configured child agent for planner
+    issues:
+      - output.schema for child agent result
+    migration_priority: low
+
+  # Validation and build exec tools
+  - name: build
+    role: boundary
+    selected_by: [generator, planner]
+    inputs_from: [workspace_files]
+    feeds_into: [lint, test, check_result]
+    side_effects: subprocess, possible_build_cache_or_binary
+    output_contract: missing
+    undo: noop_or_workspace_restore_if_artifacts
+    overlaps:
+      - tool: test
+        difference: build compiles packages; test compiles and runs tests
+      - tool: vet
+        difference: vet reports suspicious code patterns
+      - tool: lint
+        difference: lint applies configured static analysis rules
+    issues:
+      - external CLI boundary needs structured side_effects and output.schema
+    migration_priority: medium
+
+  - name: vet
+    role: boundary
+    selected_by: [generator, planner]
+    inputs_from: [workspace_files]
+    feeds_into: [LLM_reasoning, check_result]
+    side_effects: subprocess
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: lint
+        difference: vet is Go toolchain analysis; lint is external linter rule set
+    issues:
+      - needs output.schema for diagnostics
+    migration_priority: low
+
+  - name: lint
+    role: boundary
+    selected_by: [generator]
+    inputs_from: [workspace_files]
+    feeds_into: [test]
+    side_effects: subprocess
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: vet
+        difference: lint is golangci-lint; vet is Go toolchain analysis
+    issues:
+      - needs output.schema for diagnostics
+    migration_priority: low
+
+  - name: test
+    role: boundary
+    selected_by: [generator, planner]
+    inputs_from: [workspace_files]
+    feeds_into: [done, check_result]
+    side_effects: subprocess, possible_test_cache
+    output_contract: declared
+    undo: noop
+    overlaps:
+      - tool: build
+        difference: test executes package tests; build only compiles
+    issues:
+      - runtime output is not yet structured according to output.schema
+    migration_priority: medium
+
+  - name: validate
+    role: boundary
+    status: deprecated_compatibility
+    selected_by: []
+    inputs_from: [tool_tracker, configured_validation_order]
+    feeds_into: [ValidationPassed, ValidationFailed]
+    side_effects: child_tool_execution
+    output_contract: declared
+    undo: boundary_compensation (child_command_undo, captures ran_child_tools)
+    overlaps:
+      - tool: build
+        difference: validate aggregates multiple tools; build is one command
+      - tool: lint
+        difference: validate aggregates multiple tools; lint is one command
+      - tool: test
+        difference: validate aggregates multiple tools; test is one command
+    issues:
+      - retained only for compatibility with machines that explicitly select it
+      - new generator validation sequences should be expressed in machine.yaml
+    split_recommendation:
+      - do not use for new validation flows; compose build/lint/test as state-machine transitions
+    migration_priority: low
+
+  # Planner tools
+  - name: extract_task
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [spec_graph]
+    feeds_into: [assemble_prompt]
+    side_effects: pipeline_state_mutation
+    output_contract: missing
+    undo: graph_snapshot_restore
+    overlaps:
+      - tool: extract_all
+        difference: extract_task selects one next unblocked task; extract_all batches all ready nodes
+    issues:
+      - needs command-state undo contract
+    migration_priority: medium
+
+  - name: extract_all
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [spec_graph]
+    feeds_into: [assemble_prompt]
+    side_effects: pipeline_state_mutation
+    output_contract: missing
+    undo: graph_snapshot_restore
+    overlaps:
+      - tool: extract_task
+        difference: extract_all creates a single batch task; extract_task selects one weighted task
+    issues:
+      - needs command-state undo contract
+    migration_priority: medium
+
+  - name: assemble_prompt
+    role: word
+    selected_by: [planner]
+    inputs_from: [extract_task, extract_all, spec_corpus]
+    feeds_into: [invoke_llm]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps: []
+    issues:
+      - output should be typed prompt/messages rather than prose-only
+    migration_priority: low
+
+  - name: parse_plan
+    role: word
+    selected_by: [planner]
+    inputs_from: [invoke_llm]
+    feeds_into: [create_issue]
+    side_effects: pipeline_state_mutation
+    output_contract: missing
+    undo: restore_previous_plan
+    overlaps:
+      - tool: parse_response
+        difference: parse_plan parses planner YAML; parse_response parses generator tool calls
+    issues:
+      - mutates CurrentPlan; needs undo contract
+    migration_priority: medium
+
+  - name: create_issue
+    role: boundary
+    selected_by: [planner]
+    inputs_from: [parse_plan]
+    feeds_into: [execute_task]
+    side_effects: bd_database_write
+    output_contract: missing
+    undo: boundary_compensation (compensating_action, captures issue_id + pipeline_state_snapshot)
+    overlaps:
+      - tool: issue_create
+        difference: create_issue uses parsed planner state; issue_create is direct bd CLI wrapper
+    issues:
+      - output.schema for created issue ID and metadata
+    migration_priority: medium
+
+  - name: execute_task
+    role: boundary
+    selected_by: [planner]
+    inputs_from: [create_issue, extract_task]
+    feeds_into: [check_result]
+    side_effects: child_agent_process, workspace_mutation
+    output_contract: missing
+    undo: boundary_compensation (compensating_action, captures child_run_id + child_workspace_ref)
+    overlaps:
+      - tool: launch_eval
+        difference: execute_task runs generator child for planner task; launch_eval runs evaluator child from bench
+    issues:
+      - output.schema for execution result and workspace diff
+    migration_priority: medium
+
+  - name: check_result
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [execute_task, build, vet, test]
+    feeds_into: [extract_task, execute_task]
+    side_effects: pipeline_retry_counter
+    output_contract: missing
+    undo: restore_retry_counter
+    overlaps:
+      - tool: validate
+        difference: check_result decides retry/advance; validate runs skipped validation tools
+    issues:
+      - decision logic is acceptable as stateful internal, but needs explicit output and undo contracts
+    migration_priority: medium
+
+  # Evaluator session tools
+  - name: parse_suite_config
+    role: stateful_internal
+    selected_by: [evaluator_session]
+    inputs_from: [suite_yaml, cli_input, tool_config]
+    feeds_into: [discover_suite_samples]
+    side_effects: eval_session_suite_metadata_mutation
+    output_contract: declared_by_signal
+    undo: session_state_restore
+    overlaps: []
+    issues:
+      - needs output.schema for suite metadata summary
+    migration_priority: medium
+
+  - name: discover_suite_samples
+    role: stateful_internal
+    selected_by: [evaluator_session]
+    inputs_from: [parse_suite_config]
+    feeds_into: [expand_eval_grid]
+    side_effects: eval_session_sample_mutation
+    output_contract: declared_by_signal
+    undo: session_state_restore
+    overlaps:
+      - tool: load_corpus
+        difference: discover_suite_samples discovers evaluator sample workspaces; load_corpus loads project specs
+    issues:
+      - needs output.schema for discovered sample count and names
+    migration_priority: medium
+
+  - name: expand_eval_grid
+    role: stateful_internal
+    selected_by: [evaluator_session]
+    inputs_from: [discover_suite_samples]
+    feeds_into: [init_eval_session]
+    side_effects: eval_session_grid_mutation
+    output_contract: declared_by_signal
+    undo: session_state_restore
+    overlaps: []
+    issues:
+      - needs output.schema for grid point count
+    migration_priority: medium
+
+  - name: init_eval_session
+    role: stateful_internal
+    selected_by: [evaluator_session]
+    inputs_from: [expand_eval_grid, tool_config]
+    feeds_into: [report_suite_summary]
+    side_effects: filesystem_directory_create, eval_session_runtime_state_mutation
+    output_contract: declared_by_signal
+    undo: session_state_restore_and_workspace_restore
+    overlaps: []
+    issues:
+      - creates session directory and should eventually participate in workspace rollback
+    migration_priority: medium
+
+  - name: report_suite_summary
+    role: word
+    selected_by: [evaluator_session]
+    inputs_from: [init_eval_session]
+    feeds_into: [next_point]
+    side_effects: stderr_write
+    output_contract: declared_by_signal
+    undo: noop
+    overlaps:
+      - tool: report_session
+        difference: report_suite_summary reports setup dimensions; report_session reports final outcomes
+    issues:
+      - needs output.schema for total point count
+    migration_priority: low
+
+  - name: next_point
+    role: stateful_internal
+    selected_by: [evaluator_session]
+    inputs_from: [report_suite_summary]
+    feeds_into: [run_point, report_session]
+    side_effects: eval_session_iterator_mutation
+    output_contract: missing
+    undo: restore_iterator_and_point_context
+    overlaps: []
+    issues:
+      - needs output.schema for selected point context
+    migration_priority: medium
+
+  - name: run_point
+    role: boundary
+    selected_by: [evaluator_session]
+    inputs_from: [next_point]
+    feeds_into: [next_point]
+    side_effects: nested_machine_execution, point_result_recording, filesystem_mutation
+    output_contract: missing
+    undo: boundary_compensation (child_command_undo, captures eval_session_snapshot + nested_machine_history)
+    overlaps:
+      - tool: execute_task
+        difference: run_point invokes an in-process nested machine; execute_task spawns a child agent process
+    issues:
+      - output.schema for point result summary
+    migration_priority: medium
+
+  - name: report_session
+    role: word
+    selected_by: [evaluator_session]
+    inputs_from: [next_point]
+    feeds_into: [terminal]
+    side_effects: stderr_output
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: format_report
+        difference: report_session summarizes eval run; format_report formats spec validation findings
+    issues:
+      - should declare whether stderr output is a side effect
+    migration_priority: low
+
+  # Evaluator point tools
+  - name: create_point_dir
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [next_point]
+    feeds_into: [copy_sample_workspace]
+    side_effects: filesystem_write, point_context_mutation
+    output_contract: missing
+    undo: workspace_restore
+    overlaps: []
+    issues:
+      - needs output.schema for point_dir and trace_path
+      - needs full problem/goals/non_goals/reversibility metadata
+    migration_priority: medium
+
+  - name: copy_sample_workspace
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [create_point_dir]
+    feeds_into: [copy_sample_docs]
+    side_effects: filesystem_write
+    output_contract: missing
+    undo: workspace_restore
+    overlaps:
+      - tool: copy_dir
+        difference: copy_sample_workspace copies the selected sample workspace from PointContext; copy_dir is a generic CLI wrapper
+    issues:
+      - needs output.schema for copied file count or destination
+    migration_priority: medium
+
+  - name: copy_sample_docs
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [copy_sample_workspace]
+    feeds_into: [init_workspace_repo]
+    side_effects: filesystem_write_or_none
+    output_contract: missing
+    undo: workspace_restore
+    overlaps:
+      - tool: copy_sample_workspace
+        difference: copy_sample_docs copies optional documentation only; copy_sample_workspace copies executable workspace files
+    issues:
+      - no-ops successfully when no docs exist, which should be explicit in output.schema
+    migration_priority: medium
+
+  - name: init_workspace_repo
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [copy_sample_docs]
+    feeds_into: [stage_workspace_baseline]
+    side_effects: git_repo_create
+    output_contract: missing
+    undo: workspace_restore
+    overlaps:
+      - tool: git_init
+        difference: init_workspace_repo initializes the current PointContext workspace; git_init is a generic CLI wrapper
+    issues:
+      - needs output.schema and reversibility contract
+    migration_priority: medium
+
+  - name: stage_workspace_baseline
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [init_workspace_repo]
+    feeds_into: [commit_workspace_baseline]
+    side_effects: git_index_mutation
+    output_contract: missing
+    undo: git_reset_index_or_workspace_restore
+    overlaps:
+      - tool: stage_all
+        difference: stage_workspace_baseline stages the PointContext workspace baseline; stage_all is a generic CLI wrapper
+    issues:
+      - needs output.schema and undo metadata
+    migration_priority: medium
+
+  - name: commit_workspace_baseline
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [stage_workspace_baseline]
+    feeds_into: [dump_config]
+    side_effects: git_commit_create
+    output_contract: missing
+    undo: workspace_restore
+    overlaps:
+      - tool: commit
+        difference: commit_workspace_baseline creates a local point-workspace baseline; commit is a generic repo-history operation
+    issues:
+      - needs output.schema for commit hash
+    migration_priority: medium
+
+  - name: dump_config
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [commit_workspace_baseline, point_context]
+    feeds_into: [run_agent]
+    side_effects: filesystem_write
+    output_contract: missing
+    undo: workspace_restore
+    overlaps: []
+    issues:
+      - needs output.schema for experiment.yaml path and bytes
+      - needs structured filesystem side effect
+    migration_priority: medium
+
+  - name: run_agent
+    role: boundary
+    selected_by: [evaluator_point]
+    inputs_from: [dump_config, point_context]
+    feeds_into: [run_oracle_check]
+    side_effects: subprocess, workspace_mutation, trace_file_write
+    output_contract: missing
+    undo: boundary_compensation (compensating_action, captures point_context_snapshot + point_workspace + trace_path + result_path)
+    overlaps:
+      - tool: execute_task
+        difference: run_agent runs suite harness binary; execute_task runs configured child agent for planner
+    issues:
+      - output.schema for agent exit code and trace path
+    migration_priority: medium
+
+  - name: run_oracle_check
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [run_agent]
+    feeds_into: [collect_trace_tokens]
+    side_effects: point_context_test_result_mutation
+    output_contract: declared_by_signal
+    undo: restore_point_context
+    overlaps:
+      - tool: test
+        difference: run_oracle_check executes the point workspace oracle after agent execution; generic test runs workspace validation
+    issues:
+      - output.schema still needs full structured result contract
+    migration_priority: medium
+
+  - name: collect_trace_tokens
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [run_oracle_check, trace_ndjson]
+    feeds_into: [check_agent_version]
+    side_effects: point_context_token_mutation
+    output_contract: declared_by_signal
+    undo: restore_point_context
+    overlaps:
+      - tool: collect_metrics
+        difference: collect_trace_tokens extracts token state; collect_metrics persists meta.json
+    issues:
+      - output.schema still needs full structured token summary
+    migration_priority: medium
+
+  - name: check_agent_version
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [collect_trace_tokens, trace_ndjson, harness_config]
+    feeds_into: [summarize_point_results]
+    side_effects: point_context_version_mutation_and_warning_output
+    output_contract: declared_by_signal
+    undo: restore_point_context
+    overlaps: []
+    issues:
+      - version mismatch is a warning signal that continues the point sequence
+    migration_priority: medium
+
+  - name: summarize_point_results
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [run_oracle_check, collect_trace_tokens, check_agent_version]
+    feeds_into: [collect_metrics]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: collect_metrics
+        difference: summarize_point_results emits aggregate status; collect_metrics writes meta.json
+    issues:
+      - output.schema still needs full structured point summary
+    migration_priority: medium
+
+  - name: collect_metrics
+    role: word
+    selected_by: [evaluator_point]
+    inputs_from: [summarize_point_results]
+    feeds_into: [terminal]
+    side_effects: filesystem_write
+    output_contract: missing
+    undo: workspace_restore
+    overlaps:
+      - tool: collect_trace_tokens
+        difference: collect_metrics writes meta.json; collect_trace_tokens computes token state
+      - tool: summarize_point_results
+        difference: collect_metrics persists metadata; summarize_point_results emits aggregate status
+    issues:
+      - needs output.schema for meta path and summary fields
+    migration_priority: medium
+
+  # Bench tools
+  - name: serve_ui
+    role: boundary
+    selected_by: [bench]
+    inputs_from: [bench_state]
+    feeds_into: [launch_eval, terminal]
+    side_effects: http_server, user_interaction_block
+    output_contract: missing
+    undo: boundary_compensation (compensating_action, captures server_addr + user_action)
+    overlaps:
+      - tool: invoke_llm
+        difference: serve_ui blocks on human UI actions; invoke_llm blocks on model response
+    issues:
+      - output.schema for user action type and parameters
+    migration_priority: medium
+
+  - name: launch_eval
+    role: boundary
+    selected_by: [bench]
+    inputs_from: [serve_ui]
+    feeds_into: [serve_ui]
+    side_effects: child_agent_process, eval_results_write
+    output_contract: missing
+    undo: boundary_compensation (compensating_action, captures suite_path + output_dir + child_machine + child_tools)
+    overlaps:
+      - tool: execute_task
+        difference: launch_eval starts evaluator session; execute_task starts generator for planner task
+    issues:
+      - output.schema for evaluator session result summary
+    migration_priority: medium
+
+  # Spec validation tools
+  - name: load_corpus
+    role: stateful_internal
+    selected_by: [validate]
+    inputs_from: [workspace_specs]
+    feeds_into: [validate_specs]
+    side_effects: validation_state_mutation
+    output_contract: missing
+    undo: restore_validation_state
+    overlaps:
+      - tool: parse_suite_config
+        difference: load_corpus loads project specs; parse_suite_config loads evaluator suite metadata
+      - tool: discover_suite_samples
+        difference: load_corpus loads project specs; discover_suite_samples finds evaluator sample workspaces
+    issues:
+      - needs output.schema for corpus counts
+    migration_priority: medium
+
+  - name: validate_specs
+    role: word
+    selected_by: [validate]
+    inputs_from: [load_corpus]
+    feeds_into: [format_report]
+    side_effects: validation_state_mutation
+    output_contract: missing
+    undo: restore_validation_findings
+    overlaps:
+      - tool: validate
+        difference: validate_specs runs spec consistency checks; validate aggregates skipped validation tools
+    issues:
+      - mutates validation findings, so undo contract must be explicit
+    migration_priority: medium
+
+  - name: format_report
+    role: word
+    selected_by: [validate]
+    inputs_from: [validate_specs]
+    feeds_into: [terminal]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: report_session
+        difference: format_report formats spec findings; report_session summarizes eval session
+    issues:
+      - needs output.schema for formatted report and error count
+    migration_priority: low
+
+  # Workspace and git exec tools
+  - name: copy_dir
+    role: word
+    selected_by: []
+    inputs_from: [tool_call]
+    feeds_into: [git_init, build, test]
+    side_effects: filesystem_write
+    output_contract: missing
+    undo: workspace_restore
+    overlaps:
+      - tool: copy_sample_workspace
+        difference: copy_dir is a generic CLI wrapper; copy_sample_workspace copies the evaluator sample workspace from PointContext
+    issues:
+      - legacy scalar side_effects
+    migration_priority: medium
+
+  - name: make_dir
+    role: word
+    selected_by: []
+    inputs_from: [tool_call]
+    feeds_into: [write, copy_dir]
+    side_effects: filesystem_write
+    output_contract: missing
+    undo: workspace_restore
+    overlaps: []
+    issues:
+      - legacy scalar side_effects
+    migration_priority: medium
+
+  - name: git_init
+    role: word
+    selected_by: []
+    inputs_from: [make_dir, workspace]
+    feeds_into: [stage_all, commit]
+    side_effects: filesystem_write_git_metadata
+    output_contract: missing
+    undo: workspace_restore
+    overlaps:
+      - tool: init_workspace_repo
+        difference: git_init is a generic CLI wrapper; init_workspace_repo initializes the evaluator point workspace from PointContext
+    issues:
+      - legacy scalar side_effects
+    migration_priority: medium
+
+  - name: stage_all
+    role: word
+    selected_by: []
+    inputs_from: [workspace_changes]
+    feeds_into: [commit]
+    side_effects: git_index_mutation
+    output_contract: missing
+    undo: git_reset_index_or_workspace_restore
+    overlaps: []
+    issues:
+      - irreversible risk if used broadly without explicit selection
+    migration_priority: medium
+
+  - name: workspace_status
+    role: word
+    selected_by: []
+    inputs_from: [workspace]
+    feeds_into: [stage_all, commit, LLM_reasoning]
+    side_effects: none
+    output_contract: declared
+    undo: noop
+    overlaps:
+      - tool: diff_stat
+        difference: workspace_status lists porcelain file status; diff_stat summarizes diff size
+    issues:
+      - runtime output is not yet structured according to output.schema
+    migration_priority: low
+
+  - name: commit
+    role: boundary
+    selected_by: []
+    inputs_from: [stage_all]
+    feeds_into: [rev_parse, log_oneline]
+    side_effects: git_commit_create
+    output_contract: missing
+    undo: boundary_compensation (compensating_action, captures workspace_paths + git_ref)
+    overlaps:
+      - tool: issue_close
+        difference: commit mutates git history; issue_close mutates bd issue state
+    issues:
+      - output.schema for commit hash
+    migration_priority: medium
+
+  - name: rev_parse
+    role: word
+    selected_by: []
+    inputs_from: [commit, workspace]
+    feeds_into: [logs, metadata]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: log_oneline
+        difference: rev_parse returns one ref; log_oneline returns commit history
+    issues:
+      - needs output.schema for ref string
+    migration_priority: low
+
+  - name: diff_stat
+    role: word
+    selected_by: []
+    inputs_from: [workspace_changes]
+    feeds_into: [LLM_reasoning, commit_decision]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: workspace_status
+        difference: diff_stat summarizes diff size; workspace_status lists file statuses
+    issues:
+      - needs output.schema for file/insertion/deletion counts
+    migration_priority: low
+
+  - name: log_oneline
+    role: word
+    selected_by: []
+    inputs_from: [git_repo]
+    feeds_into: [LLM_reasoning]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: rev_parse
+        difference: log_oneline returns history; rev_parse returns one ref
+    issues:
+      - needs output.schema for commit list
+    migration_priority: low
+
+  # Issue exec tools
+  - name: issue_create
+    role: boundary
+    selected_by: []
+    inputs_from: [planner_output, user_request]
+    feeds_into: [issue_list, issue_close]
+    side_effects: bd_database_write
+    output_contract: missing
+    undo: boundary_compensation (compensating_action, captures created_issue_id + workspace_paths)
+    overlaps:
+      - tool: create_issue
+        difference: issue_create is raw bd CLI wrapper; create_issue consumes planner state
+    issues:
+      - output.schema for created issue ID
+    migration_priority: low
+
+  - name: issue_close
+    role: boundary
+    selected_by: []
+    inputs_from: [issue_create, user_request]
+    feeds_into: [issue_list]
+    side_effects: bd_database_write
+    output_contract: missing
+    undo: boundary_compensation (compensating_action, captures issue_id + previous_issue_status + workspace_paths)
+    overlaps: []
+    issues:
+      - output.schema for closed issue confirmation
+    migration_priority: low
+
+  - name: issue_list
+    role: word
+    selected_by: []
+    inputs_from: [bd_database]
+    feeds_into: [issue_create, issue_close, planner]
+    side_effects: none
+    output_contract: missing
+    undo: noop
+    overlaps:
+      - tool: workspace_status
+        difference: issue_list reports tracker state; workspace_status reports git state
+    issues:
+      - needs output.schema for issue summaries
+    migration_priority: low
+
+sentence_tools:
+  highest_priority: []
+
+boundary_tools_with_compensation:
+  note: |
+    All boundary tools now implement UndoMementoProvider and declare
+    payload: boundary_compensation with captures in their tool YAML.
+  tools:
+    - validate
+    - suspend
+    - checkpoint_rollback
+    - self_invoke
+    - create_issue
+    - execute_task
+    - run_point
+    - run_agent
+    - serve_ui
+    - launch_eval
+    - commit
+    - issue_create
+    - issue_close
+
+remaining_contract_gaps:
+  typed_outputs:
+    declared:
+      - read
+      - write
+      - edit
+      - test
+      - workspace_status
+    still_missing:
+      - find
+      - list_files
+      - invoke_llm
+      - parse_response
+      - checkpoint_history
+      - checkpoint_rollback
+      - planner tools
+      - evaluator session tools
+      - evaluator point tools
+      - spec validation tools
+      - most exec tools
+  structured_side_effects:
+    status: partially_populated
+    note: |
+      Structured side_effects entries (kind/target/description) are populated
+      for many tools. Some exec tools still use legacy scalar form.
+  undo_metadata:
+    status: populated
+    note: |
+      All boundary tools declare undo strategy, payload, and captures in their
+      YAML declarations. UndoMementoProvider is implemented for boundary tools
+      and workspace-mutating builtins. Simple read-only tools use noop.
+  relationships:
+    status: partially_populated
+    note: |
+      Composition relationships are documented in this audit. Migration into
+      individual ToolDef entries is incremental.
