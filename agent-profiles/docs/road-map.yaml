@@ -1,0 +1,104 @@
+id: agent-profiles-roadmap
+title: Agent Profiles Release Road Map
+
+releases:
+  - version: "00.1"
+    name: Repository bootstrap
+    description: |
+      Define the repository purpose and ownership boundary before assets move.
+      The first release also adds a documentation index and migration roadmap.
+
+      Issue format rules matter because the next issues touch profile assets,
+      demos, and fixtures. With those rules in place, future Beads issues can
+      move assets without re-opening the runtime ownership decision.
+    status: done
+    deliverables:
+      - README.md documents local usage, container usage, and ownership.
+      - docs/VISION.yaml defines goals and boundaries.
+      - docs/ARCHITECTURE.yaml defines repository structure and mount
+        interfaces.
+      - docs/SPECIFICATIONS.yaml indexes the initial docs.
+      - docs/constitutions/issue-format.yaml defines future issue fields.
+      - docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
+        defines migrated profile families as functional blocks.
+      - docs/specs/semantic-models/multi-agent-profile-system.yaml defines
+        profile role groups and dependency directions.
+      - docs/specs/semantic-models/agent-role-taxonomy.yaml classifies each
+        profile family by boundary, inputs, outputs, tools, and checks.
+      - magefiles/release.go adds profile bundle release tagging.
+      - magefiles/validation.go validates migrated profiles and mounted
+        container usage against an external agent-core runtime.
+
+  - version: "06.0"
+    name: External agent profiles and mounted runtime assets
+    description: |
+      Profile-owned programs have moved from agent-core into this repository.
+      Demos and integration fixtures moved with the profiles they exercise.
+
+      Runtime code, builtin tool implementations, release image build logic,
+      and core-owned assets stay in agent-core. At execution time, commands
+      load profiles through AGENT_PROFILES_ROOT, /profiles, or another explicit
+      external path.
+
+      Release 06.0 is complete for this repository when the profile assets can
+      be validated, tagged, mounted into a runtime container, and consumed by
+      agent-core integration targets. The remaining ownership boundary belongs
+      to agent-core release work, not to this profile bundle.
+      Done here means the profile bundle has its own evidence.
+
+      Operators still need a compatible agent-core runtime image or checkout,
+      but this repository now supplies the profile programs, fixtures, UI
+      assets, validation target, smoke target, release tag target, and formal
+      traceability records that the runtime consumes.
+    status: done
+    related_agent_core_release: "06.0"
+    planned_work:
+      - id: agent-profiles-dte
+        summary: Specify agent functional blocks and multi-agent semantics.
+        status: done
+      - id: agent-profiles-sqe
+        summary: Migrate agent profiles and UX assets from agent-core.
+        status: done
+      - id: agent-profiles-6ar
+        summary: Move demos and agent integration fixtures into agent-profiles.
+        status: done
+      - id: agent-profiles-73s
+        summary: Add Mage release tag target for profile bundles.
+        status: done
+      - id: agent-profiles-8t8
+        summary: Add profile validation and container usage checks.
+        status: done
+      - id: agent-profiles-dqm
+        summary: Validate all profile variants in agent-profiles.
+        status: done
+      - id: agent-profiles-0g7
+        summary: Add formal profile migration use cases and test suites.
+        status: done
+    use_cases:
+      - id: rel06.0-uc001-mounted-profile-execution
+        summary: Runtime executes profile-owned programs mounted from agent-profiles.
+        status: implemented
+      - id: rel06.0-uc002-profile-validation
+        summary: Profile validation and release bundle tagging prove repository readiness.
+        status: implemented
+    test_suites:
+      - id: test-rel06.0-agent-profiles
+        summary: Formal proof suite for profile validation, mounted container execution, tagging, and agent-core integrations.
+        status: implemented
+    proof:
+      - mage validate
+      - mage containerSmoke
+      - mage tag
+      - go test ./magefiles
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc001
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc002
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc006
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc007
+    success_markers:
+      - Migrated profile.yaml files load through agent-core from this
+        repository.
+      - Knowledge Manager UX config remains profile-local beside its profile.
+      - Demos and fixtures use repository-relative paths, AGENT_PROFILES_ROOT,
+        /profiles, or explicit workspace mounts.
+      - agent-core runtime images do not copy migrated profile directories.

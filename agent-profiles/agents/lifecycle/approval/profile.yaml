@@ -1,0 +1,7 @@
+name: lifecycle-approval
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_config_dirs:
+  - /opt/agent-core/tools/builtin/lifecycle
+  - /opt/agent-core/tools/builtin/llm

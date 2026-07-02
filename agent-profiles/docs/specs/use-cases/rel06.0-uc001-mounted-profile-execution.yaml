@@ -1,0 +1,104 @@
+id: rel06.0-uc001-mounted-profile-execution
+title: Mounted Profile Execution
+
+summary: |
+  Agent Core runs profile-owned programs from this repository without copying
+  those programs into the runtime image. Operators provide agent-profiles as a
+  checkout, release bundle, or /profiles container mount. The runtime image
+  provides the agent binary and core-owned assets.
+
+  This use case covers the execution path after profile migration. The selected
+  profile, workspace, demos, and integration fixtures stay under
+  agent-profiles. Agent Core loads the profile through --profile and uses
+  --directory for the target workspace.
+
+  The important failure mode is quiet fallback to bundled agent directories.
+  A correct run cannot require /opt/agent-core/agents. If the profile root is
+  missing or mounted at the wrong path, startup should fail before a MachineSpec
+  run begins.
+
+actor: Operator running an agent-core runtime with external profiles.
+
+trigger: |
+  An operator runs an installed agent-core image or local agent binary with a
+  profile path supplied from agent-profiles:
+
+    agent --profile "$AGENT_PROFILES_ROOT/agents/generator/profile.yaml" \
+          --directory <workspace>
+
+  Container callers use the same contract with /profiles:
+
+    agent --profile /profiles/agents/jurist/profile.yaml --directory /work
+
+preconditions:
+  - agent-profiles is available as AGENT_PROFILES_ROOT, /profiles, or a release bundle.
+  - agent-core supplies the agent binary and core-owned shared tool roots.
+  - The selected profile's workspace is mounted or available through --directory.
+
+flow:
+  - id: F1
+    text: The operator selects a profile path from agent-profiles.
+  - id: F2
+    text: The runtime starts with --profile pointing at that external profile.
+  - id: F3
+    text: The profile resolves machine.yaml, tools.yaml, declarations, REST definitions, and UI assets relative to its profile directory.
+  - id: F4
+    text: Shared tool declarations resolve through documented core-owned roots such as /opt/agent-core/tools.
+  - id: F5
+    text: Profile-owned demos and fixtures are read from agent-profiles when integration targets set AGENT_PROFILES_ROOT.
+  - id: F6
+    text: A mounted container run uses /profiles for agent programs and /work for the workspace.
+  - id: F7
+    text: Execution fails early if the runtime image requires copied profile directories under /opt/agent-core/agents.
+
+touchpoints:
+  - id: T1
+    target: srd001-agent-functional-blocks R1
+    reason: Profile-owned files stay in agent-profiles while runtime assets stay in agent-core.
+  - id: T2
+    target: srd001-agent-functional-blocks R2-R11
+    reason: Mounted execution must preserve each functional block's actor boundary.
+  - id: T3
+    target: sm-multi-agent-profile-system system_boundary
+    reason: agent-profiles owns configured programs and agent-core owns execution.
+  - id: T4
+    target: sm-agent-role-taxonomy checks
+    reason: Role checks name AGENT_PROFILES_ROOT and mounted profile execution.
+  - id: T5
+    target: mage containerSmoke
+    reason: Container proof mounts this repository at /profiles and runs the jurist profile.
+
+success_criteria:
+  - id: S1
+    criterion: Runtime commands point --profile at AGENT_PROFILES_ROOT or /profiles.
+    traces:
+      - srd001-agent-functional-blocks R1.1
+      - sm-multi-agent-profile-system profile_asset_rules
+  - id: S2
+    criterion: Profile-local machine, tool, declaration, REST, and UI references resolve from the selected profile directory.
+    traces:
+      - srd001-agent-functional-blocks R1.1
+      - sm-agent-role-taxonomy checks
+  - id: S3
+    criterion: Core-owned shared tool roots resolve without copying agent profiles into the runtime image.
+    traces:
+      - srd001-agent-functional-blocks R1.2
+      - srd001-agent-functional-blocks R1.3
+  - id: S4
+    criterion: Mounted container smoke execution uses /profiles and /work.
+    traces:
+      - sm-multi-agent-profile-system validation_views
+  - id: S5
+    criterion: agent-core integration targets can consume demos and fixtures through AGENT_PROFILES_ROOT.
+    traces:
+      - srd001-agent-functional-blocks R3.3
+      - srd001-agent-functional-blocks R8.2
+      - srd001-agent-functional-blocks R11.2
+
+out_of_scope:
+  - Building the agent-core runtime image.
+  - Implementing builtin tool behavior.
+  - Changing profile YAML behavior during this documentation update.
+
+test_suite_trace: test-rel06.0-agent-profiles
+status: implemented
