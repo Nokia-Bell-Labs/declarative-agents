@@ -1,0 +1,103 @@
+id: rel06.0-uc002-profile-validation
+title: Profile Validation and Release Bundle Readiness
+
+summary: |
+  Profile authors validate that every profile-shaped YAML file can resolve its
+  declared machine, tool selection, declarations, REST definitions, and config
+  directories after migration. Validation runs against an external agent-core
+  checkout because agent-core still owns shared tool declarations and runtime
+  execution.
+
+  Release bundle readiness also needs a local tag target. The profile bundle
+  tag records a reviewed set of YAML programs, demos, UI assets, and fixtures
+  without claiming ownership of agent-core runtime image tags.
+
+  Validation is intentionally boring. It should fail on missing files, stale
+  core-agent references, or unsupported profile names. It should not execute
+  profile behavior or mutate a workspace.
+
+actor: Profile repository maintainer.
+
+trigger: |
+  A maintainer prepares profile changes for review, release bundle tagging, or
+  mounted execution:
+
+    AGENT_CORE_ROOT=/path/to/agent-core mage validate
+
+  After review, the maintainer can create a local profile bundle tag:
+
+    mage tag
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
+  - Profile assets live under agents/.
+  - The repository is on main before mage tag creates a release tag.
+
+flow:
+  - id: F1
+    text: mage validate discovers profile.yaml, profile-*.yaml, and *-profile.yaml files under agents/.
+  - id: F2
+    text: Each profile is parsed and must declare a machine path and at least one tools.yaml selection.
+  - id: F3
+    text: Profile-local references resolve from the profile directory.
+  - id: F4
+    text: /opt/agent-core/tools references resolve through AGENT_CORE_ROOT.
+  - id: F5
+    text: References to /opt/agent-core/agents are rejected because migrated profiles must not depend on copied core agent assets.
+  - id: F6
+    text: mage containerSmoke verifies the installed image lacks /opt/agent-core/agents before running a mounted jurist profile.
+  - id: F7
+    text: mage tag creates the next v0.YYYYMMDD.N tag from local tags when the repository is on main.
+
+touchpoints:
+  - id: T1
+    target: srd001-agent-functional-blocks R1
+    reason: Validation protects the profile ownership boundary.
+  - id: T2
+    target: sm-multi-agent-profile-system profile_asset_rules
+    reason: Profile-local and core-owned references follow separate ownership rules.
+  - id: T3
+    target: sm-multi-agent-profile-system validation_views
+    reason: Validation views name profile reference checks and mounted container execution.
+  - id: T4
+    target: sm-agent-role-taxonomy taxonomy_rules
+    reason: Checks name validation, mounted execution, integration proof, or documentation review paths.
+  - id: T5
+    target: mage validate
+    reason: Local validation checks every profile-shaped YAML file.
+  - id: T6
+    target: mage tag
+    reason: Release bundle tags version profile-owned assets.
+
+success_criteria:
+  - id: S1
+    criterion: mage validate checks all supported profile filename shapes.
+    traces:
+      - srd001-agent-functional-blocks R1.1
+      - sm-agent-role-taxonomy taxonomy_rules
+  - id: S2
+    criterion: Validation resolves profile-local paths from the selected profile directory.
+    traces:
+      - srd001-agent-functional-blocks R1.1
+      - sm-multi-agent-profile-system profile_asset_rules
+  - id: S3
+    criterion: Validation maps /opt/agent-core/tools to AGENT_CORE_ROOT without accepting /opt/agent-core/agents.
+    traces:
+      - srd001-agent-functional-blocks R1.2
+      - srd001-agent-functional-blocks R1.3
+  - id: S4
+    criterion: Container smoke checks image exclusion and mounted-profile execution.
+    traces:
+      - sm-multi-agent-profile-system validation_views
+  - id: S5
+    criterion: mage tag creates profile bundle tags without using agent-core image tags.
+    traces:
+      - srd001-agent-functional-blocks R1.3
+
+out_of_scope:
+  - Publishing tags to a remote.
+  - Building or tagging agent-core images.
+  - Adding new profile families.
+
+test_suite_trace: test-rel06.0-agent-profiles
+status: implemented

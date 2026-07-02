@@ -1,0 +1,299 @@
+id: sm-agent-role-taxonomy
+title: Agent Role Taxonomy
+purpose: |
+  Classify migrated agent profiles by role, actor boundary, inputs, outputs,
+  selected tool families, runtime dependencies, and checkable outcomes.
+
+overview: |
+  Role entries give migration issues a compact checklist for each profile
+  family. The fields identify what enters the profile, what leaves it, and what
+  agent-core capability the profile expects at runtime. They also name a small
+  set of checks that can later become validation commands, integration targets,
+  or documentation review steps.
+
+  The taxonomy is intentionally profile-oriented. It names generator as a
+  coding agent, evaluator as a session and point runner, bench as a human UI
+  launcher, and Knowledge Manager as a documentation curator. Those labels
+  describe configured behavior. They are not package names, binary names, or
+  new runtime modules.
+
+roles:
+  - id: generator
+    title: Coding agent
+    profile_path: agents/generator/profile.yaml
+    actor_boundary: model plus workspace tools
+    inputs:
+      - task prompt
+      - mounted workspace
+      - selected model config
+    selected_tool_families:
+      - filesystem
+      - llm
+      - go exec validation
+    runtime_dependencies:
+      - agent-core loop runtime
+      - agent-core builtin filesystem and LLM tools
+      - agent-core exec tool declarations for Go validation
+    outputs:
+      - workspace changes
+      - validation results
+      - terminal status
+      - task summary
+    outcomes:
+      - Succeeded
+      - Failed
+      - BudgetExceeded
+    checks:
+      - Load profile from AGENT_PROFILES_ROOT.
+      - Run mounted profile command with --profile and --directory.
+      - Confirm build, lint, and test validation are machine-declared.
+
+  - id: evaluator
+    title: Evaluation session and point runner
+    profile_path: agents/evaluator/profile.yaml
+    actor_boundary: suite fixtures plus child agent process
+    inputs:
+      - suite YAML
+      - samples
+      - model or profile grid
+      - oracle command
+    selected_tool_families:
+      - evaluator session
+      - evaluator point
+      - child profile execution
+    runtime_dependencies:
+      - agent-core nested loop execution
+      - profile-owned suites and samples
+    outputs:
+      - point directories
+      - oracle results
+      - trace token counts
+      - metrics
+      - session report
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Resolve suite fixtures through AGENT_PROFILES_ROOT.
+      - Confirm point machine runs in isolated workspaces.
+      - Confirm failed child runs still produce point summaries and metrics.
+
+  - id: planner
+    title: Requirement planner and issue materializer
+    profile_path: agents/planner/profile.yaml
+    actor_boundary: requirement graph, model, Beads queue, and child generator
+    inputs:
+      - requirement graph
+      - SRD context
+      - planning model config
+    selected_tool_families:
+      - planner tools
+      - llm
+      - Go validation
+      - child profile execution
+    runtime_dependencies:
+      - agent-core planning tool implementations
+      - agent-core model boundary
+      - Beads CLI
+    outputs:
+      - implementation plan
+      - created issue
+      - graph status changes
+      - validation results
+    outcomes:
+      - Completed
+      - Stalled
+      - Paused
+      - Failed
+    checks:
+      - Confirm planner invokes generator as a child profile.
+      - Confirm issues are materialized through Beads.
+      - Confirm graph terminal states are explicit.
+
+  - id: jurist
+    title: Specification validator
+    profile_path: agents/jurist/profile.yaml
+    actor_boundary: local specification corpus
+    inputs:
+      - docs corpus
+    selected_tool_families:
+      - specification validation
+    runtime_dependencies:
+      - agent-core spec validation tools
+    outputs:
+      - validation report
+      - pass or fail status
+    outcomes:
+      - Passed
+      - Failed
+    checks:
+      - Confirm no LLM boundary is selected.
+      - Confirm report formatting runs for pass and fail outcomes.
+
+  - id: bench
+    title: Human-operated evaluation launcher
+    profile_path: agents/bench/profile.yaml
+    actor_boundary: human HTTP operator and evaluator process
+    inputs:
+      - human UI action
+      - experiment configuration
+    selected_tool_families:
+      - bench UI
+      - evaluator launch
+    runtime_dependencies:
+      - agent-core bench tools
+      - evaluator profile
+    outputs:
+      - served UI
+      - evaluator run request
+      - launch status
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm serve_ui is the blocking human boundary.
+      - Confirm launch_eval delegates session execution to evaluator.
+
+  - id: rest
+    title: REST boundary sample
+    profile_path: agents/rest/profile.yaml
+    actor_boundary: configured HTTP clients and servers
+    inputs:
+      - REST definitions
+      - OpenAPI import data
+      - inbound webhook event
+    selected_tool_families:
+      - REST client
+      - REST async client
+      - REST server
+    runtime_dependencies:
+      - agent-core REST runtime
+      - profile-owned rest.yaml
+    outputs:
+      - response signals
+      - async completion
+      - webhook event signal
+      - listener lifecycle status
+    outcomes:
+      - Succeeded
+      - Failed
+    checks:
+      - Confirm REST authority lives in rest.yaml.
+      - Confirm server launch, await, and stop are explicit machine states.
+
+  - id: monitor
+    title: Embedded monitor REST reader
+    profile_path: agents/monitor/profile.yaml
+    actor_boundary: supervisor and runtime monitor store
+    inputs:
+      - cached monitor state
+      - control exit request
+    selected_tool_families:
+      - monitor REST
+      - lifecycle control
+    runtime_dependencies:
+      - agent-core monitor store
+      - agent-core REST runtime
+    outputs:
+      - monitor REST responses
+      - listener lifecycle status
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm REST reads use cached monitor state.
+      - Confirm exit is routed through configured control.
+
+  - id: lifecycle
+    title: Checkpoint, rollback, and approval profiles
+    profile_path: agents/lifecycle/*/profile.yaml
+    actor_boundary: operator, checkpoint store, and workspace
+    inputs:
+      - checkpoint ID
+      - target iteration
+      - approval signal
+    selected_tool_families:
+      - checkpoint_history
+      - checkpoint_rollback
+      - suspend
+      - done
+    runtime_dependencies:
+      - agent-core lifecycle ports
+      - checkpoint store
+      - workspace restore support
+    outputs:
+      - history report
+      - rewritten checkpoint
+      - suspended checkpoint
+      - approved or rejected terminal state
+    outcomes:
+      - Done
+      - Succeeded
+      - Rejected
+      - Failed
+    checks:
+      - Confirm lifecycle behavior is expressed as machine actions.
+      - Confirm approval uses resume signals instead of hidden CLI branches.
+
+  - id: control
+    title: REST lifecycle control profile
+    profile_path: agents/control/profile.yaml
+    actor_boundary: lifecycle supervisor
+    inputs:
+      - REST control request
+    selected_tool_families:
+      - control REST
+      - exit_agent
+    runtime_dependencies:
+      - agent-core REST runtime
+      - agent-core lifecycle vocabulary
+    outputs:
+      - selected control signal
+      - AgentExited signal
+      - terminal status
+    outcomes:
+      - Succeeded
+      - Failed
+    checks:
+      - Confirm HTTP handlers enqueue signals only.
+      - Confirm MachineSpec routes ExitRequested to exit_agent.
+
+  - id: documentation-curator
+    title: Knowledge Manager documentation curator
+    profile_path: agents/knowledge-manager/documentation-curator/profile.yaml
+    actor_boundary: human browser, documentation corpus, and local REST API
+    inputs:
+      - browser request
+      - documentation corpus path
+      - control request
+    selected_tool_families:
+      - documentation serving
+      - document resources
+      - documentation validation
+      - patch review
+      - lifecycle control
+    runtime_dependencies:
+      - agent-core documentation host
+      - agent-core REST runtime
+      - profile-owned UI config and REST definitions
+    outputs:
+      - served documentation UI
+      - document responses
+      - validation or suggestion results
+      - patch review outcome
+      - controlled listener shutdown
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm UI placement stays profile-local.
+      - Confirm document resource behavior is configured by profile-owned YAML.
+      - Confirm exit releases the documentation listener.
+
+taxonomy_rules:
+  - Each role is a configured program, not a Go package.
+  - Actor boundaries name who or what crosses the profile boundary.
+  - Runtime dependencies name agent-core capabilities without copying them into
+    agent-profiles.
+  - Checks name validation, mounted execution, integration proof, or
+    documentation review paths.

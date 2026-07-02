@@ -1,0 +1,23 @@
+Knowledge Manager Demo
+Agent Profiles
+14 Jun 2026
+
+* Start the Knowledge Manager
+
+Click Run to start the Knowledge Manager documentation server.
+
+Open the running servers after they start:
+
+- Documentation: [[http://localhost:18081][http://localhost:18081]]
+- Control (lifecycle exit): [[http://127.0.0.1:18082][http://127.0.0.1:18082]]
+- Monitor: [[http://localhost:18084/ui/][http://localhost:18084/ui/]]
+
+.play start_knowledge_manager.go /START OMIT/,/END OMIT/
+
+* Call the lifecycle exit API
+
+After the Knowledge Manager is running, run this snippet to POST `ExitRequested`
+to the curator control server (default `http://127.0.0.1:18082/api/lifecycle/exit`).
+Expect HTTP 202 Accepted.
+
+.play call_lifecycle_exit/main.go /START OMIT/,/END OMIT/

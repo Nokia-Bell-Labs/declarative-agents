@@ -1,0 +1,20 @@
+id: srd001-greet
+title: Greeting Function
+
+summary: |
+  Implement the Hello function in greet.go that returns a formatted
+  greeting string.
+
+requirements:
+  - id: R1
+    text: Hello(name) must return the string "Hello, <name>!" where <name> is the argument.
+  - id: R2
+    text: When name is empty, Hello must return "Hello, !".
+
+acceptance_criteria:
+  - id: AC1
+    criterion: All tests in greet_test.go pass.
+    traces: [R1, R2]
+
+files:
+  - greet.go

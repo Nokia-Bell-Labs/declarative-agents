@@ -1,0 +1,11 @@
+name: documentation-curator
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - builtin.yaml
+  - declarations.yaml
+  - request-declarations.yaml
+  - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
+rest_definitions:
+  - rest.yaml

@@ -1,0 +1,111 @@
+# LLM tool declaration for the planner agent.
+# Loaded through agents/planner/profile.yaml tool_declarations.
+
+tools:
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    emits: [LLMResponded, CommandError]
+    description: "Invoke the LLM with the current conversation history."
+    category: boundary
+    problem: |
+      The planner machine needs a boundary word that asks the configured
+      model to produce an implementation plan from the current planning
+      prompt. This is not an ordinary deterministic word because it crosses
+      the model/provider boundary and may return different text for the
+      same prompt.
+    goals:
+      - "Return one raw model response for the current conversation state."
+      - "Append the model response to conversation history exactly once on success."
+      - "Expose provider, model, and manifest-state configuration through the tool declaration."
+    requirements:
+      input:
+        - "must read the current conversation history and selected tool manifest from agent state"
+        - "must use the configured provider, provider_url, model, system_prompt, tool_prompt, manifest_state, and max_time values"
+      output:
+        - "must emit LLMResponded with the raw response text when the provider call succeeds"
+        - "must return provider/model metadata and token usage when the provider exposes it"
+      side_effects:
+        - "must perform one external model/provider API call"
+        - "must append the model response to conversation history only after a successful provider response"
+      undo:
+        - "must be reversible by restoring or truncating conversation history to the pre-call checkpoint"
+      errors:
+        - "must emit CommandError when provider configuration is invalid, the provider call fails, or max_time is exceeded"
+        - "must leave conversation history unchanged when no provider response was appended"
+    non_goals:
+      - "Does not parse the response into an implementation plan."
+      - "Does not create issues or execute planned work."
+      - "Does not guarantee deterministic text across provider calls."
+    output:
+      description: "Raw model response and provider metadata."
+      schema:
+        type: object
+        properties:
+          response:
+            type: string
+          provider:
+            type: string
+          model:
+            type: string
+          prompt_tokens:
+            type: integer
+          completion_tokens:
+            type: integer
+          elapsed_ms:
+            type: integer
+        required: [response, provider, model]
+    side_effects:
+      - kind: external_api_call
+        target: llm_provider
+        description: "Sends the current prompt and tool manifest to the configured model provider."
+      - kind: state_mutation
+        target: conversation_history
+        state: appended
+        description: "Appends the model response to the in-memory conversation history."
+    reversibility:
+      classification: reversible
+      undo: conversation_truncate
+      requires_confirmation: false
+    undo:
+      strategy: conversation_truncate
+      description: "Restore the conversation history checkpoint captured before invoking the model."
+      requires: [conversation_checkpoint]
+    errors:
+      - signal: CommandError
+        condition: "provider configuration is invalid or the model call fails"
+        message_shape: "invoke_llm: <provider/model>: <error>"
+        state_after_failure: "conversation history unchanged unless the provider response was already appended"
+    relationships:
+      before: [assemble_prompt, reset_history]
+      after: [parse_plan]
+      overlaps:
+        - tool: serve_ui
+          difference: "serve_ui blocks on human UI events; invoke_llm blocks on a model/provider response."
+    config:
+      model: "qwen3.6:35b-mlx"
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      manifest_state: Composing
+      response_profile: qwen
+      system_prompt: |
+        You are a software planning assistant. Given a Software Requirements
+        Document (SRD) and project context, you produce detailed
+        implementation plans as structured YAML.
+
+        Each plan specifies files to create or modify, the changes needed,
+        and the rationale. Plans are used to create tracked issues for
+        implementation.
+
+        Focus on precision: identify the exact packages, files, and
+        functions that need to change. Include dependency ordering when
+        tasks have prerequisites.
+      tool_prompt: |
+        Respond with a YAML implementation plan wrapped in ```yaml fences.
+        The plan must include:
+        - title: short description of the change
+        - files: list of file paths with action (create/modify/delete)
+        - steps: ordered implementation steps
+        - rationale: why this approach
+      max_time: 900

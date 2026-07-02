@@ -1,0 +1,139 @@
+tools:
+  - name: doc_list_resource
+    type: builtin
+    init: list_resource
+    category: boundary
+    description: List configured Knowledge Manager documentation resources.
+    problem: Document index requests need a profile-owned resource word instead of a documentation-specific Go route.
+    goals:
+      - Read the configured docs resource index.
+      - Return document entries for REST response mapping.
+    requirements:
+      input:
+        - Runtime input may supply an optional prefix inside the configured docs root.
+      output:
+        - Output includes path, name, category, extension, and size for each entry.
+      errors:
+        - Missing resource config emits CommandError.
+        - Denied paths emit DocumentResourceDenied.
+    non_goals:
+      - Does not expose arbitrary roots, glob rules, or parser modes.
+    parameters:
+      type: object
+      properties:
+        resource: {type: string}
+        prefix: {type: string}
+    emits: [DocumentListReady, DocumentResourceDenied, CommandError]
+    output:
+      description: Configured documentation entries.
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            path: {type: string}
+            name: {type: string}
+            category: {type: string}
+            extension: {type: string}
+            size: {type: integer}
+    side_effects:
+      - kind: filesystem
+        target: docs_resource
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Listing documentation resources does not mutate state.
+    errors:
+      - signal: CommandError
+        condition: Resource configuration or filesystem access failed.
+        state_after_failure: No filesystem state is changed.
+    relationships:
+      before: [doc_read_resource]
+    config:
+      resources:
+        docs:
+          root: docs
+          include:
+            - "**/*.yaml"
+            - "**/*.yml"
+            - "**/*.md"
+          extensions: [yaml, yml, md]
+          modes: [raw_yaml, parsed_yaml, raw_markdown]
+          max_bytes: 1048576
+
+  - name: doc_read_resource
+    type: builtin
+    init: read_resource
+    category: boundary
+    description: Read one configured Knowledge Manager documentation resource.
+    problem: Document detail requests need a profile-owned resource word with path safety.
+    goals:
+      - Resolve one path inside the configured docs resource.
+      - Return raw and parsed content for response mapping.
+    requirements:
+      input:
+        - Runtime input supplies only resource and path fields.
+      output:
+        - Output includes path, raw content, parsed content, content type, extension, and size.
+      errors:
+        - Missing files emit DocumentMissing.
+        - Disallowed paths or extensions emit DocumentResourceDenied.
+        - YAML parse failures emit DocumentParseFailed.
+    non_goals:
+      - Does not write, patch, or validate documentation content.
+    parameters:
+      type: object
+      properties:
+        resource: {type: string}
+        path: {type: string}
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    output:
+      description: Configured documentation detail.
+      schema:
+        type: object
+        properties:
+          path: {type: string}
+          raw: {type: string}
+          parsed: {type: object}
+          content_type: {type: string}
+          extension: {type: string}
+          size: {type: integer}
+    side_effects:
+      - kind: filesystem
+        target: docs_resource
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Reading documentation resources does not mutate state.
+    errors:
+      - signal: DocumentMissing
+        condition: The requested path does not exist under the configured docs resource.
+        state_after_failure: No filesystem state is changed.
+      - signal: DocumentResourceDenied
+        condition: The requested path, extension, directory, or binary content is denied.
+        state_after_failure: No filesystem state is changed.
+      - signal: DocumentParseFailed
+        condition: Parsed YAML mode was requested and the file could not be parsed.
+        state_after_failure: No filesystem state is changed.
+      - signal: CommandError
+        condition: Resource configuration or filesystem access failed.
+        state_after_failure: No filesystem state is changed.
+    relationships:
+      after: [doc_list_resource]
+    config:
+      resources:
+        docs:
+          root: docs
+          include:
+            - "**/*.yaml"
+            - "**/*.yml"
+            - "**/*.md"
+          extensions: [yaml, yml, md]
+          modes: [raw_yaml, parsed_yaml, raw_markdown]
+          max_bytes: 1048576

@@ -1,0 +1,130 @@
+# Deepseek variant of the generate state machine.
+# Differs from the default machine.yaml by adding a nudge_reread
+# transition after EditDone, prompting the model to re-read files
+# before making further changes.
+
+name: generator-deepseek
+initial_state: Idle
+
+budget:
+  max_consecutive_parse_errors: 5
+
+states:
+  - Idle
+  - Composing
+  - Parsing
+  - ValidatingBuild
+  - ValidatingLint
+  - ValidatingTest
+  - Succeeded
+  - Failed
+  - BudgetExceeded
+
+terminal_states:
+  - Succeeded
+  - Failed
+  - BudgetExceeded
+
+signals:
+  - Seed
+  - LLMResponded
+  - ToolDone
+  - ToolFailed
+  - ParseFailed
+  - TaskCompleted
+  - CommandError
+  - BudgetExhausted
+  - EditDone
+
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Composing
+    action: invoke_llm
+
+  - state: Composing
+    signal: LLMResponded
+    next: Parsing
+    action: parse_response
+
+  - state: Parsing
+    signal: ToolDone
+    next: Composing
+    action: $tool
+
+  - state: Parsing
+    signal: TaskCompleted
+    next: ValidatingBuild
+    action: build
+
+  - state: Parsing
+    signal: ParseFailed
+    next: Composing
+    action: report_parse_error
+
+  # Standard tool result → feed back to LLM
+  - state: Composing
+    signal: ToolDone
+    next: Composing
+    action: invoke_llm
+
+  # Edit completed → nudge the model to re-read (deepseek-specific)
+  - state: Composing
+    signal: EditDone
+    next: Composing
+    action: nudge_reread
+
+  - state: Composing
+    signal: ToolFailed
+    next: Composing
+    action: invoke_llm
+
+  - state: ValidatingBuild
+    signal: ToolDone
+    next: ValidatingLint
+    action: lint
+
+  - state: ValidatingBuild
+    signal: ToolFailed
+    next: Failed
+
+  - state: ValidatingLint
+    signal: ToolDone
+    next: ValidatingTest
+    action: test
+
+  - state: ValidatingLint
+    signal: ToolFailed
+    next: Failed
+
+  - state: ValidatingTest
+    signal: ToolDone
+    next: Succeeded
+
+  - state: ValidatingTest
+    signal: ToolFailed
+    next: Failed
+
+  - state: Composing
+    signal: CommandError
+    next: Failed
+
+  - state: Parsing
+    signal: CommandError
+    next: Failed
+
+  - state: ValidatingBuild
+    signal: CommandError
+    next: Failed
+
+  - state: ValidatingLint
+    signal: CommandError
+    next: Failed
+
+  - state: ValidatingTest
+    signal: CommandError
+    next: Failed
+
+  - state: Composing
+    signal: BudgetExhausted
+    next: BudgetExceeded
