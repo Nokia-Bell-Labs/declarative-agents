@@ -3,8 +3,8 @@
 package llm
 
 import (
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/prompt"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/prompt"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 // DefaultAssembler implements PromptAssembler with the standard prompt

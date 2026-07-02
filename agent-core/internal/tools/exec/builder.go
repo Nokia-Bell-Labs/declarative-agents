@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 // RegisterToolDefs registers exec tool definitions with the given registry.

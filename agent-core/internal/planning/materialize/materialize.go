@@ -16,9 +16,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"gopkg.in/yaml.v3"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/plan"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/subprocess"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 )
 
 const spanMaterialize = "materialize_task"

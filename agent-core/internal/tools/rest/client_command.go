@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 const restCompensationDescription = "execute the configured REST compensation action"

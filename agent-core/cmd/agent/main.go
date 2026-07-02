@@ -14,17 +14,17 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/metric"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/monitor"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/telemetry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
-	toollm "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/llm"
-	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
-	toolrest "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/rest"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/validation"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
+	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 var (

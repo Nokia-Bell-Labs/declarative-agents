@@ -6,11 +6,11 @@ import (
 	"context"
 	"fmt"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
-	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
 // FactoryDeps holds the dependencies needed by pipeline tool factories.

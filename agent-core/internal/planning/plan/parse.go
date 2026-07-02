@@ -9,7 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	agentllm "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
+	agentllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 )
 
 // ParsePlan extracts an ImplementationPlan from a raw LLM response.

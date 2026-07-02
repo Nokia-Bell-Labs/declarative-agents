@@ -10,15 +10,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/extract"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/graph"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/plan"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/catalog"
-	toolregistry "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/registry"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/extract"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 const validRawPlan = `title: Implement config parser

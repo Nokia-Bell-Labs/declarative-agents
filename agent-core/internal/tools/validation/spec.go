@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 // SpecState holds shared state across spec validation tools.

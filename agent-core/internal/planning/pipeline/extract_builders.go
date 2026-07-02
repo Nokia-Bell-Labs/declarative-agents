@@ -7,9 +7,9 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/extract"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/graph"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/extract"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 type extractTaskCmd struct {

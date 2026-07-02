@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 	"gopkg.in/yaml.v3"
 )
 

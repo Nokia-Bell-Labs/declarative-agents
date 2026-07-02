@@ -3,8 +3,8 @@
 package stl
 
 import (
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	toolundo "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	toolundo "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 type (

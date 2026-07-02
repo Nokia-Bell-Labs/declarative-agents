@@ -2,7 +2,7 @@
 
 package llm
 
-import "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+import "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 
 // ParseErrorRetryTracker tracks consecutive parse failures.
 type ParseErrorRetryTracker struct {

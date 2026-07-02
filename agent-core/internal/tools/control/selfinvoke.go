@@ -9,12 +9,12 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	modelllm "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
-	toolexec "gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/exec"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
+	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
+	toolexec "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/exec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 // SelfInvokeBuilder constructs self-invocation commands.

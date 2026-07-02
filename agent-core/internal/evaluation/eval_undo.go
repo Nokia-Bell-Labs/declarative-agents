@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 type evalSessionSnapshot struct {

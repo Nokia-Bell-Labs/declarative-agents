@@ -9,7 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 )
 
 // RollbackOptions describes a rollback traversal over recorded history.

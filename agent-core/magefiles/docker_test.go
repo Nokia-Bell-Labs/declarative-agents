@@ -124,7 +124,7 @@ func TestContainerBuildSummaryForPodman(t *testing.T) {
 		"  engine: podman",
 		"  image: agent-core:latest",
 		"  release ref: v0.20260612.1",
-		"  source repo: https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git (Dockerfile default)",
+		"  source repo: https://github.com/Nokia-Bell-Labs/declarative-agents/agent-core.git (Dockerfile default)",
 		"  git credentials secret: /home/user/.netrc",
 		"  podman tls verify: false",
 		"  container output: streamed directly",

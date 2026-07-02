@@ -9,13 +9,13 @@ import (
 	"context"
 	"fmt"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/extract"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/graph"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/plan"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/extract"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 // Pipeline signals aligned with agents/planner/machine.yaml.

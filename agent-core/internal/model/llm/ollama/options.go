@@ -5,7 +5,7 @@ package ollama
 import (
 	"net/http"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/observability/tracing"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 )
 
 // Option configures an Adapter during construction.

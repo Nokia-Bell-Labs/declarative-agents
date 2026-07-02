@@ -9,11 +9,11 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/model/llm"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/extract"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/planning/plan"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/pkg/spec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/extract"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 type assemblePromptCmd struct {

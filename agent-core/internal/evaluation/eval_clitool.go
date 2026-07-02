@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/runtime/core"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/support/execute"
-	"gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core/internal/tools/undo"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 // runAgentCmd executes a harness binary as a subprocess with flag
