@@ -87,6 +87,13 @@ func (b *WriteBuilder) Build(res core.Result) core.Command {
 	return &writeCmd{root: b.Root, path: p, content: c, metrics: b.Metrics}
 }
 
+// BuildReverser returns a write command configured only for receipt-driven Undo:
+// the receipt carries the prior file state, so the rollback receipt walk needs
+// no path/content input (core.Reverser; srd035-checkpoint-port R3).
+func (b *WriteBuilder) BuildReverser() core.Command {
+	return &writeCmd{root: b.Root, metrics: b.Metrics}
+}
+
 // WriteToolSpec returns the ToolSpec for the write tool.
 func WriteToolSpec() core.ToolSpec {
 	return core.ToolSpec{

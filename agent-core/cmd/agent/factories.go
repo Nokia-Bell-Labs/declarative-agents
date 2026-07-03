@@ -205,7 +205,14 @@ func checkpointRollbackFactory(st *agentState) toolregistry.BuiltinFactory {
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		return &lifecycle.CheckpointRollbackBuilder{Config: cfg, StateStore: st.stateStore, Directory: st.directory, Tracer: st.tracer, Ctx: st.ctx}, nil
+		reverter, _ := st.checkpoint.(core.CheckpointReverter)
+		return &lifecycle.CheckpointRollbackBuilder{
+			Config:     cfg,
+			Checkpoint: reverter,
+			Registry:   st.registry,
+			RunID:      cfg.SelectedCheckpoint(),
+			Tracer:     st.tracer,
+		}, nil
 	}
 }
 

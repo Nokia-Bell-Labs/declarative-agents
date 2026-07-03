@@ -115,6 +115,13 @@ func (b *EditBuilder) Build(res core.Result) core.Command {
 	return &editCmd{root: b.Root, path: p, oldString: o, newString: n, metrics: b.Metrics}
 }
 
+// BuildReverser returns an edit command configured only for receipt-driven Undo:
+// the receipt carries the prior file state, so the rollback receipt walk needs
+// no path/string input (core.Reverser; srd035-checkpoint-port R3).
+func (b *EditBuilder) BuildReverser() core.Command {
+	return &editCmd{root: b.Root, metrics: b.Metrics}
+}
+
 // EditToolSpec returns the ToolSpec for the edit tool.
 func EditToolSpec() core.ToolSpec {
 	return core.ToolSpec{

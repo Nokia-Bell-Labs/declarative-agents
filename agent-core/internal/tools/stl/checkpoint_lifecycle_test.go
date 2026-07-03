@@ -3,57 +3,54 @@
 package stl
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
-type lifecycleMemoryStore struct {
-	data map[string][]byte
+// fakeReverter is an in-memory CheckpointReverter for lifecycle tests. Revert
+// truncates the stored Execution to the target step, mirroring the Dolt adapter
+// resetting DB state, and records the calls it received.
+type fakeReverter struct {
+	pos        core.Position
+	execution  core.Execution
+	reverted   []int
+	runID      string
+	failRevert bool
 }
 
-func (s *lifecycleMemoryStore) Save(_ context.Context, key string, data []byte) error {
-	if s.data == nil {
-		s.data = make(map[string][]byte)
+func (f *fakeReverter) Save(p core.Position, e core.Execution) error {
+	f.pos = p
+	f.execution = append(core.Execution(nil), e...)
+	return nil
+}
+
+func (f *fakeReverter) Load() (core.Position, core.Execution, error) {
+	if f.execution == nil {
+		return core.Position{}, nil, core.ErrNoCheckpoint
 	}
-	s.data[key] = append([]byte(nil), data...)
-	return nil
+	return f.pos, append(core.Execution(nil), f.execution...), nil
 }
 
-func (s *lifecycleMemoryStore) Load(_ context.Context, key string) ([]byte, error) {
-	return append([]byte(nil), s.data[key]...), nil
-}
-
-func (s *lifecycleMemoryStore) List(_ context.Context, prefix string) ([]string, error) {
-	keys := make([]string, 0, len(s.data))
-	for key := range s.data {
-		if len(key) >= len(prefix) && key[:len(prefix)] == prefix {
-			keys = append(keys, key)
-		}
+func (f *fakeReverter) Revert(runID string, step int) error {
+	if f.failRevert {
+		return errors.New("revert boom")
 	}
-	return keys, nil
-}
-
-func (s *lifecycleMemoryStore) Delete(_ context.Context, key string) error {
-	delete(s.data, key)
+	f.runID = runID
+	f.reverted = append(f.reverted, step)
+	if step+1 <= len(f.execution) {
+		f.execution = f.execution[:step+1]
+	}
 	return nil
 }
 
-type lifecycleWorkspace struct {
-	restored string
-}
-
-func (w *lifecycleWorkspace) Checkpoint(context.Context, string) (string, error) { return "head", nil }
-func (w *lifecycleWorkspace) CurrentRef(context.Context) (string, error)         { return "head", nil }
-func (w *lifecycleWorkspace) Restore(_ context.Context, ref string) error {
-	w.restored = ref
-	return nil
-}
+var _ core.CheckpointReverter = (*fakeReverter)(nil)
 
 func TestCheckpointHistoryExecuteFormatsExecutionLog(t *testing.T) {
 	t.Parallel()
@@ -115,57 +112,7 @@ func TestCheckpointHistoryUndoMementoIsNoop(t *testing.T) {
 	require.Equal(t, core.ToolDone, cmd.Undo(core.Result{}).Signal)
 }
 
-func TestCheckpointRollbackExecutePersistsNewCheckpoint(t *testing.T) {
-	t.Parallel()
-	target := 1
-	store := &lifecycleMemoryStore{}
-	saveLifecycleCheckpoint(t, store, lifecycleRollbackCheckpoint("cp-1", ""))
-
-	cmd := (&CheckpointRollbackBuilder{
-		Config:     CheckpointRollbackConfig{Checkpoint: "cp-1", ToIteration: &target},
-		StateStore: store,
-	}).Build(core.Result{})
-	res := cmd.Execute()
-
-	require.Equal(t, core.ToolDone, res.Signal)
-	require.Contains(t, res.Output, "rolled back checkpoint cp-1 to iteration 1")
-	require.Contains(t, res.Output, "new checkpoint: rollback-cp-1-to-1-")
-	keys, err := store.List(context.Background(), "checkpoint/")
-	require.NoError(t, err)
-	require.Len(t, keys, 2)
-}
-
-func TestCheckpointRollbackExecuteRestoresWorkspace(t *testing.T) {
-	t.Parallel()
-	target := 1
-	store := &lifecycleMemoryStore{}
-	saveLifecycleCheckpoint(t, store, lifecycleRollbackCheckpoint("cp-1", "ref-1"))
-	workspace := &lifecycleWorkspace{}
-
-	cmd := (&CheckpointRollbackBuilder{
-		Config:     CheckpointRollbackConfig{Checkpoint: "cp-1", ToIteration: &target},
-		StateStore: store,
-		Workspace:  workspace,
-	}).Build(core.Result{})
-	res := cmd.Execute()
-
-	require.Equal(t, core.ToolDone, res.Signal)
-	require.Equal(t, "ref-1", workspace.restored)
-	require.Contains(t, res.Output, "workspace ref: ref-1")
-}
-
-func TestCheckpointRollbackExecuteRequiresTargetIteration(t *testing.T) {
-	t.Parallel()
-	cmd := (&CheckpointRollbackBuilder{StateStore: &lifecycleMemoryStore{}}).Build(core.Result{})
-
-	res := cmd.Execute()
-
-	require.Equal(t, core.CommandError, res.Signal)
-	require.Error(t, res.Err)
-	require.Contains(t, res.Output, "requires to_iteration")
-}
-
-func TestCheckpointRollbackExecuteRequiresStateStore(t *testing.T) {
+func TestCheckpointRollbackRequiresRevertibleCheckpoint(t *testing.T) {
 	t.Parallel()
 	target := 1
 	cmd := (&CheckpointRollbackBuilder{
@@ -176,44 +123,109 @@ func TestCheckpointRollbackExecuteRequiresStateStore(t *testing.T) {
 
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Error(t, res.Err)
-	require.Contains(t, res.Output, "requires StateStore")
+	require.Contains(t, res.Output, "requires a revertible Checkpoint backend")
 }
 
-func TestCheckpointRollbackExecuteReportsRollbackFailure(t *testing.T) {
+func TestCheckpointRollbackRequiresTargetIteration(t *testing.T) {
 	t.Parallel()
-	target := 99
-	store := &lifecycleMemoryStore{}
-	saveLifecycleCheckpoint(t, store, lifecycleRollbackCheckpoint("cp-1", ""))
+	cmd := (&CheckpointRollbackBuilder{Checkpoint: &fakeReverter{}}).Build(core.Result{})
 
-	cmd := (&CheckpointRollbackBuilder{
-		Config:     CheckpointRollbackConfig{Checkpoint: "cp-1", ToIteration: &target},
-		StateStore: store,
-	}).Build(core.Result{})
 	res := cmd.Execute()
 
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Error(t, res.Err)
-	require.Contains(t, res.Output, "target iteration 99")
+	require.Contains(t, res.Output, "requires to_iteration")
 }
 
-func TestCheckpointRollbackExecuteRequiresManagedWorkspaceForRef(t *testing.T) {
+func TestCheckpointRollbackRevertsDBStateToTargetStep(t *testing.T) {
 	t.Parallel()
 	target := 1
-	store := &lifecycleMemoryStore{}
-	saveLifecycleCheckpoint(t, store, lifecycleRollbackCheckpoint("cp-1", "ref-1"))
+	rev := &fakeReverter{}
+	require.NoError(t, rev.Save(core.Position{CurrentState: "Working"}, core.Execution{
+		{Iteration: 1, CommandName: "read", FromState: "Idle", ToState: "Reading", Signal: core.ToolDone},
+		{Iteration: 2, CommandName: "write", FromState: "Reading", ToState: "Working", Signal: core.ToolDone},
+	}))
 
 	cmd := (&CheckpointRollbackBuilder{
-		Config:     CheckpointRollbackConfig{Checkpoint: "cp-1", ToIteration: &target},
-		StateStore: store,
+		Config:     CheckpointRollbackConfig{ToIteration: &target},
+		Checkpoint: rev,
+		RunID:      "run-1",
+	}).Build(core.Result{})
+	res := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.Equal(t, []int{0}, rev.reverted)
+	require.Equal(t, "run-1", rev.runID)
+	require.Contains(t, res.Output, "rolled back run run-1 to iteration 1 (step 0)")
+	require.Contains(t, res.Output, "step=1 write: skipped (no registry)")
+
+	_, reloaded, err := rev.Load()
+	require.NoError(t, err)
+	require.Len(t, reloaded, 1)
+	require.Equal(t, "read", reloaded[0].CommandName)
+}
+
+func TestCheckpointRollbackReportsMissingTargetIteration(t *testing.T) {
+	t.Parallel()
+	target := 99
+	rev := &fakeReverter{}
+	require.NoError(t, rev.Save(core.Position{}, core.Execution{
+		{Iteration: 1, CommandName: "read"},
+	}))
+
+	cmd := (&CheckpointRollbackBuilder{
+		Config:     CheckpointRollbackConfig{ToIteration: &target},
+		Checkpoint: rev,
+		RunID:      "run-1",
 	}).Build(core.Result{})
 	res := cmd.Execute()
 
 	require.Equal(t, core.CommandError, res.Signal)
-	require.Error(t, res.Err)
-	require.Contains(t, res.Output, "directory is required")
-	keys, err := store.List(context.Background(), "checkpoint/")
+	require.Contains(t, res.Output, "target iteration 99 not found")
+	require.Empty(t, rev.reverted)
+}
+
+func TestCheckpointRollbackRestoresFileViaPersistedReceipt(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	target := filepath.Join(dir, "a.txt")
+	require.NoError(t, os.WriteFile(target, []byte("v1"), 0o644))
+
+	// Execute a real write that overwrites the file; capture its opaque receipt.
+	writeBuilder := &WriteBuilder{Root: dir}
+	writeCmd := writeBuilder.Build(core.Result{Output: `{"parameters":{"path":"a.txt","content":"v2"}}`})
+	writeRes := writeCmd.Execute()
+	require.Equal(t, core.ToolDone, writeRes.Signal)
+	require.NotEmpty(t, writeRes.Receipt)
+	content, err := os.ReadFile(target)
 	require.NoError(t, err)
-	require.Len(t, keys, 1)
+	require.Equal(t, "v2", string(content))
+
+	// Persist the execution (including the receipt) in the reverter.
+	rev := &fakeReverter{}
+	require.NoError(t, rev.Save(core.Position{CurrentState: "Working"}, core.Execution{
+		{Iteration: 1, CommandName: "read", Signal: core.ToolDone},
+		{Iteration: 2, CommandName: "write", Signal: core.ToolDone, Receipt: writeRes.Receipt},
+	}))
+
+	// A fresh registry resolves "write" to a builder that implements core.Reverser.
+	reg := core.NewRegistry()
+	reg.Register(WriteToolSpec(), &WriteBuilder{Root: dir})
+
+	toIteration := 1
+	cmd := (&CheckpointRollbackBuilder{
+		Config:     CheckpointRollbackConfig{ToIteration: &toIteration},
+		Checkpoint: rev,
+		Registry:   reg,
+		RunID:      "run-1",
+	}).Build(core.Result{})
+	res := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.Contains(t, res.Output, "step=1 write:")
+	restored, err := os.ReadFile(target)
+	require.NoError(t, err)
+	require.Equal(t, "v1", string(restored))
 }
 
 func TestCheckpointRollbackUndoMementoIsCompensatable(t *testing.T) {
@@ -232,29 +244,4 @@ func TestCheckpointRollbackUndoMementoIsCompensatable(t *testing.T) {
 	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
 	require.Equal(t, "operator_checkpoint_selection", payload.BoundaryCompensation.Strategy)
 	require.Contains(t, payload.BoundaryCompensation.Requires, "checkpoint_id")
-}
-
-func lifecycleRollbackCheckpoint(id, targetRef string) core.CheckpointRecord {
-	noop := core.NoopUndoMemento("write")
-	return core.CheckpointRecord{
-		ID:        id,
-		Iteration: 2,
-		Timestamp: time.Unix(100, 0).UTC(),
-		AgentState: core.AgentSnapshot{
-			State:     "Working",
-			Signal:    core.ToolDone,
-			Iteration: 2,
-		},
-		History: []core.HistoryDigest{
-			{Iteration: 1, CommandName: "read", FromState: "Idle", ToState: "Reading", Signal: core.ToolDone, WorkspaceRef: targetRef},
-			{Iteration: 2, CommandName: "write", FromState: "Reading", ToState: "Working", Signal: core.ToolDone, Undo: &noop},
-		},
-	}
-}
-
-func saveLifecycleCheckpoint(t *testing.T, store core.StateStore, cp core.CheckpointRecord) {
-	t.Helper()
-	data, err := json.Marshal(cp)
-	require.NoError(t, err)
-	require.NoError(t, store.Save(context.Background(), "checkpoint/"+cp.ID, data))
 }

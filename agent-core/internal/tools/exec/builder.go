@@ -46,6 +46,13 @@ func (b *ExecBuilder) Build(res core.Result) core.Command {
 	return &ExecCmd{def: b.Def, root: b.Root, params: params}
 }
 
+// BuildReverser returns an exec command configured only for receipt-driven Undo:
+// the receipt carries the undo strategy/description, so the rollback receipt
+// walk needs no extracted params (core.Reverser; srd035-checkpoint-port R3).
+func (b *ExecBuilder) BuildReverser() core.Command {
+	return &ExecCmd{def: b.Def, root: b.Root}
+}
+
 // ExecCmd is the generic Command for YAML-defined exec tools.
 type ExecCmd struct {
 	def    catalog.ToolDef

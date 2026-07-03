@@ -121,6 +121,16 @@ type Builder interface {
 	Build(res Result) Command
 }
 
+// Reverser is an opt-in Builder capability for reversible tools: BuildReverser
+// constructs a fresh Command configured only for receipt-driven Undo, so a
+// rollback can reverse a persisted step from its opaque Receipt alone, without
+// the original invocation input. Builders that do not implement Reverser are
+// treated as irreversible by the rollback receipt walk
+// (srd035-checkpoint-port R3; #44 R2).
+type Reverser interface {
+	BuildReverser() Command
+}
+
 // CommandResolver looks up a Builder by command name.
 type CommandResolver interface {
 	Resolve(name string) (Builder, bool)
