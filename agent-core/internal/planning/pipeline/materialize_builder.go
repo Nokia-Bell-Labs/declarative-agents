@@ -34,7 +34,7 @@ func (c *createIssueCmd) issueCompensationMemento() (core.UndoMemento, error) {
 		DomainState: pipelineSnapshotToPayload(c.snapshot),
 		BoundaryCompensation: BoundaryCompensationInfo{
 			Strategy: "close_or_delete_created_issue",
-			Reason:   "planner materialized a Beads issue",
+			Reason:   "planner materialized an issue",
 			Requires: []string{"issue_id"},
 			IssueID:  c.issueID,
 		},

@@ -1,8 +1,11 @@
 // Copyright (c) 2026 Petar Djukic. All rights reserved.
 // SPDX-License-Identifier: MIT
 
-// Package materialize converts an ImplementationPlan into a beads issue
-// in the target project via the bd CLI.
+// Package materialize converts an ImplementationPlan into a tracked issue
+// in the target project via the issue-tracker CLI.
+//
+// TODO(gh-issues): the CLI invocation still targets the legacy `bd` binary.
+// Replace it with a GitHub Issues integration.
 // Implements srd009-materializer.
 package materialize
 
@@ -23,7 +26,7 @@ import (
 
 const spanMaterialize = "materialize_task"
 
-// MaterializeFailed indicates the materializer could not create a beads issue.
+// MaterializeFailed indicates the materializer could not create an issue.
 type MaterializeFailed struct {
 	Cause  error
 	Stderr string
@@ -38,7 +41,7 @@ func (e *MaterializeFailed) Error() string {
 
 func (e *MaterializeFailed) Unwrap() error { return e.Cause }
 
-// MaterializeTask creates beads issues from implementation plans.
+// MaterializeTask creates tracked issues from implementation plans.
 type MaterializeTask struct {
 	// RunBd executes the bd CLI. Tests inject a mock; production uses
 	// NewMaterializeTask which wires defaultRunBd.
@@ -50,8 +53,8 @@ func NewMaterializeTask() *MaterializeTask {
 	return &MaterializeTask{RunBd: defaultRunBd}
 }
 
-// Execute formats the plan as a beads issue description, invokes bd create
-// in the given directory, and returns the created issue ID.
+// Execute formats the plan as an issue description, invokes the issue-tracker
+// CLI in the given directory, and returns the created issue ID.
 func (m *MaterializeTask) Execute(
 	ctx context.Context,
 	tracer tracing.Tracer,

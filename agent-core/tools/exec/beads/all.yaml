@@ -1,7 +1,0 @@
-# Beads exec declarations.
-includes:
-  - ../issue-create.yaml
-  - ../issue-close.yaml
-  - ../issue-list.yaml
-
-tools: []

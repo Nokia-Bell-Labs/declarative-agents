@@ -2,19 +2,19 @@
 
 id: execution
 title: Work Execution Constitution
-purpose: 'We use this constitution when completing one Beads issue end-to-end. It
+purpose: 'We use this constitution when completing one issue end-to-end. It
 
-  governs issue selection, scope, reading order, quality gates, Beads updates,
+  governs issue selection, scope, reading order, quality gates, issue-tracker updates,
 
   and commits inside the selected project directory.
 
   '
 articles:
 - id: E1
-  title: Work from Beads
-  rule: 'Use bd for task tracking. Start with bd ready, read the selected issue,
+  title: Work from the issue tracker
+  rule: 'Use the issue tracker for task tracking. Find available work, read the
 
-    then claim it with bd update <issue-id> --claim. Do not use markdown TODO
+    selected issue, then claim it before starting. Do not use markdown TODO
 
     lists as the system of record.
 
@@ -65,7 +65,7 @@ articles:
 
     For documentation, run mage audit. If a gate fails because of unrelated
 
-    existing drift, file a follow-up Beads issue and close the current issue
+    existing drift, file a follow-up issue and close the current issue
 
     only when its own changes are valid.
 
@@ -135,7 +135,7 @@ workflows:
     - Write the document in valid YAML or Markdown as required.
     - Run mage audit.
     - Run de-AI lexical and structural checks on touched docs.
-    - Add a stats comment, close the issue, and commit work plus Beads metadata.
+    - Add a stats comment, close the issue, and commit the work.
   code:
     steps:
     - Read the relevant SRD, ARCHITECTURE section, test suite, source files, and issue.
@@ -145,18 +145,7 @@ workflows:
     - Run mage lint
     - Run go test ./...
     - Run mage audit if docs changed.
-    - Add a stats comment, close the issue, and commit work plus Beads metadata.
-beads:
-  ready: bd ready
-  show: bd show <issue-id>
-  claim: bd update <issue-id> --claim
-  comment: 'bd comment <issue-id> "stats: ..."'
-  close: bd close <issue-id> --reason "..."
-  notes:
-  - Run bd commands inside the selected subdirectory.
-  - Commit .beads changes with the work.
-  - Do not run bd sync.
-  - Do not edit .beads files by hand.
+    - Add a stats comment, close the issue, and commit the work.
 git:
   commit_per_issue: true
   push_automatically: false
