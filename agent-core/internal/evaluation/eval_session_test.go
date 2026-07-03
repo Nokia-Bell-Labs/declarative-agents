@@ -115,11 +115,6 @@ samples_dir: samples
 	requireSignal(t, undo, core.ToolDone)
 	require.Nil(t, es.PC)
 	require.False(t, es.started)
-
-	memento, err := cmd.UndoMemento()
-	require.NoError(t, err)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-	require.Contains(t, string(memento.Payload), `"domain_state"`)
 }
 
 func TestParseSuiteWithProfiles(t *testing.T) {

@@ -84,38 +84,6 @@ func undoEvalSessionSnapshot(commandName string, es *EvalSessionState, snap eval
 	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "undo: restored evaluator session state"}
 }
 
-func evalSessionMemento(commandName string, snap evalSessionSnapshot, ok bool) (core.UndoMemento, error) {
-	if !ok {
-		return core.UndoMemento{}, fmt.Errorf("%w: no evaluator session snapshot recorded for %s", core.ErrUndoMementoMissing, commandName)
-	}
-	return core.NewUndoMemento(commandName, core.UndoMementoReversible, struct {
-		DomainState struct {
-			SuiteName   string `json:"suite_name,omitempty"`
-			SessionDir  string `json:"session_dir,omitempty"`
-			TotalPoints int    `json:"total_points"`
-			GridPoints  int    `json:"grid_points"`
-			Started     bool   `json:"started"`
-			Exhausted   bool   `json:"exhausted"`
-		} `json:"domain_state"`
-	}{
-		DomainState: struct {
-			SuiteName   string `json:"suite_name,omitempty"`
-			SessionDir  string `json:"session_dir,omitempty"`
-			TotalPoints int    `json:"total_points"`
-			GridPoints  int    `json:"grid_points"`
-			Started     bool   `json:"started"`
-			Exhausted   bool   `json:"exhausted"`
-		}{
-			SuiteName:   snap.suite.Name,
-			SessionDir:  snap.sessionDir,
-			TotalPoints: snap.result.TotalPoints,
-			GridPoints:  len(snap.gridPoints),
-			Started:     snap.started,
-			Exhausted:   snap.exhausted,
-		},
-	})
-}
-
 type pointContextSnapshot struct {
 	point *PointContext
 }
@@ -131,35 +99,6 @@ func undoPointContextSnapshot(commandName string, pc *PointContext, snap pointCo
 	}
 	*pc = *clonePointContext(snap.point)
 	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "undo: restored point context"}
-}
-
-func pointContextMemento(commandName string, snap pointContextSnapshot, ok bool) (core.UndoMemento, error) {
-	if !ok || snap.point == nil {
-		return core.UndoMemento{}, fmt.Errorf("%w: no point context snapshot recorded for %s", core.ErrUndoMementoMissing, commandName)
-	}
-	return core.NewUndoMemento(commandName, core.UndoMementoReversible, struct {
-		DomainState struct {
-			PointID         string `json:"point_id,omitempty"`
-			PointDir        string `json:"point_dir,omitempty"`
-			Tokens          int    `json:"tokens"`
-			TestsPassed     bool   `json:"tests_passed"`
-			VersionMismatch bool   `json:"version_mismatch"`
-		} `json:"domain_state"`
-	}{
-		DomainState: struct {
-			PointID         string `json:"point_id,omitempty"`
-			PointDir        string `json:"point_dir,omitempty"`
-			Tokens          int    `json:"tokens"`
-			TestsPassed     bool   `json:"tests_passed"`
-			VersionMismatch bool   `json:"version_mismatch"`
-		}{
-			PointID:         snap.point.PointID,
-			PointDir:        snap.point.PointDir,
-			Tokens:          snap.point.Tokens,
-			TestsPassed:     snap.point.TestsPassed,
-			VersionMismatch: snap.point.VersionMismatch,
-		},
-	})
 }
 
 func cloneSuiteConfig(in SuiteConfig) SuiteConfig {

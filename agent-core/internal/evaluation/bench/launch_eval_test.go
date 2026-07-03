@@ -13,7 +13,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 func TestLaunchEvalFactoryRequiresChildAgentConfig(t *testing.T) {
@@ -38,25 +37,6 @@ func TestLaunchEvalFactoryAcceptsProfileConfig(t *testing.T) {
 	launchBuilder, ok := builder.(*LaunchEvalBuilder)
 	require.True(t, ok)
 	require.Equal(t, "agents/evaluator/profile.yaml", launchBuilder.Config.Profile)
-}
-
-func TestLaunchEvalUndoMementoCapturesChildEvalCompensation(t *testing.T) {
-	t.Parallel()
-	cmd := &launchEvalCmd{
-		config:    execute.Config{Profile: "agents/evaluator/profile.yaml"},
-		suitePath: "suites/basic.yaml",
-		outputDir: "out/eval",
-	}
-
-	memento, err := cmd.UndoMemento()
-	require.NoError(t, err)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-
-	var payload undo.BoundaryCompensationPayload
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
-	require.Equal(t, "child_eval_artifact_compensation", payload.BoundaryCompensation.Strategy)
-	require.Equal(t, []string{"out/eval"}, payload.BoundaryCompensation.ArtifactPaths)
-	require.Equal(t, "agents/evaluator/profile.yaml", payload.BoundaryCompensation.ChildProfile)
 }
 
 func TestLaunchEvalUsesSharedExecuteConfigArgs(t *testing.T) {

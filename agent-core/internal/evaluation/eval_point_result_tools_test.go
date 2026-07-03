@@ -63,12 +63,6 @@ func TestCollectTraceTokensUndoRestoresPointContext(t *testing.T) {
 	undo := cmd.Undo(core.Result{})
 	requireSignal(t, undo, core.ToolDone)
 	require.Equal(t, 7, pc.Tokens)
-
-	memento, err := cmd.UndoMemento()
-	require.NoError(t, err)
-	require.Equal(t, core.UndoMementoReversible, memento.Kind)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-	require.Contains(t, string(memento.Payload), `"point_id"`)
 }
 
 func TestCheckAgentVersionReportsMismatchWarning(t *testing.T) {

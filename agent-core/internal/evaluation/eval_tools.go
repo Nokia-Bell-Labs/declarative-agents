@@ -33,9 +33,6 @@ func (c *createPointDirCmd) Name() string { return "create_point_dir" }
 func (c *createPointDirCmd) Undo(_ core.Result) core.Result {
 	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
 }
-func (c *createPointDirCmd) UndoMemento() (core.UndoMemento, error) {
-	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
-}
 
 func (c *createPointDirCmd) Execute() core.Result {
 	c.snapshot = snapshotPointContext(c.pc)
@@ -193,9 +190,6 @@ func (c *runOracleCheckCmd) Name() string { return "run_oracle_check" }
 func (c *runOracleCheckCmd) Undo(_ core.Result) core.Result {
 	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
 }
-func (c *runOracleCheckCmd) UndoMemento() (core.UndoMemento, error) {
-	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
-}
 
 func (c *runOracleCheckCmd) Execute() core.Result {
 	pc := c.pc
@@ -224,9 +218,6 @@ type collectTraceTokensCmd struct {
 func (c *collectTraceTokensCmd) Name() string { return "collect_trace_tokens" }
 func (c *collectTraceTokensCmd) Undo(_ core.Result) core.Result {
 	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
-}
-func (c *collectTraceTokensCmd) UndoMemento() (core.UndoMemento, error) {
-	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
 }
 
 func (c *collectTraceTokensCmd) Execute() core.Result {
@@ -275,9 +266,6 @@ type checkAgentVersionCmd struct {
 func (c *checkAgentVersionCmd) Name() string { return "check_agent_version" }
 func (c *checkAgentVersionCmd) Undo(_ core.Result) core.Result {
 	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
-}
-func (c *checkAgentVersionCmd) UndoMemento() (core.UndoMemento, error) {
-	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
 }
 
 func (c *checkAgentVersionCmd) Execute() core.Result {

@@ -32,9 +32,6 @@ func (c *parseSuiteConfigCmd) Name() string { return "parse_suite_config" }
 func (c *parseSuiteConfigCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
 }
-func (c *parseSuiteConfigCmd) UndoMemento() (core.UndoMemento, error) {
-	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
-}
 
 func (c *parseSuiteConfigCmd) Execute() core.Result {
 	if c.es.SuitePath == "" {
@@ -95,9 +92,6 @@ func (c *discoverSuiteSamplesCmd) Name() string { return "discover_suite_samples
 func (c *discoverSuiteSamplesCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
 }
-func (c *discoverSuiteSamplesCmd) UndoMemento() (core.UndoMemento, error) {
-	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
-}
 
 func (c *discoverSuiteSamplesCmd) Execute() core.Result {
 	samples, err := DiscoverSamples(c.es.Suite.SamplesDir)
@@ -138,9 +132,6 @@ func (c *expandEvalGridCmd) Name() string { return "expand_eval_grid" }
 func (c *expandEvalGridCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
 }
-func (c *expandEvalGridCmd) UndoMemento() (core.UndoMemento, error) {
-	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
-}
 
 func (c *expandEvalGridCmd) Execute() core.Result {
 	c.snapshot = snapshotEvalSession(c.es)
@@ -171,9 +162,6 @@ type initEvalSessionCmd struct {
 func (c *initEvalSessionCmd) Name() string { return "init_eval_session" }
 func (c *initEvalSessionCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
-}
-func (c *initEvalSessionCmd) UndoMemento() (core.UndoMemento, error) {
-	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
 }
 
 func (c *initEvalSessionCmd) Execute() core.Result {

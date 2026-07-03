@@ -30,19 +30,6 @@ func (c *runAgentCmd) Undo(_ core.Result) core.Result {
 	}
 	return undo.BoundaryCompensationUndo(c.Name(), "restore point workspace artifacts and compensate the harness child process")
 }
-func (c *runAgentCmd) UndoMemento() (core.UndoMemento, error) {
-	if !c.hasSnapshot {
-		return core.UndoMemento{}, fmt.Errorf("%w: no point context snapshot recorded for %s", core.ErrUndoMementoMissing, c.Name())
-	}
-	return undo.BoundaryCompensationMemento(c.Name(), undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
-		Strategy:       "point_workspace_restore_and_child_process_compensation",
-		Reason:         "runs the harness agent in the point workspace",
-		Requires:       []string{"Workspace", "point_context_snapshot"},
-		WorkspacePaths: []string{c.snapshot.point.PointDir},
-		ArtifactPaths:  []string{c.snapshot.point.TracePath, c.snapshot.point.ResultPath},
-		ChildRunID:     c.snapshot.point.PointID,
-	}}, "restore point workspace artifacts and compensate the harness child process")
-}
 
 func (c *runAgentCmd) Execute() core.Result {
 	pc := c.pc

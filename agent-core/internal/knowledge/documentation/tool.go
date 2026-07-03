@@ -11,7 +11,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 const defaultAddr = ":18081"
@@ -98,15 +97,6 @@ func (c serveDocumentationCmd) Undo(_ core.Result) core.Result {
 	return c.stopHost()
 }
 
-func (c serveDocumentationCmd) UndoMemento() (core.UndoMemento, error) {
-	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
-		Strategy:   "server_shutdown",
-		ServerAddr: c.hostAddr(),
-		Requires:   []string{"addr"},
-	}}
-	return undo.BoundaryCompensationMemento(c.Name(), payload, "stop the owned documentation host listener")
-}
-
 func (c serveDocumentationCmd) Execute() core.Result {
 	if c.stop {
 		return c.stopHost()
@@ -137,16 +127,6 @@ func (c serveDocumentationCmd) stopHost() core.Result {
 		"signal": string(documentationServerStopped),
 		"addr":   addr,
 	})}
-}
-
-func (c serveDocumentationCmd) hostAddr() string {
-	if c.host == nil {
-		return c.config.Addr
-	}
-	if addr := c.host.Addr(); addr != "" {
-		return addr
-	}
-	return c.config.Addr
 }
 
 func decodeToolConfig(def catalog.ToolDef) (ToolConfig, error) {
