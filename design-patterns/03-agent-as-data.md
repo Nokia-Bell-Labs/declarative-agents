@@ -20,7 +20,7 @@ The interpreter loads the three layers, validates them against each other (every
 
 ## Applicability
 
-Agent-as-Data fits when multiple different agents — coding, evaluation, audit, migration — should run from one binary, differing in configuration rather than code. The pattern becomes more valuable when agent behaviour needs to be reviewed, versioned, and governed as data; when models should be swappable to isolate their contribution during evaluation; and when pre-deployment validation of the whole agent matters. A single fixed binary that interprets configuration is also easier to operate than a collection of purpose-built programs.
+Agent-as-Data fits when multiple different agents — coding, evaluation, benchmarking, spec validation — should run from one binary, differing in configuration rather than code. The pattern becomes more valuable when agent behaviour needs to be reviewed, versioned, and governed as data; when models should be swappable to isolate their contribution during evaluation; and when pre-deployment validation of the whole agent matters. A single fixed binary that interprets configuration is also easier to operate than a collection of purpose-built programs.
 
 
 ## Structure
@@ -58,7 +58,7 @@ The registry indexes tool declarations by name; factories instantiate live tools
 
 Adapters provide concrete implementations behind ports (LLM, telemetry, filesystem, HTTP). They isolate external systems so the declarative agent definition remains data-first and swappable.
 
-A coding agent, an evaluator, and a migration assistant are three profile directories pointing at the same binary.
+A coding agent (`generator`), an evaluator (`evaluator`), a benchmark orchestrator (`bench`), and a deterministic spec validator (`jurist`) are four profile directories pointing at the same binary.
 
 
 ## Collaborations
@@ -159,7 +159,7 @@ Agent-as-Data sits within Machine Interpreter and requires both Machine Interpre
 
 ## Known Uses
 
-**One binary, many agents.** A coding agent, an evaluator, a security auditor, and a migration assistant are four profile directories over the same binary; new agents and tools are written in YAML, and compiled-code changes are infrequent and confined to adapters and factories.
+**One binary, many agents.** A coding agent (`generator`), an evaluator (`evaluator`), a benchmark orchestrator (`bench`), and a deterministic spec validator (`jurist`) are four profile directories over the same binary; new agents and tools are written in YAML, and compiled-code changes are infrequent and confined to adapters and factories.
 
 **Model-comparison grids.** Generator profiles share a machine and tools but bind different `llm` configs; the bench/evaluator stack (Chapter 9) runs the grid and attributes outcome differences to the model because the evaluator can confirm two runs used the same machine byte-for-byte.
 
