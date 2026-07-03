@@ -114,5 +114,9 @@ type LoopParams struct {
 	StateStore       StateStore
 	Workspace        Workspace
 	CheckpointPolicy CheckpointPolicy
-	MonitorRecorder  monitor.RuntimeRecorder
+	// Checkpoint is the typed persistence port (srd035). The loop saves the
+	// current Position and Execution through it after each dispatch cycle. A nil
+	// value defaults to NoopCheckpoint, preserving disabled-mode behavior.
+	Checkpoint      Checkpoint
+	MonitorRecorder monitor.RuntimeRecorder
 }

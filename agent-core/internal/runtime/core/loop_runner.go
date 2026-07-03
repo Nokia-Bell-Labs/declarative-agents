@@ -26,6 +26,8 @@ type loopRunner struct {
 	iteration        int
 	start            time.Time
 	taskCompletedSig Signal
+	checkpoint       Checkpoint
+	execution        Execution
 }
 
 func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Context) (RunResult, error) {
@@ -50,6 +52,7 @@ func newLoopRunner(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx contex
 		iteration:        p.InitialRun.Iterations,
 		start:            time.Now(),
 		taskCompletedSig: taskCompletedSignal(p.Hooks),
+		checkpoint:       resolveCheckpoint(p.Checkpoint),
 	}
 }
 
@@ -197,7 +200,23 @@ func (r *loopRunner) dispatch(cmd Command, labels MetricLabels, transitionSignal
 	r.accumulateResult()
 	r.recordResultEvent(fromState)
 	r.recordHistory(cmd, fromState, transitionSignal)
+	r.saveCheckpoint(fromState, transitionSignal)
 	emitIterationSpan(r.trace, r.iteration, r.result, fromState, r.state)
+}
+
+// saveCheckpoint persists the updated Position and appended Execution through the
+// checkpoint port after each dispatch cycle (srd035-checkpoint-port R6.1). Save
+// failures are traced, not fatal, so a persistence backend hiccup does not abort
+// an otherwise-progressing run.
+func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal) {
+	r.execution = append(r.execution, dispatchEntry(r.iteration, fromState, r.state, transitionSignal, r.result))
+	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
+	if err := r.checkpoint.Save(pos, r.execution); err != nil {
+		r.trace.Event("checkpoint.save_failed",
+			attribute.Int("iteration", r.iteration),
+			attribute.String("error", err.Error()),
+		)
+	}
 }
 
 func (r *loopRunner) dispatchContext(labels MetricLabels) monitor.DispatchContext {
