@@ -4,45 +4,46 @@ package main
 
 import (
 	"bufio"
-	"fmt"
+	"encoding/json"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
-type statsRecord struct {
-	GoSrc   int
-	GoTest  int
-	GoTotal int
-	YAML    yamlStats
+type statsOutput struct {
+	Go   goStats       `json:"go"`
+	YAML yamlStatsJSON `json:"yaml"`
+}
+
+type goStats struct {
+	SrcLines   int `json:"src_lines"`
+	TestLines  int `json:"test_lines"`
+	TotalLines int `json:"total_lines"`
 }
 
 type fileLineStats struct {
-	Files int
-	Lines int
+	Files int `json:"files"`
+	Lines int `json:"lines"`
 }
 
-type yamlStats struct {
-	Total   fileLineStats
-	Docs    categorizedYAMLStats
-	Configs categorizedYAMLStats
-	Other   fileLineStats
+type yamlStatsJSON struct {
+	Total   fileLineStats            `json:"total"`
+	Docs    categorizedYAMLStatsJSON `json:"docs"`
+	Configs categorizedYAMLStatsJSON `json:"configs"`
+	Other   fileLineStats            `json:"other"`
 }
 
-type categorizedYAMLStats struct {
-	Total      fileLineStats
-	Categories map[string]fileLineStats
+type categorizedYAMLStatsJSON struct {
+	Total      fileLineStats            `json:"total"`
+	Categories map[string]fileLineStats `json:"categories"`
 }
 
-// Stats prints lines-of-code and YAML file breakdowns as a YAML blob.
+// Stats outputs lines-of-code and YAML file breakdowns as JSON to stdout.
 func Stats() error {
-	rec := statsRecord{
-		YAML: yamlStats{
-			Docs:    categorizedYAMLStats{Categories: make(map[string]fileLineStats)},
-			Configs: categorizedYAMLStats{Categories: make(map[string]fileLineStats)},
-		},
-	}
+	var rec statsOutput
+	rec.YAML.Docs.Categories = make(map[string]fileLineStats)
+	rec.YAML.Configs.Categories = make(map[string]fileLineStats)
+
 	skipDirs := map[string]bool{
 		".git": true, "vendor": true, binDir: true,
 		"magefiles": true, "node_modules": true,
@@ -61,10 +62,10 @@ func Stats() error {
 		switch {
 		case strings.HasSuffix(path, "_test.go"):
 			n, _ := countLines(path)
-			rec.GoTest += n
+			rec.Go.TestLines += n
 		case strings.HasSuffix(path, ".go"):
 			n, _ := countLines(path)
-			rec.GoSrc += n
+			rec.Go.SrcLines += n
 		case strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml"):
 			n, _ := countLines(path)
 			addYAMLStats(&rec.YAML, path, n)
@@ -74,13 +75,14 @@ func Stats() error {
 	if err != nil {
 		return err
 	}
-	rec.GoTotal = rec.GoSrc + rec.GoTest
+	rec.Go.TotalLines = rec.Go.SrcLines + rec.Go.TestLines
 
-	printStatsYAML(rec)
-	return nil
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(rec)
 }
 
-func addYAMLStats(stats *yamlStats, path string, lines int) {
+func addYAMLStats(stats *yamlStatsJSON, path string, lines int) {
 	path = filepath.ToSlash(path)
 	incFileLineStats(&stats.Total, lines)
 
@@ -146,37 +148,6 @@ func configsYAMLCategory(path string) string {
 	default:
 		return "configs_other"
 	}
-}
-
-func printStatsYAML(rec statsRecord) {
-	fmt.Printf("go: {src_lines: %d, test_lines: %d, total_lines: %d}\n", rec.GoSrc, rec.GoTest, rec.GoTotal)
-	fmt.Println("yaml:")
-	printFileLineStats("  total", rec.YAML.Total)
-	printCategorizedYAMLStats("  docs", rec.YAML.Docs)
-	printCategorizedYAMLStats("  configs", rec.YAML.Configs)
-	printFileLineStats("  other", rec.YAML.Other)
-}
-
-func printCategorizedYAMLStats(label string, stats categorizedYAMLStats) {
-	fmt.Printf("%s:\n", label)
-	printFileLineStats("    total", stats.Total)
-	fmt.Println("    categories:")
-	for _, key := range sortedKeys(stats.Categories) {
-		printFileLineStats("      "+key, stats.Categories[key])
-	}
-}
-
-func printFileLineStats(label string, stats fileLineStats) {
-	fmt.Printf("%s: {files: %d, lines: %d}\n", label, stats.Files, stats.Lines)
-}
-
-func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func countLines(path string) (int, error) {

@@ -42,7 +42,7 @@ func TestConfigsYAMLCategory(t *testing.T) {
 }
 
 func TestAddYAMLStats(t *testing.T) {
-	var stats yamlStats
+	var stats yamlStatsJSON
 	stats.Docs.Categories = make(map[string]fileLineStats)
 	stats.Configs.Categories = make(map[string]fileLineStats)
 
