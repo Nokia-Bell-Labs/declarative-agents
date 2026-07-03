@@ -302,7 +302,7 @@ func (r *loopRunner) recordHistory(cmd Command, fromState State, transitionSigna
 	if !historyEnabled(r.params) {
 		return
 	}
-	entry := newHistoryEntry(r.iteration, cmd, r.result, fromState, r.state, transitionSignal, "", r.trace)
+	entry := newHistoryEntry(r.iteration, cmd, r.result, fromState, r.state, transitionSignal, "")
 	r.run.History = append(r.run.History, entry)
 }
 

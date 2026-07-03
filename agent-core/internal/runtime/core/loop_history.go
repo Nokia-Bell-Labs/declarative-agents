@@ -4,10 +4,6 @@ package core
 
 import (
 	"time"
-
-	"go.opentelemetry.io/otel/attribute"
-
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 )
 
 func historyEnabled(p LoopParams) bool {
@@ -58,8 +54,7 @@ func dispatchEntry(iteration int, fromState, toState State, transitionSignal Sig
 	}
 }
 
-func newHistoryEntry(iteration int, cmd Command, res Result, fromState, toState State, signal Signal, workspaceRef string, tr tracing.Tracer) HistoryEntry {
-	undo, undoErr := captureUndoMemento(cmd, res.CommandName, tr, iteration)
+func newHistoryEntry(iteration int, cmd Command, res Result, fromState, toState State, signal Signal, workspaceRef string) HistoryEntry {
 	return HistoryEntry{
 		Iteration:    iteration,
 		Timestamp:    time.Now(),
@@ -69,36 +64,8 @@ func newHistoryEntry(iteration int, cmd Command, res Result, fromState, toState 
 		ToState:      toState,
 		Signal:       signal,
 		Result:       digestResult(res),
-		Undo:         undo,
-		UndoError:    undoErr,
 		WorkspaceRef: workspaceRef,
 	}
-}
-
-func captureUndoMemento(cmd Command, commandName string, tr tracing.Tracer, iteration int) (*UndoMemento, string) {
-	provider, ok := cmd.(UndoMementoProvider)
-	if !ok {
-		return nil, ""
-	}
-	memento, err := provider.UndoMemento()
-	if err != nil {
-		return nil, recordUndoMementoError(tr, iteration, commandName, err)
-	}
-	if err := ValidateUndoMemento(memento); err != nil {
-		return nil, recordUndoMementoError(tr, iteration, commandName, err)
-	}
-	return cloneUndoMemento(&memento), ""
-}
-
-func recordUndoMementoError(tr tracing.Tracer, iteration int, commandName string, err error) string {
-	if tr != nil {
-		tr.Event("history.undo_memento_invalid",
-			attribute.Int("iteration", iteration),
-			attribute.String("command", commandName),
-			attribute.String("error", err.Error()),
-		)
-	}
-	return err.Error()
 }
 
 func digestResult(res Result) ResultDigest {
@@ -125,8 +92,6 @@ func historyDigest(history History) []HistoryDigest {
 			FromState:    entry.FromState,
 			ToState:      entry.ToState,
 			Signal:       entry.Result.Signal,
-			Undo:         cloneUndoMemento(entry.Undo),
-			UndoError:    entry.UndoError,
 			WorkspaceRef: entry.WorkspaceRef,
 		})
 	}

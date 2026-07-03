@@ -302,40 +302,6 @@ func TestLoop_HistoryRecordsDispatchesWhenPolicyEnabled(t *testing.T) {
 	require.Equal(t, Signal("TaskCompleted"), rr.History[1].Result.Signal)
 }
 
-func TestLoop_HistoryCapturesUndoMemento(t *testing.T) {
-	t.Parallel()
-	tr := &loopRecorder{}
-	memento, err := NewUndoMemento("mutate_state", UndoMementoReversible, map[string]string{"before": "v1"})
-	require.NoError(t, err)
-	params := singleCommandLoopParams(tr, &mementoCmd{name: "mutate_state", signal: TaskCompleted, memento: memento})
-	params.CheckpointPolicy = alwaysCheckpointPolicy{}
-
-	rr, err := Loop(params, context.Background())
-
-	require.NoError(t, err)
-	require.Equal(t, StatusSucceeded, rr.Status)
-	require.Len(t, rr.History, 1)
-	require.NotNil(t, rr.History[0].Undo)
-	require.Empty(t, rr.History[0].UndoError)
-	require.Equal(t, UndoMementoReversible, rr.History[0].Undo.Kind)
-	require.JSONEq(t, `{"before":"v1"}`, string(rr.History[0].Undo.Payload))
-}
-
-func TestLoop_HistoryRecordsInvalidUndoMemento(t *testing.T) {
-	t.Parallel()
-	tr := &loopRecorder{}
-	params := singleCommandLoopParams(tr, &mementoCmd{name: "mutate_state", signal: TaskCompleted})
-	params.CheckpointPolicy = alwaysCheckpointPolicy{}
-
-	rr, err := Loop(params, context.Background())
-
-	require.NoError(t, err)
-	require.Equal(t, StatusSucceeded, rr.Status)
-	require.Len(t, rr.History, 1)
-	require.Nil(t, rr.History[0].Undo)
-	require.Contains(t, rr.History[0].UndoError, ErrUndoMementoMissing.Error())
-}
-
 func TestLoop_HistoryRecordsFailedCommand(t *testing.T) {
 	t.Parallel()
 	reg := NewRegistry()
@@ -982,25 +948,6 @@ func singleCommandLoopParams(tr tracing.Tracer, cmd Command) LoopParams {
 			TaskCompletedSignal: TaskCompleted,
 		},
 	}
-}
-
-type mementoCmd struct {
-	name    string
-	signal  Signal
-	memento UndoMemento
-	err     error
-}
-
-func (m *mementoCmd) Name() string { return m.name }
-func (m *mementoCmd) Execute() Result {
-	return Result{Signal: m.signal, CommandName: m.name}
-}
-func (m *mementoCmd) Undo(_ Result) Result { return NoopUndo(m.name) }
-func (m *mementoCmd) UndoMemento() (UndoMemento, error) {
-	if m.err != nil {
-		return UndoMemento{}, m.err
-	}
-	return m.memento, nil
 }
 
 func suspendLoopParams(tr tracing.Tracer, builder Builder) LoopParams {

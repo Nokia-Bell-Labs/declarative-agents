@@ -69,8 +69,6 @@ func historyFromDigest(digest []HistoryDigest) History {
 			FromState:    entry.FromState,
 			ToState:      entry.ToState,
 			Result:       ResultDigest{Signal: entry.Signal},
-			Undo:         cloneUndoMemento(entry.Undo),
-			UndoError:    entry.UndoError,
 			WorkspaceRef: entry.WorkspaceRef,
 		})
 	}
