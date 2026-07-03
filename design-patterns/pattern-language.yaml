@@ -337,7 +337,7 @@ patterns:
       evaluated without changing the harness. It adds little when there is only
       one purpose-built program and no expected variation.
     forces:
-      - Different agents (coding, evaluation, audit) should share one runtime.
+      - Different agents (coding, evaluation, benchmarking, spec validation) should share one runtime.
       - The whole agent should be reviewable and versionable as data.
       - The model should be swappable to isolate its contribution.
       - The entire definition should be validated before deployment.
@@ -408,7 +408,7 @@ patterns:
       - system: Reference implementation — one binary, many agents
         cite: reference-implementation
         kind: internal
-        note: A coding agent, an evaluator, a security auditor, and a migration assistant are four profile directories over the same binary.
+        note: A coding agent (generator), an evaluator (evaluator), a benchmark orchestrator (bench), and a deterministic spec validator (jurist) are four profile directories over the same binary.
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
