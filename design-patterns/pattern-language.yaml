@@ -826,7 +826,7 @@ patterns:
       - system: Reference implementation — grid evaluation
         cite: reference-implementation
         kind: internal
-        note: The evaluator consumes NDJSON span files, not running agents; convergence classes map directly to span patterns and per-run cost is read from span attributes.
+        note: The evaluator consumes NDJSON span files, not running agents; per-run cost is read from span attributes, and convergence is classified from the tool-metric snapshots recorded during the run rather than from span or state patterns.
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -1069,7 +1069,7 @@ patterns:
       - system: Reference implementation — bench convergence reports
         cite: reference-implementation
         kind: internal
-        note: The evaluation UI shows types as colored badges and CI regression gates alert when a type moves beyond threshold (Clean down, Stuck up), catching degradations binary pass rates miss.
+        note: The reference evaluator classifies each run's per-tool metric snapshots into a six-class progression and derives aggregate Recovery/Stuck rates; per-type colored badges and a thresholded CI regression gate are design intent, not yet shipped.
     provenance: [reference-implementation]
 
   # ---------------------------------------------------------------------------
