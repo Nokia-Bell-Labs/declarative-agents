@@ -11,6 +11,7 @@ goals:
   - G1: Define canonical flag name constants so all agent binaries use identical CLI surfaces.
   - G2: Provide PropagateArgs for building child-process argument slices with traceparent and budget propagation.
   - G3: Provide helpers for remaining-budget calculation and ad-hoc flag formatting.
+  - G4: Define the persistent checkpoint-backend flag and default-backend behavior for the agent binary.
 
 requirements:
   R1:
@@ -44,6 +45,14 @@ requirements:
     items:
       - R4.1: "FormatFlag(name, value string) []string returns [\"--name\", \"value\"] for ad-hoc flags not covered by PropagateArgs."
 
+  R5:
+    title: Persistent checkpoint-backend flag
+    items:
+      - R5.1: The agent binary SHALL expose --dolt-dsn, a MySQL-wire DSN naming a running dolt sql-server, selecting the Dolt-backed persistent checkpoint backend (srd036-dolt-state-persistence R1.4).
+      - R5.2: When --dolt-dsn is empty the agent SHALL default to NoopCheckpoint so a run without persistence keeps disabled-mode behavior (srd035-checkpoint-port R5.1).
+      - R5.3: The "dolt" database/sql driver SHALL be registered at the composition root (cmd/agent); core reaches the database only through the database/sql seam and never imports Dolt (srd036-dolt-state-persistence R1.3).
+      - R5.4: --dolt-dsn SHALL supersede the legacy FileStore state-store directory as the persistence surface; runtime state is versioned by Dolt rather than a state-store directory.
+
 non_goals:
   - Flag registration with cobra/pflag (that is the responsibility of each CLI binary's main).
   - Parsing inbound flags (each binary uses its own flag set).
@@ -66,11 +75,19 @@ acceptance_criteria:
     criterion: FormatFlag returns a two-element slice with the prefixed flag name and value.
     traces: [R4.1]
 
+  - id: AC5
+    criterion: The agent documents --dolt-dsn as the MySQL-wire DSN selecting the Dolt-backed persistent backend, defaults to NoopCheckpoint when empty, registers the "dolt" driver at the composition root, and supersedes the legacy FileStore state-store directory.
+    traces: [R5.1, R5.2, R5.3, R5.4]
+
 depends_on:
   - srd_id: srd016-traceparent
     symbols_used: [FormatTraceparent, ParseTraceparent]
   - srd_id: srd009-ollama-adapter
     symbols_used: [Adapter]
+  - srd_id: srd035-checkpoint-port
+    symbols_used: [Checkpoint, NoopCheckpoint]
+  - srd_id: srd036-dolt-state-persistence
+    symbols_used: [DoltCheckpoint, OpenDoltCheckpoint]
 
 diagrams:
   requirements_trace: |
@@ -81,6 +98,7 @@ diagrams:
       Goals --> R2["R2: PropagateArgs struct and Build method"]
       Goals --> R3["R3: RemainingBudget helper"]
       Goals --> R4["R4: FormatFlag helper"]
+      Goals --> R5["R5: Persistent checkpoint-backend flag"]
       AC1["AC1: Eight standard flag name constants are exported and match..."]
       R1 --> AC1
       AC2["AC2: PropagateArgs.Build() produces a correct flag slice, omit..."]
@@ -89,4 +107,6 @@ diagrams:
       R3 --> AC3
       AC4["AC4: FormatFlag returns a two-element slice with the prefixed..."]
       R4 --> AC4
+      AC5["AC5: --dolt-dsn selects the Dolt backend; Noop default; driver at root..."]
+      R5 --> AC5
     ```

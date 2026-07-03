@@ -84,6 +84,11 @@ func OpenDoltCheckpoint(dsn, runID string, terminal func(State) bool) (*DoltChec
 	if err != nil {
 		return nil, fmt.Errorf("%w: open %q: %v", ErrDolt, dsn, err)
 	}
+	// Dolt keeps the selected branch and database per session, and Save relies on
+	// the branch checked out in prepare() still being current when the step's
+	// transaction commits. Pin the pool to a single connection so every statement
+	// shares one session (srd036-dolt-state-persistence R4.2).
+	db.SetMaxOpenConns(1)
 	return NewDoltCheckpoint(newSQLDatabase(db), runID, terminal), nil
 }
 

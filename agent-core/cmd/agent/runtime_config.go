@@ -111,11 +111,11 @@ func resolveStateStoreRoot(cfg runtimeConfig) string {
 }
 
 // resolveCheckpoint returns the typed Checkpoint port for the run: the
-// Dolt-backed persistent backend when a DSN/repo path is configured, otherwise
-// the no-op adapter so a run without persistence keeps disabled-mode behavior
-// (srd035-checkpoint-port R5.1, srd036-dolt-state-persistence R1). The Dolt
-// driver is registered at the composition root via a blank import (#37b); until
-// then a --dolt-dsn run surfaces the unregistered-driver error here.
+// Dolt-backed persistent backend when --dolt-dsn is configured, otherwise the
+// no-op adapter so a run without persistence keeps disabled-mode behavior
+// (srd035-checkpoint-port R5.1, srd036-dolt-state-persistence R1). The "dolt"
+// database/sql driver is registered at the composition root (dolt_driver.go),
+// which connects to a dolt sql-server over the MySQL wire protocol.
 func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec) (core.Checkpoint, error) {
 	if cfg.DoltDSN == "" {
 		return core.NoopCheckpoint{}, nil

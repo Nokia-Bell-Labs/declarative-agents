@@ -465,9 +465,9 @@ func TestResolveCheckpointDefaultsToNoop(t *testing.T) {
 func TestResolveCheckpointWithDoltDSNOpensDoltBackend(t *testing.T) {
 	t.Parallel()
 
-	// The Dolt driver blank import lands in #37b, so a DSN-configured run
-	// surfaces the unregistered-driver error through the Dolt adapter here.
-	_, err := resolveCheckpoint(runtimeConfig{DoltDSN: "file:///tmp/agent-dolt"}, core.MachineSpec{})
+	// A --dolt-dsn value routes to the Dolt adapter over the registered "dolt"
+	// (MySQL-wire) driver; an unparseable DSN surfaces as a typed ErrDolt.
+	_, err := resolveCheckpoint(runtimeConfig{DoltDSN: "not-a-valid-dsn"}, core.MachineSpec{})
 
 	require.ErrorIs(t, err, core.ErrDolt)
 }
