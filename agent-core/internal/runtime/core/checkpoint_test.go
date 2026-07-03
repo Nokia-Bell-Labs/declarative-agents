@@ -42,18 +42,11 @@ func (m *memoryStateStore) Delete(_ context.Context, key string) error {
 	return nil
 }
 
-type stubWorkspace struct{}
-
-func (stubWorkspace) Checkpoint(context.Context, string) (string, error) { return "ref", nil }
-func (stubWorkspace) Restore(context.Context, string) error              { return nil }
-func (stubWorkspace) CurrentRef(context.Context) (string, error)         { return "head", nil }
-
 type alwaysCheckpointPolicy struct{}
 
 func (alwaysCheckpointPolicy) ShouldCheckpoint(CheckpointEvent) bool { return true }
 
 var _ StateStore = (*memoryStateStore)(nil)
-var _ Workspace = stubWorkspace{}
 var _ CheckpointPolicy = alwaysCheckpointPolicy{}
 
 func TestCheckpointContractsCompileAndRoundTrip(t *testing.T) {

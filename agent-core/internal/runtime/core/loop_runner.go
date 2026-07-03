@@ -281,8 +281,7 @@ func (r *loopRunner) recordHistory(cmd Command, fromState State, transitionSigna
 	if !historyEnabled(r.params) {
 		return
 	}
-	ref := captureWorkspaceRef(r.params, r.trace, r.ctx, r.iteration, r.result.CommandName)
-	entry := newHistoryEntry(r.iteration, cmd, r.result, fromState, r.state, transitionSignal, ref, r.trace)
+	entry := newHistoryEntry(r.iteration, cmd, r.result, fromState, r.state, transitionSignal, "", r.trace)
 	r.run.History = append(r.run.History, entry)
 }
 

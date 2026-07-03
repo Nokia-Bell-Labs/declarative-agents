@@ -17,7 +17,6 @@ func TestResumeFromCheckpointRestoresStateAndReentersLoop(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := &memoryStateStore{}
-	ws := &recordingWorkspace{}
 	cp := CheckpointRecord{
 		ID:        "cp-1",
 		Iteration: 1,
@@ -49,7 +48,6 @@ func TestResumeFromCheckpointRestoresStateAndReentersLoop(t *testing.T) {
 	params := resumeLoopParams()
 	result, err := ResumeFromCheckpoint(ResumeOptions{
 		Store:        store,
-		Workspace:    ws,
 		CheckpointID: "cp-1",
 		Params:       params,
 		RestoreConversation: func(data json.RawMessage) error {
@@ -76,7 +74,6 @@ func TestResumeFromCheckpointRestoresStateAndReentersLoop(t *testing.T) {
 	require.Equal(t, 10, result.Run.TokensIn)
 	require.Equal(t, 5, result.Run.TokensOut)
 	require.Equal(t, 0.25, result.Run.TotalCost)
-	require.Equal(t, []string{"ref-1"}, ws.restored)
 	require.JSONEq(t, string(cp.ConversationLog), string(restoredConversation))
 	require.JSONEq(t, string(cp.DomainState), string(restoredDomain))
 }
@@ -115,21 +112,19 @@ func TestResumeFromCheckpointRestoreErrorsAreClassified(t *testing.T) {
 		ID:              "cp-1",
 		AgentState:      AgentSnapshot{State: "AwaitingApproval", Iteration: 1},
 		ConversationLog: json.RawMessage(`[{"role":"user","content":"before"}]`),
-		WorkspaceRef:    "ref-1",
 	}
 	saveCheckpoint(t, store, cp)
 
 	_, err := ResumeFromCheckpoint(ResumeOptions{
 		Store:               store,
-		Workspace:           &recordingWorkspace{err: fmt.Errorf("git failed")},
 		CheckpointID:        "cp-1",
 		Params:              resumeLoopParams(),
-		RestoreConversation: func(json.RawMessage) error { return nil },
+		RestoreConversation: func(json.RawMessage) error { return fmt.Errorf("restore boom") },
 	})
 
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrResumeRestore))
-	require.Contains(t, err.Error(), "git failed")
+	require.Contains(t, err.Error(), "restore boom")
 }
 
 func TestResumeFromCheckpointValidatesMachineBeforeLoop(t *testing.T) {

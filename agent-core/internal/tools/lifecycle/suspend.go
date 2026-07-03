@@ -24,7 +24,6 @@ type SuspendConfig struct {
 // FactoryDeps holds shared dependencies for lifecycle builtins.
 type FactoryDeps struct {
 	StateStore core.StateStore
-	Workspace  core.Workspace
 	Tracer     tracing.Tracer
 	Shutdown   func()
 }
@@ -36,7 +35,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		return &SuspendBuilder{Config: cfg, StateStore: deps.StateStore, Workspace: deps.Workspace, Tracer: deps.Tracer}, nil
+		return &SuspendBuilder{Config: cfg, StateStore: deps.StateStore, Tracer: deps.Tracer}, nil
 	})
 	br.Register("exit_agent", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var cfg ExitConfig
@@ -50,7 +49,6 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 type suspendCmd struct {
 	config     SuspendConfig
 	stateStore core.StateStore
-	workspace  core.Workspace
 	tracer     tracing.Tracer
 }
 
@@ -83,7 +81,6 @@ func (s *suspendCmd) Execute() core.Result {
 			attribute.String("reason", reason),
 			attribute.Bool("require_checkpoint", s.config.RequireCheckpoint),
 			attribute.Bool("state_store_configured", s.stateStore != nil),
-			attribute.Bool("workspace_configured", s.workspace != nil),
 		)
 	}
 	return core.Result{Signal: core.AwaitApproval, CommandName: s.Name(), Output: reason}
@@ -93,10 +90,9 @@ func (s *suspendCmd) Execute() core.Result {
 type SuspendBuilder struct {
 	Config     SuspendConfig
 	StateStore core.StateStore
-	Workspace  core.Workspace
 	Tracer     tracing.Tracer
 }
 
 func (b *SuspendBuilder) Build(_ core.Result) core.Command {
-	return &suspendCmd{config: b.Config, stateStore: b.StateStore, workspace: b.Workspace, tracer: b.Tracer}
+	return &suspendCmd{config: b.Config, stateStore: b.StateStore, tracer: b.Tracer}
 }

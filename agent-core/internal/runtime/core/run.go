@@ -115,7 +115,6 @@ type LoopParams struct {
 	InitFunc         func(reg *Registry) error
 	ToolAction       ActionFunc
 	StateStore       StateStore
-	Workspace        Workspace
 	CheckpointPolicy CheckpointPolicy
 	// Checkpoint is the typed persistence port (srd035). The loop saves the
 	// current Position and Execution through it after each dispatch cycle. A nil

@@ -260,7 +260,6 @@ func TestLoop_NilRollbackParamsPreserveBehavior(t *testing.T) {
 	tr := &loopRecorder{}
 	params := simpleLoopParams(tr)
 	params.StateStore = nil
-	params.Workspace = nil
 	params.CheckpointPolicy = nil
 
 	rr, err := Loop(params, context.Background())
@@ -276,7 +275,6 @@ func TestLoop_HistoryDisabledWhenPolicyNil(t *testing.T) {
 	t.Parallel()
 	params := simpleLoopParams(&loopRecorder{})
 	params.CheckpointPolicy = nil
-	params.Workspace = refWorkspace{ref: "head"}
 
 	rr, err := Loop(params, context.Background())
 
@@ -337,20 +335,6 @@ func TestLoop_HistoryRecordsInvalidUndoMemento(t *testing.T) {
 	require.Len(t, rr.History, 1)
 	require.Nil(t, rr.History[0].Undo)
 	require.Contains(t, rr.History[0].UndoError, ErrUndoMementoMissing.Error())
-}
-
-func TestLoop_HistoryCapturesWorkspaceRef(t *testing.T) {
-	t.Parallel()
-	params := simpleLoopParams(&loopRecorder{})
-	params.CheckpointPolicy = alwaysCheckpointPolicy{}
-	params.Workspace = refWorkspace{ref: "workspace-head"}
-
-	rr, err := Loop(params, context.Background())
-
-	require.NoError(t, err)
-	require.Len(t, rr.History, 2)
-	require.Equal(t, "workspace-head", rr.History[0].WorkspaceRef)
-	require.Equal(t, "workspace-head", rr.History[1].WorkspaceRef)
 }
 
 func TestLoop_HistoryRecordsFailedCommand(t *testing.T) {
@@ -423,7 +407,6 @@ func TestLoop_SuspendSignalPersistsCheckpointAndStopsCleanly(t *testing.T) {
 	store := &memoryStateStore{}
 	params := suspendLoopParams(&loopRecorder{}, &fakeBuilder{name: "suspend", signal: AwaitApproval})
 	params.StateStore = store
-	params.Workspace = refWorkspace{ref: "workspace-ref"}
 	params.CheckpointPolicy = alwaysCheckpointPolicy{}
 
 	rr, err := Loop(params, context.Background())
@@ -441,7 +424,6 @@ func TestLoop_SuspendSignalPersistsCheckpointAndStopsCleanly(t *testing.T) {
 	require.Equal(t, State("AwaitingApproval"), cp.AgentState.State)
 	require.Equal(t, AwaitApproval, cp.AgentState.Signal)
 	require.Equal(t, 1, cp.AgentState.Iteration)
-	require.Equal(t, "workspace-ref", cp.WorkspaceRef)
 	require.Len(t, cp.History, 1)
 }
 
@@ -1117,12 +1099,3 @@ func (e *errorCmd) Execute() Result {
 	return Result{Signal: ToolDone, CommandName: e.name, Err: e.err, Output: e.err.Error()}
 }
 func (e *errorCmd) Undo(_ Result) Result { return NoopUndo(e.name) }
-
-type refWorkspace struct {
-	ref string
-	err error
-}
-
-func (r refWorkspace) Checkpoint(context.Context, string) (string, error) { return r.ref, r.err }
-func (r refWorkspace) Restore(context.Context, string) error              { return r.err }
-func (r refWorkspace) CurrentRef(context.Context) (string, error)         { return r.ref, r.err }

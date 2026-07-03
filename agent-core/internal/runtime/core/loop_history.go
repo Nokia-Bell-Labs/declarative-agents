@@ -61,22 +61,6 @@ func dispatchEntry(iteration int, fromState, toState State, transitionSignal Sig
 	}
 }
 
-func captureWorkspaceRef(p LoopParams, tr tracing.Tracer, ctx context.Context, iteration int, commandName string) string {
-	if p.Workspace == nil {
-		return ""
-	}
-	ref, err := p.Workspace.CurrentRef(ctx)
-	if err != nil {
-		tr.Event("history.workspace_ref_failed",
-			attribute.Int("iteration", iteration),
-			attribute.String("command", commandName),
-			attribute.String("error", err.Error()),
-		)
-		return ""
-	}
-	return ref
-}
-
 func newHistoryEntry(iteration int, cmd Command, res Result, fromState, toState State, signal Signal, workspaceRef string, tr tracing.Tracer) HistoryEntry {
 	undo, undoErr := captureUndoMemento(cmd, res.CommandName, tr, iteration)
 	return HistoryEntry{
@@ -141,9 +125,6 @@ func persistSuspendCheckpoint(ctx context.Context, p LoopParams, tr tracing.Trac
 		return nil
 	}
 	workspaceRef := latestWorkspaceRef(rr.History)
-	if workspaceRef == "" && p.Workspace != nil {
-		workspaceRef = captureWorkspaceRef(p, tr, ctx, iteration, "suspend")
-	}
 	cp := suspendCheckpoint(p, rr, state, sig, iteration, workspaceRef)
 	if err := validateCheckpointHistory(cp.History); err != nil {
 		return err

@@ -68,7 +68,6 @@ func Resume(params LoopParams, ctx context.Context) (RunResult, error) {
 // ResumeOptions describes how to restore a checkpoint and re-enter Loop.
 type ResumeOptions struct {
 	Store               StateStore
-	Workspace           Workspace
 	CheckpointID        string
 	Params              LoopParams
 	ResumeSignal        Signal
@@ -107,11 +106,6 @@ func ResumeFromCheckpoint(opts ResumeOptions) (ResumeResult, error) {
 			return ResumeResult{Checkpoint: cp}, fmt.Errorf("%w: %v", ErrCheckpointIncompatible, err)
 		}
 	}
-	if opts.Workspace != nil && cp.WorkspaceRef != "" {
-		if err := opts.Workspace.Restore(ctx, cp.WorkspaceRef); err != nil {
-			return ResumeResult{Checkpoint: cp}, fmt.Errorf("%w: workspace %s: %v", ErrResumeRestore, cp.WorkspaceRef, err)
-		}
-	}
 	if len(cp.ConversationLog) > 0 {
 		if opts.RestoreConversation == nil {
 			return ResumeResult{Checkpoint: cp}, fmt.Errorf("%w: conversation restore hook is required", ErrResumeRestore)
@@ -142,7 +136,6 @@ func ResumeFromCheckpoint(opts ResumeOptions) (ResumeResult, error) {
 		History:    historyFromDigest(cp.History),
 	}
 	params.StateStore = opts.Store
-	params.Workspace = opts.Workspace
 
 	rr, err := Loop(params, ctx)
 	return ResumeResult{Checkpoint: cp, Run: rr}, err
