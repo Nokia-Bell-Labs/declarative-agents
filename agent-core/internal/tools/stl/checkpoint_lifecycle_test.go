@@ -55,38 +55,32 @@ func (w *lifecycleWorkspace) Restore(_ context.Context, ref string) error {
 	return nil
 }
 
-func TestCheckpointHistoryExecuteFormatsLatestCheckpoint(t *testing.T) {
+func TestCheckpointHistoryExecuteFormatsExecutionLog(t *testing.T) {
 	t.Parallel()
-	store := &lifecycleMemoryStore{}
-	saveLifecycleCheckpoint(t, store, lifecycleCheckpoint("older", time.Unix(100, 0).UTC()))
-	saveLifecycleCheckpoint(t, store, lifecycleCheckpoint("newer", time.Unix(200, 0).UTC()))
+	cp := &core.InMemoryCheckpoint{}
+	require.NoError(t, cp.Save(
+		core.Position{
+			CurrentState: "Working",
+			LastSignal:   core.ToolDone,
+			Snapshot:     core.AgentSnapshot{State: "Working", Signal: core.ToolDone, Iteration: 2},
+		},
+		core.Execution{
+			{Iteration: 1, CommandName: "read", FromState: "Idle", ToState: "Reading", Signal: core.ToolDone},
+			{Iteration: 2, CommandName: "write", FromState: "Reading", ToState: "Working", Signal: core.ToolDone, Receipt: `{"path":"a.txt"}`},
+		},
+	))
 
-	cmd := (&CheckpointHistoryBuilder{StateStore: store}).Build(core.Result{})
+	cmd := (&CheckpointHistoryBuilder{Checkpoint: cp}).Build(core.Result{})
 	res := cmd.Execute()
 
 	require.Equal(t, core.ToolDone, res.Signal)
 	require.Equal(t, "checkpoint_history", res.CommandName)
-	require.Contains(t, res.Output, "checkpoint: newer")
-	require.Contains(t, res.Output, "history:")
+	require.Contains(t, res.Output, "state: Working")
+	require.Contains(t, res.Output, "step=0  iteration=1  read  Idle -> Reading  signal=ToolDone")
+	require.Contains(t, res.Output, "step=1  iteration=2  write  Reading -> Working  signal=ToolDone  reversible")
 }
 
-func TestCheckpointHistoryExecuteFormatsExplicitCheckpoint(t *testing.T) {
-	t.Parallel()
-	store := &lifecycleMemoryStore{}
-	saveLifecycleCheckpoint(t, store, lifecycleCheckpoint("cp-1", time.Unix(100, 0).UTC()))
-
-	builder := &CheckpointHistoryBuilder{
-		Config:     CheckpointHistoryConfig{Checkpoint: "cp-1"},
-		StateStore: store,
-	}
-	res := builder.Build(core.Result{}).Execute()
-
-	require.Equal(t, core.ToolDone, res.Signal)
-	require.Contains(t, res.Output, "checkpoint: cp-1")
-	require.Contains(t, res.Output, "1  read  Idle -> Reading  signal=ToolDone")
-}
-
-func TestCheckpointHistoryExecuteRequiresStateStore(t *testing.T) {
+func TestCheckpointHistoryExecuteRequiresCheckpoint(t *testing.T) {
 	t.Parallel()
 	cmd := (&CheckpointHistoryBuilder{}).Build(core.Result{})
 
@@ -94,19 +88,17 @@ func TestCheckpointHistoryExecuteRequiresStateStore(t *testing.T) {
 
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Error(t, res.Err)
-	require.Contains(t, res.Output, "requires StateStore")
+	require.Contains(t, res.Output, "requires a Checkpoint")
 }
 
-func TestCheckpointHistoryExecuteReportsUnreadableCheckpoint(t *testing.T) {
+func TestCheckpointHistoryExecuteReportsNoCheckpoint(t *testing.T) {
 	t.Parallel()
-	store := &lifecycleMemoryStore{}
-
-	cmd := (&CheckpointHistoryBuilder{StateStore: store}).Build(core.Result{})
+	cmd := (&CheckpointHistoryBuilder{Checkpoint: &core.InMemoryCheckpoint{}}).Build(core.Result{})
 	res := cmd.Execute()
 
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Error(t, res.Err)
-	require.Contains(t, res.Output, "no checkpoints found")
+	require.Contains(t, res.Output, "no checkpoint persisted")
 }
 
 func TestCheckpointHistoryUndoMementoIsNoop(t *testing.T) {
@@ -240,26 +232,6 @@ func TestCheckpointRollbackUndoMementoIsCompensatable(t *testing.T) {
 	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
 	require.Equal(t, "operator_checkpoint_selection", payload.BoundaryCompensation.Strategy)
 	require.Contains(t, payload.BoundaryCompensation.Requires, "checkpoint_id")
-}
-
-func lifecycleCheckpoint(id string, ts time.Time) core.CheckpointRecord {
-	return core.CheckpointRecord{
-		ID:        id,
-		Iteration: 1,
-		Timestamp: ts,
-		AgentState: core.AgentSnapshot{
-			State:     "Reading",
-			Signal:    core.ToolDone,
-			Iteration: 1,
-		},
-		History: []core.HistoryDigest{{
-			Iteration:   1,
-			CommandName: "read",
-			FromState:   "Idle",
-			ToState:     "Reading",
-			Signal:      core.ToolDone,
-		}},
-	}
 }
 
 func lifecycleRollbackCheckpoint(id, targetRef string) core.CheckpointRecord {

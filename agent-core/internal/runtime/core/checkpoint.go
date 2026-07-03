@@ -5,6 +5,8 @@ package core
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -20,6 +22,43 @@ var ErrNoCheckpoint = errors.New("no checkpoint persisted")
 type Checkpoint interface {
 	Save(position Position, execution Execution) error
 	Load() (Position, Execution, error)
+}
+
+// CheckpointReverter is the port the rollback lifecycle tool depends on: the
+// two-method Checkpoint plus a git-style Revert that resets a run's persisted
+// DB state to a prior step. External effects (files, resources) are reversed
+// separately by the lifecycle receipt walk, never here
+// (srd036-dolt-state-persistence R6). *DoltCheckpoint satisfies it; tests
+// supply fakes.
+type CheckpointReverter interface {
+	Checkpoint
+	Revert(runID string, stepIndex int) error
+}
+
+// FormatExecutionHistory renders the resumable Position and the ordered
+// Execution log as a human-readable digest for the checkpoint_history tool. Each
+// step shows its step index (the Revert target), iteration, command, transition,
+// and signal; entries that carry an opaque receipt are marked reversible. The
+// receipt itself is never parsed or printed (srd035-checkpoint-port R3).
+func FormatExecutionHistory(pos Position, exec Execution) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "state: %s\n", pos.CurrentState)
+	fmt.Fprintf(&b, "iteration: %d\n", pos.Snapshot.Iteration)
+	fmt.Fprintf(&b, "last_signal: %s\n", pos.LastSignal)
+	if len(exec) == 0 {
+		b.WriteString("history: <empty>\n")
+		return b.String()
+	}
+	b.WriteString("history:\n")
+	for step, e := range exec {
+		fmt.Fprintf(&b, "  step=%d  iteration=%d  %s  %s -> %s  signal=%s",
+			step, e.Iteration, e.CommandName, e.FromState, e.ToState, e.Signal)
+		if e.Receipt != "" {
+			b.WriteString("  reversible")
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
 }
 
 // Position identifies the resumable machine position and carries the loop-owned

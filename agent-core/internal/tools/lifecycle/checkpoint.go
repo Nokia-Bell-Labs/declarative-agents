@@ -16,35 +16,29 @@ import (
 // CheckpointHistoryBuilder constructs checkpoint_history commands.
 type CheckpointHistoryBuilder struct {
 	Config     catalog.CheckpointHistoryConfig
-	StateStore core.StateStore
-	Ctx        context.Context
+	Checkpoint core.Checkpoint
 }
 
 func (b *CheckpointHistoryBuilder) Build(_ core.Result) core.Command {
-	return &checkpointHistoryCmd{config: b.Config, stateStore: b.StateStore, ctx: b.Ctx}
+	return &checkpointHistoryCmd{config: b.Config, checkpoint: b.Checkpoint}
 }
 
 type checkpointHistoryCmd struct {
 	config     catalog.CheckpointHistoryConfig
-	stateStore core.StateStore
-	ctx        context.Context
+	checkpoint core.Checkpoint
 }
 
 func (c *checkpointHistoryCmd) Name() string { return "checkpoint_history" }
 
 func (c *checkpointHistoryCmd) Execute() core.Result {
-	if c.stateStore == nil {
-		return commandError(c.Name(), fmt.Errorf("checkpoint_history requires StateStore"))
+	if c.checkpoint == nil {
+		return commandError(c.Name(), fmt.Errorf("checkpoint_history requires a Checkpoint"))
 	}
-	checkpointID, err := core.ResolveLatestCheckpointID(c.context(), c.stateStore, c.config.SelectedCheckpoint())
+	pos, exec, err := c.checkpoint.Load()
 	if err != nil {
 		return commandError(c.Name(), err)
 	}
-	cp, err := core.LoadCheckpoint(c.context(), c.stateStore, checkpointID)
-	if err != nil {
-		return commandError(c.Name(), err)
-	}
-	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: core.FormatCheckpointHistory(cp)}
+	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: core.FormatExecutionHistory(pos, exec)}
 }
 
 func (c *checkpointHistoryCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
@@ -163,13 +157,6 @@ func (c *checkpointRollbackCmd) rollbackSummary(result core.RollbackFromCheckpoi
 		fmt.Fprintf(&b, "workspace ref: %s\n", result.WorkspaceRef)
 	}
 	return b.String()
-}
-
-func (c *checkpointHistoryCmd) context() context.Context {
-	if c.ctx == nil {
-		return context.Background()
-	}
-	return c.ctx
 }
 
 func (c *checkpointRollbackCmd) context() context.Context {

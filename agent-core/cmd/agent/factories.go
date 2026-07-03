@@ -195,7 +195,7 @@ func checkpointHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		return &lifecycle.CheckpointHistoryBuilder{Config: cfg, StateStore: st.stateStore, Ctx: st.ctx}, nil
+		return &lifecycle.CheckpointHistoryBuilder{Config: cfg, Checkpoint: st.checkpoint}, nil
 	}
 }
 

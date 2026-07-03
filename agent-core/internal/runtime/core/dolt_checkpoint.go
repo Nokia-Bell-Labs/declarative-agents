@@ -63,7 +63,10 @@ type DoltCheckpoint struct {
 	inited   bool
 }
 
-var _ Checkpoint = (*DoltCheckpoint)(nil)
+var (
+	_ Checkpoint         = (*DoltCheckpoint)(nil)
+	_ CheckpointReverter = (*DoltCheckpoint)(nil)
+)
 
 // NewDoltCheckpoint returns an adapter over an already-opened Database seam. The
 // terminal predicate, when non-nil, decides which Position current states merge

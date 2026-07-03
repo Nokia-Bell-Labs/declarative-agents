@@ -93,6 +93,7 @@ type agentState struct {
 	request      string
 	output       string
 	stateStore   core.StateStore
+	checkpoint   core.Checkpoint
 	monitor      toolrest.MonitorState
 	restDefs     toolrest.Collection
 	shutdown     func()
@@ -296,11 +297,23 @@ type agentStateDeps struct {
 	Registry     *core.Registry
 	Tracer       tracing.Tracer
 	StateStore   core.StateStore
+	Checkpoint   core.Checkpoint
 	Ctx          context.Context
 	Monitor      toolrest.MonitorState
 	RestDefs     toolrest.Collection
 	shutdown     func()
 	ParseRetries *toollm.ParseErrorRetryTracker
+}
+
+// checkpointOrNoop defaults an unset Checkpoint dependency to the no-op adapter.
+// The Dolt-default persistent backend is wired at the composition root (#37);
+// until then the lifecycle checkpoint tools depend on the typed port and read
+// an empty history.
+func checkpointOrNoop(cp core.Checkpoint) core.Checkpoint {
+	if cp == nil {
+		return core.NoopCheckpoint{}
+	}
+	return cp
 }
 
 func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
@@ -316,6 +329,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		request:      cfg.Request,
 		output:       cfg.Output,
 		stateStore:   deps.StateStore,
+		checkpoint:   checkpointOrNoop(deps.Checkpoint),
 		monitor:      deps.Monitor,
 		restDefs:     deps.RestDefs,
 		shutdown:     deps.shutdown,
