@@ -4,115 +4,57 @@ package core
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 )
 
-var (
-	ErrCheckpointMissing      = errors.New("checkpoint missing")
-	ErrCheckpointIncompatible = errors.New("checkpoint incompatible")
-	ErrResumeRestore          = errors.New("checkpoint restore failed")
-)
-
-// ResumeOptions describes how to restore a checkpoint and re-enter Loop.
-type ResumeOptions struct {
-	Store               StateStore
-	Workspace           Workspace
-	CheckpointID        string
-	Params              LoopParams
-	ResumeSignal        Signal
-	RestoreConversation func(json.RawMessage) error
-	RestoreDomain       func(json.RawMessage) error
-	ValidateCheckpoint  func(Checkpoint, LoopParams) error
-	Ctx                 context.Context
+// ResumeState is the loaded snapshot plus loop params seeded to re-enter the
+// machine at the restored position. Callers restore domain-owned state (for
+// example the conversation carried in Position.Snapshot.Conversation) from the
+// typed snapshot before running (srd035-checkpoint-port R4, R6.2).
+type ResumeState struct {
+	Params    LoopParams
+	Position  Position
+	Execution Execution
 }
 
-// ResumeResult contains the loaded checkpoint and the resumed run result.
-type ResumeResult struct {
-	Checkpoint Checkpoint
-	Run        RunResult
-}
-
-// ResumeFromCheckpoint loads a checkpoint, restores state layers, and resumes
-// execution through the normal Loop path so machine/tool validation still runs.
-func ResumeFromCheckpoint(opts ResumeOptions) (ResumeResult, error) {
-	ctx := opts.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if opts.Store == nil {
-		return ResumeResult{}, fmt.Errorf("%w: StateStore is required", ErrCheckpointMissing)
-	}
-	if opts.CheckpointID == "" {
-		return ResumeResult{}, fmt.Errorf("%w: checkpoint id is required", ErrCheckpointMissing)
-	}
-
-	cp, err := LoadCheckpoint(ctx, opts.Store, opts.CheckpointID)
+// LoadResume loads the persisted Position and Execution through params.Checkpoint
+// and returns params seeded to re-enter the loop at the restored position. It is
+// the single, hook-free resume contract: no ValidateCheckpoint, RestoreConversation,
+// RestoreDomain, or workspace restore fan-out. The resume signal is params.InitialSignal
+// when set, otherwise Approved, so a run suspended at an approval gate advances.
+func LoadResume(params LoopParams) (ResumeState, error) {
+	pos, exec, err := resolveCheckpoint(params.Checkpoint).Load()
 	if err != nil {
-		return ResumeResult{}, err
+		return ResumeState{}, fmt.Errorf("resume: load: %w", err)
 	}
-	if opts.ValidateCheckpoint != nil {
-		if err := opts.ValidateCheckpoint(cp, opts.Params); err != nil {
-			return ResumeResult{Checkpoint: cp}, fmt.Errorf("%w: %v", ErrCheckpointIncompatible, err)
-		}
+	sig := params.InitialSignal
+	if sig == "" {
+		sig = Approved
 	}
-	if opts.Workspace != nil && cp.WorkspaceRef != "" {
-		if err := opts.Workspace.Restore(ctx, cp.WorkspaceRef); err != nil {
-			return ResumeResult{Checkpoint: cp}, fmt.Errorf("%w: workspace %s: %v", ErrResumeRestore, cp.WorkspaceRef, err)
-		}
-	}
-	if len(cp.ConversationLog) > 0 {
-		if opts.RestoreConversation == nil {
-			return ResumeResult{Checkpoint: cp}, fmt.Errorf("%w: conversation restore hook is required", ErrResumeRestore)
-		}
-		if err := opts.RestoreConversation(cp.ConversationLog); err != nil {
-			return ResumeResult{Checkpoint: cp}, fmt.Errorf("%w: conversation: %v", ErrResumeRestore, err)
-		}
-	}
-	if len(cp.DomainState) > 0 && opts.RestoreDomain != nil {
-		if err := opts.RestoreDomain(cp.DomainState); err != nil {
-			return ResumeResult{Checkpoint: cp}, fmt.Errorf("%w: domain: %v", ErrResumeRestore, err)
-		}
-	}
-
-	params := opts.Params
-	params.InitialState = cp.AgentState.State
-	resumeSignal := opts.ResumeSignal
-	if resumeSignal == "" {
-		resumeSignal = Approved
-	}
-	params.InitialSignal = resumeSignal
-	params.InitialResult = Result{Signal: resumeSignal, Output: "Resume from checkpoint " + cp.ID}
+	params.InitialState = pos.CurrentState
+	params.InitialSignal = sig
+	params.InitialResult = Result{Signal: sig, Output: "Resume from checkpoint"}
 	params.InitialRun = RunResult{
-		Iterations: cp.AgentState.Iteration,
-		TokensIn:   cp.AgentState.TokensIn,
-		TokensOut:  cp.AgentState.TokensOut,
-		TotalCost:  cp.AgentState.TotalCost,
-		History:    historyFromDigest(cp.History),
+		Iterations: pos.Snapshot.Iteration,
+		TokensIn:   pos.Snapshot.TokensIn,
+		TokensOut:  pos.Snapshot.TokensOut,
+		TotalCost:  pos.Snapshot.TotalCost,
 	}
-	params.StateStore = opts.Store
-	params.Workspace = opts.Workspace
-
-	rr, err := Loop(params, ctx)
-	return ResumeResult{Checkpoint: cp, Run: rr}, err
+	params.InitialExecution = exec
+	return ResumeState{Params: params, Position: pos, Execution: exec}, nil
 }
 
-// LoadCheckpoint loads checkpoint/<id> from store and decodes it.
-func LoadCheckpoint(ctx context.Context, store StateStore, id string) (Checkpoint, error) {
-	key := "checkpoint/" + id
-	data, err := store.Load(ctx, key)
+// Resume loads the persisted snapshot through params.Checkpoint and re-enters the
+// loop at the restored position (srd035-checkpoint-port R6.2). It is the
+// convenience entrypoint for callers that hold no domain-owned state; callers
+// that must restore conversation or other domain state use LoadResume, restore
+// from ResumeState.Position, then call Loop.
+func Resume(params LoopParams, ctx context.Context) (RunResult, error) {
+	state, err := LoadResume(params)
 	if err != nil {
-		return Checkpoint{}, fmt.Errorf("%w: load %s: %v", ErrCheckpointMissing, key, err)
+		return RunResult{}, err
 	}
-	var cp Checkpoint
-	if err := json.Unmarshal(data, &cp); err != nil {
-		return Checkpoint{}, fmt.Errorf("%w: decode %s: %v", ErrCheckpointIncompatible, key, err)
-	}
-	if cp.ID == "" {
-		return Checkpoint{}, fmt.Errorf("%w: decode %s: missing checkpoint id", ErrCheckpointIncompatible, key)
-	}
-	return cp, nil
+	return Loop(state.Params, ctx)
 }
 
 func historyFromDigest(digest []HistoryDigest) History {
@@ -127,8 +69,6 @@ func historyFromDigest(digest []HistoryDigest) History {
 			FromState:    entry.FromState,
 			ToState:      entry.ToState,
 			Result:       ResultDigest{Signal: entry.Signal},
-			Undo:         cloneUndoMemento(entry.Undo),
-			UndoError:    entry.UndoError,
 			WorkspaceRef: entry.WorkspaceRef,
 		})
 	}

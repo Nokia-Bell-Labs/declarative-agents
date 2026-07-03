@@ -3,214 +3,157 @@ title: Rollback, Checkpoint, Suspend, and Resume Lifecycle
 
 problem: |
   Long-running agent programs need a safe way to record what happened, stop at
-  approval gates, resume later, and roll back from bad actions. The runtime has
-  three independent kinds of state: agent loop bookkeeping, command/domain
-  state, and workspace/environment state. Treating these as one blob would make
-  rollback unsafe: git is appropriate for filesystem state, but not for
-  conversation history or state-machine position. This SRD defines the
-  requirements for keeping those layers separate while exposing checkpoint,
-  history, suspend, resume, and rollback behavior.
+  approval gates, resume later, and roll back from bad actions. Persistence and
+  resume rest on the srd035 checkpoint port: Save records the resumable position
+  and the ordered execution log; Load restores them. The srd036 Dolt adapter is
+  the default persistent backend, and NoopCheckpoint keeps disabled-mode
+  execution unchanged.
 
-  The desired lifecycle interface is declarative. History and rollback are
-  machine actions that dispatch first-class lifecycle tools. Core checkpoint
-  functions remain reusable algorithms. STL lifecycle tools adapt those
-  functions into Commands with typed config and declared contracts. Agent
-  profiles select the lifecycle machines and tool declarations. The runtime no
-  longer exposes hidden lifecycle subcommands as the operator path.
+  Rollback has two halves that this SRD keeps separate. DB-persisted state is
+  rewound by the Dolt adapter's git-style Revert(run_id, step_index) (srd036).
+  External effects -- files, external resources -- are reversed by a lifecycle
+  tool that walks the reverted execution entries in reverse and hands each
+  restored, receipt-bearing Result back to its tool's receipt-consuming Undo.
+  The receipt is the memento: the originating tool encodes it during Execute and
+  is the only decoder, so the engine and the checkpoint adapters never interpret
+  it. This SRD defines the requirements for that lifecycle -- checkpoint,
+  history, suspend, resume, and the two-part rollback -- without a three-layer
+  state model, a key/blob StateStore, a Workspace layer, a CheckpointPolicy, or
+  an engine-owned undo-walk.
 
 goals:
-  - G1: Define the three-layer state model for rollback and lifecycle features.
-  - G2: Define execution history requirements for forward inspection and backward traversal.
-  - G3: Define rollback traversal across Command.Undo and Workspace restore.
-  - G4: Define persisted checkpoint and FileStore requirements for suspend/resume.
-  - G5: Define approval gate and operational safety requirements.
-  - G6: Preserve zero behavior change and zero persistence overhead when lifecycle features are disabled.
-  - G7: Define declarative lifecycle machines and first-class lifecycle tools as the desired history and rollback interface.
+  - G1: Rest persistence and resume on the srd035 checkpoint port with the srd036 Dolt adapter as the default persistent backend.
+  - G2: Define the ordered execution history that history inspection and rollback traverse.
+  - G3: Make reversibility receipt-driven -- tools encode a receipt on Execute and consume it on Undo -- with the engine and adapters treating receipts as opaque.
+  - G4: Define rollback as Dolt Revert for DB-persisted state plus a lifecycle-tool reverse receipt walk for external effects.
+  - G5: Preserve suspend, approval gates, and a single resume contract.
+  - G6: Keep lifecycle behavior opt-in with zero persistence overhead when disabled.
+  - G7: Keep history and rollback as declarative, profile-first lifecycle tool actions.
 
 requirements:
   R1:
-    title: State layers
+    title: Checkpoint-port-backed persistence
     items:
-      - R1.1: Agent state SHALL include state-machine position, current signal, iteration count, budget counters, token/cost counters, terminal status, and run summary data.
-      - R1.2: Command/domain state SHALL include mutable in-process state owned by commands or domains, such as conversation history, planner state, evaluator session state, and PointContext state.
-      - R1.3: Workspace/environment state SHALL include filesystem and external workspace state changed by file tools, exec tools, child agents, and evaluator point tools.
-      - R1.4: Agent state and command/domain state SHALL be serialized as JSON through StateStore or command-specific snapshots.
-      - R1.5: Workspace/environment state SHALL be tracked through Workspace references, with GitWorkspace as the default filesystem implementation.
-      - R1.6: Git workspace refs SHALL NOT be treated as serialized agent or command/domain state.
+      - R1.1: Agent state, command/domain state, and conversation SHALL be persisted through the srd035 checkpoint port (Save(Position, Execution)), not a key/blob StateStore.
+      - R1.2: The default persistent backend SHALL be the srd036 Dolt adapter; NoopCheckpoint SHALL be the default when persistence is disabled.
+      - R1.3: Position SHALL carry the resumable machine position and the folded conversation snapshot; Execution SHALL carry the ordered entries with their opaque receipts.
+      - R1.4: The runtime SHALL NOT model workspace or filesystem state as a separate persisted state layer; external effects are reversed through receipts rather than Workspace refs.
 
   R2:
-    title: StateStore and FileStore
-    items:
-      - R2.1: StateStore SHALL persist JSON blobs by store path and expose Save, Load, List, and Delete.
-      - R2.2: StateStore paths SHOULD use structured prefixes such as checkpoint/, history/, conversation/, and domain/.
-      - R2.3: FileStore SHALL be the default local StateStore implementation for checkpoint and lifecycle tests.
-      - R2.4: FileStore SHALL store one JSON file per store path under a configured root directory.
-      - R2.5: FileStore List SHALL support prefix filtering.
-      - R2.6: StateStore and FileStore errors SHALL include the affected store path and backing store location when available.
-      - R2.7: When a workspace directory is configured and no explicit StateStore root is supplied, the runtime SHALL use <directory>/.agent-state as the default FileStore root.
-      - R2.8: An explicit --state-store-dir SHALL override the workspace-local default for shared operator storage, external artifact retention, and isolated tests.
-
-  R3:
-    title: Workspace and GitWorkspace
-    items:
-      - R3.1: Workspace SHALL expose Checkpoint(ctx,label), Restore(ctx,ref), and CurrentRef(ctx).
-      - R3.2: GitWorkspace SHALL checkpoint with git add -A and git commit --allow-empty.
-      - R3.3: GitWorkspace SHALL restore with git reset --hard <ref>.
-      - R3.4: GitWorkspace SHALL return the current HEAD ref from CurrentRef.
-      - R3.5: GitWorkspace SHALL require the configured directory to be a git repository top-level.
-      - R3.6: Rollback and lifecycle commands SHALL refuse unmanaged workspaces or require explicit confirmation before destructive restore.
-
-  R4:
-    title: Command undo and rollback ownership
-    items:
-      - R4.1: Every Command SHALL implement Undo() Result.
-      - R4.2: Stateless commands MAY implement Undo as NoopUndo with ToolDone.
-      - R4.3: Commands that mutate command/domain state SHALL record enough pre-execution state to restore that state in Undo.
-      - R4.4: Commands that mutate workspace state SHALL either record workspace refs for restore or declare a compensating/irreversible strategy in their tool contract.
-      - R4.5: Undo failures SHALL return a specific error and document the state that remains after failure.
-      - R4.6: Command undo SHALL NOT restore filesystem state by serializing it into StateStore; filesystem state belongs to Workspace.
-
-  R5:
     title: Execution history
     items:
-      - R5.1: HistoryEntry SHALL record one dispatched command step when history recording is enabled.
-      - R5.2: HistoryEntry SHALL include iteration, timestamp, from state, to state, input signal, command name, result signal, result summary, and optional workspace ref.
-      - R5.3: History SHALL preserve dispatch order for forward inspection and reverse order traversal.
-      - R5.4: History recording SHALL be disabled or minimal when no lifecycle/checkpoint policy is configured.
-      - R5.5: RunResult or checkpoint data SHALL expose history without breaking existing RunResult JSON compatibility.
-      - R5.6: Checkpoint history inspection SHALL be expressible as a MachineSpec transition to a declared lifecycle tool such as checkpoint_history.
+      - R2.1: Each dispatched step SHALL append one Execution Entry (iteration, timestamp, command name, from state, to state, signal, result digest, and receipt) per srd035.
+      - R2.2: Execution SHALL preserve dispatch order for forward inspection and reverse traversal.
+      - R2.3: History inspection SHALL be expressible as a MachineSpec transition to a lifecycle tool such as checkpoint_history, which reads Dolt commit history (srd026).
+      - R2.4: History recording SHALL be absent when persistence is disabled (NoopCheckpoint).
 
-  R6:
-    title: Checkpoint policy and checkpoint data
+  R3:
+    title: Receipt-driven reversibility
     items:
-      - R6.1: CheckpointPolicy SHALL decide whether a checkpoint should be considered for a lifecycle event.
-      - R6.2: Checkpoint SHALL include ID, iteration, timestamp, AgentSnapshot, optional conversation or domain state, optional workspace ref, and history digest.
-      - R6.3: AgentSnapshot SHALL include enough agent loop state to resume from the checkpointed position.
-      - R6.4: HistoryDigest SHALL include stable, human-readable fields for inspection without embedding full command objects.
-      - R6.5: Checkpoints SHALL persist through StateStore and reference workspace state through WorkspaceRef.
-      - R6.6: Checkpoints SHALL be versioned or validate compatibility with the current machine/tool declarations before resume.
+      - R3.1: State-mutating commands SHALL encode an opaque Receipt during Execute that captures what a later Undo needs, such as prior file content, external resource ids, or a workspace commit hash.
+      - R3.2: Command Undo SHALL be receipt-consuming: it takes the restored receipt-bearing Result and reverses the external effect.
+      - R3.3: Read-only commands SHALL return an empty receipt and a no-op Undo.
+      - R3.4: The engine and the checkpoint adapters SHALL treat receipts as opaque and SHALL NOT interpret them; only the originating tool decodes its receipt.
+      - R3.5: The lifecycle validator SHALL check receipt presence for reversible state-mutating tools; receipt sufficiency SHALL be each tool's own round-trip test.
 
-  R7:
-    title: Rollback traversal
+  R4:
+    title: Two-part rollback
     items:
-      - R7.1: Rollback SHALL walk History entries backward from the current iteration to a target iteration.
-      - R7.2: Rollback SHALL call Command.Undo on traversed commands in reverse dispatch order to restore command/domain state.
-      - R7.3: Rollback SHALL restore Workspace to the target entry's workspace ref, or to the initial workspace ref for full rollback.
-      - R7.4: Rollback SHALL return the state-machine position from which execution can resume.
-      - R7.5: Rollback SHALL report partial rollback failures with enough detail to identify command undo failure, workspace restore failure, or checkpoint/state-store failure.
-      - R7.6: Rollback SHALL not require machine.yaml changes; it is lifecycle/storage behavior around the machine.
-      - R7.7: Checkpoint rollback SHALL be invocable through a declared lifecycle tool action such as checkpoint_rollback.
-      - R7.8: A rollback lifecycle tool SHALL delegate traversal and checkpoint rewriting to core rollback operations rather than duplicating rollback logic.
+      - R4.1: Rollback of DB-persisted state SHALL be the git-style Revert(run_id, step_index) provided by the srd036 Dolt adapter.
+      - R4.2: Rollback of external effects SHALL be a reverse receipt walk that, after Revert, hands each reverted entry's restored Result to its tool's receipt-consuming Undo in reverse dispatch order.
+      - R4.3: The reverse receipt walk SHALL live in the lifecycle tool (checkpoint_rollback), not in the engine.
+      - R4.4: Irreversible entries SHALL be skipped and logged, and the rollback report SHALL name them.
+      - R4.5: Rollback SHALL return the machine position from which execution can resume.
+      - R4.6: Rollback SHALL NOT require machine.yaml changes; it is lifecycle behavior around the machine.
 
-  R8:
+  R5:
     title: Suspend and approval gates
     items:
-      - R8.1: The runtime SHALL support a suspended run status when lifecycle features are enabled.
-      - R8.2: A suspend or approval-gate tool SHALL emit a machine-declared signal that ends the run without failure.
-      - R8.3: Suspend SHALL persist a checkpoint before returning StatusSuspended when StateStore is configured explicitly or resolved from the workspace-local default.
-      - R8.4: Approval gates SHALL be expressible as machine.yaml transitions to an internal tool.
-      - R8.5: Missing StateStore behavior for suspend SHALL be documented and tested, either as CommandError or explicit no-op behavior.
-      - R8.6: Approval outcomes such as approved and rejected SHALL map to explicit machine signals on resume or follow-up execution.
+      - R5.1: The runtime SHALL support a suspended run status when lifecycle features are enabled.
+      - R5.2: A suspend or approval-gate tool SHALL emit a machine-declared signal that ends the run without failure.
+      - R5.3: Suspend SHALL persist a checkpoint through the srd035 port before returning StatusSuspended.
+      - R5.4: Approval gates SHALL be expressible as machine.yaml transitions to an internal tool.
+      - R5.5: Approval outcomes such as approved and rejected SHALL map to explicit machine signals on resume.
 
-  R9:
+  R6:
     title: Resume
     items:
-      - R9.1: Resume SHALL load a checkpoint by ID from StateStore, using the workspace-local default when --directory is available and --state-store-dir is absent.
-      - R9.2: Resume SHALL restore agent state into LoopParams or equivalent runtime initialization.
-      - R9.3: Resume SHALL restore command/domain state through explicit restore hooks or StateStore-backed snapshots.
-      - R9.4: Resume SHALL restore Workspace to the checkpoint WorkspaceRef when one is present.
-      - R9.5: Resume SHALL validate the current machine and tool declarations before re-entering the loop.
-      - R9.6: Resume errors SHALL distinguish missing checkpoint, incompatible checkpoint, command/domain restore failure, and workspace restore failure.
+      - R6.1: Resume SHALL Load Position and Execution through the srd035 port, backed by the Dolt adapter by default.
+      - R6.2: Resume SHALL restore agent state and conversation from the typed snapshot and re-enter the same machine.
+      - R6.3: Resume SHALL be a single path with no restore-hook fan-out.
+      - R6.4: Resume SHALL validate the current machine and tool declarations before re-entering the loop.
+      - R6.5: Resume errors SHALL distinguish missing checkpoint, incompatible checkpoint, and load failure.
 
-  R10:
-    title: Feature flags and zero-overhead defaults
+  R7:
+    title: Opt-in and zero-overhead defaults
     items:
-      - R10.1: Rollback, checkpointing, suspend, resume, and approval-gate lifecycle behavior SHALL be opt-in.
-      - R10.2: When StateStore, Workspace, and CheckpointPolicy are nil or disabled, existing machines SHALL run with unchanged behavior.
-      - R10.3: Disabled lifecycle features SHALL not persist checkpoints, record full history, or mutate workspace refs.
-      - R10.4: Feature flags and store/workspace resolution SHALL be documented for operators, including the <directory>/.agent-state default and the --state-store-dir override.
+      - R7.1: Rollback, checkpointing, suspend, resume, and approval-gate behavior SHALL be opt-in.
+      - R7.2: When persistence is disabled (NoopCheckpoint), existing machines SHALL run with unchanged behavior and no persistence.
+      - R7.3: Disabled lifecycle features SHALL not persist checkpoints or record history.
 
-  R11:
+  R8:
     title: Tool contract integration
     items:
-      - R11.1: Tool declarations SHOULD follow cfg-tool-authoring-standard for side_effects, reversibility, undo, errors, and relationships.
-      - R11.2: Tools that mutate command/domain state SHOULD declare state_mutation side effects and an undo strategy.
-      - R11.3: Tools that mutate filesystem state SHOULD declare filesystem side effects and workspace_restore or compensating_action undo.
-      - R11.4: Boundary tools SHOULD declare child-process, model, human, nested-machine, and external-API effects that rollback may need to compensate.
-      - R11.5: Irreversible tools SHOULD require confirmation when they affect user data, external services, or shared infrastructure.
-      - R11.6: Lifecycle tools SHALL declare emitted signals, typed input config, output shape, side effects, reversibility, undo strategy, errors, and relationships.
+      - R8.1: Tool declarations SHOULD follow cfg-tool-authoring-standard for side_effects, reversibility, receipt-based undo, errors, and relationships.
+      - R8.2: Tools that mutate state SHOULD declare a receipt-encoding Execute and a receipt-consuming Undo.
+      - R8.3: Irreversible tools SHOULD require confirmation and declare why no receipt can reverse the effect.
+      - R8.4: Lifecycle tools SHALL declare emitted signals, typed config, output shape, side effects, reversibility, undo strategy, errors, and relationships.
 
-  R12:
+  R9:
     title: Declarative lifecycle tools and profiles
     items:
-      - R12.1: The desired history and rollback interface SHALL be profile-first lifecycle machines that dispatch declared lifecycle tool actions.
-      - R12.2: Core lifecycle operations SHALL remain in internal/runtime/core and SHALL NOT depend on Cobra, ToolDef, agent profiles, or STL factory wiring.
-      - R12.3: STL lifecycle tools SHALL adapt core checkpoint operations into Commands with typed config structs and Result signals.
-      - R12.4: Lifecycle tool declarations SHALL be normal builtin ToolDefs selected by lifecycle profiles or tool-selection files.
-      - R12.5: Lifecycle profiles SHALL select the lifecycle MachineSpec, lifecycle tool selection, and shared builtin declarations through the same runtime contract as other agents.
-      - R12.6: Universal runtime inputs such as StateStore override, workspace directory, request path, and resume checkpoint SHALL remain runtime inputs rather than lifecycle-specific hidden subcommand flags.
-      - R12.7: Hidden lifecycle Cobra subcommands MAY exist only as temporary compatibility adapters and SHALL NOT be treated as the desired interface.
-      - R12.8: Lifecycle tools SHALL NOT shell back into the agent binary to perform history or rollback.
+      - R9.1: History and rollback SHALL be profile-first lifecycle machines that dispatch declared lifecycle tools such as checkpoint_history and checkpoint_rollback.
+      - R9.2: Persistence and Revert operations SHALL remain in the checkpoint port and the Dolt adapter and SHALL NOT depend on Cobra, ToolDef, agent profiles, or STL factory wiring.
+      - R9.3: The reverse receipt walk SHALL be owned by the checkpoint_rollback lifecycle tool, which hands restored Results to tool Undo.
+      - R9.4: Lifecycle tools SHALL NOT shell back into the agent binary to perform history or rollback.
 
 non_goals:
-  - Defining the final request-file schema for lifecycle tool inputs.
-  - Preserving hidden lifecycle subcommands as the desired operator interface.
-  - Requiring every existing command to implement specialized undo immediately.
-  - Requiring GitWorkspace for non-filesystem environment stores.
+  - Retaining the three-layer state model, the key/blob StateStore, Workspace/GitWorkspace, or CheckpointPolicy.
+  - An engine-owned reverse undo-walk; the walk lives in the checkpoint_rollback lifecycle tool.
+  - Reverting files, HTTP, or workspace state inside the Dolt adapter; Revert is DB-only and tools own external compensation through receipts.
+  - Defining the Dolt schema or revert mechanics (srd036) or the checkpoint port wire format and Receipt shape (srd035).
   - Making core.Loop concurrent.
 
 acceptance_criteria:
   - id: AC1
-    criterion: Requirements define separate agent, command/domain, and workspace state layers, with JSON state and Workspace refs kept independent.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
+    criterion: Persistence and resume rest on the srd035 checkpoint port with the srd036 Dolt default backend and NoopCheckpoint when disabled; no three-layer state model, StateStore, Workspace, or CheckpointPolicy remains.
+    traces: [R1.1, R1.2, R1.3, R1.4, R6.1, R6.2, R6.3, R6.4, R6.5, R7.1, R7.2, R7.3]
 
   - id: AC2
-    criterion: StateStore/FileStore and Workspace/GitWorkspace requirements cover persistence, listing, checkpoint, restore, current refs, git top-level safety, default store resolution, override usage, and clear error reporting.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+    criterion: Execution history is the ordered srd035 Entry log with receipts, preserving dispatch order and inspectable through checkpoint_history over Dolt commit history.
+    traces: [R2.1, R2.2, R2.3, R2.4]
 
   - id: AC3
-    criterion: Command.Undo and History requirements support reverse traversal over command/domain state without conflating filesystem state with StateStore.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R5.1, R5.2, R5.3, R5.4, R5.5]
+    criterion: Reversibility is receipt-driven -- tools encode receipts on Execute and consume them on Undo, read-only tools return empty receipts, the engine treats receipts as opaque, and the validator checks presence while tools test sufficiency.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R8.1, R8.2, R8.3, R8.4]
 
   - id: AC4
-    criterion: Checkpoint and rollback requirements define checkpoint data, compatibility validation, backward traversal, workspace restore, resumed state, and partial failure behavior.
-    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R7.1, R7.2, R7.3, R7.4, R7.5, R7.6]
+    criterion: Rollback is Dolt Revert for DB-persisted state plus a lifecycle-tool reverse receipt walk for external effects, skipping and logging irreversible entries, returning a resumable position, with no engine undo-walk and no machine.yaml changes.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R9.1, R9.2, R9.3, R9.4]
 
   - id: AC5
-    criterion: Suspend, approval gate, and resume requirements define clean suspension, checkpoint persistence, explicit machine signals, restore behavior, validation, and error classes.
-    traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6, R9.1, R9.2, R9.3, R9.4, R9.5, R9.6]
-
-  - id: AC6
-    criterion: Lifecycle behavior is opt-in, disabled behavior preserves existing loop semantics, and tool contracts expose side effects, reversibility, undo, and irreversible confirmation needs.
-    traces: [R10.1, R10.2, R10.3, R10.4, R11.1, R11.2, R11.3, R11.4, R11.5, R11.6]
-
-  - id: AC7
-    criterion: Desired history and rollback operations are profile-first lifecycle machine actions backed by STL lifecycle tools, while core remains free of CLI and tool-declaration concerns.
-    traces: [R5.6, R7.7, R7.8, R12.1, R12.2, R12.3, R12.4, R12.5, R12.6, R12.7, R12.8]
+    criterion: Suspend and approval gates end the run through machine-declared signals with a checkpoint persisted via the srd035 port, and resume is a single Load-and-re-enter path.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
 
 test_trace_plan:
   - test_suite: test-rel02.0-lifecycle
-    covers: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
+    covers: [AC1, AC2, AC3, AC4, AC5]
   - test_suite: test-rel02.0-tool-contracts
-    covers: [AC6, AC7]
-  - existing_go_tests:
-      - internal/runtime/core/checkpoint_test.go
-      - internal/runtime/core/checkpoint_ops_test.go
-      - internal/runtime/core/git_workspace_test.go
-      - internal/runtime/core/loop_test.go
-      - internal/runtime/core/resume_test.go
-      - internal/runtime/core/rollback_test.go
-      - internal/tools/stl/checkpoint_lifecycle_test.go
+    covers: [AC3]
 
 depends_on:
   - srd_id: srd001-core-types
-    symbols_used: [Command, Result, StateStore, Workspace, CheckpointPolicy, Checkpoint, GitWorkspace]
+    symbols_used: [Command, Result, State, Signal]
   - srd_id: srd005-agentic-loop
     symbols_used: [Loop, LoopParams, RunResult, RunEvent]
   - srd_id: srd010-conversation
     symbols_used: [Conversation]
   - srd_id: srd022-builtin-tools
     symbols_used: [ToolDef]
+  - srd_id: srd035-checkpoint-port
+    symbols_used: [Checkpoint, Position, Execution, Entry, Receipt, AgentSnapshot]
+  - srd_id: srd036-dolt-state-persistence
+    symbols_used: [DoltCheckpoint, Revert]
 
 historical_background:
   - roll-backs.md
@@ -218,53 +161,45 @@ historical_background:
 
 related_documents:
   - cfg-tool-authoring-standard
+  - cfg-runtime-contract
+  - srd035-checkpoint-port
+  - srd036-dolt-state-persistence
+  - srd026-lifecycle-tools
 
 implementation_status:
+  planned:
+    - Retarget checkpoint, history, suspend, and resume onto the srd035 port and the srd036 Dolt adapter (tracked by the checkpoint-port epic).
+    - checkpoint_rollback reimplemented as Dolt Revert plus a reverse receipt walk over restored Results.
+    - Receipt-consuming Undo across state-mutating tools; removal of StateStore, Workspace/GitWorkspace, CheckpointPolicy, and the engine undo-walk.
   done:
-    - StateStore and FileStore persistence.
-    - Workspace and GitWorkspace checkpoint and restore behavior.
-    - Loop history recording with disabled-mode nil defaults.
-    - Checkpoint creation, loading, formatting, resume, and rollback traversal.
-    - Lifecycle history and rollback profiles backed by STL builtin adapters.
-  remaining_gaps:
-    - Approval-gate reference agent for suspend and resume is tracked by agent-core-6xm3.
+    - Suspend and resume around explicit approval-gate machine signals (retained through the port).
 
 diagrams:
   requirements_trace: |
     ```mermaid
     flowchart LR
-      Problem["Problem: Long-running agent programs need a safe way to record..."] --> Goals["Goals: Rollback, Checkpoint, Suspend, and Resume Lifec..."]
-      Goals --> R1["R1: State layers"]
-      Goals --> R2["R2: StateStore and FileStore"]
-      Goals --> R3["R3: Workspace and GitWorkspace"]
-      Goals --> R4["R4: Command undo and rollback ownership"]
-      Goals --> R5["R5: Execution history"]
-      Goals --> R6["R6: Checkpoint policy and checkpoint data"]
-      Goals --> R7["R7: Rollback traversal"]
-      Goals --> R8["R8: Suspend and approval gates"]
-      Goals --> R9["R9: Resume"]
-      Goals --> R10["R10: Feature flags and zero-overhead defaults"]
-      Goals --> R11["R11: Tool contract integration"]
-      Goals --> R12["R12: Declarative lifecycle tools and profiles"]
-      AC1["AC1: Requirements define separate agent, command/domain, and w..."]
+      Problem["Problem: Safe record, suspend, resume, and rollback on the checkpoint port"] --> Goals["Goals: Rollback, Checkpoint, Suspend, and Resume Lifecycle"]
+      Goals --> R1["R1: Checkpoint-port-backed persistence"]
+      Goals --> R2["R2: Execution history"]
+      Goals --> R3["R3: Receipt-driven reversibility"]
+      Goals --> R4["R4: Two-part rollback"]
+      Goals --> R5["R5: Suspend and approval gates"]
+      Goals --> R6["R6: Resume"]
+      Goals --> R7["R7: Opt-in and zero-overhead defaults"]
+      Goals --> R8["R8: Tool contract integration"]
+      Goals --> R9["R9: Declarative lifecycle tools and profiles"]
+      AC1["AC1: Port-backed persistence and resume; no legacy layers"]
       R1 --> AC1
-      AC2["AC2: StateStore/FileStore and Workspace/GitWorkspace requireme..."]
+      R6 --> AC1
+      R7 --> AC1
+      AC2["AC2: Ordered execution history with receipts"]
       R2 --> AC2
-      R3 --> AC2
-      AC3["AC3: Command.Undo and History requirements support reverse tra..."]
-      R4 --> AC3
-      R5 --> AC3
-      AC4["AC4: Checkpoint and rollback requirements define checkpoint da..."]
-      R6 --> AC4
-      R7 --> AC4
-      AC5["AC5: Suspend, approval gate, and resume requirements define cl..."]
-      R8 --> AC5
-      R9 --> AC5
-      AC6["AC6: Lifecycle behavior is opt-in, disabled behavior preserves..."]
-      R10 --> AC6
-      R11 --> AC6
-      AC7["AC7: Desired history and rollback operations are profile-first..."]
-      R5 --> AC7
-      R7 --> AC7
-      R12 --> AC7
+      AC3["AC3: Receipt-driven reversibility"]
+      R3 --> AC3
+      R8 --> AC3
+      AC4["AC4: Dolt Revert + lifecycle-tool receipt walk"]
+      R4 --> AC4
+      R9 --> AC4
+      AC5["AC5: Suspend/approval gates and single resume"]
+      R5 --> AC5
     ```

@@ -30,11 +30,8 @@ type createPointDirCmd struct {
 }
 
 func (c *createPointDirCmd) Name() string { return "create_point_dir" }
-func (c *createPointDirCmd) Undo() core.Result {
+func (c *createPointDirCmd) Undo(_ core.Result) core.Result {
 	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
-}
-func (c *createPointDirCmd) UndoMemento() (core.UndoMemento, error) {
-	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
 }
 
 func (c *createPointDirCmd) Execute() core.Result {
@@ -54,8 +51,8 @@ type copySampleWorkspaceCmd struct {
 	pc *PointContext
 }
 
-func (c *copySampleWorkspaceCmd) Name() string      { return "copy_sample_workspace" }
-func (c *copySampleWorkspaceCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *copySampleWorkspaceCmd) Name() string                   { return "copy_sample_workspace" }
+func (c *copySampleWorkspaceCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *copySampleWorkspaceCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -73,8 +70,8 @@ type copySampleDocsCmd struct {
 	pc *PointContext
 }
 
-func (c *copySampleDocsCmd) Name() string      { return "copy_sample_docs" }
-func (c *copySampleDocsCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *copySampleDocsCmd) Name() string                   { return "copy_sample_docs" }
+func (c *copySampleDocsCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *copySampleDocsCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -94,8 +91,8 @@ type initWorkspaceRepoCmd struct {
 	pc *PointContext
 }
 
-func (c *initWorkspaceRepoCmd) Name() string      { return "init_workspace_repo" }
-func (c *initWorkspaceRepoCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *initWorkspaceRepoCmd) Name() string                   { return "init_workspace_repo" }
+func (c *initWorkspaceRepoCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *initWorkspaceRepoCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -111,8 +108,8 @@ type stageWorkspaceBaselineCmd struct {
 	pc *PointContext
 }
 
-func (c *stageWorkspaceBaselineCmd) Name() string      { return "stage_workspace_baseline" }
-func (c *stageWorkspaceBaselineCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *stageWorkspaceBaselineCmd) Name() string                   { return "stage_workspace_baseline" }
+func (c *stageWorkspaceBaselineCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *stageWorkspaceBaselineCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -128,8 +125,8 @@ type commitWorkspaceBaselineCmd struct {
 	pc *PointContext
 }
 
-func (c *commitWorkspaceBaselineCmd) Name() string      { return "commit_workspace_baseline" }
-func (c *commitWorkspaceBaselineCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *commitWorkspaceBaselineCmd) Name() string                   { return "commit_workspace_baseline" }
+func (c *commitWorkspaceBaselineCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *commitWorkspaceBaselineCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -190,11 +187,8 @@ type runOracleCheckCmd struct {
 }
 
 func (c *runOracleCheckCmd) Name() string { return "run_oracle_check" }
-func (c *runOracleCheckCmd) Undo() core.Result {
+func (c *runOracleCheckCmd) Undo(_ core.Result) core.Result {
 	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
-}
-func (c *runOracleCheckCmd) UndoMemento() (core.UndoMemento, error) {
-	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
 }
 
 func (c *runOracleCheckCmd) Execute() core.Result {
@@ -222,11 +216,8 @@ type collectTraceTokensCmd struct {
 }
 
 func (c *collectTraceTokensCmd) Name() string { return "collect_trace_tokens" }
-func (c *collectTraceTokensCmd) Undo() core.Result {
+func (c *collectTraceTokensCmd) Undo(_ core.Result) core.Result {
 	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
-}
-func (c *collectTraceTokensCmd) UndoMemento() (core.UndoMemento, error) {
-	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
 }
 
 func (c *collectTraceTokensCmd) Execute() core.Result {
@@ -273,11 +264,8 @@ type checkAgentVersionCmd struct {
 }
 
 func (c *checkAgentVersionCmd) Name() string { return "check_agent_version" }
-func (c *checkAgentVersionCmd) Undo() core.Result {
+func (c *checkAgentVersionCmd) Undo(_ core.Result) core.Result {
 	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
-}
-func (c *checkAgentVersionCmd) UndoMemento() (core.UndoMemento, error) {
-	return pointContextMemento(c.Name(), c.snapshot, c.hasSnapshot)
 }
 
 func (c *checkAgentVersionCmd) Execute() core.Result {
@@ -333,8 +321,8 @@ type summarizePointResultsCmd struct {
 	pc *PointContext
 }
 
-func (c *summarizePointResultsCmd) Name() string      { return "summarize_point_results" }
-func (c *summarizePointResultsCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *summarizePointResultsCmd) Name() string                   { return "summarize_point_results" }
+func (c *summarizePointResultsCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *summarizePointResultsCmd) Execute() core.Result {
 	pc := c.pc
@@ -358,8 +346,8 @@ type collectMetricsCmd struct {
 	pc *PointContext
 }
 
-func (c *collectMetricsCmd) Name() string      { return "collect_metrics" }
-func (c *collectMetricsCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *collectMetricsCmd) Name() string                   { return "collect_metrics" }
+func (c *collectMetricsCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *collectMetricsCmd) Execute() core.Result {
 	pc := c.pc

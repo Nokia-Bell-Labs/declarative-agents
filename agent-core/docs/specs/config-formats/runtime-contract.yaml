@@ -58,8 +58,9 @@ invocation: |
     --output             Output directory for artifacts such as eval results.
     --directory          Workspace root for file tools, exec tools, child
                          agents, and workspace restore.
-    --state-store-dir    Advanced override for lifecycle checkpoint storage.
-    --resume-checkpoint  Checkpoint ID to load before re-entering the loop.
+    --state-store-dir    Advanced override for the checkpoint backend location
+                         (Dolt DSN or repository path).
+    --resume-checkpoint  Run id to Load before re-entering the loop.
     --resume-signal      Signal used for the first resumed transition
                          (default: Approved).
 
@@ -80,11 +81,13 @@ invocation: |
   checkpoint_history or checkpoint_rollback config.
 
   By default, lifecycle state lives under the workspace.
-  With --directory set and --state-store-dir absent, cmd/agent uses
-  <directory>/.agent-state. Runtime code owns that hidden directory and stores
-  FileStore JSON paths such as checkpoint/<id>. Use
+  With --directory set and --state-store-dir absent, cmd/agent opens the default
+  persistent checkpoint backend (the srd036 Dolt adapter) under the workspace.
+  Runtime code owns that hidden location and persists runs through the srd035
+  checkpoint port (Save/Load) rather than key/blob store paths. Use
   --state-store-dir only for shared operator storage, external artifact
-  retention, or tests that need an isolated store outside the workspace.
+  retention, or tests that need an isolated backend outside the workspace. When
+  persistence is disabled, the backend is NoopCheckpoint.
 
 startup_sequence:
   - step: 1
@@ -137,24 +140,23 @@ startup_sequence:
     implementation: core.LoadMachineSpec, catalog.ValidateToolEmits
 
   - step: 6
-    name: Configure lifecycle ports
+    name: Configure the checkpoint port
     description: |
-      Checkpoint persistence is opt-in. When --state-store-dir is present, cmd/agent
-      uses that path for StateStore. When only --directory is set, it uses
-      <directory>/.agent-state. Without either path, checkpoint persistence
-      stays disabled. FileStore is
-      passed to LoopParams.StateStore and
-      lifecycle-aware builtin factories. History and rollback
-      profiles use the same StateStore path and register checkpoint_history or
-      checkpoint_rollback through the normal builtin factory flow. Suspend
-      checkpoints can include AgentSnapshot, conversation JSON from
-      LoopHooks.SnapshotConversation, optional DomainState JSON, optional
-      WorkspaceRef, and HistoryDigest entries. Each HistoryDigest can carry an
-      UndoMemento captured from commands that implement UndoMementoProvider.
-      Resume requires --resume-checkpoint plus a resolved StateStore. That store
-      comes from <directory>/.agent-state by default or from --state-store-dir
-      when an operator supplies an override.
-    implementation: core.FileStore, core.ResumeFromCheckpoint, core.LoopHooks.SnapshotConversation
+      Checkpoint persistence is opt-in through the srd035 checkpoint port
+      (Save(Position, Execution) / Load). The default persistent backend is the
+      srd036 Dolt adapter; when persistence is disabled the backend is
+      NoopCheckpoint. When --state-store-dir is present, cmd/agent opens the
+      backend at that Dolt DSN or repository path; when only --directory is set,
+      it opens the backend under the workspace. The resolved Checkpoint is passed
+      to LoopParams and to lifecycle-aware builtin factories. History and
+      rollback profiles use the same backend and register checkpoint_history or
+      checkpoint_rollback through the normal builtin factory flow. The loop calls
+      Save after each dispatch cycle; the persisted Position carries the machine
+      position and the folded conversation snapshot, and the Execution carries
+      the ordered entries, each with the originating tool's opaque receipt.
+      Resume requires --resume-checkpoint plus a resolved backend and Loads
+      Position and Execution before re-entering the same machine.
+    implementation: core.Checkpoint, core.ResumeFromCheckpoint
 
   - step: 7
     name: Run the loop
@@ -276,53 +278,55 @@ lifecycle: |
   checkpoint_rollback. Their tools.yaml files select those tools, and their
   ToolDef declarations bind typed config and emitted signals.
 
-  State layers remain independent.
-  Agent state is JSON loop bookkeeping in Checkpoint.agent_state.
-  Command/domain state is command-owned undo state or JSON snapshots. Examples
-  include conversation logs, pipeline snapshots, evaluator session state, point
-  context, validation state, and boundary compensation payloads. Workspace
-  state is represented by Workspace refs, usually GitWorkspace commits, and is
-  not stored in StateStore.
+  Persistence is the checkpoint port.
+  Agent state, the folded conversation snapshot, and the ordered execution log
+  persist through Save(Position, Execution) and restore through Load. The
+  default backend is the srd036 Dolt adapter (commit-per-step, branch-per-run,
+  merge-to-main on terminal); NoopCheckpoint is the disabled-mode default. The
+  runtime does not model a separate workspace/environment state layer or a
+  key/blob StateStore.
 
-  Undo memento kinds are explicit.
-  Noop means the command has no rollback-managed state. Reversible carries
-  enough JSON to restore command/domain state or point rollback at workspace
-  refs. Compensatable carries metadata for effects that need child command undo,
-  workspace restore, or explicit operator/API compensation. Irreversible records
-  why rollback cannot safely undo the effect.
+  Receipts reverse external effects.
+  Each execution entry carries an opaque, tool-owned receipt. A state-mutating
+  tool encodes the receipt during Execute (prior content, resource ids, or a
+  workspace commit hash it manages); its receipt-consuming Undo decodes it to
+  reverse the effect. Read-only tools return an empty receipt. The engine and
+  the checkpoint adapters never interpret a receipt.
+
+  Rollback has two halves.
+  Dolt Revert(run_id, step_index) rewinds DB-persisted state to a target step;
+  the checkpoint_rollback lifecycle tool then walks the reverted entries in
+  reverse and hands each restored, receipt-bearing Result to its tool's Undo.
+  Irreversible entries are skipped and logged.
 
   Safety rules apply at the lifecycle boundary.
-  Disabled lifecycle ports preserve existing runtime behavior. Rollback and
-  resume must refuse unmanaged workspace restore or require explicit operator
-  configuration. Irreversible and compensatable tools must declare side effects,
-  reversibility, undo strategy, and confirmation requirements in the tool
-  contract.
+  Disabled persistence (NoopCheckpoint) preserves existing runtime behavior.
+  Irreversible and compensatable tools must declare side effects, reversibility,
+  the receipt they encode, undo strategy, and confirmation requirements in the
+  tool contract.
 
 history_and_rollback_profiles: |
-  checkpoint_history reads a persisted checkpoint through core checkpoint
-  operations and prints a stable digest. The digest contains iteration, command,
-  from state, to state, result signal, undo memento status, and workspace ref.
+  checkpoint_history reads the run's Dolt commit history through the checkpoint
+  port (Load) and prints a stable digest. The digest contains step index,
+  command, from state, to state, result signal, and receipt presence.
 
-  checkpoint_rollback resolves a checkpoint, targets an iteration, traverses the
-  persisted history digest through core rollback operations, restores supported
-  UndoMemento payloads into the new checkpoint, writes a rollback checkpoint,
-  and restores the target workspace ref only when --directory identifies a
-  managed GitWorkspace.
+  checkpoint_rollback resolves a run, targets a step index, and calls the Dolt
+  adapter Revert(run_id, step_index) to rewind DB-persisted state. It then walks
+  the reverted execution entries in reverse and hands each restored,
+  receipt-bearing Result to its tool's receipt-consuming Undo to reverse
+  external effects, skipping and logging irreversible entries.
 
-  Persisted rollback currently restores conversation and domain-state payloads
-  recorded in mementos and reports missing, irreversible, or compensatable
-  payloads explicitly. Boundary compensation payloads preserve child run IDs,
-  artifact paths, issue IDs, server/user-action details, or nested-machine
-  context for a follow-up compensating action instead of silently treating those
-  effects as reversible.
+  The receipt-driven walk preserves child run IDs, artifact paths, issue IDs,
+  server/user-action details, or nested-machine context inside each tool's
+  opaque receipt for a follow-up compensating action, instead of silently
+  treating those effects as reversible. The engine never interprets a receipt.
 
   History and rollback are profile-selected machine actions. Operators pass
-  checkpoint, target iteration, and workspace restore choices through request
-  data or typed tool config. cmd/agent no longer exposes history or rollback
-  compatibility aliases.
+  run, target step, and rollback choices through request data or typed tool
+  config. cmd/agent no longer exposes history or rollback compatibility aliases.
 
-  By default, lifecycle profiles read checkpoints from <directory>/.agent-state
-  when --directory is set. --state-store-dir remains an override for storage
+  By default, lifecycle profiles read the checkpoint backend under the workspace
+  when --directory is set. --state-store-dir remains an override for a backend
   outside the workspace.
 
 config_file_layout: |
@@ -433,11 +437,11 @@ runtime_safety_boundary: |
 
   Suspension is a runtime boundary around an explicit grammar signal.
   A machine or tool emits AwaitApproval; the engine then persists checkpoint
-  state, marks the run suspended, and stops. Resume, history, and rollback
-  operate on checkpoints and undo mementos, not on mode-specific branches.
-  History and rollback are lifecycle profile runs that dispatch declared
-  lifecycle tools. Disabled lifecycle ports preserve the normal no-persistence
-  runtime.
+  state through the port, marks the run suspended, and stops. Resume, history,
+  and rollback operate on the persisted Position/Execution and tool-owned
+  receipts, not on mode-specific branches. History and rollback are lifecycle
+  profile runs that dispatch declared lifecycle tools. Disabled persistence
+  (NoopCheckpoint) preserves the normal no-persistence runtime.
 
   Domain behavior remains in YAML and tool declarations: states, signals,
   transitions, selected words, per-tool config, emitted-signal contracts, and
@@ -472,24 +476,26 @@ engine_policy_audit:
         before the registry freezes. Behavior-specific validation should remain
         in machine/tool contract checks rather than become a new policy hook.
     - item: Suspend checkpoints
-      symbols: [core.AwaitApproval, core.LoopHooks.SnapshotConversation, core.LoopHooks.SnapshotDomain]
+      symbols: [core.AwaitApproval, core.Checkpoint.Save]
       rationale: |
-        A machine emits the lifecycle signal, then the runtime persists agent,
-        command/domain, and workspace references through lifecycle ports.
-        The hook surface only supplies domain-owned JSON snapshots.
+        A machine emits the lifecycle signal, then the runtime persists the
+        Position and Execution through the checkpoint port. The conversation is
+        folded into the typed snapshot rather than supplied by a separate hook.
     - item: Resume seeding
       symbols: [core.ResumeFromCheckpoint, core.LoopParams.InitialSignal, core.LoopParams.InitialRun]
       rationale: |
-        Resume restores checkpoint layers and re-enters the same machine without
-        replaying bootstrap work. By default, the resume signal is an approval-gate
-        convention, not a separate agent mode.
+        Resume Loads Position and Execution through the checkpoint port and
+        re-enters the same machine without replaying bootstrap work. By default,
+        the resume signal is an approval-gate convention, not a separate agent
+        mode.
     - item: Lifecycle history and rollback tools
-      symbols: [checkpoint_history, checkpoint_rollback, core.RollbackFromCheckpoint, core.FormatCheckpointHistory]
+      symbols: [checkpoint_history, checkpoint_rollback, core.Checkpoint.Load, DoltCheckpoint.Revert]
       rationale: |
-        Lifecycle profiles dispatch declared builtin tools. Those tools operate
-        on persisted checkpoint data and undo mementos, then delegate checkpoint
-        selection, formatting, traversal, and rewriting to core operations.
-        Hidden CLI subcommands are transitional compatibility only.
+        Lifecycle profiles dispatch declared builtin tools. checkpoint_history
+        reads Dolt commit history through Load; checkpoint_rollback runs Dolt
+        Revert for DB state and then a reverse receipt walk for external effects.
+        The walk lives in the tool, not the engine, which never interprets a
+        receipt. Hidden CLI subcommands are transitional compatibility only.
 
   domain_policy_hooks:
     - item: Terminal status mapping
@@ -550,6 +556,8 @@ related_documents:
   - srd024
   - srd025-rollback-lifecycle
   - srd026-lifecycle-tools
+  - srd035-checkpoint-port
+  - srd036-dolt-state-persistence
 
 implementation:
   - cmd/agent/main.go

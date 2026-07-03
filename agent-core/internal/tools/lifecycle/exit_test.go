@@ -19,7 +19,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
@@ -95,20 +94,14 @@ func TestExitAgentRequiresShutdownDependency(t *testing.T) {
 	require.ErrorContains(t, res.Err, "shutdown dependency")
 }
 
-func TestExitAgentUndoMementoIsOperatorCompensation(t *testing.T) {
+func TestExitAgentUndoRequestsOperatorCompensation(t *testing.T) {
 	t.Parallel()
 	cmd := (ExitBuilder{Config: ExitConfig{Reason: "operator"}}).Build(core.Result{})
-	provider, ok := cmd.(core.UndoMementoProvider)
-	require.True(t, ok)
 
-	memento, err := provider.UndoMemento()
+	res := cmd.Undo(core.Result{})
 
-	require.NoError(t, err)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-	require.Equal(t, core.UndoMementoCompensatable, memento.Kind)
-	var payload undo.BoundaryCompensationPayload
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
-	require.Equal(t, "operator_restart_or_checkpoint_resume", payload.BoundaryCompensation.Strategy)
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Contains(t, res.Output, "restart the agent or resume from a checkpoint")
 }
 
 func TestRESTLifecycleControl_ExitAgentSignal(t *testing.T) {

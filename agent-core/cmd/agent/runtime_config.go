@@ -5,7 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/metric"
@@ -17,8 +17,6 @@ import (
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 )
-
-const defaultStateStoreDirName = ".agent-state"
 
 type runtimeConfig struct {
 	Machine          string
@@ -33,7 +31,7 @@ type runtimeConfig struct {
 	OTelLog          string
 	OTelParent       string
 	VerboseTrace     bool
-	StateStoreDir    string
+	DoltDSN          string
 	ResumeCheckpoint string
 	ResumeSignal     string
 }
@@ -63,7 +61,7 @@ func loadRuntimeConfig() (runtimeConfig, error) {
 		OTelLog:          flagOTelLog,
 		OTelParent:       flagOTelParent,
 		VerboseTrace:     flagVerboseTrace,
-		StateStoreDir:    flagStateStoreDir,
+		DoltDSN:          flagDoltDSN,
 		ResumeCheckpoint: flagResumeCheckpoint,
 		ResumeSignal:     flagResumeSignal,
 	}, nil
@@ -89,22 +87,40 @@ func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
 	return defs, nil
 }
 
-func resolveStateStore(cfg runtimeConfig) core.StateStore {
-	root := resolveStateStoreRoot(cfg)
-	if root == "" {
-		return nil
+// resolveCheckpoint returns the typed Checkpoint port for the run: the
+// Dolt-backed persistent backend when --dolt-dsn is configured, otherwise the
+// no-op adapter so a run without persistence keeps disabled-mode behavior
+// (srd035-checkpoint-port R5.1, srd036-dolt-state-persistence R1). The "dolt"
+// database/sql driver is registered at the composition root (dolt_driver.go),
+// which connects to a dolt sql-server over the MySQL wire protocol.
+func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec) (core.Checkpoint, error) {
+	if cfg.DoltDSN == "" {
+		return core.NoopCheckpoint{}, nil
 	}
-	return core.NewFileStore(root)
+	cp, err := core.OpenDoltCheckpoint(cfg.DoltDSN, resolveRunID(cfg), terminalPredicate(machine))
+	if err != nil {
+		return nil, fmt.Errorf("open dolt checkpoint: %w", err)
+	}
+	return cp, nil
 }
 
-func resolveStateStoreRoot(cfg runtimeConfig) string {
-	if cfg.StateStoreDir != "" {
-		return cfg.StateStoreDir
+// resolveRunID names the Dolt run branch: the explicit --resume-checkpoint id
+// when resuming a known run, otherwise a fresh timestamp-based id.
+func resolveRunID(cfg runtimeConfig) string {
+	if id := cfg.ResumeCheckpoint; id != "" && id != "latest" {
+		return id
 	}
-	if cfg.Directory != "" {
-		return filepath.Join(cfg.Directory, defaultStateStoreDirName)
+	return fmt.Sprintf("run-%d", time.Now().UTC().UnixNano())
+}
+
+// terminalPredicate reports which machine states end a run so the Dolt adapter
+// merges the run branch to main (srd036-dolt-state-persistence R4.3).
+func terminalPredicate(machine core.MachineSpec) func(core.State) bool {
+	terminal := make(map[core.State]bool, len(machine.TerminalStates))
+	for _, s := range machine.TerminalStates {
+		terminal[core.State(s)] = true
 	}
-	return ""
+	return func(s core.State) bool { return terminal[s] }
 }
 
 type monitorRuntime struct {

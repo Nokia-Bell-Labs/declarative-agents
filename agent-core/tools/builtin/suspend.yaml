@@ -6,7 +6,7 @@ tools:
   emits:
   - AwaitApproval
   - CommandError
-  description: Suspend the run at an approval gate. The loop persists a checkpoint when StateStore is configured.
+  description: Suspend the run at an approval gate. The loop persists a checkpoint through the Checkpoint port when a persistent backend (--dolt-dsn) is configured.
   category: boundary
   config:
     label: approval
@@ -16,7 +16,7 @@ tools:
   - kind: state_mutation
     target: lifecycle_checkpoint
     state: suspended
-    description: Requests suspension; the loop persists a checkpoint when StateStore is configured.
+    description: Requests suspension; the loop persists a checkpoint through the Checkpoint port when a persistent backend is configured.
   - kind: human_boundary
     target: operator_approval
     description: Hands control to an operator approval decision before resume.

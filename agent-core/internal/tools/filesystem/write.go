@@ -24,11 +24,8 @@ type writeCmd struct {
 }
 
 func (w *writeCmd) Name() string { return "write" }
-func (w *writeCmd) Undo() core.Result {
-	return undoFileSnapshot(w.Name(), w.root, w.snapshot, w.hasSnapshot)
-}
-func (w *writeCmd) UndoMemento() (core.UndoMemento, error) {
-	return fileWorkspaceMemento(w.Name(), w.snapshot, w.hasSnapshot)
+func (w *writeCmd) Undo(prior core.Result) core.Result {
+	return undoFileFromReceipt(w.Name(), w.root, prior.Receipt, w.snapshot, w.hasSnapshot)
 }
 
 func (w *writeCmd) Execute() core.Result {
@@ -53,6 +50,7 @@ func (w *writeCmd) Execute() core.Result {
 		Output:      fmt.Sprintf("wrote %d bytes to %s", len(w.content), RelPath(w.root, resolved)),
 		Signal:      core.ToolDone,
 		CommandName: "write",
+		Receipt:     encodeFileReceipt(snapshot),
 	}
 }
 
@@ -87,6 +85,13 @@ func (b *WriteBuilder) Build(res core.Result) core.Command {
 		return missingParam("write", "content")
 	}
 	return &writeCmd{root: b.Root, path: p, content: c, metrics: b.Metrics}
+}
+
+// BuildReverser returns a write command configured only for receipt-driven Undo:
+// the receipt carries the prior file state, so the rollback receipt walk needs
+// no path/content input (core.Reverser; srd035-checkpoint-port R3).
+func (b *WriteBuilder) BuildReverser() core.Command {
+	return &writeCmd{root: b.Root, metrics: b.Metrics}
 }
 
 // WriteToolSpec returns the ToolSpec for the write tool.

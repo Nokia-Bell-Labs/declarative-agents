@@ -12,10 +12,14 @@ type (
 	BoundaryCompensation        = toolundo.BoundaryCompensation
 )
 
-func BoundaryCompensationMemento(commandName string, payload BoundaryCompensationPayload, description string) (core.UndoMemento, error) {
-	return toolundo.BoundaryCompensationMemento(commandName, payload, description)
-}
-
 func BoundaryCompensationUndo(commandName, description string) core.Result {
 	return toolundo.BoundaryCompensationUndo(commandName, description)
+}
+
+func EncodeBoundaryReceipt(payload BoundaryCompensationPayload) string {
+	return toolundo.EncodeBoundaryReceipt(payload)
+}
+
+func DecodeBoundaryReceipt(receipt string) (BoundaryCompensation, bool, error) {
+	return toolundo.DecodeBoundaryReceipt(receipt)
 }

@@ -7,43 +7,43 @@ tools:
   emits:
   - ToolDone
   - CommandError
-  description: Render checkpoint history for a checkpoint through the lifecycle runtime.
+  description: Read a run's execution history from the Dolt checkpoint backend.
   category: stateful_internal
   problem: |
-    Operators need checkpoint history as a machine action, not as a special
-    root command path.
+    Operators need a run's execution history as a machine action, not as a
+    special root command path.
   goals:
-  - Read one checkpoint history digest.
+  - Read one run's ordered execution history from Dolt commit history.
   - Return ToolDone when the digest is printed.
-  - Return CommandError when the checkpoint cannot be resolved or loaded.
+  - Return CommandError when the run cannot be resolved or loaded.
   requirements:
     input:
-    - must receive a configured StateStore.
-    - must receive a checkpoint id or use latest.
+    - must receive the resolved checkpoint backend (the Dolt adapter by default).
+    - must receive a run id or use latest.
     output:
-    - must print the checkpoint history digest.
+    - must print the execution history digest.
     side_effects:
-    - must not mutate checkpoint state.
+    - must not mutate persisted state.
     undo:
-    - must be a no-op.
+    - must be a no-op and return an empty receipt.
     errors:
-    - must fail when the checkpoint cannot be resolved or loaded.
+    - must fail when the run cannot be resolved or its history loaded.
   non_goals:
-  - Does not roll back checkpoint state.
+  - Does not roll back persisted state.
   - Does not resume execution.
   parameters:
     type: object
     properties:
-      checkpoint:
+      run:
         type: string
-        description: Checkpoint ID, or latest.
+        description: Run id, or latest.
         default: latest
   output:
-    description: Human-readable checkpoint history digest.
+    description: Human-readable execution history digest.
     schema:
       type: object
       properties:
-        checkpoint:
+        run:
           type: string
         history:
           type: string
@@ -51,24 +51,25 @@ tools:
       - history
   side_effects:
   - kind: state_read
-    target: checkpoint_store
-    description: Reads checkpoint JSON from the configured StateStore.
+    target: checkpoint_backend
+    description: Reads the run's execution_steps and tool_results from Dolt commit history through the checkpoint port Load.
   reversibility:
     classification: reversible
     undo: noop
+    receipt: empty
     requires_confirmation: false
   undo:
     strategy: noop
-    description: History inspection does not mutate state.
+    description: History inspection does not mutate state; it returns an empty receipt.
   errors:
   - signal: CommandError
-    condition: checkpoint cannot be resolved or loaded
-    message_shape: "no checkpoints found | load checkpoint <id>: <error>"
-    state_after_failure: checkpoint store unchanged
+    condition: run cannot be resolved or its history loaded
+    message_shape: "no runs found | load run <id>: <error>"
+    state_after_failure: checkpoint backend unchanged
   relationships:
     before: []
     after:
     - checkpoint_rollback
     overlaps:
     - tool: checkpoint_rollback
-      difference: "checkpoint_history reads checkpoint history; checkpoint_rollback rewrites checkpoint state."
+      difference: "checkpoint_history reads Dolt commit history; checkpoint_rollback reverts the run branch and replays receipts."

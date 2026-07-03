@@ -15,9 +15,9 @@ import (
 
 type spanOverrideCmd struct{}
 
-func (spanOverrideCmd) Name() string    { return "override_cmd" }
-func (spanOverrideCmd) Execute() Result { return Result{Signal: ToolDone} }
-func (spanOverrideCmd) Undo() Result    { return NoopUndo("override_cmd") }
+func (spanOverrideCmd) Name() string         { return "override_cmd" }
+func (spanOverrideCmd) Execute() Result      { return Result{Signal: ToolDone} }
+func (spanOverrideCmd) Undo(_ Result) Result { return NoopUndo("override_cmd") }
 
 func (spanOverrideCmd) SpanName() string { return "custom-span" }
 

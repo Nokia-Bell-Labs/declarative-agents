@@ -1,5 +1,5 @@
 id: test-rel02.0-lifecycle
-title: Test Suite for Release 02.0 Rollback Lifecycle
+title: Test Suite for Release 02.0 Checkpoint Port and Dolt Persistence
 release: "02.0"
 
 traces:
@@ -7,384 +7,344 @@ traces:
   - rel02.0-uc002-history-rollback
 
 preconditions:
-  - Lifecycle features can be configured with nil stores for disabled-mode scenarios.
-  - A temporary FileStore root is available for StateStore round-trip scenarios.
-  - A temporary git repository top-level is available for GitWorkspace scenarios.
-  - Test commands can model no-op, command/domain restore, workspace restore, and compensating-action undo behavior.
+  - Persistence defaults to NoopCheckpoint so disabled-mode runs keep current loop behavior with no store configured.
+  - InMemoryCheckpoint and FileCheckpoint reference adapters are available for in-process and cross-process round-trip scenarios.
+  - A fake database/sql seam (fakeDB) stands in for Dolt so branch-per-run, commit-per-step, merge-on-terminal, and Revert are asserted without a live server.
+  - A running dolt sql-server named by DOLT_TEST_DSN enables the end-to-end CLI suspend/resume integration test; it is skipped when the variable is unset.
+  - Test commands can encode opaque receipts during Execute and reverse them through a receipt-consuming Undo.
 
 test_cases:
+  # --- rel02.0-uc001: suspend and resume through the typed checkpoint port ---
   - use_case: rel02.0-uc001-approval-suspend-resume
-    name: Disabled lifecycle preserves existing loop behavior
-    go_test: TestLoop_NilRollbackParamsPreserveBehavior
+    name: Disabled persistence defaults to NoopCheckpoint and persists nothing
+    go_test: TestLoop_NoopCheckpointDefaultPersistsNothing, TestNoopCheckpointSaveIsNoopAndLoadReportsNotFound
     status: done
     description: |
-      Run a simple machine with StateStore, Workspace, and CheckpointPolicy unset.
-      Expected behavior is completion without checkpoint writes, history persistence, or
-      workspace ref mutations.
+      Run a machine without a configured Checkpoint. The loop defaults to
+      NoopCheckpoint, whose Save is a no-op and whose Load reports
+      ErrNoCheckpoint, preserving disabled-mode behavior with no persistence
+      overhead.
     inputs:
-      lifecycle: disabled
+      checkpoint: nil
       machine: simple_success
-      state_store: nil
-      workspace: nil
-      checkpoint_policy: nil
     expected:
       status: succeeded
-      checkpoint_writes: 0
-      persisted_history_entries: 0
-      workspace_checkpoint_calls: 0
+      save: noop
+      load_error: ErrNoCheckpoint
     traces:
-      - srd025-rollback-lifecycle AC6
+      - srd035-checkpoint-port AC5
+      - srd035-checkpoint-port AC6
 
   - use_case: rel02.0-uc001-approval-suspend-resume
-    name: FileStore persists and lists checkpoint JSON
-    go_test: TestFileStoreSaveLoadListDelete
+    name: Loop saves Position and Execution after each dispatch cycle
+    go_test: TestLoop_SavesSnapshotAfterDispatchWithConfiguredAdapter
     status: done
     description: |
-      Save a checkpoint through FileStore, load it by store path, list it by prefix,
-      and verify the JSON agent snapshot and domain snapshot are preserved.
+      Run a machine with an InMemoryCheckpoint configured. The loop calls
+      Save after each dispatch, appending one Execution entry per cycle and
+      updating the resumable Position, so a later Load returns the final
+      position and the full ordered log.
     inputs:
-      store: FileStore
-      store_path: checkpoint/run-001
-      prefix: checkpoint/
+      checkpoint: InMemoryCheckpoint
+      machine: simple_success
     expected:
-      save: ok
-      load: same_checkpoint_json
-      list_contains: checkpoint/run-001
-      error_context: store_path_and_store_location_available
+      save_timing: after_each_dispatch
+      execution_len: iteration_count
+      position_matches_last_dispatch: true
     traces:
-      - srd025-rollback-lifecycle AC2
+      - srd035-checkpoint-port AC6
 
   - use_case: rel02.0-uc001-approval-suspend-resume
-    name: Checkpoint separates StateStore JSON from Workspace ref
-    go_test: TestCheckpointContractsCompileAndRoundTrip
+    name: Conversation folds into the typed snapshot on Save
+    go_test: TestLoop_PortSavePersistsConversation, TestInMemoryCheckpointRoundTripsConversationAndReceipts
     status: done
     description: |
-      Build a checkpoint with AgentSnapshot, command/domain JSON, and a
-      GitWorkspace ref. Verify the workspace ref is referenced but agent state
-      is not serialized into git.
+      With a SnapshotConversation hook supplying the domain-owned conversation,
+      the loop folds it into AgentSnapshot and persists it through the port.
+      InMemoryCheckpoint round-trips the folded conversation and each entry's
+      opaque receipt verbatim, restoring an empty receipt for read-only steps.
     inputs:
-      state_layers: [agent_state, command_domain_state, workspace_environment_state]
-      workspace: GitWorkspace
+      checkpoint: InMemoryCheckpoint
+      conversation: user_message
+      receipts: [write_receipt, empty]
     expected:
-      checkpoint_contains_agent_snapshot: true
-      checkpoint_contains_domain_json: true
-      checkpoint_contains_workspace_ref: true
-      git_ref_contains_agent_json: false
-    traces:
-      - srd025-rollback-lifecycle AC1
-      - srd025-rollback-lifecycle AC2
-
-  - use_case: rel02.0-uc002-history-rollback
-    name: GitWorkspace checkpoints and restores repository state
-    go_test: TestGitWorkspaceCheckpointAndRestore
-    status: done
-    description: |
-      In a temporary git repository top-level, mutate files, create a
-      GitWorkspace checkpoint, mutate again, restore the checkpoint ref, and
-      verify the filesystem returns to the checkpointed state.
-    inputs:
-      workspace: GitWorkspace
-      repo_location: git_top_level
-      mutations: [write_file_before_checkpoint, write_file_after_checkpoint]
-    expected:
-      checkpoint_ref: commit_sha
-      current_ref: commit_sha
-      restore: filesystem_matches_checkpoint
-      non_top_level_config: rejected
-    traces:
-      - srd025-rollback-lifecycle AC2
-      - srd025-rollback-lifecycle AC4
-
-  - use_case: rel02.0-uc002-history-rollback
-    name: Command undo categories restore owned state
-    go_test: TestNoopUndoReturnsSuccessfulResult, TestRollbackCombinesInMemoryUndoAndGitWorkspaceRestore
-    status: done
-    description: |
-      Execute representative commands for each undo category, then invoke
-      Undo. No-op commands return ToolDone without mutation; conversation and
-      domain commands restore snapshots; workspace commands restore refs; and
-      compensating commands report their compensating action.
-    inputs:
-      commands:
-        - read_only_noop
-        - conversation_append
-        - domain_state_mutation
-        - workspace_file_write
-        - external_compensating_action
-    expected:
-      noop_undo_signal: ToolDone
       conversation_restored: true
-      domain_state_restored: true
-      workspace_ref_restored: true
-      compensating_action_reported: true
+      receipt_round_trip: verbatim
+      empty_receipt_restored_empty: true
     traces:
-      - srd025-rollback-lifecycle AC3
-      - srd025-rollback-lifecycle AC6
-
-  - use_case: rel02.0-uc002-history-rollback
-    name: History records dispatch entries for rollback target selection
-    go_test: TestLoop_HistoryRecordsDispatchesWhenPolicyEnabled
-    status: done
-    description: |
-      Execute a multi-step machine with history enabled. Verify each
-      HistoryEntry includes iteration, timestamp, command name, from/to state,
-      input signal, result signal, result summary, and optional workspace ref.
-    inputs:
-      history_recording: enabled
-      commands: [read, edit, test]
-    expected:
-      history_order: dispatch_order
-      entries_include_required_fields: true
-      target_iteration_can_be_selected: true
-    traces:
-      - srd025-rollback-lifecycle AC3
-
-  - use_case: rel02.0-uc002-history-rollback
-    name: Rollback traverses history backward to target iteration
-    go_test: TestRollbackCallsUndoInReverseOrder, TestRollbackRestoresTargetWorkspaceRef
-    status: done
-    description: |
-      Given a recorded history with command/domain and workspace mutations,
-      roll back from the current iteration to a target iteration. Runtime
-      should call Command.Undo in reverse dispatch order and restore Workspace
-      to the target ref.
-    inputs:
-      current_iteration: 5
-      target_iteration: 2
-      history: five_entries_with_workspace_refs
-    expected:
-      undo_order: [iteration_5, iteration_4, iteration_3]
-      workspace_restored_to: iteration_2_ref
-      returned_state: iteration_2_to_state
-    traces:
-      - srd025-rollback-lifecycle AC4
+      - srd035-checkpoint-port AC3
+      - srd035-checkpoint-port AC4
+      - srd035-checkpoint-port AC5
 
   - use_case: rel02.0-uc001-approval-suspend-resume
-    name: Approval gate suspends and resumes from checkpoint
-    go_test: TestApprovalLifecycleProfileSuspendsAndResumesApproved, TestResumeFromCheckpointRestoresStateAndReentersLoop
+    name: Position and Execution JSON wire format
+    go_test: TestCheckpointWireFormat, TestCheckpointContractsCompileAndRoundTrip
     status: done
     description: |
-      Route a machine through an approval-gate tool that emits a suspend
-      signal. Verify the run exits as suspended after persisting a checkpoint,
-      then resumes after an approved signal by restoring StateStore and
-      Workspace state.
+      Position serializes as an object with current_state, last_signal, and a
+      nested snapshot; an empty Execution serializes as JSON null; the opaque
+      receipt is omitted when empty and present as a JSON string when set. The
+      typed values compile and round-trip through JSON.
     inputs:
-      machine_state: AwaitingApproval
-      approval_outcome: approved
-      checkpoint_store: FileStore
-      workspace: GitWorkspace
+      value: [Position, Execution, Entry]
     expected:
-      first_run_status: suspended
-      checkpoint_saved: true
-      resume_validates_machine_and_tools: true
-      workspace_restored_before_resume: true
-      resumed_signal: approved
+      position_fields: [current_state, last_signal, snapshot]
+      empty_execution: "null"
+      receipt_omitted_when_empty: true
+      receipt_present_as_json_string: true
+    traces:
+      - srd035-checkpoint-port AC2
+      - srd035-checkpoint-port AC3
+
+  - use_case: rel02.0-uc001-approval-suspend-resume
+    name: FileCheckpoint round-trips the port across processes
+    go_test: TestFileCheckpointRoundTripsAcrossProcesses, TestFileCheckpointLoadReportsNotFound
+    status: done
+    description: |
+      Save a Position and Execution through a FileCheckpoint, then Load them
+      from a distinct instance over the same root to simulate a separate
+      process. An empty root reports ErrNoCheckpoint.
+    inputs:
+      checkpoint: FileCheckpoint
+      root: temp_dir
+    expected:
+      cross_process_round_trip: equal
+      empty_root_load_error: ErrNoCheckpoint
+    traces:
+      - srd035-checkpoint-port AC1
+      - srd035-checkpoint-port AC5
+
+  - use_case: rel02.0-uc001-approval-suspend-resume
+    name: Resume re-enters the loop from the typed port and reports not-found
+    go_test: TestResumeReentersLoopFromTypedPort, TestLoadResumeExposesTypedSnapshotForDomainRestore, TestResumeHonorsExplicitResumeSignal, TestResumeReportsMissingCheckpoint
+    status: done
+    description: |
+      A run suspended at an approval gate is resumed purely through the typed
+      Checkpoint port: Load restores the Position, Execution, and folded
+      conversation, and the loop re-enters at the checkpointed state carrying
+      the persisted counters forward. The resume signal defaults to Approved
+      but honors an explicit override; a not-found snapshot surfaces
+      ErrNoCheckpoint through the single resume path.
+    inputs:
+      checkpoint: InMemoryCheckpoint
+      suspended_state: AwaitingApproval
+      resume_signal: [Approved, Rejected]
+    expected:
+      resumed_status: succeeded
+      counters_carried_forward: true
+      explicit_signal_preserved: true
+      missing_checkpoint_error: ErrNoCheckpoint
+    traces:
+      - srd035-checkpoint-port AC4
+      - srd035-checkpoint-port AC6
+
+  - use_case: rel02.0-uc001-approval-suspend-resume
+    name: Approval profile suspends and resolves the checkpoint backend at the CLI
+    go_test: TestApprovalLifecycleProfileSuspendsThroughCheckpointPort, TestResolveCheckpointDefaultsToNoop, TestResolveCheckpointWithDoltDSNOpensDoltBackend, TestResumeWithoutPersistentBackendReportsNoCheckpoint
+    status: done
+    description: |
+      The approval lifecycle profile routes through a suspend tool and exits
+      as suspended. The composition root resolves NoopCheckpoint by default
+      and the Dolt adapter when --dolt-dsn is set, surfacing an unparseable
+      DSN as a typed ErrDolt; resume without a persistent backend reports
+      ErrNoCheckpoint.
+    inputs:
+      profile: lifecycle/approval/profile.yaml
+      dolt_dsn: [unset, invalid]
+    expected:
+      first_run_terminal_state: suspended
+      default_backend: NoopCheckpoint
+      dolt_dsn_error: ErrDolt
+      resume_without_backend_error: ErrNoCheckpoint
     traces:
       - srd024-blocking-input-tools AC2
-      - srd025-rollback-lifecycle AC5
+      - srd035-checkpoint-port AC5
+      - srd036-dolt-state-persistence AC1
 
   - use_case: rel02.0-uc001-approval-suspend-resume
-    name: Resume reports checkpoint and restore failure classes
-    go_test: TestResumeFromCheckpointMissingCheckpointError, TestResumeFromCheckpointIncompatibleCheckpointError, TestResumeFromCheckpointRestoreErrorsAreClassified
+    name: End-to-end suspend and resume across processes through the Dolt backend
+    go_test: TestDoltCheckpointSuspendResumeRoundTrip
     status: done
     description: |
-      Attempt resume with missing checkpoint, incompatible checkpoint,
-      command/domain restore failure, and workspace restore failure. Each
-      failure class should be reported distinctly.
+      Against a running dolt sql-server (DOLT_TEST_DSN), open a DoltCheckpoint
+      through the composition-root driver, save a suspended run, then load it
+      from a fresh adapter instance and verify the Position, folded
+      conversation, and Execution (including receipts) match the pre-suspend
+      state. Skipped when DOLT_TEST_DSN is unset.
     inputs:
-      resume_failures:
-        - missing_checkpoint
-        - incompatible_checkpoint
-        - domain_restore_failure
-        - workspace_restore_failure
+      backend: DoltCheckpoint
+      dsn: DOLT_TEST_DSN
     expected:
-      missing_checkpoint_error: explicit
-      incompatible_checkpoint_error: explicit
-      domain_restore_error: explicit
-      workspace_restore_error: explicit
+      fresh_process_load: equivalent_state
+      skipped_without_dsn: true
     traces:
-      - srd025-rollback-lifecycle AC5
+      - srd036-dolt-state-persistence AC1
+      - srd036-dolt-state-persistence AC5
+
+  # --- rel02.0-uc002: Dolt persistence, history, and git-style revert ---
+  - use_case: rel02.0-uc002-history-rollback
+    name: DoltCheckpoint implements the port behind the database/sql seam
+    go_test: TestDoltCheckpointImplementsPort, TestDoltCheckpointLoadNotFound
+    status: done
+    description: |
+      DoltCheckpoint satisfies the srd035 Checkpoint port over the database/sql
+      Database/Transaction/Scanner/Rows seam, with no Dolt import in core. Load
+      reports ErrNoCheckpoint when the run branch or its rows do not exist.
+    inputs:
+      backend: DoltCheckpoint
+      seam: fakeDB
+    expected:
+      implements_checkpoint_port: true
+      missing_run_load_error: ErrNoCheckpoint
+    traces:
+      - srd036-dolt-state-persistence AC1
+      - srd036-dolt-state-persistence AC5
 
   - use_case: rel02.0-uc002-history-rollback
-    name: Partial rollback reports remaining state after failure
-    go_test: TestRollbackReportsPartialFailureAndContinues
+    name: Save reconstructs Position and Execution with receipts from the run branch
+    go_test: TestDoltCheckpointSaveLoadRoundTrip
     status: done
     description: |
-      Force a Command.Undo failure during rollback. Rollback reporting should
-      identify the failing command, whether workspace restore was attempted,
-      and what state remains for operator recovery.
+      Save a run's Position and ordered Execution across two steps, then Load
+      reconstructs both from the latest commit on the run branch, including the
+      folded conversation and each entry's opaque receipt. A step with no
+      receipt stores SQL NULL and restores an empty receipt.
     inputs:
-      failing_undo_iteration: 4
-      target_iteration: 2
+      backend: DoltCheckpoint
+      steps: 2
+      receipts: [file_receipt, empty]
     expected:
-      status: partial_rollback_failed
-      failing_component: command_undo
-      command_name_reported: true
-      remaining_state_reported: true
+      position_reconstructed: true
+      execution_order_preserved: true
+      receipt_round_trip: verbatim
+      null_receipt_restored_empty: true
     traces:
-      - srd025-rollback-lifecycle AC4
+      - srd036-dolt-state-persistence AC3
+      - srd036-dolt-state-persistence AC5
 
   - use_case: rel02.0-uc002-history-rollback
-    name: Lifecycle history profile dispatches checkpoint_history
-    go_test: TestLifecycleProfilesValidateMachineWiring
+    name: Commit-per-step, branch-per-run, and merge-to-main on terminal state
+    go_test: TestDoltCheckpointCommitPerStepAndBranchPerRun, TestDoltCheckpointMergeOnTerminalState
     status: done
     description: |
-      Invoke the history lifecycle program through its profile. Confirm the
-      profile loads the lifecycle MachineSpec, selects checkpoint_history, and
-      registers the builtin adapter before the machine dispatches the action.
+      Each run executes on its own branch created once; each Save creates one
+      commit with step_index and signal in the message. A non-terminal Save
+      does not merge, while a terminal-state Save merges the run branch to main
+      and deletes the run branch.
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/lifecycle/history/profile.yaml
-      tool_selection: lifecycle/tools.yaml
-      selected_tool: checkpoint_history
-      state_store: FileStore
+      backend: DoltCheckpoint
+      steps: 2
+      terminal_state: Done
     expected:
-      profile_loaded: true
-      machine_action: checkpoint_history
-      selected_as_builtin: true
-      hidden_cli_subcommand_used: false
+      branch_created: once_per_run
+      commits: one_per_step
+      terminal_merge_to_main: true
+      run_branch_deleted: true
     traces:
-      - srd025-rollback-lifecycle AC7
-      - srd026-lifecycle-tools AC1
-      - srd026-lifecycle-tools AC5
+      - srd036-dolt-state-persistence AC4
 
   - use_case: rel02.0-uc002-history-rollback
-    name: Lifecycle rollback profile dispatches checkpoint_rollback
-    go_test: TestLifecycleProfilesValidateMachineWiring
+    name: Revert resets the run branch to the target step commit
+    go_test: TestDoltCheckpointRevertResetsToStepCommit, TestDoltCheckpointRevertUnresolvedStep
     status: done
     description: |
-      Run the rollback lifecycle program through its profile. Confirm the
-      profile loads the rollback MachineSpec, selects checkpoint_rollback, and
-      registers the builtin adapter before the machine dispatches the action.
+      Revert(run_id, step_index) resets the run branch to the commit recorded
+      at that step so a subsequent Load returns the Position and Execution as of
+      the target step. An unresolved step reports ErrRevertUnresolved.
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/lifecycle/rollback/profile.yaml
-      tool_selection: lifecycle/tools.yaml
-      selected_tool: checkpoint_rollback
-      state_store: FileStore
-      workspace: GitWorkspace
+      backend: DoltCheckpoint
+      steps: 2
+      revert_to_step: [0, 99]
     expected:
-      profile_loaded: true
-      machine_action: checkpoint_rollback
-      selected_as_builtin: true
-      hidden_cli_subcommand_used: false
+      branch_reset_to_target: true
+      load_after_revert: target_step_state
+      unresolved_step_error: ErrRevertUnresolved
     traces:
-      - srd025-rollback-lifecycle AC7
-      - srd026-lifecycle-tools AC1
-      - srd026-lifecycle-tools AC5
+      - srd036-dolt-state-persistence AC6
 
   - use_case: rel02.0-uc002-history-rollback
-    name: checkpoint_history formats selected checkpoint history
-    go_test: TestCheckpointHistoryExecuteFormatsLatestCheckpoint
+    name: checkpoint_history formats the persisted execution log
+    go_test: TestCheckpointHistoryExecuteFormatsExecutionLog, TestCheckpointHistoryExecuteRequiresCheckpoint, TestCheckpointHistoryExecuteReportsNoCheckpoint, TestCheckpointHistoryUndoIsNoop
     status: done
     description: |
-      With a FileStore containing an older checkpoint and a newer checkpoint,
-      call checkpoint_history with the default latest selector. It
-      should resolve the latest checkpoint, load it, format the digest, and
-      return ToolDone.
+      checkpoint_history loads the persisted Execution through the port and
+      formats each step's index, command, from/to state, signal, and receipt
+      presence. It reports CommandError without a Checkpoint backend and
+      ErrNoCheckpoint when nothing is persisted; its Undo is a no-op.
     inputs:
       tool: checkpoint_history
-      checkpoint_selector: latest
-      state_store: FileStore
-      checkpoints: [older, newer]
+      checkpoint: [InMemoryCheckpoint, nil, empty]
     expected:
-      signal: ToolDone
-      resolved_checkpoint: newer
-      output_contains_history_digest: true
-      side_effects: none
+      formatted_history: true
+      missing_backend_error: CommandError
+      no_checkpoint_error: ErrNoCheckpoint
       undo: noop
     traces:
-      - srd025-rollback-lifecycle AC7
       - srd026-lifecycle-tools AC2
+      - srd035-checkpoint-port AC1
 
   - use_case: rel02.0-uc002-history-rollback
-    name: checkpoint_history reports missing StateStore
-    go_test: TestCheckpointHistoryExecuteRequiresStateStore
+    name: checkpoint_rollback reverts DB state and validates its inputs
+    go_test: TestCheckpointRollbackRevertsDBStateToTargetStep, TestCheckpointRollbackRequiresRevertibleCheckpoint, TestCheckpointRollbackRequiresTargetIteration, TestCheckpointRollbackReportsMissingTargetIteration, TestCheckpointRollbackUndoRequestsCompensation
     status: done
     description: |
-      Call checkpoint_history without a StateStore. Expected behavior should
-      return CommandError and leave checkpoint and workspace state unchanged.
-    inputs:
-      tool: checkpoint_history
-      state_store: nil
-    expected:
-      signal: CommandError
-      error_class: missing_state_store
-      checkpoint_mutation: none
-      workspace_restore_attempted: false
-    traces:
-      - srd026-lifecycle-tools AC2
-      - srd026-lifecycle-tools AC6
-
-  - use_case: rel02.0-uc002-history-rollback
-    name: checkpoint_rollback creates rollback checkpoint
-    go_test: TestCheckpointRollbackExecutePersistsNewCheckpoint
-    status: done
-    description: |
-      Use a persisted checkpoint with history entries and run
-      checkpoint_rollback with a target iteration. Adapter behavior should delegate
-      traversal to core rollback operations, persist a new checkpoint, and
-      return a summary with the original checkpoint, target iteration, and new
-      checkpoint ID.
+      checkpoint_rollback resolves the target iteration to a step, calls the
+      Dolt adapter Revert to rewind DB-persisted state, and returns a summary
+      naming the run and target. It requires a revertible Checkpoint backend
+      and a target iteration, reports a missing target, and its Undo requests
+      compensation rather than silently reversing.
     inputs:
       tool: checkpoint_rollback
-      checkpoint_selector: latest
-      to_iteration: 2
-      state_store: FileStore
-      workspace: nil
+      checkpoint: fakeReverter
+      to_iteration: [present, missing, unresolved]
     expected:
-      signal: ToolDone
-      rollback_delegated_to_core: true
-      new_checkpoint_written: true
-      output_names_original_and_new_checkpoint: true
-      undo: compensatable
+      revert_delegated_to_adapter: true
+      load_after_rollback: target_step_state
+      missing_backend_error: requires_revertible_checkpoint
+      missing_target_error: requires_to_iteration
+      unresolved_target_error: target_not_found
+      undo: requests_compensation
+    traces:
+      - srd036-dolt-state-persistence AC6
+      - srd026-lifecycle-tools AC3
+
+  - use_case: rel02.0-uc002-history-rollback
+    name: Rollback restores a file through the persisted opaque receipt
+    go_test: TestCheckpointRollbackRestoresFileViaPersistedReceipt
+    status: done
+    description: |
+      A real write overwrites a file and records its opaque receipt in the
+      persisted Execution. After Revert rewinds DB state, checkpoint_rollback
+      walks the reverted entries in reverse and hands each restored,
+      receipt-bearing Result to a fresh command instance resolved through the
+      registry, whose receipt-consuming Undo restores the file to its prior
+      content.
+    inputs:
+      tool: checkpoint_rollback
+      command: write
+      receipt: file_before_content
+      registry: resolves_write_to_reverser
+    expected:
+      db_state_reverted: true
+      file_restored_to_prior_content: true
+      external_effect_reversed_via_receipt: true
     traces:
       - srd025-rollback-lifecycle AC4
-      - srd025-rollback-lifecycle AC7
-      - srd026-lifecycle-tools AC3
+      - srd035-checkpoint-port AC3
+      - srd036-dolt-state-persistence AC6
 
   - use_case: rel02.0-uc002-history-rollback
-    name: checkpoint_rollback reports missing target iteration
-    go_test: TestCheckpointRollbackExecuteRequiresTargetIteration
+    name: Lifecycle profiles wire checkpoint_history and checkpoint_rollback
+    go_test: TestLifecycleProfilesValidateMachineWiring
     status: done
     description: |
-      Omit to_iteration when running checkpoint_rollback. Validation should
-      reject the request before traversal and return CommandError.
+      The history and rollback lifecycle profiles load their MachineSpec,
+      select checkpoint_history and checkpoint_rollback respectively, and
+      register the builtin adapters before the machine dispatches the action.
     inputs:
-      tool: checkpoint_rollback
-      checkpoint_selector: latest
-      to_iteration: null
-      state_store: FileStore
+      profiles: [lifecycle/history, lifecycle/rollback]
     expected:
-      signal: CommandError
-      error_class: missing_target_iteration
-      rollback_traversal_started: false
-      new_checkpoint_written: false
+      profile_loaded: true
+      selected_as_builtin: true
     traces:
-      - srd026-lifecycle-tools AC3
-      - srd026-lifecycle-tools AC4
-      - srd026-lifecycle-tools AC6
-
-  - use_case: rel02.0-uc002-history-rollback
-    name: checkpoint_rollback refuses unmanaged workspace ref
-    go_test: TestCheckpointRollbackExecuteRequiresManagedWorkspaceForRef
-    status: done
-    description: |
-      Submit checkpoint data that names a
-      WorkspaceRef while no managed workspace directory is configured. This
-      adapter should refuse the rollback rather than skip workspace restore.
-    inputs:
-      tool: checkpoint_rollback
-      checkpoint_selector: latest
-      to_iteration: 2
-      state_store: FileStore
-      workspace_ref_present: true
-      workspace: nil
-    expected:
-      signal: CommandError
-      error_class: unmanaged_workspace_ref
-      workspace_restore_skipped_as_success: false
-      new_checkpoint_written: false
-    traces:
-      - srd025-rollback-lifecycle AC2
-      - srd025-rollback-lifecycle AC4
-      - srd026-lifecycle-tools AC3
-      - srd026-lifecycle-tools AC6
+      - srd026-lifecycle-tools AC1

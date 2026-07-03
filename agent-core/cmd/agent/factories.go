@@ -182,7 +182,7 @@ func resetHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
 func registerLifecycleFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		lifecycle.RegisterFactories(br, lifecycle.FactoryDeps{
-			StateStore: st.stateStore, Tracer: st.tracer, Shutdown: st.shutdown,
+			Checkpoint: st.checkpoint, Tracer: st.tracer, Shutdown: st.shutdown,
 		})
 		br.Register("checkpoint_history", checkpointHistoryFactory(st))
 		br.Register("checkpoint_rollback", checkpointRollbackFactory(st))
@@ -195,7 +195,7 @@ func checkpointHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		return &lifecycle.CheckpointHistoryBuilder{Config: cfg, StateStore: st.stateStore, Ctx: st.ctx}, nil
+		return &lifecycle.CheckpointHistoryBuilder{Config: cfg, Checkpoint: st.checkpoint}, nil
 	}
 }
 
@@ -205,7 +205,14 @@ func checkpointRollbackFactory(st *agentState) toolregistry.BuiltinFactory {
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		return &lifecycle.CheckpointRollbackBuilder{Config: cfg, StateStore: st.stateStore, Directory: st.directory, Tracer: st.tracer, Ctx: st.ctx}, nil
+		reverter, _ := st.checkpoint.(core.CheckpointReverter)
+		return &lifecycle.CheckpointRollbackBuilder{
+			Config:     cfg,
+			Checkpoint: reverter,
+			Registry:   st.registry,
+			RunID:      cfg.SelectedCheckpoint(),
+			Tracer:     st.tracer,
+		}, nil
 	}
 }
 

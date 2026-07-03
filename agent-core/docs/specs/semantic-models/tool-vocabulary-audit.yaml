@@ -248,16 +248,16 @@ tools:
     role: stateful_internal
     status: desired_lifecycle_adapter
     selected_by: [lifecycle_history]
-    inputs_from: [lifecycle_profile, checkpoint_selector, StateStore]
+    inputs_from: [lifecycle_profile, run_selector, checkpoint_backend]
     feeds_into: [history_machine_terminal, operator_review]
     side_effects: none
     output_contract: declared_by_srd026
     undo: noop
     overlaps:
       - tool: legacy_history_exec_wrapper
-        difference: checkpoint_history calls core checkpoint operations directly; the legacy wrapper shells through compatibility CLI behavior
+        difference: checkpoint_history reads the checkpoint backend directly; the legacy wrapper shells through compatibility CLI behavior
       - tool: checkpoint_rollback
-        difference: checkpoint_history inspects checkpoint history without rewriting checkpoint or workspace state
+        difference: checkpoint_history reads Dolt commit history without reverting the run branch or replaying receipts
     issues:
       - ToolDef declaration still needs to replace legacy exec wrapper in lifecycle config
     migration_priority: high
@@ -266,16 +266,16 @@ tools:
     role: boundary
     status: desired_lifecycle_adapter
     selected_by: [lifecycle_rollback]
-    inputs_from: [lifecycle_profile, checkpoint_selector, to_iteration, StateStore, Workspace]
+    inputs_from: [lifecycle_profile, run_selector, to_step, checkpoint_backend]
     feeds_into: [rollback_machine_terminal, resume_decision]
-    side_effects: checkpoint_state_rewrite, workspace_restore
+    side_effects: dolt_branch_revert, receipt_walk_undo
     output_contract: declared_by_srd026
-    undo: boundary_compensation (operator_checkpoint_selection, captures checkpoint_id + operator_decision)
+    undo: boundary_compensation (operator_step_selection, captures run + operator_decision)
     overlaps:
       - tool: legacy_rollback_exec_wrapper
-        difference: checkpoint_rollback calls core rollback operations directly; the legacy wrapper shells through compatibility CLI behavior
+        difference: checkpoint_rollback reverts the Dolt run branch and replays receipts directly; the legacy wrapper shells through compatibility CLI behavior
       - tool: checkpoint_history
-        difference: checkpoint_rollback mutates checkpoint state and may restore workspace state
+        difference: checkpoint_rollback reverts DB state (DB-only) and reverses external effects through tool receipts; checkpoint_history only reads
     issues:
       - ToolDef declaration still needs to replace legacy exec wrapper in lifecycle config
       - Requires lifecycle profile wiring before it is the desired operator path

@@ -3,6 +3,7 @@
 package validation
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -32,30 +33,68 @@ func (s specSnapshot) restore(vs *SpecState) {
 	vs.HasErrors = s.hasErrors
 }
 
-func undoSpecSnapshot(commandName string, vs *SpecState, snap specSnapshot, ok bool) core.Result {
+// specReceipt is the opaque, tool-owned rollback context the spec-validation tools
+// encode into Result.Receipt. The corpus and graph are in-process artifacts rebuilt
+// from the project directory, so the receipt records only whether each was present
+// before the step (to clear ones the step created) alongside the serializable
+// findings and error flag (srd035-checkpoint-port R3; #44 R2).
+type specReceipt struct {
+	CorpusLoaded bool           `json:"corpus_loaded"`
+	GraphLoaded  bool           `json:"graph_loaded"`
+	Findings     []spec.Finding `json:"findings,omitempty"`
+	HasErrors    bool           `json:"has_errors,omitempty"`
+}
+
+func encodeSpecReceipt(snap specSnapshot) string {
+	b, err := json.Marshal(specReceipt{
+		CorpusLoaded: snap.corpus != nil,
+		GraphLoaded:  snap.graph != nil,
+		Findings:     snap.findings,
+		HasErrors:    snap.hasErrors,
+	})
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+func decodeSpecReceipt(receipt string) (specReceipt, bool, error) {
+	if receipt == "" {
+		return specReceipt{}, false, nil
+	}
+	var r specReceipt
+	if err := json.Unmarshal([]byte(receipt), &r); err != nil {
+		return specReceipt{}, false, err
+	}
+	return r, true, nil
+}
+
+func (r specReceipt) restore(vs *SpecState) {
+	if !r.CorpusLoaded {
+		vs.Corpus = nil
+	}
+	if !r.GraphLoaded {
+		vs.Graph = nil
+	}
+	vs.Findings = append([]spec.Finding(nil), r.Findings...)
+	vs.HasErrors = r.HasErrors
+}
+
+// undoSpecState reverses a spec-validation step. It prefers the opaque receipt on
+// the prior Result (so a fresh command instance can undo after a process restart)
+// and falls back to the in-memory snapshot on the live path.
+func undoSpecState(commandName string, vs *SpecState, prior core.Result, snap specSnapshot, ok bool) core.Result {
+	if r, present, err := decodeSpecReceipt(prior.Receipt); err != nil {
+		e := fmt.Errorf("undo %s: decode receipt: %w", commandName, err)
+		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: e.Error(), Err: e}
+	} else if present {
+		r.restore(vs)
+		return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "undo: restored validation state"}
+	}
 	if !ok {
 		err := fmt.Errorf("undo %s: no validation state snapshot recorded", commandName)
 		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
 	}
 	snap.restore(vs)
 	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "undo: restored validation state"}
-}
-
-func specMemento(commandName string, snap specSnapshot, ok bool) (core.UndoMemento, error) {
-	if !ok {
-		return core.UndoMemento{}, fmt.Errorf("%w: no validation state snapshot recorded for %s", core.ErrUndoMementoMissing, commandName)
-	}
-	payload := struct {
-		DomainState struct {
-			CorpusLoaded bool `json:"corpus_loaded"`
-			GraphLoaded  bool `json:"graph_loaded"`
-			Findings     int  `json:"findings"`
-			HasErrors    bool `json:"has_errors"`
-		} `json:"domain_state"`
-	}{}
-	payload.DomainState.CorpusLoaded = snap.corpus != nil
-	payload.DomainState.GraphLoaded = snap.graph != nil
-	payload.DomainState.Findings = len(snap.findings)
-	payload.DomainState.HasErrors = snap.hasErrors
-	return core.NewUndoMemento(commandName, core.UndoMementoReversible, payload)
 }

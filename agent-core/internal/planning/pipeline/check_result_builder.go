@@ -18,12 +18,8 @@ type checkResultCmd struct {
 }
 
 func (c *checkResultCmd) Name() string { return "check_result" }
-func (c *checkResultCmd) Undo() core.Result {
+func (c *checkResultCmd) Undo(_ core.Result) core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
-}
-
-func (c *checkResultCmd) UndoMemento() (core.UndoMemento, error) {
-	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoReversible)
 }
 
 func (c *checkResultCmd) Execute() core.Result {

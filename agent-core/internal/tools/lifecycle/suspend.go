@@ -23,8 +23,7 @@ type SuspendConfig struct {
 
 // FactoryDeps holds shared dependencies for lifecycle builtins.
 type FactoryDeps struct {
-	StateStore core.StateStore
-	Workspace  core.Workspace
+	Checkpoint core.Checkpoint
 	Tracer     tracing.Tracer
 	Shutdown   func()
 }
@@ -36,7 +35,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		return &SuspendBuilder{Config: cfg, StateStore: deps.StateStore, Workspace: deps.Workspace, Tracer: deps.Tracer}, nil
+		return &SuspendBuilder{Config: cfg, Checkpoint: deps.Checkpoint, Tracer: deps.Tracer}, nil
 	})
 	br.Register("exit_agent", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var cfg ExitConfig
@@ -49,28 +48,30 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 
 type suspendCmd struct {
 	config     SuspendConfig
-	stateStore core.StateStore
-	workspace  core.Workspace
+	checkpoint core.Checkpoint
 	tracer     tracing.Tracer
 }
 
-func (s *suspendCmd) Name() string { return "suspend" }
-func (s *suspendCmd) Undo() core.Result {
-	return undo.BoundaryCompensationUndo(s.Name(), "resume with an explicit approval/rejection signal or roll back to an earlier checkpoint")
+// checkpointConfigured reports whether a persistent checkpoint backend is wired.
+// The loop always resolves a Checkpoint port, defaulting to NoopCheckpoint when
+// persistence is disabled, so require_checkpoint gates on a non-nil, non-noop
+// backend (srd018 R5, srd035-checkpoint-port R5.1).
+func (s *suspendCmd) checkpointConfigured() bool {
+	if s.checkpoint == nil {
+		return false
+	}
+	_, noop := s.checkpoint.(core.NoopCheckpoint)
+	return !noop
 }
-func (s *suspendCmd) UndoMemento() (core.UndoMemento, error) {
-	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
-		Strategy:           "resume_or_checkpoint_rollback",
-		Reason:             s.config.Reason,
-		Requires:           []string{"approval_decision", "checkpoint_id"},
-		CheckpointRequired: s.config.RequireCheckpoint,
-	}}
-	return undo.BoundaryCompensationMemento(s.Name(), payload, "resume with an explicit approval/rejection signal or roll back to an earlier checkpoint")
+
+func (s *suspendCmd) Name() string { return "suspend" }
+func (s *suspendCmd) Undo(_ core.Result) core.Result {
+	return undo.BoundaryCompensationUndo(s.Name(), "resume with an explicit approval/rejection signal or roll back to an earlier checkpoint")
 }
 
 func (s *suspendCmd) Execute() core.Result {
-	if s.config.RequireCheckpoint && s.stateStore == nil {
-		err := fmt.Errorf("suspend requires StateStore for checkpoint persistence")
+	if s.config.RequireCheckpoint && !s.checkpointConfigured() {
+		err := fmt.Errorf("suspend requires a persistent checkpoint backend for checkpoint persistence")
 		return core.Result{Signal: core.CommandError, CommandName: s.Name(), Err: err, Output: err.Error()}
 	}
 	reason := s.config.Reason
@@ -82,8 +83,7 @@ func (s *suspendCmd) Execute() core.Result {
 			attribute.String("label", s.config.Label),
 			attribute.String("reason", reason),
 			attribute.Bool("require_checkpoint", s.config.RequireCheckpoint),
-			attribute.Bool("state_store_configured", s.stateStore != nil),
-			attribute.Bool("workspace_configured", s.workspace != nil),
+			attribute.Bool("checkpoint_configured", s.checkpointConfigured()),
 		)
 	}
 	return core.Result{Signal: core.AwaitApproval, CommandName: s.Name(), Output: reason}
@@ -92,11 +92,10 @@ func (s *suspendCmd) Execute() core.Result {
 // SuspendBuilder constructs suspend commands.
 type SuspendBuilder struct {
 	Config     SuspendConfig
-	StateStore core.StateStore
-	Workspace  core.Workspace
+	Checkpoint core.Checkpoint
 	Tracer     tracing.Tracer
 }
 
 func (b *SuspendBuilder) Build(_ core.Result) core.Command {
-	return &suspendCmd{config: b.Config, stateStore: b.StateStore, workspace: b.Workspace, tracer: b.Tracer}
+	return &suspendCmd{config: b.Config, checkpoint: b.Checkpoint, tracer: b.Tracer}
 }

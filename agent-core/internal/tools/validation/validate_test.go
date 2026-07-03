@@ -3,7 +3,6 @@
 package validation
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -66,7 +65,7 @@ func TestValidateCmd_AllPass(t *testing.T) {
 	require.Contains(t, res.Output, "test")
 }
 
-func TestValidateCmdUndoMementoCapturesChildCommands(t *testing.T) {
+func TestValidateCmdReceiptCapturesChildCommands(t *testing.T) {
 	t.Parallel()
 	cmd := &validateCmd{
 		skipped: []string{"build", "lint"},
@@ -75,14 +74,14 @@ func TestValidateCmdUndoMementoCapturesChildCommands(t *testing.T) {
 			"lint":  &valStubBuilder{signal: core.ToolDone},
 		},
 	}
-	require.Equal(t, core.ValidationPassed, cmd.Execute().Signal)
-	memento, err := cmd.UndoMemento()
+	res := cmd.Execute()
+	require.Equal(t, core.ValidationPassed, res.Signal)
+	require.NotEmpty(t, res.Receipt)
+	compensation, ok, err := undo.DecodeBoundaryReceipt(res.Receipt)
 	require.NoError(t, err)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-	var payload undo.BoundaryCompensationPayload
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
-	require.Equal(t, "child_command_undo", payload.BoundaryCompensation.Strategy)
-	require.Equal(t, []string{"build", "lint"}, payload.BoundaryCompensation.Requires)
+	require.True(t, ok)
+	require.Equal(t, "child_command_undo", compensation.Strategy)
+	require.Equal(t, []string{"build", "lint"}, compensation.Requires)
 }
 
 func TestValidateCmd_BuildFails_ShortCircuits(t *testing.T) {
@@ -146,8 +145,8 @@ type valStubCmd struct {
 	err    error
 }
 
-func (s *valStubCmd) Name() string      { return s.name }
-func (s *valStubCmd) Undo() core.Result { return core.NoopUndo(s.Name()) }
+func (s *valStubCmd) Name() string                   { return s.name }
+func (s *valStubCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(s.Name()) }
 func (s *valStubCmd) Execute() core.Result {
 	return core.Result{Output: s.output, Signal: s.signal, Err: s.err, CommandName: s.name}
 }
@@ -166,8 +165,8 @@ type valCallTrackerCmd struct {
 	signal core.Signal
 }
 
-func (c *valCallTrackerCmd) Name() string      { return "tracker" }
-func (c *valCallTrackerCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *valCallTrackerCmd) Name() string                   { return "tracker" }
+func (c *valCallTrackerCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 func (c *valCallTrackerCmd) Execute() core.Result {
 	*c.called = true
 	return core.Result{Signal: c.signal, CommandName: "tracker"}

@@ -42,13 +42,8 @@ type selfInvokeCmd struct {
 }
 
 func (c *selfInvokeCmd) Name() string { return "self_invoke" }
-func (c *selfInvokeCmd) Undo() core.Result {
+func (c *selfInvokeCmd) Undo(_ core.Result) core.Result {
 	return undo.BoundaryCompensationUndo(c.Name(), "restore child workspace/artifacts or compensate the child agent run")
-}
-
-func (c *selfInvokeCmd) UndoMemento() (core.UndoMemento, error) {
-	payload := c.undoPayload()
-	return undo.BoundaryCompensationMemento(c.Name(), payload, "restore child workspace/artifacts or compensate the child agent run")
 }
 
 func (c *selfInvokeCmd) undoPayload() undo.BoundaryCompensationPayload {
@@ -74,6 +69,7 @@ func (c *selfInvokeCmd) Execute() core.Result {
 	return core.Result{
 		Output: result.Stdout, Signal: selfInvokeSignal(result),
 		Cost: core.Cost{Duration: result.Duration}, CommandName: c.Name(),
+		Receipt: undo.EncodeBoundaryReceipt(c.undoPayload()),
 	}
 }
 

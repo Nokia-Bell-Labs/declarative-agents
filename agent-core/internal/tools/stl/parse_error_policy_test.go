@@ -12,9 +12,9 @@ import (
 
 type stubCmd struct{ name string }
 
-func (s stubCmd) Name() string         { return s.name }
-func (s stubCmd) Execute() core.Result { return core.Result{} }
-func (s stubCmd) Undo() core.Result    { return core.NoopUndo(s.name) }
+func (s stubCmd) Name() string                   { return s.name }
+func (s stubCmd) Execute() core.Result           { return core.Result{} }
+func (s stubCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(s.name) }
 
 func TestParseErrorPolicy_TriggersAfterLimit(t *testing.T) {
 	policy := ParseErrorPolicy(3)

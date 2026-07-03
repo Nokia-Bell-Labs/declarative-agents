@@ -52,11 +52,14 @@ const (
 	ValidationFailed Signal = "ValidationFailed"
 )
 
-// Command is the single interface for all executable units of work.
+// Command is the single interface for all executable units of work. Undo is
+// receipt-consuming: it receives the prior Result whose opaque Receipt the tool
+// (originator) decodes to reverse its own effect; the engine and adapters never
+// interpret the receipt (srd035-checkpoint-port R3).
 type Command interface {
 	Name() string
 	Execute() Result
-	Undo() Result
+	Undo(prior Result) Result
 }
 
 // MonitorRecorderAware lets commands receive the tool-facing monitor recorder.
@@ -99,6 +102,11 @@ type Result struct {
 	Err         error
 	CommandName string
 	Metrics     *ToolMetrics // nil when tool doesn't report metrics
+	// Receipt is an opaque, tool-owned string encoded by the originating tool
+	// and persisted verbatim on the execution Entry. The engine and every
+	// checkpoint adapter treat it as opaque and never parse it
+	// (srd035-checkpoint-port R3).
+	Receipt string
 }
 
 // SpanOverride allows Commands to customize the Dispatch span name and
@@ -111,6 +119,16 @@ type SpanOverride interface {
 // Builder constructs a ready-to-execute Command from the previous Result.
 type Builder interface {
 	Build(res Result) Command
+}
+
+// Reverser is an opt-in Builder capability for reversible tools: BuildReverser
+// constructs a fresh Command configured only for receipt-driven Undo, so a
+// rollback can reverse a persisted step from its opaque Receipt alone, without
+// the original invocation input. Builders that do not implement Reverser are
+// treated as irreversible by the rollback receipt walk
+// (srd035-checkpoint-port R3; #44 R2).
+type Reverser interface {
+	BuildReverser() Command
 }
 
 // CommandResolver looks up a Builder by command name.

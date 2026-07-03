@@ -115,7 +115,7 @@ func TestWrite_UndoRemovesCreatedFile(t *testing.T) {
 	res := cmd.Execute()
 	require.Equal(t, core.ToolDone, res.Signal)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 
 	require.Equal(t, core.ToolDone, undo.Signal)
 	_, err := os.Stat(filepath.Join(root, "new.txt"))
@@ -149,7 +149,7 @@ func TestWrite_UndoRestoresOverwrittenFile(t *testing.T) {
 	res := cmd.Execute()
 	require.Equal(t, core.ToolDone, res.Signal)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 
 	require.Equal(t, core.ToolDone, undo.Signal)
 	data, err := os.ReadFile(filepath.Join(root, "exist.txt"))
@@ -160,24 +160,80 @@ func TestWrite_UndoRestoresOverwrittenFile(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
-func TestWrite_UndoMementoDeclaresWorkspaceRestore(t *testing.T) {
+// TestWrite_ReceiptUndoRestoresFromFreshInstance covers the receipt round trip:
+// Execute encodes the prior content into Result.Receipt, the receipt survives a
+// Save/Load through the typed checkpoint port, and a fresh command instance (no
+// in-memory snapshot) restores the overwritten file from it alone
+// (srd035-checkpoint-port R3; #55 AC1; #36 AC3).
+func TestWrite_ReceiptUndoRestoresFromFreshInstance(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	b := &WriteBuilder{Root: root}
-	cmd := b.Build(toolReq(`{"path":"new.txt","content":"created"}`))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "exist.txt"), []byte("original"), 0o600))
+
+	cmd := (&WriteBuilder{Root: root}).Build(toolReq(`{"path":"exist.txt","content":"changed"}`))
 	res := cmd.Execute()
 	require.Equal(t, core.ToolDone, res.Signal)
+	require.NotEmpty(t, res.Receipt)
 
-	provider, ok := cmd.(core.UndoMementoProvider)
-	require.True(t, ok)
-	memento, err := provider.UndoMemento()
-
+	cp := &core.InMemoryCheckpoint{}
+	require.NoError(t, cp.Save(core.Position{}, core.Execution{{
+		CommandName: "write",
+		Result:      core.ResultDigest{Signal: res.Signal},
+		Receipt:     res.Receipt,
+	}}))
+	_, exec, err := cp.Load()
 	require.NoError(t, err)
-	require.Equal(t, core.UndoMementoReversible, memento.Kind)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-	assert.Contains(t, string(memento.Payload), `"workspace_restore"`)
-	assert.Contains(t, string(memento.Payload), `"new.txt"`)
+	require.Len(t, exec, 1)
+
+	fresh := (&WriteBuilder{Root: root}).Build(toolReq(`{"path":"exist.txt","content":"changed"}`))
+	undo := fresh.Undo(core.Result{Receipt: exec[0].Receipt})
+	require.Equal(t, core.ToolDone, undo.Signal)
+
+	data, err := os.ReadFile(filepath.Join(root, "exist.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "original", string(data))
+}
+
+// TestWrite_ReceiptUndoRemovesCreatedFileFromFreshInstance verifies the created-file
+// case: a fresh instance removes a newly created file from the receipt alone.
+func TestWrite_ReceiptUndoRemovesCreatedFileFromFreshInstance(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	cmd := (&WriteBuilder{Root: root}).Build(toolReq(`{"path":"new.txt","content":"created"}`))
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.NotEmpty(t, res.Receipt)
+
+	fresh := (&WriteBuilder{Root: root}).Build(toolReq(`{"path":"new.txt","content":"created"}`))
+	undo := fresh.Undo(core.Result{Receipt: res.Receipt})
+	require.Equal(t, core.ToolDone, undo.Signal)
+
+	_, err := os.Stat(filepath.Join(root, "new.txt"))
+	require.True(t, os.IsNotExist(err))
+}
+
+// TestEdit_ReceiptUndoRestoresFromFreshInstance mirrors the write receipt round
+// trip for edit.
+func TestEdit_ReceiptUndoRestoresFromFreshInstance(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "e.txt"), []byte("hello world"), 0o644))
+
+	cmd := (&EditBuilder{Root: root}).Build(toolReq(`{"path":"e.txt","old_string":"hello","new_string":"goodbye"}`))
+	res := cmd.Execute()
+	require.Equal(t, core.EditDone, res.Signal)
+	require.NotEmpty(t, res.Receipt)
+
+	fresh := (&EditBuilder{Root: root}).Build(toolReq(`{"path":"e.txt","old_string":"hello","new_string":"goodbye"}`))
+	undo := fresh.Undo(core.Result{Receipt: res.Receipt})
+	require.Equal(t, core.ToolDone, undo.Signal)
+
+	data, err := os.ReadFile(filepath.Join(root, "e.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "hello world", string(data))
 }
 
 func TestWrite_MissingParams(t *testing.T) {
@@ -218,7 +274,7 @@ func TestEdit_UndoRestoresOriginalFile(t *testing.T) {
 	res := cmd.Execute()
 	require.Equal(t, core.EditDone, res.Signal)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 
 	require.Equal(t, core.ToolDone, undo.Signal)
 	data, err := os.ReadFile(filepath.Join(root, "e.txt"))

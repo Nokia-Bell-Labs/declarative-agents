@@ -37,11 +37,17 @@ func (p *parseResponseCmd) Execute() core.Result {
 	}
 	toolReq, sig, errMsg := p.parse(p.tracer)
 	p.retry.RecordParseResult(sig)
+	var res core.Result
 	if sig == core.ParseFailed {
 		p.tracer.Event("parse_failed", attribute.String("reason", errMsg))
-		return core.Result{Signal: core.ParseFailed, Output: errMsg}
+		res = core.Result{Signal: core.ParseFailed, Output: errMsg}
+	} else {
+		res = p.resultForToolRequest(toolReq, sig)
 	}
-	return p.resultForToolRequest(toolReq, sig)
+	if p.hasSnapshot {
+		res.Receipt = encodeRetryReceipt(p.prevRetries)
+	}
+	return res
 }
 
 func (p *parseResponseCmd) snapshotRetry() {

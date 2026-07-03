@@ -87,18 +87,11 @@ func requestBuildFailureStage(err error) string {
 	return "request_rendering"
 }
 
-func (c *clientCmd) Undo() core.Result {
+func (c *clientCmd) Undo(_ core.Result) core.Result {
 	if c.hasRESTCompensation() {
 		return undo.BoundaryCompensationUndo(c.toolName, restCompensationDescription)
 	}
 	return core.NoopUndo(c.toolName)
-}
-
-func (c *clientCmd) UndoMemento() (core.UndoMemento, error) {
-	if !c.hasRESTCompensation() {
-		return core.NoopUndoMemento(c.toolName), nil
-	}
-	return undo.BoundaryCompensationMemento(c.toolName, c.restUndoPayload(), restCompensationDescription)
 }
 
 func (c *clientCmd) hasRESTCompensation() bool {
@@ -156,18 +149,27 @@ func (c *clientCmd) restIdempotencyToken() string {
 	return ""
 }
 
-// Compensate executes the REST operation named by a boundary compensation memento.
-func (e CompensationExecutor) Compensate(_ context.Context, memento core.UndoMemento) core.Result {
-	compensation, err := undo.DecodeBoundaryCompensation(memento)
+// CompensateFromReceipt executes the REST compensation described by an opaque
+// receipt captured in Result.Receipt during Execute. This is the receipt-driven
+// entry point used by the reverse receipt walk (srd035-checkpoint-port R3; #44 R3).
+func (e CompensationExecutor) CompensateFromReceipt(_ context.Context, commandName, receipt string) core.Result {
+	compensation, ok, err := undo.DecodeBoundaryReceipt(receipt)
 	if err != nil {
-		return restCompensationError(memento.CommandName, "compensation_decode", err)
+		return restCompensationError(commandName, "compensation_decode", err)
 	}
+	if !ok {
+		return core.NoopUndo(commandName)
+	}
+	return e.runCompensation(commandName, compensation)
+}
+
+func (e CompensationExecutor) runCompensation(commandName string, compensation undo.BoundaryCompensation) core.Result {
 	operation, err := e.resolveCompensationOperation(compensation)
 	if err != nil {
-		return restCompensationError(memento.CommandName, "compensation_lookup", err)
+		return restCompensationError(commandName, "compensation_lookup", err)
 	}
 	cmd := ClientBuilder{
-		ToolName:    compensationToolName(memento.CommandName),
+		ToolName:    compensationToolName(commandName),
 		Init:        InitClientInvoke,
 		Operation:   operation,
 		Credentials: e.Credentials,
@@ -176,7 +178,7 @@ func (e CompensationExecutor) Compensate(_ context.Context, memento core.UndoMem
 	if result.Signal == core.CommandError {
 		return result
 	}
-	result.CommandName = memento.CommandName
+	result.CommandName = commandName
 	return result
 }
 
@@ -306,6 +308,9 @@ func (c *clientCmd) executeRequest(request *http.Request) core.Result {
 		return result
 	}
 	c.captureRESTUndoMetadata(request, result)
+	if c.hasRESTCompensation() {
+		result.Receipt = undo.EncodeBoundaryReceipt(c.restUndoPayload())
+	}
 	c.recordRESTMetrics(request, result)
 	return result
 }

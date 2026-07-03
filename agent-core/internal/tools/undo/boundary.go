@@ -39,36 +39,40 @@ type BoundaryCompensation struct {
 	Compensation       map[string]interface{} `json:"compensation,omitempty"`
 }
 
-// BoundaryCompensationMemento creates a compensatable undo memento.
-func BoundaryCompensationMemento(commandName string, payload BoundaryCompensationPayload, description string) (core.UndoMemento, error) {
-	if payload.BoundaryCompensation.Strategy == "" {
-		return core.UndoMemento{}, fmt.Errorf("%w: missing boundary compensation strategy for %s", core.ErrUndoMementoIncompatible, commandName)
-	}
-	memento, err := core.NewUndoMemento(commandName, core.UndoMementoCompensatable, payload)
-	if err != nil {
-		return core.UndoMemento{}, err
-	}
-	memento.Description = description
-	return memento, nil
-}
-
 // BoundaryCompensationUndo reports that a boundary compensation is required.
 func BoundaryCompensationUndo(commandName, description string) core.Result {
 	err := fmt.Errorf("undo %s requires boundary compensation: %s", commandName, description)
 	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
 }
 
-// DecodeBoundaryCompensation decodes a boundary compensation undo memento.
-func DecodeBoundaryCompensation(memento core.UndoMemento) (BoundaryCompensation, error) {
-	if err := core.ValidateUndoMemento(memento); err != nil {
-		return BoundaryCompensation{}, err
+// EncodeBoundaryReceipt serializes a boundary compensation payload into an opaque,
+// tool-owned receipt for Result.Receipt. It returns "" when there is no strategy
+// (nothing to compensate), so read-only or non-compensatable results carry no
+// receipt (srd035-checkpoint-port R3; #44 R2). The receipt is opaque to the engine
+// and adapters; only the originating boundary tool decodes it.
+func EncodeBoundaryReceipt(payload BoundaryCompensationPayload) string {
+	if payload.BoundaryCompensation.Strategy == "" {
+		return ""
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// DecodeBoundaryReceipt decodes a boundary compensation from an opaque receipt.
+// The second return reports whether a compensatable payload was present.
+func DecodeBoundaryReceipt(receipt string) (BoundaryCompensation, bool, error) {
+	if receipt == "" {
+		return BoundaryCompensation{}, false, nil
 	}
 	var payload BoundaryCompensationPayload
-	if err := json.Unmarshal(memento.Payload, &payload); err != nil {
-		return BoundaryCompensation{}, fmt.Errorf("%w: decode boundary compensation for %s: %v", core.ErrUndoMementoIncompatible, memento.CommandName, err)
+	if err := json.Unmarshal([]byte(receipt), &payload); err != nil {
+		return BoundaryCompensation{}, false, fmt.Errorf("decode boundary compensation receipt: %w", err)
 	}
 	if payload.BoundaryCompensation.Strategy == "" {
-		return BoundaryCompensation{}, fmt.Errorf("%w: missing boundary compensation for %s", core.ErrUndoMementoIncompatible, memento.CommandName)
+		return BoundaryCompensation{}, false, nil
 	}
-	return payload.BoundaryCompensation, nil
+	return payload.BoundaryCompensation, true, nil
 }

@@ -173,17 +173,17 @@ type dispatchResultCmd struct {
 	res  Result
 }
 
-func (c dispatchResultCmd) Name() string    { return c.name }
-func (c dispatchResultCmd) Execute() Result { return c.res }
-func (c dispatchResultCmd) Undo() Result    { return NoopUndo(c.name) }
+func (c dispatchResultCmd) Name() string         { return c.name }
+func (c dispatchResultCmd) Execute() Result      { return c.res }
+func (c dispatchResultCmd) Undo(_ Result) Result { return NoopUndo(c.name) }
 
 type dispatchPanicCmd struct {
 	name string
 }
 
-func (c dispatchPanicCmd) Name() string    { return c.name }
-func (c dispatchPanicCmd) Execute() Result { panic("boom") }
-func (c dispatchPanicCmd) Undo() Result    { return NoopUndo(c.name) }
+func (c dispatchPanicCmd) Name() string         { return c.name }
+func (c dispatchPanicCmd) Execute() Result      { panic("boom") }
+func (c dispatchPanicCmd) Undo(_ Result) Result { return NoopUndo(c.name) }
 
 type dispatchSleepCmd struct {
 	name  string
@@ -195,7 +195,7 @@ func (c dispatchSleepCmd) Execute() Result {
 	time.Sleep(c.sleep)
 	return Result{Signal: ToolDone, Output: "slept"}
 }
-func (c dispatchSleepCmd) Undo() Result { return NoopUndo(c.name) }
+func (c dispatchSleepCmd) Undo(_ Result) Result { return NoopUndo(c.name) }
 
 type dispatchMetricCmd struct {
 	name string
@@ -209,7 +209,7 @@ func (c *dispatchMetricCmd) Execute() Result {
 	})
 	return Result{Signal: ToolDone}
 }
-func (c *dispatchMetricCmd) Undo() Result { return NoopUndo(c.name) }
+func (c *dispatchMetricCmd) Undo(_ Result) Result { return NoopUndo(c.name) }
 func (c *dispatchMetricCmd) SetMonitorRecorder(rec monitor.ToolMetricsRecorder) {
 	c.rec = rec
 }

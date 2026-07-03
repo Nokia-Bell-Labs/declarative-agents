@@ -8,9 +8,22 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
-func (p *parseResponseCmd) Undo() core.Result {
+// Undo restores the parse-retry counter. It prefers the tool-owned receipt on
+// the prior Result and falls back to the in-memory snapshot on the live path
+// (srd035-checkpoint-port R3; #44 R2, R3).
+func (p *parseResponseCmd) Undo(prior core.Result) core.Result {
 	if p.retry == nil {
 		return core.NoopUndo(p.Name())
+	}
+	if retries, ok, err := decodeRetryReceipt(prior.Receipt); err != nil {
+		e := fmt.Errorf("undo parse_response: decode receipt: %w", err)
+		return core.Result{Signal: core.CommandError, CommandName: p.Name(), Output: e.Error(), Err: e}
+	} else if ok {
+		p.retry.Restore(retries)
+		return core.Result{
+			Signal: core.ToolDone, CommandName: p.Name(),
+			Output: fmt.Sprintf("undo: restored parse retry counter to %d", retries),
+		}
 	}
 	if !p.hasSnapshot {
 		err := fmt.Errorf("undo parse_response: no retry counter snapshot recorded")
@@ -21,24 +34,4 @@ func (p *parseResponseCmd) Undo() core.Result {
 		Signal: core.ToolDone, CommandName: p.Name(),
 		Output: fmt.Sprintf("undo: restored parse retry counter to %d", p.prevRetries),
 	}
-}
-
-func (p *parseResponseCmd) UndoMemento() (core.UndoMemento, error) {
-	if p.retry == nil {
-		return core.NoopUndoMemento(p.Name()), nil
-	}
-	if !p.hasSnapshot {
-		return core.UndoMemento{}, fmt.Errorf("%w: no retry counter snapshot recorded for %s", core.ErrUndoMementoMissing, p.Name())
-	}
-	return retryCounterMemento(p.Name(), p.prevRetries)
-}
-
-func retryCounterMemento(commandName string, retries int) (core.UndoMemento, error) {
-	payload := struct {
-		DomainState struct {
-			ParseRetryCounter int `json:"parse_retry_counter"`
-		} `json:"domain_state"`
-	}{}
-	payload.DomainState.ParseRetryCounter = retries
-	return core.NewUndoMemento(commandName, core.UndoMementoReversible, payload)
 }

@@ -136,7 +136,12 @@ func (c *invokeLLMCmd) chatResult(chatResp modelllm.ChatResponse, duration time.
 		c.tracer.SetAttributes(genai.AttrOutputMessages.String(chatResp.Content))
 	}
 	c.recordTokenMetrics(cost)
-	return core.Result{Signal: core.LLMResponded, Output: chatResp.Content, Cost: cost}
+	return core.Result{
+		Signal:  core.LLMResponded,
+		Output:  chatResp.Content,
+		Cost:    cost,
+		Receipt: encodeConversationReceipt(c.prevMessages),
+	}
 }
 
 // InvokeLLMBuilder constructs invoke_llm commands.

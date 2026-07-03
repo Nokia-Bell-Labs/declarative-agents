@@ -92,7 +92,7 @@ func TestExecCmd_BuildArgs_FlagParams(t *testing.T) {
 
 func TestExecCmdUndoWorkspaceRestoreIsHandledByWorkspaceLayer(t *testing.T) {
 	cmd := &ExecCmd{def: catalog.ToolDef{Name: "copy_dir", Undo: catalog.ToolUndoContract{Strategy: "workspace_restore"}}}
-	res := cmd.Undo()
+	res := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, res.Signal)
 	assert.Contains(t, res.Output, "workspace restore")
 }
@@ -102,13 +102,13 @@ func TestExecCmdUndoCompensatingActionReportsGap(t *testing.T) {
 		Name: "issue_create",
 		Undo: catalog.ToolUndoContract{Strategy: "compensating_action", Description: "close created issue"},
 	}}
-	res := cmd.Undo()
+	res := cmd.Undo(core.Result{})
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Error(t, res.Err)
 	assert.Contains(t, res.Output, "requires compensating action")
 }
 
-func TestExecCmdUndoMementoUsesDeclaredStrategy(t *testing.T) {
+func TestExecCmdReceiptEncodesWorkspaceRestore(t *testing.T) {
 	cmd := &ExecCmd{def: catalog.ToolDef{
 		Name: "copy_dir",
 		SideEffects: catalog.ToolSideEffects{Items: []catalog.ToolSideEffect{{
@@ -116,14 +116,12 @@ func TestExecCmdUndoMementoUsesDeclaredStrategy(t *testing.T) {
 		}}},
 		Undo: catalog.ToolUndoContract{Strategy: "workspace_restore"},
 	}}
-	memento, err := cmd.UndoMemento()
-	require.NoError(t, err)
-	require.Equal(t, core.UndoMementoReversible, memento.Kind)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-	assert.Contains(t, string(memento.Payload), `"out"`)
+	receipt := cmd.encodeReceipt()
+	assert.Contains(t, receipt, `"strategy":"workspace_restore"`)
+	assert.Contains(t, receipt, `"out"`)
 }
 
-func TestExecCmdUndoMementoUsesBoundaryCompensationPayload(t *testing.T) {
+func TestExecCmdReceiptEncodesBoundaryCompensation(t *testing.T) {
 	cmd := &ExecCmd{
 		def: catalog.ToolDef{
 			Name: "issue_close",
@@ -137,13 +135,34 @@ func TestExecCmdUndoMementoUsesBoundaryCompensationPayload(t *testing.T) {
 		},
 		params: map[string]string{"id": "agent-core-123"},
 	}
-	memento, err := cmd.UndoMemento()
-	require.NoError(t, err)
-	require.Equal(t, core.UndoMementoCompensatable, memento.Kind)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-	assert.Contains(t, string(memento.Payload), `"boundary_compensation"`)
-	assert.Contains(t, string(memento.Payload), `"issue_id":"agent-core-123"`)
-	assert.Contains(t, string(memento.Payload), `".data"`)
+	receipt := cmd.encodeReceipt()
+	assert.Contains(t, receipt, `"strategy":"compensating_action"`)
+	assert.Contains(t, receipt, `"issue_id":"agent-core-123"`)
+	assert.Contains(t, receipt, `".data"`)
+	assert.Contains(t, receipt, `"issue_id"`)
+	assert.Contains(t, receipt, `"reopen closed issue"`)
+}
+
+// TestExecCmdReceiptEmptyForNoop verifies read-only / no-op tools carry no receipt.
+func TestExecCmdReceiptEmptyForNoop(t *testing.T) {
+	cmd := &ExecCmd{def: catalog.ToolDef{Name: "list", Undo: catalog.ToolUndoContract{Strategy: "noop"}}}
+	assert.Empty(t, cmd.encodeReceipt())
+}
+
+// TestExecCmdUndoConsumesReceiptStrategy verifies a fresh command instance (no
+// def strategy) reverses using the strategy carried on the prior Result receipt.
+func TestExecCmdUndoConsumesReceiptStrategy(t *testing.T) {
+	origin := &ExecCmd{def: catalog.ToolDef{
+		Name: "issue_close",
+		Undo: catalog.ToolUndoContract{Strategy: "compensating_action", Description: "reopen closed issue"},
+	}}
+	receipt := origin.encodeReceipt()
+
+	fresh := &ExecCmd{def: catalog.ToolDef{Name: "issue_close"}}
+	res := fresh.Undo(core.Result{Receipt: receipt})
+	require.Equal(t, core.CommandError, res.Signal)
+	assert.Contains(t, res.Output, "requires compensating action")
+	assert.Contains(t, res.Output, "reopen closed issue")
 }
 
 func TestExecCmd_Execute_Success(t *testing.T) {

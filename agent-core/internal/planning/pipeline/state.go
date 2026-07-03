@@ -65,33 +65,6 @@ type nodeSnapshot struct {
 	retries int
 }
 
-type pipelineSnapshotPayload struct {
-	CurrentTask *extract.Task                        `json:"current_task,omitempty"`
-	CurrentPlan *plan.ImplementationPlan             `json:"current_plan,omitempty"`
-	IssueID     string                               `json:"issue_id,omitempty"`
-	TaskDeps    map[string]string                    `json:"task_deps,omitempty"`
-	RetryCount  int                                  `json:"retry_count"`
-	NodeStates  map[string]pipelineNodeStateSnapshot `json:"node_states,omitempty"`
-}
-
-type pipelineNodeStateSnapshot struct {
-	Status  graph.Status `json:"status"`
-	Retries int          `json:"retries"`
-}
-
-type pipelineUndoPayload struct {
-	DomainState pipelineSnapshotPayload `json:"domain_state"`
-}
-
-type BoundaryCompensationInfo struct {
-	Strategy       string   `json:"strategy"`
-	Reason         string   `json:"reason,omitempty"`
-	Requires       []string `json:"requires,omitempty"`
-	WorkspacePaths []string `json:"workspace_paths,omitempty"`
-	IssueID        string   `json:"issue_id,omitempty"`
-	ChildRunID     string   `json:"child_run_id,omitempty"`
-}
-
 func snapshotPipelineState(ps *State) pipelineSnapshot {
 	snap := pipelineSnapshot{
 		currentTask: cloneTask(ps.CurrentTask),
@@ -107,42 +80,6 @@ func snapshotPipelineState(ps *State) pipelineSnapshot {
 		}
 	}
 	return snap
-}
-
-func mementoPipelineSnapshot(
-	commandName string,
-	snap pipelineSnapshot,
-	ok bool,
-	kind core.UndoMementoKind,
-) (core.UndoMemento, error) {
-	if !ok {
-		return core.UndoMemento{}, fmt.Errorf("%w: no pipeline snapshot recorded for %s", core.ErrUndoMementoMissing, commandName)
-	}
-	memento, err := core.NewUndoMemento(commandName, kind, pipelineUndoPayload{DomainState: pipelineSnapshotToPayload(snap)})
-	if err != nil {
-		return core.UndoMemento{}, err
-	}
-	if kind == core.UndoMementoCompensatable {
-		memento.Description = "restores planner state snapshot; external side effects require compensation"
-	}
-	return memento, nil
-}
-
-func pipelineSnapshotToPayload(snap pipelineSnapshot) pipelineSnapshotPayload {
-	payload := pipelineSnapshotPayload{
-		CurrentTask: cloneTask(snap.currentTask),
-		CurrentPlan: clonePlan(snap.currentPlan),
-		IssueID:     snap.issueID,
-		TaskDeps:    cloneStringMap(snap.taskDeps),
-		RetryCount:  snap.retryCount,
-	}
-	if len(snap.nodeStates) > 0 {
-		payload.NodeStates = make(map[string]pipelineNodeStateSnapshot, len(snap.nodeStates))
-		for id, ns := range snap.nodeStates {
-			payload.NodeStates[id] = pipelineNodeStateSnapshot{Status: ns.status, Retries: ns.retries}
-		}
-	}
-	return payload
 }
 
 func (s pipelineSnapshot) restore(ps *State) {

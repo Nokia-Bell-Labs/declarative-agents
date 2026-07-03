@@ -3,7 +3,6 @@
 package stl
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,41 +25,26 @@ func TestSuspendBuilderEmitsAwaitApproval(t *testing.T) {
 	require.Equal(t, "needs review", res.Output)
 }
 
-func TestSuspendUndoMementoCapturesApprovalCompensation(t *testing.T) {
+func TestSuspendRequiresCheckpointBackendWhenConfigured(t *testing.T) {
 	t.Parallel()
-	cmd := (&SuspendBuilder{
-		Config: SuspendConfig{Reason: "needs approval", RequireCheckpoint: true},
-		Tracer: tracing.NoopTracer{},
-	}).Build(core.Result{})
+	// RequireCheckpoint with no persistent backend (nil, or the noop default)
+	// fails; only a real backend satisfies the gate.
+	for _, cp := range []core.Checkpoint{nil, core.NoopCheckpoint{}} {
+		cmd := (&SuspendBuilder{
+			Config:     SuspendConfig{RequireCheckpoint: true},
+			Checkpoint: cp,
+			Tracer:     tracing.NoopTracer{},
+		}).Build(core.Result{})
 
-	provider, ok := cmd.(core.UndoMementoProvider)
-	require.True(t, ok)
-	memento, err := provider.UndoMemento()
-	require.NoError(t, err)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-	require.Equal(t, core.UndoMementoCompensatable, memento.Kind)
+		res := cmd.Execute()
 
-	var payload BoundaryCompensationPayload
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
-	require.Equal(t, "resume_or_checkpoint_rollback", payload.BoundaryCompensation.Strategy)
-	require.True(t, payload.BoundaryCompensation.CheckpointRequired)
+		require.Equal(t, core.CommandError, res.Signal)
+		require.ErrorContains(t, res.Err, "persistent checkpoint backend")
+		require.Contains(t, res.Output, "persistent checkpoint backend")
+	}
 }
 
-func TestSuspendRequiresStateStoreWhenConfigured(t *testing.T) {
-	t.Parallel()
-	cmd := (&SuspendBuilder{
-		Config: SuspendConfig{RequireCheckpoint: true},
-		Tracer: tracing.NoopTracer{},
-	}).Build(core.Result{})
-
-	res := cmd.Execute()
-
-	require.Equal(t, core.CommandError, res.Signal)
-	require.ErrorContains(t, res.Err, "StateStore")
-	require.Contains(t, res.Output, "StateStore")
-}
-
-func TestSuspendAllowsMissingStateStoreByDefault(t *testing.T) {
+func TestSuspendAllowsMissingCheckpointByDefault(t *testing.T) {
 	t.Parallel()
 	cmd := (&SuspendBuilder{Tracer: tracing.NoopTracer{}}).Build(core.Result{})
 
@@ -68,6 +52,19 @@ func TestSuspendAllowsMissingStateStoreByDefault(t *testing.T) {
 
 	require.Equal(t, core.AwaitApproval, res.Signal)
 	require.Equal(t, "awaiting approval", res.Output)
+}
+
+func TestSuspendWithPersistentCheckpointSatisfiesGate(t *testing.T) {
+	t.Parallel()
+	cmd := (&SuspendBuilder{
+		Config:     SuspendConfig{RequireCheckpoint: true},
+		Checkpoint: &core.InMemoryCheckpoint{},
+		Tracer:     tracing.NoopTracer{},
+	}).Build(core.Result{})
+
+	res := cmd.Execute()
+
+	require.Equal(t, core.AwaitApproval, res.Signal)
 }
 
 func TestRegisterLifecycleFactoriesRegistersSuspend(t *testing.T) {

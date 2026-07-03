@@ -23,8 +23,9 @@ type StateDeleter interface {
 // StateStore composes narrow state persistence ports.
 //
 // The store deliberately does not track workspace files. Environment state is
-// handled by Workspace so in-memory agent state and filesystem state can be
-// checkpointed, restored, and reasoned about independently.
+// versioned by the Dolt-backed checkpoint port so in-memory agent state and
+// filesystem state can be checkpointed, restored, and reasoned about
+// independently.
 type StateStore interface {
 	StateWriter
 	StateReader

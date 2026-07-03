@@ -4,23 +4,26 @@ title: Lifecycle Tool Adapters
 problem: |
   History and rollback must run through the same declarative path as ordinary
   agent actions, otherwise lifecycle work stays hidden behind command-line
-  glue. The core runtime already owns checkpoint algorithms. The machine still
-  needs words it can dispatch. Lifecycle tool adapters fill that gap:
-  checkpoint_history reads a checkpoint for inspection, and checkpoint_rollback
-  moves a checkpoint back to a chosen iteration while using core rollback
-  traversal. Each adapter has typed config and declared signals. Each one also
+  glue. Persistence is the srd035 checkpoint port, backed by the srd036 Dolt
+  adapter by default. The machine still needs words it can dispatch. Lifecycle
+  tool adapters fill that gap: checkpoint_history reads the Dolt commit history
+  for inspection, and checkpoint_rollback rewinds a run with the Dolt adapter's
+  git-style Revert and then walks the reverted execution entries in reverse,
+  handing each restored, receipt-bearing Result to its tool's receipt-consuming
+  Undo. Each adapter has typed config and declared signals. Each one also
   documents output, effects, errors, and undo behavior.
 
   These adapters are not shell wrappers around the agent binary. They are thin
-  Go Commands that call internal/runtime/core operations. MachineSpec decides
-  when they run. ToolDef declarations define the contract that startup
-  validation can check.
+  Go Commands that call the checkpoint port and Dolt adapter operations.
+  MachineSpec decides when they run. ToolDef declarations define the contract
+  that startup validation can check. The reverse receipt walk lives in the
+  rollback adapter, not in the engine, and no adapter interprets a receipt.
 
 goals:
   - G1: Define checkpoint_history and checkpoint_rollback as first-class STL builtin tool adapters.
   - G2: Define typed config, emitted signals, output summaries, and failure behavior for lifecycle tools.
-  - G3: Define StateStore and Workspace requirements for history and rollback execution.
-  - G4: Define undo metadata and reversibility for lifecycle adapter effects.
+  - G3: Define the checkpoint-port and Dolt-backend requirements for history reads and rollback execution.
+  - G4: Define receipt-driven undo and reversibility for lifecycle adapter effects.
   - G5: Require lifecycle tools to be selected by ToolDef declarations and invoked by MachineSpec transitions.
   - G6: Define generic lifecycle control vocabulary for profile-owned pause, rollback, signal injection, and exit behavior.
 
@@ -37,29 +40,29 @@ requirements:
   R2:
     title: checkpoint_history
     items:
-      - R2.1: checkpoint_history SHALL inspect one checkpoint selected by explicit ID or the latest checkpoint selector.
+      - R2.1: checkpoint_history SHALL inspect one run selected by explicit run_id or the latest-run selector.
       - R2.2: checkpoint_history config SHALL decode into CheckpointHistoryConfig.
-      - R2.3: checkpoint_history SHALL require a StateStore resolved from --state-store-dir or from <directory>/.agent-state when a workspace directory is available.
-      - R2.4: checkpoint_history SHALL resolve the selected checkpoint through core.ResolveLatestCheckpointID.
-      - R2.5: checkpoint_history SHALL load checkpoint data through core.LoadCheckpoint.
-      - R2.6: checkpoint_history SHALL format output through core.FormatCheckpointHistory.
-      - R2.7: checkpoint_history SHALL emit ToolDone on success and CommandError on missing store, missing checkpoint, load failure, or format failure.
+      - R2.3: checkpoint_history SHALL read through the srd035 checkpoint port backed by the srd036 Dolt adapter; it SHALL NOT require a key/blob StateStore.
+      - R2.4: checkpoint_history SHALL resolve the selected run and read its Dolt commit history for the run branch.
+      - R2.5: checkpoint_history SHALL reconstruct the ordered Execution entries (step index, command, from/to state, signal, and receipt presence) through Load.
+      - R2.6: checkpoint_history SHALL format a stable digest of the execution entries as Result.Output.
+      - R2.7: checkpoint_history SHALL emit ToolDone on success and CommandError on missing backend, missing run, or load failure.
       - R2.8: checkpoint_history SHALL declare no side effects beyond Result.Output.
-      - R2.9: checkpoint_history SHALL use noop undo metadata.
+      - R2.9: checkpoint_history SHALL use noop undo metadata and return an empty receipt.
 
   R3:
     title: checkpoint_rollback
     items:
-      - R3.1: checkpoint_rollback SHALL roll back one checkpoint selected by explicit ID or the latest checkpoint selector.
-      - R3.2: checkpoint_rollback config SHALL decode into CheckpointRollbackConfig.
-      - R3.3: checkpoint_rollback SHALL require a StateStore resolved from --state-store-dir or from <directory>/.agent-state when a workspace directory is available.
-      - R3.4: checkpoint_rollback SHALL call core.RollbackFromCheckpoint for traversal and checkpoint rewriting.
-      - R3.5: checkpoint_rollback SHALL create or use a managed Workspace when workspace restore is required.
-      - R3.6: checkpoint_rollback SHALL refuse rollback when checkpoint data references a workspace ref but no managed workspace is configured.
-      - R3.7: checkpoint_rollback SHALL emit ToolDone on success and CommandError on missing store, missing target iteration, checkpoint failure, rollback failure, or workspace restore failure.
-      - R3.8: checkpoint_rollback output SHALL include the original checkpoint ID, target iteration, new checkpoint ID, and restored workspace ref when present.
-      - R3.9: checkpoint_rollback SHALL classify its undo as compensatable because rollback can rewrite checkpoint state and restore workspace state.
-      - R3.10: checkpoint_rollback UndoMemento SHALL include operator compensation metadata naming checkpoint_id and operator_decision as required context.
+      - R3.1: checkpoint_rollback SHALL roll back one run selected by explicit run_id or the latest-run selector to a target step index.
+      - R3.2: checkpoint_rollback config SHALL decode into CheckpointRollbackConfig, with the target step distinguishable from missing and zero.
+      - R3.3: checkpoint_rollback SHALL operate through the srd035 checkpoint port backed by the srd036 Dolt adapter; it SHALL NOT require a key/blob StateStore or a Workspace.
+      - R3.4: checkpoint_rollback SHALL call the Dolt adapter Revert(run_id, step_index) to rewind DB-persisted state to the target step.
+      - R3.5: After Revert, checkpoint_rollback SHALL walk the reverted Execution entries in reverse dispatch order and hand each restored, receipt-bearing Result to its tool's receipt-consuming Undo to reverse external effects.
+      - R3.6: checkpoint_rollback SHALL skip and log entries whose tools are irreversible, and SHALL name them in the output rather than claiming a clean rollback.
+      - R3.7: checkpoint_rollback SHALL emit ToolDone on success and CommandError on missing backend, missing target step, Revert failure, or receipt-walk Undo failure.
+      - R3.8: checkpoint_rollback output SHALL include the run_id, target step index, the number of entries reverted, and any skipped irreversible entries.
+      - R3.9: checkpoint_rollback SHALL classify its own undo as compensatable because it rewrites persisted run state and invokes external compensation.
+      - R3.10: checkpoint_rollback SHALL carry operator compensation metadata naming run_id, target step index, and operator_decision as required context; the engine never interprets the per-entry tool receipts it replays.
 
   R4:
     title: Typed config and runtime inputs
@@ -67,10 +70,10 @@ requirements:
       - R4.1: Lifecycle tool config SHALL use typed structs decoded at builtin registration time.
       - R4.2: Checkpoint selector config SHALL default to latest when omitted.
       - R4.3: Rollback target iteration SHALL be represented so missing and zero are distinguishable.
-      - R4.4: Runtime store override, workspace directory, request path, and active profile SHALL remain runtime inputs rather than hidden lifecycle subcommand flags.
+      - R4.4: Checkpoint backend override, workspace directory, request path, and active profile SHALL remain runtime inputs rather than hidden lifecycle subcommand flags.
       - R4.5: Config decode errors SHALL include the tool name and mismatched field.
-      - R4.6: When --state-store-dir is absent and --directory is present, lifecycle adapters SHALL use the workspace-local <directory>/.agent-state FileStore root supplied by runtime wiring.
-      - R4.7: --state-store-dir SHALL remain available for shared operator storage, external artifact retention, and tests that need an isolated store.
+      - R4.6: Lifecycle adapters SHALL obtain the resolved checkpoint backend (the Dolt adapter by default) from runtime wiring rather than opening storage themselves.
+      - R4.7: A checkpoint backend override (Dolt DSN or repository path) SHALL remain available for shared operator storage, external artifact retention, and tests that need an isolated store.
 
   R5:
     title: Tool declarations and machine integration
@@ -85,10 +88,10 @@ requirements:
   R6:
     title: Observability and errors
     items:
-      - R6.1: Lifecycle adapters SHOULD record command name, selected checkpoint, target iteration, workspace ref, and resulting signal in command output, tracing, or structured diagnostics.
-      - R6.2: Error messages SHALL distinguish StateStore errors, checkpoint selection errors, rollback traversal errors, and workspace restore errors.
-      - R6.3: Partial rollback failures SHALL preserve the core error detail needed by an operator to choose retry, resume, or stop.
-      - R6.4: Lifecycle adapters SHALL not report success when workspace restore was required but skipped.
+      - R6.1: Lifecycle adapters SHOULD record command name, selected run, target step index, reverted-entry count, and resulting signal in command output, tracing, or structured diagnostics.
+      - R6.2: Error messages SHALL distinguish checkpoint-backend errors, run/step selection errors, Dolt Revert errors, and receipt-walk Undo errors.
+      - R6.3: Partial rollback failures SHALL preserve the error detail needed by an operator to choose retry, resume, or stop, including which reverted entry's Undo failed.
+      - R6.4: Lifecycle adapters SHALL not report a clean rollback when irreversible entries were skipped or a receipt-walk Undo failed.
 
   R7:
     title: Generic lifecycle control vocabulary
@@ -118,15 +121,15 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
 
   - id: AC2
-    criterion: checkpoint_history requirements define typed config, StateStore dependency, core delegation, output, emitted signals, side effects, and noop undo metadata.
+    criterion: checkpoint_history requirements define typed config, a checkpoint-port/Dolt dependency, Dolt commit-history reads through Load, formatted output, emitted signals, no side effects, and noop undo with an empty receipt.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9]
 
   - id: AC3
-    criterion: checkpoint_rollback requirements define typed config, StateStore dependency, target iteration, workspace restore behavior, output, emitted signals, and compensatable undo metadata.
+    criterion: checkpoint_rollback requirements define typed config, a checkpoint-port/Dolt dependency, a target step, Dolt Revert plus a reverse receipt walk over restored Results, skip-and-log of irreversible entries, output, emitted signals, and compensatable undo metadata with receipts left opaque to the engine.
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10]
 
   - id: AC4
-    criterion: Runtime inputs stay outside hidden lifecycle subcommand flags, typed config keeps required values explicit, and lifecycle adapters use the resolved workspace-local StateStore unless an override is supplied.
+    criterion: Runtime inputs stay outside hidden lifecycle subcommand flags, typed config keeps required values explicit, and lifecycle adapters use the resolved checkpoint backend (Dolt by default) unless an override is supplied.
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
 
   - id: AC5
@@ -153,13 +156,17 @@ test_trace_plan:
 
 depends_on:
   - srd_id: srd001-core-types
-    symbols_used: [Builder, Command, Result, StateStore, Workspace, UndoMemento]
+    symbols_used: [Builder, Command, Result]
   - srd_id: srd005-agentic-loop
     symbols_used: [MachineSpec]
   - srd_id: srd022-builtin-tools
     symbols_used: [BuiltinRegistry, ToolDef]
   - srd_id: srd025-rollback-lifecycle
-    symbols_used: [Checkpoint, HistoryEntry, WorkspaceRef]
+    symbols_used: [Checkpoint, Execution, Entry]
+  - srd_id: srd035-checkpoint-port
+    symbols_used: [Checkpoint, Execution, Entry, Receipt]
+  - srd_id: srd036-dolt-state-persistence
+    symbols_used: [DoltCheckpoint, Revert]
 
 related_documents:
   - cfg-tool-authoring-standard
@@ -177,11 +184,11 @@ implementation:
 
 implementation_status:
   done:
-    - checkpoint_history is implemented as a builtin STL adapter around core checkpoint loading and formatting.
-    - checkpoint_rollback is implemented as a builtin STL adapter around core rollback traversal.
     - agents/lifecycle/history/profile.yaml and agents/lifecycle/rollback/profile.yaml select the lifecycle machines and builtin tool declarations.
     - Hidden lifecycle subcommands have been removed from cmd/agent; lifecycle operations use the universal profile-first runtime path.
   planned:
+    - checkpoint_history reimplemented as a Dolt commit-history read through the srd035 checkpoint port.
+    - checkpoint_rollback reimplemented as Dolt Revert plus a reverse receipt walk over restored Results, replacing the core rollback traversal and Workspace restore.
     - exit_agent lifecycle control word.
     - REST-triggered lifecycle control profiles for exit, pause, rollback request, resume, and signal injection.
 

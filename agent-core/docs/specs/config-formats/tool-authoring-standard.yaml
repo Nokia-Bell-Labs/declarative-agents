@@ -133,12 +133,17 @@ required_contract_sections:
   reversibility: |
     classification is required for new tools: reversible, compensatable, or
     irreversible. requires_confirmation should be true for irreversible tools
-    that affect external systems or user data.
+    that affect external systems or user data. A reversible or compensatable
+    state-mutating tool encodes an opaque receipt during Execute; a read-only
+    tool returns an empty receipt.
 
   undo: |
     Name the exact strategy. Common strategies are noop,
     conversation_truncate, session_state_restore, point_context_restore,
-    workspace_restore, child_command_undo, or compensating_action.
+    file_snapshot_restore, child_command_undo, or compensating_action. Undo is
+    receipt-consuming: it decodes the receipt the tool encoded during Execute
+    (prior content, resource ids, or a workspace commit hash) from the restored
+    Result and reverses the effect. The engine never interprets the receipt.
 
   errors: |
     Each expected failure mode should list signal, condition, message_shape,
@@ -173,23 +178,26 @@ machine_composition:
         reason: "Runs oracle tests, parses trace tokens, checks version, and summarizes in one command."
 
 rollback_model:
-  state_layers:
-    agent_state:
-      description: "State machine position, iteration, budget, and run accumulator."
-      tracked_by: "core loop snapshots"
-    command_state:
-      description: "Conversation history, planner state, evaluator PointContext, session iterator, and other in-process domain state."
-      tracked_by: "Command.Undo and StateStore-backed JSON snapshots when needed"
-    environment_state:
-      description: "Workspace filesystem and other external environment state."
-      tracked_by: "Workspace, usually GitWorkspace, with checkpoint/restore refs"
+  persistence:
+    description: "Runtime state persists through the srd035 two-method checkpoint port (Save/Load), backed by the srd036 Dolt adapter by default and NoopCheckpoint when disabled. Each dispatched step is one ordered execution entry, and each entry carries the tool's opaque receipt."
+    tracked_by: "checkpoint port + Dolt commit history"
+  receipt:
+    description: "A state-mutating tool encodes an opaque Receipt during Execute capturing exactly what its Undo needs: prior file content, external resource ids, or a workspace git commit hash the tool manages itself. Read-only tools return an empty receipt."
+    owned_by: "the originating tool; the engine and the checkpoint adapters never interpret it"
+  rollback:
+    db_state: "Dolt Revert(run_id, step_index) rewinds recorded state to a target step."
+    external_effects: "The checkpoint_rollback lifecycle tool walks the reverted entries in reverse and hands each restored, receipt-bearing Result to the tool's receipt-consuming Undo."
+  enforcement:
+    presence: "The validator checks receipt presence for reversible state-mutating tools."
+    sufficiency: "Receipt sufficiency is each tool's own round-trip test (Execute then Undo restores prior state)."
 
   authoring_rules:
-    - "State-only tools should declare state_mutation side effects and undo via state restore or no-op when read-only."
-    - "Filesystem-mutating tools should declare filesystem_write/delete side effects and undo via workspace_restore or compensating_action."
-    - "Boundary tools should declare which child command, nested machine, model, human, or API owns effects that cannot be reversed directly."
-    - "No-op undo is acceptable only for truly read-only/stateless words or temporary migration steps explicitly tracked in an audit."
-    - "Irreversible tools require requires_confirmation when they affect user data, external services, or shared infrastructure."
+    - "State-mutating tools must encode a receipt during Execute and reverse the effect in a receipt-consuming Undo; read-only tools return an empty receipt and no-op undo."
+    - "Filesystem-mutating tools encode prior content or a workspace commit hash the tool manages as their receipt, and undo via file_snapshot_restore or compensating_action."
+    - "Boundary tools encode compensation metadata (child run id, resource id, artifact path) in the receipt when the effect can only be compensated, not erased."
+    - "No-op undo with an empty receipt is acceptable only for truly read-only/stateless words or temporary migration steps explicitly tracked in an audit."
+    - "Irreversible tools require requires_confirmation and declare why no receipt can reverse the effect."
+    - "The engine and checkpoint adapters treat receipts as opaque; only the originating tool decodes its receipt."
 
 authoring_workflow:
   - step: 1
@@ -206,7 +214,7 @@ authoring_workflow:
     instruction: "List emits and make sure named machine actions have transitions for those signals."
   - step: 5
     name: declare_effects_and_undo
-    instruction: "List side effects, reversibility, and undo strategy using the three-layer rollback model."
+    instruction: "List side effects and reversibility, and define the receipt the tool encodes on Execute plus the receipt-consuming Undo strategy that reverses the effect."
   - step: 6
     name: document_relationships
     instruction: "List before/after neighbors and overlapping tools."
@@ -291,9 +299,10 @@ example_tools:
     reversibility:
       classification: reversible
       undo: noop
+      receipt: empty
     undo:
       strategy: noop
-      description: "There is no effect to reverse because the word only observes state."
+      description: "There is no effect to reverse because the word only observes state; it returns an empty receipt."
     why_good:
       - "The verb is singular and deterministic."
       - "No-op undo is justified by an explicit side_effects: none contract."
@@ -310,9 +319,10 @@ example_tools:
     reversibility:
       classification: reversible
       undo: parse_retry_counter_restore
+      receipt: reversible_parse_retry_counter_snapshot
     undo:
       strategy: parse_retry_counter_restore
-      description: "Restore the retry counter snapshot captured before the word executed."
+      description: "Decode the retry-counter snapshot from the receipt encoded before the word executed and restore it."
     why_good:
       - "The retry policy is grammar-visible through ParseFailed -> report_parse_error."
       - "The command-owned state mutation has an exact undo strategy."
@@ -329,9 +339,10 @@ example_tools:
     reversibility:
       classification: compensatable
       undo: close_or_mark_superseded
+      receipt: compensatable_created_issue_id
     undo:
       strategy: compensating_action
-      description: "Close the created issue or mark it superseded; external audit history cannot be erased."
+      description: "Decode the created issue id from the receipt and close it or mark it superseded; external audit history cannot be erased."
     why_good:
       - "The boundary and external side effect are named directly."
       - "The contract does not pretend the external write is perfectly reversible."
@@ -349,9 +360,10 @@ example_tools:
       classification: irreversible
       requires_confirmation: true
       undo: none
+      receipt: empty
     undo:
       strategy: none
-      description: "The artifact may be deprecated later, but publication cannot be undone safely."
+      description: "The artifact may be deprecated later, but publication cannot be undone safely; no receipt can reverse it."
     why_good:
       - "The irreversible effect is explicit before the tool is selected."
       - "Human or policy confirmation is required before affecting external users."
@@ -445,6 +457,8 @@ related_documents:
   - srd023-cli-exec-tools
   - srd024-blocking-input-tools
   - srd025-rollback-lifecycle
+  - srd035-checkpoint-port
+  - srd036-dolt-state-persistence
 
 implementation:
   - tools/builtin/

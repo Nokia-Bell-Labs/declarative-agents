@@ -13,7 +13,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 // LaunchEvalBuilder creates launchEvalCmd instances.
@@ -45,25 +44,9 @@ type launchEvalCmd struct {
 }
 
 func (c *launchEvalCmd) Name() string { return "launch_eval" }
-func (c *launchEvalCmd) Undo() core.Result {
+func (c *launchEvalCmd) Undo(_ core.Result) core.Result {
 	err := fmt.Errorf("undo launch_eval requires child evaluator artifact compensation")
 	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
-}
-func (c *launchEvalCmd) UndoMemento() (core.UndoMemento, error) {
-	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
-		Strategy:       "child_eval_artifact_compensation",
-		Reason:         "launch_eval spawns an evaluator child agent",
-		Requires:       []string{"child_history", "artifact_dir"},
-		ChildProfile:   c.config.Profile,
-		ArtifactPaths:  []string{c.outputDir},
-		WorkspacePaths: []string{c.suitePath},
-	}}
-	memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, payload)
-	if err != nil {
-		return core.UndoMemento{}, err
-	}
-	memento.Description = "compensate evaluator child artifacts or restore child workspace"
-	return memento, nil
 }
 
 func (c *launchEvalCmd) Execute() core.Result {

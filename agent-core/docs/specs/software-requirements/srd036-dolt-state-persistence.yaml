@@ -1,0 +1,166 @@
+id: srd036-dolt-state-persistence
+title: Dolt State Persistence
+
+problem: |
+  srd035 defines a two-method typed checkpoint port and names Dolt as the
+  default persistent backend, but leaves the backend unspecified. We need a
+  durable adapter that stores runtime state as versioned SQL so suspend, resume,
+  and rollback survive across processes and so a run's history can be rewound
+  with git-style semantics.
+
+  This SRD specifies DoltCheckpoint: an adapter that implements the srd035
+  Checkpoint port on top of Dolt (a versioned SQL database), modeled on
+  github.com/petar-djukic/spindle srd015-dolt-state-persistence. Core reaches
+  the database only through a database/sql seam and never imports Dolt types, so
+  the engine stays domain-agnostic. State lives in a small generic schema; each
+  loop step is a commit; each run is a branch; terminal runs merge to main. On
+  top of spindle's design we add Revert(run_id, step_index) for git-style
+  rollback of DB-persisted state, which spindle lists as a non-goal. Revert is
+  scoped to database state only; file, HTTP, and workspace effects remain each
+  tool's compensation responsibility, driven by the opaque receipts srd035
+  persists.
+
+goals:
+  - G1: Define a DoltCheckpoint adapter that implements the srd035 Checkpoint port behind a database/sql seam, with no Dolt import in core.
+  - G2: Define a generic, idempotently created four-table schema with no per-machine tables.
+  - G3: Persist the opaque Result.Receipt verbatim in tool_results alongside output and error.
+  - G4: Define commit-per-step, branch-per-run, and merge-to-main-on-terminal versioning.
+  - G5: Define Load reconstruction of Position and Execution from the latest commit on the run branch.
+  - G6: Define Revert(run_id, step_index) for git-style rollback scoped to DB-persisted state.
+
+requirements:
+  R1:
+    title: Adapter and database seam
+    items:
+      - R1.1: DoltCheckpoint SHALL implement the srd035 Checkpoint port (Save and Load) as the default persistent backend.
+      - R1.2: Core SHALL reach the database only through a database/sql seam of Database, Transaction, Scanner, and Rows interfaces, mirroring spindle srd015 R1.
+      - R1.3: Core SHALL NOT import Dolt types directly; the Dolt SQL driver SHALL be wired in at the composition root (cmd/agent), not in internal/runtime/core.
+      - R1.4: The adapter SHALL open the database from a DSN or repository path and SHALL surface connection failures as typed errors that name the backend and operation.
+
+  R2:
+    title: Generic schema
+    items:
+      - R2.1: The adapter SHALL create a generic four-table schema, machines, transitions, execution_steps, and tool_results, mirroring spindle srd015 R2.
+      - R2.2: Schema creation SHALL be idempotent using CREATE TABLE IF NOT EXISTS.
+      - R2.3: The schema SHALL NOT define per-machine or per-run tables; all runs share the same tables keyed by run_id and step_index.
+      - R2.4: machines and transitions SHALL capture the resumable Position (current_state, last_signal, and the AgentSnapshot counters and folded conversation); execution_steps SHALL capture the ordered Execution entries.
+
+  R3:
+    title: Tool results and receipts
+    items:
+      - R3.1: tool_results SHALL carry output as JSON and error as a nullable column.
+      - R3.2: tool_results SHALL carry a receipt column holding the opaque Result.Receipt JSON string, mirroring spindle srd015 R2.4 and R5.4.
+      - R3.3: The receipt SHALL be persisted and restored verbatim; the adapter SHALL NOT parse or interpret it.
+      - R3.4: A step with no receipt (for example a read-only tool) SHALL store SQL NULL and restore an empty receipt.
+
+  R4:
+    title: Commit-per-step and branch-per-run versioning
+    items:
+      - R4.1: The adapter SHALL create one Dolt commit per loop step, with step_index and signal recorded as commit metadata, mirroring spindle srd015 R3.
+      - R4.2: Each run SHALL execute on its own branch named from run_id.
+      - R4.3: On a terminal state the adapter SHALL merge the run branch to main and then delete the run branch, mirroring spindle srd015 R8.
+      - R4.4: Save SHALL append the current step's rows and create its commit within a single transaction so a partially written step is never committed.
+
+  R5:
+    title: Load reconstruction
+    items:
+      - R5.1: Load SHALL reconstruct Position and Execution from the latest commit on the run branch, mirroring spindle srd015 R6.
+      - R5.2: Load SHALL restore the folded conversation snapshot and every entry's opaque receipt.
+      - R5.3: Load SHALL report a typed not-found result when the run branch or its rows do not exist.
+      - R5.4: A run resumed in a fresh process SHALL Load an equivalent Position and Execution to the pre-suspend state.
+
+  R6:
+    title: Git-style revert
+    items:
+      - R6.1: The adapter SHALL define Revert(run_id, step_index) that resets the run branch to the commit recorded at that step, mirroring git-style rollback.
+      - R6.2: Revert SHALL be scoped to DB-persisted state only; it SHALL NOT revert files, HTTP effects, or workspace state.
+      - R6.3: File, HTTP, and workspace effects SHALL remain each tool's compensation responsibility, driven by the opaque receipts restored from tool_results.
+      - R6.4: After Revert, a Load SHALL return the Position and Execution as of the target step.
+      - R6.5: Revert SHALL report a typed error when run_id or step_index does not resolve to a recorded commit.
+
+non_goals:
+  - Defining the checkpoint port, Position/Execution types, or the Receipt contract; those belong to srd035.
+  - Reverting files, HTTP calls, or workspace state; Revert is DB-only and tools own external compensation.
+  - Specifying the lifecycle-tool receipt walk that reverses external effects; that belongs to the revised srd025 and srd026.
+  - Requiring Dolt when persistence is disabled; NoopCheckpoint remains the disabled-mode default per srd035.
+  - Importing Dolt types into internal/runtime/core.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: DoltCheckpoint implements the srd035 Checkpoint port behind a database/sql Database/Transaction/Scanner/Rows seam, with the Dolt driver wired at the composition root and no Dolt import in core.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+
+  - id: AC2
+    criterion: The adapter creates a generic four-table schema (machines, transitions, execution_steps, tool_results) idempotently with no per-machine tables, capturing Position and the ordered Execution.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC3
+    criterion: tool_results stores output, nullable error, and the opaque Result.Receipt verbatim, restoring an empty receipt for steps that stored NULL.
+    traces: [R3.1, R3.2, R3.3, R3.4]
+
+  - id: AC4
+    criterion: The adapter commits once per step with step_index and signal metadata, branches per run_id, and merges to main and deletes the branch on terminal state, all within per-step transactions.
+    traces: [R4.1, R4.2, R4.3, R4.4]
+
+  - id: AC5
+    criterion: Load reconstructs Position and Execution (including conversation and receipts) from the latest commit on the run branch, reports not-found when absent, and lets a fresh process resume an equivalent state.
+    traces: [R5.1, R5.2, R5.3, R5.4]
+
+  - id: AC6
+    criterion: Revert(run_id, step_index) resets the run branch to the target commit for DB-only git-style rollback, leaves file/HTTP/workspace compensation to tools via receipts, and reports typed errors for unresolved arguments.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+
+test_trace_plan:
+  - test_suite: test-rel02.0-lifecycle
+    covers: [AC1, AC2, AC3, AC4, AC5, AC6]
+
+depends_on:
+  - srd_id: srd035-checkpoint-port
+    symbols_used: [Checkpoint, Position, Execution, Entry, Receipt, AgentSnapshot]
+  - srd_id: srd001-core-types
+    symbols_used: [State, Signal, Result, Cost]
+  - srd_id: srd005-agentic-loop
+    symbols_used: [Loop, LoopParams, RunResult]
+  - srd_id: srd010-conversation
+    symbols_used: [Conversation]
+  - srd_id: srd025-rollback-lifecycle
+    symbols_used: [Checkpoint, AgentSnapshot]
+
+reference_model: |
+  github.com/petar-djukic/spindle srd015-dolt-state-persistence and
+  pkg/engine/dolt_checkpoint.go define the database/sql seam, the generic
+  four-table schema, the opaque receipt column, commit-per-step, branch-per-run,
+  and merge-to-main behavior this SRD adopts. Delta from spindle: srd036
+  specifies Revert(run_id, step_index) for git-style rollback of DB-persisted
+  state, which spindle lists as a non-goal. srd036 implements the port defined by
+  srd035-checkpoint-port.
+
+implementation_status:
+  planned:
+    - DoltCheckpoint adapter, database/sql seam, generic schema, commit-per-step, branch-per-run, merge-on-terminal, and Revert (tracked by the checkpoint-port epic).
+    - cmd/agent wiring that makes Dolt the default persistent backend and Noop the disabled-mode default.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Durable Dolt backend for the srd035 checkpoint port"] --> Goals["Goals: Dolt State Persistence"]
+      Goals --> R1["R1: Adapter and database seam"]
+      Goals --> R2["R2: Generic schema"]
+      Goals --> R3["R3: Tool results and receipts"]
+      Goals --> R4["R4: Commit-per-step and branch-per-run"]
+      Goals --> R5["R5: Load reconstruction"]
+      Goals --> R6["R6: Git-style revert"]
+      AC1["AC1: Port impl behind database/sql seam"]
+      R1 --> AC1
+      AC2["AC2: Generic four-table schema"]
+      R2 --> AC2
+      AC3["AC3: Opaque receipt persisted verbatim"]
+      R3 --> AC3
+      AC4["AC4: Commit-per-step, branch-per-run, merge on terminal"]
+      R4 --> AC4
+      AC5["AC5: Load reconstructs Position and Execution"]
+      R5 --> AC5
+      AC6["AC6: DB-only git-style Revert"]
+      R6 --> AC6
+    ```

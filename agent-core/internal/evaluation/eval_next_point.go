@@ -26,11 +26,8 @@ type nextPointCmd struct {
 }
 
 func (c *nextPointCmd) Name() string { return "next_point" }
-func (c *nextPointCmd) Undo() core.Result {
+func (c *nextPointCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
-}
-func (c *nextPointCmd) UndoMemento() (core.UndoMemento, error) {
-	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
 }
 
 func (c *nextPointCmd) Execute() core.Result {

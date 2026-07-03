@@ -458,7 +458,7 @@ func (c responseCommand) Execute() core.Result {
 	return core.Result{Signal: c.signal, Output: `{"greeting":"hello ` + name + `"}`}
 }
 
-func (c responseCommand) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c responseCommand) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func requestName(input string) string {
 	var req MachineRequestRun
@@ -543,7 +543,7 @@ func (c pathEchoCommand) Execute() core.Result {
 	return core.Result{Signal: "DocumentationReady", Output: `{"path":"` + requestPath(c.input) + `"}`}
 }
 
-func (c pathEchoCommand) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c pathEchoCommand) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func requestPath(input string) string {
 	var req MachineRequestRun

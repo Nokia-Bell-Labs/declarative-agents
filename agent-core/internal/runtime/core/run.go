@@ -90,10 +90,13 @@ type LoopHooks struct {
 
 // LoopParams bundles all inputs for Loop.
 type LoopParams struct {
-	InitialState     State
-	InitialSignal    Signal
-	InitialResult    Result
-	InitialRun       RunResult
+	InitialState  State
+	InitialSignal Signal
+	InitialResult Result
+	InitialRun    RunResult
+	// InitialExecution seeds the loop's Execution log so a resumed run continues
+	// appending to the persisted history instead of starting a fresh log (srd035).
+	InitialExecution Execution
 	Prompt           string
 	Registry         *Registry
 	Table            TransitionTable
@@ -111,8 +114,10 @@ type LoopParams struct {
 	MachineSpec      *MachineSpec
 	InitFunc         func(reg *Registry) error
 	ToolAction       ActionFunc
-	StateStore       StateStore
-	Workspace        Workspace
 	CheckpointPolicy CheckpointPolicy
-	MonitorRecorder  monitor.RuntimeRecorder
+	// Checkpoint is the typed persistence port (srd035). The loop saves the
+	// current Position and Execution through it after each dispatch cycle. A nil
+	// value defaults to NoopCheckpoint, preserving disabled-mode behavior.
+	Checkpoint      Checkpoint
+	MonitorRecorder monitor.RuntimeRecorder
 }

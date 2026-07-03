@@ -46,6 +46,13 @@ func (b *ExecBuilder) Build(res core.Result) core.Command {
 	return &ExecCmd{def: b.Def, root: b.Root, params: params}
 }
 
+// BuildReverser returns an exec command configured only for receipt-driven Undo:
+// the receipt carries the undo strategy/description, so the rollback receipt
+// walk needs no extracted params (core.Reverser; srd035-checkpoint-port R3).
+func (b *ExecBuilder) BuildReverser() core.Command {
+	return &ExecCmd{def: b.Def, root: b.Root}
+}
+
 // ExecCmd is the generic Command for YAML-defined exec tools.
 type ExecCmd struct {
 	def    catalog.ToolDef
@@ -56,20 +63,33 @@ type ExecCmd struct {
 
 func (c *ExecCmd) Name() string { return c.def.Name }
 
-func (c *ExecCmd) Undo() core.Result {
-	switch c.def.Undo.Strategy {
+// Undo reverses the exec effect using the tool-owned receipt on the prior
+// Result, falling back to the declared undo contract for the live in-process
+// path. It is best-effort per the declared reversibility tier; git-style DB
+// state is reverted separately by DoltCheckpoint (srd036).
+func (c *ExecCmd) Undo(prior core.Result) core.Result {
+	strategy := c.def.Undo.Strategy
+	description := c.def.Undo.Description
+	if r, ok, err := decodeExecReceipt(prior.Receipt); err != nil {
+		e := fmt.Errorf("undo %s: decode receipt: %w", c.Name(), err)
+		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: e.Error(), Err: e}
+	} else if ok {
+		strategy = r.Strategy
+		description = r.Description
+	}
+	switch strategy {
 	case "", "noop":
 		return core.NoopUndo(c.Name())
 	case "workspace_restore":
 		return core.Result{
 			Signal:      core.ToolDone,
 			CommandName: c.Name(),
-			Output:      "undo: workspace restore is handled by the rollback workspace layer",
+			Output:      "undo: workspace restore is handled by the Dolt revert of DB state",
 		}
 	case "compensating_action":
-		return compensationUndo(c.Name(), c.def.Undo.Description)
+		return compensationUndo(c.Name(), description)
 	default:
-		err := fmt.Errorf("undo %s: unsupported undo strategy %q", c.Name(), c.def.Undo.Strategy)
+		err := fmt.Errorf("undo %s: unsupported undo strategy %q", c.Name(), strategy)
 		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
 	}
 }
@@ -88,6 +108,9 @@ func (c *ExecCmd) Execute() core.Result {
 	c.recordExecMetrics(duration, out, err)
 	if c.def.OutputCap > 0 {
 		res.Output = CapOutput(res.Output, c.def.OutputCap)
+	}
+	if res.Signal != core.CommandError {
+		res.Receipt = c.encodeReceipt()
 	}
 	return res
 }

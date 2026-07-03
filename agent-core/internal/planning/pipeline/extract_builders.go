@@ -19,12 +19,8 @@ type extractTaskCmd struct {
 }
 
 func (c *extractTaskCmd) Name() string { return "extract_task" }
-func (c *extractTaskCmd) Undo() core.Result {
+func (c *extractTaskCmd) Undo(_ core.Result) core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
-}
-
-func (c *extractTaskCmd) UndoMemento() (core.UndoMemento, error) {
-	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoReversible)
 }
 
 func (c *extractTaskCmd) Execute() core.Result {
@@ -66,12 +62,8 @@ type extractAllCmd struct {
 }
 
 func (c *extractAllCmd) Name() string { return "extract_all" }
-func (c *extractAllCmd) Undo() core.Result {
+func (c *extractAllCmd) Undo(_ core.Result) core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
-}
-
-func (c *extractAllCmd) UndoMemento() (core.UndoMemento, error) {
-	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoReversible)
 }
 
 func (c *extractAllCmd) Execute() core.Result {

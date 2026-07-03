@@ -20,8 +20,8 @@ type assemblePromptCmd struct {
 	ps *State
 }
 
-func (c *assemblePromptCmd) Name() string      { return "assemble_prompt" }
-func (c *assemblePromptCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *assemblePromptCmd) Name() string                   { return "assemble_prompt" }
+func (c *assemblePromptCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *assemblePromptCmd) Execute() core.Result {
 	task := c.ps.CurrentTask
@@ -79,12 +79,8 @@ type parsePlanCmd struct {
 }
 
 func (c *parsePlanCmd) Name() string { return "parse_plan" }
-func (c *parsePlanCmd) Undo() core.Result {
+func (c *parsePlanCmd) Undo(_ core.Result) core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
-}
-
-func (c *parsePlanCmd) UndoMemento() (core.UndoMemento, error) {
-	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoReversible)
 }
 
 func (c *parsePlanCmd) Execute() core.Result {

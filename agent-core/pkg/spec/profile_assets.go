@@ -81,4 +81,3 @@ func resolveProfilePath(base, p string) string {
 	}
 	return filepath.Join(base, p)
 }
-

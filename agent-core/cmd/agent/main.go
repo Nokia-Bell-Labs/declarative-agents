@@ -36,7 +36,7 @@ var (
 	flagVerboseTrace     bool
 	flagRequest          string
 	flagOutput           string
-	flagStateStoreDir    string
+	flagDoltDSN          string
 	flagResumeCheckpoint string
 	flagResumeSignal     string
 )
@@ -69,7 +69,7 @@ func init() {
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
 	f.StringVar(&flagRequest, "request", "", "request data file")
 	f.StringVar(&flagOutput, "output", "", "output directory for eval results (default: eval-results)")
-	f.StringVar(&flagStateStoreDir, "state-store-dir", "", "directory for lifecycle checkpoints")
+	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
 	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
 
@@ -92,7 +92,7 @@ type agentState struct {
 	directory    string
 	request      string
 	output       string
-	stateStore   core.StateStore
+	checkpoint   core.Checkpoint
 	monitor      toolrest.MonitorState
 	restDefs     toolrest.Collection
 	shutdown     func()
@@ -208,7 +208,11 @@ func loadRunResources() (runResources, error) {
 
 func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, error) {
 	cfg := resources.Config
-	stateStore := resolveStateStore(resources.Config)
+	checkpoint, err := resolveCheckpoint(cfg, resources.Machine)
+	if err != nil {
+		resources.shutdownTelemetry()
+		return preparedRun{}, err
+	}
 	loopCtx, loopCancel := context.WithCancel(commandContext(cmd))
 	shutdown := newDeferredShutdown(loopCancel)
 	monitorRuntime := newMonitorRuntime(resources.Machine, resources.Definitions, resources.RestDefinitions, resources.Meter)
@@ -219,7 +223,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	st := newAgentState(cfg, agentStateDeps{
 		Registry:     reg,
 		Tracer:       resources.Tracer,
-		StateStore:   stateStore,
+		Checkpoint:   checkpoint,
 		Ctx:          loopCtx,
 		Monitor:      monitorState(monitorRuntime.Store, &resources.Machine, resources.Definitions),
 		RestDefs:     resources.RestDefinitions,
@@ -235,7 +239,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	}
 	params := loopParams(cfg, loopParamDeps{
 		Machine: resources.Machine, State: st, Registry: reg, Tracer: resources.Tracer,
-		StateStore: stateStore, MonitorRecorder: monitorRuntime.Recorder,
+		Checkpoint: checkpoint, MonitorRecorder: monitorRuntime.Recorder,
 		AfterDispatch: policy.AfterDispatch,
 	})
 	return preparedRun{
@@ -295,12 +299,22 @@ func parseErrorLimit(machine core.MachineSpec) int {
 type agentStateDeps struct {
 	Registry     *core.Registry
 	Tracer       tracing.Tracer
-	StateStore   core.StateStore
+	Checkpoint   core.Checkpoint
 	Ctx          context.Context
 	Monitor      toolrest.MonitorState
 	RestDefs     toolrest.Collection
 	shutdown     func()
 	ParseRetries *toollm.ParseErrorRetryTracker
+}
+
+// checkpointOrNoop defaults an unset Checkpoint dependency to the no-op adapter.
+// The composition root resolves the Dolt-backed backend (or NoopCheckpoint) via
+// resolveCheckpoint; this guard covers direct constructions that omit it.
+func checkpointOrNoop(cp core.Checkpoint) core.Checkpoint {
+	if cp == nil {
+		return core.NoopCheckpoint{}
+	}
+	return cp
 }
 
 func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
@@ -315,7 +329,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		directory:    cfg.Directory,
 		request:      cfg.Request,
 		output:       cfg.Output,
-		stateStore:   deps.StateStore,
+		checkpoint:   checkpointOrNoop(deps.Checkpoint),
 		monitor:      deps.Monitor,
 		restDefs:     deps.RestDefs,
 		shutdown:     deps.shutdown,
@@ -335,7 +349,7 @@ type loopParamDeps struct {
 	State           *agentState
 	Registry        *core.Registry
 	Tracer          tracing.Tracer
-	StateStore      core.StateStore
+	Checkpoint      core.Checkpoint
 	MonitorRecorder monitor.RuntimeRecorder
 	AfterDispatch   func(core.Command, core.Result) core.Signal
 }
@@ -358,7 +372,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		ToolAction:      toolAction,
 		Registry:        deps.Registry,
 		Directory:       cfg.Directory,
-		StateStore:      deps.StateStore,
+		Checkpoint:      deps.Checkpoint,
 		MonitorRecorder: deps.MonitorRecorder,
 		Hooks: core.LoopHooks{
 			AfterDispatch:        deps.AfterDispatch,
@@ -427,22 +441,27 @@ func runOrResume(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 	return resumeRun(cfg, deps)
 }
 
+// resumeRun re-enters the loop through the single typed Checkpoint port path:
+// LoadResume restores the persisted Position/Execution, the domain restores its
+// conversation from the typed snapshot, then Loop runs to completion
+// (srd035-checkpoint-port R6.2).
 func resumeRun(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
-	if deps.State.stateStore == nil {
-		return core.RunResult{}, fmt.Errorf("--resume-checkpoint requires --directory or --state-store-dir")
-	}
-	result, err := core.ResumeFromCheckpoint(core.ResumeOptions{
-		Store:               deps.State.stateStore,
-		CheckpointID:        cfg.ResumeCheckpoint,
-		Params:              deps.Params,
-		ResumeSignal:        core.Signal(cfg.ResumeSignal),
-		RestoreConversation: deps.State.restoreConversation,
-		Ctx:                 deps.Ctx,
-	})
+	params := deps.Params
+	params.InitialSignal = core.Signal(cfg.ResumeSignal)
+	state, err := core.LoadResume(params)
 	if err != nil {
 		return core.RunResult{}, fmt.Errorf("resume: %w", err)
 	}
-	return result.Run, nil
+	if conversation := state.Position.Snapshot.Conversation; len(conversation) > 0 {
+		if err := deps.State.restoreConversation(conversation); err != nil {
+			return core.RunResult{}, fmt.Errorf("resume: restore conversation: %w", err)
+		}
+	}
+	result, err := core.Loop(state.Params, deps.Ctx)
+	if err != nil {
+		return core.RunResult{}, fmt.Errorf("resume: %w", err)
+	}
+	return result, nil
 }
 
 func (st *agentState) restoreConversation(data json.RawMessage) error {

@@ -27,11 +27,8 @@ type reportSessionCmd struct {
 }
 
 func (c *reportSessionCmd) Name() string { return "report_session" }
-func (c *reportSessionCmd) Undo() core.Result {
+func (c *reportSessionCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
-}
-func (c *reportSessionCmd) UndoMemento() (core.UndoMemento, error) {
-	return evalSessionMemento(c.Name(), c.snapshot, c.hasSnapshot)
 }
 
 func (c *reportSessionCmd) Execute() core.Result {
