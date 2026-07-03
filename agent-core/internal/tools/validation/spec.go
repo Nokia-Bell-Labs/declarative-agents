@@ -44,11 +44,8 @@ type loadCorpusCmd struct {
 }
 
 func (c *loadCorpusCmd) Name() string { return "load_corpus" }
-func (c *loadCorpusCmd) Undo(_ core.Result) core.Result {
-	return undoSpecSnapshot(c.Name(), c.vs, c.snapshot, c.hasSnapshot)
-}
-func (c *loadCorpusCmd) UndoMemento() (core.UndoMemento, error) {
-	return specMemento(c.Name(), c.snapshot, c.hasSnapshot)
+func (c *loadCorpusCmd) Undo(prior core.Result) core.Result {
+	return undoSpecState(c.Name(), c.vs, prior, c.snapshot, c.hasSnapshot)
 }
 
 func (c *loadCorpusCmd) Execute() core.Result {
@@ -61,7 +58,7 @@ func (c *loadCorpusCmd) Execute() core.Result {
 	c.vs.Corpus = corpus
 	output := fmt.Sprintf("loaded %d SRDs, %d use cases, %d test suites, %d machines, %d tool declarations",
 		len(corpus.SRDs), len(corpus.UseCases), len(corpus.TestSuites), len(corpus.Machines), len(corpus.ToolDeclarations))
-	return core.Result{Signal: core.ToolDone, Output: output, CommandName: c.Name()}
+	return core.Result{Signal: core.ToolDone, Output: output, CommandName: c.Name(), Receipt: encodeSpecReceipt(c.snapshot)}
 }
 
 // ValidateSpecsBuilder builds the graph and runs consistency checks.
@@ -80,11 +77,8 @@ type validateSpecsCmd struct {
 }
 
 func (c *validateSpecsCmd) Name() string { return "validate_specs" }
-func (c *validateSpecsCmd) Undo(_ core.Result) core.Result {
-	return undoSpecSnapshot(c.Name(), c.vs, c.snapshot, c.hasSnapshot)
-}
-func (c *validateSpecsCmd) UndoMemento() (core.UndoMemento, error) {
-	return specMemento(c.Name(), c.snapshot, c.hasSnapshot)
+func (c *validateSpecsCmd) Undo(prior core.Result) core.Result {
+	return undoSpecState(c.Name(), c.vs, prior, c.snapshot, c.hasSnapshot)
 }
 
 func (c *validateSpecsCmd) Execute() core.Result {
@@ -98,7 +92,9 @@ func (c *validateSpecsCmd) Execute() core.Result {
 	c.vs.Findings = spec.Validate(g, c.vs.Corpus)
 	errs := spec.Errors(c.vs.Findings)
 	c.vs.HasErrors = len(errs) > 0
-	return validateSpecsResult(c.Name(), len(c.vs.Findings), len(errs))
+	res := validateSpecsResult(c.Name(), len(c.vs.Findings), len(errs))
+	res.Receipt = encodeSpecReceipt(c.snapshot)
+	return res
 }
 
 func validateSpecsResult(commandName string, findings, errs int) core.Result {
