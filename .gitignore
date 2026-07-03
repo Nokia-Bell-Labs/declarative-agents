@@ -1,6 +1,8 @@
 .DS_Store
 Thumbs.db
 generated-files/
+figures/*.png
 .idea/
 .vscode/
 *.swp
+magefiles/mage_output_file.go
