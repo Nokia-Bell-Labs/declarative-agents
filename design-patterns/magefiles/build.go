@@ -58,6 +58,10 @@ func Figures() error {
 
 // PDF compiles markdown chapters into an IEEE two-column PDF.
 func PDF() error {
+	if err := Figures(); err != nil {
+		return err
+	}
+
 	mds, err := discoverMarkdownChapters()
 	if err != nil {
 		return err
