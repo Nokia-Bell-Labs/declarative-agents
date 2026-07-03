@@ -1,0 +1,30 @@
+@startuml
+!theme plain
+
+class Gate {
+  AwaitApproval
+  Approved
+  Rejected
+}
+
+class Checkpoint {
+  agent + history + workspace
+}
+
+class Authority {
+  human / policy / chain
+}
+
+class SuspendTool {
+  +Execute() : AwaitApproval
+}
+
+class ResumeEngine {
+  +resume(checkpoint)
+}
+
+SuspendTool --> Gate : emits
+SuspendTool ..> Checkpoint : triggers
+Authority --> Gate : returns decision
+ResumeEngine ..> Checkpoint : loads
+@enduml

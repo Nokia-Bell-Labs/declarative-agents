@@ -1,0 +1,23 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+
+[Engine] as Engine
+interface "Tracer port" as Port
+
+[OTel adapter] as A1
+[NDJSON file adapter] as A2
+[No-op adapter] as A3
+
+database "OTLP collector" as col
+file "trace.ndjson" as nd
+node "discarded" as disc
+
+Engine --> Port : requires
+A1 ..|> Port
+A2 ..|> Port
+A3 ..|> Port
+A1 --> col
+A2 --> nd
+A3 --> disc
+@enduml

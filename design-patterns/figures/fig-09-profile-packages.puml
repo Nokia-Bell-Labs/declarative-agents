@@ -1,0 +1,27 @@
+@startuml
+!theme plain
+
+package "core/ (shared)" {
+  [write_file.yaml] as a1
+  [build.yaml] as a2
+  [git_commit.yaml] as a3
+}
+
+package "generator/" {
+  [invoke_llm.yaml] as b1
+  [parse_response.yaml] as b2
+}
+
+package "evaluator/" {
+  [run_point.yaml] as c1
+  [classify.yaml] as c2
+}
+
+node "generator/profile.yaml" as GP
+node "evaluator/profile.yaml" as EP
+
+GP ..> "core/ (shared)" : import
+GP ..> "generator/" : import
+EP ..> "core/ (shared)" : import
+EP ..> "evaluator/" : import
+@enduml

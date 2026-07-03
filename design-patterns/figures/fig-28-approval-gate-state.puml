@@ -1,0 +1,13 @@
+@startuml
+!theme plain
+hide empty description
+
+[*] --> Running
+Running --> Suspended : AwaitApproval / checkpoint
+Suspended --> Approved : Approved signal
+Suspended --> Rejected : Rejected signal
+Approved --> Running : resume from checkpoint
+Rejected --> RollingBack : rollback from checkpoint
+RollingBack --> [*]
+Running --> [*] : terminal state
+@enduml

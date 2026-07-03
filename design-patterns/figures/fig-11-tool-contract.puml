@@ -1,0 +1,30 @@
+@startuml
+!theme plain
+
+class ToolContract
+class Problem
+class Goals
+class Requirements
+class NonGoals
+class AcceptanceCriteria
+class Reversibility
+
+class Agent
+class Developer
+class RollbackEngine
+
+ToolContract *-- Problem
+ToolContract *-- Goals
+ToolContract *-- Requirements
+ToolContract *-- NonGoals
+ToolContract *-- AcceptanceCriteria
+ToolContract *-- Reversibility
+
+Agent ..> Problem : reads
+Agent ..> Goals : reads
+Agent ..> NonGoals : reads
+Developer ..> Requirements : reads
+Developer ..> AcceptanceCriteria : reads
+RollbackEngine ..> Reversibility : reads
+RollbackEngine ..> Requirements : reads
+@enduml

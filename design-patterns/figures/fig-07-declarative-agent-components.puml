@@ -1,0 +1,22 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+
+package "YAML artifacts" {
+  [profile.yaml] as P
+  [machine.yaml] as M
+  [declarations/*.yaml] as T
+}
+
+package "Fixed interpreter (Go binary)" {
+  [Engine] as Engine
+  [Registry + Factories] as R
+  [Adapters (LLM, OTel, FS)] as A
+}
+
+P --> Engine : configure
+M --> Engine : configure
+T --> R : load
+R --> Engine
+Engine --> A
+@enduml

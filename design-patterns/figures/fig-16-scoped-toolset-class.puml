@@ -1,0 +1,28 @@
+@startuml
+!theme plain
+
+class State
+
+class Machine {
+  per-state tool lists
+  +visible_tools(state)
+}
+
+class Registry {
+  full tool inventory
+  +resolve(names)
+}
+
+class PromptAssembler {
+  +assemble(state, history)
+}
+
+class ToolManifest {
+  filtered subset sent to model
+}
+
+PromptAssembler --> State : reads current
+PromptAssembler --> Machine : queries visible_tools
+PromptAssembler --> Registry : resolves names
+PromptAssembler --> ToolManifest : builds
+@enduml

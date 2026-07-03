@@ -1,0 +1,20 @@
+@startuml
+!theme plain
+
+object "agent.run : Span" as AR
+object "invoke_agent #1 : Span" as IA1
+object "invoke_agent #2 : Span" as IA2
+object "chat : Span" as C1
+object "execute_tool(parse) : Span" as ET1
+object "execute_tool(write) : Span" as ET2
+object "chat : Span" as C2
+object "execute_tool(build) : Span" as ET3
+
+AR *-- IA1
+AR *-- IA2
+IA1 *-- C1
+IA1 *-- ET1
+IA1 *-- ET2
+IA2 *-- C2
+IA2 *-- ET3
+@enduml

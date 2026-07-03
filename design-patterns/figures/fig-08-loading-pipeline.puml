@@ -1,0 +1,11 @@
+@startuml
+!theme plain
+
+start
+:Resolve profile\n(tool-declaration roots);
+:Load catalog\n(parse + validate YAML);
+:Build registry\n(name to ToolDef);
+:Factory dispatch\n(per type, init-gated);
+:Live tool\n(ready to dispatch);
+stop
+@enduml

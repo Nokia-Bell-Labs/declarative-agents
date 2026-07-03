@@ -1,0 +1,14 @@
+@startuml
+!theme plain
+
+node "Bench (human-launched)" as B
+node "Evaluator process\nprofile: evaluator" as E1
+node "Evaluator process\nprofile: evaluator" as E2
+node "Generator process\nprofile: generator" as G1
+node "Generator process\nprofile: generator" as G2
+
+B --> E1 : launch_eval subprocess
+B --> E2 : launch_eval subprocess
+E1 --> G1 : run_point nested machine
+E2 --> G2 : run_point nested machine
+@enduml

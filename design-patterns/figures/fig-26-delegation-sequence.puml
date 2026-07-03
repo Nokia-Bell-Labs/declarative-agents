@@ -1,0 +1,13 @@
+@startuml
+!theme plain
+
+participant "Parent (Planner)" as P
+participant "Boundary tool\n(execute_task)" as B
+participant "Child (Generator)" as C
+
+P -> B : dispatch execute_task(sub-task)
+B -> C : spawn subprocess\n(sub-task spec, traceparent)
+C -> C : agent.run (own execution)
+C --> B : result + signal
+B --> P : ToolDone\n(isolated, auditable, rollbackable)
+@enduml

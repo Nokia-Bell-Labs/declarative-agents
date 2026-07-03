@@ -1,0 +1,16 @@
+@startuml
+!theme plain
+
+object "fetch_data : Tool" as fetch
+object "parse_response : Tool" as parse
+object "write_file : Tool" as write
+object "build_artifact : Tool" as build
+object "deploy : Tool" as deploy
+object "patch_file : Tool" as patch
+
+fetch --> parse : <<successor>>
+parse --> write : <<successor>>
+write --> build : <<successor>>
+build --> deploy : <<successor>>
+write ..> patch : <<overlaps>>
+@enduml

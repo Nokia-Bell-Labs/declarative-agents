@@ -1,0 +1,12 @@
+@startuml
+!theme plain
+
+start
+repeat
+  :Machine dispatches a Tool;
+  :Tool executes its Effect;
+  :Tool emits a Signal;
+  :Signal selects the next transition;
+repeat while (more tools?) is (yes) not (no)
+stop
+@enduml

@@ -1,0 +1,30 @@
+@startuml
+!theme plain
+
+abstract class Tool
+
+class Atomic <<atomic / internal>> {
+  write, read, parse
+}
+
+class StatefulInternal <<atomic / internal>> {
+  update_context, record_metric
+}
+
+class Boundary <<atomic / boundary>> {
+  invoke_llm, serve_ui
+}
+
+class Composite <<composed>> {
+  generate_and_test
+}
+
+Tool <|-- Atomic
+Tool <|-- StatefulInternal
+Tool <|-- Boundary
+Tool <|-- Composite
+
+note bottom of Composite : anti-pattern:\ndecompose into\ntools + transitions
+
+note bottom of Tool : classifying axes:\ninternal..boundary\nby atomic..composed
+@enduml

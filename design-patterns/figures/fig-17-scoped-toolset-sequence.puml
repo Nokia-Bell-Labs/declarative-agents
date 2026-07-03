@@ -1,0 +1,18 @@
+@startuml
+!theme plain
+
+participant "Engine" as E
+participant "PromptAssembler" as PA
+participant "Machine" as G
+participant "Registry" as L
+participant "Model" as M
+
+E -> PA : assemble_prompt(state, history)
+PA -> G : visible_tools(state)
+G --> PA : [write, read, shell, web_search]
+PA -> L : resolve_tools([write, read, shell, web_search])
+L --> PA : [ToolSpec, ToolSpec, ToolSpec, ToolSpec]
+PA -> PA : build filtered manifest
+PA -> M : prompt + filtered tool manifest
+M --> E : response (tool call or completion)
+@enduml

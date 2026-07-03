@@ -1,0 +1,41 @@
+@startuml
+!theme plain
+
+participant "Engine" as E
+participant "Machine" as G
+participant "Tools" as W
+
+E -> G : lookup(Composing, Seed)
+G --> E : Composing, invoke_llm
+E -> W : invoke_llm.Execute()
+W --> E : LLMResponded
+
+E -> G : lookup(Composing, LLMResponded)
+G --> E : Parsing, parse_response
+E -> W : parse_response.Execute()
+W --> E : ToolCall {tool: "write", params: ...}
+
+E -> G : lookup(Parsing, ToolCall)
+G --> E : Dispatching, $tool -> write
+E -> W : write.Execute()
+W --> E : ToolDone
+
+E -> G : lookup(Dispatching, ToolDone)
+G --> E : Composing, invoke_llm
+E -> W : invoke_llm.Execute()
+W --> E : LLMResponded
+
+E -> G : lookup(Composing, LLMResponded)
+G --> E : Parsing, parse_response
+E -> W : parse_response.Execute()
+W --> E : Completion
+
+E -> G : lookup(Parsing, Completion)
+G --> E : Validating, validate
+E -> W : validate.Execute()
+W --> E : ValidationPassed
+
+E -> G : lookup(Validating, ValidationPassed)
+G --> E : Succeeded (terminal)
+E -> E : stop
+@enduml

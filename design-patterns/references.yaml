@@ -1,0 +1,763 @@
+# Bibliography for "Design Patterns for Declarative Agents".
+# Every entry below is cited in the text; every in-text citation resolves here.
+# Uncited grab-bag entries (control-theory, autonomous-networking standards,
+# security/identity drafts, unreferenced multi-agent surveys, and the author's
+# uncited companion reports) were removed when the bibliography was reconciled.
+# Reconciled against pattern-language.yaml: every work cited in a pattern's
+# examples now resolves here as well (the previously missing security,
+# transactions, concurrency, and reliability entries were added back).
+
+# Primary framing — agent harness and code-as-harness
+- id: meta-harness-2026
+  type: article
+  title: "Meta-Harness: End-to-End Optimization of Model Harnesses"
+  author:
+    - family: Lee
+      given: Yoonho
+    - family: Nair
+      given: Roshen
+    - family: Zhang
+      given: Qizheng
+    - family: Lee
+      given: Kangwook
+    - family: Khattab
+      given: Omar
+    - family: Finn
+      given: Chelsea
+  container-title: arXiv preprint arXiv:2603.28052
+  URL: https://arxiv.org/abs/2603.28052
+  issued:
+    year: 2026
+
+- id: autoharness-2026
+  type: article
+  title: "AutoHarness: Improving LLM Agents by Automatically Synthesizing a Code Harness"
+  author:
+    - family: Lou
+      given: Xinghua
+    - family: Lázaro-Gredilla
+      given: Miguel
+    - family: Dedieu
+      given: Antoine
+    - family: Wendelken
+      given: Carter
+    - family: Lehrach
+      given: Wolfgang
+    - family: Murphy
+      given: Kevin P.
+  container-title: arXiv preprint arXiv:2603.03329
+  URL: https://arxiv.org/abs/2603.03329
+  issued:
+    year: 2026
+
+- id: kim-scaling-agents-2025
+  type: article
+  title: "Towards a Science of Scaling Agent Systems"
+  author:
+    - family: Kim
+      given: Yubin
+    - family: Gu
+      given: Ken
+    - family: Park
+      given: Chanwoo
+    - family: Park
+      given: Chunjong
+    - family: Schmidgall
+      given: Samuel
+    - family: Heydari
+      given: A. Ali
+    - family: Yan
+      given: Yao
+    - family: Zhang
+      given: Zhihan
+    - family: Zhuang
+      given: Yuchen
+    - family: Liu
+      given: Yun
+    - family: Malhotra
+      given: Mark
+    - family: Liang
+      given: Paul Pu
+    - family: Park
+      given: Hae Won
+    - family: Yang
+      given: Yuzhe
+    - family: Xu
+      given: Xuhai
+    - family: Du
+      given: Yilun
+    - family: Patel
+      given: Shwetak
+    - family: Althoff
+      given: Tim
+    - family: McDuff
+      given: Daniel
+    - family: Liu
+      given: Xin
+  container-title: arXiv preprint arXiv:2512.08296
+  URL: https://arxiv.org/abs/2512.08296
+  issued:
+    year: 2025
+
+- id: harbor-harness-optimization-2026
+  type: article
+  title: "HARBOR: Automated Harness Optimization"
+  author:
+    - family: Sengupta
+      given: Biswa
+    - family: Wang
+      given: Jinhua
+  container-title: arXiv preprint arXiv:2604.20938
+  URL: https://arxiv.org/abs/2604.20938
+  issued:
+    year: 2026
+
+- id: ning-code-as-harness-2026
+  type: article
+  title: "Code as Agent Harness"
+  author:
+    - family: Ning
+      given: Xuying
+    - family: Tieu
+      given: Katherine
+    - family: Fu
+      given: Dongqi
+    - family: Wei
+      given: Tianxin
+    - family: Li
+      given: Zihao
+    - family: Bei
+      given: Yuanchen
+  container-title: arXiv preprint arXiv:2605.18747
+  URL: https://arxiv.org/abs/2605.18747
+  issued:
+    year: 2026
+
+# Agent loops, reasoning, and software-engineering agents
+- id: yao-react-2023
+  type: paper-conference
+  title: "ReAct: Synergizing Reasoning and Acting in Language Models"
+  author:
+    - family: Yao
+      given: Shunyu
+    - family: Zhao
+      given: Jeffrey
+    - family: Yu
+      given: Dian
+    - family: Du
+      given: Nan
+    - family: Shafran
+      given: Izhak
+    - family: Narasimhan
+      given: Karthik
+    - family: Cao
+      given: Yuan
+  container-title: Proceedings of ICLR 2023
+  URL: https://arxiv.org/abs/2210.03629
+  issued:
+    year: 2023
+
+- id: yang-swe-agent-2024
+  type: paper-conference
+  title: "SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering"
+  author:
+    - family: Yang
+      given: John
+    - family: Jimenez
+      given: Carlos E.
+    - family: Wettig
+      given: Alexander
+    - family: Lieret
+      given: Kilian
+    - family: Yao
+      given: Shunyu
+    - family: Narasimhan
+      given: Karthik
+    - family: Press
+      given: Ofir
+  container-title: Proceedings of NeurIPS 2024
+  DOI: 10.52202/079017-1601
+  issued:
+    year: 2024
+
+- id: wu-stateflow-2024
+  type: paper-conference
+  title: "StateFlow: Enhancing LLM Task-Solving through State-Driven Workflows"
+  author:
+    - family: Wu
+      given: Yiran
+    - family: Yue
+      given: Tianwei
+    - family: Zhang
+      given: Shaokun
+    - family: Wang
+      given: Chi
+    - family: Wu
+      given: Qingyun
+  container-title: "Proceedings of COLM 2024 (arXiv:2403.11322)"
+  URL: https://arxiv.org/abs/2403.11322
+  issued:
+    year: 2024
+
+# Declarative orchestration engines and state-machine workflows
+- id: langgraph-2024
+  type: software
+  title: "LangGraph: Agent Runtime and Low-Level Orchestration Framework"
+  author:
+    - literal: LangChain, Inc.
+  URL: https://github.com/langchain-ai/langgraph
+  issued:
+    year: 2024
+
+- id: temporal-2024
+  type: webpage
+  title: "Temporal: Durable Execution Platform Documentation"
+  author:
+    - literal: Temporal Technologies
+  URL: https://docs.temporal.io
+  issued:
+    year: 2024
+
+- id: aws-step-functions-2024
+  type: webpage
+  title: "AWS Step Functions Developer Guide: Amazon States Language"
+  author:
+    - literal: Amazon Web Services
+  URL: https://docs.aws.amazon.com/step-functions/latest/dg/concepts-amazon-states-language.html
+  issued:
+    year: 2024
+
+- id: aws-step-functions-callback-2024
+  type: webpage
+  title: "AWS Step Functions Developer Guide: Wait for a Callback with the Task Token"
+  author:
+    - literal: Amazon Web Services
+  URL: https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html#connect-wait-token
+  issued:
+    year: 2024
+
+- id: xstate-2024
+  type: software
+  title: "XState: State Machines and Statecharts for the Modern Web"
+  author:
+    - family: Khourshid
+      given: David
+  URL: https://github.com/statelyai/xstate
+  issued:
+    year: 2024
+
+- id: omg-bpmn-2011
+  type: report
+  title: "Business Process Model and Notation (BPMN), Version 2.0"
+  author:
+    - literal: Object Management Group
+  number: formal/2011-01-03
+  publisher: Object Management Group
+  URL: https://www.omg.org/spec/BPMN/2.0/
+  issued:
+    year: 2011
+
+- id: w3c-scxml-2015
+  type: report
+  title: "State Chart XML (SCXML): State Machine Notation for Control Abstraction"
+  author:
+    - literal: World Wide Web Consortium (W3C)
+  publisher: W3C Recommendation
+  URL: https://www.w3.org/TR/scxml/
+  issued:
+    year: 2015
+
+- id: tiendil-donna-2025
+  type: software
+  title: "Donna: A CLI Tool for Guiding Coding Agents Through Markdown-Defined State-Machine Workflows"
+  author:
+    - family: Yaletski
+      given: Aliaksei
+  URL: https://github.com/Tiendil/donna
+  issued:
+    year: 2025
+
+- id: jido-2025
+  type: software
+  title: "Jido: Autonomous Agent Framework for Elixir"
+  author:
+    - literal: agentjido
+  URL: https://github.com/agentjido/jido
+  issued:
+    year: 2025
+
+- id: lean4agent-2026
+  type: article
+  title: "Lean4Agent: Formal Modeling and Verification for Agent Workflow and Trajectory"
+  author:
+    - family: Wang
+      given: Ruida
+    - family: Huang
+      given: Jerry
+    - family: Wang
+      given: Pengcheng
+    - family: Liu
+      given: Xuanqing
+    - family: Kong
+      given: Luyang
+    - family: Zhang
+      given: Tong
+  container-title: arXiv preprint arXiv:2606.06523
+  URL: https://arxiv.org/abs/2606.06523
+  issued:
+    year: 2026
+
+# State-machine and verification formalisms
+- id: harel-statecharts-1987
+  type: article-journal
+  title: "Statecharts: A Visual Formalism for Complex Systems"
+  author:
+    - family: Harel
+      given: David
+  container-title: Science of Computer Programming
+  volume: 8
+  issue: 3
+  page: 231-274
+  DOI: 10.1016/0167-6423(87)90035-9
+  issued:
+    year: 1987
+
+- id: lamport-tla-2002
+  type: book
+  title: "Specifying Systems: The TLA+ Language and Tools for Hardware and Software Engineers"
+  author:
+    - family: Lamport
+      given: Leslie
+  publisher: Addison-Wesley
+  URL: https://lamport.azurewebsites.net/tla/book.html
+  issued:
+    year: 2002
+
+- id: pnueli-translation-validation-1998
+  type: paper-conference
+  title: "Translation Validation"
+  author:
+    - family: Pnueli
+      given: Amir
+    - family: Siegel
+      given: Michael
+    - family: Singerman
+      given: Eli
+  container-title: "Proceedings of TACAS 1998"
+  collection-title: LNCS 1384
+  DOI: 10.1007/BFb0054170
+  issued:
+    year: 1998
+
+- id: bultan-action-lang-2000
+  type: paper-conference
+  title: "Action Language: A Specification Language for Model Checking Reactive Systems"
+  author:
+    - family: Bultan
+      given: Tevfik
+  container-title: Proceedings of ICSE 2000
+  DOI: 10.1109/ICSE.2000.870424
+  issued:
+    year: 2000
+
+# Design patterns and architecture
+- id: meyer-dbc-1997
+  type: book
+  title: "Object-Oriented Software Construction"
+  edition: 2
+  author:
+    - family: Meyer
+      given: Bertrand
+  publisher: Prentice Hall
+  ISBN: "9780136291558"
+  note: Design by Contract
+  issued:
+    year: 1997
+
+- id: cockburn-hexagonal-2005
+  type: webpage
+  title: "Hexagonal Architecture (Ports and Adapters)"
+  author:
+    - family: Cockburn
+      given: Alistair
+  URL: https://alistair.cockburn.us/hexagonal-architecture/
+  issued:
+    year: 2005
+
+- id: fowler-event-sourcing-2005
+  type: webpage
+  title: "Event Sourcing"
+  author:
+    - family: Fowler
+      given: Martin
+  URL: https://martinfowler.com/eaaDev/EventSourcing.html
+  issued:
+    year: 2005
+
+- id: redux-2015
+  type: software
+  title: "Redux: A Predictable State Container for JavaScript Apps"
+  author:
+    - family: Abramov
+      given: Dan
+    - family: Clark
+      given: Andrew
+  URL: https://redux.js.org
+  issued:
+    year: 2015
+
+- id: gamma-gof-1994
+  type: book
+  title: "Design Patterns: Elements of Reusable Object-Oriented Software"
+  author:
+    - family: Gamma
+      given: Erich
+    - family: Helm
+      given: Richard
+    - family: Johnson
+      given: Ralph
+    - family: Vlissides
+      given: John
+  publisher: Addison-Wesley
+  ISBN: "9780201633610"
+  issued:
+    year: 1994
+
+- id: bernhardt-fcis-2012
+  type: webpage
+  title: "Functional Core, Imperative Shell"
+  author:
+    - family: Bernhardt
+      given: Gary
+  container-title: Destroy All Software Screencasts
+  URL: https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell
+  issued:
+    year: 2012
+
+- id: van-der-aalst-workflow-1998
+  type: article-journal
+  title: "The Application of Petri Nets to Workflow Management"
+  author:
+    - family: van der Aalst
+      given: Wil M. P.
+  container-title: Journal of Circuits, Systems and Computers
+  volume: 8
+  issue: 1
+  page: 21-66
+  DOI: 10.1142/S0218126698000043
+  issued:
+    year: 1998
+
+- id: van-der-aalst-process-mining-2016
+  type: book
+  title: "Process Mining: Data Science in Action"
+  edition: 2
+  author:
+    - family: van der Aalst
+      given: Wil M. P.
+  publisher: Springer
+  URL: https://link.springer.com/book/10.1007/978-3-662-49851-4
+  issued:
+    year: 2016
+
+- id: van-der-aalst-conformance-2012
+  type: article-journal
+  title: "Replaying History on Process Models for Conformance Checking and Performance Analysis"
+  author:
+    - family: van der Aalst
+      given: Wil M. P.
+    - family: Adriansyah
+      given: Arya
+    - family: van Dongen
+      given: Boudewijn F.
+  container-title: "Wiley Interdisciplinary Reviews: Data Mining and Knowledge Discovery"
+  volume: 2
+  issue: 2
+  page: 182-192
+  DOI: 10.1002/widm.1045
+  issued:
+    year: 2012
+
+- id: garcia-molina-sagas-1987
+  type: paper-conference
+  title: "Sagas"
+  author:
+    - family: Garcia-Molina
+      given: Hector
+    - family: Salem
+      given: Kenneth
+  container-title: Proceedings of ACM SIGMOD 1987
+  DOI: 10.1145/38713.38742
+  issued:
+    year: 1987
+
+# Security and capabilities
+- id: saltzer-schroeder-1975
+  type: article-journal
+  title: "The Protection of Information in Computer Systems"
+  author:
+    - family: Saltzer
+      given: Jerome H.
+    - family: Schroeder
+      given: Michael D.
+  container-title: Proceedings of the IEEE
+  volume: 63
+  issue: 9
+  page: 1278-1308
+  note: Principle of Least Privilege
+  DOI: 10.1109/PROC.1975.9939
+  issued:
+    year: 1975
+
+- id: dennis-vanhorn-1966
+  type: article-journal
+  title: "Programming Semantics for Multiprogrammed Computations"
+  author:
+    - family: Dennis
+      given: Jack B.
+    - family: Van Horn
+      given: Earl C.
+  container-title: Communications of the ACM
+  volume: 9
+  issue: 3
+  page: 143-155
+  note: Capabilities
+  DOI: 10.1145/365230.365252
+  issued:
+    year: 1966
+
+- id: hardt-oauth-2012
+  type: report
+  title: "The OAuth 2.0 Authorization Framework"
+  author:
+    - family: Hardt
+      given: Dick
+  number: RFC 6749
+  publisher: IETF
+  URL: https://www.rfc-editor.org/rfc/rfc6749
+  issued:
+    year: 2012
+
+# Transactions and recovery
+- id: gray-1978
+  type: chapter
+  title: "Notes on Data Base Operating Systems"
+  author:
+    - family: Gray
+      given: Jim
+  container-title: "Operating Systems: An Advanced Course"
+  collection-title: LNCS 60
+  page: 393-481
+  note: Two-phase commit; transactions
+  DOI: 10.1007/3-540-08755-9_9
+  issued:
+    year: 1978
+
+# Concurrency and composition
+- id: hewitt-actor-1973
+  type: paper-conference
+  title: "A Universal Modular ACTOR Formalism for Artificial Intelligence"
+  author:
+    - family: Hewitt
+      given: Carl
+    - family: Bishop
+      given: Peter
+    - family: Steiger
+      given: Richard
+  container-title: Proceedings of IJCAI 1973
+  URL: https://ijcai.org/Proceedings/73/Papers/027B.pdf
+  issued:
+    year: 1973
+
+- id: armstrong-2003
+  type: thesis
+  title: "Making Reliable Distributed Systems in the Presence of Software Errors"
+  author:
+    - family: Armstrong
+      given: Joe
+  publisher: KTH Royal Institute of Technology
+  genre: PhD thesis
+  note: Erlang/OTP supervisor trees
+  URL: https://erlang.org/download/armstrong_thesis_2003.pdf
+  issued:
+    year: 2003
+
+- id: dean-mapreduce-2004
+  type: paper-conference
+  title: "MapReduce: Simplified Data Processing on Large Clusters"
+  author:
+    - family: Dean
+      given: Jeffrey
+    - family: Ghemawat
+      given: Sanjay
+  container-title: Proceedings of OSDI 2004
+  URL: https://research.google/pubs/mapreduce-simplified-data-processing-on-large-clusters/
+  issued:
+    year: 2004
+
+# Reliability, classification, and runtime control
+- id: nygard-2018
+  type: book
+  title: "Release It! Design and Deploy Production-Ready Software"
+  edition: 2
+  author:
+    - family: Nygard
+      given: Michael T.
+  publisher: Pragmatic Bookshelf
+  note: Circuit Breaker
+  URL: https://pragprog.com/titles/mnee2/release-it-second-edition/
+  issued:
+    year: 2018
+
+- id: wadler-monads-1995
+  type: chapter
+  title: "Monads for Functional Programming"
+  author:
+    - family: Wadler
+      given: Philip
+  container-title: Advanced Functional Programming
+  collection-title: LNCS 925
+  note: Either/Result
+  DOI: 10.1007/3-540-59451-5_2
+  issued:
+    year: 1995
+
+- id: k8s-probes
+  type: webpage
+  title: "Configure Liveness, Readiness and Startup Probes"
+  author:
+    - literal: Kubernetes Authors
+  container-title: Kubernetes Documentation
+  URL: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+
+- id: basiri-chaos-2016
+  type: article-journal
+  title: "Chaos Engineering"
+  author:
+    - family: Basiri
+      given: Ali
+    - family: Behnam
+      given: Niosha
+    - family: de Rooij
+      given: Ruud
+    - family: Hochstein
+      given: Lorin
+    - family: Kosewski
+      given: Luke
+    - family: Reynolds
+      given: Justin
+    - family: Rosenthal
+      given: Casey
+  container-title: IEEE Software
+  volume: 33
+  issue: 3
+  page: 35-41
+  DOI: 10.1109/MS.2016.60
+  issued:
+    year: 2016
+
+# Systems orchestration
+- id: burns-borg-omega-kubernetes-2016
+  type: article-journal
+  title: "Borg, Omega, and Kubernetes"
+  author:
+    - family: Burns
+      given: Brendan
+    - family: Grant
+      given: Brian
+    - family: Oppenheimer
+      given: David
+    - family: Brewer
+      given: Eric
+    - family: Wilkes
+      given: John
+  container-title: Communications of the ACM
+  volume: 59
+  issue: 5
+  page: 50-57
+  DOI: 10.1145/2890784
+  issued:
+    year: 2016
+
+- id: erlang-sys-2024
+  type: webpage
+  title: "Erlang/OTP System Architecture Support Libraries: sys"
+  author:
+    - literal: Erlang/OTP Authors
+  URL: https://www.erlang.org/doc/apps/stdlib/sys.html
+  issued:
+    year: 2024
+
+# Protocols and interface specifications
+- id: anthropic-mcp-2024
+  type: webpage
+  title: "Model Context Protocol (MCP) Specification"
+  author:
+    - literal: Anthropic
+  URL: https://modelcontextprotocol.io/specification/2024-11-05
+  issued:
+    year: 2024
+
+- id: openapi-spec-2024
+  type: webpage
+  title: "OpenAPI Specification, Version 3.1.0"
+  author:
+    - literal: OpenAPI Initiative
+  URL: https://spec.openapis.org/oas/v3.1.0
+  issued:
+    year: 2024
+
+# Observability
+- id: sigelman-dapper-2010
+  type: report
+  title: "Dapper, a Large-Scale Distributed Systems Tracing Infrastructure"
+  author:
+    - family: Sigelman
+      given: Benjamin H.
+    - family: Barroso
+      given: Luiz André
+    - family: Burrows
+      given: Mike
+    - family: Stephenson
+      given: Pat
+    - family: Plakal
+      given: Manoj
+    - family: Beaver
+      given: Donald
+    - family: Jaspan
+      given: Saul
+    - family: Shanbhag
+      given: Chandan
+  number: dapper-2010-1
+  publisher: Google Technical Report
+  URL: https://research.google/pubs/dapper-a-large-scale-distributed-systems-tracing-infrastructure/
+  issued:
+    year: 2010
+
+- id: otel-spec-2024
+  type: webpage
+  title: "OpenTelemetry Specification"
+  author:
+    - literal: OpenTelemetry Authors
+  URL: https://opentelemetry.io/docs/specs/otel/
+  issued:
+    year: 2024
+
+- id: otel-genai-semconv-2025
+  type: webpage
+  title: "Semantic Conventions for Generative AI Systems"
+  author:
+    - literal: OpenTelemetry Authors
+  URL: https://github.com/open-telemetry/semantic-conventions-genai
+  issued:
+    year: 2025
+
+- id: w3c-trace-context-2021
+  type: report
+  title: "Trace Context"
+  author:
+    - literal: World Wide Web Consortium (W3C)
+  publisher: W3C Recommendation
+  URL: https://www.w3.org/TR/trace-context/
+  issued:
+    year: 2021

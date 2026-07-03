@@ -1,0 +1,35 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+
+package "Data (YAML)" {
+  [Machine\n(transition table)] as M
+  [Profile\n(model, tools, config)] as P
+  [Tool Declarations\n(contracts, signals)] as TD
+}
+
+package "Fixed Binary" {
+  [Engine] as E
+  [Registry] as R
+}
+
+package "Tools" {
+  [read] as T1
+  [write] as T2
+  [validate] as T3
+  [invoke_llm] as T4
+}
+
+cloud "Model API" as Model
+
+P --> E
+M --> E
+TD --> R
+E --> M : lookup\n(state, signal)
+E --> R : resolve\nby name
+R --> T1
+R --> T2
+R --> T3
+R --> T4
+T4 ..> Model : sole model\nboundary
+@enduml

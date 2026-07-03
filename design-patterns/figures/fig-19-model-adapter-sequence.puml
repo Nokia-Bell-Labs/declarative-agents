@@ -1,0 +1,21 @@
+@startuml
+!theme plain
+
+participant "Engine" as E
+participant "InvokeLLM" as I
+participant "PromptAssembler" as PA
+participant "ProviderAdapter" as A
+participant "ResponseParser" as RP
+participant "Model API" as M
+
+E -> I : dispatch invoke_llm
+I -> PA : assemble(state, history, tools)
+PA --> I : provider-agnostic prompt
+I -> A : send(prompt, config)
+A -> M : HTTP request (provider format)
+M --> A : HTTP response
+A --> I : raw response
+I -> RP : parse(raw_response)
+RP --> I : ParsedResult {tool_calls, content, usage}
+I --> E : Signal(LLMResponded) + result
+@enduml
