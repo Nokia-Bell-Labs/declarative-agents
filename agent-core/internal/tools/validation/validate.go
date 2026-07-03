@@ -67,12 +67,25 @@ func (v *validateCmd) Undo(_ core.Result) core.Result {
 	return undo.BoundaryCompensationUndo(v.Name(), "undo or compensate validation child commands and any workspace effects they produced")
 }
 func (v *validateCmd) UndoMemento() (core.UndoMemento, error) {
-	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
+	return undo.BoundaryCompensationMemento(v.Name(), v.undoPayload(), "undo is delegated to the validation child commands captured in the payload")
+}
+
+func (v *validateCmd) undoPayload() undo.BoundaryCompensationPayload {
+	return undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
 		Strategy: "child_command_undo",
 		Reason:   "aggregate validation replays child tools",
 		Requires: append([]string(nil), v.ran...),
 	}}
-	return undo.BoundaryCompensationMemento(v.Name(), payload, "undo is delegated to the validation child commands captured in the payload")
+}
+
+// receipt encodes the child-command compensation context into an opaque receipt so
+// the reverse receipt walk can compensate the replayed children (srd035 R3; #44 R2).
+// It is empty when no child ran, since there is nothing to compensate.
+func (v *validateCmd) receipt() string {
+	if len(v.ran) == 0 {
+		return ""
+	}
+	return undo.EncodeBoundaryReceipt(v.undoPayload())
 }
 
 func (v *validateCmd) Execute() core.Result {
@@ -95,11 +108,14 @@ func (v *validateCmd) Execute() core.Result {
 		ran = append(ran, toolName)
 		v.ran = append(v.ran, toolName)
 		if result, done := v.childResult(toolName, res, totalCost); done {
+			if result.Signal != core.CommandError {
+				result.Receipt = v.receipt()
+			}
 			return result
 		}
 	}
 	totalCost.Duration = time.Since(start)
-	return core.Result{Output: fmt.Sprintf("validation passed: ran %s", strings.Join(ran, ", ")), Signal: core.ValidationPassed, Cost: totalCost, CommandName: "validate"}
+	return core.Result{Output: fmt.Sprintf("validation passed: ran %s", strings.Join(ran, ", ")), Signal: core.ValidationPassed, Cost: totalCost, CommandName: "validate", Receipt: v.receipt()}
 }
 
 func (v *validateCmd) runChild(toolName string) (core.Result, bool) {

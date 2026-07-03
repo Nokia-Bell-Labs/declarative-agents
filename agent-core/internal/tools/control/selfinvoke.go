@@ -74,6 +74,7 @@ func (c *selfInvokeCmd) Execute() core.Result {
 	return core.Result{
 		Output: result.Stdout, Signal: selfInvokeSignal(result),
 		Cost: core.Cost{Duration: result.Duration}, CommandName: c.Name(),
+		Receipt: undo.EncodeBoundaryReceipt(c.undoPayload()),
 	}
 }
 

@@ -19,3 +19,11 @@ func BoundaryCompensationMemento(commandName string, payload BoundaryCompensatio
 func BoundaryCompensationUndo(commandName, description string) core.Result {
 	return toolundo.BoundaryCompensationUndo(commandName, description)
 }
+
+func EncodeBoundaryReceipt(payload BoundaryCompensationPayload) string {
+	return toolundo.EncodeBoundaryReceipt(payload)
+}
+
+func DecodeBoundaryReceipt(receipt string) (BoundaryCompensation, bool, error) {
+	return toolundo.DecodeBoundaryReceipt(receipt)
+}

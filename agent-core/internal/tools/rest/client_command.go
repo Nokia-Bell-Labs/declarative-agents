@@ -162,12 +162,31 @@ func (e CompensationExecutor) Compensate(_ context.Context, memento core.UndoMem
 	if err != nil {
 		return restCompensationError(memento.CommandName, "compensation_decode", err)
 	}
+	return e.runCompensation(memento.CommandName, compensation)
+}
+
+// CompensateFromReceipt executes the REST compensation described by an opaque
+// receipt captured in Result.Receipt during Execute. This is the receipt-driven
+// entry point used by the reverse receipt walk (srd035-checkpoint-port R3; #44 R3);
+// Compensate remains for the engine's memento path until it is retired.
+func (e CompensationExecutor) CompensateFromReceipt(_ context.Context, commandName, receipt string) core.Result {
+	compensation, ok, err := undo.DecodeBoundaryReceipt(receipt)
+	if err != nil {
+		return restCompensationError(commandName, "compensation_decode", err)
+	}
+	if !ok {
+		return core.NoopUndo(commandName)
+	}
+	return e.runCompensation(commandName, compensation)
+}
+
+func (e CompensationExecutor) runCompensation(commandName string, compensation undo.BoundaryCompensation) core.Result {
 	operation, err := e.resolveCompensationOperation(compensation)
 	if err != nil {
-		return restCompensationError(memento.CommandName, "compensation_lookup", err)
+		return restCompensationError(commandName, "compensation_lookup", err)
 	}
 	cmd := ClientBuilder{
-		ToolName:    compensationToolName(memento.CommandName),
+		ToolName:    compensationToolName(commandName),
 		Init:        InitClientInvoke,
 		Operation:   operation,
 		Credentials: e.Credentials,
@@ -176,7 +195,7 @@ func (e CompensationExecutor) Compensate(_ context.Context, memento core.UndoMem
 	if result.Signal == core.CommandError {
 		return result
 	}
-	result.CommandName = memento.CommandName
+	result.CommandName = commandName
 	return result
 }
 
@@ -306,6 +325,9 @@ func (c *clientCmd) executeRequest(request *http.Request) core.Result {
 		return result
 	}
 	c.captureRESTUndoMetadata(request, result)
+	if c.hasRESTCompensation() {
+		result.Receipt = undo.EncodeBoundaryReceipt(c.restUndoPayload())
+	}
 	c.recordRESTMetrics(request, result)
 	return result
 }
