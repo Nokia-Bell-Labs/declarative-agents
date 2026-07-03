@@ -40,7 +40,7 @@ In the working implementation the canonical composition is a three-tier process 
 
 #### Boundary tool
 
-Obeys the ordinary tool contract (parameters, signal, side effects, UndoMemento) but crosses into an actor.
+Obeys the ordinary tool contract (parameters, signal, side effects, receipt) but crosses into an actor.
 
 #### Profile reference
 
@@ -118,7 +118,7 @@ Boundary tools reference child *configuration*, not child code. Because the pare
 
 ### Rollback at boundaries
 
-A boundary tool's UndoMemento carries a coarse `BoundaryCompensation` for the whole child execution. A **reversible** child's artifacts are deleted or reverted; a **compensatable** child's external calls are corrected via stored resource identifiers; an **irreversible** child is skipped and logged. Classification propagates upward. If any child tool is irreversible, the boundary tool is at least compensatable, since coarse compensation cannot undo the irreversible step.
+A boundary tool's receipt encodes a coarse compensation for the whole child execution. A **reversible** child's artifacts are deleted or reverted; a **compensatable** child's external calls are corrected via stored resource identifiers; an **irreversible** child is skipped and logged. Classification propagates upward. If any child tool is irreversible, the boundary tool is at least compensatable, since coarse compensation cannot undo the irreversible step.
 
 
 ## Relationships in the Pattern Language

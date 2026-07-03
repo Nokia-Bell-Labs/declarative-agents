@@ -203,7 +203,7 @@ The engine loop is identical for all workflows and holds no domain logic; if con
 | **Rollback** | Walk the execution backward, calling `Undo` | State store, checkpoint ID, target iteration |
 | **History** | Format a checkpoint's execution | A loaded checkpoint |
 
-Resume re-enters the loop and needs the full machine and registry; Rollback is a pure checkpoint operation walking `Undo` mementos without loading a machine, which justifies separate entry points.
+Resume re-enters the loop and needs the full machine and registry; Rollback is a checkpoint operation that reverses tool effects from their receipts without loading a machine, which justifies separate entry points.
 
 ### Data flow and tool construction
 
