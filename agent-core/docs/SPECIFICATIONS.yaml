@@ -2,7 +2,7 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Thirty-four SRDs
+  Specification index for the agent-core framework. Thirty-five SRDs
   define the generic agentic loop engine and its supporting packages across
   seven releases. Release 04.0 implements embedded monitoring. The 00.0 release
   owns the engine foundation and its support packages. In 01.0, configured
@@ -24,9 +24,16 @@ overview: |
 
   SRD release assignments are range based. Release 00.0 covers srd001
   through srd018. Release 01.0 covers srd019 through srd024. Release
-  02.0 covers srd025 and srd026. Release 03.0 covers srd027 through
+  02.0 covers srd025, srd026, and srd035. Release 03.0 covers srd027 through
   srd031. Release 04.0 covers srd032 and srd033. Release 06.0 covers
   srd034.
+
+  Release 02.0 storage revision.
+  - srd035-checkpoint-port replaces the key/blob StateStore with a two-method
+    typed checkpoint port, and srd036-dolt-state-persistence (in progress) makes
+    a Dolt versioned-SQL adapter the default persistent backend. srd025 and
+    srd026 are under revision so their rollback story rests on the checkpoint
+    port and a receipt-driven undo rather than the engine undo-walk.
 
   Source-of-truth note.
   - roll-backs.md and tools-as-dsl.md are historical design notes. Their
@@ -176,12 +183,19 @@ srd_index:
     path: docs/specs/software-requirements/srd024-blocking-input-tools.yaml
   - id: srd025-rollback-lifecycle
     title: Rollback, Checkpoint, Suspend, and Resume Lifecycle
-    summary: Requirements for three-layer state, StateStore/FileStore, Workspace/GitWorkspace, history, checkpoints, rollback traversal, suspend, resume, approval gates, and opt-in lifecycle behavior.
+    summary: Requirements for three-layer state, StateStore/FileStore, Workspace/GitWorkspace, history, checkpoints, rollback traversal, suspend, resume, approval gates, and opt-in lifecycle behavior. Under revision to rest on the srd035 checkpoint port and receipt-driven undo.
+    status: revised
     path: docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
   - id: srd026-lifecycle-tools
     title: Lifecycle Tool Adapters
-    summary: Requirements for checkpoint_history, checkpoint_rollback, and generic lifecycle control words such as exit_agent, selected by ToolDef declarations and MachineSpec transitions.
+    summary: Requirements for checkpoint_history, checkpoint_rollback, and generic lifecycle control words such as exit_agent, selected by ToolDef declarations and MachineSpec transitions. Under revision for the Dolt-backed checkpoint port.
+    status: revised
     path: docs/specs/software-requirements/srd026-lifecycle-tools.yaml
+  - id: srd035-checkpoint-port
+    title: Typed Checkpoint Port
+    summary: Requirements for a two-method typed checkpoint port (Save/Load) over typed Position and Execution values, an opaque tool-owned Receipt on each Entry, a folded conversation snapshot, Noop and InMemory reference adapters, save timing, and a single resume contract. Replaces the key/blob StateStore.
+    status: planned
+    path: docs/specs/software-requirements/srd035-checkpoint-port.yaml
   - id: srd027-rest-tool-runtime
     title: Declarative REST Tool Runtime
     summary: Shared REST runtime requirements for declarative client and server boundary tools, OpenAPI imports, net/http execution, event fan-in, lifecycle control routing, safety controls, observability, and rollback.

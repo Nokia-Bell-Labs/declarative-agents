@@ -1,0 +1,171 @@
+id: srd035-checkpoint-port
+title: Typed Checkpoint Port
+
+problem: |
+  Agent-core persists runtime state through a key/blob StateStore: a four-method
+  port (Save, Load, List, Delete) over []byte values keyed by store paths such
+  as checkpoint/, history/, and conversation/. Callers hand-serialize agent
+  state, conversation, and domain snapshots into those blobs, and a
+  CheckpointPolicy decides per loop event whether to persist. The blob shape is
+  untyped, the store-path prefixes are conventions rather than contracts, and
+  rollback is coupled to an engine-owned reverse undo-walk over history digests.
+
+  We replace that surface with a small, typed checkpoint port modeled on
+  github.com/petar-djukic/spindle (srd009-checkpoint-port). Persistence becomes
+  two methods over typed values: Save records the resumable position and the
+  ordered execution log; Load restores them. Each execution entry carries an
+  opaque, tool-owned receipt so external effects can be reversed later without
+  the engine interpreting persisted bytes. The default adapter is a no-op that
+  preserves disabled-mode execution; the default persistent backend is a Dolt
+  versioned-SQL adapter specified separately (srd036, authored under the same
+  epic). This SRD defines the port, its typed values, the JSON wire format, the
+  reference adapters, save timing, and the single resume contract. It does not
+  define the Dolt schema or revert mechanics.
+
+goals:
+  - G1: Define a two-method typed Checkpoint port that replaces the key/blob StateStore.
+  - G2: Define the typed Position and Execution values and their JSON wire format.
+  - G3: Define an opaque, tool-owned Receipt carried on each execution Entry.
+  - G4: Fold conversation state into the typed snapshot instead of a separate hook or store path.
+  - G5: Define the reference adapters (Noop default, InMemory for tests) and name Dolt as the default persistent backend.
+  - G6: Define save timing and a single resume contract, and declare CheckpointPolicy and the engine undo-walk as non-goals.
+
+requirements:
+  R1:
+    title: Checkpoint port
+    items:
+      - R1.1: "The Checkpoint port SHALL expose exactly two methods: Save(position Position, execution Execution) error and Load() (Position, Execution, error)."
+      - R1.2: Save SHALL persist the resumable Position and the ordered Execution log as one unit so a later Load returns a mutually consistent pair.
+      - R1.3: Load SHALL return the most recently saved Position and Execution, or a typed not-found result when nothing has been persisted.
+      - R1.4: The port SHALL replace the key/blob StateStore; no store-path, prefix, List, or Delete API SHALL remain in the persistence contract.
+      - R1.5: The engine SHALL depend only on the Checkpoint interface; adapters SHALL own serialization and storage details.
+
+  R2:
+    title: Position and Execution values and wire format
+    items:
+      - R2.1: Position SHALL identify the resumable machine position through CurrentState and LastSignal.
+      - R2.2: Position SHALL embed an AgentSnapshot carrying the loop-owned counters iteration, tokens_in, tokens_out, and total_cost.
+      - R2.3: Execution SHALL be an ordered slice of Entry values that preserves dispatch order for forward inspection and reverse traversal.
+      - R2.4: Each Entry SHALL record iteration, timestamp, command_name, from_state, to_state, the transition signal, and a result digest of signal, output, error, and cost.
+      - R2.5: The wire format SHALL be JSON. Position SHALL serialize as an object with current_state, last_signal, and a nested snapshot object; Execution SHALL serialize as a JSON array, or null when empty.
+
+  R3:
+    title: Opaque receipt on Entry
+    items:
+      - R3.1: Result SHALL carry an opaque Receipt string, and each Entry SHALL persist that Receipt.
+      - R3.2: The Receipt SHALL be encoded by the originating tool; the engine and every checkpoint adapter SHALL treat it as opaque and SHALL NOT parse or interpret it.
+      - R3.3: The Receipt SHALL serialize as a JSON string, or as null (or an omitted field) when a tool returns no receipt, such as a read-only tool.
+      - R3.4: Save and Load SHALL round-trip the Receipt verbatim, preserving its exact bytes.
+
+  R4:
+    title: Conversation in the typed snapshot
+    items:
+      - R4.1: Conversation state SHALL fold into AgentSnapshot as a typed field; no separate conversation snapshot hook and no conversation/ store path SHALL remain.
+      - R4.2: Load SHALL restore conversation from the snapshot so a resumed run re-enters the loop with its prior model context.
+      - R4.3: Command/domain state that previously used ad-hoc StateStore paths SHALL either fold into the typed snapshot or be carried by tool receipts.
+
+  R5:
+    title: Reference adapters and default backend
+    items:
+      - R5.1: NoopCheckpoint SHALL be the default when persistence is disabled; its Save SHALL be a no-op and its Load SHALL report not-found.
+      - R5.2: InMemoryCheckpoint SHALL be a reference adapter for tests that round-trips Position and Execution in process, including conversation and receipts.
+      - R5.3: DoltCheckpoint SHALL be the default persistent backend; this SRD names it and defers its schema, commit-per-step, branch-per-run, and revert behavior to srd036.
+      - R5.4: Disabled-mode (Noop) execution SHALL preserve current loop behavior and SHALL add no persistence overhead.
+
+  R6:
+    title: Save timing, resume, and non-goals
+    items:
+      - R6.1: The loop SHALL call Save once after each dispatch cycle, persisting the updated Position and the appended Entry, rather than before dispatch.
+      - R6.2: Resume SHALL be a single contract: Load the persisted Position and Execution and re-enter the same machine; there SHALL be exactly one resume path with no restore-hook fan-out.
+      - R6.3: CheckpointPolicy SHALL be a non-goal; the engine SHALL NOT decide per loop event whether to persist.
+      - R6.4: The engine reverse undo-walk SHALL be a non-goal; rollback SHALL be served by the Dolt adapter revert and a lifecycle-tool receipt walk specified by srd036 and the revised srd025.
+      - R6.5: Save and Load errors SHALL identify the adapter and the failing operation.
+
+non_goals:
+  - Defining the Dolt schema, commit-per-step, branch-per-run, or revert mechanics; those belong to srd036.
+  - Retaining the key/blob StateStore, its store-path prefixes, or its List and Delete methods.
+  - Keeping CheckpointPolicy or an engine-owned reverse undo-walk.
+  - Specifying the receipt schema for any specific tool; each tool owns and decodes its own receipt.
+  - Modeling workspace or git refs as a separately persisted state layer.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The checkpoint port is exactly two methods, Save(Position, Execution) error and Load() (Position, Execution, error), and no key/blob StateStore API (store paths, prefixes, List, Delete) remains in the persistence contract.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+
+  - id: AC2
+    criterion: Position is CurrentState plus LastSignal with an embedded AgentSnapshot, Execution is an ordered slice of Entry, and both have a specified JSON wire format.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+
+  - id: AC3
+    criterion: Each Entry carries an opaque Receipt that adapters persist and restore verbatim, serialized as a JSON string or null, and the engine never interprets it.
+    traces: [R3.1, R3.2, R3.3, R3.4]
+
+  - id: AC4
+    criterion: Conversation folds into the typed snapshot and is restored on Load; no separate conversation snapshot hook or conversation store path remains.
+    traces: [R4.1, R4.2, R4.3]
+
+  - id: AC5
+    criterion: NoopCheckpoint is the disabled-mode default, InMemoryCheckpoint is the test reference adapter, and Dolt is named as the default persistent backend without changing disabled-mode behavior.
+    traces: [R5.1, R5.2, R5.3, R5.4]
+
+  - id: AC6
+    criterion: Save runs after each dispatch cycle, resume is a single Load-and-re-enter path, and CheckpointPolicy and the engine undo-walk are declared non-goals with rollback deferred to the Dolt adapter.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+
+test_trace_plan:
+  - test_suite: test-rel02.0-lifecycle
+    covers: [AC1, AC2, AC3, AC4, AC5, AC6]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [State, Signal, Command, Result, Cost]
+  - srd_id: srd005-agentic-loop
+    symbols_used: [Loop, LoopParams, RunResult]
+  - srd_id: srd010-conversation
+    symbols_used: [Conversation]
+  - srd_id: srd025-rollback-lifecycle
+    symbols_used: [Checkpoint, AgentSnapshot, HistoryEntry]
+
+related_documents:
+  - cfg-runtime-contract
+  - srd025-rollback-lifecycle
+  - srd026-lifecycle-tools
+
+reference_model: |
+  github.com/petar-djukic/spindle srd009-checkpoint-port defines the two-method
+  port (Save(Position, Execution) / Load) and the opaque Result.Receipt this SRD
+  adopts. srd035 pairs with srd036-dolt-state-persistence, which specifies the
+  default persistent backend (Dolt versioned SQL) and the git-style revert that
+  serves rollback in place of the retired engine undo-walk.
+
+implementation_status:
+  planned:
+    - Typed Checkpoint port with Position, Execution, Entry, and the opaque Receipt on Result (tracked by the checkpoint-port epic).
+    - NoopCheckpoint and InMemoryCheckpoint reference adapters; FileStore retargeted onto the port until the Dolt adapter lands.
+    - Save-after-dispatch timing, single resume path, and removal of CheckpointPolicy and the engine undo-walk.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Replace the key/blob StateStore with a typed checkpoint port"] --> Goals["Goals: Typed Checkpoint Port"]
+      Goals --> R1["R1: Checkpoint port"]
+      Goals --> R2["R2: Position and Execution wire format"]
+      Goals --> R3["R3: Opaque receipt on Entry"]
+      Goals --> R4["R4: Conversation in the typed snapshot"]
+      Goals --> R5["R5: Reference adapters and default backend"]
+      Goals --> R6["R6: Save timing, resume, and non-goals"]
+      AC1["AC1: Two-method port; no key/blob StateStore"]
+      R1 --> AC1
+      AC2["AC2: Typed Position and Execution with JSON wire format"]
+      R2 --> AC2
+      AC3["AC3: Opaque receipt persisted verbatim"]
+      R3 --> AC3
+      AC4["AC4: Conversation folds into the snapshot"]
+      R4 --> AC4
+      AC5["AC5: Noop default, InMemory test adapter, Dolt backend"]
+      R5 --> AC5
+      AC6["AC6: Save timing, single resume, non-goals"]
+      R6 --> AC6
+    ```

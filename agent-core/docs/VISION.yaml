@@ -229,10 +229,14 @@ success_criteria:
     requests should enter REST, run short-lived MachineSpec sentences, read
     configured document resources, and return response word output.
   lifecycle_readiness: |
-    Runtime contracts preserve the separation between agent state,
-    command/domain state, and workspace/environment state so checkpoint,
-    suspend, resume, and rollback behavior can be enabled without changing
-    disabled-mode execution.
+    Runtime persistence is a two-method typed checkpoint port. Save records the
+    resumable position and the ordered execution log; Load restores them. Each
+    execution entry carries an opaque, tool-owned receipt, so external effects
+    can be reversed without the engine interpreting persisted bytes. The default
+    NoopCheckpoint keeps disabled-mode execution unchanged, while the default
+    persistent backend is a Dolt versioned-SQL adapter. Checkpoint, suspend,
+    resume, and rollback build on this port rather than on a separate three-layer
+    state model.
   reusable_infrastructure: |
     Reusable model boundary support, prompt assembly, standard tools, and tracing are
     shared across agents through internal/model/llm, internal/model/prompt,
@@ -280,6 +284,7 @@ canonical_documents:
   - docs/specs/software-requirements/srd023-cli-exec-tools.yaml
   - docs/specs/software-requirements/srd024-blocking-input-tools.yaml
   - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
+  - docs/specs/software-requirements/srd035-checkpoint-port.yaml
   - docs/specs/software-requirements/srd030-machine-request-rest-binding.yaml
   - docs/specs/software-requirements/srd031-declarative-document-resources.yaml
   - docs/specs/use-cases/rel02.0-uc003-tool-authoring.yaml

@@ -75,6 +75,7 @@ releases:
     srds:
       - srd025-rollback-lifecycle
       - srd026-lifecycle-tools
+      - srd035-checkpoint-port
     use_cases:
       - id: rel02.0-uc001-approval-suspend-resume
         summary: Agent suspends at approval gate and resumes from checkpoint
