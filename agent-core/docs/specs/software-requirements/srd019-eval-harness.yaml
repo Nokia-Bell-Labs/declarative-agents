@@ -70,7 +70,7 @@ requirements:
       - R4.1: LoadMultiple reads meta.json and trace.ndjson from session directories into EvalRunResult groups.
       - R4.2: ComputeModelStats aggregates per-model success rate, clean rate, recovery rate, stuck rate, mean iterations, tokens, and duration.
       - R4.3: ComputeDetailed produces per-sample-per-model breakdowns.
-      - R4.4: ConvergenceTracker classifies tool call patterns as Clean, Recovery, Stuck, or Divergent based on edit-test-pass sequences.
+      - R4.4: Classify reads a run's per-tool metric snapshots (edit-build-test outcomes) and assigns each tool progression one of six classes (Clean, Converged, Improving, Flat, Regressing, NoData) plus a single overall class per run; ComputeModelStats derives the aggregate recovery rate (converged over runs with failures) and stuck rate (flat-or-regressing over runs with failures) from these classes.
 
   R5:
     title: Trace and span utilities
@@ -103,7 +103,7 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3, R5.1, R5.2, R5.3, R5.4]
 
   - id: AC4
-    criterion: ConvergenceTracker correctly classifies agent behavior patterns from trace data.
+    criterion: Classify correctly assigns per-tool and overall convergence classes from a run's tool-metric snapshots, and ComputeModelStats derives the recovery and stuck rates consistently from those classes.
     traces: [R4.4]
 
 depends_on:
@@ -137,6 +137,6 @@ diagrams:
       AC3["AC3: ComputeModelStats and ComputeDetailed produce accurate st..."]
       R4 --> AC3
       R5 --> AC3
-      AC4["AC4: ConvergenceTracker correctly classifies agent behavior pa..."]
+      AC4["AC4: Classify assigns per-tool and overall convergence classes f..."]
       R4 --> AC4
     ```
