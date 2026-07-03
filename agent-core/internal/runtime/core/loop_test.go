@@ -62,9 +62,9 @@ type fakeCmd struct {
 	signal Signal
 }
 
-func (f *fakeCmd) Name() string    { return f.name }
-func (f *fakeCmd) Execute() Result { return Result{Signal: f.signal, CommandName: f.name} }
-func (f *fakeCmd) Undo() Result    { return NoopUndo(f.name) }
+func (f *fakeCmd) Name() string         { return f.name }
+func (f *fakeCmd) Execute() Result      { return Result{Signal: f.signal, CommandName: f.name} }
+func (f *fakeCmd) Undo(_ Result) Result { return NoopUndo(f.name) }
 
 type fakeBuilder struct {
 	name   string
@@ -174,7 +174,7 @@ func (c *workflowMetricCmd) Execute() Result {
 	})
 	return Result{Signal: ToolDone}
 }
-func (c *workflowMetricCmd) Undo() Result { return NoopUndo(c.Name()) }
+func (c *workflowMetricCmd) Undo(_ Result) Result { return NoopUndo(c.Name()) }
 func (c *workflowMetricCmd) SetMonitorRecorder(rec monitor.ToolMetricsRecorder) {
 	c.rec = rec
 }
@@ -1024,7 +1024,7 @@ func (f *tokenFakeCmd) Execute() Result {
 		Cost:        Cost{TokensIn: f.tokens, TokensOut: f.tokens, Duration: time.Millisecond},
 	}
 }
-func (f *tokenFakeCmd) Undo() Result { return NoopUndo(f.Name()) }
+func (f *tokenFakeCmd) Undo(_ Result) Result { return NoopUndo(f.Name()) }
 
 type staticBuilder struct {
 	cmd Command
@@ -1077,7 +1077,7 @@ func (m *mementoCmd) Name() string { return m.name }
 func (m *mementoCmd) Execute() Result {
 	return Result{Signal: m.signal, CommandName: m.name}
 }
-func (m *mementoCmd) Undo() Result { return NoopUndo(m.name) }
+func (m *mementoCmd) Undo(_ Result) Result { return NoopUndo(m.name) }
 func (m *mementoCmd) UndoMemento() (UndoMemento, error) {
 	if m.err != nil {
 		return UndoMemento{}, m.err
@@ -1116,7 +1116,7 @@ func (e *errorCmd) Name() string { return e.name }
 func (e *errorCmd) Execute() Result {
 	return Result{Signal: ToolDone, CommandName: e.name, Err: e.err, Output: e.err.Error()}
 }
-func (e *errorCmd) Undo() Result { return NoopUndo(e.name) }
+func (e *errorCmd) Undo(_ Result) Result { return NoopUndo(e.name) }
 
 type refWorkspace struct {
 	ref string

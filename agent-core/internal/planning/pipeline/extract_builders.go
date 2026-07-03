@@ -19,7 +19,7 @@ type extractTaskCmd struct {
 }
 
 func (c *extractTaskCmd) Name() string { return "extract_task" }
-func (c *extractTaskCmd) Undo() core.Result {
+func (c *extractTaskCmd) Undo(_ core.Result) core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
 }
 
@@ -66,7 +66,7 @@ type extractAllCmd struct {
 }
 
 func (c *extractAllCmd) Name() string { return "extract_all" }
-func (c *extractAllCmd) Undo() core.Result {
+func (c *extractAllCmd) Undo(_ core.Result) core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
 }
 

@@ -32,7 +32,7 @@ type serveUICmd struct {
 }
 
 func (c *serveUICmd) Name() string { return "serve_ui" }
-func (c *serveUICmd) Undo() core.Result {
+func (c *serveUICmd) Undo(_ core.Result) core.Result {
 	err := fmt.Errorf("undo serve_ui requires server shutdown or compensation for the submitted user action")
 	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
 }
@@ -98,8 +98,8 @@ type failCmd struct {
 	err error
 }
 
-func (f *failCmd) Name() string      { return "fail" }
-func (f *failCmd) Undo() core.Result { return core.NoopUndo(f.Name()) }
+func (f *failCmd) Name() string                   { return "fail" }
+func (f *failCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(f.Name()) }
 
 func (f *failCmd) Execute() core.Result {
 	return core.Result{

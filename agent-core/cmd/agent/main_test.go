@@ -32,7 +32,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
-	toolrest 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
@@ -939,7 +939,7 @@ func (c staticSignalCmd) Execute() core.Result {
 	return core.Result{CommandName: c.name, Signal: c.signal, Output: c.output}
 }
 
-func (c staticSignalCmd) Undo() core.Result {
+func (c staticSignalCmd) Undo(_ core.Result) core.Result {
 	return core.NoopUndo(c.name)
 }
 

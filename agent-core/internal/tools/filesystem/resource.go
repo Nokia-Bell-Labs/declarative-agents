@@ -64,8 +64,8 @@ type listResourceCmd struct {
 	resources ResourceConfig
 }
 
-func (l *listResourceCmd) Name() string      { return "list_resource" }
-func (l *listResourceCmd) Undo() core.Result { return core.NoopUndo(l.Name()) }
+func (l *listResourceCmd) Name() string                   { return "list_resource" }
+func (l *listResourceCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(l.Name()) }
 
 func (l *listResourceCmd) Execute() core.Result {
 	def, base, ok := l.resourceBase(l.resource)
@@ -95,8 +95,8 @@ type readResourceCmd struct {
 	resources ResourceConfig
 }
 
-func (r *readResourceCmd) Name() string      { return "read_resource" }
-func (r *readResourceCmd) Undo() core.Result { return core.NoopUndo(r.Name()) }
+func (r *readResourceCmd) Name() string                   { return "read_resource" }
+func (r *readResourceCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(r.Name()) }
 
 func (r *readResourceCmd) Execute() core.Result {
 	def, base, ok := r.resourceBase(r.resource)

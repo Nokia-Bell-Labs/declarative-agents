@@ -29,7 +29,7 @@ type parseSuiteConfigCmd struct {
 }
 
 func (c *parseSuiteConfigCmd) Name() string { return "parse_suite_config" }
-func (c *parseSuiteConfigCmd) Undo() core.Result {
+func (c *parseSuiteConfigCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
 }
 func (c *parseSuiteConfigCmd) UndoMemento() (core.UndoMemento, error) {
@@ -92,7 +92,7 @@ type discoverSuiteSamplesCmd struct {
 }
 
 func (c *discoverSuiteSamplesCmd) Name() string { return "discover_suite_samples" }
-func (c *discoverSuiteSamplesCmd) Undo() core.Result {
+func (c *discoverSuiteSamplesCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
 }
 func (c *discoverSuiteSamplesCmd) UndoMemento() (core.UndoMemento, error) {
@@ -135,7 +135,7 @@ type expandEvalGridCmd struct {
 }
 
 func (c *expandEvalGridCmd) Name() string { return "expand_eval_grid" }
-func (c *expandEvalGridCmd) Undo() core.Result {
+func (c *expandEvalGridCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
 }
 func (c *expandEvalGridCmd) UndoMemento() (core.UndoMemento, error) {
@@ -169,7 +169,7 @@ type initEvalSessionCmd struct {
 }
 
 func (c *initEvalSessionCmd) Name() string { return "init_eval_session" }
-func (c *initEvalSessionCmd) Undo() core.Result {
+func (c *initEvalSessionCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
 }
 func (c *initEvalSessionCmd) UndoMemento() (core.UndoMemento, error) {
@@ -223,8 +223,8 @@ type reportSuiteSummaryCmd struct {
 	es *EvalSessionState
 }
 
-func (c *reportSuiteSummaryCmd) Name() string      { return "report_suite_summary" }
-func (c *reportSuiteSummaryCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *reportSuiteSummaryCmd) Name() string                   { return "report_suite_summary" }
+func (c *reportSuiteSummaryCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *reportSuiteSummaryCmd) Execute() core.Result {
 	suite := c.es.Suite

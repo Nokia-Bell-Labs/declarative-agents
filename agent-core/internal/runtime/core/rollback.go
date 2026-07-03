@@ -157,7 +157,7 @@ func rollbackUndoEntry(entry HistoryEntry) RollbackUndo {
 		undo.Error = "missing command"
 		return undo
 	}
-	res := entry.Command.Undo()
+	res := entry.Command.Undo(Result{})
 	undo.Result = digestResult(res)
 	if res.Err != nil {
 		undo.Error = res.Err.Error()

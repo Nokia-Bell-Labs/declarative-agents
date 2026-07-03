@@ -52,11 +52,14 @@ const (
 	ValidationFailed Signal = "ValidationFailed"
 )
 
-// Command is the single interface for all executable units of work.
+// Command is the single interface for all executable units of work. Undo is
+// receipt-consuming: it receives the prior Result whose opaque Receipt the tool
+// (originator) decodes to reverse its own effect; the engine and adapters never
+// interpret the receipt (srd035-checkpoint-port R3).
 type Command interface {
 	Name() string
 	Execute() Result
-	Undo() Result
+	Undo(prior Result) Result
 }
 
 // MonitorRecorderAware lets commands receive the tool-facing monitor recorder.

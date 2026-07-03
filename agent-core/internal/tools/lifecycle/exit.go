@@ -68,7 +68,7 @@ func (c *exitCmd) Execute() core.Result {
 	return core.Result{Signal: core.Signal("AgentExited"), CommandName: c.Name(), Output: output}
 }
 
-func (c *exitCmd) Undo() core.Result {
+func (c *exitCmd) Undo(_ core.Result) core.Result {
 	return undo.BoundaryCompensationUndo(c.Name(), "operator can restart the agent or resume from a checkpoint")
 }
 

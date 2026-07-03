@@ -89,13 +89,13 @@ func TestRESTClient_CompensationUndoMemento(t *testing.T) {
 	require.Equal(t, core.Signal("RESTResourceRead"), read.Execute().Signal)
 	readMemento := requireRESTUndoMemento(t, read)
 	require.Equal(t, core.UndoMementoNoop, readMemento.Kind)
-	require.Equal(t, core.ToolDone, read.Undo().Signal)
+	require.Equal(t, core.ToolDone, read.Undo(core.Result{}).Signal)
 
 	write := clientCommand(def, InitClientSet, "set", params("1", "new"))
 	require.Equal(t, core.Signal("RESTResourceWritten"), write.Execute().Signal)
 	writeMemento := requireRESTUndoMemento(t, write)
 	require.Equal(t, core.UndoMementoCompensatable, writeMemento.Kind)
-	require.Equal(t, core.CommandError, write.Undo().Signal)
+	require.Equal(t, core.CommandError, write.Undo(core.Result{}).Signal)
 	requireRESTCompensationPayload(t, writeMemento)
 }
 

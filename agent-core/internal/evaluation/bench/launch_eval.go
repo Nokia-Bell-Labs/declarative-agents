@@ -45,7 +45,7 @@ type launchEvalCmd struct {
 }
 
 func (c *launchEvalCmd) Name() string { return "launch_eval" }
-func (c *launchEvalCmd) Undo() core.Result {
+func (c *launchEvalCmd) Undo(_ core.Result) core.Result {
 	err := fmt.Errorf("undo launch_eval requires child evaluator artifact compensation")
 	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
 }

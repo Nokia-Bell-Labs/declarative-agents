@@ -15,7 +15,7 @@ type executeTaskCmd struct {
 }
 
 func (c *executeTaskCmd) Name() string { return "execute_task" }
-func (c *executeTaskCmd) Undo() core.Result {
+func (c *executeTaskCmd) Undo(_ core.Result) core.Result {
 	err := fmt.Errorf("undo execute_task requires child agent history or workspace compensation")
 	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
 }

@@ -38,7 +38,7 @@ func (c namedCmd) Name() string { return c.name }
 func (c namedCmd) Execute() core.Result {
 	return core.Result{Signal: core.ToolDone, CommandName: c.name}
 }
-func (c namedCmd) Undo() core.Result { return core.NoopUndo(c.name) }
+func (c namedCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.name) }
 
 func TestBuildDynamicToolActionDispatchesAndTracks(t *testing.T) {
 	t.Parallel()

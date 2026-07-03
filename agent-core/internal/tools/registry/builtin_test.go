@@ -17,9 +17,9 @@ func (noopBuilder) Build(_ core.Result) core.Command { return noopCmd{} }
 
 type noopCmd struct{}
 
-func (noopCmd) Name() string         { return "noop" }
-func (noopCmd) Execute() core.Result { return core.Result{Signal: core.ToolDone} }
-func (noopCmd) Undo() core.Result    { return core.NoopUndo("noop") }
+func (noopCmd) Name() string                   { return "noop" }
+func (noopCmd) Execute() core.Result           { return core.Result{Signal: core.ToolDone} }
+func (noopCmd) Undo(_ core.Result) core.Result { return core.NoopUndo("noop") }
 
 func TestBuiltinRegistryRegisterResolveOverride(t *testing.T) {
 	t.Parallel()

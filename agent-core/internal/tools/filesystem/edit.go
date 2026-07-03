@@ -26,7 +26,7 @@ type editCmd struct {
 }
 
 func (e *editCmd) Name() string { return "edit" }
-func (e *editCmd) Undo() core.Result {
+func (e *editCmd) Undo(_ core.Result) core.Result {
 	return undoFileSnapshot(e.Name(), e.root, e.snapshot, e.hasSnapshot)
 }
 func (e *editCmd) UndoMemento() (core.UndoMemento, error) {

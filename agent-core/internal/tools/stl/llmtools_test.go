@@ -124,7 +124,7 @@ func TestInvokeLLM_UndoRestoresPreviousHistoryLength(t *testing.T) {
 	require.Equal(t, core.LLMResponded, res.Signal)
 	require.Equal(t, 3, history.Len())
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 1, history.Len())
 	require.Equal(t, "existing", history.History()[0].Content)
@@ -210,7 +210,7 @@ func TestInvokeLLM_UndoRestoresUserMessageAfterError(t *testing.T) {
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Equal(t, 2, history.Len())
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 1, history.Len())
 }
@@ -455,7 +455,7 @@ func TestReportParseError_UndoRestoresRetryCounter(t *testing.T) {
 	require.Equal(t, core.ToolDone, res.Signal)
 	require.Equal(t, 1, tracker.Snapshot())
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 0, tracker.Snapshot())
 }
@@ -483,7 +483,7 @@ func TestParseResponse_ResetsRetryCounterAfterSuccessfulParse(t *testing.T) {
 	require.Equal(t, core.ToolDone, res.Signal)
 	require.Equal(t, 0, tracker.Snapshot())
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 2, tracker.Snapshot())
 }
@@ -515,7 +515,7 @@ func TestResetHistory_UndoRestoresPreviousMessages(t *testing.T) {
 	require.Equal(t, core.ToolDone, res.Signal)
 	require.Equal(t, 0, history.Len())
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 2, history.Len())
 	require.Equal(t, "hello", history.History()[0].Content)
@@ -530,7 +530,7 @@ func TestNudgeReread_UndoIsNoopBecauseCommandDoesNotMutateHistory(t *testing.T) 
 	require.Equal(t, core.ToolDone, res.Signal)
 	require.Contains(t, res.Output, rereadNudge)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Contains(t, undo.Output, "no-op")
 }

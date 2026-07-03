@@ -59,7 +59,7 @@ func (c restCmd) Execute() core.Result {
 	return core.Result{Signal: core.CommandError, CommandName: c.toolName, Output: err.Error(), Err: err}
 }
 
-func (c restCmd) Undo() core.Result {
+func (c restCmd) Undo(_ core.Result) core.Result {
 	return core.NoopUndo(c.toolName)
 }
 
@@ -92,7 +92,7 @@ func (c serverCmd) Execute() core.Result {
 	}
 }
 
-func (c serverCmd) Undo() core.Result {
+func (c serverCmd) Undo(_ core.Result) core.Result {
 	if c.init != InitServerLaunch {
 		return core.NoopUndo(c.toolName)
 	}
@@ -137,7 +137,7 @@ func (c awaitEventCmd) Execute() core.Result {
 	return core.Result{Signal: core.Signal(signal), CommandName: c.toolName, Output: eventOutput(event)}
 }
 
-func (c awaitEventCmd) Undo() core.Result {
+func (c awaitEventCmd) Undo(_ core.Result) core.Result {
 	return core.NoopUndo(c.toolName)
 }
 

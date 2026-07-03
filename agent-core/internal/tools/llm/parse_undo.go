@@ -8,7 +8,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
-func (p *parseResponseCmd) Undo() core.Result {
+func (p *parseResponseCmd) Undo(_ core.Result) core.Result {
 	if p.retry == nil {
 		return core.NoopUndo(p.Name())
 	}

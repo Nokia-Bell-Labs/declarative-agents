@@ -9,7 +9,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
-func (c *invokeLLMCmd) Undo() core.Result {
+func (c *invokeLLMCmd) Undo(_ core.Result) core.Result {
 	if !c.hasSnapshot {
 		err := fmt.Errorf("undo invoke_llm: no conversation snapshot recorded")
 		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}

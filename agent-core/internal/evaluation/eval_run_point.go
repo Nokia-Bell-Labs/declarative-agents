@@ -33,7 +33,7 @@ type runPointCmd struct {
 }
 
 func (c *runPointCmd) Name() string { return "run_point" }
-func (c *runPointCmd) Undo() core.Result {
+func (c *runPointCmd) Undo(_ core.Result) core.Result {
 	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
 }
 func (c *runPointCmd) UndoMemento() (core.UndoMemento, error) {

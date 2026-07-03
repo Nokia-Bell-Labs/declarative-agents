@@ -472,8 +472,8 @@ func (b responseBuilder) Build(res core.Result) core.Command {
 	return responseCmd{name: b.name, signal: b.signal, input: res.Output}
 }
 
-func (c responseCmd) Name() string      { return c.name }
-func (c responseCmd) Undo() core.Result { return core.NoopUndo(c.name) }
+func (c responseCmd) Name() string                   { return c.name }
+func (c responseCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.name) }
 
 func (c responseCmd) Execute() core.Result {
 	output, err := c.output()

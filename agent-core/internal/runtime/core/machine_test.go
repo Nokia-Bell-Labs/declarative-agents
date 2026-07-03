@@ -420,9 +420,9 @@ transitions:
 
 type dummyCmd struct{ name string }
 
-func (d *dummyCmd) Name() string    { return d.name }
-func (d *dummyCmd) Execute() Result { return Result{} }
-func (d *dummyCmd) Undo() Result    { return NoopUndo(d.name) }
+func (d *dummyCmd) Name() string         { return d.name }
+func (d *dummyCmd) Execute() Result      { return Result{} }
+func (d *dummyCmd) Undo(_ Result) Result { return NoopUndo(d.name) }
 
 type dummyBuilder struct{ name string }
 
@@ -694,7 +694,7 @@ func (o *orderCmd) Execute() Result {
 	*o.order = append(*o.order, o.toolName)
 	return Result{Signal: ToolDone, CommandName: o.toolName, Output: o.toolName + " done"}
 }
-func (o *orderCmd) Undo() Result { return NoopUndo(o.toolName) }
+func (o *orderCmd) Undo(_ Result) Result { return NoopUndo(o.toolName) }
 
 func assertMachineDiagnostic(t *testing.T, diagnostics []MachineDiagnostic, code, state, signal string, transitionIndex int) {
 	t.Helper()

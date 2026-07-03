@@ -60,7 +60,7 @@ func TestCollectTraceTokensUndoRestoresPointContext(t *testing.T) {
 	requireSignal(t, cmd.Execute(), SigTraceTokensCollected)
 	require.Equal(t, 150, pc.Tokens)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	requireSignal(t, undo, core.ToolDone)
 	require.Equal(t, 7, pc.Tokens)
 

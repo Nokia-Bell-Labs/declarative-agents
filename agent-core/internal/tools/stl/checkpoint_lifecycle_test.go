@@ -120,7 +120,7 @@ func TestCheckpointHistoryUndoMementoIsNoop(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, core.UndoMementoNoop, memento.Kind)
 	require.Equal(t, "checkpoint_history", memento.CommandName)
-	require.Equal(t, core.ToolDone, cmd.Undo().Signal)
+	require.Equal(t, core.ToolDone, cmd.Undo(core.Result{}).Signal)
 }
 
 func TestCheckpointRollbackExecutePersistsNewCheckpoint(t *testing.T) {
@@ -235,7 +235,7 @@ func TestCheckpointRollbackUndoMementoIsCompensatable(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, core.UndoMementoCompensatable, memento.Kind)
 	require.Equal(t, "checkpoint_rollback", memento.CommandName)
-	require.Equal(t, core.CommandError, cmd.Undo().Signal)
+	require.Equal(t, core.CommandError, cmd.Undo(core.Result{}).Signal)
 	var payload BoundaryCompensationPayload
 	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
 	require.Equal(t, "operator_checkpoint_selection", payload.BoundaryCompensation.Strategy)

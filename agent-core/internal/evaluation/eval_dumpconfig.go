@@ -21,8 +21,8 @@ type dumpConfigCmd struct {
 	pc *PointContext
 }
 
-func (c *dumpConfigCmd) Name() string      { return "dump_config" }
-func (c *dumpConfigCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *dumpConfigCmd) Name() string                   { return "dump_config" }
+func (c *dumpConfigCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *dumpConfigCmd) Execute() core.Result {
 	pc := c.pc

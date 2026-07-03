@@ -170,8 +170,8 @@ type failCmd struct {
 	err error
 }
 
-func (f *failCmd) Name() string      { return "fail" }
-func (f *failCmd) Undo() core.Result { return core.NoopUndo(f.Name()) }
+func (f *failCmd) Name() string                   { return "fail" }
+func (f *failCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(f.Name()) }
 
 func (f *failCmd) Execute() core.Result {
 	return core.Result{

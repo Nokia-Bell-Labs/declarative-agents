@@ -30,7 +30,7 @@ func (r *resetHistoryCmd) Execute() core.Result {
 	return core.Result{Signal: core.ToolDone, Output: "Begin.", CommandName: r.Name()}
 }
 
-func (r *resetHistoryCmd) Undo() core.Result {
+func (r *resetHistoryCmd) Undo(_ core.Result) core.Result {
 	if !r.hasSnapshot {
 		err := fmt.Errorf("undo reset_history: no conversation snapshot recorded")
 		return core.Result{Signal: core.CommandError, CommandName: r.Name(), Output: err.Error(), Err: err}

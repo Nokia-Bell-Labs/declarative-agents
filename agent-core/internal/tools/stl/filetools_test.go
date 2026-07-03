@@ -115,7 +115,7 @@ func TestWrite_UndoRemovesCreatedFile(t *testing.T) {
 	res := cmd.Execute()
 	require.Equal(t, core.ToolDone, res.Signal)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 
 	require.Equal(t, core.ToolDone, undo.Signal)
 	_, err := os.Stat(filepath.Join(root, "new.txt"))
@@ -149,7 +149,7 @@ func TestWrite_UndoRestoresOverwrittenFile(t *testing.T) {
 	res := cmd.Execute()
 	require.Equal(t, core.ToolDone, res.Signal)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 
 	require.Equal(t, core.ToolDone, undo.Signal)
 	data, err := os.ReadFile(filepath.Join(root, "exist.txt"))
@@ -218,7 +218,7 @@ func TestEdit_UndoRestoresOriginalFile(t *testing.T) {
 	res := cmd.Execute()
 	require.Equal(t, core.EditDone, res.Signal)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 
 	require.Equal(t, core.ToolDone, undo.Signal)
 	data, err := os.ReadFile(filepath.Join(root, "e.txt"))

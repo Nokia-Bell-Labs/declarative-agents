@@ -44,7 +44,7 @@ type loadCorpusCmd struct {
 }
 
 func (c *loadCorpusCmd) Name() string { return "load_corpus" }
-func (c *loadCorpusCmd) Undo() core.Result {
+func (c *loadCorpusCmd) Undo(_ core.Result) core.Result {
 	return undoSpecSnapshot(c.Name(), c.vs, c.snapshot, c.hasSnapshot)
 }
 func (c *loadCorpusCmd) UndoMemento() (core.UndoMemento, error) {
@@ -80,7 +80,7 @@ type validateSpecsCmd struct {
 }
 
 func (c *validateSpecsCmd) Name() string { return "validate_specs" }
-func (c *validateSpecsCmd) Undo() core.Result {
+func (c *validateSpecsCmd) Undo(_ core.Result) core.Result {
 	return undoSpecSnapshot(c.Name(), c.vs, c.snapshot, c.hasSnapshot)
 }
 func (c *validateSpecsCmd) UndoMemento() (core.UndoMemento, error) {
@@ -122,8 +122,8 @@ type formatReportCmd struct {
 	vs *SpecState
 }
 
-func (c *formatReportCmd) Name() string      { return "format_report" }
-func (c *formatReportCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *formatReportCmd) Name() string                   { return "format_report" }
+func (c *formatReportCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c *formatReportCmd) Execute() core.Result {
 	report := spec.FormatFindings(c.vs.Findings)

@@ -63,7 +63,7 @@ type validateCmd struct {
 }
 
 func (v *validateCmd) Name() string { return "validate" }
-func (v *validateCmd) Undo() core.Result {
+func (v *validateCmd) Undo(_ core.Result) core.Result {
 	return undo.BoundaryCompensationUndo(v.Name(), "undo or compensate validation child commands and any workspace effects they produced")
 }
 func (v *validateCmd) UndoMemento() (core.UndoMemento, error) {

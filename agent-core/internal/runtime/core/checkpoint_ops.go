@@ -294,7 +294,7 @@ func (p persistedHistoryCommand) Execute() Result {
 	return Result{Signal: ToolDone, CommandName: p.Name()}
 }
 
-func (p persistedHistoryCommand) Undo() Result {
+func (p persistedHistoryCommand) Undo(_ Result) Result {
 	if err := p.restorer.Restore(p.entry); err != nil {
 		return Result{
 			Signal:      CommandError,

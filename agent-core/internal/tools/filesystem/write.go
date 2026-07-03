@@ -24,7 +24,7 @@ type writeCmd struct {
 }
 
 func (w *writeCmd) Name() string { return "write" }
-func (w *writeCmd) Undo() core.Result {
+func (w *writeCmd) Undo(_ core.Result) core.Result {
 	return undoFileSnapshot(w.Name(), w.root, w.snapshot, w.hasSnapshot)
 }
 func (w *writeCmd) UndoMemento() (core.UndoMemento, error) {

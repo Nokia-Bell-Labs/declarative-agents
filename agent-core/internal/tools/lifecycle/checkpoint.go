@@ -47,7 +47,7 @@ func (c *checkpointHistoryCmd) Execute() core.Result {
 	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: core.FormatCheckpointHistory(cp)}
 }
 
-func (c *checkpointHistoryCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c *checkpointHistoryCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 func (c *checkpointHistoryCmd) UndoMemento() (core.UndoMemento, error) {
 	return core.NoopUndoMemento(c.Name()), nil
 }
@@ -95,7 +95,7 @@ func (c *checkpointRollbackCmd) Execute() core.Result {
 	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: c.rollbackSummary(result)}
 }
 
-func (c *checkpointRollbackCmd) Undo() core.Result {
+func (c *checkpointRollbackCmd) Undo(_ core.Result) core.Result {
 	return undo.BoundaryCompensationUndo(c.Name(), "operator can resume from the original checkpoint or choose another rollback checkpoint")
 }
 func (c *checkpointRollbackCmd) UndoMemento() (core.UndoMemento, error) {

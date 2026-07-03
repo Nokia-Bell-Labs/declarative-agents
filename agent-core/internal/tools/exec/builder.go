@@ -56,7 +56,7 @@ type ExecCmd struct {
 
 func (c *ExecCmd) Name() string { return c.def.Name }
 
-func (c *ExecCmd) Undo() core.Result {
+func (c *ExecCmd) Undo(_ core.Result) core.Result {
 	switch c.def.Undo.Strategy {
 	case "", "noop":
 		return core.NoopUndo(c.Name())

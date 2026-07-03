@@ -188,9 +188,9 @@ type rollbackFuncCmd struct {
 	undo func() Result
 }
 
-func (r *rollbackFuncCmd) Name() string    { return r.name }
-func (r *rollbackFuncCmd) Execute() Result { return Result{Signal: ToolDone, CommandName: r.name} }
-func (r *rollbackFuncCmd) Undo() Result    { return r.undo() }
+func (r *rollbackFuncCmd) Name() string         { return r.name }
+func (r *rollbackFuncCmd) Execute() Result      { return Result{Signal: ToolDone, CommandName: r.name} }
+func (r *rollbackFuncCmd) Undo(_ Result) Result { return r.undo() }
 
 type recordingWorkspace struct {
 	restored []string

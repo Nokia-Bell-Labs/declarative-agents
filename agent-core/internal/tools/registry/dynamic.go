@@ -59,8 +59,8 @@ type standardFailCmd struct {
 	err error
 }
 
-func (f *standardFailCmd) Name() string      { return "fail" }
-func (f *standardFailCmd) Undo() core.Result { return core.NoopUndo(f.Name()) }
+func (f *standardFailCmd) Name() string                   { return "fail" }
+func (f *standardFailCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(f.Name()) }
 
 func (f *standardFailCmd) Execute() core.Result {
 	return core.Result{Signal: core.CommandError, Err: f.err, Output: f.err.Error(), CommandName: "fail"}
@@ -73,8 +73,8 @@ type tracedDynamicToolCmd struct {
 	params   string
 }
 
-func (t *tracedDynamicToolCmd) Name() string      { return t.inner.Name() }
-func (t *tracedDynamicToolCmd) Undo() core.Result { return t.inner.Undo() }
+func (t *tracedDynamicToolCmd) Name() string                   { return t.inner.Name() }
+func (t *tracedDynamicToolCmd) Undo(_ core.Result) core.Result { return t.inner.Undo(core.Result{}) }
 
 func (t *tracedDynamicToolCmd) Execute() core.Result {
 	child, done := t.tracer.Push("dispatch/"+t.toolName,

@@ -92,7 +92,7 @@ func TestExecCmd_BuildArgs_FlagParams(t *testing.T) {
 
 func TestExecCmdUndoWorkspaceRestoreIsHandledByWorkspaceLayer(t *testing.T) {
 	cmd := &ExecCmd{def: catalog.ToolDef{Name: "copy_dir", Undo: catalog.ToolUndoContract{Strategy: "workspace_restore"}}}
-	res := cmd.Undo()
+	res := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, res.Signal)
 	assert.Contains(t, res.Output, "workspace restore")
 }
@@ -102,7 +102,7 @@ func TestExecCmdUndoCompensatingActionReportsGap(t *testing.T) {
 		Name: "issue_create",
 		Undo: catalog.ToolUndoContract{Strategy: "compensating_action", Description: "close created issue"},
 	}}
-	res := cmd.Undo()
+	res := cmd.Undo(core.Result{})
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Error(t, res.Err)
 	assert.Contains(t, res.Output, "requires compensating action")

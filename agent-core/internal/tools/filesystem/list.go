@@ -18,8 +18,8 @@ type listFilesCmd struct {
 	maxDepth int
 }
 
-func (l *listFilesCmd) Name() string      { return "list_files" }
-func (l *listFilesCmd) Undo() core.Result { return core.NoopUndo(l.Name()) }
+func (l *listFilesCmd) Name() string                   { return "list_files" }
+func (l *listFilesCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(l.Name()) }
 
 func (l *listFilesCmd) Execute() core.Result {
 	walkRoot, failure := l.walkRoot()

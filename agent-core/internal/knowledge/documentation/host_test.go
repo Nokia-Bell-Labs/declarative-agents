@@ -228,7 +228,7 @@ func TestServeDocumentationUndoStopsOwnedListener(t *testing.T) {
 	addr := requireResultAddr(t, res)
 	t.Cleanup(func() { _, _ = host.Stop() })
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 
 	require.Equal(t, core.Signal("ServerStopped"), undo.Signal, undo.Output)
 	requireAddressReleased(t, addr)
@@ -333,7 +333,7 @@ func (c staticDocsSignalCmd) Execute() core.Result {
 	return core.Result{Signal: c.signal, CommandName: c.name, Output: c.output}
 }
 
-func (c staticDocsSignalCmd) Undo() core.Result {
+func (c staticDocsSignalCmd) Undo(_ core.Result) core.Result {
 	return core.NoopUndo(c.name)
 }
 

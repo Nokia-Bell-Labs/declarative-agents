@@ -14,7 +14,7 @@ type createIssueCmd struct {
 }
 
 func (c *createIssueCmd) Name() string { return "create_issue" }
-func (c *createIssueCmd) Undo() core.Result {
+func (c *createIssueCmd) Undo(_ core.Result) core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
 }
 

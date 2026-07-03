@@ -46,7 +46,7 @@ func parseFeedback(errorText string) string {
 	)
 }
 
-func (r *reportParseErrorCmd) Undo() core.Result {
+func (r *reportParseErrorCmd) Undo(_ core.Result) core.Result {
 	if r.retry == nil {
 		return core.NoopUndo(r.Name())
 	}

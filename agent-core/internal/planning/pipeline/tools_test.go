@@ -99,7 +99,7 @@ func TestExtractTaskBuilder_UndoRestoresPipelineState(t *testing.T) {
 	require.NotNil(t, ps.CurrentTask)
 	require.Equal(t, 0, ps.retryCount)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
 	require.Equal(t, 3, ps.retryCount)
@@ -173,7 +173,7 @@ func TestExtractAllBuilder_UndoRestoresPipelineState(t *testing.T) {
 	require.NotNil(t, ps.CurrentTask)
 	require.Equal(t, 0, ps.retryCount)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
 	require.Equal(t, 4, ps.retryCount)
@@ -247,7 +247,7 @@ func TestParsePlanBuilder_UndoRestoresPreviousPlan(t *testing.T) {
 	require.Equal(t, SigPlanReady, result.Signal)
 	require.Equal(t, "Implement config parser", ps.CurrentPlan.Title)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, "previous", ps.CurrentPlan.Title)
 }
@@ -303,7 +303,7 @@ func TestCheckResultBuilder_UndoRestoresGraphStatusAfterPass(t *testing.T) {
 		require.Equal(t, graph.Done, n.Status)
 	}
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	for _, id := range task.NodeIDs {
 		n, _ := ps.Graph.Node(id)
@@ -334,7 +334,7 @@ func TestCheckResultBuilder_UndoRestoresRetryCount(t *testing.T) {
 	require.Equal(t, SigRetryAvailable, result.Signal)
 	require.Equal(t, 1, ps.retryCount)
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 0, ps.retryCount)
 }
@@ -361,7 +361,7 @@ func TestCreateIssueBuilder_UndoRestoresIssueState(t *testing.T) {
 	require.Equal(t, "new-issue", ps.IssueID)
 	require.Equal(t, "new-issue", ps.TaskDeps[task.ID])
 
-	undo := cmd.Undo()
+	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, "old-issue", ps.IssueID)
 	require.Equal(t, map[string]string{"old-task": "old-issue"}, ps.TaskDeps)

@@ -87,7 +87,7 @@ func requestBuildFailureStage(err error) string {
 	return "request_rendering"
 }
 
-func (c *clientCmd) Undo() core.Result {
+func (c *clientCmd) Undo(_ core.Result) core.Result {
 	if c.hasRESTCompensation() {
 		return undo.BoundaryCompensationUndo(c.toolName, restCompensationDescription)
 	}

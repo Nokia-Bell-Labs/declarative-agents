@@ -47,8 +47,8 @@ type failedParamCmd struct {
 	missing  string
 }
 
-func (c failedParamCmd) Name() string      { return c.toolName }
-func (c failedParamCmd) Undo() core.Result { return core.NoopUndo(c.Name()) }
+func (c failedParamCmd) Name() string                   { return c.toolName }
+func (c failedParamCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func (c failedParamCmd) Execute() core.Result {
 	return core.Result{

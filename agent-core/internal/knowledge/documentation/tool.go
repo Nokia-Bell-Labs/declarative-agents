@@ -94,7 +94,7 @@ type serveDocumentationCmd struct {
 
 func (c serveDocumentationCmd) Name() string { return "serve_documentation" }
 
-func (c serveDocumentationCmd) Undo() core.Result {
+func (c serveDocumentationCmd) Undo(_ core.Result) core.Result {
 	return c.stopHost()
 }
 

@@ -177,7 +177,7 @@ func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
 	require.Equal(t, core.Signal("Approved"), result.Signal, result.Output)
 	require.Contains(t, result.Output, `"source":"control"`)
 	require.Contains(t, result.Output, `"route":"approve"`)
-	require.Equal(t, core.ToolDone, command.Undo().Signal)
+	require.Equal(t, core.ToolDone, command.Undo(core.Result{}).Signal)
 }
 
 func TestRESTAwaitEvent_RejectsUnsupportedReadPolicy(t *testing.T) {
@@ -219,7 +219,7 @@ func TestRESTAwaitEvent_FactoryBuildsStagedFanIn(t *testing.T) {
 	firstAwait := awaitEventCommand(t, collection, state, "first", "second")
 	result := firstAwait.Execute()
 	requireAwaitEventOutput(t, result, "second", "SecondApproved")
-	require.Equal(t, core.ToolDone, firstAwait.Undo().Signal)
+	require.Equal(t, core.ToolDone, firstAwait.Undo(core.Result{}).Signal)
 
 	thirdURL := launchRESTServerCommand(t, collection, state, "third")
 	defer stopRESTServer(t, state, "third")
@@ -227,7 +227,7 @@ func TestRESTAwaitEvent_FactoryBuildsStagedFanIn(t *testing.T) {
 	secondAwait := awaitEventCommand(t, collection, state, "first", "second", "third")
 	result = secondAwait.Execute()
 	requireAwaitEventOutput(t, result, "third", "ThirdApproved")
-	require.Equal(t, core.ToolDone, secondAwait.Undo().Signal)
+	require.Equal(t, core.ToolDone, secondAwait.Undo(core.Result{}).Signal)
 }
 
 func TestRESTServer_RejectsUndeclaredQueryAndHeader(t *testing.T) {

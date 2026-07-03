@@ -22,8 +22,8 @@ type readCmd struct {
 	metrics   core.MetricConfig
 }
 
-func (r *readCmd) Name() string      { return "read" }
-func (r *readCmd) Undo() core.Result { return core.NoopUndo(r.Name()) }
+func (r *readCmd) Name() string                   { return "read" }
+func (r *readCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(r.Name()) }
 
 func (r *readCmd) Execute() core.Result {
 	resolved, err := ValidatePath(r.root, r.path)

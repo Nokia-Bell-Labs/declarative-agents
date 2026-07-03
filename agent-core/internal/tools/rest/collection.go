@@ -78,14 +78,14 @@ type MachineRequestRunner interface {
 
 // MachineRequestRun is the accepted HTTP request visible to a request machine.
 type MachineRequestRun struct {
-	Server            string                 `json:"server"`
-	Route             string                 `json:"route"`
-	Method            string                 `json:"method"`
-	Path              string                 `json:"path"`
-	RequestID         string                 `json:"request_id,omitempty"`
-	Payload           map[string]interface{} `json:"payload,omitempty"`
-	Config            MachineRequest         `json:"-"`
-	MonitorRecorder   monitor.RuntimeRecorder `json:"-"`
+	Server          string                  `json:"server"`
+	Route           string                  `json:"route"`
+	Method          string                  `json:"method"`
+	Path            string                  `json:"path"`
+	RequestID       string                  `json:"request_id,omitempty"`
+	Payload         map[string]interface{}  `json:"payload,omitempty"`
+	Config          MachineRequest          `json:"-"`
+	MonitorRecorder monitor.RuntimeRecorder `json:"-"`
 }
 
 // MachineRequestResult records the short-lived machine outcome.

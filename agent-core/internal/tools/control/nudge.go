@@ -22,8 +22,8 @@ type nudgeRereadCmd struct {
 	tracer     tracing.Tracer
 }
 
-func (n *nudgeRereadCmd) Name() string      { return "nudge_reread" }
-func (n *nudgeRereadCmd) Undo() core.Result { return core.NoopUndo(n.Name()) }
+func (n *nudgeRereadCmd) Name() string                   { return "nudge_reread" }
+func (n *nudgeRereadCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(n.Name()) }
 
 func (n *nudgeRereadCmd) Execute() core.Result {
 	child, done := n.tracer.Push(n.Name())

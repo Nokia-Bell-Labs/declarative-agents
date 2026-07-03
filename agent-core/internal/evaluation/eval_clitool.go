@@ -23,7 +23,7 @@ type runAgentCmd struct {
 }
 
 func (c *runAgentCmd) Name() string { return "run_agent" }
-func (c *runAgentCmd) Undo() core.Result {
+func (c *runAgentCmd) Undo(_ core.Result) core.Result {
 	result := undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
 	if result.Signal != core.ToolDone {
 		return result
