@@ -121,7 +121,7 @@ Inference Boundary sits within Agent-as-Data and requires Machine Interpreter, A
 
 ## Known Uses
 
-**Generator profile variants.** Generators share one `machine.yaml` and tool set but bind different LLM configs, namely `qwen.yaml`, `deepseek.yaml`, and `claude.yaml`. Running the bench/evaluator stack over the three yields a directly comparable grid (success rate, convergence distribution, cost, latency) because the harness is held constant; without the adapter, each model would need its own prompt formatting and parsing, tripling maintenance and confounding the comparison.
+**Generator profile variants.** Generators share one `machine.yaml` and tool set but bind different LLM configs, namely `qwen27b.yaml`, `deepseek.yaml`, and `devstral.yaml`. Running the bench/evaluator stack over the three yields a directly comparable grid (success rate, convergence distribution, cost, latency) because the harness is held constant; without the adapter, each model would need its own prompt formatting and parsing, tripling maintenance and confounding the comparison.
 
 **Evaluation harness isolation.** In the bench/evaluator/subject stack, changing the subject's model changes only its config while oracle checks and metrics stay identical, so Model A's Clean rate compares to Model B's without contamination. The same boundary supports production failover (a composite adapter tries a primary provider and retries a fallback) while machine and tools still see one `invoke_llm` tool.
 
