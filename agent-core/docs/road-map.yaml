@@ -68,14 +68,20 @@ releases:
     description: |
       Runtime checkpoint behavior is implemented. Suspend, resume, and rollback
       foundations are implemented too. Lifecycle profiles expose checkpoint
-      history and rollback through first-class STL builtin tools. Remaining
-      work covers documentation cleanup and the planned internal/tools package
+      history and rollback through first-class STL builtin tools. A storage
+      revision replaces the key/blob StateStore with a two-method typed
+      checkpoint port (srd035) and makes a Dolt versioned-SQL adapter (srd036)
+      the default persistent backend behind a database/sql seam, adding a
+      git-style Revert that rewinds DB-persisted state while tools own external
+      compensation through opaque receipts. Remaining work covers that storage
+      revision, documentation cleanup, and the planned internal/tools package
       split.
     status: in_progress
     srds:
       - srd025-rollback-lifecycle
       - srd026-lifecycle-tools
       - srd035-checkpoint-port
+      - srd036-dolt-state-persistence
     use_cases:
       - id: rel02.0-uc001-approval-suspend-resume
         summary: Agent suspends at approval gate and resumes from checkpoint

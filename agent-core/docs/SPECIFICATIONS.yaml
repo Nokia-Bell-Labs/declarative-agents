@@ -2,7 +2,7 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Thirty-five SRDs
+  Specification index for the agent-core framework. Thirty-six SRDs
   define the generic agentic loop engine and its supporting packages across
   seven releases. Release 04.0 implements embedded monitoring. The 00.0 release
   owns the engine foundation and its support packages. In 01.0, configured
@@ -24,16 +24,17 @@ overview: |
 
   SRD release assignments are range based. Release 00.0 covers srd001
   through srd018. Release 01.0 covers srd019 through srd024. Release
-  02.0 covers srd025, srd026, and srd035. Release 03.0 covers srd027 through
-  srd031. Release 04.0 covers srd032 and srd033. Release 06.0 covers
+  02.0 covers srd025, srd026, srd035, and srd036. Release 03.0 covers srd027
+  through srd031. Release 04.0 covers srd032 and srd033. Release 06.0 covers
   srd034.
 
   Release 02.0 storage revision.
   - srd035-checkpoint-port replaces the key/blob StateStore with a two-method
-    typed checkpoint port, and srd036-dolt-state-persistence (in progress) makes
-    a Dolt versioned-SQL adapter the default persistent backend. srd025 and
-    srd026 are under revision so their rollback story rests on the checkpoint
-    port and a receipt-driven undo rather than the engine undo-walk.
+    typed checkpoint port, and srd036-dolt-state-persistence makes a Dolt
+    versioned-SQL adapter the default persistent backend behind a database/sql
+    seam, adding a git-style Revert for DB-persisted rollback. srd025 and srd026
+    are under revision so their rollback story rests on the checkpoint port and a
+    receipt-driven undo rather than the engine undo-walk.
 
   Source-of-truth note.
   - roll-backs.md and tools-as-dsl.md are historical design notes. Their
@@ -196,6 +197,11 @@ srd_index:
     summary: Requirements for a two-method typed checkpoint port (Save/Load) over typed Position and Execution values, an opaque tool-owned Receipt on each Entry, a folded conversation snapshot, Noop and InMemory reference adapters, save timing, and a single resume contract. Replaces the key/blob StateStore.
     status: planned
     path: docs/specs/software-requirements/srd035-checkpoint-port.yaml
+  - id: srd036-dolt-state-persistence
+    title: Dolt State Persistence
+    summary: Requirements for a DoltCheckpoint adapter implementing the srd035 port behind a database/sql seam, a generic four-table schema, an opaque receipt column, commit-per-step and branch-per-run versioning with merge-to-main on terminal state, Load reconstruction, and a DB-only git-style Revert for rollback.
+    status: planned
+    path: docs/specs/software-requirements/srd036-dolt-state-persistence.yaml
   - id: srd027-rest-tool-runtime
     title: Declarative REST Tool Runtime
     summary: Shared REST runtime requirements for declarative client and server boundary tools, OpenAPI imports, net/http execution, event fan-in, lifecycle control routing, safety controls, observability, and rollback.
