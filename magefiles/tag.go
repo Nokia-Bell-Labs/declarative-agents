@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -16,10 +17,7 @@ const (
 	baseBranch = "main"
 )
 
-type gitOutputFunc func(args ...string) (string, error)
-type gitExecFunc func(args ...string) error
-
-// Tag creates an agent-profiles release tag (v0.YYYYMMDD.N).
+// Tag creates a repository-wide release tag (v0.YYYYMMDD.N).
 func Tag() error {
 	return createReleaseTag(time.Now(), gitOutput, gitExec)
 }
@@ -44,7 +42,7 @@ func createReleaseTag(now time.Time, output gitOutputFunc, run gitExecFunc) erro
 	if err := run("tag", tag); err != nil {
 		return fmt.Errorf("creating tag %s: %w", tag, err)
 	}
-	fmt.Printf("done - created %s\n", tag)
+	fmt.Printf("done — created %s\n", tag)
 	return nil
 }
 
@@ -72,10 +70,13 @@ func nextRevisionFromTags(date, tags string) int {
 	return maxRev + 1
 }
 
+type gitOutputFunc func(args ...string) (string, error)
+type gitExecFunc func(args ...string) error
+
 func gitExec(args ...string) error {
 	cmd := exec.Command("git", args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
