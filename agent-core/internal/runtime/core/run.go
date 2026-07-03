@@ -53,7 +53,6 @@ type RunResult struct {
 	LastError  error         `json:"-"`
 	Summary    string        `json:"summary"`
 	Events     []RunEvent    `json:"events"`
-	History    History       `json:"history,omitempty"`
 }
 
 // MarshalJSON implements custom JSON serialization for RunResult.
@@ -114,7 +113,6 @@ type LoopParams struct {
 	MachineSpec      *MachineSpec
 	InitFunc         func(reg *Registry) error
 	ToolAction       ActionFunc
-	CheckpointPolicy CheckpointPolicy
 	// Checkpoint is the typed persistence port (srd035). The loop saves the
 	// current Position and Execution through it after each dispatch cycle. A nil
 	// value defaults to NoopCheckpoint, preserving disabled-mode behavior.

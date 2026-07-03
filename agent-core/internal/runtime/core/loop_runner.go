@@ -200,7 +200,6 @@ func (r *loopRunner) dispatch(cmd Command, labels MetricLabels, transitionSignal
 	r.applyAfterDispatch(cmd)
 	r.accumulateResult()
 	r.recordResultEvent(fromState)
-	r.recordHistory(cmd, fromState, transitionSignal)
 	r.saveCheckpoint(fromState, transitionSignal)
 	emitIterationSpan(r.trace, r.iteration, r.result, fromState, r.state)
 }
@@ -298,20 +297,12 @@ func (r *loopRunner) runSnapshot() monitor.RunSnapshot {
 	}
 }
 
-func (r *loopRunner) recordHistory(cmd Command, fromState State, transitionSignal Signal) {
-	if !historyEnabled(r.params) {
-		return
-	}
-	entry := newHistoryEntry(r.iteration, cmd, r.result, fromState, r.state, transitionSignal, "")
-	r.run.History = append(r.run.History, entry)
-}
-
 func (r *loopRunner) stopForSuspend() bool {
 	if r.signal != AwaitApproval {
 		return false
 	}
 	// The Checkpoint port already persisted this suspend step in dispatch's
-	// saveCheckpoint; there is no separate StateStore suspend-save path
+	// saveCheckpoint; there is no separate suspend-save path
 	// (srd035-checkpoint-port R4, srd018 R5).
 	r.trace.Event("run.suspended",
 		attribute.String("state", string(r.state)),

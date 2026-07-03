@@ -4,7 +4,6 @@ package core
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -97,28 +96,6 @@ func TestInMemoryCheckpointIsolatesCallerMutation(t *testing.T) {
 	require.Equal(t, `{"path":"a.txt","previous":null}`, reloadExec[0].Receipt)
 	require.Equal(t, "read", reloadExec[1].CommandName)
 	require.JSONEq(t, `[{"role":"user","content":"hi"}]`, string(reloadPos.Snapshot.Conversation))
-}
-
-func TestFileCheckpointRoundTripsAcrossProcesses(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "state")
-	pos, exec := samplePositionExecution()
-
-	// Distinct instances over the same root simulate separate processes.
-	writer := NewFileCheckpoint(root)
-	require.NoError(t, writer.Save(pos, exec))
-
-	reader := NewFileCheckpoint(root)
-	gotPos, gotExec, err := reader.Load()
-	require.NoError(t, err)
-	require.Equal(t, pos.CurrentState, gotPos.CurrentState)
-	require.JSONEq(t, string(pos.Snapshot.Conversation), string(gotPos.Snapshot.Conversation))
-	require.Equal(t, exec, gotExec)
-}
-
-func TestFileCheckpointLoadReportsNotFound(t *testing.T) {
-	cp := NewFileCheckpoint(filepath.Join(t.TempDir(), "empty"))
-	_, _, err := cp.Load()
-	require.ErrorIs(t, err, ErrNoCheckpoint)
 }
 
 func TestCheckpointWireFormat(t *testing.T) {

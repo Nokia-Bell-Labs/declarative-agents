@@ -56,21 +56,3 @@ func Resume(params LoopParams, ctx context.Context) (RunResult, error) {
 	}
 	return Loop(state.Params, ctx)
 }
-
-func historyFromDigest(digest []HistoryDigest) History {
-	if len(digest) == 0 {
-		return nil
-	}
-	history := make(History, 0, len(digest))
-	for _, entry := range digest {
-		history = append(history, HistoryEntry{
-			Iteration:    entry.Iteration,
-			CommandName:  entry.CommandName,
-			FromState:    entry.FromState,
-			ToState:      entry.ToState,
-			Result:       ResultDigest{Signal: entry.Signal},
-			WorkspaceRef: entry.WorkspaceRef,
-		})
-	}
-	return history
-}
