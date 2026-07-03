@@ -398,7 +398,7 @@ func TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown(t *testing.T)
 	require.True(t, cancelled)
 }
 
-func TestApprovalLifecycleProfileSuspendsAndResumesApproved(t *testing.T) {
+func TestApprovalLifecycleProfileSuspendsAndPersistsCheckpoint(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
@@ -418,18 +418,6 @@ func TestApprovalLifecycleProfileSuspendsAndResumesApproved(t *testing.T) {
 	keys, err := store.List(context.Background(), "checkpoint/")
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
-	checkpointID := strings.TrimPrefix(keys[0], "checkpoint/")
-
-	clearAgentFlags()
-	flagProfile = profilePath
-	flagStateStoreDir = storeDir
-	flagResumeCheckpoint = checkpointID
-	flagResumeSignal = string(core.Approved)
-	secondStderr, err := captureStderr(t, func() error {
-		return run(rootCmd, nil)
-	})
-	require.NoError(t, err)
-	require.Contains(t, secondStderr, "terminal state: succeeded")
 }
 
 func TestApprovalLifecycleProfileUsesWorkspaceLocalStateStore(t *testing.T) {
@@ -452,18 +440,6 @@ func TestApprovalLifecycleProfileUsesWorkspaceLocalStateStore(t *testing.T) {
 	keys, err := store.List(context.Background(), "checkpoint/")
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
-	checkpointID := strings.TrimPrefix(keys[0], "checkpoint/")
-
-	clearAgentFlags()
-	flagProfile = profilePath
-	flagDirectory = workspace
-	flagResumeCheckpoint = checkpointID
-	flagResumeSignal = string(core.Approved)
-	secondStderr, err := captureStderr(t, func() error {
-		return run(rootCmd, nil)
-	})
-	require.NoError(t, err)
-	require.Contains(t, secondStderr, "terminal state: succeeded")
 }
 
 func TestStateStoreDirOverridesWorkspaceLocalDefault(t *testing.T) {
@@ -477,7 +453,26 @@ func TestStateStoreDirOverridesWorkspaceLocalDefault(t *testing.T) {
 	require.Equal(t, filepath.Join("operator", "state"), resolveStateStoreRoot(cfg))
 }
 
-func TestResumeCheckpointRequiresResolvableStateStore(t *testing.T) {
+func TestResolveCheckpointDefaultsToNoop(t *testing.T) {
+	t.Parallel()
+
+	cp, err := resolveCheckpoint(runtimeConfig{}, core.MachineSpec{})
+
+	require.NoError(t, err)
+	require.IsType(t, core.NoopCheckpoint{}, cp)
+}
+
+func TestResolveCheckpointWithDoltDSNOpensDoltBackend(t *testing.T) {
+	t.Parallel()
+
+	// The Dolt driver blank import lands in #37b, so a DSN-configured run
+	// surfaces the unregistered-driver error through the Dolt adapter here.
+	_, err := resolveCheckpoint(runtimeConfig{DoltDSN: "file:///tmp/agent-dolt"}, core.MachineSpec{})
+
+	require.ErrorIs(t, err, core.ErrDolt)
+}
+
+func TestResumeWithoutPersistentBackendReportsNoCheckpoint(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
@@ -488,7 +483,7 @@ func TestResumeCheckpointRequiresResolvableStateStore(t *testing.T) {
 	_, err := captureStderr(t, func() error {
 		return run(rootCmd, nil)
 	})
-	require.ErrorContains(t, err, "--resume-checkpoint requires --directory or --state-store-dir")
+	require.ErrorIs(t, err, core.ErrNoCheckpoint)
 }
 
 type exitMachineCase struct {

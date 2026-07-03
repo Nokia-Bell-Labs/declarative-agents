@@ -212,12 +212,33 @@ func (r *loopRunner) dispatch(cmd Command, labels MetricLabels, transitionSignal
 func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal) {
 	r.execution = append(r.execution, dispatchEntry(r.iteration, fromState, r.state, transitionSignal, r.result))
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
+	r.foldConversation(&pos)
 	if err := r.checkpoint.Save(pos, r.execution); err != nil {
 		r.trace.Event("checkpoint.save_failed",
 			attribute.Int("iteration", r.iteration),
 			attribute.String("error", err.Error()),
 		)
 	}
+}
+
+// foldConversation folds the domain-owned conversation into the resumable
+// Position so the typed checkpoint port persists it alongside loop state. Core
+// cannot import the llm package, so the conversation arrives through the
+// SnapshotConversation hook; a snapshot failure is traced, not fatal
+// (srd035-checkpoint-port R4, R6.1).
+func (r *loopRunner) foldConversation(pos *Position) {
+	if r.params.Hooks.SnapshotConversation == nil {
+		return
+	}
+	conversation, err := r.params.Hooks.SnapshotConversation()
+	if err != nil {
+		r.trace.Event("checkpoint.conversation_snapshot_failed",
+			attribute.Int("iteration", r.iteration),
+			attribute.String("error", err.Error()),
+		)
+		return
+	}
+	pos.Snapshot.Conversation = conversation
 }
 
 func (r *loopRunner) dispatchContext(labels MetricLabels) monitor.DispatchContext {

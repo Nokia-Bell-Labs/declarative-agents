@@ -4,6 +4,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,28 @@ func TestLoop_SavesSnapshotAfterDispatchWithConfiguredAdapter(t *testing.T) {
 	last := exec[len(exec)-1]
 	require.Equal(t, rr.Iterations, pos.Snapshot.Iteration)
 	require.Equal(t, last.ToState, pos.CurrentState)
+}
+
+// TestLoop_PortSavePersistsConversation verifies that the loop folds the
+// domain-owned conversation (via the SnapshotConversation hook) into the
+// Position persisted through the Checkpoint port, so a port-based resume can
+// restore it (srd035-checkpoint-port R4, R6.1).
+func TestLoop_PortSavePersistsConversation(t *testing.T) {
+	t.Parallel()
+	cp := &InMemoryCheckpoint{}
+	conversation := json.RawMessage(`[{"role":"user","content":"hello"}]`)
+	params := simpleLoopParams(&loopRecorder{})
+	params.Checkpoint = cp
+	params.Hooks.SnapshotConversation = func() (json.RawMessage, error) {
+		return conversation, nil
+	}
+
+	_, err := Loop(params, context.Background())
+	require.NoError(t, err)
+
+	pos, _, err := cp.Load()
+	require.NoError(t, err)
+	require.JSONEq(t, string(conversation), string(pos.Snapshot.Conversation))
 }
 
 // TestLoop_NoopCheckpointDefaultPersistsNothing verifies that a loop without a
