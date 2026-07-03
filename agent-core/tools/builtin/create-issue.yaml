@@ -2,7 +2,7 @@ tools:
 - name: create_issue
   type: builtin
   init: create_issue
-  description: Create a bd issue from the parsed implementation plan.
+  description: Create an issue from the parsed implementation plan.
   visibility: internal
   emits:
   - Materialized
@@ -11,8 +11,8 @@ tools:
   category: boundary
   side_effects:
   - kind: external_api
-    target: beads_issue_tracker
-    description: Materializes the parsed plan as a bd issue and records the issue ID in pipeline state.
+    target: issue_tracker
+    description: Materializes the parsed plan as an issue and records the issue ID in pipeline state.
   - kind: state_mutation
     target: pipeline_state
     state: issue_id_recorded

@@ -11,14 +11,13 @@ asset boundaries.
 `agent-core` is primarily a Go runtime that builds the `agent` binary. The
 runtime loads agent behavior from YAML profiles, tool declarations, and specs.
 The repository also contains evaluation tooling, two Vite UIs, generated UI
-bundles, local binaries, and Beads/Dolt tracker data.
+bundles, and local binaries.
 
 The source tree is not the main size problem by itself. The largest contributors
 are generated or stateful artifacts:
 
 - `.git` is very large, which suggests large files or generated artifacts were
   committed in history.
-- `.beads` contains embedded Dolt data and backup state.
 - `internal/evaluation/bench/ui/node_modules` is tracked.
 - UI `dist` bundles are checked in under internal UI directories.
 - Local binaries such as `agent`, `eval-analyze`, and `bin/` increase checkout
@@ -41,7 +40,6 @@ logical boundaries, and only then split repositories if that still helps.
 - Do not immediately split everything into independent repositories.
 - Do not introduce compatibility layers for boundaries that have not shipped.
 - Do not rewrite package architecture just to match a new folder layout.
-- Do not treat `.beads/issues.jsonl` as the source of truth for issue data.
 
 ## Phase 1: Repository Hygiene
 
@@ -59,8 +57,6 @@ prevents the same problem from returning.
    - Ignore all nested `node_modules/`.
    - Ignore all nested UI `dist/` outputs by default.
    - Ignore local build outputs under `bin/`.
-   - Keep Beads/Dolt runtime storage out of normal source commits unless a
-     specific tracker file is intentionally versioned.
 
 3. Decide what to do with existing history.
    - If clone size matters, rewrite history with `git filter-repo` or BFG to
