@@ -146,3 +146,5 @@ Transition Spans sits within Machine Interpreter and requires Machine Interprete
 **Local debugging.** A developer running one agent gets a self-contained NDJSON trace file (no collector, no network) inspectable with `jq` or an OTel desktop viewer.
 
 **Production monitoring.** Deployments switch the adapter to OTLP via profile config, gaining real-time dashboards and cross-service correlation while the engine and machine stay unchanged.
+
+**Dapper** [@sigelman-dapper-2010]. Google's large-scale distributed tracing infrastructure established span trees and context propagation as the way to observe distributed executions, the lineage this pattern inherits when it maps transitions onto spans and propagates trace context into child agents.

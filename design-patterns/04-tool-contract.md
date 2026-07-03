@@ -146,3 +146,11 @@ Tool Contract sits within Machine Interpreter and requires Machine Interpreter: 
 ## Known Uses
 
 In the working implementation, tool declarations are YAML contracts validated at load time (Chapter 3); a tool whose contract is incomplete fails before the agent runs. Tool set audits apply the four-question test at authoring time and when reviewing an existing tool set, flagging execution-shaped tools for decomposition. Reversibility tiers declared in each contract drive the rollback engine (Chapter 7): reversible tools undo automatically, compensatable tools issue corrective calls, irreversible tools are skipped and logged, all from the declaration, with no special-casing in the engine.
+
+**Design by Contract** [@meyer-dbc-1997]. Preconditions, postconditions, and invariants as first-class specifications are the direct ancestor of a typed tool contract, moving behaviour from prose into a checkable interface.
+
+**Command pattern** [@gamma-gof-1994]. An operation encapsulated as an object with `execute` and `undo` is the structural core of a reversible tool; the contract's reversibility tier is what tells the engine which undo to run.
+
+**OpenAPI** [@openapi-spec-2024] **and the Model Context Protocol** [@anthropic-mcp-2024]. Both give tools typed request/response contracts and declared behaviour: OpenAPI describes services precisely enough that tool declarations can be generated from a spec and then edited, and MCP standardizes exposing tools to models with typed inputs.
+
+**SWE-agent** [@yang-swe-agent-2024] **and ReAct** [@yao-react-2023]. Empirical agent work confirms the payoff: SWE-agent shows that tool and environment interfaces are decisive for software-engineering agents, and ReAct establishes the reasoning-and-acting loop in which a model chooses actions from observations, precisely the actions a Tool Contract makes explicit and machine-checkable.

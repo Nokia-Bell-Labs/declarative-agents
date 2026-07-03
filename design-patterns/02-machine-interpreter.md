@@ -243,3 +243,15 @@ Machine Interpreter is the root of the language. It contains Agent-as-Data, Tool
 
 **Lean4Agent** [@lean4agent-2026]. Formal verification of agent workflows in dependent type theory: structural well-formedness is machine validation, semantic soundness checks tool pre/post-conditions, and trajectory analysis verifies executions, the upper bound of the pattern's verifiability.
 
+**XState** [@xstate-2024]. A widely adopted statechart interpreter for application control flow, demonstrating the interpreter-over-data structure in production front-end and back-end systems.
+
+**SCXML** [@w3c-scxml-2015]. A W3C executable state-machine notation, a direct precedent for serializing reactive control flow as data interpreted by a conforming processor rather than hand-written code.
+
+**BPMN engines** [@omg-bpmn-2011]. Business processes modelled as data and executed by a fixed engine, the same separation of flow-as-data from a generic runtime carried into enterprise workflow tooling.
+
+**AWS Step Functions** [@aws-step-functions-2024]. Serverless workflows declared in the Amazon States Language and executed by a fixed service, a production-scale example of JSON state machines as operational control flow.
+
+**Redux** [@redux-2015]. UI state managed as a reducer over `(state, action) -> state`, the same table-driven transition discipline the pattern applies, here in front-end engineering.
+
+**TLA+** [@lamport-tla-2002] **and translation validation** [@pnueli-translation-validation-1998]. Two formal bookends of pre-run analysis: TLA+ specifies behaviour as states and actions and model-checks over reachable behaviours, while translation validation checks a generated artifact against source-level intent, analogous to load-time verification that the machine faithfully covers every declared tool outcome.
+
