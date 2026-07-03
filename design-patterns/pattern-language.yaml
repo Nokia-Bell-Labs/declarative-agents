@@ -660,7 +660,7 @@ patterns:
       - system: Reference implementation — generator profile variants
         cite: reference-implementation
         kind: internal
-        note: Generators share one machine and tool set but bind qwen.yaml, deepseek.yaml, or claude.yaml, yielding a directly comparable grid because the harness is held constant.
+        note: Generators share one machine and tool set but bind qwen27b.yaml, deepseek.yaml, or devstral.yaml, yielding a directly comparable grid because the harness is held constant.
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
