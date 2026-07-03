@@ -141,7 +141,7 @@ Transition Spans sits within Machine Interpreter and requires Machine Interprete
 
 ## Known Uses
 
-**Grid evaluation.** The bench/evaluator stack (Chapter 9) consumes trace files, not running agents; each is an NDJSON span sequence readable without an OTel SDK. Convergence classes map directly to span patterns (e.g. a `Validating`→`Composing` event sequence ending in `Succeeded` is Recovery), and per-run cost and latency are read from span attributes.
+**Grid evaluation.** The bench/evaluator stack (Chapter 9) consumes trace files, not running agents; each is an NDJSON span sequence readable without an OTel SDK. Per-run cost and latency are read from span attributes, and the evaluator's convergence classifier (Chapter 11) reads the tool-metric snapshots recorded during the run (passed and failed counts per tool) rather than mapping state or span sequences onto convergence classes.
 
 **Local debugging.** A developer running one agent gets a self-contained NDJSON trace file (no collector, no network) inspectable with `jq` or an OTel desktop viewer.
 

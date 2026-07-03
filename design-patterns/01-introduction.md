@@ -142,7 +142,7 @@ The catalogue has four groups.
 
 **Composition and oversight** (Chapters 9--10). **Boundary Tool** composes agents hierarchically through non-terminal tools. **Approval Gate** makes human oversight a first-class machine transition.
 
-**Diagnostics** (Chapters 11--12). **Convergence Taxonomy** turns execution traces into a taxonomy — Clean, Recovery, Stuck, Divergent — each pointing to a distinct root cause. **Operator Port** attaches live observers to a running machine, making agent state queryable and signals injectable without modifying the machine or tools.
+**Diagnostics** (Chapters 11--12). **Convergence Taxonomy** turns execution traces into an actionable diagnosis, classifying how each run converged rather than reporting a bare pass or fail, so every outcome points to a distinct root cause and remedy. **Operator Port** attaches live observers to a running machine, making agent state queryable and signals injectable without modifying the machine or tools.
 ### How to read each chapter
 
 Every pattern chapter follows the Gang of Four structure: **Intent** states the purpose in one sentence, **Motivation** presents the problem scenario, **Applicability** lists when to use and when not to use the pattern, **Structure** names the participants and shows their relationships, **Collaborations** describes the runtime interactions, **Consequences** lists benefits and liabilities, **Implementation** provides specific guidance and code examples, and **Known Uses** grounds the pattern in working deployments. 
