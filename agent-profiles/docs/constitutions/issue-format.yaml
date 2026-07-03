@@ -1,7 +1,7 @@
 id: issue-format
 title: Issue Format Constitution
 purpose: |
-  We use this constitution when writing Beads issues for agent-profiles.
+  We use this constitution when writing issues for agent-profiles.
   A valid issue names the asset boundary, required files, requirements, and
   acceptance criteria. That shape lets agents complete one issue without
   changing unrelated runtime code.

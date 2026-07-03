@@ -27,7 +27,7 @@ roadmap_summary:
     status: done
     scope: |
       Replace the template README, add the foundation docs needed for future
-      structured Beads issues, migrate profile assets, add release tagging, and
+      structured issues, migrate profile assets, add release tagging, and
       validate mounted-profile references.
   - version: "06.0"
     name: External agent profiles and mounted runtime assets
@@ -55,7 +55,7 @@ foundation_document_index:
     path: docs/road-map.yaml
   - id: issue-format
     title: Issue Format Constitution
-    summary: Required Beads issue fields and scope rules for future work.
+    summary: Required issue fields and scope rules for future work.
     path: docs/constitutions/issue-format.yaml
 
 srd_index:

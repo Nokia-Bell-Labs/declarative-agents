@@ -93,7 +93,7 @@ declaration_layout:
     - tools/exec/go/
     - tools/exec/workspace/
     - tools/exec/git/
-    - tools/exec/beads/
+    - tools/exec/issues/
   compatibility_bundles:
     - tools/exec.yaml
     - tools/exec/all.yaml
@@ -146,7 +146,7 @@ implementation:
   - tools/exec/go/ (planned grouped declarations)
   - tools/exec/workspace/ (planned grouped declarations)
   - tools/exec/git/ (planned grouped declarations)
-  - tools/exec/beads/ (planned grouped declarations)
+  - tools/exec/issues/ (planned grouped declarations)
   - tools/exec.yaml (compatibility bundle)
   - tools/exec/all.yaml (planned compatibility bundle)
   - internal/tools/catalog/ (planned ToolDef, declaration loading, and selection)

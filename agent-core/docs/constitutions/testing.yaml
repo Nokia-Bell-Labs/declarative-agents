@@ -4,7 +4,7 @@ id: testing
 title: Testing Constitution
 purpose: 'We use this constitution to keep YAML test suites, Go tests, integration
 
-  targets, and Beads acceptance criteria aligned.
+  targets, and acceptance criteria aligned.
 
   '
 articles:
@@ -143,7 +143,7 @@ documentation_de_ai_scope:
     The same exception covers inline inventories, parenthetical text, and
     paragraph length when three focused rewrite passes would make the reference
     less precise.
-  close_comment: Record any accepted formal-document residuals in the Beads
+  close_comment: Record any accepted formal-document residuals in the issue
     stats comment.
   config_or_profile:
   - mage audit

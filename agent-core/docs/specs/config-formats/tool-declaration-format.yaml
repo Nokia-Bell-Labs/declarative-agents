@@ -545,7 +545,7 @@ declaration_files:
       Go build tools (build, vet, lint, test), filesystem utilities
       (copy_dir, make_dir), git operations (git_init, stage_all,
       workspace_status, commit, rev_parse, diff_stat, log_oneline), and
-      bd issue management (issue_create, issue_close, issue_list). The
+      issue management (issue_create, issue_close, issue_list). The
       tool count evolves with the codebase; consult the directory
       directly for the current set.
 
@@ -690,7 +690,7 @@ target_grouped_layout:
     - path: tools/exec/git/
       owns: [git_init, stage_all, workspace_status, commit, rev_parse, diff_stat, log_oneline]
       kind: shared
-    - path: tools/exec/beads/
+    - path: tools/exec/issues/
       owns: [issue_create, issue_close, issue_list]
       kind: shared
   compatibility_bundles:

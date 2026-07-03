@@ -242,7 +242,7 @@ declaration_placement:
     go: tools/exec/go/
     workspace: tools/exec/workspace/
     git: tools/exec/git/
-    beads: tools/exec/beads/
+    issues: tools/exec/issues/
   compatibility_bundles:
     - tools/builtin.yaml
     - tools/exec.yaml
@@ -268,8 +268,8 @@ declaration_placement:
       placement: tools/exec/go/
       reason: Shared Go CLI word.
     - tool: issue_create
-      placement: tools/exec/beads/
-      reason: Shared Beads CLI boundary word.
+      placement: tools/exec/issues/
+      reason: Shared issue tracker CLI boundary word.
 
 acceptance_tests_for_authors:
   - "Could a developer implement the tool without asking what it should do?"
