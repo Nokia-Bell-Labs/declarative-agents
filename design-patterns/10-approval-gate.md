@@ -36,7 +36,7 @@ The signal triplet `AwaitApproval`/`Approved`/`Rejected`, ordinary machine signa
 
 #### Checkpoint
 
-The persisted snapshot of agent, conversation, workspace, and execution state at suspension, reusing the Chapter 7 mechanism.
+The typed snapshot persisted at suspension through the Chapter 7 checkpoint port: the resumable Position (machine state, counters, folded conversation) and the ordered Execution log, committed by the Dolt backend.
 
 #### Authority
 
@@ -60,14 +60,14 @@ The state machine diagram in Fig. 27 shows the lifecycle: `AwaitApproval` checkp
 | **Figure 27.** State machine diagram. The approval-gate lifecycle: `AwaitApproval` checkpoints and suspends; `Approved` resumes; `Rejected` routes to rollback. {wide} |
 |:---:|
 
-**Suspension** proceeds in strict order, traced by the sequence diagram in Fig. 28: the engine dispatches the suspend tool like any other; the tool returns `AwaitApproval` with an action summary; the engine checkpoints all three state layers (Chapter 7), notifies the authority with the summary and checkpoint reference, and exits the loop. The process may then terminate; an arbitrary time may pass with full state living in the checkpoint.
+**Suspension** proceeds in strict order, traced by the sequence diagram in Fig. 28: the engine dispatches the suspend tool like any other; the tool returns `AwaitApproval` with an action summary; the engine checkpoints the run through the Chapter 7 port — saving the Position and Execution, committed by the Dolt backend — notifies the authority with the summary and checkpoint reference, and exits the loop. The process may then terminate; an arbitrary time may pass with full state living in the checkpoint.
 
 ![](figures/fig-29-suspension-sequence.png)
 
 | **Figure 28.** Sequence diagram. The SuspendTool emits `AwaitApproval`; the engine persists a checkpoint, notifies the authority, and exits the dispatch loop, after which the process may terminate. {wide} |
 |:---:|
 
-**Resumption** is signal injection into a loaded checkpoint. On `Approved`, the engine restores agent/conversation/workspace state, injects `Approved`, and `(Suspended, Approved)` routes to the gated tool; a possibly different process resumes identically because both read the same checkpoint and machine. On `Rejected`, injecting `Rejected` routes to a rollback state (walking the execution backward via `Undo`, Chapter 7) or to an alternative path such as `(Suspended, Rejected) -> Revising`, where the agent revises and re-enters the gate. Rejection policy is the machine author's choice.
+**Resumption** is signal injection into a loaded checkpoint. On `Approved`, the engine restores the Position and conversation from the typed snapshot (Chapter 7), injects `Approved`, and `(Suspended, Approved)` routes to the gated tool; a possibly different process resumes identically because both read the same checkpoint and machine. On `Rejected`, injecting `Rejected` routes to a rollback state — Dolt `Revert` for persisted state plus the lifecycle tool's reverse receipt walk for external effects (Chapter 7) — or to an alternative path such as `(Suspended, Rejected) -> Revising`, where the agent revises and re-enters the gate. Rejection policy is the machine author's choice.
 
 
 ## Consequences
@@ -117,7 +117,7 @@ Suspend is an `internal` lifecycle tool (the machine dispatches it at a declared
   reversibility: noop
 ```
 
-A gate checkpoint is the standard checkpoint (agent snapshot, history digest, workspace reference, conversation) plus gate metadata, namely the action summary, gate status, and an authority record (who decided, when, why), which turn it from a resume mechanism into an audit artifact. Resume is a CLI operation that maps flags to the resume engine's inputs:
+A gate checkpoint is the standard checkpoint (the Position — agent snapshot and folded conversation — and the ordered Execution log, committed by the Dolt backend) plus gate metadata, namely the action summary, gate status, and an authority record (who decided, when, why), which turn it from a resume mechanism into an audit artifact. Resume is a CLI operation that maps flags to the resume engine's inputs:
 
 ```
 agent resume --checkpoint <id> --signal Approved
