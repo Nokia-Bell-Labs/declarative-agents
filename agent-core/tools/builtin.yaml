@@ -92,8 +92,9 @@ tools:
       undo: "workspace_restore"
     undo:
       strategy: workspace_restore
-      description: "Restore the workspace to the ref captured before or after the file write."
-      requires: [Workspace]
+      description: "Encode an opaque receipt into Result.Receipt during Execute (prior path, whether the file existed, its content, and mode); Undo decodes that receipt and restores the file to its prior state, deleting it if it did not exist before."
+      captures: [path, existed, content, mode]
+      requires: [Receipt]
 
   - name: edit
     type: builtin
@@ -135,8 +136,9 @@ tools:
       undo: "workspace_restore"
     undo:
       strategy: workspace_restore
-      description: "Restore the workspace to the ref captured before or after the edit."
-      requires: [Workspace]
+      description: "Encode an opaque receipt into Result.Receipt during Execute (prior path, whether the file existed, its content, and mode); Undo decodes that receipt and restores the file to its pre-edit content."
+      captures: [path, existed, content, mode]
+      requires: [Receipt]
 
   - name: find
     type: builtin
