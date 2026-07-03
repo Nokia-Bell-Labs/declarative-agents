@@ -1,0 +1,22 @@
+@startuml
+!theme plain
+
+participant "Engine" as E
+participant "Machine" as M
+participant "Registry" as R
+participant "Tool" as T
+
+E -> M : lookup(state, signal)
+M --> E : (next_state, tool_name)
+
+alt terminal state
+  E -> E : return execution
+else non-terminal
+  E -> R : resolve(tool_name)
+  R --> E : tool
+  E -> T : Execute(params)
+  T --> E : Result{signal}
+  E -> E : record (state, signal, tool, result)
+  note right of E : state := next_state\nsignal := result.signal\nrepeat
+end
+@enduml

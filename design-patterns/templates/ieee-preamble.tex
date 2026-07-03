@@ -1,0 +1,25 @@
+% Packages for the IEEE two-column layout produced by ieee-twocolumn.lua.
+% (The Lua filter rewrites tables and figures to raw LaTeX, so pandoc no longer
+% auto-loads these itself.)
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{adjustbox}   % scale wide Mermaid diagrams to fit; pulls in graphicx
+\usepackage{morefloats}  % allow many figure*/table* floats without overflow
+% Let tabularx X-columns wrap ragged-right so narrow columns read cleanly.
+\renewcommand{\tabularxcolumn}[1]{>{\raggedright\arraybackslash}p{#1}}
+% Code blocks via listings (pandoc --listings).
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  frame=single,
+  framesep=2pt,
+  xleftmargin=3pt,
+  xrightmargin=3pt,
+  aboveskip=6pt,
+  belowskip=6pt
+}

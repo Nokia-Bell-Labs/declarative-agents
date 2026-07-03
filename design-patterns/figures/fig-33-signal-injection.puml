@@ -1,0 +1,18 @@
+@startuml
+!theme plain
+
+participant "Controller" as Ctl
+participant "REST /emit_signal" as REST
+participant "EventQueue" as EQ
+participant "Engine" as E
+participant "Machine" as G
+
+Ctl -> REST : POST signal
+REST -> G : static check (valid in state?)
+REST -> EQ : enqueue signal
+E -> EQ : dequeue at next cycle
+E -> G : lookup(state, signal)
+G --> E : (next_state, tool)
+E -> E : dispatch tool / route signal
+E --> Ctl : observable via /read_state or SSE
+@enduml

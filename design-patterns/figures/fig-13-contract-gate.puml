@@ -1,0 +1,27 @@
+@startuml
+!theme plain
+
+start
+:Tool Contract;
+if (Q1: Implementable\nwithout questions?) then (yes)
+  if (Q2: Agent can decide\nwhen to use it?) then (yes)
+    if (Q3: Composable\nwithout ambiguity?) then (yes)
+      if (Q4: Failure state\ndeclared?) then (yes)
+        :Contract Complete;
+        stop
+      else (no)
+        :Fail: Missing\nintermediate state spec;
+      endif
+    else (no)
+      :Fail: Underspecified\noutput schema;
+    endif
+  else (no)
+    :Fail: Weak problem\nstatement or non-goals;
+  endif
+else (no)
+  :Fail: Ambiguous\nrequirements;
+endif
+:Revise Contract;
+note right: resubmit
+end
+@enduml

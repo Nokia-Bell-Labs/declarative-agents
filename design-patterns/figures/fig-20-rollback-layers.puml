@@ -1,0 +1,24 @@
+@startuml
+!theme plain
+
+package "Agent State" {
+  [Machine position] as a1
+  [Iteration counter] as a2
+  [Budget remaining] as a3
+}
+
+package "Domain State" {
+  [Tool results] as d1
+  [Conversation history] as d2
+  [Accumulated context] as d3
+}
+
+package "Workspace State" {
+  [File system] as w1
+  [Git working tree] as w2
+  [External resources] as w3
+}
+
+"Agent State" ..> "Domain State" : restored together
+"Domain State" ..> "Workspace State" : restored together
+@enduml

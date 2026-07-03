@@ -1,0 +1,18 @@
+@startuml
+!theme plain
+
+participant "Parent Agent" as P
+participant "Engine" as E
+participant "Child Agent" as C
+participant "Child Trace File" as F
+
+P -> E : run_agent(child_profile)
+note over E : create execute_task span
+E -> E : extract traceparent from current context
+E -> C : spawn(child_profile, traceparent=00-tid-sid-01)
+C -> C : agent.run (linked to parent trace)
+C -> F : write trace to child-specific NDJSON
+C --> E : result + signal
+note over E : end execute_task span
+E --> P : ToolDone
+@enduml

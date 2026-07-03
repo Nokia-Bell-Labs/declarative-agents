@@ -1,0 +1,28 @@
+@startuml
+!theme plain
+
+class Tool {
+  +Execute()
+  +Undo()
+}
+
+class Reversible {
+  +Undo() : restores prior state
+}
+
+class Compensatable {
+  +Undo() : issues compensation
+}
+
+class Irreversible {
+  +Undo() : skip and log
+}
+
+Tool <|-- Reversible
+Tool <|-- Compensatable
+Tool <|-- Irreversible
+
+note bottom of Reversible : execute speculatively,\nengine auto-reverses
+note bottom of Compensatable : record for post-hoc\ncorrection
+note bottom of Irreversible : confirm before dispatch,\nno recovery
+@enduml

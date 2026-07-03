@@ -1,0 +1,1326 @@
+# =============================================================================
+# pattern-language.yaml
+# A Pattern Language for Declarative Agents
+# =============================================================================
+#
+# WHAT THIS FILE IS
+# -----------------
+# This is a self-contained dictionary of the eleven design patterns for
+# building declarative agents. It is written in the tradition of Christopher
+# Alexander's "A Pattern Language" (1977): the patterns are not an unordered
+# catalogue of tips but a *language*. Each pattern names a recurring field of
+# forces and the configuration that resolves them, and each connects to the
+# patterns above it (which create its context) and below it (which complete
+# it). Read top to bottom, the connections form a grammar; assembled for a
+# given system, the chosen patterns form a sentence.
+#
+# This file is INDEPENDENT of the monograph chapters. The essence of each
+# pattern — its context, the forces in tension, and the solution — is captured
+# here directly, and every external example carries a full citation resolved
+# in the `bibliography` block at the foot of the file. Nothing here requires a
+# chapter to be understood.
+#
+# A NOTE ON A PATTERN AS BOTH RECIPE AND CONSTRAINT
+# -------------------------------------------------
+# In Alexander's form a pattern is stated as an imperative ("therefore: do
+# this") but it works by forbidding configurations that leave its forces
+# unresolved. The `solution` field is the recipe; the `forces` field is the
+# constraint. They are one thing seen from two sides: the prescription is the
+# negative space of the constraint.
+#
+# A NOTE ON PROVENANCE (read this before citing the patterns as "proven")
+# -----------------------------------------------------------------------
+# These patterns were first extracted from a single reference implementation —
+# a declarative coding-agent harness. A single system can reveal a pattern's
+# forces but cannot, by itself, establish that the resolution recurs. To place
+# each pattern on firmer ground, every entry lists external `examples` drawn
+# from independent, shipped systems and prior literature where the same forces
+# are resolved the same way. The `confidence` field records how strong that
+# external corroboration is. The contribution of this work is therefore not the
+# invention of these structures but their naming as a coherent language and
+# their application to the agentic domain.
+#
+# HOW TO READ EACH ENTRY
+# ----------------------
+#   id            stable machine-readable key
+#   number        position in the language (larger/earlier -> smaller/later)
+#   name          human-readable pattern name
+#   also_known_as prior names for the same structure
+#   confidence    Alexandrian rank of belief that this is a true invariant:
+#                   2  a deep invariant seen across many independent systems
+#                   1  well-supported, but the specific form here is newer
+#                   0  tentative; largely from the reference implementation
+#   intent        one-sentence statement of what the pattern does
+#   context       the situation (and larger patterns) that must exist first
+#   problem       the headline tension, stated as a question of forces
+#   applicability when to use the pattern, and when its cost is not justified
+#   forces        the competing pressures the pattern must hold in balance
+#                 (this is the CONSTRAINT side of the pattern)
+#   solution      the imperative resolution (this is the RECIPE side)
+#   implementation practical checks and construction rules that make the
+#                 pattern executable without consulting the monograph
+#   consequences  what the resolution buys (benefits) and costs (liabilities)
+#   grammar       how this pattern connects to the others:
+#                   within    larger patterns whose context this helps complete
+#                   requires  patterns that must already be in place
+#                   contains  smaller patterns that complete this one
+#                   enables   patterns this one makes possible
+#                   overlaps  patterns addressing a related force differently
+#   syntax        a one-line "sentence" showing the pattern in combination
+#   examples      independent occurrences, each cited to the bibliography;
+#                 kind: external (recurrence evidence) | internal (reference impl)
+#
+# =============================================================================
+
+title: A Pattern Language for Declarative Agents
+version: 1
+based_on: >
+  Christopher Alexander, Sara Ishikawa, Murray Silverstein, "A Pattern
+  Language: Towns, Buildings, Construction" (Oxford University Press, 1977).
+
+declarative_agent:
+  summary: >
+    A declarative agent is an agent whose behaviour is expressed as data —
+    a state machine, a set of tools, and a configuration — interpreted by a
+    fixed engine, rather than as imperative logic hand-written for each agent.
+    The engine is a generic binary that never changes; the agent is the data
+    it runs. One binary runs N agents, and changing an agent's behaviour is an
+    edit to data, not a code change that must pass through the build cycle.
+  the_three_parts:
+    state_machine: >
+      The control flow, expressed as a transition table: states are execution
+      phases, signals are typed tool outcomes, and each (state, signal) pair
+      maps to a next state and a tool to dispatch. This is the agent's whole
+      loop as data — observe, decide, act, validate — with no conditionals or
+      loops hidden in code. Because it is finite data, it can be statically
+      checked (reachability, determinism, completeness) before the agent runs.
+    tools: >
+      The agent's verbs, each declared as a typed contract: inputs, emittable
+      signals, side effects, reversibility, and relationships. The machine
+      dispatches tools by name; one tool crosses the model boundary and returns
+      probabilistic results, the rest are deterministic. Tool availability,
+      contracts, and bindings are configured; implementations remain ordinary
+      code behind the contract.
+    configuration: >
+      The runtime binding: which model and provider to call, temperature and
+      budget limits, which machine to run, and where the tool declarations
+      live. Swapping the model or tightening a budget is a one-field edit that
+      touches neither the engine nor the other layers.
+  versus_imperative_logic: >
+    In an imperative agent the loop is code — branches buried in callbacks,
+    tangled with the rest of the system. A reviewer cannot trace every path
+    through a loop that branches on every tool outcome, an unexpected output
+    silently falls through, and every behaviour change is a code change that
+    risks breaking unrelated logic and must pass the full development cycle.
+    The declarative form makes the control flow a readable, diffable, and
+    statically checkable artifact: an unhandled outcome is a load-time error,
+    not a silent dead end, and a behaviour change is a configuration edit that
+    can be deployed without rebuilding the binary. Imperative code does not
+    vanish — it survives as the fixed engine, the tool implementations, and the
+    port adapters — but agent-specific behaviour never lives there.
+  relationship_to_patterns: >
+    The declarative agent is the whole this language builds. Machine Interpreter
+    (pattern 1) establishes the machine; Tool Contract (pattern 3) specifies
+    the tools; Agent-as-Data (pattern 2) packages machine, tools, and
+    configuration as one governable artifact; the remaining patterns refine
+    what each layer exposes, reverses, observes, gates, classifies, and probes.
+  canonical_example:
+    machine: |
+      name: generator
+      initial_state: Composing
+      terminal_states: [Succeeded, Failed]
+      transitions:
+        - { state: Composing,   signal: Seed,             next: Composing,   action: invoke_llm }
+        - { state: Composing,   signal: LLMResponded,     next: Parsing,     action: parse_response }
+        - { state: Composing,   signal: BudgetExceeded,   next: Failed }
+        - { state: Parsing,     signal: ToolCall,         next: Dispatching, action: $tool }
+        - { state: Parsing,     signal: Completion,       next: Validating,  action: validate }
+        - { state: Dispatching, signal: ToolDone,         next: Composing,   action: invoke_llm }
+        - { state: Dispatching, signal: ToolFailed,       next: Composing,   action: invoke_llm }
+        - { state: Validating,  signal: ValidationPassed, next: Succeeded }
+        - { state: Validating,  signal: ValidationFailed, next: Composing,   action: invoke_llm }
+    tools: |
+      tools:
+        - read
+        - write
+        - edit
+        - invoke_llm
+        - parse_response
+        - done
+        - validate
+    profile: |
+      name: generator
+      machine: machine.yaml
+      tools: [tools.yaml]
+      tool_declarations: [llm/default.yaml]
+      tool_config_dirs:
+        - /opt/agent-core/tools/builtin/filesystem
+        - /opt/agent-core/tools/exec/go
+    validation_story: >
+      If the Validating / ValidationFailed transition is removed, the engine
+      rejects the machine at load time because validate declares that it can emit
+      ValidationFailed in a state where that signal is unhandled. This is the
+      central promise: an unexpected outcome becomes a validation error before
+      the model runs, not a production dead end.
+
+conventions:
+  confidence_scale:
+    "2": Deep invariant; the same force is resolved the same way across many independent systems and prior literature.
+    "1": Well supported by prior art, but the specific agentic form presented here is more recent.
+    "0": Tentative; corroboration is thin and the structure is largely from the single reference implementation.
+  relationship_types:
+    within: Larger patterns whose context this pattern helps complete.
+    requires: Patterns that must already be in place for this one to hold.
+    contains: Smaller patterns that complete or refine this one.
+    enables: Patterns that this one makes possible.
+    overlaps: Patterns that address a neighbouring force by a different means.
+
+# =============================================================================
+# THE PATTERNS
+# =============================================================================
+
+patterns:
+
+  # ---------------------------------------------------------------------------
+  - id: machine-interpreter
+    number: 1
+    name: Machine Interpreter
+    also_known_as: [State Interpreter, Interpreter, Engine Loop, Runtime]
+    confidence: 2
+    intent: >
+      Separate control flow from execution by expressing the agent loop as a
+      transition table that a fixed engine interprets, so behaviour is data,
+      not code.
+    context: >
+      Every agent runs the same loop — observe, decide, act, validate — and
+      branches on the outcome of each step, including the unpredictable output
+      of a probabilistic model. Written as imperative code, that loop hides its
+      states in scattered conditionals and no reviewer can trace every path.
+    problem: >
+      How do you make an agent's control flow reviewable, statically
+      checkable, and changeable without editing code, when some of its
+      branches depend on outputs no one can predict?
+    applicability: >
+      Use this for workflows made of discrete operations that branch on typed
+      outcomes: LLM agents, CI pipelines, evaluation harnesses, migration
+      scripts, and any execution that must survive process boundaries or be
+      audited. It is less useful for a straight-line script whose steps and
+      outcomes never vary.
+    forces:
+      - An unexpected tool or model output must not silently fall through the code.
+      - Behaviour must be changeable without rebuilding the binary.
+      - The full set of reachable states must be knowable before the agent runs.
+      - The model must be free to choose tools, yet only within declared bounds.
+    solution: >
+      Express the loop as a finite-state machine in a data file: states are
+      execution phases, signals are typed tool outcomes, and (state, signal) ->
+      (next_state, tool) is the transition table. A fixed engine interprets the
+      table and dispatches tools by name. Every signal a tool can emit must
+      appear in the table; an unhandled signal is a load-time error, not a
+      silent dead end. Because the table is finite data, reachability,
+      determinism, and completeness are checkable before the model is called.
+    implementation: >
+      The machine must load, serialize, and validate without executing code. The
+      validator checks referenced states, terminal reachability, tool-name
+      resolution, and that every signal emitted by every dispatchable tool is
+      handled in that state. Tools are opaque to the machine; the tool never
+      knows the machine state, and the machine never knows tool internals. The
+      $tool slot may resolve a model-chosen tool at runtime, but dispatch is
+      still validated against the declared registry and handled signal set.
+    consequences:
+      benefits:
+        - Control flow is a readable, diffable artifact.
+        - Unhandled outcomes are caught statically, before execution.
+        - Behaviour changes are configuration edits, not code changes.
+      liabilities:
+        - The engine, tool implementations, and adapters remain compiled code.
+        - Anything the schema cannot express requires new code, not new data.
+    grammar:
+      within: []
+      requires: []
+      contains: [agent-as-data, tool-contract, bidirectional-log, transition-spans, boundary-tool, approval-gate, convergence-taxonomy, operator-port]
+      enables: [agent-as-data, tool-contract, phase-scoped-toolset, inference-boundary, bidirectional-log, transition-spans, boundary-tool, approval-gate, convergence-taxonomy, operator-port]
+      overlaps: []
+    syntax: >
+      Begin here. Every other pattern in this language presupposes a Machine
+      Interpreter; without an explicit machine there is nothing to scope,
+      trace, roll back, gate, classify, or probe.
+    examples:
+      - system: Harel Statecharts
+        cite: harel-statecharts-1987
+        kind: external
+        note: The visual FSM formalism establishing that complex reactive control flow is best expressed as an explicit, analysable machine.
+      - system: XState
+        cite: xstate-2024
+        kind: external
+        note: A widely adopted statechart interpreter for application control flow; demonstrates the interpreter-over-data structure in production.
+      - system: BPMN engines
+        cite: omg-bpmn-2011
+        kind: external
+        note: Business processes modelled as data and executed by a fixed engine; the same separation of flow-as-data from a generic runtime.
+      - system: SCXML
+        cite: w3c-scxml-2015
+        kind: external
+        note: A W3C executable state-machine notation; direct precedent for serializing reactive control flow as data interpreted by a conforming processor.
+      - system: Workflow nets (Petri nets)
+        cite: van-der-aalst-workflow-1998
+        kind: external
+        note: Formal grounding for representing workflow control flow as an analysable structure rather than procedural code.
+      - system: TLA+
+        cite: lamport-tla-2002
+        kind: external
+        note: System behaviour specified as states and actions with model checking over reachable behaviours — the formal end of pre-run machine analysis.
+      - system: Translation validation
+        cite: pnueli-translation-validation-1998
+        kind: external
+        note: Validates generated artifacts against source-level intent after translation; analogous to load-time checking that the machine faithfully covers declared tool outcomes.
+      - system: Action Language
+        cite: bultan-action-lang-2000
+        kind: external
+        note: A specification language for model checking reactive systems; close precedent for treating a transition table as analyzable behavioural data.
+      - system: LangGraph
+        cite: langgraph-2024
+        kind: external
+        note: Agent workflows as directed graphs of nodes; shows developers prefer declaring transitions over nesting conditionals, though its code-valued conditions resist static analysis.
+      - system: StateFlow
+        cite: wu-stateflow-2024
+        kind: external
+        note: Models task-solving as an explicit state machine and reports measurable gains over unstructured loops — empirical evidence that making the machine explicit improves agent performance.
+      - system: AWS Step Functions
+        cite: aws-step-functions-2024
+        kind: external
+        note: Serverless workflows declared in Amazon States Language and executed by a fixed service; a production-scale example of JSON state machines as operational control flow.
+      - system: Donna
+        cite: tiendil-donna-2025
+        kind: external
+        note: Markdown-defined workflows run as deterministic state machines for coding agents, with transitions validated before execution.
+      - system: Jido
+        cite: jido-2025
+        kind: external
+        note: An Elixir agent framework with explicit state transformations, signal routing, directives, an FSM execution strategy, and optional AI/LLM integration.
+      - system: Lean4Agent
+        cite: lean4agent-2026
+        kind: external
+        note: Formal verification of agent workflows in dependent type theory — the upper bound of the pattern's verifiability.
+      - system: Redux
+        cite: redux-2015
+        kind: external
+        note: UI state as a reducer over (state, action) -> state; the same table-driven transition discipline in front-end engineering.
+      - system: Reference implementation — generator agent
+        cite: reference-implementation
+        kind: internal
+        note: A coding agent whose whole control flow lives in machine.yaml; deleting one transition makes the engine reject the machine at load time.
+    provenance: [reference-implementation, external-corroboration]
+
+  # ---------------------------------------------------------------------------
+  - id: agent-as-data
+    number: 2
+    name: Agent-as-Data
+    also_known_as: [Declarative Agent, Configuration-Driven Agent]
+    confidence: 1
+    intent: >
+      Express the complete agent definition — machine, tools, and model binding
+      — as data interpreted by a fixed binary, so an agent is a dataset the
+      engine runs rather than behaviour buried in code.
+    context: >
+      A Machine Interpreter already turns control flow into data. But an agent is
+      more than its loop: it is also a set of tool declarations and a model
+      binding. When these are scattered across code, config, and deployment
+      scripts, the agent cannot be reviewed, versioned, or governed as one unit.
+    problem: >
+      How do you run many different agents from one binary, and review, version,
+      and validate each agent as a single governable artifact?
+    applicability: >
+      Use this when several agents should share one runtime while differing by
+      machine, tool inventory, model binding, budget, or policy; when behaviour
+      needs code-review-like governance as data; or when model swaps must be
+      evaluated without changing the harness. It adds little when there is only
+      one purpose-built program and no expected variation.
+    forces:
+      - Different agents (coding, evaluation, audit) should share one runtime.
+      - The whole agent should be reviewable and versionable as data.
+      - The model should be swappable to isolate its contribution.
+      - The entire definition should be validated before deployment.
+    solution: >
+      Define the agent as three data layers — a machine (control flow), tool
+      declarations (capabilities and contracts), and a profile (model binding,
+      budgets, tool roots) — and have one compiled interpreter load, cross-
+      validate, and run any definition that conforms to the schema. One binary,
+      N agents; deploying a new agent means writing data, not compiling code.
+    implementation: >
+      Keep agent-specific behaviour out of the binary. The profile names the
+      machine, tool declaration roots, model/provider configuration, budgets,
+      and composition overlays. At load time, cross-validate schema shape,
+      machine transitions, tool contracts, scoped visibility, and model binding
+      before any tool or model is invoked. Registry factories and adapters may
+      be compiled code, but they provide capability rather than per-agent policy.
+    consequences:
+      benefits:
+        - Agent changes are surface-level data diffs a reviewer can approve.
+        - Schema, machine, and contract validation run in CI before deployment.
+        - Model swaps are a one-field edit, isolating inference as the variable.
+      liabilities:
+        - Engine internals, factories, and adapters stay compiled.
+        - Novel semantics need a new builtin or factory, not a declaration.
+    grammar:
+      within: [machine-interpreter]
+      requires: [machine-interpreter, tool-contract]
+      contains: [phase-scoped-toolset, inference-boundary]
+      enables: [phase-scoped-toolset, inference-boundary]
+      overlaps: []
+    syntax: >
+      Once you have a Machine Interpreter, package its machine together with its
+      Tool Contracts and a model binding as one declarative artifact; then use
+      Phase-Scoped Toolset and Inference Boundary to control what each layer exposes.
+    examples:
+      - system: Kubernetes
+        cite: burns-borg-omega-kubernetes-2016
+        kind: external
+        note: The operator writes desired state as data and a fixed control loop reconciles reality to it — orchestration as data, not scripts.
+      - system: Functional Core, Imperative Shell
+        cite: bernhardt-fcis-2012
+        kind: external
+        note: The same split this pattern enforces — a fixed imperative shell (the interpreter) around declarative, data-first definitions.
+      - system: Meta-Harness
+        cite: meta-harness-2026
+        kind: external
+        note: Treats scaffolding around LLM calls as an optimizable object, supporting the claim that agent harness structure is a first-class design artifact.
+      - system: AutoHarness
+        cite: autoharness-2026
+        kind: external
+        note: Automatically generates harness code to improve LLM agent performance, corroborating that the surrounding runtime definition materially shapes agent behaviour.
+      - system: Code as Agent Harness
+        cite: ning-code-as-harness-2026
+        kind: external
+        note: Frames agent systems as executable, verifiable, stateful harnesses — close prior art for treating the agent wrapper as the unit of engineering.
+      - system: Towards a Science of Scaling Agent Systems
+        cite: kim-scaling-agents-2025
+        kind: external
+        note: Argues that agent systems introduce scaling failures beyond single-model behaviour, supporting the need to govern harness structure as a system artifact.
+      - system: HARBOR
+        cite: harbor-harness-optimization-2026
+        kind: external
+        note: Optimizes coding-agent harnesses directly, reinforcing the harness as an adjustable design surface separate from the model.
+      - system: Temporal
+        cite: temporal-2024
+        kind: external
+        note: A contrasting point — durable execution with human-in-the-loop waits, but workflows are imperative code, so the agent is not reviewable as pure data.
+      - system: Reference implementation — one binary, many agents
+        cite: reference-implementation
+        kind: internal
+        note: A coding agent, an evaluator, a security auditor, and a migration assistant are four profile directories over the same binary.
+    provenance: [reference-implementation, external-corroboration]
+
+  # ---------------------------------------------------------------------------
+  - id: tool-contract
+    number: 3
+    name: Tool Contract
+    also_known_as: [Typed Tool, Command Contract]
+    confidence: 2
+    intent: >
+      Specify each tool as a typed contract — inputs, emittable signals, side
+      effects, and an Undo — so the machine can validate it, the engine can
+      dispatch it, and the rollback engine can reverse it from the declaration
+      alone.
+    context: >
+      An agent acts only through its tools. Frameworks usually define tools as
+      function signatures with prose docstrings, which say what arguments to
+      pass but not how the tool changes the world, whether that change can be
+      undone, or how it fails mid-execution. The model infers the rest — and
+      infers differently across contexts and model versions.
+    problem: >
+      How do you define a tool so that a model can select it, a developer can
+      implement it, and an engine can reverse it — all without re-deriving its
+      behaviour and without hidden side effects?
+    applicability: >
+      Use this whenever tools are implemented by developers, selected by a
+      model, composed by a machine, or reversed by rollback. The discipline pays
+      off across teams, model generations, and multi-step plans. It is overkill
+      for a one-off script with one hard-coded operation and no composition,
+      selection, or reversal.
+    forces:
+      - One definition must serve three audiences: model, developer, engine.
+      - A tool's side effects and failure modes must be explicit, not inferred.
+      - Each tool should do exactly one thing so composition lives in the machine.
+      - Reversibility must be knowable before the tool is dispatched.
+    solution: >
+      Make each tool an atomic operation with a structured contract: problem,
+      goals, non-goals, requirements, acceptance criteria, and a reversibility
+      tier (reversible / compensatable / irreversible), plus its emittable
+      signals and declared predecessors and successors. A tool that needs "and"
+      to describe it is two tools. Composition emerges later, in the machine —
+      never inside a tool.
+    implementation: >
+      A complete contract must answer four questions: can a developer implement
+      it, can the agent select it, can its output compose with the next tool,
+      and is failure state defined. A tool should not contain a loop,
+      multi-outcome branch, or embedded state machine unless it is explicitly a
+      non-terminal boundary tool. Reversibility must be explicit: reversible
+      tools restore from a memento, compensatable tools declare corrective
+      action and semantic differences, and irreversible tools are skipped and
+      logged. Omitting reversibility is a contract error, not irreversibility.
+    consequences:
+      benefits:
+        - A uniform, independently testable and reversible tool inventory.
+        - Precise output schemas let the agent plan sequences without trial and error.
+        - Declared reversibility tiers tell the rollback engine exactly what it can undo.
+      liabilities:
+        - Decomposition yields more, smaller tools to select among.
+        - Every tool needs a full contract, not a docstring — real up-front cost.
+    grammar:
+      within: [machine-interpreter]
+      requires: [machine-interpreter]
+      contains: []
+      enables: [agent-as-data, phase-scoped-toolset, inference-boundary, bidirectional-log, boundary-tool, approval-gate]
+      overlaps: []
+    syntax: >
+      Under a Machine Interpreter, give every tool a Tool Contract; its
+      reversibility tier is read by Bidirectional Log, its boundary kind by
+      Boundary Tool and Inference Boundary, and its emittable signals by the
+      machine's static validation.
+    examples:
+      - system: Design by Contract (Eiffel)
+        cite: meyer-dbc-1997
+        kind: external
+        note: Preconditions, postconditions, and invariants as first-class specifications — the direct ancestor of a typed tool contract.
+      - system: Command pattern (Gang of Four)
+        cite: gamma-gof-1994
+        kind: external
+        note: An operation encapsulated as an object with execute and undo — the structural core of a reversible tool.
+      - system: OpenAPI Specification
+        cite: openapi-spec-2024
+        kind: external
+        note: Typed request/response contracts for services; agent tool declarations can be generated from an OpenAPI spec and then edited.
+      - system: Model Context Protocol
+        cite: anthropic-mcp-2024
+        kind: external
+        note: A standard interface for exposing tools to models with typed inputs and declared behaviour.
+      - system: SWE-agent Agent-Computer Interface
+        cite: yang-swe-agent-2024
+        kind: external
+        note: Shows that tool and environment interfaces are decisive for software-engineering agents, strengthening the case for treating tool shape as a contract.
+      - system: ReAct
+        cite: yao-react-2023
+        kind: external
+        note: Establishes the reasoning-and-acting loop in which language models choose actions from observations; Tool Contract makes those actions explicit and machine-checkable.
+      - system: Reference implementation — YAML tool declarations
+        cite: reference-implementation
+        kind: internal
+        note: Tools are validated at load time; an incomplete contract fails before the agent runs, and reversibility tiers drive the rollback engine with no special-casing.
+    provenance: [reference-implementation, external-corroboration]
+
+  # ---------------------------------------------------------------------------
+  - id: phase-scoped-toolset
+    number: 4
+    name: Phase-Scoped Toolset
+    also_known_as: [Scoped Toolset, Per-Phase Tools, Least-Authority Manifest]
+    confidence: 2
+    intent: >
+      Expose to the model only the tools valid in the current state, so a tool
+      that should not run in a phase is not merely discouraged but invisible.
+    context: >
+      In an Agent-as-Data every tool is declared, and the machine knows
+      which phase it is in. If the whole tool set is offered at every step, the
+      model can call a tool at the wrong time — building before the code is
+      ready, re-running a subject during a checking phase.
+    problem: >
+      How do you keep the model from invoking a tool in a phase where it does
+      not belong, and keep each decision's tool manifest small?
+    applicability: >
+      Use this when the registry is larger than the useful set in any one
+      phase, when global visibility creates token waste or misuse, or when some
+      tools must be impossible before a state such as validation or approval.
+      It is unnecessary when every external tool is genuinely valid in every
+      model-facing phase.
+    forces:
+      - The model should never be able to select an out-of-phase tool.
+      - The per-call manifest should stay small to sharpen model choices.
+      - Scoping must derive from the machine, not from prompt exhortation.
+      - Some actions must be made structurally impossible, not just unlikely.
+    solution: >
+      Filter the tool manifest by state: in each phase, present only the tools
+      whose declarations are valid there. A tool scoped out of a phase cannot be
+      chosen because the model never sees it, so premature or out-of-order
+      actions become structurally impossible rather than prompt-dependent.
+    implementation: >
+      Give each state a visible external-tool list and each tool a visibility
+      marker such as external or internal. Machine-dispatched tools such as
+      parse_response are internal and never appear in the model manifest. Load
+      time checks ensure every listed name resolves, no internal tool is listed,
+      and every external tool appears somewhere or is reported as an orphan.
+      At runtime, reject model calls that were not in the manifest shown for the
+      current state.
+    consequences:
+      benefits:
+        - Out-of-phase actions are impossible, not merely improbable.
+        - Smaller per-call manifests improve selection accuracy.
+      liabilities:
+        - Requires the machine's phases to be well factored.
+        - A tool needed in many phases must be declared for each.
+    grammar:
+      within: [agent-as-data]
+      requires: [machine-interpreter, agent-as-data, tool-contract]
+      contains: []
+      enables: [approval-gate]
+      overlaps: []
+    syntax: >
+      Within an Agent-as-Data, scope each Tool Contract to the states where
+      it is valid; scoping a deploy tool to a post-validation state is what makes
+      an Approval Gate's guarantee structural.
+    examples:
+      - system: Principle of Least Privilege
+        cite: saltzer-schroeder-1975
+        kind: external
+        note: A component should hold only the authority its current task requires — the security principle this pattern applies per machine state.
+      - system: Capability-based security
+        cite: dennis-vanhorn-1966
+        kind: external
+        note: Authority is conferred by holding an unforgeable capability; a state's tool manifest is precisely the set of capabilities held in that phase.
+      - system: OAuth 2.0 scopes
+        cite: hardt-oauth-2012
+        kind: external
+        note: Access tokens carry narrowed scopes rather than full authority — the same attenuation applied to which actions are exposed.
+      - system: Reference implementation — generator and evaluator agents
+        cite: reference-implementation
+        kind: internal
+        note: Making build invisible during Composing stopped mid-edit build failures; making run_agent invisible past Running stopped re-running the subject during checking.
+    provenance: [reference-implementation, external-corroboration]
+
+  # ---------------------------------------------------------------------------
+  - id: inference-boundary
+    number: 5
+    name: Inference Boundary
+    also_known_as: [Model Adapter, Provider Port]
+    confidence: 2
+    intent: >
+      Place all model inference behind one tool and a pluggable provider
+      adapter, so swapping providers is a configuration change that touches
+      neither the machine nor any other tool.
+    context: >
+      In an Agent-as-Data inference is one tool among many. If prompt
+      formats and API calls instead spread across many call sites, the line
+      between deterministic harness and stochastic inference blurs, provider
+      switches touch every tool, and cost data fragments across sites.
+    problem: >
+      How do you support many providers and model families, and account for
+      their cost, without changing the machine or the other tools?
+    applicability: >
+      Use this when agents must compare or switch providers, run the same
+      harness across model families, or aggregate token, latency, and cost data
+      in one place. If a system is permanently bound to one model API and never
+      compares models, the adapter may be needless indirection.
+    forces:
+      - Exactly one place should cross the inference boundary.
+      - Switching provider should not touch the machine or other tools.
+      - Evaluation should attribute outcome differences to the model alone.
+      - Token, latency, and cost data should aggregate at one point.
+    solution: >
+      Funnel every model interaction through one inference tool backed by a
+      provider adapter interface. The tool assembles a provider-agnostic prompt,
+      the adapter translates to and from a provider's API, and a parser
+      normalizes the reply to one result type. Everything else stays on the
+      harness side of the boundary; changing the model is a one-field edit.
+    implementation: >
+      Keep prompt assembly provider-agnostic: current state, conversation
+      history, and scoped manifest go in; provider payloads come only from the
+      adapter. Normalize responses into the same tool-call/completion/error
+      shape for the machine, and record token, latency, model, and cost data at
+      this boundary. Parsers must tolerate malformed or embedded tool calls,
+      especially for open-weight models and changing API formats.
+    consequences:
+      benefits:
+        - Model-agnostic evaluation and one-line provider portability.
+        - A single instrumentation point for tokens, latency, and cost.
+      liabilities:
+        - Translation adds overhead and risks provider-specific features going unused.
+        - The parser must handle malformed or embedded tool-call output gracefully.
+    grammar:
+      within: [agent-as-data]
+      requires: [machine-interpreter, agent-as-data, tool-contract]
+      contains: []
+      enables: []
+      overlaps: [boundary-tool]
+    syntax: >
+      Within an Agent-as-Data, make inference a single boundary Tool Contract
+      behind a provider adapter; Transition Spans then attach one
+      gen_ai.chat span per invocation at exactly this point.
+    examples:
+      - system: Adapter pattern (Gang of Four)
+        cite: gamma-gof-1994
+        kind: external
+        note: Convert one interface into another expected by a client — the classic structure of a per-provider adapter behind one interface.
+      - system: Hexagonal Architecture (Ports and Adapters)
+        cite: cockburn-hexagonal-2005
+        kind: external
+        note: An application core depends on a port; external systems plug in via adapters — exactly how the engine reaches any model provider.
+      - system: Model Context Protocol
+        cite: anthropic-mcp-2024
+        kind: external
+        note: A uniform boundary between an agent and heterogeneous external capabilities, including models.
+      - system: Reference implementation — generator profile variants
+        cite: reference-implementation
+        kind: internal
+        note: Generators share one machine and tool set but bind qwen.yaml, deepseek.yaml, or claude.yaml, yielding a directly comparable grid because the harness is held constant.
+    provenance: [reference-implementation, external-corroboration]
+
+  # ---------------------------------------------------------------------------
+  - id: bidirectional-log
+    number: 6
+    name: Bidirectional Log
+    also_known_as: [Execution Rollback, Undo Engine]
+    confidence: 2
+    intent: >
+      Walk the recorded execution backward, calling Undo on each tool in
+      reverse, so recovery from a mistaken step is mechanical rather than
+      probabilistic.
+    context: >
+      A Machine Interpreter records (state, signal, tool, result) as it runs, and
+      each Tool Contract declares a reversibility tier. Agents make mistakes;
+      without rollback the only recovery is to restart or to ask the model to
+      fix its own errors on a contaminated history, which compounds mistakes.
+    problem: >
+      How do you recover from a wrong step deterministically, restoring the
+      workspace and giving the model clean context, across a mix of reversible
+      and irreversible tools?
+    applicability: >
+      Use this for agents whose tools mutate files, resources, conversation
+      state, or other external state; for speculative execution; and when
+      irreversible effects must be auditable. Agents with no side effects, or
+      only naturally idempotent side effects, gain little from rollback.
+    forces:
+      - Recovery should be mechanical, not a second probabilistic attempt.
+      - Agent, domain, and workspace state must be restored together.
+      - Reversible, compensatable, and irreversible tools need different handling.
+      - Irreversible effects, once committed, must be recorded, not undone.
+    solution: >
+      Treat the execution as a bidirectional log. To roll back, a separate
+      minimal lifecycle machine walks the record in reverse: reversible tools
+      undo from a recorded memento, compensatable tools issue a corrective
+      action, irreversible tools are skipped and logged. Checkpoints bind agent,
+      domain, and workspace state to one logical point so all three restore
+      together, and resuming is a fresh continuation, not a replay.
+    implementation: >
+      Every state-mutating tool must emit an UndoMemento during Execute; a tool
+      that claims reversibility but produces no memento violates its contract at
+      runtime. Checkpoints bind engine position, execution/history digest,
+      conversation/domain state, and workspace reference. Create them on suspend,
+      before irreversible commitment, and by policy. After rollback, truncate
+      the active execution tail and continue freshly from the restored point;
+      preserve discarded entries only in the audit record.
+    consequences:
+      benefits:
+        - Deterministic recovery and cheap speculative exploration of reversible plans.
+        - Skipped irreversible entries are auditable.
+      liabilities:
+        - Checkpointing three state layers has cost and needs selective triggers.
+        - Once an irreversible tool commits, rollback reaches only the pre-commitment checkpoint.
+    grammar:
+      within: [machine-interpreter]
+      requires: [machine-interpreter, tool-contract]
+      contains: []
+      enables: [approval-gate, operator-port]
+      overlaps: []
+    syntax: >
+      Over a Machine Interpreter's record and a set of Tool Contracts, walk
+      the Bidirectional Log with its own lifecycle machine; its checkpoints are what
+      an Approval Gate suspends into and what an Operator Port restores.
+    examples:
+      - system: Database transactions and rollback
+        cite: gray-1978
+        kind: external
+        note: The canonical model of a durable, reversible sequence of operations with a commit boundary; rollback restores the prior consistent state.
+      - system: Sagas
+        cite: garcia-molina-sagas-1987
+        kind: external
+        note: Long-running work as a sequence of local steps each with a compensating action, undone in reverse — the direct model for mixed-tier rollback.
+      - system: Memento pattern (Gang of Four)
+        cite: gamma-gof-1994
+        kind: external
+        note: Capture an object's state so it can be restored later without violating encapsulation — the UndoMemento each tool records.
+      - system: Event Sourcing
+        cite: fowler-event-sourcing-2005
+        kind: external
+        note: State as a replayable/reversible log of events; the execution record is the same kind of traversable log.
+      - system: Reference implementation — coding-agent rollback
+        cite: reference-implementation
+        kind: internal
+        note: When validation fails, the lifecycle machine reverts the workspace to the last checkpoint and the model retries with clean context instead of debugging its contaminated history.
+    provenance: [reference-implementation, external-corroboration]
+
+  # ---------------------------------------------------------------------------
+  - id: transition-spans
+    number: 7
+    name: Transition Spans
+    also_known_as: [Trace Instrumentation, Span Mapping, Observable Execution]
+    confidence: 2
+    intent: >
+      Map each engine transition onto an OpenTelemetry span so the execution is
+      observable with standard tooling without coupling the engine to any
+      telemetry backend.
+    context: >
+      A Machine Interpreter already produces a semantic record — the execution —
+      that an evaluator reads. But an operator needs a different view: timed,
+      hierarchical, cross-service, and visualizable in standard backends.
+    problem: >
+      How do you make an agent's execution debuggable and auditable with
+      standard tooling, and correlate multi-agent runs, without importing a
+      telemetry SDK into the engine?
+    applicability: >
+      Use this when executions must be debugged, audited, costed, or compared
+      across models and when child agents must correlate into one distributed
+      trace. For tiny local runs, a file adapter or no-op tracer may be enough,
+      but the port should remain so instrumentation choices do not change engine
+      behaviour.
+    forces:
+      - The engine must not depend on any telemetry backend.
+      - Per-step timing and cost must be available for evaluation.
+      - Multi-agent executions must correlate into one distributed trace.
+      - Instrumentation variance must not confound model comparison.
+    solution: >
+      Define a Tracer port the engine depends on and implement it with adapters
+      (OTel, file, no-op). Map the machine onto the span model: the run is the
+      root span, each iteration a child span, each tool an execute_tool span,
+      each signal a span attribute. Propagate W3C Trace Context across agent
+      boundaries so child executions root under the parent's trace.
+    implementation: >
+      The engine should depend only on a tracer port: start/end span, record
+      event, set attribute, and propagate context. Emit stable semantic fields
+      such as run id, state, signal, tool, iteration, model, token counts,
+      latency, cost, and rollback markers. Use W3C traceparent propagation for
+      child agents. Keep an NDJSON adapter for offline evaluation and a no-op
+      adapter for tests or low-overhead deployments.
+    consequences:
+      benefits:
+        - Backend independence and standard, searchable, visualizable traces.
+        - Metrics the flat execution cannot give: wall-clock, latency, cost, recovery cost.
+      liabilities:
+        - Per-iteration spans multiply span volume for long runs.
+        - Metrics are derived post-ingestion, not emitted in real time by default.
+    grammar:
+      within: [machine-interpreter]
+      requires: [machine-interpreter]
+      contains: []
+      enables: [convergence-taxonomy, boundary-tool]
+      overlaps: [operator-port]
+    syntax: >
+      Over a Machine Interpreter, map each transition to a span through a Tracer
+      port; the resulting trace is what the Convergence Taxonomy reads and what
+      Boundary Tool propagates across boundaries.
+    examples:
+      - system: OpenTelemetry
+        cite: otel-spec-2024
+        kind: external
+        note: The vendor-neutral standard for traces as DAGs of timed spans with attributes — the target model this pattern maps onto.
+      - system: OpenTelemetry GenAI semantic conventions
+        cite: otel-genai-semconv-2025
+        kind: external
+        note: Standard attributes for model calls (system, model, token counts) that make inference telemetry queryable across vendors.
+      - system: W3C Trace Context
+        cite: w3c-trace-context-2021
+        kind: external
+        note: The traceparent propagation format that links a child agent's trace into the parent's.
+      - system: Dapper
+        cite: sigelman-dapper-2010
+        kind: external
+        note: Google's large-scale distributed tracing infrastructure that established span trees and propagation as the way to observe distributed executions.
+      - system: Reference implementation — grid evaluation
+        cite: reference-implementation
+        kind: internal
+        note: The evaluator consumes NDJSON span files, not running agents; convergence classes map directly to span patterns and per-run cost is read from span attributes.
+    provenance: [reference-implementation, external-corroboration]
+
+  # ---------------------------------------------------------------------------
+  - id: boundary-tool
+    number: 8
+    name: Boundary Tool
+    also_known_as: [Agent Delegation, Hierarchical Composition]
+    confidence: 1
+    intent: >
+      Delegate a complete child execution through one boundary tool so every
+      machine stays flat, independently validatable, and composable without
+      structural coupling.
+    context: >
+      A Machine Interpreter distinguishes terminal (atomic) tools from
+      non-terminal (boundary) tools whose Execute crosses into an external
+      actor — a model, a human, or another agent — and returns only when that
+      actor finishes. To the parent, a boundary tool is one dispatch and one
+      signal even though an entire execution unfolds inside.
+    problem: >
+      How do you coordinate work across sub-agents without the parent knowing
+      the child's control flow, and keep every machine flat and independently
+      validatable?
+    applicability: >
+      Use this when work decomposes hierarchically and each child agent should
+      be independently validated, audited, authorized, and rolled back. Avoid it
+      when peers need open-ended negotiation or shared mutable control flow; this
+      pattern is parent-to-child composition, not a general multi-agent society.
+    forces:
+      - Parent and child must not be structurally coupled.
+      - Each machine must stay flat and independently validatable.
+      - A child's execution must be independently auditable and rollbackable.
+      - Authority must narrow, never widen, as work is delegated downward.
+    solution: >
+      Compose agents through non-terminal boundary tools. A boundary tool
+      carries a child profile reference, not a code dependency; it collapses the
+      child's whole execution into one signal the parent routes on. Hierarchy
+      comes from stacking boundaries, not from nesting machines; authority
+      attenuates at each boundary; traces propagate so children root under the
+      parent.
+    implementation: >
+      A delegation tool is a Tool Contract whose Execute launches a child
+      profile and returns one parent-level signal such as ChildSucceeded or
+      ChildFailed. Pass only attenuated authority, budget, context, and trace
+      context into the child. The parent may compensate the child boundary as a
+      whole, but it must not reach inside the child's execution log to undo
+      individual tools.
+    consequences:
+      benefits:
+        - Isolation with flat machines; complexity stays local.
+        - Authority attenuation and coherent hierarchical traces.
+      liabilities:
+        - A parent can only run a child's coarse boundary compensation, not undo the child's individual tools.
+        - Composition is strictly hierarchical; there is no peer-to-peer negotiation.
+    grammar:
+      within: [machine-interpreter]
+      requires: [machine-interpreter, tool-contract, transition-spans]
+      contains: []
+      enables: []
+      overlaps: [inference-boundary]
+    syntax: >
+      Over a Machine Interpreter, wrap a child Agent-as-Data as one boundary
+      Tool Contract; Transition Spans propagate the parent trace into the
+      child, and the Bidirectional Log compensates the child as a whole.
+    examples:
+      - system: Supervisor trees (Erlang/OTP)
+        cite: armstrong-2003
+        kind: external
+        note: Processes arranged in a supervision hierarchy where a parent starts, monitors, and restarts children — hierarchical composition with attenuated responsibility.
+      - system: Actor model
+        cite: hewitt-actor-1973
+        kind: external
+        note: Computation as actors that create other actors and communicate only by messages — the theoretical basis for composing isolated executions.
+      - system: MapReduce
+        cite: dean-mapreduce-2004
+        kind: external
+        note: A coordinator delegates isolated sub-computations to workers and merges results — a parent-to-child composition with results returned upward.
+      - system: Reference implementation — bench/evaluator/generator stack
+        cite: reference-implementation
+        kind: internal
+        note: Bench delegates to evaluators via subprocess launch_eval; evaluators run generators via nested run_point; a benchmark point traverses all three with complexity isolated at each level.
+    provenance: [reference-implementation, external-corroboration]
+
+  # ---------------------------------------------------------------------------
+  - id: approval-gate
+    number: 9
+    name: Approval Gate
+    also_known_as: [Human-in-the-Loop Gate, Suspend-and-Confirm]
+    confidence: 1
+    intent: >
+      Suspend execution at a declared state, checkpoint it, and resume or roll
+      back on an external decision without losing context across the suspension.
+    context: >
+      Some tools are irreversible — deploying, deleting, provisioning. A Tool
+      Contract marks these, and Bidirectional Log provides checkpoints. Before
+      such an action, an external authority should review and decide, possibly
+      after the process has exited and hours have passed.
+    problem: >
+      How do you pause before an irreversible action for an external decision,
+      survive process restarts during the wait, and resume in exactly the same
+      state — without bolting a gate onto the control flow imperatively?
+    applicability: >
+      Use this before irreversible or high-risk tools such as deployment,
+      deletion, provisioning, financial movement, or external notification,
+      especially when the decision may take hours or require an audit trail. Do
+      not gate ordinary reversible decisions; unnecessary gates serialize an
+      otherwise fast pipeline through human latency.
+    forces:
+      - The gate must be a declared transition, not a thread block or a lost callback.
+      - Execution must survive process boundaries during an arbitrary wait.
+      - Resume must restore the exact pre-suspension state.
+      - Every decision must leave an audit trail.
+    solution: >
+      Make the gate a signal triplet — AwaitApproval / Approved / Rejected —
+      handled by ordinary transitions. A suspend tool emits AwaitApproval; the
+      engine checkpoints all state, notifies the authority, and exits. Resume is
+      signal injection into the loaded checkpoint: Approved routes to the gated
+      tool, Rejected routes to rollback or revision. Manual and automated
+      approval use the same path.
+    implementation: >
+      Place the gate before the irreversible tool, not inside it. The suspend
+      tool is an internal lifecycle tool so the model cannot skip it by refusing
+      to call it. Gate checkpoints add action summary, checkpoint reference,
+      gate status, and authority decision record to the normal checkpoint.
+      Resume injects Approved or Rejected into the restored checkpoint; recheck
+      preconditions because the external world may have changed during the wait.
+    consequences:
+      benefits:
+        - Irreversible tools are safe to hold in the registry; they run only after approval.
+        - Cross-session continuity and auditable, composable multi-stage gates.
+      liabilities:
+        - Each gate serializes execution through human latency.
+        - Checkpoints need storage cleanup, and preconditions may go stale during the wait.
+    grammar:
+      within: [machine-interpreter]
+      requires: [machine-interpreter, tool-contract, bidirectional-log, phase-scoped-toolset]
+      contains: []
+      enables: [operator-port]
+      overlaps: []
+    syntax: >
+      Over a Machine Interpreter, place an Approval Gate before any irreversible
+      Tool Contract; it suspends into a Bidirectional Log checkpoint, and an
+      Operator Port's pause command reuses the same suspension.
+    examples:
+      - system: Two-phase commit
+        cite: gray-1978
+        kind: external
+        note: A coordinator prepares participants and waits for a decision before the irreversible commit — the suspend-then-decide-then-commit structure.
+      - system: Temporal human-in-the-loop
+        cite: temporal-2024
+        kind: external
+        note: Durable execution with signals that pause a workflow until an external decision arrives, surviving process restarts.
+      - system: AWS Step Functions callback tasks
+        cite: aws-step-functions-callback-2024
+        kind: external
+        note: A workflow task can suspend on an external callback token before resuming, matching the declared wait-resume structure of approval gates.
+      - system: Reference implementation — deployment confirmation
+        cite: reference-implementation
+        kind: internal
+        note: A coding agent gates between validation and deployment; approval deploys, rejection rolls back to the pre-deployment checkpoint, and each decision is recorded for compliance.
+    provenance: [reference-implementation, external-corroboration]
+
+  # ---------------------------------------------------------------------------
+  - id: convergence-taxonomy
+    number: 10
+    name: Convergence Taxonomy
+    also_known_as: [Outcome Classifier, Trace Classifier]
+    confidence: 0
+    intent: >
+      Classify a completed execution into one of four convergence types by
+      reading its transition patterns, so every outcome has an actionable root
+      cause without re-running the agent.
+    context: >
+      Transition Spans and the Machine Interpreter produce a structured
+      record of every run. Evaluation that reports only pass or fail says what
+      happened, never why, so teams debug the wrong layer — retuning prompts
+      when the model was cycling, or raising budget when the agent was diverging.
+    problem: >
+      How do you turn a pass/fail verdict into an actionable diagnosis of why a
+      run succeeded or failed, mechanically and deterministically?
+    applicability: >
+      Use this for evaluation runs that produce structured state-transition
+      traces, especially across many task/model/profile combinations. It is less
+      useful when traces lack state data or when infrastructure failures such as
+      auth errors, rate limits, and outages dominate; those need separate
+      detectors before convergence classification.
+    forces:
+      - Each failure mode needs a distinct, named root cause and remedy.
+      - Classification must be mechanical and deterministic — no inference.
+      - The same execution must always yield the same class.
+      - Equal pass rates with different quality must be distinguishable.
+    solution: >
+      Read the execution's state-visit sequence and apply three detectors — a
+      retry-cycle counter, a repetition detector, and a terminal-state check —
+      then map to exactly one of four types: Clean (succeeded, no retries),
+      Recovery (succeeded after retries), Stuck (failed, cycling), Divergent
+      (failed, unproductive). Each type points to a different fix; the classifier
+      contains no model and runs in microseconds.
+    implementation: >
+      Classification reads only execution entries or equivalent trace attributes
+      such as state, signal, tool, and terminal state. Count retry cycles,
+      detect late repetition by sliding window or histogram, and map with a
+      four-branch decision tree: succeeded with no cycles is Clean, succeeded
+      with cycles is Recovery, failed with repetition is Stuck, failed without
+      repetition is Divergent. Infrastructure crashes and timeouts before any
+      dispatch are recorded outside the taxonomy.
+    consequences:
+      benefits:
+        - Actionable diagnostics and quantitative model comparison beyond binary metrics.
+        - Regression sensitivity — distribution shifts that a pass rate hides.
+      liabilities:
+        - Four types can be too coarse; cross-cutting failures (rate limits, outages) need separate detection.
+        - The repetition thresholds are sensitive and need empirical tuning.
+    grammar:
+      within: [machine-interpreter]
+      requires: [machine-interpreter, transition-spans]
+      contains: []
+      enables: []
+      overlaps: []
+    syntax: >
+      Over a Machine Interpreter's record surfaced by Transition Spans, apply
+      the Convergence Taxonomy after each run; its four-type distribution across a
+      grid is what an evaluation harness aggregates and gates on.
+    examples:
+      - system: Circuit breaker
+        cite: nygard-2018
+        kind: external
+        note: A small state classifier (closed/open/half-open) derived from observed outcomes drives a distinct action per state — the same "classify state, choose remedy" discipline.
+      - system: Result / Either monad
+        cite: wadler-monads-1995
+        kind: external
+        note: Outcomes carried as a small closed set of typed cases the caller must handle exhaustively — the exhaustiveness the four-type taxonomy enforces.
+      - system: Process mining
+        cite: van-der-aalst-process-mining-2016
+        kind: external
+        note: Extracts and diagnoses process behaviour from event logs, directly supporting trace-based classification of completed executions without re-running them.
+      - system: Workflow conformance checking
+        cite: van-der-aalst-conformance-2012
+        kind: external
+        note: Compares observed traces with expected process models to identify deviations, strengthening the classifier's use of transition patterns as diagnostic evidence.
+      - system: Reference implementation — bench convergence reports
+        cite: reference-implementation
+        kind: internal
+        note: The evaluation UI shows types as colored badges and CI regression gates alert when a type moves beyond threshold (Clean down, Stuck up), catching degradations binary pass rates miss.
+    provenance: [reference-implementation]
+
+  # ---------------------------------------------------------------------------
+  - id: operator-port
+    number: 11
+    name: Operator Port
+    also_known_as: [Runtime Probe, Control Plane, Live Inspector]
+    confidence: 1
+    intent: >
+      Attach a control-plane server to the running engine so observers can query
+      execution state and controllers can inject signals, all within the
+      machine's declared state space.
+    context: >
+      A Machine Interpreter occupies one named state, holds one pending signal,
+      and keeps a bounded history at every moment — inherent properties, not
+      debug artifacts. Imperative agents are opaque at runtime: the only control
+      is crude (pause, kill, restart) and the only visibility is ad-hoc logs.
+    problem: >
+      How do you inspect and steer a long-running agent live — pausing before an
+      irreversible step, rolling back, injecting termination — without killing
+      the process or corrupting the machine?
+    applicability: >
+      Use this for agents that run long enough to need live progress, operator
+      intervention, or parent supervision of many children. For short-lived
+      executions, post-hoc Transition Spans and Convergence Taxonomy are
+      usually enough. The probe is for administrative intervention; ordinary
+      business signals belong in the machine itself.
+    forces:
+      - Live inspection must not block or alter the transition it observes.
+      - Injected control must obey the same machine rules as internal signals.
+      - An operator must not be able to reach an undeclared state.
+      - The probe must not touch the machine, tools, or business logic.
+    solution: >
+      Expose the engine through a control plane: a read plane (snapshot and
+      event stream) and a control plane (inject a signal, or a lifecycle command
+      that translates to an internal signal). Injected signals are validated
+      against the machine and routed at the next dispatch cycle; an invalid
+      signal is rejected. The machine is the authorization policy; the probe is
+      only a messenger.
+    implementation: >
+      Make the probe opt-in. A recorder appends committed dispatch events to a
+      bounded ring; read endpoints expose snapshots and event streams without
+      blocking the loop. Control endpoints enqueue signals or lifecycle commands
+      for the next dispatch cycle and return a machine-violation error if the
+      current state has no matching transition. Bind endpoints locally or add
+      authentication; the pattern supplies attachment points, not a security
+      model.
+    consequences:
+      benefits:
+        - Live inspection without stopping, and control through declared transitions only.
+        - Machine-validated safety — no backdoor, no undeclared state.
+      liabilities:
+        - The event ring consumes memory proportional to capacity.
+        - Open HTTP endpoints are attack surface; the pattern gives attachment points, not a security model.
+    grammar:
+      within: [machine-interpreter]
+      requires: [machine-interpreter, bidirectional-log, approval-gate]
+      contains: []
+      enables: []
+      overlaps: [transition-spans]
+    syntax: >
+      Over a Machine Interpreter, attach an Operator Port whose pause reuses the
+      Approval Gate and whose rollback reuses the Bidirectional Log; unlike Transition
+      Spans it observes live, in-progress executions rather than
+      completed trace files.
+    examples:
+      - system: Kubernetes liveness and readiness probes
+        cite: k8s-probes
+        kind: external
+        note: A control plane queries and acts on a running workload's state through declared endpoints — live inspection and control without killing the process.
+      - system: Temporal signals and queries
+        cite: temporal-2024
+        kind: external
+        note: Running workflows expose query handlers for inspection and signal handlers for external steering while preserving workflow state and history.
+      - system: Erlang/OTP system messages
+        cite: erlang-sys-2024
+        kind: external
+        note: OTP processes can expose standardized debug, trace, suspend, resume, and status operations through system messages without changing process logic.
+      - system: Chaos Engineering
+        cite: basiri-chaos-2016
+        kind: external
+        note: Injecting controlled signals into a running system to observe and steer its behaviour — the disciplined runtime-injection practice this pattern makes safe via machine validation.
+      - system: OpenTelemetry (live metrics)
+        cite: otel-spec-2024
+        kind: external
+        note: The same instrumentation feed exported as live gauges and counters for real-time dashboards of an in-progress run.
+      - system: Reference implementation — long-running coding agents
+        cite: reference-implementation
+        kind: internal
+        note: An operator watches transitions stream past, spots Stuck-pattern cycles, and injects RollbackRequested to restore the last checkpoint and try a different approach.
+    provenance: [reference-implementation, external-corroboration]
+
+# =============================================================================
+# BIBLIOGRAPHY
+# Full citations for every external example above, so this file stands alone.
+# Keys shared with the monograph's references.yaml resolve to the same works.
+# =============================================================================
+
+bibliography:
+
+  reference-implementation:
+    text: >
+      The declarative coding-agent harness from which these patterns were
+      extracted (the single reference implementation described throughout the
+      accompanying monograph). Internal example, not an independent source.
+
+  # --- Patterns and architecture ---
+  gamma-gof-1994:
+    text: "Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). Design Patterns: Elements of Reusable Object-Oriented Software. Addison-Wesley."
+  meyer-dbc-1997:
+    text: "Meyer, B. (1997). Object-Oriented Software Construction (2nd ed.). Prentice Hall. (Design by Contract.)"
+  cockburn-hexagonal-2005:
+    text: "Cockburn, A. (2005). Hexagonal Architecture (Ports and Adapters)."
+    url: https://alistair.cockburn.us/hexagonal-architecture/
+  bernhardt-fcis-2012:
+    text: "Bernhardt, G. (2012). Functional Core, Imperative Shell. Destroy All Software Screencasts."
+    url: https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell
+  fowler-event-sourcing-2005:
+    text: "Fowler, M. (2005). Event Sourcing."
+    url: https://martinfowler.com/eaaDev/EventSourcing.html
+
+  # --- State machines, workflow, and verification ---
+  harel-statecharts-1987:
+    text: "Harel, D. (1987). Statecharts: A Visual Formalism for Complex Systems. Science of Computer Programming, 8(3), 231-274."
+  xstate-2024:
+    text: "Khourshid, D. (2024). XState: State Machines and Statecharts for the Modern Web."
+    url: https://github.com/statelyai/xstate
+  omg-bpmn-2011:
+    text: "Object Management Group (2011). Business Process Model and Notation (BPMN), Version 2.0. formal/2011-01-03."
+  w3c-scxml-2015:
+    text: "World Wide Web Consortium (2015). State Chart XML (SCXML): State Machine Notation for Control Abstraction. W3C Recommendation."
+    url: https://www.w3.org/TR/scxml/
+  van-der-aalst-workflow-1998:
+    text: "van der Aalst, W. M. P. (1998). The Application of Petri Nets to Workflow Management. Journal of Circuits, Systems and Computers, 8(1), 21-66."
+  lamport-tla-2002:
+    text: "Lamport, L. (2002). Specifying Systems: The TLA+ Language and Tools for Hardware and Software Engineers. Addison-Wesley."
+  pnueli-translation-validation-1998:
+    text: "Pnueli, A., Siegel, M., & Singerman, E. (1998). Translation Validation. Proceedings of TACAS 1998, LNCS 1384."
+  bultan-action-lang-2000:
+    text: "Bultan, T. (2000). Action Language: A Specification Language for Model Checking Reactive Systems. Proceedings of ICSE 2000."
+  redux-2015:
+    text: "Abramov, D., & Clark, A. (2015). Redux: A Predictable State Container for JavaScript Apps."
+    url: https://redux.js.org
+
+  # --- Agentic frameworks and orchestration ---
+  langgraph-2024:
+    text: "LangChain, Inc. (2024). LangGraph: Agent Runtime and Low-Level Orchestration Framework."
+    url: https://github.com/langchain-ai/langgraph
+  temporal-2024:
+    text: "Temporal Technologies (2024). Temporal: Durable Execution Platform Documentation."
+    url: https://docs.temporal.io
+  aws-step-functions-2024:
+    text: "Amazon Web Services (2024). AWS Step Functions Developer Guide: Amazon States Language."
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/concepts-amazon-states-language.html
+  aws-step-functions-callback-2024:
+    text: "Amazon Web Services (2024). AWS Step Functions Developer Guide: Wait for a Callback with the Task Token."
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html#connect-wait-token
+  yao-react-2023:
+    text: "Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K., & Cao, Y. (2023). ReAct: Synergizing Reasoning and Acting in Language Models. Proceedings of ICLR 2023."
+    url: https://arxiv.org/abs/2210.03629
+  yang-swe-agent-2024:
+    text: "Yang, J., Jimenez, C. E., Wettig, A., Lieret, K., Yao, S., Narasimhan, K., & Press, O. (2024). SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering. Proceedings of NeurIPS 2024."
+    doi: 10.52202/079017-1601
+  meta-harness-2026:
+    text: "Lee, Y., Nair, R., Zhang, Q., Lee, K., Khattab, O., & Finn, C. (2026). Meta-Harness: End-to-End Optimization of Model Harnesses. arXiv:2603.28052."
+    url: https://arxiv.org/abs/2603.28052
+  autoharness-2026:
+    text: "Lou, X., Lázaro-Gredilla, M., Dedieu, A., Wendelken, C., Lehrach, W., & Murphy, K. P. (2026). AutoHarness: Improving LLM Agents by Automatically Synthesizing a Code Harness. arXiv:2603.03329."
+    url: https://arxiv.org/abs/2603.03329
+  kim-scaling-agents-2025:
+    text: "Kim, Y., Gu, K., Park, C., Park, C., Schmidgall, S., Heydari, A. A., Yan, Y., Zhang, Z., Zhuang, Y., Liu, Y., Malhotra, M., Liang, P. P., Park, H. W., Yang, Y., Xu, X., Du, Y., Patel, S., Althoff, T., McDuff, D., & Liu, X. (2025). Towards a Science of Scaling Agent Systems. arXiv:2512.08296."
+    url: https://arxiv.org/abs/2512.08296
+  harbor-harness-optimization-2026:
+    text: "Sengupta, B., & Wang, J. (2026). HARBOR: Automated Harness Optimization. arXiv:2604.20938."
+    url: https://arxiv.org/abs/2604.20938
+  ning-code-as-harness-2026:
+    text: "Ning, X., Tieu, K., Fu, D., Wei, T., Li, Z., Bei, Y., et al. (2026). Code as Agent Harness. arXiv:2605.18747."
+    url: https://arxiv.org/abs/2605.18747
+  wu-stateflow-2024:
+    text: "Wu, Y., Yue, T., Zhang, S., Wang, C., & Wu, Q. (2024). StateFlow: Enhancing LLM Task-Solving through State-Driven Workflows. Proceedings of COLM 2024 (arXiv:2403.11322)."
+    url: https://arxiv.org/abs/2403.11322
+  tiendil-donna-2025:
+    text: "Yaletski, A. (2025). Donna: A CLI Tool for Guiding Coding Agents Through Markdown-Defined State-Machine Workflows."
+    url: https://github.com/Tiendil/donna
+  jido-2025:
+    text: "agentjido (2025). Jido: Autonomous Agent Framework for Elixir."
+    url: https://github.com/agentjido/jido
+  lean4agent-2026:
+    text: "Wang, R., Huang, J., Wang, P., Liu, X., Kong, L., & Zhang, T. (2026). Lean4Agent: Formal Modeling and Verification for Agent Workflow and Trajectory. arXiv:2606.06523."
+    url: https://arxiv.org/abs/2606.06523
+  burns-borg-omega-kubernetes-2016:
+    text: "Burns, B., Grant, B., Oppenheimer, D., Brewer, E., & Wilkes, J. (2016). Borg, Omega, and Kubernetes. Communications of the ACM, 59(5), 50-57."
+
+  # --- Security and capabilities ---
+  saltzer-schroeder-1975:
+    text: "Saltzer, J. H., & Schroeder, M. D. (1975). The Protection of Information in Computer Systems. Proceedings of the IEEE, 63(9), 1278-1308. (Principle of Least Privilege.)"
+  dennis-vanhorn-1966:
+    text: "Dennis, J. B., & Van Horn, E. C. (1966). Programming Semantics for Multiprogrammed Computations. Communications of the ACM, 9(3), 143-155. (Capabilities.)"
+  hardt-oauth-2012:
+    text: "Hardt, D. (Ed.) (2012). The OAuth 2.0 Authorization Framework. RFC 6749, IETF."
+    url: https://www.rfc-editor.org/rfc/rfc6749
+
+  # --- Interfaces and protocols ---
+  openapi-spec-2024:
+    text: "OpenAPI Initiative (2024). OpenAPI Specification, Version 3.1.0."
+    url: https://spec.openapis.org/oas/v3.1.0
+  anthropic-mcp-2024:
+    text: "Anthropic (2024). Model Context Protocol (MCP) Specification."
+    url: https://modelcontextprotocol.io
+
+  # --- Transactions and recovery ---
+  gray-1978:
+    text: "Gray, J. (1978). Notes on Data Base Operating Systems. In Operating Systems: An Advanced Course, LNCS 60, 393-481. (Two-phase commit; transactions.)"
+  garcia-molina-sagas-1987:
+    text: "Garcia-Molina, H., & Salem, K. (1987). Sagas. In Proceedings of ACM SIGMOD 1987."
+
+  # --- Observability ---
+  otel-spec-2024:
+    text: "OpenTelemetry Authors (2024). OpenTelemetry Specification."
+    url: https://opentelemetry.io/docs/specs/otel/
+  otel-genai-semconv-2025:
+    text: "OpenTelemetry Authors (2025). Semantic Conventions for Generative AI Systems."
+    url: https://github.com/open-telemetry/semantic-conventions-genai
+  w3c-trace-context-2021:
+    text: "World Wide Web Consortium (2021). Trace Context. W3C Recommendation."
+    url: https://www.w3.org/TR/trace-context/
+  sigelman-dapper-2010:
+    text: "Sigelman, B. H., Barroso, L. A., Burrows, M., Stephenson, P., Plakal, M., Beaver, D., Jaspan, S., & Shanbhag, C. (2010). Dapper, a Large-Scale Distributed Systems Tracing Infrastructure. Google Technical Report dapper-2010-1."
+
+  # --- Concurrency and composition ---
+  armstrong-2003:
+    text: "Armstrong, J. (2003). Making Reliable Distributed Systems in the Presence of Software Errors. PhD thesis, KTH Royal Institute of Technology. (Erlang/OTP supervisor trees.)"
+  erlang-sys-2024:
+    text: "Erlang/OTP Authors (2024). Erlang/OTP System Architecture Support Libraries: sys."
+    url: https://www.erlang.org/doc/apps/stdlib/sys.html
+  hewitt-actor-1973:
+    text: "Hewitt, C., Bishop, P., & Steiger, R. (1973). A Universal Modular ACTOR Formalism for Artificial Intelligence. In Proceedings of IJCAI 1973."
+  dean-mapreduce-2004:
+    text: "Dean, J., & Ghemawat, S. (2004). MapReduce: Simplified Data Processing on Large Clusters. In Proceedings of OSDI 2004."
+
+  # --- Reliability, classification, and runtime control ---
+  nygard-2018:
+    text: "Nygard, M. T. (2018). Release It! Design and Deploy Production-Ready Software (2nd ed.). Pragmatic Bookshelf. (Circuit Breaker.)"
+  wadler-monads-1995:
+    text: "Wadler, P. (1995). Monads for Functional Programming. In Advanced Functional Programming, LNCS 925. (Either/Result.)"
+  van-der-aalst-process-mining-2016:
+    text: "van der Aalst, W. M. P. (2016). Process Mining: Data Science in Action (2nd ed.). Springer."
+  van-der-aalst-conformance-2012:
+    text: "van der Aalst, W. M. P., Adriansyah, A., & van Dongen, B. (2012). Replaying History on Process Models for Conformance Checking and Performance Analysis. Wiley Interdisciplinary Reviews: Data Mining and Knowledge Discovery, 2(2), 182-192."
+  k8s-probes:
+    text: "Kubernetes Authors. Configure Liveness, Readiness and Startup Probes. Kubernetes Documentation."
+    url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+  basiri-chaos-2016:
+    text: "Basiri, A., Behnam, N., de Rooij, R., Hochstein, L., Kosewski, L., Reynolds, J., & Rosenthal, C. (2016). Chaos Engineering. IEEE Software, 33(3), 35-41."

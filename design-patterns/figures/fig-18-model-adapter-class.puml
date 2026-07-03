@@ -1,0 +1,30 @@
+@startuml
+!theme plain
+
+class LLMConfig {
+  provider, model
+  temperature, limits
+}
+
+interface ProviderAdapter
+
+interface ModelHTTPAPI
+
+class InvokeLLM {
+  sole inference tool
+}
+
+class Adapter {
+  Ollama / OpenAI / Anthropic
+}
+
+class PromptAssembler
+class ResponseParser
+
+PromptAssembler ..> InvokeLLM : provides prompt
+ResponseParser ..> InvokeLLM : parses response
+LLMConfig ..> InvokeLLM : configure
+InvokeLLM ..> ProviderAdapter : requires
+Adapter ..|> ProviderAdapter : provides
+Adapter ..> ModelHTTPAPI : calls
+@enduml

@@ -1,0 +1,39 @@
+@startuml
+!theme plain
+
+class Machine {
+  +lookup(state, signal) : NextStateAndTool
+  --
+  pure data, no logic
+}
+
+class Engine {
+  -state
+  -signal
+  +run()
+  --
+  loop: lookup, dispatch, route
+}
+
+class Registry {
+  +resolve(name) : Tool
+  --
+  validated against machine
+  at load time
+}
+
+class Tool {
+  +Name() : String
+  +Execute() : Result
+  +Undo() : Result
+  --
+  declares parameters, emits,
+  output, side_effects, undo
+}
+
+Engine --> Machine : consults
+Engine --> Registry : resolves
+Registry --> Tool : returns
+Engine --> Tool : dispatches
+Tool ..> Engine : returns signal
+@enduml

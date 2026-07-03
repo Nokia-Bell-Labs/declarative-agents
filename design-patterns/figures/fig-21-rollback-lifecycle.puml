@@ -1,0 +1,15 @@
+@startuml
+!theme plain
+hide empty description
+
+[*] --> Idle
+Idle --> Scanning : RollbackRequested
+Scanning --> Undoing : EntryFound
+Scanning --> Restoring : CheckpointReached
+Scanning --> Done : NothingToUndo
+Undoing --> Scanning : UndoComplete
+Undoing --> Skipping : UndoImpossible
+Skipping --> Scanning : Logged
+Restoring --> Done : WorkspaceReset
+Done --> [*]
+@enduml

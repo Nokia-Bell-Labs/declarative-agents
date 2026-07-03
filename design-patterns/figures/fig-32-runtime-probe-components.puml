@@ -1,0 +1,39 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+
+package "Engine process" {
+  [Engine] as Engine
+  [MonitorRecorder] as MR
+  [Store (bounded ring)] as S
+  [LoopHooks] as LH
+}
+
+package "Read plane" {
+  [REST /read_state] as RR
+  [REST /stream_events] as RS
+  [OTel metrics] as OT
+}
+
+package "Control plane" {
+  [REST /emit_signal] as RE
+  [REST /lifecycle_control] as RL
+  [EventQueue] as EQ
+}
+
+package "Persisted ops" {
+  [LifecycleTool] as LT
+  [CheckpointStore] as CS
+}
+
+Engine --> MR : RunEvent per dispatch
+MR --> S : append
+Engine --> LH : pre/post hooks
+S --> RR
+S --> RS
+S --> OT
+RE --> EQ
+RL --> EQ
+EQ --> Engine : next dispatch
+LT --> CS
+@enduml

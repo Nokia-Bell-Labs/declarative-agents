@@ -1,0 +1,17 @@
+@startuml
+!theme plain
+hide empty description
+
+[*] --> Composing
+Composing --> Composing : Seed / invoke_llm
+Composing --> Parsing : LLMResponded / parse_response
+Parsing --> Dispatching : ToolCall / $tool
+Parsing --> Validating : Completion / validate
+Dispatching --> Composing : ToolDone / invoke_llm
+Dispatching --> Composing : ToolFailed / invoke_llm
+Validating --> Succeeded : ValidationPassed
+Validating --> Composing : ValidationFailed / invoke_llm
+Composing --> Failed : BudgetExceeded
+Succeeded --> [*]
+Failed --> [*]
+@enduml

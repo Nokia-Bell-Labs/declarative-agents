@@ -1,0 +1,32 @@
+@startuml
+!theme plain
+
+class Execution {
+  state, signal, tool, result
+}
+
+class Classifier {
+  +classify(execution) : ConvergenceType
+}
+
+class ConvergenceType {
+  Clean
+  Recovery
+  Stuck
+  Divergent
+}
+
+class EvalHarness {
+  grid x model x task
+}
+
+class Report {
+  rates, distributions, regressions
+}
+
+Classifier ..> Execution : reads
+Classifier --> ConvergenceType : assigns
+EvalHarness --> Classifier : invokes
+EvalHarness --> ConvergenceType : collects
+EvalHarness --> Report : produces
+@enduml

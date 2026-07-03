@@ -1,0 +1,24 @@
+@startuml
+!theme plain
+
+start
+:extract state visits;
+:terminal := last state;
+:cycles := retry-cycle count;
+:repeated := repetition detected?;
+
+if (terminal == Succeeded?) then (yes)
+  if (cycles == 0?) then (yes)
+    :Clean;
+  else (no)
+    :Recovery;
+  endif
+else (no: Failed)
+  if (repeated?) then (yes)
+    :Stuck;
+  else (no)
+    :Divergent;
+  endif
+endif
+stop
+@enduml
