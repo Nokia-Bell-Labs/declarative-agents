@@ -130,3 +130,9 @@ Bidirectional Log sits within Machine Interpreter and requires Machine Interpret
 **Gated deployment.** A pre-commitment checkpoint before an irreversible `deploy` tool sets the rollback floor; if post-deploy checks fail for reasons outside the deploy itself, execution returns to that floor, while the deploy is logged as non-reversible (Chapter 10).
 
 **Multi-step API plans.** Sequences mixing compensatable resource creation and irreversible notifications use saga-style compensation (created resources are deleted in reverse order, irreversible steps logged) without a hand-written compensation sequence.
+
+**Database transactions and rollback** [@gray-1978]. The canonical model of a durable, reversible sequence of operations with a commit boundary, where rollback restores the prior consistent state, is the closest classical analogue of walking an execution backward to a checkpoint.
+
+**Memento pattern** [@gamma-gof-1994]. Capturing an object's state so it can be restored later without violating encapsulation is exactly the UndoMemento each tool records during `Execute`.
+
+**Event Sourcing** [@fowler-event-sourcing-2005]. Modelling state as a replayable and reversible log of events matches the execution record directly: it is the same kind of traversable log, read forward to run and backward to undo.

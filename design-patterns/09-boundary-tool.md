@@ -133,3 +133,9 @@ Boundary Tool sits within Machine Interpreter and requires Machine Interpreter, 
 **Planner/generator delegation.** A planner uses LLM inference to decompose a task, then dispatches `execute_task` per sub-task; each generator sees only its sub-task and produces an independently rollbackable execution, so a failed sub-task 3 reverts without disturbing sub-tasks 1 and 2. Security-review and migration planners reuse the mechanism with different child profiles.
 
 **Self-invocation.** `self_invoke` re-runs the current binary under a different profile, letting one agent act as another configuration of itself without a separate deployment.
+
+**Supervisor trees (Erlang/OTP)** [@armstrong-2003]. Processes arranged in a supervision hierarchy, where a parent starts, monitors, and restarts children, are hierarchical composition with attenuated responsibility, the reliability precedent for parent-to-child delegation.
+
+**Actor model** [@hewitt-actor-1973]. Computation as actors that create other actors and communicate only by messages is the theoretical basis for composing isolated executions, each opaque behind its message boundary.
+
+**MapReduce** [@dean-mapreduce-2004]. A coordinator delegates isolated sub-computations to workers and merges their results, a parent-to-child composition with results returned upward, mirroring how a bench collapses each child execution into one signal.
