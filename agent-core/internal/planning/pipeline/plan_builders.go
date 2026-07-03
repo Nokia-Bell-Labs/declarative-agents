@@ -83,10 +83,6 @@ func (c *parsePlanCmd) Undo(_ core.Result) core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
 }
 
-func (c *parsePlanCmd) UndoMemento() (core.UndoMemento, error) {
-	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoReversible)
-}
-
 func (c *parsePlanCmd) Execute() core.Result {
 	c.snapshot = snapshotPipelineState(c.ps)
 	c.hasSnapshot = true

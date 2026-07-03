@@ -20,29 +20,6 @@ func (c *executeTaskCmd) Undo(_ core.Result) core.Result {
 	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
 }
 
-func (c *executeTaskCmd) UndoMemento() (core.UndoMemento, error) {
-	currentTaskID := ""
-	if c.ps.CurrentTask != nil {
-		currentTaskID = c.ps.CurrentTask.ID
-	}
-	memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, struct {
-		BoundaryCompensation BoundaryCompensationInfo `json:"boundary_compensation"`
-	}{
-		BoundaryCompensation: BoundaryCompensationInfo{
-			Strategy:       "child_agent_workspace_restore",
-			Reason:         "execute_task runs the generator agent for a planner task",
-			Requires:       []string{"child_history", "Workspace"},
-			WorkspacePaths: []string{c.ps.Directory},
-			ChildRunID:     currentTaskID,
-		},
-	})
-	if err != nil {
-		return core.UndoMemento{}, err
-	}
-	memento.Description = "restore or compensate child generator workspace effects"
-	return memento, nil
-}
-
 func (c *executeTaskCmd) Execute() core.Result {
 	if c.ps.CurrentTask == nil || c.ps.CurrentPlan == nil {
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Output: "no current task or plan"}

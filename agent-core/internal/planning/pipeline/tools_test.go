@@ -4,7 +4,6 @@ package pipeline
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,32 +102,6 @@ func TestExtractTaskBuilder_UndoRestoresPipelineState(t *testing.T) {
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
 	require.Equal(t, 3, ps.retryCount)
-}
-
-func TestExtractTaskBuilder_UndoMementoCapturesPipelineSnapshot(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-	ps.retryCount = 3
-
-	builder := &ExtractTaskBuilder{PS: ps}
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-	require.Equal(t, SigTaskExtracted, result.Signal)
-
-	provider, ok := cmd.(core.UndoMementoProvider)
-	require.True(t, ok)
-	memento, err := provider.UndoMemento()
-	require.NoError(t, err)
-	require.Equal(t, core.UndoMementoReversible, memento.Kind)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-
-	var payload struct {
-		DomainState pipelineSnapshotPayload `json:"domain_state"`
-	}
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
-	require.Equal(t, 3, payload.DomainState.RetryCount)
-	require.Nil(t, payload.DomainState.CurrentTask)
-	require.NotEmpty(t, payload.DomainState.NodeStates)
 }
 
 func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {
@@ -365,55 +338,6 @@ func TestCreateIssueBuilder_UndoRestoresIssueState(t *testing.T) {
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, "old-issue", ps.IssueID)
 	require.Equal(t, map[string]string{"old-task": "old-issue"}, ps.TaskDeps)
-}
-
-func TestCreateIssueUndoMementoCapturesIssueCompensation(t *testing.T) {
-	ps := minimalState(t)
-	task := ps.Extractor.ExtractNext(ps.Graph, ps.MaxWeight)
-	require.NotNil(t, task)
-	ps.CurrentTask = task
-	ps.CurrentPlan = &plan.ImplementationPlan{Title: "plan"}
-
-	prevMaterializePlan := materializePlan
-	materializePlan = func(context.Context, tracing.Tracer, plan.ImplementationPlan, string, map[string]string, string) (string, core.Result) {
-		return "new-issue", core.Result{Signal: SigMaterialized, Output: "created issue"}
-	}
-	t.Cleanup(func() { materializePlan = prevMaterializePlan })
-
-	cmd := (&CreateIssueBuilder{PS: ps}).Build(core.Result{})
-	result := cmd.Execute()
-	require.Equal(t, SigMaterialized, result.Signal)
-
-	provider, ok := cmd.(core.UndoMementoProvider)
-	require.True(t, ok)
-	memento, err := provider.UndoMemento()
-	require.NoError(t, err)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-
-	var payload struct {
-		BoundaryCompensation BoundaryCompensationInfo `json:"boundary_compensation"`
-	}
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
-	require.Equal(t, "close_or_delete_created_issue", payload.BoundaryCompensation.Strategy)
-	require.Equal(t, "new-issue", payload.BoundaryCompensation.IssueID)
-}
-
-func TestExecuteTaskUndoMementoCapturesChildWorkspaceCompensation(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-	ps.Directory = "/tmp/workspace"
-	cmd := &executeTaskCmd{ps: ps}
-
-	memento, err := cmd.UndoMemento()
-	require.NoError(t, err)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-
-	var payload struct {
-		BoundaryCompensation BoundaryCompensationInfo `json:"boundary_compensation"`
-	}
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
-	require.Equal(t, "child_agent_workspace_restore", payload.BoundaryCompensation.Strategy)
-	require.Equal(t, []string{"/tmp/workspace"}, payload.BoundaryCompensation.WorkspacePaths)
 }
 
 func TestPlannerAssembler_PrependsSystem(t *testing.T) {

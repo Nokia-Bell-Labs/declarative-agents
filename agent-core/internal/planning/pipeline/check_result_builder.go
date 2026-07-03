@@ -22,10 +22,6 @@ func (c *checkResultCmd) Undo(_ core.Result) core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
 }
 
-func (c *checkResultCmd) UndoMemento() (core.UndoMemento, error) {
-	return mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoReversible)
-}
-
 func (c *checkResultCmd) Execute() core.Result {
 	c.snapshot = snapshotPipelineState(c.ps)
 	c.hasSnapshot = true

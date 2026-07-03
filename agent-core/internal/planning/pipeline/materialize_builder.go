@@ -18,34 +18,6 @@ func (c *createIssueCmd) Undo(_ core.Result) core.Result {
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
 }
 
-func (c *createIssueCmd) UndoMemento() (core.UndoMemento, error) {
-	memento, err := mementoPipelineSnapshot(c.Name(), c.snapshot, c.hasSnapshot, core.UndoMementoCompensatable)
-	if err != nil || c.issueID == "" {
-		return memento, err
-	}
-	return c.issueCompensationMemento()
-}
-
-func (c *createIssueCmd) issueCompensationMemento() (core.UndoMemento, error) {
-	memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, struct {
-		DomainState          pipelineSnapshotPayload  `json:"domain_state"`
-		BoundaryCompensation BoundaryCompensationInfo `json:"boundary_compensation"`
-	}{
-		DomainState: pipelineSnapshotToPayload(c.snapshot),
-		BoundaryCompensation: BoundaryCompensationInfo{
-			Strategy: "close_or_delete_created_issue",
-			Reason:   "planner materialized an issue",
-			Requires: []string{"issue_id"},
-			IssueID:  c.issueID,
-		},
-	})
-	if err != nil {
-		return core.UndoMemento{}, err
-	}
-	memento.Description = "restore planner state and compensate created issue"
-	return memento, nil
-}
-
 func (c *createIssueCmd) Execute() core.Result {
 	c.snapshot = snapshotPipelineState(c.ps)
 	c.hasSnapshot = true
