@@ -1,68 +1,75 @@
 id: rel02.0-uc001-approval-suspend-resume
-title: Agent suspends at approval gate and resumes from checkpoint
+title: Agent suspends at approval gate and resumes from the checkpoint port
 
 summary: |
   A long-running agent reaches a machine-declared approval gate before
-  performing a risky or irreversible action. Lifecycle features are enabled,
-  so the runtime persists a checkpoint containing agent state, command/domain
-  state, history digest, and workspace ref. The process exits with a suspended
-  status. After a user approves the action, the agent resumes from the
-  checkpoint, restores the workspace and command/domain state, validates the
-  current machine and tools, and continues from the suspended state.
+  performing a risky or irreversible action. With the Dolt checkpoint backend
+  enabled (--dolt-dsn), the loop persists a checkpoint through the typed port
+  after the suspend dispatch: the resumable Position (current state, last
+  signal, the folded conversation, and the loop-owned counters) plus the
+  ordered Execution log, each entry carrying its opaque tool receipt. The
+  process exits with a suspended status. After a user approves the action, the
+  agent resumes purely through the port -- Load restores the Position and
+  Execution and re-enters the same machine at the approval state, continuing
+  with the approved signal. When persistence is disabled the NoopCheckpoint
+  default preserves current loop behavior.
 
 actor: Operator supervising a long-running agent
 
 trigger: |
-  The operator runs an agent with lifecycle storage enabled, a configured
-  StateStore/FileStore, an optional Workspace/GitWorkspace, and a machine.yaml
-  transition that routes a risky action through an approval-gate tool.
+  The operator runs an agent with --dolt-dsn naming a Dolt backend and a
+  machine.yaml transition that routes a risky action through an approval-gate
+  (suspend) tool.
 
 reference_profile:
   path: lifecycle/approval/profile.yaml under AGENT_PROFILES_ROOT
   first_run: |
     agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
-          --state-store-dir <store-dir>
+          --dolt-dsn <mysql-wire-dsn>
   resume_approved: |
     agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
-          --state-store-dir <store-dir> \
-          --resume-checkpoint <checkpoint-id> \
+          --dolt-dsn <mysql-wire-dsn> \
+          --resume-checkpoint <run-id> \
           --resume-signal Approved
   resume_rejected: |
     agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
-          --state-store-dir <store-dir> \
-          --resume-checkpoint <checkpoint-id> \
+          --dolt-dsn <mysql-wire-dsn> \
+          --resume-checkpoint <run-id> \
           --resume-signal Rejected
 
 flow:
-  - F1: Agent startup enables lifecycle behavior with StateStore, optional Workspace, and lifecycle/approval/profile.yaml under AGENT_PROFILES_ROOT; disabled lifecycle defaults remain unchanged (srd025 R10).
-  - F2: core.Loop drives MachineSpec normally until a transition invokes an approval-gate or suspend tool (srd005 R5, srd025 R8).
-  - F3: The approval-gate tool emits a machine-declared suspend signal rather than failing the run (srd024 R2, srd025 R8).
-  - F4: Loop builds a Checkpoint with AgentSnapshot, optional command/domain JSON, optional WorkspaceRef, and HistoryDigest (srd025 R1, R6).
-  - F5: StateStore persists the Checkpoint under a structured store path; Workspace supplies or restores a GitWorkspace ref without serializing agent state into git (srd025 R2, R3).
-  - F6: RunResult returns StatusSuspended with enough detail for the operator to find the checkpoint (srd025 R8).
+  - F1: Agent startup resolves the checkpoint backend at the composition root -- --dolt-dsn selects the Dolt adapter over the registered MySQL-wire driver, and its absence leaves NoopCheckpoint so disabled-mode runs keep current behavior (srd035 R5, srd036 R1).
+  - F2: core.Loop drives the MachineSpec normally until a transition invokes an approval-gate or suspend tool (srd005 R5, srd024 R1).
+  - F3: The approval-gate tool emits a machine-declared suspend signal rather than failing the run (srd024 R2).
+  - F4: After the suspend dispatch the loop calls Save(Position, Execution): the Position carries current_state, last_signal, the AgentSnapshot counters, and the conversation folded into the snapshot; the Execution appends the dispatched entry with its opaque receipt (srd035 R2, R4, R6.1).
+  - F5: The Dolt backend commits the step on the run branch so the suspended state survives the process exit (srd036 R4).
+  - F6: RunResult returns StatusSuspended with enough detail for the operator to locate the run's checkpoint (srd035 R6).
   - F7: The operator approves or rejects the pending action outside the original process.
-  - F8: Resume loads the checkpoint, validates machine/tool compatibility, restores command/domain state, restores Workspace, and re-enters Loop from the checkpointed state (srd025 R9).
-  - F9: Approved and rejected outcomes route through explicit MachineSpec signals, preserving auditability (srd025 R8).
+  - F8: Resume Loads the persisted Position and Execution through the single port path, restores the folded conversation, and re-enters Loop at the checkpointed state feeding the resume signal (srd035 R4.2, R6.2).
+  - F9: Approved and rejected outcomes route through explicit MachineSpec signals, preserving auditability (srd024 R2).
 
 touchpoints:
-  - T1: "srd005-agentic-loop R4, R5 -- LoopParams carry optional lifecycle ports and Loop drives the machine normally"
-  - T2: "srd024-blocking-input-tools R0, R1, R2, R3 -- approval gates behave as boundary/blocking tools with declared signals"
-  - T3: "srd025-rollback-lifecycle R1, R2, R3, R6, R8, R9, R10 -- checkpoint, suspend, resume, and opt-in lifecycle behavior"
-  - T4: "sm-rollback-lifecycle -- checkpoint, suspend, resume, and failure data flow"
+  - T1: "srd035-checkpoint-port R1, R2, R4, R6 -- typed Save/Load, Position and Execution, conversation folded into the snapshot, and the single resume path"
+  - T2: "srd036-dolt-state-persistence R1, R4, R5 -- the Dolt adapter behind the database/sql seam, commit-per-step and branch-per-run, and Load reconstruction across processes"
+  - T3: "srd024-blocking-input-tools R1, R2 -- the approval gate behaves as a boundary tool emitting a declared suspend signal"
+  - T4: "sm-rollback-lifecycle -- checkpoint, suspend, and resume data flow over the typed port"
 
 success_criteria:
   - id: S1
     criterion: The agent exits as suspended, not failed, after reaching the approval gate.
     traces:
-      - srd025-rollback-lifecycle AC5
+      - srd035-checkpoint-port AC6
+      - srd024-blocking-input-tools AC2
   - id: S2
-    criterion: The persisted checkpoint separates JSON agent/command state from the workspace git ref.
+    criterion: The suspended checkpoint persists through the typed port -- NoopCheckpoint when disabled, the Dolt backend when --dolt-dsn is set -- with the conversation folded into the snapshot and the opaque receipt preserved on each entry.
     traces:
-      - srd025-rollback-lifecycle AC1
+      - srd035-checkpoint-port AC4
+      - srd035-checkpoint-port AC5
   - id: S3
-    criterion: Resume restores StateStore-backed state and WorkspaceRef before continuing.
+    criterion: Resume Loads the Position and Execution through the single path and re-enters the machine with the resume signal; a fresh process resumes an equivalent state from the Dolt backend.
     traces:
-      - srd025-rollback-lifecycle AC5
+      - srd035-checkpoint-port AC6
+      - srd036-dolt-state-persistence AC5
   - id: S4
     criterion: Approval and rejection are explicit machine signals, not hidden control flow.
     traces:
@@ -70,19 +77,20 @@ success_criteria:
 
 failure_scenarios:
   - id: E1
-    scenario: StateStore is required but unavailable.
-    expected: Suspend returns a documented CommandError or explicit no-op behavior as configured.
+    scenario: Persistence is disabled (NoopCheckpoint) but a resume is attempted.
+    expected: Load reports ErrNoCheckpoint through the single resume path and the run does not re-enter.
   - id: E2
-    scenario: The checkpoint was created by incompatible machine/tool declarations.
-    expected: Resume refuses to continue and reports an incompatible checkpoint error.
+    scenario: The --dolt-dsn value is unreachable or unparseable.
+    expected: Backend resolution surfaces a typed ErrDolt naming the backend and operation, and the run does not start.
   - id: E3
-    scenario: Workspace restore fails.
-    expected: Resume reports workspace restore failure with the target ref and workspace path.
+    scenario: The named run/checkpoint does not exist on the Dolt backend.
+    expected: Load reports a typed not-found result rather than resuming an empty state.
 
 out_of_scope:
   - Implementing the human approval UI.
   - Defining every operator CLI variant beyond the reference profile invocation.
   - Making approval gates concurrent.
+  - Reversing external effects on resume; resume re-enters forward, and rollback is covered by rel02.0-uc002.
 
 semantic_model: sm-rollback-lifecycle
 test_suite_trace: test-rel02.0-lifecycle
