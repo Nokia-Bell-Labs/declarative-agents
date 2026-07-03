@@ -53,6 +53,7 @@ func newLoopRunner(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx contex
 		start:            time.Now(),
 		taskCompletedSig: taskCompletedSignal(p.Hooks),
 		checkpoint:       resolveCheckpoint(p.Checkpoint),
+		execution:        cloneExecution(p.InitialExecution),
 	}
 }
 

@@ -90,10 +90,13 @@ type LoopHooks struct {
 
 // LoopParams bundles all inputs for Loop.
 type LoopParams struct {
-	InitialState     State
-	InitialSignal    Signal
-	InitialResult    Result
-	InitialRun       RunResult
+	InitialState  State
+	InitialSignal Signal
+	InitialResult Result
+	InitialRun    RunResult
+	// InitialExecution seeds the loop's Execution log so a resumed run continues
+	// appending to the persisted history instead of starting a fresh log (srd035).
+	InitialExecution Execution
 	Prompt           string
 	Registry         *Registry
 	Table            TransitionTable
