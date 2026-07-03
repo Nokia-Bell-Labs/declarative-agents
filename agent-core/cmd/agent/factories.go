@@ -182,7 +182,7 @@ func resetHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
 func registerLifecycleFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		lifecycle.RegisterFactories(br, lifecycle.FactoryDeps{
-			StateStore: st.stateStore, Tracer: st.tracer, Shutdown: st.shutdown,
+			Checkpoint: st.checkpoint, Tracer: st.tracer, Shutdown: st.shutdown,
 		})
 		br.Register("checkpoint_history", checkpointHistoryFactory(st))
 		br.Register("checkpoint_rollback", checkpointRollbackFactory(st))

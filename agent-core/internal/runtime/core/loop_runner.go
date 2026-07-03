@@ -310,12 +310,9 @@ func (r *loopRunner) stopForSuspend() bool {
 	if r.signal != AwaitApproval {
 		return false
 	}
-	if err := persistSuspendCheckpoint(r.ctx, r.params, r.trace, &r.run, r.state, r.signal, r.iteration); err != nil {
-		r.run.Status = StatusFailed
-		r.run.FinalState = r.state
-		r.run.LastError = err
-		return true
-	}
+	// The Checkpoint port already persisted this suspend step in dispatch's
+	// saveCheckpoint; there is no separate StateStore suspend-save path
+	// (srd035-checkpoint-port R4, srd018 R5).
 	r.trace.Event("run.suspended",
 		attribute.String("state", string(r.state)),
 		attribute.Int("iteration", r.iteration),

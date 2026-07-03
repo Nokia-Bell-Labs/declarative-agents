@@ -46,21 +46,26 @@ func TestSuspendUndoMementoCapturesApprovalCompensation(t *testing.T) {
 	require.True(t, payload.BoundaryCompensation.CheckpointRequired)
 }
 
-func TestSuspendRequiresStateStoreWhenConfigured(t *testing.T) {
+func TestSuspendRequiresCheckpointBackendWhenConfigured(t *testing.T) {
 	t.Parallel()
-	cmd := (&SuspendBuilder{
-		Config: SuspendConfig{RequireCheckpoint: true},
-		Tracer: tracing.NoopTracer{},
-	}).Build(core.Result{})
+	// RequireCheckpoint with no persistent backend (nil, or the noop default)
+	// fails; only a real backend satisfies the gate.
+	for _, cp := range []core.Checkpoint{nil, core.NoopCheckpoint{}} {
+		cmd := (&SuspendBuilder{
+			Config:     SuspendConfig{RequireCheckpoint: true},
+			Checkpoint: cp,
+			Tracer:     tracing.NoopTracer{},
+		}).Build(core.Result{})
 
-	res := cmd.Execute()
+		res := cmd.Execute()
 
-	require.Equal(t, core.CommandError, res.Signal)
-	require.ErrorContains(t, res.Err, "StateStore")
-	require.Contains(t, res.Output, "StateStore")
+		require.Equal(t, core.CommandError, res.Signal)
+		require.ErrorContains(t, res.Err, "persistent checkpoint backend")
+		require.Contains(t, res.Output, "persistent checkpoint backend")
+	}
 }
 
-func TestSuspendAllowsMissingStateStoreByDefault(t *testing.T) {
+func TestSuspendAllowsMissingCheckpointByDefault(t *testing.T) {
 	t.Parallel()
 	cmd := (&SuspendBuilder{Tracer: tracing.NoopTracer{}}).Build(core.Result{})
 
@@ -68,6 +73,19 @@ func TestSuspendAllowsMissingStateStoreByDefault(t *testing.T) {
 
 	require.Equal(t, core.AwaitApproval, res.Signal)
 	require.Equal(t, "awaiting approval", res.Output)
+}
+
+func TestSuspendWithPersistentCheckpointSatisfiesGate(t *testing.T) {
+	t.Parallel()
+	cmd := (&SuspendBuilder{
+		Config:     SuspendConfig{RequireCheckpoint: true},
+		Checkpoint: &core.InMemoryCheckpoint{},
+		Tracer:     tracing.NoopTracer{},
+	}).Build(core.Result{})
+
+	res := cmd.Execute()
+
+	require.Equal(t, core.AwaitApproval, res.Signal)
 }
 
 func TestRegisterLifecycleFactoriesRegistersSuspend(t *testing.T) {

@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -18,8 +17,6 @@ import (
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 )
-
-const defaultStateStoreDirName = ".agent-state"
 
 type runtimeConfig struct {
 	Machine          string
@@ -34,7 +31,6 @@ type runtimeConfig struct {
 	OTelLog          string
 	OTelParent       string
 	VerboseTrace     bool
-	StateStoreDir    string
 	DoltDSN          string
 	ResumeCheckpoint string
 	ResumeSignal     string
@@ -65,7 +61,6 @@ func loadRuntimeConfig() (runtimeConfig, error) {
 		OTelLog:          flagOTelLog,
 		OTelParent:       flagOTelParent,
 		VerboseTrace:     flagVerboseTrace,
-		StateStoreDir:    flagStateStoreDir,
 		DoltDSN:          flagDoltDSN,
 		ResumeCheckpoint: flagResumeCheckpoint,
 		ResumeSignal:     flagResumeSignal,
@@ -90,24 +85,6 @@ func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
 		return nil, fmt.Errorf("select tools: %w", err)
 	}
 	return defs, nil
-}
-
-func resolveStateStore(cfg runtimeConfig) core.StateStore {
-	root := resolveStateStoreRoot(cfg)
-	if root == "" {
-		return nil
-	}
-	return core.NewFileStore(root)
-}
-
-func resolveStateStoreRoot(cfg runtimeConfig) string {
-	if cfg.StateStoreDir != "" {
-		return cfg.StateStoreDir
-	}
-	if cfg.Directory != "" {
-		return filepath.Join(cfg.Directory, defaultStateStoreDirName)
-	}
-	return ""
 }
 
 // resolveCheckpoint returns the typed Checkpoint port for the run: the

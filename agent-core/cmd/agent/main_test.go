@@ -170,7 +170,7 @@ func TestRootCommandHasNoLifecycleOnlyFlags(t *testing.T) {
 	} {
 		require.Nil(t, rootCmd.PersistentFlags().Lookup(flag), "flag %q must not be public", flag)
 	}
-	for _, flag := range []string{"profile", "state-store-dir", "resume-checkpoint", "resume-signal", "directory", "request"} {
+	for _, flag := range []string{"profile", "dolt-dsn", "resume-checkpoint", "resume-signal", "directory", "request"} {
 		require.NotNil(t, rootCmd.PersistentFlags().Lookup(flag), "universal flag %q should remain", flag)
 	}
 	assertMainDeclsAbsent(t, map[string]bool{
@@ -398,59 +398,22 @@ func TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown(t *testing.T)
 	require.True(t, cancelled)
 }
 
-func TestApprovalLifecycleProfileSuspendsAndPersistsCheckpoint(t *testing.T) {
+func TestApprovalLifecycleProfileSuspendsThroughCheckpointPort(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
 	profilePath := profilePathFromTest(t, "lifecycle/approval/profile.yaml")
-	storeDir := t.TempDir()
 
 	clearAgentFlags()
 	flagProfile = profilePath
-	flagStateStoreDir = storeDir
+	// No --dolt-dsn: persistence defaults to NoopCheckpoint, so the run still
+	// suspends at the approval gate without a persistent backend. Round-trip
+	// persistence via Dolt is covered by TestDoltCheckpointSuspendResumeRoundTrip.
 	firstStderr, err := captureStderr(t, func() error {
 		return run(rootCmd, nil)
 	})
 	require.NoError(t, err)
 	require.Contains(t, firstStderr, "terminal state: suspended")
-
-	store := core.NewFileStore(storeDir)
-	keys, err := store.List(context.Background(), "checkpoint/")
-	require.NoError(t, err)
-	require.Len(t, keys, 1)
-}
-
-func TestApprovalLifecycleProfileUsesWorkspaceLocalStateStore(t *testing.T) {
-	restore := snapshotAgentFlags()
-	t.Cleanup(func() { restoreAgentFlags(restore) })
-
-	profilePath := profilePathFromTest(t, "lifecycle/approval/profile.yaml")
-	workspace := t.TempDir()
-
-	clearAgentFlags()
-	flagProfile = profilePath
-	flagDirectory = workspace
-	firstStderr, err := captureStderr(t, func() error {
-		return run(rootCmd, nil)
-	})
-	require.NoError(t, err)
-	require.Contains(t, firstStderr, "terminal state: suspended")
-
-	store := core.NewFileStore(filepath.Join(workspace, defaultStateStoreDirName))
-	keys, err := store.List(context.Background(), "checkpoint/")
-	require.NoError(t, err)
-	require.Len(t, keys, 1)
-}
-
-func TestStateStoreDirOverridesWorkspaceLocalDefault(t *testing.T) {
-	t.Parallel()
-
-	cfg := runtimeConfig{
-		Directory:     filepath.Join("workspace"),
-		StateStoreDir: filepath.Join("operator", "state"),
-	}
-
-	require.Equal(t, filepath.Join("operator", "state"), resolveStateStoreRoot(cfg))
 }
 
 func TestResolveCheckpointDefaultsToNoop(t *testing.T) {
@@ -667,7 +630,6 @@ func monitorProofAgentState(
 		monitor:    monitorState(mon.Store, machine, defs),
 		restDefs:   restDefs,
 		shutdown:   func() {},
-		stateStore: nil,
 	}
 }
 
@@ -976,7 +938,6 @@ type agentFlagSnapshot struct {
 	verboseTrace     bool
 	request          string
 	output           string
-	stateStoreDir    string
 	resumeCheckpoint string
 	resumeSignal     string
 }
@@ -991,7 +952,6 @@ func snapshotAgentFlags() agentFlagSnapshot {
 		verboseTrace:     flagVerboseTrace,
 		request:          flagRequest,
 		output:           flagOutput,
-		stateStoreDir:    flagStateStoreDir,
 		resumeCheckpoint: flagResumeCheckpoint,
 		resumeSignal:     flagResumeSignal,
 	}
@@ -1006,7 +966,6 @@ func restoreAgentFlags(s agentFlagSnapshot) {
 	flagVerboseTrace = s.verboseTrace
 	flagRequest = s.request
 	flagOutput = s.output
-	flagStateStoreDir = s.stateStoreDir
 	flagResumeCheckpoint = s.resumeCheckpoint
 	flagResumeSignal = s.resumeSignal
 }
@@ -1082,76 +1041,3 @@ func captureStderr(t *testing.T, fn func() error) (string, error) {
 	return buf.String(), runErr
 }
 
-func TestFormatCheckpointHistory(t *testing.T) {
-	t.Parallel()
-
-	cp := sampleCheckpoint("cp-1", time.Unix(100, 0).UTC())
-
-	out := core.FormatCheckpointHistory(cp)
-
-	require.Contains(t, out, "checkpoint: cp-1")
-	require.Contains(t, out, "iteration: 2")
-	require.Contains(t, out, "state: Working")
-	require.Contains(t, out, "1  read  Start -> Reading  signal=ToolDone  workspace=ref-1")
-	require.Contains(t, out, "2  write  Reading -> Working  signal=EditDone  workspace=ref-2")
-}
-
-func TestResolveCheckpointIDLatest(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	store := core.NewFileStore(t.TempDir())
-	saveAgentCheckpoint(t, store, sampleCheckpoint("older", time.Unix(100, 0).UTC()))
-	saveAgentCheckpoint(t, store, sampleCheckpoint("newer", time.Unix(200, 0).UTC()))
-
-	id, err := core.ResolveLatestCheckpointID(ctx, store, "latest")
-
-	require.NoError(t, err)
-	require.Equal(t, "newer", id)
-}
-
-func sampleCheckpoint(id string, ts time.Time) core.CheckpointRecord {
-	return core.CheckpointRecord{
-		ID:        id,
-		Iteration: 2,
-		Timestamp: ts,
-		AgentState: core.AgentSnapshot{
-			State:     "Working",
-			Signal:    core.EditDone,
-			Iteration: 2,
-		},
-		WorkspaceRef: "ref-2",
-		DomainState:  json.RawMessage(`{"conversation_len":2}`),
-		History: []core.HistoryDigest{
-			{
-				Iteration:    1,
-				CommandName:  "read",
-				FromState:    "Start",
-				ToState:      "Reading",
-				Signal:       core.ToolDone,
-				WorkspaceRef: "ref-1",
-			},
-			{
-				Iteration:   2,
-				CommandName: "write",
-				FromState:   "Reading",
-				ToState:     "Working",
-				Signal:      core.EditDone,
-				Undo: &core.UndoMemento{
-					Version:     core.UndoMementoVersion,
-					Kind:        core.UndoMementoReversible,
-					CommandName: "write",
-					Payload:     json.RawMessage(`{"domain_state":{"conversation_len":1}}`),
-				},
-				WorkspaceRef: "ref-2",
-			},
-		},
-	}
-}
-
-func saveAgentCheckpoint(t *testing.T, store core.StateStore, cp core.CheckpointRecord) {
-	t.Helper()
-	data, err := json.Marshal(cp)
-	require.NoError(t, err)
-	require.NoError(t, store.Save(context.Background(), "checkpoint/"+cp.ID, data))
-}

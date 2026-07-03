@@ -36,7 +36,6 @@ var (
 	flagVerboseTrace     bool
 	flagRequest          string
 	flagOutput           string
-	flagStateStoreDir    string
 	flagDoltDSN          string
 	flagResumeCheckpoint string
 	flagResumeSignal     string
@@ -70,7 +69,6 @@ func init() {
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
 	f.StringVar(&flagRequest, "request", "", "request data file")
 	f.StringVar(&flagOutput, "output", "", "output directory for eval results (default: eval-results)")
-	f.StringVar(&flagStateStoreDir, "state-store-dir", "", "directory for lifecycle checkpoints")
 	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
 	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
@@ -94,7 +92,6 @@ type agentState struct {
 	directory    string
 	request      string
 	output       string
-	stateStore   core.StateStore
 	checkpoint   core.Checkpoint
 	monitor      toolrest.MonitorState
 	restDefs     toolrest.Collection
@@ -211,7 +208,6 @@ func loadRunResources() (runResources, error) {
 
 func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, error) {
 	cfg := resources.Config
-	stateStore := resolveStateStore(resources.Config)
 	checkpoint, err := resolveCheckpoint(cfg, resources.Machine)
 	if err != nil {
 		resources.shutdownTelemetry()
@@ -227,7 +223,6 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	st := newAgentState(cfg, agentStateDeps{
 		Registry:     reg,
 		Tracer:       resources.Tracer,
-		StateStore:   stateStore,
 		Checkpoint:   checkpoint,
 		Ctx:          loopCtx,
 		Monitor:      monitorState(monitorRuntime.Store, &resources.Machine, resources.Definitions),
@@ -244,7 +239,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	}
 	params := loopParams(cfg, loopParamDeps{
 		Machine: resources.Machine, State: st, Registry: reg, Tracer: resources.Tracer,
-		StateStore: stateStore, Checkpoint: checkpoint, MonitorRecorder: monitorRuntime.Recorder,
+		Checkpoint: checkpoint, MonitorRecorder: monitorRuntime.Recorder,
 		AfterDispatch: policy.AfterDispatch,
 	})
 	return preparedRun{
@@ -304,7 +299,6 @@ func parseErrorLimit(machine core.MachineSpec) int {
 type agentStateDeps struct {
 	Registry     *core.Registry
 	Tracer       tracing.Tracer
-	StateStore   core.StateStore
 	Checkpoint   core.Checkpoint
 	Ctx          context.Context
 	Monitor      toolrest.MonitorState
@@ -335,7 +329,6 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		directory:    cfg.Directory,
 		request:      cfg.Request,
 		output:       cfg.Output,
-		stateStore:   deps.StateStore,
 		checkpoint:   checkpointOrNoop(deps.Checkpoint),
 		monitor:      deps.Monitor,
 		restDefs:     deps.RestDefs,
@@ -356,7 +349,6 @@ type loopParamDeps struct {
 	State           *agentState
 	Registry        *core.Registry
 	Tracer          tracing.Tracer
-	StateStore      core.StateStore
 	Checkpoint      core.Checkpoint
 	MonitorRecorder monitor.RuntimeRecorder
 	AfterDispatch   func(core.Command, core.Result) core.Signal
@@ -380,7 +372,6 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		ToolAction:      toolAction,
 		Registry:        deps.Registry,
 		Directory:       cfg.Directory,
-		StateStore:      deps.StateStore,
 		Checkpoint:      deps.Checkpoint,
 		MonitorRecorder: deps.MonitorRecorder,
 		Hooks: core.LoopHooks{

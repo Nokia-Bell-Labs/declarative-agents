@@ -259,7 +259,6 @@ func TestLoop_NilRollbackParamsPreserveBehavior(t *testing.T) {
 	t.Parallel()
 	tr := &loopRecorder{}
 	params := simpleLoopParams(tr)
-	params.StateStore = nil
 	params.CheckpointPolicy = nil
 
 	rr, err := Loop(params, context.Background())
@@ -402,11 +401,9 @@ func TestLoop_HistoryBudgetAndCancelBehavior(t *testing.T) {
 	})
 }
 
-func TestLoop_SuspendSignalPersistsCheckpointAndStopsCleanly(t *testing.T) {
+func TestLoop_SuspendSignalStopsCleanly(t *testing.T) {
 	t.Parallel()
-	store := &memoryStateStore{}
 	params := suspendLoopParams(&loopRecorder{}, &fakeBuilder{name: "suspend", signal: AwaitApproval})
-	params.StateStore = store
 	params.CheckpointPolicy = alwaysCheckpointPolicy{}
 
 	rr, err := Loop(params, context.Background())
@@ -414,71 +411,10 @@ func TestLoop_SuspendSignalPersistsCheckpointAndStopsCleanly(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, StatusSuspended, rr.Status)
 	require.Equal(t, State("AwaitingApproval"), rr.FinalState)
-	keys, err := store.List(context.Background(), "checkpoint/")
-	require.NoError(t, err)
-	require.Len(t, keys, 1)
-	data, err := store.Load(context.Background(), keys[0])
-	require.NoError(t, err)
-	var cp CheckpointRecord
-	require.NoError(t, json.Unmarshal(data, &cp))
-	require.Equal(t, State("AwaitingApproval"), cp.AgentState.State)
-	require.Equal(t, AwaitApproval, cp.AgentState.Signal)
-	require.Equal(t, 1, cp.AgentState.Iteration)
-	require.Len(t, cp.History, 1)
+	require.NoError(t, rr.LastError)
 }
 
-func TestLoop_SuspendPersistsUndoMementoAndDomainSnapshot(t *testing.T) {
-	t.Parallel()
-	store := &memoryStateStore{}
-	memento, err := NewUndoMemento("suspend", UndoMementoCompensatable, map[string]string{"conversation_len": "3"})
-	require.NoError(t, err)
-	params := suspendLoopParams(&loopRecorder{}, &staticBuilder{cmd: &mementoCmd{name: "suspend", signal: AwaitApproval, memento: memento}})
-	params.StateStore = store
-	params.CheckpointPolicy = alwaysCheckpointPolicy{}
-	params.Hooks.SnapshotConversation = func() (json.RawMessage, error) {
-		return json.RawMessage(`[{"role":"assistant","content":"waiting"}]`), nil
-	}
-	params.Hooks.SnapshotDomain = func() (json.RawMessage, error) {
-		return json.RawMessage(`{"pipeline_step":"approval"}`), nil
-	}
-
-	rr, err := Loop(params, context.Background())
-
-	require.NoError(t, err)
-	require.Equal(t, StatusSuspended, rr.Status)
-	keys, err := store.List(context.Background(), "checkpoint/")
-	require.NoError(t, err)
-	require.Len(t, keys, 1)
-	data, err := store.Load(context.Background(), keys[0])
-	require.NoError(t, err)
-	var cp CheckpointRecord
-	require.NoError(t, json.Unmarshal(data, &cp))
-	require.JSONEq(t, `[{"role":"assistant","content":"waiting"}]`, string(cp.ConversationLog))
-	require.JSONEq(t, `{"pipeline_step":"approval"}`, string(cp.DomainState))
-	require.Len(t, cp.History, 1)
-	require.NotNil(t, cp.History[0].Undo)
-	require.Equal(t, UndoMementoCompensatable, cp.History[0].Undo.Kind)
-}
-
-func TestLoop_SuspendRefusesInvalidUndoMementoCheckpoint(t *testing.T) {
-	t.Parallel()
-	store := &memoryStateStore{}
-	params := suspendLoopParams(&loopRecorder{}, &staticBuilder{cmd: &mementoCmd{name: "suspend", signal: AwaitApproval}})
-	params.StateStore = store
-	params.CheckpointPolicy = alwaysCheckpointPolicy{}
-
-	rr, err := Loop(params, context.Background())
-
-	require.NoError(t, err)
-	require.Equal(t, StatusFailed, rr.Status)
-	require.ErrorIs(t, rr.LastError, ErrUndoMementoIncompatible)
-	require.Contains(t, rr.LastError.Error(), ErrUndoMementoMissing.Error())
-	keys, err := store.List(context.Background(), "checkpoint/")
-	require.NoError(t, err)
-	require.Empty(t, keys)
-}
-
-func TestLoop_SuspendWithoutStateStoreIsExplicitNoop(t *testing.T) {
+func TestLoop_SuspendWithoutPersistenceIsExplicitNoop(t *testing.T) {
 	t.Parallel()
 	params := suspendLoopParams(&loopRecorder{}, &fakeBuilder{name: "suspend", signal: AwaitApproval})
 
@@ -490,16 +426,16 @@ func TestLoop_SuspendWithoutStateStoreIsExplicitNoop(t *testing.T) {
 	require.NoError(t, rr.LastError)
 }
 
-func TestLoop_SuspendCommandErrorFailsWhenToolRequiresStateStore(t *testing.T) {
+func TestLoop_SuspendCommandErrorFailsWhenToolRequiresCheckpoint(t *testing.T) {
 	t.Parallel()
-	params := suspendLoopParams(&loopRecorder{}, &staticBuilder{cmd: &errorCmd{name: "suspend", err: fmt.Errorf("suspend requires StateStore")}})
+	params := suspendLoopParams(&loopRecorder{}, &staticBuilder{cmd: &errorCmd{name: "suspend", err: fmt.Errorf("suspend requires a persistent checkpoint backend")}})
 
 	rr, err := Loop(params, context.Background())
 
 	require.NoError(t, err)
 	require.Equal(t, StatusFailed, rr.Status)
 	require.Equal(t, State("Failed"), rr.FinalState)
-	require.ErrorContains(t, rr.LastError, "suspend requires StateStore")
+	require.ErrorContains(t, rr.LastError, "suspend requires a persistent checkpoint backend")
 }
 
 func TestRunResultJSONOmitsHistoryWhenDisabled(t *testing.T) {

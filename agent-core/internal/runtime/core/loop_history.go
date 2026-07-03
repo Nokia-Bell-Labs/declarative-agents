@@ -3,9 +3,6 @@
 package core
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -116,87 +113,6 @@ func digestResult(res Result) ResultDigest {
 	return digest
 }
 
-func persistSuspendCheckpoint(ctx context.Context, p LoopParams, tr tracing.Tracer, rr *RunResult, state State, sig Signal, iteration int) error {
-	if p.StateStore == nil {
-		tr.Event("suspend.checkpoint_skipped",
-			attribute.String("reason", "state_store_not_configured"),
-			attribute.Int("iteration", iteration),
-		)
-		return nil
-	}
-	workspaceRef := latestWorkspaceRef(rr.History)
-	cp := suspendCheckpoint(p, rr, state, sig, iteration, workspaceRef)
-	if err := validateCheckpointHistory(cp.History); err != nil {
-		return err
-	}
-	if err := addCheckpointSnapshots(&cp, p.Hooks); err != nil {
-		return err
-	}
-	return saveSuspendCheckpoint(ctx, p, tr, cp, iteration)
-}
-
-func suspendCheckpoint(p LoopParams, rr *RunResult, state State, sig Signal, iteration int, workspaceRef string) CheckpointRecord {
-	return CheckpointRecord{
-		ID:        fmt.Sprintf("suspend-%d-%d", iteration, time.Now().UTC().UnixNano()),
-		Iteration: iteration,
-		Timestamp: time.Now().UTC(),
-		AgentState: AgentSnapshot{
-			State:     state,
-			Signal:    sig,
-			Iteration: iteration,
-			TokensIn:  rr.TokensIn,
-			TokensOut: rr.TokensOut,
-			TotalCost: rr.TotalCost,
-		},
-		WorkspaceRef: workspaceRef,
-		History:      historyDigest(rr.History),
-	}
-}
-
-func addCheckpointSnapshots(cp *CheckpointRecord, hooks LoopHooks) error {
-	if hooks.SnapshotConversation != nil {
-		conversationLog, err := hooks.SnapshotConversation()
-		if err != nil {
-			return fmt.Errorf("suspend checkpoint conversation snapshot: %w", err)
-		}
-		cp.ConversationLog = conversationLog
-	}
-	if hooks.SnapshotDomain != nil {
-		domainState, err := hooks.SnapshotDomain()
-		if err != nil {
-			return fmt.Errorf("suspend checkpoint domain snapshot: %w", err)
-		}
-		cp.DomainState = domainState
-	}
-	return nil
-}
-
-func saveSuspendCheckpoint(ctx context.Context, p LoopParams, tr tracing.Tracer, cp CheckpointRecord, iteration int) error {
-	data, err := json.Marshal(cp)
-	if err != nil {
-		return fmt.Errorf("suspend checkpoint marshal: %w", err)
-	}
-	key := "checkpoint/" + cp.ID
-	if err := p.StateStore.Save(ctx, key, data); err != nil {
-		return fmt.Errorf("suspend checkpoint save %s: %w", key, err)
-	}
-	tr.Event("suspend.checkpoint_saved",
-		attribute.String("checkpoint_id", cp.ID),
-		attribute.String("checkpoint_key", key),
-		attribute.Int("iteration", iteration),
-	)
-	return nil
-}
-
-func latestWorkspaceRef(history History) string {
-	for i := len(history) - 1; i >= 0; i-- {
-		if history[i].WorkspaceRef != "" {
-			return history[i].WorkspaceRef
-		}
-	}
-	return ""
-}
-
 func historyDigest(history History) []HistoryDigest {
 	if len(history) == 0 {
 		return nil
@@ -215,19 +131,4 @@ func historyDigest(history History) []HistoryDigest {
 		})
 	}
 	return digest
-}
-
-func validateCheckpointHistory(history []HistoryDigest) error {
-	for _, entry := range history {
-		if entry.UndoError != "" {
-			return fmt.Errorf("%w: command %s at iteration %d: %s", ErrUndoMementoIncompatible, entry.CommandName, entry.Iteration, entry.UndoError)
-		}
-		if entry.Undo == nil {
-			continue
-		}
-		if err := ValidateUndoMemento(*entry.Undo); err != nil {
-			return fmt.Errorf("checkpoint history undo memento for %s at iteration %d: %w", entry.CommandName, entry.Iteration, err)
-		}
-	}
-	return nil
 }
