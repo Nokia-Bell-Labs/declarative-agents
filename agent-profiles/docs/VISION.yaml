@@ -51,7 +51,7 @@ success_criteria:
     from this repository without developer-specific absolute paths.
   traceable_docs: |
     VISION, ARCHITECTURE, SPECIFICATIONS, road-map, and issue-format docs give
-    future Beads issues enough structure to name scope, files, requirements,
+    future issues enough structure to name scope, files, requirements,
     and acceptance criteria.
 
 not:

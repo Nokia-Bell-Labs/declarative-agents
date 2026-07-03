@@ -125,7 +125,7 @@ actor_boundaries:
     actors:
       - requirement graph
       - model
-      - Beads queue
+      - issue queue
       - child generator process
     boundary: Planner turns requirements into issues and invokes generator for
       execution.

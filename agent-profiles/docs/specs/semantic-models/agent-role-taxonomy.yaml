@@ -81,7 +81,7 @@ roles:
   - id: planner
     title: Requirement planner and issue materializer
     profile_path: agents/planner/profile.yaml
-    actor_boundary: requirement graph, model, Beads queue, and child generator
+    actor_boundary: requirement graph, model, issue queue, and child generator
     inputs:
       - requirement graph
       - SRD context
@@ -94,7 +94,7 @@ roles:
     runtime_dependencies:
       - agent-core planning tool implementations
       - agent-core model boundary
-      - Beads CLI
+      - issue tracker CLI
     outputs:
       - implementation plan
       - created issue
@@ -107,7 +107,7 @@ roles:
       - Failed
     checks:
       - Confirm planner invokes generator as a child profile.
-      - Confirm issues are materialized through Beads.
+      - Confirm issues are materialized through the issue tracker.
       - Confirm graph terminal states are explicit.
 
   - id: jurist

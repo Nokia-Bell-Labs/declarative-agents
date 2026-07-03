@@ -82,7 +82,7 @@ requirements:
     items:
       - id: R4.1
         text: The planner profile must model requirement graph traversal,
-          prompt assembly, plan parsing, Beads issue materialization, generator
+          prompt assembly, plan parsing, issue materialization, generator
           execution, and build-vet-test validation.
       - id: R4.2
         text: Planner outputs must include created issues, graph status changes,

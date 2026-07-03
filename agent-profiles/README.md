@@ -26,7 +26,7 @@ This repository does not define how `cmd/agent` bootstraps paths. That contract
 lives in **agent-core**: `docs/specs/config-formats/runtime-contract.yaml`,
 `docs/specs/software-requirements/srd034-external-agent-profiles.yaml`, and the
 constitution set under `docs/constitutions/`. Related work is tracked in
-**agent-core** Beads as epic **`agent-core-tj96`** (single configuration
+**agent-core** as epic **`agent-core-tj96`** (single configuration
 authority), with the file-and-flag documentation milestone **`agent-core-tj96.1`**.
 
 Operators should treat **`--profile`** and **`--directory`** (plus request and

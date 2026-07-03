@@ -1,8 +1,8 @@
-# Beads Issue Description Format
+# Issue Description Format
 
 id: issue-format
-title: Beads Issue Description Format
-purpose: 'We use this schema for Beads issue descriptions. Agents parse the
+title: Issue Description Format
+purpose: 'We use this schema for issue descriptions. Agents parse the
 
   description as YAML before they read, edit, test, close, and commit work.
 

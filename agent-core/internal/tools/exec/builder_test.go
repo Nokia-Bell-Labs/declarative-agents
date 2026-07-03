@@ -73,7 +73,7 @@ func TestExecCmd_BuildArgs(t *testing.T) {
 func TestExecCmd_BuildArgs_FlagParams(t *testing.T) {
 	def := catalog.ToolDef{
 		Name:   "create",
-		Binary: "bd",
+		Binary: "tracker",
 		Args:   []string{"create", "--json"},
 		Parameters: map[string]interface{}{
 			"type": "object",
@@ -128,7 +128,7 @@ func TestExecCmdUndoMementoUsesBoundaryCompensationPayload(t *testing.T) {
 		def: catalog.ToolDef{
 			Name: "issue_close",
 			SideEffects: catalog.ToolSideEffects{Items: []catalog.ToolSideEffect{{
-				Kind: "filesystem_write", Paths: []string{".beads"},
+				Kind: "filesystem_write", Paths: []string{".data"},
 			}}},
 			Undo: catalog.ToolUndoContract{
 				Strategy: "compensating_action", Description: "reopen closed issue",
@@ -143,7 +143,7 @@ func TestExecCmdUndoMementoUsesBoundaryCompensationPayload(t *testing.T) {
 	require.NoError(t, core.ValidateUndoMemento(memento))
 	assert.Contains(t, string(memento.Payload), `"boundary_compensation"`)
 	assert.Contains(t, string(memento.Payload), `"issue_id":"agent-core-123"`)
-	assert.Contains(t, string(memento.Payload), `".beads"`)
+	assert.Contains(t, string(memento.Payload), `".data"`)
 }
 
 func TestExecCmd_Execute_Success(t *testing.T) {

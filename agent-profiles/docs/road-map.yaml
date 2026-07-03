@@ -9,7 +9,7 @@ releases:
       The first release also adds a documentation index and migration roadmap.
 
       Issue format rules matter because the next issues touch profile assets,
-      demos, and fixtures. With those rules in place, future Beads issues can
+      demos, and fixtures. With those rules in place, future issues can
       move assets without re-opening the runtime ownership decision.
     status: done
     deliverables:

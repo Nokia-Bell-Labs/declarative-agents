@@ -15,7 +15,7 @@ overview:
     as /profiles).
 
     Bootstrap authority for argv, mounts, and file-only configuration lives in
-    agent-core docs and constitutions. Track the umbrella work there as Beads
+    agent-core docs and constitutions. Track the umbrella work there as
     epic agent-core-tj96; the runtime contract text is anchored in
     docs/specs/config-formats/runtime-contract.yaml (see agent-core-tj96.1).
 
@@ -116,8 +116,8 @@ technology_choices:
     purpose: agent-core loads profile, machine, tool selection, and boundary
       config files from YAML.
   - component: Issue tracking
-    technology: bd
-    purpose: Beads issues track migration, documentation, validation, and
+    technology: issue tracker
+    purpose: Issues track migration, documentation, validation, and
       fixture work.
   - component: Runtime
     technology: agent-core
@@ -142,12 +142,12 @@ project_structure:
     - path: docs/road-map.yaml
       role: Migration release plan.
     - path: docs/constitutions/issue-format.yaml
-      role: Beads issue shape for future work.
+      role: Issue shape for future work.
 
 implementation_status:
   current_focus: Formal migration use cases and test suites after completed asset migration.
   progress:
-    - done: Initial Beads queue exists.
+    - done: Initial issue queue exists.
     - done: Repository purpose and ownership docs are defined.
     - done: Agent functional block requirements and semantic models are defined.
     - done: Agent profiles and Knowledge Manager UX assets migrated from
@@ -174,7 +174,7 @@ related_documents:
   - doc: docs/road-map.yaml
     purpose: Release plan for profile extraction and mounted runtime usage.
   - doc: docs/constitutions/issue-format.yaml
-    purpose: Required shape for future Beads issues.
+    purpose: Required shape for future issues.
   - doc: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
     purpose: Functional requirements for migrated profile families.
   - doc: docs/specs/semantic-models/multi-agent-profile-system.yaml
