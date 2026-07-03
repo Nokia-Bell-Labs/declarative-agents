@@ -8,7 +8,7 @@ traces:
 
 preconditions:
   - Persistence defaults to NoopCheckpoint so disabled-mode runs keep current loop behavior with no store configured.
-  - InMemoryCheckpoint and FileCheckpoint reference adapters are available for in-process and cross-process round-trip scenarios.
+  - InMemoryCheckpoint is the reference adapter for in-process round-trip scenarios.
   - A fake database/sql seam (fakeDB) stands in for Dolt so branch-per-run, commit-per-step, merge-on-terminal, and Revert are asserted without a live server.
   - A running dolt sql-server named by DOLT_TEST_DSN enables the end-to-end CLI suspend/resume integration test; it is skipped when the variable is unset.
   - Test commands can encode opaque receipts during Execute and reverse them through a receipt-consuming Undo.
@@ -95,24 +95,6 @@ test_cases:
     traces:
       - srd035-checkpoint-port AC2
       - srd035-checkpoint-port AC3
-
-  - use_case: rel02.0-uc001-approval-suspend-resume
-    name: FileCheckpoint round-trips the port across processes
-    go_test: TestFileCheckpointRoundTripsAcrossProcesses, TestFileCheckpointLoadReportsNotFound
-    status: done
-    description: |
-      Save a Position and Execution through a FileCheckpoint, then Load them
-      from a distinct instance over the same root to simulate a separate
-      process. An empty root reports ErrNoCheckpoint.
-    inputs:
-      checkpoint: FileCheckpoint
-      root: temp_dir
-    expected:
-      cross_process_round_trip: equal
-      empty_root_load_error: ErrNoCheckpoint
-    traces:
-      - srd035-checkpoint-port AC1
-      - srd035-checkpoint-port AC5
 
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: Resume re-enters the loop from the typed port and reports not-found

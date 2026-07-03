@@ -311,7 +311,7 @@ func (r *loopRunner) stopForSuspend() bool {
 		return false
 	}
 	// The Checkpoint port already persisted this suspend step in dispatch's
-	// saveCheckpoint; there is no separate StateStore suspend-save path
+	// saveCheckpoint; there is no separate suspend-save path
 	// (srd035-checkpoint-port R4, srd018 R5).
 	r.trace.Event("run.suspended",
 		attribute.String("state", string(r.state)),
