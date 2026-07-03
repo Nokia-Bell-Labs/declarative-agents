@@ -130,64 +130,40 @@ func TestInvokeLLM_UndoRestoresPreviousHistoryLength(t *testing.T) {
 	require.Equal(t, "existing", history.History()[0].Content)
 }
 
-func TestInvokeLLM_HistoryCapturesUndoMemento(t *testing.T) {
+func TestInvokeLLM_ReceiptRestoresConversationFromFreshInstance(t *testing.T) {
 	client := &stubClient{
 		response: llm.ChatResponse{Content: "assistant response"},
 	}
 	history := llm.NewConversation(nil, "", llm.ChatOptions{})
 	history.Append(llm.Message{Role: llm.User, Content: "existing"})
-	reg := core.NewRegistry()
-	reg.Register(core.ToolSpec{Name: "invoke_llm", Visibility: core.Internal}, &InvokeLLMBuilder{
+
+	builder := &InvokeLLMBuilder{
 		Client:    client,
 		History:   history,
-		Registry:  reg,
+		Registry:  core.NewRegistry(),
 		Assembler: &stubAssembler{},
 		Model:     "test-model",
 		Tracer:    noopTracer(),
 		Ctx:       context.Background(),
-	})
-
-	spec := core.MachineSpec{
-		Name:           "llm-memento-test",
-		InitialState:   "Start",
-		States:         core.StateSpecsFromNames("Start", "Working", "Finished"),
-		TerminalStates: []string{"Finished"},
-		Signals:        core.SignalSpecsFromNames("Seed", "LLMResponded"),
-		Transitions: []core.TransitionSpec{
-			{State: "Start", Signal: "Seed", Next: "Working", Action: "invoke_llm"},
-			{State: "Working", Signal: "LLMResponded", Next: "Finished"},
-		},
 	}
 
-	rr, err := core.Loop(core.LoopParams{
-		MachineSpec:      &spec,
-		Registry:         reg,
-		Trace:            noopTracer(),
-		Budget:           core.Budget{MaxIterations: 10},
-		CheckpointPolicy: alwaysCheckpointPolicy{},
-		Hooks: core.LoopHooks{
-			TerminalStatus: func(s core.State) core.RunStatus {
-				if s == "Finished" {
-					return core.StatusSucceeded
-				}
-				return core.StatusFailed
-			},
-		},
-	}, context.Background())
+	cmd := builder.Build(core.Result{Output: "new prompt"})
+	res := cmd.Execute()
+	require.Equal(t, core.LLMResponded, res.Signal)
+	require.NotEmpty(t, res.Receipt)
+	require.Equal(t, 3, history.Len())
 
+	cp := &core.InMemoryCheckpoint{}
+	require.NoError(t, cp.Save(core.Position{}, core.Execution{{CommandName: "invoke_llm", Receipt: res.Receipt}}))
+	_, exec, err := cp.Load()
 	require.NoError(t, err)
-	require.Equal(t, core.StatusSucceeded, rr.Status)
-	require.Len(t, rr.History, 1)
-	require.NotNil(t, rr.History[0].Undo)
-	require.Equal(t, core.UndoMementoReversible, rr.History[0].Undo.Kind)
-	require.NoError(t, core.ValidateUndoMemento(*rr.History[0].Undo))
+	require.Len(t, exec, 1)
 
-	var payload struct {
-		Conversation []llm.Message `json:"conversation"`
-	}
-	require.NoError(t, json.Unmarshal(rr.History[0].Undo.Payload, &payload))
-	require.Len(t, payload.Conversation, 1)
-	require.Equal(t, "existing", payload.Conversation[0].Content)
+	fresh := builder.Build(core.Result{Output: "new prompt"})
+	undo := fresh.Undo(core.Result{Receipt: exec[0].Receipt})
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 1, history.Len())
+	require.Equal(t, "existing", history.History()[0].Content)
 }
 
 func TestInvokeLLM_UndoRestoresUserMessageAfterError(t *testing.T) {
@@ -460,6 +436,28 @@ func TestReportParseError_UndoRestoresRetryCounter(t *testing.T) {
 	require.Equal(t, 0, tracker.Snapshot())
 }
 
+func TestReportParseError_ReceiptRestoresRetryCounterFromFreshInstance(t *testing.T) {
+	tracker := &ParseErrorRetryTracker{MaxConsecutive: 3}
+	builder := &ReportParseErrorBuilder{Tracer: noopTracer(), Retry: tracker}
+
+	cmd := builder.Build(core.Result{Output: "bad JSON"})
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.NotEmpty(t, res.Receipt)
+	require.Equal(t, 1, tracker.Snapshot())
+
+	cp := &core.InMemoryCheckpoint{}
+	require.NoError(t, cp.Save(core.Position{}, core.Execution{{CommandName: "report_parse_error", Receipt: res.Receipt}}))
+	_, exec, err := cp.Load()
+	require.NoError(t, err)
+	require.Len(t, exec, 1)
+
+	fresh := builder.Build(core.Result{Output: "bad JSON"})
+	undo := fresh.Undo(core.Result{Receipt: exec[0].Receipt})
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 0, tracker.Snapshot())
+}
+
 func TestParseResponse_ResetsRetryCounterAfterSuccessfulParse(t *testing.T) {
 	reg := core.NewRegistry()
 	reg.Register(core.ToolSpec{
@@ -516,6 +514,32 @@ func TestResetHistory_UndoRestoresPreviousMessages(t *testing.T) {
 	require.Equal(t, 0, history.Len())
 
 	undo := cmd.Undo(core.Result{})
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 2, history.Len())
+	require.Equal(t, "hello", history.History()[0].Content)
+	require.Equal(t, "hi", history.History()[1].Content)
+}
+
+func TestResetHistory_ReceiptRestoresFromFreshInstance(t *testing.T) {
+	history := llm.NewConversation(nil, "", llm.ChatOptions{})
+	history.Append(llm.Message{Role: llm.User, Content: "hello"})
+	history.Append(llm.Message{Role: llm.Assistant, Content: "hi"})
+
+	builder := &ResetHistoryBuilder{History: history, Tracer: noopTracer()}
+	cmd := builder.Build(core.Result{})
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.NotEmpty(t, res.Receipt)
+	require.Equal(t, 0, history.Len())
+
+	cp := &core.InMemoryCheckpoint{}
+	require.NoError(t, cp.Save(core.Position{}, core.Execution{{CommandName: "reset_history", Receipt: res.Receipt}}))
+	_, exec, err := cp.Load()
+	require.NoError(t, err)
+	require.Len(t, exec, 1)
+
+	fresh := builder.Build(core.Result{})
+	undo := fresh.Undo(core.Result{Receipt: exec[0].Receipt})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, 2, history.Len())
 	require.Equal(t, "hello", history.History()[0].Content)

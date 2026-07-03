@@ -27,26 +27,29 @@ func (r *resetHistoryCmd) Execute() core.Result {
 	prevLen := len(r.prevMessages)
 	r.history.Reset()
 	r.tracer.SetAttributes(attribute.Int("history.cleared_messages", prevLen))
-	return core.Result{Signal: core.ToolDone, Output: "Begin.", CommandName: r.Name()}
+	return core.Result{
+		Signal: core.ToolDone, Output: "Begin.", CommandName: r.Name(),
+		Receipt: encodeConversationReceipt(r.prevMessages),
+	}
 }
 
-func (r *resetHistoryCmd) Undo(_ core.Result) core.Result {
+// Undo restores the cleared conversation, preferring the tool-owned receipt on
+// the prior Result and falling back to the in-memory snapshot on the live path
+// (srd035-checkpoint-port R3; #44 R2, R3).
+func (r *resetHistoryCmd) Undo(prior core.Result) core.Result {
+	if msgs, ok, err := decodeConversationReceipt(prior.Receipt); err != nil {
+		e := fmt.Errorf("undo reset_history: decode receipt: %w", err)
+		return core.Result{Signal: core.CommandError, CommandName: r.Name(), Output: e.Error(), Err: e}
+	} else if ok {
+		r.history.Restore(msgs)
+		return core.Result{Signal: core.ToolDone, CommandName: r.Name(), Output: fmt.Sprintf("undo: restored %d conversation messages", len(msgs))}
+	}
 	if !r.hasSnapshot {
 		err := fmt.Errorf("undo reset_history: no conversation snapshot recorded")
 		return core.Result{Signal: core.CommandError, CommandName: r.Name(), Output: err.Error(), Err: err}
 	}
 	r.history.Restore(r.prevMessages)
 	return core.Result{Signal: core.ToolDone, CommandName: r.Name(), Output: fmt.Sprintf("undo: restored %d conversation messages", len(r.prevMessages))}
-}
-
-func (r *resetHistoryCmd) UndoMemento() (core.UndoMemento, error) {
-	if !r.hasSnapshot {
-		return core.UndoMemento{}, fmt.Errorf("%w: no conversation snapshot recorded for %s", core.ErrUndoMementoMissing, r.Name())
-	}
-	payload := struct {
-		Conversation []modelllm.Message `json:"conversation"`
-	}{Conversation: r.prevMessages}
-	return core.NewUndoMemento(r.Name(), core.UndoMementoReversible, payload)
 }
 
 // ResetHistoryBuilder constructs reset_history commands.

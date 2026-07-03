@@ -5,11 +5,24 @@ package llm
 import (
 	"fmt"
 
-	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
-func (c *invokeLLMCmd) Undo(_ core.Result) core.Result {
+// Undo restores the conversation to its pre-invoke state. It prefers the
+// tool-owned receipt on the prior Result (so a fresh command instance can undo
+// after a process restart) and falls back to truncating the shared history on
+// the live in-process path (srd035-checkpoint-port R3; #44 R2, R3).
+func (c *invokeLLMCmd) Undo(prior core.Result) core.Result {
+	if msgs, ok, err := decodeConversationReceipt(prior.Receipt); err != nil {
+		e := fmt.Errorf("undo invoke_llm: decode receipt: %w", err)
+		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: e.Error(), Err: e}
+	} else if ok {
+		c.history.Restore(msgs)
+		return core.Result{
+			Signal: core.ToolDone, CommandName: c.Name(),
+			Output: fmt.Sprintf("undo: restored conversation to %d messages", len(msgs)),
+		}
+	}
 	if !c.hasSnapshot {
 		err := fmt.Errorf("undo invoke_llm: no conversation snapshot recorded")
 		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
@@ -21,14 +34,4 @@ func (c *invokeLLMCmd) Undo(_ core.Result) core.Result {
 		Signal: core.ToolDone, CommandName: c.Name(),
 		Output: fmt.Sprintf("undo: restored conversation to %d messages", c.prevLen),
 	}
-}
-
-func (c *invokeLLMCmd) UndoMemento() (core.UndoMemento, error) {
-	if !c.hasSnapshot {
-		return core.UndoMemento{}, fmt.Errorf("%w: no conversation snapshot recorded for %s", core.ErrUndoMementoMissing, c.Name())
-	}
-	payload := struct {
-		Conversation []modelllm.Message `json:"conversation"`
-	}{Conversation: c.prevMessages}
-	return core.NewUndoMemento(c.Name(), core.UndoMementoReversible, payload)
 }

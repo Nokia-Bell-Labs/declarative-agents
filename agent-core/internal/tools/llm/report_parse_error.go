@@ -32,10 +32,16 @@ func (r *reportParseErrorCmd) Execute() core.Result {
 		attribute.String("error_class", modelllm.ClassifyParseError(r.errorText)),
 		attribute.String("signal", string(sig)),
 	)
+	var res core.Result
 	if sig == core.BudgetExhausted {
-		return core.Result{Signal: sig, Output: fmt.Sprintf("parse error retry limit reached: %s", r.errorText)}
+		res = core.Result{Signal: sig, Output: fmt.Sprintf("parse error retry limit reached: %s", r.errorText)}
+	} else {
+		res = core.Result{Signal: core.ToolDone, Output: parseFeedback(r.errorText)}
 	}
-	return core.Result{Signal: core.ToolDone, Output: parseFeedback(r.errorText)}
+	if r.hasSnapshot {
+		res.Receipt = encodeRetryReceipt(r.prevRetries)
+	}
+	return res
 }
 
 func parseFeedback(errorText string) string {
@@ -46,9 +52,19 @@ func parseFeedback(errorText string) string {
 	)
 }
 
-func (r *reportParseErrorCmd) Undo(_ core.Result) core.Result {
+// Undo restores the parse-retry counter, preferring the tool-owned receipt on
+// the prior Result and falling back to the in-memory snapshot on the live path
+// (srd035-checkpoint-port R3; #44 R2, R3).
+func (r *reportParseErrorCmd) Undo(prior core.Result) core.Result {
 	if r.retry == nil {
 		return core.NoopUndo(r.Name())
+	}
+	if retries, ok, err := decodeRetryReceipt(prior.Receipt); err != nil {
+		e := fmt.Errorf("undo report_parse_error: decode receipt: %w", err)
+		return core.Result{Signal: core.CommandError, CommandName: r.Name(), Output: e.Error(), Err: e}
+	} else if ok {
+		r.retry.Restore(retries)
+		return core.Result{Signal: core.ToolDone, CommandName: r.Name(), Output: fmt.Sprintf("undo: restored parse retry counter to %d", retries)}
 	}
 	if !r.hasSnapshot {
 		err := fmt.Errorf("undo report_parse_error: no retry counter snapshot recorded")
@@ -56,16 +72,6 @@ func (r *reportParseErrorCmd) Undo(_ core.Result) core.Result {
 	}
 	r.retry.Restore(r.prevRetries)
 	return core.Result{Signal: core.ToolDone, CommandName: r.Name(), Output: fmt.Sprintf("undo: restored parse retry counter to %d", r.prevRetries)}
-}
-
-func (r *reportParseErrorCmd) UndoMemento() (core.UndoMemento, error) {
-	if r.retry == nil {
-		return core.NoopUndoMemento(r.Name()), nil
-	}
-	if !r.hasSnapshot {
-		return core.UndoMemento{}, fmt.Errorf("%w: no retry counter snapshot recorded for %s", core.ErrUndoMementoMissing, r.Name())
-	}
-	return retryCounterMemento(r.Name(), r.prevRetries)
 }
 
 // ReportParseErrorBuilder constructs report_parse_error commands.
