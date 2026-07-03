@@ -94,13 +94,6 @@ func (c *clientCmd) Undo(_ core.Result) core.Result {
 	return core.NoopUndo(c.toolName)
 }
 
-func (c *clientCmd) UndoMemento() (core.UndoMemento, error) {
-	if !c.hasRESTCompensation() {
-		return core.NoopUndoMemento(c.toolName), nil
-	}
-	return undo.BoundaryCompensationMemento(c.toolName, c.restUndoPayload(), restCompensationDescription)
-}
-
 func (c *clientCmd) hasRESTCompensation() bool {
 	return c.operation.Operation.Reversibility.Classification == "compensatable" &&
 		len(c.operation.Operation.Compensation) > 0
@@ -156,19 +149,9 @@ func (c *clientCmd) restIdempotencyToken() string {
 	return ""
 }
 
-// Compensate executes the REST operation named by a boundary compensation memento.
-func (e CompensationExecutor) Compensate(_ context.Context, memento core.UndoMemento) core.Result {
-	compensation, err := undo.DecodeBoundaryCompensation(memento)
-	if err != nil {
-		return restCompensationError(memento.CommandName, "compensation_decode", err)
-	}
-	return e.runCompensation(memento.CommandName, compensation)
-}
-
 // CompensateFromReceipt executes the REST compensation described by an opaque
 // receipt captured in Result.Receipt during Execute. This is the receipt-driven
-// entry point used by the reverse receipt walk (srd035-checkpoint-port R3; #44 R3);
-// Compensate remains for the engine's memento path until it is retired.
+// entry point used by the reverse receipt walk (srd035-checkpoint-port R3; #44 R3).
 func (e CompensationExecutor) CompensateFromReceipt(_ context.Context, commandName, receipt string) core.Result {
 	compensation, ok, err := undo.DecodeBoundaryReceipt(receipt)
 	if err != nil {

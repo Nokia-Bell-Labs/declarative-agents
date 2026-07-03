@@ -39,19 +39,6 @@ type BoundaryCompensation struct {
 	Compensation       map[string]interface{} `json:"compensation,omitempty"`
 }
 
-// BoundaryCompensationMemento creates a compensatable undo memento.
-func BoundaryCompensationMemento(commandName string, payload BoundaryCompensationPayload, description string) (core.UndoMemento, error) {
-	if payload.BoundaryCompensation.Strategy == "" {
-		return core.UndoMemento{}, fmt.Errorf("%w: missing boundary compensation strategy for %s", core.ErrUndoMementoIncompatible, commandName)
-	}
-	memento, err := core.NewUndoMemento(commandName, core.UndoMementoCompensatable, payload)
-	if err != nil {
-		return core.UndoMemento{}, err
-	}
-	memento.Description = description
-	return memento, nil
-}
-
 // BoundaryCompensationUndo reports that a boundary compensation is required.
 func BoundaryCompensationUndo(commandName, description string) core.Result {
 	err := fmt.Errorf("undo %s requires boundary compensation: %s", commandName, description)
@@ -88,19 +75,4 @@ func DecodeBoundaryReceipt(receipt string) (BoundaryCompensation, bool, error) {
 		return BoundaryCompensation{}, false, nil
 	}
 	return payload.BoundaryCompensation, true, nil
-}
-
-// DecodeBoundaryCompensation decodes a boundary compensation undo memento.
-func DecodeBoundaryCompensation(memento core.UndoMemento) (BoundaryCompensation, error) {
-	if err := core.ValidateUndoMemento(memento); err != nil {
-		return BoundaryCompensation{}, err
-	}
-	var payload BoundaryCompensationPayload
-	if err := json.Unmarshal(memento.Payload, &payload); err != nil {
-		return BoundaryCompensation{}, fmt.Errorf("%w: decode boundary compensation for %s: %v", core.ErrUndoMementoIncompatible, memento.CommandName, err)
-	}
-	if payload.BoundaryCompensation.Strategy == "" {
-		return BoundaryCompensation{}, fmt.Errorf("%w: missing boundary compensation for %s", core.ErrUndoMementoIncompatible, memento.CommandName)
-	}
-	return payload.BoundaryCompensation, nil
 }

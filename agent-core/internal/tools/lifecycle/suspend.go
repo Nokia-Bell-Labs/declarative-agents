@@ -68,15 +68,6 @@ func (s *suspendCmd) Name() string { return "suspend" }
 func (s *suspendCmd) Undo(_ core.Result) core.Result {
 	return undo.BoundaryCompensationUndo(s.Name(), "resume with an explicit approval/rejection signal or roll back to an earlier checkpoint")
 }
-func (s *suspendCmd) UndoMemento() (core.UndoMemento, error) {
-	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
-		Strategy:           "resume_or_checkpoint_rollback",
-		Reason:             s.config.Reason,
-		Requires:           []string{"approval_decision", "checkpoint_id"},
-		CheckpointRequired: s.config.RequireCheckpoint,
-	}}
-	return undo.BoundaryCompensationMemento(s.Name(), payload, "resume with an explicit approval/rejection signal or roll back to an earlier checkpoint")
-}
 
 func (s *suspendCmd) Execute() core.Result {
 	if s.config.RequireCheckpoint && !s.checkpointConfigured() {

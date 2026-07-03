@@ -3,7 +3,6 @@
 package stl
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,26 +23,6 @@ func TestSuspendBuilderEmitsAwaitApproval(t *testing.T) {
 	require.Equal(t, core.AwaitApproval, res.Signal)
 	require.Equal(t, "suspend", res.CommandName)
 	require.Equal(t, "needs review", res.Output)
-}
-
-func TestSuspendUndoMementoCapturesApprovalCompensation(t *testing.T) {
-	t.Parallel()
-	cmd := (&SuspendBuilder{
-		Config: SuspendConfig{Reason: "needs approval", RequireCheckpoint: true},
-		Tracer: tracing.NoopTracer{},
-	}).Build(core.Result{})
-
-	provider, ok := cmd.(core.UndoMementoProvider)
-	require.True(t, ok)
-	memento, err := provider.UndoMemento()
-	require.NoError(t, err)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-	require.Equal(t, core.UndoMementoCompensatable, memento.Kind)
-
-	var payload BoundaryCompensationPayload
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
-	require.Equal(t, "resume_or_checkpoint_rollback", payload.BoundaryCompensation.Strategy)
-	require.True(t, payload.BoundaryCompensation.CheckpointRequired)
 }
 
 func TestSuspendRequiresCheckpointBackendWhenConfigured(t *testing.T) {

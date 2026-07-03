@@ -72,15 +72,6 @@ func (c *exitCmd) Undo(_ core.Result) core.Result {
 	return undo.BoundaryCompensationUndo(c.Name(), "operator can restart the agent or resume from a checkpoint")
 }
 
-func (c *exitCmd) UndoMemento() (core.UndoMemento, error) {
-	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
-		Strategy: "operator_restart_or_checkpoint_resume",
-		Reason:   c.config.Reason,
-		Requires: []string{"operator_decision", "profile", "checkpoint_id"},
-	}}
-	return undo.BoundaryCompensationMemento(c.Name(), payload, "operator can restart the agent or resume from a checkpoint")
-}
-
 func (c *exitCmd) output() string {
 	output := map[string]string{
 		"status":       c.status(),

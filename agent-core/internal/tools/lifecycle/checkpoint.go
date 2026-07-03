@@ -40,9 +40,6 @@ func (c *checkpointHistoryCmd) Execute() core.Result {
 }
 
 func (c *checkpointHistoryCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
-func (c *checkpointHistoryCmd) UndoMemento() (core.UndoMemento, error) {
-	return core.NoopUndoMemento(c.Name()), nil
-}
 
 // CheckpointRollbackBuilder constructs checkpoint_rollback commands.
 type CheckpointRollbackBuilder struct {
@@ -102,14 +99,6 @@ func (c *checkpointRollbackCmd) Execute() core.Result {
 
 func (c *checkpointRollbackCmd) Undo(_ core.Result) core.Result {
 	return undo.BoundaryCompensationUndo(c.Name(), "operator can resume from the original checkpoint or choose another rollback checkpoint")
-}
-func (c *checkpointRollbackCmd) UndoMemento() (core.UndoMemento, error) {
-	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
-		Strategy: "operator_checkpoint_selection",
-		Reason:   "rollback rewrites checkpoint state and reverses external effects",
-		Requires: []string{"checkpoint_id", "operator_decision"},
-	}}
-	return undo.BoundaryCompensationMemento(c.Name(), payload, "operator can resume from the original checkpoint or choose another rollback checkpoint")
 }
 
 func commandError(commandName string, err error) core.Result {

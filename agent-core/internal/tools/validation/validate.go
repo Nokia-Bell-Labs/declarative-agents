@@ -66,10 +66,6 @@ func (v *validateCmd) Name() string { return "validate" }
 func (v *validateCmd) Undo(_ core.Result) core.Result {
 	return undo.BoundaryCompensationUndo(v.Name(), "undo or compensate validation child commands and any workspace effects they produced")
 }
-func (v *validateCmd) UndoMemento() (core.UndoMemento, error) {
-	return undo.BoundaryCompensationMemento(v.Name(), v.undoPayload(), "undo is delegated to the validation child commands captured in the payload")
-}
-
 func (v *validateCmd) undoPayload() undo.BoundaryCompensationPayload {
 	return undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
 		Strategy: "child_command_undo",

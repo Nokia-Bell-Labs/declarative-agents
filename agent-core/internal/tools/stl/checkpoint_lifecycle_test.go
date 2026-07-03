@@ -3,7 +3,6 @@
 package stl
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -98,17 +97,9 @@ func TestCheckpointHistoryExecuteReportsNoCheckpoint(t *testing.T) {
 	require.Contains(t, res.Output, "no checkpoint persisted")
 }
 
-func TestCheckpointHistoryUndoMementoIsNoop(t *testing.T) {
+func TestCheckpointHistoryUndoIsNoop(t *testing.T) {
 	t.Parallel()
 	cmd := (&CheckpointHistoryBuilder{}).Build(core.Result{})
-	provider, ok := cmd.(core.UndoMementoProvider)
-	require.True(t, ok)
-
-	memento, err := provider.UndoMemento()
-
-	require.NoError(t, err)
-	require.Equal(t, core.UndoMementoNoop, memento.Kind)
-	require.Equal(t, "checkpoint_history", memento.CommandName)
 	require.Equal(t, core.ToolDone, cmd.Undo(core.Result{}).Signal)
 }
 
@@ -228,20 +219,12 @@ func TestCheckpointRollbackRestoresFileViaPersistedReceipt(t *testing.T) {
 	require.Equal(t, "v1", string(restored))
 }
 
-func TestCheckpointRollbackUndoMementoIsCompensatable(t *testing.T) {
+func TestCheckpointRollbackUndoRequestsCompensation(t *testing.T) {
 	t.Parallel()
 	cmd := (&CheckpointRollbackBuilder{}).Build(core.Result{})
-	provider, ok := cmd.(core.UndoMementoProvider)
-	require.True(t, ok)
 
-	memento, err := provider.UndoMemento()
+	res := cmd.Undo(core.Result{})
 
-	require.NoError(t, err)
-	require.Equal(t, core.UndoMementoCompensatable, memento.Kind)
-	require.Equal(t, "checkpoint_rollback", memento.CommandName)
-	require.Equal(t, core.CommandError, cmd.Undo(core.Result{}).Signal)
-	var payload BoundaryCompensationPayload
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
-	require.Equal(t, "operator_checkpoint_selection", payload.BoundaryCompensation.Strategy)
-	require.Contains(t, payload.BoundaryCompensation.Requires, "checkpoint_id")
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Contains(t, res.Output, "resume from the original checkpoint or choose another rollback checkpoint")
 }

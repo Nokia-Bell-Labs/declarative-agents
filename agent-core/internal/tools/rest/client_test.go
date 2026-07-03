@@ -78,7 +78,7 @@ func TestRESTClient_MutatingOperationsRequireEffects(t *testing.T) {
 	require.NoError(t, ValidateDefinition(mutatingDefinition(compensating)))
 }
 
-func TestRESTClient_CompensationUndoMemento(t *testing.T) {
+func TestRESTClient_CompensationUndoAndReceipt(t *testing.T) {
 	t.Parallel()
 
 	upstream := httptest.NewServer(http.HandlerFunc(issueHandler))
@@ -86,40 +86,17 @@ func TestRESTClient_CompensationUndoMemento(t *testing.T) {
 	def := clientDefinition(t, upstream.URL, issueClient())
 
 	read := clientCommand(def, InitClientGet, "get", params("1"))
-	require.Equal(t, core.Signal("RESTResourceRead"), read.Execute().Signal)
-	readMemento := requireRESTUndoMemento(t, read)
-	require.Equal(t, core.UndoMementoNoop, readMemento.Kind)
+	readRes := read.Execute()
+	require.Equal(t, core.Signal("RESTResourceRead"), readRes.Signal)
+	require.Empty(t, readRes.Receipt)
 	require.Equal(t, core.ToolDone, read.Undo(core.Result{}).Signal)
 
 	write := clientCommand(def, InitClientSet, "set", params("1", "new"))
-	require.Equal(t, core.Signal("RESTResourceWritten"), write.Execute().Signal)
-	writeMemento := requireRESTUndoMemento(t, write)
-	require.Equal(t, core.UndoMementoCompensatable, writeMemento.Kind)
+	writeRes := write.Execute()
+	require.Equal(t, core.Signal("RESTResourceWritten"), writeRes.Signal)
+	require.NotEmpty(t, writeRes.Receipt)
 	require.Equal(t, core.CommandError, write.Undo(core.Result{}).Signal)
-	requireRESTCompensationPayload(t, writeMemento)
-}
-
-func TestRESTClient_CompensationExecutorRunsConfiguredOperation(t *testing.T) {
-	t.Parallel()
-	var restored bool
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path == "/repos/acme/agent-core/issues/ISS-1" {
-			restored = true
-			require.Equal(t, http.MethodPatch, req.Method)
-			writeJSON(w, http.StatusOK, map[string]interface{}{"title": "restored", "id": "ISS-1"})
-			return
-		}
-		issueHandler(w, req)
-	}))
-	defer upstream.Close()
-	def := clientDefinition(t, upstream.URL, issueClient())
-	write := clientCommand(def, InitClientSet, "set", params("1", "new"))
-	require.Equal(t, core.Signal("RESTResourceWritten"), write.Execute().Signal)
-
-	result := restCompensationExecutor(t, def).Compensate(context.Background(), requireRESTUndoMemento(t, write))
-
-	require.Equal(t, core.Signal("RESTResourceWritten"), result.Signal, result.Output)
-	require.True(t, restored)
+	requireRESTCompensationReceipt(t, writeRes.Receipt)
 }
 
 func TestRESTClient_CompensationExecutorRunsFromReceipt(t *testing.T) {
@@ -159,11 +136,11 @@ func TestRESTClient_CompensationExecutorReportsMissingOperation(t *testing.T) {
 	defer upstream.Close()
 	def := clientDefinition(t, upstream.URL, issueClient())
 	write := clientCommand(def, InitClientSet, "set", params("1", "new"))
-	require.Equal(t, core.Signal("RESTResourceWritten"), write.Execute().Signal)
-	memento := requireRESTUndoMemento(t, write)
-	replaceRESTCompensationOperation(t, &memento, "missing")
+	res := write.Execute()
+	require.Equal(t, core.Signal("RESTResourceWritten"), res.Signal)
+	receipt := replaceRESTCompensationOperation(t, res.Receipt, "missing")
 
-	result := restCompensationExecutor(t, def).Compensate(context.Background(), memento)
+	result := restCompensationExecutor(t, def).CompensateFromReceipt(context.Background(), write.Name(), receipt)
 
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "compensation_lookup")
@@ -493,21 +470,11 @@ func requirePositiveRestMetric(t *testing.T, samples []monitor.MetricSample, nam
 	t.Fatalf("missing positive metric %s in %#v", name, samples)
 }
 
-func requireRESTUndoMemento(t *testing.T, cmd core.Command) core.UndoMemento {
+func requireRESTCompensationReceipt(t *testing.T, receipt string) {
 	t.Helper()
-	provider, ok := cmd.(core.UndoMementoProvider)
-	require.True(t, ok)
-	memento, err := provider.UndoMemento()
+	compensation, ok, err := undo.DecodeBoundaryReceipt(receipt)
 	require.NoError(t, err)
-	require.NoError(t, core.ValidateUndoMemento(memento))
-	return memento
-}
-
-func requireRESTCompensationPayload(t *testing.T, memento core.UndoMemento) {
-	t.Helper()
-	var payload undo.BoundaryCompensationPayload
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
-	compensation := payload.BoundaryCompensation
+	require.True(t, ok)
 	require.Equal(t, "restore", compensation.Strategy)
 	require.Equal(t, "github", compensation.RestRef)
 	require.Equal(t, "issue", compensation.Resource)
@@ -520,14 +487,14 @@ func requireRESTCompensationPayload(t *testing.T, memento core.UndoMemento) {
 	require.Equal(t, "restored", compensation.Compensation["parameters"].(map[string]interface{})["title"])
 }
 
-func replaceRESTCompensationOperation(t *testing.T, memento *core.UndoMemento, operation string) {
+func replaceRESTCompensationOperation(t *testing.T, receipt, operation string) string {
 	t.Helper()
 	var payload undo.BoundaryCompensationPayload
-	require.NoError(t, json.Unmarshal(memento.Payload, &payload))
+	require.NoError(t, json.Unmarshal([]byte(receipt), &payload))
 	payload.BoundaryCompensation.Compensation["operation"] = operation
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)
-	memento.Payload = data
+	return string(data)
 }
 
 func restCompensationExecutor(t *testing.T, def Definition) CompensationExecutor {

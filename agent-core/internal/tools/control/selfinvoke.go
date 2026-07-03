@@ -46,11 +46,6 @@ func (c *selfInvokeCmd) Undo(_ core.Result) core.Result {
 	return undo.BoundaryCompensationUndo(c.Name(), "restore child workspace/artifacts or compensate the child agent run")
 }
 
-func (c *selfInvokeCmd) UndoMemento() (core.UndoMemento, error) {
-	payload := c.undoPayload()
-	return undo.BoundaryCompensationMemento(c.Name(), payload, "restore child workspace/artifacts or compensate the child agent run")
-}
-
 func (c *selfInvokeCmd) undoPayload() undo.BoundaryCompensationPayload {
 	payload := undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
 		Strategy: "child_agent_workspace_restore", Reason: "self-invocation runs a child agent process",
