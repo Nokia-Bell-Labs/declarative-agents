@@ -110,8 +110,8 @@ func persistSuspendCheckpoint(ctx context.Context, p LoopParams, tr tracing.Trac
 	return saveSuspendCheckpoint(ctx, p, tr, cp, iteration)
 }
 
-func suspendCheckpoint(p LoopParams, rr *RunResult, state State, sig Signal, iteration int, workspaceRef string) Checkpoint {
-	return Checkpoint{
+func suspendCheckpoint(p LoopParams, rr *RunResult, state State, sig Signal, iteration int, workspaceRef string) CheckpointRecord {
+	return CheckpointRecord{
 		ID:        fmt.Sprintf("suspend-%d-%d", iteration, time.Now().UTC().UnixNano()),
 		Iteration: iteration,
 		Timestamp: time.Now().UTC(),
@@ -128,7 +128,7 @@ func suspendCheckpoint(p LoopParams, rr *RunResult, state State, sig Signal, ite
 	}
 }
 
-func addCheckpointSnapshots(cp *Checkpoint, hooks LoopHooks) error {
+func addCheckpointSnapshots(cp *CheckpointRecord, hooks LoopHooks) error {
 	if hooks.SnapshotConversation != nil {
 		conversationLog, err := hooks.SnapshotConversation()
 		if err != nil {
@@ -146,7 +146,7 @@ func addCheckpointSnapshots(cp *Checkpoint, hooks LoopHooks) error {
 	return nil
 }
 
-func saveSuspendCheckpoint(ctx context.Context, p LoopParams, tr tracing.Tracer, cp Checkpoint, iteration int) error {
+func saveSuspendCheckpoint(ctx context.Context, p LoopParams, tr tracing.Tracer, cp CheckpointRecord, iteration int) error {
 	data, err := json.Marshal(cp)
 	if err != nil {
 		return fmt.Errorf("suspend checkpoint marshal: %w", err)

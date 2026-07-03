@@ -1196,8 +1196,8 @@ func TestRollbackCheckpointToIterationReportsIrreversibleUndoMemento(t *testing.
 	require.Contains(t, err.Error(), "already published externally")
 }
 
-func sampleCheckpoint(id string, ts time.Time) core.Checkpoint {
-	return core.Checkpoint{
+func sampleCheckpoint(id string, ts time.Time) core.CheckpointRecord {
+	return core.CheckpointRecord{
 		ID:        id,
 		Iteration: 2,
 		Timestamp: ts,
@@ -1235,7 +1235,7 @@ func sampleCheckpoint(id string, ts time.Time) core.Checkpoint {
 	}
 }
 
-func saveAgentCheckpoint(t *testing.T, store core.StateStore, cp core.Checkpoint) {
+func saveAgentCheckpoint(t *testing.T, store core.StateStore, cp core.CheckpointRecord) {
 	t.Helper()
 	data, err := json.Marshal(cp)
 	require.NoError(t, err)

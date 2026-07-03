@@ -242,8 +242,8 @@ func TestCheckpointRollbackUndoMementoIsCompensatable(t *testing.T) {
 	require.Contains(t, payload.BoundaryCompensation.Requires, "checkpoint_id")
 }
 
-func lifecycleCheckpoint(id string, ts time.Time) core.Checkpoint {
-	return core.Checkpoint{
+func lifecycleCheckpoint(id string, ts time.Time) core.CheckpointRecord {
+	return core.CheckpointRecord{
 		ID:        id,
 		Iteration: 1,
 		Timestamp: ts,
@@ -262,9 +262,9 @@ func lifecycleCheckpoint(id string, ts time.Time) core.Checkpoint {
 	}
 }
 
-func lifecycleRollbackCheckpoint(id, targetRef string) core.Checkpoint {
+func lifecycleRollbackCheckpoint(id, targetRef string) core.CheckpointRecord {
 	noop := core.NoopUndoMemento("write")
-	return core.Checkpoint{
+	return core.CheckpointRecord{
 		ID:        id,
 		Iteration: 2,
 		Timestamp: time.Unix(100, 0).UTC(),
@@ -280,7 +280,7 @@ func lifecycleRollbackCheckpoint(id, targetRef string) core.Checkpoint {
 	}
 }
 
-func saveLifecycleCheckpoint(t *testing.T, store core.StateStore, cp core.Checkpoint) {
+func saveLifecycleCheckpoint(t *testing.T, store core.StateStore, cp core.CheckpointRecord) {
 	t.Helper()
 	data, err := json.Marshal(cp)
 	require.NoError(t, err)

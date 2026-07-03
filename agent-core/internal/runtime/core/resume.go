@@ -24,13 +24,13 @@ type ResumeOptions struct {
 	ResumeSignal        Signal
 	RestoreConversation func(json.RawMessage) error
 	RestoreDomain       func(json.RawMessage) error
-	ValidateCheckpoint  func(Checkpoint, LoopParams) error
+	ValidateCheckpoint  func(CheckpointRecord, LoopParams) error
 	Ctx                 context.Context
 }
 
 // ResumeResult contains the loaded checkpoint and the resumed run result.
 type ResumeResult struct {
-	Checkpoint Checkpoint
+	Checkpoint CheckpointRecord
 	Run        RunResult
 }
 
@@ -99,18 +99,18 @@ func ResumeFromCheckpoint(opts ResumeOptions) (ResumeResult, error) {
 }
 
 // LoadCheckpoint loads checkpoint/<id> from store and decodes it.
-func LoadCheckpoint(ctx context.Context, store StateStore, id string) (Checkpoint, error) {
+func LoadCheckpoint(ctx context.Context, store StateStore, id string) (CheckpointRecord, error) {
 	key := "checkpoint/" + id
 	data, err := store.Load(ctx, key)
 	if err != nil {
-		return Checkpoint{}, fmt.Errorf("%w: load %s: %v", ErrCheckpointMissing, key, err)
+		return CheckpointRecord{}, fmt.Errorf("%w: load %s: %v", ErrCheckpointMissing, key, err)
 	}
-	var cp Checkpoint
+	var cp CheckpointRecord
 	if err := json.Unmarshal(data, &cp); err != nil {
-		return Checkpoint{}, fmt.Errorf("%w: decode %s: %v", ErrCheckpointIncompatible, key, err)
+		return CheckpointRecord{}, fmt.Errorf("%w: decode %s: %v", ErrCheckpointIncompatible, key, err)
 	}
 	if cp.ID == "" {
-		return Checkpoint{}, fmt.Errorf("%w: decode %s: missing checkpoint id", ErrCheckpointIncompatible, key)
+		return CheckpointRecord{}, fmt.Errorf("%w: decode %s: missing checkpoint id", ErrCheckpointIncompatible, key)
 	}
 	return cp, nil
 }

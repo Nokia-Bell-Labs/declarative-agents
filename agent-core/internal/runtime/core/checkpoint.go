@@ -34,12 +34,12 @@ type CheckpointPolicy interface {
 	ShouldCheckpoint(event CheckpointEvent) bool
 }
 
-// Checkpoint captures the three rollback layers:
+// CheckpointRecord captures the three rollback layers:
 //
 //   - agent state: loop position and accumulated budget/cost counters
 //   - command/domain state: optional JSON owned by commands or domains
 //   - environment state: an opaque Workspace ref such as a git commit
-type Checkpoint struct {
+type CheckpointRecord struct {
 	ID              string          `json:"id"`
 	Iteration       int             `json:"iteration"`
 	Timestamp       time.Time       `json:"timestamp"`

@@ -436,7 +436,7 @@ func TestLoop_SuspendSignalPersistsCheckpointAndStopsCleanly(t *testing.T) {
 	require.Len(t, keys, 1)
 	data, err := store.Load(context.Background(), keys[0])
 	require.NoError(t, err)
-	var cp Checkpoint
+	var cp CheckpointRecord
 	require.NoError(t, json.Unmarshal(data, &cp))
 	require.Equal(t, State("AwaitingApproval"), cp.AgentState.State)
 	require.Equal(t, AwaitApproval, cp.AgentState.Signal)
@@ -469,7 +469,7 @@ func TestLoop_SuspendPersistsUndoMementoAndDomainSnapshot(t *testing.T) {
 	require.Len(t, keys, 1)
 	data, err := store.Load(context.Background(), keys[0])
 	require.NoError(t, err)
-	var cp Checkpoint
+	var cp CheckpointRecord
 	require.NoError(t, json.Unmarshal(data, &cp))
 	require.JSONEq(t, `[{"role":"assistant","content":"waiting"}]`, string(cp.ConversationLog))
 	require.JSONEq(t, `{"pipeline_step":"approval"}`, string(cp.DomainState))

@@ -21,8 +21,8 @@ func TestResolveLatestCheckpointIDReturnsExplicitID(t *testing.T) {
 func TestResolveLatestCheckpointIDResolvesLatest(t *testing.T) {
 	t.Parallel()
 	store := &memoryStateStore{}
-	saveCheckpointForOps(t, store, Checkpoint{ID: "older", Timestamp: time.Unix(100, 0).UTC()})
-	saveCheckpointForOps(t, store, Checkpoint{ID: "newer", Timestamp: time.Unix(200, 0).UTC()})
+	saveCheckpointForOps(t, store, CheckpointRecord{ID: "older", Timestamp: time.Unix(100, 0).UTC()})
+	saveCheckpointForOps(t, store, CheckpointRecord{ID: "newer", Timestamp: time.Unix(200, 0).UTC()})
 
 	id, err := ResolveLatestCheckpointID(context.Background(), store, "latest")
 	require.NoError(t, err)
@@ -32,7 +32,7 @@ func TestResolveLatestCheckpointIDResolvesLatest(t *testing.T) {
 func TestResolveLatestCheckpointIDEmptyStringMeansLatest(t *testing.T) {
 	t.Parallel()
 	store := &memoryStateStore{}
-	saveCheckpointForOps(t, store, Checkpoint{ID: "only", Timestamp: time.Unix(100, 0).UTC()})
+	saveCheckpointForOps(t, store, CheckpointRecord{ID: "only", Timestamp: time.Unix(100, 0).UTC()})
 
 	id, err := ResolveLatestCheckpointID(context.Background(), store, "")
 	require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestResolveLatestCheckpointIDNoCheckpoints(t *testing.T) {
 
 func TestFormatCheckpointHistoryWithEntries(t *testing.T) {
 	t.Parallel()
-	cp := Checkpoint{
+	cp := CheckpointRecord{
 		ID:        "cp-1",
 		Iteration: 2,
 		AgentState: AgentSnapshot{
@@ -75,7 +75,7 @@ func TestFormatCheckpointHistoryWithEntries(t *testing.T) {
 
 func TestFormatCheckpointHistoryEmpty(t *testing.T) {
 	t.Parallel()
-	cp := Checkpoint{
+	cp := CheckpointRecord{
 		ID:        "cp-empty",
 		Iteration: 0,
 		AgentState: AgentSnapshot{
@@ -113,14 +113,14 @@ func TestRollbackCheckpointReportsMissingBoundaryCompensationExecutor(t *testing
 	require.Contains(t, err.Error(), "boundary compensation executor missing")
 }
 
-func saveCheckpointForOps(t *testing.T, store StateStore, cp Checkpoint) {
+func saveCheckpointForOps(t *testing.T, store StateStore, cp CheckpointRecord) {
 	t.Helper()
 	data, err := json.Marshal(cp)
 	require.NoError(t, err)
 	require.NoError(t, store.Save(context.Background(), "checkpoint/"+cp.ID, data))
 }
 
-func checkpointWithBoundaryCompensation(t *testing.T) Checkpoint {
+func checkpointWithBoundaryCompensation(t *testing.T) CheckpointRecord {
 	t.Helper()
 	memento, err := NewUndoMemento("rest_set", UndoMementoCompensatable, map[string]interface{}{
 		"boundary_compensation": map[string]interface{}{
@@ -130,7 +130,7 @@ func checkpointWithBoundaryCompensation(t *testing.T) Checkpoint {
 	})
 	require.NoError(t, err)
 	noop := NoopUndoMemento("read")
-	return Checkpoint{
+	return CheckpointRecord{
 		ID: "cp-rest", Iteration: 2,
 		AgentState: AgentSnapshot{State: "AfterWrite", Iteration: 2},
 		History: []HistoryDigest{

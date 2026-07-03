@@ -26,7 +26,7 @@ func ResolveLatestCheckpointID(ctx context.Context, store StateStore, requested 
 		return "", fmt.Errorf("no checkpoints found")
 	}
 	sort.Strings(keys)
-	var latest Checkpoint
+	var latest CheckpointRecord
 	var latestID string
 	for _, key := range keys {
 		id := strings.TrimPrefix(key, "checkpoint/")
@@ -47,7 +47,7 @@ func ResolveLatestCheckpointID(ctx context.Context, store StateStore, requested 
 
 // FormatCheckpointHistory renders a checkpoint as a human-readable digest
 // showing the checkpoint metadata, current state, and history entries.
-func FormatCheckpointHistory(cp Checkpoint) string {
+func FormatCheckpointHistory(cp CheckpointRecord) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "checkpoint: %s\n", cp.ID)
 	fmt.Fprintf(&b, "iteration: %d\n", cp.Iteration)
@@ -73,7 +73,7 @@ func FormatCheckpointHistory(cp Checkpoint) string {
 // RollbackCheckpointResult contains the rewritten checkpoint and the target
 // workspace ref (if any) so the caller can restore the workspace.
 type RollbackCheckpointResult struct {
-	Checkpoint   Checkpoint
+	Checkpoint   CheckpointRecord
 	WorkspaceRef string
 }
 
@@ -81,7 +81,7 @@ type RollbackCheckpointResult struct {
 // by walking history backward through each entry's undo memento. It produces
 // a new Checkpoint that can be persisted. Workspace restore is NOT performed
 // here — the caller decides how to handle the returned WorkspaceRef.
-func RollbackCheckpoint(cp Checkpoint, targetIteration int) (RollbackCheckpointResult, error) {
+func RollbackCheckpoint(cp CheckpointRecord, targetIteration int) (RollbackCheckpointResult, error) {
 	return RollbackCheckpointWithOptions(RollbackCheckpointOptions{
 		Checkpoint: cp, TargetIteration: targetIteration,
 	})
@@ -89,7 +89,7 @@ func RollbackCheckpoint(cp Checkpoint, targetIteration int) (RollbackCheckpointR
 
 // RollbackCheckpointOptions configures persisted checkpoint rollback.
 type RollbackCheckpointOptions struct {
-	Checkpoint      Checkpoint
+	Checkpoint      CheckpointRecord
 	TargetIteration int
 	Ctx             context.Context
 	Compensation    CompensationExecutor
@@ -121,11 +121,11 @@ func RollbackCheckpointWithOptions(opts RollbackCheckpointOptions) (RollbackChec
 }
 
 func rewrittenRollbackCheckpoint(
-	cp Checkpoint,
+	cp CheckpointRecord,
 	targetIteration int,
 	rollbackResult RollbackResult,
 	restorer *persistedRollbackRestorer,
-) (Checkpoint, string, error) {
+) (CheckpointRecord, string, error) {
 	out := cp
 	out.ID = fmt.Sprintf("rollback-%s-to-%d-%d", cp.ID, targetIteration, time.Now().UTC().UnixNano())
 	out.Timestamp = time.Now().UTC()
@@ -135,7 +135,7 @@ func rewrittenRollbackCheckpoint(
 	targetRef := rollbackResult.WorkspaceRef
 	history, err := rollbackCheckpointHistory(cp, targetIteration)
 	if err != nil {
-		return Checkpoint{}, "", err
+		return CheckpointRecord{}, "", err
 	}
 	out.History = history
 	targetState, targetRef = rollbackCheckpointTarget(cp, targetIteration, targetState, targetRef)
@@ -154,7 +154,7 @@ func rewrittenRollbackCheckpoint(
 	return out, targetRef, nil
 }
 
-func rollbackCheckpointHistory(cp Checkpoint, targetIteration int) ([]HistoryDigest, error) {
+func rollbackCheckpointHistory(cp CheckpointRecord, targetIteration int) ([]HistoryDigest, error) {
 	if targetIteration == 0 {
 		return nil, nil
 	}
@@ -177,7 +177,7 @@ func rollbackCheckpointHistory(cp Checkpoint, targetIteration int) ([]HistoryDig
 	return history, nil
 }
 
-func rollbackCheckpointTarget(cp Checkpoint, targetIteration int, state State, ref string) (State, string) {
+func rollbackCheckpointTarget(cp CheckpointRecord, targetIteration int, state State, ref string) (State, string) {
 	if targetIteration == cp.AgentState.Iteration && len(cp.History) == 0 {
 		return cp.AgentState.State, cp.WorkspaceRef
 	}
@@ -198,7 +198,7 @@ type RollbackFromCheckpointOptions struct {
 
 // RollbackFromCheckpointResult contains the original and rewritten checkpoints.
 type RollbackFromCheckpointResult struct {
-	Original Checkpoint
+	Original CheckpointRecord
 	RollbackCheckpointResult
 }
 
@@ -248,7 +248,7 @@ func restoreRollbackWorkspace(ctx context.Context, workspace Workspace, ref stri
 	return nil
 }
 
-func saveRollbackCheckpoint(ctx context.Context, store StateStore, cp Checkpoint) error {
+func saveRollbackCheckpoint(ctx context.Context, store StateStore, cp CheckpointRecord) error {
 	data, err := json.Marshal(cp)
 	if err != nil {
 		return fmt.Errorf("rollback checkpoint marshal: %w", err)

@@ -59,7 +59,7 @@ var _ CheckpointPolicy = alwaysCheckpointPolicy{}
 func TestCheckpointContractsCompileAndRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	cp := Checkpoint{
+	cp := CheckpointRecord{
 		ID:        "cp-1",
 		Iteration: 2,
 		Timestamp: time.Unix(100, 0).UTC(),
@@ -93,7 +93,7 @@ func TestCheckpointContractsCompileAndRoundTrip(t *testing.T) {
 	data, err := json.Marshal(cp)
 	require.NoError(t, err)
 
-	var got Checkpoint
+	var got CheckpointRecord
 	require.NoError(t, json.Unmarshal(data, &got))
 	require.Equal(t, cp.ID, got.ID)
 	require.Equal(t, cp.AgentState.State, got.AgentState.State)

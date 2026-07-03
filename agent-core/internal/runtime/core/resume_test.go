@@ -18,7 +18,7 @@ func TestResumeFromCheckpointRestoresStateAndReentersLoop(t *testing.T) {
 	ctx := context.Background()
 	store := &memoryStateStore{}
 	ws := &recordingWorkspace{}
-	cp := Checkpoint{
+	cp := CheckpointRecord{
 		ID:        "cp-1",
 		Iteration: 1,
 		Timestamp: time.Now().UTC(),
@@ -60,7 +60,7 @@ func TestResumeFromCheckpointRestoresStateAndReentersLoop(t *testing.T) {
 			restoredDomain = append(json.RawMessage(nil), data...)
 			return nil
 		},
-		ValidateCheckpoint: func(cp Checkpoint, params LoopParams) error {
+		ValidateCheckpoint: func(cp CheckpointRecord, params LoopParams) error {
 			if cp.AgentState.State != "AwaitingApproval" {
 				return fmt.Errorf("unexpected state")
 			}
@@ -111,7 +111,7 @@ func TestResumeFromCheckpointIncompatibleCheckpointError(t *testing.T) {
 func TestResumeFromCheckpointRestoreErrorsAreClassified(t *testing.T) {
 	t.Parallel()
 	store := &memoryStateStore{}
-	cp := Checkpoint{
+	cp := CheckpointRecord{
 		ID:              "cp-1",
 		AgentState:      AgentSnapshot{State: "AwaitingApproval", Iteration: 1},
 		ConversationLog: json.RawMessage(`[{"role":"user","content":"before"}]`),
@@ -135,7 +135,7 @@ func TestResumeFromCheckpointRestoreErrorsAreClassified(t *testing.T) {
 func TestResumeFromCheckpointValidatesMachineBeforeLoop(t *testing.T) {
 	t.Parallel()
 	store := &memoryStateStore{}
-	cp := Checkpoint{
+	cp := CheckpointRecord{
 		ID:         "cp-1",
 		AgentState: AgentSnapshot{State: "AwaitingApproval", Iteration: 1},
 	}
@@ -196,7 +196,7 @@ func resumeLoopParams() LoopParams {
 	}
 }
 
-func saveCheckpoint(t *testing.T, store StateStore, cp Checkpoint) {
+func saveCheckpoint(t *testing.T, store StateStore, cp CheckpointRecord) {
 	t.Helper()
 	data, err := json.Marshal(cp)
 	require.NoError(t, err)
