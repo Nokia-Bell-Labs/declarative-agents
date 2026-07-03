@@ -26,11 +26,8 @@ type editCmd struct {
 }
 
 func (e *editCmd) Name() string { return "edit" }
-func (e *editCmd) Undo(_ core.Result) core.Result {
-	return undoFileSnapshot(e.Name(), e.root, e.snapshot, e.hasSnapshot)
-}
-func (e *editCmd) UndoMemento() (core.UndoMemento, error) {
-	return fileWorkspaceMemento(e.Name(), e.snapshot, e.hasSnapshot)
+func (e *editCmd) Undo(prior core.Result) core.Result {
+	return undoFileFromReceipt(e.Name(), e.root, prior.Receipt, e.snapshot, e.hasSnapshot)
 }
 
 func (e *editCmd) Execute() core.Result {
@@ -92,6 +89,7 @@ func (e *editCmd) apply(resolved, relPath, content string) core.Result {
 		Signal:      core.EditDone,
 		CommandName: "edit",
 		Metrics:     &core.ToolMetrics{Total: 1, Passed: 1, Failed: 0},
+		Receipt:     encodeFileReceipt(snapshot),
 	}
 }
 

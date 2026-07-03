@@ -3,78 +3,68 @@
 package exec
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
-type workspaceUndoPayload struct {
-	WorkspaceRestore struct {
-		Paths []string `json:"paths"`
-	} `json:"workspace_restore"`
-}
-
-type boundaryCompensationPayload struct {
-	BoundaryCompensation boundaryCompensation `json:"boundary_compensation"`
-}
-
-type boundaryCompensation struct {
+// execReceipt is the opaque, tool-owned rollback context an exec tool encodes
+// into Result.Receipt during Execute. It carries the declared reversibility
+// tier and the compensation inputs a fresh command instance (or the lifecycle
+// receipt walk) needs to reverse the effect after a process restart
+// (srd035-checkpoint-port R3; #44 R2). Only the exec tool decodes it.
+type execReceipt struct {
 	Strategy       string   `json:"strategy"`
-	Reason         string   `json:"reason,omitempty"`
-	Requires       []string `json:"requires,omitempty"`
+	Description    string   `json:"description,omitempty"`
 	WorkspacePaths []string `json:"workspace_paths,omitempty"`
+	Requires       []string `json:"requires,omitempty"`
 	IssueID        string   `json:"issue_id,omitempty"`
 }
 
-func (c *ExecCmd) UndoMemento() (core.UndoMemento, error) {
-	switch c.def.Undo.Strategy {
-	case "", "noop":
-		return core.NoopUndoMemento(c.Name()), nil
-	case "workspace_restore":
-		return core.NewUndoMemento(c.Name(), core.UndoMementoReversible, workspaceRestorePayload(c.def))
-	case "compensating_action":
-		return c.compensatingUndoMemento()
-	default:
-		err := fmt.Errorf("unsupported undo strategy %q for %s", c.def.Undo.Strategy, c.Name())
-		return core.UndoMemento{}, fmt.Errorf("%w: %s", core.ErrUndoMementoIncompatible, err)
+// encodeReceipt serializes the declared undo contract into an opaque receipt.
+// Read-only / no-op tools carry no receipt (#44 R2).
+func (c *ExecCmd) encodeReceipt() string {
+	strategy := c.def.Undo.Strategy
+	if strategy == "" || strategy == "noop" {
+		return ""
 	}
-}
-
-func (c *ExecCmd) compensatingUndoMemento() (core.UndoMemento, error) {
-	payload := any(workspaceRestorePayload(c.def))
-	if c.def.Undo.Payload == "boundary_compensation" {
-		payload = execBoundaryCompensationPayload(c.def, c.params)
-	}
-	memento, err := core.NewUndoMemento(c.Name(), core.UndoMementoCompensatable, payload)
+	b, err := json.Marshal(execReceipt{
+		Strategy:       strategy,
+		Description:    c.def.Undo.Description,
+		WorkspacePaths: workspacePaths(c.def),
+		Requires:       append([]string(nil), c.def.Undo.Requires...),
+		IssueID:        c.params["id"],
+	})
 	if err != nil {
-		return core.UndoMemento{}, err
+		return ""
 	}
-	memento.Description = c.def.Undo.Description
-	return memento, nil
+	return string(b)
 }
 
-func execBoundaryCompensationPayload(def catalog.ToolDef, params map[string]string) boundaryCompensationPayload {
-	workspacePayload := workspaceRestorePayload(def)
-	compensation := boundaryCompensation{
-		Strategy:       def.Undo.Strategy,
-		Reason:         def.Undo.Description,
-		Requires:       append([]string(nil), def.Undo.Requires...),
-		WorkspacePaths: append([]string(nil), workspacePayload.WorkspaceRestore.Paths...),
-		IssueID:        params["id"],
+func decodeExecReceipt(receipt string) (execReceipt, bool, error) {
+	if receipt == "" {
+		return execReceipt{}, false, nil
 	}
-	return boundaryCompensationPayload{BoundaryCompensation: compensation}
+	var r execReceipt
+	if err := json.Unmarshal([]byte(receipt), &r); err != nil {
+		return execReceipt{}, false, err
+	}
+	return r, true, nil
 }
 
-func workspaceRestorePayload(def catalog.ToolDef) workspaceUndoPayload {
-	payload := workspaceUndoPayload{}
+// workspacePaths collects the declared filesystem-write paths from a tool's side
+// effects, defaulting to the workspace root when none are declared.
+func workspacePaths(def catalog.ToolDef) []string {
+	var paths []string
 	for _, effect := range def.SideEffects.Items {
-		payload.WorkspaceRestore.Paths = append(payload.WorkspaceRestore.Paths, effect.Paths...)
+		paths = append(paths, effect.Paths...)
 	}
-	if len(payload.WorkspaceRestore.Paths) == 0 {
-		payload.WorkspaceRestore.Paths = []string{"."}
+	if len(paths) == 0 {
+		paths = []string{"."}
 	}
-	return payload
+	return paths
 }
 
 func compensationUndo(commandName, description string) core.Result {
