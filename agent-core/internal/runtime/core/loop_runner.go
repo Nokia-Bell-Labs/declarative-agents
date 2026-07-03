@@ -200,7 +200,6 @@ func (r *loopRunner) dispatch(cmd Command, labels MetricLabels, transitionSignal
 	r.applyAfterDispatch(cmd)
 	r.accumulateResult()
 	r.recordResultEvent(fromState)
-	r.recordHistory(cmd, fromState, transitionSignal)
 	r.saveCheckpoint(fromState, transitionSignal)
 	emitIterationSpan(r.trace, r.iteration, r.result, fromState, r.state)
 }
@@ -296,14 +295,6 @@ func (r *loopRunner) runSnapshot() monitor.RunSnapshot {
 		Signal:    string(r.signal),
 		Iteration: r.iteration,
 	}
-}
-
-func (r *loopRunner) recordHistory(cmd Command, fromState State, transitionSignal Signal) {
-	if !historyEnabled(r.params) {
-		return
-	}
-	entry := newHistoryEntry(r.iteration, cmd, r.result, fromState, r.state, transitionSignal, "")
-	r.run.History = append(r.run.History, entry)
 }
 
 func (r *loopRunner) stopForSuspend() bool {

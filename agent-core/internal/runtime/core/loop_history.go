@@ -6,10 +6,6 @@ import (
 	"time"
 )
 
-func historyEnabled(p LoopParams) bool {
-	return p.CheckpointPolicy != nil
-}
-
 // resolveCheckpoint returns the configured Checkpoint port, or NoopCheckpoint
 // when none is injected so disabled-mode execution keeps its current behavior
 // (srd035-checkpoint-port R5.1).
@@ -54,20 +50,6 @@ func dispatchEntry(iteration int, fromState, toState State, transitionSignal Sig
 	}
 }
 
-func newHistoryEntry(iteration int, cmd Command, res Result, fromState, toState State, signal Signal, workspaceRef string) HistoryEntry {
-	return HistoryEntry{
-		Iteration:    iteration,
-		Timestamp:    time.Now(),
-		Command:      cmd,
-		CommandName:  res.CommandName,
-		FromState:    fromState,
-		ToState:      toState,
-		Signal:       signal,
-		Result:       digestResult(res),
-		WorkspaceRef: workspaceRef,
-	}
-}
-
 func digestResult(res Result) ResultDigest {
 	digest := ResultDigest{
 		Signal: res.Signal,
@@ -76,24 +58,6 @@ func digestResult(res Result) ResultDigest {
 	}
 	if res.Err != nil {
 		digest.Error = res.Err.Error()
-	}
-	return digest
-}
-
-func historyDigest(history History) []HistoryDigest {
-	if len(history) == 0 {
-		return nil
-	}
-	digest := make([]HistoryDigest, 0, len(history))
-	for _, entry := range history {
-		digest = append(digest, HistoryDigest{
-			Iteration:    entry.Iteration,
-			CommandName:  entry.CommandName,
-			FromState:    entry.FromState,
-			ToState:      entry.ToState,
-			Signal:       entry.Result.Signal,
-			WorkspaceRef: entry.WorkspaceRef,
-		})
 	}
 	return digest
 }

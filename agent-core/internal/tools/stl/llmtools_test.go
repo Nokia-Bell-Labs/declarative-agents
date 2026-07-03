@@ -66,10 +66,6 @@ func noopTracer() tracing.Tracer {
 	return tracing.NoopTracer{}
 }
 
-type alwaysCheckpointPolicy struct{}
-
-func (alwaysCheckpointPolicy) ShouldCheckpoint(core.CheckpointEvent) bool { return true }
-
 // --- invoke_llm tests ---
 
 func TestInvokeLLM_Success(t *testing.T) {
