@@ -7,97 +7,96 @@ tools:
   emits:
   - ToolDone
   - CommandError
-  description: Roll back a checkpoint to a target iteration through the lifecycle runtime.
+  description: Roll back a run to a target step by reverting the Dolt branch and replaying receipts.
   category: boundary
   problem: |
     Operators need rollback as a machine action with explicit inputs, not as
     a special root command path.
   goals:
-  - Resolve and load one checkpoint.
-  - Rewrite it to the target iteration.
-  - Restore workspace state when the rollback target carries a workspace ref.
+  - Resolve one run and target step index.
+  - Revert DB-persisted state to the target step with the Dolt adapter Revert.
+  - Reverse external effects by replaying each reverted entry's receipt into its tool's receipt-consuming Undo.
   requirements:
     input:
-    - must receive a configured StateStore.
-    - must receive a checkpoint id or use latest.
-    - must receive a target iteration.
+    - must receive the resolved checkpoint backend (the Dolt adapter by default).
+    - must receive a run id or use latest.
+    - must receive a target step index.
     output:
-    - must print the original checkpoint id, target iteration, and new checkpoint id.
+    - must print the run id, target step, reverted-entry count, and any skipped irreversible entries.
     side_effects:
-    - must persist a rewritten checkpoint.
-    - may restore the workspace when a workspace ref is present.
+    - must revert DB-persisted state on the run branch to the target step (DB-only).
+    - reverses external effects only through each tool's receipt-consuming Undo; effects with no sufficient receipt are not reverted.
     undo:
-    - must document that rollback recovery requires an operator-selected checkpoint.
+    - must document that rollback recovery requires an operator-selected step.
     errors:
-    - must fail when target iteration is invalid or checkpoint restore fails.
+    - must fail when the target step is invalid, Revert fails, or a receipt-walk Undo fails.
   non_goals:
   - Does not resume the agent after rollback.
-  - Does not invent missing undo mementos.
+  - Does not revert files, HTTP, or workspace effects inside the Dolt adapter; Revert is DB-only and external effects are reversed only through tool receipts.
   parameters:
     type: object
     properties:
-      checkpoint:
+      run:
         type: string
-        description: Checkpoint ID, or latest.
+        description: Run id, or latest.
         default: latest
-      to_iteration:
+      to_step:
         type: integer
-        description: Target history iteration.
-      directory:
-        type: string
-        description: Managed workspace directory for workspace restore.
+        description: Target execution step index.
     required:
-    - to_iteration
+    - to_step
   output:
     description: Rollback result summary.
     schema:
       type: object
       properties:
-        original_checkpoint:
+        run:
           type: string
-        target_iteration:
+        target_step:
           type: integer
-        new_checkpoint:
-          type: string
-        workspace_ref:
-          type: string
+        reverted_entries:
+          type: integer
+        skipped_irreversible:
+          type: array
+          items:
+            type: string
       required:
-      - original_checkpoint
-      - target_iteration
-      - new_checkpoint
+      - run
+      - target_step
+      - reverted_entries
   side_effects:
   - kind: state_mutation
-    target: checkpoint_store
-    state: rewritten_checkpoint_saved
-    description: Persists a new checkpoint representing the rollback target.
-  - kind: filesystem_write
-    target: workspace_directory
-    state: restored_when_ref_present
-    description: May restore the workspace to the target checkpoint ref.
+    target: checkpoint_backend
+    state: run_branch_reverted
+    description: Reverts DB-persisted state on the run branch to the target step commit (Dolt Revert). DB-only.
+  - kind: compensating_action
+    target: tool_receipts
+    state: external_effects_reversed
+    description: Replays each reverted entry's restored, receipt-bearing Result into its tool's receipt-consuming Undo to reverse external effects; irreversible entries are skipped and logged.
   reversibility:
     classification: compensatable
     undo: compensating_action
+    receipt: compensatable_boundary_compensation
     requires_confirmation: true
   undo:
     strategy: compensating_action
-    description: Operator can choose another checkpoint or resume from the original checkpoint.
+    description: Operator can choose another target step or resume from the run's latest state; external audit history cannot be erased.
     payload: boundary_compensation
     captures:
-    - original_checkpoint
-    - target_iteration
-    - workspace_ref
+    - run
+    - target_step
     requires:
-    - checkpoint_id
+    - run
     - operator_decision
   errors:
   - signal: CommandError
-    condition: rollback fails to resolve, rewrite, save, or restore workspace state
+    condition: rollback fails to resolve the run/step, revert the branch, or replay a receipt-consuming Undo
     message_shape: "rollback <component>: <error>"
-    state_after_failure: checkpoint store and workspace may be partially changed if workspace restore fails after save
+    state_after_failure: the run branch is reverted, but a failed receipt-walk Undo may leave some external effects unreversed; the report names them
   relationships:
     before:
     - checkpoint_history
     after: []
     overlaps:
     - tool: checkpoint_history
-      difference: "checkpoint_rollback mutates checkpoint/workspace state; checkpoint_history only reads."
+      difference: "checkpoint_rollback reverts the run branch and replays receipts; checkpoint_history only reads Dolt commit history."
