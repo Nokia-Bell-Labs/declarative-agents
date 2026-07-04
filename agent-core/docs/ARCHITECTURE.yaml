@@ -70,7 +70,6 @@ overview:
         MODEL[internal/model/llm and internal/model/llm/ollama]
         PROMPT[internal/model/prompt]
         TOOLS[internal/tools focused packages]
-        STL[internal/tools/stl compatibility facade]
         TELE[internal/observability/telemetry]
         TRACE[internal/observability/tracing]
         CLI[internal/support/cli]
@@ -92,7 +91,6 @@ overview:
       EXEC --> SUB
       EXEC --> CLI
       BENCH --> TOOLS
-      STL --> TOOLS
       TOOLS --> CORE
       MODEL --> CORE
       TELE --> TRACE
@@ -138,9 +136,9 @@ overview:
   target_tool_package_layout:
     status: current
     summary: |
-      Long-term tool implementation is split across focused
-      internal/tools packages. The temporary internal/tools/stl package remains
-      only as a compatibility facade for older internal imports.
+      Long-term tool implementation is split across focused internal/tools
+      packages. The former internal/tools/stl compatibility facade is retired;
+      callers import the package that owns the contract or implementation.
 
       MachineSpec still owns sequencing. ToolDef still owns one vocabulary
       contract for input, output, emitted signals, side effects, errors, and
@@ -301,34 +299,14 @@ overview:
             - Go standard library
           must_not_depend_on:
             - tool implementation packages
-      - path: internal/tools/stl/
-        responsibility: |
-          Remain as a temporary compatibility facade. It may re-export
-          constructor functions, types, and registration helpers needed by
-          existing callers that have not moved yet. It must not receive new
-          long-term tool implementations.
-        dependencies:
-          may_depend_on:
-            - internal/tools/catalog
-            - internal/tools/registry
-            - internal/tools/exec
-            - internal/tools/filesystem
-            - internal/tools/llm
-            - internal/tools/rest
-            - internal/tools/lifecycle
-            - internal/tools/control
-            - internal/tools/validation
-            - internal/tools/undo
-          must_not_depend_on:
-            - cmd/agent
     dependency_rules:
       - internal/runtime/core stays below all tool packages. It must not import internal/tools/*.
       - Tool packages may import internal/runtime/core for Command, Result, Builder, ToolSpec, StateStore, Workspace, and signals.
       - Tool packages may import internal/tools/catalog for ToolDef and config decoding.
       - Tool implementation packages may import internal/tools/undo. internal/tools/undo must not import tool implementation packages.
       - internal/tools/registry may coordinate factory registration through explicit hooks. It must not import cmd/agent or domain packages.
-      - cmd/agent imports target tool packages or registration packages, not the stl facade.
-      - internal/evaluation and internal/planning may import target tool packages only for tool builders they own or reuse. They must not depend on the stl facade.
+      - cmd/agent imports target tool packages or registration packages.
+      - internal/evaluation and internal/planning may import target tool packages only for tool builders they own or reuse.
       - internal/model/llm remains the model-boundary client package. internal/tools/llm depends on it; internal/model/llm does not depend on tools.
       - internal/tools/rest owns REST transport behavior. Model-provider HTTP calls may use REST definitions, but model semantics stay in internal/tools/llm.
     migration_sequence:
@@ -337,7 +315,7 @@ overview:
       - step: M2
         work: Extract internal/tools/registry and keep the standard factory catalog selected by init names.
       - step: M3
-        work: Move filesystem tools to internal/tools/filesystem and leave stl aliases for existing callers.
+        work: Move filesystem tools to internal/tools/filesystem.
       - step: M4
         work: Move exec builders and subprocess tool command code to internal/tools/exec.
       - step: M5
@@ -345,16 +323,14 @@ overview:
       - step: M6
         work: Move lifecycle, validation, and undo helpers to their target packages.
       - step: M6a
-        work: Add internal/tools/rest for configured REST client/server tools without adding new long-term behavior to internal/tools/stl.
+        work: Add internal/tools/rest for configured REST client/server tools.
       - step: M7
-        work: Move callers from internal/tools/stl to target packages in cmd/agent, internal/evaluation, internal/planning, internal/model/llm integration points, and internal/runtime/core tests where needed.
+        work: Move callers to target packages in cmd/agent, internal/evaluation, internal/planning, internal/model/llm integration points, and internal/runtime/core tests where needed.
       - step: M8
-        work: Shrink internal/tools/stl to a temporary facade, then remove it when no caller imports it.
+        work: Remove internal/tools/stl after all callers import focused packages.
     compatibility_policy: |
-      internal/tools/stl may keep type aliases and wrapper functions for older
-      import paths. New code should import the target package that owns the
-      behavior. Compatibility wrappers must stay thin, must not duplicate logic,
-      and must be removed once callers migrate.
+      The retired internal/tools/stl path is not a compatibility surface. New and
+      existing code import the focused package that owns the behavior.
 
   lifecycle: |
     Runs proceed through three phases.
@@ -584,9 +560,8 @@ overview:
       Release 03.0 implements declarative REST client and REST server tools as
       boundary tool families. The runtime package is internal/tools/rest. This
       package sits beside internal/tools/llm, internal/tools/control, and
-      internal/tools/lifecycle rather than inside internal/tools/stl. The stl
-      package remains a temporary facade only and must not receive long-term
-      REST implementations.
+      internal/tools/lifecycle. REST implementations are owned directly by
+      internal/tools/rest.
 
       REST client tools call configured upstreams. REST server tools are
       launched by configured agent profiles and bind configured addresses.
@@ -1048,7 +1023,7 @@ overview:
       - internal/runtime/core/resume.go
       - internal/runtime/core/rollback.go
       - internal/tools/lifecycle/checkpoint.go
-      - internal/tools/stl/checkpoint_lifecycle_test.go
+      - internal/tools/lifecycle/checkpoint_from_stl_test.go
 
   coordination_pattern: |
     Work flows through the state machine. The loop holds the current
@@ -1066,12 +1041,11 @@ overview:
     library. Observability packages depend on tracing contracts and telemetry
     SDK packages without importing core. Model packages depend on core, prompt
     assembly, and tracing. Focused internal/tools packages own catalog,
-    registry, exec, filesystem, LLM, lifecycle, control, validation, and undo
-    responsibilities while internal/tools/stl remains a facade. Domain packages
-    in evaluation and planning depend on core plus the focused tools they use.
-    Support packages own subprocess, CLI, and child-agent execution boundaries.
-    cmd/agent wires core, tools, telemetry, planning, bench, execution, and
-    tracing together.
+    registry, exec, filesystem, LLM, REST, lifecycle, control, validation, and
+    undo responsibilities. Domain packages in evaluation and planning depend on
+    core plus the focused tools they use. Support packages own subprocess, CLI,
+    and child-agent execution boundaries. cmd/agent wires core, tools,
+    telemetry, planning, bench, execution, and tracing together.
 
 interfaces:
   - name: Tracer interface
@@ -1243,7 +1217,7 @@ design_decisions:
       - New hooks can be added without breaking existing agents
       - Simpler than interface hierarchies
     alternatives_rejected:
-      - "Interface with many methods: forces empty stubs"
+      - "Interface with many methods: forces empty implementations"
       - "Plugin system: overengineered for a Go library"
 
   - id: 3
@@ -1381,28 +1355,26 @@ project_structure:
       role: Ollama client implementation used by model boundary tools
     - path: internal/model/prompt/
       role: Prompt struct, YAML loading, system prompt template, and manifest serialization
-    - path: internal/tools/stl/
-      role: Temporary standard tool library compatibility facade
     - path: internal/tools/catalog/
-      role: Planned ToolDef, declaration loading, tool selection, ToolSpec conversion, and config decoding package
+      role: ToolDef, declaration loading, tool selection, ToolSpec conversion, and config decoding package
     - path: internal/tools/registry/
-      role: Planned BuiltinRegistry, registration, and standard factory catalog package
+      role: BuiltinRegistry, registration, and standard factory catalog package
     - path: internal/tools/exec/
-      role: Planned exec tool builder, argv mapping, subprocess command, and exec undo package
+      role: Exec tool builder, argv mapping, subprocess command, and exec undo package
     - path: internal/tools/filesystem/
-      role: Planned file tools, path validation, snapshots, and workspace restore package
+      role: File tools, path validation, snapshots, and workspace restore package
     - path: internal/tools/llm/
-      role: Planned model-boundary, response parsing, conversation state, and done tool package
+      role: Model-boundary, response parsing, conversation state, and done tool package
     - path: internal/tools/rest/
-      role: Planned REST client/server boundary tool package with OpenAPI loading, operation definitions, async inbox integration, and net/http runtime behavior
+      role: REST client/server boundary tool package with OpenAPI loading, operation definitions, async inbox integration, and net/http runtime behavior
     - path: internal/tools/lifecycle/
-      role: Planned checkpoint history, rollback, and lifecycle adapter package
+      role: Checkpoint history, rollback, and lifecycle adapter package
     - path: internal/tools/control/
-      role: Planned child-agent and loop-control boundary tool package
+      role: Child-agent and loop-control boundary tool package
     - path: internal/tools/validation/
-      role: Planned validation and audit tool adapter package
+      role: Validation and audit tool adapter package
     - path: internal/tools/undo/
-      role: Planned shared undo memento and compensation payload package
+      role: Shared undo memento and compensation payload package
     - path: internal/support/cli/
       role: Standard CLI flag constants, PropagateArgs builder, and budget helpers
     - path: internal/support/subprocess/
@@ -1442,11 +1414,10 @@ project_structure:
 
 package_specification_coverage: |
   `go list ./...` defines the current Go package set. Coverage is layered
-  by design. Engine, telemetry, model, prompt, STL, CLI, and spec graph packages
-  map directly to srd001-srd018, srd022-srd026, or both. That direct mapping
-  covers internal/runtime/core, internal/observability, internal/model,
-  the internal/tools package family with internal/tools/stl as a temporary
-  facade, internal/support/cli, and pkg/spec behavior.
+  by design. Engine, telemetry, model, prompt, focused tool, CLI, and spec graph
+  packages map directly to srd001-srd018, srd022-srd026, or both. That direct
+  mapping covers internal/runtime/core, internal/observability, internal/model,
+  the internal/tools package family, internal/support/cli, and pkg/spec behavior.
 
   Configured-agent packages are covered at the release layer. cmd/agent is
   governed by cfg-runtime-contract, release 01.0 use cases, lifecycle use cases,
@@ -1483,7 +1454,7 @@ implementation_status:
     - done: Ollama client implementation (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
     - done: Standard tool library behavior — file, build, model boundary, lifecycle adapters, config loading
-    - done: Standard tool library package split — internal/tools/catalog, registry, exec, filesystem, llm, lifecycle, control, validation, undo, and temporary stl facade
+    - done: Standard tool library package split — internal/tools/catalog, registry, exec, filesystem, llm, rest, lifecycle, control, validation, and undo
     - done: CLI flags (internal/support/cli) — standard flag constants, PropagateArgs, RemainingBudget
     - done: Subprocess (internal/support/subprocess) — process execution utilities
     - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph, internal/planning/materialize)

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package catalog
 
 import (
 	"encoding/json"
@@ -246,23 +246,6 @@ func TestStripCLIExtensions(t *testing.T) {
 
 	assert.Contains(t, cleaned, "required")
 	assert.Equal(t, "object", cleaned["type"])
-}
-
-func TestRegisterToolDefs(t *testing.T) {
-	t.Parallel()
-
-	defs, err := ParseToolDefs(readFixture(t, "exectool_tools.yaml"))
-	require.NoError(t, err)
-
-	reg := core.NewRegistry()
-	RegisterToolDefs(reg, "/tmp", defs)
-
-	names := reg.ExternalToolNames()
-	assert.Contains(t, names, "greet")
-	assert.Contains(t, names, "list_dir")
-
-	_, ok := reg.Resolve("greet")
-	assert.True(t, ok)
 }
 
 func TestMergeToolDefs(t *testing.T) {

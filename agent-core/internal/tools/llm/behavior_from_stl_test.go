@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package llm
 
 import (
 	"context"
@@ -12,53 +12,54 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
+	modelllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/prompt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 )
 
 // --- test doubles ---
 
-type stubClient struct {
-	response llm.ChatResponse
+type fakeChatClient struct {
+	response modelllm.ChatResponse
 	err      error
 }
 
-func (s *stubClient) Chat(_ context.Context, _ []llm.Message, _ llm.ChatOptions) (llm.ChatResponse, error) {
+func (s *fakeChatClient) Chat(_ context.Context, _ []modelllm.Message, _ modelllm.ChatOptions) (modelllm.ChatResponse, error) {
 	return s.response, s.err
 }
 
-func (s *stubClient) ListModels(_ context.Context) ([]llm.ModelInfo, error) {
+func (s *fakeChatClient) ListModels(_ context.Context) ([]modelllm.ModelInfo, error) {
 	return nil, nil
 }
 
 type waitClient struct{}
 
-func (w waitClient) Chat(ctx context.Context, _ []llm.Message, _ llm.ChatOptions) (llm.ChatResponse, error) {
+func (w waitClient) Chat(ctx context.Context, _ []modelllm.Message, _ modelllm.ChatOptions) (modelllm.ChatResponse, error) {
 	<-ctx.Done()
-	return llm.ChatResponse{}, ctx.Err()
+	return modelllm.ChatResponse{}, ctx.Err()
 }
 
-func (w waitClient) ListModels(_ context.Context) ([]llm.ModelInfo, error) {
+func (w waitClient) ListModels(_ context.Context) ([]modelllm.ModelInfo, error) {
 	return nil, nil
 }
 
-type stubAssembler struct{}
+type fakeAssembler struct{}
 
-func (s *stubAssembler) AssembleMessages(conv *llm.Conversation, _ *core.Registry, _ core.State) []llm.Message {
-	msgs := []llm.Message{{Role: llm.System, Content: "You are a helper."}}
+func (s *fakeAssembler) AssembleMessages(conv *modelllm.Conversation, _ *core.Registry, _ core.State) []modelllm.Message {
+	msgs := []modelllm.Message{{Role: modelllm.System, Content: "You are a helper."}}
 	msgs = append(msgs, conv.Messages()...)
 	return msgs
 }
 
-type stubParser struct{}
+type fakeParser struct{}
 
-func (s *stubParser) ExtractToolCall(raw string) string {
-	return llm.ExtractBraces(raw)
+func (s *fakeParser) ExtractToolCall(raw string) string {
+	return modelllm.ExtractBraces(raw)
 }
 
-func (s *stubParser) EnvelopeConfig() (*prompt.Envelope, bool) {
+func (s *fakeParser) EnvelopeConfig() (*prompt.Envelope, bool) {
 	return nil, false
 }
 
@@ -69,20 +70,20 @@ func noopTracer() tracing.Tracer {
 // --- invoke_llm tests ---
 
 func TestInvokeLLM_Success(t *testing.T) {
-	client := &stubClient{
-		response: llm.ChatResponse{
+	client := &fakeChatClient{
+		response: modelllm.ChatResponse{
 			Content:  `[tool_call]{"tool":"read","parameters":{"path":"main.go"}}[/tool_call]`,
 			TokensIn: 100, TokensOut: 50,
 		},
 	}
-	history := llm.NewConversation(nil, "", llm.ChatOptions{})
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
 	reg := core.NewRegistry()
 
 	builder := &InvokeLLMBuilder{
 		Client:    client,
 		History:   history,
 		Registry:  reg,
-		Assembler: &stubAssembler{},
+		Assembler: &fakeAssembler{},
 		Model:     "test-model",
 		Tracer:    noopTracer(),
 		Ctx:       context.Background(),
@@ -99,17 +100,17 @@ func TestInvokeLLM_Success(t *testing.T) {
 }
 
 func TestInvokeLLM_UndoRestoresPreviousHistoryLength(t *testing.T) {
-	client := &stubClient{
-		response: llm.ChatResponse{Content: "assistant response"},
+	client := &fakeChatClient{
+		response: modelllm.ChatResponse{Content: "assistant response"},
 	}
-	history := llm.NewConversation(nil, "", llm.ChatOptions{})
-	history.Append(llm.Message{Role: llm.User, Content: "existing"})
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	history.Append(modelllm.Message{Role: modelllm.User, Content: "existing"})
 
 	builder := &InvokeLLMBuilder{
 		Client:    client,
 		History:   history,
 		Registry:  core.NewRegistry(),
-		Assembler: &stubAssembler{},
+		Assembler: &fakeAssembler{},
 		Model:     "test-model",
 		Tracer:    noopTracer(),
 		Ctx:       context.Background(),
@@ -127,17 +128,17 @@ func TestInvokeLLM_UndoRestoresPreviousHistoryLength(t *testing.T) {
 }
 
 func TestInvokeLLM_ReceiptRestoresConversationFromFreshInstance(t *testing.T) {
-	client := &stubClient{
-		response: llm.ChatResponse{Content: "assistant response"},
+	client := &fakeChatClient{
+		response: modelllm.ChatResponse{Content: "assistant response"},
 	}
-	history := llm.NewConversation(nil, "", llm.ChatOptions{})
-	history.Append(llm.Message{Role: llm.User, Content: "existing"})
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	history.Append(modelllm.Message{Role: modelllm.User, Content: "existing"})
 
 	builder := &InvokeLLMBuilder{
 		Client:    client,
 		History:   history,
 		Registry:  core.NewRegistry(),
-		Assembler: &stubAssembler{},
+		Assembler: &fakeAssembler{},
 		Model:     "test-model",
 		Tracer:    noopTracer(),
 		Ctx:       context.Background(),
@@ -163,15 +164,15 @@ func TestInvokeLLM_ReceiptRestoresConversationFromFreshInstance(t *testing.T) {
 }
 
 func TestInvokeLLM_UndoRestoresUserMessageAfterError(t *testing.T) {
-	client := &stubClient{err: fmt.Errorf("connection refused")}
-	history := llm.NewConversation(nil, "", llm.ChatOptions{})
-	history.Append(llm.Message{Role: llm.User, Content: "existing"})
+	client := &fakeChatClient{err: fmt.Errorf("connection refused")}
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	history.Append(modelllm.Message{Role: modelllm.User, Content: "existing"})
 
 	builder := &InvokeLLMBuilder{
 		Client:    client,
 		History:   history,
 		Registry:  core.NewRegistry(),
-		Assembler: &stubAssembler{},
+		Assembler: &fakeAssembler{},
 		Model:     "test-model",
 		Tracer:    noopTracer(),
 		Ctx:       context.Background(),
@@ -188,14 +189,14 @@ func TestInvokeLLM_UndoRestoresUserMessageAfterError(t *testing.T) {
 }
 
 func TestInvokeLLM_ChatError(t *testing.T) {
-	client := &stubClient{err: fmt.Errorf("connection refused")}
-	history := llm.NewConversation(nil, "", llm.ChatOptions{})
+	client := &fakeChatClient{err: fmt.Errorf("connection refused")}
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
 
 	builder := &InvokeLLMBuilder{
 		Client:    client,
 		History:   history,
 		Registry:  core.NewRegistry(),
-		Assembler: &stubAssembler{},
+		Assembler: &fakeAssembler{},
 		Model:     "test-model",
 		Tracer:    noopTracer(),
 		Ctx:       context.Background(),
@@ -210,14 +211,14 @@ func TestInvokeLLM_ChatError(t *testing.T) {
 }
 
 func TestInvokeLLM_ContextOverflow(t *testing.T) {
-	client := &stubClient{}
-	history := llm.NewConversation(nil, "", llm.ChatOptions{})
+	client := &fakeChatClient{}
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
 
 	builder := &InvokeLLMBuilder{
 		Client:       client,
 		History:      history,
 		Registry:     core.NewRegistry(),
-		Assembler:    &stubAssembler{},
+		Assembler:    &fakeAssembler{},
 		Model:        "test-model",
 		Tracer:       noopTracer(),
 		ContextLimit: 1, // impossibly small
@@ -232,12 +233,12 @@ func TestInvokeLLM_ContextOverflow(t *testing.T) {
 }
 
 func TestInvokeLLM_CallTimeout(t *testing.T) {
-	history := llm.NewConversation(nil, "", llm.ChatOptions{})
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
 	builder := &InvokeLLMBuilder{
 		Client:      waitClient{},
 		History:     history,
 		Registry:    core.NewRegistry(),
-		Assembler:   &stubAssembler{},
+		Assembler:   &fakeAssembler{},
 		Model:       "test-model",
 		Tracer:      noopTracer(),
 		CallTimeout: time.Millisecond,
@@ -261,11 +262,11 @@ func TestParseResponse_ValidToolCall(t *testing.T) {
 		Description: "Read a file",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`),
 		Visibility:  core.External,
-	}, &ReadBuilder{Root: "/tmp"})
+	}, &filesystem.ReadBuilder{Root: "/tmp"})
 
 	builder := &ParseResponseBuilder{
 		Registry: reg,
-		Parser:   &stubParser{},
+		Parser:   &fakeParser{},
 		Tracer:   noopTracer(),
 	}
 
@@ -273,7 +274,7 @@ func TestParseResponse_ValidToolCall(t *testing.T) {
 	res := cmd.Execute()
 
 	assert.Equal(t, core.ToolDone, res.Signal)
-	var tr llm.ToolRequest
+	var tr modelllm.ToolRequest
 	require.NoError(t, json.Unmarshal([]byte(res.Output), &tr))
 	assert.Equal(t, "read", tr.ToolName)
 }
@@ -281,7 +282,7 @@ func TestParseResponse_ValidToolCall(t *testing.T) {
 func TestParseResponse_DoneTool(t *testing.T) {
 	builder := &ParseResponseBuilder{
 		Registry: core.NewRegistry(),
-		Parser:   &stubParser{},
+		Parser:   &fakeParser{},
 		Tracer:   noopTracer(),
 	}
 
@@ -295,7 +296,7 @@ func TestParseResponse_DoneTool(t *testing.T) {
 func TestParseResponse_MalformedJSON(t *testing.T) {
 	builder := &ParseResponseBuilder{
 		Registry: core.NewRegistry(),
-		Parser:   &stubParser{},
+		Parser:   &fakeParser{},
 		Tracer:   noopTracer(),
 	}
 
@@ -311,11 +312,11 @@ func TestParseResponse_UnknownTool(t *testing.T) {
 	reg.Register(core.ToolSpec{
 		Name:       "read",
 		Visibility: core.External,
-	}, &ReadBuilder{Root: "/tmp"})
+	}, &filesystem.ReadBuilder{Root: "/tmp"})
 
 	builder := &ParseResponseBuilder{
 		Registry: reg,
-		Parser:   &stubParser{},
+		Parser:   &fakeParser{},
 		Tracer:   noopTracer(),
 	}
 
@@ -333,11 +334,11 @@ func TestParseResponse_MissingRequiredParam(t *testing.T) {
 		Description: "Read a file",
 		InputSchema: json.RawMessage(`{"type":"object","required":["path"]}`),
 		Visibility:  core.External,
-	}, &ReadBuilder{Root: "/tmp"})
+	}, &filesystem.ReadBuilder{Root: "/tmp"})
 
 	builder := &ParseResponseBuilder{
 		Registry: reg,
-		Parser:   &stubParser{},
+		Parser:   &fakeParser{},
 		Tracer:   noopTracer(),
 	}
 
@@ -355,11 +356,11 @@ func TestParseResponse_FlatParams(t *testing.T) {
 		Description: "Read a file",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`),
 		Visibility:  core.External,
-	}, &ReadBuilder{Root: "/tmp"})
+	}, &filesystem.ReadBuilder{Root: "/tmp"})
 
 	builder := &ParseResponseBuilder{
 		Registry: reg,
-		Parser:   &stubParser{},
+		Parser:   &fakeParser{},
 		Tracer:   noopTracer(),
 	}
 
@@ -376,11 +377,11 @@ func TestParseResponse_FixNewlines(t *testing.T) {
 		Description: "Write a file",
 		InputSchema: json.RawMessage(`{"type":"object","required":["path","content"]}`),
 		Visibility:  core.External,
-	}, &WriteBuilder{Root: "/tmp"})
+	}, &filesystem.WriteBuilder{Root: "/tmp"})
 
 	builder := &ParseResponseBuilder{
 		Registry: reg,
-		Parser:   &stubParser{},
+		Parser:   &fakeParser{},
 		Tracer:   noopTracer(),
 	}
 
@@ -461,14 +462,14 @@ func TestParseResponse_ResetsRetryCounterAfterSuccessfulParse(t *testing.T) {
 		Description: "Read a file",
 		InputSchema: json.RawMessage(`{"type":"object","required":["path"]}`),
 		Visibility:  core.External,
-	}, &ReadBuilder{Root: "/tmp"})
+	}, &filesystem.ReadBuilder{Root: "/tmp"})
 	tracker := &ParseErrorRetryTracker{MaxConsecutive: 3}
 	tracker.ReportParseError()
 	tracker.ReportParseError()
 
 	builder := &ParseResponseBuilder{
 		Registry: reg,
-		Parser:   &stubParser{},
+		Parser:   &fakeParser{},
 		Tracer:   noopTracer(),
 		Retry:    tracker,
 	}
@@ -485,9 +486,9 @@ func TestParseResponse_ResetsRetryCounterAfterSuccessfulParse(t *testing.T) {
 // --- reset_history tests ---
 
 func TestResetHistory(t *testing.T) {
-	history := llm.NewConversation(nil, "", llm.ChatOptions{})
-	history.Append(llm.Message{Role: llm.User, Content: "hello"})
-	history.Append(llm.Message{Role: llm.Assistant, Content: "hi"})
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	history.Append(modelllm.Message{Role: modelllm.User, Content: "hello"})
+	history.Append(modelllm.Message{Role: modelllm.Assistant, Content: "hi"})
 	assert.Equal(t, 2, history.Len())
 
 	builder := &ResetHistoryBuilder{History: history, Tracer: noopTracer()}
@@ -499,9 +500,9 @@ func TestResetHistory(t *testing.T) {
 }
 
 func TestResetHistory_UndoRestoresPreviousMessages(t *testing.T) {
-	history := llm.NewConversation(nil, "", llm.ChatOptions{})
-	history.Append(llm.Message{Role: llm.User, Content: "hello"})
-	history.Append(llm.Message{Role: llm.Assistant, Content: "hi"})
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	history.Append(modelllm.Message{Role: modelllm.User, Content: "hello"})
+	history.Append(modelllm.Message{Role: modelllm.Assistant, Content: "hi"})
 
 	builder := &ResetHistoryBuilder{History: history, Tracer: noopTracer()}
 	cmd := builder.Build(core.Result{})
@@ -517,9 +518,9 @@ func TestResetHistory_UndoRestoresPreviousMessages(t *testing.T) {
 }
 
 func TestResetHistory_ReceiptRestoresFromFreshInstance(t *testing.T) {
-	history := llm.NewConversation(nil, "", llm.ChatOptions{})
-	history.Append(llm.Message{Role: llm.User, Content: "hello"})
-	history.Append(llm.Message{Role: llm.Assistant, Content: "hi"})
+	history := modelllm.NewConversation(nil, "", modelllm.ChatOptions{})
+	history.Append(modelllm.Message{Role: modelllm.User, Content: "hello"})
+	history.Append(modelllm.Message{Role: modelllm.Assistant, Content: "hi"})
 
 	builder := &ResetHistoryBuilder{History: history, Tracer: noopTracer()}
 	cmd := builder.Build(core.Result{})
@@ -540,17 +541,4 @@ func TestResetHistory_ReceiptRestoresFromFreshInstance(t *testing.T) {
 	require.Equal(t, 2, history.Len())
 	require.Equal(t, "hello", history.History()[0].Content)
 	require.Equal(t, "hi", history.History()[1].Content)
-}
-
-func TestNudgeReread_UndoIsNoopBecauseCommandDoesNotMutateHistory(t *testing.T) {
-	builder := &NudgeRereadBuilder{Tracer: noopTracer()}
-	cmd := builder.Build(core.Result{Output: "edited file"})
-
-	res := cmd.Execute()
-	require.Equal(t, core.ToolDone, res.Signal)
-	require.Contains(t, res.Output, rereadNudge)
-
-	undo := cmd.Undo(core.Result{})
-	require.Equal(t, core.ToolDone, undo.Signal)
-	require.Contains(t, undo.Output, "no-op")
 }

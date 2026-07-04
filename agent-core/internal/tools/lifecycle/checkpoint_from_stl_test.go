@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package lifecycle
 
 import (
 	"errors"
@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 )
 
 // fakeReverter is an in-memory CheckpointReverter for lifecycle tests. Revert
@@ -107,7 +109,7 @@ func TestCheckpointRollbackRequiresRevertibleCheckpoint(t *testing.T) {
 	t.Parallel()
 	target := 1
 	cmd := (&CheckpointRollbackBuilder{
-		Config: CheckpointRollbackConfig{ToIteration: &target},
+		Config: catalog.CheckpointRollbackConfig{ToIteration: &target},
 	}).Build(core.Result{})
 
 	res := cmd.Execute()
@@ -138,7 +140,7 @@ func TestCheckpointRollbackRevertsDBStateToTargetStep(t *testing.T) {
 	}))
 
 	cmd := (&CheckpointRollbackBuilder{
-		Config:     CheckpointRollbackConfig{ToIteration: &target},
+		Config:     catalog.CheckpointRollbackConfig{ToIteration: &target},
 		Checkpoint: rev,
 		RunID:      "run-1",
 	}).Build(core.Result{})
@@ -165,7 +167,7 @@ func TestCheckpointRollbackReportsMissingTargetIteration(t *testing.T) {
 	}))
 
 	cmd := (&CheckpointRollbackBuilder{
-		Config:     CheckpointRollbackConfig{ToIteration: &target},
+		Config:     catalog.CheckpointRollbackConfig{ToIteration: &target},
 		Checkpoint: rev,
 		RunID:      "run-1",
 	}).Build(core.Result{})
@@ -183,7 +185,7 @@ func TestCheckpointRollbackRestoresFileViaPersistedReceipt(t *testing.T) {
 	require.NoError(t, os.WriteFile(target, []byte("v1"), 0o644))
 
 	// Execute a real write that overwrites the file; capture its opaque receipt.
-	writeBuilder := &WriteBuilder{Root: dir}
+	writeBuilder := &filesystem.WriteBuilder{Root: dir}
 	writeCmd := writeBuilder.Build(core.Result{Output: `{"parameters":{"path":"a.txt","content":"v2"}}`})
 	writeRes := writeCmd.Execute()
 	require.Equal(t, core.ToolDone, writeRes.Signal)
@@ -201,11 +203,11 @@ func TestCheckpointRollbackRestoresFileViaPersistedReceipt(t *testing.T) {
 
 	// A fresh registry resolves "write" to a builder that implements core.Reverser.
 	reg := core.NewRegistry()
-	reg.Register(WriteToolSpec(), &WriteBuilder{Root: dir})
+	reg.Register(filesystem.WriteToolSpec(), &filesystem.WriteBuilder{Root: dir})
 
 	toIteration := 1
 	cmd := (&CheckpointRollbackBuilder{
-		Config:     CheckpointRollbackConfig{ToIteration: &toIteration},
+		Config:     catalog.CheckpointRollbackConfig{ToIteration: &toIteration},
 		Checkpoint: rev,
 		Registry:   reg,
 		RunID:      "run-1",
