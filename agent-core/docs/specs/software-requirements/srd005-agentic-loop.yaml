@@ -45,10 +45,10 @@ requirements:
   R4:
     title: LoopParams
     items:
-      - R4.1: "LoopParams bundles: InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, CommandTimeout, ModelName, Directory, Hooks, AgentName, AgentVersion, ProviderName, MachineFile, MachineSpec, InitFunc, ToolAction, StateStore, Workspace, and CheckpointPolicy."
+      - R4.1: "LoopParams bundles: InitialState, Prompt, Registry, Table, IsTerminal, Trace, Budget, CommandTimeout, ModelName, Directory, Hooks, AgentName, AgentVersion, ProviderName, MachineFile, MachineSpec, InitFunc, ToolAction, Checkpoint, and MonitorRecorder."
       - R4.2: AgentName, AgentVersion, and ProviderName supply agent identity for OTel GenAI semantic conventions.
       - R4.3: Declarative initialization SHALL accept either MachineFile for path-based loading or MachineSpec for an already-loaded machine, using MachineSpec without rereading MachineFile when both are provided.
-      - R4.4: StateStore, Workspace, and CheckpointPolicy are optional rollback foundations; nil values SHALL preserve current loop behavior and perform no persistence or workspace checkpointing.
+      - R4.4: Checkpoint is the optional typed persistence port; nil values SHALL resolve to NoopCheckpoint and preserve disabled-mode loop behavior.
 
   R5:
     title: Loop function
@@ -72,14 +72,14 @@ requirements:
       - R6.1: ValidateBuilders(names ...string) returns a ValidateParams hook that checks all named builders exist in the registry.
 
   R7:
-    title: Rollback foundation interfaces
+    title: Checkpoint port integration
     items:
-      - R7.1: StateStore SHALL persist JSON blobs for agent and command/domain state via Save, Load, List, and Delete.
-      - R7.2: Workspace SHALL track external filesystem/environment state via Checkpoint, Restore, and CurrentRef.
-      - R7.3: CheckpointPolicy SHALL decide whether a checkpoint should be considered for a CheckpointEvent.
-      - R7.4: Checkpoint SHALL capture agent state, optional domain state, optional workspace ref, and optional history digest as independent layers.
-      - R7.5: GitWorkspace SHALL provide the default Workspace implementation by creating checkpoint commits, restoring refs with git reset --hard, and returning HEAD with CurrentRef.
-      - R7.6: GitWorkspace SHALL be opt-in and SHALL fail clearly when configured outside a git repository or below the repository top-level.
+      - R7.1: Loop SHALL resolve a nil Checkpoint to NoopCheckpoint so disabled-mode behavior remains unchanged.
+      - R7.2: Loop SHALL append an Execution Entry after each dispatch and call Save(Position, Execution).
+      - R7.3: Position SHALL include the current machine state, last signal, loop counters, and folded conversation snapshot.
+      - R7.4: Execution entries SHALL carry opaque receipts from Results without interpretation by the engine.
+      - R7.5: Resume SHALL Load Position and Execution through the same Checkpoint port and re-enter the machine through one path.
+      - R7.6: Rollback traversal SHALL be owned by lifecycle tools and revert-capable checkpoint backends, not by core.Loop.
 
 non_goals:
   - Domain-specific budget dimensions (those use the BudgetExceeded hook).
@@ -101,7 +101,7 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
 
   - id: AC4
-    criterion: LoopParams bundles all inputs for Loop including AgentName, AgentVersion, and ProviderName for GenAI semconv, supports path-based or preloaded declarative machine initialization, and carries optional rollback interfaces without changing nil behavior.
+    criterion: LoopParams bundles all inputs for Loop including AgentName, AgentVersion, and ProviderName for GenAI semconv, supports path-based or preloaded declarative machine initialization, and carries the optional Checkpoint port without changing nil behavior.
     traces: [R4.1, R4.2, R4.3, R4.4]
 
   - id: AC5
@@ -113,12 +113,12 @@ acceptance_criteria:
     traces: [R6.1]
 
   - id: AC7
-    criterion: Rollback foundation interfaces compile and model agent state, command/domain state, and external workspace state as independent layers, with GitWorkspace as an opt-in filesystem implementation.
+    criterion: Checkpoint port integration saves typed position and execution history after dispatch, preserves disabled-mode behavior with NoopCheckpoint, and leaves rollback traversal to lifecycle tools and revert-capable backends.
     traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6]
 
 depends_on:
   - srd_id: srd001-core-types
-    symbols_used: [State, Signal, Command, Result, Cost, Seed, BudgetExhausted, StateStore, Workspace, CheckpointPolicy, Checkpoint, GitWorkspace]
+    symbols_used: [State, Signal, Command, Result, Cost, Seed, BudgetExhausted, Checkpoint, Position, Execution, Entry, NoopCheckpoint]
   - srd_id: srd002-state-machine
     symbols_used: [TransitionTable, StateMachine, TerminalFunc, NewStateMachine]
   - srd_id: srd003-command-dispatch
@@ -144,7 +144,7 @@ diagrams:
       Goals --> R4["R4: LoopParams"]
       Goals --> R5["R5: Loop function"]
       Goals --> R6["R6: ValidateBuilders helper"]
-      Goals --> R7["R7: Rollback foundation interfaces"]
+      Goals --> R7["R7: Checkpoint port integration"]
       AC1["AC1: Budget has MaxIterations, MaxTokens, and MaxDuration. Zer..."]
       R1 --> AC1
       AC2["AC2: RunStatus has four constants. RunResult carries status, i..."]
@@ -157,6 +157,6 @@ diagrams:
       R5 --> AC5
       AC6["AC6: ValidateBuilders returns a ValidateParams hook checking n..."]
       R6 --> AC6
-      AC7["AC7: Rollback foundation interfaces compile and model agent st..."]
+      AC7["AC7: Checkpoint port integration compile and model agent st..."]
       R7 --> AC7
     ```

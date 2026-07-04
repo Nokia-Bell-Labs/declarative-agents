@@ -167,12 +167,11 @@ related_documents:
   - srd026-lifecycle-tools
 
 implementation_status:
-  planned:
-    - Retarget checkpoint, history, suspend, and resume onto the srd035 port and the srd036 Dolt adapter (tracked by the checkpoint-port epic).
-    - checkpoint_rollback reimplemented as Dolt Revert plus a reverse receipt walk over restored Results.
-    - Receipt-consuming Undo across state-mutating tools; removal of StateStore, Workspace/GitWorkspace, CheckpointPolicy, and the engine undo-walk.
   done:
-    - Suspend and resume around explicit approval-gate machine signals (retained through the port).
+    - Checkpoint, history, suspend, and resume use the srd035 port; cmd/agent wires DoltCheckpoint when --dolt-dsn is set and NoopCheckpoint otherwise.
+    - checkpoint_rollback uses Dolt Revert plus a reverse receipt walk over restored Results.
+    - State-mutating tools encode receipts for persisted rollback; StateStore, Workspace/GitWorkspace, CheckpointPolicy, and the engine undo-walk are retired implementation history.
+    - Suspend and resume operate around explicit approval-gate machine signals.
 
 diagrams:
   requirements_trace: |

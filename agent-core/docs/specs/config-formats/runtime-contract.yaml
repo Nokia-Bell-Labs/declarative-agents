@@ -28,8 +28,7 @@ invocation: |
   checkout or bundle root.
     agent --profile /work/agent-profiles/agents/<agent>/profile.yaml \
           [--request <file>] [--output <dir>] \
-          [--directory <path>] \
-          [--state-store-dir <dir>] \
+          [--directory <path>] [--dolt-dsn <dsn>] \
           [--resume-checkpoint <id>] [--resume-signal <signal>]
 
   Lifecycle profile invocations.
@@ -58,8 +57,9 @@ invocation: |
     --output             Output directory for artifacts such as eval results.
     --directory          Workspace root for file tools, exec tools, child
                          agents, and workspace restore.
-    --state-store-dir    Advanced override for the checkpoint backend location
-                         (Dolt DSN or repository path).
+    --dolt-dsn          MySQL-wire DSN to a running dolt sql-server for the
+                         persistent checkpoint backend. Without this flag,
+                         persistence uses NoopCheckpoint.
     --resume-checkpoint  Run id to Load before re-entering the loop.
     --resume-signal      Signal used for the first resumed transition
                          (default: Approved).
@@ -71,8 +71,9 @@ invocation: |
 
   Removed configuration flags.
     cmd/agent does not expose --machine, --tools, --tools-declaration,
-    --tool-config-dir, --profiles-dir, or --input. Runtime surface is
-    --profile plus runtime data and diagnostics.
+    --tool-config-dir, --profiles-dir, --input, --checkpoint,
+    --to-iteration, or --state-store-dir. Runtime surface is --profile plus
+    runtime data, --dolt-dsn, resume, and diagnostics.
 
   Request files carry lifecycle data. Targets for history and rollback are
   lifecycle tool input. A request file can name
@@ -80,14 +81,12 @@ invocation: |
   Active lifecycle profile and ToolDef config decide how that request maps to
   checkpoint_history or checkpoint_rollback config.
 
-  By default, lifecycle state lives under the workspace.
-  With --directory set and --state-store-dir absent, cmd/agent opens the default
-  persistent checkpoint backend (the srd036 Dolt adapter) under the workspace.
-  Runtime code owns that hidden location and persists runs through the srd035
-  checkpoint port (Save/Load) rather than key/blob store paths. Use
-  --state-store-dir only for shared operator storage, external artifact
-  retention, or tests that need an isolated backend outside the workspace. When
-  persistence is disabled, the backend is NoopCheckpoint.
+  By default, lifecycle persistence is disabled. Without --dolt-dsn, cmd/agent
+  resolves NoopCheckpoint and records no durable checkpoint history. With
+  --dolt-dsn set, cmd/agent opens DoltCheckpoint through the database/sql seam
+  and persists runs through the srd035 checkpoint port (Save/Load) rather than
+  key/blob store paths. Use the DSN for shared operator storage, retained
+  artifacts, or tests that need durable state outside the process.
 
 startup_sequence:
   - step: 1
@@ -143,19 +142,18 @@ startup_sequence:
     name: Configure the checkpoint port
     description: |
       Checkpoint persistence is opt-in through the srd035 checkpoint port
-      (Save(Position, Execution) / Load). The default persistent backend is the
-      srd036 Dolt adapter; when persistence is disabled the backend is
-      NoopCheckpoint. When --state-store-dir is present, cmd/agent opens the
-      backend at that Dolt DSN or repository path; when only --directory is set,
-      it opens the backend under the workspace. The resolved Checkpoint is passed
-      to LoopParams and to lifecycle-aware builtin factories. History and
-      rollback profiles use the same backend and register checkpoint_history or
-      checkpoint_rollback through the normal builtin factory flow. The loop calls
-      Save after each dispatch cycle; the persisted Position carries the machine
-      position and the folded conversation snapshot, and the Execution carries
-      the ordered entries, each with the originating tool's opaque receipt.
-      Resume requires --resume-checkpoint plus a resolved backend and Loads
-      Position and Execution before re-entering the same machine.
+      (Save(Position, Execution) / Load). When --dolt-dsn is set, cmd/agent
+      opens the srd036 Dolt adapter as the persistent backend. When --dolt-dsn
+      is absent, cmd/agent resolves NoopCheckpoint so disabled-mode behavior is
+      unchanged. The resolved Checkpoint is passed to LoopParams and to
+      lifecycle-aware builtin factories. History and rollback profiles use the
+      same backend and register checkpoint_history or checkpoint_rollback
+      through the normal builtin factory flow. The loop calls Save after each
+      dispatch cycle; the persisted Position carries the machine position and
+      the folded conversation snapshot, and the Execution carries the ordered
+      entries, each with the originating tool's opaque receipt. Resume requires
+      --resume-checkpoint plus a persistent backend and Loads Position and
+      Execution before re-entering the same machine.
     implementation: core.Checkpoint, core.ResumeFromCheckpoint
 
   - step: 7
@@ -325,9 +323,9 @@ history_and_rollback_profiles: |
   run, target step, and rollback choices through request data or typed tool
   config. cmd/agent no longer exposes history or rollback compatibility aliases.
 
-  By default, lifecycle profiles read the checkpoint backend under the workspace
-  when --directory is set. --state-store-dir remains an override for a backend
-  outside the workspace.
+  Lifecycle profiles use the Checkpoint backend resolved by cmd/agent. Without
+  --dolt-dsn that backend is NoopCheckpoint; with --dolt-dsn it is the
+  DoltCheckpoint adapter connected to the supplied DSN.
 
 config_file_layout: |
   tools/

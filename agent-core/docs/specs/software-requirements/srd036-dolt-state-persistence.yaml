@@ -136,9 +136,9 @@ reference_model: |
   srd035-checkpoint-port.
 
 implementation_status:
-  planned:
-    - DoltCheckpoint adapter, database/sql seam, generic schema, commit-per-step, branch-per-run, merge-on-terminal, and Revert (tracked by the checkpoint-port epic).
-    - cmd/agent wiring that makes Dolt the default persistent backend and Noop the disabled-mode default.
+  done:
+    - DoltCheckpoint adapter, database/sql seam, generic schema, commit-per-step, branch-per-run, merge-on-terminal, and Revert.
+    - cmd/agent wiring that enables Dolt through --dolt-dsn and uses NoopCheckpoint when persistence is disabled.
 
 diagrams:
   requirements_trace: |

@@ -22,7 +22,7 @@ overview:
     embedded monitor store. Model packages own the LLM boundary, conversations,
     profiles, parsing, and prompt assembly. Focused internal/tools packages own
     catalog, registry, exec, filesystem, LLM, REST, lifecycle, control,
-    validation, undo, and temporary STL facade behavior. Monitor readers expose
+    validation, undo, and checkpoint behavior. Monitor readers expose
     cached runtime metrics through OpenTelemetry and REST/OpenAPI read models
     for live agent state. Evaluation and support packages provide session
     runtime, result artifacts, metrics, CLI helpers, and subprocess utilities.
@@ -108,8 +108,7 @@ overview:
       TOOLS --> MODEL_BOUNDARY[Model boundary]
       TOOLS --> CHILD[Child agent or external CLI]
       LOOP --> OTEL[Telemetry exporters]
-      LOOP --> STORE[Optional StateStore]
-      LOOP --> WORK[Optional Workspace]
+      LOOP --> CP[Optional Checkpoint port]
       SPEC[docs/specs and pkg/spec] --> CFG
     ```
 
@@ -301,7 +300,7 @@ overview:
             - tool implementation packages
     dependency_rules:
       - internal/runtime/core stays below all tool packages. It must not import internal/tools/*.
-      - Tool packages may import internal/runtime/core for Command, Result, Builder, ToolSpec, StateStore, Workspace, and signals.
+      - Tool packages may import internal/runtime/core for Command, Result, Builder, ToolSpec, Checkpoint, and signals.
       - Tool packages may import internal/tools/catalog for ToolDef and config decoding.
       - Tool implementation packages may import internal/tools/undo. internal/tools/undo must not import tool implementation packages.
       - internal/tools/registry may coordinate factory registration through explicit hooks. It must not import cmd/agent or domain packages.
@@ -825,87 +824,76 @@ overview:
   rollback_lifecycle_architecture:
     status: |
       Core lifecycle ports, checkpoint operations, history recording, resume,
-      rollback traversal, lifecycle STL adapters, and history/rollback profiles
-      are implemented. Disabled-mode behavior remains the default: when
-      StateStore, Workspace, and CheckpointPolicy are nil or disabled, existing
-      machines run without checkpoint persistence, full history recording, or
-      workspace restore behavior. The remaining release 02.0 proof is an
-      approval-gate reference agent that exercises suspend and resume end to end.
+      rollback traversal, lifecycle adapters, and history/rollback profiles are
+      implemented. Disabled-mode behavior remains the default: when cmd/agent has
+      no --dolt-dsn, it resolves NoopCheckpoint and existing machines run without
+      durable checkpoint persistence. When --dolt-dsn is set, cmd/agent opens
+      DoltCheckpoint through the database/sql seam.
 
     summary: |
       Rollback and lifecycle support is architectural because agent programs
-      mutate more than one kind of state. The runtime must keep those state
-      layers separate. Agent state is loop bookkeeping for current position,
-      budget, cost, status, and run summary. Command or domain state is mutable
-      in-process data owned by commands and domains, such as conversation
-      history or evaluator session state. Workspace and environment state is the
-      external filesystem or environment changed by tools, child agents, and
-      evaluator point tools.
+      mutate runtime state and external boundaries. Runtime state flows through
+      the typed Checkpoint port. Save records the resumable Position and ordered
+      Execution log after each dispatch cycle. Load restores that pair for
+      resume. Each Execution entry carries an opaque, tool-owned receipt.
 
-      StateStore stores JSON snapshots for agent and command/domain state.
-      Workspace stores external environment refs, with GitWorkspace as the
-      default filesystem implementation. A Checkpoint references all relevant
-      layers without pretending one layer can serialize another.
+      DoltCheckpoint is the persistent backend when configured. It stores the
+      typed checkpoint model in versioned SQL, commits once per step, branches
+      per run, and provides Revert(run_id, step_index) for DB-persisted state.
+      External effects are not reverted by Dolt. The checkpoint_rollback
+      lifecycle tool performs the reverse receipt walk and calls each tool's
+      receipt-consuming Undo.
 
-      Lifecycle history and rollback follow the same profile-first runtime
-      path as other configured programs. Lifecycle profiles select their
-      MachineSpec, tools.yaml selection, and builtin ToolDefs. The selected STL
-      lifecycle tools call reusable core checkpoint operations.
+      Lifecycle history and rollback follow the same profile-first runtime path
+      as other configured programs. Lifecycle profiles select their MachineSpec,
+      tools.yaml selection, and builtin ToolDefs. The selected lifecycle tools
+      use the same Checkpoint backend that cmd/agent resolved for the run.
 
     state_layer_diagram: |
       ```mermaid
       flowchart TB
         subgraph Runtime["Loop runtime"]
           L[Loop]
-          RR[RunResult]
-          H[History]
+          POS[Position]
+          EXEC[Execution log]
         end
 
-        subgraph AgentState["Agent state JSON"]
-          AS[State, Signal, Iteration, Budget, Cost, Status]
+        subgraph CheckpointBackend["Checkpoint backend"]
+          NOOP[NoopCheckpoint]
+          DOLT[DoltCheckpoint]
         end
 
-        subgraph DomainState["Command/domain state JSON"]
-          CONV[Conversation]
-          PLAN[Planner state]
-          EVAL[Evaluator session and PointContext]
-        end
-
-        subgraph WorkspaceState["Workspace/environment state"]
-          FS[Filesystem tree]
-          ART[Generated artifacts]
+        subgraph ToolEffects["External effects"]
+          FS[Filesystem changes]
+          REST[REST or external APIs]
           CHILD[Child process effects]
         end
 
-        L --> AS
-        L --> H
-        RR --> AS
-        CONV --> STORE[StateStore or command snapshot]
-        PLAN --> STORE
-        EVAL --> STORE
-        FS --> WORK[Workspace]
-        ART --> WORK
-        CHILD --> WORK
-        WORK --> GIT[GitWorkspace ref]
+        L --> POS
+        L --> EXEC
+        POS --> CP[Checkpoint Save/Load]
+        EXEC --> CP
+        CP --> NOOP
+        CP --> DOLT
+        EXEC --> RCP[Opaque receipts]
+        RCP --> FS
+        RCP --> REST
+        RCP --> CHILD
       ```
 
     checkpoint_capture_diagram: |
       ```mermaid
       sequenceDiagram
         participant L as Loop
-        participant P as CheckpointPolicy
-        participant C as Command or domain owner
-        participant W as Workspace
-        participant S as StateStore
+        participant C as Command
+        participant CP as Checkpoint
 
-        L->>P: inspect lifecycle event
-        P-->>L: checkpoint enabled
-        L->>L: build AgentSnapshot
-        L->>C: collect command/domain snapshot
-        C-->>L: domain JSON or no snapshot
-        L->>W: CurrentRef or Checkpoint(label)
-        W-->>L: WorkspaceRef
-        L->>S: Save checkpoint JSON
+        L->>C: dispatch command
+        C-->>L: Result with Signal and optional Receipt
+        L->>L: append Execution Entry
+        L->>L: build Position with AgentSnapshot
+        L->>CP: Save(Position, Execution)
+        CP-->>L: saved or no-op
       ```
 
     suspend_resume_diagram: |
@@ -917,23 +905,23 @@ overview:
         SavingCheckpoint --> Suspended: checkpoint saved
         Suspended --> LoadingCheckpoint: resume requested
         LoadingCheckpoint --> RestoringState: checkpoint compatible
-        RestoringState --> Running: StateStore and Workspace restored
+        RestoringState --> Running: Position and Execution loaded
         LoadingCheckpoint --> Failed: missing or incompatible checkpoint
-        SavingCheckpoint --> Failed: required StateStore unavailable
+        SavingCheckpoint --> Failed: required persistent Checkpoint unavailable
       ```
 
     rollback_traversal_diagram: |
       ```mermaid
       flowchart TD
-        A[Current iteration] --> B[Load History]
-        B --> C{Reached target iteration?}
-        C -- no --> D[Call Command.Undo]
-        D --> E{Undo succeeded?}
-        E -- yes --> F[Move to previous HistoryEntry]
-        F --> C
-        E -- no --> G[Report partial rollback and remaining state]
-        C -- yes --> H[Restore Workspace target ref]
-        H --> I[Return resumable agent state]
+        A[Current run] --> B[Dolt Revert to target step]
+        B --> C[Load restored Execution]
+        C --> D[Walk entries after target in reverse]
+        D --> E[Call receipt-consuming Undo]
+        E --> F{Undo succeeded?}
+        F -- yes --> G[Continue reverse walk]
+        G --> D
+        F -- no --> H[Report partial rollback]
+        D --> I[Return resumable Position]
       ```
 
     profile_first_lifecycle_diagram: |
@@ -944,12 +932,11 @@ overview:
         P --> D[ToolDef declarations]
         S --> D
         D --> R[Registry and BuiltinRegistry]
-        M -->|action checkpoint_history| H[STL checkpoint_history]
-        M -->|action checkpoint_rollback| RB[STL checkpoint_rollback]
-        H --> C[core checkpoint operations]
-        RB --> C
-        C --> STORE[StateStore]
-        C --> WORK[Workspace]
+        M -->|action checkpoint_history| H[checkpoint_history]
+        M -->|action checkpoint_rollback| RB[checkpoint_rollback]
+        H --> CP[Checkpoint Load]
+        RB --> REV[Dolt Revert]
+        RB --> UNDO[Reverse receipt walk]
       ```
 
     tool_effects_to_lifecycle_diagram: |
@@ -960,23 +947,23 @@ overview:
         TD --> UNDO[undo strategy]
         TD --> ERR[errors and state_after_failure]
 
-        SE --> CLASS{Effect layer}
-        CLASS -->|state_mutation| CMD[Command/domain restore]
-        CLASS -->|filesystem| WS[Workspace restore]
+        SE --> CLASS{Effect boundary}
+        CLASS -->|state_mutation| CMD[Receipt-backed command Undo]
+        CLASS -->|filesystem| FS[Receipt-backed file restore]
         CLASS -->|boundary| COMP[Compensation or confirmation]
 
-        CMD --> HIST[HistoryEntry]
-        WS --> HIST
-        COMP --> HIST
-        HIST --> RB[Rollback traversal]
+        CMD --> RCP[Result.Receipt]
+        FS --> RCP
+        COMP --> RCP
+        RCP --> RB[Reverse receipt walk]
       ```
 
     ownership_rules:
-      - StateStore owns JSON blobs for agent and command/domain state; it does not store filesystem trees.
-      - Workspace owns external environment refs; GitWorkspace refs do not serialize conversation history or state-machine position.
-      - Command.Undo owns command/domain restoration because each command knows the state it changed.
+      - Checkpoint owns typed Position and Execution persistence; adapters own serialization and storage details.
+      - DoltCheckpoint owns DB-persisted state versioning and Revert(run_id, step_index).
+      - Tools own receipt schemas and receipt-consuming Undo for external effects.
       - MachineSpec owns approval and suspend routing through explicit states and signals.
-      - Loop owns traversal order, checkpoint timing, and lifecycle status, but not domain-specific compensation logic.
+      - Loop owns checkpoint save timing and lifecycle status, but not domain-specific compensation logic.
 
     references:
       - docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
@@ -992,26 +979,26 @@ overview:
       These are the state machine's capabilities, independent of any CLI or
       build system adapter. Run executes a grammar from its initial state
       through core.Loop. Resume loads a suspended checkpoint and re-enters the
-      loop through core.ResumeFromCheckpoint. Rollback rewrites a checkpoint to
-      a target iteration by walking the sentence backward through each word's
-      Undo memento. History formats a persisted checkpoint as a readable
-      execution digest. Supporting helpers resolve the latest checkpoint ID and
-      deserialize checkpoint data from a StateStore.
+      loop through core.Resume. Rollback asks a CheckpointReverter to rewind
+      DB-persisted state to a target iteration, then walks restored execution
+      entries backward through each word's opaque receipt and Undo. History
+      formats persisted Position and Execution data as a readable execution
+      digest.
 
     hexagonal_view: |
       Core knows nothing about CLI flags, Cobra commands, or Mage targets.
       Adapters are thin wiring layers that parse external input and call core:
 
-        Profile runtime (cmd/agent)       -> core.Loop / core.ResumeFromCheckpoint
-        checkpoint_history STL adapter    -> core.FormatCheckpointHistory
-        checkpoint_rollback STL adapter   -> core.RollbackFromCheckpoint
+        Profile runtime (cmd/agent)       -> core.Loop / core.Resume
+        checkpoint_history lifecycle tool -> Checkpoint.Load
+        checkpoint_rollback lifecycle tool -> CheckpointReverter.Revert + receipt walk
         Mage audit target                 -> runs agent binary with --profile
 
       Resume and rollback have different dependency requirements:
       - Resume needs the full engine stack (machine spec, tool definitions,
         LLM adapter) because it re-enters core.Loop.
-      - Rollback is a pure checkpoint operation: it only needs a StateStore
-        and optionally a Workspace. No grammar or lexicon is loaded.
+      - Rollback needs a revert-capable Checkpoint backend, the selected tool
+        registry for receipt-consuming Undo, and the restored Execution log.
 
       That dependency boundary is why lifecycle profiles dispatch separate tool
       adapters instead of forcing rollback through the resume path. History and
@@ -1088,8 +1075,8 @@ components:
       State (string), Signal (string), Command interface, Result
       struct, Cost struct, ToolMetrics struct, Builder interface,
       CommandResolver interface, SpanOverride interface, and rollback
-      foundation interfaces for StateStore, Workspace, CheckpointPolicy,
-      Checkpoint, and GitWorkspace. Defines
+      checkpoint foundation types for Checkpoint, Position, Execution, Entry,
+      Receipt, NoopCheckpoint, InMemoryCheckpoint, and CheckpointReverter. Defines
       generic signals (Seed, BudgetExhausted, CommandError), standard
       tool signals (ToolDone, ToolFailed, EditDone), and LLM signals
       (LLMResponded, ParseFailed, TaskCompleted).
@@ -1100,7 +1087,7 @@ components:
       - Define ToolMetrics for structured success/failure tracking on Result
       - Define Builder and CommandResolver interfaces
       - Define SpanOverride interface for custom dispatch span naming
-      - Define StateStore, Workspace, CheckpointPolicy, Checkpoint, and GitWorkspace
+      - Define Checkpoint, Position, Execution, Entry, Receipt, NoopCheckpoint, InMemoryCheckpoint, and CheckpointReverter
       - Define generic signals (Seed, BudgetExhausted, CommandError)
       - Define standard tool signals (ToolDone, ToolFailed, EditDone)
       - Define LLM signals (LLMResponded, ParseFailed, TaskCompleted)
@@ -1466,8 +1453,8 @@ implementation_status:
     - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
     - done: External agent profiles and configurations — generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from agent-profiles through explicit --profile paths to a checkout or bundle mounted or copied beside the workspace
     - done: Grammar Machine alignment — selected-tool contract enforcement, rollback strategy vocabulary, profile-first child boundaries, and centralized builtin factory catalog
-    - done: Rollback lifecycle core operations — StateStore, FileStore, Workspace, GitWorkspace, checkpoints, history, resume, and rollback traversal
-    - done: Lifecycle STL adapters and external profiles — checkpoint_history and checkpoint_rollback selected by agent-profiles lifecycle profiles
+    - done: Rollback lifecycle core operations — Checkpoint port, NoopCheckpoint, InMemoryCheckpoint, DoltCheckpoint, history, resume, Revert, and receipt rollback traversal
+    - done: Lifecycle adapters and external profiles — checkpoint_history and checkpoint_rollback selected by agent-profiles lifecycle profiles
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats, docker
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
