@@ -2,16 +2,12 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Thirty-six SRDs
-  define the generic agentic loop engine and its supporting packages across
-  seven releases. Release 04.0 implements embedded monitoring. The 00.0 release
-  owns the engine foundation and its support packages. In 01.0, configured
-  runtime behavior expands into evaluator and bench contracts. Tool
-  declarations also belong to that release. Rollback lifecycle contracts
-  belong to 02.0. Declarative REST runtime contracts belong to 03.0. REST
-  client and server contracts sit in the same release. Profile migration and
-  mounted-profile runtime contracts belong to 06.0, where the mounted-profile
-  use case and profile-migration suite now name implemented proof commands.
+  Specification index for the agent-core framework. Thirty-six SRDs define the
+  generic agentic loop engine and its supporting packages across seven releases.
+  Releases 00.0, 01.0, 02.0, 04.0, 05.0, and 06.0 have implemented proof in the
+  indexed use cases and test suites. Release 03.0 remains open for REST
+  conformance follow-up work: named-test alignment and rollback-time REST
+  compensation execution.
   Twenty-one use cases exercise the SRDs across the seven releases. Eight formal YAML test suites cover 210 acceptance test
   cases across releases 00.0 through 06.0; additional
   coverage comes from Go test functions across all packages (run
@@ -30,11 +26,10 @@ overview: |
 
   Release 02.0 storage revision.
   - srd035-checkpoint-port replaces the key/blob StateStore with a two-method
-    typed checkpoint port, and srd036-dolt-state-persistence makes a Dolt
-    versioned-SQL adapter the default persistent backend behind a database/sql
-    seam, adding a git-style Revert for DB-persisted rollback. srd025 and srd026
-    are under revision so their rollback story rests on the checkpoint port and a
-    receipt-driven undo rather than the engine undo-walk.
+    typed checkpoint port, and srd036-dolt-state-persistence defines the Dolt
+    versioned-SQL adapter behind a database/sql seam, adding a git-style Revert
+    for DB-persisted rollback. srd025 and srd026 now rest on the checkpoint port
+    and receipt-driven undo rather than the retired engine undo-walk.
 
   Source-of-truth note.
   - roll-backs.md and tools-as-dsl.md are historical design notes. Their
@@ -56,9 +51,9 @@ roadmap_summary:
     status: done
   - version: "02.0"
     name: Rollback lifecycle and tool language documentation
-    use_cases_done: 2
+    use_cases_done: 4
     use_cases_total: 4
-    status: in_progress
+    status: done
   - version: "03.0"
     name: Declarative REST client and server tools
     use_cases_done: 8
@@ -69,11 +64,16 @@ roadmap_summary:
     use_cases_done: 2
     use_cases_total: 2
     status: done
+  - version: "05.0"
+    name: Monitored live model integrations
+    use_cases_done: 1
+    use_cases_total: 1
+    status: done
   - version: "06.0"
     name: External agent profiles and mounted runtime assets
     use_cases_done: 1
     use_cases_total: 1
-    status: in_progress
+    status: done
 
 foundation_document_index:
   - id: agent-core
@@ -136,7 +136,7 @@ srd_index:
     path: docs/specs/software-requirements/srd012-system-prompt-template.yaml
   - id: srd013-standard-tool-library
     title: Standard Tool Library (STL)
-    summary: Overview of shared standard tools, planned internal/tools package split, grouped declaration layout, and temporary compatibility facades.
+    summary: Overview of shared standard tools, focused internal/tools package ownership, grouped declaration layout, and retired compatibility facade history.
     path: docs/specs/software-requirements/srd013-standard-tool-library.yaml
   - id: srd014-spec-graph
     title: Specification Graph Loader and Validator
@@ -184,23 +184,23 @@ srd_index:
     path: docs/specs/software-requirements/srd024-blocking-input-tools.yaml
   - id: srd025-rollback-lifecycle
     title: Rollback, Checkpoint, Suspend, and Resume Lifecycle
-    summary: Requirements for three-layer state, StateStore/FileStore, Workspace/GitWorkspace, history, checkpoints, rollback traversal, suspend, resume, approval gates, and opt-in lifecycle behavior. Under revision to rest on the srd035 checkpoint port and receipt-driven undo.
-    status: revised
+    summary: Requirements for checkpoint-port-backed persistence, ordered execution history, receipt-driven rollback, suspend, resume, approval gates, and profile-selected lifecycle tools.
+    status: done
     path: docs/specs/software-requirements/srd025-rollback-lifecycle.yaml
   - id: srd026-lifecycle-tools
     title: Lifecycle Tool Adapters
     summary: Requirements for checkpoint_history, checkpoint_rollback, and generic lifecycle control words such as exit_agent, selected by ToolDef declarations and MachineSpec transitions. Under revision for the Dolt-backed checkpoint port.
-    status: revised
+    status: done
     path: docs/specs/software-requirements/srd026-lifecycle-tools.yaml
   - id: srd035-checkpoint-port
     title: Typed Checkpoint Port
     summary: Requirements for a two-method typed checkpoint port (Save/Load) over typed Position and Execution values, an opaque tool-owned Receipt on each Entry, a folded conversation snapshot, Noop and InMemory reference adapters, save timing, and a single resume contract. Replaces the key/blob StateStore.
-    status: planned
+    status: done
     path: docs/specs/software-requirements/srd035-checkpoint-port.yaml
   - id: srd036-dolt-state-persistence
     title: Dolt State Persistence
     summary: Requirements for a DoltCheckpoint adapter implementing the srd035 port behind a database/sql seam, a generic four-table schema, an opaque receipt column, commit-per-step and branch-per-run versioning with merge-to-main on terminal state, Load reconstruction, and a DB-only git-style Revert for rollback.
-    status: planned
+    status: done
     path: docs/specs/software-requirements/srd036-dolt-state-persistence.yaml
   - id: srd027-rest-tool-runtime
     title: Declarative REST Tool Runtime
@@ -348,13 +348,13 @@ use_case_index:
   - id: rel02.0-uc003-tool-authoring
     title: Developer authors a new tool as a vocabulary word
     release: "02.0"
-    status: planned
+    status: done
     test_suite: test-rel02.0-tool-contracts
     path: docs/specs/use-cases/rel02.0-uc003-tool-authoring.yaml
   - id: rel02.0-uc004-sentence-tool-migration
     title: Developer migrates a sentence-shaped tool into machine-composed words
     release: "02.0"
-    status: planned
+    status: done
     test_suite: test-rel02.0-tool-contracts
     path: docs/specs/use-cases/rel02.0-uc004-sentence-tool-migration.yaml
   - id: rel03.0-uc001-rest-client-sync
@@ -576,12 +576,11 @@ coverage_gaps: |
   suite coverage tied to integration targets and package tests.
   The release 00.0 warning set is now narrower, without reopening broad adapter
   or parser questions that the current tests already answer.
-  srd025-srd026 (02.0) have formal YAML coverage in the release 02.0
-  lifecycle and tool-contract test suites. Core checkpoint, history, resume,
-  and rollback behavior is implemented and tested. Lifecycle profile and
-  lifecycle STL adapter behavior is implemented too. The approval-gate
-  reference profile is implemented and tested.
-  Tool-language migration proofs remain planned follow-up work.
+  srd025-srd026, srd035, and srd036 (02.0) have formal YAML coverage in the
+  release 02.0 lifecycle and tool-contract test suites. Core checkpoint,
+  history, resume, rollback behavior, lifecycle tool adapters, approval-gate
+  reference behavior, tool authoring checks, and sentence-tool migration proofs
+  are implemented and tested.
 
   For 03.0, srd027-srd031 have formal YAML coverage in
   test-rel03.0-rest-tools. rel03.0-uc007 covers the Knowledge Manager

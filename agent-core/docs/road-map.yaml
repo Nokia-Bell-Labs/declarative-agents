@@ -66,17 +66,14 @@ releases:
   - version: "02.0"
     name: Rollback lifecycle and tool language documentation
     description: |
-      Runtime checkpoint behavior is implemented. Suspend, resume, and rollback
-      foundations are implemented too. Lifecycle profiles expose checkpoint
-      history and rollback through first-class STL builtin tools. A storage
-      revision replaces the key/blob StateStore with a two-method typed
-      checkpoint port (srd035) and makes a Dolt versioned-SQL adapter (srd036)
-      the default persistent backend behind a database/sql seam, adding a
-      git-style Revert that rewinds DB-persisted state while tools own external
-      compensation through opaque receipts. Remaining work covers that storage
-      revision, documentation cleanup, and the planned internal/tools package
-      split.
-    status: in_progress
+      Runtime checkpoint behavior, suspend, resume, rollback foundations, tool
+      authoring contracts, sentence-tool migration proof, and the internal/tools
+      package split are implemented. Lifecycle profiles expose checkpoint
+      history and rollback through focused lifecycle tools. The srd035 typed
+      checkpoint port and srd036 Dolt adapter replace the retired key/blob
+      StateStore model, adding git-style Revert for DB-persisted state while
+      tools own external compensation through opaque receipts.
+    status: done
     srds:
       - srd025-rollback-lifecycle
       - srd026-lifecycle-tools
@@ -98,7 +95,7 @@ releases:
     follow_up:
       - id: agent-core-vk8j
         summary: Reorganize standard tool library packages and tool declarations
-        status: in_progress
+        status: done
 
   - version: "03.0"
     name: Declarative REST client and server tools
@@ -210,7 +207,7 @@ releases:
       Qwen/Ollama state machine without blocking model progress, polls cached
       token metrics while the agent process remains active, and exits through
       monitor control.
-    status: planned
+    status: done
     srds:
       - srd032-tool-metrics-monitor-store
       - srd033-monitor-rest-api
@@ -242,7 +239,7 @@ releases:
       otherwise provide profile directories, pass --profile to that mounted
       profile, and pass --directory to the mounted workspace. The runtime image
       does not copy migrated agent profile directories from agent-core.
-    status: in_progress
+    status: done
     srds:
       - srd034-external-agent-profiles
     use_cases:

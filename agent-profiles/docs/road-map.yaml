@@ -109,10 +109,11 @@ releases:
       Knowledge Manager/documentation-curator UX, evaluator to generator,
       planner to generator, bench to evaluator, and monitor/control boundaries.
 
-      The first documentation issue defines the use cases and target contracts.
-      Follow-up issues add the actual Mage or Go targets and fixture data. The
-      suite records planned status until each tracer has executable evidence.
-    status: planned
+      The release now includes executable profile-owned tracer bullets for
+      Knowledge Manager/documentation-curator UX, evaluator to generator,
+      planner to generator, bench to evaluator, and monitor/control boundaries.
+      Each listed Mage target has profile-owned evidence.
+    status: done
     planned_work:
       - id: gh-106
         summary: Define profile integration tracer-bullet use cases and suite.

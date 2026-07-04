@@ -145,7 +145,7 @@ project_structure:
       role: Issue shape for future work.
 
 implementation_status:
-  current_focus: Formal migration use cases and test suites after completed asset migration.
+  current_focus: Implemented profile assets, validation, release tagging, and profile-owned integration tracer bullets.
   progress:
     - done: Initial issue queue exists.
     - done: Repository purpose and ownership docs are defined.
@@ -159,8 +159,10 @@ implementation_status:
         profile contract.
     - done: Variant profile discovery covers profile.yaml, profile-*.yaml, and
         *-profile.yaml files.
-    - planned: Formal migration use cases and test suites document the
+    - done: Formal migration use cases and test suites document the
         implemented profile repository workflow.
+    - done: Profile-owned integration tracer bullets cover documentation-curator,
+        evaluator-generator, planner-generator, bench-evaluator, and monitor/control boundaries.
 
 related_documents:
   - doc: ../agent-core/docs/specs/config-formats/runtime-contract.yaml

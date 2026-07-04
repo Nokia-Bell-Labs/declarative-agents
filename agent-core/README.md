@@ -26,10 +26,11 @@ Model code lives in `internal/model/llm` and `internal/model/llm/ollama`. Those
 packages provide the LLM client interface, conversation types, model profiles,
 and the Ollama adapter.
 
-Prompt and tool vocabulary code lives in `internal/model/prompt` and
-`internal/tools/stl`. Prompt code loads YAML templates and serializes tool
-lists. The STL package provides file tools, build tools, LLM commands,
-subprocess tools, process groups, and lifecycle adapters.
+Prompt and tool vocabulary code lives in `internal/model/prompt` and focused
+`internal/tools/*` packages. Prompt code loads YAML templates and serializes
+tool lists. The tool packages provide file tools, build tools, LLM commands,
+subprocess tools, process groups, lifecycle adapters, REST tools, and registry
+support.
 
 Evaluation, planning, and observability code lives in `internal/evaluation`,
 `internal/evaluation/bench`, `internal/planning`, and `internal/observability`.
@@ -87,9 +88,8 @@ end-to-end evidence for a specific agent program.
 
 Lifecycle features are opt-in: checkpointing, suspend/resume, approval gates,
 history, and rollback. See `lifecycle-rollback.md` for profile examples,
-workspace-local `.agent-state`, `--state-store-dir` overrides,
-`--resume-checkpoint`, request files, state-layer rules, and workspace restore
-safety.
+`--dolt-dsn`, `--resume-checkpoint`, request files, receipt-driven rollback,
+and Dolt-backed persistence behavior.
 
 For history and rollback, use the universal runtime flags:
 
@@ -107,9 +107,10 @@ Lifecycle request files carry values such as `checkpoint: latest` or
 `to_iteration: 3`. No lifecycle-only subcommands or checkpoint flags are
 exposed by the binary.
 
-With `--directory` and no store override, the documented checkpoint store is
-`$WORKSPACE/.agent-state`. Choose `--state-store-dir` for shared operator
-storage, retained artifacts, or isolated tests.
+Without `--dolt-dsn`, lifecycle persistence uses `NoopCheckpoint` and records no
+durable history. Set `--dolt-dsn` to a MySQL-wire DSN for a running `dolt
+sql-server` when a run must persist checkpoints for history, resume, or
+rollback.
 
 ## Quick Start
 

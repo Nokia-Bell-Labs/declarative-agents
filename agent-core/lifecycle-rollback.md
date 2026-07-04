@@ -14,58 +14,54 @@ files are the source of truth.
 
 ## Defaults
 
-By default, lifecycle behavior is off. A normal agent run without lifecycle
-runtime data creates no checkpoint directory, persists no checkpoint JSON,
-restores no resume state, attempts no workspace restore, and keeps history
-minimal unless the runtime is configured with a `CheckpointPolicy`.
+By default, lifecycle persistence is off. A normal agent run without `--dolt-dsn`
+uses `NoopCheckpoint`, creates no checkpoint repository, records no durable
+history, and cannot be resumed from another process.
 
-With `--directory <workspace>` and no explicit store override, the documented
-default state store is `<workspace>/.agent-state`. That hidden, agent-owned
-directory stores `FileStore` JSON paths such as `checkpoint/<id>`.
+Set `--dolt-dsn <dsn>` when a run must persist checkpoints. The DSN connects to
+a running `dolt sql-server` through the MySQL wire protocol. The runtime opens
+`DoltCheckpoint`, saves after each dispatch cycle, and stores the typed
+`Position` plus ordered `Execution` log defined by `srd035`.
 
-Reserve `--state-store-dir` for cases where the workspace-local store is not
-the right place. Common reasons are shared operator storage, external artifact
-retention, or tests that need an isolated store outside the workspace.
+Reserve persistent Dolt storage for shared operator history, retained artifacts,
+suspend/resume flows, or rollback investigations. Tests that need durable state
+should use an isolated Dolt database or `DOLT_TEST_DSN`.
 
-## State Model
+## Checkpoint Model
 
-Rollback is safe only when the runtime keeps three state layers separate.
+Rollback is safe only when persistent runtime state and external effects stay
+separate.
 
-Agent state is loop-owned JSON: state-machine position, current signal,
-iteration count, budget counters, token counters, cost counters, and run
-summary data. It is stored in `Checkpoint.agent_state`.
+Persistent runtime state flows through the typed `Checkpoint` port. `Save` stores
+the resumable `Position` and ordered `Execution` log. `Position` carries the
+current state, last signal, loop counters, and folded conversation snapshot.
+`Execution` carries one entry per dispatched command, including the command name,
+from/to state, signal, result digest, and opaque receipt.
 
-Command and domain state is command-owned JSON or in-memory undo state:
-conversation history, planner state, evaluator session state, graph state, and
-other mutable state that is not a filesystem tree. Commands that mutate this
-layer must implement `Command.Undo()` for in-memory rollback and, when the state
-must survive checkpoint persistence, provide an `UndoMemento()` payload that can
-be written into history.
+External effects are tool-owned. A tool that changes files, calls an external
+API, launches a child agent, or mutates another boundary must encode the receipt
+its `Undo` needs during `Execute`. The engine and checkpoint adapters persist the
+receipt bytes but never interpret them.
 
-Workspace state is environment state: files and directories changed by file
-tools, exec tools, child agents, or external processes. It is tracked by a
-`Workspace` reference, usually a `GitWorkspace` commit. Workspace refs are not
-serialized agent state; they point at a filesystem snapshot.
-
-Do not store workspace trees in `StateStore`, and do not use git commits as the
-serialization format for agent or conversation state.
+Dolt rollback is DB-only. `DoltCheckpoint.Revert(run_id, step_index)` rewinds the
+checkpoint tables to the target step. The `checkpoint_rollback` lifecycle tool
+then walks restored execution entries in reverse and hands each receipt-bearing
+result to the originating tool's receipt-consuming `Undo`.
 
 ## Runtime Data
 
 On the main `agent` command, universal flags carry lifecycle runtime data.
-`--directory <path>` sets the workspace root for file tools, workspace restore,
-and the default lifecycle state store at `<path>/.agent-state`.
-`--resume-checkpoint <id>` loads a persisted checkpoint before entering the loop
-again and requires a resolved state store. `--resume-signal <signal>` supplies
-the first resumed transition signal, with `Approved` as the default. For
-rollback or resume that restores a workspace ref, `--directory` must identify a
-managed git repository root accepted by `GitWorkspace`.
+`--directory <path>` sets the workspace root for file tools and child agents.
+`--dolt-dsn <dsn>` enables the persistent checkpoint backend. `--resume-checkpoint
+<id>` loads a persisted checkpoint before entering the loop again and requires a
+persistent backend. `--resume-signal <signal>` supplies the first resumed
+transition signal, with `Approved` as the default.
 
 Lifecycle request files carry history and rollback targets. The profile selects
 the MachineSpec and ToolDef. In the request, `checkpoint` selects a checkpoint
-ID or `latest`, `to_iteration` is required for rollback, and
-`restore_workspace` tells rollback to restore the target workspace ref. The
-workspace root remains the universal `--directory` runtime data channel.
+ID or `latest`, and `to_iteration` is required for rollback. The workspace root
+remains the universal `--directory` runtime data channel for tools that need a
+filesystem boundary.
 
 Examples:
 
@@ -80,7 +76,6 @@ Rollback request:
 ```yaml
 checkpoint: suspend-4-1780000000000000000
 to_iteration: 2
-restore_workspace: true
 ```
 
 Lifecycle profile invocations:
@@ -89,27 +84,30 @@ Lifecycle profile invocations:
 agent \
   --profile agents/lifecycle/history/profile.yaml \
   --directory "$PWD" \
+  --dolt-dsn "$DOLT_DSN" \
   --request requests/history.yaml
 
 agent \
   --profile agents/lifecycle/rollback/profile.yaml \
   --directory "$PWD" \
+  --dolt-dsn "$DOLT_DSN" \
   --request requests/rollback.yaml
 
 agent \
   --profile agents/generator/profile.yaml \
+  --dolt-dsn "$DOLT_DSN" \
   --resume-checkpoint rollback-suspend-4-1780000000000000000-to-2-1780000000000000001 \
   --resume-signal Approved \
   --directory "$PWD"
 ```
 
-Override storage when the checkpoint store must live outside the workspace:
+Enable persistent history with Dolt:
 
 ```bash
 agent \
   --profile agents/lifecycle/history/profile.yaml \
   --directory "$PWD" \
-  --state-store-dir "$STATE_DIR" \
+  --dolt-dsn "$DOLT_DSN" \
   --request requests/history.yaml
 ```
 
@@ -117,8 +115,9 @@ agent \
 
 Approval gates are ordinary machine transitions. The machine routes a risky
 state to the `suspend` builtin, the builtin emits `AwaitApproval`, and the loop
-returns `StatusSuspended` after saving a checkpoint when a `StateStore` is
-configured.
+returns `StatusSuspended` after saving through the configured `Checkpoint` port.
+If the selected suspend tool requires persistence, `--dolt-dsn` must be set so
+the checkpoint is not a no-op.
 
 Minimal machine shape:
 
@@ -188,8 +187,7 @@ agent \
 ```
 
 Pick the last known-good iteration from the digest. Each row includes iteration,
-command name, state transition, signal, undo memento status, and optional
-workspace ref.
+command name, state transition, signal, and receipt presence.
 
 Create a rollback checkpoint:
 
@@ -198,7 +196,6 @@ Create a rollback checkpoint:
 ```yaml
 checkpoint: latest
 to_iteration: 7
-restore_workspace: true
 ```
 
 ```bash
@@ -222,37 +219,33 @@ The resume path validates the current machine and tool declarations before
 re-entering the loop. If the current config is incompatible with the checkpoint,
 resume refuses to continue.
 
-## Undo Mementos
+## Receipts
 
-Checkpoint history stores `HistoryDigest` rows, not live `Command` objects.
-Commands that need persisted rollback implement `UndoMementoProvider`; the loop
-captures that versioned JSON memento after command execution and stores it in
-the history digest.
+Checkpoint history stores `Execution` entries, not live `Command` objects. Each
+entry may carry an opaque receipt copied from `Result.Receipt`. Commands that
+need persisted rollback encode everything their later `Undo` needs into that
+receipt during `Execute`.
 
-Memento kinds tell rollback what is possible. `noop` means the command has no
-rollback-managed state. `reversible` carries enough JSON to restore
-command/domain state or identify workspace paths for restore. `compensatable`
-carries the metadata needed for child command undo, workspace restore, or
-explicit operator/API compensation. `irreversible` records why rollback cannot
-safely undo the effect.
+Receipt shape belongs to the originating tool. File tools can encode prior file
+content and mode. Conversation tools can encode a prior conversation snapshot.
+Boundary tools can encode child run IDs, artifact paths, issue IDs,
+server/user-action details, REST compensation metadata, or nested-machine
+context. The checkpoint adapter stores receipts verbatim; only the tool decodes
+them.
 
-Current reversible mementos cover conversation/retry state, planner pipeline
-state, file/workspace paths, evaluator session state, point context, and
-validation state. Boundary tools such as `execute_task`, `self_invoke`,
-`run_point`, `run_agent`, `launch_eval`, `serve_ui`, `suspend`, and issue tools
-record `boundary_compensation` payloads with child run IDs, artifact paths,
-issue IDs, server/user-action details, or nested-machine context.
+Rollback reports irreversible or missing receipts instead of inventing a restore
+path. Read-only commands return no receipt and use no-op Undo.
 
 ## Operational Safety
 
-Rollback is not a time machine for every side effect. Instead, it coordinates
-best-effort restore across the three state layers.
+Rollback is not a time machine for every side effect. It coordinates Dolt
+Revert for DB-persisted checkpoint state with best-effort receipt-consuming Undo
+for external effects.
 
-Use `GitWorkspace` only on a workspace that can tolerate reset-style restore.
-Rollback and resume restore workspace refs through git. Do not point
-`--directory` at an unmanaged directory, a shared checkout with unrelated
-changes, or a repository where destructive restore would surprise another
-process.
+Use `--directory` only for the workspace the selected tools are allowed to
+mutate. The Dolt adapter does not reset that workspace. File, REST, child-agent,
+and other boundary effects are reversed only when their tools encoded sufficient
+receipts.
 
 Treat boundary tools as risky. Tools that call subprocesses, nested machines,
 external APIs, humans, or models must declare their side effects and rollback
@@ -268,17 +261,19 @@ steps that are explicitly tracked in the command undo audit. A no-op undo on a
 state-mutating command leaves residual risk after rollback.
 
 If rollback reports a partial failure, stop and inspect the details before
-resuming. A partial rollback can mean command/domain state, workspace state, or
-checkpoint persistence did not fully restore.
+resuming. A partial rollback can mean Dolt Revert failed, a restored receipt was
+missing or irreversible, or a receipt-consuming Undo failed.
 
 ## Migration Notes
 
-Hidden `agent history` and `agent rollback` commands are implementation drift
-while profile-only CLI cleanup finishes. Normal lifecycle operation uses
-`agent --profile agents/lifecycle/history/profile.yaml` and
-`agent --profile agents/lifecycle/rollback/profile.yaml`.
-Runtime data stays on the universal `agent` command. Checkpoint selection and
-target iteration stay in request files or typed tool config.
+Older notes may mention hidden `agent history`, `agent rollback`, `.agent-state`,
+`--state-store-dir`, `StateStore`, `Workspace`, `GitWorkspace`, or
+`CheckpointPolicy`. Treat those as historical background. Normal lifecycle
+operation uses `agent --profile agents/lifecycle/history/profile.yaml` and
+`agent --profile agents/lifecycle/rollback/profile.yaml`, with `--dolt-dsn` when
+durable persistence is required. Runtime data stays on the universal `agent`
+command. Checkpoint selection and target iteration stay in request files or typed
+tool config.
 
 ## Related Documents
 

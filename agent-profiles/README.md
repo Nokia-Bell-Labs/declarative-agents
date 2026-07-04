@@ -92,9 +92,10 @@ runtime conformance fixtures, including standalone REST tool definitions and
 OpenAPI documents, stay with `agent-core` until a profile issue explicitly
 moves them.
 
-Formal use cases and test suites for the profile repository migration remain
-tracked follow-up work. Already checked in are the profile assets, demos,
-fixtures, release tagging, and validation commands.
+Formal use cases and test suites for profile repository migration and
+profile-owned integration tracer bullets are implemented. Checked in assets now
+include profile programs, demos, fixtures, release tagging, validation commands,
+and Mage integration targets for the Release 07 tracer bullets.
 
 ## Release Tags
 

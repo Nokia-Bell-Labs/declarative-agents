@@ -382,7 +382,7 @@ tools:
     init: suspend
     visibility: internal
     emits: [AwaitApproval, CommandError]
-    description: "Suspend the run at an approval gate. The loop persists a checkpoint when StateStore is configured."
+    description: "Suspend the run at an approval gate. The loop saves through the configured Checkpoint port when persistence is enabled."
     category: boundary
     config:
       label: approval
@@ -392,7 +392,7 @@ tools:
       - kind: state_mutation
         target: lifecycle_checkpoint
         state: suspended
-        description: "Requests suspension; the loop persists a checkpoint when StateStore is configured."
+        description: "Requests suspension; the loop saves through the configured Checkpoint port when persistence is enabled."
       - kind: human_boundary
         target: operator_approval
         description: "Hands control to an operator approval decision before resume."
@@ -526,7 +526,7 @@ tools:
       description: "Rely on child agent history, command undo, and workspace restore for side effects."
       payload: boundary_compensation
       captures: [child_run_id, child_workspace_ref]
-      requires: [Workspace]
+      requires: [Receipt]
 
   - name: check_result
     type: builtin
@@ -625,8 +625,8 @@ tools:
       undo: "workspace_restore_and_session_state_restore"
     undo:
       strategy: session_state_restore
-      description: "Restore evaluator session state and workspace artifacts from the prior checkpoint."
-      requires: [Workspace]
+      description: "Restore evaluator session state and workspace artifacts from persisted receipts."
+      requires: [Receipt]
 
   - name: report_suite_summary
     type: builtin
@@ -728,8 +728,8 @@ tools:
       undo: "workspace_restore_and_point_context_restore"
     undo:
       strategy: session_state_restore
-      description: "Restore point context and artifact workspace state from the prior checkpoint."
-      requires: [Workspace]
+      description: "Restore point context and artifact workspace state from persisted receipts."
+      requires: [Receipt]
 
   - name: copy_sample_workspace
     type: builtin
@@ -747,8 +747,8 @@ tools:
       undo: "workspace_restore"
     undo:
       strategy: workspace_restore
-      description: "Restore point workspace files from a previous workspace ref."
-      requires: [Workspace]
+      description: "Restore point workspace files from the persisted receipt."
+      requires: [Receipt]
 
   - name: copy_sample_docs
     type: builtin
@@ -767,8 +767,8 @@ tools:
       undo: "workspace_restore"
     undo:
       strategy: workspace_restore
-      description: "Restore copied point documentation from a previous workspace ref."
-      requires: [Workspace]
+      description: "Restore copied point documentation from the persisted receipt."
+      requires: [Receipt]
 
   - name: init_workspace_repo
     type: builtin
@@ -806,8 +806,8 @@ tools:
       undo: "git_index_restore"
     undo:
       strategy: workspace_restore
-      description: "Restore the point workspace git index from a previous workspace ref."
-      requires: [Workspace]
+      description: "Restore point workspace state from the persisted receipt."
+      requires: [Receipt]
 
   - name: commit_workspace_baseline
     type: builtin
@@ -854,7 +854,7 @@ tools:
       description: "Restore point context and workspace refs; external child process effects may require compensation."
       payload: boundary_compensation
       captures: [point_context_snapshot, point_workspace, trace_path, result_path]
-      requires: [Workspace]
+      requires: [Receipt]
 
   - name: run_oracle_check
     type: builtin
@@ -951,8 +951,8 @@ tools:
       undo: "workspace_restore"
     undo:
       strategy: workspace_restore
-      description: "Restore point artifact files to a previous workspace ref."
-      requires: [Workspace]
+      description: "Restore point artifact files from the persisted receipt."
+      requires: [Receipt]
 
   - name: dump_config
     type: builtin
@@ -971,8 +971,8 @@ tools:
       undo: "workspace_restore"
     undo:
       strategy: workspace_restore
-      description: "Restore experiment artifacts to a previous workspace ref."
-      requires: [Workspace]
+      description: "Restore experiment artifacts from the persisted receipt."
+      requires: [Receipt]
 
   # --- bench tools ---
   - name: serve_ui
@@ -1020,7 +1020,7 @@ tools:
       description: "Use evaluator output cleanup, child history, or workspace restore for generated artifacts."
       payload: boundary_compensation
       captures: [suite_path, output_dir, child_machine, child_tools]
-      requires: [Workspace]
+      requires: [Receipt]
 
   # --- spec validation tools ---
   - name: load_corpus

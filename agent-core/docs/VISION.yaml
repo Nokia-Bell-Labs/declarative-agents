@@ -63,9 +63,9 @@ vision_model_diagram: |
     C -->|Result.Signal| R
     R -->|next transition| M
 
-    TD --> LC[Lifecycle model: side effects, undo, rollback]
-    C --> W[Workspace and command/domain state]
-    LC --> W
+    TD --> LC[Lifecycle model: side effects, receipts, rollback]
+    C --> RCP[Tool-owned receipt]
+    LC --> RCP
   ```
 
 tool_language_diagram: |
@@ -108,8 +108,8 @@ what_this_does: |
   and transitions. Tool declarations define vocabulary contracts. Tool
   selection narrows the vocabulary available to each configured agent.
   Boundary config describes model behavior, human-facing UI surfaces, REST
-  resources, and tool manifest context. Lifecycle config supplies StateStore,
-  Workspace, CheckpointPolicy, rollback behavior, and suspend behavior.
+  resources, and tool manifest context. Lifecycle config supplies checkpoint
+  backend, rollback, resume, and suspend behavior.
 
   Core runtime code owns the domain-agnostic loop machinery. The state
   machine maps State and Signal values to NextState and ActionFunc behavior.
@@ -131,10 +131,8 @@ what_this_does: |
   Reusable tool implementations live in the internal/tools package family.
   These packages cover file tools, build tools, model-boundary commands,
   subprocess execution, workspace tools, lifecycle adapters, and REST boundary
-  tools. Tool metrics extraction lives there too. The current internal/tools/stl package is
-  a compatibility facade while focused target packages take ownership. Tools in
-  these packages should behave as vocabulary words or documented boundaries, not
-  hidden workflows.
+  tools. Tool metrics extraction lives there too. Tools in these packages should
+  behave as vocabulary words or documented boundaries, not hidden workflows.
 
   internal/support/cli provides CLI flag constants and argument propagation as
   a utility library. cmd/agent does not import it directly.
@@ -156,9 +154,9 @@ what_this_does: |
   pkg/spec parses SRD, use case, and test suite YAML. It also builds dependency
   graphs, validates cross-artifact links, and manages the corpus.
 
-  Lifecycle and Rollback Foundations. Optional StateStore, Workspace, and
-  CheckpointPolicy ports let agents record state and recover from bad actions
-  without changing normal behavior when disabled.
+  Lifecycle and Rollback Foundations. The typed Checkpoint port records the
+  resumable Position and ordered Execution log. DoltCheckpoint is the persistent
+  backend when configured; NoopCheckpoint preserves disabled-mode behavior.
 
 why_we_build_this: |
   The agentic-loop project needs more than one agent type.

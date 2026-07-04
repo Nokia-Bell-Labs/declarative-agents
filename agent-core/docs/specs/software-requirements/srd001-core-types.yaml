@@ -11,7 +11,7 @@ problem: |
 goals:
   - G1: Domain-agnostic types for commands, results, signals, and costs.
   - G2: Interfaces for command construction (Builder) and lookup (CommandResolver).
-  - G3: Foundation interfaces for rollback state storage, workspace refs, and checkpoint metadata.
+  - G3: Foundation types for typed checkpoints, execution history, and tool-owned receipts.
 
 requirements:
   R1:
@@ -64,14 +64,14 @@ requirements:
       - R6.3: Without SpanOverride, Dispatch defaults to GenAI semconv execute_tool naming.
 
   R8:
-    title: Rollback foundation types
+    title: Checkpoint foundation types
     items:
-      - R8.1: StateStore persists JSON blobs for agent and command/domain state with Save, Load, List, and Delete.
-      - R8.2: Workspace tracks external environment state with Checkpoint, Restore, and CurrentRef.
-      - R8.3: CheckpointPolicy decides whether to checkpoint a CheckpointEvent.
-      - R8.4: Checkpoint captures AgentSnapshot, optional domain JSON, optional WorkspaceRef, and optional HistoryDigest entries.
-      - R8.5: GitWorkspace implements Workspace using git add, git commit --allow-empty, git reset --hard, and git rev-parse HEAD.
-      - R8.6: GitWorkspace SHALL require the configured directory to be the git top-level before checkpoint or restore operations.
+      - R8.1: Checkpoint persists runtime state with Save(Position, Execution) and restores it with Load.
+      - R8.2: Position records CurrentState, LastSignal, and AgentSnapshot for resumable loop state.
+      - R8.3: Execution is an ordered slice of Entry values preserving dispatch history.
+      - R8.4: Each Entry records command, state transition, signal, result digest, and opaque Receipt.
+      - R8.5: NoopCheckpoint implements disabled-mode persistence without recording state.
+      - R8.6: CheckpointReverter extends persistent backends that can Revert(run_id, step_index), such as DoltCheckpoint.
 
 non_goals:
   - Domain-specific state or signal constants.
@@ -108,7 +108,7 @@ acceptance_criteria:
     traces: [R6.1, R6.2, R6.3]
 
   - id: AC8
-    criterion: Rollback foundation interfaces, checkpoint structs, and GitWorkspace model agent state, command/domain state, and external workspace state separately.
+    criterion: Checkpoint foundation types model resumable position, ordered execution history, opaque receipts, no-op persistence, and revert-capable persistent backends.
     traces: [R8.1, R8.2, R8.3, R8.4, R8.5, R8.6]
 
 diagrams:
@@ -138,6 +138,6 @@ diagrams:
       R5 --> AC5
       AC6["AC6: SpanOverride interface has SpanName() and SpanCreationAtt..."]
       R6 --> AC6
-      AC8["AC8: Rollback foundation interfaces, checkpoint structs, and G..."]
+      AC8["AC8: Checkpoint foundation types, checkpoint structs, and G..."]
       R8 --> AC8
     ```

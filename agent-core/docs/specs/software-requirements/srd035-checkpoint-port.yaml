@@ -140,10 +140,10 @@ reference_model: |
   serves rollback in place of the retired engine undo-walk.
 
 implementation_status:
-  planned:
-    - Typed Checkpoint port with Position, Execution, Entry, and the opaque Receipt on Result (tracked by the checkpoint-port epic).
-    - NoopCheckpoint and InMemoryCheckpoint reference adapters; FileStore retargeted onto the port until the Dolt adapter lands.
-    - Save-after-dispatch timing, single resume path, and removal of CheckpointPolicy and the engine undo-walk.
+  done:
+    - Typed Checkpoint port with Position, Execution, Entry, and opaque Receipt on Result.
+    - NoopCheckpoint and InMemoryCheckpoint adapters, with DoltCheckpoint as the persistent backend when configured.
+    - Save-after-dispatch timing, single resume path, and retirement of CheckpointPolicy and the engine undo-walk.
 
 diagrams:
   requirements_trace: |
