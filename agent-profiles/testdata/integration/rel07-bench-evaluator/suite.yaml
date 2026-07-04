@@ -1,0 +1,6 @@
+name: rel07-bench-evaluator
+profiles:
+  - ../../../agents/generator/profile.yaml
+samples_dir: samples
+timeout: 30s
+repetitions: 1

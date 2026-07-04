@@ -1,0 +1,73 @@
+id: rel07.0-uc005-monitor-control-profile-boundary
+title: Monitor Control Profile Boundary
+
+summary: |
+  The monitor/control proof records profile-owned evidence for boundary runtime
+  behavior. Monitor exposes cached runtime state through declared REST routes,
+  accepts a control exit request, and routes cleanup through MachineSpec. Control
+  accepts a lifecycle exit request and routes it through visible lifecycle
+  vocabulary from ExitRequested to exit_agent and AgentExited.
+
+  The proof stays configuration-level because monitor and control behavior is
+  encoded in profile-owned YAML assets while agent-core owns the REST and
+  lifecycle builtin implementations.
+
+actor: Profile maintainer verifying monitor/control boundary behavior.
+
+trigger: |
+  A maintainer runs the monitor-control integration target:
+
+    AGENT_CORE_ROOT=/path/to/agent-core mage integration:monitorControl
+
+preconditions:
+  - agents/monitor/profile.yaml and agents/control/profile.yaml validate.
+  - testdata/integration/rel07-monitor-control/expected/evidence.yaml defines expected boundary evidence.
+  - agent-core remains responsible for rest_server_launch, rest_await_event, rest_server_stop, and exit_agent implementations.
+
+flow:
+  - id: F1
+    text: The target loads monitor/control profile assets from agent-profiles.
+  - id: F2
+    text: The monitor REST config declares current state, metrics, tools, machine, and recent-event read routes.
+  - id: F3
+    text: Monitor and control configs accept exit requests through emit_signal REST bindings.
+  - id: F4
+    text: The monitor MachineSpec routes ExitRequested to stop_monitor_rest, while control routes ExitRequested to exit_agent.
+  - id: F5
+    text: The tracer records listener cleanup, AgentExited routing, and target ownership evidence.
+
+touchpoints:
+  - id: T1
+    target: sm-agent-role-taxonomy monitor
+    reason: Monitor owns runtime-state read boundaries.
+  - id: T2
+    target: sm-agent-role-taxonomy control
+    reason: Control owns REST event to lifecycle signal routing.
+  - id: T3
+    target: sm-multi-agent-profile-system monitor/control
+    reason: Monitor reads cached state and control routes explicit lifecycle signals.
+  - id: T4
+    target: test-rel07.0-profile-integrations monitor_control_boundary
+    reason: The suite records whether the tracer is implemented or blocked.
+
+success_criteria:
+  - id: S1
+    criterion: The tracer records implemented monitor/control boundary evidence.
+    traces:
+      - test-rel07.0-profile-integrations monitor_control_boundary
+  - id: S2
+    criterion: Monitor routes expose cached runtime state without running tools from HTTP handlers.
+    traces:
+      - sm-agent-role-taxonomy monitor checks
+  - id: S3
+    criterion: Control routes emit declared lifecycle signals and reach terminal status.
+    traces:
+      - sm-agent-role-taxonomy control checks
+
+out_of_scope:
+  - Building a new monitor UI.
+  - Adding agent-core monitor features.
+  - Full HTTP listener exercise for monitor/control; agent-core owns that runtime behavior.
+
+test_suite_trace: test-rel07.0-profile-integrations
+status: implemented

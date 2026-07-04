@@ -1,0 +1,10 @@
+suite: rel07-evaluator-generator
+subject_profile: agents/generator/profile.yaml
+expected_points: 1
+expected_sample: greet
+expected_harness: generator
+expected_oracle_passed: true
+expected_child_exit_code: 0
+expected_trace_evidence:
+  - gen_ai.usage.input_tokens
+  - gen_ai.usage.output_tokens

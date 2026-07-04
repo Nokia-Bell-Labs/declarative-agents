@@ -137,31 +137,24 @@ test_cases:
       - sm-agent-role-taxonomy evaluator
 
   - use_case: rel06.0-uc001-mounted-profile-execution
-    name: Agent Core monitor and Knowledge Manager integrations consume profile assets
+    name: Agent Core monitor integration consumes profile assets
     go_test: agent-core integration targets
-    integration_target: AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004; AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc006; AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc007
+    integration_target: AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004
     status: implemented
     description: |
       Run agent-core integration targets from the agent-core repository with
-      AGENT_PROFILES_ROOT pointing at agent-profiles. uc004 consumes the monitor
-      profile proof metadata. uc006 and uc007 consume Knowledge Manager profile
-      assets, REST definitions, request machines, UI assets, and control flow.
+      AGENT_PROFILES_ROOT pointing at agent-profiles. uc004 consumes monitor
+      profile proof metadata. Concrete Knowledge Manager/documentation-curator
+      proof moves to the profile-owned Rel07 suite.
     inputs:
       monitor_fixture: testdata/integration/rel04-monitor/monitor-rest.yaml
-      knowledge_manager_profile: agents/knowledge-manager/documentation-curator/profile.yaml
-      knowledge_manager_ui: agents/knowledge-manager/documentation-curator/ui/ux.yaml
+      knowledge_manager_profile_proof: test-rel07.0-profile-integrations
     expected:
       monitor_metadata_external: true
-      knowledge_manager_profile_external: true
-      profile_local_ui_assets_used: true
-      control_exit_profile_flow_used: true
+      knowledge_manager_profile_external: rel07_planned
     traces:
       - rel06.0-uc001-mounted-profile-execution S2
       - rel06.0-uc001-mounted-profile-execution S5
       - srd001-agent-functional-blocks R8.1
       - srd001-agent-functional-blocks R8.2
-      - srd001-agent-functional-blocks R11.1
-      - srd001-agent-functional-blocks R11.2
-      - srd001-agent-functional-blocks R11.3
       - sm-agent-role-taxonomy monitor
-      - sm-agent-role-taxonomy documentation-curator

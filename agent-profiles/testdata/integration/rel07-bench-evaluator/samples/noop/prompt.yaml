@@ -1,0 +1,4 @@
+prompt: |
+  This sample exists so the bench launch request points at a concrete
+  profile-owned evaluator suite. The bench tracer verifies launch evidence,
+  not evaluator point semantics.
