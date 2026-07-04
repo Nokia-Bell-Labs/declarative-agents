@@ -156,7 +156,7 @@ test_cases:
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Sentence tool migration creates replacement word declarations
     go_test: TestSentenceToolMigrationCreatesReplacementWords
-    status: planned
+    status: done
     description: |
       Given a legacy aggregate tool, identify each observable verb and create
       one ToolDef per word. Replacement declarations must include the
@@ -181,7 +181,7 @@ test_cases:
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: MachineSpec owns migrated workflow sequence
     go_test: TestSentenceToolMigrationMachineSequence
-    status: planned
+    status: done
     description: |
       Rewire a migrated workflow so machine.yaml has one state/action step per
       replacement word. Startup validation should confirm each named action is
@@ -243,7 +243,7 @@ test_cases:
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Migration preserves intermediate failure signals
     go_test: TestSentenceToolMigrationPreservesFailureSignals
-    status: planned
+    status: done
     description: |
       Split a workflow-shaped tool into multiple words and verify the migrated
       machine exposes intermediate failure transitions that the aggregate had
