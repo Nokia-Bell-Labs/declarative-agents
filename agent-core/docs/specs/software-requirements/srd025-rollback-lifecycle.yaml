@@ -51,7 +51,7 @@ requirements:
     title: Receipt-driven reversibility
     items:
       - R3.1: State-mutating commands SHALL encode an opaque Receipt during Execute that captures what a later Undo needs, such as prior file content, external resource ids, or a workspace commit hash.
-      - R3.2: Command Undo SHALL be receipt-consuming: it takes the restored receipt-bearing Result and reverses the external effect.
+      - R3.2: "Command Undo SHALL be receipt-consuming: it takes the restored receipt-bearing Result and reverses the external effect."
       - R3.3: Read-only commands SHALL return an empty receipt and a no-op Undo.
       - R3.4: The engine and the checkpoint adapters SHALL treat receipts as opaque and SHALL NOT interpret them; only the originating tool decodes its receipt.
       - R3.5: The lifecycle validator SHALL check receipt presence for reversible state-mutating tools; receipt sufficiency SHALL be each tool's own round-trip test.

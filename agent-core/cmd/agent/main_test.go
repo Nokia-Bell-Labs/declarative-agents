@@ -850,6 +850,19 @@ func requireProcessSucceeded(t *testing.T, resultCh <-chan error, stdout, stderr
 	require.Contains(t, stderr.String(), "terminal state: succeeded")
 }
 
+func TestCommandFailureMessageReportsCommandErrorDetail(t *testing.T) {
+	t.Parallel()
+
+	message := commandFailureMessage(core.Result{
+		CommandName: "load_corpus",
+		Signal:      core.CommandError,
+		Output:      "load corpus failed: parse SRD docs/specs/software-requirements/srd025-rollback-lifecycle.yaml: yaml: line 54",
+	})
+
+	require.Contains(t, message, "load_corpus failed")
+	require.Contains(t, message, "srd025-rollback-lifecycle.yaml")
+}
+
 func requireToolDef(t *testing.T, defs []catalog.ToolDef, name string) catalog.ToolDef {
 	t.Helper()
 	for _, def := range defs {

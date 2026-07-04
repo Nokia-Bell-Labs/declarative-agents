@@ -563,7 +563,8 @@ implementation:
   - cmd/agent/main.go
   - internal/runtime/core/loop.go
   - internal/runtime/core/machine.go
-  - internal/runtime/core/checkpoint_ops.go
+  - internal/runtime/core/checkpoint.go
+  - internal/runtime/core/checkpoint_adapters.go
   - internal/tools/lifecycle/checkpoint.go
   - internal/tools/catalog/loading.go
   - internal/tools/catalog/emits.go

@@ -21,8 +21,8 @@ flow:
   - F2: The developer classifies the tool as word, stateful_internal, boundary, or sentence migration candidate (srd022 R0, srd023 R0, srd024 R0).
   - F3: The developer defines parameters and output.schema so the next machine transition or tool can consume the result without prose interpretation (cfg-tool-authoring-standard).
   - F4: The developer declares emits so named MachineSpec actions can validate returned signals (srd022 R4, srd023 R3).
-  - F5: The developer declares side_effects, reversibility, undo, errors, and state_after_failure using the three-layer rollback model (srd025 R11).
-  - F6: If the tool is irreversible or compensatable, the developer documents confirmation or compensation behavior before selecting it in user-affecting workflows (srd025 R11).
+  - F5: The developer declares side_effects, reversibility, undo, errors, and state_after_failure using the current rollback lifecycle model (srd025 R3, R8).
+  - F6: If the tool is irreversible or compensatable, the developer documents confirmation or compensation behavior before selecting it in user-affecting workflows (srd025 R8).
   - "F7": "The developer documents relationships: likely preceding tools, likely consumers, and overlaps with similar words (cfg-tool-authoring-standard)."
   - F8: The developer wires the tool into machine.yaml as one action in a visible sequence rather than embedding sequencing inside the tool (srd006, sm-tool-language).
 
@@ -31,7 +31,7 @@ touchpoints:
   - T2: "srd022-builtin-tools R0, R1, R4 -- builtin declarations follow the authoring standard and integrate with machines"
   - T3: "srd023-cli-exec-tools R0, R1, R3, R5 -- exec declarations model one CLI verb with declared side effects"
   - T4: "srd024-blocking-input-tools R0, R2, R3 -- boundary/blocking tools declare external input and signals"
-  - T5: "srd025-rollback-lifecycle R4, R10, R11 -- undo, feature flags, reversibility, and safety behavior"
+  - T5: "srd025-rollback-lifecycle R3, R7, R8 -- receipts, opt-in lifecycle behavior, reversibility, and safety behavior"
   - T6: "sm-tool-language -- ToolDef, ToolSpec, Command, and MachineSpec relationships"
 
 success_criteria:

@@ -41,7 +41,7 @@ flow:
   - F1: Agent startup resolves the checkpoint backend at the composition root -- --dolt-dsn selects the Dolt adapter over the registered MySQL-wire driver, and its absence leaves NoopCheckpoint so disabled-mode runs keep current behavior (srd035 R5, srd036 R1).
   - F2: core.Loop drives the MachineSpec normally until a transition invokes an approval-gate or suspend tool (srd005 R5, srd024 R1).
   - F3: The approval-gate tool emits a machine-declared suspend signal rather than failing the run (srd024 R2).
-  - F4: After the suspend dispatch the loop calls Save(Position, Execution): the Position carries current_state, last_signal, the AgentSnapshot counters, and the conversation folded into the snapshot; the Execution appends the dispatched entry with its opaque receipt (srd035 R2, R4, R6.1).
+  - F4: "After the suspend dispatch the loop calls Save(Position, Execution): the Position carries current_state, last_signal, the AgentSnapshot counters, and the conversation folded into the snapshot; the Execution appends the dispatched entry with its opaque receipt (srd035 R2, R4, R6.1)."
   - F5: The Dolt backend commits the step on the run branch so the suspended state survives the process exit (srd036 R4).
   - F6: RunResult returns StatusSuspended with enough detail for the operator to locate the run's checkpoint (srd035 R6).
   - F7: The operator approves or rejects the pending action outside the original process.
