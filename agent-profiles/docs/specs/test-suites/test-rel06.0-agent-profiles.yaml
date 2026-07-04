@@ -102,7 +102,7 @@ test_cases:
       core_root: AGENT_CORE_ROOT
     expected:
       profile_loads_default_core_suite_config: true
-      demo_suite_selected_from_profile_data: true
+      demo_suite_selected_by_temp_profile_override: true
       grep_check_finding: jurist-demo-charter/no-internal-vocabulary
       ref_check_finding: jurist-demo-charter/citations-resolve
       consistency_check_finding: jurist-demo-charter/artifacts-exist

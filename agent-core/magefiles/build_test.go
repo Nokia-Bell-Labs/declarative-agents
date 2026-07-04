@@ -101,9 +101,12 @@ func TestWriteJuristCharterSmokeProfile(t *testing.T) {
 
 func TestAssertJuristCharterSmoke(t *testing.T) {
 	output := `
-[error] jurist-demo-charter/no-internal-vocabulary (grep_check) at docs/manuscript.md:3
-[error] jurist-demo-charter/citations-resolve (ref_check) at docs/manuscript.md:5
-[error] jurist-demo-charter/artifacts-exist (consistency_check) at manifest.yaml:2
+[error] jurist-demo-charter/no-internal-vocabulary (grep_check):
+  - docs/manuscript.md:3: Demo prose must not include internal vocabulary.
+[error] jurist-demo-charter/citations-resolve (ref_check):
+  - docs/manuscript.md:5: Demo citation reference must resolve.
+[error] jurist-demo-charter/artifacts-exist (consistency_check):
+  - manifest.yaml:3: Demo manifest artifact path must exist.
 terminal state: failed
 `
 	if err := assertJuristCharterSmoke(output); err != nil {
