@@ -382,12 +382,14 @@ func TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown(t *testing.T)
 	shutdown := newDeferredShutdown(func() { cancelled = true })
 
 	result := runExitMachine(t, exitMachineCase{
-		machinePath:  profilePathFromTest(t, "knowledge-manager/documentation-curator/machine.yaml"),
-		launch:       "serve_documentation",
-		secondLaunch: "launch_curator_control",
-		await:        "await_curator_control",
-		terminal:     "Done",
-		shutdown:     shutdown,
+		machinePath:   profilePathFromTest(t, "knowledge-manager/documentation-curator/machine.yaml"),
+		launch:        "serve_documentation",
+		secondLaunch:  "launch_curator_control",
+		monitorLaunch: "launch_monitor_rest",
+		monitorStop:   "stop_monitor_rest",
+		await:         "await_curator_control",
+		terminal:      "Done",
+		shutdown:      shutdown,
 	})
 
 	require.Equal(t, core.StatusSucceeded, result.Status)
@@ -450,12 +452,14 @@ func TestResumeWithoutPersistentBackendReportsNoCheckpoint(t *testing.T) {
 }
 
 type exitMachineCase struct {
-	machinePath  string
-	launch       string
-	secondLaunch string
-	await        string
-	terminal     string
-	shutdown     *deferredShutdown
+	machinePath   string
+	launch        string
+	secondLaunch  string
+	monitorLaunch string
+	monitorStop   string
+	await         string
+	terminal      string
+	shutdown      *deferredShutdown
 }
 
 type staticSignalBuilder struct {
@@ -503,6 +507,12 @@ func runExitMachine(t *testing.T, tc exitMachineCase) core.RunResult {
 	registerStaticSignal(reg, tc.launch, "ServerLaunched", "{}", launchStopSignal)
 	if tc.secondLaunch != "" {
 		registerStaticSignal(reg, tc.secondLaunch, "ServerLaunched", "{}", "")
+	}
+	if tc.monitorLaunch != "" {
+		registerStaticSignal(reg, tc.monitorLaunch, "ServerLaunched", "{}", "")
+	}
+	if tc.monitorStop != "" {
+		registerStaticSignal(reg, tc.monitorStop, "ServerStopped", "{}", "")
 	}
 	registerStaticSignal(reg, tc.await, "ExitRequested", exitEventOutput(), "")
 	reg.Register(core.ToolSpec{Name: "exit_agent"}, lifecycle.ExitBuilder{
@@ -622,14 +632,14 @@ func monitorProofAgentState(
 	restDefs toolrest.Collection,
 ) *agentState {
 	return &agentState{
-		registry:   reg,
-		tracer:     tracing.NoopTracer{},
-		ctx:        context.Background(),
-		directory:  cfg.Directory,
-		request:    cfg.Request,
-		monitor:    monitorState(mon.Store, machine, defs),
-		restDefs:   restDefs,
-		shutdown:   func() {},
+		registry:  reg,
+		tracer:    tracing.NoopTracer{},
+		ctx:       context.Background(),
+		directory: cfg.Directory,
+		request:   cfg.Request,
+		monitor:   monitorState(mon.Store, machine, defs),
+		restDefs:  restDefs,
+		shutdown:  func() {},
 	}
 }
 
@@ -884,10 +894,19 @@ func requireMetricData(t *testing.T, data metricdata.ResourceMetrics, name strin
 }
 
 func (b staticSignalBuilder) Build(previous core.Result) core.Command {
-	if b.afterExit != "" && previous.Signal == core.Signal("AgentExited") {
+	// Once the machine begins tearing down, a launch tool re-dispatched during
+	// shutdown emits its afterExit signal instead of its launch signal. Teardown
+	// can span several steps (e.g. exit_agent -> stop_monitor_rest ->
+	// serve_documentation in the documentation-curator machine), so the switch
+	// fires on any teardown-phase signal, not just the AgentExited that opens it.
+	if b.afterExit != "" && isTeardownSignal(previous.Signal) {
 		return staticSignalCmd{name: b.name, signal: b.afterExit, output: b.output}
 	}
 	return staticSignalCmd{name: b.name, signal: b.signal, output: b.output}
+}
+
+func isTeardownSignal(signal core.Signal) bool {
+	return signal == core.Signal("AgentExited") || signal == core.Signal("ServerStopped")
 }
 
 func (c staticSignalCmd) Name() string { return c.name }
@@ -1040,4 +1059,3 @@ func captureStderr(t *testing.T, fn func() error) (string, error) {
 	require.NoError(t, r.Close())
 	return buf.String(), runErr
 }
-

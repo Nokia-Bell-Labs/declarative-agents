@@ -288,6 +288,8 @@ func curatorExitLoopParams(t *testing.T, host *DocumentationHostLifecycle, launc
 	reg := core.NewRegistry()
 	reg.Register(core.ToolSpec{Name: "serve_documentation"}, newServeDocumentationCommand(t, host))
 	registerStaticDocsSignal(reg, "launch_curator_control", "ServerLaunched", "{}")
+	registerStaticDocsSignal(reg, "launch_monitor_rest", "ServerLaunched", "{}")
+	registerStaticDocsSignal(reg, "stop_monitor_rest", "ServerStopped", "{}")
 	registerStaticDocsSignal(reg, "await_curator_control", "ExitRequested", `{"payload":{"reason":"operator requested shutdown","status":"success"}}`)
 	reg.Register(core.ToolSpec{Name: "exit_agent"}, lifecycle.ExitBuilder{
 		Config: lifecycle.ExitConfig{Status: "success"}, Shutdown: func() {},

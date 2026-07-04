@@ -81,8 +81,17 @@ func (b ServeDocumentationBuilder) Build(previous core.Result) core.Command {
 	}
 	return serveDocumentationCmd{
 		config: b.Config, host: host,
-		stop: previous.Signal == core.Signal("AgentExited"),
+		stop: serveDocumentationShouldStop(previous.Signal),
 	}
+}
+
+// serveDocumentationShouldStop reports whether a serve_documentation dispatch is
+// the teardown stop rather than the startup launch. The curator machine dispatches
+// the tool twice — to launch at Idle and to stop during shutdown — and teardown
+// opens with AgentExited but passes through the monitor stop (ServerStopped) before
+// reaching the docs stop, so either teardown-phase signal selects the stop path.
+func serveDocumentationShouldStop(previous core.Signal) bool {
+	return previous == core.Signal("AgentExited") || previous == documentationServerStopped
 }
 
 type serveDocumentationCmd struct {
