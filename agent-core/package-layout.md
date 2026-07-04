@@ -23,9 +23,9 @@ public Go APIs.
 
 - `internal/runtime`: agent loop runtime, state machines, dispatch,
   checkpoints, rollback, and workspace refs.
-- `internal/tools`: tool contracts, tool config/profile loading, and generic
-  file, exec, lifecycle, validation, and LLM tool implementations. This domain
-  contains the standard tool library under `internal/tools/stl`.
+- `internal/tools`: standard tool library behavior split across focused packages
+  for catalog loading, registration, file, exec, lifecycle, validation, control,
+  undo, REST, and LLM tool implementations.
 - `internal/evaluation`: evaluator session/point runtime, result artifacts,
   metrics, convergence, trace analysis, and bench orchestration/UI support.
   Bench server, UI, and orchestration code live under `internal/evaluation/bench`.
@@ -45,15 +45,17 @@ public Go APIs.
 Generated from `go list ./...` after the internal package migration:
 
 - `cmd/agent`
-- `internal/audit`
 - `internal/evaluation`
 - `internal/evaluation/bench`
 - `internal/evaluation/bench/ui`
+- `internal/knowledge/documentation`
+- `internal/knowledge/documentation/ui`
 - `internal/model`
 - `internal/model/llm`
 - `internal/model/llm/ollama`
 - `internal/model/prompt`
 - `internal/observability`
+- `internal/observability/monitor`
 - `internal/observability/telemetry`
 - `internal/observability/telemetry/genai`
 - `internal/observability/tracing`
@@ -69,9 +71,17 @@ Generated from `go list ./...` after the internal package migration:
 - `internal/support/cli`
 - `internal/support/execute`
 - `internal/support/subprocess`
-- `internal/support/worktree`
 - `internal/tools`
-- `internal/tools/stl`
+- `internal/tools/catalog`
+- `internal/tools/control`
+- `internal/tools/exec`
+- `internal/tools/filesystem`
+- `internal/tools/lifecycle`
+- `internal/tools/llm`
+- `internal/tools/registry`
+- `internal/tools/rest`
+- `internal/tools/undo`
+- `internal/tools/validation`
 - `pkg/spec`
 
 `pkg/spec` is the only current public `pkg/` package.
@@ -86,9 +96,9 @@ Generated from `go list ./...` after the internal package migration:
 4. Move LLM and prompt packages under `internal/model`.
 5. Move planning pipeline packages under `internal/planning`.
 6. Split the standard tool library by domain before moving evaluator, audit, or
-   model-specific tool implementations. Done: generic STL code now lives under
-   `internal/tools/stl`, and evaluator session/point/result code lives under
-   `internal/evaluation`.
+   model-specific tool implementations. Done: generic tool behavior now lives in
+   focused `internal/tools/*` packages, and evaluator session/point/result code
+   lives under `internal/evaluation`.
 7. Move the remaining bench runtime under `internal/evaluation`. Done: bench
    server, UI support, and bench-specific tools now live under
    `internal/evaluation/bench`.

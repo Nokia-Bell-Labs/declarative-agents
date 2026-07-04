@@ -9,10 +9,10 @@ problem: |
   with inconsistent interfaces and behavior. The STL provides production-
   ready implementations that any agent can import and register.
 
-  This SRD is the overview for the shared standard tool library. The current
-  internal/tools/stl package is a compatibility facade during migration. The
-  long-term implementation is split across focused packages under
-  internal/tools. Focused tool architecture contracts live in:
+  This SRD is the overview for the shared standard tool library. The former
+  internal/tools/stl compatibility facade has been retired. The implementation
+  is split across focused packages under internal/tools. Focused tool
+  architecture contracts live in:
   - srd021-agent-cli-exec-tool for treating agent as a configured CLI tool
   - srd022-builtin-tools for builtin declarations and factories
   - srd023-cli-exec-tools for external CLI/exec tool declarations
@@ -27,7 +27,7 @@ goals:
   - G6: Evaluation harness tools for atomic point workspace setup, config dumping, agent execution, result checking, and metrics collection.
   - G7: Machine-declared validation sequences using atomic build, lint, and test tools; validate remains only as an internal compatibility aggregator.
   - G8: Cross-reference focused tool SRDs rather than duplicating their detailed architectural contracts.
-  - G9: Split long-term tool implementations into focused internal/tools packages while keeping internal/tools/stl as a temporary facade.
+  - G9: Split long-term tool implementations into focused internal/tools packages without a facade package.
 
 requirements:
   R1:
@@ -127,7 +127,7 @@ requirements:
       - R10.8: collect_metrics writes evaluation metadata (exit code, duration, test results, tokens) to meta.json.
 
 target_package_layout:
-  status: planned
+  status: current
   notes:
     - Tool declaration loading, selection, ToolDef contracts, ToolSpec conversion, and config decoding move to internal/tools/catalog.
     - BuiltinRegistry, RegisterSingleBuiltin, RegisterUnifiedTools, selected init discovery, and standard factory catalog wiring move to internal/tools/registry.
@@ -138,7 +138,6 @@ target_package_layout:
     - self_invoke and other child-agent or loop-control boundary tools move to internal/tools/control.
     - validate compatibility aggregation and spec audit commands move to internal/tools/validation.
     - Shared UndoMemento payloads, workspace restore payloads, and boundary compensation helpers move to internal/tools/undo.
-    - internal/tools/stl remains only as a temporary compatibility facade while callers migrate.
 
 target_declaration_layout:
   status: planned
