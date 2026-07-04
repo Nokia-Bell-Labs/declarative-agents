@@ -23,6 +23,7 @@ type ToolSpec struct {
 	InputSchema json.RawMessage
 	Visibility  Visibility
 	Phases      []State
+	PhaseScoped bool
 }
 
 type registryEntry struct {
@@ -101,13 +102,22 @@ func (r *Registry) Manifest(state State) []ToolSpec {
 		if e.spec.Visibility != External {
 			continue
 		}
-		if !PhaseMatch(e.spec.Phases, state) {
+		if !e.spec.AvailableIn(state) {
 			continue
 		}
 		out = append(out, e.spec)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
+}
+
+// AvailableIn reports whether a ToolSpec is available in a state-scoped
+// manifest. Unscoped empty Phases preserve the legacy "all states" behavior.
+func (ts ToolSpec) AvailableIn(state State) bool {
+	if len(ts.Phases) == 0 {
+		return !ts.PhaseScoped
+	}
+	return PhaseMatch(ts.Phases, state)
 }
 
 // AllToolNames returns every registered tool name sorted alphabetically.

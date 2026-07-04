@@ -45,7 +45,9 @@ type ToolDef struct {
 	Dir           string                 `yaml:"dir,omitempty"`
 	Precondition  string                 `yaml:"precondition,omitempty"`
 	Visibility    string                 `yaml:"visibility,omitempty"`
+	Phases        []string               `yaml:"phases,omitempty"`
 	OutputCap     int                    `yaml:"output_cap,omitempty"`
+	phaseScoped   bool
 }
 
 // ToolRequirements groups observable behaviors a tool must satisfy.
@@ -179,7 +181,20 @@ func (td *ToolDef) ToToolSpec() core.ToolSpec {
 		Description: desc,
 		InputSchema: td.buildInputSchema(),
 		Visibility:  vis,
+		Phases:      toolSpecPhases(td.Phases),
+		PhaseScoped: td.phaseScoped || len(td.Phases) > 0,
 	}
+}
+
+func toolSpecPhases(phases []string) []core.State {
+	if len(phases) == 0 {
+		return nil
+	}
+	out := make([]core.State, 0, len(phases))
+	for _, phase := range phases {
+		out = append(out, core.State(phase))
+	}
+	return out
 }
 
 func (td *ToolDef) buildInputSchema() json.RawMessage {
