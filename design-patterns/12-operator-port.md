@@ -116,7 +116,7 @@ monitor: { enabled: true, ring_capacity: 500, rest_port: 8080, otel_export: true
 
 The HTTP interface is four endpoints: `/read_state` (GET snapshot), `/stream_events` (GET SSE), `/emit_signal` (POST, 400 if the machine rejects), and `/lifecycle_control` (POST administrative command). Agents publish their REST address to a well-known file derived from PID and profile, so orchestrators and lifecycle tools locate them without port scanning.
 
-Checkpointing rides on LoopHooks: a **CheckpointPolicy** predicate evaluated after each dispatch (interval-, budget-, or state-based) creates a checkpoint as a side effect, producing no signal and not affecting the transition, which keeps checkpoint logic out of the machine. Note the probe is not the bench UI (`serve_ui`): the probe observes live, in-memory, in-progress executions; the bench reads completed trace files and classifies them (Chapter 11). Same data formats, different temporal scope.
+Checkpointing rides on the dispatch loop: after each step the engine saves the Position and the appended Execution entry through the typed checkpoint port — committed per step by the Dolt backend — as a side effect that produces no signal and does not affect the transition, which keeps checkpoint logic out of the machine. Runs that need no persistence bind `NoopCheckpoint` and pay nothing. Note the probe is not the bench UI (`serve_ui`): the probe observes live, in-memory, in-progress executions; the bench reads completed trace files and classifies them (Chapter 11). Same data formats, different temporal scope.
 
 
 ## Relationships in the Pattern Language
