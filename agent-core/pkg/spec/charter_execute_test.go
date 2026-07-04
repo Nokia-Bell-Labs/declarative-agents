@@ -59,6 +59,22 @@ func TestExecuteChartersSpecCorpusSubset(t *testing.T) {
 	}
 }
 
+func TestExecuteChartersRejectsUnknownSpecCorpusSubset(t *testing.T) {
+	graph, corpus := loadTestGraphAndCorpus(t)
+	charters := []Charter{{
+		ID: "builtin-spec-corpus",
+		Checks: []CharterCheck{{
+			ID:     "spec-corpus",
+			Kind:   "spec_corpus",
+			Checks: []string{"invented-check"},
+		}},
+	}}
+
+	_, err := ExecuteCharters(filepath.Join("testdata", "valid"), graph, corpus, charters)
+
+	require.ErrorContains(t, err, `unknown spec_corpus check "invented-check"`)
+}
+
 func TestExecuteChartersAggregatesDeterministicallyAcrossSuites(t *testing.T) {
 	root := t.TempDir()
 	writeTargetFile(t, root, "z.md", "cobbler\n")
