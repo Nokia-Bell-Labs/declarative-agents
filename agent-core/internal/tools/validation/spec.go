@@ -13,12 +13,15 @@ import (
 
 // SpecState holds shared state across spec validation tools.
 type SpecState struct {
-	Directory string
-	Stderr    io.Writer
-	Corpus    *spec.Corpus
-	Graph     *spec.Graph
-	Findings  []spec.Finding
-	HasErrors bool
+	Directory       string
+	TargetDirectory string
+	SuitePaths      []string
+	Stderr          io.Writer
+	Corpus          *spec.Corpus
+	Graph           *spec.Graph
+	Charters        []spec.Charter
+	Findings        []spec.Finding
+	HasErrors       bool
 }
 
 func (vs *SpecState) stderr() io.Writer {
@@ -53,11 +56,20 @@ func (c *loadCorpusCmd) Execute() core.Result {
 	if err != nil {
 		return core.Result{Signal: core.CommandError, Err: err, Output: fmt.Sprintf("load corpus failed: %v", err), CommandName: c.Name()}
 	}
+	charters, err := spec.LoadCharters(c.vs.SuitePaths)
+	if err != nil {
+		return core.Result{Signal: core.CommandError, Err: err, Output: fmt.Sprintf("load charters failed: %v", err), CommandName: c.Name()}
+	}
 	c.snapshot = snapshotSpec(c.vs)
 	c.hasSnapshot = true
+	c.vs.TargetDirectory = c.vs.Directory
 	c.vs.Corpus = corpus
+	c.vs.Charters = charters
 	output := fmt.Sprintf("loaded %d SRDs, %d use cases, %d test suites, %d machines, %d tool declarations",
 		len(corpus.SRDs), len(corpus.UseCases), len(corpus.TestSuites), len(corpus.Machines), len(corpus.ToolDeclarations))
+	if len(charters) > 0 {
+		output = fmt.Sprintf("%s, %d charters", output, len(charters))
+	}
 	return core.Result{Signal: core.ToolDone, Output: output, CommandName: c.Name(), Receipt: encodeSpecReceipt(c.snapshot)}
 }
 
