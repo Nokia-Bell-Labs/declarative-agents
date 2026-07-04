@@ -1,0 +1,6 @@
+id: builtin-spec-corpus
+title: Built-in Specification Corpus Checks
+checks:
+  - id: spec-corpus
+    kind: spec_corpus
+    severity: error

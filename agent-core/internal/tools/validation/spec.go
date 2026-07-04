@@ -101,7 +101,11 @@ func (c *validateSpecsCmd) Execute() core.Result {
 		return core.Result{Signal: core.CommandError, Err: err, Output: fmt.Sprintf("build graph failed: %v", err), CommandName: c.Name()}
 	}
 	c.vs.Graph = g
-	c.vs.Findings = spec.Validate(g, c.vs.Corpus)
+	findings, err := spec.ExecuteCharters(c.vs.TargetDirectory, g, c.vs.Corpus, c.vs.Charters)
+	if err != nil {
+		return core.Result{Signal: core.CommandError, Err: err, Output: fmt.Sprintf("execute charters failed: %v", err), CommandName: c.Name()}
+	}
+	c.vs.Findings = findings
 	errs := spec.Errors(c.vs.Findings)
 	c.vs.HasErrors = len(errs) > 0
 	res := validateSpecsResult(c.Name(), len(c.vs.Findings), len(errs))

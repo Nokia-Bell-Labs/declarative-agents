@@ -73,7 +73,11 @@ func LoadCharters(paths []string) ([]Charter, error) {
 
 // LoadCharter parses one jurist charter suite from disk.
 func LoadCharter(path string) (Charter, error) {
-	data, err := os.ReadFile(path)
+	readPath := path
+	if mapped := MapInstalledCorePath(path); mapped != "" {
+		readPath = mapped
+	}
+	data, err := os.ReadFile(readPath)
 	if err != nil {
 		return Charter{}, fmt.Errorf("read charter %s: %w", path, err)
 	}

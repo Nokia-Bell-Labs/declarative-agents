@@ -3,6 +3,9 @@ tools:
   type: builtin
   init: load_corpus
   visibility: internal
+  config:
+    suite_paths:
+    - /opt/agent-core/tools/builtin/spec-validation/spec-corpus-charter.yaml
   emits:
   - ToolDone
   - CommandError

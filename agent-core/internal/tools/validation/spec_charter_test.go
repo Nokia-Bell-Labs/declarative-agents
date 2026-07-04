@@ -64,6 +64,25 @@ func TestRegisterSpecFactoriesConfiguresCharterSuitePaths(t *testing.T) {
 	require.Equal(t, []string{"a.yaml", "b.yaml", "c.yaml", "d.yaml"}, loadBuilder.VS.SuitePaths)
 }
 
+func TestValidateSpecsRunsLoadedCharters(t *testing.T) {
+	root := filepath.Join("..", "..", "..", "pkg", "spec", "testdata", "valid")
+	vs := &SpecState{
+		Directory:       root,
+		TargetDirectory: root,
+		SuitePaths:      []string{writeValidationCharter(t, t.TempDir(), "suite.yaml")},
+	}
+
+	loadRes := (&LoadCorpusBuilder{VS: vs}).Build(core.Result{}).Execute()
+	require.Equal(t, core.ToolDone, loadRes.Signal)
+
+	res := (&ValidateSpecsBuilder{VS: vs}).Build(loadRes).Execute()
+
+	require.NotEqual(t, core.CommandError, res.Signal)
+	require.NotEmpty(t, vs.Findings)
+	require.Equal(t, "validation-suite", vs.Findings[0].SuiteID)
+	require.Equal(t, "spec_corpus", vs.Findings[0].Kind)
+}
+
 func writeValidationCharter(t *testing.T, dir, name string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
