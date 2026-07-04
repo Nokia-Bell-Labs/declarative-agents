@@ -72,29 +72,35 @@ dependency_directions:
     kind: child_profile_execution
     meaning: Planner materializes and executes tasks through the generator
       profile. Generator does not depend on planner.
+    evidence: rel07.0-uc003-planner-generator-profile-boundary
   - from: evaluator
     to: generator
     kind: benchmark_subject_execution
     meaning: Evaluator point runs can invoke generator or another configured
       profile as the benchmark subject.
+    evidence: rel07.0-uc002-evaluator-generator-profile-boundary
   - from: bench
     to: evaluator
     kind: human_launched_evaluation
     meaning: Bench serves the human UI and launches evaluator runs.
+    evidence: rel07.0-uc004-bench-evaluator-profile-boundary
   - from: monitor
     to: agent-core monitor store
     kind: runtime_state_read
     meaning: Monitor exposes cached runtime state supplied by agent-core.
+    evidence: rel07.0-uc005-monitor-control-profile-boundary
   - from: control
     to: lifecycle vocabulary
     kind: signal_to_lifecycle_action
     meaning: Control routes REST events to visible lifecycle words such as
       exit_agent.
+    evidence: rel07.0-uc005-monitor-control-profile-boundary
   - from: documentation-curator
     to: control
     kind: embedded_control_flow
     meaning: The Knowledge Manager documentation profile launches control routes
       and waits for explicit exit events.
+    evidence: rel07.0-uc001-documentation-curator-profile-ux
   - from: lifecycle profiles
     to: agent-core lifecycle ports
     kind: checkpoint_operation
@@ -186,5 +192,7 @@ validation_views:
   - Integration tests check profile relationships such as bench to evaluator,
     evaluator to generator, planner to generator, and Knowledge Manager control
     exit.
+  - Release 07.0 records these relationship checks in
+    test-rel07.0-profile-integrations before each target is implemented.
   - Documentation review checks that requirements describe profiles as
     configured blocks rather than Go packages.

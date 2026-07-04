@@ -16,6 +16,12 @@ overview: |
   integration consumption back to the SRD and semantic models.
   The traceability gap is closed.
 
+  Release 07.0 defines profile-owned integration tracer bullets for concrete
+  state machines and profile-to-profile boundaries. These use cases move
+  beyond repository migration proof: they name documentation-curator UX,
+  evaluator to generator, planner to generator, bench to evaluator, and
+  monitor/control evidence that must live with the profile assets.
+
   A reader can now start at the SRD, follow the semantic model role entries,
   reach the two mounted-profile use cases, and land on named commands such as
   mage validate, mage containerSmoke, mage tag, and the agent-core integration
@@ -37,6 +43,14 @@ roadmap_summary:
       this repository. agent-core consumes them from AGENT_PROFILES_ROOT,
       /profiles, or release bundles. Formal use cases and test suites now name
       executable proof for the completed migration path.
+  - version: "07.0"
+    name: Profile-owned integration tracer bullets
+    status: planned
+    scope: |
+      Define and implement profile-owned tracer bullets for concrete profile
+      state machines, profile-to-profile execution, and human/operator
+      boundaries. The documentation in this release names the target contracts;
+      follow-up implementation issues add the Mage or Go targets.
 
 foundation_document_index:
   - id: agent-profiles
@@ -96,6 +110,33 @@ use_case_index:
       smoke execution, and profile bundle tag readiness.
     status: implemented
     path: docs/specs/use-cases/rel06.0-uc002-profile-validation.yaml
+  - id: rel07.0-uc001-documentation-curator-profile-ux
+    title: Documentation Curator Profile UX Tracer
+    summary: Profile-owned Knowledge Manager browser, machine_request, trace,
+      and lifecycle proof.
+    status: planned
+    path: docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
+  - id: rel07.0-uc002-evaluator-generator-profile-boundary
+    title: Evaluator to Generator Profile Boundary
+    summary: Evaluator runs generator as the benchmark subject profile.
+    status: planned
+    path: docs/specs/use-cases/rel07.0-uc002-evaluator-generator-profile-boundary.yaml
+  - id: rel07.0-uc003-planner-generator-profile-boundary
+    title: Planner to Generator Profile Boundary
+    summary: Planner materializes a task and executes it through generator.
+    status: planned
+    path: docs/specs/use-cases/rel07.0-uc003-planner-generator-profile-boundary.yaml
+  - id: rel07.0-uc004-bench-evaluator-profile-boundary
+    title: Bench to Evaluator Profile Boundary
+    summary: Bench launches evaluator from a human/operator boundary action.
+    status: planned
+    path: docs/specs/use-cases/rel07.0-uc004-bench-evaluator-profile-boundary.yaml
+  - id: rel07.0-uc005-monitor-control-profile-boundary
+    title: Monitor Control Profile Boundary
+    summary: Monitor/control profile boundary decision and eventual lifecycle
+      tracer evidence.
+    status: planned
+    path: docs/specs/use-cases/rel07.0-uc005-monitor-control-profile-boundary.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -105,6 +146,13 @@ test_suite_index:
       AGENT_PROFILES_ROOT.
     status: implemented
     path: docs/specs/test-suites/test-rel06.0-agent-profiles.yaml
+  - id: test-rel07.0-profile-integrations
+    title: Test Suite for Release 07.0 Profile Integrations
+    summary: Planned/implemented profile-owned tracer bullets for
+      documentation-curator UX, evaluator-generator, planner-generator,
+      bench-evaluator, and monitor/control boundaries.
+    status: planned
+    path: docs/specs/test-suites/test-rel07.0-profile-integrations.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and
@@ -121,3 +169,8 @@ coverage_gaps: |
   Future gaps should track new profile families, demos, fixtures, or validation
   commands as they are added. Existing release coverage no longer depends on a
   planned follow-up issue.
+
+  Release 07.0 now documents the profile integration tracer bullets but has not
+  implemented every target. Issues #107 through #111 own the target and fixture
+  work; until those close, the Rel07 suite intentionally records planned status
+  rather than claiming executable proof.

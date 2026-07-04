@@ -93,8 +93,6 @@ releases:
       - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc001
       - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc002
       - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004
-      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc006
-      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc007
     success_markers:
       - Migrated profile.yaml files load through agent-core from this
         repository.
@@ -102,3 +100,66 @@ releases:
       - Demos and fixtures use repository-relative paths, AGENT_PROFILES_ROOT,
         /profiles, or explicit workspace mounts.
       - agent-core runtime images do not copy migrated profile directories.
+
+  - version: "07.0"
+    name: Profile-owned integration tracer bullets
+    description: |
+      Profile-owned integration tests should prove concrete profile behavior
+      where the profile assets live. Release 07.0 defines tracer bullets for
+      Knowledge Manager/documentation-curator UX, evaluator to generator,
+      planner to generator, bench to evaluator, and monitor/control boundaries.
+
+      The first documentation issue defines the use cases and target contracts.
+      Follow-up issues add the actual Mage or Go targets and fixture data. The
+      suite records planned status until each tracer has executable evidence.
+    status: planned
+    planned_work:
+      - id: gh-106
+        summary: Define profile integration tracer-bullet use cases and suite.
+        status: done
+      - id: gh-107
+        summary: Move documentation-curator integration proof to agent-profiles.
+        status: planned
+      - id: gh-108
+        summary: Add evaluator-to-generator profile tracer bullet.
+        status: planned
+      - id: gh-109
+        summary: Add planner-to-generator profile tracer bullet.
+        status: planned
+      - id: gh-110
+        summary: Add bench-to-evaluator profile tracer bullet.
+        status: planned
+      - id: gh-111
+        summary: Add or explicitly scope monitor-control tracer evidence.
+        status: planned
+    use_cases:
+      - id: rel07.0-uc001-documentation-curator-profile-ux
+        summary: Knowledge Manager profile UX, document machine_request, trace, and lifecycle proof.
+        status: planned
+      - id: rel07.0-uc002-evaluator-generator-profile-boundary
+        summary: Evaluator runs generator as a benchmark subject profile.
+        status: planned
+      - id: rel07.0-uc003-planner-generator-profile-boundary
+        summary: Planner executes materialized work through generator.
+        status: planned
+      - id: rel07.0-uc004-bench-evaluator-profile-boundary
+        summary: Bench launches evaluator from a human/operator action.
+        status: planned
+      - id: rel07.0-uc005-monitor-control-profile-boundary
+        summary: Monitor/control tracer decision and lifecycle boundary proof.
+        status: planned
+    test_suites:
+      - id: test-rel07.0-profile-integrations
+        summary: Planned and implemented profile-owned tracer bullet evidence.
+        status: planned
+    proof:
+      - mage integration:documentationCurator
+      - mage integration:evaluatorGenerator
+      - mage integration:plannerGenerator
+      - mage integration:benchEvaluator
+      - mage integration:monitorControl
+    success_markers:
+      - Each implemented tracer target lives in agent-profiles.
+      - Fixtures resolve through AGENT_PROFILES_ROOT or repository-relative paths.
+      - Cross-profile boundaries record concrete output, trace, or terminal state evidence.
+      - agent-core remains unaware of concrete profile names in its own integration targets.

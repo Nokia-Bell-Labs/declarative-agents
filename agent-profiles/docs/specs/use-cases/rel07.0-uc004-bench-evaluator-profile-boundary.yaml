@@ -1,0 +1,74 @@
+id: rel07.0-uc004-bench-evaluator-profile-boundary
+title: Bench to Evaluator Profile Boundary
+
+summary: |
+  The bench profile should prove the human-operated evaluation boundary: a
+  local operator action reaches the bench surface, bench launches evaluator
+  through configured vocabulary, and the result records launch status plus the
+  evaluator request/output evidence. This is a launch tracer, not a full
+  evaluator benchmark.
+
+  The proof stays in agent-profiles because the bench profile, evaluator profile
+  reference, launch fixture, and expected artifacts are profile-owned behavior.
+  agent-core owns the bench runtime and HTTP/tool implementations, but it should
+  not hard-code the concrete evaluator profile.
+
+actor: Human operator using the bench profile through a local harness.
+
+trigger: |
+  A maintainer runs the bench-evaluator integration target:
+
+    AGENT_CORE_ROOT=/path/to/agent-core mage integration:benchEvaluator
+
+preconditions:
+  - agents/bench/profile.yaml and agents/evaluator/profile.yaml validate.
+  - testdata/integration/rel07-bench-evaluator contains a minimal bench launch request and evaluator suite.
+  - The harness uses loopback HTTP or a command-level equivalent with fixture-local output.
+
+flow:
+  - id: F1
+    text: The target launches the bench boundary with local fixture configuration.
+  - id: F2
+    text: A fixture operator action requests an evaluator run.
+  - id: F3
+    text: Bench resolves the evaluator profile and suite through profile-owned paths.
+  - id: F4
+    text: Bench records evaluator launch status and request metadata.
+  - id: F5
+    text: The tracer records enough evaluator output evidence to prove the boundary was crossed.
+
+touchpoints:
+  - id: T1
+    target: sm-agent-role-taxonomy bench
+    reason: Bench owns the human UI/action boundary and evaluator launch request.
+  - id: T2
+    target: sm-agent-role-taxonomy evaluator
+    reason: Evaluator owns the launched session.
+  - id: T3
+    target: sm-multi-agent-profile-system bench->evaluator
+    reason: Bench launches evaluator from the human-operated surface.
+  - id: T4
+    target: test-rel07.0-profile-integrations bench_evaluator_boundary
+    reason: The suite records target, fixture request, and launch evidence.
+
+success_criteria:
+  - id: S1
+    criterion: The bench boundary accepts a fixture local launch action.
+    traces:
+      - sm-agent-role-taxonomy bench checks
+  - id: S2
+    criterion: Bench resolves evaluator through profile-owned configuration.
+    traces:
+      - sm-multi-agent-profile-system dependency_directions bench->evaluator
+  - id: S3
+    criterion: The tracer records launch status and evaluator request/output evidence.
+    traces:
+      - sm-agent-role-taxonomy bench outputs
+
+out_of_scope:
+  - Browser visual regression testing for the bench UI.
+  - Running a long evaluator suite.
+  - Replacing evaluator's own point/session tests.
+
+test_suite_trace: test-rel07.0-profile-integrations
+status: planned

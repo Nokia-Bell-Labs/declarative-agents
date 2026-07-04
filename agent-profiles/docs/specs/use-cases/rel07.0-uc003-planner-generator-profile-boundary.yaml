@@ -1,0 +1,74 @@
+id: rel07.0-uc003-planner-generator-profile-boundary
+title: Planner to Generator Profile Boundary
+
+summary: |
+  The planner profile should prove that a small requirement graph can be
+  extracted or loaded, materialized into a local task, and executed through the
+  generator profile as a child boundary. The tracer is intentionally tiny: it
+  proves task orchestration and terminal state recording without becoming a full
+  planning benchmark.
+
+  Profile-owned fixtures define the requirement graph, issue/materialization
+  shape, workspace, and expected terminal states. agent-core supplies planning
+  and nested execution capabilities, but profile-owned configuration selects how
+  planner delegates to generator.
+
+actor: Profile maintainer verifying planner orchestration.
+
+trigger: |
+  A maintainer runs the planner-generator integration target:
+
+    AGENT_CORE_ROOT=/path/to/agent-core mage integration:plannerGenerator
+
+preconditions:
+  - agents/planner/profile.yaml and agents/generator/profile.yaml validate.
+  - testdata/integration/rel07-planner-generator contains a minimal graph, workspace, and expected outcome records.
+  - External issue tracker writes are disabled, mocked, or directed at local fixtures.
+
+flow:
+  - id: F1
+    text: The target loads a small requirement graph fixture for planner.
+  - id: F2
+    text: Planner extracts or materializes one executable task.
+  - id: F3
+    text: Planner invokes generator as the child profile for the materialized task.
+  - id: F4
+    text: Generator runs in a fixture workspace and returns a child run outcome.
+  - id: F5
+    text: Planner records graph terminal state, task outcome, and validation evidence.
+
+touchpoints:
+  - id: T1
+    target: sm-agent-role-taxonomy planner
+    reason: Planner owns requirement graph, issue materialization, and child generator execution.
+  - id: T2
+    target: sm-agent-role-taxonomy generator
+    reason: Generator executes the materialized task in the child workspace.
+  - id: T3
+    target: sm-multi-agent-profile-system planner->generator
+    reason: Planner delegates task execution to generator.
+  - id: T4
+    target: test-rel07.0-profile-integrations planner_generator_boundary
+    reason: The suite records target, fixtures, and terminal graph evidence.
+
+success_criteria:
+  - id: S1
+    criterion: The planner fixture records a graph or task input with no external side effects.
+    traces:
+      - sm-agent-role-taxonomy planner inputs
+  - id: S2
+    criterion: Planner invokes generator as a child profile through profile-owned configuration.
+    traces:
+      - sm-multi-agent-profile-system dependency_directions planner->generator
+  - id: S3
+    criterion: The tracer records explicit graph terminal state and child run outcome.
+    traces:
+      - sm-agent-role-taxonomy planner outputs
+
+out_of_scope:
+  - Creating real GitHub issues from the tracer.
+  - Exercising a multi-task planning campaign.
+  - Changing planner tool implementations in agent-core.
+
+test_suite_trace: test-rel07.0-profile-integrations
+status: planned

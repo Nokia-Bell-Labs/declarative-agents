@@ -1,0 +1,73 @@
+id: rel07.0-uc002-evaluator-generator-profile-boundary
+title: Evaluator to Generator Profile Boundary
+
+summary: |
+  The evaluator profile should prove that a benchmark point can run the
+  generator profile as its subject. The tracer uses a tiny suite and workspace
+  fixture, runs evaluator through agent-core, and records point/session output
+  that shows the child profile boundary was crossed intentionally.
+
+  The proof belongs in agent-profiles because suite YAML, subject profile
+  selection, samples, oracle expectations, and expected artifacts are
+  profile-owned fixtures. agent-core supplies nested loop execution and the
+  binary, but it should not encode generator as a concrete evaluator subject.
+
+actor: Profile maintainer verifying evaluator profile behavior.
+
+trigger: |
+  A maintainer runs the evaluator-generator integration target:
+
+    AGENT_CORE_ROOT=/path/to/agent-core mage integration:evaluatorGenerator
+
+preconditions:
+  - agents/evaluator/profile.yaml and agents/generator/profile.yaml validate.
+  - testdata/integration/rel07-evaluator-generator contains a minimal suite, sample, oracle, and expected result shape.
+  - The target can create a temporary output directory for evaluator session results.
+
+flow:
+  - id: F1
+    text: The target resolves agent-core and agent-profiles roots without developer-specific absolute paths.
+  - id: F2
+    text: The evaluator profile loads a small suite whose subject profile is generator.
+  - id: F3
+    text: The evaluator creates an isolated point workspace and invokes generator as the child agent.
+  - id: F4
+    text: The point records child run status, oracle status, trace evidence, and summary files.
+  - id: F5
+    text: The session summary records success and failure accounting for the benchmark boundary.
+
+touchpoints:
+  - id: T1
+    target: sm-agent-role-taxonomy evaluator
+    reason: Evaluator owns suite fixtures, point runs, child profile execution, and session reports.
+  - id: T2
+    target: sm-agent-role-taxonomy generator
+    reason: Generator is the configured benchmark subject profile.
+  - id: T3
+    target: sm-multi-agent-profile-system evaluator->generator
+    reason: The dependency direction is benchmark subject execution.
+  - id: T4
+    target: test-rel07.0-profile-integrations evaluator_generator_boundary
+    reason: The suite records target, fixture paths, and expected artifacts.
+
+success_criteria:
+  - id: S1
+    criterion: The evaluator suite resolves through AGENT_PROFILES_ROOT or the repository checkout.
+    traces:
+      - sm-agent-role-taxonomy evaluator checks
+  - id: S2
+    criterion: The evaluator invokes generator as a child profile rather than relying on core-owned profile names.
+    traces:
+      - sm-multi-agent-profile-system dependency_directions evaluator->generator
+  - id: S3
+    criterion: Point and session output prove child run status and oracle accounting.
+    traces:
+      - sm-agent-role-taxonomy evaluator outputs
+
+out_of_scope:
+  - Running a large model benchmark matrix.
+  - Changing evaluator scoring semantics.
+  - Teaching agent-core about the generator profile path.
+
+test_suite_trace: test-rel07.0-profile-integrations
+status: planned

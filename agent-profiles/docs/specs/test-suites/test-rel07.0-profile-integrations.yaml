@@ -1,0 +1,161 @@
+id: test-rel07.0-profile-integrations
+title: Test Suite for Release 07.0 Profile Integrations
+release: "07.0"
+
+overview: |
+  This suite defines profile-owned tracer bullets for concrete state machines
+  and cross-profile boundaries. Release 06.0 proved that profiles can live in
+  this repository and be consumed by agent-core. Release 07.0 proves selected
+  profile relationships as use cases: documentation-curator UX, evaluator to
+  generator, planner to generator, bench to evaluator, and monitor/control.
+
+  The suite deliberately separates implemented, planned, and blocked evidence.
+  A tracer is implemented only when agent-profiles owns the target, fixtures,
+  and expected output evidence. Planned entries name target contracts and
+  follow-up issues. Blocked entries must name the missing profile asset or
+  fixture rather than accepting a fake pass.
+
+traces:
+  - rel07.0-uc001-documentation-curator-profile-ux
+  - rel07.0-uc002-evaluator-generator-profile-boundary
+  - rel07.0-uc003-planner-generator-profile-boundary
+  - rel07.0-uc004-bench-evaluator-profile-boundary
+  - rel07.0-uc005-monitor-control-profile-boundary
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../agent-core checkout.
+  - agent-profiles owns all profile paths, fixtures, suites, and expected outputs named by the tracer.
+  - Integration targets load concrete profiles through AGENT_PROFILES_ROOT or repository-relative paths.
+  - agent-core remains responsible only for runtime execution and builtin capabilities.
+
+test_cases:
+  - use_case: rel07.0-uc001-documentation-curator-profile-ux
+    name: Documentation curator profile UX and lifecycle tracer
+    follow_up_issue: "#107"
+    integration_target: mage integration:documentationCurator
+    status: planned
+    description: |
+      Move the concrete Knowledge Manager/documentation-curator proof into
+      agent-profiles. The target should run the shipped profile, prove
+      machine_request document routes and profile-owned UI assets, record trace
+      metadata, and shut down through lifecycle control.
+    inputs:
+      profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      ux_config: agents/knowledge-manager/documentation-curator/ui/ux.yaml
+      request_machine: agents/knowledge-manager/documentation-curator/request-machine.yaml
+      fixture_docs: testdata/integration/rel07-documentation-curator/
+    expected:
+      terminal_signal: DocumentDetailReady
+      trace_fields: [server, route, machine, terminal_signal, status]
+      lifecycle_signal: ExitRequested
+      terminal_state: Done
+      listener_released: true
+    traces:
+      - rel07.0-uc001-documentation-curator-profile-ux S1
+      - rel07.0-uc001-documentation-curator-profile-ux S2
+      - rel07.0-uc001-documentation-curator-profile-ux S3
+      - rel07.0-uc001-documentation-curator-profile-ux S4
+      - sm-agent-role-taxonomy documentation-curator
+
+  - use_case: rel07.0-uc002-evaluator-generator-profile-boundary
+    name: Evaluator runs generator as benchmark subject
+    follow_up_issue: "#108"
+    integration_target: mage integration:evaluatorGenerator
+    status: planned
+    description: |
+      Run evaluator with a tiny local suite whose subject profile is generator.
+      The target should create point/session output proving child profile
+      invocation, oracle accounting, and fixture-local result paths.
+    inputs:
+      evaluator_profile: agents/evaluator/profile.yaml
+      subject_profile: agents/generator/profile.yaml
+      suite: testdata/integration/rel07-evaluator-generator/suite.yaml
+      output_dir: temporary evaluator results directory
+    expected:
+      child_profile: generator
+      point_status_recorded: true
+      session_summary_recorded: true
+      oracle_accounting_recorded: true
+    traces:
+      - rel07.0-uc002-evaluator-generator-profile-boundary S1
+      - rel07.0-uc002-evaluator-generator-profile-boundary S2
+      - rel07.0-uc002-evaluator-generator-profile-boundary S3
+      - sm-multi-agent-profile-system dependency_directions evaluator->generator
+
+  - use_case: rel07.0-uc003-planner-generator-profile-boundary
+    name: Planner executes materialized work through generator
+    follow_up_issue: "#109"
+    integration_target: mage integration:plannerGenerator
+    status: planned
+    description: |
+      Run planner with a small requirement/task fixture and execute the
+      materialized work through generator. The target should record graph
+      terminal state and child run outcome without writing real external issues.
+    inputs:
+      planner_profile: agents/planner/profile.yaml
+      child_profile: agents/generator/profile.yaml
+      graph_fixture: testdata/integration/rel07-planner-generator/graph.yaml
+      workspace: testdata/integration/rel07-planner-generator/workspace
+    expected:
+      materialized_task_count: 1
+      child_profile: generator
+      graph_terminal_state_recorded: true
+      child_run_outcome_recorded: true
+    traces:
+      - rel07.0-uc003-planner-generator-profile-boundary S1
+      - rel07.0-uc003-planner-generator-profile-boundary S2
+      - rel07.0-uc003-planner-generator-profile-boundary S3
+      - sm-multi-agent-profile-system dependency_directions planner->generator
+
+  - use_case: rel07.0-uc004-bench-evaluator-profile-boundary
+    name: Bench launches evaluator from a human action
+    follow_up_issue: "#110"
+    integration_target: mage integration:benchEvaluator
+    status: planned
+    description: |
+      Run a local bench harness that sends a fixture operator action and
+      verifies evaluator launch evidence. This target proves the human boundary
+      and evaluator launch request, not a full evaluator benchmark.
+    inputs:
+      bench_profile: agents/bench/profile.yaml
+      evaluator_profile: agents/evaluator/profile.yaml
+      launch_request: testdata/integration/rel07-bench-evaluator/request.yaml
+      suite: testdata/integration/rel07-bench-evaluator/suite.yaml
+    expected:
+      human_action_received: true
+      evaluator_profile_resolved: true
+      launch_status_recorded: true
+      evaluator_output_evidence_recorded: true
+    traces:
+      - rel07.0-uc004-bench-evaluator-profile-boundary S1
+      - rel07.0-uc004-bench-evaluator-profile-boundary S2
+      - rel07.0-uc004-bench-evaluator-profile-boundary S3
+      - sm-multi-agent-profile-system dependency_directions bench->evaluator
+
+  - use_case: rel07.0-uc005-monitor-control-profile-boundary
+    name: Monitor and control profile boundary
+    follow_up_issue: "#111"
+    integration_target: mage integration:monitorControl
+    status: planned
+    description: |
+      Determine whether current monitor/control assets support a real tracer.
+      If implemented, the target should expose cached monitor state, accept a
+      control request, route declared lifecycle signals, and release listeners.
+      If not, this case remains planned with precise blockers.
+    inputs:
+      monitor_profile: agents/monitor/profile.yaml
+      control_profile: agents/control/profile.yaml
+      fixture_store: testdata/integration/rel07-monitor-control/
+    expected:
+      tracer_decision_recorded: true
+      monitor_state_exposed: planned
+      lifecycle_signal_routed: planned
+      listener_released: planned
+    blockers:
+      - Confirm whether existing monitor/control profiles contain enough profile-owned assets for an honest integration tracer.
+    traces:
+      - rel07.0-uc005-monitor-control-profile-boundary S1
+      - rel07.0-uc005-monitor-control-profile-boundary S2
+      - rel07.0-uc005-monitor-control-profile-boundary S3
+      - sm-agent-role-taxonomy monitor
+      - sm-agent-role-taxonomy control

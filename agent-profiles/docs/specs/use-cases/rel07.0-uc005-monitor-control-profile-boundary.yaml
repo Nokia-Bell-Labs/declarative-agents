@@ -1,0 +1,73 @@
+id: rel07.0-uc005-monitor-control-profile-boundary
+title: Monitor Control Profile Boundary
+
+summary: |
+  Monitor and control profile behavior should have a profile-owned tracer when
+  enough concrete profile assets exist to prove the boundary honestly. The
+  desired proof exposes cached runtime monitor state through declared REST
+  routes, accepts a lifecycle/control request, and routes that request through
+  MachineSpec vocabulary such as ExitRequested and AgentExited.
+
+  This use case records the intended boundary and the explicit scoping rule:
+  if the current profile assets cannot drive a real tracer, the test suite must
+  mark the case planned with blockers rather than inventing a fake pass.
+
+actor: Profile maintainer verifying monitor/control boundary behavior.
+
+trigger: |
+  A maintainer runs the monitor-control integration target after fixtures exist:
+
+    AGENT_CORE_ROOT=/path/to/agent-core mage integration:monitorControl
+
+preconditions:
+  - agents/monitor/profile.yaml and/or agents/control/profile.yaml validate.
+  - A fixture runtime monitor store or equivalent profile-owned harness exists.
+  - The tracer can bind loopback REST routes and release them after exit.
+
+flow:
+  - id: F1
+    text: The target loads monitor/control profile assets from agent-profiles.
+  - id: F2
+    text: A fixture monitor store exposes current state, metrics, tools, and recent events through declared routes.
+  - id: F3
+    text: A control request is accepted through configured REST vocabulary.
+  - id: F4
+    text: The MachineSpec routes the request to lifecycle/control words such as exit_agent.
+  - id: F5
+    text: The tracer records terminal status and listener cleanup.
+
+touchpoints:
+  - id: T1
+    target: sm-agent-role-taxonomy monitor
+    reason: Monitor owns runtime-state read boundaries.
+  - id: T2
+    target: sm-agent-role-taxonomy control
+    reason: Control owns REST event to lifecycle signal routing.
+  - id: T3
+    target: sm-multi-agent-profile-system monitor/control
+    reason: Monitor reads cached state and control routes explicit lifecycle signals.
+  - id: T4
+    target: test-rel07.0-profile-integrations monitor_control_boundary
+    reason: The suite records whether the tracer is implemented or blocked.
+
+success_criteria:
+  - id: S1
+    criterion: The tracer decision is explicit: implemented with fixtures or planned with blockers.
+    traces:
+      - test-rel07.0-profile-integrations monitor_control_boundary
+  - id: S2
+    criterion: If implemented, monitor routes expose cached runtime state without running tools from HTTP handlers.
+    traces:
+      - sm-agent-role-taxonomy monitor checks
+  - id: S3
+    criterion: If implemented, control routes emit declared lifecycle signals and reach terminal status.
+    traces:
+      - sm-agent-role-taxonomy control checks
+
+out_of_scope:
+  - Building a new monitor UI.
+  - Adding agent-core monitor features.
+  - Treating mocked HTTP success as integration proof without profile-owned assets.
+
+test_suite_trace: test-rel07.0-profile-integrations
+status: planned
