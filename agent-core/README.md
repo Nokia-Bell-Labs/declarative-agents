@@ -160,10 +160,14 @@ Build through the Mage target:
 mage docker
 ```
 
-`mage docker` discovers the latest remote release tag from GitLab, passes it to
-the Dockerfile as `AGENT_CORE_REF`, and builds `agent-core:latest`. It uses
-Docker when available, falls back to Podman, and prints the resolved build
-settings plus the exact Docker/Podman command before building.
+`mage docker` discovers the latest remote root release tag with the
+`v0.YYYYMMDD.N` shape, passes it to the Dockerfile as `AGENT_CORE_REF`, and
+builds `agent-core:latest`. Repository releases may also publish a matching
+module-scoped tag such as `agent-core/v0.YYYYMMDD.N`, but Docker release
+resolution continues to use the root tag family unless `AGENT_CORE_REF`
+overrides it. The target uses Docker when available, falls back to Podman, and
+prints the resolved build settings plus the exact Docker/Podman command before
+building.
 
 Common overrides:
 

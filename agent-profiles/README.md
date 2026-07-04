@@ -98,25 +98,32 @@ fixtures, release tagging, and validation commands.
 
 ## Release Tags
 
-Profile bundle releases use the same revision shape as `agent-core` runtime
-releases:
+Profile bundle releases use the repository release revision and a module-scoped
+profile tag:
 
 ```text
 v0.YYYYMMDD.N
+agent-profiles/v0.YYYYMMDD.N
 ```
 
+The root tag identifies the coordinated repository release. The
+`agent-profiles/v0.YYYYMMDD.N` tag identifies the profile bundle for callers
+that consume this directory independently of the full repository.
+
 After profile changes are ready for mounted-path, checkout, or release-bundle
-consumers, create a tag from `main`:
+consumers, create release tags from the repository root on `main`:
 
 ```bash
 mage tag
 ```
 
-At tag time, the target reads existing local tags for the current date and
-creates the next daily revision, such as `v0.20260617.0` or
-`v0.20260617.1`. It does not query `agent-core`; profile bundle tags version
-this repository's YAML programs, demos, UI assets, and integration fixtures.
-Runtime image tags still belong to `agent-core`.
+At tag time, the root target reads existing local root tags for the current date
+and creates the next daily revision, such as `v0.20260617.0` or
+`v0.20260617.1`. It also creates matching module tags including
+`agent-profiles/v0.20260617.N`. Profile bundle tags version this repository's
+YAML programs, demos, UI assets, and integration fixtures. Runtime image builds
+continue to resolve the root `v0.*` tag family unless the `agent-core` Docker
+release target is explicitly overridden.
 
 ## Validation
 

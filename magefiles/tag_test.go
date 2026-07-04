@@ -45,6 +45,9 @@ func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 		{"rev-parse", "--abbrev-ref", "HEAD"},
 		{"tag", "-l", "v0.20260617.*"},
 		{"tag", "v0.20260617.3"},
+		{"tag", "agent-core/v0.20260617.3"},
+		{"tag", "agent-profiles/v0.20260617.3"},
+		{"tag", "design-patterns/v0.20260617.3"},
 	}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("git calls = %#v, want %#v", calls, want)
@@ -75,6 +78,12 @@ func TestCreateReleaseTagInGitRepository(t *testing.T) {
 	out := runGitOutput(t, "tag", "-l", tagPrefix+date+".*")
 	if !strings.Contains(out, tagPrefix+date+".1") {
 		t.Fatalf("local tags = %q, want next daily revision", out)
+	}
+	for _, mod := range subModules {
+		moduleTag := mod + "/" + tagPrefix + date + ".1"
+		if !strings.Contains(runGitOutput(t, "tag", "-l", moduleTag), moduleTag) {
+			t.Fatalf("local tags missing module tag %q", moduleTag)
+		}
 	}
 }
 
@@ -112,6 +121,43 @@ func TestCreateReleaseTagWrapsTagListingError(t *testing.T) {
 	)
 	if !errors.Is(err, want) {
 		t.Fatalf("error = %v, want to wrap %v", err, want)
+	}
+}
+
+func TestCreateReleaseTagWrapsModuleTagFailure(t *testing.T) {
+	want := errors.New("tag exists")
+	err := createReleaseTag(time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
+		func(args ...string) (string, error) {
+			switch strings.Join(args, " ") {
+			case "rev-parse --abbrev-ref HEAD":
+				return "main", nil
+			case "tag -l v0.20260617.*":
+				return "", nil
+			default:
+				t.Fatalf("unexpected git output args: %q", strings.Join(args, " "))
+				return "", nil
+			}
+		},
+		func(args ...string) error {
+			if strings.Join(args, " ") == "tag agent-core/v0.20260617.0" {
+				return want
+			}
+			return nil
+		},
+	)
+	if !errors.Is(err, want) {
+		t.Fatalf("error = %v, want to wrap %v", err, want)
+	}
+	if got := err.Error(); !strings.Contains(got, "agent-core/v0.20260617.0") || !strings.Contains(got, "module agent-core") {
+		t.Fatalf("error = %q, want module tag context", got)
+	}
+}
+
+func TestReleaseTags(t *testing.T) {
+	got := releaseTags("v0.20260617.0", []string{"agent-core", "agent-profiles"})
+	want := []string{"v0.20260617.0", "agent-core/v0.20260617.0", "agent-profiles/v0.20260617.0"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("releaseTags = %#v, want %#v", got, want)
 	}
 }
 
