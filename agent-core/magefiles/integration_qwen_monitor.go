@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -133,25 +132,7 @@ func monitoredQwenProfileValues(rootDir, profileRoot, tmpDir string) map[string]
 }
 
 func renderMonitoredQwenFixture(rootDir, name string, values map[string]string) (string, error) {
-	path := filepath.Join(rootDir, "magefiles", "fixtures", "uc008", name)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	content := string(data)
-	for key, value := range values {
-		content = strings.ReplaceAll(content, "{{"+key+"}}", value)
-	}
-	return content, nil
-}
-
-func freeLoopbackAddress() (string, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", err
-	}
-	defer listener.Close()
-	return listener.Addr().String(), nil
+	return renderIntegrationFixture(rootDir, filepath.Join("uc008", name), values)
 }
 
 func startMonitoredQwen(
@@ -178,22 +159,7 @@ func startMonitoredQwen(
 }
 
 func waitMonitorHTTP(url string) error {
-	deadline := time.Now().Add(10 * time.Second)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		resp, err := http.Get(url)
-		if err == nil {
-			_ = resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				return nil
-			}
-			lastErr = fmt.Errorf("%s returned status %d", url, resp.StatusCode)
-		} else {
-			lastErr = err
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return lastErr
+	return waitHTTPStatus(url, http.StatusOK, 10*time.Second)
 }
 
 func waitForTokenMetricIncrease(url string, resultCh <-chan error, output *bytes.Buffer) error {
@@ -267,13 +233,8 @@ func numeric(value interface{}) (float64, bool) {
 }
 
 func postMonitorExit(url string) error {
-	resp, err := http.Post(url, "application/json", strings.NewReader(`{"reason":"uc008 complete"}`))
-	if err != nil {
+	if err := postJSONStatus(url, `{"reason":"uc008 complete"}`, http.StatusAccepted); err != nil {
 		return fmt.Errorf("uc008: post monitor exit: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("uc008: monitor exit returned status %d", resp.StatusCode)
 	}
 	return nil
 }
@@ -291,12 +252,4 @@ func waitMonitoredQwenExit(resultCh <-chan error, output *bytes.Buffer) error {
 	case <-time.After(10 * time.Second):
 		return fmt.Errorf("uc008: monitored Qwen run did not exit after monitor control request\n%s", output.String())
 	}
-}
-
-func stopProcess(cmd *exec.Cmd, cancel context.CancelFunc) {
-	cancel()
-	if cmd.Process != nil {
-		_ = cmd.Process.Kill()
-	}
-	_ = cmd.Wait()
 }

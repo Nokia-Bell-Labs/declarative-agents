@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"gopkg.in/yaml.v3"
 )
 
 const monitorControlFixture = "testdata/integration/rel07-monitor-control"
@@ -120,26 +118,15 @@ func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence,
 }
 
 func readMonitorControlEvidence(path string) (monitorControlEvidence, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return monitorControlEvidence{}, fmt.Errorf("read monitor-control evidence: %w", err)
-	}
 	var evidence monitorControlEvidence
-	if err := yaml.Unmarshal(data, &evidence); err != nil {
-		return monitorControlEvidence{}, fmt.Errorf("parse monitor-control evidence: %w", err)
+	if err := readIntegrationYAML(path, "monitor-control evidence", &evidence); err != nil {
+		return monitorControlEvidence{}, err
 	}
 	return evidence, nil
 }
 
 func writeMonitorControlEvidence(runDir string, evidence monitorControlEvidence) error {
-	data, err := yaml.Marshal(evidence)
-	if err != nil {
-		return fmt.Errorf("marshal monitor-control evidence: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(runDir, "evidence.yaml"), data, 0o644); err != nil {
-		return fmt.Errorf("write monitor-control evidence: %w", err)
-	}
-	return nil
+	return writeIntegrationYAML(filepath.Join(runDir, "evidence.yaml"), "monitor-control evidence", evidence)
 }
 
 func assertMonitorControlEvidence(runDir string, want monitorControlEvidence) error {
@@ -160,25 +147,17 @@ func assertMonitorControlEvidence(runDir string, want monitorControlEvidence) er
 }
 
 func readMonitorControlREST(path string) (monitorControlREST, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return monitorControlREST{}, fmt.Errorf("read REST config: %w", err)
-	}
 	var rest monitorControlREST
-	if err := yaml.Unmarshal(data, &rest); err != nil {
-		return monitorControlREST{}, fmt.Errorf("parse REST config: %w", err)
+	if err := readIntegrationYAML(path, "REST config", &rest); err != nil {
+		return monitorControlREST{}, err
 	}
 	return rest, nil
 }
 
 func readMonitorControlMachine(path string) (monitorControlMachine, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return monitorControlMachine{}, fmt.Errorf("read machine: %w", err)
-	}
 	var machine monitorControlMachine
-	if err := yaml.Unmarshal(data, &machine); err != nil {
-		return monitorControlMachine{}, fmt.Errorf("parse machine: %w", err)
+	if err := readIntegrationYAML(path, "machine", &machine); err != nil {
+		return monitorControlMachine{}, err
 	}
 	return machine, nil
 }

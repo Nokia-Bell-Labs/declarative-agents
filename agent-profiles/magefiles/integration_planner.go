@@ -8,8 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 const plannerGeneratorFixture = "testdata/integration/rel07-planner-generator"
@@ -107,13 +105,9 @@ func (Integration) PlannerGenerator() error {
 }
 
 func readPlannerGraph(path string) (plannerGraph, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return plannerGraph{}, fmt.Errorf("read planner graph: %w", err)
-	}
 	var graph plannerGraph
-	if err := yaml.Unmarshal(data, &graph); err != nil {
-		return plannerGraph{}, fmt.Errorf("parse planner graph: %w", err)
+	if err := readIntegrationYAML(path, "planner graph", &graph); err != nil {
+		return plannerGraph{}, err
 	}
 	return graph, nil
 }
@@ -139,15 +133,7 @@ func copyPlannerWorkspace(src, dst string) error {
 }
 
 func writeMaterializedTask(runDir string, task plannerTask) error {
-	data, err := yaml.Marshal(task)
-	if err != nil {
-		return fmt.Errorf("marshal materialized task: %w", err)
-	}
-	path := filepath.Join(runDir, "materialized-task.yaml")
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("write materialized task: %w", err)
-	}
-	return nil
+	return writeIntegrationYAML(filepath.Join(runDir, "materialized-task.yaml"), "materialized task", task)
 }
 
 func runPlannerValidation(workspace string) error {
@@ -160,24 +146,13 @@ func runPlannerValidation(workspace string) error {
 }
 
 func writePlannerTerminalState(runDir string, state plannerTerminalState) error {
-	data, err := yaml.Marshal(state)
-	if err != nil {
-		return fmt.Errorf("marshal terminal state: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(runDir, "terminal-state.yaml"), data, 0o644); err != nil {
-		return fmt.Errorf("write terminal state: %w", err)
-	}
-	return nil
+	return writeIntegrationYAML(filepath.Join(runDir, "terminal-state.yaml"), "terminal state", state)
 }
 
 func assertPlannerGeneratorState(runDir string, want plannerTerminalState) error {
-	data, err := os.ReadFile(filepath.Join(runDir, "terminal-state.yaml"))
-	if err != nil {
-		return fmt.Errorf("read terminal state: %w", err)
-	}
 	var got plannerTerminalState
-	if err := yaml.Unmarshal(data, &got); err != nil {
-		return fmt.Errorf("parse terminal state: %w", err)
+	if err := readIntegrationYAML(filepath.Join(runDir, "terminal-state.yaml"), "terminal state", &got); err != nil {
+		return err
 	}
 	if got != want {
 		return fmt.Errorf("terminal state = %#v, want %#v", got, want)

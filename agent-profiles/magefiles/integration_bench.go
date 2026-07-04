@@ -9,8 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 const benchEvaluatorFixture = "testdata/integration/rel07-bench-evaluator"
@@ -91,13 +89,9 @@ func (Integration) BenchEvaluator() error {
 }
 
 func readBenchLaunchRequest(path string) (benchLaunchRequest, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return benchLaunchRequest{}, fmt.Errorf("read bench launch request: %w", err)
-	}
 	var request benchLaunchRequest
-	if err := yaml.Unmarshal(data, &request); err != nil {
-		return benchLaunchRequest{}, fmt.Errorf("parse bench launch request: %w", err)
+	if err := readIntegrationYAML(path, "bench launch request", &request); err != nil {
+		return benchLaunchRequest{}, err
 	}
 	return request, nil
 }
@@ -135,31 +129,20 @@ points: 1
 EOF
 echo "evaluator profile boundary exercised"
 `
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		return "", fmt.Errorf("write evaluator child agent: %w", err)
+	if err := writeExecutable(path, script, "evaluator child agent"); err != nil {
+		return "", err
 	}
 	return path, nil
 }
 
 func writeBenchLaunchEvidence(runDir string, evidence benchLaunchEvidence) error {
-	data, err := yaml.Marshal(evidence)
-	if err != nil {
-		return fmt.Errorf("marshal bench evidence: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(runDir, "launch-evidence.yaml"), data, 0o644); err != nil {
-		return fmt.Errorf("write bench evidence: %w", err)
-	}
-	return nil
+	return writeIntegrationYAML(filepath.Join(runDir, "launch-evidence.yaml"), "bench evidence", evidence)
 }
 
 func assertBenchEvaluatorEvidence(runDir string, want benchLaunchEvidence) error {
-	data, err := os.ReadFile(filepath.Join(runDir, "launch-evidence.yaml"))
-	if err != nil {
-		return fmt.Errorf("read bench evidence: %w", err)
-	}
 	var got benchLaunchEvidence
-	if err := yaml.Unmarshal(data, &got); err != nil {
-		return fmt.Errorf("parse bench evidence: %w", err)
+	if err := readIntegrationYAML(filepath.Join(runDir, "launch-evidence.yaml"), "bench evidence", &got); err != nil {
+		return err
 	}
 	if got != want {
 		return fmt.Errorf("bench evidence = %#v, want %#v", got, want)

@@ -7,8 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -211,19 +209,6 @@ func copyDocumentationCuratorUXConfig(profilesRoot, _ string, tmpDir string, _ d
 	return os.WriteFile(filepath.Join(uiDir, "ux.yaml"), []byte(content), 0o644)
 }
 
-func buildIntegrationAgent(coreRoot string) (string, error) {
-	binary := filepath.Join(os.TempDir(), "agent-profiles-integration-agent")
-	cmd := exec.Command("go", "build", "-tags", "production", "-o", binary, "./cmd/agent")
-	cmd.Dir = coreRoot
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	fmt.Printf("building agent binary from %s...\n", coreRoot)
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("build agent: %w", err)
-	}
-	return binary, nil
-}
-
 func launchDocumentationCurator(binary, profilesRoot, coreRoot, profilePath string) (*exec.Cmd, *bytes.Buffer, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
 	args := []string{"--profile", profilePath, "--directory", coreRoot, "--core-root", coreRoot}
@@ -286,22 +271,10 @@ func requireDocumentTrace(addr, path string) error {
 }
 
 func waitDocumentationAPI(addr string) error {
-	deadline := time.Now().Add(10 * time.Second)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		resp, err := http.Get("http://" + addr + "/api/v1/health")
-		if err == nil {
-			_ = resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				return nil
-			}
-			lastErr = fmt.Errorf("status %d", resp.StatusCode)
-		} else {
-			lastErr = err
-		}
-		time.Sleep(100 * time.Millisecond)
+	if err := waitHTTPStatus("http://"+addr+"/api/v1/health", http.StatusOK, 10*time.Second); err != nil {
+		return fmt.Errorf("timeout waiting for /api/v1/health: %w", err)
 	}
-	return fmt.Errorf("timeout waiting for /api/v1/health: %w", lastErr)
+	return nil
 }
 
 func requireJSONField(addr, path, field string) error {
@@ -345,20 +318,7 @@ func requireHTML(addr, path string) error {
 }
 
 func requestDocumentation(addr, method, path, body string) ([]byte, int, error) {
-	req, err := http.NewRequest(method, "http://"+addr+path, strings.NewReader(body))
-	if err != nil {
-		return nil, 0, err
-	}
-	if body != "" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
-	return data, resp.StatusCode, err
+	return requestHTTP(method, "http://"+addr+path, body)
 }
 
 func requestDocumentationCuratorExit(controlAddr string) error {
@@ -429,37 +389,6 @@ func waitDocumentationCuratorPortsFree(cfg documentationCuratorConfig) error {
 	return nil
 }
 
-func freeLoopbackAddr() (string, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", err
-	}
-	defer listener.Close()
-	return listener.Addr().String(), nil
-}
-
-func waitTCPFree(addr string) error {
-	deadline := time.Now().Add(5 * time.Second)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		listener, err := net.Listen("tcp", addr)
-		if err == nil {
-			return listener.Close()
-		}
-		lastErr = err
-		time.Sleep(100 * time.Millisecond)
-	}
-	return fmt.Errorf("%s was not released after lifecycle exit: %w", addr, lastErr)
-}
-
-func stopIntegrationProcess(cmd *exec.Cmd, cancel context.CancelFunc) {
-	cancel()
-	if cmd.Process != nil {
-		_ = cmd.Process.Kill()
-	}
-	_ = cmd.Wait()
-}
-
 func readDocumentationCuratorConfig(profilesRoot, name string) (string, error) {
 	data, err := os.ReadFile(documentationCuratorPath(profilesRoot, name))
 	if err != nil {
@@ -470,19 +399,4 @@ func readDocumentationCuratorConfig(profilesRoot, name string) (string, error) {
 
 func documentationCuratorPath(profilesRoot, name string) string {
 	return filepath.Join(profilesRoot, documentationCuratorProfile, name)
-}
-
-func replaceAll(content string, replacements map[string]string) string {
-	for old, replacement := range replacements {
-		content = strings.ReplaceAll(content, old, replacement)
-	}
-	return content
-}
-
-func localPort(addr string) string {
-	_, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return ""
-	}
-	return port
 }

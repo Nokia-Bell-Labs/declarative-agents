@@ -27,7 +27,7 @@ func (Integration) Uc005() error {
 	if err != nil {
 		return skipUC("uc005", err.Error())
 	}
-	binary, err := buildFreshAgent()
+	binary, err := buildFreshAgentFor("uc005")
 	if err != nil {
 		return err
 	}
@@ -64,14 +64,6 @@ func configuredOllamaModel() string {
 		return model
 	}
 	return qwen35b
-}
-
-func buildFreshAgent() (string, error) {
-	fmt.Println("building fresh agent binary for uc005...")
-	if err := Build(); err != nil {
-		return "", fmt.Errorf("build agent: %w", err)
-	}
-	return filepath.Abs(filepath.Join(binDir, "agent"))
 }
 
 func requireOllamaModels(model string) ([]string, error) {
@@ -183,11 +175,9 @@ func profileAbs(profileRoot, rel string) string {
 
 func runAgentCapture(binary string, args []string) error {
 	cmd := exec.Command(binary, args...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
 	fmt.Printf("running: %s %s\n", binary, strings.Join(args, " "))
-	if err := cmd.Run(); err != nil {
+	out, err := runCommandCapture(cmd)
+	if err != nil {
 		return fmt.Errorf("%w\n%s", err, out.String())
 	}
 	return nil

@@ -266,14 +266,6 @@ func buildIfNeeded() (string, error) {
 	return abs, nil
 }
 
-func buildFreshAgentFor(name string) (string, error) {
-	fmt.Printf("building fresh agent binary for %s...\n", name)
-	if err := Build(); err != nil {
-		return "", fmt.Errorf("build agent: %w", err)
-	}
-	return filepath.Abs(filepath.Join(binDir, "agent"))
-}
-
 func requireOllama() error {
 	resp, err := http.Get("http://localhost:11434/api/version")
 	if err != nil {
