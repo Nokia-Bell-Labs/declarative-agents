@@ -377,7 +377,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		MonitorRecorder: deps.MonitorRecorder,
 		Hooks: core.LoopHooks{
 			AfterDispatch:        deps.AfterDispatch,
-			OnResult:             monitorLaunchReporter,
+			OnResult:             cliResultReporter,
 			SnapshotConversation: deps.State.snapshotConversation,
 		},
 	}
@@ -396,6 +396,32 @@ func runBudget(machine core.MachineSpec, st *agentState) core.Budget {
 
 func defaultRunBudget() core.Budget {
 	return core.Budget{MaxIterations: 100}
+}
+
+func cliResultReporter(rr core.RunResult, res core.Result) core.RunResult {
+	rr = monitorLaunchReporter(rr, res)
+	if message := commandFailureMessage(res); message != "" {
+		fmt.Fprintln(os.Stderr, message)
+	}
+	return rr
+}
+
+func commandFailureMessage(res core.Result) string {
+	if res.Signal != core.CommandError {
+		return ""
+	}
+	name := strings.TrimSpace(res.CommandName)
+	if name == "" {
+		name = "command"
+	}
+	detail := strings.TrimSpace(res.Output)
+	if detail == "" && res.Err != nil {
+		detail = res.Err.Error()
+	}
+	if detail == "" {
+		return fmt.Sprintf("%s failed with signal %s", name, res.Signal)
+	}
+	return fmt.Sprintf("%s failed: %s", name, detail)
 }
 
 func monitorLaunchReporter(rr core.RunResult, res core.Result) core.RunResult {

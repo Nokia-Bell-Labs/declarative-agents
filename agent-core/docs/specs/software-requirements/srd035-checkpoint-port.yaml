@@ -76,7 +76,7 @@ requirements:
     title: Save timing, resume, and non-goals
     items:
       - R6.1: The loop SHALL call Save once after each dispatch cycle, persisting the updated Position and the appended Entry, rather than before dispatch.
-      - R6.2: Resume SHALL be a single contract: Load the persisted Position and Execution and re-enter the same machine; there SHALL be exactly one resume path with no restore-hook fan-out.
+      - R6.2: "Resume SHALL be a single contract: Load the persisted Position and Execution and re-enter the same machine; there SHALL be exactly one resume path with no restore-hook fan-out."
       - R6.3: CheckpointPolicy SHALL be a non-goal; the engine SHALL NOT decide per loop event whether to persist.
       - R6.4: The engine reverse undo-walk SHALL be a non-goal; rollback SHALL be served by the Dolt adapter revert and a lifecycle-tool receipt walk specified by srd036 and the revised srd025.
       - R6.5: Save and Load errors SHALL identify the adapter and the failing operation.

@@ -69,7 +69,7 @@ tools:
     target: checkpoint_backend
     state: run_branch_reverted
     description: Reverts DB-persisted state on the run branch to the target step commit (Dolt Revert). DB-only.
-  - kind: compensating_action
+  - kind: child_tool_execution
     target: tool_receipts
     state: external_effects_reversed
     description: Replays each reverted entry's restored, receipt-bearing Result into its tool's receipt-consuming Undo to reverse external effects; irreversible entries are skipped and logged.

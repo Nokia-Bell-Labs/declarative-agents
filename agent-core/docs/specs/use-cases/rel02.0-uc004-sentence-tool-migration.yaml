@@ -20,7 +20,7 @@ flow:
   - F2: The developer identifies each observable verb and creates one ToolDef per word with name, type, init/binary, parameters, emits, output, side_effects, reversibility, undo, errors, and relationships (srd022 R0, srd023 R0).
   - F3: The developer moves order into machine.yaml by adding states and transitions for each word's emitted signals (srd006 R3, R4).
   - F4: The developer updates tool selection files so the machine selects the new words instead of the aggregate (cfg-tool-selection-format).
-  - F5: Boundary or nested-machine tools remain allowed only when the boundary itself is the word and side effects are explicit (srd024 R0, srd025 R11).
+  - F5: Boundary or nested-machine tools remain allowed only when the boundary itself is the word and side effects are explicit (srd024 R0, srd025 R8).
   - F6: The developer updates semantic/audit docs to mark the aggregate as deprecated_compatibility or remove it from active sentence-tool lists (sm-tool-vocabulary-audit).
   - F7: The developer adds tests or future test cases proving the new machine sequence preserves behavior and exposes intermediate failure signals.
 
@@ -29,7 +29,7 @@ touchpoints:
   - T2: "srd013-standard-tool-library R8, R10 -- validation and evaluator workflows use machine-declared atomic tools"
   - T3: "srd022-builtin-tools R0, R4, R5 -- builtin words declare emits and reusable metadata"
   - T4: "srd023-cli-exec-tools R0, R5 -- exec tools model one CLI verb before bespoke wrappers"
-  - T5: "srd025-rollback-lifecycle R4, R11 -- split tools declare undo and side effects for rollback"
+  - T5: "srd025-rollback-lifecycle R3, R8 -- split tools declare receipt-aware undo and side effects for rollback"
   - T6: "sm-tool-language -- migration states for legacy_sentence and deprecated_compatibility"
 
 success_criteria:
