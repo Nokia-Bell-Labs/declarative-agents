@@ -110,6 +110,9 @@ relationships:
   MachineSpec_to_ToolDef:
     meaning: MachineSpec action names reference selected tool declarations.
     invariant: Named action signals should be declared in emits and accepted by the target state transitions.
+  MachineSpec_to_dynamic_tool_availability:
+    meaning: The transition graph defines which external ToolDefs are valid for LLM-selected $tool dispatch in each current state.
+    invariant: Explicit ToolSpec phases may narrow the transition-derived set, but they must not make a tool available where MachineSpec cannot route the tool's declared signals.
   ToolDef_to_lifecycle:
     meaning: ToolDef side_effects, reversibility, undo, and errors tell rollback lifecycle code how to reason about effects.
     invariant: Undeclared side effects are documentation bugs.
@@ -127,6 +130,23 @@ machine_composition:
   dynamic_tool_dispatch: |
     The $tool sentinel resolves a parsed LLM tool call through Registry at
     dispatch time. Dynamic dispatch still executes one selected word.
+
+    The current MachineSpec state is the current grammar phase. For an LLM
+    boundary in that state, the tool manifest contains only external words that
+    the next $tool transition may dispatch and whose declared Result.Signal
+    values can route from the target state. Terminal target states need no
+    further outgoing signal routes.
+
+    ToolSpec phases are runtime metadata for registry manifests. They may
+    narrow the transition-derived availability set, but they do not define
+    workflow order. MachineSpec remains the source of truth for which words are
+    legal in a phase.
+
+    Runtime parsing and dispatch check the parsed tool name against the same
+    current-state availability set. A model request for a registered external
+    tool that is not valid in the current state emits ParseFailed with an
+    out-of-state diagnostic. Unknown tool names and schema mismatches also use
+    ParseFailed, with distinct diagnostic text.
   boundary_or_nested_machine: |
     A boundary tool may run a child process or nested machine, but the boundary
     must be explicit in ToolDef. The parent MachineSpec sees one boundary word
@@ -238,6 +258,8 @@ invariants:
   - checkpoint_history is an internal lifecycle word with no side effect beyond Result.Output.
   - checkpoint_rollback is a lifecycle boundary word because it can rewrite checkpoint state and restore workspace state.
   - Legacy sentence tools migrate by splitting verbs and preserving behavior in machine.yaml.
+  - Dynamic $tool manifests and dispatch checks use the current MachineSpec state as the phase boundary.
+  - ToolSpec phases may restrict dynamic availability, but MachineSpec transitions decide whether a word is legal in a phase.
 
 non_goals:
   - Requiring every existing legacy tool to be split in this semantic-model task.
