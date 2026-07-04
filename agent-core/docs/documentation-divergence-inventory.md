@@ -39,8 +39,10 @@ Documentation drift:
   captures the primary usage model: a universal `agent` runtime plus YAML agent
   profiles.
 - The README package table is useful but does not orient readers around the
-  active agents (`agents/generator`, `agents/evaluator`, `agents/planner`,
-  `agents/bench`, `agents/jurist`) or profile-first startup.
+  external active agents (`$AGENT_PROFILES_ROOT/agents/generator`,
+  `$AGENT_PROFILES_ROOT/agents/evaluator`, `$AGENT_PROFILES_ROOT/agents/planner`,
+  `$AGENT_PROFILES_ROOT/agents/bench`, `$AGENT_PROFILES_ROOT/agents/jurist`) or
+  profile-first startup.
 
 Recommended edits:
 - Refresh the README introduction around Agent Core as a declarative runtime.
@@ -93,12 +95,13 @@ Status:
 ## Bench Launch Documentation
 
 Source evidence:
-- `agents/bench/builtin.yaml` configures `launch_eval` as a boundary word that
-  runs the configured evaluator profile and propagates profile/trace settings.
+- `agent-profiles/agents/bench/builtin.yaml` configures `launch_eval` as a
+  boundary word that runs the configured evaluator profile and propagates
+  profile/trace settings.
 - `docs/specs/config-formats/runtime-contract.yaml` says `launch_eval` reads
   `config.profile` and invokes the child evaluator with `--profile`.
-- `agents/bench/machine.yaml` already says experiment execution launches the
-  evaluator profile.
+- `agent-profiles/agents/bench/machine.yaml` says experiment execution launches
+  the evaluator profile.
 
 Documentation drift:
 - `docs/specs/use-cases/rel01.0-uc003-bench-visualization.yaml` still says

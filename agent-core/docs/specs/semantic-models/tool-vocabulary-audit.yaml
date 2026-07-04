@@ -12,16 +12,16 @@ scope:
     - tools/builtin/
     - tools/exec/
   mode_declarations:
-    - agents/*/builtin.yaml
-    - agents/*/llm/*.yaml
+    - $AGENT_PROFILES_ROOT/agents/*/builtin.yaml
+    - $AGENT_PROFILES_ROOT/agents/*/llm/*.yaml
   selections:
-    - agents/generator/tools.yaml
-    - agents/planner/tools.yaml
-    - agents/evaluator/tools.yaml
-    - agents/evaluator/tools-point.yaml
-    - agents/bench/tools.yaml
-    - agents/jurist/tools.yaml
-    - agents/lifecycle/tools.yaml
+    - $AGENT_PROFILES_ROOT/agents/generator/tools.yaml
+    - $AGENT_PROFILES_ROOT/agents/planner/tools.yaml
+    - $AGENT_PROFILES_ROOT/agents/evaluator/tools.yaml
+    - $AGENT_PROFILES_ROOT/agents/evaluator/tools-point.yaml
+    - $AGENT_PROFILES_ROOT/agents/bench/tools.yaml
+    - $AGENT_PROFILES_ROOT/agents/jurist/tools.yaml
+    - $AGENT_PROFILES_ROOT/agents/lifecycle/tools.yaml
 
 role_legend:
   word: |
