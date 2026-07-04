@@ -101,10 +101,7 @@ func (Integration) Uc001() error {
 
 	fmt.Printf("uc001: workspace at %s\n", workDir)
 
-	args := []string{
-		"--profile", agentProfilePath(profileRoot, "generator"),
-		"--directory", workDir,
-	}
+	args := uc001AgentArgs(profileRoot, rootDir, workDir)
 
 	if err := runAgent(binary, args); err != nil {
 		return fmt.Errorf("uc001: agent failed: %w", err)
@@ -112,6 +109,14 @@ func (Integration) Uc001() error {
 
 	fmt.Println("uc001: PASS — generator reached Succeeded with Qwen 3.6")
 	return nil
+}
+
+func uc001AgentArgs(profileRoot, coreRoot, workDir string) []string {
+	return []string{
+		"--profile", agentProfilePath(profileRoot, "generator"),
+		"--directory", workDir,
+		"--core-root", coreRoot,
+	}
 }
 
 // Uc002 runs rel01.0-uc002: Evaluator benchmarks generator across models.
