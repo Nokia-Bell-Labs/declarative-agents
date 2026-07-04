@@ -113,6 +113,95 @@ checks:
 	require.ErrorContains(t, err, `unknown severity "info"`)
 }
 
+func TestParseCharterRejectsMissingKindSpecificConfig(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "grep patterns",
+			body: `
+id: bad-suite
+checks:
+  - id: no-words
+    kind: grep_check
+`,
+			want: "grep_check requires patterns",
+		},
+		{
+			name: "ref references",
+			body: `
+id: bad-suite
+checks:
+  - id: refs
+    kind: ref_check
+    extract:
+      regex: "@([A-Za-z0-9:_-]+)"
+`,
+			want: "ref_check requires references",
+		},
+		{
+			name: "ref extract regex",
+			body: `
+id: bad-suite
+checks:
+  - id: refs
+    kind: ref_check
+    references:
+      inline: ["known"]
+`,
+			want: "ref_check requires extract.regex",
+		},
+		{
+			name: "consistency source yaml path",
+			body: `
+id: bad-suite
+checks:
+  - id: consistent
+    kind: consistency_check
+    source:
+      file: manifest.yaml
+    rule: required_path_exists
+`,
+			want: "consistency_check requires source.yaml_path",
+		},
+		{
+			name: "consistency rule",
+			body: `
+id: bad-suite
+checks:
+  - id: consistent
+    kind: consistency_check
+    source:
+      yaml_path: "$.artifacts[*].path"
+`,
+			want: "consistency_check requires rule",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseCharter([]byte(tt.body))
+
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
+}
+
+func TestParseCharterRejectsUnknownSpecCorpusSubset(t *testing.T) {
+	_, err := ParseCharter([]byte(`
+id: bad-suite
+checks:
+  - id: spec-corpus
+    kind: spec_corpus
+    checks:
+      - invented-check
+`))
+
+	require.ErrorContains(t, err, `unknown spec_corpus check "invented-check"`)
+}
+
 func writeCharter(t *testing.T, dir, name, data string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)

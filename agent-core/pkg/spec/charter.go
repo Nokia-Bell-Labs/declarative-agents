@@ -18,6 +18,48 @@ var supportedCharterKinds = map[string]bool{
 	"spec_corpus":       true,
 }
 
+var supportedSpecCorpusCheckIDs = map[string]bool{
+	"bare-touchpoint":                           true,
+	"broken-citation":                           true,
+	"broken-touchpoint":                         true,
+	"depends-on-violation":                      true,
+	"docspec-broken-example-path":               true,
+	"docspec-broken-implementation-path":        true,
+	"docspec-broken-related-document":           true,
+	"docspec-broken-requirement-source":         true,
+	"index-broken-path":                         true,
+	"index-missing-test-suite":                  true,
+	"index-missing-use-case":                    true,
+	"machine-diagnostic-terminal_transition":    true,
+	"machine-diagnostic-unreachable_state":      true,
+	"machine-diagnostic-unreachable_transition": true,
+	"machine-diagnostic-unused_signal":          true,
+	"machine-incomplete-signal-metadata":        true,
+	"machine-incomplete-state-metadata":         true,
+	"machine-metric-label-invalid":              true,
+	"machine-name-mismatch":                     true,
+	"machine-unreceived-signal":                 true,
+	"machine-unresolved-action":                 true,
+	"orphaned-srd":                              true,
+	"orphaned-test-suite":                       true,
+	"release-without-test-suite":                true,
+	"roadmap-missing-use-case":                  true,
+	"test-case-missing-use-case":                true,
+	"test-suite-missing-uc-trace":               true,
+	"tool-boundary-category-missing":            true,
+	"tool-contract-incomplete":                  true,
+	"tool-emits-unknown-signal":                 true,
+	"tool-metric-config-invalid":                true,
+	"tool-selection-undeclared":                 true,
+	"tool-undo-mismatch":                        true,
+	"tool-undo-payload-no-captures":             true,
+	"tool-unknown-side-effect-kind":             true,
+	"uncovered-ac":                              true,
+	"uncovered-req-item":                        true,
+	"untraced-success-criterion":                true,
+	"use-case-missing-test-suite":               true,
+}
+
 // Charter is a deterministic jurist check suite loaded from YAML.
 type Charter struct {
 	ID     string         `yaml:"id" json:"id"`
@@ -133,6 +175,9 @@ func validateCharter(charter *Charter) error {
 		if !supportedCharterKinds[check.Kind] {
 			return fmt.Errorf("charter %q check %q: unknown check kind %q", charter.ID, check.ID, check.Kind)
 		}
+		if err := validateCharterCheckConfig(charter.ID, check); err != nil {
+			return err
+		}
 		if check.Severity == "" {
 			check.Severity = "error"
 		}
@@ -140,6 +185,51 @@ func validateCharter(charter *Charter) error {
 		case "error", "warning":
 		default:
 			return fmt.Errorf("charter %q check %q: unknown severity %q", charter.ID, check.ID, check.Severity)
+		}
+	}
+	return nil
+}
+
+func validateCharterCheckConfig(charterID string, check *CharterCheck) error {
+	switch check.Kind {
+	case "grep_check":
+		if len(check.Patterns) == 0 {
+			return fmt.Errorf("charter %q check %q: grep_check requires patterns", charterID, check.ID)
+		}
+		if check.Mode != "" && check.Mode != "match" && check.Mode != "missing" {
+			return fmt.Errorf("charter %q check %q: unknown grep_check mode %q", charterID, check.ID, check.Mode)
+		}
+	case "ref_check":
+		if len(check.Refs) == 0 {
+			return fmt.Errorf("charter %q check %q: ref_check requires references", charterID, check.ID)
+		}
+		if raw, ok := stringMapValue(check.Extract, "regex"); !ok || raw == "" {
+			return fmt.Errorf("charter %q check %q: ref_check requires extract.regex", charterID, check.ID)
+		}
+	case "consistency_check":
+		if raw, ok := stringMapValue(check.Source, "yaml_path"); !ok || raw == "" {
+			return fmt.Errorf("charter %q check %q: consistency_check requires source.yaml_path", charterID, check.ID)
+		}
+		if check.Rule == "" {
+			return fmt.Errorf("charter %q check %q: consistency_check requires rule", charterID, check.ID)
+		}
+		switch check.Rule {
+		case "equals", "required_path_exists", "required_when":
+		default:
+			return fmt.Errorf("charter %q check %q: unknown consistency_check rule %q", charterID, check.ID, check.Rule)
+		}
+	case "spec_corpus":
+		if err := validateSpecCorpusSubset(charterID, check); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSpecCorpusSubset(charterID string, check *CharterCheck) error {
+	for _, checkID := range check.Checks {
+		if !supportedSpecCorpusCheckIDs[checkID] {
+			return fmt.Errorf("charter %q check %q: unknown spec_corpus check %q", charterID, check.ID, checkID)
 		}
 	}
 	return nil

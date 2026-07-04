@@ -34,7 +34,7 @@ func ExecuteCharters(targetDir string, graph *Graph, corpus *Corpus, charters []
 func executeCharterCheck(targetDir string, graph *Graph, corpus *Corpus, charter Charter, check CharterCheck) ([]Finding, error) {
 	switch check.Kind {
 	case "spec_corpus":
-		return executeSpecCorpusCheck(graph, corpus, charter, check), nil
+		return executeSpecCorpusCheck(graph, corpus, charter, check)
 	case "grep_check":
 		return ExecuteGrepChecks(targetDir, []Charter{charter})
 	case "ref_check":
@@ -46,7 +46,10 @@ func executeCharterCheck(targetDir string, graph *Graph, corpus *Corpus, charter
 	}
 }
 
-func executeSpecCorpusCheck(graph *Graph, corpus *Corpus, charter Charter, check CharterCheck) []Finding {
+func executeSpecCorpusCheck(graph *Graph, corpus *Corpus, charter Charter, check CharterCheck) ([]Finding, error) {
+	if err := validateSpecCorpusSubset(charter.ID, &check); err != nil {
+		return nil, err
+	}
 	findings := Validate(graph, corpus)
 	if len(check.Checks) > 0 {
 		allowed := make(map[string]bool, len(check.Checks))
@@ -72,7 +75,7 @@ func executeSpecCorpusCheck(graph *Graph, corpus *Corpus, charter Charter, check
 			findings[i].Kind = check.Kind
 		}
 	}
-	return findings
+	return findings, nil
 }
 
 func sortFindings(findings []Finding) {
