@@ -150,6 +150,7 @@ func onModelResolved(st *agentState) func(toollm.InvokeLLMResolvedConfig) {
 		st.parser = cfg.Parser
 		st.model = cfg.Model
 		st.providerName = cfg.ProviderName
+		st.manifestState = cfg.ManifestState
 		st.maxDuration = cfg.MaxTime
 		st.maxTokens = cfg.MaxTokens
 	}
@@ -161,8 +162,11 @@ func parseResponseFactory(st *agentState) toolregistry.BuiltinFactory {
 			Registry: st.registry,
 			Parser:   st.parser,
 			Tracer:   st.tracer,
-			Verbose:  st.verbose,
-			Retry:    st.parseRetries,
+			StateFunc: func() core.State {
+				return st.manifestState
+			},
+			Verbose: st.verbose,
+			Retry:   st.parseRetries,
 		}, nil
 	}
 }

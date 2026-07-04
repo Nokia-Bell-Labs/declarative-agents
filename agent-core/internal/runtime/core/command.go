@@ -98,6 +98,7 @@ type ToolMetrics struct {
 type Result struct {
 	Output      string
 	Signal      Signal
+	State       State
 	Cost        Cost
 	Err         error
 	CommandName string

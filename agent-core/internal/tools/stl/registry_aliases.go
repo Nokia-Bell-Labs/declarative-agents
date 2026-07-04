@@ -33,3 +33,11 @@ func RegisterUnifiedTools(reg *core.Registry, builtins *BuiltinRegistry, root st
 		return &ExecBuilder{Def: def, Root: root}
 	})
 }
+
+// RegisterUnifiedToolsForMachine preserves the STL facade while applying
+// MachineSpec-derived dynamic manifest phases.
+func RegisterUnifiedToolsForMachine(reg *core.Registry, builtins *BuiltinRegistry, root string, machine core.MachineSpec, defs []catalog.ToolDef, vars map[string]string) error {
+	return toolregistry.RegisterUnifiedToolsForMachine(reg, builtins, root, machine, defs, vars, func(def catalog.ToolDef, root string) core.Builder {
+		return &ExecBuilder{Def: def, Root: root}
+	})
+}

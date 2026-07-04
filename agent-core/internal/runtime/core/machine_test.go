@@ -520,6 +520,44 @@ transitions:
 	}
 }
 
+func TestBuildTransitionTablePassesTargetStateToAction(t *testing.T) {
+	t.Parallel()
+
+	yaml := `
+name: state-context
+initial_state: A
+states: [A, B]
+terminal_states: [B]
+signals: [Go]
+transitions:
+  - state: A
+    signal: Go
+    next: B
+    action: $tool
+`
+	spec, err := ParseMachineSpec([]byte(yaml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	var got State
+	toolAction := func(r Result) Command {
+		got = r.State
+		return &dummyCmd{}
+	}
+
+	reg := NewRegistry()
+	table, _, err := BuildTransitionTable(spec, reg, toolAction)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	table[TransitionInput{State: "A", Signal: "Go"}].Action(Result{})
+	if got != "B" {
+		t.Fatalf("action state = %q, want B", got)
+	}
+}
+
 func TestBuildTransitionTable_ToolActionNil(t *testing.T) {
 	t.Parallel()
 

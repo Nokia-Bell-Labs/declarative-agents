@@ -175,11 +175,12 @@ type InvokeLLMFactoryDeps struct {
 
 // InvokeLLMResolvedConfig exposes metadata needed by neighboring tools.
 type InvokeLLMResolvedConfig struct {
-	Model        string
-	ProviderName string
-	Parser       modelllm.ResponseParser
-	MaxTime      time.Duration
-	MaxTokens    int
+	Model         string
+	ProviderName  string
+	Parser        modelllm.ResponseParser
+	ManifestState core.State
+	MaxTime       time.Duration
+	MaxTokens     int
 }
 
 // NewInvokeLLMBuilder creates the configured invoke_llm builder.
@@ -224,9 +225,13 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	state := res.State
+	if state == "" {
+		state = b.State
+	}
 	return &invokeLLMCmd{
 		client: b.Client, history: b.History, registry: b.Registry, assembler: b.Assembler,
-		state: b.State, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
+		state: state, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
 		userMessage: res.Output, tracer: b.Tracer, contextLimit: b.ContextLimit,
 		numCtx: b.NumCtx, callTimeout: b.CallTimeout, metrics: b.Metrics, verbose: b.Verbose, ctx: ctx,
 	}
@@ -267,7 +272,7 @@ func resolveLLMParser(cfg catalog.LLMToolConfig) (modelllm.ResponseParser, error
 
 func resolvedLLMConfig(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser) InvokeLLMResolvedConfig {
 	return InvokeLLMResolvedConfig{
-		Model: cfg.Model, ProviderName: cfg.Provider, Parser: parser,
+		Model: cfg.Model, ProviderName: cfg.Provider, Parser: parser, ManifestState: core.State(cfg.ManifestState),
 		MaxTime: durationSeconds(cfg.MaxTime), MaxTokens: cfg.MaxTokens,
 	}
 }

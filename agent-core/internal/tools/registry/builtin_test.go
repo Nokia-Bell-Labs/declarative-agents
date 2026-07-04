@@ -74,6 +74,43 @@ func TestRegisterUnifiedToolsBuiltinAndExec(t *testing.T) {
 	require.True(t, ok)
 }
 
+func TestRegisterUnifiedToolsForMachineAppliesDynamicPhases(t *testing.T) {
+	t.Parallel()
+	reg := core.NewRegistry()
+	br := NewBuiltinRegistry()
+	for _, initName := range []string{"file_read", "broken", "internal"} {
+		br.Register(initName, func(catalog.ToolDef, map[string]string) (core.Builder, error) {
+			return noopBuilder{}, nil
+		})
+	}
+	machine := core.MachineSpec{
+		Name:           "dynamic",
+		States:         core.StateSpecsFromNames("Parsing", "Composing", "Done", "Failed"),
+		TerminalStates: []string{"Done", "Failed"},
+		Signals:        core.SignalSpecsFromNames("ToolReady", "ToolDone", "ToolFailed", "MissingRoute"),
+		Transitions: []core.TransitionSpec{
+			{State: "Parsing", Signal: "ToolReady", Next: "Composing", Action: "$tool"},
+			{State: "Composing", Signal: "ToolDone", Next: "Composing"},
+			{State: "Composing", Signal: "ToolFailed", Next: "Failed"},
+		},
+	}
+	defs := []catalog.ToolDef{
+		{Name: "read", Type: "builtin", Init: "file_read", Emits: []string{"ToolDone", "ToolFailed"}},
+		{Name: "broken", Type: "builtin", Init: "broken", Emits: []string{"MissingRoute"}},
+		{Name: "parse_response", Type: "builtin", Init: "internal", Visibility: "internal", Emits: []string{"ToolDone"}},
+	}
+
+	err := RegisterUnifiedToolsForMachine(reg, br, "/tmp", machine, defs, nil, func(catalog.ToolDef, string) core.Builder {
+		return noopBuilder{}
+	})
+
+	require.NoError(t, err)
+	requireManifestNames(t, reg.Manifest("Composing"), []string{"read"})
+	requireManifestNames(t, reg.Manifest("Parsing"), []string{})
+	_, ok := reg.Resolve("broken")
+	require.True(t, ok, "tools hidden from dynamic manifests still resolve for named actions")
+}
+
 func TestRegisterUnifiedToolsUnknownInit(t *testing.T) {
 	t.Parallel()
 	err := RegisterUnifiedTools(core.NewRegistry(), NewBuiltinRegistry(), "/tmp", []catalog.ToolDef{
@@ -110,4 +147,13 @@ func TestSelectedBuiltinInits(t *testing.T) {
 	require.True(t, selected["file_read"])
 	require.True(t, selected["parse_response"])
 	require.False(t, selected["build"])
+}
+
+func requireManifestNames(t *testing.T, specs []core.ToolSpec, want []string) {
+	t.Helper()
+	got := make([]string, 0, len(specs))
+	for _, spec := range specs {
+		got = append(got, spec.Name)
+	}
+	require.Equal(t, want, got)
 }
