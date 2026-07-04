@@ -1,0 +1,220 @@
+id: cfg-jurist-charter-format
+title: Jurist Charter Format
+
+purpose: |
+  Defines the YAML format for jurist check suites, also called charters.
+  A charter is deterministic validation data for the jurist profile. It names
+  checks, check kinds, input globs, reference sources, severity, and report
+  provenance without adding Go workflow states or LLM behavior.
+
+ownership: |
+  Agent profiles own the choice of charter files. Agent Core owns the builtin
+  check kinds and the interpreter that runs them. A caller supplies the target
+  directory through --directory. The selected jurist profile supplies default
+  suite paths or accepts suite paths as runtime request data when a profile
+  chooses that contract.
+
+determinism: |
+  Jurist charter execution is local and deterministic. Check kinds must not call
+  an LLM, access the network, depend on wall-clock time, or mutate the target
+  directory. Implementations sort suites, files, matches, and findings before
+  reporting so two runs over the same inputs produce the same pass/fail status
+  and finding order.
+
+schema:
+  - field: id
+    type: string
+    required: true
+    description: |
+      Stable charter identifier. Finding provenance records this value as the
+      suite id.
+
+  - field: title
+    type: string
+    required: false
+    description: Human-readable charter title.
+
+  - field: target
+    type: object
+    required: false
+    description: |
+      Optional defaults for target-relative file discovery. The runtime target
+      root remains --directory. Checks may add narrower globs under this root.
+    properties:
+      root:
+        type: string
+        required: false
+        description: |
+          Target-relative root for this charter. Defaults to ".".
+      include:
+        type: "[]string"
+        required: false
+        description: Glob patterns included by default for checks that omit include.
+      exclude:
+        type: "[]string"
+        required: false
+        description: Glob patterns excluded by default.
+
+  - field: checks
+    type: "[]object"
+    required: true
+    description: |
+      Ordered check declarations. Each check has an id, kind, severity, and
+      kind-specific config. The interpreter may run checks in declaration order
+      but must sort findings before reporting.
+    item_fields:
+      - field: id
+        type: string
+        required: true
+        description: Stable check identifier unique within the charter.
+      - field: kind
+        type: string
+        required: true
+        description: |
+          Check kind. Supported values are grep_check, ref_check,
+          consistency_check, and spec_corpus.
+      - field: severity
+        type: string
+        required: false
+        description: |
+          Finding severity. Supported values are error and warning. Defaults to
+          error.
+      - field: message
+        type: string
+        required: false
+        description: |
+          Optional message template used when the check emits a finding. The
+          runtime may append file, line, and referenced value details.
+      - field: include
+        type: "[]string"
+        required: false
+        description: Target-relative glob patterns for this check.
+      - field: exclude
+        type: "[]string"
+        required: false
+        description: Target-relative glob patterns excluded for this check.
+
+check_kinds:
+  - kind: grep_check
+    purpose: |
+      Finds forbidden or required text patterns in target files. Use this for
+      constitution vocabulary rules, banned phrases, or local prose checks.
+    config_fields:
+      - field: patterns
+        type: "[]string"
+        required: true
+        description: Literal or regular-expression patterns to search.
+      - field: mode
+        type: string
+        required: false
+        description: |
+          match forbids matching text and emits a finding for each match.
+          missing requires at least one match and emits a finding when no file
+          matches. Defaults to match.
+      - field: regex
+        type: bool
+        required: false
+        description: Treat patterns as regular expressions when true.
+
+  - kind: ref_check
+    purpose: |
+      Resolves references found in target files against configured inventories.
+      Use this for citation keys, manifest IDs, data artifact names, or
+      target-relative file paths.
+    config_fields:
+      - field: references
+        type: object
+        required: true
+        description: |
+          Source of allowed reference values. A reference source may be a file,
+          directory, or inline list depending on implementation support.
+      - field: extract
+        type: object
+        required: true
+        description: |
+          Rule for extracting reference values from checked files. Typical
+          forms include regular-expression capture groups or YAML field paths.
+      - field: allow_missing
+        type: bool
+        required: false
+        description: Do not emit findings when no references are present.
+
+  - kind: consistency_check
+    purpose: |
+      Compares simple facts across files or verifies declared artifacts exist.
+      Use this for manifest status versus artifact paths, MVP flags versus issue
+      IDs, or matching YAML field values.
+    config_fields:
+      - field: source
+        type: object
+        required: true
+        description: YAML path, file path, or manifest selector that supplies values.
+      - field: rule
+        type: string
+        required: true
+        description: |
+          Deterministic comparison rule. Initial rules cover equals,
+          required_path_exists, and required_when.
+      - field: target
+        type: object
+        required: false
+        description: YAML path, path template, or selector compared with source.
+
+  - kind: spec_corpus
+    purpose: |
+      Runs the built-in Agent Core specification corpus checks that currently
+      back mage audit. This kind preserves srd014 behavior while making the
+      jurist default suite data-driven.
+    config_fields:
+      - field: checks
+        type: "[]string"
+        required: false
+        description: |
+          Optional subset of built-in spec check identifiers. Omitted means run
+          the full spec-corpus suite.
+
+finding_provenance: |
+  Every charter finding records the suite id, check id, check kind, severity,
+  message, and any available file and line. Built-in spec_corpus findings keep
+  their existing check identifiers and add suite/check provenance through the
+  default charter wrapper.
+
+example: |
+  id: manuscript-charter
+  title: Manuscript publication checks
+  target:
+    include: ["papers/**/*.md"]
+    exclude: ["papers/**/build/**"]
+  checks:
+    - id: no-internal-vocabulary
+      kind: grep_check
+      severity: error
+      patterns: ["cobbler", "agentic loop magic"]
+      message: "Publication prose must not leak internal vocabulary."
+
+    - id: citations-resolve
+      kind: ref_check
+      severity: error
+      include: ["papers/**/*.md"]
+      references:
+        file: "papers/references.bib"
+        format: bibtex_keys
+      extract:
+        regex: "@([A-Za-z0-9:_-]+)"
+
+    - id: artifacts-exist
+      kind: consistency_check
+      severity: error
+      include: ["experiments/manifest.yaml"]
+      source:
+        yaml_path: "$.experiments[*].artifact"
+      rule: required_path_exists
+
+    - id: built-in-agent-core-specs
+      kind: spec_corpus
+      severity: error
+
+references:
+  - docs/specs/software-requirements/srd014-spec-graph.yaml
+  - agent-profiles/agents/jurist/profile.yaml
+  - agent-profiles/docs/specs/software-requirements/srd001-agent-functional-blocks.yaml

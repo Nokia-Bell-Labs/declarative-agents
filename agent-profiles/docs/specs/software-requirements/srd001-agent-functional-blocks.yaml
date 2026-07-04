@@ -99,11 +99,20 @@ requirements:
         text: The jurist profile must model deterministic specification corpus
           validation with no LLM boundary.
       - id: R5.2
-        text: Jurist inputs must include a filesystem corpus. Outputs must
-          include a formatted validation report and passed or failed status.
+        text: Jurist inputs must include a filesystem target directory and
+          one or more deterministic charter suite paths. Outputs must include a
+          formatted validation report and passed or failed status.
       - id: R5.3
         text: Jurist responsibilities must cover corpus loading, graph
           validation, consistency checks, and report formatting.
+      - id: R5.4
+        text: Jurist charter checks must remain LLM-free, network-free,
+          read-only, and deterministic across repeated runs over the same
+          target directory and suite files.
+      - id: R5.5
+        text: Jurist findings must identify the suite, check, severity,
+          message, and any available file and line provenance so consumers can
+          act on failures without reading Go code.
 
   - id: R6
     title: Bench functional block

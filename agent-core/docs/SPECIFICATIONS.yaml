@@ -267,6 +267,10 @@ config_format_index:
     title: REST Tool Configuration Format
     summary: YAML format for declarative REST definitions, clients, servers, OpenAPI imports, auth profiles, limits, retry policies, response mappings, machine_request bindings, and target-format event source, lifecycle control, and document resource fields. Release 03.0 support status is recorded in the spec.
     path: docs/specs/config-formats/rest-tool-format.yaml
+  - id: cfg-jurist-charter-format
+    title: Jurist Charter Format
+    summary: YAML format for deterministic jurist check suites, including grep_check, ref_check, consistency_check, spec_corpus, target globs, severity, and finding provenance.
+    path: docs/specs/config-formats/jurist-charter-format.yaml
 
 semantic_model_index:
   - id: sm-command-undo-audit

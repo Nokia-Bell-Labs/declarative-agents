@@ -115,15 +115,17 @@ roles:
   - id: jurist
     title: Specification validator
     profile_path: agents/jurist/profile.yaml
-    actor_boundary: local specification corpus
+    actor_boundary: local target directory and charter suites
     inputs:
-      - docs corpus
+      - target directory
+      - charter suite path or paths
+      - docs corpus for the built-in spec_corpus suite
     selected_tool_families:
       - specification validation
     runtime_dependencies:
       - agent-core spec validation tools
     outputs:
-      - validation report
+      - validation report with suite and check provenance
       - pass or fail status
     outcomes:
       - Passed
@@ -131,6 +133,8 @@ roles:
     checks:
       - Confirm no LLM boundary is selected.
       - Confirm report formatting runs for pass and fail outcomes.
+      - Confirm charter suites run deterministically over the target directory.
+      - Confirm findings identify suite, check, file, and line when available.
 
   - id: bench
     title: Human-operated evaluation launcher
