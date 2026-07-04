@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package exec
 
 import (
 	"fmt"
-	"os/exec"
+	osexec "os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +20,7 @@ func TestSubprocessResult_Success(t *testing.T) {
 }
 
 func TestSubprocessResult_ExitError(t *testing.T) {
-	cmd := exec.Command("false")
+	cmd := osexec.Command("false")
 	err := cmd.Run()
 	res := SubprocessResult("build", []byte("error output\n"), err)
 	assert.Equal(t, core.ToolFailed, res.Signal)

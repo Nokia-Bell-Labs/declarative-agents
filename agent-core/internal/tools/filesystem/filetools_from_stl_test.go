@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package filesystem
 
 import (
 	"os"
@@ -12,10 +12,6 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
-
-func toolReq(params string) core.Result {
-	return core.Result{Output: `{"parameters":` + params + `}`}
-}
 
 func TestReadBuilder_MissingParam(t *testing.T) {
 	t.Parallel()

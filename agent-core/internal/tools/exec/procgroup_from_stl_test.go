@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package exec
 
 import (
 	"context"
-	"os/exec"
+	osexec "os/exec"
 	"testing"
 	"time"
 
@@ -13,7 +13,7 @@ import (
 )
 
 func TestProcGroupCmd_SetsFields(t *testing.T) {
-	cmd := exec.Command("echo", "hello")
+	cmd := osexec.Command("echo", "hello")
 	ProcGroupCmd(cmd)
 	assert.True(t, cmd.SysProcAttr.Setpgid)
 	assert.NotNil(t, cmd.Cancel)
