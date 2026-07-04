@@ -17,7 +17,7 @@ const (
 	baseBranch = "main"
 )
 
-// Tag creates a repository-wide release tag (v0.YYYYMMDD.N).
+// Tag creates a repository-wide release tag and matching module tags.
 func Tag() error {
 	return createReleaseTag(time.Now(), gitOutput, gitExec)
 }
@@ -38,12 +38,30 @@ func createReleaseTag(now time.Time, output gitOutputFunc, run gitExecFunc) erro
 	}
 	tag := fmt.Sprintf("%s%s.%d", tagPrefix, date, nextRevisionFromTags(date, tags))
 
-	fmt.Printf("creating tag %s\n", tag)
-	if err := run("tag", tag); err != nil {
-		return fmt.Errorf("creating tag %s: %w", tag, err)
+	for _, releaseTag := range releaseTags(tag, subModules) {
+		fmt.Printf("creating tag %s\n", releaseTag)
+		if err := run("tag", releaseTag); err != nil {
+			return releaseTagError(releaseTag, err)
+		}
 	}
-	fmt.Printf("done — created %s\n", tag)
+	fmt.Printf("done — created %s\n", strings.Join(releaseTags(tag, subModules), ", "))
 	return nil
+}
+
+func releaseTags(rootTag string, modules []string) []string {
+	tags := []string{rootTag}
+	for _, mod := range modules {
+		tags = append(tags, mod+"/"+rootTag)
+	}
+	return tags
+}
+
+func releaseTagError(tag string, err error) error {
+	module, _, ok := strings.Cut(tag, "/")
+	if ok {
+		return fmt.Errorf("creating tag %s for module %s: %w", tag, module, err)
+	}
+	return fmt.Errorf("creating tag %s: %w", tag, err)
 }
 
 func validateReleaseBranch(branch string) error {
