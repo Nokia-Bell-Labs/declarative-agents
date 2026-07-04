@@ -5,6 +5,7 @@ package docsapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -114,9 +115,9 @@ func TestStandaloneServerConformanceUsesRESTMachineRequestRoutes(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	trace := responseTrace(t, rec.Body.Bytes())
-	require.Equal(t, "documentation_curator_requests", trace["server"])
+	require.Equal(t, "docs_runtime_requests", trace["server"])
 	require.Equal(t, "document", trace["route"])
-	require.Equal(t, "documentation-curator-request", trace["machine"])
+	require.Equal(t, "docs-runtime-request", trace["machine"])
 	require.Equal(t, "DocumentDetailReady", trace["terminal_signal"])
 }
 
@@ -175,7 +176,7 @@ func TestStandaloneServerServesProfileUXConfig(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	var body map[string]UXConfig
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	require.Equal(t, "Knowledge Manager Documentation UI", body["data"].Title)
+	require.Equal(t, "Docs Runtime UI", body["data"].Title)
 	require.Equal(t, "doc_list", uxRoutesByID(body["data"].Routes)["docs_index"].Action)
 	require.Equal(t, "doc_get", uxRoutesByID(body["data"].Routes)["docs_detail"].Action)
 }
@@ -200,7 +201,7 @@ func TestCuratorUXConfigMatchesRouteAndActionContracts(t *testing.T) {
 	machine, err := core.LoadMachineSpec(filepath.Join(filepath.Dir(curatorProfilePath(t)), "request-machine.yaml"))
 	require.NoError(t, err)
 
-	requireUXRoutesMatchREST(t, ux, collection.Servers["documentation_curator_requests"].Endpoints)
+	requireUXRoutesMatchREST(t, ux, collection.Servers["docs_runtime_requests"].Endpoints)
 	requireUXActionsSelected(t, ux, toolNames(defs), machineActionNames(machine))
 }
 
@@ -306,10 +307,10 @@ func curatorExitLoopParams(t *testing.T, host *DocumentationHostLifecycle, launc
 	require.NoError(t, err)
 	reg := core.NewRegistry()
 	reg.Register(core.ToolSpec{Name: "serve_documentation"}, newServeDocumentationCommand(t, host))
-	registerStaticDocsSignal(reg, "launch_curator_control", "ServerLaunched", "{}")
+	registerStaticDocsSignal(reg, "launch_docs_control", "ServerLaunched", "{}")
 	registerStaticDocsSignal(reg, "launch_monitor_rest", "ServerLaunched", "{}")
 	registerStaticDocsSignal(reg, "stop_monitor_rest", "ServerStopped", "{}")
-	registerStaticDocsSignal(reg, "await_curator_control", "ExitRequested", `{"payload":{"reason":"operator requested shutdown","status":"success"}}`)
+	registerStaticDocsSignal(reg, "await_docs_control", "ExitRequested", `{"payload":{"reason":"operator requested shutdown","status":"success"}}`)
 	reg.Register(core.ToolSpec{Name: "exit_agent"}, lifecycle.ExitBuilder{
 		Config: lifecycle.ExitConfig{Status: "success"}, Shutdown: func() {},
 	})
@@ -471,8 +472,8 @@ func TestCuratorProfileSelectsGenericControlExitFlow(t *testing.T) {
 	require.NoError(t, catalog.ValidateToolEmits(machine, defs))
 	names := toolNames(defs)
 	require.Contains(t, names, "serve_documentation")
-	require.Contains(t, names, "launch_curator_control")
-	require.Contains(t, names, "await_curator_control")
+	require.Contains(t, names, "launch_docs_control")
+	require.Contains(t, names, "await_docs_control")
 	require.Contains(t, names, "exit_agent")
 }
 
@@ -480,14 +481,14 @@ func TestCuratorControlRouteFeedsRestAwaitEvent(t *testing.T) {
 	t.Parallel()
 	collection, err := rest.LoadDefinitions([]string{curatorRestPath(t)}, nil)
 	require.NoError(t, err)
-	def := collection.Servers["documentation_curator_control"]
+	def := collection.Servers["docs_runtime_control"]
 	def.Address = "127.0.0.1:0"
-	collection.Servers["documentation_curator_control"] = def
+	collection.Servers["docs_runtime_control"] = def
 	state, baseURL := launchCuratorControl(t, collection)
 	postHTTPJSON(t, baseURL+"/api/lifecycle/exit", `{"reason":"operator requested shutdown"}`)
 
 	event, signal, err := state.AwaitAny(rest.AwaitAnyOptions{
-		Sources: []rest.AwaitSource{{Server: "documentation_curator_control", Routes: []string{"exit"}}},
+		Sources: []rest.AwaitSource{{Server: "docs_runtime_control", Routes: []string{"exit"}}},
 		Timeout: time.Second,
 	})
 
@@ -509,17 +510,59 @@ func (fakeWorkflowRunner) Run(r *http.Request) (ActionResponse, error) {
 
 func curatorProfilePath(t *testing.T) string {
 	t.Helper()
-	return curatorProfileAssetPath(t, "profile.yaml")
+	return writeDocsRuntimeProfile(t)
 }
 
 func curatorRestPath(t *testing.T) string {
 	t.Helper()
-	return curatorProfileAssetPath(t, "rest.yaml")
+	return filepath.Join(docsRuntimeFixtureDir(t), "rest.yaml")
 }
 
 func curatorProfileAssetPath(t *testing.T, rel string) string {
 	t.Helper()
-	return filepath.Join(docsProfileRoot(t), "knowledge-manager", "documentation-curator", filepath.FromSlash(rel))
+	dir := filepath.Dir(writeDocsRuntimeProfile(t))
+	return filepath.Join(dir, filepath.FromSlash(rel))
+}
+
+func writeDocsRuntimeProfile(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	restFixture := docsRuntimeFixtureDir(t)
+	profilePath := filepath.Join(dir, "profile.yaml")
+	writeTestProfileFile(t, profilePath, fmt.Sprintf(`name: docs-runtime
+machine: %q
+tools:
+  - %q
+tool_declarations:
+  - %q
+  - %q
+  - %q
+  - %q
+rest_definitions:
+  - %q
+`, filepath.Join(dir, "machine.yaml"), filepath.Join(dir, "tools.yaml"),
+		filepath.Join(dir, "builtin.yaml"), filepath.Join(dir, "request-declarations.yaml"),
+		filepath.Join(restFixture, "declarations.yaml"),
+		filepath.Join(repoRootFromDocsTest(t), "tools", "builtin", "lifecycle", "exit-agent.yaml"),
+		filepath.Join(restFixture, "rest.yaml")))
+	writeTestProfileFile(t, filepath.Join(dir, "tools.yaml"), docsRuntimeToolsYAML)
+	writeTestProfileFile(t, filepath.Join(dir, "builtin.yaml"), docsRuntimeBuiltinYAML)
+	writeTestProfileFile(t, filepath.Join(dir, "request-declarations.yaml"), docsRuntimeRequestDeclarationsYAML)
+	writeTestProfileFile(t, filepath.Join(dir, "request-machine.yaml"), docsRuntimeRequestMachineYAML)
+	writeTestProfileFile(t, filepath.Join(dir, "machine.yaml"), docsRuntimeMachineYAML)
+	writeTestProfileFile(t, filepath.Join(dir, "ui", "ux.yaml"), docsRuntimeUXYAML)
+	return profilePath
+}
+
+func docsRuntimeFixtureDir(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(repoRootFromDocsTest(t), "internal", "tools", "rest", "testdata", "docs-runtime")
+}
+
+func writeTestProfileFile(t *testing.T, path, content string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 }
 
 func loadCuratorProfileDefs(profile catalog.AgentProfile) ([]catalog.ToolDef, error) {
@@ -536,12 +579,12 @@ func loadCuratorProfileDefs(profile catalog.AgentProfile) ([]catalog.ToolDef, er
 
 func launchCuratorControl(t *testing.T, collection rest.Collection) (*rest.ServerState, string) {
 	t.Helper()
-	server, err := collection.ResolveServer("documentation_curator_control")
+	server, err := collection.ResolveServer("docs_runtime_control")
 	require.NoError(t, err)
 	state := rest.NewServerState()
 	output, err := state.Launch(server)
 	require.NoError(t, err)
-	t.Cleanup(func() { _, _ = state.Stop("documentation_curator_control") })
+	t.Cleanup(func() { _, _ = state.Stop("docs_runtime_control") })
 	return state, "http://" + output["address"].(string)
 }
 
@@ -621,30 +664,301 @@ func repoRootFromDocsRuntime() string {
 	return filepath.Join(filepath.Dir(file), "..", "..", "..")
 }
 
-func docsProfileRoot(t *testing.T) string {
-	t.Helper()
-	root := repoRootFromDocsTest(t)
-	for _, candidate := range docsProfileRootCandidates(root) {
-		if hasDocsProfile(candidate, "knowledge-manager/documentation-curator/profile.yaml") {
-			return candidate
-		}
-		nested := filepath.Join(candidate, "agents")
-		if hasDocsProfile(nested, "knowledge-manager/documentation-curator/profile.yaml") {
-			return nested
-		}
-	}
-	t.Fatalf("profile root not found; place agent-profiles next to agent-core or under ./agent-profiles")
-	return ""
-}
+const docsRuntimeToolsYAML = `tools:
+  - serve_documentation
+  - launch_docs_control
+  - await_docs_control
+  - launch_monitor_rest
+  - await_monitor_control
+  - stop_monitor_rest
+  - exit_agent
+  - doc_list
+  - doc_get
+  - doc_search
+  - doc_validate
+  - doc_suggest_changes
+  - doc_patch_approve
+  - doc_patch_reject
+  - doc_patch_reopen
+  - doc_list_resource
+  - doc_read_resource
+  - doc_index_response
+  - doc_detail_response
+`
 
-func docsProfileRootCandidates(root string) []string {
-	return []string{
-		filepath.Join(filepath.Dir(root), "agent-profiles"),
-		filepath.Join(root, "agent-profiles"),
-	}
-}
+const docsRuntimeBuiltinYAML = `tools:
+  - name: serve_documentation
+    type: builtin
+    init: serve_documentation
+    emits: [ServerLaunched, ServerStopped, CommandError]
+  - name: launch_docs_control
+    type: builtin
+    init: rest_server_launch
+    emits: [ServerLaunched, CommandError]
+    config:
+      rest_ref: docs_runtime_control
+  - name: await_docs_control
+    type: builtin
+    init: rest_await_event
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    config:
+      sources:
+        - server: docs_runtime_control
+          routes: [exit]
+          signals: [ExitRequested]
+      timeout: 30s
+      stopped_behavior: emit_server_stopped
+`
 
-func hasDocsProfile(root, rel string) bool {
-	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel)))
-	return err == nil && !info.IsDir()
-}
+const docsRuntimeRequestDeclarationsYAML = `tools:
+  - name: doc_list_resource
+    type: builtin
+    init: list_resource
+    emits: [DocumentListReady, DocumentResourceDenied, CommandError]
+    config:
+      resources:
+        docs:
+          root: docs
+          include: ["**/*.yaml", "**/*.yml", "**/*.md"]
+          extensions: [yaml, yml, md]
+          modes: [raw_yaml, parsed_yaml, raw_markdown]
+          max_bytes: 1048576
+  - name: doc_read_resource
+    type: builtin
+    init: read_resource
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    config:
+      resources:
+        docs:
+          root: docs
+          include: ["**/*.yaml", "**/*.yml", "**/*.md"]
+          extensions: [yaml, yml, md]
+          modes: [raw_yaml, parsed_yaml, raw_markdown]
+          max_bytes: 1048576
+  - name: doc_index_response
+    type: builtin
+    init: doc_index_response
+    emits: [DocumentIndexReady, CommandError]
+  - name: doc_detail_response
+    type: builtin
+    init: doc_detail_response
+    emits: [DocumentDetailReady, CommandError]
+`
+
+const docsRuntimeRequestMachineYAML = `name: docs-runtime-request
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 4
+states:
+  - name: AwaitingRequest
+  - name: ListingDocuments
+  - name: ReadingDocument
+  - name: ShapingDocumentIndex
+  - name: ShapingDocumentDetail
+  - name: DocumentIndexReady
+  - name: DocumentDetailReady
+  - name: DocumentNotFound
+  - name: RequestDenied
+  - name: Failed
+terminal_states: [DocumentIndexReady, DocumentDetailReady, DocumentNotFound, RequestDenied, Failed]
+signals:
+  - name: Seed
+  - name: ReadRequested
+  - name: DocumentListReady
+  - name: DocumentReady
+  - name: DocumentIndexReady
+  - name: DocumentDetailReady
+  - name: DocumentMissing
+  - name: DocumentResourceDenied
+  - name: DocumentParseFailed
+  - name: CommandError
+transitions:
+  - state: AwaitingRequest
+    signal: Seed
+    next: ListingDocuments
+    action: doc_list_resource
+  - state: AwaitingRequest
+    signal: ReadRequested
+    next: ReadingDocument
+    action: doc_read_resource
+  - state: ListingDocuments
+    signal: DocumentListReady
+    next: ShapingDocumentIndex
+    action: doc_index_response
+  - state: ShapingDocumentIndex
+    signal: DocumentIndexReady
+    next: DocumentIndexReady
+  - state: ShapingDocumentIndex
+    signal: CommandError
+    next: Failed
+  - state: ListingDocuments
+    signal: DocumentResourceDenied
+    next: RequestDenied
+  - state: ListingDocuments
+    signal: CommandError
+    next: Failed
+  - state: ReadingDocument
+    signal: DocumentReady
+    next: ShapingDocumentDetail
+    action: doc_detail_response
+  - state: ShapingDocumentDetail
+    signal: DocumentDetailReady
+    next: DocumentDetailReady
+  - state: ShapingDocumentDetail
+    signal: CommandError
+    next: Failed
+  - state: ReadingDocument
+    signal: DocumentMissing
+    next: DocumentNotFound
+  - state: ReadingDocument
+    signal: DocumentResourceDenied
+    next: RequestDenied
+  - state: ReadingDocument
+    signal: DocumentParseFailed
+    next: Failed
+  - state: ReadingDocument
+    signal: CommandError
+    next: Failed
+`
+
+const docsRuntimeMachineYAML = `name: docs-runtime
+initial_state: Idle
+budget:
+  max_iterations: 10000
+states:
+  - name: Idle
+  - name: LaunchingDocs
+  - name: LaunchingControl
+  - name: LaunchingMonitor
+  - name: AwaitingControl
+  - name: Exiting
+  - name: StoppingMonitor
+  - name: StoppingDocs
+  - name: Done
+  - name: Failed
+terminal_states: [Done, Failed]
+signals:
+  - name: Seed
+  - name: ServerLaunched
+  - name: ExitRequested
+  - name: AgentExited
+  - name: ServerStopped
+  - name: AwaitTimedOut
+  - name: CommandError
+transitions:
+  - state: Idle
+    signal: Seed
+    next: LaunchingDocs
+    action: serve_documentation
+  - state: LaunchingDocs
+    signal: ServerLaunched
+    next: LaunchingControl
+    action: launch_docs_control
+  - state: LaunchingDocs
+    signal: CommandError
+    next: Failed
+  - state: LaunchingDocs
+    signal: ServerStopped
+    next: Failed
+  - state: LaunchingControl
+    signal: ServerLaunched
+    next: LaunchingMonitor
+    action: launch_monitor_rest
+  - state: LaunchingControl
+    signal: CommandError
+    next: Failed
+  - state: LaunchingMonitor
+    signal: ServerLaunched
+    next: AwaitingControl
+    action: await_docs_control
+  - state: LaunchingMonitor
+    signal: CommandError
+    next: Failed
+  - state: AwaitingControl
+    signal: ExitRequested
+    next: Exiting
+    action: exit_agent
+  - state: AwaitingControl
+    signal: AwaitTimedOut
+    next: Failed
+  - state: AwaitingControl
+    signal: ServerStopped
+    next: Failed
+  - state: AwaitingControl
+    signal: CommandError
+    next: Failed
+  - state: Exiting
+    signal: AgentExited
+    next: StoppingMonitor
+    action: stop_monitor_rest
+  - state: Exiting
+    signal: CommandError
+    next: Failed
+  - state: StoppingMonitor
+    signal: ServerStopped
+    next: StoppingDocs
+    action: serve_documentation
+  - state: StoppingMonitor
+    signal: CommandError
+    next: Failed
+  - state: StoppingDocs
+    signal: ServerStopped
+    next: Done
+  - state: StoppingDocs
+    signal: ServerLaunched
+    next: Failed
+  - state: StoppingDocs
+    signal: CommandError
+    next: Failed
+`
+
+const docsRuntimeUXYAML = `id: docs-runtime-ui
+title: Docs Runtime UI
+source_owner: agent-core/internal/knowledge/documentation
+routes:
+  - id: docs_index
+    path: /docs
+    label: Documentation
+    action: doc_list
+    resource: docs
+  - id: docs_detail
+    path: /docs/*
+    label: Document Detail
+    action: doc_get
+    resource: docs
+sidebar:
+  title: Documentation
+  groups:
+    overview:
+      label: Overview
+      order: 0
+actions:
+  list_documents:
+    ui_action: doc_list
+    request_machine_action: doc_list_resource
+    route: docs_index
+  read_document:
+    ui_action: doc_get
+    request_machine_action: doc_read_resource
+    route: docs_detail
+  validate_document:
+    ui_action: doc_validate
+    route: docs_detail
+  suggest_changes:
+    ui_action: doc_suggest_changes
+    route: docs_detail
+  approve_patch:
+    ui_action: doc_patch_approve
+    route: docs_detail
+  reject_patch:
+    ui_action: doc_patch_reject
+    route: docs_detail
+  reopen_patch:
+    ui_action: doc_patch_reopen
+    route: docs_detail
+presentation:
+  raw_yaml_toggle: true
+  state_diagram: true
+  config_viewer: true
+  source_viewer: true
+`
