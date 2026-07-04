@@ -420,8 +420,8 @@ patterns:
     intent: >
       Specify each tool as a typed contract — inputs, emittable signals, side
       effects, and an Undo — so the machine can validate it, the engine can
-      dispatch it, and the rollback engine can reverse it from the declaration
-      alone.
+      dispatch it, and rollback can reverse it from the declaration and the
+      tool's receipt.
     context: >
       An agent acts only through its tools. Frameworks usually define tools as
       function signatures with prose docstrings, which say what arguments to
@@ -456,14 +456,14 @@ patterns:
       and is failure state defined. A tool should not contain a loop,
       multi-outcome branch, or embedded state machine unless it is explicitly a
       non-terminal boundary tool. Reversibility must be explicit: reversible
-      tools restore from a memento, compensatable tools declare corrective
+      tools restore from their receipt, compensatable tools declare corrective
       action and semantic differences, and irreversible tools are skipped and
       logged. Omitting reversibility is a contract error, not irreversibility.
     consequences:
       benefits:
         - A uniform, independently testable and reversible tool inventory.
         - Precise output schemas let the agent plan sequences without trial and error.
-        - Declared reversibility tiers tell the rollback engine exactly what it can undo.
+        - Declared reversibility tiers tell the rollback walk what each tool's receipt can undo.
       liabilities:
         - Decomposition yields more, smaller tools to select among.
         - Every tool needs a full contract, not a docstring — real up-front cost.
@@ -506,7 +506,7 @@ patterns:
       - system: Reference implementation — YAML tool declarations
         cite: reference-implementation
         kind: internal
-        note: Tools are validated at load time; an incomplete contract fails before the agent runs, and reversibility tiers drive the rollback engine with no special-casing.
+        note: Tools are validated at load time; an incomplete contract fails before the agent runs, and reversibility tiers drive receipt-driven undo through the checkpoint_rollback lifecycle tool with no special-casing in the engine.
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -679,8 +679,8 @@ patterns:
       without rollback the only recovery is to restart or to ask the model to
       fix its own errors on a contaminated history, which compounds mistakes.
     problem: >
-      How do you recover from a wrong step deterministically, restoring the
-      workspace and giving the model clean context, across a mix of reversible
+      How do you recover from a wrong step deterministically, restoring external
+      effects and giving the model clean context, across a mix of reversible
       and irreversible tools?
     applicability: >
       Use this for agents whose tools mutate files, resources, conversation
@@ -689,31 +689,33 @@ patterns:
       only naturally idempotent side effects, gain little from rollback.
     forces:
       - Recovery should be mechanical, not a second probabilistic attempt.
-      - Agent, domain, and workspace state must be restored together.
+      - Position, execution, and receipts persist through one port; external state restores through the receipts.
       - Reversible, compensatable, and irreversible tools need different handling.
       - Irreversible effects, once committed, must be recorded, not undone.
     solution: >
-      Treat the execution as a bidirectional log. To roll back, a separate
-      minimal lifecycle machine walks the record in reverse: reversible tools
-      undo from a recorded memento, compensatable tools issue a corrective
-      action, irreversible tools are skipped and logged. Checkpoints bind agent,
-      domain, and workspace state to one logical point so all three restore
-      together, and resuming is a fresh continuation, not a replay.
+      Treat the execution as a bidirectional log, persisted one commit per step
+      by the Dolt backend. To roll back, the Dolt adapter's git-style Revert
+      rewinds persisted state to a step, then a lifecycle tool walks the later
+      entries in reverse: each reversible tool's Undo decodes its receipt, a
+      compensatable tool issues a corrective action from it, irreversible tools
+      are skipped and logged. Resuming is a fresh continuation, not a replay.
     implementation: >
-      Every state-mutating tool must emit an UndoMemento during Execute; a tool
-      that claims reversibility but produces no memento violates its contract at
-      runtime. Checkpoints bind engine position, execution/history digest,
-      conversation/domain state, and workspace reference. Create them on suspend,
-      before irreversible commitment, and by policy. After rollback, truncate
-      the active execution tail and continue freshly from the restored point;
-      preserve discarded entries only in the audit record.
+      Every state-mutating tool encodes an opaque Receipt during Execute; read-only
+      tools return an empty receipt. The validator checks receipt presence for
+      reversible tools, while each tool's round-trip test checks sufficiency. The
+      checkpoint port saves the Position and the appended Execution entry as one
+      unit, committed per step by the Dolt backend, on every dispatch and on
+      suspend. Rollback is Dolt Revert(run_id, step_index) for persisted state
+      plus the lifecycle tool's reverse receipt walk for external effects; it
+      returns a resumable position, and discarded entries survive only in the
+      rollback report.
     consequences:
       benefits:
         - Deterministic recovery and cheap speculative exploration of reversible plans.
         - Skipped irreversible entries are auditable.
       liabilities:
-        - Checkpointing three state layers has cost and needs selective triggers.
-        - Once an irreversible tool commits, rollback reaches only the pre-commitment checkpoint.
+        - Committing every step has cost; NoopCheckpoint keeps disabled runs free of it.
+        - Once an irreversible tool commits its external effect, the receipt walk cannot reverse it; Revert rewinds only persisted state.
     grammar:
       within: [machine-interpreter]
       requires: [machine-interpreter, tool-contract]
@@ -722,7 +724,7 @@ patterns:
       overlaps: []
     syntax: >
       Over a Machine Interpreter's record and a set of Tool Contracts, walk
-      the Bidirectional Log with its own lifecycle machine; its checkpoints are what
+      the Bidirectional Log with its own lifecycle tool; its per-step Dolt commits are what
       an Approval Gate suspends into and what an Operator Port restores.
     examples:
       - system: Database transactions and rollback
@@ -736,7 +738,7 @@ patterns:
       - system: Memento pattern (Gang of Four)
         cite: gamma-gof-1994
         kind: external
-        note: Capture an object's state so it can be restored later without violating encapsulation — the UndoMemento each tool records.
+        note: Capture an object's state so it can be restored later without violating encapsulation — the Receipt each tool encodes during Execute, with the tool as its only decoder.
       - system: Event Sourcing
         cite: fowler-event-sourcing-2005
         kind: external
@@ -744,7 +746,7 @@ patterns:
       - system: Reference implementation — coding-agent rollback
         cite: reference-implementation
         kind: internal
-        note: When validation fails, the lifecycle machine reverts the workspace to the last checkpoint and the model retries with clean context instead of debugging its contaminated history.
+        note: When validation fails, checkpoint_rollback reverts the Dolt history to the last good step and replays the intervening receipts to restore the files, and the model retries with clean context instead of debugging its contaminated history.
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------

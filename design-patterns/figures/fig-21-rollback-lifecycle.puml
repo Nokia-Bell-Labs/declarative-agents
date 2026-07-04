@@ -2,14 +2,12 @@
 !theme plain
 hide empty description
 
-[*] --> Idle
-Idle --> Scanning : RollbackRequested
-Scanning --> Undoing : EntryFound
-Scanning --> Restoring : CheckpointReached
-Scanning --> Done : NothingToUndo
-Undoing --> Scanning : UndoComplete
-Undoing --> Skipping : UndoImpossible
-Skipping --> Scanning : Logged
-Restoring --> Done : WorkspaceReset
+[*] --> Reverting : RollbackRequested
+Reverting --> Walking : Revert(run_id, step_index)
+Walking --> Undone : reversible / compensatable entry
+Walking --> Skipped : irreversible entry (logged)
+Undone --> Walking : receipt decoded, effect reversed
+Skipped --> Walking : logged
+Walking --> Done : reached target step
 Done --> [*]
 @enduml

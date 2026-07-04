@@ -4,7 +4,7 @@ This chapter presents the Tool Contract pattern, which specifies each tool as a 
 
 ## Intent
 
-Specify each tool as a typed contract — inputs, emittable signals, side effects, and an Undo — so the machine can validate it, the engine can dispatch it, and the rollback engine can reverse it from the declaration alone.
+Specify each tool as a typed contract — inputs, emittable signals, side effects, and an Undo — so the machine can validate it, the engine can dispatch it, and rollback can reverse it from the declaration and the tool's receipt.
 
 
 ## Motivation
@@ -90,7 +90,7 @@ Precise output schemas and declared predecessors/successors let the agent plan m
 
 #### Safe reversal
 
-Declared reversibility tiers tell the rollback engine exactly what it can undo, compensate, or only log.
+Declared reversibility tiers tell the rollback walk exactly what each tool's receipt can undo, what it can compensate, or what to only log.
 
 ### Liabilities
 
@@ -118,7 +118,7 @@ Every tool falls into one of three tiers, which govern what the agent must do be
 | **Figure 13.** Class diagram. Three reversibility tiers as subtypes of `Tool`, each with its own undo behaviour. |
 |:---:|
 
-**Reversible** tools undo their own effects from a record (a file write that restores prior content); the engine cleans up automatically, so they can be executed speculatively. **Compensatable** tools cannot literally undo but can issue a corrective action restoring equivalent state (delete a created resource); the contract must specify the compensation and any semantic differences. **Irreversible** tools cannot be undone (sending email, publishing a deployment); the agent must confirm before dispatch, the machine should route through a confirmation state, and rollback skips and logs them. Omitting the reversibility section is *not* the same as declaring irreversibility. Omission leaves the engine not knowing what to do; explicit irreversibility tells it to skip and log.
+**Reversible** tools undo their own effects from their receipt (a file write whose receipt carries the prior content to restore); rollback cleans up automatically, so they can be executed speculatively. **Compensatable** tools cannot literally undo but can issue a corrective action restoring equivalent state (delete a created resource); the contract must specify the compensation and any semantic differences. **Irreversible** tools cannot be undone (sending email, publishing a deployment); the agent must confirm before dispatch, the machine should route through a confirmation state, and rollback skips and logs them. Omitting the reversibility section is *not* the same as declaring irreversibility. Omission leaves the engine not knowing what to do; explicit irreversibility tells it to skip and log.
 
 Reversibility is a planning constraint: plans of only reversible tools can be executed speculatively and rolled back, while plans including irreversible steps require commitment. Machines that separate reversible exploration from irreversible commitment give the agent maximum flexibility.
 
@@ -145,11 +145,11 @@ Tool Contract sits within Machine Interpreter and requires Machine Interpreter: 
 
 ## Known Uses
 
-In the working implementation, tool declarations are YAML contracts validated at load time (Chapter 3); a tool whose contract is incomplete fails before the agent runs. Tool set audits apply the four-question test at authoring time and when reviewing an existing tool set, flagging execution-shaped tools for decomposition. Reversibility tiers declared in each contract drive the rollback engine (Chapter 7): reversible tools undo automatically, compensatable tools issue corrective calls, irreversible tools are skipped and logged, all from the declaration, with no special-casing in the engine.
+In the working implementation, tool declarations are YAML contracts validated at load time (Chapter 3); a tool whose contract is incomplete fails before the agent runs. Tool set audits apply the four-question test at authoring time and when reviewing an existing tool set, flagging execution-shaped tools for decomposition. Reversibility tiers declared in each contract drive receipt-driven undo (Chapter 7): a reversible tool's Undo decodes its receipt, a compensatable tool issues a corrective call derived from it, irreversible tools are skipped and logged, all from the declaration, with the `checkpoint_rollback` lifecycle tool doing the walk and no special-casing in the engine.
 
 **Design by Contract** [@meyer-dbc-1997]. Preconditions, postconditions, and invariants as first-class specifications are the direct ancestor of a typed tool contract, moving behaviour from prose into a checkable interface.
 
-**Command pattern** [@gamma-gof-1994]. An operation encapsulated as an object with `execute` and `undo` is the structural core of a reversible tool; the contract's reversibility tier is what tells the engine which undo to run.
+**Command pattern** [@gamma-gof-1994]. An operation encapsulated as an object with `execute` and `undo` is the structural core of a reversible tool; the reversibility tier tells the rollback which undo to run, and the receipt the tool encoded during `execute` is what that undo consumes.
 
 **OpenAPI** [@openapi-spec-2024] **and the Model Context Protocol** [@anthropic-mcp-2024]. Both give tools typed request/response contracts and declared behaviour: OpenAPI describes services precisely enough that tool declarations can be generated from a spec and then edited, and MCP standardizes exposing tools to models with typed inputs.
 

@@ -8,7 +8,8 @@ class Gate {
 }
 
 class Checkpoint {
-  agent + history + workspace
+  Position + Execution
+  (Dolt commit per step)
 }
 
 class Authority {
