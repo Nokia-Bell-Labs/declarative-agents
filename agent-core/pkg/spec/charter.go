@@ -34,21 +34,22 @@ type CharterTarget struct {
 }
 
 type CharterCheck struct {
-	ID       string         `yaml:"id" json:"id"`
-	Kind     string         `yaml:"kind" json:"kind"`
-	Severity string         `yaml:"severity,omitempty" json:"severity,omitempty"`
-	Message  string         `yaml:"message,omitempty" json:"message,omitempty"`
-	Include  []string       `yaml:"include,omitempty" json:"include,omitempty"`
-	Exclude  []string       `yaml:"exclude,omitempty" json:"exclude,omitempty"`
-	Patterns []string       `yaml:"patterns,omitempty" json:"patterns,omitempty"`
-	Mode     string         `yaml:"mode,omitempty" json:"mode,omitempty"`
-	Regex    bool           `yaml:"regex,omitempty" json:"regex,omitempty"`
-	Refs     map[string]any `yaml:"references,omitempty" json:"references,omitempty"`
-	Extract  map[string]any `yaml:"extract,omitempty" json:"extract,omitempty"`
-	Source   map[string]any `yaml:"source,omitempty" json:"source,omitempty"`
-	Rule     string         `yaml:"rule,omitempty" json:"rule,omitempty"`
-	Target   map[string]any `yaml:"target,omitempty" json:"target,omitempty"`
-	Checks   []string       `yaml:"checks,omitempty" json:"checks,omitempty"`
+	ID           string         `yaml:"id" json:"id"`
+	Kind         string         `yaml:"kind" json:"kind"`
+	Severity     string         `yaml:"severity,omitempty" json:"severity,omitempty"`
+	Message      string         `yaml:"message,omitempty" json:"message,omitempty"`
+	Include      []string       `yaml:"include,omitempty" json:"include,omitempty"`
+	Exclude      []string       `yaml:"exclude,omitempty" json:"exclude,omitempty"`
+	Patterns     []string       `yaml:"patterns,omitempty" json:"patterns,omitempty"`
+	Mode         string         `yaml:"mode,omitempty" json:"mode,omitempty"`
+	Regex        bool           `yaml:"regex,omitempty" json:"regex,omitempty"`
+	Refs         map[string]any `yaml:"references,omitempty" json:"references,omitempty"`
+	Extract      map[string]any `yaml:"extract,omitempty" json:"extract,omitempty"`
+	AllowMissing bool           `yaml:"allow_missing,omitempty" json:"allow_missing,omitempty"`
+	Source       map[string]any `yaml:"source,omitempty" json:"source,omitempty"`
+	Rule         string         `yaml:"rule,omitempty" json:"rule,omitempty"`
+	Target       map[string]any `yaml:"target,omitempty" json:"target,omitempty"`
+	Checks       []string       `yaml:"checks,omitempty" json:"checks,omitempty"`
 }
 
 // LoadCharters parses explicit jurist charter suite paths in deterministic order.
