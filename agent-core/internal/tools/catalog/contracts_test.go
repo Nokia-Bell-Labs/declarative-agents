@@ -126,6 +126,60 @@ func TestValidateResultSchemaCompatibilityReportsRequiredFieldMismatch(t *testin
 	assert.Contains(t, findings[0].Message, `does not provide required field "plan_id"`)
 }
 
+func TestToolAuthoringOneVerbRule(t *testing.T) {
+	t.Parallel()
+	def := completeToolDef("load_suite")
+	def.Category = "word"
+	def.Description = "Load config and discover samples and initialize session state."
+	def.Problem = "The evaluator needs one hidden step that loads, discovers, and initializes a suite."
+
+	findings := ReviewToolAuthoring([]ToolDef{def}, ContractValidationOptions{Strict: true})
+
+	assertFinding(t, findings, "load_suite", "description", ContractSeverityError)
+}
+
+func TestToolAuthoringIrreversibleConfirmation(t *testing.T) {
+	t.Parallel()
+	def := completeToolDef("publish_release")
+	def.Category = "boundary"
+	def.SideEffects = ToolSideEffects{Items: []ToolSideEffect{{
+		Kind:        "external_service_write",
+		Target:      "release_registry",
+		Description: "Publishes immutable artifacts to external users.",
+	}}}
+	def.Reversibility = ToolReversibility{Classification: "irreversible", Undo: "none"}
+	def.Undo = ToolUndoContract{Strategy: "none", Description: "Publication cannot be undone safely."}
+
+	findings := ReviewToolAuthoring([]ToolDef{def}, ContractValidationOptions{Strict: true})
+
+	assertFinding(t, findings, "publish_release", "reversibility.requires_confirmation", ContractSeverityError)
+
+	def.Reversibility.RequiresConfirmation = true
+	findings = ReviewToolAuthoring([]ToolDef{def}, ContractValidationOptions{Strict: true})
+	assertNoFinding(t, findings, "publish_release", "reversibility.requires_confirmation")
+}
+
+func TestToolAuthoringRelationshipReview(t *testing.T) {
+	t.Parallel()
+	def := completeToolDef("collect_artifact_metadata")
+	def.Relationships = ToolRelationships{
+		Overlaps: []ToolOverlap{
+			{Tool: "collect_metrics"},
+			{Tool: "dump_config", Difference: "Reads static config rather than runtime artifact metadata."},
+		},
+	}
+
+	findings := ReviewToolAuthoring([]ToolDef{def}, ContractValidationOptions{})
+
+	assertFinding(t, findings, "collect_artifact_metadata", "relationships", ContractSeverityInfo)
+
+	def.Relationships.Before = []string{"run_agent"}
+	def.Relationships.After = []string{"summarize_point_results"}
+	def.Relationships.Overlaps[0].Difference = "Reads artifact file metadata rather than monitor samples."
+	findings = ReviewToolAuthoring([]ToolDef{def}, ContractValidationOptions{})
+	assertNoFinding(t, findings, "collect_artifact_metadata", "relationships")
+}
+
 func completeToolDef(name string) ToolDef {
 	return ToolDef{
 		Name:        name,
@@ -173,6 +227,15 @@ func assertFinding(t *testing.T, findings []ContractFinding, tool, field, severi
 		}
 	}
 	require.Failf(t, "missing finding", "tool=%s field=%s", tool, field)
+}
+
+func assertNoFinding(t *testing.T, findings []ContractFinding, tool, field string) {
+	t.Helper()
+	for _, finding := range findings {
+		if finding.ToolName == tool && finding.Field == field {
+			require.Failf(t, "unexpected finding", "tool=%s field=%s finding=%+v", tool, field, finding)
+		}
+	}
 }
 
 func assertAuditEntry(t *testing.T, audit []ContractAuditEntry, tool, status, migrationSubstring string) {

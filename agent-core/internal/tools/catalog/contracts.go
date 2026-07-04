@@ -2,7 +2,10 @@
 
 package catalog
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const (
 	ContractSeverityInfo    = "info"
@@ -67,6 +70,24 @@ func ValidateToolContracts(defs []ToolDef, opts ContractValidationOptions) []Con
 	return findings
 }
 
+// ReviewToolAuthoring runs authoring-time checks that decide whether a new
+// ToolDef is a composable vocabulary word or should be split/reclassified before
+// it is selected by a machine.
+func ReviewToolAuthoring(defs []ToolDef, opts ContractValidationOptions) []ContractFinding {
+	findings := ValidateToolContracts(defs, opts)
+	for _, def := range defs {
+		category := contractCategory(def)
+		if category == "internal" && !opts.IncludeInternal {
+			continue
+		}
+		effective := effectiveContractOptions(def, opts)
+		findings = appendIfIncluded(findings, workflowShapeFinding(def, category, effective), opts)
+		findings = appendIfIncluded(findings, irreversibleConfirmationFinding(def, category, effective), opts)
+		findings = appendIfIncluded(findings, overlappingRelationshipsFinding(def, category), opts)
+	}
+	return findings
+}
+
 func requiredContractFindings(def ToolDef, category string, effective, opts ContractValidationOptions) []ContractFinding {
 	var findings []ContractFinding
 	findings = appendIfIncluded(findings, missingString(def.Name, category, "problem", def.Problem, effective), opts)
@@ -108,6 +129,57 @@ func structuredSideEffectsFinding(def ToolDef, category string, opts ContractVal
 		Category:    category,
 		Message:     fmt.Sprintf("tool %q does not declare structured side_effects", def.Name),
 		Remediation: "add side_effects as a structured list; use kind: none for read-only tools",
+	}
+}
+
+func workflowShapeFinding(def ToolDef, category string, opts ContractValidationOptions) ContractFinding {
+	if category != "word" && category != "stateful_internal" {
+		return ContractFinding{}
+	}
+	if !looksWorkflowShaped(def.Description) && !looksWorkflowShaped(def.Problem) {
+		return ContractFinding{}
+	}
+	return ContractFinding{
+		ToolName:    def.Name,
+		Field:       "description",
+		Severity:    severity(opts),
+		Category:    category,
+		Message:     fmt.Sprintf("tool %q appears to describe multiple observable verbs", def.Name),
+		Remediation: "split workflow-shaped behavior into separate words or classify the tool as an explicit boundary",
+	}
+}
+
+func irreversibleConfirmationFinding(def ToolDef, category string, opts ContractValidationOptions) ContractFinding {
+	if category != "boundary" || def.Reversibility.Classification != "irreversible" || def.Reversibility.RequiresConfirmation {
+		return ContractFinding{}
+	}
+	if !hasExternalOrUserEffect(def) {
+		return ContractFinding{}
+	}
+	return ContractFinding{
+		ToolName:    def.Name,
+		Field:       "reversibility.requires_confirmation",
+		Severity:    severity(opts),
+		Category:    category,
+		Message:     fmt.Sprintf("irreversible boundary tool %q affects external or user state without confirmation", def.Name),
+		Remediation: "set reversibility.requires_confirmation or redesign the tool with a compensating action",
+	}
+}
+
+func overlappingRelationshipsFinding(def ToolDef, category string) ContractFinding {
+	if len(def.Relationships.Overlaps) == 0 {
+		return ContractFinding{}
+	}
+	if len(def.Relationships.Before) > 0 && len(def.Relationships.After) > 0 && overlapsExplainDifferences(def.Relationships.Overlaps) {
+		return ContractFinding{}
+	}
+	return ContractFinding{
+		ToolName:    def.Name,
+		Field:       "relationships",
+		Severity:    ContractSeverityInfo,
+		Category:    category,
+		Message:     fmt.Sprintf("tool %q overlaps existing vocabulary without complete relationship guidance", def.Name),
+		Remediation: "add before and after neighbors and explain each relationships.overlaps difference",
 	}
 }
 
@@ -225,6 +297,39 @@ func hasFilesystemEffect(def ToolDef) bool {
 		}
 	}
 	return false
+}
+
+func hasExternalOrUserEffect(def ToolDef) bool {
+	for _, effect := range def.SideEffects.Items {
+		text := strings.ToLower(strings.Join([]string{effect.Kind, effect.Target, effect.Description}, " "))
+		if strings.Contains(text, "external") || strings.Contains(text, "user") || strings.Contains(text, "service") || strings.Contains(text, "registry") {
+			return true
+		}
+	}
+	return false
+}
+
+func looksWorkflowShaped(text string) bool {
+	normalized := " " + strings.ToLower(text) + " "
+	if strings.Count(normalized, " and ") >= 2 {
+		return true
+	}
+	verbHits := 0
+	for _, verb := range []string{" load ", " discover ", " initialize ", " create ", " copy ", " run ", " parse ", " collect ", " summarize ", " write "} {
+		if strings.Contains(normalized, verb) {
+			verbHits++
+		}
+	}
+	return verbHits >= 3
+}
+
+func overlapsExplainDifferences(overlaps []ToolOverlap) bool {
+	for _, overlap := range overlaps {
+		if overlap.Tool == "" || strings.TrimSpace(overlap.Difference) == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func severity(opts ContractValidationOptions) string {
