@@ -13,6 +13,7 @@ goals:
   - G2: Build a labeled property graph connecting all artifacts by their relationships.
   - G3: Validate cross-artifact consistency and report findings.
   - G4: Corpus-level loading from a project directory.
+  - G5: Run deterministic jurist charter suites over a target directory.
 
 requirements:
   R1:
@@ -41,7 +42,7 @@ requirements:
       - R3.5: Detect uncovered acceptance criteria without test case traces.
       - R3.6: Detect depends_on violations referencing non-existent SRDs.
       - R3.7: Detect releases without test suites.
-      - R3.8: Findings carry check identifier, severity level, and human-readable message.
+      - R3.8: Findings carry check identifier, severity level, human-readable message, and available provenance.
 
   R4:
     title: Corpus loading
@@ -51,10 +52,21 @@ requirements:
       - R4.3: Use case files under docs/specs/use-cases/, test suites under docs/specs/test-suites/.
       - R4.4: Road-map from docs/road-map.yaml, spec index from docs/SPECIFICATIONS.yaml.
 
+  R5:
+    title: Jurist charter suites
+    items:
+      - R5.1: Jurist charter YAML declares suite identity, check IDs, check kinds, severity, target globs, and check-specific configuration.
+      - R5.2: Supported charter check kinds include grep_check, ref_check, consistency_check, and spec_corpus.
+      - R5.3: Charter execution is deterministic, local, read-only, and does not call an LLM or the network.
+      - R5.4: The jurist target directory comes from runtime data such as --directory, while profile or request data names one or more charter suite paths.
+      - R5.5: Charter findings record suite ID, check ID, check kind, severity, message, and any available file and line provenance.
+      - R5.6: The built-in spec_corpus charter preserves the current specification corpus validation behavior.
+
 non_goals:
   - Generating specifications from code.
   - Modifying specification files.
   - UI or interactive reporting.
+  - Using LLMs, network APIs, or non-deterministic inputs during validation.
 
 acceptance_criteria:
   - id: AC1
@@ -72,6 +84,14 @@ acceptance_criteria:
   - id: AC4
     criterion: LoadCorpus discovers and parses all artifacts from the standard directory layout.
     traces: [R4.1, R4.2, R4.3, R4.4]
+
+  - id: AC5
+    criterion: Jurist charter suites load from YAML, run deterministic check kinds, and report provenance-rich findings without changing the jurist machine into a looping workflow.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+
+  - id: AC6
+    criterion: The built-in spec_corpus charter reproduces the current specification corpus validation behavior used by mage audit.
+    traces: [R5.2, R5.6]
 
 depends_on: []
 

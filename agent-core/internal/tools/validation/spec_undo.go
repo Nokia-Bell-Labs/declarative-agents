@@ -11,24 +11,33 @@ import (
 )
 
 type specSnapshot struct {
-	corpus    *spec.Corpus
-	graph     *spec.Graph
-	findings  []spec.Finding
-	hasErrors bool
+	targetDirectory string
+	suitePaths      []string
+	corpus          *spec.Corpus
+	graph           *spec.Graph
+	charters        []spec.Charter
+	findings        []spec.Finding
+	hasErrors       bool
 }
 
 func snapshotSpec(vs *SpecState) specSnapshot {
 	return specSnapshot{
-		corpus:    vs.Corpus,
-		graph:     vs.Graph,
-		findings:  append([]spec.Finding(nil), vs.Findings...),
-		hasErrors: vs.HasErrors,
+		targetDirectory: vs.TargetDirectory,
+		suitePaths:      append([]string(nil), vs.SuitePaths...),
+		corpus:          vs.Corpus,
+		graph:           vs.Graph,
+		charters:        append([]spec.Charter(nil), vs.Charters...),
+		findings:        append([]spec.Finding(nil), vs.Findings...),
+		hasErrors:       vs.HasErrors,
 	}
 }
 
 func (s specSnapshot) restore(vs *SpecState) {
+	vs.TargetDirectory = s.targetDirectory
+	vs.SuitePaths = append([]string(nil), s.suitePaths...)
 	vs.Corpus = s.corpus
 	vs.Graph = s.graph
+	vs.Charters = append([]spec.Charter(nil), s.charters...)
 	vs.Findings = append([]spec.Finding(nil), s.findings...)
 	vs.HasErrors = s.hasErrors
 }
@@ -39,18 +48,24 @@ func (s specSnapshot) restore(vs *SpecState) {
 // before the step (to clear ones the step created) alongside the serializable
 // findings and error flag (srd035-checkpoint-port R3; #44 R2).
 type specReceipt struct {
-	CorpusLoaded bool           `json:"corpus_loaded"`
-	GraphLoaded  bool           `json:"graph_loaded"`
-	Findings     []spec.Finding `json:"findings,omitempty"`
-	HasErrors    bool           `json:"has_errors,omitempty"`
+	TargetDirectory string         `json:"target_directory,omitempty"`
+	SuitePaths      []string       `json:"suite_paths,omitempty"`
+	CorpusLoaded    bool           `json:"corpus_loaded"`
+	GraphLoaded     bool           `json:"graph_loaded"`
+	Charters        []spec.Charter `json:"charters,omitempty"`
+	Findings        []spec.Finding `json:"findings,omitempty"`
+	HasErrors       bool           `json:"has_errors,omitempty"`
 }
 
 func encodeSpecReceipt(snap specSnapshot) string {
 	b, err := json.Marshal(specReceipt{
-		CorpusLoaded: snap.corpus != nil,
-		GraphLoaded:  snap.graph != nil,
-		Findings:     snap.findings,
-		HasErrors:    snap.hasErrors,
+		TargetDirectory: snap.targetDirectory,
+		SuitePaths:      snap.suitePaths,
+		CorpusLoaded:    snap.corpus != nil,
+		GraphLoaded:     snap.graph != nil,
+		Charters:        snap.charters,
+		Findings:        snap.findings,
+		HasErrors:       snap.hasErrors,
 	})
 	if err != nil {
 		return ""
@@ -70,12 +85,15 @@ func decodeSpecReceipt(receipt string) (specReceipt, bool, error) {
 }
 
 func (r specReceipt) restore(vs *SpecState) {
+	vs.TargetDirectory = r.TargetDirectory
+	vs.SuitePaths = append([]string(nil), r.SuitePaths...)
 	if !r.CorpusLoaded {
 		vs.Corpus = nil
 	}
 	if !r.GraphLoaded {
 		vs.Graph = nil
 	}
+	vs.Charters = append([]spec.Charter(nil), r.Charters...)
 	vs.Findings = append([]spec.Finding(nil), r.Findings...)
 	vs.HasErrors = r.HasErrors
 }

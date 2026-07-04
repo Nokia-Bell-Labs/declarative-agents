@@ -121,7 +121,7 @@ func TestValidate_ReleasesWithoutTestSuites(t *testing.T) {
 
 	findings := checkReleasesWithoutTestSuites(g, c)
 	for _, f := range findings {
-		assert.Contains(t, f.Message, "00.1", "release 00.1 has no test suite in fixture; 00.0 has test-rel00.0")
+		assert.Contains(t, f.Message, "00.1", "the fixture keeps 00.1 without a test suite; 00.0 has test-rel00.0")
 	}
 }
 
@@ -134,6 +134,52 @@ func TestValidate_FormatFindings(t *testing.T) {
 	output := FormatFindings(findings)
 	assert.Contains(t, output, "[error] broken-citation")
 	assert.Contains(t, output, "[warning] orphaned-srd")
+}
+
+func TestValidate_FormatFindingsWithProvenance(t *testing.T) {
+	findings := []Finding{
+		{
+			Level:   "warning",
+			SuiteID: "paper-charter",
+			CheckID: "citations-resolve",
+			Kind:    "ref_check",
+			File:    "paper/main.md",
+			Line:    12,
+			Message: "citation @missing does not resolve",
+		},
+		{
+			Level:   "error",
+			SuiteID: "paper-charter",
+			CheckID: "no-internal-vocabulary",
+			Kind:    "grep_check",
+			File:    "paper/main.md",
+			Line:    4,
+			Message: "found forbidden term cobbler",
+		},
+	}
+
+	output := FormatFindings(findings)
+
+	assert.Contains(t, output, "[error] paper-charter/no-internal-vocabulary (grep_check):")
+	assert.Contains(t, output, "  - paper/main.md:4: found forbidden term cobbler")
+	assert.Contains(t, output, "[warning] paper-charter/citations-resolve (ref_check):")
+	assert.Contains(t, output, "  - paper/main.md:12: citation @missing does not resolve")
+	assert.Less(t, strings.Index(output, "[error]"), strings.Index(output, "[warning]"))
+}
+
+func TestValidate_FormatFindingsSortsDeterministicallyWithoutMutatingInput(t *testing.T) {
+	findings := []Finding{
+		{Level: "warning", SuiteID: "suite-b", CheckID: "b", File: "z.md", Line: 2, Message: "second"},
+		{Level: "warning", SuiteID: "suite-a", CheckID: "a", File: "a.md", Line: 1, Message: "first"},
+		{Level: "error", Check: "legacy-error", Message: "legacy"},
+	}
+	original := append([]Finding(nil), findings...)
+
+	output := FormatFindings(findings)
+
+	assert.Equal(t, original, findings, "FormatFindings must not reorder caller-owned slices")
+	assert.Less(t, strings.Index(output, "[error] legacy-error"), strings.Index(output, "[warning] suite-a/a"))
+	assert.Less(t, strings.Index(output, "[warning] suite-a/a"), strings.Index(output, "[warning] suite-b/b"))
 }
 
 func TestValidate_FormatEmpty(t *testing.T) {

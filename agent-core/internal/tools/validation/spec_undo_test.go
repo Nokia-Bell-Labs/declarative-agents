@@ -14,19 +14,28 @@ import (
 func TestSpecUndoRestoresStateFromInMemorySnapshot(t *testing.T) {
 	originalCorpus := &spec.Corpus{}
 	vs := &SpecState{
-		Corpus:    originalCorpus,
-		Findings:  []spec.Finding{{Message: "before"}},
-		HasErrors: true,
+		TargetDirectory: "/work",
+		SuitePaths:      []string{"suite.yaml"},
+		Corpus:          originalCorpus,
+		Charters:        []spec.Charter{{ID: "suite"}},
+		Findings:        []spec.Finding{{Message: "before"}},
+		HasErrors:       true,
 	}
 	snap := snapshotSpec(vs)
 
+	vs.TargetDirectory = "/other"
+	vs.SuitePaths = nil
 	vs.Corpus = nil
+	vs.Charters = nil
 	vs.Findings = nil
 	vs.HasErrors = false
 	res := undoSpecState("validate_specs", vs, core.Result{}, snap, true)
 
 	require.Equal(t, core.ToolDone, res.Signal)
+	require.Equal(t, "/work", vs.TargetDirectory)
+	require.Equal(t, []string{"suite.yaml"}, vs.SuitePaths)
 	require.Same(t, originalCorpus, vs.Corpus)
+	require.Len(t, vs.Charters, 1)
 	require.Len(t, vs.Findings, 1)
 	require.True(t, vs.HasErrors)
 }
@@ -34,8 +43,11 @@ func TestSpecUndoRestoresStateFromInMemorySnapshot(t *testing.T) {
 func TestSpecReceiptRestoresStateFromFreshInstance(t *testing.T) {
 	// Prior state before validate_specs runs: corpus loaded, no graph, one finding.
 	prior := &SpecState{
-		Corpus:   &spec.Corpus{},
-		Findings: []spec.Finding{{Check: "c", Level: "warning", Message: "before"}},
+		TargetDirectory: "/work",
+		SuitePaths:      []string{"suite.yaml"},
+		Corpus:          &spec.Corpus{},
+		Charters:        []spec.Charter{{ID: "suite"}},
+		Findings:        []spec.Finding{{Check: "c", Level: "warning", Message: "before"}},
 	}
 	receipt := encodeSpecReceipt(snapshotSpec(prior))
 	require.NotEmpty(t, receipt)
@@ -58,8 +70,11 @@ func TestSpecReceiptRestoresStateFromFreshInstance(t *testing.T) {
 	res := cmd.Undo(core.Result{Receipt: exec[0].Receipt})
 
 	require.Equal(t, core.ToolDone, res.Signal)
+	require.Equal(t, "/work", fresh.TargetDirectory)
+	require.Equal(t, []string{"suite.yaml"}, fresh.SuitePaths)
 	require.Nil(t, fresh.Graph)     // graph_loaded=false in receipt -> cleared
 	require.NotNil(t, fresh.Corpus) // corpus_loaded=true -> left intact
+	require.Len(t, fresh.Charters, 1)
 	require.Len(t, fresh.Findings, 1)
 	require.Equal(t, "before", fresh.Findings[0].Message)
 	require.False(t, fresh.HasErrors)

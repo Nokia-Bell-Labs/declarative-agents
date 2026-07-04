@@ -1,0 +1,10 @@
+id: jurist-demo-roadmap
+title: Jurist Demo Road Map
+
+releases:
+  - version: "99.0"
+    name: Charter demo
+    description: |
+      Minimal release metadata for the jurist charter demo fixture.
+    status: open
+    use_cases: []

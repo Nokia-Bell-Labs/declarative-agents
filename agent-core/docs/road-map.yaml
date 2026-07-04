@@ -34,6 +34,10 @@ releases:
       - id: rel00.0-uc002-spec-corpus-validation
         summary: Maintainer validates the specification corpus graph
         status: done
+    follow_up:
+      - id: gh-123
+        summary: Generalize the jurist validator to deterministic data-driven charter suites
+        status: in_progress
 
   - version: "01.0"
     name: Unified agent binary and configuration-driven architecture
