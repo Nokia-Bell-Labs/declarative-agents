@@ -981,6 +981,8 @@ func buildE2EParams(t *testing.T, workspace string, llmResponses []string) core.
 	t.Helper()
 	cd := configDir(t)
 	machineFile := filepath.Join(cd, "generator", "machine.yaml")
+	machine, err := core.LoadMachineSpec(machineFile)
+	require.NoError(t, err)
 	defs := loadTestDefs(t, cd, "generator")
 
 	builtins := stl.NewBuiltinRegistry()
@@ -1017,6 +1019,7 @@ func buildE2EParams(t *testing.T, workspace string, llmResponses []string) core.
 			Registry: reg,
 			Parser:   llm.DefaultProfile(),
 			Tracer:   tr,
+			State:    "Composing",
 		}, nil
 	})
 
@@ -1034,11 +1037,13 @@ func buildE2EParams(t *testing.T, workspace string, llmResponses []string) core.
 	}
 
 	vars := map[string]string{"directory": workspace, "model": "test", "ollama_url": "http://localhost:11434"}
-	require.NoError(t, stl.RegisterUnifiedTools(reg, builtins, workspace, defs, vars))
+	require.NoError(t, stl.RegisterUnifiedToolsForMachine(reg, builtins, workspace, machine, defs, vars))
 
 	// Override build/lint/test exec tools with stubs so validate passes
 	for _, name := range []string{"build", "lint", "test"} {
-		reg.Override(core.ToolSpec{Name: name}, &stubPassBuilder{name: name})
+		spec, ok := reg.SpecByName(name)
+		require.True(t, ok)
+		reg.Override(spec, &stubPassBuilder{name: name})
 	}
 
 	toolAction := buildE2EToolAction(reg, tracker)

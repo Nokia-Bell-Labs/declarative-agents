@@ -84,3 +84,23 @@ func TestBuildDynamicToolActionRejectsInternalTool(t *testing.T) {
 	require.False(t, executed)
 	require.Empty(t, tracker.names)
 }
+
+func TestBuildDynamicToolActionRejectsOutOfStateTool(t *testing.T) {
+	t.Parallel()
+	reg := core.NewRegistry()
+	var executed bool
+	reg.Register(core.ToolSpec{Name: "write", Visibility: core.External, Phases: []core.State{"Reviewing"}, PhaseScoped: true}, namedBuilder{
+		name: "write", executed: &executed,
+	})
+	tracker := &recordingTracker{}
+	action := BuildDynamicToolAction(DynamicToolActionDeps{Registry: reg, Tracker: tracker})
+
+	cmd := action(core.Result{State: "Composing", Output: `{"tool":"write","parameters":{}}`})
+	res := cmd.Execute()
+
+	require.Equal(t, "fail", cmd.Name())
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Contains(t, res.Output, `tool "write" is not available for dynamic dispatch in state "Composing"`)
+	require.False(t, executed)
+	require.Empty(t, tracker.names)
+}

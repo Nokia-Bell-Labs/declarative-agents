@@ -138,7 +138,7 @@ func (r *ProfileMachineRequestRunner) requestRegistry(
 	if err := catalog.ValidateToolEmits(machine, defs); err != nil {
 		return nil, fmt.Errorf("machine_config_invalid: %w", err)
 	}
-	return r.registerRequestTools(profilePath, profile, defs)
+	return r.registerRequestTools(profilePath, profile, machine, defs)
 }
 
 func requestToolDefs(profile catalog.AgentProfile, machine core.MachineSpec) ([]catalog.ToolDef, error) {
@@ -160,6 +160,7 @@ func requestToolDefs(profile catalog.AgentProfile, machine core.MachineSpec) ([]
 func (r *ProfileMachineRequestRunner) registerRequestTools(
 	profilePath string,
 	profile catalog.AgentProfile,
+	machine core.MachineSpec,
 	defs []catalog.ToolDef,
 ) (*core.Registry, error) {
 	reg := core.NewRegistry()
@@ -169,7 +170,7 @@ func (r *ProfileMachineRequestRunner) registerRequestTools(
 		r.deps.RegisterBuiltins(builtins, selected)
 	}
 	vars := r.requestVars(profilePath, profile)
-	if err := toolregistry.RegisterUnifiedTools(reg, builtins, vars["directory"], defs, vars, r.deps.ExecBuilder); err != nil {
+	if err := toolregistry.RegisterUnifiedToolsForMachine(reg, builtins, vars["directory"], machine, defs, vars, r.deps.ExecBuilder); err != nil {
 		return nil, fmt.Errorf("machine_config_invalid: register request tools: %w", err)
 	}
 	return reg, nil

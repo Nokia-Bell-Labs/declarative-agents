@@ -21,6 +21,7 @@ type parseResponseCmd struct {
 	registry    *core.Registry
 	parser      modelllm.ResponseParser
 	tracer      tracing.Tracer
+	state       core.State
 	verbose     bool
 	retry       *ParseErrorRetryTracker
 	prevRetries int
@@ -128,6 +129,9 @@ func (p *parseResponseCmd) validateEnvelope(cleaned string, envelope responseEnv
 	if !ok || spec.Visibility != core.External {
 		return modelllm.ToolRequest{}, core.ParseFailed, fmt.Sprintf("unknown tool %q; available tools: [%s]", envelope.Tool, strings.Join(p.registry.ExternalToolNames(), ", "))
 	}
+	if !spec.AvailableIn(p.state) {
+		return modelllm.ToolRequest{}, core.ParseFailed, fmt.Sprintf("tool %q is not available in state %q; available tools: [%s]", envelope.Tool, p.state, strings.Join(p.availableToolNames(), ", "))
+	}
 	if missing := modelllm.CheckRequiredFields(spec.InputSchema, envelope.Params); len(missing) > 0 {
 		span.Event("parse.missing_params", attribute.Int("missing_count", len(missing)))
 		return modelllm.ToolRequest{}, core.ParseFailed, fmt.Sprintf("tool %q missing required parameters: [%s]", envelope.Tool, strings.Join(missing, ", "))
@@ -135,18 +139,42 @@ func (p *parseResponseCmd) validateEnvelope(cleaned string, envelope responseEnv
 	return tr, core.ToolDone, ""
 }
 
+func (p *parseResponseCmd) availableToolNames() []string {
+	manifest := p.registry.Manifest(p.state)
+	names := make([]string, 0, len(manifest))
+	for _, spec := range manifest {
+		names = append(names, spec.Name)
+	}
+	return names
+}
+
 // ParseResponseBuilder constructs parse_response commands.
 type ParseResponseBuilder struct {
-	Registry *core.Registry
-	Parser   modelllm.ResponseParser
-	Tracer   tracing.Tracer
-	Verbose  bool
-	Retry    *ParseErrorRetryTracker
+	Registry  *core.Registry
+	Parser    modelllm.ResponseParser
+	Tracer    tracing.Tracer
+	State     core.State
+	StateFunc func() core.State
+	Verbose   bool
+	Retry     *ParseErrorRetryTracker
 }
 
 func (b *ParseResponseBuilder) Build(res core.Result) core.Command {
+	state := b.manifestState(res)
 	return &parseResponseCmd{
 		raw: res.Output, registry: b.Registry, parser: b.Parser,
-		tracer: b.Tracer, verbose: b.Verbose, retry: b.Retry,
+		tracer: b.Tracer, state: state, verbose: b.Verbose, retry: b.Retry,
 	}
+}
+
+func (b *ParseResponseBuilder) manifestState(res core.Result) core.State {
+	if b.StateFunc != nil {
+		if state := b.StateFunc(); state != "" {
+			return state
+		}
+	}
+	if b.State != "" {
+		return b.State
+	}
+	return res.State
 }

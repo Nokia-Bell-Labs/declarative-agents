@@ -40,6 +40,9 @@ func BuildDynamicToolAction(deps DynamicToolActionDeps) core.ActionFunc {
 		if spec.Visibility != core.External {
 			return &standardFailCmd{err: fmt.Errorf("tool %q is not available for dynamic dispatch", treq.ToolName)}
 		}
+		if !spec.AvailableIn(r.State) {
+			return &standardFailCmd{err: fmt.Errorf("tool %q is not available for dynamic dispatch in state %q", treq.ToolName, r.State)}
+		}
 		builder, ok := deps.Registry.Resolve(treq.ToolName)
 		if !ok {
 			return &standardFailCmd{err: fmt.Errorf("no builder for tool %q", treq.ToolName)}

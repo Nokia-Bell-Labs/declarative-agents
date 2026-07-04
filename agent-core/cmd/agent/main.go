@@ -77,25 +77,26 @@ func init() {
 }
 
 type agentState struct {
-	parser       llm.ResponseParser
-	conversation *llm.Conversation
-	tracker      *validation.ToolTracker
-	registry     *core.Registry
-	tracer       tracing.Tracer
-	model        string
-	providerName string
-	parseRetries *toollm.ParseErrorRetryTracker
-	maxDuration  time.Duration
-	maxTokens    int
-	verbose      bool
-	ctx          context.Context
-	directory    string
-	request      string
-	output       string
-	checkpoint   core.Checkpoint
-	monitor      toolrest.MonitorState
-	restDefs     toolrest.Collection
-	shutdown     func()
+	parser        llm.ResponseParser
+	conversation  *llm.Conversation
+	tracker       *validation.ToolTracker
+	registry      *core.Registry
+	tracer        tracing.Tracer
+	model         string
+	providerName  string
+	manifestState core.State
+	parseRetries  *toollm.ParseErrorRetryTracker
+	maxDuration   time.Duration
+	maxTokens     int
+	verbose       bool
+	ctx           context.Context
+	directory     string
+	request       string
+	output        string
+	checkpoint    core.Checkpoint
+	monitor       toolrest.MonitorState
+	restDefs      toolrest.Collection
+	shutdown      func()
 }
 
 type deferredShutdown struct {
@@ -232,7 +233,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	})
 
 	registerBuiltinFactories(builtins, st, selectedInits)
-	if err := registerRuntimeTools(reg, builtins, cfg, resources.Definitions); err != nil {
+	if err := registerRuntimeTools(reg, builtins, cfg, resources.Machine, resources.Definitions); err != nil {
 		loopCancel()
 		resources.shutdownTelemetry()
 		return preparedRun{}, fmt.Errorf("register tools: %w", err)
@@ -336,12 +337,12 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 	}
 }
 
-func registerRuntimeTools(reg *core.Registry, builtins *toolregistry.BuiltinRegistry, cfg runtimeConfig, defs []catalog.ToolDef) error {
+func registerRuntimeTools(reg *core.Registry, builtins *toolregistry.BuiltinRegistry, cfg runtimeConfig, machine core.MachineSpec, defs []catalog.ToolDef) error {
 	vars := map[string]string{
 		"directory": cfg.Directory,
 		"request":   cfg.Request,
 	}
-	return toolregistry.RegisterUnifiedTools(reg, builtins, cfg.Directory, defs, vars, execBuilder)
+	return toolregistry.RegisterUnifiedToolsForMachine(reg, builtins, cfg.Directory, machine, defs, vars, execBuilder)
 }
 
 type loopParamDeps struct {

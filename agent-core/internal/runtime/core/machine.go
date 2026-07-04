@@ -408,9 +408,19 @@ func BuildTransitionTable(spec MachineSpec, reg *Registry, toolAction ActionFunc
 
 		table[key] = TransitionValue{
 			NextState: State(tr.Next),
-			Action:    action,
+			Action:    actionForState(State(tr.Next), action),
 		}
 	}
 
 	return table, isTerminal, nil
+}
+
+func actionForState(state State, action ActionFunc) ActionFunc {
+	if action == nil {
+		return nil
+	}
+	return func(r Result) Command {
+		r.State = state
+		return action(r)
+	}
 }

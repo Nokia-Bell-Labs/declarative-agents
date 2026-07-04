@@ -227,8 +227,8 @@ action_semantics:
     description: |
       Dynamic dispatch sentinel. At runtime, the actual tool name is
       extracted from the parsed LLM output. This lets the LLM
-      choose which tool to call (e.g. read, write, edit, build).
-      Used in the generator's Parsing → Composing transition.
+      choose one state-valid external word (e.g. read, write, edit,
+      build). Used in the generator's Parsing -> Composing transition.
     example: $tool
 
   - mode: Empty/omitted
@@ -236,6 +236,41 @@ action_semantics:
       No command is executed. Used for terminal transitions where the
       machine simply moves to a halting state (e.g. Succeeded, Failed,
       BudgetExceeded).
+
+state_scoped_dynamic_dispatch:
+  purpose: |
+    Defines the availability contract for LLM-selected `$tool` dispatch.
+    A state is a grammar phase. The model may choose only tools that are valid
+    in the current phase.
+  source_of_truth: |
+    MachineSpec transitions are the source of truth for dynamic tool
+    availability. A tool is available from the state that invokes the LLM when
+    the next `$tool` transition can dispatch that tool and every declared
+    signal emitted by that tool is accepted by the target state or the target
+    state is terminal.
+
+    Explicit ToolSpec phases may further narrow availability for compatibility
+    with registry manifests. They must not make a tool available where the
+    MachineSpec transition graph cannot route that tool's declared signals.
+  manifest_rule: |
+    The LLM manifest is built for the machine's current state. It includes
+    external tools that satisfy the state-scoped dynamic availability contract.
+    Internal tools and tools outside the current state are omitted from the
+    manifest.
+  validation_rule: |
+    Runtime parsing and dispatch validate the parsed tool name against the same
+    current-state availability set used for the manifest. Unknown tools,
+    internal tools, and tools not valid in the current state are rejected before
+    command execution.
+  rejection_signal: |
+    A parsed tool call that names a registered external tool outside the
+    current state's availability set emits ParseFailed. The diagnostic should
+    distinguish the out-of-state tool from an unknown tool so the machine can
+    route recovery deterministically through its ParseFailed transition.
+  ownership_rules:
+    - MachineSpec owns phase-specific availability because transitions own workflow order.
+    - ToolDef owns vocabulary metadata such as emitted signals, visibility, parameters, and side effects.
+    - ToolSpec phases are derived runtime metadata or an additional restriction; they are not a second workflow definition.
 
 workflow_metric_labels:
   status: planned
@@ -290,6 +325,9 @@ validation_rules: |
   Phase 2 — BuildTransitionTable():
   - Named actions (not $tool, not empty) must resolve to a registered tool
   - $tool requires a non-nil ToolAction callback
+  - Dynamic $tool availability is derived from the current state, the next
+    $tool transition, and selected external ToolDef emits
+  - Explicit ToolSpec phases may only narrow the transition-derived set
 
   Validation failures cause the agent to abort before processing any input.
 

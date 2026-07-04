@@ -89,6 +89,12 @@ func RegisterUnifiedTools(reg *core.Registry, builtins *BuiltinRegistry, root st
 	return nil
 }
 
+// RegisterUnifiedToolsForMachine registers selected declarations with dynamic
+// manifest phases derived from the machine grammar.
+func RegisterUnifiedToolsForMachine(reg *core.Registry, builtins *BuiltinRegistry, root string, machine core.MachineSpec, defs []catalog.ToolDef, vars map[string]string, execBuilder ExecBuilderFactory) error {
+	return RegisterUnifiedTools(reg, builtins, root, catalog.ApplyDynamicToolPhases(machine, defs), vars, execBuilder)
+}
+
 func registerBuiltin(reg *core.Registry, builtins *BuiltinRegistry, td catalog.ToolDef, vars map[string]string) error {
 	if td.Init == "" {
 		return fmt.Errorf("builtin tool %q has no init field", td.Name)
