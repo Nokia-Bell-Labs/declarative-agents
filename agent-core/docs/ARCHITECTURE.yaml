@@ -1504,7 +1504,7 @@ implementation_status:
     - done: REST sample profile — agent-profiles owns REST profile assets while agent-core keeps core REST runtime conformance fixtures under testdata/integration/rel03-rest-tools
     - done: Machine request REST path — documentation_curator_requests machine_request routes execute the external documentation-curator request machine for document index and detail requests, with request-machine actions selected from trusted profile declarations
     - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior
-    - done: Knowledge Manager machine_request proof — mage integration:uc007 and plain go test verify generic REST route trace evidence, owned same-origin proxy lifecycle, raw YAML, rendered HTML, and nested document path evidence
+    - done: Knowledge Manager machine_request proof — plain go test verifies generic REST route trace evidence and same-origin proxy lifecycle; agent-profiles owns the concrete browser tracer for raw YAML, rendered HTML, and nested document path evidence
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd026)

@@ -35,7 +35,7 @@ touchpoints:
   - T4: "srd031-declarative-document-resources R3, R5 -- path safety and raw or parsed YAML response modes"
   - T5: "srd031-declarative-document-resources R6 -- Knowledge Manager UI assets and action placement are human actor configuration"
   - T6: "rel03.0-uc006-documentation-curator -- direct-host smoke behavior retained beside the machine_request successor proof"
-  - T7: "magefiles/integration_docs.go -- current uc006 and uc007 integration orchestration"
+  - T7: "agent-profiles profile integration suite -- concrete browser orchestration for the profile-owned tracer bullet"
 
 success_criteria:
   - id: S1
@@ -68,16 +68,17 @@ success_criteria:
 
 out_of_scope:
   - Applying documentation patches from the browser.
-  - Replacing the current rel03.0-uc006 direct-host smoke proof.
+  - Replacing the rel03.0-uc006 direct-host smoke scenario.
   - Running Puppeteer against non-local public listener addresses.
   - Letting browser input choose document roots, parser modes, or machine files.
 
 successor_to: rel03.0-uc006-documentation-curator
 status: done
-machine_config: knowledge-manager/documentation-curator/machine.yaml
-rest_definitions: knowledge-manager/documentation-curator/rest.yaml
+proof_owner: agent-profiles
+machine_config: agents/knowledge-manager/documentation-curator/machine.yaml
+rest_definitions: agents/knowledge-manager/documentation-curator/rest.yaml
 document_resource: documentation_corpus
 browser_harness: Puppeteer
-integration_target: mage integration:uc007
-entry_point: internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts
+integration_target: agent-profiles documentation-curator browser target
+entry_point: profile-owned browser integration entry point
 test_suite_trace: test-rel03.0-rest-tools

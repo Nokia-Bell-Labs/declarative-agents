@@ -14,7 +14,7 @@ overview: |
   container or resolver proof itself.
 
 coverage_notes: |
-  Release 06.0 has moved past placeholder status.
+  Release 06.0 has moved past draft status.
 
   Agent profile assets, demos, and profile-owned integration fixtures now live
   in agent-profiles. Agent Core keeps cmd/agent, Go runtime packages, shared
@@ -64,18 +64,21 @@ test_cases:
   - use_case: rel06.0-uc001-mounted-profile-container-runtime
     name: Runtime resolves profiles from external roots
     go_test: TestResolveProfilePathMapsInstalledCoreHome
-    integration_target: mage integration:uc001, mage integration:uc002, mage integration:uc006, mage integration:uc007
+    integration_target: mage integration:uc001, mage integration:uc002
     status: implemented
     description: |
       Configure AGENT_PROFILES_ROOT outside the agent-core checkout. Integration
       targets then start cmd/agent with --profile paths from that external root.
       In pkg/spec, the path test verifies that /opt/agent-core/tools references
       map to the installed core asset root when AGENT_CORE_HOME is set. Those
-      same integration targets exercise normal machine assets, fixture roots,
-      and Knowledge Manager profile-local UX config.
+      same integration targets exercise normal machine assets and fixture roots.
+      Concrete profile UX tracer bullets, including Knowledge Manager assets,
+      belong to agent-profiles suites.
     inputs:
       profile_root: external_agent_profiles_root
-      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
+      profiles:
+        - ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+        - ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
       workspace: isolated_temp_workspace
     expected:
       external_profile_loaded: true
