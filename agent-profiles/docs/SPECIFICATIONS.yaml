@@ -16,11 +16,11 @@ overview: |
   integration consumption back to the SRD and semantic models.
   The traceability gap is closed.
 
-  Release 07.0 defines profile-owned integration tracer bullets for concrete
-  state machines and profile-to-profile boundaries. These use cases move
-  beyond repository migration proof: they name documentation-curator UX,
-  evaluator to generator, planner to generator, bench to evaluator, and
-  monitor/control evidence that must live with the profile assets.
+  Release 07.0 implements profile-owned integration tracer bullets for concrete
+  state machines and profile-to-profile boundaries. The implemented use cases
+  cover documentation-curator UX, evaluator to generator, planner to generator,
+  bench to evaluator, and monitor/control evidence that lives with the profile
+  assets.
 
   A reader can now start at the SRD, follow the semantic model role entries,
   reach the two mounted-profile use cases, and land on named commands such as
@@ -45,12 +45,11 @@ roadmap_summary:
       executable proof for the completed migration path.
   - version: "07.0"
     name: Profile-owned integration tracer bullets
-    status: planned
+    status: done
     scope: |
-      Define and implement profile-owned tracer bullets for concrete profile
-      state machines, profile-to-profile execution, and human/operator
-      boundaries. The documentation in this release names the target contracts;
-      follow-up implementation issues add the Mage or Go targets.
+      Implemented profile-owned tracer bullets for concrete profile state
+      machines, profile-to-profile execution, and human/operator boundaries.
+      The release proof is the profile-owned Mage integration target set.
 
 foundation_document_index:
   - id: agent-profiles
@@ -163,11 +162,11 @@ coverage_gaps: |
   validation. It also covers mounted container smoke, profile bundle tagging,
   and agent-core integration targets that consume this repository through
   AGENT_PROFILES_ROOT.
-  No placeholder proof remains for this release.
+  No missing proof remains for this release.
 
   Future gaps should track new profile families, demos, fixtures, or validation
   commands as they are added. Existing release coverage no longer depends on a
-  planned follow-up issue.
+  deferred follow-up issue.
 
   Release 07.0 implements the documentation-curator profile UX tracer,
   evaluator-to-generator boundary tracer, planner-to-generator boundary tracer,
