@@ -16,12 +16,20 @@ Profile-driven runtime and design patterns for declarative, tool-augmented agent
 This repository uses [Mage](https://magefile.org/) for builds. From the repo root:
 
 ```bash
-mage          # run default target in each sub-module
-mage tag      # create a release tag (v0.YYYYMMDD.N)
-mage stats    # output combined LOC stats as JSON
+mage            # run default target in each sub-module
+mage audit      # run the release analysis gate in each sub-module
+mage test:unit  # run unit tests for applicable sub-modules
+mage stats      # output combined LOC stats as JSON
+mage tag        # create root and module release tags
 ```
 
 Each sub-module also has its own mage targets. Run `mage -l` inside any directory with a `magefiles/` folder to list available targets.
+
+Root releases use `mage audit` as the analysis gate and `mage test:unit` as the
+unit-test gate. `mage tag` runs from `main` and creates the repository tag
+`v0.YYYYMMDD.N` plus module-scoped tags for release-relevant directories:
+`agent-core/v0.YYYYMMDD.N`, `agent-profiles/v0.YYYYMMDD.N`, and
+`design-patterns/v0.YYYYMMDD.N`.
 
 ### agent-core
 
