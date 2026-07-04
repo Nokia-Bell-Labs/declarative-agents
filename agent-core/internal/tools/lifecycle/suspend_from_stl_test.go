@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-package stl
+package lifecycle
 
 import (
 	"testing"
@@ -9,6 +9,8 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
 func TestSuspendBuilderEmitsAwaitApproval(t *testing.T) {
@@ -69,12 +71,12 @@ func TestSuspendWithPersistentCheckpointSatisfiesGate(t *testing.T) {
 
 func TestRegisterLifecycleFactoriesRegistersSuspend(t *testing.T) {
 	t.Parallel()
-	br := NewBuiltinRegistry()
-	RegisterLifecycleFactories(br, LifecycleFactoryDeps{Tracer: tracing.NoopTracer{}})
+	br := toolregistry.NewBuiltinRegistry()
+	RegisterFactories(br, FactoryDeps{Tracer: tracing.NoopTracer{}})
 	factory, ok := br.Resolve("suspend")
 	require.True(t, ok)
 
-	builder, err := factory(ToolDef{
+	builder, err := factory(catalog.ToolDef{
 		Name: "suspend",
 		Type: "builtin",
 		Init: "suspend",
