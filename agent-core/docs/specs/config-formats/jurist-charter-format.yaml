@@ -21,6 +21,17 @@ determinism: |
   reporting so two runs over the same inputs produce the same pass/fail status
   and finding order.
 
+suite_selection: |
+  The spec-validation builtin tools load charter suites from ToolDef config or
+  runtime variables. ToolDef config accepts suite_paths, charter_suites, and
+  charters; all three names are aliases for a list of charter file paths.
+  Runtime variables accept comma-separated suite_paths and charter_suites.
+
+  The default jurist profile uses the core load_corpus ToolDef config to load
+  /opt/agent-core/tools/builtin/spec-validation/spec-corpus-charter.yaml. A
+  profile or caller may replace that list with another charter list while
+  keeping the same linear jurist machine.
+
 schema:
   - field: id
     type: string
@@ -111,6 +122,7 @@ check_kinds:
           match forbids matching text and emits a finding for each match.
           missing requires at least one match and emits a finding when no file
           matches. Defaults to match.
+          Supported values are match and missing.
       - field: regex
         type: bool
         required: false
@@ -126,14 +138,26 @@ check_kinds:
         type: object
         required: true
         description: |
-          Source of allowed reference values. A reference source may be a file,
-          directory, or inline list depending on implementation support.
+          Source of allowed reference values. Supported keys are values, keys,
+          inline, file, directory, and format.
+
+          values, keys, and inline are equivalent inline string lists. file is
+          a target-relative, charter-root-relative, or absolute file path. By
+          default, file lines are parsed as one reference per non-empty,
+          non-comment line. With format: bibtex_keys, file content is parsed for
+          BibTeX entry keys. directory is a target-relative, charter-root-
+          relative, or absolute directory path; every file below that directory
+          contributes its slash-normalized relative path as an allowed value.
       - field: extract
         type: object
         required: true
         description: |
-          Rule for extracting reference values from checked files. Typical
-          forms include regular-expression capture groups or YAML field paths.
+          Rule for extracting reference values from checked files. The current
+          implementation supports regex, with an optional group number.
+
+          regex is a regular expression evaluated against each line of each
+          checked file. group defaults to 1 and selects the capture group used
+          as the reference value. group may be 0 to use the full match.
       - field: allow_missing
         type: bool
         required: false
@@ -148,17 +172,26 @@ check_kinds:
       - field: source
         type: object
         required: true
-        description: YAML path, file path, or manifest selector that supplies values.
+        description: |
+          YAML source selector. source.yaml_path is required and uses the
+          jurist YAML path selector, such as $.field or $.items[*].id.
+          source.file is optional and selects one target-relative, charter-root-
+          relative, or absolute YAML file instead of the check include set.
       - field: rule
         type: string
         required: true
         description: |
-          Deterministic comparison rule. Initial rules cover equals,
+          Deterministic comparison rule. Supported values are equals,
           required_path_exists, and required_when.
       - field: target
         type: object
         required: false
-        description: YAML path, path template, or selector compared with source.
+        description: |
+          Selector or value compared with source. equals supports target.value
+          for a literal value or target.yaml_path for another YAML path in the
+          same source document. required_path_exists supports target.path_root.
+          required_when uses target.yaml_path and emits a finding when the
+          source value is truthy and the target path has no values.
 
   - kind: spec_corpus
     purpose: |
@@ -171,7 +204,39 @@ check_kinds:
         required: false
         description: |
           Optional subset of built-in spec check identifiers. Omitted means run
-          the full spec-corpus suite.
+          the full spec-corpus suite. Values must match existing spec-corpus
+          finding check identifiers, such as orphaned-srd or uncovered-ac.
+
+kind_required_fields:
+  - kind: grep_check
+    required_fields:
+      - patterns
+    notes: |
+      regex: true also requires each pattern to compile as a Go regular
+      expression. mode defaults to match.
+
+  - kind: ref_check
+    required_fields:
+      - references
+      - extract.regex
+    notes: |
+      references must produce at least one allowed value. extract.group
+      defaults to 1.
+
+  - kind: consistency_check
+    required_fields:
+      - source.yaml_path
+      - rule
+    notes: |
+      Rule-specific target fields are required by behavior: equals needs either
+      target.value or target.yaml_path, and required_when needs
+      target.yaml_path.
+
+  - kind: spec_corpus
+    required_fields: []
+    notes: |
+      checks is optional. When provided, each entry names a built-in
+      spec-corpus finding check identifier.
 
 finding_provenance: |
   Every charter finding records the suite id, check id, check kind, severity,
