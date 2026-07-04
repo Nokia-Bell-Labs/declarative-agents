@@ -508,6 +508,9 @@ func detailResponseOutput(input string) (map[string]interface{}, error) {
 		return nil, err
 	}
 	content := detail["parsed"]
+	if content == nil {
+		content = detail["raw"]
+	}
 	return map[string]interface{}{"data": map[string]interface{}{
 		"path": detail["path"], "content": content, "raw": detail["raw"],
 	}, "path": detail["path"], "content": content, "raw": detail["raw"], "content_type": detail["content_type"]}, nil

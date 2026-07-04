@@ -120,6 +120,25 @@ func TestStandaloneServerConformanceUsesRESTMachineRequestRoutes(t *testing.T) {
 	require.Equal(t, "DocumentDetailReady", trace["terminal_signal"])
 }
 
+func TestStandaloneServerMachineRequestServesMarkdownDetail(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	docsDir := filepath.Join(root, "docs")
+	writeDocFixture(t, docsDir, "bench-documentation-ux-inventory.md", "# Bench Documentation UX Inventory\n\nMarkdown body.\n")
+	handler := NewServer(HostConfig{
+		DocsDir: docsDir, ProfilePath: curatorProfilePath(t),
+		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
+	}).Handler()
+
+	rec := getDocsRoute(t, handler, "/api/v1/docs/bench-documentation-ux-inventory.md")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"raw":"# Bench Documentation UX Inventory\n\nMarkdown body.\n"`)
+	require.Contains(t, rec.Body.String(), `"data":"Markdown body."`)
+	trace := responseTrace(t, rec.Body.Bytes())
+	require.Equal(t, "DocumentDetailReady", trace["terminal_signal"])
+}
+
 func TestStandaloneServerAcceptsBrowserHeadersForDocsGET(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -388,7 +407,7 @@ func TestStandaloneServerRunsActionsThroughWorkflowRunner(t *testing.T) {
 	t.Parallel()
 
 	handler := NewServer(HostConfig{
-		Workflow: stubWorkflowRunner{},
+		Workflow: fakeWorkflowRunner{},
 		Assets: fstest.MapFS{
 			"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")},
 		},
@@ -478,9 +497,9 @@ func TestCuratorControlRouteFeedsRestAwaitEvent(t *testing.T) {
 	require.Equal(t, "operator requested shutdown", event.Payload["reason"])
 }
 
-type stubWorkflowRunner struct{}
+type fakeWorkflowRunner struct{}
 
-func (stubWorkflowRunner) Run(r *http.Request) (ActionResponse, error) {
+func (fakeWorkflowRunner) Run(r *http.Request) (ActionResponse, error) {
 	defer r.Body.Close()
 	return ActionResponse{
 		Data: map[string]interface{}{"status": "valid"},
