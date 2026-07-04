@@ -129,7 +129,7 @@ use_case_index:
   - id: rel07.0-uc004-bench-evaluator-profile-boundary
     title: Bench to Evaluator Profile Boundary
     summary: Bench launches evaluator from a human/operator boundary action.
-    status: planned
+    status: implemented
     path: docs/specs/use-cases/rel07.0-uc004-bench-evaluator-profile-boundary.yaml
   - id: rel07.0-uc005-monitor-control-profile-boundary
     title: Monitor Control Profile Boundary
@@ -172,6 +172,6 @@ coverage_gaps: |
 
   Release 07.0 now implements the documentation-curator profile UX tracer,
   evaluator-to-generator boundary tracer, and planner-to-generator boundary
-  tracer. Issues #110 and #111 own the remaining target and fixture work; until
-  those close, the Rel07 suite intentionally keeps those cases planned rather
-  than claiming executable proof.
+  tracer, and bench-to-evaluator launch tracer. Issue #111 owns the remaining
+  monitor/control target and fixture work; until it closes, the Rel07 suite
+  intentionally keeps that case planned rather than claiming executable proof.

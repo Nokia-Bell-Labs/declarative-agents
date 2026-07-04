@@ -120,7 +120,8 @@ test_cases:
     name: Bench launches evaluator from a human action
     follow_up_issue: "#110"
     integration_target: mage integration:benchEvaluator
-    status: planned
+    go_test: go test ./magefiles -run TestAssertBenchEvaluatorEvidenceRequiresLaunchOutput
+    status: implemented
     description: |
       Run a local bench harness that sends a fixture operator action and
       verifies evaluator launch evidence. This target proves the human boundary
@@ -130,11 +131,13 @@ test_cases:
       evaluator_profile: agents/evaluator/profile.yaml
       launch_request: testdata/integration/rel07-bench-evaluator/request.yaml
       suite: testdata/integration/rel07-bench-evaluator/suite.yaml
+      expected_launch: testdata/integration/rel07-bench-evaluator/expected/launch.yaml
     expected:
       human_action_received: true
       evaluator_profile_resolved: true
       launch_status_recorded: true
       evaluator_output_evidence_recorded: true
+      target_owner: agent-profiles
     traces:
       - rel07.0-uc004-bench-evaluator-profile-boundary S1
       - rel07.0-uc004-bench-evaluator-profile-boundary S2

@@ -128,7 +128,7 @@ releases:
         status: done
       - id: gh-110
         summary: Add bench-to-evaluator profile tracer bullet.
-        status: planned
+        status: done
       - id: gh-111
         summary: Add or explicitly scope monitor-control tracer evidence.
         status: planned
@@ -144,7 +144,7 @@ releases:
         status: implemented
       - id: rel07.0-uc004-bench-evaluator-profile-boundary
         summary: Bench launches evaluator from a human/operator action.
-        status: planned
+        status: implemented
       - id: rel07.0-uc005-monitor-control-profile-boundary
         summary: Monitor/control tracer decision and lifecycle boundary proof.
         status: planned

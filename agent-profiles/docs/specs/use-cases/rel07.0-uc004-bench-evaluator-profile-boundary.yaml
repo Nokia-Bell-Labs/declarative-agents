@@ -2,7 +2,7 @@ id: rel07.0-uc004-bench-evaluator-profile-boundary
 title: Bench to Evaluator Profile Boundary
 
 summary: |
-  The bench profile should prove the human-operated evaluation boundary: a
+  The bench profile proof covers the human-operated evaluation boundary: a
   local operator action reaches the bench surface, bench launches evaluator
   through configured vocabulary, and the result records launch status plus the
   evaluator request/output evidence. This is a launch tracer, not a full
@@ -71,4 +71,4 @@ out_of_scope:
   - Replacing evaluator's own point/session tests.
 
 test_suite_trace: test-rel07.0-profile-integrations
-status: planned
+status: implemented

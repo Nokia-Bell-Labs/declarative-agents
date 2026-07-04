@@ -1,0 +1,5 @@
+type: launch_eval
+config:
+  suite: suite.yaml
+  output_dir: eval-results
+  request_id: rel07-bench-evaluator
