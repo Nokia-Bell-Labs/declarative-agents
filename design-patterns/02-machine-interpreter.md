@@ -200,10 +200,10 @@ The engine loop is identical for all workflows and holds no domain logic; if con
 |---|---|---|
 | **Run** | Execute a machine from its initial state | Full stack: machine, registry, LLM adapter |
 | **Resume** | Continue from a persisted checkpoint | Full stack + checkpoint |
-| **Rollback** | Walk the execution backward, calling `Undo` | State store, checkpoint ID, target iteration |
-| **History** | Format a checkpoint's execution | A loaded checkpoint |
+| **Rollback** | Rewind persisted state with Dolt `Revert`, then reverse external effects through receipts | Checkpoint port, run ID, target step |
+| **History** | Format a loaded run's execution log | Checkpoint port, run ID |
 
-Resume re-enters the loop and needs the full machine and registry; Rollback is a checkpoint operation that reverses tool effects from their receipts without loading a machine, which justifies separate entry points.
+Resume re-enters the loop and needs the full machine and registry; Rollback rewinds persisted state and reverses external effects through receipts without loading a machine, which justifies separate entry points.
 
 ### Data flow and tool construction
 
