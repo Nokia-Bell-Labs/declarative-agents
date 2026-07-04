@@ -87,6 +87,34 @@ test_cases:
       - sm-multi-agent-profile-system validation_views
 
   - use_case: rel06.0-uc002-profile-validation
+    name: Jurist profile demo charter validates YAML-only findings
+    go_test: go test ./magefiles -run 'Test(WriteJuristCharterDemoProfileFiles|AssertJuristCharterDemoFindings)'
+    integration_target: mage validate
+    status: implemented
+    description: |
+      Validate that the jurist profile can run a profile-owned charter suite
+      against a fixture without adding states or LLM behavior. The demo suite
+      is YAML-only and intentionally emits one or more findings from grep_check,
+      ref_check, and consistency_check.
+    inputs:
+      suite: agents/jurist/suites/demo-charter.yaml
+      fixture: testdata/integration/jurist-charter-demo
+      core_root: AGENT_CORE_ROOT
+    expected:
+      profile_loads_default_core_suite_config: true
+      demo_suite_selected_from_profile_data: true
+      grep_check_finding: jurist-demo-charter/no-internal-vocabulary
+      ref_check_finding: jurist-demo-charter/citations-resolve
+      consistency_check_finding: jurist-demo-charter/artifacts-exist
+    traces:
+      - rel06.0-uc002-profile-validation S1
+      - srd001-agent-functional-blocks R5.2
+      - srd001-agent-functional-blocks R5.4
+      - srd001-agent-functional-blocks R5.5
+      - gh-123 AC1
+      - gh-123 AC3
+
+  - use_case: rel06.0-uc002-profile-validation
     name: Profile bundle tags use local daily revisions
     go_test: go test ./magefiles -run 'Test(CreateReleaseTag|NextRevisionFromTags|ValidateReleaseBranch)'
     integration_target: mage tag
