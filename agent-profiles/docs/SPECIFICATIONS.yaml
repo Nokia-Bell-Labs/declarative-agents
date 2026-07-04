@@ -114,7 +114,7 @@ use_case_index:
     title: Documentation Curator Profile UX Tracer
     summary: Profile-owned Knowledge Manager browser, machine_request, trace,
       and lifecycle proof.
-    status: planned
+    status: implemented
     path: docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
   - id: rel07.0-uc002-evaluator-generator-profile-boundary
     title: Evaluator to Generator Profile Boundary
@@ -170,7 +170,7 @@ coverage_gaps: |
   commands as they are added. Existing release coverage no longer depends on a
   planned follow-up issue.
 
-  Release 07.0 now documents the profile integration tracer bullets but has not
-  implemented every target. Issues #107 through #111 own the target and fixture
-  work; until those close, the Rel07 suite intentionally records planned status
-  rather than claiming executable proof.
+  Release 07.0 now implements the documentation-curator profile UX tracer.
+  Issues #108 through #111 own the remaining profile-to-profile target and
+  fixture work; until those close, the Rel07 suite intentionally keeps those
+  cases planned rather than claiming executable proof.

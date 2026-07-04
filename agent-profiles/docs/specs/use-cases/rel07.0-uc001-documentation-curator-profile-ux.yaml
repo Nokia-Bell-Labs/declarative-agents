@@ -3,10 +3,10 @@ title: Documentation Curator Profile UX Tracer
 
 summary: |
   The documentation-curator profile owns the Knowledge Manager browser and
-  document-resource proof. A profile-owned integration target should load the
-  concrete profile from agent-profiles, start its documentation host and control
-  routes through agent-core, exercise document machine_request endpoints, and
-  shut the profile down through declared lifecycle vocabulary.
+  document-resource proof. The profile-owned integration target loads the
+  concrete profile from agent-profiles, starts its documentation host and control
+  routes through agent-core, exercises document machine_request endpoints, and
+  shuts the profile down through declared lifecycle vocabulary.
 
   This tracer belongs in agent-profiles because the profile, UX config, request
   machine, REST definitions, and UI assets live beside the profile. agent-core
@@ -75,4 +75,4 @@ out_of_scope:
   - Requiring agent-core to know the documentation-curator profile path.
 
 test_suite_trace: test-rel07.0-profile-integrations
-status: planned
+status: implemented

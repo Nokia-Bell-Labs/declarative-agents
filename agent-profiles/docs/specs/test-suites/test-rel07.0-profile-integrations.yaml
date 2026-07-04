@@ -33,12 +33,14 @@ test_cases:
     name: Documentation curator profile UX and lifecycle tracer
     follow_up_issue: "#107"
     integration_target: mage integration:documentationCurator
-    status: planned
+    go_test: go test ./magefiles -run TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile
+    status: implemented
     description: |
-      Move the concrete Knowledge Manager/documentation-curator proof into
-      agent-profiles. The target should run the shipped profile, prove
-      machine_request document routes and profile-owned UI assets, record trace
-      metadata, and shut down through lifecycle control.
+      Run the concrete Knowledge Manager/documentation-curator proof from
+      agent-profiles. The target runs the shipped profile through an ephemeral
+      profile overlay, proves machine_request document routes and profile-owned
+      UI assets, records trace metadata, and shuts down through lifecycle
+      control.
     inputs:
       profile: agents/knowledge-manager/documentation-curator/profile.yaml
       ux_config: agents/knowledge-manager/documentation-curator/ui/ux.yaml
@@ -50,6 +52,7 @@ test_cases:
       lifecycle_signal: ExitRequested
       terminal_state: Done
       listener_released: true
+      target_owner: agent-profiles
     traces:
       - rel07.0-uc001-documentation-curator-profile-ux S1
       - rel07.0-uc001-documentation-curator-profile-ux S2

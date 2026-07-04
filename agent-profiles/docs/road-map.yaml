@@ -119,7 +119,7 @@ releases:
         status: done
       - id: gh-107
         summary: Move documentation-curator integration proof to agent-profiles.
-        status: planned
+        status: done
       - id: gh-108
         summary: Add evaluator-to-generator profile tracer bullet.
         status: planned
@@ -135,7 +135,7 @@ releases:
     use_cases:
       - id: rel07.0-uc001-documentation-curator-profile-ux
         summary: Knowledge Manager profile UX, document machine_request, trace, and lifecycle proof.
-        status: planned
+        status: implemented
       - id: rel07.0-uc002-evaluator-generator-profile-boundary
         summary: Evaluator runs generator as a benchmark subject profile.
         status: planned
