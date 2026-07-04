@@ -102,11 +102,7 @@ if [ -n "$trace" ]; then
 fi
 echo "generator profile boundary exercised"
 `
-	path := filepath.Join(dir, "agent")
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		return fmt.Errorf("write child agent shim: %w", err)
-	}
-	return nil
+	return writeExecutable(filepath.Join(dir, "agent"), script, "child agent shim")
 }
 
 func assertEvaluatorGeneratorOutput(outputDir string) error {

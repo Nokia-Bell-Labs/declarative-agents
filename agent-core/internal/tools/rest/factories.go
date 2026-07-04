@@ -302,7 +302,7 @@ func newClientBuilder(def catalog.ToolDef, init string, deps FactoryDeps) (core.
 		return nil, fmt.Errorf("tool %q requires async REST operation", def.Name)
 	}
 	return ClientBuilder{
-		ToolName: def.Name, Init: init, Operation: operation,
+		ToolName: def.Name, Init: init, Operation: operation, Definitions: deps.Definitions,
 		AsyncState: deps.AsyncState, Credentials: deps.CredentialResolver, Metrics: def.Metrics,
 	}, nil
 }

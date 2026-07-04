@@ -14,7 +14,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
-	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
 func TestMonitorREST_ReadOnlyCachedState(t *testing.T) {
@@ -130,47 +129,6 @@ func TestMonitorREST_FactoryUsesLiveMonitorState(t *testing.T) {
 	require.Contains(t, stream, "event: metric_sample")
 	require.Contains(t, stream, "filesystem.bytes_read")
 	requireQueueEmpty(t, state, "monitor_live")
-}
-
-func launchMonitorRESTServer(
-	t *testing.T,
-	name string,
-	monitorState MonitorState,
-) (*ServerState, string) {
-	t.Helper()
-	state := NewServerState()
-	server := monitorServer(name)
-	def := ServerDefinition{Name: name, Server: server, Monitor: monitorState}
-	_, baseURL := launchRESTServerDefinition(t, state, def)
-	return state, baseURL
-}
-
-func launchMonitorRESTServerFromFactory(
-	t *testing.T,
-	name string,
-	monitorState MonitorState,
-) (*ServerState, string) {
-	t.Helper()
-	state := NewServerState()
-	collection := NewCollection()
-	require.NoError(t, collection.Add(Definition{Servers: map[string]Server{name: monitorServer(name)}}))
-	br := toolregistry.NewBuiltinRegistry()
-	RegisterFactories(br, FactoryDeps{Definitions: collection, ServerState: state, Monitor: monitorState})
-	factory, ok := br.Resolve(InitServerLaunch)
-	require.True(t, ok)
-	builder, err := factory(monitorLaunchTool(name), nil)
-	require.NoError(t, err)
-	result := builder.Build(core.Result{}).Execute()
-	require.Equal(t, core.Signal("ServerLaunched"), result.Signal, result.Output)
-	return state, "http://" + decodedLaunchAddress(t, result.Output)
-}
-
-func monitorLaunchTool(name string) catalog.ToolDef {
-	return catalog.ToolDef{
-		Name: "launch_monitor_rest", Type: "builtin", Init: InitServerLaunch,
-		Description: "Launch monitor REST test server.",
-		Config:      map[string]interface{}{"rest_ref": name},
-	}
 }
 
 func liveMonitorState() (MonitorState, *monitor.Recorder) {
