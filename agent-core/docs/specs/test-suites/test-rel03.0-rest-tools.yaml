@@ -19,10 +19,10 @@ preconditions:
   - HTTP server tests can bind listener port 0 and use per-test queues.
   - Redaction tests can use synthetic credentials and payload fields.
   - Live Ollama E2E coverage requires Ollama on 127.0.0.1:11434 and a Qwen 3 family model.
-  - Documentation-curator tests use local fixture directories and do not require a browser.
-  - Machine-request documentation UX coverage uses Puppeteer through mage integration:uc007 and internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts.
-  - Generic machine_request trace metadata should be covered by internal/tools/rest Go tests without relying on Knowledge Manager proxy enrichment.
-  - Knowledge Manager generic REST route conformance runs under plain go test without browser prerequisites.
+  - Documentation host package tests use local fixture directories and do not require a browser.
+  - Concrete documentation-curator and Knowledge Manager browser tracer bullets belong to agent-profiles suites with the profile assets.
+  - Generic machine_request trace metadata is covered by internal/tools/rest Go tests without relying on profile-specific proxy enrichment.
+  - Generic REST route conformance runs under plain go test without browser prerequisites.
 
 test_cases:
   - use_case: rel03.0-uc001-rest-client-sync
@@ -513,13 +513,11 @@ test_cases:
       exit_output_reason_from_event: true
       exit_output_status_from_event: true
       control_profile_terminal_state: Succeeded
-      documentation_profile_terminal_state: Done
       run_status_cancelled: false
       deferred_shutdown_after_loop_return: true
       control_profile_go_test: TestControlProfileExitReachesSucceededBeforeDeferredShutdown
-      documentation_profile_go_test: TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown
       payload_go_test: TestExitAgentUsesRuntimeEventPayload
-      profile_smoke_target: mage integration:uc006
+      profile_owned_exit_tracer: agent-profiles documentation-curator suite
     traces:
       - rel03.0-uc003-rest-server-signals S3
       - srd026-lifecycle-tools AC7
@@ -788,15 +786,17 @@ test_cases:
       - srd028-rest-client-tools AC7
 
   - use_case: rel03.0-uc006-documentation-curator
-    name: Documentation curator profile loads host and REST tooling
-    go_test: TestProfileStartupLoadsActiveProfiles
+    name: Profile-owned documentation curator loads host and REST tooling
+    go_test: agent-profiles documentation-curator profile integration suite
     status: done
     description: |
-      Load active profiles through cmd/agent startup coverage. The
-      documentation-curator profile must resolve its machine, serve_documentation
-      builtin declaration, selected doc_* REST tools, and REST definitions.
+      Load the documentation-curator profile through the profile-owned
+      integration suite. Agent Core owns the reusable startup, builtin
+      registration, and REST runtime behavior; agent-profiles owns the concrete
+      profile path, selected doc_* REST tools, and REST definitions.
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
+      profile_owner: agent-profiles
+      profile: agents/knowledge-manager/documentation-curator/profile.yaml
       builtin_tool: serve_documentation
       rest_tools:
         - doc_list
@@ -810,6 +810,7 @@ test_cases:
       profile_loads: true
       documentation_factory_registered: true
       rest_tooldefs_selected: true
+      core_concrete_profile_required: false
     traces:
       - rel03.0-uc006-documentation-curator S1
       - rel03.0-uc006-documentation-curator S4
@@ -824,8 +825,9 @@ test_cases:
     description: |
       Start the documentation server handler with fixture docs and assets. Verify
       /api/v1/docs returns documentation entries, a document detail route returns
-      parsed content, and a non-API route returns the SPA asset. Bench is not in
-      the request path.
+      parsed content, and a non-API route returns the SPA asset. This package
+      test proves the reusable host behavior with fixtures, not a shipped
+      profile path. Bench is not in the request path.
     inputs:
       server_package: internal/knowledge/documentation
       docs_fixture: temporary_docs_root
@@ -835,6 +837,7 @@ test_cases:
       docs_detail_returned: true
       spa_fallback_returned: true
       bench_route_delegation: false
+      concrete_profile_required: false
     traces:
       - rel03.0-uc006-documentation-curator S2
       - rel03.0-uc006-documentation-curator S3
@@ -865,6 +868,7 @@ test_cases:
       suggestion_status: pending_review
       approval_recorded: true
       documentation_write_applied: false
+      concrete_profile_required: false
     traces:
       - rel03.0-uc006-documentation-curator S4
       - srd027-rest-tool-runtime AC2
@@ -872,19 +876,19 @@ test_cases:
       - srd028-rest-client-tools AC7
 
   - use_case: rel03.0-uc006-documentation-curator
-    name: Documentation curator migration and lifecycle exit smoke test
-    go_test: mage integration:uc006
+    name: Profile-owned documentation curator lifecycle exit smoke test
+    go_test: agent-profiles documentation-curator profile integration suite
     status: done
     description: |
-      Build the agent with production assets, start
-      the external documentation-curator profile, probe the
-      documentation health, docs index, validation, suggestion, and SPA routes,
-      run the bench docs-route absence test, post a generic lifecycle exit
-      request, and require clean agent shutdown through the declared Done path.
-      The target checks process output for succeeded terminal state text and
-      confirms both documentation and control listeners are released.
+      In the profile-owned suite, build or locate the agent binary, start the
+      external documentation-curator profile, probe documentation health, docs
+      index, validation, suggestion, and SPA routes, post a generic lifecycle
+      exit request, and require clean shutdown through the declared Done path.
+      Agent Core owns the reusable lifecycle-control words and listener
+      shutdown behavior; agent-profiles owns this concrete tracer bullet.
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
+      profile_owner: agent-profiles
+      profile: agents/knowledge-manager/documentation-curator/profile.yaml
       listener: 127.0.0.1:18081
       frontend_builds:
         - internal/evaluation/bench/ui
@@ -907,6 +911,7 @@ test_cases:
       documentation_host_stop_go_test: TestCuratorMachineExitStopsDocumentationHost
       serve_documentation_undo_go_test: TestServeDocumentationUndoStopsOwnedListener
       clean_shutdown: true
+      core_concrete_profile_required: false
     traces:
       - rel03.0-uc006-documentation-curator S1
       - rel03.0-uc006-documentation-curator S2
@@ -918,19 +923,22 @@ test_cases:
       - srd029-rest-server-tools AC10
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
-    name: Puppeteer loads machine-request Knowledge Manager UX
-    go_test: mage integration:uc007
+    name: Profile-owned browser loads machine-request documentation UX
+    go_test: agent-profiles documentation-curator browser integration suite
     status: done
     description: |
-      Build the agent and Knowledge Manager UI assets, start the
-      documentation-curator profile with machine_request document endpoints, and
-      launch Puppeteer against the local UX. The page must load from
-      profile-owned UI assets without using bench routes.
+      In the profile-owned suite, build or locate the agent binary and
+      documentation UI assets, start the documentation-curator profile with
+      machine_request document endpoints, and launch Puppeteer against the local
+      UX. The page must load from profile-owned UI assets without using bench
+      routes. Core package tests cover the reusable machine_request and static
+      asset behavior without naming the concrete profile.
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
+      profile_owner: agent-profiles
+      profile: agents/knowledge-manager/documentation-curator/profile.yaml
       browser_harness: Puppeteer
-      entry_point: internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts
-      integration_target: mage integration:uc007
+      entry_point: profile-owned browser integration entry point
+      integration_target: agent-profiles documentation-curator browser target
       page_url: http://127.0.0.1:18081/
     expected:
       page_loaded: true
@@ -938,13 +946,14 @@ test_cases:
       bench_route_delegation: false
       screenshot_on_failure: true
       console_log_captured_on_failure: true
+      core_concrete_profile_required: false
     traces:
       - rel03.0-uc007-machine-request-documentation-ux S1
       - srd031-declarative-document-resources AC6
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
-    name: Puppeteer verifies document index machine_request sentence
-    go_test: mage integration:uc007
+    name: Browser verifies document index machine_request sentence
+    go_test: agent-profiles documentation-curator browser integration suite
     status: done
     description: |
       Puppeteer waits for the document index network request. The server should
@@ -971,8 +980,8 @@ test_cases:
       - srd031-declarative-document-resources AC7
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
-    name: Puppeteer opens raw YAML document through document resource
-    go_test: mage integration:uc007
+    name: Browser opens raw YAML document through document resource
+    go_test: agent-profiles documentation-curator browser integration suite
     status: done
     description: |
       After the sidebar appears, Puppeteer selects a YAML document. The browser
@@ -1003,8 +1012,8 @@ test_cases:
       - srd031-declarative-document-resources AC5
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
-    name: Puppeteer verifies rendered HTML and raw YAML view
-    go_test: mage integration:uc007
+    name: Browser verifies rendered HTML and raw YAML view
+    go_test: agent-profiles documentation-curator browser integration suite
     status: done
     description: |
       Puppeteer checks the document viewer after navigation. The rendered HTML
@@ -1029,14 +1038,14 @@ test_cases:
       - srd031-declarative-document-resources AC6
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
-    name: Puppeteer captures auditable machine_request trace evidence
-    go_test: mage integration:uc007
+    name: Browser captures auditable machine_request trace evidence
+    go_test: agent-profiles documentation-curator browser integration suite
     status: done
     description: |
-      The Puppeteer proof collects trace evidence for the index and document
-      requests. A failure report must include screenshot path, page URL, browser
-      console output, network log, request ID, machine name, terminal signal,
-      and RunResult summary for each machine_request run.
+      The profile-owned browser proof collects trace evidence for the index and
+      document requests. A failure report must include screenshot path, page
+      URL, browser console output, network log, request ID, machine name,
+      terminal signal, and RunResult summary for each machine_request run.
     inputs:
       requests:
         - document_index
@@ -1058,26 +1067,26 @@ test_cases:
       - srd030-machine-request-rest-binding AC7
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
-    name: Machine_request conformance loads configured profile machine
-    go_test: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1 go test ./internal/tools/rest -run TestRESTServerMachineRequestConformance
+    name: Machine_request conformance loads configured request machine
+    go_test: go test ./internal/tools/rest -run TestRESTServerMachineRequestConformance
     status: done
     description: |
       Run the opt-in conformance tests for machine_request endpoints. The tests
-      require a configured profile and request-machine file, not an injected
-      MachineSpec, and cover nested catch-all document paths. The generic
+      require a configured request-machine fixture, not an injected MachineSpec,
+      and cover nested catch-all document paths. The generic
       internal/tools/rest trace envelope now carries server, route, and machine
       identity.
     inputs:
-      conformance_env: AGENT_CORE_MACHINE_REQUEST_CONFORMANCE=1
-      profile: ${AGENT_PROFILES_ROOT}/knowledge-manager/documentation-curator/profile.yaml
-      machine: knowledge-manager/documentation-curator/request-machine.yaml
+      conformance_env: none
+      fixture_owner: agent-core
+      machine: generic machine_request fixture
       endpoint_path: /api/v1/docs/{path...}
     expected:
-      configured_profile_loaded: true
+      configured_request_machine_loaded: true
       injected_machine_spec_required: false
       nested_path_captured: true
       terminal_signal_mapped: DocumentDetailReady
-      profile_declaration_roots_used: true
+      fixture_declaration_roots_used: true
       request_machine_actions_select_tools: true
       generic_trace_envelope_go_test: TestRESTServerMachineRequestTraceEnvelope
       generic_trace_contains_server_route_machine: true
@@ -1090,14 +1099,14 @@ test_cases:
       - srd030-machine-request-rest-binding AC7
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
-    name: Knowledge Manager routes docs API through generic machine_request
+    name: Documentation host routes docs API through generic machine_request
     go_test: go test ./internal/knowledge/documentation -run TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
     status: done
     description: |
-      Run the always-on Knowledge Manager conformance check. The docs API
+      Run the always-on documentation host conformance check. The docs API
       response trace must identify the generic REST machine_request server
       route, request machine, terminal signal, and request-scoped run summary.
-      Puppeteer remains under mage integration:uc007.
+      Browser evidence for a concrete profile belongs to agent-profiles.
     inputs:
       conformance_env: none
       routes:
@@ -1113,7 +1122,7 @@ test_cases:
       run_summary_present: true
       current_conformance_gate: none
       always_on_go_test: TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
-      puppeteer_remains_in_integration_target: true
+      browser_profile_tracer_owner: agent-profiles
     traces:
       - rel03.0-uc007-machine-request-documentation-ux S2
       - rel03.0-uc007-machine-request-documentation-ux S5
@@ -1287,7 +1296,7 @@ test_cases:
     inputs:
       evidence: TestRESTDocumentResourcesConfigConformance
       document_resource: documentation_corpus
-      request_machine: documentation-curator-request
+      request_machine: generic machine_request fixture
     expected:
       unknown_document_resources_silently_ignored: false
       current_profile_resource_words_still_work: true

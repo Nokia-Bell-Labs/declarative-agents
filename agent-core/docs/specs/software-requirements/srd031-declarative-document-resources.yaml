@@ -134,7 +134,7 @@ implementation_status:
     - agents/knowledge-manager/documentation-curator/request-machine.yaml selects reusable filesystem list_resource and read_resource words for the documentation corpus.
     - internal/tools/filesystem provides reusable list_resource and read_resource words used by the request machine.
     - agents/knowledge-manager/documentation-curator owns the Knowledge Manager UI assets, request machine, REST route configuration, and action placement.
-    - mage integration:uc007 verifies index, document detail, raw YAML, rendered HTML, nested document path evidence, and machine_request trace metadata.
+    - Generic Go tests verify document resource config and machine_request trace metadata; agent-profiles owns the concrete browser proof for index, document detail, raw YAML, rendered HTML, and nested document path evidence.
   reserved:
     - Top-level rest.document_resources and machine_request.document_resources are typed target-format fields. ValidateDefinition rejects both with explicit reserved-field errors. Current request machines use profile-selected filesystem resource ToolDefs until generic REST document resource loading is implemented.
   planned_follow_up: []

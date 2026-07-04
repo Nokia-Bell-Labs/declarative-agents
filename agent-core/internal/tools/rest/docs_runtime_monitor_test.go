@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDocumentationCuratorMonitorREST_StateEventsAndUI(t *testing.T) {
+func TestDocsRuntimeMonitorREST_StateEventsAndUI(t *testing.T) {
 	t.Parallel()
 
-	def, err := LoadDefinition(filepath.Join(documentationCuratorFixtureDir(t), "rest.yaml"))
+	def, err := LoadDefinition(filepath.Join(docsRuntimeFixtureDir(t), "rest.yaml"))
 	require.NoError(t, err)
 
 	srv, limits := curatorMonitorServerForTest(t, def)
@@ -45,7 +45,7 @@ func TestDocumentationCuratorMonitorREST_StateEventsAndUI(t *testing.T) {
 
 	uiBody := requestBody(t, "GET", baseURL+"/ui/index.html", "", 200)
 	require.Contains(t, uiBody, `id="app"`)
-	require.Contains(t, uiBody, "Knowledge Manager Monitor")
+	require.Contains(t, uiBody, "Docs Runtime Monitor")
 
 	spaFallback := requestBody(t, "GET", baseURL+"/ui/monitor-spa-fallback", "", 200)
 	require.Contains(t, spaFallback, `id="app"`)
@@ -54,10 +54,10 @@ func TestDocumentationCuratorMonitorREST_StateEventsAndUI(t *testing.T) {
 func curatorMonitorServerForTest(t *testing.T, def Definition) (Server, LimitProfile) {
 	t.Helper()
 	srv, ok := def.Servers["monitor"]
-	require.True(t, ok, "documentation-curator rest.yaml should define servers.monitor")
+	require.True(t, ok, "docs runtime rest.yaml should define servers.monitor")
 	srv.Address = "127.0.0.1:0"
-	fixture := documentationCuratorFixtureDir(t)
-	const curatorPrefix = "agents/knowledge-manager/documentation-curator/"
+	fixture := docsRuntimeFixtureDir(t)
+	const fixturePrefix = "fixtures/docs-runtime/"
 	for name, ep := range srv.Endpoints {
 		if ep.StaticAssets == nil || ep.StaticAssets.Root == "" {
 			continue
@@ -66,10 +66,10 @@ func curatorMonitorServerForTest(t *testing.T, def Definition) (Server, LimitPro
 		if filepath.IsAbs(r) {
 			continue
 		}
-		if !strings.HasPrefix(r, curatorPrefix) {
+		if !strings.HasPrefix(r, fixturePrefix) {
 			t.Fatalf("unexpected static_assets root %q", r)
 		}
-		rel := strings.TrimPrefix(r, curatorPrefix)
+		rel := strings.TrimPrefix(r, fixturePrefix)
 		ep.StaticAssets.Root = filepath.Join(fixture, filepath.FromSlash(rel))
 		srv.Endpoints[name] = ep
 	}

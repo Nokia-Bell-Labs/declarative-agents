@@ -29,8 +29,6 @@ func (i Integration) All() error {
 		{"uc003", i.Uc003},
 		{"uc004", i.Uc004},
 		{"uc005", i.Uc005},
-		{"uc006", i.Uc006},
-		{"uc007", i.Uc007},
 		{"uc008", i.Uc008},
 	}
 
@@ -256,6 +254,14 @@ func buildIfNeeded() (string, error) {
 		return "", err
 	}
 	return abs, nil
+}
+
+func buildFreshAgentFor(name string) (string, error) {
+	fmt.Printf("building fresh agent binary for %s...\n", name)
+	if err := Build(); err != nil {
+		return "", fmt.Errorf("build agent: %w", err)
+	}
+	return filepath.Abs(filepath.Join(binDir, "agent"))
 }
 
 func requireOllama() error {

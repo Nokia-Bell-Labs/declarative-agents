@@ -14,7 +14,7 @@ func resolveAgentProfilesRoot(rootDir string) (string, error) {
 		if root == "" {
 			continue
 		}
-		if hasProfile(root, "generator") || hasProfile(root, "knowledge-manager/documentation-curator") {
+		if hasProfile(root, "generator") || hasProfile(root, "evaluator") {
 			return root, nil
 		}
 	}
@@ -32,11 +32,11 @@ func normalizeAgentProfilesRoot(candidate string) string {
 	if candidate == "" {
 		return ""
 	}
-	if hasProfile(candidate, "generator") || hasProfile(candidate, "knowledge-manager/documentation-curator") {
+	if hasProfile(candidate, "generator") || hasProfile(candidate, "evaluator") {
 		return candidate
 	}
 	nested := filepath.Join(candidate, "agents")
-	if hasProfile(nested, "generator") || hasProfile(nested, "knowledge-manager/documentation-curator") {
+	if hasProfile(nested, "generator") || hasProfile(nested, "evaluator") {
 		return nested
 	}
 	return ""

@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Knowledge Manager Documentation API
+  title: Docs Runtime API
   version: 0.1.0
-  description: Profile-owned API contract for document index and detail requests.
+  description: Generic runtime API contract for document index and detail requests.
 servers:
   - url: http://127.0.0.1:18081
 paths:

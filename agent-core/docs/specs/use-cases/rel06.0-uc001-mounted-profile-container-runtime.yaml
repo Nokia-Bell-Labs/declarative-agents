@@ -45,9 +45,8 @@ proof:
     target used for Mage integration runs inside the image.
   - mage integration:uc001 and mage integration:uc002 consume generator and
     evaluator profiles plus fixtures through AGENT_PROFILES_ROOT.
-  - mage integration:uc006 and mage integration:uc007 consume the
-    documentation-curator profile and profile-local UX config through
-    AGENT_PROFILES_ROOT.
+  - Profile-owned documentation-curator and browser UX tracer bullets belong to
+    agent-profiles, where the concrete profile and profile-local UX config live.
   - agent-profiles mage containerSmoke runs the installed runtime image with the
     profile repository mounted at /profiles.
 
