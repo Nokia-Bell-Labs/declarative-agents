@@ -91,10 +91,10 @@ releases:
         status: done
       - id: rel02.0-uc003-tool-authoring
         summary: Developer authors a new tool as a vocabulary word
-        status: planned
+        status: done
       - id: rel02.0-uc004-sentence-tool-migration
         summary: Developer migrates a sentence-shaped tool into machine-composed words
-        status: planned
+        status: done
     follow_up:
       - id: agent-core-vk8j
         summary: Reorganize standard tool library packages and tool declarations
