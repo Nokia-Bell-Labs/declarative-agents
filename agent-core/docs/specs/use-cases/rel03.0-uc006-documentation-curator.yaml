@@ -65,6 +65,7 @@ out_of_scope:
   - Routing documentation UX through bench/profile.yaml under AGENT_PROFILES_ROOT.
   - Replacing the declarative REST runtime with generated clients.
 
-machine_config: knowledge-manager/documentation-curator/machine.yaml
-rest_definitions: knowledge-manager/documentation-curator/rest.yaml
+proof_owner: agent-profiles
+machine_config: agents/knowledge-manager/documentation-curator/machine.yaml
+rest_definitions: agents/knowledge-manager/documentation-curator/rest.yaml
 test_suite_trace: test-rel03.0-rest-tools

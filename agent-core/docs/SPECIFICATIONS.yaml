@@ -519,7 +519,10 @@ go_test_coverage:
     config loading, client execution, async send/await, server signal handling,
     OpenAPI import, credential resolution, redirect and size policies, server
     validation, redaction behavior, live Ollama OpenAPI model-listing, and
-    documentation-curator ownership, curator validation workflows, generic REST fan-in, lifecycle-control routing, payload propagation, terminal-state routing, listener shutdown, migration smoke coverage, machine_request conformance checks, and Puppeteer coverage for machine_request documentation UX. Package tests cover
+    documentation host workflows, generic REST fan-in, lifecycle-control
+    routing, payload propagation, terminal-state routing, listener shutdown,
+    machine_request conformance checks, and profile-owned browser coverage for
+    machine_request documentation UX. Package tests cover
     srd009-srd018 and domain packages. Release 04.0 has package tests for the
     monitor store, metric export, REST API SRDs, and the cmd/agent release
     proof. mage integration:uc004 runs the release proof. Release 05.0 starts
@@ -582,15 +585,15 @@ coverage_gaps: |
 
   For 03.0, srd027-srd031 have formal YAML coverage in
   test-rel03.0-rest-tools. rel03.0-uc007 covers the Knowledge Manager
-  machine-request demo with mage integration:uc007. That proof drives the
-  browser through the profile-owned documentation UI, fetches machine_request
-  document responses through the generic REST server routes
+  machine-request demo as a profile-owned browser tracer in agent-profiles.
+  Generic core tests fetch machine_request document responses through the
+  generic REST server routes
   documentation_curator_requests.documents and
   documentation_curator_requests.document, checks raw YAML and rendered
   content, and records request trace evidence.
   internal/tools/rest, tools/builtin/rest declarations,
   OpenAPI import compilation, REST runtime tests, agents/rest profile
-  examples, and the documentation-curator profile are implemented. docs/rel03-rest-design-audit.md records the design
+  examples, and the documentation host are implemented. docs/rel03-rest-design-audit.md records the design
   audit result. REST side-effect vocabulary now accepts listener and listener
   shutdown effects in the contract audit. Credential resolution, redirect
   allowlists, request and response size limits, server query and header
@@ -598,12 +601,12 @@ coverage_gaps: |
   stream_events bindings have executable server coverage. Shutdown policy
   validation, queue draining, await unblocking, and stream shutdown unblocking
   have executable coverage. The Qwen Ollama OpenAPI E2E flow,
-  documentation-curator ownership proof, and
-    machine_request browser proof now have formal release 03.0 coverage. Generic
-    REST event fan-in, route and signal filters, timeout handling,
-    machine_request configured-profile conformance, Knowledge Manager generic
-    route conformance, and REST-triggered lifecycle exit now have formal cases
-    tied to Go tests, uc006, and uc007. rel03.0-uc008 now has executable staged
+  profile-owned documentation-curator proof, and machine_request browser proof
+    now have formal release 03.0 coverage. Generic REST event fan-in, route and
+    signal filters, timeout handling, machine_request fixture conformance,
+    documentation host route conformance, and REST-triggered lifecycle exit now
+    have formal cases tied to Go tests and profile-owned uc006/uc007 evidence.
+    rel03.0-uc008 now has executable staged
     await-any fan-in coverage that launches a later REST source after the first
     selected event routes through MachineSpec.
     Closed REST conformance work now covers client safety, async request

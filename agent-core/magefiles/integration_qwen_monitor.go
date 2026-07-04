@@ -292,3 +292,11 @@ func waitMonitoredQwenExit(resultCh <-chan error, output *bytes.Buffer) error {
 		return fmt.Errorf("uc008: monitored Qwen run did not exit after monitor control request\n%s", output.String())
 	}
 }
+
+func stopProcess(cmd *exec.Cmd, cancel context.CancelFunc) {
+	cancel()
+	if cmd.Process != nil {
+		_ = cmd.Process.Kill()
+	}
+	_ = cmd.Wait()
+}

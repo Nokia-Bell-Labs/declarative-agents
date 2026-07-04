@@ -4,7 +4,7 @@ tools:
     init: rest_client_get
     category: boundary
     description: List documentation entries through the configured documentation API.
-    problem: Documentation-curator needs a read word whose HTTP authority stays in REST config.
+    problem: Documentation workflows need a read word whose HTTP authority stays in REST config.
     goals:
       - Resolve the configured documentation index resource.
       - Return document index data as a grammar-visible REST read result.
@@ -55,7 +55,7 @@ tools:
     init: rest_client_get
     category: boundary
     description: Fetch one documentation document through the configured documentation API.
-    problem: Documentation-curator needs document reads without model-supplied paths becoming transport authority.
+    problem: Documentation workflows need document reads without model-supplied paths becoming transport authority.
     goals:
       - Resolve the configured document resource.
       - Return parsed and raw document data for a declared path.
@@ -111,7 +111,7 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Search documentation through the configured documentation API.
-    problem: Documentation-curator needs search as one configured RPC-shaped REST word.
+    problem: Documentation workflows need search as one configured RPC-shaped REST word.
     goals:
       - Submit declared search parameters to the documentation service.
       - Return matches without exposing arbitrary REST authority.
@@ -168,7 +168,7 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Validate selected documentation paths through the configured documentation API.
-    problem: Documentation-curator needs validation findings as structured service output.
+    problem: Documentation workflows need validation findings as structured service output.
     goals:
       - Submit declared validation scope.
       - Distinguish valid responses from domain validation failures.
@@ -224,7 +224,7 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Request documentation change suggestions through the configured documentation API.
-    problem: Documentation-curator needs suggestion creation to expose patch state and compensation.
+    problem: Documentation workflows need suggestion creation to expose patch state and compensation.
     goals:
       - Submit one declared documentation change request.
       - Return a patch ID for later approval handling.
@@ -450,7 +450,7 @@ tools:
     visibility: internal
     category: boundary
     description: Launch read-only REST endpoints for cached monitor state.
-    problem: Operators need a profile-owned monitor reader that does not run tools or inspect prompts.
+    problem: Operators need a configured monitor reader that does not run tools or inspect prompts.
     goals:
       - Register monitor snapshot, metadata, and stream routes.
       - Keep monitor access inside the existing REST server tool path.

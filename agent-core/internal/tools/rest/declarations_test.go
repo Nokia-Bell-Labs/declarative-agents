@@ -69,10 +69,10 @@ func TestRESTFactoriesResolveConfiguredDefinitions(t *testing.T) {
 	require.NotNil(t, builder)
 }
 
-func TestDocumentationCuratorRESTDefinitionsLoad(t *testing.T) {
+func TestDocsRuntimeRESTDefinitionsLoad(t *testing.T) {
 	t.Parallel()
 
-	defs, err := catalog.LoadToolDefs(documentationCuratorDeclarationsPath(t))
+	defs, err := catalog.LoadToolDefs(docsRuntimeDeclarationsPath(t))
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{
 		"doc_list",
@@ -88,7 +88,7 @@ func TestDocumentationCuratorRESTDefinitionsLoad(t *testing.T) {
 		"stop_monitor_rest",
 	}, toolDefNames(defs))
 
-	collection, err := LoadDefinitions([]string{documentationCuratorRestPath(t)}, nil)
+	collection, err := LoadDefinitions([]string{docsRuntimeRestPath(t)}, nil)
 	require.NoError(t, err)
 	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br, FactoryDeps{Definitions: collection})
@@ -115,21 +115,21 @@ func restDeclarationsPath(t *testing.T) string {
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "tools", "builtin", "rest", "all.yaml")
 }
 
-func documentationCuratorDeclarationsPath(t *testing.T) string {
+func docsRuntimeDeclarationsPath(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(documentationCuratorFixtureDir(t), "declarations.yaml")
+	return filepath.Join(docsRuntimeFixtureDir(t), "declarations.yaml")
 }
 
-func documentationCuratorRestPath(t *testing.T) string {
+func docsRuntimeRestPath(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(documentationCuratorFixtureDir(t), "rest.yaml")
+	return filepath.Join(docsRuntimeFixtureDir(t), "rest.yaml")
 }
 
-func documentationCuratorFixtureDir(t *testing.T) string {
+func docsRuntimeFixtureDir(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	return filepath.Join(filepath.Dir(file), "testdata", "documentation-curator")
+	return filepath.Join(filepath.Dir(file), "testdata", "docs-runtime")
 }
 
 func toolDefNames(defs []catalog.ToolDef) []string {

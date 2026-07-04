@@ -1,7 +1,7 @@
 rest:
   version: v1
   openapi:
-    documentation_curator:
+    docs_runtime:
       path: openapi.yaml
       base_url: http://127.0.0.1:18081
       expose:
@@ -331,7 +331,7 @@ rest:
             operation: doc_patch_reject
             reason: Reject the reopened patch when review should remain closed.
   servers:
-    documentation_curator_requests:
+    docs_runtime_requests:
       address: 127.0.0.1:18083
       limits_ref: local_machine_request_api
       endpoints:
@@ -409,11 +409,11 @@ rest:
                   body:
                     error: command_error
 
-    documentation_curator_control:
+    docs_runtime_control:
       address: 127.0.0.1:18082
       limits_ref: local_control_api
       queue:
-        name: documentation_curator_control
+        name: docs_runtime_control
         capacity: 8
         timeout: 30s
       shutdown:
@@ -445,7 +445,7 @@ rest:
       address: 127.0.0.1:18084
       limits_ref: local_monitor
       queue:
-        name: documentation_curator_monitor
+        name: docs_runtime_monitor
         capacity: 8
         overflow: reject
         timeout: 100ms
@@ -509,7 +509,7 @@ rest:
           path: /ui/{path...}
           binding: static_assets
           static_assets:
-            root: agents/knowledge-manager/documentation-curator/ui/monitor/dist
+            root: fixtures/docs-runtime/ui/monitor/dist
             index: index.html
             spa: true
           request:
