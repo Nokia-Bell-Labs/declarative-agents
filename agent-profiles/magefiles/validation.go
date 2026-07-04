@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -31,10 +32,63 @@ type profileConfig struct {
 	RestConfigDirs   []string `yaml:"rest_config_dirs"`
 }
 
+type machineConfig struct {
+	Name           string             `yaml:"name"`
+	Purpose        string             `yaml:"purpose"`
+	Configuration  map[string]any     `yaml:"configuration"`
+	Invariants     []string           `yaml:"invariants"`
+	Lifecycle      string             `yaml:"lifecycle"`
+	States         []namedSpec        `yaml:"states"`
+	Signals        []namedSpec        `yaml:"signals"`
+	TerminalStates []string           `yaml:"terminal_states"`
+	Transitions    []transitionConfig `yaml:"transitions"`
+}
+
+type namedSpec struct {
+	Name    string
+	Meaning string `yaml:"meaning"`
+	Trigger string `yaml:"trigger"`
+}
+
+func (n *namedSpec) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		n.Name = value.Value
+		return nil
+	case yaml.MappingNode:
+		type alias namedSpec
+		return value.Decode((*alias)(n))
+	default:
+		return fmt.Errorf("expected scalar or mapping")
+	}
+}
+
+type transitionConfig struct {
+	State  string `yaml:"state"`
+	Signal string `yaml:"signal"`
+	Next   string `yaml:"next"`
+	Action string `yaml:"action"`
+}
+
+type toolSelectionFile struct {
+	Tools []string `yaml:"tools"`
+}
+
+type toolDefsFile struct {
+	Includes []string  `yaml:"includes"`
+	Tools    []toolDef `yaml:"tools"`
+}
+
+type toolDef struct {
+	Name       string   `yaml:"name"`
+	Visibility string   `yaml:"visibility"`
+	Emits      []string `yaml:"emits"`
+}
+
 type lookPathFunc func(string) (string, error)
 type commandRunner func(name string, args ...string) error
 
-// Validate checks profile paths against an external agent-core checkout.
+// Validate checks profile paths and profile wiring against an external agent-core checkout.
 func Validate() error {
 	root, err := os.Getwd()
 	if err != nil {
@@ -110,17 +164,16 @@ func validateProfile(path, coreRoot string) error {
 			return fmt.Errorf("%s: %w", path, err)
 		}
 	}
+	if err := validateProfileWiring(base, coreRoot, profile); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
 	return nil
 }
 
 func readProfile(path string) (profileConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return profileConfig{}, fmt.Errorf("read profile %s: %w", path, err)
-	}
 	var profile profileConfig
-	if err := yaml.Unmarshal(data, &profile); err != nil {
-		return profileConfig{}, fmt.Errorf("parse profile %s: %w", path, err)
+	if err := readYAML(path, &profile); err != nil {
+		return profileConfig{}, err
 	}
 	if profile.Machine == "" {
 		return profileConfig{}, fmt.Errorf("profile %s: machine is required", path)
@@ -148,6 +201,241 @@ func validateProfileRef(base, coreRoot, ref string) error {
 	}
 	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("missing referenced path %s: %w", ref, err)
+	}
+	return nil
+}
+
+func validateProfileWiring(base, coreRoot string, profile profileConfig) error {
+	machinePath, err := resolveProfileRef(base, coreRoot, profile.Machine)
+	if err != nil {
+		return err
+	}
+	machine, err := loadMachine(machinePath)
+	if err != nil {
+		return err
+	}
+	if err := validateMachineMetadata(machinePath, machine); err != nil {
+		return err
+	}
+	selected, err := loadToolSelections(base, coreRoot, profile.Tools)
+	if err != nil {
+		return err
+	}
+	declared, err := loadProfileToolDefs(base, coreRoot, profile)
+	if err != nil {
+		return err
+	}
+	selectedDefs := map[string]toolDef{}
+	for _, name := range selected {
+		def, ok := declared[name]
+		if !ok {
+			return fmt.Errorf("selected tool %q is not declared", name)
+		}
+		selectedDefs[name] = def
+	}
+	if err := validateMachineActions(machine, selectedDefs); err != nil {
+		return err
+	}
+	return validateToolEmits(machine, selectedDefs)
+}
+
+func validateMachineMetadata(path string, machine machineConfig) error {
+	if machine.Name == "" {
+		return fmt.Errorf("machine %s: name is required", path)
+	}
+	for _, state := range machine.States {
+		if state.Name == "" {
+			return fmt.Errorf("machine %s: state missing name", path)
+		}
+	}
+	for _, signal := range machine.Signals {
+		if signal.Name == "" {
+			return fmt.Errorf("machine %s: signal missing name", path)
+		}
+	}
+	return nil
+}
+
+func loadMachine(path string) (machineConfig, error) {
+	var machine machineConfig
+	if err := readYAML(path, &machine); err != nil {
+		return machineConfig{}, err
+	}
+	return machine, nil
+}
+
+func loadToolSelections(base, coreRoot string, refs []string) ([]string, error) {
+	seen := map[string]bool{}
+	var selected []string
+	for _, ref := range refs {
+		path, err := resolveProfileRef(base, coreRoot, ref)
+		if err != nil {
+			return nil, err
+		}
+		var file toolSelectionFile
+		if err := readYAML(path, &file); err != nil {
+			return nil, err
+		}
+		for _, name := range file.Tools {
+			if !seen[name] {
+				seen[name] = true
+				selected = append(selected, name)
+			}
+		}
+	}
+	return selected, nil
+}
+
+func loadProfileToolDefs(base, coreRoot string, profile profileConfig) (map[string]toolDef, error) {
+	declared := map[string]toolDef{}
+	for _, ref := range profile.ToolConfigDirs {
+		dir, err := resolveProfileRef(base, coreRoot, ref)
+		if err != nil {
+			return nil, err
+		}
+		if err := loadToolDefDir(declared, dir); err != nil {
+			return nil, err
+		}
+	}
+	for _, ref := range profile.ToolDeclarations {
+		path, err := resolveProfileRef(base, coreRoot, ref)
+		if err != nil {
+			return nil, err
+		}
+		if err := loadToolDefFile(declared, path, map[string]bool{}); err != nil {
+			return nil, err
+		}
+	}
+	return declared, nil
+}
+
+func loadToolDefDir(declared map[string]toolDef, dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("read tool config dir %s: %w", dir, err)
+	}
+	var paths []string
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, entry.Name()))
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		if err := loadToolDefFile(declared, path, map[string]bool{}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func loadToolDefFile(declared map[string]toolDef, path string, seen map[string]bool) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	if seen[abs] {
+		return fmt.Errorf("circular tool include %s", abs)
+	}
+	seen[abs] = true
+	var file toolDefsFile
+	if err := readYAML(abs, &file); err != nil {
+		return err
+	}
+	for _, include := range file.Includes {
+		includePath := include
+		if !filepath.IsAbs(includePath) {
+			includePath = filepath.Join(filepath.Dir(abs), include)
+		}
+		if err := loadToolDefFile(declared, includePath, seen); err != nil {
+			return err
+		}
+	}
+	for _, def := range file.Tools {
+		if def.Name == "" {
+			return fmt.Errorf("tool definition in %s is missing name", abs)
+		}
+		declared[def.Name] = def
+	}
+	return nil
+}
+
+func validateMachineActions(machine machineConfig, selected map[string]toolDef) error {
+	for _, transition := range machine.Transitions {
+		if transition.Action == "" || transition.Action == "$tool" {
+			continue
+		}
+		if _, ok := selected[transition.Action]; !ok {
+			return fmt.Errorf("machine %s action %q is not selected", machine.Name, transition.Action)
+		}
+	}
+	return nil
+}
+
+func validateToolEmits(machine machineConfig, selected map[string]toolDef) error {
+	signals := map[string]bool{}
+	for _, signal := range machine.Signals {
+		signals[signal.Name] = true
+	}
+	terminals := map[string]bool{}
+	for _, state := range machine.TerminalStates {
+		terminals[state] = true
+	}
+	transitions := map[string]bool{}
+	actionTargets := map[string][]string{}
+	for _, transition := range machine.Transitions {
+		transitions[transition.State+"/"+transition.Signal] = true
+		if transition.Action == "" {
+			continue
+		}
+		actionTargets[transition.Action] = append(actionTargets[transition.Action], transition.Next)
+	}
+	for action, targets := range actionTargets {
+		if action == "$tool" {
+			continue
+		}
+		if err := validateToolDefEmits(machine.Name, action, selected[action], targets, signals, terminals, transitions); err != nil {
+			return err
+		}
+	}
+	if targets := actionTargets["$tool"]; len(targets) > 0 {
+		for name, def := range selected {
+			if def.Visibility == "internal" {
+				continue
+			}
+			if err := validateToolDefEmits(machine.Name, name, def, targets, signals, terminals, transitions); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateToolDefEmits(machineName, name string, def toolDef, targets []string, signals map[string]bool, terminals map[string]bool, transitions map[string]bool) error {
+	for _, emit := range def.Emits {
+		if !signals[emit] {
+			return fmt.Errorf("machine %s tool %q emits undeclared signal %q", machineName, name, emit)
+		}
+		for _, target := range targets {
+			if terminals[target] {
+				continue
+			}
+			if !transitions[target+"/"+emit] {
+				return fmt.Errorf("machine %s tool %q emits %q but state %s has no transition", machineName, name, emit, target)
+			}
+		}
+	}
+	return nil
+}
+
+func readYAML(path string, out any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	if err := yaml.Unmarshal(data, out); err != nil {
+		return fmt.Errorf("parse %s: %w", path, err)
 	}
 	return nil
 }
