@@ -3,7 +3,10 @@
 package lifecycle
 
 import (
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +16,8 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
+	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 // fakeReverter is an in-memory CheckpointReverter for lifecycle tests. Revert
@@ -221,6 +226,78 @@ func TestCheckpointRollbackRestoresFileViaPersistedReceipt(t *testing.T) {
 	require.Equal(t, "v1", string(restored))
 }
 
+func TestRollbackCheckpointExecutesBoundaryCompensation(t *testing.T) {
+	t.Parallel()
+	var restored bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		switch req.URL.Path {
+		case "/repos/acme/agent-core/issues/1":
+			require.Equal(t, http.MethodPatch, req.Method)
+			writeLifecycleJSON(t, w, http.StatusOK, map[string]interface{}{"id": "ISS-1", "title": "new"})
+		case "/repos/acme/agent-core/issues/ISS-1":
+			restored = true
+			require.Equal(t, http.MethodPatch, req.Method)
+			writeLifecycleJSON(t, w, http.StatusOK, map[string]interface{}{"id": "ISS-1", "title": "restored"})
+		default:
+			http.NotFound(w, req)
+		}
+	}))
+	defer upstream.Close()
+
+	collection, operation := lifecycleRESTCollection(t, upstream.URL)
+	writeBuilder := toolrest.ClientBuilder{
+		ToolName: "rest_set_issue", Init: toolrest.InitClientSet,
+		Operation: operation, Definitions: collection,
+	}
+	writeRes := writeBuilder.Build(core.Result{Output: `{"parameters":{"owner":"acme","repo":"agent-core","number":"1","title":"new"}}`}).Execute()
+	require.Equal(t, core.Signal("RESTResourceWritten"), writeRes.Signal, writeRes.Output)
+	require.NotEmpty(t, writeRes.Receipt)
+
+	rev := &fakeReverter{}
+	require.NoError(t, rev.Save(core.Position{CurrentState: "Working"}, core.Execution{
+		{Iteration: 1, CommandName: "read", Signal: core.ToolDone},
+		{Iteration: 2, CommandName: "rest_set_issue", Signal: core.Signal("RESTResourceWritten"), Receipt: writeRes.Receipt},
+	}))
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "rest_set_issue", Visibility: core.Internal}, writeBuilder)
+
+	toIteration := 1
+	cmd := (&CheckpointRollbackBuilder{
+		Config:     catalog.CheckpointRollbackConfig{ToIteration: &toIteration},
+		Checkpoint: rev,
+		Registry:   reg,
+		RunID:      "run-rest",
+	}).Build(core.Result{})
+	res := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, res.Signal, res.Output)
+	require.Contains(t, res.Output, "step=1 rest_set_issue:")
+	require.True(t, restored)
+}
+
+func TestCheckpointRollbackReportsMissingRESTCompensationExecutor(t *testing.T) {
+	t.Parallel()
+	_, operation := lifecycleRESTCollection(t, "http://127.0.0.1")
+	writeBuilder := toolrest.ClientBuilder{
+		ToolName: "rest_set_issue", Init: toolrest.InitClientSet, Operation: operation,
+	}
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "rest_set_issue", Visibility: core.Internal}, writeBuilder)
+
+	toIteration := 1
+	cmd := (&CheckpointRollbackBuilder{
+		Config:     catalog.CheckpointRollbackConfig{ToIteration: &toIteration},
+		Checkpoint: lifecycleReverterWithRESTReceipt(t),
+		Registry:   reg,
+		RunID:      "run-rest",
+	}).Build(core.Result{})
+	res := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, res.Signal, res.Output)
+	require.Contains(t, res.Output, "step=1 rest_set_issue: undo failed")
+	require.Contains(t, res.Output, "compensation_lookup")
+}
+
 func TestCheckpointRollbackUndoRequestsCompensation(t *testing.T) {
 	t.Parallel()
 	cmd := (&CheckpointRollbackBuilder{}).Build(core.Result{})
@@ -229,4 +306,74 @@ func TestCheckpointRollbackUndoRequestsCompensation(t *testing.T) {
 
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Contains(t, res.Output, "resume from the original checkpoint or choose another rollback checkpoint")
+}
+
+func lifecycleRESTCollection(t *testing.T, baseURL string) (toolrest.Collection, toolrest.ClientOperationDefinition) {
+	t.Helper()
+	def := toolrest.Definition{
+		Version: "v1",
+		Auth:    map[string]toolrest.AuthProfile{"none": {Type: "none"}},
+		Clients: map[string]toolrest.Client{"github": {
+			BaseURL: baseURL,
+			AuthRef: "none",
+			Resources: map[string]toolrest.Resource{"issue": {
+				Path: "/repos/{owner}/{repo}/issues/{number}",
+				Operations: map[string]toolrest.Operation{
+					"set": {
+						Method: http.MethodPatch,
+						Params: toolrest.RequestBinding{
+							Path: map[string]interface{}{"owner": map[string]interface{}{}, "repo": map[string]interface{}{}, "number": map[string]interface{}{}},
+							BodySchema: map[string]interface{}{
+								"type":       "object",
+								"properties": map[string]interface{}{"title": map[string]interface{}{"type": "string"}},
+							},
+						},
+						Body:          map[string]interface{}{"title": "{{ params.title }}"},
+						Success:       toolrest.StatusMapping{Status: []int{200}, Signal: "RESTResourceWritten"},
+						Response:      toolrest.ResponseMapping{ResourceID: "$.id"},
+						SideEffects:   []toolrest.SideEffect{{Kind: "external_api", State: "issue_updated"}},
+						Reversibility: toolrest.Reversibility{Classification: "compensatable", Undo: "restore"},
+						Compensation: map[string]interface{}{
+							"operation":  "set",
+							"parameters": map[string]interface{}{"title": "restored"},
+						},
+					},
+				},
+			}},
+		}},
+	}
+	collection := toolrest.NewCollection()
+	require.NoError(t, collection.Add(def))
+	operation, err := collection.ResolveClientOperation(toolrest.ClientToolConfig{
+		RestRef: "github", Resource: "issue", Operation: "set",
+	})
+	require.NoError(t, err)
+	return collection, operation
+}
+
+func lifecycleReverterWithRESTReceipt(t *testing.T) *fakeReverter {
+	t.Helper()
+	receipt := undo.EncodeBoundaryReceipt(undo.BoundaryCompensationPayload{
+		BoundaryCompensation: undo.BoundaryCompensation{
+			Strategy: "restore",
+			RestRef:  "github", Resource: "issue", Operation: "set",
+			Parameters:   map[string]interface{}{"owner": "acme", "repo": "agent-core", "number": "1", "title": "new"},
+			ResourceID:   "1",
+			Compensation: map[string]interface{}{"operation": "set", "parameters": map[string]interface{}{"title": "restored"}},
+		},
+	})
+	require.NotEmpty(t, receipt)
+	rev := &fakeReverter{}
+	require.NoError(t, rev.Save(core.Position{CurrentState: "Working"}, core.Execution{
+		{Iteration: 1, CommandName: "read", Signal: core.ToolDone},
+		{Iteration: 2, CommandName: "rest_set_issue", Signal: core.Signal("RESTResourceWritten"), Receipt: receipt},
+	}))
+	return rev
+}
+
+func writeLifecycleJSON(t *testing.T, w http.ResponseWriter, status int, payload map[string]interface{}) {
+	t.Helper()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	require.NoError(t, json.NewEncoder(w).Encode(payload))
 }

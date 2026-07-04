@@ -21,6 +21,7 @@ type ClientBuilder struct {
 	ToolName    string
 	Init        string
 	Operation   ClientOperationDefinition
+	Definitions ClientOperationResolver
 	AsyncState  *AsyncState
 	Credentials CredentialResolver
 	Metrics     core.MetricConfig
@@ -39,6 +40,17 @@ func (b ClientBuilder) Build(res core.Result) core.Command {
 		toolName: b.ToolName, init: b.Init, operation: b.Operation,
 		params: params, asyncState: b.AsyncState, credentials: b.Credentials, buildErr: err,
 		metrics: b.Metrics,
+	}
+}
+
+// BuildReverser returns an undo-only command for rollback receipt walks.
+func (b ClientBuilder) BuildReverser() core.Command {
+	return restCompensationCmd{
+		toolName: b.ToolName,
+		executor: CompensationExecutor{
+			Definitions: b.Definitions,
+			Credentials: b.Credentials,
+		},
 	}
 }
 
@@ -61,7 +73,26 @@ type restUndoMetadata struct {
 	IdempotencyToken string
 }
 
+type restCompensationCmd struct {
+	toolName string
+	executor CompensationExecutor
+}
+
 func (c *clientCmd) Name() string { return c.toolName }
+
+func (c restCompensationCmd) Name() string { return c.toolName }
+
+func (c restCompensationCmd) Execute() core.Result {
+	return restCompensationError(c.toolName, "compensation_execute", fmt.Errorf("REST compensation commands are undo-only"))
+}
+
+func (c restCompensationCmd) Undo(prior core.Result) core.Result {
+	commandName := prior.CommandName
+	if commandName == "" {
+		commandName = c.toolName
+	}
+	return c.executor.CompensateFromReceipt(context.Background(), commandName, prior.Receipt)
+}
 
 func (c *clientCmd) Execute() core.Result {
 	if c.buildErr != nil {
