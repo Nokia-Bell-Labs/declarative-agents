@@ -2,11 +2,11 @@ id: rel07.0-uc003-planner-generator-profile-boundary
 title: Planner to Generator Profile Boundary
 
 summary: |
-  The planner profile should prove that a small requirement graph can be
-  extracted or loaded, materialized into a local task, and executed through the
-  generator profile as a child boundary. The tracer is intentionally tiny: it
-  proves task orchestration and terminal state recording without becoming a full
-  planning benchmark.
+  The planner profile proof shows that a small requirement graph can be loaded,
+  materialized into a local task, and executed through the generator profile as
+  a child boundary. The tracer is intentionally tiny: it proves task
+  orchestration and terminal state recording without becoming a full planning
+  benchmark.
 
   Profile-owned fixtures define the requirement graph, issue/materialization
   shape, workspace, and expected terminal states. agent-core supplies planning
@@ -71,4 +71,4 @@ out_of_scope:
   - Changing planner tool implementations in agent-core.
 
 test_suite_trace: test-rel07.0-profile-integrations
-status: planned
+status: implemented

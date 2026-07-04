@@ -1,0 +1,6 @@
+graph: rel07-planner-generator
+terminal_state: completed
+materialized_task_count: 1
+child_profile: agents/generator/profile.yaml
+child_run_outcome: succeeded
+validation: passed

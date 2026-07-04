@@ -124,7 +124,7 @@ use_case_index:
   - id: rel07.0-uc003-planner-generator-profile-boundary
     title: Planner to Generator Profile Boundary
     summary: Planner materializes a task and executes it through generator.
-    status: planned
+    status: implemented
     path: docs/specs/use-cases/rel07.0-uc003-planner-generator-profile-boundary.yaml
   - id: rel07.0-uc004-bench-evaluator-profile-boundary
     title: Bench to Evaluator Profile Boundary
@@ -170,8 +170,8 @@ coverage_gaps: |
   commands as they are added. Existing release coverage no longer depends on a
   planned follow-up issue.
 
-  Release 07.0 now implements the documentation-curator profile UX tracer and
-  the evaluator-to-generator boundary tracer. Issues #109 through #111 own the
-  remaining profile-to-profile target and fixture work; until those close, the
-  Rel07 suite intentionally keeps those cases planned rather than claiming
-  executable proof.
+  Release 07.0 now implements the documentation-curator profile UX tracer,
+  evaluator-to-generator boundary tracer, and planner-to-generator boundary
+  tracer. Issues #110 and #111 own the remaining target and fixture work; until
+  those close, the Rel07 suite intentionally keeps those cases planned rather
+  than claiming executable proof.

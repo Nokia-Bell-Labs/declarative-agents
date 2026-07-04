@@ -125,7 +125,7 @@ releases:
         status: done
       - id: gh-109
         summary: Add planner-to-generator profile tracer bullet.
-        status: planned
+        status: done
       - id: gh-110
         summary: Add bench-to-evaluator profile tracer bullet.
         status: planned
@@ -141,7 +141,7 @@ releases:
         status: implemented
       - id: rel07.0-uc003-planner-generator-profile-boundary
         summary: Planner executes materialized work through generator.
-        status: planned
+        status: implemented
       - id: rel07.0-uc004-bench-evaluator-profile-boundary
         summary: Bench launches evaluator from a human/operator action.
         status: planned

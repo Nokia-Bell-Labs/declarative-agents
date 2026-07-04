@@ -92,21 +92,24 @@ test_cases:
     name: Planner executes materialized work through generator
     follow_up_issue: "#109"
     integration_target: mage integration:plannerGenerator
-    status: planned
+    go_test: go test ./magefiles -run TestAssertPlannerGeneratorStateRequiresTraceAndTerminalState
+    status: implemented
     description: |
       Run planner with a small requirement/task fixture and execute the
-      materialized work through generator. The target should record graph
+      materialized work through generator. The target records graph
       terminal state and child run outcome without writing real external issues.
     inputs:
       planner_profile: agents/planner/profile.yaml
       child_profile: agents/generator/profile.yaml
       graph_fixture: testdata/integration/rel07-planner-generator/graph.yaml
       workspace: testdata/integration/rel07-planner-generator/workspace
+      expected_terminal_state: testdata/integration/rel07-planner-generator/expected/terminal-state.yaml
     expected:
       materialized_task_count: 1
       child_profile: generator
       graph_terminal_state_recorded: true
       child_run_outcome_recorded: true
+      target_owner: agent-profiles
     traces:
       - rel07.0-uc003-planner-generator-profile-boundary S1
       - rel07.0-uc003-planner-generator-profile-boundary S2
