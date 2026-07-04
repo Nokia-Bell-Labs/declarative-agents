@@ -176,7 +176,7 @@ func displayIntegrationCommand(opts dockerBuildOptions) string {
 		"-v", "/path/to/agent-profiles:" + defaultProfilesMount + ":ro",
 		"-w", "/src",
 		defaultIntegrationImage,
-		"mage", "integration:uc006",
+		"mage", "integration:uc001",
 	})
 }
 

@@ -19,7 +19,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
 )
 
-// WorkflowRunner executes documentation-curator UI actions through tool words.
+// WorkflowRunner executes documentation UI actions through tool words.
 type WorkflowRunner interface {
 	Run(r *http.Request) (ActionResponse, error)
 }
@@ -47,7 +47,7 @@ var actionRESTClientInits = map[string]bool{
 	rest.InitClientAwait:  true,
 }
 
-type restDefinitionLoader func([]string, []string) (rest.ServerResolver, error)
+type restDefinitionLoader func([]string, []string) (rest.Collection, error)
 
 type restServerLifecycle interface {
 	Launch(rest.ServerDefinition) (map[string]interface{}, error)
@@ -64,7 +64,7 @@ type LazyProfileWorkflowRunner struct {
 	runner      *ProfileWorkflowRunner
 }
 
-// NewLazyProfileWorkflowRunner creates a runner that uses documentation-curator profile config.
+// NewLazyProfileWorkflowRunner creates a runner that uses profile-local documentation config.
 func NewLazyProfileWorkflowRunner(profilePath, docsDir string) *LazyProfileWorkflowRunner {
 	return &LazyProfileWorkflowRunner{profilePath: profilePath, docsDir: docsDir}
 }
@@ -228,6 +228,7 @@ type LazyMachineRequestProxy struct {
 	mu          sync.Mutex
 	state       restServerLifecycle
 	baseURL     string
+	serverName  string
 	loadDefs    restDefinitionLoader
 	newServer   restServerFactory
 }
@@ -254,13 +255,15 @@ func (p *LazyMachineRequestProxy) ServeHTTP(w http.ResponseWriter, r *http.Reque
 func (p *LazyMachineRequestProxy) Close() error {
 	p.mu.Lock()
 	state := p.state
+	serverName := p.serverName
 	p.state = nil
 	p.baseURL = ""
+	p.serverName = ""
 	p.mu.Unlock()
 	if state == nil {
 		return nil
 	}
-	_, err := state.Stop("documentation_curator_requests")
+	_, err := state.Stop(serverName)
 	return err
 }
 
@@ -288,7 +291,7 @@ func (p *LazyMachineRequestProxy) launchBackend() (string, restServerLifecycle, 
 	if err != nil {
 		return "", nil, err
 	}
-	def, err := collection.ResolveServer("documentation_curator_requests")
+	def, err := documentMachineRequestServer(collection)
 	if err != nil {
 		return "", nil, err
 	}
@@ -299,6 +302,7 @@ func (p *LazyMachineRequestProxy) launchBackend() (string, restServerLifecycle, 
 	if err != nil {
 		return "", nil, err
 	}
+	p.serverName = def.Name
 	return "http://" + output["address"].(string), state, nil
 }
 
@@ -527,12 +531,33 @@ func docsResourceRoot(docsDir string) string {
 	return abs
 }
 
-func loadRESTDefinitions(files []string, dirs []string) (rest.ServerResolver, error) {
-	collection, err := rest.LoadDefinitions(files, dirs)
-	if err != nil {
-		return nil, err
+func documentMachineRequestServer(collection rest.Collection) (rest.ServerDefinition, error) {
+	for name, server := range collection.Servers {
+		if hasDocumentMachineRequestRoutes(server) {
+			return collection.ResolveServer(name)
+		}
 	}
-	return collection, nil
+	return rest.ServerDefinition{}, fmt.Errorf("document machine_request server is not defined")
+}
+
+func hasDocumentMachineRequestRoutes(server rest.Server) bool {
+	var hasIndex, hasDetail bool
+	for _, endpoint := range server.Endpoints {
+		if endpoint.Binding != "machine_request" {
+			continue
+		}
+		if endpoint.Path == "/api/v1/docs" {
+			hasIndex = true
+		}
+		if endpoint.Path == "/api/v1/docs/{path...}" {
+			hasDetail = true
+		}
+	}
+	return hasIndex && hasDetail
+}
+
+func loadRESTDefinitions(files []string, dirs []string) (rest.Collection, error) {
+	return rest.LoadDefinitions(files, dirs)
 }
 
 func newRESTServerLifecycle() restServerLifecycle {

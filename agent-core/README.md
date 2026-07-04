@@ -70,38 +70,18 @@ Runtime data stays outside the profile. Pass `--directory` for the workspace,
 `--request` for per-run request files, and `--output` for artifacts. These
 flags do not identify the agent program.
 
-## Knowledge Manager UX Demo
+## Profile UX Integrations
 
-Release 03.0 uses the Knowledge Manager profile as the documentation UX proof.
-The migration smoke target starts the documentation-curator profile and serves
-the browser UI, validation routes, suggestion routes, and lifecycle exit path.
+Agent Core owns the generic REST server, `machine_request`, document resource,
+static asset, and lifecycle-control runtime behavior. Concrete profile UX
+tracer bullets, including the Knowledge Manager documentation-curator profile
+and browser workflow, belong to `agent-profiles` with the profile assets they
+exercise.
 
-```bash
-mage integration:uc006
-```
-
-The implemented successor is `rel03.0-uc007-machine-request-documentation-ux`.
-Browser document requests enter the generic REST server through
-`machine_request`. `documentation_curator_requests.documents` serves the
-document index. `documentation_curator_requests.document` serves document
-detail responses.
-
-After validation, each accepted request runs one short-lived request-machine
-sentence from the external documentation-curator profile. That sentence reads
-the configured `documentation_corpus` document resource. A response word maps
-machine output back to HTTP.
-
-Run the proof with:
-
-```bash
-mage integration:uc007
-```
-
-That target drives Puppeteer through
-`internal/knowledge/documentation/ui/e2e/machine-request-docs.spec.ts`.
-Puppeteer opens the page, requests the document index, requests one raw YAML
-document, checks nested document path evidence, verifies rendered HTML, and
-checks trace evidence for both machine_request runs.
+Core package tests should prove reusable runtime contracts without depending on
+a shipped profile path. Profile-owned integration suites can still run this
+binary with `--profile` and an external profile checkout when they need
+end-to-end evidence for a specific agent program.
 
 ## Lifecycle Operations
 
@@ -283,7 +263,7 @@ podman run --rm \
   -w /src \
   -e AGENT_PROFILES_ROOT=/profiles/agents \
   agent-core-integration:latest \
-  mage integration:uc006
+  mage integration:uc001
 ```
 
 Recent verification: `mage docker` built `agent-core:latest` from a remote

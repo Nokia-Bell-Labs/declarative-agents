@@ -1,0 +1,10 @@
+id: rel07-planner-generator
+tasks:
+  - id: task-greet
+    srd_id: srd001-greet
+    status: ready
+    title: Implement greeting function
+    requirements:
+      - R1
+    workspace: workspace
+    child_profile: agents/generator/profile.yaml

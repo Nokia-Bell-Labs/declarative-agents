@@ -263,7 +263,7 @@ func TestDocumentationCuratorMonitorIntegrationHTTP(t *testing.T) {
 		t.Fatalf("monitor events missing recent_events: %s", truncateForLog(eventsBody, 400))
 	}
 	uiBody := mustGETBody(t, base+"/ui/index.html")
-	if !strings.Contains(uiBody, `id="app"`) {
+	if !strings.Contains(uiBody, `id="root"`) {
 		t.Fatalf("monitor UI shell missing app root: %s", truncateForLog(uiBody, 200))
 	}
 

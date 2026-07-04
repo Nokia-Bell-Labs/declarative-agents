@@ -1,0 +1,78 @@
+id: rel07.0-uc001-documentation-curator-profile-ux
+title: Documentation Curator Profile UX Tracer
+
+summary: |
+  The documentation-curator profile owns the Knowledge Manager browser and
+  document-resource proof. The profile-owned integration target loads the
+  concrete profile from agent-profiles, starts its documentation host and control
+  routes through agent-core, exercises document machine_request endpoints, and
+  shuts the profile down through declared lifecycle vocabulary.
+
+  This tracer belongs in agent-profiles because the profile, UX config, request
+  machine, REST definitions, and UI assets live beside the profile. agent-core
+  proves generic REST and machine_request behavior; this use case proves the
+  concrete profile wiring across that runtime boundary.
+
+actor: Profile maintainer verifying the Knowledge Manager profile bundle.
+
+trigger: |
+  A maintainer runs the profile-owned documentation-curator integration target:
+
+    AGENT_CORE_ROOT=/path/to/agent-core mage integration:documentationCurator
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
+  - agents/knowledge-manager/documentation-curator/profile.yaml resolves profile-local assets.
+  - The test can bind local loopback ports for documentation, machine_request, and control routes.
+
+flow:
+  - id: F1
+    text: The target builds or locates an agent-core binary.
+  - id: F2
+    text: The target launches agents/knowledge-manager/documentation-curator/profile.yaml with a fixture documentation root.
+  - id: F3
+    text: The browser/API host serves profile-owned UI assets and UX config.
+  - id: F4
+    text: The document index and detail routes dispatch through the profile-owned request machine.
+  - id: F5
+    text: The response trace records server, route, request machine, terminal signal, and succeeded status.
+  - id: F6
+    text: The control route emits ExitRequested and the profile reaches Done after releasing listeners.
+
+touchpoints:
+  - id: T1
+    target: sm-agent-role-taxonomy documentation-curator
+    reason: The role owns document serving, document resources, profile-local UI, and controlled shutdown.
+  - id: T2
+    target: sm-multi-agent-profile-system documentation-curator->control
+    reason: The profile embeds control flow and waits for explicit exit events.
+  - id: T3
+    target: test-rel07.0-profile-integrations documentation_curator_profile_ux
+    reason: The test suite records the target and expected trace evidence.
+
+success_criteria:
+  - id: S1
+    criterion: The integration loads the documentation-curator profile from agent-profiles.
+    traces:
+      - sm-agent-role-taxonomy documentation-curator
+      - sm-multi-agent-profile-system profile_asset_rules
+  - id: S2
+    criterion: Document index and detail requests return terminal machine_request responses.
+    traces:
+      - sm-multi-agent-profile-system actor_boundaries documentation-curator
+  - id: S3
+    criterion: Profile-owned UI/static assets and UX config are served from the profile directory.
+    traces:
+      - sm-agent-role-taxonomy documentation-curator checks
+  - id: S4
+    criterion: Lifecycle exit reaches Done and releases documentation/control listeners.
+    traces:
+      - sm-multi-agent-profile-system dependency_directions documentation-curator->control
+
+out_of_scope:
+  - Re-testing generic REST route matching in agent-core.
+  - Applying documentation patches to the source tree.
+  - Requiring agent-core to know the documentation-curator profile path.
+
+test_suite_trace: test-rel07.0-profile-integrations
+status: implemented

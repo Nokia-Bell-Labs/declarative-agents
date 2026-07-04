@@ -116,9 +116,9 @@ releases:
       so one inbound HTTP request can run one short-lived MachineSpec sentence
       and map terminal output back to HTTP. Declarative document resources
       connect that request grammar to filesystem documentation corpora through
-      reusable resource words. A Puppeteer proof covers the generic REST
-      machine_request Knowledge Manager UX path. The command is mage
-      integration:uc007.
+      reusable resource words. Generic Go tests cover the reusable REST
+      machine_request path. The concrete Knowledge Manager browser proof is a
+      profile-owned tracer bullet in agent-profiles.
 
       Closed REST conformance work now covers client safety, async request
       metadata, OpenAPI endpoint preservation, REST compensation mementos,
@@ -167,7 +167,7 @@ releases:
         status: done
     planned_test_suites:
       - id: test-rel03.0-rest-tools
-        summary: Formal tests for REST runtime, client/server tools, fan-in, lifecycle exit routing, listener shutdown, OpenAPI import, Ollama E2E proof, documentation-curator ownership, Puppeteer machine_request UX coverage, closed REST conformance fixes, and planned named-test alignment tracked by agent-core-guhn.4
+        summary: Formal tests for REST runtime, client/server tools, fan-in, lifecycle exit routing, listener shutdown, OpenAPI import, Ollama E2E proof, profile-owned documentation-curator evidence, browser machine_request UX coverage, closed REST conformance fixes, and planned named-test alignment tracked by agent-core-guhn.4
         status: in_progress
 
   - version: "04.0"
@@ -260,8 +260,6 @@ releases:
       - mage docker
       - mage integration:uc001
       - mage integration:uc002
-      - mage integration:uc006
-      - mage integration:uc007
       - agent-profiles mage containerSmoke
     follow_up:
       - id: agent-core-xcbg

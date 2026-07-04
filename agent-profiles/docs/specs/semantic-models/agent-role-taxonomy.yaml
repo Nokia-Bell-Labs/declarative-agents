@@ -77,6 +77,7 @@ roles:
       - Resolve suite fixtures through AGENT_PROFILES_ROOT.
       - Confirm point machine runs in isolated workspaces.
       - Confirm failed child runs still produce point summaries and metrics.
+      - Trace evaluator to generator with rel07.0-uc002-evaluator-generator-profile-boundary.
 
   - id: planner
     title: Requirement planner and issue materializer
@@ -109,6 +110,7 @@ roles:
       - Confirm planner invokes generator as a child profile.
       - Confirm issues are materialized through the issue tracker.
       - Confirm graph terminal states are explicit.
+      - Trace planner to generator with rel07.0-uc003-planner-generator-profile-boundary.
 
   - id: jurist
     title: Specification validator
@@ -153,6 +155,7 @@ roles:
     checks:
       - Confirm serve_ui is the blocking human boundary.
       - Confirm launch_eval delegates session execution to evaluator.
+      - Trace bench to evaluator with rel07.0-uc004-bench-evaluator-profile-boundary.
 
   - id: rest
     title: REST boundary sample
@@ -203,6 +206,7 @@ roles:
     checks:
       - Confirm REST reads use cached monitor state.
       - Confirm exit is routed through configured control.
+      - Trace monitor/control status with rel07.0-uc005-monitor-control-profile-boundary.
 
   - id: lifecycle
     title: Checkpoint, rollback, and approval profiles
@@ -257,6 +261,7 @@ roles:
     checks:
       - Confirm HTTP handlers enqueue signals only.
       - Confirm MachineSpec routes ExitRequested to exit_agent.
+      - Trace monitor/control status with rel07.0-uc005-monitor-control-profile-boundary.
 
   - id: documentation-curator
     title: Knowledge Manager documentation curator
@@ -289,6 +294,7 @@ roles:
       - Confirm UI placement stays profile-local.
       - Confirm document resource behavior is configured by profile-owned YAML.
       - Confirm exit releases the documentation listener.
+      - Trace profile UX with rel07.0-uc001-documentation-curator-profile-ux.
 
 taxonomy_rules:
   - Each role is a configured program, not a Go package.
@@ -297,3 +303,5 @@ taxonomy_rules:
     agent-profiles.
   - Checks name validation, mounted execution, integration proof, or
     documentation review paths.
+  - Rel07 integration checks point at implemented cases in
+    test-rel07.0-profile-integrations.

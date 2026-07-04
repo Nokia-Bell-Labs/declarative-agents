@@ -1,0 +1,5 @@
+id: srd001-greet
+title: Planner Greeting Requirement
+requirements:
+  - id: R1
+    statement: Hello must return "Hello, <name>!" for the provided name.

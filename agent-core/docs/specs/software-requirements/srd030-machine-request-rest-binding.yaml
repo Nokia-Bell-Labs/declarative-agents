@@ -135,7 +135,7 @@ implementation_status:
     - ProfileMachineRequestRunner loads request ToolDefs from trusted profile declaration roots and selects only request MachineSpec action names.
     - internal/tools/rest emits server, route, request machine, terminal signal, iteration, and run status trace fields in the generic machine_request response envelope.
     - internal/knowledge/documentation owns the documentation_curator_requests lifecycle through a same-origin proxy that stays a transport adapter over the generic REST server.
-    - mage integration:uc007 and plain go test cover request-to-machine response behavior, trace evidence, selected request factories, and same-origin proxy lifecycle cleanup.
+    - Plain go test covers generic request-to-machine response behavior, trace evidence, selected request factories, and same-origin proxy lifecycle cleanup; the concrete browser tracer belongs to agent-profiles.
     - Configured machine_request terminal response schemas are enforced before success responses; invalid terminal output maps to response_invalid error handling.
   partial: []
   planned_follow_up: []

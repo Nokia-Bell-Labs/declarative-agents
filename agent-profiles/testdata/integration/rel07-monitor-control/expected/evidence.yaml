@@ -1,0 +1,15 @@
+monitor_profile: agents/monitor/profile.yaml
+control_profile: agents/control/profile.yaml
+monitor_state_routes:
+  - /monitor/machine
+  - /monitor/state
+  - /monitor/tools
+  - /monitor/metrics
+  - /monitor/events
+control_exit_route: /api/lifecycle/exit
+monitor_control_route: /monitor/control/exit
+monitor_exit_signal: ExitRequested
+control_lifecycle_signal: AgentExited
+monitor_listener_cleanup: true
+http_handlers_enqueue_only: true
+target_owner: agent-profiles

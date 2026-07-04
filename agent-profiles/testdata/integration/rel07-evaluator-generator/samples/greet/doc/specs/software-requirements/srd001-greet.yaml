@@ -1,0 +1,5 @@
+id: srd001-greet
+title: Greeting Function
+requirements:
+  - id: R1
+    statement: Hello must return "Hello, <name>!" for any input name.
