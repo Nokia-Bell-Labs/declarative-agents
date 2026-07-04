@@ -2,8 +2,8 @@ id: rel07.0-uc002-evaluator-generator-profile-boundary
 title: Evaluator to Generator Profile Boundary
 
 summary: |
-  The evaluator profile should prove that a benchmark point can run the
-  generator profile as its subject. The tracer uses a tiny suite and workspace
+  The evaluator profile proves that a benchmark point can run the generator
+  profile as its subject. The tracer uses a tiny suite and workspace
   fixture, runs evaluator through agent-core, and records point/session output
   that shows the child profile boundary was crossed intentionally.
 
@@ -70,4 +70,4 @@ out_of_scope:
   - Teaching agent-core about the generator profile path.
 
 test_suite_trace: test-rel07.0-profile-integrations
-status: planned
+status: implemented

@@ -64,21 +64,24 @@ test_cases:
     name: Evaluator runs generator as benchmark subject
     follow_up_issue: "#108"
     integration_target: mage integration:evaluatorGenerator
-    status: planned
+    go_test: go test ./magefiles -run TestAssertEvaluatorGeneratorOutputRequiresBoundaryEvidence
+    status: implemented
     description: |
       Run evaluator with a tiny local suite whose subject profile is generator.
-      The target should create point/session output proving child profile
-      invocation, oracle accounting, and fixture-local result paths.
+      The target creates point/session output proving child profile invocation,
+      oracle accounting, trace evidence, and fixture-local result paths.
     inputs:
       evaluator_profile: agents/evaluator/profile.yaml
       subject_profile: agents/generator/profile.yaml
       suite: testdata/integration/rel07-evaluator-generator/suite.yaml
+      expected_summary: testdata/integration/rel07-evaluator-generator/expected/summary.yaml
       output_dir: temporary evaluator results directory
     expected:
       child_profile: generator
       point_status_recorded: true
       session_summary_recorded: true
       oracle_accounting_recorded: true
+      target_owner: agent-profiles
     traces:
       - rel07.0-uc002-evaluator-generator-profile-boundary S1
       - rel07.0-uc002-evaluator-generator-profile-boundary S2

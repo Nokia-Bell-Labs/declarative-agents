@@ -122,7 +122,7 @@ releases:
         status: done
       - id: gh-108
         summary: Add evaluator-to-generator profile tracer bullet.
-        status: planned
+        status: done
       - id: gh-109
         summary: Add planner-to-generator profile tracer bullet.
         status: planned
@@ -138,7 +138,7 @@ releases:
         status: implemented
       - id: rel07.0-uc002-evaluator-generator-profile-boundary
         summary: Evaluator runs generator as a benchmark subject profile.
-        status: planned
+        status: implemented
       - id: rel07.0-uc003-planner-generator-profile-boundary
         summary: Planner executes materialized work through generator.
         status: planned
