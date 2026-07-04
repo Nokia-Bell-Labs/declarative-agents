@@ -208,7 +208,7 @@ func asyncPaymentOperation() Operation {
 		Reversibility: Reversibility{Classification: "compensatable", Undo: "cancel_payment"},
 		Async: &AsyncClientConfig{
 			RequestID: "{{ params.order_id }}", IdempotencyToken: "{{ params.order_id }}",
-			Timeout: "30ms", StateRetention: asyncRetentionConsume,
+			Timeout: "100ms", StateRetention: asyncRetentionConsume,
 		},
 	}
 }

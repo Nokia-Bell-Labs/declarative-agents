@@ -80,7 +80,16 @@ func TestRESTClient_MutatingOperationsRequireEffects(t *testing.T) {
 
 func TestRESTClient_CompensationUndoAndReceipt(t *testing.T) {
 	t.Parallel()
+	requireRESTClientCompensationUndoReceipt(t)
+}
 
+func TestRESTClient_CompensationUndoMemento(t *testing.T) {
+	t.Parallel()
+	requireRESTClientCompensationUndoReceipt(t)
+}
+
+func requireRESTClientCompensationUndoReceipt(t *testing.T) {
+	t.Helper()
 	upstream := httptest.NewServer(http.HandlerFunc(issueHandler))
 	defer upstream.Close()
 	def := clientDefinition(t, upstream.URL, issueClient())
@@ -565,95 +574,6 @@ func requireRESTEnvelope(t *testing.T, samples []monitor.MetricSample, name stri
 		return
 	}
 	t.Fatalf("missing metric %s in %#v", name, samples)
-}
-
-func clientCommand(def Definition, init, operation string, input map[string]interface{}) core.Command {
-	return clientCommandWithCredentials(def, init, operation, input, nil)
-}
-
-func clientCommandWithCredentials(
-	def Definition,
-	init string,
-	operation string,
-	input map[string]interface{},
-	credentials CredentialResolver,
-) core.Command {
-	return clientCommandWithMetricsAndCredentials(def, init, operation, input, restMetrics(), credentials)
-}
-
-func clientCommandWithMetrics(
-	def Definition,
-	init string,
-	operation string,
-	input map[string]interface{},
-	metrics core.MetricConfig,
-) core.Command {
-	return clientCommandWithMetricsAndCredentials(def, init, operation, input, metrics, nil)
-}
-
-func clientCommandWithMetricsAndCredentials(
-	def Definition,
-	init string,
-	operation string,
-	input map[string]interface{},
-	metrics core.MetricConfig,
-	credentials CredentialResolver,
-) core.Command {
-	collection := NewCollection()
-	_ = collection.Add(def)
-	resolved, _ := collection.ResolveClientOperation(ClientToolConfig{
-		RestRef: "github", Resource: "issue", Operation: operation,
-	})
-	params, _ := json.Marshal(map[string]interface{}{"tool": init, "parameters": input})
-	return ClientBuilder{
-		ToolName: init, Init: init, Operation: resolved, Credentials: credentials, Metrics: metrics,
-	}.Build(core.Result{Output: string(params)})
-}
-
-func restMetrics() core.MetricConfig {
-	return core.MetricConfig{
-		Instruments: []core.MetricInstrument{
-			{Name: "rest.http_status_code", Kind: "gauge", Unit: "1", Description: "HTTP status.", ValueSource: "http_status_code", Attributes: []string{"operation"}},
-			{Name: "rest.retry_count", Kind: "counter", Unit: "{retry}", Description: "Retry count.", ValueSource: "retry_count", Attributes: []string{"operation"}},
-			{Name: "rest.request_bytes", Kind: "histogram", Unit: "By", Description: "Request bytes.", ValueSource: "request_bytes", Attributes: []string{"operation"}},
-			{Name: "rest.response_bytes", Kind: "histogram", Unit: "By", Description: "Response bytes.", ValueSource: "response_bytes", Attributes: []string{"operation"}},
-		},
-		Attributes: []core.MetricAttribute{{Name: "operation", Source: "configured_operation", Cardinality: "bounded", AllowedValues: []string{"get"}, Redaction: "none"}},
-	}
-}
-
-func requireClientSignal(t *testing.T, def Definition, init, operation string, input map[string]interface{}, signal string) {
-	t.Helper()
-	result := clientCommand(def, init, operation, input).Execute()
-	require.Equal(t, core.Signal(signal), result.Signal, result.Output)
-	require.Contains(t, result.Output, `"operation":"`+operation+`"`)
-}
-
-func clientDefinition(t *testing.T, baseURL string, client Client) Definition {
-	t.Helper()
-	client.BaseURL = baseURL
-	client.AuthRef = "none"
-	def := Definition{
-		Version: "v1",
-		Auth: map[string]AuthProfile{
-			"none": {Type: authNone},
-		},
-		Limits:  map[string]LimitProfile{"test": {}},
-		Clients: map[string]Client{"github": client},
-	}
-	require.NoError(t, ValidateDefinition(def))
-	return def
-}
-
-func resolvedClientOperation(t *testing.T, def Definition) ClientOperationDefinition {
-	t.Helper()
-	collection := NewCollection()
-	require.NoError(t, collection.Add(def))
-	resolved, err := collection.ResolveClientOperation(ClientToolConfig{
-		RestRef: "github", Resource: "issue", Operation: "get",
-	})
-	require.NoError(t, err)
-	return resolved
 }
 
 func issueClient() Client {
