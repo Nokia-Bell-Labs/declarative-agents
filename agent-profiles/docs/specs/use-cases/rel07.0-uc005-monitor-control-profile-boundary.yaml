@@ -2,39 +2,39 @@ id: rel07.0-uc005-monitor-control-profile-boundary
 title: Monitor Control Profile Boundary
 
 summary: |
-  Monitor and control profile behavior should have a profile-owned tracer when
-  enough concrete profile assets exist to prove the boundary honestly. The
-  desired proof exposes cached runtime monitor state through declared REST
-  routes, accepts a lifecycle/control request, and routes that request through
-  MachineSpec vocabulary such as ExitRequested and AgentExited.
+  The monitor/control proof records profile-owned evidence for boundary runtime
+  behavior. Monitor exposes cached runtime state through declared REST routes,
+  accepts a control exit request, and routes cleanup through MachineSpec. Control
+  accepts a lifecycle exit request and routes it through visible lifecycle
+  vocabulary from ExitRequested to exit_agent and AgentExited.
 
-  This use case records the intended boundary and the explicit scoping rule:
-  if the current profile assets cannot drive a real tracer, the test suite must
-  mark the case planned with blockers rather than inventing a fake pass.
+  The proof stays configuration-level because monitor and control behavior is
+  encoded in profile-owned YAML assets while agent-core owns the REST and
+  lifecycle builtin implementations.
 
 actor: Profile maintainer verifying monitor/control boundary behavior.
 
 trigger: |
-  A maintainer runs the monitor-control integration target after fixtures exist:
+  A maintainer runs the monitor-control integration target:
 
     AGENT_CORE_ROOT=/path/to/agent-core mage integration:monitorControl
 
 preconditions:
-  - agents/monitor/profile.yaml and/or agents/control/profile.yaml validate.
-  - A fixture runtime monitor store or equivalent profile-owned harness exists.
-  - The tracer can bind loopback REST routes and release them after exit.
+  - agents/monitor/profile.yaml and agents/control/profile.yaml validate.
+  - testdata/integration/rel07-monitor-control/expected/evidence.yaml defines expected boundary evidence.
+  - agent-core remains responsible for rest_server_launch, rest_await_event, rest_server_stop, and exit_agent implementations.
 
 flow:
   - id: F1
     text: The target loads monitor/control profile assets from agent-profiles.
   - id: F2
-    text: A fixture monitor store exposes current state, metrics, tools, and recent events through declared routes.
+    text: The monitor REST config declares current state, metrics, tools, machine, and recent-event read routes.
   - id: F3
-    text: A control request is accepted through configured REST vocabulary.
+    text: Monitor and control configs accept exit requests through emit_signal REST bindings.
   - id: F4
-    text: The MachineSpec routes the request to lifecycle/control words such as exit_agent.
+    text: The monitor MachineSpec routes ExitRequested to stop_monitor_rest, while control routes ExitRequested to exit_agent.
   - id: F5
-    text: The tracer records terminal status and listener cleanup.
+    text: The tracer records listener cleanup, AgentExited routing, and target ownership evidence.
 
 touchpoints:
   - id: T1
@@ -52,22 +52,22 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The tracer decision is explicit: implemented with fixtures or planned with blockers.
+    criterion: The tracer records implemented monitor/control boundary evidence.
     traces:
       - test-rel07.0-profile-integrations monitor_control_boundary
   - id: S2
-    criterion: If implemented, monitor routes expose cached runtime state without running tools from HTTP handlers.
+    criterion: Monitor routes expose cached runtime state without running tools from HTTP handlers.
     traces:
       - sm-agent-role-taxonomy monitor checks
   - id: S3
-    criterion: If implemented, control routes emit declared lifecycle signals and reach terminal status.
+    criterion: Control routes emit declared lifecycle signals and reach terminal status.
     traces:
       - sm-agent-role-taxonomy control checks
 
 out_of_scope:
   - Building a new monitor UI.
   - Adding agent-core monitor features.
-  - Treating mocked HTTP success as integration proof without profile-owned assets.
+  - Full HTTP listener exercise for monitor/control; agent-core owns that runtime behavior.
 
 test_suite_trace: test-rel07.0-profile-integrations
-status: planned
+status: implemented

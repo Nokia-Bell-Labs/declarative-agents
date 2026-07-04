@@ -133,9 +133,8 @@ use_case_index:
     path: docs/specs/use-cases/rel07.0-uc004-bench-evaluator-profile-boundary.yaml
   - id: rel07.0-uc005-monitor-control-profile-boundary
     title: Monitor Control Profile Boundary
-    summary: Monitor/control profile boundary decision and eventual lifecycle
-      tracer evidence.
-    status: planned
+    summary: Monitor/control profile boundary and lifecycle tracer evidence.
+    status: implemented
     path: docs/specs/use-cases/rel07.0-uc005-monitor-control-profile-boundary.yaml
 
 test_suite_index:
@@ -148,10 +147,10 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel06.0-agent-profiles.yaml
   - id: test-rel07.0-profile-integrations
     title: Test Suite for Release 07.0 Profile Integrations
-    summary: Planned/implemented profile-owned tracer bullets for
+    summary: Implemented profile-owned tracer bullets for
       documentation-curator UX, evaluator-generator, planner-generator,
       bench-evaluator, and monitor/control boundaries.
-    status: planned
+    status: implemented
     path: docs/specs/test-suites/test-rel07.0-profile-integrations.yaml
 
 coverage_gaps: |
@@ -170,8 +169,8 @@ coverage_gaps: |
   commands as they are added. Existing release coverage no longer depends on a
   planned follow-up issue.
 
-  Release 07.0 now implements the documentation-curator profile UX tracer,
-  evaluator-to-generator boundary tracer, and planner-to-generator boundary
-  tracer, and bench-to-evaluator launch tracer. Issue #111 owns the remaining
-  monitor/control target and fixture work; until it closes, the Rel07 suite
-  intentionally keeps that case planned rather than claiming executable proof.
+  Release 07.0 implements the documentation-curator profile UX tracer,
+  evaluator-to-generator boundary tracer, planner-to-generator boundary tracer,
+  bench-to-evaluator launch tracer, and monitor/control boundary tracer. The
+  monitor/control target records profile-owned configuration evidence while
+  agent-core retains runtime ownership for REST and lifecycle builtin behavior.

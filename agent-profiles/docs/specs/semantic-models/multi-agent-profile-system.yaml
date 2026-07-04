@@ -192,7 +192,7 @@ validation_views:
   - Integration tests check profile relationships such as bench to evaluator,
     evaluator to generator, planner to generator, and Knowledge Manager control
     exit.
-  - Release 07.0 records implemented and planned relationship checks in
+  - Release 07.0 records implemented relationship checks in
     test-rel07.0-profile-integrations.
   - Documentation review checks that requirements describe profiles as
     configured blocks rather than Go packages.

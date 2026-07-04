@@ -303,5 +303,5 @@ taxonomy_rules:
     agent-profiles.
   - Checks name validation, mounted execution, integration proof, or
     documentation review paths.
-  - Rel07 integration checks point at test-rel07.0-profile-integrations and
-    distinguish implemented targets from planned blockers.
+  - Rel07 integration checks point at implemented cases in
+    test-rel07.0-profile-integrations.

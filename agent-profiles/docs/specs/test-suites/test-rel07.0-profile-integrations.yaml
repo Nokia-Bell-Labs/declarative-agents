@@ -148,23 +148,23 @@ test_cases:
     name: Monitor and control profile boundary
     follow_up_issue: "#111"
     integration_target: mage integration:monitorControl
-    status: planned
+    go_test: go test ./magefiles -run TestCollectMonitorControlEvidenceRecordsRoutesAndLifecycleBoundary
+    status: implemented
     description: |
-      Determine whether current monitor/control assets support a real tracer.
-      If implemented, the target should expose cached monitor state, accept a
-      control request, route declared lifecycle signals, and release listeners.
-      If not, this case remains planned with precise blockers.
+      Record profile-owned monitor/control boundary evidence from the concrete
+      monitor and control YAML assets. The target proves monitor state routes,
+      control exit routes, emit_signal HTTP boundaries, MachineSpec lifecycle
+      routing, and monitor listener cleanup contracts.
     inputs:
       monitor_profile: agents/monitor/profile.yaml
       control_profile: agents/control/profile.yaml
-      fixture_store: testdata/integration/rel07-monitor-control/
+      expected_evidence: testdata/integration/rel07-monitor-control/expected/evidence.yaml
     expected:
-      tracer_decision_recorded: true
-      monitor_state_exposed: planned
-      lifecycle_signal_routed: planned
-      listener_released: planned
-    blockers:
-      - Confirm whether existing monitor/control profiles contain enough profile-owned assets for an honest integration tracer.
+      monitor_state_exposed: true
+      lifecycle_signal_routed: true
+      listener_released: true
+      http_handlers_enqueue_only: true
+      target_owner: agent-profiles
     traces:
       - rel07.0-uc005-monitor-control-profile-boundary S1
       - rel07.0-uc005-monitor-control-profile-boundary S2
