@@ -163,13 +163,9 @@ func (Integration) Uc002() error {
 	}
 	os.Setenv("PATH", binAbs+":"+os.Getenv("PATH"))
 
-	args := []string{
-		"--profile", agentProfilePath(profileRoot, "evaluator"),
-		"--request", filepath.Join(profilesRepoRoot, evaluatorSuite),
-		"--output", outputDir,
-	}
+	args := uc002AgentArgs(profileRoot, rootDir, filepath.Join(profilesRepoRoot, evaluatorSuite), outputDir)
 
-	if err := runAgent(binary, args); err != nil {
+	if err := runAgentInDir(binary, args, profilesRepoRoot); err != nil {
 		return fmt.Errorf("uc002: evaluator failed: %w", err)
 	}
 
@@ -180,6 +176,15 @@ func (Integration) Uc002() error {
 
 	fmt.Printf("uc002: PASS — evaluator completed with %d result entries\n", len(entries))
 	return nil
+}
+
+func uc002AgentArgs(profileRoot, coreRoot, requestPath, outputDir string) []string {
+	return []string{
+		"--profile", agentProfilePath(profileRoot, "evaluator"),
+		"--request", requestPath,
+		"--output", outputDir,
+		"--core-root", coreRoot,
+	}
 }
 
 // Uc003 runs rel01.0-uc003: Bench serves web UI for evaluation result exploration.
@@ -312,5 +317,14 @@ func runAgent(binary string, args []string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	fmt.Printf("running: %s %s\n", binary, strings.Join(args, " "))
+	return cmd.Run()
+}
+
+func runAgentInDir(binary string, args []string, dir string) error {
+	cmd := exec.Command(binary, args...)
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	fmt.Printf("running in %s: %s %s\n", dir, binary, strings.Join(args, " "))
 	return cmd.Run()
 }
