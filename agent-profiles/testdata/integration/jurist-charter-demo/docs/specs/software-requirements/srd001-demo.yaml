@@ -1,0 +1,19 @@
+id: srd001-demo
+title: Jurist Charter Demo
+
+problem: |
+  The demo fixture needs a minimal specification corpus so the jurist loader can run.
+
+goals:
+  - G1: Load a small corpus before charter-only checks execute.
+
+requirements:
+  R1:
+    title: Demo corpus
+    items:
+      - R1.1: Provide one SRD file for graph construction.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The fixture can be loaded before generic charter checks run.
+    traces: [R1.1]

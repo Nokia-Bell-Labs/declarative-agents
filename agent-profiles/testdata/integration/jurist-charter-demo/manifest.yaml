@@ -1,0 +1,3 @@
+experiments:
+  - id: demo-missing-artifact
+    artifact: artifacts/missing-result.txt

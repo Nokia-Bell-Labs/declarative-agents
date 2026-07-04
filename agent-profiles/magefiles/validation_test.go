@@ -130,6 +130,62 @@ func TestRunContainerSmokeCommands(t *testing.T) {
 	}
 }
 
+func TestWriteJuristCharterDemoProfileFiles(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	tmpDir := t.TempDir()
+
+	profilePath, err := writeJuristCharterDemoProfileFiles(root, coreRoot, tmpDir)
+	if err != nil {
+		t.Fatalf("writeJuristCharterDemoProfileFiles returned error: %v", err)
+	}
+
+	profileData, err := os.ReadFile(profilePath)
+	if err != nil {
+		t.Fatalf("read profile: %v", err)
+	}
+	toolDeclData, err := os.ReadFile(filepath.Join(tmpDir, "load-corpus-demo.yaml"))
+	if err != nil {
+		t.Fatalf("read tool declaration: %v", err)
+	}
+	profile := string(profileData)
+	toolDecl := string(toolDeclData)
+	if !strings.Contains(profile, filepath.Join(root, juristProfileDir, "machine.yaml")) {
+		t.Fatalf("profile = %q, want jurist machine path", profile)
+	}
+	if !strings.Contains(profile, filepath.Join(coreRoot, "tools", "builtin", "spec-validation")) {
+		t.Fatalf("profile = %q, want core spec-validation dir", profile)
+	}
+	if !strings.Contains(toolDecl, filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml")) {
+		t.Fatalf("tool declaration = %q, want core load_corpus include", toolDecl)
+	}
+	if !strings.Contains(toolDecl, filepath.Join(root, juristProfileDir, "suites", "demo-charter.yaml")) {
+		t.Fatalf("tool declaration = %q, want demo charter suite path", toolDecl)
+	}
+}
+
+func TestAssertJuristCharterDemoFindings(t *testing.T) {
+	output := `
+[error] jurist-demo-charter/no-internal-vocabulary (grep_check) at docs/manuscript.md:3
+[error] jurist-demo-charter/citations-resolve (ref_check) at docs/manuscript.md:5
+[error] jurist-demo-charter/artifacts-exist (consistency_check) at manifest.yaml:2
+terminal state: failed
+`
+	if err := assertJuristCharterDemoFindings(output); err != nil {
+		t.Fatalf("assertJuristCharterDemoFindings returned error: %v", err)
+	}
+}
+
+func TestAssertJuristCharterDemoFindingsReportsMissingKind(t *testing.T) {
+	err := assertJuristCharterDemoFindings("terminal state: failed")
+	if err == nil {
+		t.Fatal("assertJuristCharterDemoFindings returned nil error for missing findings")
+	}
+	if !strings.Contains(err.Error(), "grep_check") {
+		t.Fatalf("error = %q, want missing grep_check", err)
+	}
+}
+
 func writeProfileFixture(t *testing.T, root, name string) {
 	t.Helper()
 	writeNamedProfileFixture(t, root, name, "profile.yaml")

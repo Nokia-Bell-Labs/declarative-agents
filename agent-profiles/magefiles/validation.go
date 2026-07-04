@@ -21,6 +21,8 @@ const (
 	containerProfilesMount = "/profiles"
 	containerWorkMount     = "/work"
 	containerCoreMount     = "/opt/agent-core"
+	juristProfileDir       = "agents/jurist"
+	juristCharterDemoDir   = "testdata/integration/jurist-charter-demo"
 )
 
 type profileConfig struct {
@@ -95,7 +97,10 @@ func Validate() error {
 		return err
 	}
 	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(filepath.Dir(root), "agent-core"))
-	return validateProfiles(root, coreRoot)
+	if err := validateProfiles(root, coreRoot); err != nil {
+		return err
+	}
+	return validateJuristCharterDemo(root, coreRoot)
 }
 
 // ContainerSmoke runs one profile from /profiles with an agent-core image.
@@ -126,6 +131,88 @@ func validateProfiles(root, coreRoot string) error {
 		}
 	}
 	fmt.Printf("validated %d profiles against %s\n", len(profiles), coreRoot)
+	return nil
+}
+
+func validateJuristCharterDemo(profilesRoot, coreRoot string) error {
+	tmpDir, err := os.MkdirTemp("", "agent-profiles-jurist-charter-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+	profilePath, err := writeJuristCharterDemoProfileFiles(profilesRoot, coreRoot, tmpDir)
+	if err != nil {
+		return err
+	}
+	binary, err := buildIntegrationAgent(coreRoot)
+	if err != nil {
+		return err
+	}
+	fixtureDir := filepath.Join(profilesRoot, juristCharterDemoDir)
+	cmd := exec.Command(binary, "--profile", profilePath, "--directory", fixtureDir, "--core-root", coreRoot)
+	cmd.Dir = profilesRoot
+	output, runErr := commandWithOutput(cmd)
+	if err := assertJuristCharterDemoFindings(output.String()); err != nil {
+		if runErr != nil {
+			return fmt.Errorf("%w: %v\n%s", err, runErr, output.String())
+		}
+		return fmt.Errorf("%w\n%s", err, output.String())
+	}
+	fmt.Println("validated jurist charter demo findings")
+	return nil
+}
+
+func writeJuristCharterDemoProfileFiles(profilesRoot, coreRoot, tmpDir string) (string, error) {
+	profilePath := filepath.Join(tmpDir, "profile.yaml")
+	toolDeclPath := filepath.Join(tmpDir, "load-corpus-demo.yaml")
+	suitePath := filepath.Join(profilesRoot, juristProfileDir, "suites", "demo-charter.yaml")
+	profile := fmt.Sprintf(`name: jurist-demo
+machine: %q
+tools:
+  - %q
+tool_config_dirs:
+  - %q
+tool_declarations:
+  - %q
+`, filepath.Join(profilesRoot, juristProfileDir, "machine.yaml"),
+		filepath.Join(profilesRoot, juristProfileDir, "tools.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "spec-validation"),
+		toolDeclPath)
+	if err := os.WriteFile(profilePath, []byte(profile), 0o644); err != nil {
+		return "", fmt.Errorf("write jurist demo profile: %w", err)
+	}
+	toolDecl := fmt.Sprintf(`includes:
+  - %q
+tools:
+  - name: load_corpus
+    type: builtin
+    init: load_corpus
+    visibility: internal
+    config:
+      suite_paths:
+        - %q
+    emits:
+      - ToolDone
+      - CommandError
+`, filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml"), suitePath)
+	if err := os.WriteFile(toolDeclPath, []byte(toolDecl), 0o644); err != nil {
+		return "", fmt.Errorf("write jurist demo tool declaration: %w", err)
+	}
+	return profilePath, nil
+}
+
+func assertJuristCharterDemoFindings(output string) error {
+	required := []string{
+		"jurist-demo-charter/no-internal-vocabulary (grep_check)",
+		"jurist-demo-charter/citations-resolve (ref_check)",
+		"jurist-demo-charter/artifacts-exist (consistency_check)",
+		"terminal state: failed",
+	}
+	for _, want := range required {
+		if !strings.Contains(output, want) {
+			return fmt.Errorf("jurist charter demo output missing %q", want)
+		}
+	}
 	return nil
 }
 

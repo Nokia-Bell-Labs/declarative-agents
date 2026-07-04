@@ -1,0 +1,37 @@
+id: jurist-demo-charter
+title: Jurist Generic Charter Demo
+target:
+  include:
+    - docs/**/*.md
+    - manifest.yaml
+checks:
+  - id: no-internal-vocabulary
+    kind: grep_check
+    severity: error
+    include:
+      - docs/**/*.md
+    patterns:
+      - cobbler
+    message: Demo prose must not include internal vocabulary.
+
+  - id: citations-resolve
+    kind: ref_check
+    severity: error
+    include:
+      - docs/**/*.md
+    references:
+      file: references.bib
+      format: bibtex_keys
+    extract:
+      regex: "@([A-Za-z0-9:_-]+)"
+    message: Demo citation reference must resolve.
+
+  - id: artifacts-exist
+    kind: consistency_check
+    severity: error
+    include:
+      - manifest.yaml
+    source:
+      yaml_path: "$.experiments[*].artifact"
+    rule: required_path_exists
+    message: Demo manifest artifact path must exist.
