@@ -3,13 +3,13 @@
 
 participant "Engine" as E
 participant "SuspendTool" as S
-participant "Checkpoint Store" as CP
+participant "Checkpoint port" as CP
 participant "Authority" as A
 
 E -> S : dispatch suspend_tool
 S -> S : prepare action summary
 S --> E : Signal(AwaitApproval) + payload
-E -> CP : persist checkpoint\n(state, history, workspace)
+E -> CP : Save(Position, Execution)\n(Dolt commit per step)
 E -> A : notify authority\n(summary + checkpoint ref)
 E -> E : exit dispatch loop
 note over E : process may terminate
