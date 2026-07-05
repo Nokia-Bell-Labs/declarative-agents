@@ -111,3 +111,4 @@ implementation_targets:
 follow_up:
   - issue: GH-171#173
     summary: Centralize dynamic tool availability checks and apply the registry/factory simplification in code.
+    status: done

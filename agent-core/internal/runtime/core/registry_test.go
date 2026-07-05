@@ -55,3 +55,35 @@ func TestManifestAndAvailableExternalToolNamesUseAvailabilityRule(t *testing.T) 
 	require.Equal(t, "read", manifest[1].Name)
 	require.Equal(t, []string{"global", "read"}, reg.AvailableExternalToolNames("Composing"))
 }
+
+func TestRegistryCheckedRegistrationReturnsConfigurationErrors(t *testing.T) {
+	t.Parallel()
+	reg := NewRegistry()
+
+	require.ErrorContains(t, reg.RegisterChecked(ToolSpec{}, registryTestBuilder{}), "ToolSpec.Name must not be empty")
+	require.NoError(t, reg.RegisterChecked(ToolSpec{Name: "read"}, registryTestBuilder{}))
+	require.ErrorContains(t, reg.RegisterChecked(ToolSpec{Name: "read"}, registryTestBuilder{}), `duplicate tool name "read"`)
+	require.ErrorContains(t, reg.OverrideChecked(ToolSpec{}, registryTestBuilder{}), "ToolSpec.Name must not be empty")
+
+	reg.Freeze()
+	require.ErrorContains(t, reg.RegisterChecked(ToolSpec{Name: "write"}, registryTestBuilder{}), "Register called after Freeze")
+	require.ErrorContains(t, reg.OverrideChecked(ToolSpec{Name: "write"}, registryTestBuilder{}), "Override called after Freeze")
+}
+
+func TestRegistryCompatibilityWrappersStillPanic(t *testing.T) {
+	t.Parallel()
+	reg := NewRegistry()
+	require.PanicsWithValue(t, "registry: ToolSpec.Name must not be empty", func() {
+		reg.Register(ToolSpec{}, registryTestBuilder{})
+	})
+
+	require.NoError(t, reg.RegisterChecked(ToolSpec{Name: "read"}, registryTestBuilder{}))
+	require.PanicsWithValue(t, `registry: duplicate tool name "read"`, func() {
+		reg.Register(ToolSpec{Name: "read"}, registryTestBuilder{})
+	})
+
+	reg.Freeze()
+	require.PanicsWithValue(t, "registry: Override called after Freeze", func() {
+		reg.Override(ToolSpec{Name: "read"}, registryTestBuilder{})
+	})
+}

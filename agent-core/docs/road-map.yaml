@@ -128,7 +128,7 @@ releases:
       non-default rest_await_event read policies remain reserved or rejected
       until future work implements them. Active follow-up work covers named
       conformance-test alignment.
-    status: in_progress
+    status: done
     srds:
       - srd027-rest-tool-runtime
       - srd028-rest-client-tools
@@ -282,12 +282,12 @@ releases:
     use_cases:
       - id: rel99.0-uc001-tool-dispatch-simplification
         summary: Maintainer simplifies tool dispatch wiring without changing core dispatch
-        status: planned
+        status: done
     test_suites:
       - id: test-rel99.0-tool-dispatch-simplification
         summary: Formal planning tests for tool dispatch simplification scope and follow-up code proof
-        status: planned
+        status: implemented
     follow_up:
       - id: GH-171#173
         summary: Centralize dynamic tool availability checks in code
-        status: open
+        status: done

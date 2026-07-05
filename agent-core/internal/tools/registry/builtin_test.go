@@ -120,6 +120,34 @@ func TestRegisterUnifiedToolsUnknownInit(t *testing.T) {
 	require.ErrorContains(t, err, "unknown init")
 }
 
+func TestRegisterUnifiedToolsDuplicateReturnsRegistryError(t *testing.T) {
+	t.Parallel()
+	br := NewBuiltinRegistry()
+	br.Register("file_read", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return noopBuilder{}, nil
+	})
+
+	err := RegisterUnifiedTools(core.NewRegistry(), br, "/tmp", []catalog.ToolDef{
+		{Name: "read", Type: "builtin", Init: "file_read"},
+		{Name: "read", Type: "builtin", Init: "file_read"},
+	}, nil, func(catalog.ToolDef, string) core.Builder { return noopBuilder{} })
+
+	require.ErrorContains(t, err, `registry: duplicate tool name "read"`)
+}
+
+func TestRegisterSingleBuiltinUnknownInitMatchesUnifiedPath(t *testing.T) {
+	t.Parallel()
+	td := catalog.ToolDef{Name: "bad", Type: "builtin", Init: "missing"}
+
+	singleErr := RegisterSingleBuiltin(core.NewRegistry(), NewBuiltinRegistry(), td, nil)
+	unifiedErr := RegisterUnifiedTools(core.NewRegistry(), NewBuiltinRegistry(), "/tmp", []catalog.ToolDef{td}, nil, func(catalog.ToolDef, string) core.Builder {
+		return noopBuilder{}
+	})
+
+	require.EqualError(t, singleErr, `builtin tool "bad": unknown init "missing"`)
+	require.EqualError(t, unifiedErr, `builtin tool "bad": unknown init "missing"`)
+}
+
 func TestRegisterSingleBuiltinOverrides(t *testing.T) {
 	t.Parallel()
 	reg := core.NewRegistry()

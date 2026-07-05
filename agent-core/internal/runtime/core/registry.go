@@ -57,28 +57,47 @@ func NewRegistry() *Registry {
 // Register adds a ToolSpec-Builder pair. Name must be non-empty and
 // unique; duplicates panic. Must not be called after Freeze.
 func (r *Registry) Register(spec ToolSpec, builder Builder) {
+	if err := r.RegisterChecked(spec, builder); err != nil {
+		panic(err.Error())
+	}
+}
+
+// RegisterChecked adds a ToolSpec-Builder pair and returns configuration
+// errors instead of panicking.
+func (r *Registry) RegisterChecked(spec ToolSpec, builder Builder) error {
 	if r.frozen {
-		panic("registry: Register called after Freeze")
+		return fmt.Errorf("registry: Register called after Freeze")
 	}
 	if spec.Name == "" {
-		panic("registry: ToolSpec.Name must not be empty")
+		return fmt.Errorf("registry: ToolSpec.Name must not be empty")
 	}
 	if _, exists := r.entries[spec.Name]; exists {
-		panic(fmt.Sprintf("registry: duplicate tool name %q", spec.Name))
+		return fmt.Errorf("registry: duplicate tool name %q", spec.Name)
 	}
 	r.entries[spec.Name] = registryEntry{spec: spec, builder: builder}
+	return nil
 }
 
 // Override replaces the builder (and optionally the spec) for an
 // existing entry, or inserts a new one if absent.
 func (r *Registry) Override(spec ToolSpec, builder Builder) {
+	if err := r.OverrideChecked(spec, builder); err != nil {
+		panic(err.Error())
+	}
+}
+
+// OverrideChecked replaces the builder (and optionally the spec) for an
+// existing entry, or inserts a new one if absent. It returns configuration
+// errors instead of panicking.
+func (r *Registry) OverrideChecked(spec ToolSpec, builder Builder) error {
 	if r.frozen {
-		panic("registry: Override called after Freeze")
+		return fmt.Errorf("registry: Override called after Freeze")
 	}
 	if spec.Name == "" {
-		panic("registry: ToolSpec.Name must not be empty")
+		return fmt.Errorf("registry: ToolSpec.Name must not be empty")
 	}
 	r.entries[spec.Name] = registryEntry{spec: spec, builder: builder}
+	return nil
 }
 
 // Freeze marks the registry as immutable.

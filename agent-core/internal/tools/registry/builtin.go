@@ -55,19 +55,7 @@ type ExecBuilderFactory func(def catalog.ToolDef, root string) core.Builder
 
 // RegisterSingleBuiltin resolves and registers one builtin declaration.
 func RegisterSingleBuiltin(reg *core.Registry, builtins *BuiltinRegistry, td catalog.ToolDef, vars map[string]string) error {
-	if td.Init == "" {
-		return fmt.Errorf("builtin tool %q has no init field", td.Name)
-	}
-	factory, ok := builtins.Resolve(td.Init)
-	if !ok {
-		return fmt.Errorf("builtin tool %q: unknown init %q", td.Name, td.Init)
-	}
-	builder, err := factory(td, vars)
-	if err != nil {
-		return fmt.Errorf("builtin tool %q init: %w", td.Name, err)
-	}
-	reg.Override(td.ToToolSpec(), builder)
-	return nil
+	return registerBuiltin(reg, builtins, td, vars, true)
 }
 
 // RegisterUnifiedTools registers builtin and exec declarations.
@@ -75,7 +63,7 @@ func RegisterUnifiedTools(reg *core.Registry, builtins *BuiltinRegistry, root st
 	for _, td := range defs {
 		switch td.Type {
 		case "builtin":
-			if err := registerBuiltin(reg, builtins, td, vars); err != nil {
+			if err := registerBuiltin(reg, builtins, td, vars, false); err != nil {
 				return err
 			}
 		case "exec", "":
@@ -95,7 +83,7 @@ func RegisterUnifiedToolsForMachine(reg *core.Registry, builtins *BuiltinRegistr
 	return RegisterUnifiedTools(reg, builtins, root, catalog.ApplyDynamicToolPhases(machine, defs), vars, execBuilder)
 }
 
-func registerBuiltin(reg *core.Registry, builtins *BuiltinRegistry, td catalog.ToolDef, vars map[string]string) error {
+func registerBuiltin(reg *core.Registry, builtins *BuiltinRegistry, td catalog.ToolDef, vars map[string]string, override bool) error {
 	if td.Init == "" {
 		return fmt.Errorf("builtin tool %q has no init field", td.Name)
 	}
@@ -107,8 +95,10 @@ func registerBuiltin(reg *core.Registry, builtins *BuiltinRegistry, td catalog.T
 	if err != nil {
 		return fmt.Errorf("builtin tool %q init: %w", td.Name, err)
 	}
-	reg.Register(td.ToToolSpec(), builder)
-	return nil
+	if override {
+		return reg.OverrideChecked(td.ToToolSpec(), builder)
+	}
+	return reg.RegisterChecked(td.ToToolSpec(), builder)
 }
 
 func registerExec(reg *core.Registry, root string, td catalog.ToolDef, execBuilder ExecBuilderFactory) error {
@@ -118,8 +108,7 @@ func registerExec(reg *core.Registry, root string, td catalog.ToolDef, execBuild
 	if execBuilder == nil {
 		return fmt.Errorf("exec tool %q: exec builder factory is required", td.Name)
 	}
-	reg.Register(td.ToToolSpec(), execBuilder(td, root))
-	return nil
+	return reg.RegisterChecked(td.ToToolSpec(), execBuilder(td, root))
 }
 
 // SelectedBuiltinInits returns builtin init keys present in selected defs.

@@ -76,9 +76,9 @@ roadmap_summary:
     status: done
   - version: "99.0"
     name: Tool dispatch simplification planning
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 1
-    status: in_progress
+    status: done
 
 foundation_document_index:
   - id: agent-core
@@ -446,7 +446,7 @@ use_case_index:
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
-    status: planned
+    status: done
     test_suite: test-rel99.0-tool-dispatch-simplification
     path: docs/specs/use-cases/rel99.0-uc001-tool-dispatch-simplification.yaml
 
@@ -527,7 +527,7 @@ test_suite_index:
     traces:
       - rel99.0-uc001-tool-dispatch-simplification
     formal_test_cases: 5
-    status: planned
+    status: implemented
     path: docs/specs/test-suites/test-rel99.0-tool-dispatch-simplification.yaml
 
 go_test_coverage:
