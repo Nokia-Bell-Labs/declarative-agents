@@ -68,6 +68,8 @@ var (
 	_ CheckpointReverter = (*DoltCheckpoint)(nil)
 )
 
+const doltSignalColumn = "`signal`"
+
 // NewDoltCheckpoint returns an adapter over an already-opened Database seam. The
 // terminal predicate, when non-nil, decides which Position current states merge
 // the run branch to main; a nil predicate never auto-merges.
@@ -243,14 +245,15 @@ func createSchema(db Database) error {
 			total_cost DOUBLE NOT NULL,
 			conversation LONGTEXT
 		)`,
-		`CREATE TABLE IF NOT EXISTS transitions (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS transitions (
 			run_id VARCHAR(255) NOT NULL,
 			step_index INT NOT NULL,
 			from_state VARCHAR(255) NOT NULL,
-			signal VARCHAR(255) NOT NULL,
+			%s VARCHAR(255) NOT NULL,
 			to_state VARCHAR(255) NOT NULL,
 			PRIMARY KEY (run_id, step_index)
 		)`,
+			doltSignalColumn),
 		`CREATE TABLE IF NOT EXISTS execution_steps (
 			run_id VARCHAR(255) NOT NULL,
 			step_index INT NOT NULL,
@@ -259,10 +262,10 @@ func createSchema(db Database) error {
 			command_name VARCHAR(255) NOT NULL,
 			PRIMARY KEY (run_id, step_index)
 		)`,
-		`CREATE TABLE IF NOT EXISTS tool_results (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS tool_results (
 			run_id VARCHAR(255) NOT NULL,
 			step_index INT NOT NULL,
-			signal VARCHAR(255) NOT NULL,
+			%s VARCHAR(255) NOT NULL,
 			output LONGTEXT,
 			error LONGTEXT,
 			cost_duration BIGINT NOT NULL,
@@ -272,6 +275,7 @@ func createSchema(db Database) error {
 			receipt LONGTEXT,
 			PRIMARY KEY (run_id, step_index)
 		)`,
+			doltSignalColumn),
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s); err != nil {
@@ -301,7 +305,7 @@ func writeMachine(tx Transaction, runID string, p Position) error {
 // (srd036-dolt-state-persistence R4.1, R4.4).
 func writeStep(tx Transaction, runID string, step int, e Entry) error {
 	if err := tx.Exec(
-		`REPLACE INTO transitions (run_id, step_index, from_state, signal, to_state) VALUES (?, ?, ?, ?, ?)`,
+		fmt.Sprintf(`REPLACE INTO transitions (run_id, step_index, from_state, %s, to_state) VALUES (?, ?, ?, ?, ?)`, doltSignalColumn),
 		runID, step, string(e.FromState), string(e.Signal), string(e.ToState),
 	); err != nil {
 		return fmt.Errorf("%w: save: transition: %v", ErrDolt, err)
@@ -313,9 +317,9 @@ func writeStep(tx Transaction, runID string, step int, e Entry) error {
 		return fmt.Errorf("%w: save: step: %v", ErrDolt, err)
 	}
 	if err := tx.Exec(
-		`REPLACE INTO tool_results
-			(run_id, step_index, signal, output, error, cost_duration, cost_tokens_in, cost_tokens_out, cost_dollars, receipt)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		fmt.Sprintf(`REPLACE INTO tool_results
+			(run_id, step_index, %s, output, error, cost_duration, cost_tokens_in, cost_tokens_out, cost_dollars, receipt)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doltSignalColumn),
 		runID, step, string(e.Result.Signal),
 		nullString(e.Result.Output), nullString(e.Result.Error),
 		int64(e.Result.Cost.Duration), e.Result.Cost.TokensIn, e.Result.Cost.TokensOut, e.Result.Cost.Dollars,
@@ -365,14 +369,14 @@ func loadMachine(db Database, runID string) (Position, error) {
 // opaque receipt (srd036-dolt-state-persistence R5.2).
 func loadExecution(db Database, runID string) (Execution, error) {
 	rows, err := db.Query(
-		`SELECT es.step_index, es.iteration, es.ts, es.command_name,
-			t.from_state, t.to_state, t.signal,
-			r.signal, r.output, r.error, r.cost_duration, r.cost_tokens_in, r.cost_tokens_out, r.cost_dollars, r.receipt
+		fmt.Sprintf(`SELECT es.step_index, es.iteration, es.ts, es.command_name,
+			t.from_state, t.to_state, t.%[1]s,
+			r.%[1]s, r.output, r.error, r.cost_duration, r.cost_tokens_in, r.cost_tokens_out, r.cost_dollars, r.receipt
 			FROM execution_steps es
 			JOIN transitions t ON t.run_id = es.run_id AND t.step_index = es.step_index
 			JOIN tool_results r ON r.run_id = es.run_id AND r.step_index = es.step_index
 			WHERE es.run_id = ?
-			ORDER BY es.step_index`, runID,
+			ORDER BY es.step_index`, doltSignalColumn), runID,
 	)
 	if err != nil {
 		return nil, err
