@@ -7,7 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 )
 
 type recordingTracker struct {
@@ -103,4 +105,26 @@ func TestBuildDynamicToolActionRejectsOutOfStateTool(t *testing.T) {
 	require.Contains(t, res.Output, `tool "write" is not available for dynamic dispatch in state "Composing"`)
 	require.False(t, executed)
 	require.Empty(t, tracker.names)
+}
+
+func TestDynamicToolActionAndParseResponseShareAvailabilityRule(t *testing.T) {
+	t.Parallel()
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "read", Visibility: core.External, Phases: []core.State{"Composing"}, PhaseScoped: true}, namedBuilder{name: "read"})
+	reg.Register(core.ToolSpec{Name: "write", Visibility: core.External, Phases: []core.State{"Reviewing"}, PhaseScoped: true}, namedBuilder{name: "write"})
+	_, _, availability := reg.ResolveExternalTool("write", "Composing")
+	require.Equal(t, core.ExternalToolUnavailableInState, availability)
+
+	parseRes := (&toollm.ParseResponseBuilder{Registry: reg, State: "Composing", Tracer: tracing.NoopTracer{}}).
+		Build(core.Result{Output: `{"tool":"write","parameters":{}}`}).
+		Execute()
+	dynamicRes := BuildDynamicToolAction(DynamicToolActionDeps{Registry: reg})(
+		core.Result{State: "Composing", Output: `{"tool":"write","parameters":{}}`},
+	).Execute()
+
+	require.Equal(t, core.ParseFailed, parseRes.Signal)
+	require.Contains(t, parseRes.Output, `tool "write" is not available in state "Composing"`)
+	require.Contains(t, parseRes.Output, `available tools: [read]`)
+	require.Equal(t, core.CommandError, dynamicRes.Signal)
+	require.Contains(t, dynamicRes.Output, `tool "write" is not available for dynamic dispatch in state "Composing"`)
 }

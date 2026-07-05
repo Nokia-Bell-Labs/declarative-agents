@@ -125,11 +125,11 @@ func (p *parseResponseCmd) validateEnvelope(cleaned string, envelope responseEnv
 	if envelope.Tool == doneToolName {
 		return tr, core.TaskCompleted, ""
 	}
-	spec, ok := p.registry.SpecByName(envelope.Tool)
-	if !ok || spec.Visibility != core.External {
+	spec, _, availability := p.registry.ResolveExternalTool(envelope.Tool, p.state)
+	switch availability {
+	case core.ExternalToolUnknown, core.ExternalToolInternal:
 		return modelllm.ToolRequest{}, core.ParseFailed, fmt.Sprintf("unknown tool %q; available tools: [%s]", envelope.Tool, strings.Join(p.registry.ExternalToolNames(), ", "))
-	}
-	if !spec.AvailableIn(p.state) {
+	case core.ExternalToolUnavailableInState:
 		return modelllm.ToolRequest{}, core.ParseFailed, fmt.Sprintf("tool %q is not available in state %q; available tools: [%s]", envelope.Tool, p.state, strings.Join(p.availableToolNames(), ", "))
 	}
 	if missing := modelllm.CheckRequiredFields(spec.InputSchema, envelope.Params); len(missing) > 0 {
@@ -140,12 +140,7 @@ func (p *parseResponseCmd) validateEnvelope(cleaned string, envelope responseEnv
 }
 
 func (p *parseResponseCmd) availableToolNames() []string {
-	manifest := p.registry.Manifest(p.state)
-	names := make([]string, 0, len(manifest))
-	for _, spec := range manifest {
-		names = append(names, spec.Name)
-	}
-	return names
+	return p.registry.AvailableExternalToolNames(p.state)
 }
 
 // ParseResponseBuilder constructs parse_response commands.
