@@ -32,6 +32,7 @@ test_cases:
       save: noop
       load_error: ErrNoCheckpoint
     traces:
+      - srd025-rollback-lifecycle AC1
       - srd035-checkpoint-port AC5
       - srd035-checkpoint-port AC6
 
@@ -52,6 +53,8 @@ test_cases:
       execution_len: iteration_count
       position_matches_last_dispatch: true
     traces:
+      - srd025-rollback-lifecycle AC1
+      - srd025-rollback-lifecycle AC2
       - srd035-checkpoint-port AC6
 
   - use_case: rel02.0-uc001-approval-suspend-resume
@@ -72,6 +75,8 @@ test_cases:
       receipt_round_trip: verbatim
       empty_receipt_restored_empty: true
     traces:
+      - srd025-rollback-lifecycle AC1
+      - srd025-rollback-lifecycle AC3
       - srd035-checkpoint-port AC3
       - srd035-checkpoint-port AC4
       - srd035-checkpoint-port AC5
@@ -117,6 +122,7 @@ test_cases:
       explicit_signal_preserved: true
       missing_checkpoint_error: ErrNoCheckpoint
     traces:
+      - srd025-rollback-lifecycle AC1
       - srd035-checkpoint-port AC4
       - srd035-checkpoint-port AC6
 
@@ -139,6 +145,7 @@ test_cases:
       dolt_dsn_error: ErrDolt
       resume_without_backend_error: ErrNoCheckpoint
     traces:
+      - srd025-rollback-lifecycle AC1
       - srd024-blocking-input-tools AC2
       - srd035-checkpoint-port AC5
       - srd036-dolt-state-persistence AC1
@@ -202,6 +209,7 @@ test_cases:
       null_receipt_restored_empty: true
     traces:
       - srd036-dolt-state-persistence AC3
+      - srd036-dolt-state-persistence AC2
       - srd036-dolt-state-persistence AC5
 
   - use_case: rel02.0-uc002-history-rollback
@@ -262,6 +270,8 @@ test_cases:
       no_checkpoint_error: ErrNoCheckpoint
       undo: noop
     traces:
+      - srd025-rollback-lifecycle AC2
+      - srd026-lifecycle-tools AC6
       - srd026-lifecycle-tools AC2
       - srd035-checkpoint-port AC1
 
@@ -288,6 +298,8 @@ test_cases:
       undo: requests_compensation
     traces:
       - srd036-dolt-state-persistence AC6
+      - srd026-lifecycle-tools AC4
+      - srd026-lifecycle-tools AC6
       - srd026-lifecycle-tools AC3
 
   - use_case: rel02.0-uc002-history-rollback
@@ -311,6 +323,7 @@ test_cases:
       file_restored_to_prior_content: true
       external_effect_reversed_via_receipt: true
     traces:
+      - srd025-rollback-lifecycle AC3
       - srd025-rollback-lifecycle AC4
       - srd035-checkpoint-port AC3
       - srd036-dolt-state-persistence AC6
