@@ -248,7 +248,7 @@ invariants:
 
 non_goals:
   - Defining the full REST tool config YAML schema; see cfg-rest-tool-format.
-  - Implementing rollback-time REST compensation execution or modeled lifecycle_control endpoint config in this semantic model update.
+  - Implementing modeled lifecycle_control endpoint config in this semantic model update.
   - Adding generated Go clients or generated Go servers.
   - Replacing MachineSpec control flow with REST handler code.
   - Executing lifecycle control directly inside HTTP handlers or rest_await_event.
@@ -375,12 +375,10 @@ implementation_status:
     - machine_request endpoint binding for short-lived request-machine runs.
     - OpenAPIImport preserves configured endpoint behavior while importing transport and schema fields.
     - ResponseMapping schema validation is enforced for client responses and machine_request terminal responses.
-    - External service compensation metadata produces REST client undo mementos for mutating operations.
+    - External service compensation metadata produces REST client undo mementos for mutating operations and drives rollback-time compensation execution through receipt rollback.
     - Top-level REST document_resources and machine_request.document_resources are typed target-format fields and are rejected explicitly until generic loading exists.
   partial:
     - LifecycleControlEndpoint remains a target semantic entity. Current release 03.0 control routes use emit_signal endpoint bindings and MachineSpec transitions; modeled lifecycle_control endpoint config remains reserved.
     - RestEventSource non-default read_policy behavior remains reserved; unsupported values are rejected during ToolDef factory validation.
-    - REST compensation mementos exist, but rollback-time execution of configured REST compensation remains follow-up work.
   planned_follow_up:
     - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.
-    - agent-core-guhn.5: execute configured REST compensation during rollback traversal.

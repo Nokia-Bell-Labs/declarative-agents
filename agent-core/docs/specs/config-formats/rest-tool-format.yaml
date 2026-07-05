@@ -21,7 +21,7 @@ release_03_0_support:
     - async correlation selectors, wire-level idempotency metadata, and validation rejection for unsupported await_operation polling configs.
     - response_mapping.schema validation before client success signals.
     - OpenAPI-bound endpoint preservation for configured endpoint behavior.
-    - REST client compensation mementos for mutating operations with configured compensation.
+    - REST client compensation mementos and rollback-time execution for mutating operations with configured compensation.
     - machine_request terminal response schema validation before success responses.
   partial:
     - rest_await_event read_policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
@@ -1418,11 +1418,9 @@ implementation_status:
     - always-on Knowledge Manager conformance coverage for generic machine_request routes under plain go test.
   partial:
     - read_policy values outside first-available are rejected until implemented.
-    - REST compensation mementos are captured, but rollback-time execution of configured REST compensation remains follow-up work.
   reserved:
     - top-level document_resources config. ValidateDefinition rejects this field.
     - machine_request.document_resources config. ValidateDefinition rejects this field.
     - lifecycle_control endpoint config.
   planned_follow_up:
     - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.
-    - agent-core-guhn.5: execute configured REST compensation during rollback traversal.

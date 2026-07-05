@@ -613,13 +613,12 @@ coverage_gaps: |
     await-any fan-in coverage that launches a later REST source after the first
     selected event routes through MachineSpec.
     Closed REST conformance work now covers client safety, async request
-    metadata, OpenAPI endpoint preservation, REST compensation mementos,
-    machine_request terminal response schemas, and document_resources validation
-    rejection. Remaining planned release 03.0 suite work tracks exact named-test
-    alignment in agent-core-guhn.4 plus rollback-time REST compensation execution
-    in agent-core-guhn.5. Modeled lifecycle_control endpoint config and
-    non-default read_policy behavior stay reserved or rejected until separate
-    implementation work.
+    metadata, OpenAPI endpoint preservation, REST compensation mementos and
+    rollback execution, machine_request terminal response schemas, and
+    document_resources validation rejection. Remaining planned release 03.0
+    suite work tracks exact named-test alignment in agent-core-guhn.4. Modeled
+    lifecycle_control endpoint config and non-default read_policy behavior stay
+    reserved or rejected until separate implementation work.
   Release 04.0 package tests cover the monitor store, recorder ownership,
   metric config validation, disabled mode, OpenTelemetry metric export,
   REST/OpenAPI cached-state readers, and the cmd/agent live-store release

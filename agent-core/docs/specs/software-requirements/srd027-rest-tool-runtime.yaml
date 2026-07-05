@@ -23,14 +23,14 @@ goals:
   - G3: Define synchronous and asynchronous boundary semantics for REST tools.
   - G4: Define the internal REST definition model shared by hand-authored YAML and OpenAPI imports.
   - G5: Define common safety, validation, observability, error, and rollback requirements.
-  - G6: Name the planned package, declaration, and config-format layout without implementing code.
+  - G6: Name the package, declaration, and config-format layout.
   - G7: Define generic REST event fan-in and lifecycle control routing without hiding workflow actions in handlers.
 
 requirements:
   R1:
     title: Runtime scope
     items:
-      - R1.1: internal/tools/rest SHALL be the planned package for shared REST runtime behavior.
+      - R1.1: internal/tools/rest SHALL be the package for shared REST runtime behavior.
       - R1.2: REST runtime requirements SHALL apply to both REST client tools and REST server tools.
       - R1.3: Client-specific operation execution requirements SHALL be defined by srd028-rest-client-tools.
       - R1.4: Server-specific route binding and request handling requirements SHALL be defined by srd029-rest-server-tools.
@@ -59,7 +59,7 @@ requirements:
   R4:
     title: Runtime HTTP platform
     items:
-      - R4.1: net/http SHALL provide planned runtime HTTP client and server behavior.
+      - R4.1: net/http SHALL provide runtime HTTP client and server behavior.
       - R4.2: REST runtime code SHALL support typed config decoding through internal/tools/catalog.
       - R4.3: REST builtin factories SHALL register through internal/tools/registry.
       - R4.4: REST commands SHALL return core.Result values whose Signal drives MachineSpec transitions.
@@ -133,7 +133,7 @@ requirements:
 non_goals:
   - Defining REST client operation execution details; see srd028-rest-client-tools.
   - Defining REST server route binding and HTTP API details; see srd029-rest-server-tools.
-  - Implementing rollback-time REST compensation execution or modeled lifecycle_control endpoint config in this documentation update.
+  - Implementing modeled lifecycle_control endpoint config in this documentation update.
   - Generating Go clients or servers from OpenAPI documents.
   - Allowing model text to choose arbitrary REST URLs, methods, authentication, or network destinations.
   - Replacing MachineSpec sequencing with hidden REST tool workflows.
@@ -216,16 +216,14 @@ implementation_status:
     - Release 03.0 formal test-suite entries in docs/specs/test-suites/test-rel03.0-rest-tools.yaml.
     - Client safety and async request metadata: CIDR enforcement, response schema validation, domain_error_code output, correlation lookup, idempotency headers, and await_operation validation rejection.
     - OpenAPI endpoint config preservation while importing transport and schema fields.
-    - REST compensation undo mementos for mutating client operations that declare compensation metadata.
+    - REST compensation undo mementos and rollback-time compensation execution for mutating client operations that declare compensation metadata.
     - machine_request terminal response schema validation before success responses.
     - Typed loading plus explicit validation rejection for reserved rest.document_resources and machine_request.document_resources config.
   partial:
     - R10 lifecycle control routing is currently proven through configured emit_signal control routes and MachineSpec exit_agent transitions. Modeled lifecycle_control endpoint config remains reserved target-format behavior.
     - R10 read policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
-    - REST compensation is captured in undo mementos; executing configured REST compensation during rollback traversal remains active follow-up work.
   planned_follow_up:
     - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.
-    - agent-core-guhn.5: execute configured REST compensation during rollback traversal.
 
 diagrams:
   requirements_trace: |

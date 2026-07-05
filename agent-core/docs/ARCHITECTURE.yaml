@@ -586,10 +586,9 @@ overview:
 
       Release 03.0 conformance is mostly implemented. Closed REST work now covers
       client safety, async request metadata, OpenAPI endpoint preservation, REST
-      compensation mementos, machine_request terminal schemas, and explicit
-      document_resources reservation. Active follow-up work is limited to named
-      conformance-test alignment in agent-core-guhn.4 and rollback-time REST
-      compensation execution in agent-core-guhn.5.
+      compensation mementos and rollback execution, machine_request terminal
+      schemas, and explicit document_resources reservation. Active follow-up
+      work is limited to named conformance-test alignment in agent-core-guhn.4.
     machine_request_ux_diagram: |
       ```mermaid
       flowchart LR
@@ -1458,7 +1457,7 @@ implementation_status:
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats, docker
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
-    - partial: REST runtime package -- internal/tools/rest implements declarative client, async client, server, fan-in, machine_request, monitor, OpenAPI import behavior, reserved-field validation, and compensation mementos; active follow-up work is limited to agent-core-guhn.4 named conformance-test alignment and agent-core-guhn.5 rollback-time REST compensation execution
+    - partial: REST runtime package -- internal/tools/rest implements declarative client, async client, server, fan-in, machine_request, monitor, OpenAPI import behavior, reserved-field validation, compensation mementos, and rollback-time REST compensation execution; active follow-up work is limited to agent-core-guhn.4 named conformance-test alignment
     - done: REST sample profile — agent-profiles owns REST profile assets while agent-core keeps core REST runtime conformance fixtures under testdata/integration/rel03-rest-tools
     - done: Machine request REST path — documentation_curator_requests machine_request routes execute the external documentation-curator request machine for document index and detail requests, with request-machine actions selected from trusted profile declarations
     - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior
