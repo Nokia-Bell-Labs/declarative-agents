@@ -139,7 +139,7 @@ requirements:
 
 non_goals:
   - Defining outbound REST client tools; see srd028-rest-client-tools.
-  - Implementing modeled lifecycle_control endpoints or OpenAPI endpoint config preservation beyond the current release 03.0 runtime.
+  - Implementing modeled lifecycle_control endpoints beyond the current release 03.0 runtime.
   - Defining a general web framework for arbitrary Go handlers.
   - Allowing HTTP handlers to run hidden workflows outside MachineSpec.
   - Letting lifecycle control endpoints bypass rest_server_await, rest_await_event, or MachineSpec routing.
