@@ -787,7 +787,7 @@ test_cases:
 
   - use_case: rel03.0-uc006-documentation-curator
     name: Profile-owned documentation curator loads host and REST tooling
-    go_test: agent-profiles documentation-curator profile integration suite
+    go_test: mage integration:documentationCurator
     status: done
     description: |
       Load the documentation-curator profile through the profile-owned
@@ -877,7 +877,7 @@ test_cases:
 
   - use_case: rel03.0-uc006-documentation-curator
     name: Profile-owned documentation curator lifecycle exit smoke test
-    go_test: agent-profiles documentation-curator profile integration suite
+    go_test: mage integration:documentationCurator
     status: done
     description: |
       In the profile-owned suite, build or locate the agent binary, start the
@@ -924,7 +924,7 @@ test_cases:
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Profile-owned browser loads machine-request documentation UX
-    go_test: agent-profiles documentation-curator browser integration suite
+    go_test: mage integration:documentationCurator
     status: done
     description: |
       In the profile-owned suite, build or locate the agent binary and
@@ -937,8 +937,8 @@ test_cases:
       profile_owner: agent-profiles
       profile: agents/knowledge-manager/documentation-curator/profile.yaml
       browser_harness: Puppeteer
-      entry_point: profile-owned browser integration entry point
-      integration_target: agent-profiles documentation-curator browser target
+      entry_point: Integration.DocumentationCurator
+      integration_target: mage integration:documentationCurator
       page_url: http://127.0.0.1:18081/
     expected:
       page_loaded: true
@@ -953,7 +953,7 @@ test_cases:
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Browser verifies document index machine_request sentence
-    go_test: agent-profiles documentation-curator browser integration suite
+    go_test: mage integration:documentationCurator
     status: done
     description: |
       Puppeteer waits for the document index network request. The server should
@@ -981,7 +981,7 @@ test_cases:
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Browser opens raw YAML document through document resource
-    go_test: agent-profiles documentation-curator browser integration suite
+    go_test: mage integration:documentationCurator
     status: done
     description: |
       After the sidebar appears, Puppeteer selects a YAML document. The browser
@@ -1013,7 +1013,7 @@ test_cases:
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Browser verifies rendered HTML and raw YAML view
-    go_test: agent-profiles documentation-curator browser integration suite
+    go_test: mage integration:documentationCurator
     status: done
     description: |
       Puppeteer checks the document viewer after navigation. The rendered HTML
@@ -1039,7 +1039,7 @@ test_cases:
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Browser captures auditable machine_request trace evidence
-    go_test: agent-profiles documentation-curator browser integration suite
+    go_test: mage integration:documentationCurator
     status: done
     description: |
       The profile-owned browser proof collects trace evidence for the index and
@@ -1068,7 +1068,7 @@ test_cases:
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Machine_request conformance loads configured request machine
-    go_test: go test ./internal/tools/rest -run TestRESTServerMachineRequestConformance
+    go_test: go test ./internal/tools/rest -run TestRESTServerMachineRequestConformanceLoadsConfiguredMachineFile
     status: done
     description: |
       Run the opt-in conformance tests for machine_request endpoints. The tests
@@ -1198,7 +1198,7 @@ test_cases:
       output, async correlation selection, idempotency metadata on outbound
       requests, and await_operation support or validation rejection.
     inputs:
-      issue: agent-core-guhn.4
+      evidence: TestRESTClient_SafetyAndAsyncConformance
       network_policy: cidr_allowlist
       response_schema: configured
       async_selectors: [request_id, correlation, await_operation]
@@ -1242,21 +1242,23 @@ test_cases:
       - srd030-machine-request-rest-binding AC3
 
   - use_case: rel03.0-uc001-rest-client-sync
-    name: REST client compensation creates rollback mementos
-    go_test: TestRESTClient_CompensationUndoMemento
+    name: REST client compensation creates and executes rollback mementos
+    go_test: TestRESTClient_CompensationUndoMemento, TestRESTClient_CompensationExecutorRunsFromReceipt
     status: done
     description: |
       Distinguish read-only noop undo from mutating REST operations that
       declare configured compensation. The mutating path captures request and
-      response metadata needed by rollback. agent-core-guhn.5 tracks runtime
-      execution of the configured compensation path.
+      response metadata needed by rollback. The configured compensation path
+      executes from the captured receipt.
     inputs:
       evidence: TestRESTClient_CompensationUndoMemento
+      execution_evidence: TestRESTClient_CompensationExecutorRunsFromReceipt
       operations: [rest_client_get, rest_client_create, rest_client_set, rest_client_delete]
     expected:
       read_undo_noop: true
       mutating_undo_noop: false
       compensation_payload_valid: true
+      compensation_execution_succeeds: true
       metadata_contains_operation_resource_and_idempotency: true
     traces:
       - srd025-rollback-lifecycle AC5
