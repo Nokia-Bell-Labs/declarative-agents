@@ -2,13 +2,13 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Thirty-six SRDs define the
-  generic agentic loop engine and its supporting packages across seven releases.
+  Specification index for the agent-core framework. Thirty-seven SRDs define the
+  generic agentic loop engine and its supporting packages across eight releases.
   Releases 00.0, 01.0, 02.0, 04.0, 05.0, and 06.0 have implemented proof in the
   indexed use cases and test suites. Release 03.0 remains open for REST
   conformance follow-up work: named-test alignment and rollback-time REST
   compensation execution.
-  Twenty-one use cases exercise the SRDs across the seven releases. Eight formal YAML test suites cover 210 acceptance test
+  Twenty-two use cases exercise the SRDs across the eight releases. Nine formal YAML test suites cover 215 acceptance test
   cases across releases 00.0 through 06.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -22,7 +22,7 @@ overview: |
   through srd018. Release 01.0 covers srd019 through srd024. Release
   02.0 covers srd025, srd026, srd035, and srd036. Release 03.0 covers srd027
   through srd031. Release 04.0 covers srd032 and srd033. Release 06.0 covers
-  srd034.
+  srd034. Release 99.0 covers srd037 planning work.
 
   Release 02.0 storage revision.
   - srd035-checkpoint-port replaces the key/blob StateStore with a two-method
@@ -74,6 +74,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: done
+  - version: "99.0"
+    name: Tool dispatch simplification planning
+    use_cases_done: 0
+    use_cases_total: 1
+    status: in_progress
 
 foundation_document_index:
   - id: agent-core
@@ -237,6 +242,11 @@ srd_index:
     summary: Requirements for separating agent-core runtime assets from profile-owned programs and running containers with externally supplied profiles.
     status: implemented
     path: docs/specs/software-requirements/srd034-external-agent-profiles.yaml
+  - id: srd037-tool-dispatch-simplification
+    title: Tool Dispatch Wiring Simplification
+    summary: Planning requirements for registry error returns, unified builtin registration, and shared external-tool availability checks while preserving Command, Builder, Dispatch, and MachineSpec semantics.
+    status: in_progress
+    path: docs/specs/software-requirements/srd037-tool-dispatch-simplification.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -433,6 +443,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel06.0-profile-migration
     path: docs/specs/use-cases/rel06.0-uc001-mounted-profile-container-runtime.yaml
+  - id: rel99.0-uc001-tool-dispatch-simplification
+    title: Maintainer simplifies tool dispatch wiring without changing core dispatch
+    release: "99.0"
+    status: planned
+    test_suite: test-rel99.0-tool-dispatch-simplification
+    path: docs/specs/use-cases/rel99.0-uc001-tool-dispatch-simplification.yaml
 
 test_suite_index:
   - id: test-rel00.0
@@ -505,6 +521,14 @@ test_suite_index:
     formal_test_cases: 4
     status: implemented
     path: docs/specs/test-suites/test-rel06.0-profile-migration.yaml
+  - id: test-rel99.0-tool-dispatch-simplification
+    title: Test Suite for Release 99.0 Tool Dispatch Simplification
+    release: "99.0"
+    traces:
+      - rel99.0-uc001-tool-dispatch-simplification
+    formal_test_cases: 5
+    status: planned
+    path: docs/specs/test-suites/test-rel99.0-tool-dispatch-simplification.yaml
 
 go_test_coverage:
   note: >

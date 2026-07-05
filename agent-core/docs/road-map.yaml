@@ -266,3 +266,28 @@ releases:
       - id: agent-core-xcbg
         summary: Normalize stale in-repo agent path references after profile migration
         status: done
+
+  - version: "99.0"
+    name: Tool dispatch simplification planning
+    description: |
+      Release 99.0 records architectural cleanup work that does not belong to a
+      shipped feature release. The first item keeps the current core dispatch
+      model while planning smaller startup and availability-resolution changes:
+      registry errors instead of configuration-originated panics, shared builtin
+      registration behavior, and one external-tool availability rule for
+      manifest, parse_response, and dynamic $tool dispatch paths.
+    status: in_progress
+    srds:
+      - srd037-tool-dispatch-simplification
+    use_cases:
+      - id: rel99.0-uc001-tool-dispatch-simplification
+        summary: Maintainer simplifies tool dispatch wiring without changing core dispatch
+        status: planned
+    test_suites:
+      - id: test-rel99.0-tool-dispatch-simplification
+        summary: Formal planning tests for tool dispatch simplification scope and follow-up code proof
+        status: planned
+    follow_up:
+      - id: GH-171#173
+        summary: Centralize dynamic tool availability checks in code
+        status: open

@@ -1,0 +1,97 @@
+id: test-rel99.0-tool-dispatch-simplification
+title: Test Suite for Release 99.0 Tool Dispatch Simplification
+release: "99.0"
+
+traces:
+  - rel99.0-uc001-tool-dispatch-simplification
+
+preconditions:
+  - srd037-tool-dispatch-simplification defines the design scope before code changes.
+  - The sibling code task owns executable registry and availability regression tests.
+  - MachineSpec, Command, Builder, Result, and Dispatch semantics remain unchanged.
+
+test_cases:
+  - use_case: rel99.0-uc001-tool-dispatch-simplification
+    name: Design preserves the current core dispatch model
+    go_test: mage audit
+    status: planned
+    description: |
+      Review srd037 and confirm it keeps MachineSpec sequencing,
+      core.Registry lookup, core.Builder, core.Command, core.Result, and
+      Dispatch semantics intact while naming only startup and availability
+      extension points for the follow-up code task.
+    inputs:
+      design_doc: srd037-tool-dispatch-simplification
+    expected:
+      dispatch_model_unchanged: true
+      extension_points_named: true
+    traces:
+      - srd037-tool-dispatch-simplification AC1
+
+  - use_case: rel99.0-uc001-tool-dispatch-simplification
+    name: Registry startup errors are scoped to configuration-originated failures
+    go_test: GH-171#173 follow-up registry tests
+    status: planned
+    description: |
+      The follow-up code task adds focused registry tests proving empty names,
+      duplicate names, and post-freeze registration can be returned as errors
+      during startup without removing compatibility wrappers.
+    inputs:
+      registry: core.Registry
+      startup_path: profile tool declaration registration
+    expected:
+      configuration_errors_returned: true
+      compatibility_wrappers_available: true
+    traces:
+      - srd037-tool-dispatch-simplification AC2
+
+  - use_case: rel99.0-uc001-tool-dispatch-simplification
+    name: Builtin registration paths share one helper
+    go_test: GH-171#173 follow-up registry tests
+    status: planned
+    description: |
+      The follow-up code task proves RegisterSingleBuiltin and
+      RegisterUnifiedTools use the same builtin declaration helper while exec
+      declarations still use ExecBuilderFactory and binary validation.
+    inputs:
+      builtin_paths: [RegisterSingleBuiltin, RegisterUnifiedTools]
+      exec_path: registerExec
+    expected:
+      builtin_helper_shared: true
+      exec_registration_separate: true
+    traces:
+      - srd037-tool-dispatch-simplification AC3
+
+  - use_case: rel99.0-uc001-tool-dispatch-simplification
+    name: Parse-time and dispatch-time availability use the same rule
+    go_test: GH-171#173 follow-up parse and dynamic dispatch tests
+    status: planned
+    description: |
+      The follow-up code task adds or updates a regression test proving
+      parse_response and dynamic $tool dispatch agree with the manifest on
+      unknown, internal, and state-unavailable external tools.
+    inputs:
+      paths: [Registry.Manifest, parse_response, dynamic_$tool_dispatch]
+      states: [available, unavailable]
+    expected:
+      shared_availability_rule: true
+      existing_error_contracts_preserved: true
+    traces:
+      - srd037-tool-dispatch-simplification AC4
+
+  - use_case: rel99.0-uc001-tool-dispatch-simplification
+    name: Code task boundaries exclude unrelated dispatch rewrites
+    go_test: GH-171#173 follow-up review checklist
+    status: planned
+    description: |
+      Review the code task and resulting diff to ensure it does not change
+      MachineSpec parsing, BuildTransitionTable semantics, command execution,
+      receipt behavior, or LLM response envelope syntax.
+    inputs:
+      code_task: GH-171#173
+    expected:
+      machinespec_unchanged: true
+      command_execution_unchanged: true
+      parser_syntax_unchanged: true
+    traces:
+      - srd037-tool-dispatch-simplification AC5
