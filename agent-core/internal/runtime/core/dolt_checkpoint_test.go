@@ -185,6 +185,7 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 }
 
 func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
+	f.calls = append(f.calls, query)
 	switch {
 	case strings.Contains(query, "FROM machines"):
 		m, ok := f.store.machines[args[0].(string)]
@@ -202,6 +203,7 @@ func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 }
 
 func (f *fakeDB) Query(query string, args ...any) (Rows, error) {
+	f.calls = append(f.calls, query)
 	runID := args[0].(string)
 	var joined []joinRow
 	for k, es := range f.store.steps {
@@ -320,6 +322,20 @@ func countCalls(calls []string, substr string) int {
 	return n
 }
 
+func requireNoUnquotedSignalColumn(t *testing.T, query string) {
+	t.Helper()
+	normalized := " " + strings.Join(strings.Fields(query), " ") + " "
+	for _, token := range []string{
+		" signal VARCHAR",
+		" from_state, signal,",
+		" step_index, signal,",
+		" t.signal",
+		" r.signal",
+	} {
+		require.NotContains(t, normalized, token)
+	}
+}
+
 // --- tests ----------------------------------------------------------------
 
 func sampleExecution() Execution {
@@ -381,6 +397,24 @@ func TestDoltCheckpointSaveLoadRoundTrip(t *testing.T) {
 	// Receipt round-trips verbatim; the empty receipt restores empty from NULL.
 	require.Equal(t, `{"file":"a.txt"}`, gotExec[0].Receipt)
 	require.Equal(t, "", gotExec[1].Receipt)
+}
+
+func TestDoltCheckpointQuotesReservedSignalColumn(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", nil)
+
+	require.NoError(t, cp.Save(samplePosition(), sampleExecution()[:1]))
+	_, _, err := cp.Load()
+	require.NoError(t, err)
+
+	queries := strings.Join(db.calls, "\n")
+	require.Equal(t, 2, strings.Count(queries, "`signal` VARCHAR(255) NOT NULL"))
+	require.Contains(t, queries, "REPLACE INTO transitions (run_id, step_index, from_state, `signal`, to_state)")
+	require.Contains(t, queries, "(run_id, step_index, `signal`, output, error")
+	require.Contains(t, queries, "t.`signal`")
+	require.Contains(t, queries, "r.`signal`")
+	requireNoUnquotedSignalColumn(t, queries)
 }
 
 func TestDoltCheckpointCommitPerStepAndBranchPerRun(t *testing.T) {
