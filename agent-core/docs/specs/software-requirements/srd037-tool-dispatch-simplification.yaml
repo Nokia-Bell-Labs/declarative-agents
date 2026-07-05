@@ -1,0 +1,114 @@
+id: srd037-tool-dispatch-simplification
+title: Tool Dispatch Wiring Simplification
+
+problem: |
+  Core command dispatch is already small and idiomatic: MachineSpec chooses the
+  next action, core.Registry resolves a Builder, Dispatch executes the Command,
+  and Result.Signal drives the next transition. The complexity sits around that
+  model. Startup code has multiple builtin registration paths, registry
+  registration failures still panic, and external-tool availability checks are
+  repeated across manifest generation, parse_response validation, and dynamic
+  $tool dispatch.
+
+  This drift makes it harder to review whether parse-time validation and
+  dispatch-time execution use the same vocabulary rule. It also makes startup
+  failures look like programmer panics even when they come from profile-owned
+  YAML declarations.
+
+goals:
+  - G1: Keep the core Command, Builder, Registry lookup, and MachineSpec transition model intact.
+  - G2: Convert startup registration failures that can come from configuration into explicit errors.
+  - G3: Use one builtin registration helper for both single and batch declaration paths.
+  - G4: Centralize external-tool availability resolution for manifest, parse, and dynamic $tool dispatch paths.
+
+requirements:
+  R1:
+    title: Preserve core dispatch semantics
+    items:
+      - R1.1: MachineSpec SHALL remain the owner of state sequencing, transition lookup, and the "$tool" sentinel.
+      - R1.2: core.Command, core.Builder, core.Result, core.Signal, and Dispatch SHALL keep their current execution contract.
+      - R1.3: core.Registry SHALL remain the source of registered ToolSpec metadata and Builder lookup.
+      - R1.4: The simplification SHALL NOT add reflection, global factory registries, or generated dispatch code.
+
+  R2:
+    title: Registry registration errors
+    items:
+      - R2.1: core.Registry SHALL expose error-returning registration operations for empty names, duplicate names, and post-freeze registration.
+      - R2.2: Existing panic-based Register and Override behavior MAY remain as compatibility wrappers around the error-returning operations.
+      - R2.3: Profile startup and tool declaration registration SHALL use the error-returning operations so configuration mistakes surface as returned errors.
+      - R2.4: Registry error messages SHALL preserve the existing "registry:" prefix and the tool or init name that failed.
+
+  R3:
+    title: Unified builtin registration helper
+    items:
+      - R3.1: RegisterSingleBuiltin and RegisterUnifiedTools SHALL share one builtin declaration registration helper.
+      - R3.2: The shared helper SHALL resolve BuiltinRegistry init names, call the factory with ToolDef and runtime vars, and register the resulting ToolSpec and Builder through the error-returning registry path.
+      - R3.3: Batch registration SHALL keep exec registration separate from builtin registration because exec tools use ExecBuilderFactory and binary validation.
+      - R3.4: Factory-catalog gating SHALL continue to register only builtin families whose init names are selected by the profile.
+
+  R4:
+    title: Centralized external tool availability
+    items:
+      - R4.1: core.Registry SHALL expose one availability resolver for external tools in a state, returning the ToolSpec, Builder, and availability status.
+      - R4.2: Manifest generation SHALL use the same availability rule as parse_response and dynamic $tool dispatch.
+      - R4.3: parse_response SHALL use the resolver to reject unknown, internal, and state-unavailable tools while preserving user-facing parse error wording where tests depend on it.
+      - R4.4: Dynamic $tool dispatch SHALL use the resolver before building the selected command, preserving existing failure signals and error wording where tests depend on them.
+      - R4.5: Available-tool name lists SHALL derive from the same resolver-backed manifest rule so parse errors report the same vocabulary the model saw.
+
+  R5:
+    title: Future code task boundaries
+    items:
+      - R5.1: The first code task SHALL add focused tests for registry error-returning registration and compatibility wrappers.
+      - R5.2: The first code task SHALL add or update a regression test proving parse-time and dispatch-time availability use the same state-scoped rule.
+      - R5.3: The first code task SHALL not change MachineSpec parsing, BuildTransitionTable semantics, command execution, receipt behavior, or model response parsing syntax.
+
+non_goals:
+  - Rewriting MachineSpec execution or transition-table construction.
+  - Replacing core.Command, core.Builder, core.Result, or Dispatch.
+  - Moving workflow order from machine.yaml into Go factory code.
+  - Introducing reflection-based registration, generated registration code, or package-level mutable factory globals.
+  - Changing ToolDef YAML vocabulary, tool selection files, or profile path resolution.
+  - Changing LLM response envelope syntax or required-parameter validation.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The design preserves the existing core dispatch model and names the specific extension points that may change.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+
+  - id: AC2
+    criterion: The design requires error-returning registry registration for configuration-originated startup failures while allowing compatibility wrappers.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC3
+    criterion: The design requires RegisterSingleBuiltin and RegisterUnifiedTools to share builtin registration behavior without merging exec registration into builtin handling.
+    traces: [R3.1, R3.2, R3.3, R3.4]
+
+  - id: AC4
+    criterion: The design requires one external-tool availability rule shared by manifest, parse_response, and dynamic $tool dispatch paths.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+
+  - id: AC5
+    criterion: The design maps the sibling code issue to concrete tests and excludes MachineSpec, command execution, receipt, and parser-syntax changes.
+    traces: [R5.1, R5.2, R5.3]
+
+depends_on:
+  - srd_id: srd001-core-types
+    symbols_used: [Command, Builder, Result, Signal]
+  - srd_id: srd004-tool-registry
+    symbols_used: [Registry, ToolSpec, Manifest, AvailableIn]
+  - srd_id: srd006-yaml-machine-config
+    symbols_used: [MachineSpec, BuildTransitionTable]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry, RegisterSingleBuiltin, RegisterUnifiedTools]
+
+implementation_targets:
+  - internal/runtime/core/registry.go
+  - internal/tools/registry/builtin.go
+  - internal/tools/registry/dynamic.go
+  - internal/tools/llm/parse_response.go
+  - cmd/agent/factories.go
+
+follow_up:
+  - issue: GH-171#173
+    summary: Centralize dynamic tool availability checks and apply the registry/factory simplification in code.
+    status: done

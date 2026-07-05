@@ -1,0 +1,70 @@
+id: rel99.0-uc001-tool-dispatch-simplification
+title: Maintainer simplifies tool dispatch wiring without changing core dispatch
+
+summary: |
+  A maintainer reviews tool dispatch wiring after the focused internal/tools
+  package split. They keep MachineSpec sequencing, core.Registry lookup,
+  core.Builder, core.Command, and Dispatch intact while reducing startup and
+  availability-resolution duplication around the dispatch model.
+
+actor: Maintainer of agent-core runtime and tool infrastructure
+
+trigger: |
+  Tool registration or dynamic $tool review finds duplicated availability
+  checks, panic-based startup failures for profile-owned configuration, or
+  parallel builtin registration paths that should share one helper.
+
+flow:
+  - F1: The maintainer confirms that core dispatch remains a small state-machine-to-command execution model (srd037 R1).
+  - F2: The maintainer changes configuration-originated registry registration failures to returned errors while keeping compatibility wrappers where callers still expect panic behavior (srd037 R2).
+  - F3: The maintainer makes single and batch builtin registration share one builtin helper, with exec declaration handling still separate (srd037 R3).
+  - F4: The maintainer introduces one state-scoped external-tool availability resolver and uses it from manifest, parse_response, and dynamic $tool dispatch paths (srd037 R4).
+  - F5: The maintainer adds regression tests for registry errors and shared parse-time/dispatch-time availability behavior without changing MachineSpec execution or response envelope syntax (srd037 R5).
+
+touchpoints:
+  - T1: "srd037-tool-dispatch-simplification R1 -- MachineSpec, Registry, Builder, Command, and Dispatch semantics stay intact"
+  - T2: "srd037-tool-dispatch-simplification R2 -- registry registration failures become returned startup errors for configuration-originated mistakes"
+  - T3: "srd037-tool-dispatch-simplification R3 -- builtin registration shares one helper while exec registration remains separate"
+  - T4: "srd037-tool-dispatch-simplification R4 -- manifest, parse_response, and dynamic $tool dispatch use one availability rule"
+  - T5: "srd037-tool-dispatch-simplification R5 -- code-task tests prove the narrowed behavior change"
+
+success_criteria:
+  - id: S1
+    criterion: The design names the unchanged core dispatch model and the allowed extension points.
+    traces:
+      - srd037-tool-dispatch-simplification AC1
+  - id: S2
+    criterion: Configuration-originated startup failures are specified as returned errors, not panics.
+    traces:
+      - srd037-tool-dispatch-simplification AC2
+  - id: S3
+    criterion: Single and batch builtin registration converge without folding exec declarations into builtin handling.
+    traces:
+      - srd037-tool-dispatch-simplification AC3
+  - id: S4
+    criterion: Manifest, parse_response, and dynamic $tool dispatch share one state-scoped external-tool availability rule.
+    traces:
+      - srd037-tool-dispatch-simplification AC4
+  - id: S5
+    criterion: The follow-up code task has concrete tests and excludes MachineSpec, command execution, receipt, and parser-syntax changes.
+    traces:
+      - srd037-tool-dispatch-simplification AC5
+
+failure_scenarios:
+  - id: E1
+    scenario: A refactor changes MachineSpec transition semantics while touching availability checks.
+    expected: Review rejects the change as outside the SRD scope.
+  - id: E2
+    scenario: parse_response and dynamic $tool dispatch disagree about whether a tool is available in a state.
+    expected: The sibling code-task regression test fails.
+  - id: E3
+    scenario: A builtin registration failure from profile YAML still panics at startup.
+    expected: Registry or registration tests fail until the error is returned.
+
+out_of_scope:
+  - Changing LLM tool-call JSON syntax.
+  - Replacing core.Command, core.Builder, core.Result, or Dispatch.
+  - Moving workflow order from machine.yaml into Go code.
+  - Adding reflection-based registration or generated factory code.
+
+test_suite_trace: test-rel99.0-tool-dispatch-simplification

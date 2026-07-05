@@ -31,6 +31,17 @@ type registryEntry struct {
 	builder Builder
 }
 
+// ExternalToolAvailability classifies why an external tool can or cannot be
+// used in a state-scoped manifest or dynamic dispatch path.
+type ExternalToolAvailability int
+
+const (
+	ExternalToolUnknown ExternalToolAvailability = iota
+	ExternalToolInternal
+	ExternalToolUnavailableInState
+	ExternalToolAvailable
+)
+
 // Registry pairs ToolSpecs with their Builders and supports
 // state-filtered manifest generation.
 type Registry struct {
@@ -46,28 +57,47 @@ func NewRegistry() *Registry {
 // Register adds a ToolSpec-Builder pair. Name must be non-empty and
 // unique; duplicates panic. Must not be called after Freeze.
 func (r *Registry) Register(spec ToolSpec, builder Builder) {
+	if err := r.RegisterChecked(spec, builder); err != nil {
+		panic(err.Error())
+	}
+}
+
+// RegisterChecked adds a ToolSpec-Builder pair and returns configuration
+// errors instead of panicking.
+func (r *Registry) RegisterChecked(spec ToolSpec, builder Builder) error {
 	if r.frozen {
-		panic("registry: Register called after Freeze")
+		return fmt.Errorf("registry: Register called after Freeze")
 	}
 	if spec.Name == "" {
-		panic("registry: ToolSpec.Name must not be empty")
+		return fmt.Errorf("registry: ToolSpec.Name must not be empty")
 	}
 	if _, exists := r.entries[spec.Name]; exists {
-		panic(fmt.Sprintf("registry: duplicate tool name %q", spec.Name))
+		return fmt.Errorf("registry: duplicate tool name %q", spec.Name)
 	}
 	r.entries[spec.Name] = registryEntry{spec: spec, builder: builder}
+	return nil
 }
 
 // Override replaces the builder (and optionally the spec) for an
 // existing entry, or inserts a new one if absent.
 func (r *Registry) Override(spec ToolSpec, builder Builder) {
+	if err := r.OverrideChecked(spec, builder); err != nil {
+		panic(err.Error())
+	}
+}
+
+// OverrideChecked replaces the builder (and optionally the spec) for an
+// existing entry, or inserts a new one if absent. It returns configuration
+// errors instead of panicking.
+func (r *Registry) OverrideChecked(spec ToolSpec, builder Builder) error {
 	if r.frozen {
-		panic("registry: Override called after Freeze")
+		return fmt.Errorf("registry: Override called after Freeze")
 	}
 	if spec.Name == "" {
-		panic("registry: ToolSpec.Name must not be empty")
+		return fmt.Errorf("registry: ToolSpec.Name must not be empty")
 	}
 	r.entries[spec.Name] = registryEntry{spec: spec, builder: builder}
+	return nil
 }
 
 // Freeze marks the registry as immutable.
@@ -94,21 +124,46 @@ func (r *Registry) SpecByName(name string) (ToolSpec, bool) {
 	return e.spec, true
 }
 
+// ResolveExternalTool returns the ToolSpec, Builder, and availability status for
+// an LLM-visible tool in a state. It is the shared rule behind manifests,
+// parse-time validation, and dynamic $tool dispatch.
+func (r *Registry) ResolveExternalTool(name string, state State) (ToolSpec, Builder, ExternalToolAvailability) {
+	e, ok := r.entries[name]
+	if !ok {
+		return ToolSpec{}, nil, ExternalToolUnknown
+	}
+	if e.spec.Visibility != External {
+		return e.spec, e.builder, ExternalToolInternal
+	}
+	if !e.spec.AvailableIn(state) {
+		return e.spec, e.builder, ExternalToolUnavailableInState
+	}
+	return e.spec, e.builder, ExternalToolAvailable
+}
+
 // Manifest returns a copy of all External ToolSpecs available in the
 // given state.
 func (r *Registry) Manifest(state State) []ToolSpec {
 	var out []ToolSpec
-	for _, e := range r.entries {
-		if e.spec.Visibility != External {
+	for name := range r.entries {
+		spec, _, availability := r.ResolveExternalTool(name, state)
+		if availability != ExternalToolAvailable {
 			continue
 		}
-		if !e.spec.AvailableIn(state) {
-			continue
-		}
-		out = append(out, e.spec)
+		out = append(out, spec)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
+}
+
+// AvailableExternalToolNames returns the manifest-visible tool names in state.
+func (r *Registry) AvailableExternalToolNames(state State) []string {
+	manifest := r.Manifest(state)
+	names := make([]string, 0, len(manifest))
+	for _, spec := range manifest {
+		names = append(names, spec.Name)
+	}
+	return names
 }
 
 // AvailableIn reports whether a ToolSpec is available in a state-scoped
