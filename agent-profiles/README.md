@@ -20,11 +20,12 @@ Documentation under `docs/` records purpose, structure, indexes, roadmap
 entries, and issue format rules. Core-owned runtime assets stay in
 `agent-core`.
 
-## Sharing Experiments
+## Experiment Branches
 
-We use this repository to move in-progress agent experiments between machines
-without touching `main`. Each experiment lives on a short-lived branch named
-`exp/<slug>`, pushed to origin and checked out on every machine as a worktree:
+We keep in-progress agent experiments off `main` and out of this repository's
+permanent record. Each experiment lives on a short-lived branch named
+`exp/<slug>`, checked out as a worktree, and disappears when the branch is
+deleted:
 
 ```bash
 git fetch origin
@@ -50,22 +51,24 @@ cleanup of experiment history.
 Experiment tasks live on the branch, not in the GitHub tracker, so deleting
 the branch removes code, history, and task state in one operation. We track
 them with [beads](https://github.com/steveyegge/beads) (`bd`), whose task
-database is committed under `.beads/` and syncs across machines through the
-same push and pull as the experiment itself. GitHub issues for experiment
+database is committed under `.beads/` on the experiment branch. GitHub issues
+for experiment
 tasks would outlive the experiment as permanent tracker entries. Because
 `exp/*` branches never merge, `.beads/` never reaches `main`. When an
 experiment task turns into durable work, we promote it to a GitHub issue
 through the normal issue flow; distilled `gh-*` branches carry the profile
 and demo files, never the beads data.
 
-Deleting an experiment branch removes it from branch lists, fetches, and fresh
+Pushed experiment branches are visible to everyone with access to this
+repository and reach every clone that fetches them. Deleting an experiment
+branch removes it from branch lists, fetches, and fresh
 clones, but the commits stay addressable by SHA on GitHub until garbage
 collection runs, and the fork network can retain pushed objects. We treat
 every push as potentially permanent: no secrets, no sensitive data. GitHub
 Support can purge objects on request when removal matters.
 
-When an experiment concludes, we delete the branch and prune local state on
-each machine:
+When an experiment concludes, we delete the branch and prune local state in
+every clone that checked it out:
 
 ```bash
 git push origin --delete exp/<slug>
