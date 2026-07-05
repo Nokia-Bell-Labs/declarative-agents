@@ -146,6 +146,7 @@ test_cases:
       resume_without_backend_error: ErrNoCheckpoint
     traces:
       - srd025-rollback-lifecycle AC1
+      - srd018-cli-flag-contract AC5
       - srd024-blocking-input-tools AC2
       - srd035-checkpoint-port AC5
       - srd036-dolt-state-persistence AC1
