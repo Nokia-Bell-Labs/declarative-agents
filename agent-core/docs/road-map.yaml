@@ -122,12 +122,12 @@ releases:
       profile-owned tracer bullet in agent-profiles.
 
       Closed REST conformance work now covers client safety, async request
-      metadata, OpenAPI endpoint preservation, REST compensation mementos,
-      machine_request response schemas, and explicit document_resources
-      reservation. Modeled lifecycle_control endpoints and non-default
-      rest_await_event read policies remain reserved or rejected until future
-      work implements them. Active follow-up work covers named conformance-test
-      alignment and rollback-time REST compensation execution.
+      metadata, OpenAPI endpoint preservation, REST compensation mementos and
+      rollback execution, machine_request response schemas, and explicit
+      document_resources reservation. Modeled lifecycle_control endpoints and
+      non-default rest_await_event read policies remain reserved or rejected
+      until future work implements them. Active follow-up work covers named
+      conformance-test alignment.
     status: in_progress
     srds:
       - srd027-rest-tool-runtime
