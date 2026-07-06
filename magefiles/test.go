@@ -23,7 +23,7 @@ func Test() error {
 	return testSubModules(subModules, moduleHasGoTests, runMageTest)
 }
 
-// TestUnit runs unit tests for sub-modules with a Go module.
+// TestUnit is a compatibility target for mage test:unit; use Test for release gates.
 func TestUnit() error {
 	return testUnitSubModules(subModules, os.Stat, runGoUnitTests)
 }
