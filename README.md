@@ -20,6 +20,7 @@ mage            # run default target in each sub-module
 mage audit      # run the release analysis gate in each sub-module
 mage test:unit  # run unit tests for applicable sub-modules
 mage stats      # output combined LOC stats as JSON
+mage clean      # remove generated artifacts in each sub-module
 mage tag        # create root and module release tags
 ```
 
