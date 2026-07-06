@@ -28,6 +28,11 @@ func All() error {
 	return PDF()
 }
 
+// Build compiles the design-patterns paper artifacts.
+func Build() error {
+	return PDF()
+}
+
 // Figures renders all PlantUML diagrams to PNG.
 func Figures() error {
 	pumls, err := filepath.Glob(filepath.Join(figuresDir, "*.puml"))
