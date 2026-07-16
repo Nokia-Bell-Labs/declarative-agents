@@ -1,0 +1,87 @@
+id: rel07.1-uc003-rest-profile-boundary
+title: REST Profile Boundary
+
+summary: |
+  The REST profile proves that configured client and server boundary words run
+  as explicit MachineSpec steps. A maintainer runs the sample REST flow, which
+  reads a payment resource, submits an async create, awaits completion, launches
+  a webhook server, waits for an inbound event, and stops the server. The run
+  reaches a Succeeded or Failed terminal state.
+
+  The proof belongs in agent-profiles because the REST authority in
+  agents/rest/rest.yaml, the OpenAPI import assets under agents/rest/openapi,
+  and the word selection in agents/rest/machine.yaml and agents/rest/tools.yaml
+  are profile-owned. The ollama-* profile variant shows the same boundary words
+  bound to a different REST definition set. agent-core supplies the reusable HTTP
+  runtime, but it should not encode the REST definitions or OpenAPI imports as
+  core-owned assets.
+
+actor: Profile maintainer verifying REST client and server boundary behavior.
+
+trigger: |
+  A maintainer runs the REST sample profile from agent-profiles:
+
+    agent --profile "$AGENT_PROFILES_ROOT/agents/rest/profile.yaml"
+
+  The ollama variant uses the same contract:
+
+    agent --profile "$AGENT_PROFILES_ROOT/agents/rest/ollama-profile.yaml"
+
+preconditions:
+  - agents/rest/profile.yaml selects agents/rest/machine.yaml, agents/rest/tools.yaml, agents/rest/declarations.yaml, and agents/rest/rest.yaml.
+  - agents/rest/tools.yaml selects get_payment, create_payment, await_payment, launch_payment_webhooks, await_payment_webhook, and stop_payment_webhooks.
+  - agents/rest/openapi/payments.yaml and agents/rest/openapi/ollama.yaml supply OpenAPI import data without generating Go code.
+
+flow:
+  - id: F1
+    text: The machine reads a payment resource via get_payment in the ReadingPayment state and emits RESTResourceRead, RESTMissing, or RESTDomainFailed.
+  - id: F2
+    text: The machine submits an async create via create_payment and awaits completion via await_payment, emitting RESTAccepted, RESTResponded, or RESTAwaitTimedOut.
+  - id: F3
+    text: The machine launches the webhook server via launch_payment_webhooks and enters explicit LaunchingWebhook, WaitingWebhook, and StoppingWebhook states.
+  - id: F4
+    text: The machine waits for the inbound PaymentWebhookReceived signal and stops the server via stop_payment_webhooks.
+  - id: F5
+    text: The machine reaches the Succeeded terminal state on ServerStopped after StoppingWebhook, or the Failed terminal state on any missing, domain-failure, timeout, or CommandError path.
+
+touchpoints:
+  - id: T1
+    target: srd007-rest R1
+    reason: Configured client and server boundary words, including server launch, await, and stop, are explicit MachineSpec states.
+  - id: T2
+    target: srd007-rest R2
+    reason: REST inputs, the REST client, async client, and server tool families, and profile-owned rest.yaml authority sit over the agent-core HTTP runtime.
+  - id: T3
+    target: srd007-rest R3
+    reason: REST outcomes include response signals, async completion, inbound event signals, listener lifecycle, and Succeeded or Failed terminal outcomes.
+  - id: T4
+    target: sm-agent-role-taxonomy rest
+    reason: The role entry names the REST actor boundary, inputs, selected tool families, outputs, and checks.
+  - id: T5
+    target: test-rel07.1-profile-boundaries rest_profile_boundary
+    reason: The suite records the base and ollama-* profiles, REST definitions, OpenAPI assets, and expected terminal states.
+
+success_criteria:
+  - id: S1
+    criterion: REST authority lives in agents/rest/rest.yaml and the ollama variant's ollama-rest.yaml while MachineSpec owns sequencing between boundary words.
+    traces:
+      - srd007-rest R2.3
+      - sm-agent-role-taxonomy rest checks
+  - id: S2
+    criterion: Server launch, await, and stop are explicit machine states with a released listener at terminal state.
+    traces:
+      - srd007-rest R1.1
+      - srd007-rest R1.2
+      - srd007-rest R3.1
+  - id: S3
+    criterion: The sample flow reaches Succeeded on the configured happy path and Failed on any missing, domain-failure, timeout, or infrastructure path.
+    traces:
+      - srd007-rest R3.2
+
+out_of_scope:
+  - Reimplementing HTTP client or server transport in agent-profiles.
+  - Defining Go package APIs for the agent-core HTTP runtime.
+  - Generating Go code from the OpenAPI import assets.
+
+test_suite_trace: test-rel07.1-profile-boundaries
+status: specified
