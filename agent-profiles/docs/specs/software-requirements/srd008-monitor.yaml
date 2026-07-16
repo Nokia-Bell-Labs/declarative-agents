@@ -1,0 +1,74 @@
+id: srd008-monitor
+title: Monitor Functional Block
+
+context: |
+  The monitor profile is an embedded monitor REST reader. It serves read-only
+  monitor REST from cached runtime state and exits through explicit control. This
+  SRD owns the monitor family requirements that srd001-agent-functional-blocks
+  previously held as block R8.
+
+  The block names the contract the monitor presents to the rest of the profile
+  system. The monitor store and REST runtime stay in agent-core; the selected
+  routes and lifecycle control stay profile-owned.
+
+problem: |
+  The monitor family needs its own requirements document so that changes to
+  monitor serving behavior do not churn a shared cross-family file. The
+  requirements must name profile-owned REST routes separately from the agent-core
+  monitor store and REST runtime.
+
+goals:
+  - G1: Model the monitor profile as a read-only monitor REST reader functional block.
+  - G2: Record the monitor actor boundary, inputs, tool selections, runtime dependencies, outputs, and terminal outcomes.
+  - G3: Keep monitor routes profile-owned while agent-core supplies the monitor store and REST runtime.
+
+requirements:
+  R1:
+    title: Behavior model
+    items:
+      - R1.1: The monitor profile must model read-only monitor REST serving and explicit control-based shutdown.
+      - R1.2: Monitor responsibilities must stay limited to profile-selected REST routes and lifecycle control behavior.
+  R2:
+    title: Inputs, tools, and runtime dependencies
+    items:
+      - R2.1: Monitor inputs must include live runtime monitor state supplied by agent-core.
+      - R2.2: The monitor profile must select the monitor REST and lifecycle control tool families.
+      - R2.3: Monitor runtime dependencies are the agent-core monitor store and the agent-core REST runtime.
+  R3:
+    title: Outputs and outcomes
+    items:
+      - R3.1: Monitor outputs must include REST responses and listener lifecycle signals.
+      - R3.2: Monitor terminal outcomes must be Done or Failed.
+
+non_goals:
+  - Define Go package APIs for the agent-core monitor store or REST runtime.
+  - Reimplement monitor state collection in agent-profiles.
+  - Own cross-profile dependency-direction invariants; those stay in srd001.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The monitor profile is described as a read-only REST reader with control-based shutdown rather than a Go package.
+    traces: [R1.1, R1.2]
+  - id: AC2
+    criterion: Monitor inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: Monitor outputs and terminal outcomes are checkable by mounted execution or integration targets.
+    traces: [R3.1, R3.2]
+
+depends_on:
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Monitor family needs its own requirements..."] --> Goals["Goals: Monitor Functional Block"]
+      Goals --> R1["R1: Behavior model"]
+      Goals --> R2["R2: Inputs, tools, and runtime dependencies"]
+      Goals --> R3["R3: Outputs and outcomes"]
+      R1 --> AC1["AC1: Read-only REST reader with control shutdown"]
+      R2 --> AC2["AC2: Inputs, tools, dependencies named"]
+      R3 --> AC3["AC3: Outputs and outcomes checkable"]
+    ```

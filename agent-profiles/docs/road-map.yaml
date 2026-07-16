@@ -164,3 +164,25 @@ releases:
       - Fixtures resolve through AGENT_PROFILES_ROOT or repository-relative paths.
       - Cross-profile boundaries record concrete output, trace, or terminal state evidence.
       - agent-core remains unaware of concrete profile names in its own integration targets.
+
+  - version: "07.1"
+    name: Per-family SRDs and profile coverage
+    description: |
+      Release 07.1 gives each profile family its own requirements contract and
+      validates the completed 07.0 tracer bullets without renumbering existing
+      use cases. The requirements layer moves from one shared SRD holding ten
+      blocks to one SRD per family, with srd001 keeping only the cross-cutting
+      ownership boundary and dependency-direction invariants.
+    status: in-progress
+    planned_work:
+      - id: gh-193
+        summary: Split srd001-agent-functional-blocks into per-family SRDs (srd002-generator through srd011-knowledge-manager) and retarget existing traces.
+        status: done
+    deliverables:
+      - docs/specs/software-requirements/srd002-generator.yaml through
+        srd011-knowledge-manager.yaml define per-family functional blocks.
+      - docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
+        keeps the profile ownership boundary and cross-profile
+        dependency-direction invariants.
+    proof:
+      - mage validate

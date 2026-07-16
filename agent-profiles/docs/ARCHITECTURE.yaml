@@ -178,7 +178,11 @@ related_documents:
   - doc: docs/constitutions/issue-format.yaml
     purpose: Required shape for future issues.
   - doc: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
-    purpose: Functional requirements for migrated profile families.
+    purpose: Cross-cutting profile ownership boundary and dependency-direction
+      invariants shared by every profile family.
+  - doc: docs/specs/software-requirements/
+    purpose: Per-family functional block requirements in srd002-generator
+      through srd011-knowledge-manager.
   - doc: docs/specs/semantic-models/multi-agent-profile-system.yaml
     purpose: Profile role groups, actor boundaries, and dependency directions.
   - doc: docs/specs/semantic-models/agent-role-taxonomy.yaml

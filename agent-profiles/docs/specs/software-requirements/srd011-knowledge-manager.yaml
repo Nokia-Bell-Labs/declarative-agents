@@ -1,0 +1,75 @@
+id: srd011-knowledge-manager
+title: Knowledge Manager Functional Block
+
+context: |
+  The Knowledge Manager profile is the documentation-curator. It serves a
+  documentation UX to a human browser and runs a configured documentation REST
+  workflow. This SRD owns the Knowledge Manager family requirements that
+  srd001-agent-functional-blocks previously held as block R11.
+
+  The block names the contract the documentation-curator presents to the rest of
+  the profile system. The documentation host and REST runtime stay in agent-core;
+  UI placement, document resources, declarations, and REST definitions stay
+  profile-owned.
+
+problem: |
+  The Knowledge Manager family needs its own requirements document so that
+  changes to documentation UX or REST workflow behavior do not churn a shared
+  cross-family file. The requirements must name profile-owned UI and document
+  resources separately from the agent-core documentation host and REST runtime.
+
+goals:
+  - G1: Model the documentation-curator profile as a Knowledge Manager documentation functional block.
+  - G2: Record the Knowledge Manager actor boundary, inputs, tool selections, runtime dependencies, outputs, and terminal outcomes.
+  - G3: Keep UI placement and document resources profile-owned while agent-core supplies the documentation host and REST runtime.
+
+requirements:
+  R1:
+    title: Behavior model
+    items:
+      - R1.1: The documentation-curator profile must model Knowledge Manager documentation UX serving and a configured documentation REST workflow.
+      - R1.2: The Knowledge Manager actor boundary is a human browser and local REST API; the profile owns UI placement, document resources, declarations, request declarations, and REST definitions.
+  R2:
+    title: Inputs, tools, and runtime dependencies
+    items:
+      - R2.1: Knowledge Manager inputs must include a browser request, a documentation corpus path, and a control request.
+      - R2.2: The documentation-curator profile must select the documentation serving, document resources, documentation validation, patch review, and lifecycle control tool families.
+      - R2.3: Knowledge Manager runtime dependencies are the agent-core documentation host and REST runtime, plus profile-owned UI config and REST definitions.
+  R3:
+    title: Outputs and outcomes
+    items:
+      - R3.1: Knowledge Manager outputs must include served UI responses, document read, search, and validation behavior, patch-review outcomes, control exit behavior, and listener shutdown.
+      - R3.2: Knowledge Manager terminal outcomes must be Done or Failed.
+
+non_goals:
+  - Define Go package APIs for the agent-core documentation host or REST runtime.
+  - Reimplement document hosting or patch application in agent-profiles.
+  - Own cross-profile dependency-direction invariants; those stay in srd001.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The documentation-curator profile is described as a configured Knowledge Manager UX and REST workflow rather than a Go package.
+    traces: [R1.1, R1.2]
+  - id: AC2
+    criterion: Knowledge Manager inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: Knowledge Manager outputs and terminal outcomes are checkable by profile-owned integration targets.
+    traces: [R3.1, R3.2]
+
+depends_on:
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Knowledge Manager family needs its own requirements..."] --> Goals["Goals: Knowledge Manager Functional Block"]
+      Goals --> R1["R1: Behavior model"]
+      Goals --> R2["R2: Inputs, tools, and runtime dependencies"]
+      Goals --> R3["R3: Outputs and outcomes"]
+      R1 --> AC1["AC1: Configured Knowledge Manager UX and REST workflow"]
+      R2 --> AC2["AC2: Inputs, tools, dependencies named"]
+      R3 --> AC3["AC3: Outputs and outcomes checkable"]
+    ```

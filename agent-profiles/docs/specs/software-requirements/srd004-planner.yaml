@@ -1,0 +1,75 @@
+id: srd004-planner
+title: Planner Functional Block
+
+context: |
+  The planner profile is a requirement planner and issue materializer. It
+  traverses a requirement graph, assembles prompts, parses plans, materializes
+  issues, executes the generator, and runs build-vet-test validation. This SRD
+  owns the planner family requirements that srd001-agent-functional-blocks
+  previously held as block R4.
+
+  The block names the contract the planner presents to the rest of the profile
+  system. It invokes the generator as a child profile; it does not implement
+  generator behavior itself.
+
+problem: |
+  The planner family needs its own requirements document so that changes to
+  planner behavior do not churn a shared cross-family file. The requirements
+  must name profile-owned planning behavior separately from the agent-core
+  planning tool implementations and model boundary.
+
+goals:
+  - G1: Model the planner profile as a configured requirement planner functional block.
+  - G2: Record the planner actor boundary, inputs, tool selections, runtime dependencies, outputs, and terminal outcomes.
+  - G3: Keep planner behavior profile-owned while agent-core supplies planning tools and the model boundary.
+
+requirements:
+  R1:
+    title: Behavior model
+    items:
+      - R1.1: The planner profile must model requirement graph traversal, prompt assembly, plan parsing, issue materialization, generator execution, and build-vet-test validation.
+      - R1.2: Planner relationships must show that it invokes the generator as a child profile and does not implement generator behavior itself.
+  R2:
+    title: Inputs, tools, and runtime dependencies
+    items:
+      - R2.1: Planner inputs must include a requirement graph, SRD context, and a planning model config.
+      - R2.2: The planner profile must select the planner tools, LLM, Go validation, and child profile execution tool families.
+      - R2.3: Planner runtime dependencies are the agent-core planning tool implementations, the agent-core model boundary, and an issue tracker CLI.
+  R3:
+    title: Outputs and outcomes
+    items:
+      - R3.1: Planner outputs must include created issues, graph status changes, execution outcomes, and terminal states for completed, stalled, paused, or failed planning work.
+      - R3.2: Planner terminal outcomes must be Completed, Stalled, Paused, or Failed.
+
+non_goals:
+  - Define Go package APIs for the agent-core planning tools or model boundary.
+  - Reimplement generator behavior inside the planner profile.
+  - Own cross-profile dependency-direction invariants; those stay in srd001.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The planner profile is described as a configured planner that invokes generator as a child profile rather than a Go package.
+    traces: [R1.1, R1.2]
+  - id: AC2
+    criterion: Planner inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: Planner outputs and terminal outcomes are checkable by mounted execution or integration targets.
+    traces: [R3.1, R3.2]
+
+depends_on:
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Planner family needs its own requirements..."] --> Goals["Goals: Planner Functional Block"]
+      Goals --> R1["R1: Behavior model"]
+      Goals --> R2["R2: Inputs, tools, and runtime dependencies"]
+      Goals --> R3["R3: Outputs and outcomes"]
+      R1 --> AC1["AC1: Configured planner invoking generator"]
+      R2 --> AC2["AC2: Inputs, tools, dependencies named"]
+      R3 --> AC3["AC3: Outputs and outcomes checkable"]
+    ```

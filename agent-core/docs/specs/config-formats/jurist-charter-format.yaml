@@ -282,4 +282,4 @@ example: |
 references:
   - docs/specs/software-requirements/srd014-spec-graph.yaml
   - agent-profiles/agents/jurist/profile.yaml
-  - agent-profiles/docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
+  - agent-profiles/docs/specs/software-requirements/srd005-jurist.yaml

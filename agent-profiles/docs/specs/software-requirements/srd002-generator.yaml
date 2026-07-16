@@ -1,0 +1,75 @@
+id: srd002-generator
+title: Generator Functional Block
+
+context: |
+  The generator profile is a coding agent. It receives a task and a workspace,
+  invokes a model boundary, dispatches filesystem and validation tools, and lets
+  machine-declared validation decide the terminal outcome. This SRD owns the
+  generator family requirements that srd001-agent-functional-blocks previously
+  held as block R2.
+
+  The block names the contract the generator presents to the rest of the profile
+  system. It does not own the Go code that executes a word; that runtime stays in
+  agent-core.
+
+problem: |
+  The generator family needs its own requirements document so that changes to
+  generator behavior do not churn a shared cross-family file. The requirements
+  must name profile-owned configured behavior separately from agent-core-owned
+  runtime capability.
+
+goals:
+  - G1: Model the generator profile as a configured coding agent functional block.
+  - G2: Record the generator actor boundary, inputs, tool selections, runtime dependencies, outputs, and terminal outcomes.
+  - G3: Keep generator behavior profile-owned while agent-core supplies loop runtime and builtin tools.
+
+requirements:
+  R1:
+    title: Behavior model
+    items:
+      - R1.1: The generator profile must model a coding agent that receives a task and workspace, invokes an LLM boundary, dispatches file and validation tools, and ends only after machine-declared validation.
+      - R1.2: The generator actor boundary is the model boundary plus workspace filesystem and validation commands.
+  R2:
+    title: Inputs, tools, and runtime dependencies
+    items:
+      - R2.1: Generator inputs must include a task prompt, a mounted workspace, and a selected model config.
+      - R2.2: The generator profile must select the filesystem, LLM, and Go exec validation tool families.
+      - R2.3: Generator runtime dependencies are the agent-core loop runtime, the agent-core builtin filesystem and LLM tools, and agent-core exec tool declarations for Go validation.
+  R3:
+    title: Outputs and outcomes
+    items:
+      - R3.1: Generator outputs must include a changed workspace, terminal status, tool results, validation results, and a traceable task summary.
+      - R3.2: Generator terminal outcomes must be Succeeded, Failed, or BudgetExceeded.
+
+non_goals:
+  - Define Go package APIs for the agent-core loop runtime.
+  - Reimplement builtin filesystem, LLM, or exec tool behavior in agent-profiles.
+  - Own cross-profile dependency-direction invariants; those stay in srd001.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The generator profile is described as a configured coding agent with an explicit actor boundary rather than a Go package.
+    traces: [R1.1, R1.2]
+  - id: AC2
+    criterion: Generator inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: Generator outputs and terminal outcomes are checkable by mounted execution or integration targets.
+    traces: [R3.1, R3.2]
+
+depends_on:
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Generator family needs its own requirements..."] --> Goals["Goals: Generator Functional Block"]
+      Goals --> R1["R1: Behavior model"]
+      Goals --> R2["R2: Inputs, tools, and runtime dependencies"]
+      Goals --> R3["R3: Outputs and outcomes"]
+      R1 --> AC1["AC1: Configured coding agent with explicit boundary"]
+      R2 --> AC2["AC2: Inputs, tools, dependencies named"]
+      R3 --> AC3["AC3: Outputs and outcomes checkable"]
+    ```
