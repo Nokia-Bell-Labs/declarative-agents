@@ -108,9 +108,10 @@ test_cases:
       consistency_check_finding: jurist-demo-charter/artifacts-exist
     traces:
       - rel06.0-uc002-profile-validation S1
-      - srd001-agent-functional-blocks R5.2
-      - srd001-agent-functional-blocks R5.4
-      - srd001-agent-functional-blocks R5.5
+      - srd005-jurist R2.1
+      - srd005-jurist R3.1
+      - srd005-jurist R1.2
+      - srd005-jurist R3.2
       - gh-123 AC1
       - gh-123 AC3
 
@@ -157,10 +158,10 @@ test_cases:
       developer_absolute_paths_absent: true
     traces:
       - rel06.0-uc001-mounted-profile-execution S5
-      - srd001-agent-functional-blocks R2.1
-      - srd001-agent-functional-blocks R2.3
-      - srd001-agent-functional-blocks R3.1
-      - srd001-agent-functional-blocks R3.3
+      - srd002-generator R1.1
+      - srd002-generator R3.1
+      - srd003-evaluator R1.1
+      - srd003-evaluator R2.3
       - sm-agent-role-taxonomy generator
       - sm-agent-role-taxonomy evaluator
 
@@ -183,6 +184,6 @@ test_cases:
     traces:
       - rel06.0-uc001-mounted-profile-execution S2
       - rel06.0-uc001-mounted-profile-execution S5
-      - srd001-agent-functional-blocks R8.1
-      - srd001-agent-functional-blocks R8.2
+      - srd008-monitor R1.1
+      - srd008-monitor R2.1
       - sm-agent-role-taxonomy monitor

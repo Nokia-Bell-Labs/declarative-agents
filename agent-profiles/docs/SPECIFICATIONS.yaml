@@ -6,9 +6,12 @@ overview: |
   Foundation documents come first because the migration needs a stable
   ownership boundary before assets move.
 
-  With the first migration complete, srd001 defines migrated profile families
-  as functional blocks instead of runtime packages. The semantic models record
-  role boundaries, dependency directions, and validation views.
+  With the first migration complete, the SRD layer defines migrated profile
+  families as functional blocks instead of runtime packages. srd001 now holds
+  the cross-cutting profile ownership boundary and dependency-direction
+  invariants, while srd002 through srd011 own one profile family each. The
+  semantic models record role boundaries, dependency directions, and validation
+  views.
 
   Release 06.0 now has formal use cases and a test suite for the checked-in
   profile repository workflow. Those entries connect profile validation,
@@ -74,11 +77,72 @@ foundation_document_index:
 srd_index:
   - id: srd001-agent-functional-blocks
     title: Agent Functional Blocks
-    summary: Requirements for generator, evaluator, planner, jurist, bench,
-      REST, monitor, lifecycle, control, and Knowledge Manager profiles as
-      configured functional blocks.
+    summary: Cross-cutting profile ownership boundary and cross-profile
+      dependency-direction invariants shared by every profile family. Per-family
+      requirements live in srd002 through srd011.
     status: implemented
     path: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
+  - id: srd002-generator
+    title: Generator Functional Block
+    summary: Generator coding-agent boundary, inputs, tool selections, runtime
+      dependencies, outputs, and terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd002-generator.yaml
+  - id: srd003-evaluator
+    title: Evaluator Functional Block
+    summary: Evaluator session and point pipeline boundary, inputs, tool
+      selections, runtime dependencies, outputs, and terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd003-evaluator.yaml
+  - id: srd004-planner
+    title: Planner Functional Block
+    summary: Planner requirement-graph boundary, inputs, tool selections,
+      runtime dependencies, outputs, and terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd004-planner.yaml
+  - id: srd005-jurist
+    title: Jurist Functional Block
+    summary: Jurist deterministic validator boundary, inputs, tool selection,
+      responsibilities, provenance-rich findings, and terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd005-jurist.yaml
+  - id: srd006-bench
+    title: Bench Functional Block
+    summary: Bench human-operated launcher boundary, inputs, tool selections,
+      runtime dependencies, outputs, and terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd006-bench.yaml
+  - id: srd007-rest
+    title: REST Functional Block
+    summary: REST client and server boundary words, inputs, tool selections,
+      profile-owned authority, outcomes, and terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd007-rest.yaml
+  - id: srd008-monitor
+    title: Monitor Functional Block
+    summary: Monitor read-only REST reader boundary, inputs, tool selections,
+      runtime dependencies, outputs, and terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd008-monitor.yaml
+  - id: srd009-lifecycle
+    title: Lifecycle Functional Blocks
+    summary: Lifecycle history, rollback, and approval machine-action
+      boundaries, inputs, tool selections, runtime dependencies, outputs, and
+      terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd009-lifecycle.yaml
+  - id: srd010-control
+    title: Control Functional Block
+    summary: Control signal-intake boundary, inputs, tool selections, runtime
+      dependencies, outputs, and terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd010-control.yaml
+  - id: srd011-knowledge-manager
+    title: Knowledge Manager Functional Block
+    summary: Documentation-curator UX and REST workflow boundary, inputs, tool
+      selections, runtime dependencies, outputs, and terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd011-knowledge-manager.yaml
 
 config_format_index: []
 

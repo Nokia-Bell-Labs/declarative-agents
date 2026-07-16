@@ -1,0 +1,75 @@
+id: srd005-jurist
+title: Jurist Functional Block
+
+context: |
+  The jurist profile is a specification validator. It runs deterministic charter
+  suites over a target directory with no LLM boundary and reports provenance-rich
+  findings. This SRD owns the jurist family requirements that
+  srd001-agent-functional-blocks previously held as block R5.
+
+  The block names the contract the jurist presents to the rest of the profile
+  system. Spec validation tools stay in agent-core; charter suites stay
+  profile-owned.
+
+problem: |
+  The jurist family needs its own requirements document so that changes to
+  charter validation behavior do not churn a shared cross-family file. The
+  requirements must name profile-owned charter suites separately from the
+  agent-core spec validation tools.
+
+goals:
+  - G1: Model the jurist profile as a deterministic, LLM-free specification validator functional block.
+  - G2: Record the jurist actor boundary, inputs, tool selection, runtime dependencies, outputs, and terminal outcomes.
+  - G3: Keep charter suites profile-owned while agent-core supplies spec validation tools.
+
+requirements:
+  R1:
+    title: Behavior model
+    items:
+      - R1.1: The jurist profile must model deterministic specification corpus validation with no LLM boundary.
+      - R1.2: Jurist charter checks must remain LLM-free, network-free, read-only, and deterministic across repeated runs over the same target directory and suite files.
+  R2:
+    title: Inputs, tools, and responsibilities
+    items:
+      - R2.1: Jurist inputs must include a filesystem target directory and one or more deterministic charter suite paths.
+      - R2.2: The jurist profile must select the specification validation tool family backed by agent-core spec validation tools.
+      - R2.3: Jurist responsibilities must cover corpus loading, graph validation, consistency checks, and report formatting.
+  R3:
+    title: Outputs and outcomes
+    items:
+      - R3.1: Jurist outputs must include a formatted validation report and a passed or failed status.
+      - R3.2: Jurist findings must identify the suite, check, severity, message, and any available file and line provenance so consumers can act on failures without reading Go code.
+      - R3.3: Jurist terminal outcomes must be Passed or Failed.
+
+non_goals:
+  - Define Go package APIs for the agent-core spec validation tools.
+  - Introduce an LLM boundary or network access into charter validation.
+  - Own cross-profile dependency-direction invariants; those stay in srd001.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The jurist profile is described as a deterministic, LLM-free validator rather than a Go package.
+    traces: [R1.1, R1.2]
+  - id: AC2
+    criterion: Jurist inputs, selected tool family, and responsibilities are named and separated from agent-core runtime capability.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: Jurist outputs, provenance-rich findings, and terminal outcomes are checkable by profile validation.
+    traces: [R3.1, R3.2, R3.3]
+
+depends_on:
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Jurist family needs its own requirements..."] --> Goals["Goals: Jurist Functional Block"]
+      Goals --> R1["R1: Behavior model"]
+      Goals --> R2["R2: Inputs, tools, and responsibilities"]
+      Goals --> R3["R3: Outputs and outcomes"]
+      R1 --> AC1["AC1: Deterministic LLM-free validator"]
+      R2 --> AC2["AC2: Inputs, tools, responsibilities named"]
+      R3 --> AC3["AC3: Outputs and findings checkable"]
+    ```

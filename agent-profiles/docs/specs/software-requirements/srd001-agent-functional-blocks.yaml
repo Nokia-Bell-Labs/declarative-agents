@@ -2,253 +2,94 @@ id: srd001-agent-functional-blocks
 title: Agent Functional Blocks
 
 context: |
-  This SRD is the handoff point between profile discovery and asset migration.
-  The current profile files in agent-core already describe behavior through
-  machine.yaml, tools.yaml, profile-local declarations, and REST definitions.
-  Migration work needs those behaviors named before files move.
+  This SRD holds the cross-cutting requirements that every migrated profile
+  family shares: the profile ownership boundary between agent-profiles and
+  agent-core, and the dependency-direction invariants that connect the families.
+
+  Each profile family owns its own SRD for actor boundary, inputs, outputs, tool
+  selections, runtime dependencies, and terminal outcomes:
+
+    - srd002-generator            (generator)
+    - srd003-evaluator            (evaluator)
+    - srd004-planner              (planner)
+    - srd005-jurist               (jurist)
+    - srd006-bench                (bench)
+    - srd007-rest                 (rest)
+    - srd008-monitor              (monitor)
+    - srd009-lifecycle            (lifecycle)
+    - srd010-control              (control)
+    - srd011-knowledge-manager    (knowledge-manager)
 
   A functional block is the contract a profile presents to the rest of the
-  multi-agent system. It names the actor boundary, accepted inputs, produced
-  outputs, selected vocabulary, runtime dependencies, and terminal outcomes.
-  The block does not own the Go code that executes a word. That runtime remains
-  in agent-core.
+  multi-agent system. The block does not own the Go code that executes a word.
+  That runtime remains in agent-core.
 
 problem: |
-  Profile migration needs a requirements document that names each agent profile
-  as a functional block. The migration must not describe generator, evaluator,
-  planner, jurist, bench, REST, monitor, lifecycle, control, or Knowledge
-  Manager agents as Go packages.
+  Requirements that describe individual profile families were originally held as
+  ten blocks in this single SRD. Any change to one family churned a shared file,
+  and the rel07.0 use cases already treat families individually while the
+  requirements layer did not.
 
-  agent-core owns runtime capability. agent-profiles owns configured behavior:
-  profile.yaml, MachineSpec YAML, tools.yaml selections, profile-local
-  declarations, REST definitions, demos, and profile-owned fixtures.
+  Each family now owns its own SRD. This document keeps only what is genuinely
+  cross-cutting: the ownership boundary that separates profile-owned configured
+  behavior from agent-core-owned runtime capability, and the dependency
+  directions that must survive as the families evolve.
 
 goals:
-  - id: G1
-    text: Define every migrated profile family as a reviewable functional block.
-  - id: G2
-    text: Record actor boundaries, inputs, outputs, selected tools, runtime
-      dependencies, outcomes, and responsibilities.
-  - id: G3
-    text: Keep profile-owned behavior separate from agent-core-owned runtime
-      capability and builtin implementations.
+  - G1: Fix the profile ownership boundary between agent-profiles and agent-core.
+  - G2: Record the cross-profile dependency directions as invariants the families must preserve.
+  - G3: Route each profile family to its own dedicated SRD.
 
 requirements:
-  - id: R1
+  R1:
     title: Profile ownership boundary
     items:
-      - id: R1.1
-        text: Each migrated profile must keep profile.yaml, machine.yaml,
-          tools.yaml, profile-local declarations, REST definitions, and UI
-          assets under agent-profiles when those files define agent behavior.
-      - id: R1.2
-        text: Migrated profiles must reference agent-core runtime assets through
-          documented core-owned roots, mounted paths, or release bundle paths.
-      - id: R1.3
-        text: Migrated profiles must not copy agent-core Go runtime packages,
-          builtin tool implementations, or container build logic.
-
-  - id: R2
-    title: Generator functional block
+      - R1.1: Each migrated profile must keep profile.yaml, machine.yaml, tools.yaml, profile-local declarations, REST definitions, and UI assets under agent-profiles when those files define agent behavior.
+      - R1.2: Migrated profiles must reference agent-core runtime assets through documented core-owned roots, mounted paths, or release bundle paths.
+      - R1.3: Migrated profiles must not copy agent-core Go runtime packages, builtin tool implementations, or container build logic.
+  R2:
+    title: Cross-profile dependency direction
     items:
-      - id: R2.1
-        text: The generator profile must model a coding agent that receives a
-          task and workspace, invokes an LLM boundary, dispatches file and
-          validation tools, and ends only after machine-declared validation.
-      - id: R2.2
-        text: The generator actor boundary is the model boundary plus workspace
-          filesystem and validation commands.
-      - id: R2.3
-        text: Generator outputs must include a changed workspace, terminal
-          status, tool results, validation results, and traceable task summary.
-
-  - id: R3
-    title: Evaluator functional block
+      - R2.1: Planner must invoke generator through child profile execution; generator must not depend on planner.
+      - R2.2: Evaluator point runs may invoke generator or another configured profile as the benchmark subject; the subject profile must not depend on the evaluator.
+      - R2.3: Bench must launch evaluator from a human operator action; evaluator must not depend on bench.
+      - R2.4: Monitor must read cached runtime state supplied by agent-core, and control must route REST events to visible lifecycle words such as exit_agent; the documentation-curator must embed control flow and wait for explicit exit events.
+      - R2.5: Dependency edges must point from configured profiles toward agent-core runtime ports and never in the reverse direction.
+  R3:
+    title: Per-family requirement ownership
     items:
-      - id: R3.1
-        text: The evaluator profile must model a deterministic session pipeline
-          that parses a suite, expands evaluation points, runs a nested point
-          machine, and reports session outcomes.
-      - id: R3.2
-        text: The evaluator point machine must prepare an isolated point
-          workspace, invoke a configured agent profile, run oracle checks, and
-          collect trace, version, summary, and metric outputs.
-      - id: R3.3
-        text: Evaluator dependencies must name profile-owned suites and samples
-          as inputs while agent-core supplies nested loop execution.
-
-  - id: R4
-    title: Planner functional block
-    items:
-      - id: R4.1
-        text: The planner profile must model requirement graph traversal,
-          prompt assembly, plan parsing, issue materialization, generator
-          execution, and build-vet-test validation.
-      - id: R4.2
-        text: Planner outputs must include created issues, graph status changes,
-          execution outcomes, and terminal states for completed, stalled,
-          paused, or failed planning work.
-      - id: R4.3
-        text: Planner relationships must show that it invokes the generator as
-          a child profile and does not implement generator behavior itself.
-
-  - id: R5
-    title: Jurist functional block
-    items:
-      - id: R5.1
-        text: The jurist profile must model deterministic specification corpus
-          validation with no LLM boundary.
-      - id: R5.2
-        text: Jurist inputs must include a filesystem target directory and
-          one or more deterministic charter suite paths. Outputs must include a
-          formatted validation report and passed or failed status.
-      - id: R5.3
-        text: Jurist responsibilities must cover corpus loading, graph
-          validation, consistency checks, and report formatting.
-      - id: R5.4
-        text: Jurist charter checks must remain LLM-free, network-free,
-          read-only, and deterministic across repeated runs over the same
-          target directory and suite files.
-      - id: R5.5
-        text: Jurist findings must identify the suite, check, severity,
-          message, and any available file and line provenance so consumers can
-          act on failures without reading Go code.
-
-  - id: R6
-    title: Bench functional block
-    items:
-      - id: R6.1
-        text: The bench profile must model a human-operated web UI block that
-          serves experiment browsing, launches evaluator runs, and returns to
-          serving after each evaluator outcome.
-      - id: R6.2
-        text: Bench actor boundary is a human HTTP operator, not an LLM.
-      - id: R6.3
-        text: Bench relationships must show that experiment execution launches
-          the evaluator profile rather than owning evaluation session logic.
-
-  - id: R7
-    title: REST functional block
-    items:
-      - id: R7.1
-        text: The REST profile must model configured client and server boundary
-          words as explicit MachineSpec steps.
-      - id: R7.2
-        text: REST authority must live in profile-owned REST definitions,
-          declarations, and machine transitions while agent-core supplies the
-          reusable HTTP runtime.
-      - id: R7.3
-        text: REST outcomes must include configured response signals, async
-          completion, inbound event signals, listener lifecycle, and failure or
-          timeout states.
-
-  - id: R8
-    title: Monitor functional block
-    items:
-      - id: R8.1
-        text: The monitor profile must model read-only monitor REST serving and
-          explicit control-based shutdown.
-      - id: R8.2
-        text: Monitor inputs must include live runtime monitor state supplied by
-          agent-core. Outputs must include REST responses and listener lifecycle
-          signals.
-      - id: R8.3
-        text: Monitor responsibilities must stay limited to profile-selected
-          REST routes and lifecycle control behavior.
-
-  - id: R9
-    title: Lifecycle functional blocks
-    items:
-      - id: R9.1
-        text: Lifecycle history must model checkpoint history inspection as a
-          machine action that reads checkpoint state and reports success or
-          failure.
-      - id: R9.2
-        text: Lifecycle rollback must model rollback as a machine action with
-          explicit checkpoint and target inputs.
-      - id: R9.3
-        text: Lifecycle approval must model suspend, resume approval, resume
-          rejection, and terminal outcomes through visible machine signals.
-
-  - id: R10
-    title: Control functional block
-    items:
-      - id: R10.1
-        text: The control profile must model REST lifecycle control as signal
-          intake followed by explicit lifecycle vocabulary.
-      - id: R10.2
-        text: Control HTTP handlers must enqueue signals only. MachineSpec owns
-          routing to exit_agent or unsupported terminal paths.
-      - id: R10.3
-        text: Control outputs must include accepted control events, AgentExited
-          or failed states, and listener lifecycle behavior.
-
-  - id: R11
-    title: Knowledge Manager functional block
-    items:
-      - id: R11.1
-        text: The documentation-curator profile must model Knowledge Manager
-          documentation UX serving and configured documentation REST workflow.
-      - id: R11.2
-        text: The Knowledge Manager actor boundary is a human browser and local
-          REST API. The profile owns UI placement, document resources,
-          declarations, request declarations, and REST definitions.
-      - id: R11.3
-        text: Knowledge Manager outputs must include served UI responses,
-          document read/search/validation behavior, patch-review outcomes,
-          control exit behavior, and listener shutdown.
+      - R3.1: Each profile family's actor boundary, inputs, outputs, tool selections, runtime dependencies, and terminal outcomes must live in a dedicated per-family SRD (srd002-generator through srd011-knowledge-manager).
+      - R3.2: Per-family SRDs must depend on this SRD for the ownership boundary and dependency-direction invariants.
 
 non_goals:
   - Define Go package APIs for agent-core.
   - Reimplement builtin tool behavior in agent-profiles.
   - Define release container build mechanics.
   - Treat migrated profiles as separate binaries.
-  - Specify every future demo or fixture file before migration issues move
-    those assets.
+  - Restate per-family functional block requirements; those live in srd002 through srd011.
 
 acceptance_criteria:
   - id: AC1
-    text: The SRD includes numbered requirement groups for generator,
-      evaluator, planner, jurist, bench, REST, monitor, lifecycle, control, and
-      Knowledge Manager profiles.
+    criterion: The SRD defines the profile ownership boundary that keeps configured behavior in agent-profiles and runtime capability in agent-core.
+    traces: [R1.1, R1.2, R1.3]
   - id: AC2
-    text: Each requirement group names profile-owned behavior separately from
-      agent-core-owned runtime capability.
+    criterion: The SRD records the cross-profile dependency directions as invariants that the per-family SRDs must preserve.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
   - id: AC3
-    text: Requirements mention actor boundaries, inputs, outputs, selected
-      tools or tool families, runtime dependencies, emitted outcomes, and
-      responsibilities.
-  - id: AC4
-    text: Migration issues can cite this SRD as required reading before moving
-      profile assets.
-  - id: AC5
-    text: Profile validation, mounted container execution, integration targets,
-      or documentation review can check every acceptance criterion.
+    criterion: Each profile family has a dedicated SRD that depends on this document for the shared boundary and invariants.
+    traces: [R3.1, R3.2]
+
+depends_on: []
 
 diagrams:
   requirements_trace: |
     ```mermaid
     flowchart LR
-      Problem["Problem: Profile migration needs a requirements document tha..."] --> Goals["Goals: Agent Functional Blocks"]
+      Problem["Problem: Per-family requirements churned a shared file..."] --> Goals["Goals: Agent Functional Blocks"]
       Goals --> R1["R1: Profile ownership boundary"]
-      Goals --> R2["R2: Generator functional block"]
-      Goals --> R3["R3: Evaluator functional block"]
-      Goals --> R4["R4: Planner functional block"]
-      Goals --> R5["R5: Jurist functional block"]
-      Goals --> R6["R6: Bench functional block"]
-      Goals --> R7["R7: REST functional block"]
-      Goals --> R8["R8: Monitor functional block"]
-      Goals --> R9["R9: Lifecycle functional blocks"]
-      Goals --> R10["R10: Control functional block"]
-      Goals --> R11["R11: Knowledge Manager functional block"]
-      AC1["AC1: The SRD includes numbered requirement groups for genera..."]
-      R11 --> AC1
-      AC2["AC2: Each requirement group names profile-owned behavior sep..."]
-      R11 --> AC2
-      AC3["AC3: Requirements mention actor boundaries, inputs, outputs,..."]
-      R11 --> AC3
-      AC4["AC4: Migration issues can cite this SRD as required reading..."]
-      R11 --> AC4
-      AC5["AC5: Profile validation, mounted container execution, integr..."]
-      R11 --> AC5
+      Goals --> R2["R2: Cross-profile dependency direction"]
+      Goals --> R3["R3: Per-family requirement ownership"]
+      R1 --> AC1["AC1: Ownership boundary defined"]
+      R2 --> AC2["AC2: Dependency directions recorded"]
+      R3 --> AC3["AC3: Per-family SRDs depend on this document"]
     ```
