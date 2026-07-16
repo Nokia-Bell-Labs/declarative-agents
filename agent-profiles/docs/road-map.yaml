@@ -173,10 +173,19 @@ releases:
       use cases. The requirements layer moves from one shared SRD holding ten
       blocks to one SRD per family, with srd001 keeping only the cross-cutting
       ownership boundary and dependency-direction invariants.
+
+      The release also adds per-family boundary use cases and a test suite for
+      the jurist, lifecycle, and rest families, which were previously validated
+      only by the generic rel06.0 mounted-profile and profile-validation use
+      cases. Each new use case names the actor boundary, inputs, outputs, and
+      terminal outcomes for its family and traces to the family SRD.
     status: in-progress
     planned_work:
       - id: gh-193
         summary: Split srd001-agent-functional-blocks into per-family SRDs (srd002-generator through srd011-knowledge-manager) and retarget existing traces.
+        status: done
+      - id: gh-194
+        summary: Add per-family boundary use cases and a test suite for the jurist, lifecycle, and rest profiles.
         status: done
     deliverables:
       - docs/specs/software-requirements/srd002-generator.yaml through
@@ -184,5 +193,31 @@ releases:
       - docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
         keeps the profile ownership boundary and cross-profile
         dependency-direction invariants.
+      - docs/specs/use-cases/rel07.1-uc001-jurist-profile-boundary.yaml,
+        rel07.1-uc002-lifecycle-profile-boundary.yaml, and
+        rel07.1-uc003-rest-profile-boundary.yaml add per-family boundary use
+        cases for the previously uncovered families.
+      - docs/specs/test-suites/test-rel07.1-profile-boundaries.yaml validates the
+        three boundary use cases against the family SRD acceptance criteria.
+    use_cases:
+      - id: rel07.1-uc001-jurist-profile-boundary
+        summary: Jurist deterministic, LLM-free charter validation boundary.
+        status: specified
+      - id: rel07.1-uc002-lifecycle-profile-boundary
+        summary: Lifecycle history, rollback, and approval machine-action boundary.
+        status: specified
+      - id: rel07.1-uc003-rest-profile-boundary
+        summary: REST client and server boundary words and the ollama-* variant.
+        status: specified
+    test_suites:
+      - id: test-rel07.1-profile-boundaries
+        summary: Boundary use-case validation for the jurist, lifecycle, and rest families.
+        status: specified
     proof:
       - mage validate
+    deferred:
+      - Profile-owned Mage integration targets that execute the jurist,
+        lifecycle, and rest boundary fixtures, mirroring
+        magefiles/integration_*.go for the covered families. Until those land the
+        three use cases and their test cases stay status specified rather than
+        implemented.

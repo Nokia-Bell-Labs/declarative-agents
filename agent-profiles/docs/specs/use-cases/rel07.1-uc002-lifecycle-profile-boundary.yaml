@@ -1,0 +1,85 @@
+id: rel07.1-uc002-lifecycle-profile-boundary
+title: Lifecycle Profile Boundary
+
+summary: |
+  The lifecycle profiles prove that checkpoint history inspection, rollback, and
+  approval are expressed as machine actions and visible signals rather than
+  hidden CLI branches. A maintainer runs the history, rollback, and approval
+  programs under agents/lifecycle and observes explicit terminal states from
+  their tool signals.
+
+  The proof belongs in agent-profiles because the machine wiring under
+  agents/lifecycle and the tool selections in agents/lifecycle/tools.yaml and
+  agents/lifecycle/approval/tools.yaml are profile-owned. agent-core supplies the
+  lifecycle ports, the checkpoint store, and workspace restore support, but it
+  should not encode the approval gate or history and rollback flows as
+  core-owned CLI behavior.
+
+actor: Profile maintainer verifying lifecycle history, rollback, and approval behavior.
+
+trigger: |
+  A maintainer runs each lifecycle program from agent-profiles:
+
+    agent --profile "$AGENT_PROFILES_ROOT/agents/lifecycle/history/profile.yaml"
+    agent --profile "$AGENT_PROFILES_ROOT/agents/lifecycle/rollback/profile.yaml"
+    agent --profile "$AGENT_PROFILES_ROOT/agents/lifecycle/approval/profile.yaml"
+
+preconditions:
+  - agents/lifecycle/history.yaml and agents/lifecycle/rollback.yaml select checkpoint_history and checkpoint_rollback from agents/lifecycle/tools.yaml.
+  - agents/lifecycle/approval/machine.yaml selects suspend and done from agents/lifecycle/approval/tools.yaml.
+  - A checkpoint ID, a target iteration, and an approval signal are available as inputs.
+
+flow:
+  - id: F1
+    text: The history machine reads checkpoint state via checkpoint_history and exits Done on ToolDone or Failed on ToolFailed or CommandError.
+  - id: F2
+    text: The rollback machine rewrites a checkpoint via checkpoint_rollback with explicit checkpoint and target inputs and exits Done or Failed.
+  - id: F3
+    text: The approval machine suspends before the risky action via suspend and waits in AwaitingApproval.
+  - id: F4
+    text: A later resume with the Approved signal runs done and reaches the Succeeded terminal state, while the Rejected signal reaches the Rejected terminal state without running the approved path.
+  - id: F5
+    text: Suspend or resume infrastructure failures route through CommandError to the Failed terminal state.
+
+touchpoints:
+  - id: T1
+    target: srd009-lifecycle R1
+    reason: History, rollback, and approval are modeled as machine actions and visible signals.
+  - id: T2
+    target: srd009-lifecycle R2
+    reason: Lifecycle inputs and the checkpoint_history, checkpoint_rollback, suspend, and done tool families are profile-owned selections over agent-core lifecycle ports.
+  - id: T3
+    target: srd009-lifecycle R3
+    reason: Lifecycle outputs and Done, Succeeded, Rejected, or Failed terminal outcomes are checkable.
+  - id: T4
+    target: sm-agent-role-taxonomy lifecycle
+    reason: The role entry names the lifecycle actor boundary, inputs, selected tool families, outputs, and checks.
+  - id: T5
+    target: test-rel07.1-profile-boundaries lifecycle_profile_boundary
+    reason: The suite records the history, rollback, and approval machines, tool selections, and expected terminal states.
+
+success_criteria:
+  - id: S1
+    criterion: History and rollback run as single declared machine actions that read or rewrite checkpoint state and reach Done or Failed.
+    traces:
+      - srd009-lifecycle R1.1
+      - srd009-lifecycle R1.2
+      - srd009-lifecycle R3.1
+  - id: S2
+    criterion: Approval suspends as a machine action and resumes through explicit Approved or Rejected signals rather than hidden CLI branches.
+    traces:
+      - srd009-lifecycle R1.3
+      - srd009-lifecycle R2.2
+      - sm-agent-role-taxonomy lifecycle checks
+  - id: S3
+    criterion: Lifecycle terminal outcomes are Done, Succeeded, Rejected, or Failed.
+    traces:
+      - srd009-lifecycle R3.2
+
+out_of_scope:
+  - Reimplementing checkpoint or rollback storage in agent-profiles.
+  - Defining Go package APIs for the agent-core lifecycle ports or checkpoint store.
+  - Changing suspend, resume, or rollback semantics during this documentation update.
+
+test_suite_trace: test-rel07.1-profile-boundaries
+status: specified

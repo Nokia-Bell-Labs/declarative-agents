@@ -1,0 +1,127 @@
+id: test-rel07.1-profile-boundaries
+title: Test Suite for Release 07.1 Profile Boundaries
+release: "07.1"
+
+overview: |
+  This suite validates the per-family boundary use cases for the jurist,
+  lifecycle, and rest profiles. Release 07.0 gave dedicated boundary treatment to
+  evaluator, generator, planner, bench, monitor/control, and the
+  documentation-curator profiles. Release 07.1 closes the coverage gap for the
+  three families that were previously validated only by the generic rel06.0
+  mounted-profile and profile-validation use cases.
+
+  Each test case names the profile assets, machine word selection, tool
+  selection, inputs, and expected terminal states for one family, and traces to
+  the success criteria of its use case and to the family SRD.
+
+  The suite records evidence honestly. A test case is specified when the use
+  case and profile assets exist but no profile-owned Mage integration target
+  runs the flow yet. Profile-owned integration targets that exercise these
+  fixtures, mirroring magefiles/integration_*.go for the covered families, are a
+  deferred follow-up tracked in the road-map rel07.1 entry.
+
+traces:
+  - rel07.1-uc001-jurist-profile-boundary
+  - rel07.1-uc002-lifecycle-profile-boundary
+  - rel07.1-uc003-rest-profile-boundary
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../agent-core checkout.
+  - agent-profiles owns all profile paths, machines, tool selections, suites, REST definitions, and OpenAPI assets named by each test case.
+  - Profiles load through AGENT_PROFILES_ROOT or repository-relative paths.
+  - agent-core remains responsible for the specification validation tools, lifecycle ports and checkpoint store, and the reusable HTTP runtime.
+
+test_cases:
+  - use_case: rel07.1-uc001-jurist-profile-boundary
+    name: Jurist deterministic charter validation boundary
+    status: specified
+    description: |
+      Run the jurist profile against a target directory and the demo charter
+      suite. Confirm the machine runs the linear load, validate, and report
+      pipeline with no LLM tool family and produces a provenance-rich report for
+      both pass and fail outcomes.
+    inputs:
+      profile: agents/jurist/profile.yaml
+      machine: agents/jurist/machine.yaml
+      tools: agents/jurist/tools.yaml
+      charter_suite: agents/jurist/suites/demo-charter.yaml
+      target_directory: a specification corpus directory
+    expected:
+      selected_tools: [load_corpus, validate_specs, format_report]
+      llm_tool_family_selected: false
+      report_formatted_on_pass: true
+      report_formatted_on_fail: true
+      finding_provenance_fields: [suite, check, severity, message, file, line]
+      terminal_states: [Passed, Failed]
+    traces:
+      - rel07.1-uc001-jurist-profile-boundary S1
+      - rel07.1-uc001-jurist-profile-boundary S2
+      - rel07.1-uc001-jurist-profile-boundary S3
+      - srd005-jurist AC1
+      - srd005-jurist AC3
+      - sm-agent-role-taxonomy jurist
+
+  - use_case: rel07.1-uc002-lifecycle-profile-boundary
+    name: Lifecycle history, rollback, and approval boundary
+    status: specified
+    description: |
+      Run the history, rollback, and approval lifecycle programs. Confirm history
+      and rollback run as single declared machine actions, and confirm the
+      approval machine suspends and resumes through explicit Approved or Rejected
+      signals rather than hidden CLI branches.
+    inputs:
+      history_machine: agents/lifecycle/history.yaml
+      rollback_machine: agents/lifecycle/rollback.yaml
+      approval_machine: agents/lifecycle/approval/machine.yaml
+      history_rollback_tools: agents/lifecycle/tools.yaml
+      approval_tools: agents/lifecycle/approval/tools.yaml
+      checkpoint_id: a saved checkpoint ID
+      target_iteration: a rollback target iteration
+      approval_signal: Approved or Rejected
+    expected:
+      history_selected_tool: checkpoint_history
+      rollback_selected_tool: checkpoint_rollback
+      approval_selected_tools: [suspend, done]
+      suspend_is_machine_action: true
+      approved_reaches: Succeeded
+      rejected_reaches: Rejected
+      approved_path_skipped_on_reject: true
+      terminal_states: [Done, Succeeded, Rejected, Failed]
+    traces:
+      - rel07.1-uc002-lifecycle-profile-boundary S1
+      - rel07.1-uc002-lifecycle-profile-boundary S2
+      - rel07.1-uc002-lifecycle-profile-boundary S3
+      - srd009-lifecycle AC1
+      - srd009-lifecycle AC3
+      - sm-agent-role-taxonomy lifecycle
+
+  - use_case: rel07.1-uc003-rest-profile-boundary
+    name: REST client and server boundary words
+    status: specified
+    description: |
+      Run the sample REST flow and the ollama-* variant. Confirm client read,
+      async create and await, and server launch, await, and stop run as explicit
+      machine states, with REST authority in the profile-owned REST definitions
+      and OpenAPI imports that do not generate Go code.
+    inputs:
+      profile: agents/rest/profile.yaml
+      ollama_profile: agents/rest/ollama-profile.yaml
+      machine: agents/rest/machine.yaml
+      tools: agents/rest/tools.yaml
+      rest_definitions: agents/rest/rest.yaml
+      ollama_rest_definitions: agents/rest/ollama-rest.yaml
+      openapi_assets: [agents/rest/openapi/payments.yaml, agents/rest/openapi/ollama.yaml]
+    expected:
+      selected_tools: [get_payment, create_payment, await_payment, launch_payment_webhooks, await_payment_webhook, stop_payment_webhooks]
+      server_states_explicit: [LaunchingWebhook, WaitingWebhook, StoppingWebhook]
+      rest_authority_owner: profile
+      openapi_generates_go_code: false
+      listener_released_at_terminal: true
+      terminal_states: [Succeeded, Failed]
+    traces:
+      - rel07.1-uc003-rest-profile-boundary S1
+      - rel07.1-uc003-rest-profile-boundary S2
+      - rel07.1-uc003-rest-profile-boundary S3
+      - srd007-rest AC1
+      - srd007-rest AC3
+      - sm-agent-role-taxonomy rest

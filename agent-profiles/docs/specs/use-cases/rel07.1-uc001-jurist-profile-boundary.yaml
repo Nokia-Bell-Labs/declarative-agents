@@ -1,0 +1,85 @@
+id: rel07.1-uc001-jurist-profile-boundary
+title: Jurist Profile Boundary
+
+summary: |
+  The jurist profile proves a deterministic, LLM-free specification validator
+  boundary. A maintainer points the profile at a target directory and one or
+  more charter suites, and the machine runs a linear load, validate, and report
+  pipeline. The run produces a provenance-rich validation report and a Passed or
+  Failed terminal state.
+
+  The proof belongs in agent-profiles because the charter suites, the word
+  selection in agents/jurist/machine.yaml, and the tool selection in
+  agents/jurist/tools.yaml are profile-owned. agent-core supplies the
+  specification validation tools, but it should not encode the charter suites or
+  the target directory as core-owned assets.
+
+actor: Profile maintainer verifying jurist charter validation behavior.
+
+trigger: |
+  A maintainer runs the jurist profile against a target directory and a charter
+  suite:
+
+    agent --profile "$AGENT_PROFILES_ROOT/agents/jurist/profile.yaml" \
+          --directory <target-directory>
+
+preconditions:
+  - agents/jurist/profile.yaml validates and selects agents/jurist/machine.yaml and agents/jurist/tools.yaml.
+  - agents/jurist/tools.yaml selects load_corpus, validate_specs, and format_report with no LLM tool family.
+  - agents/jurist/suites/demo-charter.yaml supplies a deterministic charter suite over the target directory.
+
+flow:
+  - id: F1
+    text: The maintainer resolves the jurist profile from AGENT_PROFILES_ROOT or the repository checkout without developer-specific absolute paths.
+  - id: F2
+    text: The machine loads the specification corpus from the target directory in the Loading state via load_corpus.
+  - id: F3
+    text: The machine runs deterministic charter checks in the Validating state via validate_specs and emits ValidationPassed or ValidationFailed.
+  - id: F4
+    text: The machine formats a report in the Reporting state via format_report for both pass and fail outcomes.
+  - id: F5
+    text: The machine reaches the Passed or Failed terminal state, and findings identify suite, check, severity, message, and any file and line provenance.
+
+touchpoints:
+  - id: T1
+    target: srd005-jurist R1
+    reason: The jurist profile models deterministic, LLM-free, read-only corpus validation.
+  - id: T2
+    target: srd005-jurist R2
+    reason: Jurist inputs, the specification validation tool family, and corpus, graph, consistency, and report responsibilities are profile-owned.
+  - id: T3
+    target: srd005-jurist R3
+    reason: Jurist outputs are a formatted report, provenance-rich findings, and a Passed or Failed status.
+  - id: T4
+    target: sm-agent-role-taxonomy jurist
+    reason: The role entry names the jurist actor boundary, inputs, selected tool family, outputs, and checks.
+  - id: T5
+    target: test-rel07.1-profile-boundaries jurist_profile_boundary
+    reason: The suite records the profile, machine word selection, charter suite, and expected report shape.
+
+success_criteria:
+  - id: S1
+    criterion: The jurist profile selects load_corpus, validate_specs, and format_report and selects no LLM tool family.
+    traces:
+      - srd005-jurist R1.1
+      - srd005-jurist R2.2
+      - sm-agent-role-taxonomy jurist checks
+  - id: S2
+    criterion: Charter checks run deterministically and read-only over the target directory across repeated runs.
+    traces:
+      - srd005-jurist R1.2
+      - srd005-jurist R2.3
+  - id: S3
+    criterion: Both pass and fail outcomes produce a formatted report whose findings identify suite, check, severity, message, and available file and line provenance.
+    traces:
+      - srd005-jurist R3.1
+      - srd005-jurist R3.2
+      - srd005-jurist R3.3
+
+out_of_scope:
+  - Adding an LLM boundary or network access to charter validation.
+  - Defining Go package APIs for the agent-core specification validation tools.
+  - Changing charter check semantics during this documentation update.
+
+test_suite_trace: test-rel07.1-profile-boundaries
+status: specified

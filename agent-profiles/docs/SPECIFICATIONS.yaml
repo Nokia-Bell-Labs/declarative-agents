@@ -53,6 +53,15 @@ roadmap_summary:
       Implemented profile-owned tracer bullets for concrete profile state
       machines, profile-to-profile execution, and human/operator boundaries.
       The release proof is the profile-owned Mage integration target set.
+  - version: "07.1"
+    name: Per-family SRDs and profile coverage
+    status: in-progress
+    scope: |
+      Per-family SRDs replace the shared functional-block SRD, and per-family
+      boundary use cases plus a test suite cover the jurist, lifecycle, and rest
+      families that release 07.0 left to the generic mounted-profile and
+      profile-validation use cases. Profile-owned Mage integration targets for
+      the three families remain a deferred follow-up.
 
 foundation_document_index:
   - id: agent-profiles
@@ -199,6 +208,24 @@ use_case_index:
     summary: Monitor/control profile boundary and lifecycle tracer evidence.
     status: implemented
     path: docs/specs/use-cases/rel07.0-uc005-monitor-control-profile-boundary.yaml
+  - id: rel07.1-uc001-jurist-profile-boundary
+    title: Jurist Profile Boundary
+    summary: Deterministic, LLM-free charter validation from load through report
+      to a Passed or Failed terminal state.
+    status: specified
+    path: docs/specs/use-cases/rel07.1-uc001-jurist-profile-boundary.yaml
+  - id: rel07.1-uc002-lifecycle-profile-boundary
+    title: Lifecycle Profile Boundary
+    summary: History, rollback, and approval as machine actions with explicit
+      Approved or Rejected resume signals.
+    status: specified
+    path: docs/specs/use-cases/rel07.1-uc002-lifecycle-profile-boundary.yaml
+  - id: rel07.1-uc003-rest-profile-boundary
+    title: REST Profile Boundary
+    summary: Configured client and server boundary words, profile-owned REST
+      authority, OpenAPI imports, and the ollama-* variant.
+    status: specified
+    path: docs/specs/use-cases/rel07.1-uc003-rest-profile-boundary.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -215,6 +242,12 @@ test_suite_index:
       bench-evaluator, and monitor/control boundaries.
     status: implemented
     path: docs/specs/test-suites/test-rel07.0-profile-integrations.yaml
+  - id: test-rel07.1-profile-boundaries
+    title: Test Suite for Release 07.1 Profile Boundaries
+    summary: Boundary use-case validation for the jurist, lifecycle, and rest
+      families against their per-family SRD acceptance criteria.
+    status: specified
+    path: docs/specs/test-suites/test-rel07.1-profile-boundaries.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and
@@ -237,3 +270,15 @@ coverage_gaps: |
   bench-to-evaluator launch tracer, and monitor/control boundary tracer. The
   monitor/control target records profile-owned configuration evidence while
   agent-core retains runtime ownership for REST and lifecycle builtin behavior.
+
+  Release 07.1 adds per-family boundary use cases for the jurist, lifecycle, and
+  rest families, which release 07.0 covered only through the generic rel06.0
+  mounted-profile and profile-validation use cases. Every profile family now has
+  a dedicated boundary use case: evaluator, generator, planner, bench,
+  monitor/control, and documentation-curator through release 07.0, and jurist,
+  lifecycle, and rest through release 07.1. test-rel07.1-profile-boundaries
+  validates the three new use cases against their per-family SRD acceptance
+  criteria. The remaining gap is profile-owned Mage integration targets that
+  execute the jurist, lifecycle, and rest boundary fixtures; until those land the
+  three use cases and their test cases stay status specified rather than
+  implemented.
