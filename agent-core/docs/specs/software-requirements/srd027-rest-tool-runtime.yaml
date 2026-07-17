@@ -214,7 +214,7 @@ implementation_status:
     - tools/builtin/rest declarations selected by REST profiles and tests.
     - docs/specs/config-formats/rest-tool-format.yaml and docs/specs/semantic-models/rest-tool-language.yaml.
     - Release 03.0 formal test-suite entries in docs/specs/test-suites/test-rel03.0-rest-tools.yaml.
-    - Client safety and async request metadata: CIDR enforcement, response schema validation, domain_error_code output, correlation lookup, idempotency headers, and await_operation validation rejection.
+    - Client safety and async request metadata: CIDR enforcement, response schema validation, domain_error_code output, correlation lookup, idempotency headers, and await_operation polling with reference validation.
     - OpenAPI endpoint config preservation while importing transport and schema fields.
     - REST compensation undo mementos and rollback-time compensation execution for mutating client operations that declare compensation metadata.
     - machine_request terminal response schema validation before success responses.

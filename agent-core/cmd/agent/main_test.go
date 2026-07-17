@@ -204,8 +204,8 @@ func TestMainWiresExitAgentToDeferredShutdown(t *testing.T) {
 	source, err := os.ReadFile(filepath.Join(repoRootFromTest(t), "cmd", "agent", "main.go"))
 	require.NoError(t, err)
 
-	require.Contains(t, string(source), "shutdown:     shutdown.Request")
-	require.NotContains(t, string(source), "shutdown:     func() {}")
+	require.Regexp(t, `shutdown:\s+shutdown\.Request`, string(source))
+	require.NotRegexp(t, `shutdown:\s+func\(\) \{\}`, string(source))
 }
 
 func requireMainWiresMonitorRecorder(t *testing.T) {

@@ -10,6 +10,9 @@
 #         --machine agents/planner/machine.yaml
 
 tools:
+  # Graph loading — entry action for every variant
+  - load_graph           # action: full, plan-only, passthrough
+
   # Planning phase (plan-only + full)
   - extract_task         # action: full, plan-only
   - extract_all          # action: passthrough

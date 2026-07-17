@@ -94,9 +94,24 @@ type agentState struct {
 	request       string
 	output        string
 	checkpoint    core.Checkpoint
-	monitor       toolrest.MonitorState
-	restDefs      toolrest.Collection
-	shutdown      func()
+	// lifecycleCheckpoint is the backend the checkpoint_history/checkpoint_rollback
+	// tools read and revert through. For the history and rollback families it is
+	// pinned to the request's target run so the inspecting machine never persists
+	// over the run it inspects; otherwise it equals checkpoint.
+	lifecycleCheckpoint core.Checkpoint
+	monitor             toolrest.MonitorState
+	restDefs            toolrest.Collection
+	shutdown            func()
+}
+
+// checkpointForOps returns the backend the checkpoint history/rollback tools
+// operate through: the target-pinned lifecycle backend when set, else the
+// loop's own checkpoint backend.
+func (st *agentState) checkpointForOps() core.Checkpoint {
+	if st.lifecycleCheckpoint != nil {
+		return st.lifecycleCheckpoint
+	}
+	return st.checkpoint
 }
 
 type deferredShutdown struct {
@@ -214,6 +229,11 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		resources.shutdownTelemetry()
 		return preparedRun{}, err
 	}
+	lifecycleCheckpoint, err := resolveLifecycleCheckpoint(cfg, resources.Definitions, checkpoint)
+	if err != nil {
+		resources.shutdownTelemetry()
+		return preparedRun{}, err
+	}
 	loopCtx, loopCancel := context.WithCancel(commandContext(cmd))
 	shutdown := newDeferredShutdown(loopCancel)
 	monitorRuntime := newMonitorRuntime(resources.Machine, resources.Definitions, resources.RestDefinitions, resources.Meter)
@@ -222,14 +242,15 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	builtins := toolregistry.NewBuiltinRegistry()
 	policy := parseErrorPolicy(resources.Machine, selectedInits)
 	st := newAgentState(cfg, agentStateDeps{
-		Registry:     reg,
-		Tracer:       resources.Tracer,
-		Checkpoint:   checkpoint,
-		Ctx:          loopCtx,
-		Monitor:      monitorState(monitorRuntime.Store, &resources.Machine, resources.Definitions),
-		RestDefs:     resources.RestDefinitions,
-		shutdown:     shutdown.Request,
-		ParseRetries: policy.Retries,
+		Registry:            reg,
+		Tracer:              resources.Tracer,
+		Checkpoint:          checkpoint,
+		LifecycleCheckpoint: lifecycleCheckpoint,
+		Ctx:                 loopCtx,
+		Monitor:             monitorState(monitorRuntime.Store, &resources.Machine, resources.Definitions),
+		RestDefs:            resources.RestDefinitions,
+		shutdown:            shutdown.Request,
+		ParseRetries:        policy.Retries,
 	})
 
 	registerBuiltinFactories(builtins, st, selectedInits)
@@ -298,14 +319,15 @@ func parseErrorLimit(machine core.MachineSpec) int {
 }
 
 type agentStateDeps struct {
-	Registry     *core.Registry
-	Tracer       tracing.Tracer
-	Checkpoint   core.Checkpoint
-	Ctx          context.Context
-	Monitor      toolrest.MonitorState
-	RestDefs     toolrest.Collection
-	shutdown     func()
-	ParseRetries *toollm.ParseErrorRetryTracker
+	Registry            *core.Registry
+	Tracer              tracing.Tracer
+	Checkpoint          core.Checkpoint
+	LifecycleCheckpoint core.Checkpoint
+	Ctx                 context.Context
+	Monitor             toolrest.MonitorState
+	RestDefs            toolrest.Collection
+	shutdown            func()
+	ParseRetries        *toollm.ParseErrorRetryTracker
 }
 
 // checkpointOrNoop defaults an unset Checkpoint dependency to the no-op adapter.
@@ -320,20 +342,21 @@ func checkpointOrNoop(cp core.Checkpoint) core.Checkpoint {
 
 func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 	return &agentState{
-		conversation: llm.NewConversation(nil, "", llm.ChatOptions{}),
-		tracker:      validation.NewToolTracker(),
-		registry:     deps.Registry,
-		tracer:       deps.Tracer,
-		parseRetries: deps.ParseRetries,
-		verbose:      cfg.VerboseTrace,
-		ctx:          deps.Ctx,
-		directory:    cfg.Directory,
-		request:      cfg.Request,
-		output:       cfg.Output,
-		checkpoint:   checkpointOrNoop(deps.Checkpoint),
-		monitor:      deps.Monitor,
-		restDefs:     deps.RestDefs,
-		shutdown:     deps.shutdown,
+		conversation:        llm.NewConversation(nil, "", llm.ChatOptions{}),
+		tracker:             validation.NewToolTracker(),
+		registry:            deps.Registry,
+		tracer:              deps.Tracer,
+		parseRetries:        deps.ParseRetries,
+		verbose:             cfg.VerboseTrace,
+		ctx:                 deps.Ctx,
+		directory:           cfg.Directory,
+		request:             cfg.Request,
+		output:              cfg.Output,
+		checkpoint:          checkpointOrNoop(deps.Checkpoint),
+		lifecycleCheckpoint: deps.LifecycleCheckpoint,
+		monitor:             deps.Monitor,
+		restDefs:            deps.RestDefs,
+		shutdown:            deps.shutdown,
 	}
 }
 

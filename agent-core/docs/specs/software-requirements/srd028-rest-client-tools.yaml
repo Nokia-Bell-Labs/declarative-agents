@@ -256,7 +256,7 @@ implementation_status:
     - Async request state indexed by request_id with idempotency and correlation metadata recorded in accepted output.
     - CIDR allowlists are enforced while scheme, host, and port validation remains intact.
     - Response bodies are validated against configured response schemas before success signals, and domain_error_code is included in structured output when configured.
-    - Async await can select by correlation token. await_operation polling config is rejected during validation until implemented.
+    - Async await can select by correlation token and can poll a configured await_operation: the await resolves the referenced client operation and samples it until it maps its success status (completion, then reported as that operation's success signal) or the async timeout elapses (RESTAwaitTimedOut). await_operation is validated against the client's defined operations; an unknown reference is rejected.
     - Idempotency metadata is emitted on configured outbound async requests, and retry validation requires idempotency for mutating operations when configured.
     - Mutating REST client commands capture boundary compensation undo mementos with request, resource, idempotency, and compensation metadata. Read-only operations remain noop.
     - Persisted checkpoint rollback can execute boundary compensation when a caller supplies the core CompensationExecutor. internal/tools/rest provides a CompensationExecutor that decodes REST boundary mementos, resolves the configured compensation operation from trusted definitions, filters runtime parameters to declared inputs, and executes through the REST client path.

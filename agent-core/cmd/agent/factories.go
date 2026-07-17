@@ -199,7 +199,7 @@ func checkpointHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		return &lifecycle.CheckpointHistoryBuilder{Config: cfg, Checkpoint: st.checkpoint}, nil
+		return &lifecycle.CheckpointHistoryBuilder{Config: cfg, Checkpoint: st.checkpointForOps()}, nil
 	}
 }
 
@@ -209,7 +209,7 @@ func checkpointRollbackFactory(st *agentState) toolregistry.BuiltinFactory {
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
 			return nil, err
 		}
-		reverter, _ := st.checkpoint.(core.CheckpointReverter)
+		reverter, _ := st.checkpointForOps().(core.CheckpointReverter)
 		return &lifecycle.CheckpointRollbackBuilder{
 			Config:     cfg,
 			Checkpoint: reverter,

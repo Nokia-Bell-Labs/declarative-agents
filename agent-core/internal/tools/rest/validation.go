@@ -168,12 +168,12 @@ func addUnique(seen map[string]string, name, owner string) error {
 func validateClients(clients map[string]Client, retries map[string]RetryPolicy) error {
 	for clientName, client := range clients {
 		for resourceName, resource := range client.Resources {
-			if err := validateResource(clientName, resourceName, resource, retries[client.RetryRef]); err != nil {
+			if err := validateResource(clientName, resourceName, resource, retries[client.RetryRef], client.Operations); err != nil {
 				return err
 			}
 		}
 		for operationName, operation := range client.Operations {
-			if err := validateOperation(operationName, operation, false); err != nil {
+			if err := validateOperation(operationName, operation, false, client.Operations); err != nil {
 				return err
 			}
 			if err := validateAsyncRetry(operationName, operation, retries[client.RetryRef]); err != nil {
@@ -184,7 +184,7 @@ func validateClients(clients map[string]Client, retries map[string]RetryPolicy) 
 	return nil
 }
 
-func validateResource(clientName, resourceName string, resource Resource, retry RetryPolicy) error {
+func validateResource(clientName, resourceName string, resource Resource, retry RetryPolicy, clientOps map[string]Operation) error {
 	for verb, operation := range resource.Operations {
 		if !isResourceVerb(verb) {
 			return fmt.Errorf("resource %s.%s uses unsupported operation %q", clientName, resourceName, verb)
@@ -192,7 +192,7 @@ func validateResource(clientName, resourceName string, resource Resource, retry 
 		if operation.Path == "" {
 			operation.Path = resource.Path
 		}
-		if err := validateOperation(resourceName+"."+verb, operation, isMutatingVerb(verb)); err != nil {
+		if err := validateOperation(resourceName+"."+verb, operation, isMutatingVerb(verb), clientOps); err != nil {
 			return err
 		}
 		if err := validateAsyncRetry(resourceName+"."+verb, operation, retry); err != nil {
@@ -202,7 +202,7 @@ func validateResource(clientName, resourceName string, resource Resource, retry 
 	return nil
 }
 
-func validateOperation(name string, operation Operation, mutatingResource bool) error {
+func validateOperation(name string, operation Operation, mutatingResource bool, clientOps map[string]Operation) error {
 	if err := validateDeclaredInputs(name, operation); err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func validateOperation(name string, operation Operation, mutatingResource bool) 
 		}
 	}
 	if operation.Async != nil {
-		return validateAsyncOperation(name, *operation.Async)
+		return validateAsyncOperation(name, *operation.Async, clientOps)
 	}
 	return validateResponseMapping(name, operation.Response)
 }
@@ -230,7 +230,7 @@ func validateMutatingOperation(name string, operation Operation) error {
 	return nil
 }
 
-func validateAsyncOperation(name string, async AsyncClientConfig) error {
+func validateAsyncOperation(name string, async AsyncClientConfig, clientOps map[string]Operation) error {
 	if async.RequestID == "" {
 		return fmt.Errorf("operation %q async config requires request_id", name)
 	}
@@ -238,7 +238,9 @@ func validateAsyncOperation(name string, async AsyncClientConfig) error {
 		return fmt.Errorf("operation %q async config requires timeout", name)
 	}
 	if async.AwaitOperation != "" {
-		return fmt.Errorf("operation %q async await_operation is not supported", name)
+		if _, ok := clientOps[async.AwaitOperation]; !ok {
+			return fmt.Errorf("operation %q async await_operation %q is not a defined client operation", name, async.AwaitOperation)
+		}
 	}
 	return nil
 }

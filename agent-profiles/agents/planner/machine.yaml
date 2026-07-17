@@ -60,6 +60,8 @@ budget:
 states:
 - name: Idle
   meaning: Initial state before planning begins.
+- name: Loading
+  meaning: Loading the specification corpus and building the requirement graph.
 - name: Extracting
   meaning: |
     Selecting the next ready task from the requirement graph.
@@ -102,6 +104,8 @@ terminal_states:
 signals:
 - name: Seed
   trigger: Loop initialization.
+- name: GraphLoaded
+  trigger: The requirement graph was loaded and seeded into pipeline state.
 - name: TaskExtracted
   trigger: A task was extracted from the requirement graph.
 - name: AllDone
@@ -139,8 +143,15 @@ signals:
 transitions:
 - state: Idle
   signal: Seed
+  next: Loading
+  action: load_graph
+- state: Loading
+  signal: GraphLoaded
   next: Extracting
   action: extract_task
+- state: Loading
+  signal: CommandError
+  next: Failed
 - state: Extracting
   signal: TaskExtracted
   next: Resetting

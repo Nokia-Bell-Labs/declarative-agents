@@ -22,11 +22,14 @@ overview: |
   families carry a gate: generator is Ollama-gated (its first machine action is
   invoke_llm, which pings Ollama at tool registration), and lifecycle
   suspend/resume is Dolt-gated (suspend persists a checkpoint only when
-  --dolt-dsn names a running dolt sql-server). A case is specified when the
-  profile assets exist but an agent-core wiring gap blocks a hermetic run; the
-  planner and rest families are specified and tracked as blocked follow-ups
-  (#211 planner graph loading, #205 rest async await_operation). Lifecycle
-  history and rollback share srd009 but are a separate blocked follow-up (#209).
+  --dolt-dsn names a running dolt sql-server). The rest family proves its inbound
+  webhook server boundary to Succeeded (a bounded launch/await/stop machine over
+  the profile's REST config); its client create/await head is not run in a
+  profile machine because REST client tools enforce a declared-only runtime input
+  contract that the loop's verbatim output threading does not satisfy, so the
+  async await_operation polling that head relies on is proven at the agent-core
+  package level instead (rest.TestRESTClient_AwaitOperationPolling). All ten
+  families now have implemented conformance.
 
 traces:
   - srd002-generator
@@ -193,13 +196,41 @@ test_cases:
       Asserts the Approved path reaches Succeeded through the done tool and the
       Rejected path reaches Rejected, with no error-status spans on either. The
       test starts a throwaway dolt sql-server and skips where dolt is not
-      installed. History and rollback share srd009 but are blocked on an
-      agent-core request-wiring gap (#209).
+      installed. History and rollback share srd009 and are covered by a separate
+      case below.
     expected:
       asserted_tool_spans: [suspend, done]
       asserted_signals: [run.suspended]
       error_status_spans: 0
       terminal_states: [Succeeded, Rejected]
+    traces:
+      - srd009-lifecycle AC1
+      - srd009-lifecycle AC2
+      - srd009-lifecycle AC3
+      - sm-agent-role-taxonomy lifecycle
+
+  - family: lifecycle
+    name: Lifecycle history and rollback conformance
+    status: implemented
+    gate: dolt
+    test: conformance/lifecycle_history_rollback_test.go
+    description: |
+      Drives the standalone history and rollback lifecycle families
+      (rel02.0-uc002) against a checkpoint another run persisted. A suspend run
+      leaves a resumable run branch; the history and rollback profiles then
+      target that branch through the universal --request file (a checkpoint id
+      and, for rollback, a to_iteration). Asserts checkpoint_history reads the
+      target run and reaches Done, and checkpoint_rollback reverts the target run
+      to the requested iteration and reaches Done, with no error-status spans on
+      either. This closed the earlier agent-core gap where the request checkpoint
+      and to_iteration were not routed into the checkpoint backend or the tool
+      configs (#209); the read/rollback tools now run against a backend pinned to
+      the target run so the inspecting machine never persists over it. The test
+      starts a throwaway dolt sql-server and skips where dolt is not installed.
+    expected:
+      asserted_tool_spans: [checkpoint_history, checkpoint_rollback]
+      error_status_spans: 0
+      terminal_states: [Done]
     traces:
       - srd009-lifecycle AC1
       - srd009-lifecycle AC2
@@ -231,16 +262,25 @@ test_cases:
 
   - family: planner
     name: Planner requirement-graph conformance
-    status: specified
-    blocked_by: 211
+    status: implemented
+    test: conformance/planner_test.go
     description: |
-      A planner conformance test is specified but not implemented: agent-core has
-      no CLI mechanism to seed a requirement graph into pipeline.State, so the
-      planner's first extract_all action dereferences a nil graph and panics.
-      Until agent-core wires graph loading, this family stays specified rather
-      than implemented and is tracked as a blocked follow-up (#211).
+      Runs the planner pipeline's graph-loading boundary through a bounded
+      ephemeral machine. load_graph reads the specification corpus from the run
+      directory and builds the requirement graph into pipeline state, and
+      extract_all traverses it. Asserts both actions appear as tool spans, a
+      pipeline.graph_loaded event records the built graph, and the run reaches a
+      clean Completed terminal with no error-status spans. The corpus is
+      agent-core's own valid spec fixture, so the run is model-free and
+      child-free: the machine terminates after extraction rather than invoking
+      the LLM plan and generator execution tail. This closed the earlier
+      agent-core gap where the planner had no graph-loading word and extract_all
+      dereferenced a nil graph (#211).
     expected:
-      terminal_states: [Done]
+      asserted_tool_spans: [load_graph, extract_all]
+      asserted_events: [pipeline.graph_loaded]
+      error_status_spans: 0
+      terminal_states: [Completed]
     traces:
       - srd004-planner AC1
       - srd004-planner AC2
@@ -248,18 +288,29 @@ test_cases:
       - sm-agent-role-taxonomy planner
 
   - family: rest
-    name: REST client and server boundary conformance
-    status: specified
-    blocked_by: 205
+    name: REST inbound webhook server boundary conformance
+    status: implemented
+    go_test: conformance/rest_test.go
     description: |
-      A rest conformance test is specified but not implemented: the sample REST
-      profile's create_payment operation uses async await_operation, which
-      agent-core's REST validation layer rejects as unsupported, so the profile
-      fails to load. Until agent-core implements await_operation this family stays
-      specified rather than implemented and is tracked as a blocked follow-up
-      (#205).
+      Drives the rest sample profile's inbound webhook server boundary to a
+      Succeeded terminal. A bounded machine reuses the profile's REST config and
+      the launch/await/stop server words: the test rewrites the webhook server to
+      a free loopback port (and points the OpenAPI import at its absolute source),
+      launches the server, posts the configured inbound webhook, and asserts the
+      launch -> await -> stop vocabulary routes the enqueued signal to Succeeded
+      with no error-status spans. The client read/create/await head is not run in
+      a profile machine: REST client tools enforce a declared-only runtime input
+      contract while the loop threads each step's full output verbatim, so a
+      client step cannot follow another tool step and cannot be the first action
+      against the non-JSON default seed. The async await_operation polling the
+      profile's create/await grammar relies on is now implemented in agent-core
+      and covered hermetically by rest.TestRESTClient_AwaitOperationPolling
+      (create -> await_operation poll -> respond against a mock upstream); the
+      #205 load-time blocker (await_operation rejected during validation) is
+      resolved.
     expected:
       terminal_states: [Succeeded, Failed]
+      asserted_tool_spans: [launch_payment_webhooks, await_payment_webhook, stop_payment_webhooks]
     traces:
       - srd007-rest AC1
       - srd007-rest AC2

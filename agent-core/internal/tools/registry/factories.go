@@ -61,7 +61,7 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 		hookFactory("lifecycle", []string{"suspend", "checkpoint_history", "checkpoint_rollback", "exit_agent"}, deps.RegisterLifecycle),
 		hookFactory("validation", []string{"validate"}, deps.RegisterValidation),
 		hookFactory("control", []string{"self_invoke"}, deps.RegisterControl),
-		hookFactory("planning", []string{"extract_task", "extract_all", "assemble_prompt", "parse_plan", "create_issue", "execute_task", "check_result"}, deps.RegisterPlanning),
+		hookFactory("planning", []string{"load_graph", "extract_task", "extract_all", "assemble_prompt", "parse_plan", "create_issue", "execute_task", "check_result"}, deps.RegisterPlanning),
 		hookFactory("evaluation", []string{"parse_suite_config", "discover_suite_samples", "expand_eval_grid", "init_eval_session", "report_suite_summary", "next_point", "run_point", "report_session", "run_agent", "run_oracle_check", "collect_trace_tokens", "check_agent_version", "summarize_point_results", "collect_metrics", "dump_config"}, deps.RegisterEvaluation),
 		hookFactory("bench", []string{"serve_ui", "launch_eval"}, deps.RegisterBench),
 		hookFactory("spec_validation", []string{"load_corpus", "validate_specs", "format_report"}, deps.RegisterSpecValidation),
