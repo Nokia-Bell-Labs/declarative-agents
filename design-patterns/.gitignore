@@ -1,0 +1,5 @@
+# Generated build artifacts (rendered by `mage audit` / `mage build`).
+# `figures/*.png` needs a mid-pattern slash to anchor here; the root
+# .gitignore's `figures/*.png` only matches the repo-root figures/ dir.
+figures/*.png
+generated-files/
