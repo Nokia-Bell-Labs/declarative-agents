@@ -18,18 +18,44 @@ overview: |
   proof line is honest about its precondition.
 
   Evidence is recorded honestly per family. A case is implemented when its test
-  runs the flow and asserts the trace hermetically under AGENT_CORE_ROOT. Two
-  families carry a gate: generator is Ollama-gated (its first machine action is
-  invoke_llm, which pings Ollama at tool registration), and lifecycle
-  suspend/resume is Dolt-gated (suspend persists a checkpoint only when
-  --dolt-dsn names a running dolt sql-server). The rest family proves its inbound
-  webhook server boundary to Succeeded (a bounded launch/await/stop machine over
-  the profile's REST config); its client create/await head is not run in a
-  profile machine because REST client tools enforce a declared-only runtime input
-  contract that the loop's verbatim output threading does not satisfy, so the
-  async await_operation polling that head relies on is proven at the agent-core
-  package level instead (rest.TestRESTClient_AwaitOperationPolling). All ten
-  families now have implemented conformance.
+  runs the flow and asserts the trace hermetically under AGENT_CORE_ROOT.
+
+  Coverage is annotated per case with two dimensions so the shipped-vs-synthesized
+  and representative-vs-variant boundary is explicit rather than implied:
+
+  - shipped-behavioral: the case runs the wrapper an operator actually ships
+    (agents/<family>/profile.yaml or a named variant) through the CLI and asserts
+    its trace. Where the harness must control an environment-bound field it copies
+    the shipped profile tree and patches only that field — a listen address/port,
+    a corpus directory, or the iteration budget — never the machine, tools, or
+    wrapper (see conformance/serve.go CopyShippedProfile). No case reconstructs a
+    synthesized profile.
+  - load-and-wiring: an ungated, model-free companion assertion that parses the
+    shipped profile and machine YAML and checks the load and machine wiring the
+    behavioral run assumes. It needs no model or server, so it holds in the fast
+    default and where a gate is absent. The generator, planner, and rest families
+    carry a load-and-wiring companion alongside their gated behavioral runs.
+
+  Representative-vs-variant: the generator and rest families ship variants beyond
+  the representative profile.yaml, and each shipped variant is annotated with its
+  own coverage. The generator profile.yaml, profile-qwen35b.yaml, and
+  profile-qwen27b.yaml all run shipped-behavioral (Ollama-gated on their declared
+  model, skipping cleanly when it is absent). The rest ollama-profile.yaml runs
+  shipped-behavioral (Ollama-gated); the rest sample profile's inbound webhook
+  server boundary runs shipped-behavioral over the shipped REST config through a
+  bounded launch/await/stop machine, because its client create/await head cannot
+  run in a profile machine — REST client tools enforce a declared-only runtime
+  input contract that the loop's verbatim output threading does not satisfy, so
+  the async await_operation polling that head relies on is proven at the
+  agent-core package level instead (rest.TestRESTClient_AwaitOperationPolling).
+
+  Gates: generator and its qwen variants, the planner behavioral run, and the
+  rest ollama-profile variant are Ollama-gated (invoke_llm pings Ollama at tool
+  registration, so with no reachable model the profile cannot start); lifecycle
+  suspend/resume and history/rollback are Dolt-gated (checkpoints persist only
+  when --dolt-dsn names a running dolt sql-server). Their load-and-wiring
+  companions and the ungated families run without any gate. All ten families now
+  have implemented shipped-behavioral conformance.
 
 traces:
   - srd002-generator
@@ -58,6 +84,8 @@ test_cases:
     name: Jurist deterministic charter validation conformance
     status: implemented
     test: conformance/jurist_test.go
+    coverage: shipped-behavioral
+    coverage_note: Runs the shipped agents/jurist/profile.yaml directly against the demo-charter fixture; no field patched.
     description: |
       Runs the jurist profile against a specification corpus and the demo charter
       suite, then asserts the linear load, validate, and report pipeline in the
@@ -78,6 +106,8 @@ test_cases:
     name: Evaluator session pipeline conformance
     status: implemented
     test: conformance/evaluator_test.go
+    coverage: shipped-behavioral
+    coverage_note: Runs the shipped agents/evaluator/profile.yaml directly with a stub generator child on PATH; no field patched.
     description: |
       Runs the evaluator profile with a shell-script stub standing in for the
       generator child on PATH, then asserts the deterministic session pipeline
@@ -104,6 +134,8 @@ test_cases:
     name: Control signal-intake conformance
     status: implemented
     test: conformance/control_test.go
+    coverage: shipped-behavioral
+    coverage_note: Copies the shipped agents/control/profile.yaml and patches only the harness-controlled loopback address and port.
     description: |
       Launches the control profile with the async serve harness, waits for its
       health endpoint, posts a lifecycle exit request, and waits for the agent to
@@ -123,6 +155,8 @@ test_cases:
     name: Monitor read-only REST reader conformance
     status: implemented
     test: conformance/monitor_test.go
+    coverage: shipped-behavioral
+    coverage_note: Copies the shipped agents/monitor/profile.yaml and patches only the harness-controlled loopback listen address.
     description: |
       Launches the monitor profile with the async serve harness, waits for its
       state endpoint, posts a control exit request, and waits for the agent to
@@ -142,6 +176,8 @@ test_cases:
     name: Documentation-curator UX and REST workflow conformance
     status: implemented
     test: conformance/knowledge_manager_test.go
+    coverage: shipped-behavioral
+    coverage_note: Copies the shipped documentation-curator profile and patches only the four harness-controlled server addresses/ports and the corpus directories.
     description: |
       Launches the documentation-curator profile with the async serve harness and
       dynamic multi-server configuration, waits for the documentation API, posts a
@@ -168,6 +204,8 @@ test_cases:
     name: Bench serve_ui launcher conformance
     status: implemented
     test: conformance/bench_test.go
+    coverage: shipped-behavioral
+    coverage_note: Copies the shipped agents/bench/profile.yaml and patches only the hard-coded serve_ui listen address in builtin.yaml.
     description: |
       Launches the bench profile with the async serve harness, exercises the
       serve_ui UI action, requests a clean shutdown, and waits for the agent to
@@ -188,6 +226,8 @@ test_cases:
     status: implemented
     gate: dolt
     test: conformance/lifecycle_test.go
+    coverage: shipped-behavioral
+    coverage_note: Runs the shipped agents/lifecycle/approval/profile.yaml directly across the two suspend/resume CLI invocations; no field patched.
     description: |
       Drives the approval lifecycle profile across the two CLI invocations the
       suspend/resume flow requires. Run one dispatches the suspend tool, persists
@@ -214,6 +254,8 @@ test_cases:
     status: implemented
     gate: dolt
     test: conformance/lifecycle_history_rollback_test.go
+    coverage: shipped-behavioral
+    coverage_note: Runs the shipped agents/lifecycle/{approval,history,rollback}/profile.yaml directly against a persisted checkpoint; no field patched.
     description: |
       Drives the standalone history and rollback lifecycle families
       (rel02.0-uc002) against a checkpoint another run persisted. A suspend run
@@ -242,14 +284,37 @@ test_cases:
     status: implemented
     gate: ollama
     test: conformance/generator_test.go
+    coverage: shipped-behavioral
+    coverage_note: |
+      Copies the shipped generator profile and patches only the machine's
+      max_iterations to 1, so exactly one invoke_llm fires and the run reaches
+      BudgetExceeded — the shipped machine, tools, LLM declaration, and
+      tool_config_dirs run as shipped. The variants below are annotated
+      individually.
+    variants:
+      - profile: agents/generator/profile.yaml
+        model: qwen3.6:35b-mlx
+        coverage: shipped-behavioral
+        test: conformance/generator_test.go TestGeneratorConformance
+      - profile: agents/generator/profile-qwen35b.yaml
+        model: qwen3.6:35b-mlx
+        coverage: shipped-behavioral
+        test: conformance/generator_test.go TestGeneratorQwen35bConformance
+      - profile: agents/generator/profile-qwen27b.yaml
+        model: qwen3.6:27b-mlx
+        coverage: shipped-behavioral
+        test: conformance/generator_test.go TestGeneratorQwen27bConformance
     description: |
-      Runs the generator profile through an ephemeral machine bounded to one
-      iteration so exactly one invoke_llm call fires and the run reaches
+      Runs each shipped generator profile (representative profile.yaml plus the
+      profile-qwen35b and profile-qwen27b variants) with the machine bounded to a
+      single iteration by patching only max_iterations on a copied shipped
+      profile, so exactly one invoke_llm call fires and the run reaches
       BudgetExceeded deterministically rather than a full coding session. Asserts
       a gen_ai chat span for the configured model appears under a single root with
-      no error-status spans. The whole run is Ollama-gated: invoke_llm pings
-      Ollama at tool registration, so with no reachable model the profile cannot
-      start and the test skips.
+      no error-status spans. Each run is Ollama-gated on its declared model:
+      invoke_llm pings Ollama at tool registration, so with no reachable model the
+      profile cannot start and the variant skips cleanly. TestGeneratorShippedProfileWiring
+      is the ungated load-and-wiring companion (see the row below).
     expected:
       asserted_span_prefixes: ["chat "]
       error_status_spans: 0
@@ -260,59 +325,149 @@ test_cases:
       - srd002-generator AC3
       - sm-agent-role-taxonomy generator
 
+  - family: generator
+    name: Generator shipped-profile load and machine wiring
+    status: implemented
+    test: conformance/generator_test.go TestGeneratorShippedProfileWiring
+    coverage: load-and-wiring
+    coverage_note: Ungated, model-free; parses the three shipped generator profiles and the shared machine.
+    description: |
+      Asserts, without a model, that all three shipped generator profiles
+      reference the shared machine.yaml, the tools manifest, and an invoke_llm LLM
+      declaration, and that the shared machine seeds invoke_llm from Idle and
+      drains its iteration budget to BudgetExceeded — the wiring the bounded
+      behavioral runs assume. Holds in the fast default and where Ollama is absent.
+    traces:
+      - srd002-generator AC1
+      - srd002-generator AC3
+      - sm-agent-role-taxonomy generator
+
   - family: planner
     name: Planner requirement-graph conformance
     status: implemented
-    test: conformance/planner_test.go
+    gate: ollama
+    test: conformance/planner_test.go TestPlannerConformance
+    coverage: shipped-behavioral
+    coverage_note: |
+      Runs the shipped agents/planner/profile.yaml directly against agent-core's
+      valid spec fixture; no field patched. Exercised to the requirement-graph
+      boundary only — the shipped machine declares invoke_llm (Ollama-gated), and
+      the full pipeline tail beyond the graph boundary needs a beads project, a
+      generator child, and the Go toolchain the harness does not provide, so no
+      clean terminal is asserted.
     description: |
-      Runs the planner pipeline's graph-loading boundary through a bounded
-      ephemeral machine. load_graph reads the specification corpus from the run
-      directory and builds the requirement graph into pipeline state, and
-      extract_all traverses it. Asserts both actions appear as tool spans, a
-      pipeline.graph_loaded event records the built graph, and the run reaches a
-      clean Completed terminal with no error-status spans. The corpus is
-      agent-core's own valid spec fixture, so the run is model-free and
-      child-free: the machine terminates after extraction rather than invoking
-      the LLM plan and generator execution tail. This closed the earlier
-      agent-core gap where the planner had no graph-loading word and extract_all
-      dereferenced a nil graph (#211).
+      Runs the shipped planner profile through its graph-loading boundary.
+      load_graph reads the specification corpus from the run directory and builds
+      the requirement graph into pipeline state, and extract_task traverses it.
+      Asserts both actions appear as tool spans under a single root and a
+      pipeline.graph_loaded event records the built graph. The run is Ollama-gated
+      (the shipped machine's invoke_llm pings Ollama at tool registration) and is
+      exercised to the graph boundary and no further; the remaining boundary
+      wiring is proven ungated by TestPlannerShippedProfileWiring (see the row
+      below). This closed the earlier agent-core gap where the planner had no
+      graph-loading word and task extraction dereferenced a nil graph (#211).
     expected:
-      asserted_tool_spans: [load_graph, extract_all]
+      asserted_tool_spans: [load_graph, extract_task]
       asserted_events: [pipeline.graph_loaded]
-      error_status_spans: 0
-      terminal_states: [Completed]
     traces:
       - srd004-planner AC1
       - srd004-planner AC2
-      - srd004-planner AC3
+      - sm-agent-role-taxonomy planner
+
+  - family: planner
+    name: Planner shipped-profile load and machine wiring
+    status: implemented
+    test: conformance/planner_test.go TestPlannerShippedProfileWiring
+    coverage: load-and-wiring
+    coverage_note: Ungated, model-free; parses the shipped planner profile and machine.
+    description: |
+      Asserts, without a model, that the shipped planner profile references its
+      own machine and tools, the machine seeds load_graph from Idle, and the
+      loaded graph hands off to extract_task — the graph-boundary wiring the
+      Ollama-gated behavioral run assumes. Holds in the fast default and where
+      Ollama is absent.
+    traces:
+      - srd004-planner AC1
       - sm-agent-role-taxonomy planner
 
   - family: rest
     name: REST inbound webhook server boundary conformance
     status: implemented
-    go_test: conformance/rest_test.go
+    test: conformance/rest_test.go TestRestConformance
+    coverage: shipped-behavioral
+    coverage_note: |
+      Runs the shipped rest sample REST config and declarations for the inbound
+      webhook boundary, patching only the harness-controlled listen address and
+      OpenAPI import path. The launch/await/stop server words run through a bounded
+      machine because the shipped machine's client read/create/await head cannot
+      run in a profile machine (recorded reason below); this is the documented
+      exception, not a rebuilt wrapper.
     description: |
       Drives the rest sample profile's inbound webhook server boundary to a
-      Succeeded terminal. A bounded machine reuses the profile's REST config and
-      the launch/await/stop server words: the test rewrites the webhook server to
-      a free loopback port (and points the OpenAPI import at its absolute source),
-      launches the server, posts the configured inbound webhook, and asserts the
-      launch -> await -> stop vocabulary routes the enqueued signal to Succeeded
-      with no error-status spans. The client read/create/await head is not run in
-      a profile machine: REST client tools enforce a declared-only runtime input
-      contract while the loop threads each step's full output verbatim, so a
-      client step cannot follow another tool step and cannot be the first action
-      against the non-JSON default seed. The async await_operation polling the
-      profile's create/await grammar relies on is now implemented in agent-core
-      and covered hermetically by rest.TestRESTClient_AwaitOperationPolling
+      Succeeded terminal. A bounded machine reuses the shipped profile's REST
+      config, declarations, and the launch/await/stop server words: the test binds
+      the webhook server to a free loopback port (and points the OpenAPI import at
+      its source), launches the server, posts the configured inbound webhook, and
+      asserts the launch -> await -> stop vocabulary routes the enqueued signal to
+      Succeeded with no error-status spans. The client read/create/await head is
+      not run in a profile machine: REST client tools enforce a declared-only
+      runtime input contract while the loop threads each step's full output
+      verbatim, so a client step cannot follow another tool step and cannot be the
+      first action against the non-JSON default seed. The async await_operation
+      polling the profile's create/await grammar relies on is implemented in
+      agent-core and covered hermetically by rest.TestRESTClient_AwaitOperationPolling
       (create -> await_operation poll -> respond against a mock upstream); the
       #205 load-time blocker (await_operation rejected during validation) is
       resolved.
     expected:
-      terminal_states: [Succeeded, Failed]
+      terminal_states: [Succeeded]
       asserted_tool_spans: [launch_payment_webhooks, await_payment_webhook, stop_payment_webhooks]
     traces:
       - srd007-rest AC1
       - srd007-rest AC2
       - srd007-rest AC3
+      - sm-agent-role-taxonomy rest
+
+  - family: rest
+    name: REST ollama-profile variant conformance
+    status: implemented
+    gate: ollama
+    test: conformance/rest_test.go TestRestOllamaConformance
+    coverage: shipped-behavioral
+    coverage_note: |
+      Runs the shipped agents/rest/ollama-profile.yaml directly; no field patched.
+      Unlike the sample machine's machine-sequenced client head, the model-selected
+      REST client word runs in-profile because the model chooses it and its
+      upstream is the local Ollama itself.
+    description: |
+      Runs the shipped rest ollama-profile variant exactly as shipped. The model
+      boundary (invoke_llm, Qwen) selects the live OpenAPI-backed REST word
+      ollama_list_models, whose upstream is the local Ollama. Asserts a chat
+      model-boundary span and the ollama_list_models tool span under a single
+      root, and a non-failure shipped terminal (Succeeded or BudgetExceeded). The
+      exit code is not asserted because it varies with the terminal. Ollama-gated;
+      skips cleanly when the model is absent.
+    expected:
+      asserted_span_prefixes: ["chat "]
+      asserted_tool_spans: [ollama_list_models]
+      terminal_states: [Succeeded, BudgetExceeded]
+    traces:
+      - srd007-rest AC1
+      - srd007-rest AC2
+      - sm-agent-role-taxonomy rest
+
+  - family: rest
+    name: REST shipped-profile load and machine wiring
+    status: implemented
+    test: conformance/rest_test.go TestRestShippedProfileWiring
+    coverage: load-and-wiring
+    coverage_note: Ungated, model-free; parses the shipped rest sample machine and the ollama-profile variant.
+    description: |
+      Asserts, without a model or server, that the shipped rest sample machine
+      wires the launch -> await -> stop inbound webhook boundary the bounded
+      behavioral run drives, and that the shipped ollama-profile.yaml references
+      its own machine, tools, Ollama LLM declaration, and REST definitions. Holds
+      in the fast default and where Ollama is absent.
+    traces:
+      - srd007-rest AC1
       - sm-agent-role-taxonomy rest
