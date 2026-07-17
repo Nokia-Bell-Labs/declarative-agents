@@ -231,8 +231,9 @@ releases:
         magefiles/integration_*.go for the covered families. Until those land the
         three use cases and their test cases stay status specified rather than
         implemented.
-      - Conformance coverage for the rest family and for lifecycle history and
-        rollback, blocked on agent-core gaps — rest async await_operation (#205)
-        and lifecycle history/rollback request wiring (#209). Planner conformance
-        (#211) is delivered — agent-core gained a load_graph pipeline word that
-        seeds the requirement graph before extraction.
+      - Conformance coverage for the rest family, blocked on the agent-core async
+        await_operation gap (#205). Planner conformance (#211) is delivered —
+        agent-core gained a load_graph pipeline word that seeds the requirement
+        graph before extraction. Lifecycle history/rollback conformance (#209) is
+        delivered — agent-core routes the --request checkpoint id and to_iteration
+        into a target-pinned checkpoint backend and the tool configs.

@@ -298,8 +298,9 @@ coverage_gaps: |
   trace (span vocabulary and terminal state), tracing every family to its
   srd002-srd011 acceptance criteria and sm-agent-role-taxonomy role. Nine
   families are implemented hermetically under AGENT_CORE_ROOT (generator is
-  Ollama-gated, lifecycle suspend/resume is Dolt-gated). Planner conformance
-  landed once agent-core gained a load_graph pipeline word that seeds the
-  requirement graph. The rest family and lifecycle history/rollback stay status
-  specified, blocked on agent-core gaps tracked as follow-ups: rest async
-  await_operation and lifecycle history/rollback request wiring.
+  Ollama-gated, lifecycle suspend/resume and history/rollback are Dolt-gated).
+  Planner conformance landed once agent-core gained a load_graph pipeline word
+  that seeds the requirement graph, and lifecycle history/rollback landed once
+  agent-core routed the --request checkpoint id and to_iteration into a
+  target-pinned checkpoint backend and the tool configs. The rest family stays
+  status specified, blocked on the agent-core async await_operation gap.

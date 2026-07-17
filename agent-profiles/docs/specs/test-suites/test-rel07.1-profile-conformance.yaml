@@ -25,8 +25,7 @@ overview: |
   --dolt-dsn names a running dolt sql-server). A case is specified when the
   profile assets exist but an agent-core wiring gap blocks a hermetic run; the
   rest family is specified and tracked as a blocked follow-up (#205 rest async
-  await_operation). Lifecycle history and rollback share srd009 but are a
-  separate blocked follow-up (#209).
+  await_operation).
 
 traces:
   - srd002-generator
@@ -193,13 +192,41 @@ test_cases:
       Asserts the Approved path reaches Succeeded through the done tool and the
       Rejected path reaches Rejected, with no error-status spans on either. The
       test starts a throwaway dolt sql-server and skips where dolt is not
-      installed. History and rollback share srd009 but are blocked on an
-      agent-core request-wiring gap (#209).
+      installed. History and rollback share srd009 and are covered by a separate
+      case below.
     expected:
       asserted_tool_spans: [suspend, done]
       asserted_signals: [run.suspended]
       error_status_spans: 0
       terminal_states: [Succeeded, Rejected]
+    traces:
+      - srd009-lifecycle AC1
+      - srd009-lifecycle AC2
+      - srd009-lifecycle AC3
+      - sm-agent-role-taxonomy lifecycle
+
+  - family: lifecycle
+    name: Lifecycle history and rollback conformance
+    status: implemented
+    gate: dolt
+    test: conformance/lifecycle_history_rollback_test.go
+    description: |
+      Drives the standalone history and rollback lifecycle families
+      (rel02.0-uc002) against a checkpoint another run persisted. A suspend run
+      leaves a resumable run branch; the history and rollback profiles then
+      target that branch through the universal --request file (a checkpoint id
+      and, for rollback, a to_iteration). Asserts checkpoint_history reads the
+      target run and reaches Done, and checkpoint_rollback reverts the target run
+      to the requested iteration and reaches Done, with no error-status spans on
+      either. This closed the earlier agent-core gap where the request checkpoint
+      and to_iteration were not routed into the checkpoint backend or the tool
+      configs (#209); the read/rollback tools now run against a backend pinned to
+      the target run so the inspecting machine never persists over it. The test
+      starts a throwaway dolt sql-server and skips where dolt is not installed.
+    expected:
+      asserted_tool_spans: [checkpoint_history, checkpoint_rollback]
+      error_status_spans: 0
+      terminal_states: [Done]
     traces:
       - srd009-lifecycle AC1
       - srd009-lifecycle AC2
