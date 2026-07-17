@@ -791,40 +791,6 @@ type staticBuilder struct {
 
 func (s *staticBuilder) Build(_ Result) Command { return s.cmd }
 
-func singleCommandLoopParams(tr tracing.Tracer, cmd Command) LoopParams {
-	reg := NewRegistry()
-	reg.Register(ToolSpec{Name: cmd.Name(), Visibility: Internal}, &staticBuilder{cmd: cmd})
-	b, _ := reg.Resolve(cmd.Name())
-	return LoopParams{
-		InitialState: "Start",
-		Registry:     reg,
-		Table: TransitionTable{
-			{State: "Start", Signal: Seed}: {
-				NextState: "Working",
-				Action:    func(r Result) Command { return b.Build(r) },
-			},
-			{State: "Working", Signal: TaskCompleted}: {
-				NextState: "Finished",
-			},
-			{State: "Working", Signal: CommandError}: {
-				NextState: "Failed",
-			},
-		},
-		IsTerminal: func(s State) bool { return s == "Finished" || s == "Failed" },
-		Trace:      tr,
-		Budget:     Budget{MaxIterations: 10},
-		Hooks: LoopHooks{
-			TerminalStatus: func(s State) RunStatus {
-				if s == "Finished" {
-					return StatusSucceeded
-				}
-				return StatusFailed
-			},
-			TaskCompletedSignal: TaskCompleted,
-		},
-	}
-}
-
 func suspendLoopParams(tr tracing.Tracer, builder Builder) LoopParams {
 	reg := NewRegistry()
 	reg.Register(ToolSpec{Name: "suspend", Visibility: Internal}, builder)
