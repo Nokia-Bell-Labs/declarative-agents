@@ -1,0 +1,267 @@
+id: test-rel07.1-profile-conformance
+title: Test Suite for Release 07.1 Profile Conformance
+release: "07.1"
+
+overview: |
+  This suite is the executable, per-family conformance layer for the profile
+  boundaries that test-rel07.1-profile-boundaries specifies. Each test case runs
+  one family's profile through the agent-core CLI, captures its OpenTelemetry
+  trace, and asserts on the observed span vocabulary and terminal state rather
+  than on prose. The suite covers all ten profile families and traces each one to
+  its per-family SRD acceptance criteria (srd002 through srd011) and to its
+  sm-agent-role-taxonomy role.
+
+  The integration target is `mage conformance`, which runs `go test
+  ./conformance`. The tests build the agent binary from AGENT_CORE_ROOT (or a
+  sibling ../agent-core checkout) and parse the stdouttrace JSON the run emits;
+  with AGENT_CORE_ROOT unset the whole suite skips rather than fails, so the
+  proof line is honest about its precondition.
+
+  Evidence is recorded honestly per family. A case is implemented when its test
+  runs the flow and asserts the trace hermetically under AGENT_CORE_ROOT. Two
+  families carry a gate: generator is Ollama-gated (its first machine action is
+  invoke_llm, which pings Ollama at tool registration), and lifecycle
+  suspend/resume is Dolt-gated (suspend persists a checkpoint only when
+  --dolt-dsn names a running dolt sql-server). A case is specified when the
+  profile assets exist but an agent-core wiring gap blocks a hermetic run; the
+  planner and rest families are specified and tracked as blocked follow-ups
+  (#211 planner graph loading, #205 rest async await_operation). Lifecycle
+  history and rollback share srd009 but are a separate blocked follow-up (#209).
+
+traces:
+  - srd002-generator
+  - srd003-evaluator
+  - srd004-planner
+  - srd005-jurist
+  - srd006-bench
+  - srd007-rest
+  - srd008-monitor
+  - srd009-lifecycle
+  - srd010-control
+  - srd011-knowledge-manager
+  - sm-agent-role-taxonomy
+
+integration_target: mage conformance
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../agent-core checkout; with neither set the suite skips.
+  - agent-profiles owns all profile paths, machines, tool selections, REST definitions, and OpenAPI assets named by each test case.
+  - The harness builds the agent binary from AGENT_CORE_ROOT and asserts on the stdouttrace OpenTelemetry output it captures per run.
+  - The generator case additionally requires a local Ollama serving the configured model; it skips otherwise.
+  - The lifecycle case additionally requires a local dolt binary; it starts a throwaway dolt sql-server and skips where dolt is not installed.
+
+test_cases:
+  - family: jurist
+    name: Jurist deterministic charter validation conformance
+    status: implemented
+    test: conformance/jurist_test.go
+    description: |
+      Runs the jurist profile against a specification corpus and the demo charter
+      suite, then asserts the linear load, validate, and report pipeline in the
+      trace with no LLM tool family, a single root span, and no error-status
+      spans. Covers both the Passed and Failed terminal outcomes.
+    expected:
+      asserted_tool_spans: [load_corpus, validate_specs, format_report]
+      llm_tool_family_selected: false
+      error_status_spans: 0
+      terminal_states: [Passed, Failed]
+    traces:
+      - srd005-jurist AC1
+      - srd005-jurist AC2
+      - srd005-jurist AC3
+      - sm-agent-role-taxonomy jurist
+
+  - family: evaluator
+    name: Evaluator session pipeline conformance
+    status: implemented
+    test: conformance/evaluator_test.go
+    description: |
+      Runs the evaluator profile with a shell-script stub standing in for the
+      generator child on PATH, then asserts the deterministic session pipeline
+      vocabulary in the trace under a single root with no error-status spans.
+    expected:
+      asserted_tool_spans:
+        - parse_suite_config
+        - discover_suite_samples
+        - expand_eval_grid
+        - init_eval_session
+        - report_suite_summary
+        - next_point
+        - run_point
+        - report_session
+      error_status_spans: 0
+      terminal_states: [Done]
+    traces:
+      - srd003-evaluator AC1
+      - srd003-evaluator AC2
+      - srd003-evaluator AC3
+      - sm-agent-role-taxonomy evaluator
+
+  - family: control
+    name: Control signal-intake conformance
+    status: implemented
+    test: conformance/control_test.go
+    description: |
+      Launches the control profile with the async serve harness, waits for its
+      health endpoint, posts a lifecycle exit request, and waits for the agent to
+      exit. Asserts the launch, await, and exit vocabulary in the trace and a
+      Succeeded terminal state with no error-status spans.
+    expected:
+      asserted_tool_spans: [launch_agent_control, await_agent_control, exit_agent]
+      error_status_spans: 0
+      terminal_states: [Succeeded]
+    traces:
+      - srd010-control AC1
+      - srd010-control AC2
+      - srd010-control AC3
+      - sm-agent-role-taxonomy control
+
+  - family: monitor
+    name: Monitor read-only REST reader conformance
+    status: implemented
+    test: conformance/monitor_test.go
+    description: |
+      Launches the monitor profile with the async serve harness, waits for its
+      state endpoint, posts a control exit request, and waits for the agent to
+      exit. Asserts the launch, await, and stop vocabulary in the trace and a
+      Done terminal state with no error-status spans.
+    expected:
+      asserted_tool_spans: [launch_monitor_rest, await_monitor_control, stop_monitor_rest]
+      error_status_spans: 0
+      terminal_states: [Done]
+    traces:
+      - srd008-monitor AC1
+      - srd008-monitor AC2
+      - srd008-monitor AC3
+      - sm-agent-role-taxonomy monitor
+
+  - family: knowledge-manager
+    name: Documentation-curator UX and REST workflow conformance
+    status: implemented
+    test: conformance/knowledge_manager_test.go
+    description: |
+      Launches the documentation-curator profile with the async serve harness and
+      dynamic multi-server configuration, waits for the documentation API, posts a
+      lifecycle exit, and waits for the agent to exit. Asserts the documentation
+      host, control launch/await, monitor launch/stop, and exit_agent vocabulary
+      in the trace and a Done terminal state with no error-status spans.
+    expected:
+      asserted_tool_spans:
+        - serve_documentation
+        - launch_curator_control
+        - launch_monitor_rest
+        - await_curator_control
+        - exit_agent
+        - stop_monitor_rest
+      error_status_spans: 0
+      terminal_states: [Done]
+    traces:
+      - srd011-knowledge-manager AC1
+      - srd011-knowledge-manager AC2
+      - srd011-knowledge-manager AC3
+      - sm-agent-role-taxonomy knowledge-manager
+
+  - family: bench
+    name: Bench serve_ui launcher conformance
+    status: implemented
+    test: conformance/bench_test.go
+    description: |
+      Launches the bench profile with the async serve harness, exercises the
+      serve_ui UI action, requests a clean shutdown, and waits for the agent to
+      exit. Asserts the serve_ui vocabulary in the trace and a Done terminal state
+      with no error-status spans.
+    expected:
+      asserted_tool_spans: [serve_ui]
+      error_status_spans: 0
+      terminal_states: [Done]
+    traces:
+      - srd006-bench AC1
+      - srd006-bench AC2
+      - srd006-bench AC3
+      - sm-agent-role-taxonomy bench
+
+  - family: lifecycle
+    name: Lifecycle approval suspend and resume conformance
+    status: implemented
+    gate: dolt
+    test: conformance/lifecycle_test.go
+    description: |
+      Drives the approval lifecycle profile across the two CLI invocations the
+      suspend/resume flow requires. Run one dispatches the suspend tool, persists
+      a checkpoint through the Dolt backend, and exits with a run.suspended
+      signal; run two resumes the persisted run branch with an explicit signal.
+      Asserts the Approved path reaches Succeeded through the done tool and the
+      Rejected path reaches Rejected, with no error-status spans on either. The
+      test starts a throwaway dolt sql-server and skips where dolt is not
+      installed. History and rollback share srd009 but are blocked on an
+      agent-core request-wiring gap (#209).
+    expected:
+      asserted_tool_spans: [suspend, done]
+      asserted_signals: [run.suspended]
+      error_status_spans: 0
+      terminal_states: [Succeeded, Rejected]
+    traces:
+      - srd009-lifecycle AC1
+      - srd009-lifecycle AC2
+      - srd009-lifecycle AC3
+      - sm-agent-role-taxonomy lifecycle
+
+  - family: generator
+    name: Generator model-boundary conformance
+    status: implemented
+    gate: ollama
+    test: conformance/generator_test.go
+    description: |
+      Runs the generator profile through an ephemeral machine bounded to one
+      iteration so exactly one invoke_llm call fires and the run reaches
+      BudgetExceeded deterministically rather than a full coding session. Asserts
+      a gen_ai chat span for the configured model appears under a single root with
+      no error-status spans. The whole run is Ollama-gated: invoke_llm pings
+      Ollama at tool registration, so with no reachable model the profile cannot
+      start and the test skips.
+    expected:
+      asserted_span_prefixes: ["chat "]
+      error_status_spans: 0
+      terminal_states: [BudgetExceeded]
+    traces:
+      - srd002-generator AC1
+      - srd002-generator AC2
+      - srd002-generator AC3
+      - sm-agent-role-taxonomy generator
+
+  - family: planner
+    name: Planner requirement-graph conformance
+    status: specified
+    blocked_by: 211
+    description: |
+      A planner conformance test is specified but not implemented: agent-core has
+      no CLI mechanism to seed a requirement graph into pipeline.State, so the
+      planner's first extract_all action dereferences a nil graph and panics.
+      Until agent-core wires graph loading, this family stays specified rather
+      than implemented and is tracked as a blocked follow-up (#211).
+    expected:
+      terminal_states: [Done]
+    traces:
+      - srd004-planner AC1
+      - srd004-planner AC2
+      - srd004-planner AC3
+      - sm-agent-role-taxonomy planner
+
+  - family: rest
+    name: REST client and server boundary conformance
+    status: specified
+    blocked_by: 205
+    description: |
+      A rest conformance test is specified but not implemented: the sample REST
+      profile's create_payment operation uses async await_operation, which
+      agent-core's REST validation layer rejects as unsupported, so the profile
+      fails to load. Until agent-core implements await_operation this family stays
+      specified rather than implemented and is tracked as a blocked follow-up
+      (#205).
+    expected:
+      terminal_states: [Succeeded, Failed]
+    traces:
+      - srd007-rest AC1
+      - srd007-rest AC2
+      - srd007-rest AC3
+      - sm-agent-role-taxonomy rest
