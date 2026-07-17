@@ -200,6 +200,9 @@ releases:
       - id: gh-195
         summary: Add an executable per-family OpenTelemetry conformance suite (mage conformance) covering all ten profile families against srd002-srd011.
         status: done
+      - id: gh-229
+        summary: Exercise the shipped profile.yaml wrappers and their variants behaviorally in conformance instead of synthesized reconstructions — copy-and-patch only harness-controlled fields (addresses, ports, corpus dirs, iteration budget) — and record per-family and per-variant coverage (shipped-behavioral vs load-and-wiring) with reasons.
+        status: done
     deliverables:
       - docs/specs/software-requirements/srd002-generator.yaml through
         srd011-knowledge-manager.yaml define per-family functional blocks.
@@ -212,9 +215,14 @@ releases:
         cases for the previously uncovered families.
       - docs/specs/test-suites/test-rel07.1-profile-boundaries.yaml validates the
         three boundary use cases against the family SRD acceptance criteria.
-      - docs/specs/test-suites/test-rel07.1-profile-conformance.yaml records the
+      -       docs/specs/test-suites/test-rel07.1-profile-conformance.yaml records the
         executable per-family conformance suite that runs each family through the
-        agent-core CLI and asserts on captured OpenTelemetry traces.
+        agent-core CLI and asserts on captured OpenTelemetry traces. Every case
+        runs the shipped profile.yaml wrapper (or a named shipped variant),
+        copying it only to patch harness-controlled fields; the generator and
+        rest families additionally run their shipped variants and carry an
+        ungated load-and-wiring companion. Coverage is annotated per family and
+        per variant (shipped-behavioral vs load-and-wiring).
     use_cases:
       - id: rel07.1-uc001-jurist-profile-boundary
         summary: Jurist deterministic, LLM-free charter validation boundary.
@@ -230,7 +238,7 @@ releases:
         summary: Boundary use-case validation for the jurist, lifecycle, and rest families.
         status: specified
       - id: test-rel07.1-profile-conformance
-        summary: Executable per-family OpenTelemetry conformance for all ten families, all implemented (generator Ollama-gated, lifecycle suspend/resume and history/rollback Dolt-gated; rest proves its inbound webhook server boundary, with async await_operation polling proven at the agent-core package level).
+        summary: Executable per-family OpenTelemetry conformance for all ten families, all implemented shipped-behavioral (runs the shipped profile.yaml/variant, copy-and-patch only harness-controlled fields). Generator (with qwen27b/qwen35b variants), the planner behavioral run, and the rest ollama-profile variant are Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated; rest proves its inbound webhook server boundary over the shipped REST config (client head proven at the agent-core package level). Generator, planner, and rest carry ungated load-and-wiring companions.
         status: implemented
     proof:
       - mage validate

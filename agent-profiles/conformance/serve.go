@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -226,4 +227,60 @@ func rewriteFile(t *testing.T, path string, replacements map[string]string) stri
 		content = strings.ReplaceAll(content, old, replacement)
 	}
 	return content
+}
+
+// CopyShippedProfile copies the whole directory tree of a shipped profile into
+// a temp dir so a family test can run the wrapper an operator actually ships
+// rather than a synthesized reconstruction. relProfile is the profile path
+// relative to the agent-profiles root (e.g. "agents/monitor/profile.yaml").
+//
+// The entire profile directory is copied recursively, so the profile's relative
+// references (machine.yaml, tools.yaml, rest.yaml, and any subdir such as
+// openapi/ or llm/) resolve from the copy exactly as agent-core resolves them in
+// production. The /opt/agent-core tool_config_dirs the shipped profile hard-codes
+// need no patching: --core-root remaps them onto the checkout
+// (spec.SetAgentCoreInstallRoot).
+//
+// patches applies exact string replacements across every copied file, for the
+// few values the harness must control (chiefly hard-coded listen addresses). It
+// patches only the named fields — it never rebuilds the machine, tools, or
+// wrapper — and returns the path to the copied profile.yaml.
+func CopyShippedProfile(t *testing.T, relProfile string, patches map[string]string) string {
+	t.Helper()
+	srcProfile := ProfilePath(relProfile)
+	srcDir := filepath.Dir(srcProfile)
+	dstDir := t.TempDir()
+
+	err := filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dstDir, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		content := string(data)
+		for old, replacement := range patches {
+			content = strings.ReplaceAll(content, old, replacement)
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(target, []byte(content), 0o644)
+	})
+	if err != nil {
+		t.Fatalf("copy shipped profile %s: %v", relProfile, err)
+	}
+	return filepath.Join(dstDir, filepath.Base(srcProfile))
 }

@@ -3,59 +3,72 @@
 package conformance
 
 import (
-	"fmt"
 	"path/filepath"
 	"testing"
 )
 
-// generatorModel is the model the generator LLM declaration configures
-// (agents/generator/llm/default.yaml). The test gates on this model being
-// served by Ollama.
-const generatorModel = "qwen3.6:35b-mlx"
+// generatorModel is the model the generator default LLM declaration configures
+// (agents/generator/llm/default.yaml), shared by profile.yaml and
+// profile-qwen35b.yaml. generatorQwen27bModel is the model the 27B variant
+// configures (agents/generator/llm/qwen27b.yaml). The behavioral runs gate on
+// the relevant model being served by Ollama.
+const (
+	generatorModel        = "qwen3.6:35b-mlx"
+	generatorQwen27bModel = "qwen3.6:27b-mlx"
+)
 
-// TestGeneratorConformance exercises the generator profile's model boundary. The
-// generator's first machine action is invoke_llm, which pings Ollama at tool
-// registration and calls the model during the run, so the whole run is
-// Ollama-gated — there is no no-model path (without a reachable model the
-// profile fails to register its tools).
+// TestGeneratorConformance runs the shipped generator profile — the wrapper an
+// operator ships, not a synthesized reconstruction — through its model
+// boundary. The generator's first machine action is invoke_llm, which pings
+// Ollama at tool registration and calls the model during the run, so the run is
+// Ollama-gated: without a reachable model the profile cannot even register its
+// tools.
 //
-// The run is bounded to a single iteration through an ephemeral machine so
-// exactly one invoke_llm call fires and the machine reaches BudgetExceeded
-// deterministically, rather than a full (slow, nondeterministic) coding session.
-// That is enough to prove the model boundary is wired: a chat <model> gen_ai
-// span with token usage appears under a single root, and the run reaches a
-// clean terminal with no error-status spans.
+// The full shipped coding session is slow and nondeterministic, so the run is
+// bounded to a single iteration by patching only the machine's max_iterations
+// field on a copied shipped profile (runBoundedShippedGenerator): exactly one
+// invoke_llm fires and the machine reaches BudgetExceeded deterministically.
+// Only the bounding field is patched — the shipped machine, tools, LLM
+// declaration, and tool_config_dirs are exercised as shipped.
 //
 // Traces srd002-generator: R1.1 (invoke_llm as the machine's model-boundary
 // action), R2.2 (the LLM tool family), and R3.2 (a clean terminal outcome).
 func TestGeneratorConformance(t *testing.T) {
-	RequireCoreRoot(t)
-	RequireOllama(t, generatorModel)
+	runBoundedShippedGenerator(t, filepath.Join("agents", "generator", "profile.yaml"), generatorModel)
+}
 
-	genDir := ProfilePath(filepath.Join("agents", "generator"))
-	tmp := t.TempDir()
+// TestGeneratorQwen35bConformance runs the shipped generator-qwen35b variant.
+// It shares the default 35B model declaration, so it exercises the same model
+// boundary as profile.yaml through the variant wrapper an operator ships.
+func TestGeneratorQwen35bConformance(t *testing.T) {
+	runBoundedShippedGenerator(t, filepath.Join("agents", "generator", "profile-qwen35b.yaml"), generatorModel)
+}
+
+// TestGeneratorQwen27bConformance runs the shipped generator-qwen27b variant,
+// which points at the 27B model declaration. It is gated on that model being
+// served and skips cleanly otherwise.
+func TestGeneratorQwen27bConformance(t *testing.T) {
+	runBoundedShippedGenerator(t, filepath.Join("agents", "generator", "profile-qwen27b.yaml"), generatorQwen27bModel)
+}
+
+// runBoundedShippedGenerator copies the shipped generator profile at relProfile,
+// bounds its machine to a single iteration by patching only max_iterations (no
+// wrapper rebuild), runs it, and asserts the model boundary fired: a chat
+// <model> gen_ai span under a single root, a clean BudgetExceeded terminal, and
+// no error-status spans. It is Ollama-gated on model.
+func runBoundedShippedGenerator(t *testing.T, relProfile, model string) {
+	t.Helper()
+	RequireCoreRoot(t)
+	RequireOllama(t, model)
 
 	// Bound the machine to one iteration: Idle -> Composing (invoke_llm), then
-	// the iteration budget is exhausted before a second cycle, so the run reaches
-	// BudgetExceeded after exactly one model call.
-	machine := rewriteFile(t, filepath.Join(genDir, "machine.yaml"), map[string]string{
+	// the iteration budget is exhausted before a second cycle, so the run
+	// reaches BudgetExceeded after exactly one model call. Only max_iterations
+	// is patched; the shipped machine, tools, LLM declaration, and
+	// tool_config_dirs (/opt/agent-core, remapped by --core-root) run as shipped.
+	profilePath := CopyShippedProfile(t, relProfile, map[string]string{
 		"max_iterations: 100": "max_iterations: 1",
 	})
-	machinePath := writeEphemeral(t, tmp, "machine.yaml", machine)
-
-	profilePath := writeEphemeral(t, tmp, "profile.yaml", fmt.Sprintf(`name: generator-conformance
-machine: %q
-tools:
-  - %q
-tool_config_dirs:
-  - /opt/agent-core/tools/builtin/filesystem
-  - /opt/agent-core/tools/builtin/llm
-  - /opt/agent-core/tools/exec/go
-tool_declarations:
-  - %q
-`, machinePath,
-		filepath.Join(genDir, "tools.yaml"),
-		filepath.Join(genDir, "llm", "default.yaml")))
 
 	result := Run(t, RunConfig{Profile: profilePath, Directory: t.TempDir()})
 
@@ -73,4 +86,55 @@ tool_declarations:
 
 	// srd002 R3.2: the bounded run reaches the BudgetExceeded terminal state.
 	result.RequireTerminalState(t, "BudgetExceeded")
+}
+
+// TestGeneratorShippedProfileWiring asserts, model-free and ungated, that the
+// three wrappers an operator ships for the generator family are wired as the
+// behavioral runs assume: each profile references the shared machine, the tools
+// manifest, and an invoke_llm LLM declaration, and the shared machine seeds the
+// model boundary from Idle and drains its iteration budget to BudgetExceeded.
+// It needs no model, so it holds in the fast default and where Ollama is absent.
+//
+// Traces srd002-generator R1.1 (invoke_llm as the seed model-boundary action)
+// and R3.2 (BudgetExhausted reaches the BudgetExceeded terminal).
+func TestGeneratorShippedProfileWiring(t *testing.T) {
+	type generatorProfile struct {
+		rel     string
+		llmDecl string
+	}
+	for _, gp := range []generatorProfile{
+		{filepath.Join("agents", "generator", "profile.yaml"), "llm/default.yaml"},
+		{filepath.Join("agents", "generator", "profile-qwen35b.yaml"), "llm/default.yaml"},
+		{filepath.Join("agents", "generator", "profile-qwen27b.yaml"), "llm/qwen27b.yaml"},
+	} {
+		var profile struct {
+			Machine          string   `yaml:"machine"`
+			Tools            []string `yaml:"tools"`
+			ToolDeclarations []string `yaml:"tool_declarations"`
+		}
+		unmarshalShipped(t, gp.rel, &profile)
+		if profile.Machine != "machine.yaml" {
+			t.Errorf("%s machine = %q, want machine.yaml", gp.rel, profile.Machine)
+		}
+		if !contains(profile.Tools, "tools.yaml") {
+			t.Errorf("%s tools = %v, want to include tools.yaml", gp.rel, profile.Tools)
+		}
+		if !contains(profile.ToolDeclarations, gp.llmDecl) {
+			t.Errorf("%s tool_declarations = %v, want to include %s", gp.rel, profile.ToolDeclarations, gp.llmDecl)
+		}
+	}
+
+	var machine struct {
+		InitialState string              `yaml:"initial_state"`
+		Transitions  []machineTransition `yaml:"transitions"`
+	}
+	unmarshalShipped(t, filepath.Join("agents", "generator", "machine.yaml"), &machine)
+
+	if machine.InitialState != "Idle" {
+		t.Errorf("shipped generator machine initial_state = %q, want Idle", machine.InitialState)
+	}
+	// The model boundary seeds from Idle, and an exhausted budget reaches the
+	// terminal the bounded behavioral runs assert.
+	requireTransition(t, machine.Transitions, "Idle", "Seed", "Composing", "invoke_llm")
+	requireTransition(t, machine.Transitions, "Composing", "BudgetExhausted", "BudgetExceeded", "")
 }

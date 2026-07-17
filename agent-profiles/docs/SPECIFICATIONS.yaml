@@ -252,10 +252,15 @@ test_suite_index:
     title: Test Suite for Release 07.1 Profile Conformance
     summary: Executable per-family OpenTelemetry conformance for all ten profile
       families, traced to srd002-srd011 and sm-agent-role-taxonomy; integration
-      target mage conformance. All ten families implemented (generator
-      Ollama-gated, lifecycle suspend/resume and history/rollback Dolt-gated; rest
-      proves its inbound webhook server boundary, with async await_operation
-      polling proven at the agent-core package level).
+      target mage conformance. Every case runs the shipped profile.yaml wrapper or
+      a named shipped variant (copy-and-patch only harness-controlled fields), so
+      coverage is shipped-behavioral rather than synthesized; the generator and
+      rest families also run their shipped variants and carry an ungated
+      load-and-wiring companion. Generator (with qwen27b/qwen35b variants), the
+      planner behavioral run, and the rest ollama-profile variant are
+      Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated;
+      rest proves its inbound webhook server boundary with async await_operation
+      polling proven at the agent-core package level.
     status: implemented
     path: docs/specs/test-suites/test-rel07.1-profile-conformance.yaml
 
@@ -300,16 +305,27 @@ coverage_gaps: |
   per-family conformance suite run by mage conformance. It drives each of the ten
   families through the agent-core CLI and asserts on the captured OpenTelemetry
   trace (span vocabulary and terminal state), tracing every family to its
-  srd002-srd011 acceptance criteria and sm-agent-role-taxonomy role. All ten
-  families are implemented hermetically under AGENT_CORE_ROOT (generator is
-  Ollama-gated, lifecycle suspend/resume and history/rollback are Dolt-gated).
-  Planner conformance landed once agent-core gained a load_graph pipeline word
-  that seeds the requirement graph, and lifecycle history/rollback landed once
-  agent-core routed the --request checkpoint id and to_iteration into a
-  target-pinned checkpoint backend and the tool configs. The rest family proves
-  its inbound webhook server boundary to Succeeded; agent-core now implements
-  async await_operation polling (removing the #205 load-time blocker), and that
-  polling is proven at the agent-core package level. The rest client
-  create/await head is not run in a profile machine because REST client tools
-  enforce a declared-only runtime input contract that the loop's verbatim output
-  threading does not satisfy.
+  srd002-srd011 acceptance criteria and sm-agent-role-taxonomy role. Coverage is
+  shipped-behavioral, not synthesized: every case runs the shipped profile.yaml
+  wrapper (or a named shipped variant), copying it only to patch harness-controlled
+  fields — a listen address/port, a corpus directory, or the iteration budget —
+  never rebuilding the machine, tools, or wrapper. Representative-vs-variant is
+  recorded explicitly: the generator ships and runs profile.yaml plus the
+  profile-qwen35b and profile-qwen27b variants, and the rest family runs the
+  sample inbound webhook boundary plus the ollama-profile variant; the generator,
+  planner, and rest families each also carry an ungated, model-free
+  load-and-wiring companion that asserts shipped-profile load and machine wiring
+  where a gate would otherwise skip the run. All ten families are implemented
+  under AGENT_CORE_ROOT; generator and its qwen variants, the planner behavioral
+  run, and the rest ollama-profile variant are Ollama-gated, and lifecycle
+  suspend/resume and history/rollback are Dolt-gated. Planner conformance landed
+  once agent-core gained a load_graph pipeline word that seeds the requirement
+  graph, and lifecycle history/rollback landed once agent-core routed the
+  --request checkpoint id and to_iteration into a target-pinned checkpoint backend
+  and the tool configs. The rest family proves its inbound webhook server boundary
+  to Succeeded over the shipped REST config; agent-core now implements async
+  await_operation polling (removing the #205 load-time blocker), and that polling
+  is proven at the agent-core package level. The rest sample client create/await
+  head is not run in a profile machine because REST client tools enforce a
+  declared-only runtime input contract that the loop's verbatim output threading
+  does not satisfy.

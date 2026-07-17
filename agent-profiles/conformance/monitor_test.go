@@ -3,7 +3,6 @@
 package conformance
 
 import (
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -14,30 +13,19 @@ import (
 // REST routes serve, then posts the control exit event and asserts the machine
 // stops its owned listener and reaches the Done terminal state.
 //
+// It runs the wrapper an operator ships — agents/monitor/profile.yaml — through a
+// temp copy, patching only the hard-coded bind address in rest.yaml so the
+// listener takes a free loopback port. Nothing else is rebuilt.
+//
 // Traces srd008-monitor: the monitor serves read-only state routes while
 // awaiting a control event, then stops the owned listener before terminating.
 func TestMonitorConformance(t *testing.T) {
 	RequireCoreRoot(t)
-	tmp := t.TempDir()
 	addr := FreeAddr(t)
-	monDir := ProfilePath(filepath.Join("agents", "monitor"))
 
-	restContent := rewriteFile(t, filepath.Join(monDir, "rest.yaml"), map[string]string{
+	profilePath := CopyShippedProfile(t, filepath.Join("agents", "monitor", "profile.yaml"), map[string]string{
 		"127.0.0.1:0": addr,
 	})
-	restPath := writeEphemeral(t, tmp, "rest.yaml", restContent)
-	profilePath := writeEphemeral(t, tmp, "profile.yaml", fmt.Sprintf(`name: monitor-conformance
-machine: %q
-tools:
-  - %q
-tool_declarations:
-  - %q
-rest_definitions:
-  - %q
-`, filepath.Join(monDir, "machine.yaml"),
-		filepath.Join(monDir, "tools.yaml"),
-		filepath.Join(monDir, "declarations.yaml"),
-		restPath))
 
 	server := Serve(t, ServeConfig{Profile: profilePath})
 	server.WaitHealthy("http://"+addr+"/monitor/state", 15*time.Second)
