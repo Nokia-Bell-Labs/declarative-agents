@@ -144,6 +144,111 @@ func TestExecuteConsistencyChecksSortsFindingsDeterministically(t *testing.T) {
 	require.Equal(t, "z.yaml", findings[3].File)
 }
 
+func TestExecuteConsistencyChecksFilterSelectsOnlyMatchingEntries(t *testing.T) {
+	root := t.TempDir()
+	writeTargetFile(t, root, "manifest.yaml", `
+experiments:
+  - status: done
+    apparatus:
+      artifacts:
+        - results/done-present.json
+        - results/done-missing.json
+  - status: planned
+    apparatus:
+      artifacts:
+        - results/planned-missing.json
+  - status: deferred
+    apparatus:
+      artifacts:
+        - results/deferred-missing.json
+`)
+	writeTargetFile(t, root, "artifacts/results/done-present.json", "{}\n")
+	charter := consistencyCharter("evidence-suite", CharterCheck{
+		ID:       "done-artifacts-exist",
+		Kind:     "consistency_check",
+		Severity: "error",
+		Include:  []string{"manifest.yaml"},
+		Source:   map[string]any{"yaml_path": "$.experiments[?status=done].apparatus.artifacts[*]"},
+		Rule:     "required_path_exists",
+		Target:   map[string]any{"root": "artifacts"},
+	})
+
+	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+
+	require.NoError(t, err)
+	require.Len(t, findings, 1)
+	require.Contains(t, findings[0].Message, "results/done-missing.json")
+}
+
+func TestExecuteConsistencyChecksFilterNegationExcludesMatchingEntries(t *testing.T) {
+	root := t.TempDir()
+	writeTargetFile(t, root, "manifest.yaml", `
+experiments:
+  - status: done
+    artifact: results/done.json
+  - status: planned
+    artifact: results/planned.json
+`)
+	writeTargetFile(t, root, "artifacts/results/planned.json", "{}\n")
+	charter := consistencyCharter("evidence-suite", CharterCheck{
+		ID:       "non-done-artifacts-exist",
+		Kind:     "consistency_check",
+		Severity: "error",
+		Include:  []string{"manifest.yaml"},
+		Source:   map[string]any{"yaml_path": "$.experiments[?status!=done].artifact"},
+		Rule:     "required_path_exists",
+		Target:   map[string]any{"root": "artifacts"},
+	})
+
+	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+
+	require.NoError(t, err)
+	require.Empty(t, findings)
+}
+
+func TestExecuteConsistencyChecksFilterEqualsEvaluatesMatchingEntriesOnly(t *testing.T) {
+	root := t.TempDir()
+	writeTargetFile(t, root, "manifest.yaml", `
+experiments:
+  - status: done
+    kind: benchmark
+  - status: planned
+    kind: draft
+`)
+	charter := consistencyCharter("evidence-suite", CharterCheck{
+		ID:       "done-are-benchmark",
+		Kind:     "consistency_check",
+		Severity: "error",
+		Include:  []string{"manifest.yaml"},
+		Source:   map[string]any{"yaml_path": "$.experiments[?status=done].kind"},
+		Rule:     "equals",
+		Target:   map[string]any{"value": "benchmark"},
+	})
+
+	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+
+	require.NoError(t, err)
+	require.Empty(t, findings)
+}
+
+func TestExecuteConsistencyChecksMalformedFilterReturnsError(t *testing.T) {
+	root := t.TempDir()
+	writeTargetFile(t, root, "manifest.yaml", "experiments: []\n")
+	charter := consistencyCharter("evidence-suite", CharterCheck{
+		ID:       "bad-filter",
+		Kind:     "consistency_check",
+		Severity: "error",
+		Include:  []string{"manifest.yaml"},
+		Source:   map[string]any{"yaml_path": "$.experiments[?status].artifact"},
+		Rule:     "required_path_exists",
+	})
+
+	_, err := ExecuteConsistencyChecks(root, []Charter{charter})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "field=value")
+}
+
 func consistencyCharter(id string, check CharterCheck) Charter {
 	return Charter{ID: id, Checks: []CharterCheck{check}}
 }
