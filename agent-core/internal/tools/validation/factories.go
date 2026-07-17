@@ -11,9 +11,10 @@ import (
 )
 
 type specValidationConfig struct {
-	SuitePaths    []string `json:"suite_paths"`
-	CharterSuites []string `json:"charter_suites"`
-	Charters      []string `json:"charters"`
+	SuitePaths     []string `json:"suite_paths"`
+	CharterSuites  []string `json:"charter_suites"`
+	Charters       []string `json:"charters"`
+	CorpusOptional bool     `json:"corpus_optional"`
 }
 
 // RegisterSpecFactories registers spec validation builtin tool factories.
@@ -65,7 +66,19 @@ func applySpecValidationConfig(s *SpecState, def catalog.ToolDef, vars map[strin
 	if len(paths) > 0 {
 		s.SuitePaths = paths
 	}
+	if cfg.CorpusOptional || truthyVar(vars["corpus_optional"]) {
+		s.CorpusOptional = true
+	}
 	return nil
+}
+
+func truthyVar(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "true", "1", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func splitSuitePaths(value string) []string {

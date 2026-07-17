@@ -52,15 +52,38 @@ type Corpus struct {
 	MachineOrder []string
 }
 
+// CorpusOption configures how LoadCorpus discovers and parses artifacts.
+type CorpusOption func(*corpusOptions)
+
+type corpusOptions struct {
+	optional bool
+}
+
+// WithOptionalCorpus relaxes the SRD-corpus requirement so charter-only audit
+// targets load. With this option a missing docs directory, an empty SRD set,
+// and missing road-map.yaml or SPECIFICATIONS.yaml yield an empty corpus rather
+// than an error, letting the jurist run data-driven charters against arbitrary
+// repositories. Without it, LoadCorpus keeps requiring a full SRD corpus.
+func WithOptionalCorpus() CorpusOption {
+	return func(o *corpusOptions) { o.optional = true }
+}
+
 // LoadCorpus discovers, parses, and validates all specification artifacts
 // under rootDir.
-func LoadCorpus(rootDir string) (*Corpus, error) {
-	docsPath := filepath.Join(rootDir, DocsDir)
-	if _, err := os.Stat(docsPath); err != nil {
-		return nil, fmt.Errorf("docs directory not found in %s: %w", rootDir, err)
+func LoadCorpus(rootDir string, opts ...CorpusOption) (*Corpus, error) {
+	var options corpusOptions
+	for _, opt := range opts {
+		opt(&options)
 	}
 
-	srds, srdOrder, err := discoverAndParseSRDs(rootDir)
+	docsPath := filepath.Join(rootDir, DocsDir)
+	if _, err := os.Stat(docsPath); err != nil {
+		if !(options.optional && os.IsNotExist(err)) {
+			return nil, fmt.Errorf("docs directory not found in %s: %w", rootDir, err)
+		}
+	}
+
+	srds, srdOrder, err := discoverAndParseSRDs(rootDir, options.optional)
 	if err != nil {
 		return nil, err
 	}
@@ -76,13 +99,13 @@ func LoadCorpus(rootDir string) (*Corpus, error) {
 	}
 
 	rmPath := filepath.Join(rootDir, RoadmapFile)
-	rm, err := ParseRoadmap(rmPath)
+	rm, err := loadRoadmap(rmPath, options.optional)
 	if err != nil {
 		return nil, err
 	}
 
 	siPath := filepath.Join(rootDir, SpecFile)
-	si, err := ParseSpecIndex(siPath)
+	si, err := loadSpecIndex(siPath, options.optional)
 	if err != nil {
 		return nil, err
 	}
@@ -124,13 +147,38 @@ func LoadCorpus(rootDir string) (*Corpus, error) {
 	return c, nil
 }
 
-func discoverAndParseSRDs(rootDir string) (map[string]SRD, []string, error) {
+// loadRoadmap parses road-map.yaml, treating a missing file as an empty
+// roadmap when the corpus is optional.
+func loadRoadmap(path string, optional bool) (Roadmap, error) {
+	if optional {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return Roadmap{}, nil
+		}
+	}
+	return ParseRoadmap(path)
+}
+
+// loadSpecIndex parses SPECIFICATIONS.yaml, treating a missing file as an empty
+// index when the corpus is optional.
+func loadSpecIndex(path string, optional bool) (SpecIndex, error) {
+	if optional {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return SpecIndex{}, nil
+		}
+	}
+	return ParseSpecIndex(path)
+}
+
+func discoverAndParseSRDs(rootDir string, optional bool) (map[string]SRD, []string, error) {
 	pattern := filepath.Join(rootDir, SRDSubdir, SRDGlob)
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, nil, fmt.Errorf("glob SRD files: %w", err)
 	}
 	if len(matches) == 0 {
+		if optional {
+			return map[string]SRD{}, []string{}, nil
+		}
 		return nil, nil, fmt.Errorf("no SRD files found matching %s", pattern)
 	}
 
