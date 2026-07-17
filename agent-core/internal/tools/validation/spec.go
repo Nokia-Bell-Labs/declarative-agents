@@ -22,6 +22,7 @@ type SpecState struct {
 	Charters        []spec.Charter
 	Findings        []spec.Finding
 	HasErrors       bool
+	CorpusOptional  bool
 }
 
 func (vs *SpecState) stderr() io.Writer {
@@ -52,7 +53,11 @@ func (c *loadCorpusCmd) Undo(prior core.Result) core.Result {
 }
 
 func (c *loadCorpusCmd) Execute() core.Result {
-	corpus, err := spec.LoadCorpus(c.vs.Directory)
+	var opts []spec.CorpusOption
+	if c.vs.CorpusOptional {
+		opts = append(opts, spec.WithOptionalCorpus())
+	}
+	corpus, err := spec.LoadCorpus(c.vs.Directory, opts...)
 	if err != nil {
 		return core.Result{Signal: core.CommandError, Err: err, Output: fmt.Sprintf("load corpus failed: %v", err), CommandName: c.Name()}
 	}

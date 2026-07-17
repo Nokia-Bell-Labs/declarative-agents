@@ -83,6 +83,56 @@ func TestValidateSpecsRunsLoadedCharters(t *testing.T) {
 	require.Equal(t, "spec_corpus", vs.Findings[0].Kind)
 }
 
+func TestLoadCorpusOptionalAuditsCharterOnlyTarget(t *testing.T) {
+	target := t.TempDir() // no docs/specs corpus, just files to audit
+	require.NoError(t, os.WriteFile(filepath.Join(target, "manifest.yaml"), []byte("status: draft\n"), 0o644))
+	charterPath := writeConsistencyCharter(t, t.TempDir(), "paper.yaml")
+	vs := &SpecState{Directory: target, TargetDirectory: target, SuitePaths: []string{charterPath}, CorpusOptional: true}
+
+	loadRes := (&LoadCorpusBuilder{VS: vs}).Build(core.Result{}).Execute()
+	require.Equal(t, core.ToolDone, loadRes.Signal)
+	require.NotNil(t, vs.Corpus)
+	require.Empty(t, vs.Corpus.SRDs)
+
+	res := (&ValidateSpecsBuilder{VS: vs}).Build(loadRes).Execute()
+
+	require.NotEqual(t, core.CommandError, res.Signal)
+	require.NotEmpty(t, vs.Findings)
+	require.Equal(t, "paper-suite", vs.Findings[0].SuiteID)
+	require.Equal(t, "consistency_check", vs.Findings[0].Kind)
+}
+
+func TestLoadCorpusWithoutOptionalStillRequiresCorpus(t *testing.T) {
+	target := t.TempDir() // no docs corpus
+	charterPath := writeConsistencyCharter(t, t.TempDir(), "paper.yaml")
+	vs := &SpecState{Directory: target, TargetDirectory: target, SuitePaths: []string{charterPath}}
+
+	res := (&LoadCorpusBuilder{VS: vs}).Build(core.Result{}).Execute()
+
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Contains(t, res.Output, "docs directory not found")
+}
+
+func writeConsistencyCharter(t *testing.T, dir, name string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	require.NoError(t, os.WriteFile(path, []byte(`
+id: paper-suite
+target:
+  include: ["manifest.yaml"]
+checks:
+  - id: status-done
+    kind: consistency_check
+    severity: error
+    source:
+      yaml_path: "$.status"
+    rule: equals
+    target:
+      value: done
+`), 0o644))
+	return path
+}
+
 func writeValidationCharter(t *testing.T, dir, name string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)

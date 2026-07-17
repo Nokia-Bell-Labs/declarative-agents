@@ -125,6 +125,25 @@ func TestLoadCorpus_NoSRDFiles(t *testing.T) {
 	assert.Contains(t, err.Error(), "no SRD files found")
 }
 
+func TestLoadCorpus_OptionalAllowsMissingDocsDir(t *testing.T) {
+	c, err := LoadCorpus(t.TempDir(), WithOptionalCorpus())
+	require.NoError(t, err)
+	assert.Empty(t, c.SRDs)
+	assert.Empty(t, c.UseCases)
+	assert.Empty(t, c.SpecIndex.SRDIndex)
+}
+
+func TestLoadCorpus_OptionalAllowsMissingSRDCorpus(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "docs", "specs", "software-requirements"), 0o755))
+
+	c, err := LoadCorpus(tmp, WithOptionalCorpus())
+
+	require.NoError(t, err)
+	assert.Empty(t, c.SRDs)
+	assert.Empty(t, c.TestSuites)
+}
+
 func TestLoadCorpus_InvalidDependsOn(t *testing.T) {
 	tmp := t.TempDir()
 	setupTestCorpus(t, tmp)
