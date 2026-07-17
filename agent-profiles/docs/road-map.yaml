@@ -1,6 +1,14 @@
 id: agent-profiles-roadmap
 title: Agent Profiles Release Road Map
 
+numbering_policy: |
+  Release numbers share the number space defined by agent-core. A release exists
+  in this road map only when this repository has deliverables for the matching
+  agent-core release, so the sequence skips numbers with no profile-owned work
+  (hence the jump from 00.1 to 06.0). Where a release carries
+  related_agent_core_release, that field names the agent-core release it tracks,
+  and any proof command that runs from an agent-core checkout says so explicitly.
+
 releases:
   - version: "00.1"
     name: Repository bootstrap
@@ -90,9 +98,9 @@ releases:
       - mage containerSmoke
       - mage tag
       - go test ./magefiles
-      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc001
-      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc002
-      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc001 (run from an agent-core checkout)
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc002 (run from an agent-core checkout)
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004 (run from an agent-core checkout)
     success_markers:
       - Migrated profile.yaml files load through agent-core from this
         repository.
@@ -114,6 +122,7 @@ releases:
       planner to generator, bench to evaluator, and monitor/control boundaries.
       Each listed Mage target has profile-owned evidence.
     status: done
+    related_agent_core_release: "07.0"
     planned_work:
       - id: gh-106
         summary: Define profile integration tracer-bullet use cases and suite.
@@ -154,6 +163,7 @@ releases:
         summary: Implemented profile-owned tracer bullet evidence.
         status: implemented
     proof:
+      - mage integration:all
       - mage integration:documentationCurator
       - mage integration:evaluatorGenerator
       - mage integration:plannerGenerator

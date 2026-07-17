@@ -270,6 +270,9 @@ coverage_gaps: |
   bench-to-evaluator launch tracer, and monitor/control boundary tracer. The
   monitor/control target records profile-owned configuration evidence while
   agent-core retains runtime ownership for REST and lifecycle builtin behavior.
+  The fixture-to-consumer mapping for every testdata/integration fixture is
+  recorded in testdata/integration/README.md, and mage integration:all runs the
+  profile-owned tracer targets with a pass/fail/skip summary.
 
   Release 07.1 adds per-family boundary use cases for the jurist, lifecycle, and
   rest families, which release 07.0 covered only through the generic rel06.0
