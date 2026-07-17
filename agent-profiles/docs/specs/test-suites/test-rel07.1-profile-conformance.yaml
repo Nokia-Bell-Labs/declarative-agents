@@ -24,9 +24,9 @@ overview: |
   suspend/resume is Dolt-gated (suspend persists a checkpoint only when
   --dolt-dsn names a running dolt sql-server). A case is specified when the
   profile assets exist but an agent-core wiring gap blocks a hermetic run; the
-  planner and rest families are specified and tracked as blocked follow-ups
-  (#211 planner graph loading, #205 rest async await_operation). Lifecycle
-  history and rollback share srd009 but are a separate blocked follow-up (#209).
+  rest family is specified and tracked as a blocked follow-up (#205 rest async
+  await_operation). Lifecycle history and rollback share srd009 but are a
+  separate blocked follow-up (#209).
 
 traces:
   - srd002-generator
@@ -231,16 +231,25 @@ test_cases:
 
   - family: planner
     name: Planner requirement-graph conformance
-    status: specified
-    blocked_by: 211
+    status: implemented
+    test: conformance/planner_test.go
     description: |
-      A planner conformance test is specified but not implemented: agent-core has
-      no CLI mechanism to seed a requirement graph into pipeline.State, so the
-      planner's first extract_all action dereferences a nil graph and panics.
-      Until agent-core wires graph loading, this family stays specified rather
-      than implemented and is tracked as a blocked follow-up (#211).
+      Runs the planner pipeline's graph-loading boundary through a bounded
+      ephemeral machine. load_graph reads the specification corpus from the run
+      directory and builds the requirement graph into pipeline state, and
+      extract_all traverses it. Asserts both actions appear as tool spans, a
+      pipeline.graph_loaded event records the built graph, and the run reaches a
+      clean Completed terminal with no error-status spans. The corpus is
+      agent-core's own valid spec fixture, so the run is model-free and
+      child-free: the machine terminates after extraction rather than invoking
+      the LLM plan and generator execution tail. This closed the earlier
+      agent-core gap where the planner had no graph-loading word and extract_all
+      dereferenced a nil graph (#211).
     expected:
-      terminal_states: [Done]
+      asserted_tool_spans: [load_graph, extract_all]
+      asserted_events: [pipeline.graph_loaded]
+      error_status_spans: 0
+      terminal_states: [Completed]
     traces:
       - srd004-planner AC1
       - srd004-planner AC2

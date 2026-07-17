@@ -1,5 +1,6 @@
 # Planner builtin declarations.
 includes:
+  - ../load-graph.yaml
   - ../extract-task.yaml
   - ../extract-all.yaml
   - ../assemble-prompt.yaml

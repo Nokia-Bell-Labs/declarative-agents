@@ -1,0 +1,58 @@
+tools:
+- name: load_graph
+  type: builtin
+  init: load_graph
+  description: Load the specification corpus and build the requirement dependency graph into pipeline state.
+  visibility: internal
+  emits:
+  - GraphLoaded
+  - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: requirement_graph_loaded
+    description: Loads the corpus and builds the requirement graph, seeding pipeline state for extraction.
+  reversibility:
+    classification: reversible
+    undo: pipeline_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore the pipeline state snapshot captured before the graph was loaded.
+  problem: The pipeline machine needs a declared word that seeds the requirement graph before extraction, rather than assuming the graph already exists and dereferencing nil state.
+  goals:
+  - Load the specification corpus from the run directory and build the requirement graph as one machine-selected word.
+  - Seed the graph and a fresh extractor into pipeline state so extract_task and extract_all have a graph to traverse.
+  - Return an explicit signal that lets the MachineSpec choose the next state.
+  requirements:
+    input:
+    - must read the specification corpus from the configured run directory
+    output:
+    - must emit GraphLoaded and seed the requirement graph into pipeline state on success
+    errors:
+    - must emit CommandError when the corpus cannot be loaded or the graph cannot be built
+  non_goals:
+  - Does not choose the next workflow step; machine.yaml owns sequencing.
+  - Does not extract tasks; extract_task and extract_all do that.
+  errors:
+  - signal: CommandError
+    condition: the corpus directory is missing or invalid, or the graph cannot be built
+    message_shape: 'load_graph: <error>'
+    state_after_failure: pipeline state is left unchanged
+  relationships:
+    before:
+    - extract_task
+    - extract_all
+    after:
+    - machine-selected predecessor
+  output:
+    description: load_graph command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

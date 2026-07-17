@@ -41,6 +41,9 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		return ps
 	}
 
+	br.Register("load_graph", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &LoadGraphBuilder{PS: initPS(def)}, nil
+	})
 	br.Register("extract_task", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &ExtractTaskBuilder{PS: initPS(def)}, nil
 	})
