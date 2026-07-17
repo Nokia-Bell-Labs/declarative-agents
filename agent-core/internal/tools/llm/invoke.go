@@ -22,6 +22,13 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
+// Deterministic decoding defaults applied when invoke_llm config omits the
+// temperature and seed fields, preserving the agent's reproducible baseline.
+const (
+	defaultTemperature = 0.0
+	defaultSeed        = 42
+)
+
 type invokeLLMCmd struct {
 	client       modelllm.Client
 	history      *modelllm.Conversation
@@ -35,6 +42,8 @@ type invokeLLMCmd struct {
 	tracer       tracing.Tracer
 	contextLimit int
 	numCtx       int
+	temperature  float64
+	seed         int
 	verbose      bool
 	ctx          context.Context
 	callTimeout  time.Duration
@@ -106,7 +115,11 @@ func (c *invokeLLMCmd) checkContextLimit(messages []modelllm.Message) (core.Resu
 }
 
 func (c *invokeLLMCmd) chat(messages []modelllm.Message) (modelllm.ChatResponse, time.Duration, error) {
-	opts := modelllm.ChatOptions{Model: c.model, Temperature: 0, Seed: 42, NumCtx: c.numCtx}
+	opts := modelllm.ChatOptions{Model: c.model, Temperature: c.temperature, Seed: c.seed, NumCtx: c.numCtx}
+	c.tracer.SetAttributes(
+		genai.AttrRequestTemperature.Float64(c.temperature),
+		genai.AttrRequestSeed.Int(c.seed),
+	)
 	if c.verbose {
 		if inputJSON, err := json.Marshal(messages); err == nil {
 			c.tracer.SetAttributes(genai.AttrInputMessages.String(string(inputJSON)))
@@ -157,6 +170,8 @@ type InvokeLLMBuilder struct {
 	Tracer       tracing.Tracer
 	ContextLimit int
 	NumCtx       int
+	Temperature  float64
+	Seed         int
 	CallTimeout  time.Duration
 	Metrics      core.MetricConfig
 	Verbose      bool
@@ -215,9 +230,29 @@ func invokeBuilder(
 		Client: client, History: deps.History, Registry: deps.Registry,
 		Assembler: newLLMAssembler(cfg, parser), State: core.State(cfg.ManifestState),
 		Model: cfg.Model, ProviderName: cfg.Provider, ServerAddr: serverAddr,
-		Tracer: deps.Tracer, NumCtx: cfg.NumCtx, CallTimeout: durationSeconds(cfg.LLMTimeout),
-		Metrics: def.Metrics, Verbose: deps.Verbose, Ctx: deps.Ctx,
+		Tracer: deps.Tracer, NumCtx: cfg.NumCtx,
+		Temperature: resolveTemperature(cfg), Seed: resolveSeed(cfg),
+		CallTimeout: durationSeconds(cfg.LLMTimeout),
+		Metrics:     def.Metrics, Verbose: deps.Verbose, Ctx: deps.Ctx,
 	}
+}
+
+// resolveTemperature returns the configured temperature or the deterministic
+// default when the invoke_llm config omits the field.
+func resolveTemperature(cfg catalog.LLMToolConfig) float64 {
+	if cfg.Temperature != nil {
+		return *cfg.Temperature
+	}
+	return defaultTemperature
+}
+
+// resolveSeed returns the configured seed or the deterministic default when the
+// invoke_llm config omits the field.
+func resolveSeed(cfg catalog.LLMToolConfig) int {
+	if cfg.Seed != nil {
+		return *cfg.Seed
+	}
+	return defaultSeed
 }
 
 func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
@@ -233,7 +268,8 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 		client: b.Client, history: b.History, registry: b.Registry, assembler: b.Assembler,
 		state: state, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
 		userMessage: res.Output, tracer: b.Tracer, contextLimit: b.ContextLimit,
-		numCtx: b.NumCtx, callTimeout: b.CallTimeout, metrics: b.Metrics, verbose: b.Verbose, ctx: ctx,
+		numCtx: b.NumCtx, temperature: b.Temperature, seed: b.Seed,
+		callTimeout: b.CallTimeout, metrics: b.Metrics, verbose: b.Verbose, ctx: ctx,
 	}
 }
 

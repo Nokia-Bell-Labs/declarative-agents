@@ -128,6 +128,28 @@ schema:
             Context window size passed to the Ollama provider.
             Controls how many tokens the model can consider.
 
+        - field: temperature
+          type: float
+          required: false
+          default: 0
+          description: |
+            Sampling temperature passed to the provider as a decoding
+            parameter. Omit for the deterministic default of 0 (greedy
+            decoding). Set a positive value for sampled decoding, for example
+            when a downstream experiment needs run-to-run trajectory variance.
+            The effective value is recorded on the invoke_llm span as
+            gen_ai.request.temperature.
+
+        - field: seed
+          type: int
+          required: false
+          default: 42
+          description: |
+            Random seed passed to the provider as a decoding parameter. Omit
+            for the deterministic default of 42, which keeps sampled runs
+            reproducible. The effective value is recorded on the invoke_llm
+            span as gen_ai.request.seed.
+
         - field: llm_timeout
           type: int
           required: false
