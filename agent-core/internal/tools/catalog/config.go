@@ -79,6 +79,11 @@ type LLMToolConfig struct {
 	LLMTimeout      int    `json:"llm_timeout"`
 	MaxTime         int    `json:"max_time"`
 	MaxTokens       int    `json:"max_tokens"`
+	// Temperature and Seed are optional decoding parameters. Pointers so an
+	// omitted field is distinguishable from an explicit zero: nil selects the
+	// deterministic defaults (temperature 0, seed 42) applied at build time.
+	Temperature *float64 `json:"temperature"`
+	Seed        *int     `json:"seed"`
 }
 
 // LoadSuiteConfig holds config for evaluator session setup tools.

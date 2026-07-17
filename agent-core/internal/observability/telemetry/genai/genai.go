@@ -44,6 +44,7 @@ const (
 
 	// Request parameters.
 	AttrRequestTemperature      = attribute.Key("gen_ai.request.temperature")
+	AttrRequestSeed             = attribute.Key("gen_ai.request.seed")
 	AttrRequestTopP             = attribute.Key("gen_ai.request.top_p")
 	AttrRequestMaxTokens        = attribute.Key("gen_ai.request.max_tokens")
 	AttrRequestStopSequences    = attribute.Key("gen_ai.request.stop_sequences")
