@@ -199,7 +199,7 @@ releases:
         status: done
       - id: gh-195
         summary: Add an executable per-family OpenTelemetry conformance suite (mage conformance) covering all ten profile families against srd002-srd011.
-        status: in-progress
+        status: done
     deliverables:
       - docs/specs/software-requirements/srd002-generator.yaml through
         srd011-knowledge-manager.yaml define per-family functional blocks.
@@ -238,9 +238,20 @@ releases:
     deferred:
       - Profile-owned Mage integration targets that execute the jurist,
         lifecycle, and rest boundary fixtures, mirroring
-        magefiles/integration_*.go for the covered families. Until those land the
-        three use cases and their test cases stay status specified rather than
-        implemented.
+        magefiles/integration_*.go for the covered families, and that trace to
+        rel07.1-uc001/uc002/uc003 S1-S3. These are distinct from the delivered
+        mage conformance suite, which asserts SRD acceptance criteria per family
+        (srd005-jurist, srd009-lifecycle, srd007-rest) plus the role taxonomy, so
+        the conformance cases are executable evidence at the SRD layer but do not
+        by themselves satisfy the boundary use cases. The gap is concrete
+        for rest, whose client read/create/await head is not run in a profile
+        machine (conformance proves only the inbound webhook server boundary; the
+        client async await_operation polling is proven at the agent-core package
+        level), and the lifecycle conformance evidence is Dolt-gated. Until the
+        boundary integration targets that trace uc001/uc002/uc003 S1-S3 land, the
+        three use cases and their test-rel07.1-profile-boundaries cases stay
+        status specified rather than implemented; promoting them on conformance
+        evidence alone would overstate rest and hide the Dolt gate.
       - Running the full rest client create/await head inside a profile machine
         (rel07.1-uc003), which needs inter-tool input shaping so REST client
         steps satisfy the declared-only runtime input contract. The rest
