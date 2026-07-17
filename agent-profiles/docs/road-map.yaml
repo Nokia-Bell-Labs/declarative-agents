@@ -220,7 +220,7 @@ releases:
         summary: Boundary use-case validation for the jurist, lifecycle, and rest families.
         status: specified
       - id: test-rel07.1-profile-conformance
-        summary: Executable per-family OpenTelemetry conformance for all ten families; nine implemented (generator Ollama-gated, lifecycle suspend/resume Dolt-gated), rest specified pending an agent-core gap.
+        summary: Executable per-family OpenTelemetry conformance for all ten families, all implemented (generator Ollama-gated, lifecycle suspend/resume and history/rollback Dolt-gated; rest proves its inbound webhook server boundary, with async await_operation polling proven at the agent-core package level).
         status: implemented
     proof:
       - mage validate
@@ -231,8 +231,12 @@ releases:
         magefiles/integration_*.go for the covered families. Until those land the
         three use cases and their test cases stay status specified rather than
         implemented.
-      - Conformance coverage for the rest family, blocked on the agent-core async
-        await_operation gap (#205). Planner conformance (#211) is delivered —
+      - Running the full rest client create/await head inside a profile machine
+        (rel07.1-uc003), which needs inter-tool input shaping so REST client
+        steps satisfy the declared-only runtime input contract. The rest
+        conformance case proves the inbound webhook server boundary to Succeeded;
+        the client async await_operation polling (#205) is delivered in agent-core
+        and proven at the package level. Planner conformance (#211) is delivered —
         agent-core gained a load_graph pipeline word that seeds the requirement
         graph before extraction. Lifecycle history/rollback conformance (#209) is
         delivered — agent-core routes the --request checkpoint id and to_iteration

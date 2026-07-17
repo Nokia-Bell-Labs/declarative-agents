@@ -22,10 +22,14 @@ overview: |
   families carry a gate: generator is Ollama-gated (its first machine action is
   invoke_llm, which pings Ollama at tool registration), and lifecycle
   suspend/resume is Dolt-gated (suspend persists a checkpoint only when
-  --dolt-dsn names a running dolt sql-server). A case is specified when the
-  profile assets exist but an agent-core wiring gap blocks a hermetic run; the
-  rest family is specified and tracked as a blocked follow-up (#205 rest async
-  await_operation).
+  --dolt-dsn names a running dolt sql-server). The rest family proves its inbound
+  webhook server boundary to Succeeded (a bounded launch/await/stop machine over
+  the profile's REST config); its client create/await head is not run in a
+  profile machine because REST client tools enforce a declared-only runtime input
+  contract that the loop's verbatim output threading does not satisfy, so the
+  async await_operation polling that head relies on is proven at the agent-core
+  package level instead (rest.TestRESTClient_AwaitOperationPolling). All ten
+  families now have implemented conformance.
 
 traces:
   - srd002-generator
@@ -284,18 +288,29 @@ test_cases:
       - sm-agent-role-taxonomy planner
 
   - family: rest
-    name: REST client and server boundary conformance
-    status: specified
-    blocked_by: 205
+    name: REST inbound webhook server boundary conformance
+    status: implemented
+    go_test: conformance/rest_test.go
     description: |
-      A rest conformance test is specified but not implemented: the sample REST
-      profile's create_payment operation uses async await_operation, which
-      agent-core's REST validation layer rejects as unsupported, so the profile
-      fails to load. Until agent-core implements await_operation this family stays
-      specified rather than implemented and is tracked as a blocked follow-up
-      (#205).
+      Drives the rest sample profile's inbound webhook server boundary to a
+      Succeeded terminal. A bounded machine reuses the profile's REST config and
+      the launch/await/stop server words: the test rewrites the webhook server to
+      a free loopback port (and points the OpenAPI import at its absolute source),
+      launches the server, posts the configured inbound webhook, and asserts the
+      launch -> await -> stop vocabulary routes the enqueued signal to Succeeded
+      with no error-status spans. The client read/create/await head is not run in
+      a profile machine: REST client tools enforce a declared-only runtime input
+      contract while the loop threads each step's full output verbatim, so a
+      client step cannot follow another tool step and cannot be the first action
+      against the non-JSON default seed. The async await_operation polling the
+      profile's create/await grammar relies on is now implemented in agent-core
+      and covered hermetically by rest.TestRESTClient_AwaitOperationPolling
+      (create -> await_operation poll -> respond against a mock upstream); the
+      #205 load-time blocker (await_operation rejected during validation) is
+      resolved.
     expected:
       terminal_states: [Succeeded, Failed]
+      asserted_tool_spans: [launch_payment_webhooks, await_payment_webhook, stop_payment_webhooks]
     traces:
       - srd007-rest AC1
       - srd007-rest AC2

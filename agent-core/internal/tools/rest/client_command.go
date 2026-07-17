@@ -39,7 +39,7 @@ func (b ClientBuilder) Build(res core.Result) core.Command {
 	return &clientCmd{
 		toolName: b.ToolName, init: b.Init, operation: b.Operation,
 		params: params, asyncState: b.AsyncState, credentials: b.Credentials, buildErr: err,
-		metrics: b.Metrics,
+		metrics: b.Metrics, definitions: b.Definitions,
 	}
 }
 
@@ -61,6 +61,7 @@ type clientCmd struct {
 	params      map[string]interface{}
 	asyncState  *AsyncState
 	credentials CredentialResolver
+	definitions ClientOperationResolver
 	buildErr    error
 	recorder    monitor.ToolMetricsRecorder
 	metrics     core.MetricConfig
