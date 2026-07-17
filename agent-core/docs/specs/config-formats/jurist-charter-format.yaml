@@ -175,6 +175,14 @@ check_kinds:
         description: |
           YAML source selector. source.yaml_path is required and uses the
           jurist YAML path selector, such as $.field or $.items[*].id.
+          A segment may carry a filter predicate, $.items[?field=value].sub or
+          $.items[?field!=value].sub, which selects only the sequence items
+          whose mapping field equals (or, with !=, differs from) value and
+          then descends into each match. This expresses conditional checks such
+          as "experiments with status done have artifact paths that exist" via
+          $.experiments[?status=done].apparatus.artifacts[*] without flagging
+          planned or deferred entries. Filter field names and values must not
+          contain a dot or bracket.
           source.file is optional and selects one target-relative, charter-root-
           relative, or absolute YAML file instead of the check include set.
       - field: rule
