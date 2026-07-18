@@ -163,14 +163,14 @@ test_cases:
     description: |
       A two-word chain modeled on embed then query threads a numeric vector from
       the first word's output into the second word's request body. The body
-      value ["{{ query_embeddings }}"] uses the single-token raw passthrough so
-      the flat vector renders as a nested array [[...]] rather than a stringified
-      scalar.
+      value ["{{ params.query_embeddings }}"] uses the single-token raw
+      passthrough so the flat vector renders as a nested array [[...]] rather
+      than a stringified scalar.
     inputs:
       producer_operation: embed_query
       consumer_operation: query_collection
       body_template:
-        query_embeddings: ["{{ query_embeddings }}"]
+        query_embeddings: ["{{ params.query_embeddings }}"]
     expected:
       vector_threaded_into_body: true
       query_embeddings_rendered_as_nested_array: true

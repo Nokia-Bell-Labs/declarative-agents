@@ -140,7 +140,7 @@ requirements:
       - R12.2: input_mapping selectors SHALL resolve against the previous Result output shape, for example $.mapped.embedding, $.body.id, or $.carried.document, and SHALL target only declared path, query, header, or body params.
       - R12.3: REST client operations SHALL support input carry-forward, so an operation MAY copy selected declared runtime inputs into its Result output under a carried key that a later word can select, without introducing a shared command-state store.
       - R12.4: REST client tools SHALL reject input_mapping targets that are not declared params, body_source values other than params, previous_result, or none (command_state SHALL remain rejected with a clear message), and any input_mapping or carry-forward entry that names method, URL, authentication, redirect policy, or destination host.
-      - R12.5: REST client body rendering SHALL preserve the single-token raw passthrough, so a body value equal to one "{{ param }}" token renders the param's raw typed value; a flat numeric vector param placed inside a nested array element, for example ["{{ embedding }}"], SHALL render as [[...]].
+      - R12.5: REST client body rendering SHALL preserve the single-token raw passthrough, so a body value equal to one "{{ params.NAME }}" token renders the param's raw typed value; a flat numeric vector param placed inside a nested array element, for example ["{{ params.query_embeddings }}"], SHALL render as [[...]].
 
 non_goals:
   - Defining inbound REST server tools; see srd029-rest-server-tools.
@@ -275,10 +275,9 @@ implementation_status:
     - Mutating REST client commands capture boundary compensation undo mementos with request, resource, idempotency, and compensation metadata. Read-only operations remain noop.
     - Persisted checkpoint rollback can execute boundary compensation when a caller supplies the core CompensationExecutor. internal/tools/rest provides a CompensationExecutor that decodes REST boundary mementos, resolves the configured compensation operation from trusted definitions, filters runtime parameters to declared inputs, and executes through the REST client path.
     - TestRESTClient_CompensationExecutorRunsConfiguredOperation, TestRESTClient_CompensationExecutorReportsMissingOperation, TestRollbackCheckpointExecutesBoundaryCompensation, and TestRollbackCheckpointReportsMissingBoundaryCompensationExecutor cover REST compensation execution and bounded failure reporting.
+    - Previous-Result parameter threading (R12): body_source previous_result consumption through request_binding.input_mapping selects declared params from the prior Result output; request_binding.carry_forward copies declared inputs into the Result output under a carried key; validateRequestBinding enforces the R12.4 rejections (undeclared targets, command_state body_source, transport-authority overrides). Covered by TestRESTClient_ThreadsPreviousResultParams, TestRESTClient_ChainThreadsVectorIntoQueryBody, TestRESTClient_CarryForwardEchoesDeclaredInputs, and TestRESTClient_RejectsPreviousResultThreadingMisuse.
   partial:
     - Lifecycle profile wiring must still choose when to inject a REST CompensationExecutor into checkpoint rollback. Profile injection stays outside the REST client tool contract.
-  planned:
-    - Previous-Result parameter threading (R12): body_source previous_result consumption through input_mapping, input carry-forward under a carried key, and the R12.4 validation rejections. Implemented alongside this change set by the GH-245 code sub-issue.
 
 diagrams:
   requirements_trace: |

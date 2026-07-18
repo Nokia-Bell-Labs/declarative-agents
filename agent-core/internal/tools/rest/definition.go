@@ -273,6 +273,13 @@ type RequestBinding struct {
 	Headers    map[string]interface{} `yaml:"headers,omitempty"`
 	BodySchema map[string]interface{} `yaml:"body_schema,omitempty"`
 	BodySource string                 `yaml:"body_source,omitempty"`
+	// InputMapping selects declared params from the previous Result output when
+	// BodySource is previous_result. Keys are declared param names; values are
+	// $.-style selectors into the prior Result output (srd028 R12.1, R12.2).
+	InputMapping map[string]string `yaml:"input_mapping,omitempty"`
+	// CarryForward names declared params copied into this operation's Result
+	// output under a carried key so a later word can select them (srd028 R12.3).
+	CarryForward []string `yaml:"carry_forward,omitempty"`
 }
 
 // ResponseMapping maps HTTP data into Result output.

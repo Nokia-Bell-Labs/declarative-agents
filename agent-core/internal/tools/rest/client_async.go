@@ -130,7 +130,7 @@ func executeClientOnce(
 	input map[string]interface{},
 	creds CredentialResolver,
 ) core.Result {
-	request, err := buildClientRequest(op, input, creds)
+	request, params, err := buildClientRequest(op, input, creds)
 	if err != nil {
 		return clientOperationError(toolName, requestBuildFailureStage(err), err, op)
 	}
@@ -140,7 +140,7 @@ func executeClientOnce(
 		return clientOperationError(toolName, "network_io", redactError(err, op, creds), op)
 	}
 	defer response.Body.Close()
-	result, _ := mapClientResponse(toolName, op, response, 1, time.Since(start))
+	result, _ := mapClientResponse(toolName, op, response, 1, time.Since(start), params)
 	return result
 }
 
