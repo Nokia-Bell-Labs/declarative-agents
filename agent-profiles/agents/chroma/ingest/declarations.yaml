@@ -489,7 +489,7 @@ tools:
         message_shape: 'invoke_llm: <provider/model>: <error>'
         state_after_failure: conversation history is unchanged unless the provider response was already appended
     config:
-      model: "qwen3.6:35b-mlx"
+      model: "ornith:9b"
       provider: ollama
       provider_url: "http://localhost:11434"
       manifest_state: Composing
