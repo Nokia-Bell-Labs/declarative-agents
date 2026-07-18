@@ -105,3 +105,37 @@ func TestRequestSeedExposesParametersNotTransportMetadata(t *testing.T) {
 	require.NotContains(t, out, "route")
 	require.NoError(t, ValidateRuntimeInput(out), "the seed passes the runtime-input authority guard")
 }
+
+// plainTextRespondBuilder emits a raw (non-JSON) string, as invoke_llm does.
+type plainTextRespondBuilder struct{ signal core.Signal }
+
+func (b plainTextRespondBuilder) Build(_ core.Result) core.Command {
+	return plainTextRespondCommand{signal: b.signal}
+}
+
+type plainTextRespondCommand struct{ signal core.Signal }
+
+func (c plainTextRespondCommand) Name() string { return "respond" }
+func (c plainTextRespondCommand) Execute() core.Result {
+	return core.Result{Signal: c.signal, Output: "I am a plain text answer."}
+}
+func (c plainTextRespondCommand) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
+
+// TestRESTServerMachineRequestWrapsPlainTextTerminalOutput proves a terminal word
+// that emits plain text rather than a JSON object (as invoke_llm does) yields the
+// configured 200 response with the text mapped under $.output, not a 502
+// (srd030 R4.3).
+func TestRESTServerMachineRequestWrapsPlainTextTerminalOutput(t *testing.T) {
+	t.Parallel()
+	cfg := machineRequestConfig("DocumentationReady", 0, false)
+	cfg.Response.TerminalSignals["DocumentationReady"] = MachineResponseMapping{Status: 200, Body: map[string]string{"answer": "$.output"}}
+	cfg.InitFunc = func(reg *core.Registry) error {
+		reg.Register(core.ToolSpec{Name: "respond"}, plainTextRespondBuilder{signal: "DocumentationReady"})
+		return nil
+	}
+	state, baseURL := launchMachineRequestServerWithConfig(t, cfg, catchAllDocsEndpoint(cfg))
+	defer stopRESTServer(t, state, "machine")
+
+	body := getJSON(t, baseURL+"/docs/VISION.yaml")
+	require.Equal(t, "I am a plain text answer.", body["answer"])
+}
