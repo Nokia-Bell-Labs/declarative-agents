@@ -345,7 +345,11 @@ func machineRequestResult(req MachineRequestRun, rr core.RunResult, last core.Re
 	output := map[string]interface{}{}
 	if last.Output != "" {
 		if err := json.Unmarshal([]byte(last.Output), &output); err != nil {
-			return MachineRequestResult{}, fmt.Errorf("response_invalid: %w", err)
+			// A terminal word that emits plain text rather than a JSON object (for
+			// example invoke_llm, whose output is the raw model answer) is wrapped
+			// under "output" so a response body selector can map $.output. JSON
+			// object outputs unmarshal above unchanged (srd030 R4.3).
+			output = map[string]interface{}{"output": last.Output}
 		}
 	}
 	return MachineRequestResult{

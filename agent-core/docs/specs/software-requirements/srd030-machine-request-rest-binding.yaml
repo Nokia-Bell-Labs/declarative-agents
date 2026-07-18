@@ -55,7 +55,7 @@ requirements:
     items:
       - R4.1: A machine_request run SHALL produce an HTTP response only from configured terminal response data.
       - R4.2: Response words SHALL be the only bridge from machine output back to HTTP status, headers, and body.
-      - R4.3: Configuration SHALL map allowed terminal signals or response word output to status code, headers, body fields, and content type.
+      - R4.3: Configuration SHALL map allowed terminal signals or response word output to status code, headers, body fields, and content type. When the terminal word emits plain text rather than a JSON object (for example invoke_llm's raw model answer), the binding SHALL expose it under an output key so a body selector can map $.output; JSON object outputs SHALL be mapped by their fields unchanged.
       - R4.4: The binding SHALL reject terminal output that cannot satisfy the configured response schema.
       - R4.5: Missing response output SHALL map to a configured default response or a structured server error.
 
