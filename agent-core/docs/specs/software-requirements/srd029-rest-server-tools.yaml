@@ -110,7 +110,7 @@ requirements:
   R9:
     title: Observability and redaction
     items:
-      - R9.1: REST server tools SHOULD trace launch, route registration, inbound request validation, event enqueue, await receipt, stream open, stream close, and stop events.
+      - R9.1: REST server tools SHOULD trace launch, route registration, inbound request validation, event enqueue, await receipt, stream open, stream close, and stop events. Inbound requests continue a cross-agent trace by extracting W3C trace context per srd016 R5, falling back to a new root span when the header is absent or malformed.
       - R9.2: Traces SHOULD include server name, route ID, method, path template, binding kind, status code, queue depth, duration, and resulting signal.
       - R9.3: REST server tools SHALL redact configured headers, query fields, body fields, credentials, and tokens from traces, logs, errors, and Result output.
       - R9.4: Verbose request or response capture SHALL require explicit configuration and redaction rules.

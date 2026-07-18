@@ -155,7 +155,7 @@ srd_index:
     path: docs/specs/software-requirements/srd015-genai-semconv.yaml
   - id: srd016-traceparent
     title: W3C Traceparent Parse and Format
-    summary: W3C traceparent version-00 parser, formatter, and context builder in internal/observability/telemetry.
+    summary: W3C traceparent version-00 parser, formatter, and context builder in internal/observability/telemetry, plus HTTP trace-context propagation (planned) that injects traceparent on outbound REST client requests and extracts it on inbound REST server endpoints so a cross-agent trace continues.
     path: docs/specs/software-requirements/srd016-traceparent.yaml
   - id: srd017-llm-extensions
     title: LLM Package Extensions
