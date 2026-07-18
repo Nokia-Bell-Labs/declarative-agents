@@ -35,7 +35,7 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Non-adjacent label selection reaches past an intervening word
-    go_test: go test ./internal/tools/rest -run TestRESTClient_CommandStateThreadsNonAdjacentStep
+    go_test: go test ./internal/tools/rest -run 'TestRESTClient_CommandState(ThreadsNonAdjacentStep|TracerBulletNonAdjacentWithRestart)'
     status: implemented
     description: |
       In a three-word chain the third word selects the first word's vector by
@@ -170,8 +170,8 @@ test_cases:
 
   - use_case: rel07.0-uc002-two-plane-revert
     name: Receipt walk reverses the surviving step from the reverse plane
-    go_test: go test ./internal/runtime/core -run TestDolt_ReceiptWalkReversesSurvivingStep
-    status: planned
+    go_test: go test ./internal/runtime/core -run TestDoltCheckpointReceiptWalkReversesSurvivingStep
+    status: implemented
     description: |
       After Revert to step 1 the rollback receipt walk reads the surviving step-1
       receipt from the receipts plane and reverses that step's external effect; no

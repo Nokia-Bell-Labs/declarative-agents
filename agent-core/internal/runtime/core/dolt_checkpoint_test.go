@@ -97,6 +97,9 @@ type fakeDB struct {
 	// failOn, when set, makes Exec return an error for any query containing it,
 	// so a test can force a fault between the two per-step table writes.
 	failOn string
+	// outputBytes accumulates the size of every output blob written to
+	// tool_outputs, so a benchmark can measure the per-step write-layer cost.
+	outputBytes int
 }
 
 func newFakeDB() *fakeDB {
@@ -180,6 +183,9 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		}
 		return nil
 	case strings.Contains(query, "REPLACE INTO tool_outputs"):
+		if s, ok := args[3].(string); ok {
+			f.outputBytes += len(s)
+		}
 		f.store.results[rowKey(args[0].(string), args[1].(int))] = resultRow{
 			signal:        args[2].(string),
 			output:        strPtr(args[3]),
@@ -604,6 +610,50 @@ func TestDoltCheckpointTerminalReapsBothPlanesWithBranch(t *testing.T) {
 	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"), "terminal save merges to main")
 	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"), "run branch deleted after merge")
 	require.False(t, db.branches["run-1"], "run branch and both of its planes are reaped")
+}
+
+// receiptReverser is a receipt-consuming command stub: its Undo records the
+// opaque receipt it was handed, standing in for a tool that reverses its own
+// external effect from the receipt.
+type receiptReverser struct{ seen string }
+
+func (r *receiptReverser) Name() string    { return "reverser" }
+func (r *receiptReverser) Execute() Result { return Result{} }
+func (r *receiptReverser) Undo(prior Result) Result {
+	r.seen = prior.Receipt
+	return NoopUndo(r.Name())
+}
+
+// TestDoltCheckpointReceiptWalkReversesSurvivingStep proves the reverse-plane
+// half of rel07.0-uc002: after reverting to step 1, the rollback receipt walk
+// drives reversal of the surviving steps newest-first from their receipts, while
+// the reaped later step contributes no receipt (srd036 R3, R6.3; srd038 R4).
+func TestDoltCheckpointReceiptWalkReversesSurvivingStep(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", nil)
+	exec := threeStepExecution()
+
+	require.NoError(t, cp.Save(samplePosition(), exec[:1]))
+	require.NoError(t, cp.Save(samplePosition(), exec[:2]))
+	require.NoError(t, cp.Save(samplePosition(), exec))
+
+	require.NoError(t, cp.Revert("run-1", 1))
+	_, restored, err := cp.Load()
+	require.NoError(t, err)
+	require.Len(t, restored, 2)
+
+	// Walk the surviving execution newest-first, reversing each step from the
+	// receipt restored from the receipts plane.
+	var reversed []string
+	for i := len(restored) - 1; i >= 0; i-- {
+		rev := &receiptReverser{}
+		rev.Undo(Result{CommandName: restored[i].CommandName, Receipt: restored[i].Receipt})
+		reversed = append(reversed, rev.seen)
+	}
+
+	// Step 2's receipt was reaped with the branch; only steps 1 then 0 reverse.
+	require.Equal(t, []string{`{"step":1}`, `{"step":0}`}, reversed)
 }
 
 func TestDoltCheckpointRevertUnresolvedStep(t *testing.T) {

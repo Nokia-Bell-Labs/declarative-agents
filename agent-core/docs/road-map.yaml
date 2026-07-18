@@ -285,7 +285,7 @@ releases:
       command_state. This release records the documentation and the tracer-bullet
       use cases; the core store and REST consumption land in epics GH-269 and
       GH-270.
-    status: planned
+    status: implemented
     srds:
       - srd038-command-state-store
       - srd036-dolt-state-persistence
@@ -293,14 +293,18 @@ releases:
     use_cases:
       - id: rel07.0-uc001-command-state-threading
         summary: A three-word REST chain where the third word selects the first word's output by label and resumes mid-chain after restart
-        status: planned
+        status: implemented
       - id: rel07.0-uc002-two-plane-revert
         summary: Reverting to an earlier step reaps later tool_outputs and receipts rows with the branch reset while the receipt walk still reverses the surviving step
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel07.0-command-state
         summary: Formal tests for label selection, duplicate-label resolution, restart rehydration, the R13.3 rejection table, redaction-before-persistence, five-table round-trip, and revert reap
-        status: planned
+        status: implemented
+    proof:
+      - go test ./internal/tools/rest -run TestRESTClient_CommandStateTracerBulletNonAdjacentWithRestart
+      - go test ./internal/runtime/core -run 'TestCommandStateView|TestDoltCheckpointRevertReapsBothPlanes|TestDoltCheckpointReceiptWalkReversesSurvivingStep|TestDoltCommandStateWritesOnlyNewStepBlob'
+      - go test ./internal/tools/rest -run 'TestRESTClient_CommandState'
 
   - version: "99.0"
     name: Tool dispatch simplification planning
