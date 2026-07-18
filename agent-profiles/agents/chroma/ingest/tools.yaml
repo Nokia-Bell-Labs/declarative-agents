@@ -1,0 +1,9 @@
+tools:
+  - chroma_ready
+  - ollama_ready
+  - read
+  - embed_document
+  - resolve_collection
+  - chroma_add
+  - count_collection
+  - chroma_count

@@ -1,0 +1,83 @@
+id: rel08.0-uc001-corpus-ingest
+title: Corpus Ingest into Chroma
+
+summary: |
+  The ingest profile loads a repository corpus into a local Chroma collection.
+  For each document it reads the file, computes an embedding at a local Ollama
+  provider, and writes the document, id, and agent-supplied vector to Chroma,
+  then verifies the collection item count. The proof belongs in agent-profiles
+  because the Chroma and Ollama REST definitions, the collection identity, and
+  the corpus selection are profile-owned assets.
+
+  Chroma does not embed text server-side over its raw HTTP API, so the vector is
+  computed by the embed word and threaded into the Chroma add word using the
+  agent-core previous-Result parameter threading (srd028 R12). No embedding
+  vector is authored by a model; it rides between boundary words.
+
+actor: Profile maintainer or operator ingesting a repository corpus.
+
+trigger: |
+  A maintainer runs the Chroma corpus integration target with a running Chroma
+  server and a reachable Ollama:
+
+    AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma
+
+preconditions:
+  - A Chroma server is running against a persistence directory (chroma run --path <dir>), started by the harness or operator, not the agent.
+  - An Ollama server is reachable and has the configured embedding model pulled.
+  - agents/chroma/ingest profile validates and owns the Chroma and Ollama REST definitions and the corpus selection.
+
+flow:
+  - id: F1
+    text: The ingest machine runs chroma_ready and ollama_ready, failing fast when either server is unreachable.
+  - id: F2
+    text: For each corpus document the machine reads the file content and identity.
+  - id: F3
+    text: embed_document calls Ollama with the configured model, maps the returned vector into its Result output, and carries the document text and id forward.
+  - id: F4
+    text: The create-or-get collection word (immediately before add) create-or-gets a plain collection with no server-side embedding function, resolves the returned collection id, and carries the embedding, document, and id forward so single-hop threading reaches the add body.
+  - id: F5
+    text: chroma_add threads the resolved collection id, the vector, and the carried document and id into the add request body via body_source previous_result and input_mapping, placing the vector in a single-token array element so it renders as the nested array Chroma expects.
+  - id: F6
+    text: When the corpus is exhausted the machine re-resolves the collection id and chroma_count reads the collection item count to verify the added documents.
+
+touchpoints:
+  - id: T1
+    target: srd012-chroma-corpus-agents AC1
+    reason: The ingest profile is a configured Chroma retrieval boundary machine, not a Go package.
+  - id: T2
+    target: srd012-chroma-corpus-agents AC2
+    reason: chroma_ready, ollama_ready, chroma_collection, embed_document, chroma_add, and chroma_count are the named REST vocabulary with create-or-get identity resolution.
+  - id: T3
+    target: srd012-chroma-corpus-agents AC3
+    reason: The embed-to-add vector step uses srd028 R12 body_source previous_result, input_mapping, carry_forward, and single-token reshape, with no model-authored vector.
+  - id: T4
+    target: srd012-chroma-corpus-agents AC5
+    reason: The running Chroma server and persistence directory are external preconditions surfaced through chroma_ready.
+  - id: T5
+    target: test-rel08.0-chroma-corpus corpus_ingest
+    reason: The suite records the integration target, inputs, and expected ingest evidence.
+
+success_criteria:
+  - id: S1
+    criterion: Every Chroma add carries an agent-supplied embedding vector threaded from the embed word, not a model-authored or server-side vector.
+    traces:
+      - srd012-chroma-corpus-agents R3.2
+      - srd012-chroma-corpus-agents R3.4
+  - id: S2
+    criterion: The collection is create-or-got without a server-side embedding function and its id is resolved into the add and count paths.
+    traces:
+      - srd012-chroma-corpus-agents R2.2
+  - id: S3
+    criterion: The post-ingest chroma_count matches the number of documents added.
+    traces:
+      - srd012-chroma-corpus-agents R2.5
+      - srd012-chroma-corpus-agents R6.1
+
+out_of_scope:
+  - Starting or stopping the Chroma or Ollama servers from the agent.
+  - Server-side embedding or a new embedding builtin word.
+  - Ranking or answer generation, which belong to the query use case.
+
+test_suite_trace: test-rel08.0-chroma-corpus
+status: specified

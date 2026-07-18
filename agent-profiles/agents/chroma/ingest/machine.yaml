@@ -1,0 +1,131 @@
+name: chroma-ingest
+purpose: |-
+  The Chroma ingest profile loads a repository corpus into a local Chroma
+  collection. It checks the Chroma and Ollama servers, then runs a per-document
+  loop: read one file, embed it at Ollama, create-or-get the collection (which
+  resolves the returned collection id and carries the embedding vector forward),
+  and add the agent-supplied vector to Chroma. When the corpus is exhausted it
+  re-resolves the collection and verifies the item count.
+
+  The embed-to-add vector step is machine-sequenced because a model cannot emit
+  a raw embedding vector; the vector rides between boundary words through the
+  agent-core previous-Result parameter threading (srd028 R12). Because threading
+  is single-hop and read cannot carry the collection id across the loop,
+  create-or-get sits immediately before add: it returns the collection id and
+  carries the embedding forward so add can thread both.
+invariants:
+  - REST authority lives in agents/chroma/rest.yaml.
+  - MachineSpec owns sequencing between the read, embed, and Chroma words.
+  - No embedding vector is authored by a model; it threads between words.
+  - The Chroma and Ollama servers are external preconditions, surfaced through chroma_ready and ollama_ready, not started by the agent.
+initial_state: Idle
+budget:
+  max_iterations: 256
+states:
+  - name: Idle
+    meaning: Initial state before the ingest flow starts.
+  - name: CheckingChroma
+    meaning: The Chroma v2 heartbeat is being checked.
+  - name: CheckingOllama
+    meaning: The Ollama version endpoint is being checked.
+  - name: Reading
+    meaning: One corpus document is being read.
+  - name: Embedding
+    meaning: The document text is being embedded at Ollama.
+  - name: ResolvingCollection
+    meaning: The collection is being create-or-got and the embedding is carried forward.
+  - name: Adding
+    meaning: The agent-supplied embedding is being added to the collection.
+  - name: ResolvingCountCollection
+    meaning: The collection id is being re-resolved for the count verification.
+  - name: Counting
+    meaning: The collection item count is being read for verification.
+  - name: Succeeded
+    meaning: Terminal. The corpus was ingested and the count verified.
+  - name: Failed
+    meaning: Terminal. A REST or embedding boundary word failed.
+terminal_states:
+  - Succeeded
+  - Failed
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: ChromaReady
+    trigger: The Chroma heartbeat returned a configured success status.
+  - name: OllamaReady
+    trigger: The Ollama version endpoint returned a configured success status.
+  - name: ToolDone
+    trigger: A corpus document was read.
+  - name: ToolFailed
+    trigger: No further corpus document was available; the loop ends.
+  - name: DocumentEmbedded
+    trigger: Ollama returned an embedding vector for the document.
+  - name: CollectionReady
+    trigger: The collection was create-or-got and its id resolved.
+  - name: DocumentAdded
+    trigger: The agent-supplied embedding was added to the collection.
+  - name: CountReady
+    trigger: The collection item count was read.
+  - name: CommandError
+    trigger: Runtime or REST boundary infrastructure failed.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: CheckingChroma
+    action: chroma_ready
+  - state: CheckingChroma
+    signal: ChromaReady
+    next: CheckingOllama
+    action: ollama_ready
+  - state: CheckingChroma
+    signal: CommandError
+    next: Failed
+  - state: CheckingOllama
+    signal: OllamaReady
+    next: Reading
+    action: read
+  - state: CheckingOllama
+    signal: CommandError
+    next: Failed
+  - state: Reading
+    signal: ToolDone
+    next: Embedding
+    action: embed_document
+  - state: Reading
+    signal: ToolFailed
+    next: ResolvingCountCollection
+    action: count_collection
+  - state: Embedding
+    signal: DocumentEmbedded
+    next: ResolvingCollection
+    action: resolve_collection
+  - state: Embedding
+    signal: CommandError
+    next: Failed
+  - state: ResolvingCollection
+    signal: CollectionReady
+    next: Adding
+    action: chroma_add
+  - state: ResolvingCollection
+    signal: CommandError
+    next: Failed
+  - state: Adding
+    signal: DocumentAdded
+    next: Reading
+    action: read
+  - state: Adding
+    signal: CommandError
+    next: Failed
+  - state: ResolvingCountCollection
+    signal: CollectionReady
+    next: Counting
+    action: chroma_count
+  - state: ResolvingCountCollection
+    signal: CommandError
+    next: Failed
+  - state: Counting
+    signal: CountReady
+    next: Succeeded
+  - state: Counting
+    signal: CommandError
+    next: Failed

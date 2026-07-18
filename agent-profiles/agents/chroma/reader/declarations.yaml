@@ -1,0 +1,304 @@
+tools:
+  - name: chroma_ready
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Check the Chroma v2 heartbeat through the configured REST client.
+    problem: The reader flow must fail fast when the Chroma server is unreachable.
+    goals:
+      - Resolve the chroma client and heartbeat operation.
+      - Return a configured readiness signal to MachineSpec.
+    requirements:
+      input:
+        - Runtime input supplies no transport authority or request parameters.
+      output:
+        - Output reports operation identity and status.
+      errors:
+        - Definition, network, timeout, and mapping failures emit CommandError.
+    non_goals:
+      - Does not create collections or start the Chroma server.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties: {}
+      additional_properties: false
+    emits: [ChromaReady, CommandError]
+    output:
+      description: Mapped Chroma heartbeat result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: chroma.heartbeat
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: A heartbeat check does not mutate state.
+    config:
+      rest_ref: chroma
+      operation: heartbeat
+
+  - name: ollama_ready
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Check the Ollama version endpoint through the configured REST client.
+    problem: The reader flow must fail fast when the Ollama server is unreachable.
+    goals:
+      - Resolve the ollama client and version operation.
+      - Return a configured readiness signal to MachineSpec.
+    requirements:
+      input:
+        - Runtime input supplies no transport authority or request parameters.
+      output:
+        - Output reports operation identity, status, and Ollama version.
+      errors:
+        - Definition, network, timeout, and mapping failures emit CommandError.
+    non_goals:
+      - Does not pull models or start the Ollama server.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties: {}
+      additional_properties: false
+    emits: [OllamaReady, CommandError]
+    output:
+      description: Mapped Ollama version result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: ollama.version
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: A version check does not mutate state.
+    config:
+      rest_ref: ollama
+      operation: version
+
+  - name: embed_query
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Embed the request question at Ollama for the Chroma query.
+    problem: Chroma does not embed server-side, so the agent must compute the query vector at a provider.
+    goals:
+      - Call the provider embedding endpoint with the configured embedding model.
+      - Return the query embedding vector mapped from the Ollama response.
+    requirements:
+      input:
+        - Runtime input selects nothing from the previous Result; the question is configured in the REST body.
+      output:
+        - Output includes the mapped query embedding vector.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not author or alter the embedding vector.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties: {}
+      additional_properties: false
+    emits: [QueryEmbedded, CommandError]
+    output:
+      description: Mapped Ollama query embedding.
+      schema:
+        type: object
+        properties:
+          mapped: {type: object}
+    side_effects:
+      - kind: external_api
+        target: ollama.embeddings
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Computing an embedding does not mutate state.
+    config:
+      rest_ref: ollama
+      operation: embed_query
+
+  - name: resolve_collection
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Create-or-get the collection and carry the query vector forward.
+    problem: Single-hop threading means the returned collection id must reach chroma_query through this word.
+    goals:
+      - Create-or-get the plain collection with no server-side embedding function.
+      - Resolve the returned collection id for the query path.
+      - Carry the query vector forward from the embed Result.
+    requirements:
+      input:
+        - The query embedding is selected from the previous embed Result output.
+      output:
+        - Output includes the mapped collection id and the carried query vector.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not configure a server-side embedding function.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties:
+        query_embeddings: {type: array}
+    emits: [CollectionReady, CommandError]
+    output:
+      description: Mapped Chroma collection id with the carried query vector.
+      schema:
+        type: object
+        properties:
+          mapped: {type: object}
+          carried: {type: object}
+    side_effects:
+      - kind: external_api
+        target: chroma.collection
+        state: collection_upserted
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Create-or-get is idempotent for a stable collection name.
+    config:
+      rest_ref: chroma
+      operation: create_or_get_collection_query
+
+  - name: chroma_query
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Query the resolved collection with the agent-supplied query vector.
+    problem: Chroma retrieval uses a client-supplied query vector threaded from the previous words.
+    goals:
+      - Thread the collection id and query vector from the previous Result.
+      - Return the retrieved chunk ids and documents.
+    requirements:
+      input:
+        - Collection id and query vector are selected from the previous Result output.
+      output:
+        - Output includes the retrieved chunk ids and documents.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not author the query vector.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties:
+        collection: {type: string}
+        query_embeddings: {type: array}
+    emits: [QueryResponded, CommandError]
+    output:
+      description: Mapped Chroma query result.
+      schema:
+        type: object
+        properties:
+          ids: {type: array}
+          documents: {type: array}
+    side_effects:
+      - kind: external_api
+        target: chroma.query
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Querying a collection does not mutate state.
+    config:
+      rest_ref: chroma
+      operation: query_records
+
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    emits: [LLMResponded, CommandError]
+    description: Invoke the configured model to answer over the retrieved chunks.
+    category: boundary
+    problem: The reader needs a model boundary that answers grounded in the Chroma query result.
+    goals:
+      - Send the retrieved chunks and the grounding prompt to the configured model.
+      - Produce a grounded answer as the terminal reader output.
+      - Keep model, provider, parser, and prompt configuration in profile-owned YAML.
+    requirements:
+      input:
+        - must read conversation history and the previous Chroma query result from runtime state
+        - must use the configured model against local Ollama
+      output:
+        - must emit LLMResponded when the model returns answer text
+        - must emit CommandError for provider setup, model discovery, or chat failures
+      side_effects:
+        - must call local Ollama POST /api/chat
+      undo:
+        - must restore conversation history from the pre-call snapshot
+    non_goals:
+      - Does not call Chroma or Ollama embedding endpoints directly.
+      - Does not author or alter the retrieved chunks.
+    output:
+      description: Raw model response.
+      schema:
+        type: object
+        properties:
+          response: {type: string}
+          provider: {type: string}
+          model: {type: string}
+        required: [response, provider, model]
+    side_effects:
+      - kind: external_api_call
+        target: ollama.chat
+        description: Sends the retrieved chunks and grounding prompt to the configured local model.
+      - kind: state_mutation
+        target: conversation_history
+        state: appended
+        description: Appends the model response after a successful provider call.
+    reversibility:
+      classification: reversible
+      undo: conversation_truncate
+      requires_confirmation: false
+    undo:
+      strategy: conversation_truncate
+      description: Restore conversation history captured before the model call.
+      requires: [conversation_checkpoint]
+    errors:
+      - signal: CommandError
+        condition: provider configuration is invalid, the model is unavailable, or the model call fails
+        message_shape: 'invoke_llm: <provider/model>: <error>'
+        state_after_failure: conversation history is unchanged unless the provider response was already appended
+    relationships:
+      after:
+        - chroma_query
+    config:
+      model: "qwen3.6:35b-mlx"
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      manifest_state: Answering
+      response_profile: qwen
+      max_time: 120
+      llm_timeout: 120
+      system_prompt: |
+        You answer a question using only the corpus chunks retrieved from the
+        local Chroma collection. The retrieved chunks arrive in the conversation
+        as the result of the chroma_query word.
+
+        Rules:
+        - Answer only from the retrieved chunks. Do not use outside knowledge.
+        - If the retrieved chunks do not contain the answer, say so plainly.
+        - Cite the chunk identity (the Chroma record id) for each claim.
+        - Keep the answer concise and grounded; do not speculate beyond the chunks.

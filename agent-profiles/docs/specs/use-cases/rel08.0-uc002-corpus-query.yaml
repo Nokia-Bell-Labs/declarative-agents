@@ -1,0 +1,82 @@
+id: rel08.0-uc002-corpus-query
+title: Corpus Query from Chroma
+
+summary: |
+  The reader profile answers a question grounded in a Chroma collection. It
+  embeds the question at a local Ollama provider, queries Chroma with the
+  agent-supplied query vector for the nearest chunks, and invokes the model over
+  the retrieved chunks to produce a grounded answer. The proof belongs in
+  agent-profiles because the Chroma and Ollama REST definitions, the collection
+  identity, and the reader prompt are profile-owned assets.
+
+  As in ingest, Chroma does not embed the query server-side over its raw HTTP
+  API, so the query vector is computed by the embed word and threaded into the
+  Chroma query word using the agent-core previous-Result parameter threading
+  (srd028 R12). The retrieved chunks, not a model-authored vector, ground the
+  answer.
+
+actor: Profile maintainer or operator asking a question against an ingested corpus.
+
+trigger: |
+  A maintainer runs the Chroma corpus integration target with a running Chroma
+  server holding an ingested collection and a reachable Ollama:
+
+    AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma
+
+preconditions:
+  - A Chroma server is running with a collection already ingested by rel08.0-uc001-corpus-ingest.
+  - An Ollama server is reachable and has the configured embedding model and the answer model available.
+  - agents/chroma/reader profile validates and owns the Chroma and Ollama REST definitions and the reader prompt.
+
+flow:
+  - id: F1
+    text: The reader machine runs chroma_ready and ollama_ready, failing fast when either server is unreachable.
+  - id: F2
+    text: embed_query calls Ollama with the configured model for the request question, maps the returned vector into its Result output, and carries it forward.
+  - id: F3
+    text: The create-or-get collection word (immediately before query) resolves the existing collection id and carries the query vector forward so single-hop threading reaches the query body.
+  - id: F4
+    text: chroma_query threads the resolved collection id and the query vector into the query request body via body_source previous_result and input_mapping, placing the vector in a single-token array element, and requests the configured number of nearest chunks.
+  - id: F5
+    text: invoke_llm answers the question grounded in the retrieved chunks, recording the retrieved chunk identities.
+
+touchpoints:
+  - id: T1
+    target: srd012-chroma-corpus-agents AC1
+    reason: The reader profile is a configured Chroma retrieval boundary machine, not a Go package.
+  - id: T2
+    target: srd012-chroma-corpus-agents AC2
+    reason: chroma_ready, ollama_ready, chroma_collection, embed_query, and chroma_query are the named REST vocabulary.
+  - id: T3
+    target: srd012-chroma-corpus-agents AC3
+    reason: The embed-to-query vector step uses srd028 R12 body_source previous_result, input_mapping, and single-token reshape, with no model-authored vector.
+  - id: T4
+    target: srd012-chroma-corpus-agents AC6
+    reason: The retrieved chunk identities and grounded answer are the checkable reader outputs.
+  - id: T5
+    target: test-rel08.0-chroma-corpus corpus_query
+    reason: The suite records the integration target, inputs, and expected embed -> chroma_query -> invoke_llm trace order.
+
+success_criteria:
+  - id: S1
+    criterion: The Chroma query carries an agent-supplied query vector threaded from the embed word, not a model-authored or server-side vector.
+    traces:
+      - srd012-chroma-corpus-agents R3.2
+      - srd012-chroma-corpus-agents R3.4
+  - id: S2
+    criterion: The reader retrieves the configured number of nearest chunks from the resolved collection before answering.
+    traces:
+      - srd012-chroma-corpus-agents R2.4
+  - id: S3
+    criterion: invoke_llm produces an answer grounded in the retrieved chunks and records their identities.
+    traces:
+      - srd012-chroma-corpus-agents R1.3
+      - srd012-chroma-corpus-agents R6.1
+
+out_of_scope:
+  - Ingesting documents, which belongs to the ingest use case.
+  - Starting or stopping the Chroma or Ollama servers from the agent.
+  - Evaluating answer quality beyond the grounded-retrieval trace order.
+
+test_suite_trace: test-rel08.0-chroma-corpus
+status: specified

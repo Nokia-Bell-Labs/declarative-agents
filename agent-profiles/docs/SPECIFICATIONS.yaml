@@ -25,6 +25,14 @@ overview: |
   bench to evaluator, and monitor/control evidence that lives with the profile
   assets.
 
+  Release 08.0 adds the Chroma corpus agents: an ingest profile and a reader
+  profile that use a local Chroma vector database as a retrieval boundary. Both
+  compute embeddings at a local Ollama provider and thread the vector into Chroma
+  add and query through the agent-core previous-Result parameter capability
+  (srd028 R12), because Chroma does not embed server-side over its raw HTTP API.
+  srd012 owns the family requirements; the 08.0 use cases and test suite trace to
+  it and name mage integration:chroma as the executable evidence.
+
   A reader can now start at the SRD, follow the semantic model role entries,
   reach the two mounted-profile use cases, and land on named commands such as
   mage validate, mage containerSmoke, mage tag, and the agent-core integration
@@ -62,6 +70,17 @@ roadmap_summary:
       families that release 07.0 left to the generic mounted-profile and
       profile-validation use cases. Profile-owned Mage integration targets for
       the three families remain a deferred follow-up.
+  - version: "08.0"
+    name: Chroma corpus agents
+    status: in-progress
+    scope: |
+      Two profile-owned agents use a local Chroma vector database as a retrieval
+      boundary: an ingest profile and a reader profile, built as pure
+      agent-profiles configuration over existing agent-core words. Embeddings are
+      computed at a local Ollama provider and threaded into Chroma add and query
+      (srd028 R12), because Chroma does not embed server-side over its raw HTTP
+      API. The design and traceability layer land first; the profiles, fixtures,
+      and mage integration:chroma target follow.
 
 foundation_document_index:
   - id: agent-profiles
@@ -152,6 +171,13 @@ srd_index:
       selections, runtime dependencies, outputs, and terminal outcomes.
     status: implemented
     path: docs/specs/software-requirements/srd011-knowledge-manager.yaml
+  - id: srd012-chroma-corpus-agents
+    title: Chroma Corpus Agents Functional Block
+    summary: Ingest and reader Chroma retrieval boundary, REST vocabulary,
+      provider-embedding threading (srd028 R12), inputs, tool selections, server
+      lifecycle precondition, and terminal outcomes.
+    status: implemented
+    path: docs/specs/software-requirements/srd012-chroma-corpus-agents.yaml
 
 config_format_index: []
 
@@ -226,6 +252,19 @@ use_case_index:
       authority, OpenAPI imports, and the ollama-* variant.
     status: specified
     path: docs/specs/use-cases/rel07.1-uc003-rest-profile-boundary.yaml
+  - id: rel08.0-uc001-corpus-ingest
+    title: Corpus Ingest into Chroma
+    summary: Ingest profile reads a corpus, embeds each document at Ollama, and
+      threads the vector and carried document and id into Chroma add, then
+      verifies the collection count.
+    status: specified
+    path: docs/specs/use-cases/rel08.0-uc001-corpus-ingest.yaml
+  - id: rel08.0-uc002-corpus-query
+    title: Corpus Query from Chroma
+    summary: Reader profile embeds a question at Ollama, threads the vector into
+      Chroma query, and answers grounded in the retrieved chunks.
+    status: specified
+    path: docs/specs/use-cases/rel08.0-uc002-corpus-query.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -263,6 +302,15 @@ test_suite_index:
       polling proven at the agent-core package level.
     status: implemented
     path: docs/specs/test-suites/test-rel07.1-profile-conformance.yaml
+  - id: test-rel08.0-chroma-corpus
+    title: Test Suite for Release 08.0 Chroma Corpus Agents
+    summary: Profile-owned tracer for Chroma corpus ingest and query. Both
+      profiles embed at a local Ollama provider and thread the vector into Chroma
+      add and query (srd028 R12), because Chroma does not embed server-side. The
+      integration target is mage integration:chroma; cases stay specified until
+      the profiles, fixtures, and target land under #242-#244.
+    status: specified
+    path: docs/specs/test-suites/test-rel08.0-chroma-corpus.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and
@@ -329,3 +377,19 @@ coverage_gaps: |
   head is not run in a profile machine because REST client tools enforce a
   declared-only runtime input contract that the loop's verbatim output threading
   does not satisfy.
+
+  Release 08.0 adds the Chroma corpus agents. srd012 owns the family and the two
+  use cases (rel08.0-uc001-corpus-ingest, rel08.0-uc002-corpus-query) trace to it
+  through touchpoints; test-rel08.0-chroma-corpus traces to both and names mage
+  integration:chroma as executable evidence. The provider-embedding threading
+  that release 07.1 recorded as missing for the rest client head -- REST client
+  tools enforcing a declared-only runtime input contract that verbatim output
+  threading does not satisfy -- is now available: agent-core #245 added
+  previous-Result parameter threading (srd028 R12, body_source previous_result,
+  input_mapping, carry_forward, single-token vector reshape), which the Chroma
+  add and query words use to carry the Ollama-computed vector. The remaining gap
+  is the implementation: the profile-owned Chroma and Ollama REST assets, the
+  ingest and reader profiles, the corpus fixture, and the mage integration:chroma
+  target and its tracer (#242-#244). Until those land, the 08.0 use cases and the
+  test suite stay status specified rather than implemented, and the run requires a
+  reachable Chroma server and an Ollama with the configured models.

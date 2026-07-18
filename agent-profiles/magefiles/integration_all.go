@@ -31,6 +31,7 @@ func (i Integration) All() error {
 		{"plannerGenerator", i.PlannerGenerator, false},
 		{"benchEvaluator", i.BenchEvaluator, false},
 		{"monitorControl", i.MonitorControl, false},
+		{"chroma", i.Chroma, true},
 	}
 
 	var passed, failed, skipped int
