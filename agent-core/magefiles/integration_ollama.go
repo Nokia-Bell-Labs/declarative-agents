@@ -18,6 +18,10 @@ const (
 	ollamaLLMRel         = "rest/ollama-llm.yaml"
 	ollamaPrompt         = "List the local Ollama models available on this machine."
 	ollamaListModelsTool = "ollama_list_models"
+	// ollamaTestModel is the default chat model for the Ollama uc005 tracer.
+	// It is separate from qwen35b, which the generator/evaluator gates require
+	// for the qwen35b-specific generator profiles.
+	ollamaTestModel = "ornith:9b"
 )
 
 // Uc005 runs rel03.0-uc005: Qwen lists Ollama models through an OpenAPI REST tool.
@@ -63,7 +67,7 @@ func configuredOllamaModel() string {
 	if model := strings.TrimSpace(os.Getenv(ollamaModelEnv)); model != "" {
 		return model
 	}
-	return qwen35b
+	return ollamaTestModel
 }
 
 func requireOllamaModels(model string) ([]string, error) {
