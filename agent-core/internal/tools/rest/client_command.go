@@ -428,7 +428,13 @@ func runtimeParams(output string) (map[string]interface{}, error) {
 	}
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(output), &raw); err != nil {
-		return nil, err
+		// A prior Result that is not a JSON object carries no runtime
+		// parameters. This is the machine seed ("Begin."/"Resume.") or any
+		// non-REST word's plain-text output, so a REST word may be the first
+		// action in a sentence. Operations that require parameters still fail
+		// later, at input-mapping or body rendering, with an operation-specific
+		// error instead of an opaque JSON parse failure.
+		return map[string]interface{}{}, nil
 	}
 	if params, ok := raw["parameters"]; ok {
 		return decodeRuntimeMap(params)

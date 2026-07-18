@@ -32,3 +32,25 @@ func TestValidateRuntimeInputAcceptsDeclaredValues(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestRuntimeParamsFromNonJSONSeed(t *testing.T) {
+	t.Parallel()
+
+	// The machine seed output ("Begin.") and any non-REST word's plain-text
+	// output are not JSON objects. A REST client word may still be the first
+	// action in a sentence, so these carry no runtime parameters rather than
+	// failing the build.
+	for _, output := range []string{"Begin.", "Resume.", "plain text"} {
+		params, err := runtimeParams(output)
+		require.NoError(t, err)
+		require.Empty(t, params)
+	}
+}
+
+func TestRuntimeParamsFromJSONEnvelope(t *testing.T) {
+	t.Parallel()
+
+	params, err := runtimeParams(`{"parameters":{"path":"a.md"}}`)
+	require.NoError(t, err)
+	require.Equal(t, "a.md", params["path"])
+}

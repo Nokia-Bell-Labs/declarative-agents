@@ -69,6 +69,13 @@ func normalizeRuntimeParams(input map[string]interface{}, binding RequestBinding
 	if nested, ok := input["params"].(map[string]interface{}); ok {
 		params = nested
 	}
+	if binding.BodySource == bodySourceNone {
+		// The operation declares it takes no runtime parameters, so the prior
+		// Result's output must not be read as params. This lets a self-contained
+		// REST word (for example a readiness check) follow another REST word
+		// whose output fields would otherwise fail the declared-only contract.
+		params = map[string]interface{}{}
+	}
 	if binding.BodySource == bodySourcePreviousResult {
 		params = selectPreviousResultParams(params, binding)
 	}
