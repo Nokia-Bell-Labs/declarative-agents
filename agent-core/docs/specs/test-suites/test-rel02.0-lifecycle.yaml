@@ -10,7 +10,7 @@ preconditions:
   - Persistence defaults to NoopCheckpoint so disabled-mode runs keep current loop behavior with no store configured.
   - InMemoryCheckpoint is the reference adapter for in-process round-trip scenarios.
   - A fake database/sql seam (fakeDB) stands in for Dolt so branch-per-run, commit-per-step, merge-on-terminal, and Revert are asserted without a live server.
-  - A running dolt sql-server named by DOLT_TEST_DSN enables the end-to-end CLI suspend/resume integration test; it is skipped when the variable is unset.
+  - A reachable local dolt sql-server enables the end-to-end CLI suspend/resume integration test; it is skipped when no server is reachable.
   - Test commands can encode opaque receipts during Execute and reverse them through a receipt-consuming Undo.
 
 test_cases:
@@ -156,14 +156,14 @@ test_cases:
     go_test: TestDoltCheckpointSuspendResumeRoundTrip
     status: done
     description: |
-      Against a running dolt sql-server (DOLT_TEST_DSN), open a DoltCheckpoint
+      Against a reachable local dolt sql-server, open a DoltCheckpoint
       through the composition-root driver, save a suspended run, then load it
       from a fresh adapter instance and verify the Position, folded
       conversation, and Execution (including receipts) match the pre-suspend
-      state. Skipped when DOLT_TEST_DSN is unset.
+      state. Skipped when no dolt sql-server is reachable.
     inputs:
       backend: DoltCheckpoint
-      dsn: DOLT_TEST_DSN
+      dsn: root@tcp(127.0.0.1:3306)/agent_core_test
     expected:
       fresh_process_load: equivalent_state
       skipped_without_dsn: true
