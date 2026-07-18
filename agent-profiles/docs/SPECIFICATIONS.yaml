@@ -190,6 +190,17 @@ srd_index:
       disabled in the mesh.
     status: planned
     path: docs/specs/software-requirements/srd013-rag-server-agent.yaml
+  - id: srd014-chatbot-agent
+    title: Chatbot Agent Functional Block
+    summary: Browser-facing agent whose each chat turn is a request-scoped machine
+      (route, embed, RAG fan-out, compose, answer) with non-adjacent data flowing
+      by command-state $from() (srd038); an LLM $tool router with a normative
+      misparse fallback; sequential multi-RAG fan-out with per-RAG degradation and
+      embedding-space mismatch exclusion; stateless-v1 sessions; a three-panel
+      ux.yaml over a static_assets SPA; and a preserved transport-authority
+      boundary.
+    status: planned
+    path: docs/specs/software-requirements/srd014-chatbot-agent.yaml
 
 config_format_index: []
 
