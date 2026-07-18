@@ -128,61 +128,13 @@ func selectCommandStateParams(view core.CommandStateView, binding RequestBinding
 	}
 	selected := map[string]interface{}{}
 	for target, selector := range binding.InputMapping {
-		label, path, ok := parseFromSelector(selector)
-		if !ok {
-			return nil, fmt.Errorf("command_state selector %q must be a $from(label).path selector", selector)
-		}
-		output, found := view.Lookup(label)
-		if !found {
-			return nil, fmt.Errorf("command_state selector %q: no prior step labeled %q", selector, label)
-		}
-		decoded, err := decodeCommandStateOutput(output)
+		value, err := core.ResolveFromSelector(view, selector)
 		if err != nil {
-			return nil, fmt.Errorf("command_state selector %q: %v", selector, err)
-		}
-		value, ok := resolveResultSelector("$."+path, decoded)
-		if !ok {
-			return nil, fmt.Errorf("command_state selector %q: path %q not found in step %q output", selector, path, label)
+			return nil, err
 		}
 		selected[target] = value
 	}
 	return selected, nil
-}
-
-// decodeCommandStateOutput decodes a labeled step's JSON output into a map so the
-// dotted path can be walked. A step output that is not a JSON object cannot be
-// addressed by a $from selector.
-func decodeCommandStateOutput(output string) (map[string]interface{}, error) {
-	var decoded map[string]interface{}
-	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
-		return nil, fmt.Errorf("step output is not a JSON object")
-	}
-	return decoded, nil
-}
-
-// parseFromSelector splits a $from(label).dotted.path selector into its label and
-// path. It returns ok=false for any other selector form (for example a $.-style
-// previous_result selector or a malformed $from).
-func parseFromSelector(selector string) (label, path string, ok bool) {
-	const prefix = "$from("
-	if !strings.HasPrefix(selector, prefix) {
-		return "", "", false
-	}
-	remainder := selector[len(prefix):]
-	closeIdx := strings.Index(remainder, ")")
-	if closeIdx <= 0 {
-		return "", "", false
-	}
-	label = remainder[:closeIdx]
-	after := remainder[closeIdx+1:]
-	if !strings.HasPrefix(after, ".") {
-		return "", "", false
-	}
-	path = strings.TrimPrefix(after, ".")
-	if label == "" || path == "" {
-		return "", "", false
-	}
-	return label, path, true
 }
 
 // selectPreviousResultParams populates declared params from the previous Result

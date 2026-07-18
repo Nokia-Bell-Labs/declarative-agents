@@ -29,6 +29,14 @@ type ChildAgentConfig struct {
 	Profile string `json:"profile"`
 }
 
+// ComposeConfig holds the compose word's template and its $from(label).path input
+// selectors, resolved against the command-state view (srd038).
+type ComposeConfig struct {
+	Template string            `json:"template"`
+	Inputs   map[string]string `json:"inputs"`
+	Signal   string            `json:"signal"`
+}
+
 // CheckpointHistoryConfig holds config for checkpoint_history.
 type CheckpointHistoryConfig struct {
 	Checkpoint string `json:"checkpoint"`
