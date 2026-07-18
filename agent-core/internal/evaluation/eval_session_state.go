@@ -37,6 +37,9 @@ type EvalSessionState struct {
 	Reps      int
 	Timeout   time.Duration
 	OllamaURL string
+	// ChildAgentBinary overrides the harness binary the evaluator launches for
+	// each suite profile. Empty means the default "agent" (resolved from PATH).
+	ChildAgentBinary string
 
 	Suite        SuiteConfig
 	SessionDir   string

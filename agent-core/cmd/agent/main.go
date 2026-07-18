@@ -39,6 +39,7 @@ var (
 	flagDoltDSN          string
 	flagResumeCheckpoint string
 	flagResumeSignal     string
+	flagChildAgent       string
 )
 
 const (
@@ -72,28 +73,30 @@ func init() {
 	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
 	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
+	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary the evaluator launches (default: agent, resolved from PATH)")
 
 	rootCmd.Version = "v0.0.0-dev"
 }
 
 type agentState struct {
-	parser        llm.ResponseParser
-	conversation  *llm.Conversation
-	tracker       *validation.ToolTracker
-	registry      *core.Registry
-	tracer        tracing.Tracer
-	model         string
-	providerName  string
-	manifestState core.State
-	parseRetries  *toollm.ParseErrorRetryTracker
-	maxDuration   time.Duration
-	maxTokens     int
-	verbose       bool
-	ctx           context.Context
-	directory     string
-	request       string
-	output        string
-	checkpoint    core.Checkpoint
+	parser           llm.ResponseParser
+	conversation     *llm.Conversation
+	tracker          *validation.ToolTracker
+	registry         *core.Registry
+	tracer           tracing.Tracer
+	model            string
+	providerName     string
+	manifestState    core.State
+	parseRetries     *toollm.ParseErrorRetryTracker
+	maxDuration      time.Duration
+	maxTokens        int
+	verbose          bool
+	ctx              context.Context
+	directory        string
+	request          string
+	output           string
+	childAgentBinary string
+	checkpoint       core.Checkpoint
 	// lifecycleCheckpoint is the backend the checkpoint_history/checkpoint_rollback
 	// tools read and revert through. For the history and rollback families it is
 	// pinned to the request's target run so the inspecting machine never persists
@@ -352,6 +355,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		directory:           cfg.Directory,
 		request:             cfg.Request,
 		output:              cfg.Output,
+		childAgentBinary:    cfg.ChildAgentBinary,
 		checkpoint:          checkpointOrNoop(deps.Checkpoint),
 		lifecycleCheckpoint: deps.LifecycleCheckpoint,
 		monitor:             deps.Monitor,

@@ -63,6 +63,12 @@ func (c *parseSuiteConfigCmd) Execute() core.Result {
 		}
 	}
 
+	if c.es.ChildAgentBinary != "" {
+		for i := range suite.Profiles {
+			suite.Profiles[i].Binary = c.es.ChildAgentBinary
+		}
+	}
+
 	c.snapshot = snapshotEvalSession(c.es)
 	c.hasSnapshot = true
 	c.es.Suite = suite
