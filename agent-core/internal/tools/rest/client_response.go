@@ -24,6 +24,7 @@ func mapClientResponse(
 	response *http.Response,
 	attempts int,
 	duration time.Duration,
+	params map[string]interface{},
 ) (core.Result, error) {
 	body, err := readResponseBody(response, def.Limits.MaxResponseBytes)
 	if err != nil {
@@ -40,6 +41,9 @@ func mapClientResponse(
 		return clientOperationError(commandName, "response_mapping", err, def), err
 	}
 	output := responseOutput(def, mapping, response, payload, attempts)
+	if carried := carriedInputs(def.Operation.Params, params); carried != nil {
+		output["carried"] = carried
+	}
 	redactClientOutput(output, clientRedactionSelectors(def, mapping))
 	return core.Result{
 		Signal: core.Signal(signal), CommandName: commandName,
@@ -133,6 +137,22 @@ func responseOutput(
 		"retry_count":       attempts - 1,
 		"domain_error_code": mapping.DomainErrorCode,
 	}
+}
+
+// carriedInputs copies the operation's declared carry_forward params into a
+// map placed under the Result output carried key, so a later word can select
+// them without a shared command-state store (srd028 R12.3).
+func carriedInputs(binding RequestBinding, params map[string]interface{}) map[string]interface{} {
+	if len(binding.CarryForward) == 0 {
+		return nil
+	}
+	carried := map[string]interface{}{}
+	for _, name := range binding.CarryForward {
+		if value, ok := params[name]; ok {
+			carried[name] = value
+		}
+	}
+	return carried
 }
 
 func resolvedResponseMapping(def ClientOperationDefinition, mapping StatusMapping) ResponseMapping {

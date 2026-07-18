@@ -14,6 +14,13 @@ import (
 	"strings"
 )
 
+const (
+	bodySourceParams         = "params"
+	bodySourcePreviousResult = "previous_result"
+	bodySourceNone           = "none"
+	bodySourceCommandState   = "command_state"
+)
+
 type credentialResolutionError struct {
 	ref string
 }
@@ -22,33 +29,36 @@ func (e credentialResolutionError) Error() string {
 	return fmt.Sprintf("credential ref %q is not resolved", e.ref)
 }
 
+// buildClientRequest renders one outbound request and returns the effective
+// declared params used to render it, so the caller can carry selected inputs
+// forward into the Result output (srd028 R12.3).
 func buildClientRequest(
 	def ClientOperationDefinition,
 	input map[string]interface{},
 	resolver CredentialResolver,
-) (*http.Request, error) {
+) (*http.Request, map[string]interface{}, error) {
 	params, err := normalizeRuntimeParams(input, def.Operation.Params)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	endpoint, err := renderURL(def, params)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	body, err := renderRequestBody(def.Operation, params, def.Limits.MaxRequestBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	req, err := http.NewRequest(def.Operation.Method, endpoint, body)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	req.GetBody = func() (io.ReadCloser, error) {
 		return renderRequestBody(def.Operation, params, def.Limits.MaxRequestBytes)
 	}
 	applyHeaders(req, def.Operation.Params.Headers, params)
 	applyIdempotency(req, def.Operation, params)
-	return req, applyAuth(req, def.Auth, resolver)
+	return req, params, applyAuth(req, def.Auth, resolver)
 }
 
 func normalizeRuntimeParams(input map[string]interface{}, binding RequestBinding) (map[string]interface{}, error) {
@@ -59,10 +69,47 @@ func normalizeRuntimeParams(input map[string]interface{}, binding RequestBinding
 	if nested, ok := input["params"].(map[string]interface{}); ok {
 		params = nested
 	}
+	if binding.BodySource == bodySourcePreviousResult {
+		params = selectPreviousResultParams(params, binding)
+	}
 	if err := validateDeclaredRuntimeParams(params, binding); err != nil {
 		return nil, err
 	}
 	return params, validateBodySchema(binding.BodySchema, params)
+}
+
+// selectPreviousResultParams populates declared params from the previous Result
+// output using the operation's input_mapping selectors. Only declared params are
+// returned, so the prior Result's fixed output shape no longer violates the
+// declared-only contract (srd028 R12.1, R12.2).
+func selectPreviousResultParams(source map[string]interface{}, binding RequestBinding) map[string]interface{} {
+	selected := map[string]interface{}{}
+	for target, selector := range binding.InputMapping {
+		if value, ok := resolveResultSelector(selector, source); ok {
+			selected[target] = value
+		}
+	}
+	return selected
+}
+
+// resolveResultSelector resolves a $.-style selector against a Result output
+// map, walking nested maps (for example $.mapped.embedding or $.carried.input).
+func resolveResultSelector(selector string, source map[string]interface{}) (interface{}, bool) {
+	if !strings.HasPrefix(selector, "$.") {
+		return nil, false
+	}
+	var current interface{} = source
+	for _, key := range strings.Split(strings.TrimPrefix(selector, "$."), ".") {
+		container, ok := current.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		current, ok = container[key]
+		if !ok {
+			return nil, false
+		}
+	}
+	return current, true
 }
 
 func validateDeclaredRuntimeParams(params map[string]interface{}, binding RequestBinding) error {
