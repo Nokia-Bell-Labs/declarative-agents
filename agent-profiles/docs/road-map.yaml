@@ -278,49 +278,59 @@ releases:
       boundary: an ingest profile that loads a repository corpus into a Chroma
       collection, and a reader profile that answers a question grounded in the
       retrieved chunks. Both are pure agent-profiles configuration over existing
-      agent-core words -- REST client words, read, and invoke_llm.
+      agent-core words -- REST client words, list_resource, read_resource, and
+      invoke_llm. The ingest is a model-driven loop: the model lists the corpus
+      and selects each file, and the machine sequences the deterministic embed
+      and add steps after each read (#251).
 
       Chroma does not embed text server-side over its raw HTTP API (spike #239),
-      so the agents compute embeddings at a local Ollama provider (an /api/embed
-      REST word) and thread the resulting vector into the Chroma add and query
-      bodies. Provider embedding, not server-side embedding, is the design. The
+      so the agents compute embeddings at a local Ollama provider (an
+      /api/embeddings REST word) and thread the resulting vector into the Chroma
+      add and query bodies. Provider embedding, not server-side embedding, is the
+      design. The
       threading uses the agent-core previous-Result parameter capability
       delivered by #245 (srd028-rest-client-tools R12): body_source
       previous_result selects the vector through input_mapping, carry_forward
       echoes the source text and id, and a single-token array element reshapes
       the flat vector into the nested array Chroma expects. No embedding vector is
       authored by a model.
-    status: in-progress
+    status: done
     planned_work:
       - id: gh-230
         summary: Chroma corpus agents epic -- srd012, release 08.0 docs, profiles, and integration test.
-        status: in-progress
+        status: done
       - id: gh-240
         summary: Add srd012-chroma-corpus-agents SRD.
         status: done
       - id: gh-241
         summary: Add release 08.0 roadmap, use cases, test suite, and SPECIFICATIONS entries.
-        status: in-progress
+        status: done
       - id: gh-242
         summary: Add the profile-owned Chroma and Ollama REST assets and the ingest profile.
-        status: specified
+        status: done
       - id: gh-243
         summary: Add the Chroma reader profile.
-        status: specified
+        status: done
       - id: gh-244
         summary: Add the mage integration:chroma target and tracer test.
-        status: specified
+        status: done
+      - id: gh-250
+        summary: Fix the runtime and reader defects found by running the agents end-to-end.
+        status: done
+      - id: gh-251
+        summary: Redesign the ingest as a model-driven loop that actually loads the corpus.
+        status: done
     use_cases:
       - id: rel08.0-uc001-corpus-ingest
-        summary: Ingest profile reads a corpus, embeds at Ollama, and threads vectors into Chroma add.
-        status: specified
+        summary: Ingest profile lists and reads a corpus under model control, embeds at Ollama, and threads vectors into Chroma add.
+        status: implemented
       - id: rel08.0-uc002-corpus-query
         summary: Reader profile embeds a question, threads the vector into Chroma query, and answers grounded in retrieved chunks.
-        status: specified
+        status: implemented
     test_suites:
       - id: test-rel08.0-chroma-corpus
         summary: Profile-owned tracer for Chroma ingest and query with provider embedding threaded into Chroma.
-        status: specified
+        status: implemented
     proof:
       - mage validate
       - AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma (requires a running Chroma server and a reachable Ollama with the configured models)

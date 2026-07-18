@@ -72,15 +72,17 @@ roadmap_summary:
       the three families remain a deferred follow-up.
   - version: "08.0"
     name: Chroma corpus agents
-    status: in-progress
+    status: done
     scope: |
       Two profile-owned agents use a local Chroma vector database as a retrieval
       boundary: an ingest profile and a reader profile, built as pure
       agent-profiles configuration over existing agent-core words. Embeddings are
       computed at a local Ollama provider and threaded into Chroma add and query
       (srd028 R12), because Chroma does not embed server-side over its raw HTTP
-      API. The design and traceability layer land first; the profiles, fixtures,
-      and mage integration:chroma target follow.
+      API. The ingest is a model-driven loop that lists and reads the corpus while
+      the machine sequences the deterministic embed and add steps. The mage
+      integration:chroma target passes end-to-end -- ingest loads the corpus and
+      the reader grounds an answer in the retrieved chunks.
 
 foundation_document_index:
   - id: agent-profiles
@@ -307,9 +309,10 @@ test_suite_index:
     summary: Profile-owned tracer for Chroma corpus ingest and query. Both
       profiles embed at a local Ollama provider and thread the vector into Chroma
       add and query (srd028 R12), because Chroma does not embed server-side. The
-      integration target is mage integration:chroma; cases stay specified until
-      the profiles, fixtures, and target land under #242-#244.
-    status: specified
+      integration target mage integration:chroma passes end-to-end -- the
+      model-driven ingest loads the corpus (#251) and the reader grounds an answer
+      in the retrieved chunks.
+    status: implemented
     path: docs/specs/test-suites/test-rel08.0-chroma-corpus.yaml
 
 coverage_gaps: |
@@ -387,9 +390,14 @@ coverage_gaps: |
   threading does not satisfy -- is now available: agent-core #245 added
   previous-Result parameter threading (srd028 R12, body_source previous_result,
   input_mapping, carry_forward, single-token vector reshape), which the Chroma
-  add and query words use to carry the Ollama-computed vector. The remaining gap
-  is the implementation: the profile-owned Chroma and Ollama REST assets, the
-  ingest and reader profiles, the corpus fixture, and the mage integration:chroma
-  target and its tracer (#242-#244). Until those land, the 08.0 use cases and the
-  test suite stay status specified rather than implemented, and the run requires a
-  reachable Chroma server and an Ollama with the configured models.
+  add and query words use to carry the Ollama-computed vector. The implementation
+  landed: the profile-owned Chroma and Ollama REST asset, the ingest and reader
+  profiles, the corpus fixture, and the mage integration:chroma target and its
+  tracer (#242-#244). Running the agents surfaced runtime and reader defects,
+  fixed under #250, and revealed that the ingest could not load a corpus without
+  a model-driven loop; #251 redesigned the ingest so the model lists and reads
+  the corpus while the machine sequences the deterministic embed and add steps.
+  The mage integration:chroma target now passes end-to-end -- ingest loads the
+  corpus and the reader grounds an answer in the retrieved chunks -- so the 08.0
+  use cases and test suite are implemented. The run requires a reachable Chroma
+  server and an Ollama with the configured models.

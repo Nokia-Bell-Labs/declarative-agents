@@ -13,10 +13,12 @@ overview: |
 
   A tracer is implemented only when agent-profiles owns the profiles, REST
   definitions, corpus fixture, and expected output evidence, and the run has a
-  reachable Chroma server and Ollama with the configured models. Until the
-  integration target and its fixtures land (#242, #243, #244), the cases stay
-  status specified and name the missing profile asset rather than accepting a
-  fake pass.
+  reachable Chroma server and Ollama with the configured models. The integration
+  target and its fixtures landed (#242, #243, #244), and the ingest was
+  redesigned as a model-driven loop that actually loads the corpus (#251). The
+  mage integration:chroma target now passes end-to-end -- ingest loads the corpus
+  and the reader grounds an answer in the retrieved chunks -- so the cases are
+  implemented.
 
 traces:
   - rel08.0-uc001-corpus-ingest
@@ -31,16 +33,18 @@ preconditions:
 test_cases:
   - use_case: rel08.0-uc001-corpus-ingest
     name: Chroma corpus ingest tracer
-    follow_up_issue: "#244"
+    follow_up_issue: "#251"
     integration_target: mage integration:chroma
-    status: specified
+    status: implemented
     description: |
       Run the ingest profile over a small corpus fixture. The target proves
       chroma_ready and ollama_ready preconditions, create-or-get collection
-      identity resolution with no server-side embedding function, and a per
-      document read -> embed_document -> chroma_add loop that threads the
-      agent-supplied vector and carried document and id into the add body, then
-      verifies the added count with chroma_count.
+      identity resolution with no server-side embedding function, and a
+      model-driven loop in which the model lists the corpus and selects each file
+      (list_resource, read_resource) while the machine sequences the
+      deterministic read_resource -> embed_document -> chroma_add steps that
+      thread the agent-supplied vector and carried document and id into the add
+      body. The added count is verified with chroma_count.
     inputs:
       ingest_profile: agents/chroma/ingest/profile.yaml
       chroma_rest: agents/chroma/rest/chroma.yaml
@@ -63,9 +67,9 @@ test_cases:
 
   - use_case: rel08.0-uc002-corpus-query
     name: Chroma corpus query tracer
-    follow_up_issue: "#244"
+    follow_up_issue: "#251"
     integration_target: mage integration:chroma
-    status: specified
+    status: implemented
     description: |
       Run the reader profile against the ingested collection. The target proves
       the embed_query -> chroma_query -> invoke_llm trace order: the query vector
