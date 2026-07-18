@@ -180,6 +180,16 @@ srd_index:
       lifecycle precondition, and terminal outcomes.
     status: implemented
     path: docs/specs/software-requirements/srd012-chroma-corpus-agents.yaml
+  - id: srd013-rag-server-agent
+    title: RAG Server Agent Functional Block
+    summary: Persistent RAG service that hosts the srd012 reader retrieval chain
+      behind a machine_request query endpoint (srd030) with monitor (srd033) and
+      control servers; a vector-in query_embeddings contract returning chunks
+      with the collection's embedding-model metadata; one agent per served
+      corpus; the srd012 ingest path unchanged; and an optional text-in fallback
+      disabled in the mesh.
+    status: planned
+    path: docs/specs/software-requirements/srd013-rag-server-agent.yaml
 
 config_format_index: []
 
