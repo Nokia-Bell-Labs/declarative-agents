@@ -39,7 +39,7 @@ proof:
     AGENT_CORE_HOME for installed runtime assets.
   - TestDockerfileRuntimeExcludesAgentProfiles verifies that the runtime image
     copies /opt/agent-core/tools and does not copy migrated profile directories.
-  - TestContainerBuildSummaryForPodman documents the mounted /profiles/agents
+  - TestContainerBuildSummaryForDocker documents the mounted /profiles/agents
     runtime command emitted by mage docker.
   - TestDockerfileDefinesIntegrationTarget verifies the Dockerfile integration
     target used for Mage integration runs inside the image.

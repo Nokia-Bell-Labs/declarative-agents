@@ -7,7 +7,7 @@ runtime behavior unless a follow-up explicitly calls out a source correction.
 
 ## Verification Baseline
 
-- `mage docker` prefers Docker over Podman when both are installed.
+- `mage docker` requires Docker.
 - `go list ./...` reports 29 Go packages.
 - `git ls-files '*.yaml'` reports 189 tracked YAML files.
 - `mage stats` reports 21,265 Go source lines, 15,197 Go test lines, and
@@ -21,7 +21,7 @@ runtime behavior unless a follow-up explicitly calls out a source correction.
 - IDE lints are clean for the touched README and inventory files.
 - `mage docker` has built a slim runtime image from remote release
   `v0.20260612.1`; the Docker-built check image reports 77.9 MB and the
-  Podman-built `agent-core:latest` reports 54.6 MB.
+  Docker-built `agent-core:latest` reports 54.6 MB.
 
 ## README Runtime Positioning
 
@@ -60,10 +60,9 @@ Source evidence:
   stay in the builder; the runtime stage is Alpine with `agent`, git/Unix
   utilities, and selected YAML config under `/opt/agent-core`.
 - `magefiles/docker.go` resolves the latest remote release tag by default,
-  passes it as `AGENT_CORE_REF`, uses Docker when installed and Podman as
-  fallback, defaults the build secret to repository-local `.netrc`, and prints a
+  passes it as `AGENT_CORE_REF`, requires Docker, defaults the build secret to repository-local `.netrc`, and prints a
   transparent build settings block plus the exact command.
-- `.gitignore` ignores `.netrc`, `podman-build-secret-*`, and
+- `.gitignore` ignores `.netrc`, `docker-build-secret-*`, and
   `magefiles/mage_output_file.go`.
 
 Documentation drift:
