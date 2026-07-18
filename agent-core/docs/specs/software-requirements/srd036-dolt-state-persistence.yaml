@@ -143,10 +143,11 @@ reference_model: |
 
 implementation_status:
   done:
-    - DoltCheckpoint adapter, database/sql seam, generic schema in its original four-table tool_results form, commit-per-step, branch-per-run, merge-on-terminal, and Revert.
+    - DoltCheckpoint adapter, database/sql seam, generic schema, commit-per-step, branch-per-run, merge-on-terminal, and Revert.
     - cmd/agent wiring that enables Dolt through --dolt-dsn and uses NoopCheckpoint when persistence is disabled.
+    - Five-table split of tool_results into tool_outputs (forward plane; signal, output, error, cost) and receipts (reverse plane; opaque receipt), both keyed (run_id, step_index) and written in one per-step transaction. An empty receipt is represented by receipts-row absence and restores "" on Load; tool_outputs carries no receipt column. Delivered by GH-275.
   planned:
-    - Five-table split of tool_results into tool_outputs (forward plane; output, error, signal, cost) and receipts (reverse plane; opaque receipt), written in one per-step transaction, with the srd038 store reading tool_outputs only. Implemented by Epic #269 children (GH-275 schema split, GH-276 two-plane lifetime invariants).
+    - Two-plane lifetime-invariant pinning (revert reap, terminal reap, redaction-before-persistence) under Epic #269 child GH-276.
 
 diagrams:
   requirements_trace: |

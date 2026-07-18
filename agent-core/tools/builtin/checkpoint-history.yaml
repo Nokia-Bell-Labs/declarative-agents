@@ -52,7 +52,7 @@ tools:
   side_effects:
   - kind: state_read
     target: checkpoint_backend
-    description: Reads the run's execution_steps and tool_results from Dolt commit history through the checkpoint port Load.
+    description: Reads the run's execution_steps, tool_outputs, and receipts from Dolt commit history through the checkpoint port Load.
   reversibility:
     classification: reversible
     undo: noop
