@@ -16,14 +16,6 @@ import (
 )
 
 const (
-	// chromaChatModel and chromaEmbedModel mirror the models named in the
-	// profile config (agents/chroma/*/declarations.yaml invoke_llm and
-	// agents/chroma/rest.yaml embed). The harness runs the profiles as shipped;
-	// these constants exist only so the skip gate can check the models are
-	// installed. Keep them in sync with the config.
-	chromaChatModel  = "ornith:9b"
-	chromaEmbedModel = "qwen3-embedding:8b"
-
 	chromaCorpusFixture = "testdata/integration/rel08-chroma-corpus"
 	chromaIngestProfile = "agents/chroma/ingest/profile.yaml"
 	chromaReaderProfile = "agents/chroma/reader/profile.yaml"
@@ -51,7 +43,7 @@ func (Integration) Chroma() error {
 	if err := requireChromaProfiles(profilesRoot); err != nil {
 		return err
 	}
-	if reason := chromaOllamaSkipReason(); reason != "" {
+	if reason := chromaOllamaSkipReason(profilesRoot); reason != "" {
 		fmt.Printf("SKIP chroma: %s\n", reason)
 		return nil
 	}
@@ -66,22 +58,105 @@ func requireChromaProfiles(profilesRoot string) error {
 	return requireProfilePaths(profilesRoot, chromaIngestProfile, chromaReaderProfile, "agents/chroma/rest.yaml")
 }
 
-// chromaOllamaSkipReason returns a non-empty reason when Ollama is unreachable
-// or the configured chat and embedding models are not both installed.
-func chromaOllamaSkipReason() string {
+// chromaOllamaSkipReason returns a non-empty reason when Ollama is unreachable,
+// the chroma model config cannot be read, or a model the config uses is not
+// installed. The required models come from the shipped config, so the gate never
+// duplicates the model names.
+func chromaOllamaSkipReason(profilesRoot string) string {
 	if err := waitHTTPStatus(ollamaVersionURL, http.StatusOK, 2*time.Second); err != nil {
 		return fmt.Sprintf("Ollama not reachable at %s: %v", ollamaVersionURL, err)
+	}
+	required, err := chromaRequiredModels(profilesRoot)
+	if err != nil {
+		return fmt.Sprintf("read chroma model config: %v", err)
 	}
 	names, err := fetchChromaOllamaModels()
 	if err != nil {
 		return fmt.Sprintf("Ollama /api/tags preflight failed: %v", err)
 	}
-	for _, model := range []string{chromaChatModel, chromaEmbedModel} {
+	for _, model := range required {
 		if !chromaModelInstalled(names, model) {
 			return fmt.Sprintf("Ollama model %q not installed; available: %s", model, strings.Join(names, ", "))
 		}
 	}
 	return ""
+}
+
+// chromaRequiredModels returns the distinct Ollama model names the chroma
+// profiles use: the embedding model from the REST asset and the invoke_llm chat
+// model from each profile's declarations. Reading them from the config keeps it
+// the single source of truth for the skip gate.
+func chromaRequiredModels(profilesRoot string) ([]string, error) {
+	set := map[string]bool{}
+	embed, err := chromaEmbedModelFromConfig(profilesRoot)
+	if err != nil {
+		return nil, err
+	}
+	set[embed] = true
+	for _, profile := range []string{"ingest", "reader"} {
+		chat, err := chromaChatModelFromConfig(profilesRoot, profile)
+		if err != nil {
+			return nil, err
+		}
+		set[chat] = true
+	}
+	models := make([]string, 0, len(set))
+	for model := range set {
+		models = append(models, model)
+	}
+	sort.Strings(models)
+	return models, nil
+}
+
+// chromaEmbedModelFromConfig reads the embedding model from the ollama embed
+// operation in agents/chroma/rest.yaml.
+func chromaEmbedModelFromConfig(profilesRoot string) (string, error) {
+	var cfg struct {
+		Rest struct {
+			Clients map[string]struct {
+				Operations map[string]struct {
+					Body struct {
+						Model string `yaml:"model"`
+					} `yaml:"body"`
+				} `yaml:"operations"`
+			} `yaml:"clients"`
+		} `yaml:"rest"`
+	}
+	path := filepath.Join(profilesRoot, "agents", "chroma", "rest.yaml")
+	if err := readIntegrationYAML(path, "chroma rest asset", &cfg); err != nil {
+		return "", err
+	}
+	model := cfg.Rest.Clients["ollama"].Operations["embed"].Body.Model
+	if model == "" {
+		return "", fmt.Errorf("no ollama embed model in %s", path)
+	}
+	return model, nil
+}
+
+// chromaChatModelFromConfig reads the invoke_llm chat model from a chroma
+// profile's declarations.yaml.
+func chromaChatModelFromConfig(profilesRoot, profile string) (string, error) {
+	var cfg struct {
+		Tools []struct {
+			Name   string `yaml:"name"`
+			Config struct {
+				Model string `yaml:"model"`
+			} `yaml:"config"`
+		} `yaml:"tools"`
+	}
+	path := filepath.Join(profilesRoot, "agents", "chroma", profile, "declarations.yaml")
+	if err := readIntegrationYAML(path, "chroma declarations", &cfg); err != nil {
+		return "", err
+	}
+	for _, tool := range cfg.Tools {
+		if tool.Name == "invoke_llm" {
+			if tool.Config.Model == "" {
+				return "", fmt.Errorf("invoke_llm has no model in %s", path)
+			}
+			return tool.Config.Model, nil
+		}
+	}
+	return "", fmt.Errorf("no invoke_llm tool in %s", path)
 }
 
 // chromaModelInstalled matches a configured model against the installed model
