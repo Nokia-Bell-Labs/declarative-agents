@@ -204,7 +204,7 @@ srd_index:
     path: docs/specs/software-requirements/srd035-checkpoint-port.yaml
   - id: srd036-dolt-state-persistence
     title: Dolt State Persistence
-    summary: Requirements for a DoltCheckpoint adapter implementing the srd035 port behind a database/sql seam, a generic four-table schema, an opaque receipt column, commit-per-step and branch-per-run versioning with merge-to-main on terminal state, Load reconstruction, and a DB-only git-style Revert for rollback.
+    summary: Requirements for a DoltCheckpoint adapter implementing the srd035 port behind a database/sql seam, a generic five-table schema splitting tool_results into a tool_outputs forward plane and a receipts reverse plane, commit-per-step and branch-per-run versioning with merge-to-main on terminal state, Load reconstruction, and a DB-only git-style Revert for rollback.
     status: done
     path: docs/specs/software-requirements/srd036-dolt-state-persistence.yaml
   - id: srd027-rest-tool-runtime
