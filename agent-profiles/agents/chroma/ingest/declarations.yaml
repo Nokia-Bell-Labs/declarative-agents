@@ -1,0 +1,321 @@
+tools:
+  - name: chroma_ready
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Check the Chroma v2 heartbeat through the configured REST client.
+    problem: The ingest flow must fail fast when the Chroma server is unreachable.
+    goals:
+      - Resolve the chroma client and heartbeat operation.
+      - Return a configured readiness signal to MachineSpec.
+    requirements:
+      input:
+        - Runtime input supplies no transport authority or request parameters.
+      output:
+        - Output reports operation identity and status.
+      errors:
+        - Definition, network, timeout, and mapping failures emit CommandError.
+    non_goals:
+      - Does not create collections or start the Chroma server.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties: {}
+      additional_properties: false
+    emits: [ChromaReady, CommandError]
+    output:
+      description: Mapped Chroma heartbeat result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: chroma.heartbeat
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: A heartbeat check does not mutate state.
+    config:
+      rest_ref: chroma
+      operation: heartbeat
+
+  - name: ollama_ready
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Check the Ollama version endpoint through the configured REST client.
+    problem: The ingest flow must fail fast when the Ollama server is unreachable.
+    goals:
+      - Resolve the ollama client and version operation.
+      - Return a configured readiness signal to MachineSpec.
+    requirements:
+      input:
+        - Runtime input supplies no transport authority or request parameters.
+      output:
+        - Output reports operation identity, status, and Ollama version.
+      errors:
+        - Definition, network, timeout, and mapping failures emit CommandError.
+    non_goals:
+      - Does not pull models or start the Ollama server.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties: {}
+      additional_properties: false
+    emits: [OllamaReady, CommandError]
+    output:
+      description: Mapped Ollama version result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: ollama.version
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: A version check does not mutate state.
+    config:
+      rest_ref: ollama
+      operation: version
+
+  - name: embed_document
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Embed a corpus document at Ollama and carry its text and id forward.
+    problem: Chroma does not embed server-side, so the agent must compute the vector at a provider.
+    goals:
+      - Select the document text and id from the previous read Result.
+      - Return the embedding vector mapped from the Ollama response.
+      - Carry the document text and id forward for the collection and add words.
+    requirements:
+      input:
+        - Runtime input is selected from the previous Result output through input_mapping.
+      output:
+        - Output includes the mapped embedding vector and the carried text and id.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not author or alter the embedding vector.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties:
+        input: {type: string}
+        id: {type: string}
+    emits: [DocumentEmbedded, CommandError]
+    output:
+      description: Mapped Ollama embedding with carried document text and id.
+      schema:
+        type: object
+        properties:
+          mapped: {type: object}
+          carried: {type: object}
+    side_effects:
+      - kind: external_api
+        target: ollama.embeddings
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Computing an embedding does not mutate state.
+    config:
+      rest_ref: ollama
+      operation: embed
+
+  - name: resolve_collection
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Create-or-get the collection and carry the embedding, document, and id forward.
+    problem: Single-hop threading means the returned collection id must reach add through this word.
+    goals:
+      - Create-or-get the plain collection with no server-side embedding function.
+      - Resolve the returned collection id for the add path.
+      - Carry the embedding, document, and id forward from the embed Result.
+    requirements:
+      input:
+        - Embedding, document, and id are selected from the previous embed Result output.
+      output:
+        - Output includes the mapped collection id and the carried embedding, document, and id.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not configure a server-side embedding function.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties:
+        embeddings: {type: array}
+        documents: {type: string}
+        ids: {type: string}
+    emits: [CollectionReady, CommandError]
+    output:
+      description: Mapped Chroma collection id with carried record fields.
+      schema:
+        type: object
+        properties:
+          mapped: {type: object}
+          carried: {type: object}
+    side_effects:
+      - kind: external_api
+        target: chroma.collection
+        state: collection_upserted
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Create-or-get is idempotent for a stable collection name.
+    config:
+      rest_ref: chroma
+      operation: create_or_get_collection_carry
+
+  - name: count_collection
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Re-resolve the collection id for the count verification.
+    problem: The count verification needs the collection id after the ingest loop ends.
+    goals:
+      - Create-or-get the collection and resolve its id.
+      - Provide the collection id to the count word.
+    requirements:
+      input:
+        - Runtime input selects nothing from the previous Result.
+      output:
+        - Output includes the mapped collection id.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not add records or configure a server-side embedding function.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties: {}
+    emits: [CollectionReady, CommandError]
+    output:
+      description: Mapped Chroma collection id.
+      schema:
+        type: object
+        properties:
+          mapped: {type: object}
+    side_effects:
+      - kind: external_api
+        target: chroma.collection
+        state: collection_upserted
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Create-or-get is idempotent for a stable collection name.
+    config:
+      rest_ref: chroma
+      operation: create_or_get_collection
+
+  - name: chroma_add
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Add the agent-supplied embedding, document, and id to the collection.
+    problem: Chroma stores client-supplied vectors, threaded from the previous words.
+    goals:
+      - Thread the collection id, embedding, document, and id from the previous Result.
+      - Write the record to the resolved collection.
+    requirements:
+      input:
+        - Collection id, embedding, document, and id are selected from the previous Result output.
+      output:
+        - Output reports operation identity and status.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not author the embedding vector.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties:
+        collection: {type: string}
+        embeddings: {type: array}
+        documents: {type: string}
+        ids: {type: string}
+    emits: [DocumentAdded, CommandError]
+    output:
+      description: Mapped Chroma add result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: chroma.records
+        state: records_added
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Records can be removed by a separate delete word.
+    config:
+      rest_ref: chroma
+      operation: add_records
+
+  - name: chroma_count
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Read the collection item count for post-ingest verification.
+    problem: The ingest flow must verify that documents were added.
+    goals:
+      - Thread the collection id from the previous Result.
+      - Read the collection item count.
+    requirements:
+      input:
+        - The collection id is selected from the previous Result output.
+      output:
+        - Output reports operation identity and status.
+      errors:
+        - Network, timeout, and mapping failures emit CommandError.
+    non_goals:
+      - Does not add or remove records.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties:
+        collection: {type: string}
+    emits: [CountReady, CommandError]
+    output:
+      description: Mapped Chroma count result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: chroma.count
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Reading a count does not mutate state.
+    config:
+      rest_ref: chroma
+      operation: count_records

@@ -40,8 +40,9 @@ requirements:
     title: Behavior model
     items:
       - R1.1: The corpus family SHALL ship two profiles -- an ingest profile and a reader profile -- that model Chroma retrieval as explicit MachineSpec boundary steps.
-      - R1.2: The ingest machine SHALL sequence chroma_ready, ollama_ready, chroma_collection, a per-document loop of read then embed_document then chroma_add, and a terminal chroma_count verification state.
-      - R1.3: The reader machine SHALL sequence chroma_ready, ollama_ready, chroma_collection, embed_query, chroma_query, then invoke_llm over the retrieved chunks.
+      - R1.2: The ingest machine SHALL sequence chroma_ready, ollama_ready, then a per-document loop of read, embed_document, create-or-get collection (which resolves the returned collection id and carries the embedding forward), and chroma_add; when the corpus is exhausted it SHALL re-resolve the collection and run a terminal chroma_count verification state.
+      - R1.3: The reader machine SHALL sequence chroma_ready, ollama_ready, embed_query, create-or-get collection (which resolves the returned collection id and carries the query vector forward), chroma_query, then invoke_llm over the retrieved chunks.
+      - R1.5: Because previous-Result threading is single-hop and read cannot carry the collection id across the loop, the create-or-get collection word SHALL sit immediately before chroma_add or chroma_query so the returned id and the carried vector thread together into the write or query body.
       - R1.4: The embed-to-Chroma vector step SHALL be machine-sequenced, because a model cannot author a raw embedding vector.
   R2:
     title: REST vocabulary
@@ -85,7 +86,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: The ingest and reader profiles are described as configured Chroma retrieval boundary words and explicit machine steps rather than Go packages.
-    traces: [R1.1, R1.2, R1.3, R1.4]
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
   - id: AC2
     criterion: The Chroma and Ollama REST vocabulary is named with each word's boundary behavior and the create-or-get collection identity resolution.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5]

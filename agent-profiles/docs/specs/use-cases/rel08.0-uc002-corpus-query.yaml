@@ -32,11 +32,11 @@ flow:
   - id: F1
     text: The reader machine runs chroma_ready and ollama_ready, failing fast when either server is unreachable.
   - id: F2
-    text: chroma_collection resolves the existing collection id for the query path.
+    text: embed_query calls Ollama with the configured model for the request question, maps the returned vector into its Result output, and carries it forward.
   - id: F3
-    text: embed_query calls Ollama /api/embed with the configured model for the request question and maps the returned vector into its Result output.
+    text: The create-or-get collection word (immediately before query) resolves the existing collection id and carries the query vector forward so single-hop threading reaches the query body.
   - id: F4
-    text: chroma_query threads the query vector into the query request body via body_source previous_result and input_mapping, placing the vector in a single-token array element, and requests the configured number of nearest chunks.
+    text: chroma_query threads the resolved collection id and the query vector into the query request body via body_source previous_result and input_mapping, placing the vector in a single-token array element, and requests the configured number of nearest chunks.
   - id: F5
     text: invoke_llm answers the question grounded in the retrieved chunks, recording the retrieved chunk identities.
 

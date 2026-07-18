@@ -31,15 +31,15 @@ flow:
   - id: F1
     text: The ingest machine runs chroma_ready and ollama_ready, failing fast when either server is unreachable.
   - id: F2
-    text: chroma_collection create-or-gets a plain collection with no server-side embedding function and resolves the returned collection id for the add and count paths.
-  - id: F3
     text: For each corpus document the machine reads the file content and identity.
+  - id: F3
+    text: embed_document calls Ollama with the configured model, maps the returned vector into its Result output, and carries the document text and id forward.
   - id: F4
-    text: embed_document calls Ollama /api/embed with the configured model, maps the returned vector into its Result output, and carries the document text and id forward.
+    text: The create-or-get collection word (immediately before add) create-or-gets a plain collection with no server-side embedding function, resolves the returned collection id, and carries the embedding, document, and id forward so single-hop threading reaches the add body.
   - id: F5
-    text: chroma_add threads the vector and the carried document and id into the add request body via body_source previous_result and input_mapping, placing the vector in a single-token array element so it renders as the nested array Chroma expects.
+    text: chroma_add threads the resolved collection id, the vector, and the carried document and id into the add request body via body_source previous_result and input_mapping, placing the vector in a single-token array element so it renders as the nested array Chroma expects.
   - id: F6
-    text: chroma_count reads the collection item count to verify the added documents.
+    text: When the corpus is exhausted the machine re-resolves the collection id and chroma_count reads the collection item count to verify the added documents.
 
 touchpoints:
   - id: T1
