@@ -22,8 +22,8 @@ problem: |
 
 goals:
   - G1: Define a DoltCheckpoint adapter that implements the srd035 Checkpoint port behind a database/sql seam, with no Dolt import in core.
-  - G2: Define a generic, idempotently created four-table schema with no per-machine tables.
-  - G3: Persist the opaque Result.Receipt verbatim in tool_results alongside output and error.
+  - G2: Define a generic, idempotently created five-table schema (machines, transitions, execution_steps, tool_outputs, receipts) with no per-machine tables. This diverges from the spindle srd015 four-table mirror, which keeps output and receipt in one tool_results table; we split that table into a forward plane (tool_outputs, readable by the srd038 command-state store) and a reverse plane (receipts, consumed only by the rollback walk) so a forward selector can never reach a receipt.
+  - G3: Persist step output in the tool_outputs forward plane and the opaque Result.Receipt verbatim in the receipts reverse plane, keeping the two planes separate.
   - G4: Define commit-per-step, branch-per-run, and merge-to-main-on-terminal versioning.
   - G5: Define Load reconstruction of Position and Execution from the latest commit on the run branch.
   - G6: Define Revert(run_id, step_index) for git-style rollback scoped to DB-persisted state.
@@ -40,18 +40,20 @@ requirements:
   R2:
     title: Generic schema
     items:
-      - R2.1: The adapter SHALL create a generic four-table schema, machines, transitions, execution_steps, and tool_results, mirroring spindle srd015 R2.
+      - R2.1: The adapter SHALL create a generic five-table schema, machines, transitions, execution_steps, tool_outputs, and receipts; it splits the spindle srd015 R2 tool_results table into a forward plane (tool_outputs) and a reverse plane (receipts).
       - R2.2: Schema creation SHALL be idempotent using CREATE TABLE IF NOT EXISTS.
       - R2.3: The schema SHALL NOT define per-machine or per-run tables; all runs share the same tables keyed by run_id and step_index.
       - R2.4: machines and transitions SHALL capture the resumable Position (current_state, last_signal, and the AgentSnapshot counters and folded conversation); execution_steps SHALL capture the ordered Execution entries.
 
   R3:
-    title: Tool results and receipts
+    title: Forward-plane outputs and reverse-plane receipts
     items:
-      - R3.1: tool_results SHALL carry output as JSON and error as a nullable column.
-      - R3.2: tool_results SHALL carry a receipt column holding the opaque Result.Receipt JSON string, mirroring spindle srd015 R2.4 and R5.4.
+      - R3.1: tool_outputs (the forward plane) SHALL carry output as JSON and error as a nullable column.
+      - R3.2: receipts (the reverse plane) SHALL carry a receipt column holding the opaque Result.Receipt JSON string, mirroring spindle srd015 R2.4 and R5.4; the receipt SHALL live only in receipts and SHALL NOT be duplicated into tool_outputs.
       - R3.3: The receipt SHALL be persisted and restored verbatim; the adapter SHALL NOT parse or interpret it.
-      - R3.4: A step with no receipt (for example a read-only tool) SHALL store SQL NULL and restore an empty receipt.
+      - R3.4: A step with no receipt (for example a read-only tool) SHALL store SQL NULL in receipts and restore an empty receipt; a step with no output SHALL store SQL NULL in tool_outputs and restore an empty output.
+      - R3.5: tool_outputs SHALL additionally carry the step signal and cost so the forward plane holds everything the srd038 command-state store reads; that store SHALL read tool_outputs only and SHALL NOT read receipts.
+      - R3.6: receipts SHALL NOT be addressable by any forward selector; the plane split makes this non-addressability structural rather than a runtime filter, satisfying srd038 R3.3.
 
   R4:
     title: Commit-per-step and branch-per-run versioning
@@ -59,13 +61,14 @@ requirements:
       - R4.1: The adapter SHALL create one Dolt commit per loop step, with step_index and signal recorded as commit metadata, mirroring spindle srd015 R3.
       - R4.2: Each run SHALL execute on its own branch named from run_id.
       - R4.3: On a terminal state the adapter SHALL merge the run branch to main and then delete the run branch, mirroring spindle srd015 R8.
-      - R4.4: Save SHALL append the current step's rows and create its commit within a single transaction so a partially written step is never committed.
+      - R4.4: Save SHALL append the current step's rows to both tool_outputs and receipts and create its commit within a single transaction, so a partially written step, or a step with an output row but no matching receipt row, is never committed.
+      - R4.5: Retention MAY be asymmetric across the two planes, so receipts MAY be retained past the terminal merge to support post-hoc rollback while tool_outputs is reaped with the run branch. The default behavior is unchanged; absent explicit retention configuration both planes SHALL be reaped by the R4.3 terminal merge-and-delete.
 
   R5:
     title: Load reconstruction
     items:
       - R5.1: Load SHALL reconstruct Position and Execution from the latest commit on the run branch, mirroring spindle srd015 R6.
-      - R5.2: Load SHALL restore the folded conversation snapshot and every entry's opaque receipt.
+      - R5.2: Load SHALL restore the folded conversation snapshot, every entry's output from tool_outputs, and every entry's opaque receipt from receipts.
       - R5.3: Load SHALL report a typed not-found result when the run branch or its rows do not exist.
       - R5.4: A run resumed in a fresh process SHALL Load an equivalent Position and Execution to the pre-suspend state.
 
@@ -91,19 +94,19 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3, R1.4]
 
   - id: AC2
-    criterion: The adapter creates a generic four-table schema (machines, transitions, execution_steps, tool_results) idempotently with no per-machine tables, capturing Position and the ordered Execution.
+    criterion: The adapter creates a generic five-table schema (machines, transitions, execution_steps, tool_outputs, receipts) idempotently with no per-machine tables, capturing Position and the ordered Execution, splitting the spindle tool_results table into forward and reverse planes.
     traces: [R2.1, R2.2, R2.3, R2.4]
 
   - id: AC3
-    criterion: tool_results stores output, nullable error, and the opaque Result.Receipt verbatim, restoring an empty receipt for steps that stored NULL.
-    traces: [R3.1, R3.2, R3.3, R3.4]
+    criterion: tool_outputs stores output, nullable error, signal, and cost for the forward plane the command-state store reads; receipts stores the opaque Result.Receipt verbatim in a separate reverse plane; each plane restores an empty value for steps that stored NULL; and a forward selector can never reach a receipt because the split makes non-addressability structural.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
 
   - id: AC4
-    criterion: The adapter commits once per step with step_index and signal metadata, branches per run_id, and merges to main and deletes the branch on terminal state, all within per-step transactions.
-    traces: [R4.1, R4.2, R4.3, R4.4]
+    criterion: The adapter commits once per step with step_index and signal metadata, branches per run_id, writes both the tool_outputs and receipts rows inside the one per-step transaction, merges to main and deletes the branch on terminal state, and permits asymmetric plane retention with both planes reaped by default.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
 
   - id: AC5
-    criterion: Load reconstructs Position and Execution (including conversation and receipts) from the latest commit on the run branch, reports not-found when absent, and lets a fresh process resume an equivalent state.
+    criterion: Load reconstructs Position and Execution (including conversation, per-entry output from tool_outputs, and per-entry receipt from receipts) from the latest commit on the run branch, reports not-found when absent, and lets a fresh process resume an equivalent state.
     traces: [R5.1, R5.2, R5.3, R5.4]
 
   - id: AC6
@@ -130,15 +133,20 @@ reference_model: |
   github.com/petar-djukic/spindle srd015-dolt-state-persistence and
   pkg/engine/dolt_checkpoint.go define the database/sql seam, the generic
   four-table schema, the opaque receipt column, commit-per-step, branch-per-run,
-  and merge-to-main behavior this SRD adopts. Delta from spindle: srd036
+  and merge-to-main behavior this SRD adopts. Deltas from spindle: srd036
   specifies Revert(run_id, step_index) for git-style rollback of DB-persisted
-  state, which spindle lists as a non-goal. srd036 implements the port defined by
+  state, which spindle lists as a non-goal; and srd036 splits spindle's single
+  tool_results table into a forward plane (tool_outputs) and a reverse plane
+  (receipts), so the srd038 command-state store can read outputs without ever
+  reaching a receipt. srd036 implements the port defined by
   srd035-checkpoint-port.
 
 implementation_status:
   done:
-    - DoltCheckpoint adapter, database/sql seam, generic schema, commit-per-step, branch-per-run, merge-on-terminal, and Revert.
+    - DoltCheckpoint adapter, database/sql seam, generic schema in its original four-table tool_results form, commit-per-step, branch-per-run, merge-on-terminal, and Revert.
     - cmd/agent wiring that enables Dolt through --dolt-dsn and uses NoopCheckpoint when persistence is disabled.
+  planned:
+    - Five-table split of tool_results into tool_outputs (forward plane; output, error, signal, cost) and receipts (reverse plane; opaque receipt), written in one per-step transaction, with the srd038 store reading tool_outputs only. Implemented by Epic #269 children (GH-275 schema split, GH-276 two-plane lifetime invariants).
 
 diagrams:
   requirements_trace: |
@@ -146,16 +154,16 @@ diagrams:
     flowchart LR
       Problem["Problem: Durable Dolt backend for the srd035 checkpoint port"] --> Goals["Goals: Dolt State Persistence"]
       Goals --> R1["R1: Adapter and database seam"]
-      Goals --> R2["R2: Generic schema"]
-      Goals --> R3["R3: Tool results and receipts"]
+      Goals --> R2["R2: Generic five-table schema"]
+      Goals --> R3["R3: Forward-plane outputs and reverse-plane receipts"]
       Goals --> R4["R4: Commit-per-step and branch-per-run"]
       Goals --> R5["R5: Load reconstruction"]
       Goals --> R6["R6: Git-style revert"]
       AC1["AC1: Port impl behind database/sql seam"]
       R1 --> AC1
-      AC2["AC2: Generic four-table schema"]
+      AC2["AC2: Generic five-table schema (forward/reverse planes)"]
       R2 --> AC2
-      AC3["AC3: Opaque receipt persisted verbatim"]
+      AC3["AC3: tool_outputs forward plane, receipts reverse plane, no forward receipt access"]
       R3 --> AC3
       AC4["AC4: Commit-per-step, branch-per-run, merge on terminal"]
       R4 --> AC4
