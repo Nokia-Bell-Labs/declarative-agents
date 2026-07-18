@@ -1,0 +1,146 @@
+id: srd038-command-state-store
+title: Command-State Store
+
+problem: |
+  A word can already thread one prior step's output into the next request, but
+  only the REST client can do it and only for the immediately preceding step.
+  srd028 R12 defines body_source previous_result: an operation selects declared
+  params from the previous Result output through an input_mapping map, and
+  carry_forward copies selected inputs into its own output under a carried key so
+  a later word can reach them. That threading is REST-private. body_source,
+  input_mapping, and carry_forward live in internal/tools/rest; the generic seam
+  the core exposes to every word is only Builder.Build(res core.Result), a single
+  handle on the immediately previous Result. srd028 R12.4 deliberately rejects
+  body_source command_state today with a clear message, because no core-level
+  store backs it.
+
+  We need to lift the selection contract out of the REST package into the core so
+  any word can select declared params from any earlier step in the run by label,
+  not only from the adjacent step. The store is a read-only forward view over the
+  run's execution log, populated from in-memory Entries during a run and
+  rehydrated from the srd036 persistence tables after a process restart. It reads
+  the same execution history srd036 already persists; it adds no new authoring
+  power over transport, and it never exposes receipts. This SRD specifies that
+  store: what it holds, how authors address it, what it must refuse, when its
+  entries die, and where redaction sits relative to persistence. It does not
+  change previous_result threading and does not replace it.
+
+goals:
+  - G1: Define a core-level read-only forward view over the run's execution log, keyed by (run_id, step_index), populated from in-memory Entries and rehydrated from the srd036 tables after restart.
+  - G2: Define label addressing so a word selects declared params from an earlier step by command name or label through a $from(<label>).<dotted-path> selector, with most-recent-wins on duplicate labels.
+  - G3: Define an authority boundary so selectors reach only declared param fields and can never name transport authority, and so receipts are structurally unaddressable.
+  - G4: Define branch-scoped entry lifetime tied to Revert and terminal-state reaping, with no TTL or refcount machinery.
+  - G5: Define redaction-before-persistence ordering so a redacted field is never readable by a later word.
+
+requirements:
+  R1:
+    title: Store contract and rehydration
+    items:
+      - R1.1: The command-state store SHALL present a read-only forward view over the run's execution Entries; it SHALL NOT let a word write, mutate, or delete another step's recorded output.
+      - R1.2: Entries SHALL be keyed internally by (run_id, step_index); step_index SHALL NOT be part of the authoring surface (see R2.3).
+      - R1.3: During a run the store SHALL be populated from the in-memory Execution Entries the loop already records; it SHALL NOT introduce a second source of truth for step output.
+      - R1.4: After a process restart the store SHALL rehydrate from the srd036 tool_outputs plane so a resumed run resolves the same labels it resolved before suspension.
+      - R1.5: A selector that resolves to no recorded entry SHALL surface a typed error that names the unresolved label; it SHALL NOT silently yield an empty value.
+  R2:
+    title: Label addressing
+    items:
+      - R2.1: An author SHALL reference an earlier step through a $from(<command-name-or-label>).<dotted-path> selector, where <dotted-path> is a $.-style path into that step's declared param fields.
+      - R2.2: When two steps in a run share a label, $from SHALL resolve to the most recent (highest step_index) matching step.
+      - R2.3: Absolute step indices SHALL NOT be part of the authoring surface; authors address steps only by command name or label.
+      - R2.4: Label resolution SHALL be scoped to the current run; a selector SHALL NOT resolve to a step in any other run (see R6 non-goal on cross-run addressing).
+  R3:
+    title: Authority boundary
+    items:
+      - R3.1: A consumer SHALL receive only the fields it selects into its own declared params; the store SHALL NOT expose a prior step's full output shape to the consumer beyond the selected paths.
+      - R3.2: A selector SHALL NOT name method, URL, authentication, redirect policy, or destination host; the store SHALL reject any selector or mapping target that resolves to transport authority with a clear message, consistent with srd028 R12.4.
+      - R3.3: Receipts SHALL NOT be addressable by any forward selector; this SHALL hold structurally through the srd036 split that separates tool_outputs from receipts, not by a runtime filter alone.
+      - R3.4: Selector targets SHALL be declared params only; the store SHALL reject a target that is not a declared path, query, header, or body param, consistent with srd028 R12.4.
+  R4:
+    title: Entry lifetime
+    items:
+      - R4.1: Store entries SHALL be branch-scoped; an entry SHALL exist only for the run branch that recorded it.
+      - R4.2: Revert(run_id, step_index) SHALL invalidate every entry at a later step by construction, because reverting the run branch removes the later commits that recorded them; the store SHALL NOT need a separate invalidation walk.
+      - R4.3: On a terminal state the merge-to-main-and-delete-branch reap defined by srd036 R4.3 SHALL reap the run's store entries; the store SHALL NOT retain per-run entries past terminal reaping.
+      - R4.4: The store SHALL NOT define TTL, reference counting, or garbage-collection machinery; lifetime SHALL follow branch and terminal semantics only.
+  R5:
+    title: Redaction before persistence
+    items:
+      - R5.1: Response redaction SHALL run before an Entry is persisted, so a redacted field is never written to the tool_outputs plane and never rehydrated.
+      - R5.2: A field removed by redaction SHALL NOT be readable by any later word through a $from selector, whether the run is live or resumed.
+      - R5.3: The redaction-before-persistence ordering SHALL be a store invariant, not a per-tool convention, so every persisted Entry is already redacted at the point the store reads it.
+
+non_goals:
+  - Cross-run addressing; a selector resolves only within its own run and never reaches another run's steps.
+  - A general-purpose key/value API for tools; the store is a read-only forward view over declared params, not a scratchpad tools can write.
+  - Replacing previous_result threading; srd028 R12 body_source previous_result and carry_forward remain the adjacent-step path and are unchanged by this SRD.
+  - Defining the persistence schema or the tool_outputs/receipts split; that belongs to the amended srd036.
+  - Defining the REST-side body_source command_state selector syntax or its validation; that belongs to the amended srd028.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The store is a read-only forward view keyed by (run_id, step_index), populated from in-memory Entries during a run and rehydrated from the srd036 tool_outputs plane after restart, with a typed error for an unresolved label.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+  - id: AC2
+    criterion: Authors select an earlier step by command name or label through $from(<label>).<dotted-path>, duplicate labels resolve most-recent-wins, absolute step indices are not part of the authoring surface, and resolution is run-scoped.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+  - id: AC3
+    criterion: A consumer receives only the fields it selects into declared params, selectors can never name transport authority and are rejected when they try, receipts are structurally unaddressable via the srd036 split, and undeclared targets are rejected.
+    traces: [R3.1, R3.2, R3.3, R3.4]
+  - id: AC4
+    criterion: Entries are branch-scoped, Revert invalidates later entries by construction, terminal-state reaping removes a run's entries, and the store carries no TTL or refcount machinery.
+    traces: [R4.1, R4.2, R4.3, R4.4]
+  - id: AC5
+    criterion: Redaction runs before persistence so a redacted field is never persisted, never rehydrated, and never readable by a later word, as a store invariant rather than a per-tool convention.
+    traces: [R5.1, R5.2, R5.3]
+
+neighboring_contracts: |
+  srd028 R12 (REST client tools, previous_result threading) stays unchanged. Its
+  body_source previous_result, input_mapping, and carry_forward remain the
+  adjacent-step path a REST word uses to consume the immediately preceding
+  Result. srd038 does not remove or replace R12; it provides the core store that a
+  future body_source command_state (specified in the amended srd028) resolves
+  against, lifting the selection contract from the adjacent step to any earlier
+  labeled step. R12.4's present rejection of command_state is the seam srd038
+  fills.
+
+  srd036 (Dolt state persistence) stays the persistence contract. srd038 reads the
+  execution history srd036 persists; it adds no new tables of its own. The store's
+  rehydration source is the tool_outputs plane produced by the amended srd036
+  tool_outputs/receipts split (srd036 R3 today records tool_results; the split is
+  a sibling documentation change). srd036 R4.3 terminal merge-and-delete and R6
+  Revert supply srd038 R4's lifetime semantics; srd038 adds no lifetime machinery
+  of its own.
+
+depends_on:
+  - srd_id: srd035-checkpoint-port
+    symbols_used: [Execution, Entry, Receipt, Position]
+  - srd_id: srd036-dolt-state-persistence
+    symbols_used: [tool_results, Revert, merge-to-main]
+  - srd_id: srd028-rest-client-tools
+    symbols_used: [body_source, input_mapping, carry_forward, previous_result]
+  - srd_id: srd001-core-types
+    symbols_used: [Result, Signal]
+
+implementation_status: planned
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Lift declared-param selection from REST-private adjacent threading to a core-level labeled store"] --> Goals["Goals: Command-State Store"]
+      Goals --> R1["R1: Store contract and rehydration"]
+      Goals --> R2["R2: Label addressing"]
+      Goals --> R3["R3: Authority boundary"]
+      Goals --> R4["R4: Entry lifetime"]
+      Goals --> R5["R5: Redaction before persistence"]
+      AC1["AC1: Read-only forward view, rehydrated from tool_outputs"]
+      R1 --> AC1
+      AC2["AC2: $from label addressing, most-recent-wins, run-scoped"]
+      R2 --> AC2
+      AC3["AC3: Declared-param-only, no transport authority, no receipts"]
+      R3 --> AC3
+      AC4["AC4: Branch-scoped lifetime via Revert and terminal reap"]
+      R4 --> AC4
+      AC5["AC5: Redaction before persistence invariant"]
+      R5 --> AC5
+    ```

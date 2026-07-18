@@ -247,6 +247,11 @@ srd_index:
     summary: Planning requirements for registry error returns, unified builtin registration, and shared external-tool availability checks while preserving Command, Builder, Dispatch, and MachineSpec semantics.
     status: in_progress
     path: docs/specs/software-requirements/srd037-tool-dispatch-simplification.yaml
+  - id: srd038-command-state-store
+    title: Command-State Store
+    summary: Planning requirements for a core-level read-only forward view over the run's execution log, letting any word select declared params from an earlier labeled step through a $from selector, rehydrated from the srd036 tool_outputs plane after restart, with a declared-param-only authority boundary that never exposes transport or receipts, branch-scoped lifetime tied to Revert and terminal reaping, and redaction before persistence.
+    status: planned
+    path: docs/specs/software-requirements/srd038-command-state-store.yaml
 
 config_format_index:
   - id: cfg-machine-format
