@@ -188,7 +188,7 @@ srd_index:
       with the collection's embedding-model metadata; one agent per served
       corpus; the srd012 ingest path unchanged; and an optional text-in fallback
       disabled in the mesh.
-    status: planned
+    status: implemented
     path: docs/specs/software-requirements/srd013-rag-server-agent.yaml
   - id: srd014-chatbot-agent
     title: Chatbot Agent Functional Block

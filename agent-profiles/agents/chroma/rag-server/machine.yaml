@@ -1,0 +1,57 @@
+name: chroma-rag-server
+purpose: |-
+  The Chroma RAG server profile hosts the reader retrieval chain as a persistent
+  service. It launches a machine_request query server, a control server, and a
+  monitor server, then idles in AwaitingControl until a lifecycle exit event is
+  enqueued, at which point it exits the agent and stops the servers. Each inbound
+  query runs a request-scoped machine (request-machine.yaml): the request body
+  supplies query_embeddings, the collection is resolved, and chroma_query returns
+  the nearest chunks. The RAG server does not embed the query (the caller
+  supplies the vector) and does not answer (it returns chunks).
+invariants:
+  - REST authority lives in this profile's rest.yaml; no runtime input supplies transport authority.
+  - The query vector is supplied by the caller in the request body; no embedding is computed here.
+  - The Chroma server is an external precondition; the request path assumes an ingested collection.
+initial_state: Idle
+budget:
+  max_iterations: 10000
+states:
+  - {name: Idle, meaning: Initial state before the RAG servers start.}
+  - {name: LaunchingRequests, meaning: The machine_request query server is starting.}
+  - {name: LaunchingControl, meaning: The control server is starting.}
+  - {name: LaunchingMonitor, meaning: The monitor server is starting.}
+  - {name: AwaitingControl, meaning: Serving; waiting for a lifecycle exit event.}
+  - {name: Exiting, meaning: Routing ExitRequested to exit_agent.}
+  - {name: StoppingMonitor, meaning: Stopping the monitor server.}
+  - {name: StoppingRequests, meaning: Stopping the query server.}
+  - {name: Failed, meaning: Terminal. A server or boundary word failed.}
+  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit.}
+terminal_states:
+  - Done
+  - Failed
+signals:
+  - {name: Seed, trigger: Agent startup.}
+  - {name: ServerLaunched, trigger: A server launched.}
+  - {name: ExitRequested, trigger: A lifecycle exit event was enqueued.}
+  - {name: AgentExited, trigger: exit_agent completed.}
+  - {name: ServerStopped, trigger: A server stopped.}
+  - {name: AwaitTimedOut, trigger: No lifecycle event arrived before the await timeout.}
+  - {name: CommandError, trigger: A server or boundary word failed.}
+transitions:
+  - {state: Idle,              signal: Seed,           next: LaunchingRequests, action: launch_rag_requests}
+  - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl,   action: launch_rag_control}
+  - {state: LaunchingRequests, signal: CommandError,   next: Failed}
+  - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest}
+  - {state: LaunchingControl,  signal: CommandError,   next: Failed}
+  - {state: LaunchingMonitor,  signal: ServerLaunched, next: AwaitingControl,    action: await_rag_control}
+  - {state: LaunchingMonitor,  signal: CommandError,   next: Failed}
+  - {state: AwaitingControl,   signal: ExitRequested,  next: Exiting,            action: exit_agent}
+  - {state: AwaitingControl,   signal: AwaitTimedOut,  next: AwaitingControl,    action: await_rag_control}
+  - {state: AwaitingControl,   signal: ServerStopped,  next: Failed}
+  - {state: AwaitingControl,   signal: CommandError,   next: Failed}
+  - {state: Exiting,           signal: AgentExited,    next: StoppingMonitor,    action: stop_monitor_rest}
+  - {state: Exiting,           signal: CommandError,   next: Failed}
+  - {state: StoppingMonitor,   signal: ServerStopped,  next: StoppingRequests,   action: stop_rag_requests}
+  - {state: StoppingMonitor,   signal: CommandError,   next: Failed}
+  - {state: StoppingRequests,  signal: ServerStopped,  next: Done}
+  - {state: StoppingRequests,  signal: CommandError,   next: Failed}
