@@ -18,7 +18,7 @@ import (
 const (
 	chromaChatModelEnv  = "AGENT_CORE_OLLAMA_MODEL"
 	chromaEmbedModelEnv = "AGENT_CORE_OLLAMA_EMBED_MODEL"
-	chromaChatModel     = "qwen3.6:35b-mlx"
+	chromaChatModel     = "ornith:9b"
 	chromaEmbedModel    = "all-minilm"
 
 	chromaCorpusFixture = "testdata/integration/rel08-chroma-corpus"
@@ -432,7 +432,6 @@ func chromaCommandSet(spans []chromaSpan) map[string]bool {
 	}
 	return present
 }
-
 
 func readChromaSpans(tracePath string) ([]chromaSpan, error) {
 	data, err := os.ReadFile(tracePath)
