@@ -25,7 +25,7 @@ a running `dolt sql-server` through the MySQL wire protocol. The runtime opens
 
 Reserve persistent Dolt storage for shared operator history, retained artifacts,
 suspend/resume flows, or rollback investigations. Tests that need durable state
-should use an isolated Dolt database or `DOLT_TEST_DSN`.
+should use an isolated Dolt database on a local dolt sql-server.
 
 ## Checkpoint Model
 
