@@ -112,11 +112,13 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Redaction runs before persistence so a redacted field is unreadable
-    go_test: go test ./internal/runtime/core -run TestCommandState_RedactionBeforePersistence
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTClient_RedactionRunsBeforePersistence
+    status: implemented
     description: |
       A response field removed by redaction is never written to tool_outputs and
-      never resolves through a later $from selector, live or resumed.
+      never resolves through a later $from selector, live or resumed. Redaction
+      runs inside mapClientResponse before Execute returns the Result the loop
+      persists, so the field is already absent from the checkpointed output.
     inputs:
       redacted_field: api_key
       selector: $from(fetch).api_key
@@ -129,8 +131,8 @@ test_cases:
 
   - use_case: rel07.0-uc002-two-plane-revert
     name: Five-table round-trip persists and restores both planes
-    go_test: go test ./internal/runtime/core -run TestDolt_FiveTableTwoPlaneRoundTrip
-    status: planned
+    go_test: go test ./internal/runtime/core -run 'TestDoltCheckpoint(SaveLoadRoundTrip|SplitsToolOutputsAndReceipts)'
+    status: implemented
     description: |
       A three-step run writes a tool_outputs row and a receipts row per step in
       one per-step transaction; Load restores conversation, each entry's output
@@ -148,8 +150,8 @@ test_cases:
 
   - use_case: rel07.0-uc002-two-plane-revert
     name: Revert reaps later two-plane rows and invalidates store entries
-    go_test: go test ./internal/runtime/core -run TestDolt_RevertReapsBothPlanes
-    status: planned
+    go_test: go test ./internal/runtime/core -run 'TestDoltCheckpoint(RevertReapsBothPlanes|TerminalReapsBothPlanesWithBranch)'
+    status: implemented
     description: |
       Revert(run_id, 1) resets the run branch so the tool_outputs and receipts
       rows for steps 2 and 3 no longer resolve, and the command-state store's

@@ -370,6 +370,32 @@ func sampleExecution() Execution {
 	}
 }
 
+// threeStepExecution is a three-entry run where every step carries a distinct
+// receipt, used to prove revert and terminal reaping across both planes.
+func threeStepExecution() Execution {
+	ts := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
+	return Execution{
+		{
+			Iteration: 1, Timestamp: ts, CommandName: "invoke",
+			FromState: "Start", ToState: "Working", Signal: LLMResponded,
+			Result:  ResultDigest{Signal: LLMResponded, Output: "s0", Cost: Cost{TokensIn: 1}},
+			Receipt: `{"step":0}`,
+		},
+		{
+			Iteration: 2, Timestamp: ts.Add(time.Second), CommandName: "read",
+			FromState: "Working", ToState: "Working", Signal: LLMResponded,
+			Result:  ResultDigest{Signal: LLMResponded, Output: "s1", Cost: Cost{TokensIn: 2}},
+			Receipt: `{"step":1}`,
+		},
+		{
+			Iteration: 3, Timestamp: ts.Add(2 * time.Second), CommandName: "write",
+			FromState: "Working", ToState: "Done", Signal: TaskCompleted,
+			Result:  ResultDigest{Signal: TaskCompleted, Output: "s2", Cost: Cost{TokensIn: 3}},
+			Receipt: `{"step":2}`,
+		},
+	}
+}
+
 func samplePosition() Position {
 	return Position{
 		CurrentState: "Working",
@@ -521,6 +547,63 @@ func TestDoltCheckpointRevertResetsToStepCommit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, gotExec, 1)
 	require.Equal(t, exec[0], gotExec[0])
+}
+
+// TestDoltCheckpointRevertReapsBothPlanes proves invariant (1): reverting to an
+// earlier step reaps both the tool_outputs forward plane and the receipts reverse
+// plane for every later step, by branch construction and without a separate
+// invalidation walk (srd036-dolt-state-persistence R4, srd038-command-state-store
+// R4). Implements the reap half of rel07.0-uc002-two-plane-revert.
+func TestDoltCheckpointRevertReapsBothPlanes(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", nil)
+	exec := threeStepExecution()
+
+	require.NoError(t, cp.Save(samplePosition(), exec[:1]))
+	require.NoError(t, cp.Save(samplePosition(), exec[:2]))
+	require.NoError(t, cp.Save(samplePosition(), exec))
+
+	require.NoError(t, cp.Revert("run-1", 1))
+
+	// Steps 0 and 1 survive on both planes; step 2's rows are gone from both.
+	require.Contains(t, db.store.results, rowKey("run-1", 0))
+	require.Contains(t, db.store.results, rowKey("run-1", 1))
+	require.NotContains(t, db.store.results, rowKey("run-1", 2), "forward-plane row past the target step is reaped")
+	require.Contains(t, db.store.receipts, rowKey("run-1", 1))
+	require.NotContains(t, db.store.receipts, rowKey("run-1", 2), "reverse-plane row past the target step is reaped")
+
+	// Load returns only steps 0-1 and step 1's receipt still round-trips.
+	_, gotExec, err := cp.Load()
+	require.NoError(t, err)
+	require.Len(t, gotExec, 2)
+	require.Equal(t, exec[1].Receipt, gotExec[1].Receipt)
+}
+
+// TestDoltCheckpointTerminalReapsBothPlanesWithBranch proves invariant (2): the
+// terminal-state merge-and-delete reaps the run branch, and with it both planes'
+// per-run rows (srd036-dolt-state-persistence R4.3).
+func TestDoltCheckpointTerminalReapsBothPlanesWithBranch(t *testing.T) {
+	t.Parallel()
+	terminal := func(s State) bool { return s == "Done" }
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", terminal)
+	exec := threeStepExecution()
+
+	require.NoError(t, cp.Save(samplePosition(), exec[:1]))
+	require.NoError(t, cp.Save(samplePosition(), exec[:2]))
+
+	// Both planes were written on the run branch before the terminal save.
+	require.GreaterOrEqual(t, countCalls(db.calls, "REPLACE INTO tool_outputs"), 2)
+	require.GreaterOrEqual(t, countCalls(db.calls, "REPLACE INTO receipts"), 2)
+
+	terminalPos := samplePosition()
+	terminalPos.CurrentState = "Done"
+	require.NoError(t, cp.Save(terminalPos, exec))
+
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"), "terminal save merges to main")
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"), "run branch deleted after merge")
+	require.False(t, db.branches["run-1"], "run branch and both of its planes are reaped")
 }
 
 func TestDoltCheckpointRevertUnresolvedStep(t *testing.T) {
