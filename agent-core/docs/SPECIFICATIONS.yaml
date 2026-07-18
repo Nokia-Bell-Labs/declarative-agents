@@ -453,13 +453,13 @@ use_case_index:
   - id: rel07.0-uc001-command-state-threading
     title: A REST word selects a non-adjacent prior word's output by label and resumes mid-chain
     release: "07.0"
-    status: planned
+    status: implemented
     test_suite: test-rel07.0-command-state
     path: docs/specs/use-cases/rel07.0-uc001-command-state-threading.yaml
   - id: rel07.0-uc002-two-plane-revert
     title: Reverting to an earlier step reaps later two-plane rows while the receipt walk reverses the surviving step
     release: "07.0"
-    status: planned
+    status: implemented
     test_suite: test-rel07.0-command-state
     path: docs/specs/use-cases/rel07.0-uc002-two-plane-revert.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
@@ -547,7 +547,7 @@ test_suite_index:
       - rel07.0-uc001-command-state-threading
       - rel07.0-uc002-two-plane-revert
     formal_test_cases: 9
-    status: planned
+    status: implemented
     path: docs/specs/test-suites/test-rel07.0-command-state.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification

@@ -79,6 +79,40 @@ func TestDoltCheckpointSuspendResumeRoundTrip(t *testing.T) {
 	require.Equal(t, `{"kind":"boundary"}`, gotExec[0].Receipt)
 }
 
+// TestDoltCommandStateRehydratesThroughRealAdapter covers the rel07.0 restart
+// through the real Dolt code path: an execution persisted and reloaded by a fresh
+// DoltCheckpoint rebuilds a command-state view whose label lookup resolves the
+// step's output (srd038 R1.4; srd036 R5). It runs against a reachable local dolt
+// sql-server and skips otherwise.
+func TestDoltCommandStateRehydratesThroughRealAdapter(t *testing.T) {
+	requireDoltServer(t)
+	dsn := doltServerDSN + doltTestDB
+
+	runID := fmt.Sprintf("run-cs-%d", time.Now().UnixNano())
+	noMerge := func(core.State) bool { return false }
+
+	saver, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	require.NoError(t, err)
+	exec := core.Execution{{
+		Iteration: 1, CommandName: "embed_query", FromState: "Start", ToState: "Working",
+		Signal: core.LLMResponded,
+		Result: core.ResultDigest{Signal: core.LLMResponded, Output: `{"mapped":{"embedding":[0.1,0.2]}}`},
+	}}
+	require.NoError(t, saver.Save(core.Position{CurrentState: "Working", LastSignal: core.LLMResponded}, exec))
+	require.NoError(t, saver.Close())
+
+	loader, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, loader.Close()) }()
+
+	_, gotExec, err := loader.Load()
+	require.NoError(t, err)
+	view := core.NewCommandStateView(gotExec)
+	out, ok := view.Lookup("embed_query")
+	require.True(t, ok)
+	require.JSONEq(t, `{"mapped":{"embedding":[0.1,0.2]}}`, out)
+}
+
 // requireDoltServer skips the test unless a local dolt sql-server is reachable,
 // creating the test database on it, so the test needs no environment
 // configuration to select the server.

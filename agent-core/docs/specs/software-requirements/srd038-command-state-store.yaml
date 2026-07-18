@@ -124,8 +124,8 @@ depends_on:
 implementation_status:
   done:
     - Core CommandStateView (internal/runtime/core/command_state.go): a read-only, receipt-blind forward view over the run's execution log with $from-style label lookup (Lookup), most-recent-wins on duplicate labels, and ok=false (never an error) on a miss. Built from a projected struct that omits Entry.Receipt so the receipt is unreachable by construction (R1, R2, R3). The engine injects it before dispatch into commands implementing CommandStateAware, mirroring MonitorRecorderAware. Rehydrates from the execution restored by the checkpoint port (in-memory and Dolt tool_outputs) so a resumed run resolves the same labels (R1.4). Delivered by GH-277.
-  planned:
-    - REST body_source command_state consumption and $from selector validation (V32), the first consumer of the view. Implemented by Epic #270 child GH-278.
+    - REST body_source command_state consumption and $from(label).path selector validation (V32): clientCmd implements CommandStateAware and resolves selectors against the injected view, with the no-store rejection enforced at runtime (R13.5). Delivered by GH-278.
+    - rel07.0-uc001 tracer bullet (a three-word chain where word 3 selects word 1 non-adjacently and the run resumes mid-chain) and a commit-per-step large-blob storage benchmark showing per-step write cost bounded by the new blob (~linear, not cumulative). Delivered by GH-279.
 
 diagrams:
   requirements_trace: |
