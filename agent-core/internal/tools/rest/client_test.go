@@ -155,6 +155,34 @@ func TestRESTClient_CompensationExecutorReportsMissingOperation(t *testing.T) {
 	require.Contains(t, result.Output, "compensation_lookup")
 }
 
+// TestRESTClient_RedactionRunsBeforePersistence proves invariant (3): response
+// redaction runs inside mapClientResponse before Execute returns the Result, so
+// the Result the loop hands to the checkpoint Save — and therefore the
+// tool_outputs forward plane and any later command-state $from read — never sees
+// a redacted field (srd038-command-state-store R5, srd036-dolt-state-persistence
+// R5.1). The Result returned by Execute is exactly what a persisting caller
+// checkpoints, so asserting the field is already gone here proves the ordering.
+func TestRESTClient_RedactionRunsBeforePersistence(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"title":"ok","secret":"body-secret"}`))
+	}))
+	defer upstream.Close()
+
+	// issueClient's get operation redacts body.secret.
+	def := clientDefinition(t, upstream.URL, issueClient())
+
+	result := clientCommand(def, InitClientGet, "get", params("1")).Execute()
+	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal)
+
+	// The redacted value is absent from the persisted Result output and the
+	// [REDACTED] marker is present in its place; nothing downstream can recover it.
+	require.NotContains(t, result.Output, "body-secret")
+	require.Contains(t, result.Output, "[REDACTED]")
+}
+
 func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
 	t.Parallel()
 
