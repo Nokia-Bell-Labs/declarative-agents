@@ -1,0 +1,75 @@
+id: rel09.0-uc003-mesh-deployment
+title: Helm Chart Deploys the Mesh and Hot-Swaps a RAG Source
+
+summary: |
+  An operator deploys the chatbot mesh (srd015) with one Helm chart onto a kind
+  cluster: the chatbot agent, two RAG (agent + Chroma) pairs from a values list,
+  a chat LLM, a Dolt backend, and an OTel collector, all over rel06.0 binary-only
+  images with profiles from ConfigMaps. The values list co-generates both the RAG
+  Deployments/Services and the chatbot's rest.yaml RAG client entries from one
+  source of truth. The operator then exercises the tiered hot swap: repointing an
+  existing RAG is a Service change touching no agent config, and adding a RAG is a
+  values change that re-renders ConfigMaps and rolls out the chatbot with a
+  checkpoint resume.
+
+actor: An operator deploying and evolving the mesh.
+
+trigger: |
+  The operator installs the chart on a kind cluster and later edits the values
+  RAG list.
+
+preconditions:
+  - A kind cluster is available and the rel06.0 binary-only runtime image is loadable.
+  - The chart, values schema, and the chatbot/RAG profiles are chart-owned artifacts.
+  - The Dolt backend is deployable for chatbot checkpoint and resume.
+
+flow:
+  - id: F1
+    text: helm install deploys the chatbot, two values-driven RAG pairs, the LLM, the Dolt backend, and the collector, with ingress to the chatbot UX and internal Services for each component.
+  - id: F2
+    text: The chart renders the chatbot rest.yaml RAG client entries from the same values list that creates the RAG Deployments and Services; the rendered rest.yaml passes ValidateDefinition before the chatbot serves.
+  - id: F3
+    text: The operator repoints an existing RAG by changing a Kubernetes Service selector or endpoint, with no agent config change and no agent restart.
+  - id: F4
+    text: The operator adds a RAG by editing the values list; the chart re-renders the ConfigMaps and rolls out the chatbot, which resumes from its Dolt checkpoint via --dolt-dsn and --resume-checkpoint.
+  - id: F5
+    text: Every agent exports OTLP to the collector, and the trace backend is available for the observability panel to query.
+
+touchpoints:
+  - id: T1
+    target: srd015-chatbot-deployment AC1
+    reason: One chart deploys the chatbot, values-driven RAG pairs, LLM, Dolt, and collector over rel06.0 images with ConfigMap profiles.
+  - id: T2
+    target: srd015-chatbot-deployment AC2
+    reason: Co-generation renders the chatbot RAG clients from the RAG values list and validates the rendered rest.yaml.
+  - id: T3
+    target: srd015-chatbot-deployment AC3
+    reason: The tiered swap is a Service repoint or a values re-render plus checkpoint-resume rollout.
+  - id: T4
+    target: test-rel09.0-chatbot-mesh mesh_deployment
+    reason: The suite records the kind-cluster install, the repoint, and the add-RAG rollout with expected outcomes.
+
+success_criteria:
+  - id: S1
+    criterion: One chart deploys the chatbot, two values-driven RAG pairs, the LLM, the Dolt backend, and the collector on a kind cluster over rel06.0 binary-only images with ConfigMap-mounted profiles.
+    traces:
+      - srd015-chatbot-deployment R1.1
+      - srd015-chatbot-deployment R1.3
+  - id: S2
+    criterion: The chatbot RAG client entries are co-generated from the same values list that creates the RAG Deployments and Services, and the rendered rest.yaml passes ValidateDefinition.
+    traces:
+      - srd015-chatbot-deployment R2.1
+      - srd015-chatbot-deployment R2.2
+  - id: S3
+    criterion: Repointing an existing RAG is a Service change with no agent config change; adding a RAG is a values re-render plus a rollout in which the chatbot resumes from its Dolt checkpoint.
+    traces:
+      - srd015-chatbot-deployment R3.1
+      - srd015-chatbot-deployment R3.2
+
+out_of_scope:
+  - In-process client-registry mutation of a running agent.
+  - Provisioning-panel authority behavior, covered by the provisioning-panel issue.
+  - Production cluster hardening beyond the kind smoke deployment.
+
+test_suite_trace: test-rel09.0-chatbot-mesh
+status: specified

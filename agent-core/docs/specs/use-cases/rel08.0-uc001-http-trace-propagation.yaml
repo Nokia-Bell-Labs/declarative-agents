@@ -1,0 +1,67 @@
+id: rel08.0-uc001-http-trace-propagation
+title: Two agents linked by a REST call produce one connected trace
+
+summary: |
+  A caller agent invokes a callee agent over the built-in REST client and server
+  words. With HTTP trace-context propagation, the caller injects its active
+  dispatch span's traceparent into the outbound request, the callee extracts it
+  and parents its request (and machine_request) span on the remote span, and the
+  two agents' spans join into one connected trace. A request that arrives with an
+  absent or malformed traceparent starts a new root span rather than failing.
+
+actor: Operator observing a multi-agent mesh through a trace backend
+
+trigger: |
+  A caller agent's REST client word calls a callee agent's REST server endpoint
+  while both export spans to the same trace backend.
+
+flow:
+  - F1: The caller runs a REST client word inside an active recording dispatch span; the client injects a traceparent header (and tracestate when present) formatted from that span into the outbound request (srd016 R4).
+  - F2: The callee's REST server endpoint extracts the incoming traceparent and parents its request span, and any machine_request span, on the extracted remote SpanContext (srd016 R5).
+  - F3: The backend shows one connected trace in which the callee's server span is a child of the caller's client span.
+  - F4: A separate request arriving with no traceparent, or a malformed one, starts a new root span and completes normally.
+  - F5: A subprocess-spawned child continues to receive its parent context through --otel-parent-span, unchanged by the HTTP path.
+
+touchpoints:
+  - T1: "srd016-traceparent R4 -- outbound REST client injects traceparent/tracestate from the active span, uniform, no authoring surface"
+  - T2: "srd016-traceparent R5 -- inbound REST server extracts traceparent to parent the request and machine_request spans"
+  - T3: "srd016-traceparent R5.3 -- absent or malformed header falls back to a new root without failing"
+  - T4: "srd028-rest-client-tools R9.1 -- client traces carry the injected trace context"
+  - T5: "srd029-rest-server-tools R9.1 -- server continues the cross-agent trace on extraction"
+
+success_criteria:
+  - id: S1
+    criterion: An outbound REST client request carries a traceparent header formatted from the active dispatch span, and tracestate when the span carries it.
+    traces:
+      - srd016-traceparent AC4
+  - id: S2
+    criterion: An inbound REST server endpoint parents its request and machine_request span on the extracted remote span, so the caller's client span and the callee's server span form one connected trace.
+    traces:
+      - srd016-traceparent AC5
+  - id: S3
+    criterion: A request with an absent or malformed traceparent starts a new root span and completes without error.
+    traces:
+      - srd016-traceparent AC5
+  - id: S4
+    criterion: Injection is uniform across outbound requests with no per-operation authoring surface, and no traceparent is emitted when no recording span is active.
+    traces:
+      - srd016-traceparent AC4
+
+failure_scenarios:
+  - id: E1
+    scenario: The callee receives a well-formed traceparent but starts a new root span anyway.
+    expected: The extraction regression fails; the server span must be a child of the caller's span.
+  - id: E2
+    scenario: A malformed traceparent header fails the inbound request.
+    expected: Rejected as a regression; malformed headers must fall back to a new root (S3).
+  - id: E3
+    scenario: An operation adds a per-operation traceparent toggle to rest-tool-format.
+    expected: Rejected; injection is a uniform transport concern with no authoring surface (S4).
+
+out_of_scope:
+  - tracestate parsing or validation beyond opaque pass-through.
+  - Propagation over transports other than the built-in REST client and server.
+  - The subprocess --otel-parent-span path, which is unchanged and complementary.
+
+test_suite_trace: test-rel08.0-trace-propagation
+status: specified

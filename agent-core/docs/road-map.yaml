@@ -306,6 +306,32 @@ releases:
       - go test ./internal/runtime/core -run 'TestCommandStateView|TestDoltCheckpointRevertReapsBothPlanes|TestDoltCheckpointReceiptWalkReversesSurvivingStep|TestDoltCommandStateWritesOnlyNewStepBlob'
       - go test ./internal/tools/rest -run 'TestRESTClient_CommandState'
 
+  - version: "08.0"
+    name: HTTP trace propagation
+    description: |
+      Release 08.0 extends srd016 so a W3C trace continues across REST calls
+      between running agents. Outbound REST client requests inject the active
+      dispatch span's traceparent (and tracestate when present); inbound REST
+      server endpoints extract it and parent the request and machine_request
+      spans on the remote span, so a caller's client span and a callee's server
+      span join into one connected trace. Absent or malformed headers fall back to
+      a new root without failing. Injection is a uniform transport concern with no
+      per-operation authoring surface, and the subprocess --otel-parent-span path
+      is unchanged and complementary. This release records the documentation and
+      the tracer-bullet use case; the inject/extract implementation lands in
+      Epic #295 (GH-310).
+    status: planned
+    srds:
+      - srd016-traceparent
+    use_cases:
+      - id: rel08.0-uc001-http-trace-propagation
+        summary: Two agents linked by a REST call produce one connected trace, with malformed-header fallback to a new root
+        status: planned
+    test_suites:
+      - id: test-rel08.0-trace-propagation
+        summary: Formal tests for outbound injection, inbound extraction parenting the machine_request span, absent/malformed fallback, and the unchanged subprocess path
+        status: planned
+
   - version: "99.0"
     name: Tool dispatch simplification planning
     description: |

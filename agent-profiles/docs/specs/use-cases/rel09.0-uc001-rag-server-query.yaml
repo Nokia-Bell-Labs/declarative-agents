@@ -1,0 +1,72 @@
+id: rel09.0-uc001-rag-server-query
+title: Persistent RAG Server Answers a Vector-In Query
+
+summary: |
+  A persistent RAG server agent (srd013) serves one Chroma collection behind a
+  machine_request query endpoint. A caller posts a query_embeddings vector and a
+  result count; the agent runs a request-scoped retrieval machine
+  (create-or-get collection, chroma_query) and returns the nearest chunks with
+  their record ids, distances, and metadata, including the collection's embedding
+  model name. The RAG server does not embed the query (the caller supplies the
+  vector) and does not answer (it returns chunks).
+
+actor: A caller agent or operator issuing a vector-in retrieval request.
+
+trigger: |
+  A caller posts query_embeddings and n_results to the RAG server's query
+  endpoint while a Chroma server holds an ingested collection.
+
+preconditions:
+  - A Chroma server is running with a collection ingested by the srd012 ingest profile.
+  - The RAG server profile validates and owns the Chroma REST definition, the served collection identity, and the query endpoint mapping.
+  - The query, monitor, and control server bind addresses are loopback-configurable inputs.
+
+flow:
+  - id: F1
+    text: The caller posts query_embeddings and n_results to the machine_request query endpoint, which binds the request to one request-scoped run of the retrieval machine.
+  - id: F2
+    text: chroma_ready confirms the served Chroma database is reachable; the create-or-get collection word resolves the served collection id.
+  - id: F3
+    text: chroma_query threads the query_embeddings vector into the query body via the single-token reshape and requests n_results nearest chunks.
+  - id: F4
+    text: The endpoint maps the terminal signal to an HTTP response returning the chunks with record ids, distances, and metadata that names the collection's embedding model.
+  - id: F5
+    text: The monitor server exposes the run through the srd033 views and SSE, and the control server exposes exit and health.
+
+touchpoints:
+  - id: T1
+    target: srd013-rag-server-agent AC1
+    reason: The RAG server hosts the reader retrieval chain behind a machine_request query endpoint with monitor and control servers.
+  - id: T2
+    target: srd013-rag-server-agent AC2
+    reason: The vector-in contract accepts query_embeddings and returns chunks with ids, distances, and the embedding-model metadata.
+  - id: T3
+    target: srd013-rag-server-agent AC3
+    reason: A single agent serves one collection; the run does not multiplex corpora.
+  - id: T4
+    target: test-rel09.0-chatbot-mesh rag_server_query
+    reason: The suite records the query inputs and the expected chunk-and-metadata response.
+
+success_criteria:
+  - id: S1
+    criterion: The query endpoint accepts a caller-supplied query_embeddings vector and n_results and does not require question text.
+    traces:
+      - srd013-rag-server-agent R2.1
+  - id: S2
+    criterion: The response returns chunks with record ids, distances, and metadata that names the served collection's embedding model.
+    traces:
+      - srd013-rag-server-agent R2.2
+      - srd013-rag-server-agent R2.3
+  - id: S3
+    criterion: The retrieval runs as a request-scoped machine over one served collection, with no LLM answering step in the RAG server.
+    traces:
+      - srd013-rag-server-agent R1.1
+      - srd013-rag-server-agent R1.5
+
+out_of_scope:
+  - Embedding the query, which the caller does.
+  - Composing or answering over the chunks, which the chatbot agent does.
+  - Ingest, which remains the srd012 loading path.
+
+test_suite_trace: test-rel09.0-chatbot-mesh
+status: specified

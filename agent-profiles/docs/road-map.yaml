@@ -339,3 +339,36 @@ releases:
       - Every Chroma add and query carries an agent-supplied embedding vector threaded from the Ollama embed word, never a model-authored or server-side vector.
       - The reader answer is grounded in chunks retrieved through embed_query -> chroma_query -> invoke_llm.
       - The Chroma and Ollama servers are external preconditions surfaced through chroma_ready and ollama_ready, not started by the agent.
+
+  - version: "09.0"
+    name: Chatbot mesh
+    description: |
+      Release 09.0 assembles a multi-agent chatbot mesh: a browser-facing chatbot
+      agent (srd014) that routes a chat turn to one chat-LLM word through a $tool
+      classifier, embeds the query once, fans that vector out to N persistent RAG
+      server agents (srd013, vector-in), composes a grounded prompt, and answers,
+      with non-adjacent data threaded by command-state $from(). The mesh deploys
+      as one Helm chart (srd015) with values-driven RAG pairs, co-generated
+      chatbot client config, a tiered hot swap, and OTLP observability. This
+      release records the documentation and the tracer-bullet use cases; the RAG
+      server, chatbot, routing, observability, and deployment work land in
+      epics #292, #293, #294, #295, and #296.
+    status: planned
+    srds:
+      - srd013-rag-server-agent
+      - srd014-chatbot-agent
+      - srd015-chatbot-deployment
+    use_cases:
+      - id: rel09.0-uc001-rag-server-query
+        summary: Persistent RAG server answers a vector-in query_embeddings request and returns chunks with embedding-model metadata.
+        status: planned
+      - id: rel09.0-uc002-chatbot-turn
+        summary: End-to-end chat turn routes, embeds once, fans out to two RAGs, composes via $from(), answers, and degrades when one RAG fails.
+        status: planned
+      - id: rel09.0-uc003-mesh-deployment
+        summary: One Helm chart deploys the mesh on a kind cluster with values-to-config co-generation, Service repoint, and add-RAG rollout with checkpoint resume.
+        status: planned
+    test_suites:
+      - id: test-rel09.0-chatbot-mesh
+        summary: Profile-owned tracers for the RAG server query, the end-to-end chatbot turn with a degraded RAG, and the Helm mesh deployment with tiered hot swap.
+        status: planned
