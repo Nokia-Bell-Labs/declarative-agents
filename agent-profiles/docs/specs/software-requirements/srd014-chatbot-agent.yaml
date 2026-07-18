@@ -1,0 +1,137 @@
+id: srd014-chatbot-agent
+title: Chatbot Agent Functional Block
+
+context: |
+  The chatbot agent is the browser-facing agent of the mesh. It follows the
+  srd011 documentation-curator layout: a rest.yaml with static_assets,
+  machine_request, monitor, and control servers; a ui/ directory holding a built
+  single-page app; and a ux.yaml actor configuration that places the panels.
+
+  Each chat turn is a request-scoped machine run. A turn routes to one chat-LLM
+  word and RAG set through an LLM classifier (the $tool indirection), embeds the
+  query once, fans out that one embedding to the declared RAG server agents
+  (srd013, vector-in), composes a grounded prompt from the returned chunks and
+  the original query, and invokes the chosen chat-LLM word; the terminal signal
+  maps to the HTTP chat response. Non-adjacent data -- the original query, the
+  routing decision, the retrieved chunks -- reaches later steps by command-state
+  $from() addressing (agent-core srd038), not by threading carry_forward through
+  every intervening word.
+
+  The reusable HTTP runtime, static-asset host, machine_request binding, monitor,
+  and command-state store stay in agent-core. The turn machine, the router
+  classifier prompt, the RAG and LLM client declarations, the SPA, and the ux.yaml
+  panel placement stay profile-owned.
+
+problem: |
+  The mesh needs a browser-facing agent that turns a chat request into a routed,
+  retrieval-grounded answer over N RAG sources, with observable per-turn behavior
+  and no server-side session coupling. The requirements must name the turn machine
+  shape and its command-state data flow, the router and its fallback, the
+  multi-RAG fan-out and degradation rules, the stateless-v1 session decision, the
+  three-panel UX surface, and the transport-authority boundary, separately from
+  the agent-core runtime.
+
+goals:
+  - G1: Model each chat turn as a request-scoped machine that routes, embeds, fans out to RAG servers, composes, and answers, with non-adjacent data flowing by command-state $from().
+  - G2: Define the LLM router that selects a chat-LLM word through the $tool indirection with a normative misparse fallback.
+  - G3: Define sequential multi-RAG fan-out with per-RAG degradation and embedding-space mismatch exclusion.
+  - G4: Fix stateless-v1 sessions (browser sends history) and record durable sessions as a follow-on non-goal.
+  - G5: Declare the three-panel UX surface in ux.yaml over a static_assets-served SPA, deferring panel content to their own requirements.
+  - G6: Keep RAG and LLM endpoints declared rest.yaml clients so nothing in the turn machine or UX can alter transport authority.
+
+requirements:
+  R1:
+    title: Turn machine shape and data flow
+    items:
+      - R1.1: A chat turn SHALL run a request-scoped machine (agent-core srd030) that sequences route, embed_query, RAG fan-out, compose, and the chosen invoke_llm word, mapping the terminal signal to the HTTP chat response.
+      - R1.2: The original query, the routing decision, and the retrieved chunks SHALL reach the compose and answer steps through command-state $from() addressing (agent-core srd038), not through carry_forward chains across intervening words.
+      - R1.3: embed_query SHALL embed the incoming query once, and the single resulting vector SHALL be the fan-out input to every selected RAG server.
+  R2:
+    title: LLM router
+    items:
+      - R2.1: The router SHALL make one classifier LLM call whose response is parsed to a $tool selection over the declared chat-LLM words (and, where configured, the selected RAG set).
+      - R2.2: The declared tool set for the router SHALL be the chat-LLM words; the router SHALL NOT select any word outside that declared set.
+      - R2.3: A misparse or an out-of-set selection SHALL fall back to a configured default chat-LLM word rather than fail the turn.
+  R3:
+    title: Multi-RAG fan-out and degradation
+    items:
+      - R3.1: The turn SHALL query the declared RAG clients for the selected set; v1 fan-out SHALL be sequential over those clients.
+      - R3.2: A per-RAG query failure SHALL degrade rather than fail the turn, so the answer SHALL be composed from the remaining chunks and the failure SHALL be noted in the response metadata.
+      - R3.3: A RAG whose reported embedding model (srd013 R2.3) does not match the query embedding's model SHALL be excluded from the composed chunks and the exclusion SHALL be reported in the response metadata.
+  R4:
+    title: Stateless sessions
+    items:
+      - R4.1: The chat turn SHALL be stateless in v1, so the browser SHALL send the conversation history with each turn and the agent SHALL NOT keep a server-side session store.
+      - R4.2: Durable Dolt-backed sessions SHALL be an explicit follow-on and SHALL NOT be part of the v1 contract.
+  R5:
+    title: UX surface
+    items:
+      - R5.1: The agent SHALL declare three panels -- chat, observability, and provisioning -- in ux.yaml, following the srd011 UX placement precedent.
+      - R5.2: static_assets SHALL serve the built SPA that renders the panels; the SPA build and panel content requirements SHALL be owned by their own issues, not this SRD.
+  R6:
+    title: Transport-authority boundary
+    items:
+      - R6.1: RAG and LLM endpoints SHALL be declared rest.yaml clients with fixed authority; the turn machine and the UX SHALL NOT feed hosts, URLs, methods, or credentials into a running request (agent-core srd028 V30 lineage).
+      - R6.2: Router and RAG selection SHALL choose among declared words and declared clients only, never a runtime-supplied endpoint.
+
+non_goals:
+  - Define Go package APIs for the agent-core request, static-asset, monitor, or command-state runtime.
+  - Server-side session persistence; durable Dolt-backed sessions are a recorded follow-on (R4.2).
+  - Panel content and SPA implementation; those are owned by the chat-panel and observability-panel issues.
+  - Parallel or concurrent RAG fan-out; v1 is sequential (R3.1).
+  - In-agent RAG multiplexing; each RAG source is its own srd013 instance.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The chat turn is described as a request-scoped machine (route, embed, fan-out, compose, answer) with the original query, routing decision, and chunks flowing by command-state $from() rather than carry_forward chains, and one embedding fanned out to every selected RAG.
+    traces: [R1.1, R1.2, R1.3]
+  - id: AC2
+    criterion: The router is specified as one classifier call parsed to a $tool selection over the declared chat-LLM words, with a normative fallback to a configured default word on misparse or out-of-set selection.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: Sequential multi-RAG fan-out is specified with per-RAG failure degradation and embedding-model mismatch exclusion, both reported in the response metadata.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC4
+    criterion: Stateless-v1 sessions (browser-sent history, no server store) and the durable-session follow-on are stated as requirements and non-goals rather than prose.
+    traces: [R4.1, R4.2]
+  - id: AC5
+    criterion: The three-panel ux.yaml surface over a static_assets-served SPA is declared, with panel content and SPA build deferred to their own issues.
+    traces: [R5.1, R5.2]
+  - id: AC6
+    criterion: The transport-authority boundary is stated so declared rest.yaml clients hold authority and neither the turn machine nor the UX can supply a runtime endpoint.
+    traces: [R6.1, R6.2]
+
+depends_on:
+  - srd_id: srd011-knowledge-manager
+    symbols_used: [R1]
+  - srd_id: srd013-rag-server-agent
+    symbols_used: [R2]
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1]
+  - srd_id: srd030-machine-request-rest-binding
+    symbols_used: [R1]
+  - srd_id: srd033-monitor-rest-api
+    symbols_used: [R1]
+  - srd_id: srd038-command-state-store
+    symbols_used: [R1, R2]
+
+implementation_status: planned
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Browser-facing agent turning a chat request into a routed, retrieval-grounded answer over N RAG sources"] --> Goals["Goals: Chatbot Agent Functional Block"]
+      Goals --> R1["R1: Turn machine shape and data flow"]
+      Goals --> R2["R2: LLM router"]
+      Goals --> R3["R3: Multi-RAG fan-out and degradation"]
+      Goals --> R4["R4: Stateless sessions"]
+      Goals --> R5["R5: UX surface"]
+      Goals --> R6["R6: Transport-authority boundary"]
+      R1 --> AC1["AC1: request-scoped turn, $from data flow, one embedding fanned out"]
+      R2 --> AC2["AC2: $tool router with normative fallback"]
+      R3 --> AC3["AC3: sequential fan-out, degradation, mismatch exclusion"]
+      R4 --> AC4["AC4: stateless v1, durable sessions follow-on"]
+      R5 --> AC5["AC5: three-panel ux.yaml over static_assets SPA"]
+      R6 --> AC6["AC6: declared clients hold transport authority"]
+    ```
