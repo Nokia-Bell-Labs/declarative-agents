@@ -67,6 +67,14 @@ type MonitorRecorderAware interface {
 	SetMonitorRecorder(monitor.ToolMetricsRecorder)
 }
 
+// CommandStateAware lets a command opt in to the read-only command-state view
+// over prior steps' outputs. The engine injects the view before dispatch for
+// commands that implement it, mirroring MonitorRecorderAware. The view exposes
+// outputs only and never receipts (srd038-command-state-store R3).
+type CommandStateAware interface {
+	SetCommandState(CommandStateView)
+}
+
 // NoopUndo returns a successful no-op undo result for commands that do not
 // mutate rollback-managed state yet. Explicit Undo methods should call this so
 // future work can grep for commands that still need real rollback behavior.

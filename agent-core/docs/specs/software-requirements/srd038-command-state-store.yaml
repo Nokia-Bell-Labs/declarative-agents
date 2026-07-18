@@ -121,7 +121,11 @@ depends_on:
   - srd_id: srd001-core-types
     symbols_used: [Result, Signal]
 
-implementation_status: planned
+implementation_status:
+  done:
+    - Core CommandStateView (internal/runtime/core/command_state.go): a read-only, receipt-blind forward view over the run's execution log with $from-style label lookup (Lookup), most-recent-wins on duplicate labels, and ok=false (never an error) on a miss. Built from a projected struct that omits Entry.Receipt so the receipt is unreachable by construction (R1, R2, R3). The engine injects it before dispatch into commands implementing CommandStateAware, mirroring MonitorRecorderAware. Rehydrates from the execution restored by the checkpoint port (in-memory and Dolt tool_outputs) so a resumed run resolves the same labels (R1.4). Delivered by GH-277.
+  planned:
+    - REST body_source command_state consumption and $from selector validation (V32), the first consumer of the view. Implemented by Epic #270 child GH-278.
 
 diagrams:
   requirements_trace: |

@@ -622,3 +622,30 @@ func TestDoltCheckpointLoadNotFound(t *testing.T) {
 	_, _, err := cp.Load()
 	require.ErrorIs(t, err, ErrNoCheckpoint)
 }
+
+// TestCommandStateViewRehydratesFromDoltLoad proves the command-state view built
+// from an execution restored through the Dolt Load path (tool_outputs forward
+// plane) resolves identical labels to the live log, so a run resumed from Dolt
+// reads the same command state (srd038-command-state-store R1.4, srd036 R5).
+func TestCommandStateViewRehydratesFromDoltLoad(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", nil)
+	exec := threeStepExecution()
+
+	require.NoError(t, cp.Save(samplePosition(), exec[:1]))
+	require.NoError(t, cp.Save(samplePosition(), exec[:2]))
+	require.NoError(t, cp.Save(samplePosition(), exec))
+
+	_, restored, err := cp.Load()
+	require.NoError(t, err)
+
+	live := NewCommandStateView(exec)
+	rehydrated := NewCommandStateView(restored)
+	for _, label := range []string{"invoke", "read", "write", "missing"} {
+		liveOut, liveOK := live.Lookup(label)
+		rehOut, rehOK := rehydrated.Lookup(label)
+		require.Equal(t, liveOK, rehOK, "label %q resolves the same after Dolt rehydration", label)
+		require.Equal(t, liveOut, rehOut, "label %q output matches after Dolt rehydration", label)
+	}
+}
