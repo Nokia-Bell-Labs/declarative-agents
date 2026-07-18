@@ -1,0 +1,42 @@
+name: chatbot-turn
+purpose: |-
+  One request-scoped chat turn. The chat endpoint seeds this machine with the
+  request body (message and history). embed_query embeds the message once; rag_query
+  fans that vector out to the RAG server (single RAG in v1); compose_prompt builds a
+  grounding prompt from the original message and the retrieved chunks through
+  command-state $from() addressing; and invoke_llm answers, citing the chunk record
+  ids. A RAG failure degrades rather than fails the turn: compose renders empty
+  chunks and the model answers from the message alone, so the response is a mapped
+  200 rather than a 500.
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 8
+states:
+  - {name: AwaitingRequest, meaning: Seeded by the trusted chat endpoint with the request body.}
+  - {name: Embedding, meaning: The message is being embedded once at the embedding provider.}
+  - {name: Retrieving, meaning: The RAG server is being queried with the message vector.}
+  - {name: Composing, meaning: The grounding prompt is being composed from the message and chunks.}
+  - {name: Answering, meaning: The model is answering over the composed prompt.}
+  - {name: LLMResponded, meaning: Terminal. A grounded answer is ready for the HTTP response.}
+  - {name: Failed, meaning: Terminal. An embedding, compose, or model boundary word failed.}
+terminal_states:
+  - LLMResponded
+  - Failed
+signals:
+  - {name: Seed, trigger: The chat endpoint starts a request-scoped turn.}
+  - {name: QueryEmbedded, trigger: The provider returned the message embedding.}
+  - {name: QueryResponded, trigger: The RAG server returned chunks.}
+  - {name: Composed, trigger: The grounding prompt was rendered.}
+  - {name: LLMResponded, trigger: The model produced a grounded answer.}
+  - {name: CommandError, trigger: A boundary word failed.}
+transitions:
+  - {state: AwaitingRequest, signal: Seed,           next: Embedding,  action: embed_query}
+  - {state: AwaitingRequest, signal: CommandError,   next: Failed}
+  - {state: Embedding,       signal: QueryEmbedded,  next: Retrieving, action: rag_query}
+  - {state: Embedding,       signal: CommandError,   next: Failed}
+  - {state: Retrieving,      signal: QueryResponded, next: Composing,  action: compose_prompt}
+  - {state: Retrieving,      signal: CommandError,   next: Composing,  action: compose_prompt}
+  - {state: Composing,       signal: Composed,       next: Answering,  action: invoke_llm}
+  - {state: Composing,       signal: CommandError,   next: Answering,  action: invoke_llm}
+  - {state: Answering,       signal: LLMResponded,   next: LLMResponded}
+  - {state: Answering,       signal: CommandError,   next: Failed}
