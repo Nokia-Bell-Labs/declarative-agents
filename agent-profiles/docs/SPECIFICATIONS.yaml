@@ -201,6 +201,17 @@ srd_index:
       boundary.
     status: planned
     path: docs/specs/software-requirements/srd014-chatbot-agent.yaml
+  - id: srd015-chatbot-deployment
+    title: Chatbot Mesh Deployment and Provisioning Model
+    summary: One Helm chart deploying the chatbot, N values-driven RAG (agent +
+      Chroma) pairs, the LLM, the Dolt backend, and the OTel collector over
+      rel06.0 binary-only images with ConfigMap-mounted profiles; values-to-config
+      co-generation of the chatbot RAG clients (ValidateDefinition-checked);
+      tiered hot swap (Service repoint, values re-render plus checkpoint-resume
+      rollout); a config-plane provisioning boundary (deployment-plane counterpart
+      of srd028 V30); and OTLP/trace-backend observability wiring.
+    status: planned
+    path: docs/specs/software-requirements/srd015-chatbot-deployment.yaml
 
 config_format_index: []
 
