@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
@@ -67,6 +69,7 @@ type clientCmd struct {
 	metrics      core.MetricConfig
 	undoMeta     restUndoMetadata
 	commandState core.CommandStateView
+	traceCtx     oteltrace.SpanContext
 }
 
 // SetCommandState receives the read-only command-state view the engine injects
@@ -76,6 +79,13 @@ type clientCmd struct {
 func (c *clientCmd) SetCommandState(view core.CommandStateView) { c.commandState = view }
 
 var _ core.CommandStateAware = (*clientCmd)(nil)
+
+// SetTraceContext receives the active dispatch span the engine injects before
+// dispatch, so outbound requests carry its W3C trace context (srd016 R4, core
+// TraceContextAware).
+func (c *clientCmd) SetTraceContext(sc oteltrace.SpanContext) { c.traceCtx = sc }
+
+var _ core.TraceContextAware = (*clientCmd)(nil)
 
 type restUndoMetadata struct {
 	ResourceID       string
@@ -111,7 +121,7 @@ func (c *clientCmd) Execute() core.Result {
 	if c.init == InitClientAwait {
 		return c.awaitAsync()
 	}
-	request, effective, err := buildClientRequest(c.operation, c.params, c.credentials, c.commandState)
+	request, effective, err := buildClientRequest(c.operation, c.params, c.credentials, c.commandState, c.traceCtx)
 	if err != nil {
 		return clientOperationError(c.toolName, requestBuildFailureStage(err), err, c.operation)
 	}

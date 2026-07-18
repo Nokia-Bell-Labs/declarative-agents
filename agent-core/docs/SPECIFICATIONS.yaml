@@ -24,7 +24,7 @@ overview: |
   through srd031. Release 04.0 covers srd032 and srd033. Release 06.0 covers
   srd034. Release 07.0 covers srd038 and the amended srd036 and srd028 for the
   command-state store and two-plane persistence (planned). Release 08.0 covers
-  the amended srd016 for HTTP trace propagation (planned). Release 99.0 covers
+  the amended srd016 for HTTP trace propagation. Release 99.0 covers
   srd037 planning work.
 
   Release 02.0 storage revision.
@@ -466,7 +466,7 @@ use_case_index:
   - id: rel08.0-uc001-http-trace-propagation
     title: Two agents linked by a REST call produce one connected trace
     release: "08.0"
-    status: planned
+    status: implemented
     test_suite: test-rel08.0-trace-propagation
     path: docs/specs/use-cases/rel08.0-uc001-http-trace-propagation.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
@@ -562,7 +562,7 @@ test_suite_index:
     traces:
       - rel08.0-uc001-http-trace-propagation
     formal_test_cases: 5
-    status: planned
+    status: implemented
     path: docs/specs/test-suites/test-rel08.0-trace-propagation.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification

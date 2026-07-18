@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry/genai"
@@ -46,6 +47,9 @@ func dispatchWithMonitor(
 			rec: rec, dc: dispatchCtx, toolName: cmd.Name(),
 		}
 		aware.SetMonitorRecorder(toolMetrics)
+	}
+	if aware, ok := cmd.(TraceContextAware); ok {
+		aware.SetTraceContext(oteltrace.SpanContextFromContext(child.Context()))
 	}
 	res := SafeExecute(cmd, timeout)
 

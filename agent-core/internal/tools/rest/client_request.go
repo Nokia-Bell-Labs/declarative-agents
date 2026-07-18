@@ -13,6 +13,9 @@ import (
 	"net/url"
 	"strings"
 
+	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -39,6 +42,7 @@ func buildClientRequest(
 	input map[string]interface{},
 	resolver CredentialResolver,
 	view core.CommandStateView,
+	traceCtx oteltrace.SpanContext,
 ) (*http.Request, map[string]interface{}, error) {
 	params, err := normalizeRuntimeParams(input, def.Operation.Params, view)
 	if err != nil {
@@ -61,7 +65,24 @@ func buildClientRequest(
 	}
 	applyHeaders(req, def.Operation.Params.Headers, params)
 	applyIdempotency(req, def.Operation, params)
+	applyTraceContext(req, traceCtx)
 	return req, params, applyAuth(req, def.Auth, resolver)
+}
+
+// applyTraceContext injects the active span's W3C trace context into the outbound
+// request. Injection is uniform across every operation with no per-operation
+// configuration; when no recording span is active the SpanContext is invalid and
+// no traceparent is emitted. tracestate rides along opaquely when present
+// (srd016 R4).
+func applyTraceContext(req *http.Request, sc oteltrace.SpanContext) {
+	tp := telemetry.FormatTraceparent(sc)
+	if tp == "" {
+		return
+	}
+	req.Header.Set("traceparent", tp)
+	if ts := sc.TraceState().String(); ts != "" {
+		req.Header.Set("tracestate", ts)
+	}
 }
 
 func normalizeRuntimeParams(input map[string]interface{}, binding RequestBinding, view core.CommandStateView) (map[string]interface{}, error) {

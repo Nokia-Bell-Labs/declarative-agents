@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 )
@@ -73,6 +74,15 @@ type MonitorRecorderAware interface {
 // outputs only and never receipts (srd038-command-state-store R3).
 type CommandStateAware interface {
 	SetCommandState(CommandStateView)
+}
+
+// TraceContextAware lets a command receive the active dispatch span's context so
+// it can propagate W3C trace context over a transport it owns (for example a
+// REST client injecting traceparent). The engine injects it before dispatch,
+// mirroring MonitorRecorderAware. Injection is uniform and carries no
+// per-operation authoring surface (srd016-traceparent R4).
+type TraceContextAware interface {
+	SetTraceContext(oteltrace.SpanContext)
 }
 
 // NoopUndo returns a successful no-op undo result for commands that do not
