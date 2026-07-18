@@ -75,7 +75,7 @@ type Server struct {
 }
 
 // Serve builds the agent binary and launches a serving profile asynchronously
-// with --otel-log-file. It skips the test when AGENT_CORE_ROOT is unset. The
+// with --otel-log-file. It skips the test when the sibling agent-core checkout is absent. The
 // process is killed on test cleanup if still running.
 func Serve(t *testing.T, cfg ServeConfig) *Server {
 	t.Helper()

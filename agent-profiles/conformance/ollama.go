@@ -12,7 +12,7 @@ import (
 // The generator and planner default machines dispatch invoke_llm, which pings
 // Ollama at tool registration and calls the model during the run. Those
 // families are therefore gated on a reachable Ollama serving the configured
-// model, the same way the whole suite is gated on AGENT_CORE_ROOT: with no
+// model, the same way the whole suite is gated on the sibling agent-core checkout being present: with no
 // model the profile cannot even start.
 
 // ollamaBaseURL is the default local Ollama endpoint the generator/planner LLM

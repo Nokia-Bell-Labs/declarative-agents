@@ -13,7 +13,7 @@ import (
 // whole directory tree into a temp dir, patches only the named fields, and
 // leaves everything else byte-identical to the shipped source. It is pure file
 // I/O and does not build the agent binary, so it runs in the model-free fast
-// default without AGENT_CORE_ROOT.
+// default without the sibling agent-core checkout.
 func TestCopyShippedProfile(t *testing.T) {
 	const rel = "agents/rest/profile.yaml"
 	srcDir := filepath.Dir(ProfilePath(rel))

@@ -15,12 +15,6 @@ import (
 	"time"
 )
 
-// agentCoreRootEnv names the environment variable that points at an agent-core
-// checkout. The conformance package builds the agent binary from that checkout;
-// when the variable is unset the whole package skips so that plain `go test
-// ./...` stays hermetic for docs-only checkouts.
-const agentCoreRootEnv = "AGENT_CORE_ROOT"
-
 const defaultRunTimeout = 90 * time.Second
 
 // RunConfig describes a single agent CLI invocation for a family test.
@@ -123,17 +117,19 @@ func (r RunResult) RequireToolSpans(t *testing.T, tools ...string) {
 // (cmd/agent/main.go: telemetry.NewRoot("agent", "agent.run", ...)).
 const RootSpanName = "agent.run"
 
-// RequireCoreRoot returns the agent-core checkout path or skips the test when
-// AGENT_CORE_ROOT is unset.
+// RequireCoreRoot returns the sibling agent-core checkout path, derived from the
+// package's own location, or skips the test when that checkout is absent so
+// plain `go test ./...` stays hermetic for docs-only checkouts. The conformance
+// package builds the agent binary from that checkout.
 func RequireCoreRoot(t *testing.T) string {
 	t.Helper()
-	root := os.Getenv(agentCoreRootEnv)
-	if root == "" {
-		t.Skipf("%s not set; skipping conformance run", agentCoreRootEnv)
+	root := filepath.Join(filepath.Dir(ProfilesRoot()), "agent-core")
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		t.Skipf("agent-core checkout not found at %s; skipping conformance run", root)
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
-		t.Fatalf("resolve %s=%q: %v", agentCoreRootEnv, root, err)
+		t.Fatalf("resolve %q: %v", root, err)
 	}
 	return abs
 }
@@ -183,7 +179,7 @@ func agentBinary(t *testing.T, coreRoot string) string {
 }
 
 // Run invokes the agent CLI for one family and returns the parsed trace plus
-// the CLI exit state. It skips the test when AGENT_CORE_ROOT is unset.
+// the CLI exit state. It skips the test when the sibling agent-core checkout is absent.
 func Run(t *testing.T, cfg RunConfig) RunResult {
 	t.Helper()
 	coreRoot := RequireCoreRoot(t)
