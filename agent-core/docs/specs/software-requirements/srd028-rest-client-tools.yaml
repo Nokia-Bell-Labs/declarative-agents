@@ -108,7 +108,7 @@ requirements:
   R9:
     title: Metrics, tracing, and redaction
     items:
-      - R9.1: REST client tools SHOULD trace operation ID, resource name, method, configured host, status code, elapsed time, retry count, request byte count, response byte count, and resulting signal.
+      - R9.1: REST client tools SHOULD trace operation ID, resource name, method, configured host, status code, elapsed time, retry count, request byte count, response byte count, and resulting signal. Outbound requests carry W3C trace context (traceparent, and tracestate when present) injected uniformly per srd016 R4 as a transport concern with no per-operation configuration.
       - R9.2: ToolMetrics SHOULD include status code, retry count, response size, operation ID, and domain outcome when available.
       - R9.3: REST client tools SHALL redact configured headers, query fields, body fields, credentials, and tokens from traces, metrics, errors, and Result output.
       - R9.4: Verbose request or response body capture SHALL require explicit configuration and redaction rules.
