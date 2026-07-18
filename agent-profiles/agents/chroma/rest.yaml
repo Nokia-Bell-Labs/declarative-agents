@@ -64,6 +64,26 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
+        embed_query:
+          method: POST
+          path: /api/embed
+          params:
+            body_source: previous_result
+            input_mapping: {}
+          body:
+            model: all-minilm
+            input: "What does this corpus describe?"
+          success: {status: [200], signal: QueryEmbedded}
+          response:
+            output:
+              embedding: $.embedding
+          side_effects:
+            - kind: external_api
+              target: ollama.embeddings
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
     chroma:
       base_url: http://127.0.0.1:8000
       auth_ref: none
@@ -175,6 +195,63 @@ rest:
           side_effects:
             - kind: external_api
               target: chroma.count
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        create_or_get_collection_query:
+          method: POST
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections
+          params:
+            body_schema:
+              type: object
+              required: [query_embeddings]
+              properties:
+                query_embeddings: {type: array}
+            body_source: previous_result
+            input_mapping:
+              query_embeddings: $.mapped.embedding
+            carry_forward: [query_embeddings]
+          body:
+            name: corpus
+            get_or_create: true
+          success: {status: [200, 201], signal: CollectionReady}
+          response:
+            output:
+              collection_id: $.id
+          side_effects:
+            - kind: external_api
+              target: chroma.collection
+              state: collection_upserted
+          reversibility:
+            classification: reversible
+            undo: noop
+        query_records:
+          method: POST
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections/{collection}/query
+          params:
+            path:
+              collection: {type: string}
+            body_schema:
+              type: object
+              required: [query_embeddings]
+              properties:
+                query_embeddings: {type: array}
+            body_source: previous_result
+            input_mapping:
+              collection: $.mapped.collection_id
+              query_embeddings: $.carried.query_embeddings
+          body:
+            query_embeddings: ["{{ params.query_embeddings }}"]
+            n_results: 5
+          success: {status: [200], signal: QueryResponded}
+          response:
+            output:
+              ids: $.ids
+              documents: $.documents
+          side_effects:
+            - kind: external_api
+              target: chroma.query
               state: read_only
           reversibility:
             classification: reversible

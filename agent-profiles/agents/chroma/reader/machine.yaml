@@ -1,0 +1,109 @@
+name: chroma-reader
+purpose: |-
+  The Chroma reader profile answers a question grounded in chunks retrieved from
+  a local Chroma collection. It checks the Chroma and Ollama servers, embeds the
+  request question at Ollama, create-or-gets the collection (which resolves the
+  returned collection id and carries the query vector forward), queries the
+  collection with the agent-supplied query vector, and invokes the configured
+  model over the retrieved chunks to produce a grounded answer.
+
+  The query vector is machine-sequenced because a model cannot author a raw
+  embedding vector; the vector rides between boundary words through the
+  agent-core previous-Result parameter threading (srd028 R12). Because threading
+  is single-hop, create-or-get sits immediately before chroma_query: it returns
+  the collection id and carries the query vector forward so chroma_query can
+  thread both.
+invariants:
+  - REST authority lives in agents/chroma/rest.yaml.
+  - MachineSpec owns sequencing between the embed, Chroma, and invoke_llm words.
+  - No embedding vector is authored by a model; the query vector threads between words.
+  - The Chroma and Ollama servers are external preconditions, surfaced through chroma_ready and ollama_ready, not started by the agent.
+initial_state: Idle
+budget:
+  max_iterations: 16
+  max_consecutive_parse_errors: 2
+states:
+  - name: Idle
+    meaning: Initial state before the reader flow starts.
+  - name: CheckingChroma
+    meaning: The Chroma v2 heartbeat is being checked.
+  - name: CheckingOllama
+    meaning: The Ollama version endpoint is being checked.
+  - name: Embedding
+    meaning: The request question is being embedded at Ollama.
+  - name: ResolvingCollection
+    meaning: The collection is being create-or-got and the query vector is carried forward.
+  - name: Querying
+    meaning: The collection is being queried with the agent-supplied query vector.
+  - name: Answering
+    meaning: The configured model is answering over the retrieved chunks.
+  - name: Succeeded
+    meaning: Terminal. A grounded answer was produced from retrieved chunks.
+  - name: Failed
+    meaning: Terminal. A REST, embedding, or model boundary word failed.
+terminal_states:
+  - Succeeded
+  - Failed
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: ChromaReady
+    trigger: The Chroma heartbeat returned a configured success status.
+  - name: OllamaReady
+    trigger: The Ollama version endpoint returned a configured success status.
+  - name: QueryEmbedded
+    trigger: Ollama returned an embedding vector for the request question.
+  - name: CollectionReady
+    trigger: The collection was create-or-got and its id resolved.
+  - name: QueryResponded
+    trigger: Chroma returned the retrieved chunks for the query vector.
+  - name: LLMResponded
+    trigger: The configured model produced a grounded answer.
+  - name: CommandError
+    trigger: Runtime or REST boundary infrastructure failed.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: CheckingChroma
+    action: chroma_ready
+  - state: CheckingChroma
+    signal: ChromaReady
+    next: CheckingOllama
+    action: ollama_ready
+  - state: CheckingChroma
+    signal: CommandError
+    next: Failed
+  - state: CheckingOllama
+    signal: OllamaReady
+    next: Embedding
+    action: embed_query
+  - state: CheckingOllama
+    signal: CommandError
+    next: Failed
+  - state: Embedding
+    signal: QueryEmbedded
+    next: ResolvingCollection
+    action: resolve_collection
+  - state: Embedding
+    signal: CommandError
+    next: Failed
+  - state: ResolvingCollection
+    signal: CollectionReady
+    next: Querying
+    action: chroma_query
+  - state: ResolvingCollection
+    signal: CommandError
+    next: Failed
+  - state: Querying
+    signal: QueryResponded
+    next: Answering
+    action: invoke_llm
+  - state: Querying
+    signal: CommandError
+    next: Failed
+  - state: Answering
+    signal: LLMResponded
+    next: Succeeded
+  - state: Answering
+    signal: CommandError
+    next: Failed
