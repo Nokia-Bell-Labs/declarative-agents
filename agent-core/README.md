@@ -112,6 +112,25 @@ durable history. Set `--dolt-dsn` to a MySQL-wire DSN for a running `dolt
 sql-server` when a run must persist checkpoints for history, resume, or
 rollback.
 
+### Local Dolt Server (persistent)
+
+`docker-compose.dolt.yml` runs a local `dolt sql-server` whose storage persists
+across container removal, for lifecycle checkpoints and the gated Dolt
+integration tests. The `dolt-data` named volume holds the chunk store, so the
+container is disposable while the data is not.
+
+```bash
+mage dolt:up       # start the server (docker compose up -d)
+mage dolt:status   # show the service and the persistent volume
+mage dolt:down     # stop and remove the container, keeping the data
+mage dolt:reset    # stop and delete the volume, discarding all data
+```
+
+The server listens on `127.0.0.1:3306` with a `root` account reachable over TCP
+(`DOLT_ROOT_HOST=%`). Point a run at it with
+`--dolt-dsn "root@tcp(127.0.0.1:3306)/<database>"`. With the server up, the
+gated tests in `cmd/agent/dolt_integration_test.go` run instead of skipping.
+
 ## Quick Start
 
 ```bash

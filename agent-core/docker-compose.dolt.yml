@@ -1,0 +1,29 @@
+# Persistent local Dolt SQL server for agent-core checkpoints and the gated Dolt
+# integration tests (cmd/agent/dolt_integration_test.go).
+#
+# Storage lives in the named `dolt-data` volume, so it survives container
+# removal: `mage dolt:down` keeps the data, only `mage dolt:reset` discards it.
+#
+# DOLT_ROOT_HOST=% creates root@% so the checkpoint adapter can connect over TCP
+# from the host; the image otherwise only allows root@localhost.
+#
+# Usage: mage dolt:up  (or: docker compose -f docker-compose.dolt.yml up -d)
+services:
+  dolt:
+    image: dolthub/dolt-sql-server:latest
+    container_name: agent-core-dolt
+    environment:
+      DOLT_ROOT_HOST: "%"
+    ports:
+      - "3306:3306"
+    volumes:
+      - dolt-data:/var/lib/dolt
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dolt", "sql", "-q", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  dolt-data:

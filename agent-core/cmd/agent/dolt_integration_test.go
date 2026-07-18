@@ -126,7 +126,7 @@ func requireDoltServer(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
-		t.Skipf("no reachable dolt sql-server at %s (%v); skipping Dolt integration test", doltServerDSN, err)
+		t.Skipf("no reachable dolt sql-server at %s (%v); run `mage dolt:up` to start a persistent one, then re-run; skipping Dolt integration test", doltServerDSN, err)
 	}
 	if _, err := db.ExecContext(ctx, "CREATE DATABASE IF NOT EXISTS "+doltTestDB); err != nil {
 		t.Skipf("create database %s on dolt sql-server: %v; skipping", doltTestDB, err)
