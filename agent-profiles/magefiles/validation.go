@@ -16,7 +16,7 @@ import (
 const (
 	agentCoreRootEnv       = "AGENT_CORE_ROOT"
 	agentCoreImageEnv      = "AGENT_CORE_IMAGE"
-	containerEngineEnv     = "AGENT_PROFILES_CONTAINER_ENGINE"
+	dockerEngine           = "docker"
 	defaultAgentCoreImage  = "agent-core:latest"
 	containerProfilesMount = "/profiles"
 	containerWorkMount     = "/work"
@@ -110,11 +110,10 @@ func ContainerSmoke() error {
 		return err
 	}
 	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(filepath.Dir(root), "agent-core"))
-	engine, err := profileContainerEngine(os.Getenv(containerEngineEnv), exec.LookPath)
-	if err != nil {
+	if err := requireDocker(exec.LookPath); err != nil {
 		return err
 	}
-	return runContainerSmoke(engine, defaultRun, root, coreRoot, envOrDefault(agentCoreImageEnv, defaultAgentCoreImage))
+	return runContainerSmoke(defaultRun, root, coreRoot, envOrDefault(agentCoreImageEnv, defaultAgentCoreImage))
 }
 
 func validateProfiles(root, coreRoot string) error {
@@ -542,21 +541,15 @@ func resolveProfileRef(base, coreRoot, ref string) (string, error) {
 	return filepath.Join(base, clean), nil
 }
 
-func profileContainerEngine(override string, lookPath lookPathFunc) (string, error) {
-	if engine := strings.TrimSpace(override); engine != "" {
-		return engine, nil
+func requireDocker(lookPath lookPathFunc) error {
+	if _, err := lookPath(dockerEngine); err != nil {
+		return fmt.Errorf("docker not found on PATH; install Docker to run the container smoke test")
 	}
-	if _, err := lookPath("docker"); err == nil {
-		return "docker", nil
-	}
-	if _, err := lookPath("podman"); err == nil {
-		return "podman", nil
-	}
-	return "", fmt.Errorf("no container engine found; set %s to docker or podman", containerEngineEnv)
+	return nil
 }
 
-func runContainerSmoke(engine string, run commandRunner, root, coreRoot, image string) error {
-	if err := run(engine, "run", "--rm", "--entrypoint", "sh", image, "-c", "test ! -e /opt/agent-core/agents"); err != nil {
+func runContainerSmoke(run commandRunner, root, coreRoot, image string) error {
+	if err := run(dockerEngine, "run", "--rm", "--entrypoint", "sh", image, "-c", "test ! -e /opt/agent-core/agents"); err != nil {
 		return fmt.Errorf("check image excludes bundled agent assets: %w", err)
 	}
 	args := []string{
@@ -569,7 +562,7 @@ func runContainerSmoke(engine string, run commandRunner, root, coreRoot, image s
 		"--profile", containerProfilesMount + "/agents/jurist/profile.yaml",
 		"--directory", containerWorkMount,
 	}
-	if err := run(engine, args...); err != nil {
+	if err := run(dockerEngine, args...); err != nil {
 		return fmt.Errorf("run mounted jurist profile: %w", err)
 	}
 	return nil

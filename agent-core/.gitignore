@@ -9,5 +9,5 @@ internal/knowledge/documentation/ui/node_modules/
 bin/
 magefiles/mage_output_file.go
 
-# Podman may leave this behind if an interrupted build used --secret.
-podman-build-secret-*
+# Docker may leave this behind if an interrupted build used --secret.
+docker-build-secret-*

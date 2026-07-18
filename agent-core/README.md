@@ -146,16 +146,14 @@ mage docker
 builds `agent-core:latest`. Repository releases may also publish a matching
 module-scoped tag such as `agent-core/v0.YYYYMMDD.N`, but Docker release
 resolution continues to use the root tag family unless `AGENT_CORE_REF`
-overrides it. The target uses Docker when available, falls back to Podman, and
-prints the resolved build settings plus the exact Docker/Podman command before
-building.
+overrides it. The target requires Docker, and prints the resolved build settings
+plus the exact Docker command before building.
 
 Common overrides:
 
 ```bash
 AGENT_CORE_REF=v0.20260612.N mage docker
 AGENT_CORE_IMAGE=registry.example/agent-core:v0.20260612.N mage docker
-AGENT_CORE_CONTAINER_ENGINE=docker mage docker
 AGENT_CORE_REPO=https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git mage docker
 ```
 
@@ -186,24 +184,6 @@ Override the path if needed:
 AGENT_CORE_NETRC=/path/to/netrc mage docker
 ```
 
-Podman builds default to `--tls-verify=false` for environments where the
-registry certificate chain is managed outside Podman's trust store. Override
-that behavior with:
-
-```bash
-AGENT_CORE_TLS_VERIFY=true mage docker
-```
-
-The equivalent lower-level Podman command is:
-
-```bash
-podman build \
-  --tls-verify=false \
-  --secret id=git_credentials,src=.netrc \
-  --build-arg AGENT_CORE_REF=v0.20260612.N \
-  -t agent-core:latest .
-```
-
 The equivalent lower-level Docker command is:
 
 ```bash
@@ -217,7 +197,7 @@ DOCKER_BUILDKIT=1 docker build \
 Run the runtime image with profiles and workspaces mounted separately:
 
 ```bash
-podman run --rm \
+docker run --rm \
   -v "$AGENT_PROFILES_ROOT:/profiles/agents:ro" \
   -v "$PWD:/work" \
   -w /work \
@@ -230,7 +210,7 @@ Evaluator flows use the same profile mount and keep suites/output under the
 workspace mount:
 
 ```bash
-podman run --rm \
+docker run --rm \
   -v "$AGENT_PROFILES_ROOT:/profiles/agents:ro" \
   -v "$PWD:/work" \
   -w /work \
@@ -253,13 +233,13 @@ For integration tests inside a container, build the source-bearing integration
 target and mount profile assets from outside the image:
 
 ```bash
-podman build \
+docker build \
   --target integration \
   --secret id=git_credentials,src=.netrc \
   --build-arg AGENT_CORE_REF=v0.20260612.N \
   -t agent-core-integration:latest .
 
-podman run --rm \
+docker run --rm \
   -v "$AGENT_PROFILES_ROOT:/profiles/agents:ro" \
   -w /src \
   -e AGENT_PROFILES_ROOT=/profiles/agents \
@@ -268,8 +248,8 @@ podman run --rm \
 ```
 
 Recent verification: `mage docker` built `agent-core:latest` from a remote
-release, `podman run --rm agent-core:latest --help` started the packaged
-`agent` binary, and `podman run --rm agent-core:latest` reported that
+release, `docker run --rm agent-core:latest --help` started the packaged
+`agent` binary, and `docker run --rm agent-core:latest` reported that
 `--profile` is required.
 
 ## Installation

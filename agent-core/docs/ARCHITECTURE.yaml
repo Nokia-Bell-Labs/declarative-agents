@@ -817,8 +817,8 @@ overview:
       `mage docker` is the canonical release-image build wrapper. It
       resolves the latest remote release tag unless the operator passes a
       different revision through mage, passes repository-local `.netrc` credentials as a BuildKit secret
-      when present, chooses Docker when available and Podman as fallback, and
-      prints the exact build command before running it.
+      when present, requires Docker, and prints the exact
+      build command before running it.
 
   rollback_lifecycle_architecture:
     status: |

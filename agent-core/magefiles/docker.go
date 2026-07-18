@@ -16,10 +16,10 @@ const (
 	defaultProfilesMount    = "/profiles/agents"
 	defaultWorkMount        = "/work"
 
-	envContainerEngine = "AGENT_CORE_CONTAINER_ENGINE"
-	envContainerImage  = "AGENT_CORE_IMAGE"
-	envContainerNetRC  = "AGENT_CORE_NETRC"
-	envTLSVerify       = "AGENT_CORE_TLS_VERIFY"
+	envContainerImage = "AGENT_CORE_IMAGE"
+	envContainerNetRC = "AGENT_CORE_NETRC"
+
+	dockerEngine = "docker"
 )
 
 // Docker builds the Agent Core runtime image from the latest release tag.
@@ -35,62 +35,43 @@ func Docker() error {
 
 	args := containerBuildArgs(opts)
 	fmt.Print(containerBuildSummary(opts, args))
-	cmd := exec.Command(opts.Engine, args...)
-	if opts.Engine == "docker" {
-		cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
-	}
+	cmd := exec.Command(dockerEngine, args...)
+	cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 type dockerBuildOptions struct {
-	Engine    string
-	Image     string
-	Ref       string
-	Repo      string
-	NetRC     string
-	TLSVerify string
+	Image string
+	Ref   string
+	Repo  string
+	NetRC string
 }
 
 func dockerBuildOptionsFromEnv(ref string) (dockerBuildOptions, error) {
-	engine, err := containerEngine(os.Getenv(envContainerEngine), exec.LookPath)
-	if err != nil {
+	if err := requireDocker(exec.LookPath); err != nil {
 		return dockerBuildOptions{}, err
 	}
 	return dockerBuildOptions{
-		Engine:    engine,
-		Image:     envOrDefault(envContainerImage, defaultContainerImage),
-		Ref:       ref,
-		Repo:      strings.TrimSpace(os.Getenv(agentCoreRepoEnvVar)),
-		NetRC:     envOrDefault(envContainerNetRC, defaultContainerNetRC),
-		TLSVerify: tlsVerifyForEngine(engine, os.Getenv(envTLSVerify)),
+		Image: envOrDefault(envContainerImage, defaultContainerImage),
+		Ref:   ref,
+		Repo:  strings.TrimSpace(os.Getenv(agentCoreRepoEnvVar)),
+		NetRC: envOrDefault(envContainerNetRC, defaultContainerNetRC),
 	}, nil
 }
 
 type lookPathFunc func(string) (string, error)
 
-func containerEngine(override string, lookPath lookPathFunc) (string, error) {
-	if engine := strings.TrimSpace(override); engine != "" {
-		return engine, nil
+func requireDocker(lookPath lookPathFunc) error {
+	if _, err := lookPath(dockerEngine); err != nil {
+		return fmt.Errorf("docker not found on PATH; install Docker to build the container image")
 	}
-	if _, err := lookPath("docker"); err == nil {
-		return "docker", nil
-	}
-	if _, err := lookPath("podman"); err == nil {
-		return "podman", nil
-	}
-	return "", fmt.Errorf("no container engine found; set %s to podman or docker", envContainerEngine)
+	return nil
 }
 
 func containerBuildArgs(opts dockerBuildOptions) []string {
-	args := []string{"build"}
-	if opts.Engine == "podman" && opts.TLSVerify != "" {
-		args = append(args, "--tls-verify="+opts.TLSVerify)
-	}
-	if opts.Engine == "docker" {
-		args = append(args, "--progress=plain")
-	}
+	args := []string{"build", "--progress=plain"}
 	if opts.NetRC != "" {
 		args = append(args, "--secret", "id=git_credentials,src="+opts.NetRC)
 	}
@@ -106,9 +87,9 @@ func containerBuildArgs(opts dockerBuildOptions) []string {
 
 func containerBuildSummary(opts dockerBuildOptions, args []string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "building %s from %s with %s\n", opts.Image, opts.Ref, opts.Engine)
+	fmt.Fprintf(&b, "building %s from %s with %s\n", opts.Image, opts.Ref, dockerEngine)
 	fmt.Fprintln(&b, "build settings:")
-	fmt.Fprintf(&b, "  engine: %s\n", opts.Engine)
+	fmt.Fprintf(&b, "  engine: %s\n", dockerEngine)
 	fmt.Fprintf(&b, "  image: %s\n", opts.Image)
 	fmt.Fprintf(&b, "  release ref: %s\n", opts.Ref)
 	if opts.Repo != "" {
@@ -121,13 +102,8 @@ func containerBuildSummary(opts dockerBuildOptions, args []string) string {
 	} else {
 		fmt.Fprintln(&b, "  git credentials secret: (none)")
 	}
-	if opts.Engine == "podman" {
-		fmt.Fprintf(&b, "  podman tls verify: %s\n", opts.TLSVerify)
-	}
-	if opts.Engine == "docker" {
-		fmt.Fprintln(&b, "  docker buildkit: enabled")
-		fmt.Fprintln(&b, "  docker progress: plain")
-	}
+	fmt.Fprintln(&b, "  docker buildkit: enabled")
+	fmt.Fprintln(&b, "  docker progress: plain")
 	fmt.Fprintln(&b, "  container output: streamed directly")
 	fmt.Fprintf(&b, "command: %s\n", displayBuildCommand(opts, args))
 	fmt.Fprintf(&b, "mounted profile example: %s\n", displayRuntimeCommand(opts))
@@ -137,16 +113,14 @@ func containerBuildSummary(opts dockerBuildOptions, args []string) string {
 }
 
 func displayBuildCommand(opts dockerBuildOptions, args []string) string {
-	cmd := append([]string{opts.Engine}, args...)
-	if opts.Engine == "docker" {
-		cmd = append([]string{"DOCKER_BUILDKIT=1"}, cmd...)
-	}
+	cmd := append([]string{dockerEngine}, args...)
+	cmd = append([]string{"DOCKER_BUILDKIT=1"}, cmd...)
 	return shellCommand(cmd)
 }
 
 func displayRuntimeCommand(opts dockerBuildOptions) string {
 	return shellCommand([]string{
-		opts.Engine, "run", "--rm",
+		dockerEngine, "run", "--rm",
 		"-v", "/path/to/agent-profiles:" + defaultProfilesMount + ":ro",
 		"-v", "$PWD:" + defaultWorkMount,
 		"-w", defaultWorkMount,
@@ -172,7 +146,7 @@ func displayIntegrationBuildCommand(opts dockerBuildOptions) string {
 
 func displayIntegrationCommand(opts dockerBuildOptions) string {
 	return shellCommand([]string{
-		opts.Engine, "run", "--rm",
+		dockerEngine, "run", "--rm",
 		"-v", "/path/to/agent-profiles:" + defaultProfilesMount + ":ro",
 		"-w", "/src",
 		defaultIntegrationImage,
@@ -201,16 +175,6 @@ func shellQuote(arg string) string {
 		return arg
 	}
 	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
-}
-
-func tlsVerifyForEngine(engine, override string) string {
-	if strings.TrimSpace(override) != "" {
-		return strings.TrimSpace(override)
-	}
-	if engine == "podman" {
-		return "false"
-	}
-	return ""
 }
 
 func envOrDefault(name, fallback string) string {

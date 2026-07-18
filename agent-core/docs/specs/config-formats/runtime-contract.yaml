@@ -395,8 +395,7 @@ container_runtime_layout: |
   `mage docker` is the canonical build wrapper. It resolves the latest remote
   release tag unless the operator passes a different source revision to mage,
   forwards that revision to the Dockerfile build-arg for the clone step, defaults
-  build credentials to a repository-local .netrc BuildKit secret, prefers Docker
-  when available and Podman as fallback, and prints the exact build command before
+  build credentials to a repository-local .netrc BuildKit secret, requires Docker, and prints the exact build command before
   execution.
 
 invariants:

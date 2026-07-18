@@ -86,35 +86,25 @@ func TestValidateProfilesReportsMissingReference(t *testing.T) {
 	}
 }
 
-func TestProfileContainerEngine(t *testing.T) {
-	got, err := profileContainerEngine("podman", func(name string) (string, error) {
-		t.Fatalf("lookPath called for override %q", name)
-		return "", nil
-	})
-	if err != nil {
-		t.Fatalf("profileContainerEngine override returned error: %v", err)
-	}
-	if got != "podman" {
-		t.Fatalf("profileContainerEngine = %q, want podman", got)
-	}
-
-	got, err = profileContainerEngine("", func(name string) (string, error) {
+func TestRequireDocker(t *testing.T) {
+	if err := requireDocker(func(name string) (string, error) {
 		if name == "docker" {
 			return "/usr/bin/docker", nil
 		}
 		return "", errors.New("missing")
-	})
-	if err != nil {
-		t.Fatalf("profileContainerEngine lookup returned error: %v", err)
+	}); err != nil {
+		t.Fatalf("requireDocker with docker present returned error: %v", err)
 	}
-	if got != "docker" {
-		t.Fatalf("profileContainerEngine lookup = %q, want docker", got)
+	if err := requireDocker(func(string) (string, error) {
+		return "", errors.New("missing")
+	}); err == nil {
+		t.Fatal("requireDocker without docker should return an error")
 	}
 }
 
 func TestRunContainerSmokeCommands(t *testing.T) {
 	var calls [][]string
-	err := runContainerSmoke("docker", func(name string, args ...string) error {
+	err := runContainerSmoke(func(name string, args ...string) error {
 		calls = append(calls, append([]string{name}, args...))
 		return nil
 	}, "/profiles-src", "/core-src", "agent-core:test")

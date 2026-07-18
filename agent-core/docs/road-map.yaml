@@ -257,7 +257,7 @@ releases:
     proof:
       - go test ./pkg/spec -run TestResolveProfilePathMapsInstalledCoreHome
       - go test ./magefiles -run TestDockerfileRuntimeExcludesAgentProfiles
-      - go test ./magefiles -run TestContainerBuildSummaryForPodman
+      - go test ./magefiles -run TestContainerBuildSummaryForDocker
       - mage docker
       - mage integration:uc001
       - mage integration:uc002
