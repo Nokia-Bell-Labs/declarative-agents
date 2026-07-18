@@ -102,10 +102,11 @@ func (c *clientCmd) Execute() core.Result {
 	if c.init == InitClientAwait {
 		return c.awaitAsync()
 	}
-	request, err := buildClientRequest(c.operation, c.params, c.credentials)
+	request, effective, err := buildClientRequest(c.operation, c.params, c.credentials)
 	if err != nil {
 		return clientOperationError(c.toolName, requestBuildFailureStage(err), err, c.operation)
 	}
+	c.params = effective
 	if c.init == InitClientSend {
 		return c.sendAsync(request)
 	}
@@ -335,7 +336,7 @@ func (c *clientCmd) executeRequest(request *http.Request) core.Result {
 		return clientOperationError(c.toolName, "network_io", redactError(err, c.operation, c.credentials), c.operation)
 	}
 	defer response.Body.Close()
-	result, err := mapClientResponse(c.toolName, c.operation, response, attempts, duration)
+	result, err := mapClientResponse(c.toolName, c.operation, response, attempts, duration, c.params)
 	if err != nil {
 		return result
 	}

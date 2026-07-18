@@ -119,6 +119,66 @@ test_cases:
       - srd028-rest-client-tools AC9
 
   - use_case: rel03.0-uc001-rest-client-sync
+    name: REST client threads declared params from the previous Result
+    go_test: TestRESTClient_ThreadsPreviousResultParams
+    status: done
+    description: |
+      An operation declares body_source previous_result and an input_mapping
+      that selects declared params from a prior REST client Result output (for
+      example $.mapped.embedding into query_embeddings and $.carried.input into
+      a path param). After selection only declared params reach the request
+      builder, so the prior Result's fixed 11-key output no longer trips the
+      declared-only contract. The same case checks input carry-forward: a
+      producing operation copies selected declared inputs into its Result output
+      under a carried key, and the downstream operation selects them. Validation
+      rejects undeclared input_mapping targets, command_state body_source, and
+      any input_mapping or carry-forward entry that names transport authority.
+    inputs:
+      producer_operation: embed_query
+      consumer_operation: query_collection
+      body_source: previous_result
+      input_mapping:
+        query_embeddings: $.mapped.embedding
+        collection: $.carried.input
+      carry_forward: [input]
+      rejection_cases:
+        - undeclared_input_mapping_target
+        - command_state_body_source
+        - transport_authority_override
+    expected:
+      selection_presents_only_declared_params: true
+      not_declared_error: false
+      carry_forward_under_carried_key: true
+      undeclared_target_rejected: true
+      command_state_body_source_rejected: true
+      transport_authority_override_rejected: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd028-rest-client-tools AC11
+
+  - use_case: rel03.0-uc001-rest-client-sync
+    name: REST client chain threads an embedding vector into a query body
+    go_test: TestRESTClient_ChainThreadsVectorIntoQueryBody
+    status: done
+    description: |
+      A two-word chain modeled on embed then query threads a numeric vector from
+      the first word's output into the second word's request body. The body
+      value ["{{ params.query_embeddings }}"] uses the single-token raw
+      passthrough so the flat vector renders as a nested array [[...]] rather
+      than a stringified scalar.
+    inputs:
+      producer_operation: embed_query
+      consumer_operation: query_collection
+      body_template:
+        query_embeddings: ["{{ params.query_embeddings }}"]
+    expected:
+      vector_threaded_into_body: true
+      query_embeddings_rendered_as_nested_array: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd028-rest-client-tools AC11
+
+  - use_case: rel03.0-uc001-rest-client-sync
     name: REST auth references resolve through trusted runtime credentials
     go_test: TestRESTClient_ResolvesAuthCredentialRefs
     status: done

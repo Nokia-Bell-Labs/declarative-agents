@@ -206,6 +206,9 @@ func validateOperation(name string, operation Operation, mutatingResource bool, 
 	if err := validateDeclaredInputs(name, operation); err != nil {
 		return err
 	}
+	if err := validateRequestBinding(name, operation.Params); err != nil {
+		return err
+	}
 	if isMutatingOperation(operation, mutatingResource) {
 		if err := validateMutatingOperation(name, operation); err != nil {
 			return err
@@ -520,6 +523,51 @@ func machineRequestYAMLSet(cfg MachineRequest) bool {
 
 func queueConfigSet(q QueueConfig) bool {
 	return q.Name != "" || q.Capacity != 0 || q.Overflow != "" || q.Timeout != "" || len(q.PayloadShape) > 0
+}
+
+// validateRequestBinding enforces the previous-Result threading contract:
+// a supported body_source, input_mapping only under previous_result, and
+// input_mapping and carry_forward that target only declared params and never
+// transport authority (srd028 R12.4; rest-tool-format V28-V30).
+func validateRequestBinding(name string, binding RequestBinding) error {
+	if err := validateBodySource(name, binding.BodySource); err != nil {
+		return err
+	}
+	if len(binding.InputMapping) > 0 && binding.BodySource != bodySourcePreviousResult {
+		return fmt.Errorf("operation %q input_mapping requires body_source %s", name, bodySourcePreviousResult)
+	}
+	declared := declaredParamNames(binding)
+	for target, selector := range binding.InputMapping {
+		if forbiddenRuntimeAuthorityFields[target] {
+			return fmt.Errorf("operation %q input_mapping target %q cannot set REST authority", name, target)
+		}
+		if !declared[target] {
+			return fmt.Errorf("operation %q input_mapping target %q is not declared", name, target)
+		}
+		if !strings.HasPrefix(selector, "$.") {
+			return fmt.Errorf("operation %q input_mapping selector %q must start with $.", name, selector)
+		}
+	}
+	for _, carried := range binding.CarryForward {
+		if forbiddenRuntimeAuthorityFields[carried] {
+			return fmt.Errorf("operation %q carry_forward entry %q cannot set REST authority", name, carried)
+		}
+		if !declared[carried] {
+			return fmt.Errorf("operation %q carry_forward entry %q is not declared", name, carried)
+		}
+	}
+	return nil
+}
+
+func validateBodySource(name, source string) error {
+	switch source {
+	case "", bodySourceParams, bodySourcePreviousResult, bodySourceNone:
+		return nil
+	case bodySourceCommandState:
+		return fmt.Errorf("operation %q body_source %s is not supported until a shared command-state store exists", name, bodySourceCommandState)
+	default:
+		return fmt.Errorf("operation %q has unsupported body_source %q", name, source)
+	}
 }
 
 func validateResponseMapping(name string, mapping ResponseMapping) error {
