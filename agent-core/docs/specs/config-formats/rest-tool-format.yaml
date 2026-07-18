@@ -780,7 +780,32 @@ schema:
       - field: body_source
         type: string
         required: false
-        description: One of params, previous_result, command_state, or none.
+        description: |
+          Selects where declared runtime params come from. One of params
+          (default, explicit tool input), previous_result (select declared
+          params from the prior Result output through input_mapping), or none.
+          command_state is a reserved value that ValidateDefinition rejects
+          until a shared command-state store exists.
+      - field: input_mapping
+        type: map[string]string
+        required: false
+        description: |
+          Map of declared-param-name to a $.-style selector into the previous
+          Result output, used when body_source is previous_result (for example
+          embedding: $.mapped.embedding, id: $.body.id, document: $.carried.doc).
+          After selection only declared params reach the request builder, so the
+          prior Result's fixed output shape does not violate the declared-only
+          contract. Every target MUST be a declared path, query, header, or body
+          param; selectors MUST NOT name method, URL, auth, redirect, or host.
+      - field: carry_forward
+        type: "[]string"
+        required: false
+        description: |
+          Declared param names copied into this operation's Result output under a
+          carried key, so a later word can select them (for example
+          $.carried.document). Carry-forward threads data past an intermediate
+          word without a shared command-state store. Every entry MUST be a
+          declared param and MUST NOT name transport authority.
 
   response_mapping:
     fields:
@@ -1050,6 +1075,69 @@ format_examples:
                 output:
                   accepted: "true"
 
+  previous_result_threading: |
+    # An Ollama /api/embed word runs before a Chroma query word. The embed
+    # word carries the query text forward and the Chroma word selects the new
+    # vector from the previous Result, rendering it as a nested array.
+    rest:
+      version: v1
+      clients:
+        ollama:
+          base_url: http://127.0.0.1:11434
+          operations:
+            embed_query:
+              method: POST
+              path: /api/embed
+              params:
+                body_schema:
+                  type: object
+                  required: [model, input]
+                  properties:
+                    model: {type: string}
+                    input: {type: string}
+                carry_forward: [input]
+              success: {status: [200], signal: RESTResponded}
+              response:
+                output:
+                  embedding: $.embeddings
+              side_effects:
+                - kind: external_api
+                  target: ollama.embed
+                  state: read_only
+              reversibility:
+                classification: reversible
+                undo: noop
+        chroma:
+          base_url: http://127.0.0.1:8000
+          operations:
+            query_collection:
+              method: POST
+              path: /api/v2/tenants/default/databases/default/collections/{collection}/query
+              params:
+                path:
+                  collection: {type: string}
+                body_schema:
+                  type: object
+                  required: [query_embeddings]
+                  properties:
+                    query_embeddings: {type: array}
+                    n_results: {type: integer}
+                body_source: previous_result
+                input_mapping:
+                  query_embeddings: $.mapped.embedding
+                  collection: $.carried.input
+              body:
+                query_embeddings: ["{{ query_embeddings }}"]
+                n_results: 5
+              success: {status: [200], signal: RESTResponded}
+              side_effects:
+                - kind: external_api
+                  target: chroma.collection
+                  state: read_only
+              reversibility:
+                classification: reversible
+                undo: noop
+
   lifecycle_control_fan_in: |
     rest:
       version: v1
@@ -1293,6 +1381,14 @@ validation_rules:
     rule: machine_request response trace output MUST identify generic route identity and run outcome when exposed.
   - id: V27
     rule: Server shutdown config MUST reject unsupported drain_policy values and reserved shutdown fields before launch.
+  - id: V28
+    rule: input_mapping and carry_forward entries MUST target params declared under request_binding path, query, headers, or body_schema; undeclared targets are rejected.
+  - id: V29
+    rule: input_mapping MUST only be set when body_source is previous_result, and body_source MUST be one of params, previous_result, or none; command_state is rejected until a shared command-state store exists.
+  - id: V30
+    rule: input_mapping and carry_forward MUST NOT name method, URL, authentication, redirect policy, or destination host, so runtime input cannot acquire transport authority.
+  - id: V31
+    rule: A body value equal to a single "{{ param }}" token MUST render the param's raw typed value, so a flat vector param placed inside a nested array element renders as a nested array rather than a stringified scalar.
 
 invalid_examples:
   ambiguous_resource_operation: |
@@ -1422,5 +1518,7 @@ implementation_status:
     - top-level document_resources config. ValidateDefinition rejects this field.
     - machine_request.document_resources config. ValidateDefinition rejects this field.
     - lifecycle_control endpoint config.
+  planned:
+    - request_binding.input_mapping and request_binding.carry_forward with body_source previous_result consumption (V28-V31). Implemented alongside this change set by the GH-245 code sub-issue.
   planned_follow_up:
     - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.

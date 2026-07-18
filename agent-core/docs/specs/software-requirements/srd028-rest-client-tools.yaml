@@ -23,6 +23,7 @@ goals:
   - G4: Define asynchronous rest_client_send and rest_client_await behavior.
   - G5: Define result signals for reads, writes, missing resources, async sends, responses, domain failures, and infrastructure failures.
   - G6: Define config-bound authority, runtime parameters, response shaping, tracing, metrics, idempotency, and undo expectations.
+  - G7: Define previous-Result parameter threading so a client word can select declared params from the prior Result and carry declared inputs forward.
 
 requirements:
   R1:
@@ -132,6 +133,15 @@ requirements:
       - R11.3: Domain failure status codes SHALL map to RESTDomainFailed or RESTMissing when declared by the operation.
       - R11.4: Infrastructure failures SHALL map to CommandError and SHALL not be confused with service-domain failures.
 
+  R12:
+    title: Previous-Result parameter threading
+    items:
+      - R12.1: When an operation declares body_source previous_result, REST client tools SHALL populate declared runtime params by selecting fields from the previous Result output through an input_mapping map of declared-param-name to a $.-style selector, and SHALL present only declared params to the request builder so the previous Result's fixed output shape does not violate the declared-only contract.
+      - R12.2: input_mapping selectors SHALL resolve against the previous Result output shape, for example $.mapped.embedding, $.body.id, or $.carried.document, and SHALL target only declared path, query, header, or body params.
+      - R12.3: REST client operations SHALL support input carry-forward, so an operation MAY copy selected declared runtime inputs into its Result output under a carried key that a later word can select, without introducing a shared command-state store.
+      - R12.4: REST client tools SHALL reject input_mapping targets that are not declared params, body_source values other than params, previous_result, or none (command_state SHALL remain rejected with a clear message), and any input_mapping or carry-forward entry that names method, URL, authentication, redirect policy, or destination host.
+      - R12.5: REST client body rendering SHALL preserve the single-token raw passthrough, so a body value equal to one "{{ param }}" token renders the param's raw typed value; a flat numeric vector param placed inside a nested array element, for example ["{{ embedding }}"], SHALL render as [[...]].
+
 non_goals:
   - Defining inbound REST server tools; see srd029-rest-server-tools.
   - Auto-wiring every lifecycle profile to a REST compensation executor; callers opt in through the core rollback options.
@@ -231,6 +241,10 @@ acceptance_criteria:
     criterion: Each planned client tool word lists inputs, outputs, signals, side effects, errors, and undo strategy expectations.
     traces: [R3.1, R3.2, R3.3, R3.4, R4.1, R5.1, R5.5, R10.1, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7]
 
+  - id: AC11
+    criterion: A REST client operation with body_source previous_result and input_mapping builds its request from a prior REST client Result without a not-declared error, threads a vector from one word's output into the next word's request body as a nested array, carries selected declared inputs forward under a carried key for a downstream word, and rejects undeclared input_mapping targets, command_state body_source, and transport-authority overrides.
+    traces: [R12.1, R12.2, R12.3, R12.4, R12.5, R2.4, R2.5, R2.6]
+
 depends_on:
   - srd_id: srd001-core-types
     symbols_used: [Command, Result, Signal, Builder]
@@ -263,6 +277,8 @@ implementation_status:
     - TestRESTClient_CompensationExecutorRunsConfiguredOperation, TestRESTClient_CompensationExecutorReportsMissingOperation, TestRollbackCheckpointExecutesBoundaryCompensation, and TestRollbackCheckpointReportsMissingBoundaryCompensationExecutor cover REST compensation execution and bounded failure reporting.
   partial:
     - Lifecycle profile wiring must still choose when to inject a REST CompensationExecutor into checkpoint rollback. Profile injection stays outside the REST client tool contract.
+  planned:
+    - Previous-Result parameter threading (R12): body_source previous_result consumption through input_mapping, input carry-forward under a carried key, and the R12.4 validation rejections. Implemented alongside this change set by the GH-245 code sub-issue.
 
 diagrams:
   requirements_trace: |
@@ -280,6 +296,7 @@ diagrams:
       Goals --> R9["R9: Metrics, tracing, and redaction"]
       Goals --> R10["R10: Undo and compensation"]
       Goals --> R11["R11: Errors and recovery"]
+      Goals --> R12["R12: Previous-Result parameter threading"]
       AC1["AC1: REST client tools are documented as first-class boundary..."]
       R1 --> AC1
       R2 --> AC1
@@ -310,4 +327,7 @@ diagrams:
       R4 --> AC10
       R5 --> AC10
       R10 --> AC10
+      AC11["AC11: A REST client operation with body_source previous_result..."]
+      R12 --> AC11
+      R2 --> AC11
     ```
