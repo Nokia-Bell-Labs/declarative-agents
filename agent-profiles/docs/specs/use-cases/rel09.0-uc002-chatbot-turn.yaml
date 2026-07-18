@@ -1,0 +1,80 @@
+id: rel09.0-uc002-chatbot-turn
+title: Chatbot Turn Routes, Fans Out, and Answers Over Two RAGs
+
+summary: |
+  A browser posts a chat turn to the chatbot agent (srd014). The turn runs a
+  request-scoped machine: an LLM classifier routes to a chat-LLM word through the
+  $tool indirection, embed_query embeds the query once, that one vector fans out
+  to two RAG servers (srd013, vector-in), compose builds a grounded prompt from
+  the returned chunks and the original query, and the chosen invoke_llm word
+  answers; the terminal signal maps to the HTTP chat response. Non-adjacent data
+  reaches compose and answer through command-state $from(). When one RAG fails,
+  the turn degrades and answers from the remaining chunks.
+
+actor: A browser user sending a chat message.
+
+trigger: |
+  The browser posts a chat turn (message plus conversation history) to the
+  chatbot agent's chat endpoint with two RAG servers declared.
+
+preconditions:
+  - Two RAG server agents (rel09.0-uc001) are reachable as declared rest.yaml clients.
+  - A chat LLM and an embedding provider are reachable as declared clients.
+  - The chatbot profile validates and owns the turn machine, the router prompt, and the ux.yaml panel placement.
+
+flow:
+  - id: F1
+    text: The chat endpoint binds the turn to a request-scoped machine; the router makes one classifier call parsed to a $tool selection over the declared chat-LLM words.
+  - id: F2
+    text: embed_query embeds the incoming query once; the single vector is the fan-out input.
+  - id: F3
+    text: The turn queries the two declared RAG clients sequentially with the query vector, selecting each RAG's returned chunks.
+  - id: F4
+    text: A RAG whose reported embedding model does not match the query embedding's model is excluded, and a per-RAG failure degrades so the answer uses the remaining chunks; both are noted in the response metadata.
+  - id: F5
+    text: compose reads the original query and the retrieved chunks through command-state $from() and builds the grounded prompt; the chosen invoke_llm word answers and the terminal signal maps to the HTTP chat response.
+
+touchpoints:
+  - id: T1
+    target: srd014-chatbot-agent AC1
+    reason: The turn is a request-scoped machine with $from() data flow and one embedding fanned out.
+  - id: T2
+    target: srd014-chatbot-agent AC2
+    reason: The router is one classifier call parsed to a $tool selection with a normative fallback.
+  - id: T3
+    target: srd014-chatbot-agent AC3
+    reason: Sequential two-RAG fan-out degrades on per-RAG failure and excludes embedding-model mismatches, reported in metadata.
+  - id: T4
+    target: srd014-chatbot-agent AC4
+    reason: The turn is stateless; the browser sends conversation history.
+  - id: T5
+    target: test-rel09.0-chatbot-mesh chatbot_turn
+    reason: The suite records the turn inputs and the expected route -> embed -> fan-out -> compose -> answer trace, including the degraded-RAG case.
+
+success_criteria:
+  - id: S1
+    criterion: The turn routes to a chat-LLM word through a $tool classifier selection and falls back to a configured default word on misparse or out-of-set selection.
+    traces:
+      - srd014-chatbot-agent R2.1
+      - srd014-chatbot-agent R2.3
+  - id: S2
+    criterion: One query embedding fans out to both RAG servers, and the original query and chunks reach compose and answer through command-state $from() rather than carry_forward chains.
+    traces:
+      - srd014-chatbot-agent R1.2
+      - srd014-chatbot-agent R1.3
+  - id: S3
+    criterion: A per-RAG failure degrades the turn so the answer is composed from the remaining chunks, with the failure noted in the response metadata.
+    traces:
+      - srd014-chatbot-agent R3.2
+  - id: S4
+    criterion: A RAG whose embedding model does not match the query embedding is excluded from the composed chunks and the exclusion is reported.
+    traces:
+      - srd014-chatbot-agent R3.3
+
+out_of_scope:
+  - Server-side session storage; the turn is stateless in v1.
+  - Parallel fan-out; v1 fan-out is sequential.
+  - Panel content and SPA implementation, owned by their own issues.
+
+test_suite_trace: test-rel09.0-chatbot-mesh
+status: specified

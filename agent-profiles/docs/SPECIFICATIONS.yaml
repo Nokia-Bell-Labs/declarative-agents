@@ -299,6 +299,27 @@ use_case_index:
       Chroma query, and answers grounded in the retrieved chunks.
     status: specified
     path: docs/specs/use-cases/rel08.0-uc002-corpus-query.yaml
+  - id: rel09.0-uc001-rag-server-query
+    title: Persistent RAG Server Answers a Vector-In Query
+    summary: RAG server accepts query_embeddings + n_results over a machine_request
+      endpoint and returns chunks with ids, distances, and embedding-model
+      metadata, with no query embedding or LLM answering in the server.
+    status: planned
+    path: docs/specs/use-cases/rel09.0-uc001-rag-server-query.yaml
+  - id: rel09.0-uc002-chatbot-turn
+    title: Chatbot Turn Routes, Fans Out, and Answers Over Two RAGs
+    summary: Request-scoped turn routes via a $tool classifier, embeds once, fans
+      out to two RAGs, composes via command-state $from(), answers, and degrades
+      when one RAG fails.
+    status: planned
+    path: docs/specs/use-cases/rel09.0-uc002-chatbot-turn.yaml
+  - id: rel09.0-uc003-mesh-deployment
+    title: Helm Chart Deploys the Mesh and Hot-Swaps a RAG Source
+    summary: One chart deploys the mesh on a kind cluster with values-to-config
+      co-generation, a Service repoint, and an add-RAG rollout that resumes from
+      the Dolt checkpoint.
+    status: planned
+    path: docs/specs/use-cases/rel09.0-uc003-mesh-deployment.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -346,6 +367,14 @@ test_suite_index:
       in the retrieved chunks.
     status: implemented
     path: docs/specs/test-suites/test-rel08.0-chroma-corpus.yaml
+  - id: test-rel09.0-chatbot-mesh
+    title: Test Suite for Release 09.0 Chatbot Mesh
+    summary: Profile-owned tracers for the RAG server vector-in query (srd013), the
+      end-to-end chatbot turn with a degraded RAG (srd014), and the Helm mesh
+      deployment on a kind cluster with tiered hot swap (srd015). Planned; the
+      integration targets land with the implementation epics.
+    status: planned
+    path: docs/specs/test-suites/test-rel09.0-chatbot-mesh.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and

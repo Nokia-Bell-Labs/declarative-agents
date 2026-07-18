@@ -1,0 +1,111 @@
+id: test-rel09.0-chatbot-mesh
+title: Test Suite for Release 09.0 Chatbot Mesh
+release: "09.0"
+
+overview: |
+  This suite defines the profile-owned tracer bullets for the chatbot mesh: a
+  persistent RAG server answering a vector-in query (srd013), an end-to-end
+  chatbot turn that routes, embeds, fans out to two RAGs, composes, and answers
+  with a degraded-RAG case (srd014), and a Helm deployment on a kind cluster that
+  exercises the tiered hot swap (srd015). The cases are planned; the integration
+  targets land with the implementation epics (#292 RAG server, #293/#294 chatbot,
+  #296 deployment).
+
+traces:
+  - rel09.0-uc001-rag-server-query
+  - rel09.0-uc002-chatbot-turn
+  - rel09.0-uc003-mesh-deployment
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout, including HTTP trace propagation (agent-core rel08.0) where trace continuity is asserted.
+  - A Chroma server and an Ollama (or external LLM) are reachable with the configured embedding and answer models.
+  - A kind cluster is available and the rel06.0 binary-only runtime image is loadable for the deployment case.
+  - agent-profiles owns the RAG server, chatbot, and deployment chart assets named by the tracers.
+
+test_cases:
+  - use_case: rel09.0-uc001-rag-server-query
+    name: RAG server vector-in query tracer
+    integration_target: mage integration:ragServer
+    status: planned
+    description: |
+      Post a query_embeddings vector and n_results to the RAG server's
+      machine_request query endpoint against an ingested collection. The target
+      proves the request-scoped retrieval machine returns chunks with record ids,
+      distances, and metadata that names the collection's embedding model, with no
+      query embedding and no LLM answering in the RAG server.
+    inputs:
+      rag_profile: agents/rag-server/profile.yaml
+      chroma_rest: agents/rag-server/rest/chroma.yaml
+      query_embeddings: fixture vector
+      n_results: configured nearest-chunk count
+    expected:
+      query_endpoint_accepts_vector: true
+      chunks_with_ids_and_distances: true
+      metadata_names_embedding_model: true
+      no_llm_answer_step: true
+    traces:
+      - rel09.0-uc001-rag-server-query S1
+      - rel09.0-uc001-rag-server-query S2
+      - rel09.0-uc001-rag-server-query S3
+      - srd013-rag-server-agent AC2
+
+  - use_case: rel09.0-uc002-chatbot-turn
+    name: Chatbot turn end-to-end tracer with a degraded RAG
+    integration_target: mage integration:chatbot
+    status: planned
+    description: |
+      Post a chat turn to the chatbot with two RAG servers declared. The target
+      proves the route -> embed -> fan-out(2) -> compose -> answer trace order:
+      the router selects a chat-LLM word via $tool with a default fallback, one
+      embedding fans out to both RAGs, the original query and chunks reach compose
+      through command-state $from(), and one RAG made to fail degrades the turn so
+      the answer uses the remaining chunks with the failure noted in metadata.
+    inputs:
+      chatbot_profile: agents/chatbot/profile.yaml
+      rag_clients: [rag-a, rag-b]
+      turn_message: fixture question with conversation history
+      fault: rag-b query fails
+    expected:
+      trace_order: [route, embed_query, rag_fanout, compose, invoke_llm]
+      router_selected_llm_word: true
+      one_embedding_fanned_out: true
+      from_addressing_used: true
+      degraded_answer_from_remaining_chunks: true
+      failure_noted_in_metadata: true
+    traces:
+      - rel09.0-uc002-chatbot-turn S1
+      - rel09.0-uc002-chatbot-turn S2
+      - rel09.0-uc002-chatbot-turn S3
+      - rel09.0-uc002-chatbot-turn S4
+      - srd014-chatbot-agent AC2
+      - srd014-chatbot-agent AC3
+
+  - use_case: rel09.0-uc003-mesh-deployment
+    name: Mesh Helm deployment and hot-swap tracer on kind
+    integration_target: mage integration:meshDeploy
+    status: planned
+    description: |
+      helm install the mesh on a kind cluster and exercise the tiered swap. The
+      target proves one chart deploys the chatbot, two values-driven RAG pairs,
+      the LLM, the Dolt backend, and the collector over rel06.0 images with
+      ConfigMap profiles; the chatbot RAG clients are co-generated from the values
+      list and the rendered rest.yaml passes ValidateDefinition; repointing a RAG
+      is a Service change with no agent config change; and adding a RAG re-renders
+      ConfigMaps and rolls out the chatbot with a Dolt checkpoint resume.
+    inputs:
+      chart: deploy/chatbot-mesh/
+      values_rag_list: [rag-a, rag-b]
+      swap_repoint: rag-a Service endpoint change
+      swap_add: rag-c values entry
+    expected:
+      chart_deploys_full_mesh: true
+      client_config_cogenerated: true
+      rendered_rest_yaml_validates: true
+      repoint_touches_no_agent_config: true
+      add_rag_rollout_resumes_checkpoint: true
+    traces:
+      - rel09.0-uc003-mesh-deployment S1
+      - rel09.0-uc003-mesh-deployment S2
+      - rel09.0-uc003-mesh-deployment S3
+      - srd015-chatbot-deployment AC2
+      - srd015-chatbot-deployment AC3

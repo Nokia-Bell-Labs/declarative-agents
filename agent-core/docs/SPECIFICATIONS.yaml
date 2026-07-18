@@ -23,7 +23,8 @@ overview: |
   02.0 covers srd025, srd026, srd035, and srd036. Release 03.0 covers srd027
   through srd031. Release 04.0 covers srd032 and srd033. Release 06.0 covers
   srd034. Release 07.0 covers srd038 and the amended srd036 and srd028 for the
-  command-state store and two-plane persistence (planned). Release 99.0 covers
+  command-state store and two-plane persistence (planned). Release 08.0 covers
+  the amended srd016 for HTTP trace propagation (planned). Release 99.0 covers
   srd037 planning work.
 
   Release 02.0 storage revision.
@@ -462,6 +463,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel07.0-command-state
     path: docs/specs/use-cases/rel07.0-uc002-two-plane-revert.yaml
+  - id: rel08.0-uc001-http-trace-propagation
+    title: Two agents linked by a REST call produce one connected trace
+    release: "08.0"
+    status: planned
+    test_suite: test-rel08.0-trace-propagation
+    path: docs/specs/use-cases/rel08.0-uc001-http-trace-propagation.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -549,6 +556,14 @@ test_suite_index:
     formal_test_cases: 9
     status: implemented
     path: docs/specs/test-suites/test-rel07.0-command-state.yaml
+  - id: test-rel08.0-trace-propagation
+    title: Test Suite for Release 08.0 HTTP Trace Propagation
+    release: "08.0"
+    traces:
+      - rel08.0-uc001-http-trace-propagation
+    formal_test_cases: 5
+    status: planned
+    path: docs/specs/test-suites/test-rel08.0-trace-propagation.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"
