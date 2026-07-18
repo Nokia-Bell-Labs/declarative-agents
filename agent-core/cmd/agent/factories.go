@@ -14,6 +14,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/compose"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/control"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
@@ -58,6 +59,24 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterSpecValidation: registerSpecValidationFactories(st),
 		RegisterREST:           registerRESTFactories(st),
 		RegisterDocumentation:  registerDocumentationFactories(),
+		RegisterCompose:        registerComposeFactories(),
+	}
+}
+
+func registerComposeFactories() toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		br.Register("compose", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+			var cfg catalog.ComposeConfig
+			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+				return nil, err
+			}
+			return compose.Builder{
+				ToolName: def.Name,
+				Template: cfg.Template,
+				Inputs:   cfg.Inputs,
+				Signal:   core.Signal(cfg.Signal),
+			}, nil
+		})
 	}
 }
 

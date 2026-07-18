@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 const (
@@ -575,7 +577,7 @@ func validateBodySource(name, source string) error {
 // is valid only under body_source previous_result.
 func validateSelectorForm(name, source, selector string) error {
 	if source == bodySourceCommandState {
-		if _, _, ok := parseFromSelector(selector); !ok {
+		if _, _, ok := core.ParseFromSelector(selector); !ok {
 			return fmt.Errorf("operation %q input_mapping selector %q must be a $from(label).path selector under body_source command_state", name, selector)
 		}
 		return nil

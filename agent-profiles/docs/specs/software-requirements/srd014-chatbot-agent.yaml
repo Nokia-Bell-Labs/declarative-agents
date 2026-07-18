@@ -44,7 +44,7 @@ requirements:
     title: Turn machine shape and data flow
     items:
       - R1.1: A chat turn SHALL run a request-scoped machine (agent-core srd030) that sequences route, embed_query, RAG fan-out, compose, and the chosen invoke_llm word, mapping the terminal signal to the HTTP chat response.
-      - R1.2: The original query, the routing decision, and the retrieved chunks SHALL reach the compose and answer steps through command-state $from() addressing (agent-core srd038), not through carry_forward chains across intervening words.
+      - R1.2: The original query, the routing decision, and the retrieved chunks SHALL reach the compose and answer steps through command-state $from() addressing (agent-core srd038), not through carry_forward chains across intervening words. The compose step SHALL use the agent-core compose builtin, which renders a grounding template from $from(label).path selectors, so invoke_llm receives one composed prompt without carry_forward for the non-adjacent message hop.
       - R1.3: embed_query SHALL embed the incoming query once, and the single resulting vector SHALL be the fan-out input to every selected RAG server.
   R2:
     title: LLM router
