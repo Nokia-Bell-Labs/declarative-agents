@@ -131,6 +131,11 @@ func runChromaIntegration(profilesRoot, coreRoot string) error {
 	if err != nil {
 		return err
 	}
+	profileDir, cleanupProfiles, err := prepareChromaProfiles(profilesRoot)
+	if err != nil {
+		return err
+	}
+	defer cleanupProfiles()
 	dataDir, err := os.MkdirTemp("", "agent-profiles-chroma-data-*")
 	if err != nil {
 		return fmt.Errorf("create chroma data dir: %w", err)
@@ -142,13 +147,56 @@ func runChromaIntegration(profilesRoot, coreRoot string) error {
 		return nil
 	}
 	defer stopChromaContainer(containerID)
-	if err := runChromaIngest(binary, profilesRoot, coreRoot); err != nil {
+	if err := runChromaIngest(binary, profilesRoot, profileDir, coreRoot); err != nil {
 		return err
 	}
-	if err := runChromaReader(binary, profilesRoot, coreRoot); err != nil {
+	if err := runChromaReader(binary, profilesRoot, profileDir, coreRoot); err != nil {
 		return err
 	}
 	fmt.Println("integration:chroma PASS - ingest loaded the corpus and the reader grounded an answer in retrieved chunks")
+	return nil
+}
+
+// prepareChromaProfiles copies the agents/chroma profile tree to a temporary
+// directory and rewrites the embedding and chat model names to the configured
+// models, so AGENT_CORE_OLLAMA_MODEL and AGENT_CORE_OLLAMA_EMBED_MODEL select
+// the models the agent actually calls (not only the skip gate). With the
+// environment unset the shipped model names are preserved. The tree is copied
+// whole so the profiles' relative references (machine, tools, ../rest.yaml)
+// keep resolving.
+func prepareChromaProfiles(profilesRoot string) (string, func(), error) {
+	tmp, err := os.MkdirTemp("", "agent-profiles-chroma-profile-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("create chroma profile dir: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(tmp) }
+	src := filepath.Join(profilesRoot, "agents", "chroma")
+	if out, err := exec.Command("cp", "-a", src+"/.", tmp).CombinedOutput(); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("copy chroma profiles: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+	replacements := map[string]string{
+		"model: all-minilm":        "model: " + configuredChromaEmbedModel(),
+		`model: "qwen3.6:35b-mlx"`: `model: "` + configuredChromaChatModel() + `"`,
+	}
+	for _, rel := range []string{"rest.yaml", filepath.Join("reader", "declarations.yaml")} {
+		if err := rewriteChromaFile(filepath.Join(tmp, rel), replacements); err != nil {
+			cleanup()
+			return "", nil, err
+		}
+	}
+	return tmp, cleanup, nil
+}
+
+func rewriteChromaFile(path string, replacements map[string]string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	content := replaceAll(string(data), replacements)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
 	return nil
 }
 
@@ -183,21 +231,31 @@ func stopChromaContainer(containerID string) {
 	_ = exec.Command("docker", "rm", "-f", containerID).Run()
 }
 
-func runChromaIngest(binary, profilesRoot, coreRoot string) error {
+func runChromaIngest(binary, profilesRoot, profileDir, coreRoot string) error {
 	corpusDir := filepath.Join(profilesRoot, chromaCorpusFixture, "corpus")
 	trace, cleanup, err := chromaTraceFile("ingest")
 	if err != nil {
 		return err
 	}
 	defer cleanup()
-	profile := filepath.Join(profilesRoot, chromaIngestProfile)
+	profile := filepath.Join(profileDir, "ingest", "profile.yaml")
 	if err := runChromaAgent(binary, profilesRoot, coreRoot, profile, corpusDir, trace); err != nil {
 		return fmt.Errorf("chroma ingest run failed: %w", err)
 	}
-	return assertChromaIngestTrace(trace)
+	if err := assertChromaIngestTrace(trace); err != nil {
+		return err
+	}
+	count, err := chromaCollectionCount()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("ingest added no documents to the corpus collection")
+	}
+	return nil
 }
 
-func runChromaReader(binary, profilesRoot, coreRoot string) error {
+func runChromaReader(binary, profilesRoot, profileDir, coreRoot string) error {
 	workspace, err := os.MkdirTemp("", "agent-profiles-chroma-reader-*")
 	if err != nil {
 		return fmt.Errorf("create reader workspace: %w", err)
@@ -208,7 +266,7 @@ func runChromaReader(binary, profilesRoot, coreRoot string) error {
 		return err
 	}
 	defer cleanup()
-	profile := filepath.Join(profilesRoot, chromaReaderProfile)
+	profile := filepath.Join(profileDir, "reader", "profile.yaml")
 	if err := runChromaAgent(binary, profilesRoot, coreRoot, profile, workspace, trace); err != nil {
 		return fmt.Errorf("chroma reader run failed: %w", err)
 	}
@@ -226,10 +284,48 @@ func runChromaAgent(binary, profilesRoot, coreRoot, profile, directory, tracePat
 		"--otel-log-file", tracePath,
 	)
 	cmd.Dir = profilesRoot
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		return fmt.Errorf("%w\n%s", err, out)
 	}
+	// The agent exits zero even when the machine reaches a Failed terminal, so
+	// the exit code alone does not prove the run succeeded.
+	if !strings.Contains(string(out), "status=succeeded") {
+		return fmt.Errorf("agent did not reach a succeeded terminal state:\n%s", out)
+	}
 	return nil
+}
+
+// chromaCollectionCount resolves the corpus collection and reads its item count
+// directly from Chroma, so the ingest assertion checks that documents were
+// actually written rather than only that the flow ran.
+func chromaCollectionCount() (int, error) {
+	base := "http://127.0.0.1:8000/api/v2/tenants/default_tenant/databases/default_database/collections"
+	data, status, err := requestHTTP(http.MethodPost, base, `{"name":"corpus","get_or_create":true}`)
+	if err != nil {
+		return 0, err
+	}
+	if status != http.StatusOK && status != http.StatusCreated {
+		return 0, fmt.Errorf("resolve corpus collection: status %d: %s", status, data)
+	}
+	var collection struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(data, &collection); err != nil {
+		return 0, fmt.Errorf("decode collection id: %w", err)
+	}
+	countData, countStatus, err := requestHTTP(http.MethodGet, base+"/"+collection.ID+"/count", "")
+	if err != nil {
+		return 0, err
+	}
+	if countStatus != http.StatusOK {
+		return 0, fmt.Errorf("read collection count: status %d: %s", countStatus, countData)
+	}
+	var count int
+	if err := json.Unmarshal(countData, &count); err != nil {
+		return 0, fmt.Errorf("decode collection count: %w", err)
+	}
+	return count, nil
 }
 
 func chromaTraceFile(label string) (string, func(), error) {
@@ -271,10 +367,24 @@ func assertChromaReaderTrace(tracePath string) error {
 	if err := assertChromaCommandOrder(spans, want); err != nil {
 		return err
 	}
-	if summary := chromaDoneSummary(spans); strings.TrimSpace(summary) == "" {
-		return fmt.Errorf("reader trace recorded no grounded answer (done.summary)")
+	if !chromaLLMAnswered(spans) {
+		return fmt.Errorf("reader trace shows no grounded answer (invoke_llm produced no output tokens)")
 	}
 	return nil
+}
+
+// chromaLLMAnswered reports whether the reader's invoke_llm dispatch produced a
+// model answer, evidenced by a positive output-token count on its span.
+func chromaLLMAnswered(spans []chromaSpan) bool {
+	for _, span := range spans {
+		if span.commandName() != "invoke_llm" {
+			continue
+		}
+		if tokens, ok := span.numericAttr("gen_ai.usage.output_tokens"); ok && tokens > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // assertChromaCommandOrder checks that the named tool words dispatched in the
@@ -319,14 +429,6 @@ func chromaCommandSet(spans []chromaSpan) map[string]bool {
 	return present
 }
 
-func chromaDoneSummary(spans []chromaSpan) string {
-	for _, span := range spans {
-		if summary, ok := span.stringAttr("done.summary"); ok {
-			return summary
-		}
-	}
-	return ""
-}
 
 func readChromaSpans(tracePath string) ([]chromaSpan, error) {
 	data, err := os.ReadFile(tracePath)
@@ -385,6 +487,17 @@ func (s chromaSpan) stringAttr(key string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (s chromaSpan) numericAttr(key string) (float64, bool) {
+	for _, attr := range s.Attributes {
+		if attr.Key == key {
+			if value, ok := attr.Value.Value.(float64); ok {
+				return value, true
+			}
+		}
+	}
+	return 0, false
 }
 
 func sortedKeys(set map[string]bool) []string {

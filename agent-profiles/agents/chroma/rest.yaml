@@ -24,6 +24,8 @@ rest:
         version:
           method: GET
           path: /api/version
+          params:
+            body_source: none
           success: {status: [200], signal: OllamaReady}
           response:
             output:
@@ -37,7 +39,7 @@ rest:
             undo: noop
         embed:
           method: POST
-          path: /api/embed
+          path: /api/embeddings
           params:
             body_schema:
               type: object
@@ -52,7 +54,7 @@ rest:
             carry_forward: [input, id]
           body:
             model: all-minilm
-            input: "{{ params.input }}"
+            prompt: "{{ params.input }}"
           success: {status: [200], signal: DocumentEmbedded}
           response:
             output:
@@ -66,13 +68,13 @@ rest:
             undo: noop
         embed_query:
           method: POST
-          path: /api/embed
+          path: /api/embeddings
           params:
             body_source: previous_result
             input_mapping: {}
           body:
             model: all-minilm
-            input: "What does this corpus describe?"
+            prompt: "What does this corpus describe?"
           success: {status: [200], signal: QueryEmbedded}
           response:
             output:
@@ -92,6 +94,8 @@ rest:
         heartbeat:
           method: GET
           path: /api/v2/heartbeat
+          params:
+            body_source: none
           success: {status: [200], signal: ChromaReady}
           side_effects:
             - kind: external_api

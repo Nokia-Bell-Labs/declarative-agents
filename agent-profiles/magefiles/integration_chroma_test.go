@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -64,11 +65,10 @@ func TestIsChromaSubsequence(t *testing.T) {
 
 func TestAssertChromaReaderTraceOrder(t *testing.T) {
 	trace := writeChromaTrace(t, []string{
-		spanLine("2026-07-18T02:00:00.100000000Z", "execute_tool chroma_ready", "chroma_ready", ""),
-		spanLine("2026-07-18T02:00:00.400000000Z", "execute_tool embed_query", "embed_query", ""),
-		spanLine("2026-07-18T02:00:00.700000000Z", "execute_tool chroma_query", "chroma_query", ""),
-		spanLine("2026-07-18T02:00:01.000000000Z", "chat qwen3.6:35b-mlx", "invoke_llm", ""),
-		spanLine("2026-07-18T02:00:01.300000000Z", "agent.loop.done", "done", "The corpus describes specification-driven development."),
+		spanLine("2026-07-18T02:00:00.100000000Z", "execute_tool chroma_ready", "chroma_ready"),
+		spanLine("2026-07-18T02:00:00.400000000Z", "execute_tool embed_query", "embed_query"),
+		spanLine("2026-07-18T02:00:00.700000000Z", "execute_tool chroma_query", "chroma_query"),
+		llmSpanLine("2026-07-18T02:00:01.000000000Z", 356),
 	})
 	if err := assertChromaReaderTrace(trace); err != nil {
 		t.Fatalf("expected reader trace to pass, got %v", err)
@@ -77,10 +77,9 @@ func TestAssertChromaReaderTraceOrder(t *testing.T) {
 
 func TestAssertChromaReaderTraceRejectsBadOrder(t *testing.T) {
 	trace := writeChromaTrace(t, []string{
-		spanLine("2026-07-18T02:00:00.400000000Z", "execute_tool chroma_query", "chroma_query", ""),
-		spanLine("2026-07-18T02:00:00.700000000Z", "execute_tool embed_query", "embed_query", ""),
-		spanLine("2026-07-18T02:00:01.000000000Z", "chat qwen3.6:35b-mlx", "invoke_llm", ""),
-		spanLine("2026-07-18T02:00:01.300000000Z", "agent.loop.done", "done", "answer"),
+		spanLine("2026-07-18T02:00:00.400000000Z", "execute_tool chroma_query", "chroma_query"),
+		spanLine("2026-07-18T02:00:00.700000000Z", "execute_tool embed_query", "embed_query"),
+		llmSpanLine("2026-07-18T02:00:01.000000000Z", 356),
 	})
 	if err := assertChromaReaderTrace(trace); err == nil {
 		t.Fatal("expected reader trace with reversed embed/query order to fail")
@@ -89,20 +88,20 @@ func TestAssertChromaReaderTraceRejectsBadOrder(t *testing.T) {
 
 func TestAssertChromaReaderTraceRequiresAnswer(t *testing.T) {
 	trace := writeChromaTrace(t, []string{
-		spanLine("2026-07-18T02:00:00.400000000Z", "execute_tool embed_query", "embed_query", ""),
-		spanLine("2026-07-18T02:00:00.700000000Z", "execute_tool chroma_query", "chroma_query", ""),
-		spanLine("2026-07-18T02:00:01.000000000Z", "chat qwen3.6:35b-mlx", "invoke_llm", ""),
+		spanLine("2026-07-18T02:00:00.400000000Z", "execute_tool embed_query", "embed_query"),
+		spanLine("2026-07-18T02:00:00.700000000Z", "execute_tool chroma_query", "chroma_query"),
+		llmSpanLine("2026-07-18T02:00:01.000000000Z", 0),
 	})
 	if err := assertChromaReaderTrace(trace); err == nil {
-		t.Fatal("expected reader trace without done.summary to fail")
+		t.Fatal("expected reader trace with no invoke_llm output tokens to fail")
 	}
 }
 
 func TestAssertChromaIngestTrace(t *testing.T) {
 	trace := writeChromaTrace(t, []string{
-		spanLine("2026-07-18T02:00:00.100000000Z", "execute_tool chroma_ready", "chroma_ready", ""),
-		spanLine("2026-07-18T02:00:00.200000000Z", "execute_tool ollama_ready", "ollama_ready", ""),
-		spanLine("2026-07-18T02:00:00.900000000Z", "execute_tool chroma_count", "chroma_count", ""),
+		spanLine("2026-07-18T02:00:00.100000000Z", "execute_tool chroma_ready", "chroma_ready"),
+		spanLine("2026-07-18T02:00:00.200000000Z", "execute_tool ollama_ready", "ollama_ready"),
+		spanLine("2026-07-18T02:00:00.900000000Z", "execute_tool chroma_count", "chroma_count"),
 	})
 	if err := assertChromaIngestTrace(trace); err != nil {
 		t.Fatalf("expected ingest trace to pass, got %v", err)
@@ -111,22 +110,26 @@ func TestAssertChromaIngestTrace(t *testing.T) {
 
 func TestAssertChromaIngestTraceMissingWord(t *testing.T) {
 	trace := writeChromaTrace(t, []string{
-		spanLine("2026-07-18T02:00:00.100000000Z", "execute_tool chroma_ready", "chroma_ready", ""),
-		spanLine("2026-07-18T02:00:00.200000000Z", "execute_tool ollama_ready", "ollama_ready", ""),
+		spanLine("2026-07-18T02:00:00.100000000Z", "execute_tool chroma_ready", "chroma_ready"),
+		spanLine("2026-07-18T02:00:00.200000000Z", "execute_tool ollama_ready", "ollama_ready"),
 	})
 	if err := assertChromaIngestTrace(trace); err == nil {
 		t.Fatal("expected ingest trace without chroma_count to fail")
 	}
 }
 
-// spanLine renders one stdouttrace-style ndjson span with a command.name and an
-// optional done.summary attribute.
-func spanLine(start, name, commandName, summary string) string {
+// spanLine renders one stdouttrace-style ndjson span carrying a command.name.
+func spanLine(start, name, commandName string) string {
 	attrs := `{"Key":"command.name","Value":{"Type":"STRING","Value":"` + commandName + `"}}`
-	if summary != "" {
-		attrs += `,{"Key":"done.summary","Value":{"Type":"STRING","Value":"` + summary + `"}}`
-	}
 	return `{"Name":"` + name + `","StartTime":"` + start + `","Attributes":[` + attrs + `]}`
+}
+
+// llmSpanLine renders an invoke_llm dispatch span with an output-token count,
+// matching the inference span the reader emits for its grounded answer.
+func llmSpanLine(start string, outputTokens int) string {
+	attrs := `{"Key":"command.name","Value":{"Type":"STRING","Value":"invoke_llm"}},` +
+		`{"Key":"gen_ai.usage.output_tokens","Value":{"Type":"INT64","Value":` + strconv.Itoa(outputTokens) + `}}`
+	return `{"Name":"chat qwen3.5:9b","StartTime":"` + start + `","Attributes":[` + attrs + `]}`
 }
 
 func writeChromaTrace(t *testing.T, lines []string) string {
