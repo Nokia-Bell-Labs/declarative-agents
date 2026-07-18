@@ -105,7 +105,11 @@ depends_on:
   - srd_id: srd028-rest-client-tools
     symbols_used: [R12]
 
-implementation_status: planned
+implementation_status:
+  done:
+    - agents/chroma/rag-server profile (GH-302), a persistent server whose host machine launches the machine_request query server, control server (health + lifecycle exit), and monitor server (srd033 views + SSE), then idles awaiting a lifecycle exit. Each POST to the query endpoint runs a request-scoped machine (seed query_embeddings, rag_resolve create-or-get collection carrying the vector, rag_query) that returns chunks with ids, documents, distances, and the served collection's embedding-model name. A caller-supplied vector of the wrong dimension maps to a 400 query_rejected rather than a 500. Verified end to end against a live Chroma. Depends on the machine_request seed-parameters contract (srd030 R3.6/R3.7, GH-324).
+  planned:
+    - Request-supplied n_results threading (fixed at the configured default today) and the optional text-in fallback (R5).
 
 diagrams:
   requirements_trace: |

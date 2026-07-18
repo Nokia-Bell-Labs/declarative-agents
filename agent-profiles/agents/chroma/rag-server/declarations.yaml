@@ -1,0 +1,279 @@
+tools:
+  - name: launch_rag_requests
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch the machine_request query server for vector-in RAG queries.
+    problem: The RAG server must expose a request-scoped query endpoint over REST.
+    goals:
+      - Register the query machine_request route.
+      - Keep query access inside the existing REST server tool path.
+    requirements:
+      input:
+        - Tool config references the trusted query REST server definition.
+      output:
+        - Output reports server name, bound address, and route count.
+      errors:
+        - Config, bind, route conflict, and schema failures emit CommandError.
+    non_goals:
+      - Does not run the request machine itself; the binding runner does.
+      - Does not accept runtime transport authority.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerLaunched, CommandError]
+    output:
+      description: Query REST server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+    side_effects:
+      - kind: network_listen
+        target: chroma_rag_requests
+        state: listener_started
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the query REST server if the launch owns the listener.
+    config:
+      rest_ref: chroma_rag_requests
+
+  - name: launch_rag_control
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch the control server for health and lifecycle exit.
+    problem: The RAG server needs a control plane for health checks and graceful exit.
+    goals:
+      - Register the control exit and health routes.
+      - Keep control access inside the existing REST server tool path.
+    requirements:
+      input:
+        - Tool config references the trusted control REST server definition.
+      output:
+        - Output reports server name, bound address, and route count.
+      errors:
+        - Config, bind, route conflict, and schema failures emit CommandError.
+    non_goals:
+      - Does not execute lifecycle behavior inside HTTP handlers.
+      - Does not accept runtime transport authority.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerLaunched, CommandError]
+    output:
+      description: Control REST server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+    side_effects:
+      - kind: network_listen
+        target: chroma_rag_control
+        state: listener_started
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the control REST server if the launch owns the listener.
+    config:
+      rest_ref: chroma_rag_control
+
+  - name: launch_monitor_rest
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch read-only REST endpoints for cached monitor state.
+    problem: Operators need a profile-owned monitor reader that does not run tools.
+    goals:
+      - Register monitor snapshot, metadata, and stream routes.
+      - Keep monitor access inside the existing REST server tool path.
+    requirements:
+      input:
+        - Tool config references the trusted monitor REST server definition.
+      output:
+        - Output reports server name, bound address, and route count.
+      errors:
+        - Config, bind, route conflict, and schema failures emit CommandError.
+    non_goals:
+      - Does not execute monitor reads as MachineSpec workflow actions.
+      - Does not require a sidecar, collector, or external database.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerLaunched, CommandError]
+    output:
+      description: Monitor REST server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+    side_effects:
+      - kind: network_listen
+        target: monitor_rest_server
+        state: listener_started
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the monitor REST server if the launch owns the listener.
+    config:
+      rest_ref: monitor
+
+  - name: await_rag_control
+    type: builtin
+    init: rest_await_event
+    visibility: internal
+    category: boundary
+    description: Await a lifecycle exit event from the control or monitor server.
+    problem: The RAG server needs one grammar-visible wait word so the process stays alive while serving queries.
+    goals:
+      - Wait on the control and monitor server queues after launch.
+      - Accept only configured lifecycle exit events.
+      - Return the selected lifecycle signal to MachineSpec.
+    requirements:
+      input:
+        - Tool config references the trusted control and monitor REST server queues.
+      output:
+        - Output reports source, route, signal, payload, and request ID.
+      errors:
+        - Missing server, timeout, stopped server, and queue failures emit declared signals.
+    non_goals:
+      - Does not read or mutate monitor snapshots.
+      - Does not execute lifecycle behavior inside HTTP handlers.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    output:
+      description: Selected lifecycle control event.
+      schema:
+        type: object
+        properties:
+          source: {type: string}
+          route: {type: string}
+          signal: {type: string}
+          payload: {type: object}
+          request_id: {type: string}
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: selected_event_consumed
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Queue restore is not implemented.
+    config:
+      sources:
+        - server: chroma_rag_control
+          routes: [exit]
+          signals: [ExitRequested]
+        - server: monitor
+          routes: [control_exit]
+          signals: [ExitRequested]
+      timeout: 600s
+      stopped_behavior: emit_server_stopped
+
+  - name: stop_monitor_rest
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: Stop the owned monitor REST listener.
+    problem: The RAG server must release its monitor listener before reaching a terminal state.
+    goals:
+      - Stop the configured monitor REST server.
+      - Emit ServerStopped so MachineSpec can continue teardown.
+    requirements:
+      input:
+        - Tool config references the trusted monitor REST server definition.
+      output:
+        - Output reports server name, bound address, and stopped status.
+      errors:
+        - Missing server, shutdown timeout, and cleanup failures emit CommandError.
+    non_goals:
+      - Does not write monitor metrics or snapshots.
+      - Does not relaunch the monitor server.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerStopped, CommandError]
+    output:
+      description: Monitor REST server stop result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          status: {type: string}
+    side_effects:
+      - kind: network_listener_shutdown
+        target: monitor_rest_server
+        state: listener_stopped
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Relaunch is a separate MachineSpec action.
+    config:
+      rest_ref: monitor
+
+  - name: stop_rag_requests
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: Stop the owned query REST listener.
+    problem: The RAG server must release its query listener before reaching Done.
+    goals:
+      - Stop the configured query REST server.
+      - Emit ServerStopped so MachineSpec can route to Done.
+    requirements:
+      input:
+        - Tool config references the trusted query REST server definition.
+      output:
+        - Output reports server name, bound address, and stopped status.
+      errors:
+        - Missing server, shutdown timeout, and cleanup failures emit CommandError.
+    non_goals:
+      - Does not write query results.
+      - Does not relaunch the query server.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerStopped, CommandError]
+    output:
+      description: Query REST server stop result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          status: {type: string}
+    side_effects:
+      - kind: network_listener_shutdown
+        target: chroma_rag_requests
+        state: listener_stopped
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Relaunch is a separate MachineSpec action.
+    config:
+      rest_ref: chroma_rag_requests
