@@ -307,10 +307,29 @@ func machineRequestInitialSignal(cfg MachineRequest) core.Signal {
 	return core.Signal(cfg.InitialSignal)
 }
 
+// requestSeed builds the Result that seeds a machine_request run's first word.
+// The mapped request input is exposed under a "parameters" key, the key both
+// filesystem words (extractStringParam) and REST-client words (runtimeParams)
+// read, so either can be the first word. The transport authority (method,
+// server, route) is omitted: a request-machine word must not see it, and a
+// top-level "method" would trip the REST runtime-input authority guard. The URL
+// path and request id are kept because they name no transport authority and let
+// adapters derive request context (srd030 R2, R3.2).
 func requestSeed(req MachineRequestRun, signal core.Signal) core.Result {
-	data, err := json.Marshal(req)
+	payload := req.Payload
+	if payload == nil {
+		payload = map[string]interface{}{}
+	}
+	seed := map[string]interface{}{"parameters": payload}
+	if req.Path != "" {
+		seed["path"] = req.Path
+	}
+	if req.RequestID != "" {
+		seed["request_id"] = req.RequestID
+	}
+	data, err := json.Marshal(seed)
 	if err != nil {
-		return core.Result{Signal: signal, Output: "{}"}
+		return core.Result{Signal: signal, Output: `{"parameters":{}}`}
 	}
 	return core.Result{Signal: signal, Output: string(data)}
 }
