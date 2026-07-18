@@ -9,6 +9,46 @@ import (
 	"testing"
 )
 
+func TestChromaRequiredModelsFromConfig(t *testing.T) {
+	root := t.TempDir()
+	base := filepath.Join(root, "agents", "chroma")
+	writeChromaConfigFile(t, filepath.Join(base, "rest.yaml"),
+		"rest:\n  clients:\n    ollama:\n      operations:\n        embed:\n          body:\n            model: embed-model\n")
+	decl := "tools:\n  - name: read_resource\n  - name: invoke_llm\n    config:\n      model: chat-model\n"
+	writeChromaConfigFile(t, filepath.Join(base, "ingest", "declarations.yaml"), decl)
+	writeChromaConfigFile(t, filepath.Join(base, "reader", "declarations.yaml"), decl)
+
+	got, err := chromaRequiredModels(root)
+	if err != nil {
+		t.Fatalf("chromaRequiredModels: %v", err)
+	}
+	want := []string{"chat-model", "embed-model"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("required models = %v, want %v (distinct, sorted)", got, want)
+	}
+}
+
+func TestChromaRequiredModelsMissingInvokeLLM(t *testing.T) {
+	root := t.TempDir()
+	base := filepath.Join(root, "agents", "chroma")
+	writeChromaConfigFile(t, filepath.Join(base, "rest.yaml"),
+		"rest:\n  clients:\n    ollama:\n      operations:\n        embed:\n          body:\n            model: embed-model\n")
+	writeChromaConfigFile(t, filepath.Join(base, "ingest", "declarations.yaml"), "tools:\n  - name: read_resource\n")
+	if _, err := chromaRequiredModels(root); err == nil {
+		t.Fatal("expected an error when a profile has no invoke_llm model")
+	}
+}
+
+func writeChromaConfigFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
 func TestChromaModelInstalledTagTolerance(t *testing.T) {
 	names := []string{"qwen3-embedding:8b:latest", "ornith:9b"}
 	for _, model := range []string{"qwen3-embedding:8b", "qwen3-embedding:8b:latest", "ornith:9b"} {
