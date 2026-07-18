@@ -25,7 +25,7 @@ import (
 
 // RequireDolt returns the dolt binary path or skips the test when dolt is not on
 // PATH. Lifecycle persistence tests are gated on a local dolt install the same
-// way the whole suite is gated on AGENT_CORE_ROOT.
+// way the whole suite is gated on the sibling agent-core checkout being present.
 func RequireDolt(t *testing.T) string {
 	t.Helper()
 	path, err := exec.LookPath("dolt")
