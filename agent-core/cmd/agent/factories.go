@@ -292,11 +292,12 @@ func registerPlanningFactories(st *agentState) toolregistry.FactoryRegistrar {
 func registerEvaluationFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		evaluation.RegisterEvalFactories(br, evaluation.EvalFactoryDeps{
-			Ctx:       st.ctx,
-			Registry:  st.registry,
-			Stderr:    os.Stderr,
-			SuitePath: st.request,
-			OutputDir: st.output,
+			Ctx:              st.ctx,
+			Registry:         st.registry,
+			Stderr:           os.Stderr,
+			SuitePath:        st.request,
+			OutputDir:        st.output,
+			ChildAgentBinary: st.childAgentBinary,
 		})
 	}
 }

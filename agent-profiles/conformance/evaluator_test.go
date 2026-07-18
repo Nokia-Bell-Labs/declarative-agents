@@ -9,10 +9,11 @@ import (
 )
 
 // stubGeneratorAgent is a fake child `agent` binary. The evaluator point machine
-// launches the generator profile as a subprocess resolved from PATH; this shim
-// stands in for it so the session runs deterministically with no live model. It
-// mirrors magefiles/integration_evaluator.go writeGeneratorChildAgent: it writes
-// the expected workspace edit and a minimal child trace, then exits cleanly.
+// launches the generator profile as a subprocess from the configured
+// --child-agent-binary; this shim stands in for it so the session runs
+// deterministically with no live model. It mirrors
+// magefiles/integration_evaluator.go writeGeneratorChildAgent: it writes the
+// expected workspace edit and a minimal child trace, then exits cleanly.
 const stubGeneratorAgent = `#!/bin/sh
 set -eu
 profile=
@@ -47,8 +48,8 @@ echo "generator profile boundary exercised"
 
 // TestEvaluatorConformance runs the evaluator profile over the proven
 // rel07-evaluator-generator suite fixture with a stubbed generator child agent
-// on PATH, and asserts the deterministic session pipeline reaches the Done
-// terminal state with no live model.
+// passed via --child-agent-binary, and asserts the deterministic session
+// pipeline reaches the Done terminal state with no live model.
 //
 // It mirrors magefiles/integration_evaluator.go but asserts on the OTel trace
 // instead of on-disk artifacts.
@@ -59,11 +60,13 @@ echo "generator profile boundary exercised"
 func TestEvaluatorConformance(t *testing.T) {
 	RequireCoreRoot(t)
 
-	// The point machine launches `agent` (the generator child) from PATH; the
-	// shim stands in for it so the session runs without a live model.
+	// The point machine launches the child generator agent from the configured
+	// --child-agent-binary; the shim stands in for it so the session runs without
+	// a live model.
 	binDir := t.TempDir()
+	stubAgent := filepath.Join(binDir, "agent")
 	writeEphemeral(t, binDir, "agent", stubGeneratorAgent)
-	if err := os.Chmod(filepath.Join(binDir, "agent"), 0o755); err != nil {
+	if err := os.Chmod(stubAgent, 0o755); err != nil {
 		t.Fatalf("chmod stub agent: %v", err)
 	}
 
@@ -71,7 +74,7 @@ func TestEvaluatorConformance(t *testing.T) {
 		Profile: filepath.Join("agents", "evaluator", "profile.yaml"),
 		Request: ProfilePath(filepath.Join("testdata", "integration", "rel07-evaluator-generator", "suite.yaml")),
 		Output:  t.TempDir(),
-		Env:     []string{"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH")},
+		Args:    []string{"--child-agent-binary", stubAgent},
 	})
 
 	// srd003 R3.2: clean terminal outcome with no error-status spans.

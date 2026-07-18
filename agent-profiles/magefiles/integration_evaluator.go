@@ -53,9 +53,9 @@ func (Integration) EvaluatorGenerator() error {
 		"--request", filepath.Join(profilesRoot, evaluatorGeneratorSuite),
 		"--output", outputDir,
 		"--core-root", coreRoot,
+		"--child-agent-binary", filepath.Join(fakeBinDir, "agent"),
 	)
 	cmd.Dir = profilesRoot
-	cmd.Env = append(os.Environ(), "PATH="+fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output

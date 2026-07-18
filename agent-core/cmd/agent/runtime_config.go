@@ -34,6 +34,7 @@ type runtimeConfig struct {
 	DoltDSN          string
 	ResumeCheckpoint string
 	ResumeSignal     string
+	ChildAgentBinary string
 }
 
 func loadRuntimeConfig() (runtimeConfig, error) {
@@ -64,6 +65,7 @@ func loadRuntimeConfig() (runtimeConfig, error) {
 		DoltDSN:          flagDoltDSN,
 		ResumeCheckpoint: flagResumeCheckpoint,
 		ResumeSignal:     flagResumeSignal,
+		ChildAgentBinary: flagChildAgent,
 	}, nil
 }
 

@@ -14,12 +14,13 @@ import (
 
 // EvalFactoryDeps holds the dependencies needed by evaluator tool factories.
 type EvalFactoryDeps struct {
-	Ctx       context.Context
-	Registry  *core.Registry
-	Stderr    io.Writer
-	SuitePath string
-	OutputDir string
-	OllamaURL string
+	Ctx              context.Context
+	Registry         *core.Registry
+	Stderr           io.Writer
+	SuitePath        string
+	OutputDir        string
+	OllamaURL        string
+	ChildAgentBinary string
 }
 
 type evalFactoryState struct {
@@ -68,11 +69,12 @@ func (s *evalFactoryState) init() *EvalSessionState {
 		stderr = os.Stderr
 	}
 	s.session = &EvalSessionState{
-		EvalState: EvalState{Ctx: s.deps.Ctx},
-		Stderr:    stderr,
-		SuitePath: s.deps.SuitePath,
-		OutputDir: s.deps.OutputDir,
-		OllamaURL: s.deps.OllamaURL,
+		EvalState:        EvalState{Ctx: s.deps.Ctx},
+		Stderr:           stderr,
+		SuitePath:        s.deps.SuitePath,
+		OutputDir:        s.deps.OutputDir,
+		OllamaURL:        s.deps.OllamaURL,
+		ChildAgentBinary: s.deps.ChildAgentBinary,
 	}
 	return s.session
 }
