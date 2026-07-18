@@ -1,0 +1,130 @@
+id: srd015-chatbot-deployment
+title: Chatbot Mesh Deployment and Provisioning Model
+
+context: |
+  The chatbot mesh runs as a set of container agents on Kubernetes: one chatbot
+  agent (srd014) fronting N RAG server agents (srd013), each RAG paired with its
+  Chroma database, plus a chat LLM (in-cluster or external), a Dolt checkpoint
+  backend, and an OTel collector with a trace backend. This SRD owns the Helm
+  topology, the values-driven co-generation of RAG topology and chatbot client
+  config, the tiered hot-swap model, the provisioning authority boundary, and the
+  observability wiring.
+
+  Images follow the rel06.0 mounted-profile contract: the runtime image is
+  binary-only (agent-core srd034), and each agent's profile is supplied from
+  ConfigMaps mounted at the profile path rather than baked into the image. This
+  keeps one runtime image across every agent role and lets a values change
+  re-render profiles without rebuilding images.
+
+  Proposed chart location: a new top-level deploy/chatbot-mesh/ directory
+  (confirm with the maintainer in review). The chart, values schema, and rollout
+  scripting are deployment-plane artifacts; nothing here feeds hosts or URLs into
+  a running agent.
+
+problem: |
+  The mesh needs a reproducible deployment whose topology and the chatbot's RAG
+  client configuration cannot drift, a hot-swap model that repoints and adds or
+  removes RAG sources without hand-editing agent config, and a provisioning
+  surface that changes deployment values without ever handing a running agent a
+  runtime endpoint. The requirements must name the chart topology, the
+  co-generation source-of-truth rule, the tiered swap tiers, the provisioning
+  authority boundary, and the observability wiring, separately from agent-core
+  runtime capability.
+
+goals:
+  - G1: Define one Helm chart deploying the chatbot agent, N RAG (agent + Chroma) pairs from a values list, the chat LLM, the Dolt backend, and the OTel collector, using rel06.0 binary-only images with profiles from ConfigMaps.
+  - G2: Co-generate the chatbot's rest.yaml RAG client entries from the same values list that creates the RAG Deployments and Services, so topology and client config share one source of truth and the rendered config is validated.
+  - G3: Define a tiered hot-swap model -- Service repoint, values re-render plus checkpoint-resume rollout -- and exclude in-process client-registry mutation.
+  - G4: Define the provisioning surface as a config-plane deployment API, authenticated apart from the chat path, that never submits an endpoint to a running agent.
+  - G5: Define the OTLP export and trace-backend wiring the observability panel queries.
+
+requirements:
+  R1:
+    title: Chart topology
+    items:
+      - R1.1: One Helm chart SHALL deploy the chatbot agent, N RAG server agents each paired with a Chroma database from a values list, a chat LLM (in-cluster Ollama or an external endpoint reference), a Dolt checkpoint backend, and an OTel collector.
+      - R1.2: The chart SHALL expose ingress to the chatbot UX and internal Services for each RAG, the LLM, the Dolt backend, and the collector.
+      - R1.3: Agent images SHALL follow the rel06.0 mounted-profile contract (agent-core srd034), a binary-only runtime image with each agent's profile supplied from ConfigMaps mounted at the profile path.
+      - R1.4: The number and identity of RAG pairs SHALL be values-driven, so adding a source is a values edit rather than a chart edit.
+  R2:
+    title: Values-to-config co-generation
+    items:
+      - R2.1: The values list that creates the RAG Deployments and Services SHALL also render the chatbot rest.yaml RAG client entries, so topology and client configuration derive from one source of truth and cannot drift.
+      - R2.2: The rendered chatbot rest.yaml SHALL pass ValidateDefinition, enforced by a chart-level check or an init-container validation before the chatbot serves.
+      - R2.3: Each rendered RAG client entry SHALL carry the served collection's embedding-model identity (srd013 R2.3) so the chatbot can apply embedding-space mismatch handling (srd014 R3.3).
+  R3:
+    title: Tiered hot swap
+    items:
+      - R3.1: Repointing an existing RAG source SHALL be a Kubernetes Service selector or endpoint change that touches no agent configuration and requires no agent restart.
+      - R3.2: Adding or removing a RAG source SHALL be a values change that re-renders the ConfigMaps followed by a rollout in which the chatbot resumes from its Dolt checkpoint (agent-core srd035/srd036) via --dolt-dsn and --resume-checkpoint.
+      - R3.3: In-process client-registry mutation of a running agent SHALL be a non-goal, deferred until rollout latency is shown inadequate.
+  R4:
+    title: Provisioning authority boundary
+    items:
+      - R4.1: The UX provisioning panel SHALL drive values edits and rollouts through a deployment API (a Helm operator or equivalent), authenticated separately from the chat path.
+      - R4.2: The provisioning surface SHALL NOT submit hosts, URLs, methods, or credentials to any running agent endpoint; it changes deployment values and triggers rollouts only.
+      - R4.3: R4.2 is the deployment-plane counterpart of agent-core srd028 V30 (runtime input cannot acquire transport authority), so authority is set by declared and validated config, whether at render time or dispatch time, never by a running control surface.
+  R5:
+    title: Observability wiring
+    items:
+      - R5.1: Every agent SHALL export OTLP to the in-cluster OTel collector.
+      - R5.2: A trace backend (for example Tempo or Jaeger) SHALL be a chart dependency that the observability panel queries for cross-agent traces.
+      - R5.3: Cross-agent trace continuity SHALL rely on HTTP traceparent propagation (agent-core srd016 R4/R5); without it the observability panel v1 SHALL fall back to per-agent monitor SSE correlated by request id.
+
+non_goals:
+  - Define Go package APIs for agent-core runtime, the checkpoint port, or the monitor.
+  - In-process client-registry mutation of a running agent (R3.3).
+  - Feeding runtime endpoints to agents from the provisioning surface (R4.2).
+  - Owning the SPA panel content; the provisioning and observability panels are their own issues.
+  - Replacing the rel06.0 mounted-profile image contract or building per-role images.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: One chart is specified deploying the chatbot, N values-driven RAG (agent + Chroma) pairs, the LLM, the Dolt backend, and the collector, with ingress and internal Services, over rel06.0 binary-only images with ConfigMap-mounted profiles.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+  - id: AC2
+    criterion: Co-generation renders the chatbot RAG client entries from the same values list that creates the RAG Deployments and Services, the rendered rest.yaml passes ValidateDefinition, and each entry carries the served embedding-model identity.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: The tiered swap is specified -- Service repoint with no agent change, add/remove via values re-render plus a checkpoint-resume rollout -- with in-process registry mutation excluded.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC4
+    criterion: The provisioning surface is a separately-authenticated deployment API that edits values and triggers rollouts and never submits an endpoint to a running agent, stated as the deployment-plane counterpart of srd028 V30 with the cross-reference.
+    traces: [R4.1, R4.2, R4.3]
+  - id: AC5
+    criterion: The observability wiring is specified with OTLP export, a trace-backend chart dependency the panel queries, and the traceparent-or-SSE fallback for cross-agent continuity.
+    traces: [R5.1, R5.2, R5.3]
+
+depends_on:
+  - srd_id: srd013-rag-server-agent
+    symbols_used: [R1, R2]
+  - srd_id: srd014-chatbot-agent
+    symbols_used: [R1, R3, R6]
+  - srd_id: srd034-external-agent-profiles
+    symbols_used: [R1]
+  - srd_id: srd035-checkpoint-port
+    symbols_used: [R1]
+  - srd_id: srd036-dolt-state-persistence
+    symbols_used: [R6]
+  - srd_id: srd016-traceparent
+    symbols_used: [R4, R5]
+
+implementation_status: planned
+
+diagrams:
+  deployment: |
+    ```mermaid
+    flowchart TB
+      Ingress["Ingress"] --> Chatbot["Chatbot agent (UX + turn machine)"]
+      Chatbot -->|vector-in query| RAG1["RAG agent 1 + Chroma 1"]
+      Chatbot -->|vector-in query| RAGn["RAG agent N + Chroma N"]
+      Chatbot -->|invoke_llm| LLM["Chat LLM (in-cluster or external)"]
+      Chatbot -->|checkpoint/resume| Dolt["Dolt backend"]
+      Chatbot -->|OTLP| Collector["OTel collector"]
+      RAG1 -->|OTLP| Collector
+      RAGn -->|OTLP| Collector
+      Collector --> Backend["Trace backend (Tempo/Jaeger)"]
+      Values["values.yaml RAG list"] -->|co-generate| RAGConfig["RAG Deployments + Services"]
+      Values -->|co-generate| ClientConfig["chatbot rest.yaml RAG clients (ValidateDefinition)"]
+      Provision["Provisioning panel -> deployment API"] -->|values edit + rollout| Values
+    ```
