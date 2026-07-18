@@ -179,7 +179,11 @@ func prepareChromaProfiles(profilesRoot string) (string, func(), error) {
 		"model: all-minilm":        "model: " + configuredChromaEmbedModel(),
 		`model: "qwen3.6:35b-mlx"`: `model: "` + configuredChromaChatModel() + `"`,
 	}
-	for _, rel := range []string{"rest.yaml", filepath.Join("reader", "declarations.yaml")} {
+	for _, rel := range []string{
+		"rest.yaml",
+		filepath.Join("ingest", "declarations.yaml"),
+		filepath.Join("reader", "declarations.yaml"),
+	} {
 		if err := rewriteChromaFile(filepath.Join(tmp, rel), replacements); err != nil {
 			cleanup()
 			return "", nil, err

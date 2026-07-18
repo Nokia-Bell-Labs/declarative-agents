@@ -1,26 +1,29 @@
 name: chroma-ingest
 purpose: |-
   The Chroma ingest profile loads a repository corpus into a local Chroma
-  collection. It checks the Chroma and Ollama servers, then runs a per-document
-  loop: read one file, embed it at Ollama, create-or-get the collection (which
-  resolves the returned collection id and carries the embedding vector forward),
-  and add the agent-supplied vector to Chroma. When the corpus is exhausted it
-  re-resolves the collection and verifies the item count.
+  collection. It checks the Chroma and Ollama servers, then lets the model drive
+  a per-document loop: the model lists the corpus (list_resource), chooses the
+  next file to read (read_resource), or signals done. After each read the machine
+  sequences the deterministic embedding steps -- embed the document at Ollama,
+  create-or-get the collection (which resolves the returned collection id and
+  carries the embedding, document, and id forward), and add the agent-supplied
+  vector to Chroma -- before returning to the model for the next file. When the
+  model is done the machine re-resolves the collection and verifies the count.
 
-  The embed-to-add vector step is machine-sequenced because a model cannot emit
-  a raw embedding vector; the vector rides between boundary words through the
-  agent-core previous-Result parameter threading (srd028 R12). Because threading
-  is single-hop and read cannot carry the collection id across the loop,
-  create-or-get sits immediately before add: it returns the collection id and
-  carries the embedding forward so add can thread both.
+  Only listing and file selection are model-driven; the embed-to-add vector step
+  is machine-sequenced because a model cannot author a raw embedding vector. The
+  vector rides between boundary words through the agent-core previous-Result
+  parameter threading (srd028 R12).
 invariants:
   - REST authority lives in agents/chroma/rest.yaml.
-  - MachineSpec owns sequencing between the read, embed, and Chroma words.
-  - No embedding vector is authored by a model; it threads between words.
+  - MachineSpec owns sequencing between read, embed, and Chroma words.
+  - The model chooses only which file to list or read, or when to stop; it never authors an embedding vector.
+  - The model-visible manifest contains only list_resource, read_resource, and done.
   - The Chroma and Ollama servers are external preconditions, surfaced through chroma_ready and ollama_ready, not started by the agent.
 initial_state: Idle
 budget:
-  max_iterations: 256
+  max_iterations: 128
+  max_consecutive_parse_errors: 3
 states:
   - name: Idle
     meaning: Initial state before the ingest flow starts.
@@ -28,8 +31,10 @@ states:
     meaning: The Chroma v2 heartbeat is being checked.
   - name: CheckingOllama
     meaning: The Ollama version endpoint is being checked.
-  - name: Reading
-    meaning: One corpus document is being read.
+  - name: Composing
+    meaning: The model is listing the corpus, choosing a file, or signalling done; and the machine routes a completed tool by its result signal.
+  - name: Parsing
+    meaning: The model response is being parsed into one tool request.
   - name: Embedding
     meaning: The document text is being embedded at Ollama.
   - name: ResolvingCollection
@@ -43,10 +48,13 @@ states:
   - name: Succeeded
     meaning: Terminal. The corpus was ingested and the count verified.
   - name: Failed
-    meaning: Terminal. A REST or embedding boundary word failed.
+    meaning: Terminal. A REST, read, embedding, or model boundary word failed.
+  - name: BudgetExceeded
+    meaning: Terminal. The loop exhausted its iteration or parse-error budget.
 terminal_states:
   - Succeeded
   - Failed
+  - BudgetExceeded
 signals:
   - name: Seed
     trigger: Loop initialization.
@@ -54,10 +62,24 @@ signals:
     trigger: The Chroma heartbeat returned a configured success status.
   - name: OllamaReady
     trigger: The Ollama version endpoint returned a configured success status.
+  - name: LLMResponded
+    trigger: The model returned a response.
   - name: ToolDone
-    trigger: A corpus document was read.
-  - name: ToolFailed
-    trigger: No further corpus document was available; the loop ends.
+    trigger: The parser found a model-selected tool call.
+  - name: TaskCompleted
+    trigger: The model called done to end ingestion.
+  - name: ParseFailed
+    trigger: The model response could not be parsed.
+  - name: DocumentListReady
+    trigger: The corpus documents were listed.
+  - name: DocumentReady
+    trigger: The model-selected document was read.
+  - name: DocumentMissing
+    trigger: The model-selected path did not resolve to a document.
+  - name: DocumentParseFailed
+    trigger: The document could not be parsed.
+  - name: DocumentResourceDenied
+    trigger: The model-selected path was outside the configured corpus resource.
   - name: DocumentEmbedded
     trigger: Ollama returned an embedding vector for the document.
   - name: CollectionReady
@@ -66,6 +88,8 @@ signals:
     trigger: The agent-supplied embedding was added to the collection.
   - name: CountReady
     trigger: The collection item count was read.
+  - name: BudgetExhausted
+    trigger: Iteration or parse-error budget was exhausted.
   - name: CommandError
     trigger: Runtime or REST boundary infrastructure failed.
 transitions:
@@ -82,19 +106,59 @@ transitions:
     next: Failed
   - state: CheckingOllama
     signal: OllamaReady
-    next: Reading
-    action: read
+    next: Composing
+    action: invoke_llm
   - state: CheckingOllama
     signal: CommandError
     next: Failed
-  - state: Reading
+  - state: Composing
+    signal: LLMResponded
+    next: Parsing
+    action: parse_response
+  - state: Composing
     signal: ToolDone
-    next: Embedding
-    action: embed_document
-  - state: Reading
-    signal: ToolFailed
+    next: Composing
+    action: invoke_llm
+  - state: Composing
+    signal: CommandError
+    next: Failed
+  - state: Composing
+    signal: BudgetExhausted
+    next: BudgetExceeded
+  - state: Parsing
+    signal: ToolDone
+    next: Composing
+    action: $tool
+  - state: Parsing
+    signal: TaskCompleted
     next: ResolvingCountCollection
     action: count_collection
+  - state: Parsing
+    signal: ParseFailed
+    next: Composing
+    action: report_parse_error
+  - state: Parsing
+    signal: CommandError
+    next: Failed
+  - state: Composing
+    signal: DocumentListReady
+    next: Composing
+    action: invoke_llm
+  - state: Composing
+    signal: DocumentReady
+    next: Embedding
+    action: embed_document
+  - state: Composing
+    signal: DocumentMissing
+    next: Composing
+    action: invoke_llm
+  - state: Composing
+    signal: DocumentParseFailed
+    next: Composing
+    action: invoke_llm
+  - state: Composing
+    signal: DocumentResourceDenied
+    next: Failed
   - state: Embedding
     signal: DocumentEmbedded
     next: ResolvingCollection
@@ -111,8 +175,8 @@ transitions:
     next: Failed
   - state: Adding
     signal: DocumentAdded
-    next: Reading
-    action: read
+    next: Composing
+    action: invoke_llm
   - state: Adding
     signal: CommandError
     next: Failed

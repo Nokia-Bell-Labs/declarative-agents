@@ -49,7 +49,7 @@ rest:
                 id: {type: string}
             body_source: previous_result
             input_mapping:
-              input: $.content
+              input: $.raw
               id: $.path
             carry_forward: [input, id]
           body:

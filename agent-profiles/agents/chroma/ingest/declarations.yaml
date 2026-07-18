@@ -2,6 +2,7 @@ tools:
   - name: chroma_ready
     type: builtin
     init: rest_client_invoke
+    visibility: internal
     category: boundary
     description: Check the Chroma v2 heartbeat through the configured REST client.
     problem: The ingest flow must fail fast when the Chroma server is unreachable.
@@ -47,6 +48,7 @@ tools:
   - name: ollama_ready
     type: builtin
     init: rest_client_invoke
+    visibility: internal
     category: boundary
     description: Check the Ollama version endpoint through the configured REST client.
     problem: The ingest flow must fail fast when the Ollama server is unreachable.
@@ -92,6 +94,7 @@ tools:
   - name: embed_document
     type: builtin
     init: rest_client_invoke
+    visibility: internal
     category: boundary
     description: Embed a corpus document at Ollama and carry its text and id forward.
     problem: Chroma does not embed server-side, so the agent must compute the vector at a provider.
@@ -139,6 +142,7 @@ tools:
   - name: resolve_collection
     type: builtin
     init: rest_client_invoke
+    visibility: internal
     category: boundary
     description: Create-or-get the collection and carry the embedding, document, and id forward.
     problem: Single-hop threading means the returned collection id must reach add through this word.
@@ -187,6 +191,7 @@ tools:
   - name: count_collection
     type: builtin
     init: rest_client_invoke
+    visibility: internal
     category: boundary
     description: Re-resolve the collection id for the count verification.
     problem: The count verification needs the collection id after the ingest loop ends.
@@ -230,6 +235,7 @@ tools:
   - name: chroma_add
     type: builtin
     init: rest_client_invoke
+    visibility: internal
     category: boundary
     description: Add the agent-supplied embedding, document, and id to the collection.
     problem: Chroma stores client-supplied vectors, threaded from the previous words.
@@ -278,6 +284,7 @@ tools:
   - name: chroma_count
     type: builtin
     init: rest_client_invoke
+    visibility: internal
     category: boundary
     description: Read the collection item count for post-ingest verification.
     problem: The ingest flow must verify that documents were added.
@@ -319,3 +326,197 @@ tools:
     config:
       rest_ref: chroma
       operation: count_records
+
+  - name: list_resource
+    type: builtin
+    init: list_resource
+    category: boundary
+    description: List the corpus documents so the model can choose which to ingest.
+    problem: The model must discover the corpus files from trusted configuration, not guess paths.
+    goals:
+      - List the documents under the configured corpus resource.
+      - Return resource-relative paths for the model to read.
+    requirements:
+      input:
+        - Runtime input may choose only the configured resource name and optional prefix.
+      output:
+        - Output includes resource-relative document entries.
+      errors:
+        - Unknown resources and scan failures emit declared signals.
+    non_goals:
+      - Does not read document body content.
+      - Does not let runtime input choose roots, include patterns, or extension policy.
+    parameters:
+      type: object
+      properties:
+        resource: {type: string}
+        prefix: {type: string}
+      required: [resource]
+    emits: [DocumentListReady, DocumentResourceDenied, CommandError]
+    output:
+      description: Structured corpus document entries.
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            path: {type: string}
+    side_effects:
+      - kind: filesystem_read
+        target: configured_document_resource
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Listing is read-only.
+    config:
+      resources:
+        corpus:
+          root: "."
+          include: ["**/*.md"]
+          extensions: [".md"]
+          modes: [raw]
+          max_bytes: 1048576
+
+  - name: read_resource
+    type: builtin
+    init: read_resource
+    category: boundary
+    description: Read one corpus document the model selected.
+    problem: The model selects a document by path; the machine then embeds and adds it deterministically.
+    goals:
+      - Read the model-selected resource-relative document.
+      - Return the raw document text and path for the embed and add words.
+    requirements:
+      input:
+        - Runtime input may choose only the configured resource name and a resource-relative path.
+      output:
+        - Output includes the document path and raw content.
+      errors:
+        - Missing files, denied paths, and parse failures emit distinct declared signals.
+    non_goals:
+      - Does not mutate documents.
+      - Does not let runtime input choose roots, parser mode, or extension policy.
+    parameters:
+      type: object
+      properties:
+        resource: {type: string}
+        path: {type: string}
+      required: [resource, path]
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    output:
+      description: Structured document detail from the configured resource.
+      schema:
+        type: object
+        properties:
+          path: {type: string}
+          raw: {type: string}
+    side_effects:
+      - kind: filesystem_read
+        target: configured_document_resource
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Reading is read-only.
+    config:
+      resources:
+        corpus:
+          root: "."
+          include: ["**/*.md"]
+          extensions: [".md"]
+          modes: [raw]
+          max_bytes: 1048576
+
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    category: boundary
+    emits: [LLMResponded, CommandError]
+    description: Invoke the configured model to drive corpus file selection.
+    problem: The ingest loop needs a model boundary that lists the corpus and selects one file to read per turn.
+    goals:
+      - List the corpus once, then select the next unread file, or signal done.
+      - Never author an embedding vector; the machine sequences embedding after each read.
+      - Keep model, provider, parser, and prompt configuration profile-owned.
+    requirements:
+      input:
+        - must read conversation history and the model-visible manifest from runtime state
+        - must use the configured model against local Ollama
+      output:
+        - must emit LLMResponded when the model returns text
+        - must emit CommandError for provider setup, model discovery, or chat failures
+      side_effects:
+        - must call local Ollama POST /api/chat
+      undo:
+        - must restore conversation history from the pre-call snapshot
+    non_goals:
+      - Does not call Chroma or the Ollama embedding endpoint.
+      - Does not author or alter an embedding vector.
+    output:
+      description: Raw model response.
+      schema:
+        type: object
+        properties:
+          response: {type: string}
+          provider: {type: string}
+          model: {type: string}
+        required: [response, provider, model]
+    side_effects:
+      - kind: external_api_call
+        target: ollama.chat
+        description: Sends the corpus listing and read results to the configured local model.
+      - kind: state_mutation
+        target: conversation_history
+        state: appended
+        description: Appends the model response after a successful provider call.
+    reversibility:
+      classification: reversible
+      undo: conversation_truncate
+      requires_confirmation: false
+    undo:
+      strategy: conversation_truncate
+      description: Restore conversation history captured before the model call.
+      requires: [conversation_checkpoint]
+    errors:
+      - signal: CommandError
+        condition: provider configuration is invalid, the model is unavailable, or the model call fails
+        message_shape: 'invoke_llm: <provider/model>: <error>'
+        state_after_failure: conversation history is unchanged unless the provider response was already appended
+    config:
+      model: "qwen3.6:35b-mlx"
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      manifest_state: Composing
+      response_profile: qwen
+      max_time: 120
+      llm_timeout: 120
+      system_prompt: |
+        You load a document corpus into a vector database by choosing files to read.
+
+        Rules:
+        - First call list_resource with resource "corpus" to see the available files.
+        - Then call read_resource once for each listed file, using resource "corpus"
+          and the file's exact path. Read every file exactly once.
+        - After every listed file has been read, call done.
+        - Do not read a file twice. Do not invent paths that were not listed.
+        - You never embed or store content yourself; the system does that after each read.
+
+        Tool call format:
+        [tool_call]
+        {"tool":"list_resource","parameters":{"resource":"corpus"}}
+        [/tool_call]
+
+        [tool_call]
+        {"tool":"read_resource","parameters":{"resource":"corpus","path":"<listed path>"}}
+        [/tool_call]
+
+        Finish format:
+        [tool_call]
+        {"tool":"done","parameters":{"summary":"Ingested <N> corpus documents."}}
+        [/tool_call]

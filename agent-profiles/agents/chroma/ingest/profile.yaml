@@ -2,9 +2,8 @@ name: chroma-ingest
 machine: machine.yaml
 tools:
   - tools.yaml
-tool_config_dirs:
-  - /opt/agent-core/tools/builtin/filesystem
 tool_declarations:
+  - /opt/agent-core/tools/builtin/llm/all.yaml
   - declarations.yaml
 rest_definitions:
   - ../rest.yaml
