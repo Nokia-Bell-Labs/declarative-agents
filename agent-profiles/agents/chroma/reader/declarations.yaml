@@ -285,7 +285,7 @@ tools:
       after:
         - chroma_query
     config:
-      model: "qwen3.6:35b-mlx"
+      model: "ornith:9b"
       provider: ollama
       provider_url: "http://localhost:11434"
       manifest_state: Answering

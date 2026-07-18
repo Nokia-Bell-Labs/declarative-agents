@@ -9,31 +9,9 @@ import (
 	"testing"
 )
 
-func TestConfiguredChromaModelsDefault(t *testing.T) {
-	t.Setenv(chromaChatModelEnv, "")
-	t.Setenv(chromaEmbedModelEnv, "")
-	if got := configuredChromaChatModel(); got != chromaChatModel {
-		t.Fatalf("chat model default = %q, want %q", got, chromaChatModel)
-	}
-	if got := configuredChromaEmbedModel(); got != chromaEmbedModel {
-		t.Fatalf("embed model default = %q, want %q", got, chromaEmbedModel)
-	}
-}
-
-func TestConfiguredChromaModelsOverride(t *testing.T) {
-	t.Setenv(chromaChatModelEnv, "custom-chat")
-	t.Setenv(chromaEmbedModelEnv, "custom-embed")
-	if got := configuredChromaChatModel(); got != "custom-chat" {
-		t.Fatalf("chat model override = %q, want custom-chat", got)
-	}
-	if got := configuredChromaEmbedModel(); got != "custom-embed" {
-		t.Fatalf("embed model override = %q, want custom-embed", got)
-	}
-}
-
 func TestChromaModelInstalledTagTolerance(t *testing.T) {
-	names := []string{"all-minilm:latest", "qwen3.6:35b-mlx"}
-	for _, model := range []string{"all-minilm", "all-minilm:latest", "qwen3.6:35b-mlx"} {
+	names := []string{"qwen3-embedding:8b:latest", "ornith:9b"}
+	for _, model := range []string{"qwen3-embedding:8b", "qwen3-embedding:8b:latest", "ornith:9b"} {
 		if !chromaModelInstalled(names, model) {
 			t.Errorf("model %q should be reported installed against %v", model, names)
 		}

@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	ollamaModelEnv       = "AGENT_CORE_OLLAMA_MODEL"
 	ollamaLLMRel         = "rest/ollama-llm.yaml"
 	ollamaPrompt         = "List the local Ollama models available on this machine."
 	ollamaListModelsTool = "ollama_list_models"
@@ -64,9 +63,6 @@ func (r ollamaIntegrationRun) args() []string {
 }
 
 func configuredOllamaModel() string {
-	if model := strings.TrimSpace(os.Getenv(ollamaModelEnv)); model != "" {
-		return model
-	}
 	return ollamaTestModel
 }
 

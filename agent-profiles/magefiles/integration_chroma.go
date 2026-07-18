@@ -16,17 +16,19 @@ import (
 )
 
 const (
-	chromaChatModelEnv  = "AGENT_CORE_OLLAMA_MODEL"
-	chromaEmbedModelEnv = "AGENT_CORE_OLLAMA_EMBED_MODEL"
-	chromaChatModel     = "ornith:9b"
-	chromaEmbedModel    = "all-minilm"
+	// chromaChatModel and chromaEmbedModel mirror the models named in the
+	// profile config (agents/chroma/*/declarations.yaml invoke_llm and
+	// agents/chroma/rest.yaml embed). The harness runs the profiles as shipped;
+	// these constants exist only so the skip gate can check the models are
+	// installed. Keep them in sync with the config.
+	chromaChatModel  = "ornith:9b"
+	chromaEmbedModel = "qwen3-embedding:8b"
 
 	chromaCorpusFixture = "testdata/integration/rel08-chroma-corpus"
 	chromaIngestProfile = "agents/chroma/ingest/profile.yaml"
 	chromaReaderProfile = "agents/chroma/reader/profile.yaml"
 
-	chromaImageEnv = "AGENT_CORE_CHROMA_IMAGE"
-	chromaImage    = "chromadb/chroma:1.5.3"
+	chromaImage = "chromadb/chroma:1.5.3"
 
 	chromaHeartbeatURL = "http://127.0.0.1:8000/api/v2/heartbeat"
 	ollamaVersionURL   = "http://127.0.0.1:11434/api/version"
@@ -64,14 +66,6 @@ func requireChromaProfiles(profilesRoot string) error {
 	return requireProfilePaths(profilesRoot, chromaIngestProfile, chromaReaderProfile, "agents/chroma/rest.yaml")
 }
 
-func configuredChromaChatModel() string {
-	return envOrDefault(chromaChatModelEnv, chromaChatModel)
-}
-
-func configuredChromaEmbedModel() string {
-	return envOrDefault(chromaEmbedModelEnv, chromaEmbedModel)
-}
-
 // chromaOllamaSkipReason returns a non-empty reason when Ollama is unreachable
 // or the configured chat and embedding models are not both installed.
 func chromaOllamaSkipReason() string {
@@ -82,7 +76,7 @@ func chromaOllamaSkipReason() string {
 	if err != nil {
 		return fmt.Sprintf("Ollama /api/tags preflight failed: %v", err)
 	}
-	for _, model := range []string{configuredChromaChatModel(), configuredChromaEmbedModel()} {
+	for _, model := range []string{chromaChatModel, chromaEmbedModel} {
 		if !chromaModelInstalled(names, model) {
 			return fmt.Sprintf("Ollama model %q not installed; available: %s", model, strings.Join(names, ", "))
 		}
@@ -131,11 +125,6 @@ func runChromaIntegration(profilesRoot, coreRoot string) error {
 	if err != nil {
 		return err
 	}
-	profileDir, cleanupProfiles, err := prepareChromaProfiles(profilesRoot)
-	if err != nil {
-		return err
-	}
-	defer cleanupProfiles()
 	dataDir, err := os.MkdirTemp("", "agent-profiles-chroma-data-*")
 	if err != nil {
 		return fmt.Errorf("create chroma data dir: %w", err)
@@ -147,60 +136,13 @@ func runChromaIntegration(profilesRoot, coreRoot string) error {
 		return nil
 	}
 	defer stopChromaContainer(containerID)
-	if err := runChromaIngest(binary, profilesRoot, profileDir, coreRoot); err != nil {
+	if err := runChromaIngest(binary, profilesRoot, coreRoot); err != nil {
 		return err
 	}
-	if err := runChromaReader(binary, profilesRoot, profileDir, coreRoot); err != nil {
+	if err := runChromaReader(binary, profilesRoot, coreRoot); err != nil {
 		return err
 	}
 	fmt.Println("integration:chroma PASS - ingest loaded the corpus and the reader grounded an answer in retrieved chunks")
-	return nil
-}
-
-// prepareChromaProfiles copies the agents/chroma profile tree to a temporary
-// directory and rewrites the embedding and chat model names to the configured
-// models, so AGENT_CORE_OLLAMA_MODEL and AGENT_CORE_OLLAMA_EMBED_MODEL select
-// the models the agent actually calls (not only the skip gate). With the
-// environment unset the shipped model names are preserved. The tree is copied
-// whole so the profiles' relative references (machine, tools, ../rest.yaml)
-// keep resolving.
-func prepareChromaProfiles(profilesRoot string) (string, func(), error) {
-	tmp, err := os.MkdirTemp("", "agent-profiles-chroma-profile-*")
-	if err != nil {
-		return "", nil, fmt.Errorf("create chroma profile dir: %w", err)
-	}
-	cleanup := func() { _ = os.RemoveAll(tmp) }
-	src := filepath.Join(profilesRoot, "agents", "chroma")
-	if out, err := exec.Command("cp", "-a", src+"/.", tmp).CombinedOutput(); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("copy chroma profiles: %s: %w", strings.TrimSpace(string(out)), err)
-	}
-	replacements := map[string]string{
-		"model: all-minilm":        "model: " + configuredChromaEmbedModel(),
-		`model: "qwen3.6:35b-mlx"`: `model: "` + configuredChromaChatModel() + `"`,
-	}
-	for _, rel := range []string{
-		"rest.yaml",
-		filepath.Join("ingest", "declarations.yaml"),
-		filepath.Join("reader", "declarations.yaml"),
-	} {
-		if err := rewriteChromaFile(filepath.Join(tmp, rel), replacements); err != nil {
-			cleanup()
-			return "", nil, err
-		}
-	}
-	return tmp, cleanup, nil
-}
-
-func rewriteChromaFile(path string, replacements map[string]string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", path, err)
-	}
-	content := replaceAll(string(data), replacements)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
 	return nil
 }
 
@@ -208,10 +150,9 @@ func rewriteChromaFile(path string, replacements map[string]string) error {
 // persistence directory bind-mounted at /data and the v2 API published on
 // 127.0.0.1:8000, then waits for the heartbeat. A missing Docker daemon, an
 // unpullable image, or a heartbeat that never arrives is returned as an error
-// so the caller can skip rather than fail. The image is overridable through
-// the AGENT_CORE_CHROMA_IMAGE environment variable.
+// so the caller can skip rather than fail.
 func startChromaContainer(dataDir string) (string, error) {
-	image := envOrDefault(chromaImageEnv, chromaImage)
+	image := chromaImage
 	out, err := exec.Command("docker", "run", "-d", "--rm",
 		"-p", "127.0.0.1:8000:8000",
 		"-v", dataDir+":/data",
@@ -235,14 +176,14 @@ func stopChromaContainer(containerID string) {
 	_ = exec.Command("docker", "rm", "-f", containerID).Run()
 }
 
-func runChromaIngest(binary, profilesRoot, profileDir, coreRoot string) error {
+func runChromaIngest(binary, profilesRoot, coreRoot string) error {
 	corpusDir := filepath.Join(profilesRoot, chromaCorpusFixture, "corpus")
 	trace, cleanup, err := chromaTraceFile("ingest")
 	if err != nil {
 		return err
 	}
 	defer cleanup()
-	profile := filepath.Join(profileDir, "ingest", "profile.yaml")
+	profile := filepath.Join(profilesRoot, chromaIngestProfile)
 	if err := runChromaAgent(binary, profilesRoot, coreRoot, profile, corpusDir, trace); err != nil {
 		return fmt.Errorf("chroma ingest run failed: %w", err)
 	}
@@ -259,7 +200,7 @@ func runChromaIngest(binary, profilesRoot, profileDir, coreRoot string) error {
 	return nil
 }
 
-func runChromaReader(binary, profilesRoot, profileDir, coreRoot string) error {
+func runChromaReader(binary, profilesRoot, coreRoot string) error {
 	workspace, err := os.MkdirTemp("", "agent-profiles-chroma-reader-*")
 	if err != nil {
 		return fmt.Errorf("create reader workspace: %w", err)
@@ -270,7 +211,7 @@ func runChromaReader(binary, profilesRoot, profileDir, coreRoot string) error {
 		return err
 	}
 	defer cleanup()
-	profile := filepath.Join(profileDir, "reader", "profile.yaml")
+	profile := filepath.Join(profilesRoot, chromaReaderProfile)
 	if err := runChromaAgent(binary, profilesRoot, coreRoot, profile, workspace, trace); err != nil {
 		return fmt.Errorf("chroma reader run failed: %w", err)
 	}
