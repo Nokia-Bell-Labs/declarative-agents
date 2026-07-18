@@ -267,6 +267,41 @@ releases:
         summary: Normalize stale in-repo agent path references after profile migration
         status: done
 
+  - version: "07.0"
+    name: Command-state store and two-plane persistence
+    description: |
+      Release 07.0 lifts declared-param selection out of the REST package into a
+      core-level command-state store. Any word selects declared params from a
+      labeled prior step in the run through a $from(...) selector, not only from
+      the immediately previous Result. The store is a read-only forward view over
+      the run's execution log, rehydrated from the srd036 tool_outputs plane after
+      a restart, with a declared-param-only authority boundary that never exposes
+      transport or receipts.
+
+      Persistence splits the tool_results table into a forward plane
+      (tool_outputs, readable by the store) and a reverse plane (receipts,
+      consumed only by the rollback walk), so a forward selector can never reach a
+      receipt. REST client words become the first consumer through body_source
+      command_state. This release records the documentation and the tracer-bullet
+      use cases; the core store and REST consumption land in epics GH-269 and
+      GH-270.
+    status: planned
+    srds:
+      - srd038-command-state-store
+      - srd036-dolt-state-persistence
+      - srd028-rest-client-tools
+    use_cases:
+      - id: rel07.0-uc001-command-state-threading
+        summary: A three-word REST chain where the third word selects the first word's output by label and resumes mid-chain after restart
+        status: planned
+      - id: rel07.0-uc002-two-plane-revert
+        summary: Reverting to an earlier step reaps later tool_outputs and receipts rows with the branch reset while the receipt walk still reverses the surviving step
+        status: planned
+    test_suites:
+      - id: test-rel07.0-command-state
+        summary: Formal tests for label selection, duplicate-label resolution, restart rehydration, the R13.3 rejection table, redaction-before-persistence, five-table round-trip, and revert reap
+        status: planned
+
   - version: "99.0"
     name: Tool dispatch simplification planning
     description: |
