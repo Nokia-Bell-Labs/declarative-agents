@@ -1,0 +1,186 @@
+id: test-rel07.0-command-state
+title: Test Suite for Release 07.0 Command-State Store and Two-Plane Persistence
+release: "07.0"
+
+traces:
+  - rel07.0-uc001-command-state-threading
+  - rel07.0-uc002-two-plane-revert
+
+preconditions:
+  - srd038-command-state-store defines the core store contract, label addressing, authority boundary, lifetime, and redaction ordering before code changes.
+  - srd036-dolt-state-persistence (amended) defines the five-table schema splitting tool_results into tool_outputs and receipts.
+  - srd028-rest-client-tools R13 defines body_source command_state consumption through $from selectors.
+  - Epics GH-269 (persistence split) and GH-270 (core store and REST consumption) own the executable Go tests these cases name.
+
+test_cases:
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Adjacent label selection threads the previous word's output
+    go_test: go test ./internal/tools/rest -run TestCommandState_AdjacentLabelSelection
+    status: planned
+    description: |
+      A query word directly after an embed word selects the embed word's output
+      through body_source command_state and a $from(<embed-label>).<path>
+      selector, and presents only declared params to the request builder.
+    inputs:
+      chain: [embed_query, query_collection]
+      selector: $from(embed_query).embedding
+      body_source: command_state
+    expected:
+      selected_param_present: true
+      undeclared_params_absent: true
+    traces:
+      - rel07.0-uc001-command-state-threading S1
+      - srd038-command-state-store AC2
+      - srd028-rest-client-tools AC12
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Non-adjacent label selection reaches past an intervening word
+    go_test: go test ./internal/tools/rest -run TestCommandState_NonAdjacentLabelSelection
+    status: planned
+    description: |
+      In a three-word chain the third word selects the first word's vector by
+      label past the intervening word and renders it as a nested array through the
+      single-token raw passthrough.
+    inputs:
+      chain: [embed_query, record_event, query_collection]
+      selector: $from(embed_query).embedding
+    expected:
+      request_body_query_embeddings: nested_array
+      intervening_word_ignored: true
+    traces:
+      - rel07.0-uc001-command-state-threading S1
+      - srd038-command-state-store AC2
+      - srd028-rest-client-tools AC12
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Duplicate labels resolve to the most recent step
+    go_test: go test ./internal/runtime/core -run TestCommandState_DuplicateLabelMostRecentWins
+    status: planned
+    description: |
+      Two steps share a label; a later $from selector resolves to the higher
+      step_index, and absolute step indices are not part of the authoring surface.
+    inputs:
+      steps:
+        - {label: fetch, step_index: 0}
+        - {label: fetch, step_index: 2}
+      selector: $from(fetch).id
+    expected:
+      resolved_step_index: 2
+    traces:
+      - rel07.0-uc001-command-state-threading S4
+      - srd038-command-state-store AC2
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Restart rehydration resolves the same label mid-chain
+    go_test: go test ./internal/runtime/core -run TestCommandState_RehydratesFromToolOutputsAfterRestart
+    status: planned
+    description: |
+      A run suspends after the first word; a fresh process rehydrates the store
+      from the tool_outputs plane so the later word resolves the same label with
+      an equivalent value.
+    inputs:
+      suspend_after: embed_query
+      resume_in: fresh_process
+      selector: $from(embed_query).embedding
+    expected:
+      label_resolved_after_restart: true
+      value_equivalent_to_live_run: true
+    traces:
+      - rel07.0-uc001-command-state-threading S3
+      - srd038-command-state-store AC1
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Selector rejection table blocks unsafe threading
+    go_test: go test ./internal/tools/rest -run TestCommandState_RejectsSelectorMisuse
+    status: planned
+    description: |
+      The R13.3 rejection list applies to command_state threading: an undeclared
+      input_mapping target, a selector naming an authority field, and a malformed
+      $from selector are each rejected with a clear message.
+    inputs:
+      cases:
+        - {selector: $from(embed_query).embedding, target: undeclared_param, reject: true}
+        - {selector: $from(embed_query).headers.authorization, target: auth_header, reject: true}
+        - {selector: "$from(.broken", target: query_embeddings, reject: true}
+    expected:
+      all_rejected: true
+      transport_authority_unreachable: true
+    traces:
+      - rel07.0-uc001-command-state-threading S2
+      - srd038-command-state-store AC3
+      - srd028-rest-client-tools AC12
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Redaction runs before persistence so a redacted field is unreadable
+    go_test: go test ./internal/runtime/core -run TestCommandState_RedactionBeforePersistence
+    status: planned
+    description: |
+      A response field removed by redaction is never written to tool_outputs and
+      never resolves through a later $from selector, live or resumed.
+    inputs:
+      redacted_field: api_key
+      selector: $from(fetch).api_key
+    expected:
+      field_absent_in_tool_outputs: true
+      selector_resolves_field: false
+    traces:
+      - rel07.0-uc001-command-state-threading S5
+      - srd038-command-state-store AC5
+
+  - use_case: rel07.0-uc002-two-plane-revert
+    name: Five-table round-trip persists and restores both planes
+    go_test: go test ./internal/runtime/core -run TestDolt_FiveTableTwoPlaneRoundTrip
+    status: planned
+    description: |
+      A three-step run writes a tool_outputs row and a receipts row per step in
+      one per-step transaction; Load restores conversation, each entry's output
+      from tool_outputs, and each entry's receipt from receipts.
+    inputs:
+      steps: 3
+      tables: [machines, transitions, execution_steps, tool_outputs, receipts]
+    expected:
+      tool_outputs_rows: 3
+      receipts_rows: 3
+      load_restores_both_planes: true
+    traces:
+      - rel07.0-uc002-two-plane-revert S1
+      - srd036-dolt-state-persistence AC2
+
+  - use_case: rel07.0-uc002-two-plane-revert
+    name: Revert reaps later two-plane rows and invalidates store entries
+    go_test: go test ./internal/runtime/core -run TestDolt_RevertReapsBothPlanes
+    status: planned
+    description: |
+      Revert(run_id, 1) resets the run branch so the tool_outputs and receipts
+      rows for steps 2 and 3 no longer resolve, and the command-state store's
+      later entries are invalid without a separate invalidation walk.
+    inputs:
+      steps: 3
+      revert_to_step_index: 1
+    expected:
+      later_tool_outputs_rows_resolve: false
+      later_receipts_rows_resolve: false
+      store_later_entries_invalid: true
+    traces:
+      - rel07.0-uc002-two-plane-revert S2
+      - srd038-command-state-store AC4
+      - srd036-dolt-state-persistence AC4
+
+  - use_case: rel07.0-uc002-two-plane-revert
+    name: Receipt walk reverses the surviving step from the reverse plane
+    go_test: go test ./internal/runtime/core -run TestDolt_ReceiptWalkReversesSurvivingStep
+    status: planned
+    description: |
+      After Revert to step 1 the rollback receipt walk reads the surviving step-1
+      receipt from the receipts plane and reverses that step's external effect; no
+      forward selector can reach any receipt.
+    inputs:
+      surviving_step: 1
+      receipt_source: receipts
+    expected:
+      surviving_step_reversed: true
+      receipt_forward_addressable: false
+    traces:
+      - rel07.0-uc002-two-plane-revert S3
+      - srd036-dolt-state-persistence AC3
+      - srd036-dolt-state-persistence AC6

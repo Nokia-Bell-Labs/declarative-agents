@@ -1,0 +1,67 @@
+id: rel07.0-uc002-two-plane-revert
+title: Reverting to an earlier step reaps later two-plane rows while the receipt walk reverses the surviving step
+
+summary: |
+  The runtime runs three steps, each persisting a tool_outputs row and a receipts
+  row in one per-step transaction, then reverts to step 1. The tool_outputs and
+  receipts rows for the later steps are gone with the branch reset, the
+  command-state store's later entries are invalidated by construction, and the
+  rollback receipt walk still reverses step 1's external effect from the surviving
+  receipts row. No forward selector reaches any receipt at any point.
+
+actor: Agent runtime performing git-style rollback
+
+trigger: |
+  A rollback request targets an earlier step after later steps have persisted
+  output and receipts.
+
+flow:
+  - F1: Three steps run; each writes its tool_outputs row and its receipts row inside one per-step transaction (srd036 R3, R4.4).
+  - F2: Revert(run_id, 1) resets the run branch to the step-1 commit (srd036 R6).
+  - F3: The tool_outputs and receipts rows for steps 2 and 3 are gone by branch construction; the store's later entries are invalidated without a separate walk (srd038 R4, srd036 R4).
+  - F4: The rollback receipt walk reads the surviving step-1 receipt from the receipts plane and reverses that step's external effect (srd036 R3, R6).
+  - F5: A forward selector cannot reach any receipt at any point; only tool_outputs is store-addressable (srd036 R3.6, srd038 R3).
+
+touchpoints:
+  - T1: "srd036-dolt-state-persistence R2 -- five-table schema; tool_outputs forward plane and receipts reverse plane"
+  - T2: "srd036-dolt-state-persistence R4 -- both plane rows written in one per-step transaction; terminal and revert reaping"
+  - T3: "srd036-dolt-state-persistence R6 -- Revert resets the branch; the receipt walk reverses surviving steps"
+  - T4: "srd038-command-state-store R4 -- branch-scoped entry lifetime; Revert invalidates later entries by construction"
+
+success_criteria:
+  - id: S1
+    criterion: A three-step run persists a tool_outputs row and a receipts row per step and round-trips both planes on Load.
+    traces:
+      - srd036-dolt-state-persistence AC2
+  - id: S2
+    criterion: After Revert to step 1, the tool_outputs and receipts rows for steps 2 and 3 do not resolve and the store's later entries are invalid without a separate invalidation walk.
+    traces:
+      - srd038-command-state-store AC4
+      - srd036-dolt-state-persistence AC4
+  - id: S3
+    criterion: The receipt walk reverses step 1's external effect from the surviving receipts row.
+    traces:
+      - srd036-dolt-state-persistence AC3
+      - srd036-dolt-state-persistence AC6
+  - id: S4
+    criterion: No forward selector resolves a receipt before or after Revert.
+    traces:
+      - srd036-dolt-state-persistence AC3
+      - srd038-command-state-store AC3
+
+failure_scenarios:
+  - id: E1
+    scenario: A step commits a tool_outputs row without a matching receipts row.
+    expected: The per-step transaction is rejected so a partial step is never committed (srd036 R4.4).
+  - id: E2
+    scenario: Revert targets a step_index with no recorded commit.
+    expected: A typed error is reported (srd036 R6.5).
+  - id: E3
+    scenario: Rollback attempts to read a receipt through a forward selector.
+    expected: Structurally impossible; receipts are not store-addressable (srd036 R3.6, srd038 R3.3).
+
+out_of_scope:
+  - The $from selector surface (covered by rel07.0-uc001).
+  - File and HTTP compensation semantics beyond the receipt walk (owned by srd025 and srd026).
+
+test_suite_trace: test-rel07.0-command-state
