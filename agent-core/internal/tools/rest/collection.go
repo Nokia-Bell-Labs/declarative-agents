@@ -10,7 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/telemetry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
@@ -359,6 +363,8 @@ func (r *serverRuntime) handleMachineRequest(
 ) {
 	ctx, cancel := context.WithTimeout(req.Context(), r.machineRequestTimeout(endpoint))
 	defer cancel()
+	ctx, endSpan := startMachineRequestSpan(ctx, req, r.name, name)
+	defer endSpan()
 	result, err := r.runner.RunMachineRequest(ctx, MachineRequestRun{
 		Server: r.name, Route: name, Method: req.Method, Path: req.URL.Path,
 		RequestID:       req.Header.Get("X-Request-ID"),
@@ -371,6 +377,27 @@ func (r *serverRuntime) handleMachineRequest(
 		return
 	}
 	r.writeMachineResponse(w, endpoint, result)
+}
+
+// startMachineRequestSpan extracts an incoming W3C traceparent and starts a span
+// for the request machine parented on it, so a caller's client span and this
+// server span join into one connected trace. An incoming tracestate rides along
+// opaquely. An absent or malformed traceparent falls back to a new root span
+// rather than failing the request, reusing the srd016 parser (srd016 R5).
+func startMachineRequestSpan(ctx context.Context, req *http.Request, server, route string) (context.Context, func()) {
+	if tp := req.Header.Get("traceparent"); tp != "" {
+		if sc, err := telemetry.ParseTraceparent(tp); err == nil {
+			if ts := req.Header.Get("tracestate"); ts != "" {
+				if parsed, tsErr := oteltrace.ParseTraceState(ts); tsErr == nil {
+					sc = sc.WithTraceState(parsed)
+				}
+			}
+			ctx = oteltrace.ContextWithRemoteSpanContext(ctx, sc)
+		}
+		// A malformed header falls through to a new root span (srd016 R5.3).
+	}
+	ctx, span := otel.Tracer("agent-core/rest/machine_request").Start(ctx, "machine_request "+server+"/"+route)
+	return ctx, func() { span.End() }
 }
 
 func (r *serverRuntime) machineRequestTimeout(endpoint Endpoint) time.Duration {

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -130,9 +132,10 @@ func executeClientOnce(
 	input map[string]interface{},
 	creds CredentialResolver,
 ) core.Result {
-	// The await poll samples a read operation with no command-state view; a
-	// body_source command_state operation is not a valid await target.
-	request, params, err := buildClientRequest(op, input, creds, nil)
+	// The await poll samples a read operation with no command-state view and no
+	// active dispatch span; a body_source command_state operation is not a valid
+	// await target.
+	request, params, err := buildClientRequest(op, input, creds, nil, oteltrace.SpanContext{})
 	if err != nil {
 		return clientOperationError(toolName, requestBuildFailureStage(err), err, op)
 	}

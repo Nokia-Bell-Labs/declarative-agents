@@ -14,7 +14,7 @@ test_cases:
   - use_case: rel08.0-uc001-http-trace-propagation
     name: Outbound client request injects traceparent from the active span
     go_test: go test ./internal/tools/rest -run TestRESTClient_InjectsTraceparentFromActiveSpan
-    status: planned
+    status: implemented
     description: |
       A REST client word executed inside a recording dispatch span emits an
       outbound request whose traceparent header is FormatTraceparent of the active
@@ -33,7 +33,7 @@ test_cases:
   - use_case: rel08.0-uc001-http-trace-propagation
     name: Outbound injection is uniform and omitted without a span
     go_test: go test ./internal/tools/rest -run TestRESTClient_TraceparentUniformAndOmittedWithoutSpan
-    status: planned
+    status: implemented
     description: |
       Injection applies to every outbound client request with no per-operation
       configuration, and no traceparent header is emitted when no recording span
@@ -52,7 +52,7 @@ test_cases:
   - use_case: rel08.0-uc001-http-trace-propagation
     name: Inbound extraction parents the request and machine_request span
     go_test: go test ./internal/tools/rest -run TestRESTServer_ExtractsTraceparentParentsMachineRequestSpan
-    status: planned
+    status: implemented
     description: |
       A REST server endpoint receiving a well-formed traceparent parents its
       request span, and the machine_request span, on the extracted remote span, so
@@ -70,7 +70,7 @@ test_cases:
   - use_case: rel08.0-uc001-http-trace-propagation
     name: Absent or malformed header falls back to a new root
     go_test: go test ./internal/tools/rest -run TestRESTServer_TraceparentFallbackToNewRoot
-    status: planned
+    status: implemented
     description: |
       An inbound request with no traceparent, and one with a malformed
       traceparent, each start a new root span and complete without error rather
@@ -89,8 +89,8 @@ test_cases:
 
   - use_case: rel08.0-uc001-http-trace-propagation
     name: Subprocess otel-parent-span path is unchanged
-    go_test: go test ./internal/support/subprocess -run TestOtelParentSpanPropagationUnchanged
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestOtelParentSpanPropagationUnchanged
+    status: implemented
     description: |
       The subprocess --otel-parent-span propagation continues to parent a spawned
       child on its caller's span, independent of and complementary to the HTTP

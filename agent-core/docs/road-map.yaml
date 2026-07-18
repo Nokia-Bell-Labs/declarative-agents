@@ -320,17 +320,17 @@ releases:
       is unchanged and complementary. This release records the documentation and
       the tracer-bullet use case; the inject/extract implementation lands in
       Epic #295 (GH-310).
-    status: planned
+    status: implemented
     srds:
       - srd016-traceparent
     use_cases:
       - id: rel08.0-uc001-http-trace-propagation
         summary: Two agents linked by a REST call produce one connected trace, with malformed-header fallback to a new root
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel08.0-trace-propagation
         summary: Formal tests for outbound injection, inbound extraction parenting the machine_request span, absent/malformed fallback, and the unchanged subprocess path
-        status: planned
+        status: implemented
 
   - version: "99.0"
     name: Tool dispatch simplification planning

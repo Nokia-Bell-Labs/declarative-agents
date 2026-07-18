@@ -92,8 +92,8 @@ depends_on: []
 implementation_status:
   done:
     - ParseTraceparent, FormatTraceparent, and ParseParentSpan primitives, and the subprocess --otel-parent-span propagation path, which remains unchanged and complementary to HTTP propagation.
-  planned:
-    - Outbound injection (R4) and inbound extraction (R5) of W3C trace context over REST, implemented by Epic #295 child GH-310.
+    - Outbound injection (R4): the engine injects the active dispatch span into TraceContextAware commands (core.TraceContextAware, set in dispatchWithMonitor from the dispatch span context); the REST client's applyTraceContext writes traceparent (and tracestate when present) into every outbound request uniformly, omitting the header when no recording span is active. No rest-tool-format surface. Delivered by GH-310.
+    - Inbound extraction (R5): the REST server's startMachineRequestSpan extracts an incoming traceparent (and tracestate), parents the machine_request span on the remote SpanContext through the global tracer, and falls back to a new root on absent or malformed headers using the same parser; traceparent/tracestate are allowed undeclared request headers. Delivered by GH-310.
 
 diagrams:
   requirements_trace: |

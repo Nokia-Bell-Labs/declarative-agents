@@ -45,6 +45,8 @@ var allowedUndeclaredHeaders = map[string]bool{
 	"upgrade-insecure-requests": true,
 	"user-agent":                true,
 	"x-request-id":              true,
+	"traceparent":               true,
+	"tracestate":                true,
 }
 
 func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
