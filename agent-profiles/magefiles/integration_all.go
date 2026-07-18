@@ -32,6 +32,7 @@ func (i Integration) All() error {
 		{"benchEvaluator", i.BenchEvaluator, false},
 		{"monitorControl", i.MonitorControl, false},
 		{"chroma", i.Chroma, true},
+		{"ragServer", i.RagServer, true},
 	}
 
 	var passed, failed, skipped int
