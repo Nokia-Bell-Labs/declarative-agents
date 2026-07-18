@@ -1,0 +1,8 @@
+tools:
+  - launch_chat_requests
+  - launch_chatbot_control
+  - launch_monitor_rest
+  - await_chatbot_control
+  - stop_monitor_rest
+  - stop_chat_requests
+  - exit_agent

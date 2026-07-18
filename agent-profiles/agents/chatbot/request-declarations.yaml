@@ -1,0 +1,222 @@
+tools:
+  - name: embed_query
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Embed the incoming chat message once at the embedding provider.
+    problem: The RAG server is vector-in, so the chatbot must compute the query vector at a provider.
+    goals:
+      - Read the message from the seeded request body and embed it.
+      - Return the message embedding and carry the message text forward.
+    requirements:
+      input:
+        - The message is selected from the seeded request parameters.
+      output:
+        - Output includes the mapped embedding vector and the carried message.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not author or alter the embedding vector.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties:
+        input: {type: string}
+    emits: [QueryEmbedded, CommandError]
+    output:
+      description: Mapped message embedding with the carried message.
+      schema:
+        type: object
+        properties:
+          mapped: {type: object}
+          carried: {type: object}
+    side_effects:
+      - kind: external_api
+        target: ollama.embeddings
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Computing an embedding does not mutate state.
+    config:
+      rest_ref: embedding
+      operation: embed_query
+
+  - name: rag_query
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Query the RAG server with the message vector.
+    problem: The chatbot fans the one message embedding out to the RAG server for grounding chunks.
+    goals:
+      - Thread the message embedding into the RAG server query.
+      - Return the retrieved chunk ids and documents.
+    requirements:
+      input:
+        - The query embedding is selected from the previous embed Result output.
+      output:
+        - Output includes the retrieved chunk ids and documents.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not author the query vector.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties:
+        query_embeddings: {type: array}
+    emits: [QueryResponded, CommandError]
+    output:
+      description: Mapped RAG server query result.
+      schema:
+        type: object
+        properties:
+          ids: {type: array}
+          documents: {type: array}
+    side_effects:
+      - kind: external_api
+        target: rag_server.query
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Querying the RAG server does not mutate state.
+    config:
+      rest_ref: rag0
+      operation: query
+
+  - name: compose_prompt
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Compose the grounding prompt from the message and retrieved chunks.
+    problem: The answer step needs the original message and the non-adjacent retrieved chunks in one prompt without carry_forward chains.
+    goals:
+      - Read the original message from embed_query and the chunks from rag_query through command-state $from().
+      - Render one grounding prompt for the model.
+    requirements:
+      input:
+        - The message and chunks are selected from prior steps through $from() addressing.
+      output:
+        - Output is the rendered grounding prompt.
+      errors:
+        - An unresolved selector renders empty and is reported, so a degraded RAG still yields a prompt.
+    non_goals:
+      - Does not call any provider or author chunks.
+      - Does not receive transport authority.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [Composed]
+    output:
+      description: The rendered grounding prompt.
+      schema:
+        type: object
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Rendering a prompt has no durable effect.
+    config:
+      signal: Composed
+      inputs:
+        message: $from(embed_query).carried.input
+        chunks: $from(rag_query).mapped.documents
+      template: |
+        A user asked the following question:
+
+        {{ message }}
+
+        The following corpus chunks were retrieved to ground the answer. Each item
+        is a document; cite the retrieved chunk when you use it.
+
+        {{ chunks }}
+
+        Answer the user's question using only these retrieved chunks. If the chunks
+        do not contain the answer, say so plainly and do not speculate.
+
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    category: boundary
+    emits: [LLMResponded, CommandError]
+    description: Answer the user's question over the composed grounding prompt.
+    problem: The chatbot needs a model boundary that answers grounded in the retrieved chunks.
+    goals:
+      - Send the composed grounding prompt to the configured chat model.
+      - Produce a grounded answer citing chunk ids as the terminal turn output.
+      - Keep model, provider, parser, and prompt configuration profile-owned.
+    requirements:
+      input:
+        - must read the composed grounding prompt from the previous Result
+        - must use the configured model against local Ollama
+      output:
+        - must emit LLMResponded when the model returns answer text
+        - must emit CommandError for provider setup, model discovery, or chat failures
+      side_effects:
+        - must call local Ollama POST /api/chat
+      undo:
+        - must restore conversation history from the pre-call snapshot
+    non_goals:
+      - Does not call embedding or RAG endpoints directly.
+      - Does not author or alter the retrieved chunks.
+    output:
+      description: Raw model response.
+      schema:
+        type: object
+        properties:
+          response: {type: string}
+          provider: {type: string}
+          model: {type: string}
+        required: [response, provider, model]
+    side_effects:
+      - kind: external_api_call
+        target: ollama.chat
+        description: Sends the composed grounding prompt to the configured local model.
+      - kind: state_mutation
+        target: conversation_history
+        state: appended
+        description: Appends the model response after a successful provider call.
+    reversibility:
+      classification: reversible
+      undo: conversation_truncate
+      requires_confirmation: false
+    undo:
+      strategy: conversation_truncate
+      description: Restore conversation history captured before the model call.
+      requires: [conversation_checkpoint]
+    errors:
+      - signal: CommandError
+        condition: provider configuration is invalid, the model is unavailable, or the model call fails
+        message_shape: 'invoke_llm: <provider/model>: <error>'
+        state_after_failure: conversation history is unchanged unless the provider response was already appended
+    relationships:
+      after:
+        - compose_prompt
+    config:
+      model: "ornith:9b"
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      manifest_state: Answering
+      response_profile: qwen
+      max_time: 120
+      llm_timeout: 120
+      system_prompt: |
+        You are a chatbot that answers a user's question using only the corpus
+        chunks retrieved from a RAG server. The user question and the retrieved
+        chunks arrive together in the message as a composed grounding prompt.
+
+        Rules:
+        - Answer only from the retrieved chunks. Do not use outside knowledge.
+        - If the retrieved chunks do not contain the answer, say so plainly.
+        - Cite the chunk identity (the record id) for each claim you make.
+        - Keep the answer concise and grounded; do not speculate beyond the chunks.

@@ -115,7 +115,11 @@ depends_on:
   - srd_id: srd038-command-state-store
     symbols_used: [R1, R2]
 
-implementation_status: planned
+implementation_status:
+  done:
+    - Turn machine and single-RAG data flow (R1, GH-304): the agents/chatbot profile hosts a chat machine_request endpoint whose request-scoped turn sequences embed_query, rag_query (to the srd013 RAG server), compose_prompt, and invoke_llm. The original message reaches compose through command-state $from(embed_query).carried.input and the retrieved chunks through $from(rag_query).mapped.documents, with no carry_forward for the non-adjacent message hop; embed_query embeds the message once. A RAG failure degrades to a mapped 200 (compose renders empty chunks, the model answers ungrounded) rather than a 500. Verified end to end against a live Chroma, RAG server, and Ollama, where a seeded corpus yields a grounded answer citing the record id and a downed RAG server yields the degraded response.
+  planned:
+    - The LLM $tool router (R2) and sequential multi-RAG fan-out with degradation and embedding-space mismatch exclusion (R3), Epic #294; stateless-session history threading (R4); the SPA panels (R5), Epic #295.
 
 diagrams:
   requirements_trace: |
