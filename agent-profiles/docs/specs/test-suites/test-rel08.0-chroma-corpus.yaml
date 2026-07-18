@@ -1,0 +1,91 @@
+id: test-rel08.0-chroma-corpus
+title: Test Suite for Release 08.0 Chroma Corpus Agents
+release: "08.0"
+
+overview: |
+  This suite defines the profile-owned tracer bullet for the Chroma corpus
+  agents: an ingest profile that loads a repository corpus into a local Chroma
+  collection and a reader profile that answers a question grounded in retrieved
+  chunks. Both profiles compute embeddings at a local Ollama provider and thread
+  the vector into Chroma, because Chroma does not embed text server-side over its
+  raw HTTP API (spike #239). The threading uses the agent-core previous-Result
+  parameter capability delivered by #245 (srd028-rest-client-tools R12).
+
+  A tracer is implemented only when agent-profiles owns the profiles, REST
+  definitions, corpus fixture, and expected output evidence, and the run has a
+  reachable Chroma server and Ollama with the configured models. Until the
+  integration target and its fixtures land (#242, #243, #244), the cases stay
+  status specified and name the missing profile asset rather than accepting a
+  fake pass.
+
+traces:
+  - rel08.0-uc001-corpus-ingest
+  - rel08.0-uc002-corpus-query
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../agent-core checkout, including the previous-Result parameter threading from #245.
+  - A Chroma server runs against a persistence directory (chroma run --path <dir>), started by the harness or operator, not the agent.
+  - An Ollama server is reachable with the configured embedding model and answer model.
+  - agent-profiles owns the ingest and reader profiles, the Chroma and Ollama REST definitions, the corpus fixture, and the expected outputs named by the tracer.
+
+test_cases:
+  - use_case: rel08.0-uc001-corpus-ingest
+    name: Chroma corpus ingest tracer
+    follow_up_issue: "#244"
+    integration_target: mage integration:chroma
+    status: specified
+    description: |
+      Run the ingest profile over a small corpus fixture. The target proves
+      chroma_ready and ollama_ready preconditions, create-or-get collection
+      identity resolution with no server-side embedding function, and a per
+      document read -> embed_document -> chroma_add loop that threads the
+      agent-supplied vector and carried document and id into the add body, then
+      verifies the added count with chroma_count.
+    inputs:
+      ingest_profile: agents/chroma/ingest/profile.yaml
+      chroma_rest: agents/chroma/rest/chroma.yaml
+      ollama_rest: agents/chroma/rest/ollama.yaml
+      corpus_fixture: testdata/integration/rel08-chroma-corpus/corpus/
+      embedding_model: configured Ollama embedding model
+    expected:
+      chroma_ready: true
+      ollama_ready: true
+      collection_resolved: true
+      server_side_embedding: false
+      documents_added_count_recorded: true
+      count_matches_added: true
+      target_owner: agent-profiles
+    traces:
+      - rel08.0-uc001-corpus-ingest S1
+      - rel08.0-uc001-corpus-ingest S2
+      - rel08.0-uc001-corpus-ingest S3
+      - srd012-chroma-corpus-agents AC3
+
+  - use_case: rel08.0-uc002-corpus-query
+    name: Chroma corpus query tracer
+    follow_up_issue: "#244"
+    integration_target: mage integration:chroma
+    status: specified
+    description: |
+      Run the reader profile against the ingested collection. The target proves
+      the embed_query -> chroma_query -> invoke_llm trace order: the query vector
+      is computed at Ollama, threaded into the Chroma query body, used to
+      retrieve the configured number of nearest chunks, and those chunks ground
+      the model answer. No model authors a raw embedding vector.
+    inputs:
+      reader_profile: agents/chroma/reader/profile.yaml
+      chroma_rest: agents/chroma/rest/chroma.yaml
+      ollama_rest: agents/chroma/rest/ollama.yaml
+      request_question: fixture question string
+      result_count: configured nearest-chunk count
+    expected:
+      trace_order: [embed_query, chroma_query, invoke_llm]
+      query_vector_threaded: true
+      retrieved_chunk_ids_recorded: true
+      answer_grounded_in_chunks: true
+      target_owner: agent-profiles
+    traces:
+      - rel08.0-uc002-corpus-query S1
+      - rel08.0-uc002-corpus-query S2
+      - rel08.0-uc002-corpus-query S3
+      - srd012-chroma-corpus-agents AC3
