@@ -231,8 +231,12 @@ func (d *DoltCheckpoint) ensureBranch() error {
 	return nil
 }
 
-// createSchema creates the generic four-table schema idempotently; it defines no
-// per-machine or per-run tables (srd036-dolt-state-persistence R2).
+// createSchema creates the generic five-table schema idempotently; it defines no
+// per-machine or per-run tables. tool_results is split into a forward plane
+// (tool_outputs: signal, output, error, cost) read by the command-state store and
+// a reverse plane (receipts: opaque receipt) consumed only by the rollback walk,
+// so a forward selector can never reach a receipt
+// (srd036-dolt-state-persistence R2, R3).
 func createSchema(db Database) error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS machines (
@@ -262,7 +266,7 @@ func createSchema(db Database) error {
 			command_name VARCHAR(255) NOT NULL,
 			PRIMARY KEY (run_id, step_index)
 		)`,
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS tool_results (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS tool_outputs (
 			run_id VARCHAR(255) NOT NULL,
 			step_index INT NOT NULL,
 			%s VARCHAR(255) NOT NULL,
@@ -272,10 +276,15 @@ func createSchema(db Database) error {
 			cost_tokens_in INT NOT NULL,
 			cost_tokens_out INT NOT NULL,
 			cost_dollars DOUBLE NOT NULL,
-			receipt LONGTEXT,
 			PRIMARY KEY (run_id, step_index)
 		)`,
 			doltSignalColumn),
+		`CREATE TABLE IF NOT EXISTS receipts (
+			run_id VARCHAR(255) NOT NULL,
+			step_index INT NOT NULL,
+			receipt LONGTEXT,
+			PRIMARY KEY (run_id, step_index)
+		)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s); err != nil {
@@ -300,9 +309,13 @@ func writeMachine(tx Transaction, runID string, p Position) error {
 	return nil
 }
 
-// writeStep appends one Execution entry across transitions, execution_steps, and
-// tool_results, keyed by (run_id, step_index) for idempotent retry
-// (srd036-dolt-state-persistence R4.1, R4.4).
+// writeStep appends one Execution entry across transitions, execution_steps,
+// tool_outputs, and receipts, keyed by (run_id, step_index) for idempotent retry.
+// The forward plane (tool_outputs) always gets a row; the reverse plane (receipts)
+// gets a row only when the entry carries a receipt, so an empty receipt is
+// represented by row absence and restores "" on Load. Both writes share the one
+// per-step transaction, so a step with an output row but no matching receipt row
+// is never committed (srd036-dolt-state-persistence R3, R4.1, R4.4).
 func writeStep(tx Transaction, runID string, step int, e Entry) error {
 	if err := tx.Exec(
 		fmt.Sprintf(`REPLACE INTO transitions (run_id, step_index, from_state, %s, to_state) VALUES (?, ?, ?, ?, ?)`, doltSignalColumn),
@@ -317,15 +330,22 @@ func writeStep(tx Transaction, runID string, step int, e Entry) error {
 		return fmt.Errorf("%w: save: step: %v", ErrDolt, err)
 	}
 	if err := tx.Exec(
-		fmt.Sprintf(`REPLACE INTO tool_results
-			(run_id, step_index, %s, output, error, cost_duration, cost_tokens_in, cost_tokens_out, cost_dollars, receipt)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doltSignalColumn),
+		fmt.Sprintf(`REPLACE INTO tool_outputs
+			(run_id, step_index, %s, output, error, cost_duration, cost_tokens_in, cost_tokens_out, cost_dollars)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, doltSignalColumn),
 		runID, step, string(e.Result.Signal),
 		nullString(e.Result.Output), nullString(e.Result.Error),
 		int64(e.Result.Cost.Duration), e.Result.Cost.TokensIn, e.Result.Cost.TokensOut, e.Result.Cost.Dollars,
-		nullString(e.Receipt),
 	); err != nil {
-		return fmt.Errorf("%w: save: result: %v", ErrDolt, err)
+		return fmt.Errorf("%w: save: output: %v", ErrDolt, err)
+	}
+	if e.Receipt != "" {
+		if err := tx.Exec(
+			`REPLACE INTO receipts (run_id, step_index, receipt) VALUES (?, ?, ?)`,
+			runID, step, e.Receipt,
+		); err != nil {
+			return fmt.Errorf("%w: save: receipt: %v", ErrDolt, err)
+		}
 	}
 	return nil
 }
@@ -365,16 +385,20 @@ func loadMachine(db Database, runID string) (Position, error) {
 	return pos, nil
 }
 
-// loadExecution reconstructs the ordered Execution, restoring each entry's
-// opaque receipt (srd036-dolt-state-persistence R5.2).
+// loadExecution reconstructs the ordered Execution, restoring each entry's output
+// from the tool_outputs forward plane and its opaque receipt from the receipts
+// reverse plane. tool_outputs is inner-joined because every step writes one; a
+// step with no receipt has no receipts row, so receipts is left-joined and the
+// absent row restores "" (srd036-dolt-state-persistence R3, R5.2).
 func loadExecution(db Database, runID string) (Execution, error) {
 	rows, err := db.Query(
 		fmt.Sprintf(`SELECT es.step_index, es.iteration, es.ts, es.command_name,
 			t.from_state, t.to_state, t.%[1]s,
-			r.%[1]s, r.output, r.error, r.cost_duration, r.cost_tokens_in, r.cost_tokens_out, r.cost_dollars, r.receipt
+			o.%[1]s, o.output, o.error, o.cost_duration, o.cost_tokens_in, o.cost_tokens_out, o.cost_dollars, r.receipt
 			FROM execution_steps es
 			JOIN transitions t ON t.run_id = es.run_id AND t.step_index = es.step_index
-			JOIN tool_results r ON r.run_id = es.run_id AND r.step_index = es.step_index
+			JOIN tool_outputs o ON o.run_id = es.run_id AND o.step_index = es.step_index
+			LEFT JOIN receipts r ON r.run_id = es.run_id AND r.step_index = es.step_index
 			WHERE es.run_id = ?
 			ORDER BY es.step_index`, doltSignalColumn), runID,
 	)

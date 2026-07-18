@@ -38,7 +38,7 @@ type execRow struct {
 
 type resultRow struct {
 	signal                      string
-	output, errStr, receipt     *string
+	output, errStr              *string
 	costDuration                int64
 	costTokensIn, costTokensOut int
 	costDollars                 float64
@@ -49,6 +49,7 @@ type fakeStore struct {
 	transitions map[string]transitionRow
 	steps       map[string]execRow
 	results     map[string]resultRow
+	receipts    map[string]*string
 }
 
 func newFakeStore() *fakeStore {
@@ -57,6 +58,7 @@ func newFakeStore() *fakeStore {
 		transitions: map[string]transitionRow{},
 		steps:       map[string]execRow{},
 		results:     map[string]resultRow{},
+		receipts:    map[string]*string{},
 	}
 }
 
@@ -74,6 +76,9 @@ func (s *fakeStore) clone() *fakeStore {
 	for k, v := range s.results {
 		c.results[k] = v
 	}
+	for k, v := range s.receipts {
+		c.receipts[k] = v
+	}
 	return c
 }
 
@@ -89,6 +94,9 @@ type fakeDB struct {
 	current  string
 	commits  []fakeCommit
 	calls    []string
+	// failOn, when set, makes Exec return an error for any query containing it,
+	// so a test can force a fault between the two per-step table writes.
+	failOn string
 }
 
 func newFakeDB() *fakeDB {
@@ -107,6 +115,9 @@ func (f *fakeDB) Close() error { return nil }
 
 func (f *fakeDB) Exec(query string, args ...any) error {
 	f.calls = append(f.calls, query)
+	if f.failOn != "" && strings.Contains(query, f.failOn) {
+		return sql.ErrConnDone
+	}
 	switch {
 	case strings.Contains(query, "CREATE TABLE"):
 		return nil
@@ -168,7 +179,7 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 			iteration: args[2].(int), ts: args[3].(string), commandName: args[4].(string),
 		}
 		return nil
-	case strings.Contains(query, "REPLACE INTO tool_results"):
+	case strings.Contains(query, "REPLACE INTO tool_outputs"):
 		f.store.results[rowKey(args[0].(string), args[1].(int))] = resultRow{
 			signal:        args[2].(string),
 			output:        strPtr(args[3]),
@@ -177,8 +188,10 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 			costTokensIn:  args[6].(int),
 			costTokensOut: args[7].(int),
 			costDollars:   args[8].(float64),
-			receipt:       strPtr(args[9]),
 		}
+		return nil
+	case strings.Contains(query, "REPLACE INTO receipts"):
+		f.store.receipts[rowKey(args[0].(string), args[1].(int))] = strPtr(args[2])
 		return nil
 	}
 	return nil
@@ -216,7 +229,7 @@ func (f *fakeDB) Query(query string, args ...any) (Rows, error) {
 		joined = append(joined, joinRow{
 			stepIndex: step, iteration: es.iteration, ts: es.ts, commandName: es.commandName,
 			fromState: tr.fromState, toState: tr.toState, signal: tr.signal,
-			resSignal: r.signal, output: r.output, errStr: r.errStr, receipt: r.receipt,
+			resSignal: r.signal, output: r.output, errStr: r.errStr, receipt: f.store.receipts[k],
 			costDuration: r.costDuration, costTokensIn: r.costTokensIn, costTokensOut: r.costTokensOut, costDollars: r.costDollars,
 		})
 	}
@@ -330,6 +343,7 @@ func requireNoUnquotedSignalColumn(t *testing.T, query string) {
 		" from_state, signal,",
 		" step_index, signal,",
 		" t.signal",
+		" o.signal",
 		" r.signal",
 	} {
 		require.NotContains(t, normalized, token)
@@ -399,6 +413,48 @@ func TestDoltCheckpointSaveLoadRoundTrip(t *testing.T) {
 	require.Equal(t, "", gotExec[1].Receipt)
 }
 
+func TestDoltCheckpointSplitsToolOutputsAndReceipts(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", nil)
+
+	// Two steps: step 0 carries a receipt, step 1 has an empty receipt.
+	require.NoError(t, cp.Save(samplePosition(), sampleExecution()[:1]))
+	require.NoError(t, cp.Save(samplePosition(), sampleExecution()))
+
+	var toolOutputsCreate string
+	haveReceiptsCreate := false
+	for _, q := range db.calls {
+		if strings.Contains(q, "CREATE TABLE IF NOT EXISTS tool_outputs") {
+			toolOutputsCreate = q
+		}
+		if strings.Contains(q, "CREATE TABLE IF NOT EXISTS receipts") {
+			haveReceiptsCreate = true
+		}
+	}
+	require.NotEmpty(t, toolOutputsCreate, "tool_outputs table is created")
+	require.NotContains(t, toolOutputsCreate, "receipt", "tool_outputs must not carry a receipt column; the split cannot silently regress")
+	require.True(t, haveReceiptsCreate, "receipts table is created")
+
+	// The forward plane gets a row per step; the reverse plane gets a row only
+	// for the step that carried a receipt, so an empty receipt is row absence.
+	require.Equal(t, 2, countCalls(db.calls, "REPLACE INTO tool_outputs"), "one forward-plane row per step")
+	require.Equal(t, 1, countCalls(db.calls, "REPLACE INTO receipts"), "only the step with a receipt writes a reverse-plane row")
+}
+
+func TestDoltCheckpointSingleTransactionAtomicity(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	db.failOn = "REPLACE INTO receipts"
+	cp := NewDoltCheckpoint(db, "run-1", nil)
+
+	// step 0 carries a receipt, so the receipts write is reached and forced to
+	// fail between the two per-step table writes.
+	err := cp.Save(samplePosition(), sampleExecution()[:1])
+	require.Error(t, err, "a fault on the receipts write fails the save")
+	require.Equal(t, 0, countCalls(db.calls, "DOLT_COMMIT"), "no commit is issued when a step is only partially written")
+}
+
 func TestDoltCheckpointQuotesReservedSignalColumn(t *testing.T) {
 	t.Parallel()
 	db := newFakeDB()
@@ -413,7 +469,7 @@ func TestDoltCheckpointQuotesReservedSignalColumn(t *testing.T) {
 	require.Contains(t, queries, "REPLACE INTO transitions (run_id, step_index, from_state, `signal`, to_state)")
 	require.Contains(t, queries, "(run_id, step_index, `signal`, output, error")
 	require.Contains(t, queries, "t.`signal`")
-	require.Contains(t, queries, "r.`signal`")
+	require.Contains(t, queries, "o.`signal`")
 	requireNoUnquotedSignalColumn(t, queries)
 }
 
