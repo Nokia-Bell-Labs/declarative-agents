@@ -364,11 +364,13 @@ func (c responseCommand) Execute() core.Result {
 func (c responseCommand) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func requestName(input string) string {
-	var req MachineRequestRun
-	if err := json.Unmarshal([]byte(input), &req); err != nil {
+	var seed struct {
+		Parameters map[string]interface{} `json:"parameters"`
+	}
+	if err := json.Unmarshal([]byte(input), &seed); err != nil {
 		return "unknown"
 	}
-	name, _ := req.Payload["name"].(string)
+	name, _ := seed.Parameters["name"].(string)
 	return strings.TrimSpace(name)
 }
 
@@ -449,11 +451,13 @@ func (c pathEchoCommand) Execute() core.Result {
 func (c pathEchoCommand) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
 func requestPath(input string) string {
-	var req MachineRequestRun
-	if err := json.Unmarshal([]byte(input), &req); err != nil {
+	var seed struct {
+		Parameters map[string]interface{} `json:"parameters"`
+	}
+	if err := json.Unmarshal([]byte(input), &seed); err != nil {
 		return ""
 	}
-	path, _ := req.Payload["path"].(string)
+	path, _ := seed.Parameters["path"].(string)
 	return path
 }
 

@@ -376,12 +376,12 @@ func machineRequestParameterResult(output string) core.Result {
 }
 
 func machineRequestParameters(output string) map[string]interface{} {
-	var req struct {
-		Payload map[string]interface{} `json:"payload"`
-		Path    string                 `json:"path"`
+	var seed struct {
+		Parameters map[string]interface{} `json:"parameters"`
+		Path       string                 `json:"path"`
 	}
-	_ = json.Unmarshal([]byte(output), &req)
-	params := req.Payload
+	_ = json.Unmarshal([]byte(output), &seed)
+	params := seed.Parameters
 	if params == nil {
 		params = map[string]interface{}{}
 	}
@@ -389,7 +389,7 @@ func machineRequestParameters(output string) map[string]interface{} {
 		params["resource"] = "docs"
 	}
 	if _, ok := params["path"].(string); !ok {
-		if path := strings.TrimPrefix(req.Path, "/api/v1/docs/"); path != req.Path {
+		if path := strings.TrimPrefix(seed.Path, "/api/v1/docs/"); path != seed.Path {
 			params["path"] = path
 		}
 	}

@@ -47,6 +47,8 @@ requirements:
       - R3.3: Request input SHALL be provided to the initial machine action through structured Result output or an equivalent configured seed payload.
       - R3.4: Request metadata SHALL include request ID, route name, method, path template, correlation ID, remote address policy, and redacted diagnostics.
       - R3.5: Invalid HTTP input SHALL return the configured validation error response and SHALL NOT start a machine run.
+      - R3.6: The seed Result SHALL expose the mapped request input under a parameters key so that either a filesystem word or a REST-client word can be the initial machine action, reading the same parameters selector surface.
+      - R3.7: The seed Result SHALL NOT expose transport authority (method, host, URL, auth, redirect) to the request machine, so the initial action cannot receive transport authority and does not trip the REST runtime-input authority guard; non-authority context such as the URL path and request id MAY be exposed for adapters.
 
   R4:
     title: Response extraction
@@ -96,8 +98,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
 
   - id: AC4
-    criterion: Request input mapping validates HTTP fields, builds structured machine input, carries request metadata, and rejects invalid input before machine execution.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
+    criterion: Request input mapping validates HTTP fields, builds structured machine input, carries request metadata, rejects invalid input before machine execution, exposes the input under a parameters key so a filesystem or REST-client word can be the initial action, and withholds transport authority from the request machine.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7]
 
   - id: AC5
     criterion: Response extraction uses configured response words or terminal output to shape HTTP status, headers, body, and content type.
