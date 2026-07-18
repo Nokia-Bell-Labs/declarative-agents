@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 const (
@@ -36,8 +38,9 @@ func buildClientRequest(
 	def ClientOperationDefinition,
 	input map[string]interface{},
 	resolver CredentialResolver,
+	view core.CommandStateView,
 ) (*http.Request, map[string]interface{}, error) {
-	params, err := normalizeRuntimeParams(input, def.Operation.Params)
+	params, err := normalizeRuntimeParams(input, def.Operation.Params, view)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -61,7 +64,7 @@ func buildClientRequest(
 	return req, params, applyAuth(req, def.Auth, resolver)
 }
 
-func normalizeRuntimeParams(input map[string]interface{}, binding RequestBinding) (map[string]interface{}, error) {
+func normalizeRuntimeParams(input map[string]interface{}, binding RequestBinding, view core.CommandStateView) (map[string]interface{}, error) {
 	if err := ValidateRuntimeInput(input); err != nil {
 		return nil, err
 	}
@@ -79,10 +82,86 @@ func normalizeRuntimeParams(input map[string]interface{}, binding RequestBinding
 	if binding.BodySource == bodySourcePreviousResult {
 		params = selectPreviousResultParams(params, binding)
 	}
+	if binding.BodySource == bodySourceCommandState {
+		selected, err := selectCommandStateParams(view, binding)
+		if err != nil {
+			return nil, err
+		}
+		params = selected
+	}
 	if err := validateDeclaredRuntimeParams(params, binding); err != nil {
 		return nil, err
 	}
 	return params, validateBodySchema(binding.BodySchema, params)
+}
+
+// selectCommandStateParams populates declared params from labeled prior steps in
+// the command-state store using the operation's input_mapping $from(label).path
+// selectors. Only declared params are returned, identically to previous_result
+// (srd028 R13.1). Without a configured store view the body_source is rejected
+// with the existing message (srd028 R13.5). A miss returns a typed error that
+// names the unresolved label (srd038 R1.5).
+func selectCommandStateParams(view core.CommandStateView, binding RequestBinding) (map[string]interface{}, error) {
+	if view == nil {
+		return nil, fmt.Errorf("body_source %s is not supported until a shared command-state store exists", bodySourceCommandState)
+	}
+	selected := map[string]interface{}{}
+	for target, selector := range binding.InputMapping {
+		label, path, ok := parseFromSelector(selector)
+		if !ok {
+			return nil, fmt.Errorf("command_state selector %q must be a $from(label).path selector", selector)
+		}
+		output, found := view.Lookup(label)
+		if !found {
+			return nil, fmt.Errorf("command_state selector %q: no prior step labeled %q", selector, label)
+		}
+		decoded, err := decodeCommandStateOutput(output)
+		if err != nil {
+			return nil, fmt.Errorf("command_state selector %q: %v", selector, err)
+		}
+		value, ok := resolveResultSelector("$."+path, decoded)
+		if !ok {
+			return nil, fmt.Errorf("command_state selector %q: path %q not found in step %q output", selector, path, label)
+		}
+		selected[target] = value
+	}
+	return selected, nil
+}
+
+// decodeCommandStateOutput decodes a labeled step's JSON output into a map so the
+// dotted path can be walked. A step output that is not a JSON object cannot be
+// addressed by a $from selector.
+func decodeCommandStateOutput(output string) (map[string]interface{}, error) {
+	var decoded map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		return nil, fmt.Errorf("step output is not a JSON object")
+	}
+	return decoded, nil
+}
+
+// parseFromSelector splits a $from(label).dotted.path selector into its label and
+// path. It returns ok=false for any other selector form (for example a $.-style
+// previous_result selector or a malformed $from).
+func parseFromSelector(selector string) (label, path string, ok bool) {
+	const prefix = "$from("
+	if !strings.HasPrefix(selector, prefix) {
+		return "", "", false
+	}
+	remainder := selector[len(prefix):]
+	closeIdx := strings.Index(remainder, ")")
+	if closeIdx <= 0 {
+		return "", "", false
+	}
+	label = remainder[:closeIdx]
+	after := remainder[closeIdx+1:]
+	if !strings.HasPrefix(after, ".") {
+		return "", "", false
+	}
+	path = strings.TrimPrefix(after, ".")
+	if label == "" || path == "" {
+		return "", "", false
+	}
+	return label, path, true
 }
 
 // selectPreviousResultParams populates declared params from the previous Result

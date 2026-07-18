@@ -15,8 +15,8 @@ preconditions:
 test_cases:
   - use_case: rel07.0-uc001-command-state-threading
     name: Adjacent label selection threads the previous word's output
-    go_test: go test ./internal/tools/rest -run TestCommandState_AdjacentLabelSelection
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTClient_CommandStateThreadsNonAdjacentStep
+    status: implemented
     description: |
       A query word directly after an embed word selects the embed word's output
       through body_source command_state and a $from(<embed-label>).<path>
@@ -35,8 +35,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Non-adjacent label selection reaches past an intervening word
-    go_test: go test ./internal/tools/rest -run TestCommandState_NonAdjacentLabelSelection
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTClient_CommandStateThreadsNonAdjacentStep
+    status: implemented
     description: |
       In a three-word chain the third word selects the first word's vector by
       label past the intervening word and renders it as a nested array through the
@@ -54,8 +54,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Duplicate labels resolve to the most recent step
-    go_test: go test ./internal/runtime/core -run TestCommandState_DuplicateLabelMostRecentWins
-    status: planned
+    go_test: go test ./internal/runtime/core -run TestCommandStateViewDuplicateLabelMostRecentWins
+    status: implemented
     description: |
       Two steps share a label; a later $from selector resolves to the higher
       step_index, and absolute step indices are not part of the authoring surface.
@@ -72,8 +72,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Restart rehydration resolves the same label mid-chain
-    go_test: go test ./internal/runtime/core -run TestCommandState_RehydratesFromToolOutputsAfterRestart
-    status: planned
+    go_test: go test ./internal/runtime/core -run 'TestCommandStateViewRehydrates(AcrossInMemoryCheckpoint|FromDoltLoad)'
+    status: implemented
     description: |
       A run suspends after the first word; a fresh process rehydrates the store
       from the tool_outputs plane so the later word resolves the same label with
@@ -91,8 +91,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Selector rejection table blocks unsafe threading
-    go_test: go test ./internal/tools/rest -run TestCommandState_RejectsSelectorMisuse
-    status: planned
+    go_test: go test ./internal/tools/rest -run 'TestRESTClient_CommandState(RejectionTable|MissNamesLabel|NoViewConfiguredRejected)'
+    status: implemented
     description: |
       The R13.3 rejection list applies to command_state threading: an undeclared
       input_mapping target, a selector naming an authority field, and a malformed

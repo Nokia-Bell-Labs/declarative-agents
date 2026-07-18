@@ -55,18 +55,27 @@ func (b ClientBuilder) BuildReverser() core.Command {
 }
 
 type clientCmd struct {
-	toolName    string
-	init        string
-	operation   ClientOperationDefinition
-	params      map[string]interface{}
-	asyncState  *AsyncState
-	credentials CredentialResolver
-	definitions ClientOperationResolver
-	buildErr    error
-	recorder    monitor.ToolMetricsRecorder
-	metrics     core.MetricConfig
-	undoMeta    restUndoMetadata
+	toolName     string
+	init         string
+	operation    ClientOperationDefinition
+	params       map[string]interface{}
+	asyncState   *AsyncState
+	credentials  CredentialResolver
+	definitions  ClientOperationResolver
+	buildErr     error
+	recorder     monitor.ToolMetricsRecorder
+	metrics      core.MetricConfig
+	undoMeta     restUndoMetadata
+	commandState core.CommandStateView
 }
+
+// SetCommandState receives the read-only command-state view the engine injects
+// before dispatch, so a body_source command_state operation can resolve
+// $from(label).path selectors against prior steps (srd028 R13, core
+// CommandStateAware).
+func (c *clientCmd) SetCommandState(view core.CommandStateView) { c.commandState = view }
+
+var _ core.CommandStateAware = (*clientCmd)(nil)
 
 type restUndoMetadata struct {
 	ResourceID       string
@@ -102,7 +111,7 @@ func (c *clientCmd) Execute() core.Result {
 	if c.init == InitClientAwait {
 		return c.awaitAsync()
 	}
-	request, effective, err := buildClientRequest(c.operation, c.params, c.credentials)
+	request, effective, err := buildClientRequest(c.operation, c.params, c.credentials, c.commandState)
 	if err != nil {
 		return clientOperationError(c.toolName, requestBuildFailureStage(err), err, c.operation)
 	}

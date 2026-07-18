@@ -273,9 +273,12 @@ type RequestBinding struct {
 	Headers    map[string]interface{} `yaml:"headers,omitempty"`
 	BodySchema map[string]interface{} `yaml:"body_schema,omitempty"`
 	BodySource string                 `yaml:"body_source,omitempty"`
-	// InputMapping selects declared params from the previous Result output when
-	// BodySource is previous_result. Keys are declared param names; values are
-	// $.-style selectors into the prior Result output (srd028 R12.1, R12.2).
+	// InputMapping selects declared params from a source Result. Keys are declared
+	// param names. Under BodySource previous_result the values are $.-style
+	// selectors into the prior Result output (srd028 R12.1, R12.2); under
+	// BodySource command_state they are $from(label).path selectors into a labeled
+	// prior step's output in the command-state store (srd028 R13.1). Selector form
+	// must match the body_source (rest-tool-format V32).
 	InputMapping map[string]string `yaml:"input_mapping,omitempty"`
 	// CarryForward names declared params copied into this operation's Result
 	// output under a carried key so a later word can select them (srd028 R12.3).

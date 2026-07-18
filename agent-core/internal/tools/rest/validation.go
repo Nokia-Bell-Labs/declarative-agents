@@ -533,8 +533,8 @@ func validateRequestBinding(name string, binding RequestBinding) error {
 	if err := validateBodySource(name, binding.BodySource); err != nil {
 		return err
 	}
-	if len(binding.InputMapping) > 0 && binding.BodySource != bodySourcePreviousResult {
-		return fmt.Errorf("operation %q input_mapping requires body_source %s", name, bodySourcePreviousResult)
+	if len(binding.InputMapping) > 0 && binding.BodySource != bodySourcePreviousResult && binding.BodySource != bodySourceCommandState {
+		return fmt.Errorf("operation %q input_mapping requires body_source %s or %s", name, bodySourcePreviousResult, bodySourceCommandState)
 	}
 	declared := declaredParamNames(binding)
 	for target, selector := range binding.InputMapping {
@@ -544,8 +544,8 @@ func validateRequestBinding(name string, binding RequestBinding) error {
 		if !declared[target] {
 			return fmt.Errorf("operation %q input_mapping target %q is not declared", name, target)
 		}
-		if !strings.HasPrefix(selector, "$.") {
-			return fmt.Errorf("operation %q input_mapping selector %q must start with $.", name, selector)
+		if err := validateSelectorForm(name, binding.BodySource, selector); err != nil {
+			return err
 		}
 	}
 	for _, carried := range binding.CarryForward {
@@ -561,13 +561,29 @@ func validateRequestBinding(name string, binding RequestBinding) error {
 
 func validateBodySource(name, source string) error {
 	switch source {
-	case "", bodySourceParams, bodySourcePreviousResult, bodySourceNone:
+	case "", bodySourceParams, bodySourcePreviousResult, bodySourceNone, bodySourceCommandState:
+		// command_state is structurally valid; it is rejected only at runtime when
+		// no command-state store view is configured (srd028 R13.5).
 		return nil
-	case bodySourceCommandState:
-		return fmt.Errorf("operation %q body_source %s is not supported until a shared command-state store exists", name, bodySourceCommandState)
 	default:
 		return fmt.Errorf("operation %q has unsupported body_source %q", name, source)
 	}
+}
+
+// validateSelectorForm enforces rest-tool-format V32: a $from(label).path
+// selector is valid only under body_source command_state, and a $.-style selector
+// is valid only under body_source previous_result.
+func validateSelectorForm(name, source, selector string) error {
+	if source == bodySourceCommandState {
+		if _, _, ok := parseFromSelector(selector); !ok {
+			return fmt.Errorf("operation %q input_mapping selector %q must be a $from(label).path selector under body_source command_state", name, selector)
+		}
+		return nil
+	}
+	if !strings.HasPrefix(selector, "$.") {
+		return fmt.Errorf("operation %q input_mapping selector %q must start with $.", name, selector)
+	}
+	return nil
 }
 
 func validateResponseMapping(name string, mapping ResponseMapping) error {
