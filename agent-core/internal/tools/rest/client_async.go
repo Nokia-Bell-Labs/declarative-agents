@@ -130,7 +130,9 @@ func executeClientOnce(
 	input map[string]interface{},
 	creds CredentialResolver,
 ) core.Result {
-	request, params, err := buildClientRequest(op, input, creds)
+	// The await poll samples a read operation with no command-state view; a
+	// body_source command_state operation is not a valid await target.
+	request, params, err := buildClientRequest(op, input, creds, nil)
 	if err != nil {
 		return clientOperationError(toolName, requestBuildFailureStage(err), err, op)
 	}

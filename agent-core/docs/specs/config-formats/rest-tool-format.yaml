@@ -1218,7 +1218,7 @@ format_examples:
                     n_results: {type: integer}
                 body_source: command_state
                 input_mapping:
-                  query_embeddings: $from(embed_query).embedding
+                  query_embeddings: $from(embed_query).mapped.embedding
                   collection: $from(embed_query).carried.input
               body:
                 query_embeddings: ["{{ params.query_embeddings }}"]
@@ -1608,9 +1608,8 @@ implementation_status:
     - filesystem resource words used by the Knowledge Manager request machine.
     - generic machine_request response trace fields for server, route, and request machine emitted directly by internal/tools/rest.
     - always-on Knowledge Manager conformance coverage for generic machine_request routes under plain go test.
-    - request_binding.input_mapping and request_binding.carry_forward with body_source previous_result consumption (V28-V31): a client operation selects declared params from the prior Result output and copies declared inputs forward under a carried key. Validation rejects undeclared targets, command_state body_source, and transport-authority overrides.
-  planned:
-    - request_binding body_source command_state consumption (srd028 R13, V29/V32): a client operation selects declared params from a labeled prior step in the srd038 command-state store through input_mapping $from(<label>).<path> selectors, with the R12.4 rejection list applied identically and previous_result threading unchanged. Rejected only when no command-state store is configured. Implemented by Epic #270 (GH-278 REST consumption and V32 validation, GH-277 CommandStateView).
+    - request_binding.input_mapping and request_binding.carry_forward with body_source previous_result consumption (V28-V31): a client operation selects declared params from the prior Result output and copies declared inputs forward under a carried key. Validation rejects undeclared targets and transport-authority overrides.
+    - request_binding body_source command_state consumption (srd028 R13, V29/V32): a client operation selects declared params from a labeled prior step in the srd038 command-state store through input_mapping $from(<label>).<path> selectors resolved against the injected core CommandStateView, with the R12.4 rejection list applied identically and previous_result threading unchanged. command_state is structurally valid; it is rejected only at runtime when no store view is configured. V32 requires $from(...) selectors under command_state and $. selectors under previous_result. Delivered by GH-278 (REST consumption and V32 validation) over GH-277 (CommandStateView).
   partial:
     - read_policy values outside first-available are rejected until implemented.
   reserved:

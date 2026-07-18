@@ -101,14 +101,16 @@ func TestRESTClient_RejectsPreviousResultThreadingMisuse(t *testing.T) {
 			message: "input_mapping target \"unknown\" is not declared",
 		},
 		{
-			name:    "command_state body_source",
+			// Activated in GH-278: command_state is structurally valid, but a
+			// $.-style selector under it now trips the V32 selector-form rule.
+			name:    "command_state body_source with $. selector",
 			mutate:  func(op *Operation) { op.Params.BodySource = bodySourceCommandState },
-			message: "body_source command_state is not supported",
+			message: "must be a $from(label).path selector under body_source command_state",
 		},
 		{
-			name:    "input_mapping without previous_result",
+			name:    "input_mapping without previous_result or command_state",
 			mutate:  func(op *Operation) { op.Params.BodySource = bodySourceParams },
-			message: "input_mapping requires body_source previous_result",
+			message: "input_mapping requires body_source previous_result or command_state",
 		},
 		{
 			name:    "transport authority input_mapping target",
