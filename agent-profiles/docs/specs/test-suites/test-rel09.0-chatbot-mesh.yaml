@@ -174,8 +174,9 @@ test_cases:
       RAG is a Service selector change touching no agent config (satisfied by
       construction once the clients are co-generated to Service DNS); adding a RAG
       re-renders ConfigMaps and rolls the chatbot with a Dolt checkpoint resume.
-      The add-RAG path additionally needs the chatbot fan-out machine and rag_merge
-      sources co-generated for N RAGs (coupled to the fan-out redesign in GH-365).
+      The add-RAG path additionally needs the chatbot fan-out machine and the
+      compose per-source inputs co-generated for N RAGs (the fan-out is visible
+      machine guards plus compose after GH-365).
     inputs:
       chart: deploy/chatbot-mesh/
       values_rag_list: [rag-a, rag-b]
