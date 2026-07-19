@@ -192,7 +192,7 @@ releases:
     status: in-progress
     planned_work:
       - id: gh-193
-        summary: Split srd001-agent-functional-blocks into per-family SRDs (srd002-generator through srd011-knowledge-manager) and retarget existing traces.
+        summary: Split srd001-agent-functional-blocks into per-family SRDs (srd002-executor through srd011-knowledge-manager) and retarget existing traces.
         status: done
       - id: gh-194
         summary: Add per-family boundary use cases and a test suite for the jurist, lifecycle, and rest profiles.
@@ -204,7 +204,7 @@ releases:
         summary: Exercise the shipped profile.yaml wrappers and their variants behaviorally in conformance instead of synthesized reconstructions — copy-and-patch only harness-controlled fields (addresses, ports, corpus dirs, iteration budget) — and record per-family and per-variant coverage (shipped-behavioral vs load-and-wiring) with reasons.
         status: done
     deliverables:
-      - docs/specs/software-requirements/srd002-generator.yaml through
+      - docs/specs/software-requirements/srd002-executor.yaml through
         srd011-knowledge-manager.yaml define per-family functional blocks.
       - docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
         keeps the profile ownership boundary and cross-profile
@@ -480,18 +480,14 @@ releases:
       - "mage validate  # profile wiring holds over the renamed tree"
       - "mage conformance  # conformance fixtures pass under testdata/conformance"
       - "go test ./...  # agent-core critic-session/critic-point builtin tool dirs"
-      - "grep -r 'agents/critic\\|agents/generator\\|agents/chroma\\|agents/rest/\\|agents/control/\\|agents/lifecycle/' -- returns no stale path outside retained historical release records"
+      - "grep -r 'agents/critic\\|agents/executor\\|agents/chroma\\|agents/rest/\\|agents/control/\\|agents/lifecycle/' -- returns no stale path outside retained historical release records"
     srds:
       - srd013-rag-server-agent
       - srd014-chatbot-agent
     use_cases:
       - id: rel10.0-uc001-role-catalog-renames
-        # The critic half (evaluator -> critic, and the agent-core critic-session/
-        # critic-point tool dirs) is done (GH-325, GH-330); the executor half
-        # (generator -> executor) lands with GH-326, at which point this flips to
-        # implemented.
         summary: The evaluator family is renamed to critic and generator to executor (reference role names).
-        status: specified
+        status: implemented
       - id: rel10.0-uc002-knowledge-family-rescope
         summary: The vendor-named chroma family moves under knowledge-manager as corpus-ingest and corpus-reader.
         status: specified

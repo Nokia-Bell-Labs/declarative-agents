@@ -1,6 +1,6 @@
 name: rel07-evaluator-generator
 profiles:
-  - ../../../agents/generator/profile.yaml
+  - ../../../agents/executor/profile.yaml
 samples_dir: samples
 timeout: 30s
 repetitions: 1

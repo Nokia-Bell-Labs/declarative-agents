@@ -61,7 +61,7 @@ func TestValidateProfilesRejectsCopiedCoreAgentRefs(t *testing.T) {
 	coreRoot := t.TempDir()
 	writeProfileFixture(t, root, "generator")
 	profilePath := filepath.Join(root, "agents", "generator", "profile.yaml")
-	appendFile(t, profilePath, "tool_declarations:\n  - /opt/agent-core/agents/generator/profile.yaml\n")
+	appendFile(t, profilePath, "tool_declarations:\n  - /opt/agent-core/agents/executor/profile.yaml\n")
 
 	err := validateProfiles(root, coreRoot)
 	if err == nil {

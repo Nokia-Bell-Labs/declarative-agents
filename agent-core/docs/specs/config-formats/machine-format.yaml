@@ -354,7 +354,7 @@ diagnostics: |
   code, message, and the affected state/signal/transition index.
 
 examples:
-  - file: ../agent-profiles/agents/generator/machine.yaml
+  - file: ../agent-profiles/agents/executor/machine.yaml
     description: |
       7 states, 11 signals, rich state/signal metadata. LLM-driven
       loop with $tool dispatch. The generator iterates between

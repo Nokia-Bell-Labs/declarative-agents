@@ -1,5 +1,5 @@
-# LLM tool declaration for the generator agent — DeepSeek model.
-# Loaded through a generator profile tool_declarations entry.
+# LLM tool declaration for the executor agent — DeepSeek model.
+# Loaded through a executor profile tool_declarations entry.
 
 tools:
   - name: invoke_llm

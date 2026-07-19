@@ -14,7 +14,7 @@ func resolveAgentProfilesRoot(rootDir string) (string, error) {
 		if root == "" {
 			continue
 		}
-		if hasProfile(root, "generator") || hasProfile(root, "critic") {
+		if hasProfile(root, "executor") || hasProfile(root, "critic") {
 			return root, nil
 		}
 	}
@@ -32,11 +32,11 @@ func normalizeAgentProfilesRoot(candidate string) string {
 	if candidate == "" {
 		return ""
 	}
-	if hasProfile(candidate, "generator") || hasProfile(candidate, "critic") {
+	if hasProfile(candidate, "executor") || hasProfile(candidate, "critic") {
 		return candidate
 	}
 	nested := filepath.Join(candidate, "agents")
-	if hasProfile(nested, "generator") || hasProfile(nested, "critic") {
+	if hasProfile(nested, "executor") || hasProfile(nested, "critic") {
 		return nested
 	}
 	return ""
@@ -70,7 +70,7 @@ func normalizeAgentProfilesRepoRoot(candidate string) string {
 		return ""
 	}
 	for _, root := range []string{candidate, filepath.Dir(candidate)} {
-		if hasProfile(filepath.Join(root, "agents"), "generator") && hasIntegrationFixtureRoot(root) {
+		if hasProfile(filepath.Join(root, "agents"), "executor") && hasIntegrationFixtureRoot(root) {
 			return root
 		}
 	}

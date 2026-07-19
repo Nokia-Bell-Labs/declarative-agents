@@ -58,7 +58,7 @@ overview: |
   have implemented shipped-behavioral conformance.
 
 traces:
-  - srd002-generator
+  - srd002-executor
   - srd003-critic
   - srd004-planner
   - srd005-jurist
@@ -279,11 +279,11 @@ test_cases:
       - srd009-lifecycle AC3
       - sm-agent-role-taxonomy lifecycle
 
-  - family: generator
-    name: Generator model-boundary conformance
+  - family: executor
+    name: Executor model-boundary conformance
     status: implemented
     gate: ollama
-    test: conformance/generator_test.go
+    test: conformance/executor_test.go
     coverage: shipped-behavioral
     coverage_note: |
       Copies the shipped generator profile and patches only the machine's
@@ -292,18 +292,18 @@ test_cases:
       tool_config_dirs run as shipped. The variants below are annotated
       individually.
     variants:
-      - profile: agents/generator/profile.yaml
+      - profile: agents/executor/profile.yaml
         model: qwen3.6:35b-mlx
         coverage: shipped-behavioral
-        test: conformance/generator_test.go TestGeneratorConformance
-      - profile: agents/generator/profile-qwen35b.yaml
+        test: conformance/executor_test.go TestExecutorConformance
+      - profile: agents/executor/profile-qwen35b.yaml
         model: qwen3.6:35b-mlx
         coverage: shipped-behavioral
-        test: conformance/generator_test.go TestGeneratorQwen35bConformance
-      - profile: agents/generator/profile-qwen27b.yaml
+        test: conformance/executor_test.go TestExecutorQwen35bConformance
+      - profile: agents/executor/profile-qwen27b.yaml
         model: qwen3.6:27b-mlx
         coverage: shipped-behavioral
-        test: conformance/generator_test.go TestGeneratorQwen27bConformance
+        test: conformance/executor_test.go TestExecutorQwen27bConformance
     description: |
       Runs each shipped generator profile (representative profile.yaml plus the
       profile-qwen35b and profile-qwen27b variants) with the machine bounded to a
@@ -313,22 +313,22 @@ test_cases:
       a gen_ai chat span for the configured model appears under a single root with
       no error-status spans. Each run is Ollama-gated on its declared model:
       invoke_llm pings Ollama at tool registration, so with no reachable model the
-      profile cannot start and the variant skips cleanly. TestGeneratorShippedProfileWiring
+      profile cannot start and the variant skips cleanly. TestExecutorShippedProfileWiring
       is the ungated load-and-wiring companion (see the row below).
     expected:
       asserted_span_prefixes: ["chat "]
       error_status_spans: 0
       terminal_states: [BudgetExceeded]
     traces:
-      - srd002-generator AC1
-      - srd002-generator AC2
-      - srd002-generator AC3
+      - srd002-executor AC1
+      - srd002-executor AC2
+      - srd002-executor AC3
       - sm-agent-role-taxonomy generator
 
-  - family: generator
+  - family: executor
     name: Generator shipped-profile load and machine wiring
     status: implemented
-    test: conformance/generator_test.go TestGeneratorShippedProfileWiring
+    test: conformance/executor_test.go TestExecutorShippedProfileWiring
     coverage: load-and-wiring
     coverage_note: Ungated, model-free; parses the three shipped generator profiles and the shared machine.
     description: |
@@ -338,8 +338,8 @@ test_cases:
       drains its iteration budget to BudgetExceeded — the wiring the bounded
       behavioral runs assume. Holds in the fast default and where Ollama is absent.
     traces:
-      - srd002-generator AC1
-      - srd002-generator AC3
+      - srd002-executor AC1
+      - srd002-executor AC3
       - sm-agent-role-taxonomy generator
 
   - family: planner

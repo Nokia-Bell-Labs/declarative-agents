@@ -15,7 +15,7 @@ func TestUc001AgentArgsIncludesCoreRoot(t *testing.T) {
 
 	got := uc001AgentArgs(profileRoot, coreRoot, workDir)
 	want := []string{
-		"--profile", filepath.Join(profileRoot, "generator", "profile.yaml"),
+		"--profile", filepath.Join(profileRoot, "executor", "profile.yaml"),
 		"--directory", workDir,
 		"--core-root", coreRoot,
 	}

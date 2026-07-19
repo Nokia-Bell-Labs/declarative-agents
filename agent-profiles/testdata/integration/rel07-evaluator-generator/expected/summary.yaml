@@ -1,5 +1,5 @@
 suite: rel07-evaluator-generator
-subject_profile: agents/generator/profile.yaml
+subject_profile: agents/executor/profile.yaml
 expected_points: 1
 expected_sample: greet
 expected_harness: generator

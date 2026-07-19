@@ -1,4 +1,4 @@
-name: generator
+name: executor-qwen27b
 machine: machine.yaml
 tools:
   - tools.yaml
@@ -7,4 +7,4 @@ tool_config_dirs:
   - /opt/agent-core/tools/builtin/llm
   - /opt/agent-core/tools/exec/go
 tool_declarations:
-  - llm/default.yaml
+  - llm/qwen27b.yaml

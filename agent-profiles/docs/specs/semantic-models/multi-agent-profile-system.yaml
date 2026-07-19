@@ -12,7 +12,7 @@ overview: |
   edges after the files leave agent-core; otherwise profile ownership becomes
   visible while behavior quietly changes.
 
-  When planner delegates task execution, the edge points to generator. A
+  When planner delegates task execution, the edge points to executor. A
   benchmark point uses a similar edge when critic runs a subject profile.
   From the human side, bench starts critic through an operator action in the
   web UI. Boundary-oriented profiles face outward toward REST callers,
@@ -34,11 +34,11 @@ system_boundary:
 role_groups:
   - id: production_work
     profiles:
-      - generator
+      - executor
       - planner
     summary: |
       Production work covers task planning and coding. Planner decomposes
-      requirements and invokes generator. Generator edits a target workspace,
+      requirements and invokes executor. Executor edits a target workspace,
       then lets machine-declared validation decide the terminal outcome.
   - id: evaluation_work
     profiles:
@@ -68,15 +68,15 @@ role_groups:
 
 dependency_directions:
   - from: planner
-    to: generator
+    to: executor
     kind: child_profile_execution
-    meaning: Planner materializes and executes tasks through the generator
-      profile. Generator does not depend on planner.
+    meaning: Planner materializes and executes tasks through the executor
+      profile. Executor does not depend on planner.
     evidence: rel07.0-uc003-planner-generator-profile-boundary
   - from: critic
-    to: generator
+    to: executor
     kind: benchmark_subject_execution
-    meaning: Critic point runs can invoke generator or another configured
+    meaning: Critic point runs can invoke executor or another configured
       profile as the benchmark subject.
     evidence: rel07.0-uc002-evaluator-generator-profile-boundary
   - from: bench
@@ -113,7 +113,7 @@ dependency_directions:
       boundaries.
 
 actor_boundaries:
-  - profile: generator
+  - profile: executor
     actors:
       - model
       - workspace
@@ -132,8 +132,8 @@ actor_boundaries:
       - requirement graph
       - model
       - issue queue
-      - child generator process
-    boundary: Planner turns requirements into issues and invokes generator for
+      - child executor process
+    boundary: Planner turns requirements into issues and invokes executor for
       execution.
   - profile: jurist
     actors:
@@ -190,7 +190,7 @@ validation_views:
   - Mounted container execution checks that /profiles paths can run selected
     profiles without bundled agent directories in the runtime image.
   - Integration tests check profile relationships such as bench to critic,
-    critic to generator, planner to generator, and Knowledge Manager control
+    critic to executor, planner to executor, and Knowledge Manager control
     exit.
   - Release 07.0 records implemented relationship checks in
     test-rel07.0-profile-integrations.

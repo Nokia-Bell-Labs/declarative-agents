@@ -18,7 +18,7 @@ func TestSelfInvokeBuilder_Build(t *testing.T) {
 	builder := &SelfInvokeBuilder{
 		Config: execute.Config{
 			Binary:  "echo",
-			Profile: "agents/generator/profile.yaml",
+			Profile: "agents/executor/profile.yaml",
 		},
 		Ctx: context.Background(),
 	}
@@ -93,7 +93,7 @@ func TestSelfInvokeBuilder_ExtraArgs(t *testing.T) {
 	builder := &SelfInvokeBuilder{
 		Config: execute.Config{
 			Binary:  "echo",
-			Profile: "agents/generator/profile.yaml",
+			Profile: "agents/executor/profile.yaml",
 			Timeout: 5 * time.Second,
 		},
 		ExtraArgs: []string{"--directory", "/workspace"},

@@ -72,7 +72,7 @@ test_cases:
       oracle accounting, trace evidence, and fixture-local result paths.
     inputs:
       evaluator_profile: agents/critic/profile.yaml
-      subject_profile: agents/generator/profile.yaml
+      subject_profile: agents/executor/profile.yaml
       suite: testdata/integration/rel07-evaluator-generator/suite.yaml
       expected_summary: testdata/integration/rel07-evaluator-generator/expected/summary.yaml
       output_dir: temporary evaluator results directory
@@ -100,7 +100,7 @@ test_cases:
       terminal state and child run outcome without writing real external issues.
     inputs:
       planner_profile: agents/planner/profile.yaml
-      child_profile: agents/generator/profile.yaml
+      child_profile: agents/executor/profile.yaml
       graph_fixture: testdata/integration/rel07-planner-generator/graph.yaml
       workspace: testdata/integration/rel07-planner-generator/workspace
       expected_terminal_state: testdata/integration/rel07-planner-generator/expected/terminal-state.yaml

@@ -3,7 +3,7 @@
 # transition after EditDone, prompting the model to re-read files
 # before making further changes.
 
-name: generator-deepseek
+name: executor-deepseek
 initial_state: Idle
 
 budget:

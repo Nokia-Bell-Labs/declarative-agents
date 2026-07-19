@@ -181,18 +181,18 @@ func TestResultSuccess(t *testing.T) {
 
 func TestBuildArgs_ProfileOnly(t *testing.T) {
 	cfg := Config{
-		Profile: "agents/generator/profile.yaml",
+		Profile: "agents/executor/profile.yaml",
 	}
 
 	args := cfg.BuildArgs()
 	assert.Equal(t, []string{
-		"--profile", "agents/generator/profile.yaml",
+		"--profile", "agents/executor/profile.yaml",
 	}, args)
 }
 
 func TestBuildArgs_ChildRuntimeData(t *testing.T) {
 	cfg := Config{
-		Profile:     "agents/generator/profile.yaml",
+		Profile:     "agents/executor/profile.yaml",
 		Directory:   "/workspace",
 		Request:     "suite.yaml",
 		Output:      "eval-results",
@@ -202,7 +202,7 @@ func TestBuildArgs_ChildRuntimeData(t *testing.T) {
 	args := cfg.BuildArgs()
 
 	assert.Equal(t, []string{
-		"--profile", "agents/generator/profile.yaml",
+		"--profile", "agents/executor/profile.yaml",
 		"--directory", "/workspace",
 		"--request", "suite.yaml",
 		"--output", "eval-results",
@@ -230,13 +230,13 @@ func TestRunAgent_Success(t *testing.T) {
 func TestRunAgent_ExtraArgs(t *testing.T) {
 	result := RunAgent(context.Background(), Config{
 		Binary:  "echo",
-		Profile: "agents/generator/profile.yaml",
+		Profile: "agents/executor/profile.yaml",
 		Timeout: 5 * time.Second,
 	}, "--directory", "/workspace")
 
 	assert.Equal(t, 0, result.ExitCode)
 	assert.Contains(t, result.Stdout, "--profile")
-	assert.Contains(t, result.Stdout, "agents/generator/profile.yaml")
+	assert.Contains(t, result.Stdout, "agents/executor/profile.yaml")
 	assert.Contains(t, result.Stdout, "--directory")
 	assert.Contains(t, result.Stdout, "/workspace")
 }

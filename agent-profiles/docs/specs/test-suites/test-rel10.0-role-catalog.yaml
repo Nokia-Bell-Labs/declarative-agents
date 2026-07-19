@@ -24,7 +24,7 @@ test_cases:
     name: Critic and executor renames validate over the tree
     integration_target: mage validate
     go_test: go test ./... (agent-core, for critic-session/critic-point)
-    status: specified
+    status: implemented
     description: |
       After the rename, agents/critic and agents/executor exist and no evaluator or
       generator family remains; the agent-core builtin tool dirs are critic-session

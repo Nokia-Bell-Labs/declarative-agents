@@ -181,7 +181,7 @@ related_documents:
     purpose: Cross-cutting profile ownership boundary and dependency-direction
       invariants shared by every profile family.
   - doc: docs/specs/software-requirements/
-    purpose: Per-family functional block requirements in srd002-generator
+    purpose: Per-family functional block requirements in srd002-executor
       through srd011-knowledge-manager.
   - doc: docs/specs/semantic-models/multi-agent-profile-system.yaml
     purpose: Profile role groups, actor boundaries, and dependency directions.

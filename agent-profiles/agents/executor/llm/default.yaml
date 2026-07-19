@@ -1,5 +1,5 @@
-# LLM tool declaration for the generator agent — default model.
-# Loaded through agents/generator/profile.yaml tool_declarations.
+# LLM tool declaration for the executor agent — default model.
+# Loaded through agents/executor/profile.yaml tool_declarations.
 
 tools:
   - name: invoke_llm
@@ -10,7 +10,7 @@ tools:
     description: "Invoke the LLM with the current conversation history."
     category: boundary
     problem: |
-      The generator machine needs a boundary word that asks the configured
+      The executor machine needs a boundary word that asks the configured
       model to choose the next tool call from the current conversation and
       tool manifest. This is not an ordinary deterministic word because it
       crosses the model/provider boundary and may return different text for

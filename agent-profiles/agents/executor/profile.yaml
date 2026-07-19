@@ -1,4 +1,4 @@
-name: generator-qwen35b
+name: executor
 machine: machine.yaml
 tools:
   - tools.yaml

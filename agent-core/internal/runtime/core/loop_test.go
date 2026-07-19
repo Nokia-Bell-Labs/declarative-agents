@@ -719,7 +719,7 @@ func TestLoop_DeclarativeInit_MachineNameDoesNotChangeEngineBehavior(t *testing.
 		return rr
 	}
 
-	generatorRun := run(t, "generator")
+	generatorRun := run(t, "executor")
 	evaluatorRun := run(t, "critic")
 
 	require.Equal(t, generatorRun.Status, evaluatorRun.Status)

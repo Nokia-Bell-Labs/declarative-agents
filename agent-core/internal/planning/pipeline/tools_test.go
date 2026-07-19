@@ -407,14 +407,14 @@ func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
 		Name: "execute_task",
 		Init: "execute_task",
 		Config: map[string]interface{}{
-			"profile": "agents/generator/profile.yaml",
+			"profile": "agents/executor/profile.yaml",
 		},
 	}, nil)
 	require.NoError(t, err)
 
 	execBuilder, ok := builder.(*ExecuteTaskBuilder)
 	require.True(t, ok)
-	require.Equal(t, "agents/generator/profile.yaml", execBuilder.PS.ExecConfig.Profile)
+	require.Equal(t, "agents/executor/profile.yaml", execBuilder.PS.ExecConfig.Profile)
 }
 
 var _ llm.PromptAssembler = (*PlannerAssembler)(nil)

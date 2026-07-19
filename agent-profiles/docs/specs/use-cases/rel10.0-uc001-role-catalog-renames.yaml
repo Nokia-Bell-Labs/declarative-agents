@@ -28,7 +28,7 @@ preconditions:
 
 flow:
   - id: F1
-    text: agents/critic is renamed to agents/critic and agents/generator to agents/executor, with the profile, machine, and internal ids renamed to match.
+    text: agents/critic is renamed to agents/critic and agents/executor to agents/executor, with the profile, machine, and internal ids renamed to match.
   - id: F2
     text: srd003 (evaluator) and srd002 (generator) are renamed to critic and executor, and the agent-role-taxonomy role ids follow.
   - id: F3
@@ -46,7 +46,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: agents/ contains critic and executor families and no evaluator or generator family; the profile, machine, and SRD ids match, and grep for agents/critic and agents/generator returns no hit outside retained historical release records.
+    criterion: agents/ contains critic and executor families and no evaluator or generator family; the profile, machine, and SRD ids match, and grep for agents/critic and agents/executor returns no hit outside retained historical release records.
     traces:
       - sm-agent-role-taxonomy
   - id: S2
@@ -63,4 +63,4 @@ out_of_scope:
   - The chroma and conformance-fixture moves, which are uc002 and uc003.
 
 test_suite_trace: test-rel10.0-role-catalog
-status: specified
+status: implemented

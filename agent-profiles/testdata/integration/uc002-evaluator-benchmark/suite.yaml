@@ -1,7 +1,7 @@
 name: qwen36-integration
 profiles:
-  - ../../../agents/generator/profile-qwen35b.yaml
-  - ../../../agents/generator/profile-qwen27b.yaml
+  - ../../../agents/executor/profile-qwen35b.yaml
+  - ../../../agents/executor/profile-qwen27b.yaml
 samples_dir: samples
 timeout: 10m
 repetitions: 1

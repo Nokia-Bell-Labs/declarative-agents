@@ -158,8 +158,8 @@ test_cases:
       developer_absolute_paths_absent: true
     traces:
       - rel06.0-uc001-mounted-profile-execution S5
-      - srd002-generator R1.1
-      - srd002-generator R3.1
+      - srd002-executor R1.1
+      - srd002-executor R3.1
       - srd003-critic R1.1
       - srd003-critic R2.3
       - sm-agent-role-taxonomy generator

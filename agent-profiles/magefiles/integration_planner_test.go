@@ -18,7 +18,7 @@ tasks:
     title: Implement greeting
     requirements: [R1]
     workspace: workspace
-    child_profile: agents/generator/profile.yaml
+    child_profile: agents/executor/profile.yaml
 `)
 
 	graph, err := readPlannerGraph(path)
@@ -28,7 +28,7 @@ tasks:
 	if graph.ID != "rel07-planner-generator" || len(graph.Tasks) != 1 {
 		t.Fatalf("graph = %#v", graph)
 	}
-	if graph.Tasks[0].ChildProfile != "agents/generator/profile.yaml" {
+	if graph.Tasks[0].ChildProfile != "agents/executor/profile.yaml" {
 		t.Fatalf("child profile = %q", graph.Tasks[0].ChildProfile)
 	}
 }
@@ -38,14 +38,14 @@ func TestWriteMaterializedTaskRecordsPlannerBoundary(t *testing.T) {
 	task := plannerTask{
 		ID: "task-greet", SRDID: "srd001-greet", Status: "ready",
 		Title: "Implement greeting", Requirements: []string{"R1"},
-		Workspace: "workspace", ChildProfile: "agents/generator/profile.yaml",
+		Workspace: "workspace", ChildProfile: "agents/executor/profile.yaml",
 	}
 
 	if err := writeMaterializedTask(runDir, task); err != nil {
 		t.Fatalf("writeMaterializedTask: %v", err)
 	}
 	data := readTestFile(t, filepath.Join(runDir, "materialized-task.yaml"))
-	for _, want := range []string{"task-greet", "srd001-greet", "agents/generator/profile.yaml"} {
+	for _, want := range []string{"task-greet", "srd001-greet", "agents/executor/profile.yaml"} {
 		if !strings.Contains(data, want) {
 			t.Fatalf("materialized task missing %q:\n%s", want, data)
 		}
@@ -56,7 +56,7 @@ func TestAssertPlannerGeneratorStateRequiresTraceAndTerminalState(t *testing.T) 
 	runDir := t.TempDir()
 	state := plannerTerminalState{
 		Graph: "rel07-planner-generator", TerminalState: "completed",
-		MaterializedTaskCount: 1, ChildProfile: "agents/generator/profile.yaml",
+		MaterializedTaskCount: 1, ChildProfile: "agents/executor/profile.yaml",
 		ChildRunOutcome: "succeeded", Validation: "passed",
 	}
 	if err := writePlannerTerminalState(runDir, state); err != nil {
@@ -73,12 +73,12 @@ func TestAssertPlannerGeneratorStateRejectsMismatch(t *testing.T) {
 	runDir := t.TempDir()
 	got := plannerTerminalState{
 		Graph: "rel07-planner-generator", TerminalState: "stalled",
-		MaterializedTaskCount: 1, ChildProfile: "agents/generator/profile.yaml",
+		MaterializedTaskCount: 1, ChildProfile: "agents/executor/profile.yaml",
 		ChildRunOutcome: "failed", Validation: "failed",
 	}
 	want := plannerTerminalState{
 		Graph: "rel07-planner-generator", TerminalState: "completed",
-		MaterializedTaskCount: 1, ChildProfile: "agents/generator/profile.yaml",
+		MaterializedTaskCount: 1, ChildProfile: "agents/executor/profile.yaml",
 		ChildRunOutcome: "succeeded", Validation: "passed",
 	}
 	if err := writePlannerTerminalState(runDir, got); err != nil {

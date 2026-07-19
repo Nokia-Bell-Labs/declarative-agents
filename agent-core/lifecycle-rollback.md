@@ -94,7 +94,7 @@ agent \
   --request requests/rollback.yaml
 
 agent \
-  --profile agents/generator/profile.yaml \
+  --profile agents/executor/profile.yaml \
   --dolt-dsn "$DOLT_DSN" \
   --resume-checkpoint rollback-suspend-4-1780000000000000000-to-2-1780000000000000001 \
   --resume-signal Approved \

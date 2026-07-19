@@ -112,12 +112,12 @@ srd_index:
       requirements live in srd002 through srd011.
     status: implemented
     path: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
-  - id: srd002-generator
+  - id: srd002-executor
     title: Generator Functional Block
     summary: Generator coding-agent boundary, inputs, tool selections, runtime
       dependencies, outputs, and terminal outcomes.
     status: implemented
-    path: docs/specs/software-requirements/srd002-generator.yaml
+    path: docs/specs/software-requirements/srd002-executor.yaml
   - id: srd003-critic
     title: Evaluator Functional Block
     summary: Evaluator session and point pipeline boundary, inputs, tool
@@ -372,7 +372,7 @@ use_case_index:
     summary: The evaluator family is renamed to critic and generator to executor
       (reference role names) across agents/, the SRD ids, the taxonomy, and the
       agent-core builtin tool dirs, with profile wiring and conformance intact.
-    status: specified
+    status: implemented
     path: docs/specs/use-cases/rel10.0-uc001-role-catalog-renames.yaml
   - id: rel10.0-uc002-knowledge-family-rescope
     title: Chroma Profiles Rescoped Under Knowledge Management as Corpus Ingest and Reader

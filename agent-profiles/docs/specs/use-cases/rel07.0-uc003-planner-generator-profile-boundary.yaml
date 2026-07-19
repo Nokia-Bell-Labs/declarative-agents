@@ -21,7 +21,7 @@ trigger: |
     AGENT_CORE_ROOT=/path/to/agent-core mage integration:plannerGenerator
 
 preconditions:
-  - agents/planner/profile.yaml and agents/generator/profile.yaml validate.
+  - agents/planner/profile.yaml and agents/executor/profile.yaml validate.
   - testdata/integration/rel07-planner-generator contains a minimal graph, workspace, and expected outcome records.
   - External issue tracker writes are disabled, mocked, or directed at local fixtures.
 

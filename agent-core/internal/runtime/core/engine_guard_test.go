@@ -18,7 +18,7 @@ func TestCoreSourceDoesNotEmbedModeOrToolPolicyNames(t *testing.T) {
 	t.Parallel()
 
 	forbidden := map[string]struct{}{
-		"generator":          {},
+		"executor":          {},
 		"planner":            {},
 		"critic":          {},
 		"bench":              {},

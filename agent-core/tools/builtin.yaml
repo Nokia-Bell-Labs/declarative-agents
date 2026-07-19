@@ -195,7 +195,7 @@ tools:
 
   # --- LLM tools ---
   # invoke_llm is NOT declared here — it is defined per-agent via
-  # --llm config files (e.g. agents/generator/llm/default.yaml).
+  # --llm config files (e.g. agents/executor/llm/default.yaml).
   # Multiple LLM tools can be registered with different names/models.
 
   - name: parse_response

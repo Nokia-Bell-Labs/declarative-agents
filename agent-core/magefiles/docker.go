@@ -125,7 +125,7 @@ func displayRuntimeCommand(opts dockerBuildOptions) string {
 		"-v", "$PWD:" + defaultWorkMount,
 		"-w", defaultWorkMount,
 		opts.Image,
-		"--profile", defaultProfilesMount + "/agents/generator/profile.yaml",
+		"--profile", defaultProfilesMount + "/agents/executor/profile.yaml",
 		"--directory", defaultWorkMount,
 	})
 }

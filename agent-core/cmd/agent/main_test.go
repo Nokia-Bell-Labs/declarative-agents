@@ -56,7 +56,7 @@ func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
 	}
 
 	modeNames := map[string]struct{}{
-		"generator": {},
+		"executor": {},
 		"planner":   {},
 		"critic": {},
 		"bench":     {},
@@ -221,7 +221,7 @@ func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
 
 	profileRoot := profileRootFromTest(t)
 	profiles := []string{
-		"generator/profile.yaml",
+		"executor/profile.yaml",
 		"critic/profile.yaml",
 		"bench/profile.yaml",
 		"jurist/profile.yaml",
@@ -1071,11 +1071,11 @@ func profileRootFromTest(t *testing.T) string {
 	t.Helper()
 	root := repoRootFromTest(t)
 	for _, candidate := range profileRootCandidates(root) {
-		if hasTestProfile(candidate, "generator") || hasTestProfile(candidate, "monitor") {
+		if hasTestProfile(candidate, "executor") || hasTestProfile(candidate, "monitor") {
 			return candidate
 		}
 		nested := filepath.Join(candidate, "agents")
-		if hasTestProfile(nested, "generator") || hasTestProfile(nested, "monitor") {
+		if hasTestProfile(nested, "executor") || hasTestProfile(nested, "monitor") {
 			return nested
 		}
 	}

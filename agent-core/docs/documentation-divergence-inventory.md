@@ -39,7 +39,7 @@ Documentation drift:
   captures the primary usage model: a universal `agent` runtime plus YAML agent
   profiles.
 - The README package table is useful but does not orient readers around the
-  external active agents (`$AGENT_PROFILES_ROOT/agents/generator`,
+  external active agents (`$AGENT_PROFILES_ROOT/agents/executor`,
   `$AGENT_PROFILES_ROOT/agents/critic`, `$AGENT_PROFILES_ROOT/agents/planner`,
   `$AGENT_PROFILES_ROOT/agents/bench`, `$AGENT_PROFILES_ROOT/agents/jurist`) or
   profile-first startup.

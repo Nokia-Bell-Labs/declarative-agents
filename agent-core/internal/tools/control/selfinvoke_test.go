@@ -19,7 +19,7 @@ func TestSelfInvokeUsesSharedExecuteConfigArgs(t *testing.T) {
 	dir := t.TempDir()
 	builder := &SelfInvokeBuilder{
 		Config: execute.Config{
-			Binary: "echo", Profile: "agents/generator/profile.yaml",
+			Binary: "echo", Profile: "agents/executor/profile.yaml",
 			Directory: "/workspace", OTelDir: dir, Timeout: 5 * time.Second,
 		},
 		Ctx: context.Background(),
@@ -28,7 +28,7 @@ func TestSelfInvokeUsesSharedExecuteConfigArgs(t *testing.T) {
 	result := builder.Build(core.Result{Output: `{"parameters":{"run_id":"child-1"}}`}).Execute()
 
 	require.Equal(t, core.ToolDone, result.Signal)
-	require.Contains(t, result.Output, "--profile agents/generator/profile.yaml")
+	require.Contains(t, result.Output, "--profile agents/executor/profile.yaml")
 	require.Contains(t, result.Output, "--directory /workspace")
 	require.Contains(t, result.Output, "--otel-log-file "+dir+"/child-child-1.otel.json")
 }

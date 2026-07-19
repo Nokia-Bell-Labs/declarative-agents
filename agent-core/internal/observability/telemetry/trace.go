@@ -92,7 +92,7 @@ func NewTraceFromProvider(tp trace.TracerProvider, serviceName string, ctx conte
 // shutdown function that flushes exporters. The caller defers shutdown.
 //
 // serviceName identifies the agent in OTel resource attributes, tracer,
-// meter, and temp file prefix (e.g. "generator", "planner").
+// meter, and temp file prefix (e.g. "executor", "planner").
 //
 // buildProviders runs before the root span exists and cannot emit OTel
 // events; failures at that stage are returned as errors and logged to

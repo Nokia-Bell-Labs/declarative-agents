@@ -37,7 +37,7 @@ func profileRootCandidates(rootDir string) []string {
 
 func normalizeProfileRoot(candidate string) string {
 	for _, root := range []string{candidate, filepath.Join(candidate, AgentsDir)} {
-		if profileExists(root, "generator") || profileExists(root, "jurist") {
+		if profileExists(root, "executor") || profileExists(root, "jurist") {
 			return root
 		}
 	}
