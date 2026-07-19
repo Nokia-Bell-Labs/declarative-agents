@@ -357,7 +357,11 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 }
 
 func newLLMAssembler(cfg catalog.LLMToolConfig, parser modelllm.ResponseParser) modelllm.PromptAssembler {
-	return &modelllm.DefaultAssembler{Prompt: prompt.Prompt{Role: cfg.SystemPrompt, OutputFormat: cfg.ToolPrompt}, Parser: parser}
+	return &modelllm.DefaultAssembler{
+		Prompt:           prompt.Prompt{Role: cfg.SystemPrompt, OutputFormat: cfg.ToolPrompt},
+		Parser:           parser,
+		SuppressManifest: cfg.AnswerOnly,
+	}
 }
 
 func newLLMClient(cfg catalog.LLMToolConfig, tracer tracing.Tracer) (modelllm.Client, string, error) {

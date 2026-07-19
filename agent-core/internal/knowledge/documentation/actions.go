@@ -314,7 +314,7 @@ func (p *LazyMachineRequestProxy) requestRunner() rest.MachineRequestRunner {
 	})
 }
 
-func registerMachineRequestFactories(br *toolregistry.BuiltinRegistry, selected map[string]bool) {
+func registerMachineRequestFactories(br *toolregistry.BuiltinRegistry, selected map[string]bool, _ *core.Registry) {
 	if selectedBuiltinInit(selected, "list_resource") {
 		registerResourceFactory(br, "list_resource", func(root string, cfg filesystem.ResourceConfig) core.Builder {
 			return requestListResourceBuilder{root: root, resources: cfg}

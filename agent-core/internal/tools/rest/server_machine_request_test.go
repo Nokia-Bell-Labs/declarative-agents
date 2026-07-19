@@ -465,7 +465,7 @@ func conformanceProfileRunner(dir string) *ProfileMachineRequestRunner {
 	return NewProfileMachineRequestRunner(ProfileMachineRequestRunnerDeps{
 		BaseDir:   dir,
 		Directory: dir,
-		RegisterBuiltins: func(br *toolregistry.BuiltinRegistry, selected map[string]bool) {
+		RegisterBuiltins: func(br *toolregistry.BuiltinRegistry, selected map[string]bool, _ *core.Registry) {
 			br.Register("test_machine_request_respond", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 				return responseBuilder{signal: "DocumentationReady"}, nil
 			})

@@ -88,7 +88,11 @@ type agentState struct {
 	providerName     string
 	manifestState    core.State
 	parseRetries     *toollm.ParseErrorRetryTracker
-	maxDuration      time.Duration
+	// isolateConversations gives each invoke_llm word its own conversation instead
+	// of the shared one, so a request-scoped router word's tool call does not
+	// pollute the answer word's history. Set on request-local machine_request state.
+	isolateConversations bool
+	maxDuration          time.Duration
 	maxTokens        int
 	verbose          bool
 	ctx              context.Context
