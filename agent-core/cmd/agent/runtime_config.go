@@ -30,6 +30,7 @@ type runtimeConfig struct {
 	Output           string
 	OTelLog          string
 	OTelOTLP         string
+	OTelService      string
 	OTelParent       string
 	VerboseTrace     bool
 	DoltDSN          string
@@ -62,6 +63,7 @@ func loadRuntimeConfig() (runtimeConfig, error) {
 		Output:           flagOutput,
 		OTelLog:          flagOTelLog,
 		OTelOTLP:         flagOTelOTLP,
+		OTelService:      flagOTelService,
 		OTelParent:       flagOTelParent,
 		VerboseTrace:     flagVerboseTrace,
 		DoltDSN:          flagDoltDSN,

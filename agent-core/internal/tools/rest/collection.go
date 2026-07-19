@@ -253,7 +253,13 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 		InitialResult:   requestSeed(req, initialSignal),
 		Budget:          req.Config.Budget,
 		CommandTimeout:  parseDuration(req.Config.CommandTimeout, 0),
-		Trace:           tracing.NoopTracer{},
+		// Run the request-scoped machine under a real tracer rooted at the
+		// machine_request span in ctx, so its per-word dispatch and REST-client
+		// spans export as children of that span (one connected trace) and the
+		// engine injects a valid traceparent into TraceContextAware clients for
+		// cross-agent propagation. The process provider is set globally by NewRoot;
+		// without it this wraps the no-op global provider and behaves as before.
+		Trace:           requestScopedTrace(ctx),
 		AgentName:       machineRequestAgentName(req),
 		Directory:       ".",
 		MonitorRecorder: req.MonitorRecorder,
@@ -273,6 +279,14 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 		return MachineRequestResult{}, fmt.Errorf("machine_timeout: request machine timed out")
 	}
 	return machineRequestResult(req, rr, last)
+}
+
+// requestScopedTrace wraps the process tracer provider rooted at the
+// machine_request span in ctx, so request-scoped spans join the connected trace.
+// When the global provider is the no-op default (telemetry not initialized), the
+// wrapped tracer is a no-op and dispatch behaves exactly as it did under NoopTracer.
+func requestScopedTrace(ctx context.Context) tracing.Tracer {
+	return telemetry.TraceAdapter{T: telemetry.NewTraceFromProvider(otel.GetTracerProvider(), "agent-core/machine_request", ctx)}
 }
 
 func machineRequestAgentName(req MachineRequestRun) string {
