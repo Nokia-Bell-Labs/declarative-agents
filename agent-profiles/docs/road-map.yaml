@@ -478,17 +478,17 @@ releases:
       override reproduces the external-endpoint behavior, and the co-generation
       contract (R2) is unchanged either way. This is a minor release validating the
       completed rel09.0-09.3 mesh. Epic #335.
-    status: planned
+    status: implemented
     srds:
       - srd015-chatbot-deployment
     use_cases:
       - id: rel09.5-uc001-in-cluster-llm-tier
         summary: A fresh-cluster install with defaults answers a chat turn with zero external LLM dependency; the disabled-tier override reproduces the external endpoint, and agents are not ready until the models are pulled.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel09.5-llm-tier
         summary: Tracers for the default-install turn, the disabled-tier endpoint override, the preload-gate ordering, and the CPU-only kind smoke.
-        status: planned
+        status: implemented
 
   - version: "10.0"
     name: Reference-architecture role alignment

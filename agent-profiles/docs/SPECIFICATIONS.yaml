@@ -372,7 +372,7 @@ use_case_index:
     summary: A default helm install deploys the Ollama subchart with model preload
       and readiness gating so a fresh cluster is self-contained; ollama.enabled=false
       with an endpoint override reproduces the external endpoint, R2 unchanged.
-    status: planned
+    status: implemented
     path: docs/specs/use-cases/rel09.5-uc001-in-cluster-llm-tier.yaml
   - id: rel10.0-uc001-role-catalog-renames
     title: Evaluator and Generator Families Renamed to Critic and Executor
@@ -479,10 +479,10 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel09.4-control-plane.yaml
   - id: test-rel09.5-llm-tier
     title: Test Suite for Release 09.5 In-Cluster LLM Tier
-    summary: Planned tracers for the default-install turn with no external LLM
-      dependency, the preload-gated agent readiness, and the disabled-tier endpoint
-      override that leaves the co-generated client entries unchanged.
-    status: planned
+    summary: Tracers for the default-install turn with no external LLM dependency,
+      the preload-gated agent readiness, and the disabled-tier endpoint override
+      that leaves the co-generated client entries unchanged.
+    status: implemented
     path: docs/specs/test-suites/test-rel09.5-llm-tier.yaml
   - id: test-rel10.0-role-catalog
     title: Test Suite for Release 10.0 Reference-Architecture Role Alignment

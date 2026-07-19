@@ -42,6 +42,15 @@ func TestOllamaTierRendersWithDefaults(t *testing.T) {
 			t.Errorf("preload/config missing declared model %q", model)
 		}
 	}
+	// The preload runs the ollama image, which ships neither wget nor curl, so its
+	// reachability probe must be the ollama CLI, never an HTTP client absent from
+	// the image (GH-338 live validation: a wget probe hung the preload forever).
+	if !strings.Contains(render, "until ollama list") {
+		t.Error("preload reachability probe must use `ollama list` (the ollama image has no wget/curl)")
+	}
+	if strings.Contains(render, "wget -qO- \"$OLLAMA_HOST") {
+		t.Error("preload must not probe reachability with wget: the ollama image ships no wget, so the loop never exits")
+	}
 }
 
 // TestOllamaDisabledReproducesExternalEndpoint locks R6.1: with ollama.enabled=false

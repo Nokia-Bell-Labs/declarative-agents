@@ -101,7 +101,7 @@ per-agent runtime endpoint appears, so the read state carries no agent authority
 {{- end -}}
 {{- $view := dict
   "rags" $rags
-  "llm" (dict "inCluster" .Values.ollama.enabled "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.provisioner.params.chatModel) "embedModel" .Values.chatbot.embeddingModel)
+  "llm" (dict "inCluster" .Values.ollama.enabled "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.provisioner.params.chatModel) "embedModel" .Values.chatbot.embeddingModel "chatModels" .Values.ollama.models.chat "routerModel" .Values.ollama.models.router "topology" .Values.ollama.topology)
   "params" (dict "nResults" (int .Values.provisioner.params.nResults) "chunkCap" (int .Values.provisioner.params.chunkCap) "routerDefault" .Values.provisioner.params.routerDefault)
 -}}
 {{- $view | toJson -}}

@@ -6,8 +6,9 @@ overview: |
   This suite validates the in-cluster LLM tier (srd015 R6): a default helm install
   answers a turn with no external LLM dependency, the disabled-tier override
   reproduces the external endpoint, agent readiness is gated on model preload, and
-  the kind smoke path runs CPU-only. The cases are planned; the Ollama subchart and
-  the kind validation land with the implementation issues GH-337 and GH-338.
+  the kind smoke path runs CPU-only. The Ollama tier and its render tracers landed
+  in GH-337; the CPU-only kind validation (integration:helmLLMTier) and the
+  provisioning-panel model controls landed in GH-338.
 
 traces:
   - rel09.5-uc001-in-cluster-llm-tier
@@ -19,8 +20,8 @@ preconditions:
 test_cases:
   - use_case: rel09.5-uc001-in-cluster-llm-tier
     name: Default install answers a turn with no external LLM dependency
-    integration_target: mage integration:llmTier
-    status: planned
+    integration_target: mage integration:helmLLMTier
+    status: implemented
     description: |
       helm install with defaults on a kind cluster deploys the Ollama subchart with
       PVC model storage and a model-preload Job; the test waits for the LLM tier and
@@ -42,8 +43,8 @@ test_cases:
 
   - use_case: rel09.5-uc001-in-cluster-llm-tier
     name: Preload gates agent readiness
-    integration_target: mage integration:llmTier
-    status: planned
+    integration_target: mage integration:helmLLMTier
+    status: implemented
     description: |
       Before the model-preload Job completes, the agent pods are not ready; after
       the models are present in Ollama /api/tags the agents become ready. The test
@@ -61,8 +62,8 @@ test_cases:
 
   - use_case: rel09.5-uc001-in-cluster-llm-tier
     name: Disabled-tier endpoint override reproduces external behavior
-    integration_target: go test ./deploy/chatbot-mesh (helm template)
-    status: planned
+    integration_target: go test ./magefiles -run TestOllamaDisabledReproducesExternalEndpoint
+    status: implemented
     description: |
       With ollama.enabled=false and an endpoint override, no Ollama workload or
       preload Job renders, and the embedding and chat client values point at the
