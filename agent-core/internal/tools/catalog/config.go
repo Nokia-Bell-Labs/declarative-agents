@@ -83,6 +83,12 @@ type LLMToolConfig struct {
 	ResponseProfile string `json:"response_profile"`
 	SystemPrompt    string `json:"system_prompt"`
 	ToolPrompt      string `json:"tool_prompt"`
+	// UserPromptFrom optionally sources the user message from a command-state
+	// $from(label).path selector instead of the previous Result's Output, so a
+	// word dispatched non-adjacently (for example a chat-LLM word reached through
+	// a $tool router) can read a non-adjacent composed prompt. Omitted: the user
+	// message stays the previous Result's Output.
+	UserPromptFrom  string `json:"user_prompt_from"`
 	NumCtx          int    `json:"num_ctx"`
 	LLMTimeout      int    `json:"llm_timeout"`
 	MaxTime         int    `json:"max_time"`
