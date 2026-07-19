@@ -43,10 +43,15 @@ spec:
             - "--otel-service-name"
             - {{ $unit.name | quote }}
             {{- end }}
+          # The rag-server profile is env-parameterized (GH-369): one mounted
+          # profile points at this unit's Chroma Service and collection and binds
+          # 0.0.0.0 so its Services route to the pod.
           env:
             - {name: CHROMA_URL, value: "http://{{ $chromaName }}:{{ $root.Values.chroma.port }}"}
+            - {name: CHROMA_HOST, value: {{ $chromaName | quote }}}
             - {name: RAG_COLLECTION, value: {{ $unit.collection | quote }}}
             - {name: RAG_EMBEDDING_MODEL, value: {{ $unit.embeddingModel | quote }}}
+            - {name: RAG_BIND_HOST, value: "0.0.0.0"}
           ports:
             - {name: query, containerPort: {{ $root.Values.ragServer.ports.query }}}
             - {name: control, containerPort: {{ $root.Values.ragServer.ports.control }}}

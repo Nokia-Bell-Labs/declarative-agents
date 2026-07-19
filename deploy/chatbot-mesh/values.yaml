@@ -16,6 +16,10 @@ profiles:
 
 chatbot:
   replicas: 1
+  # The model the chatbot embeds a query with; it must share the embedding space
+  # of the RAG corpora (srd014 R3.3). Co-generated into the chatbot rest.yaml
+  # embedding client.
+  embeddingModel: qwen3-embedding:8b
   resources:
     requests: {cpu: 100m, memory: 256Mi}
     limits: {cpu: "1", memory: 1Gi}
@@ -71,6 +75,11 @@ dolt:
   port: 3306
   storage: 1Gi
   rootHost: "%"
+  # The MySQL-wire user and database the chatbot's checkpoint DSN targets. The
+  # dolt-sql-server root user has no password; the database is created on the Dolt
+  # volume (see NOTES). Used by chatbot-mesh.doltDSN.
+  user: root
+  database: agent_checkpoints
 
 # OTel collector receives OTLP from every agent (R5.1) and exports to the trace
 # backend that the observability panel queries (R5.2).
