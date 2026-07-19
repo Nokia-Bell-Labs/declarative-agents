@@ -485,10 +485,16 @@ releases:
       - srd013-rag-server-agent
       - srd014-chatbot-agent
     use_cases:
-      - id: rel10.0-uc001-role-catalog-alignment
-        summary: The agents/ tree is renamed and moved to match the reference role catalog (evaluator->critic, generator->executor, chroma->corpus-ingest/corpus-reader, conformance fixtures->testdata/conformance) with profile wiring and conformance intact.
-        status: planned
+      - id: rel10.0-uc001-role-catalog-renames
+        summary: The evaluator family is renamed to critic and generator to executor (reference role names).
+        status: specified
+      - id: rel10.0-uc002-knowledge-family-rescope
+        summary: The vendor-named chroma family moves under knowledge-manager as corpus-ingest and corpus-reader.
+        status: specified
+      - id: rel10.0-uc003-conformance-fixture-relocation
+        summary: The rest, control, and lifecycle conformance fixtures move to testdata/conformance so agents/ lists only role families.
+        status: specified
     test_suites:
-      - id: test-rel10.0-role-alignment
-        summary: Tracers that mage validate and mage conformance pass over the renamed tree and that no stale agents/ path reference survives.
-        status: planned
+      - id: test-rel10.0-role-catalog
+        summary: Cases validating the critic/executor renames, the chroma rescope, and the conformance-fixture relocation with mage validate, mage conformance, go test, and zero-hit greps.
+        status: specified

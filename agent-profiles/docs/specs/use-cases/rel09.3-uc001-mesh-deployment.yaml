@@ -1,4 +1,4 @@
-id: rel09.0-uc003-mesh-deployment
+id: rel09.3-uc001-mesh-deployment
 title: Helm Chart Deploys the Mesh and Hot-Swaps a RAG Source
 
 summary: |
@@ -46,7 +46,7 @@ touchpoints:
     target: srd015-chatbot-deployment AC3
     reason: The tiered swap is a Service repoint or a values re-render plus checkpoint-resume rollout.
   - id: T4
-    target: test-rel09.0-chatbot-mesh mesh_deployment
+    target: test-rel09.3-mesh-deployment mesh_deployment
     reason: The suite records the kind-cluster install, the repoint, and the add-RAG rollout with expected outcomes.
 
 success_criteria:
@@ -71,5 +71,5 @@ out_of_scope:
   - Provisioning-panel authority behavior, covered by the provisioning-panel issue.
   - Production cluster hardening beyond the kind smoke deployment.
 
-test_suite_trace: test-rel09.0-chatbot-mesh
+test_suite_trace: test-rel09.3-mesh-deployment
 status: implemented

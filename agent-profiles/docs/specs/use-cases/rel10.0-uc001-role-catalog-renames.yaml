@@ -1,0 +1,66 @@
+id: rel10.0-uc001-role-catalog-renames
+title: Evaluator and Generator Families Renamed to Critic and Executor
+
+summary: |
+  A maintainer aligns two profile families with the reference role catalog: the
+  evaluator family is renamed to critic and the generator family to executor, the
+  reference role names they implement (autogenic-systems reference architecture,
+  roles per ITU-T Y.3502 / TM Forum IG1251). The rename covers the agents/
+  directories, the profile and machine names, the srd003 (evaluator) and srd002
+  (generator) SRD ids, the agent-role-taxonomy role ids, and the agent-core
+  builtin tool directories tools/builtin/evaluator-session and evaluator-point
+  (renamed to critic-session and critic-point, whose configs the critic profile's
+  tool_config_dirs point at). The dispatched tool words stay activity-named
+  (launch_eval, run_point, run_agent) and evaluation stays the critic's reference
+  activity, so no word is renamed. Historical release-record ids are retained
+  unchanged. Migration issues #325, #326, #330.
+
+actor: A maintainer aligning the role catalog with the reference architecture.
+
+trigger: |
+  The reference-architecture alignment review found evaluator carries the Critic
+  role and generator carries the Executor role under the wrong names.
+
+preconditions:
+  - The agent-role-taxonomy (sm-agent-role-taxonomy) lists the evaluator and generator roles.
+  - The evaluator and generator profile families and their integration and conformance tests exist under their current names.
+  - The agent-core builtin tool dirs evaluator-session and evaluator-point exist.
+
+flow:
+  - id: F1
+    text: agents/evaluator is renamed to agents/critic and agents/generator to agents/executor, with the profile, machine, and internal ids renamed to match.
+  - id: F2
+    text: srd003 (evaluator) and srd002 (generator) are renamed to critic and executor, and the agent-role-taxonomy role ids follow.
+  - id: F3
+    text: The agent-core builtin tool dirs tools/builtin/evaluator-session and evaluator-point are renamed to critic-session and critic-point, and the critic profile's tool_config_dirs point at the new dirs.
+  - id: F4
+    text: The integration and conformance tests, cross-repo path references, and roadmap statuses are updated; the activity-named tool words (launch_eval, run_point, run_agent) and the agent-core Go package internal/evaluation are unchanged.
+
+touchpoints:
+  - id: T1
+    target: sm-agent-role-taxonomy
+    reason: The taxonomy role ids for the two families become critic and executor, the reference role names.
+  - id: T2
+    target: test-rel10.0-role-catalog role_renames
+    reason: The suite validates the renamed tree with mage validate, conformance, go test, and zero-hit greps.
+
+success_criteria:
+  - id: S1
+    criterion: agents/ contains critic and executor families and no evaluator or generator family; the profile, machine, and SRD ids match, and grep for agents/evaluator and agents/generator returns no hit outside retained historical release records.
+    traces:
+      - sm-agent-role-taxonomy
+  - id: S2
+    criterion: The agent-core builtin tool dirs are critic-session and critic-point, the critic profile's tool_config_dirs point at them, and go test passes over agent-core.
+    traces:
+      - sm-agent-role-taxonomy
+  - id: S3
+    criterion: mage validate and mage conformance pass over the renamed tree, and the activity-named tool words are unchanged.
+    traces:
+      - sm-agent-role-taxonomy
+
+out_of_scope:
+  - Renaming the agent-core Go package internal/evaluation or the activity-named tool words; evaluation is the critic's reference activity.
+  - The chroma and conformance-fixture moves, which are uc002 and uc003.
+
+test_suite_trace: test-rel10.0-role-catalog
+status: specified

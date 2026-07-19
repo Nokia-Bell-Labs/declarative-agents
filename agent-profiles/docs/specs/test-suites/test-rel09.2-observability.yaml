@@ -1,0 +1,52 @@
+id: test-rel09.2-observability
+title: Test Suite for Release 09.2 Observability
+release: "09.2"
+
+overview: |
+  This suite validates the observability surface (srd014 R5.1, R5.3): the per-agent
+  monitor panels read through the same-origin monitor_proxy, and the cross-agent
+  trace waterfall that renders a turn's connected trace from the trace backend. The
+  connected-trace continuity is asserted live by Integration.Chatbot (a shared
+  trace id across the chatbot and each rag-server, a rag-server span parented under
+  a chatbot span); the panel rendering is browser-verified against the live mesh.
+
+traces:
+  - rel09.2-uc001-observability
+
+preconditions:
+  - agent-core is available with HTTP trace propagation (agent-core rel08.0), so the request-scoped machine exports spans and propagates traceparent.
+  - The chatbot serves the SPA and the monitor_proxy binding; a trace backend is reachable for the waterfall (else the panel degrades to a notice).
+  - agent-profiles owns the chatbot ui assets and ux.yaml monitored_agents.
+
+test_cases:
+  - use_case: rel09.2-uc001-observability
+    name: Connected cross-agent trace tracer
+    integration_target: mage integration:chatbot
+    go_test: go test ./magefiles -run TestChatResponse
+    status: implemented
+    description: |
+      Integration.Chatbot asserts one connected cross-agent trace: because the
+      request-scoped machine exports its dispatch spans under the machine_request
+      span and propagates traceparent to the RAG servers (GH-362), the chatbot turn
+      and each rag-server share a trace id and a rag-server span is parented under a
+      chatbot span. This is the trace continuity the observability waterfall renders
+      (grouped by service.name). The per-agent monitor panels and the waterfall UI
+      are browser-verified against the live mesh (GH-311, GH-312): each sub-panel
+      shows an agent's run state and event feed read through the monitor_proxy, and
+      selecting a turn renders its span waterfall, degrading to a backend-missing
+      notice when the trace backend is absent.
+    inputs:
+      chatbot_profile: agents/chatbot/profile.yaml
+      rag_clients: [rag0, rag1]
+      monitored_agents: [chatbot, rag0, rag1]
+      trace_backend: jaeger (query API through monitor_proxy)
+    expected:
+      each_rag_server_joins_the_connected_trace: true
+      shared_trace_id_across_agents: true
+      rag_span_parented_under_chatbot_span: true
+      waterfall_degrades_without_backend: true
+    traces:
+      - rel09.2-uc001-observability S1
+      - rel09.2-uc001-observability S2
+      - rel09.2-uc001-observability S3
+      - srd014-chatbot-agent AC5

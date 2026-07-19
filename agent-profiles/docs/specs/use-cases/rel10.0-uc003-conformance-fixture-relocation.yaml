@@ -1,0 +1,56 @@
+id: rel10.0-uc003-conformance-fixture-relocation
+title: Conformance Grammar Fixtures Relocated to testdata/conformance
+
+summary: |
+  A maintainer moves the three profile directories that are conformance grammar
+  fixtures rather than roles -- rest, control, and lifecycle -- out of agents/ to
+  testdata/conformance, beside testdata/integration. After the move agents/ lists
+  only role-shaped families. The move covers the fixture directories, the
+  conformance test references, the validate discovery (extended so profile-wiring
+  validation still reaches the relocated fixtures), and Integration.MonitorControl,
+  which reads the control fixture. mage conformance and Integration.MonitorControl
+  pass from the new paths. Migration issue #328.
+
+actor: A maintainer aligning the role catalog with the reference architecture.
+
+trigger: |
+  The alignment review found rest, control, and lifecycle are conformance grammar
+  fixtures, not reference roles, sitting in the role directory.
+
+preconditions:
+  - The rest, control, and lifecycle profile directories exist under agents/ and are referenced by the conformance tests.
+  - Integration.MonitorControl reads the control fixture from its current path.
+  - testdata/integration already holds integration fixtures beside agents/.
+
+flow:
+  - id: F1
+    text: agents/rest, agents/control, and agents/lifecycle move to testdata/conformance/rest, control, and lifecycle.
+  - id: F2
+    text: The conformance tests and Integration.MonitorControl are updated to the new paths, and the mage validate discovery is extended so profile-wiring validation reaches the relocated fixtures.
+  - id: F3
+    text: agents/ lists only role-shaped families (critic, executor, planner, jurist, monitor, knowledge-manager, bench, and per srd016/srd017 coordinator and creator); the roadmap statuses are updated.
+
+touchpoints:
+  - id: T1
+    target: sm-agent-role-taxonomy
+    reason: The taxonomy's role families no longer include the conformance fixtures rest, control, and lifecycle.
+  - id: T2
+    target: test-rel10.0-role-catalog fixture_relocation
+    reason: The suite validates the relocation with mage conformance, Integration.MonitorControl, and a zero-hit grep and an agents/ directory listing.
+
+success_criteria:
+  - id: S1
+    criterion: The rest, control, and lifecycle fixtures live under testdata/conformance, agents/ lists only role families, and grep for agents/rest, agents/control, and agents/lifecycle returns no hit outside retained historical release records.
+    traces:
+      - sm-agent-role-taxonomy
+  - id: S2
+    criterion: mage conformance and Integration.MonitorControl pass from the new paths, and mage validate discovery reaches the relocated fixtures.
+    traces:
+      - sm-agent-role-taxonomy
+
+out_of_scope:
+  - The critic and executor renames (uc001) and the chroma rescope (uc002).
+  - Changing the fixture grammar content; only the location changes.
+
+test_suite_trace: test-rel10.0-role-catalog
+status: specified
