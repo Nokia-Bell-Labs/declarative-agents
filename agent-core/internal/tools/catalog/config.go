@@ -37,6 +37,22 @@ type ComposeConfig struct {
 	Signal   string            `json:"signal"`
 }
 
+// RagMergeConfig holds config for the rag_merge builtin: a distance-ordered
+// merge of several RAG query results addressed by command-state $from selectors,
+// excluding sources whose embedding model does not match.
+type RagMergeConfig struct {
+	Sources                []RagMergeSource `json:"sources"`
+	ExpectedEmbeddingModel string           `json:"expected_embedding_model"`
+	MaxChunks              int              `json:"max_chunks"`
+	Signal                 string           `json:"signal"`
+}
+
+// RagMergeSource names one prior RAG query word and the tag its chunks carry.
+type RagMergeSource struct {
+	Label string `json:"label"`
+	Tag   string `json:"tag"`
+}
+
 // CheckpointHistoryConfig holds config for checkpoint_history.
 type CheckpointHistoryConfig struct {
 	Checkpoint string `json:"checkpoint"`
