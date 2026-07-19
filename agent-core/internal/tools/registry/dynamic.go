@@ -74,6 +74,18 @@ type tracedDynamicToolCmd struct {
 func (t *tracedDynamicToolCmd) Name() string                   { return t.inner.Name() }
 func (t *tracedDynamicToolCmd) Undo(_ core.Result) core.Result { return t.inner.Undo(core.Result{}) }
 
+// SetCommandState forwards the engine-injected command-state view to the wrapped
+// command when it is command-state-aware, so a $tool-dispatched word (for example
+// invoke_llm with user_prompt_from) still resolves its $from selectors in verbose
+// mode where the wrapper would otherwise hide the interface from the engine.
+func (t *tracedDynamicToolCmd) SetCommandState(view core.CommandStateView) {
+	if aware, ok := t.inner.(core.CommandStateAware); ok {
+		aware.SetCommandState(view)
+	}
+}
+
+var _ core.CommandStateAware = (*tracedDynamicToolCmd)(nil)
+
 func (t *tracedDynamicToolCmd) Execute() core.Result {
 	child, done := t.tracer.Push("dispatch/"+t.toolName,
 		attribute.String("tool.name", t.toolName),

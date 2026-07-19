@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -39,6 +40,8 @@ type invokeLLMCmd struct {
 	providerName string
 	serverAddr   string
 	userMessage  string
+	promptFrom   string
+	view         core.CommandStateView
 	tracer       tracing.Tracer
 	contextLimit int
 	numCtx       int
@@ -62,8 +65,16 @@ func (c *invokeLLMCmd) SpanCreationAttrs() []attribute.KeyValue {
 	return genai.InferenceAttrs(c.providerName, c.model, c.serverAddr)
 }
 
+// SetCommandState receives the read-only command-state view the engine injects
+// before dispatch, so a configured user_prompt_from selector resolves against
+// prior steps (core.CommandStateAware).
+func (c *invokeLLMCmd) SetCommandState(view core.CommandStateView) { c.view = view }
+
+var _ core.CommandStateAware = (*invokeLLMCmd)(nil)
+
 func (c *invokeLLMCmd) Execute() core.Result {
 	c.ensureContext()
+	c.resolveUserMessage()
 	c.snapshotHistory()
 	messages := c.assemblePrompt()
 	if res, ok := c.checkContextLimit(messages); ok {
@@ -81,6 +92,74 @@ func (c *invokeLLMCmd) ensureContext() {
 	if c.ctx == nil {
 		c.ctx = context.Background()
 	}
+}
+
+// resolveUserMessage overrides the user message with the value the configured
+// user_prompt_from selector resolves to in command state. It runs before the
+// history snapshot so the resolved prompt is the turn's user message. An empty
+// selector or an unresolved one leaves the dispatch Result's Output in place, so
+// a $tool-dispatched word degrades to its dispatch input rather than failing.
+//
+// Two selector forms are supported: "$from(label)" with no path takes the raw
+// Output of the labeled step (a compose word renders a plain prompt string, not a
+// JSON object, so a path selector cannot address it); "$from(label).dotted.path"
+// walks the labeled step's JSON output.
+func (c *invokeLLMCmd) resolveUserMessage() {
+	if c.promptFrom == "" || c.view == nil {
+		return
+	}
+	if label, ok := wholeOutputSelector(c.promptFrom); ok {
+		output, found := c.view.Lookup(label)
+		if !found {
+			c.tracer.Event("user_prompt.unresolved",
+				attribute.String("selector", c.promptFrom),
+				attribute.String("error", "no prior step labeled "+label))
+			return
+		}
+		c.userMessage = output
+		c.tracer.Event("user_prompt.from_command_state", attribute.String("selector", c.promptFrom))
+		return
+	}
+	value, err := core.ResolveFromSelector(c.view, c.promptFrom)
+	if err != nil {
+		c.tracer.Event("user_prompt.unresolved",
+			attribute.String("selector", c.promptFrom),
+			attribute.String("error", err.Error()))
+		return
+	}
+	c.userMessage = stringifyPrompt(value)
+	c.tracer.Event("user_prompt.from_command_state", attribute.String("selector", c.promptFrom))
+}
+
+// wholeOutputSelector matches "$from(label)" with no dotted path and returns the
+// label; the step's raw Output becomes the user message.
+func wholeOutputSelector(selector string) (string, bool) {
+	const prefix = "$from("
+	if !strings.HasPrefix(selector, prefix) || !strings.HasSuffix(selector, ")") {
+		return "", false
+	}
+	label := selector[len(prefix) : len(selector)-1]
+	if label == "" || strings.ContainsAny(label, "().") {
+		return "", false
+	}
+	return label, true
+}
+
+// stringifyPrompt renders a command-state value as the user message: strings
+// pass through; anything else is JSON-encoded so structured values read
+// predictably.
+func stringifyPrompt(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprint(v)
+	}
+	return string(data)
 }
 
 func (c *invokeLLMCmd) snapshotHistory() {
@@ -176,6 +255,9 @@ type InvokeLLMBuilder struct {
 	Metrics      core.MetricConfig
 	Verbose      bool
 	Ctx          context.Context
+	// UserPromptFrom, when set, is the command-state $from selector the built
+	// command resolves its user message from instead of the dispatch Result.
+	UserPromptFrom string
 }
 
 // InvokeLLMFactoryDeps are process-local ports for invoke_llm construction.
@@ -234,6 +316,7 @@ func invokeBuilder(
 		Temperature: resolveTemperature(cfg), Seed: resolveSeed(cfg),
 		CallTimeout: durationSeconds(cfg.LLMTimeout),
 		Metrics:     def.Metrics, Verbose: deps.Verbose, Ctx: deps.Ctx,
+		UserPromptFrom: cfg.UserPromptFrom,
 	}
 }
 
@@ -267,7 +350,7 @@ func (b *InvokeLLMBuilder) Build(res core.Result) core.Command {
 	return &invokeLLMCmd{
 		client: b.Client, history: b.History, registry: b.Registry, assembler: b.Assembler,
 		state: state, model: b.Model, providerName: b.ProviderName, serverAddr: b.ServerAddr,
-		userMessage: res.Output, tracer: b.Tracer, contextLimit: b.ContextLimit,
+		userMessage: res.Output, promptFrom: b.UserPromptFrom, tracer: b.Tracer, contextLimit: b.ContextLimit,
 		numCtx: b.NumCtx, temperature: b.Temperature, seed: b.Seed,
 		callTimeout: b.CallTimeout, metrics: b.Metrics, verbose: b.Verbose, ctx: ctx,
 	}

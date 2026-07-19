@@ -42,6 +42,27 @@ func (c namedCmd) Execute() core.Result {
 }
 func (c namedCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.name) }
 
+type stateAwareCmd struct {
+	namedCmd
+	view core.CommandStateView
+}
+
+func (c *stateAwareCmd) SetCommandState(view core.CommandStateView) { c.view = view }
+
+// The verbose $tool wrapper must forward the engine-injected command-state view
+// to a command-state-aware inner (for example invoke_llm with user_prompt_from),
+// which it would otherwise hide behind its own type.
+func TestTracedDynamicToolForwardsCommandState(t *testing.T) {
+	inner := &stateAwareCmd{namedCmd: namedCmd{name: "invoke_llm_deep"}}
+	wrapper := &tracedDynamicToolCmd{inner: inner, tracer: tracing.NoopTracer{}, toolName: "invoke_llm_deep"}
+	aware, ok := core.Command(wrapper).(core.CommandStateAware)
+	require.True(t, ok, "wrapper must be CommandStateAware")
+
+	view := core.NewCommandStateView(core.Execution{})
+	aware.SetCommandState(view)
+	require.Equal(t, view, inner.view)
+}
+
 func TestBuildDynamicToolActionDispatchesAndTracks(t *testing.T) {
 	t.Parallel()
 	reg := core.NewRegistry()
