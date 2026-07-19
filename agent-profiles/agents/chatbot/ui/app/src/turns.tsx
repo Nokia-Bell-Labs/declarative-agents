@@ -10,6 +10,7 @@ export interface Turn {
   message: string;
   startedAt: number;
   endedAt?: number;
+  traceId?: string;
 }
 
 interface TurnStore {
@@ -17,7 +18,7 @@ interface TurnStore {
   selectedId: number | null;
   select: (id: number | null) => void;
   startTurn: (message: string) => number;
-  endTurn: (id: number) => void;
+  endTurn: (id: number, traceId?: string) => void;
 }
 
 const TurnContext = createContext<TurnStore | null>(null);
@@ -37,8 +38,8 @@ export function TurnProvider({ children }: { children: ReactNode }) {
         setTurns((prev) => [{ id, message, startedAt: Date.now() }, ...prev].slice(0, 50));
         return id;
       },
-      endTurn: (id: number) => {
-        setTurns((prev) => prev.map((t) => (t.id === id ? { ...t, endedAt: Date.now() } : t)));
+      endTurn: (id: number, traceId?: string) => {
+        setTurns((prev) => prev.map((t) => (t.id === id ? { ...t, endedAt: Date.now(), traceId } : t)));
       },
     }),
     [turns, selectedId],

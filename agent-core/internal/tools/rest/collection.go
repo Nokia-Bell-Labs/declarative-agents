@@ -100,6 +100,9 @@ type MachineRequestResult struct {
 	TerminalSignal string                 `json:"terminal_signal"`
 	Output         map[string]interface{} `json:"output,omitempty"`
 	Run            core.RunResult         `json:"run"`
+	// TraceID is the connected trace's id (hex), so the response caller can fetch
+	// the turn's cross-agent trace waterfall from the trace backend (GH-312).
+	TraceID string `json:"trace_id,omitempty"`
 }
 
 // NewCollection creates an empty REST definition collection.
@@ -394,6 +397,9 @@ func (r *serverRuntime) handleMachineRequest(
 		writeMachineRequestError(w, err)
 		return
 	}
+	if sc := oteltrace.SpanFromContext(ctx).SpanContext(); sc.HasTraceID() {
+		result.TraceID = sc.TraceID().String()
+	}
 	r.writeMachineResponse(w, endpoint, result)
 }
 
@@ -478,7 +484,7 @@ func machineResponseBody(mapping MachineResponseMapping, result MachineRequestRe
 	if len(body) == 0 {
 		body["data"] = result.Output
 	}
-	body["trace"] = map[string]interface{}{
+	trace := map[string]interface{}{
 		"server":          result.Server,
 		"route":           result.Route,
 		"machine":         result.Machine,
@@ -486,6 +492,10 @@ func machineResponseBody(mapping MachineResponseMapping, result MachineRequestRe
 		"iterations":      result.Run.Iterations,
 		"status":          result.Run.Status,
 	}
+	if result.TraceID != "" {
+		trace["trace_id"] = result.TraceID
+	}
+	body["trace"] = trace
 	return body
 }
 

@@ -472,9 +472,18 @@ func readChromaSpans(tracePath string) ([]chromaSpan, error) {
 }
 
 type chromaSpan struct {
-	Name       string          `json:"Name"`
-	StartTime  string          `json:"StartTime"`
-	Attributes []chromaTraceKV `json:"Attributes"`
+	Name        string          `json:"Name"`
+	StartTime   string          `json:"StartTime"`
+	Attributes  []chromaTraceKV `json:"Attributes"`
+	SpanContext chromaSpanRef   `json:"SpanContext"`
+	Parent      chromaSpanRef   `json:"Parent"`
+}
+
+// chromaSpanRef is the id pair the OTel file exporter writes for a span and its
+// parent, so a connected cross-agent trace can be asserted across span logs.
+type chromaSpanRef struct {
+	TraceID string `json:"TraceID"`
+	SpanID  string `json:"SpanID"`
 }
 
 type chromaTraceKV struct {

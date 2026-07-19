@@ -202,6 +202,11 @@ rest:
               chatbot: http://127.0.0.1:18082
               rag0: http://127.0.0.1:18087
               rag1: http://127.0.0.1:18097
+              # The trace backend the observability v2 waterfall queries by trace id
+              # (Jaeger query API). Absent locally, so the trace panel degrades to a
+              # backend-missing notice; the Helm chart points this at the Jaeger
+              # Service. Same-origin through the proxy, like the monitor upstreams.
+              jaeger: http://127.0.0.1:16686
           request:
             path:
               agent: {type: string}

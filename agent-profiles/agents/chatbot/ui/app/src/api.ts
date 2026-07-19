@@ -25,12 +25,14 @@ export interface ChatResponse {
   answer?: string;
   error?: string;
   message?: string;
+  trace?: { trace_id?: string };
 }
 
 export interface Answer {
   text: string;
   sources: string[];
   grounded: boolean;
+  traceId?: string;
 }
 
 export class ChatError extends Error {}
@@ -61,7 +63,7 @@ export async function sendChat(req: ChatRequest, signal?: AbortSignal): Promise<
 
   const text = (body.answer ?? "").trim();
   const sources = extractSources(text);
-  return { text, sources, grounded: sources.length > 0 };
+  return { text, sources, grounded: sources.length > 0, traceId: body.trace?.trace_id };
 }
 
 // The grounding system prompt asks the model to cite the chunk identity (the

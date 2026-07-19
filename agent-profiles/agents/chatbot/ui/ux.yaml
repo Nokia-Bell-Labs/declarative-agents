@@ -56,9 +56,19 @@ monitored_agents:
     label: RAG server 0
   - name: rag1
     label: RAG server 1
+# The trace backend the observability v2 waterfall queries by trace id, reached
+# same-origin through the chatbot's monitor_proxy (the jaeger upstream in
+# rest.yaml). This is the same values-driven surface srd015 co-generates; keep the
+# name in sync with the rest.yaml monitor_proxy upstream and TRACE_BACKEND in the
+# SPA traceApi.ts. Absent locally, so the waterfall degrades to a missing-backend
+# notice.
+trace_backend:
+  name: jaeger
+  query_path: /monitor-proxy/jaeger/api/traces/{trace_id}
 presentation:
   history_client_side: true
   source_citations: true
   degraded_indicator: true
   observability_per_agent_sse: true
   observability_turn_correlation: time-window
+  observability_trace_waterfall: true

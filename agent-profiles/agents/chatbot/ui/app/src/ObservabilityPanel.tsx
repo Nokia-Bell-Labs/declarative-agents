@@ -1,4 +1,5 @@
 import { MONITORED_AGENTS, useAgentMonitor, type AgentMonitor, type MonitoredAgent } from "./monitorApi";
+import TracePanel from "./TracePanel";
 import { eventInWindow, useTurns } from "./turns";
 
 function statusDotClass(status: AgentMonitor["status"]): string {
@@ -73,10 +74,23 @@ function TurnSelector() {
   );
 }
 
+function TraceSection() {
+  const { turns, selectedId } = useTurns();
+  const selectedTurn = turns.find((t) => t.id === selectedId);
+  if (!selectedTurn) return null;
+  return (
+    <div className="trace-section">
+      <div className="trace-head">Cross-agent trace — turn #{selectedTurn.id + 1}</div>
+      <TracePanel traceId={selectedTurn.traceId} />
+    </div>
+  );
+}
+
 export default function ObservabilityPanel() {
   return (
     <div className="observability">
       <TurnSelector />
+      <TraceSection />
       <div className="agent-grid">
         {MONITORED_AGENTS.map((agent) => (
           <AgentSubPanel key={agent.name} agent={agent} />
