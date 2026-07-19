@@ -11,7 +11,7 @@ import (
 func TestValidateChildAgentConfigRequiresFields(t *testing.T) {
 	require.ErrorContains(t, ValidateChildAgentConfig("execute_task", ChildAgentConfig{}), "requires profile")
 	require.NoError(t, ValidateChildAgentConfig("execute_task", ChildAgentConfig{
-		Profile: "agents/generator/profile.yaml",
+		Profile: "agents/executor/profile.yaml",
 	}))
 }
 

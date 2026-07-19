@@ -95,7 +95,7 @@ Run `cmd/agent` with explicit paths. Replace `/path/to/workspace` with your
 workspace.
 
 ```bash
-agent --profile "$(pwd)/agents/generator/profile.yaml" --directory /path/to/workspace
+agent --profile "$(pwd)/agents/executor/profile.yaml" --directory /path/to/workspace
 ```
 
 From the **agent-core** checkout, integration Mage targets consume this tree
@@ -113,7 +113,7 @@ docker run --rm \
   -v "$PWD:/profiles:ro" \
   -v "$WORKSPACE:/work" \
   agent-core:latest \
-  --profile /profiles/agents/generator/profile.yaml \
+  --profile /profiles/agents/executor/profile.yaml \
   --directory /work
 ```
 

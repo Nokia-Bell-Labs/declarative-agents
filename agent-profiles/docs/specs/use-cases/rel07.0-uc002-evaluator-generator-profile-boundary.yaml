@@ -20,7 +20,7 @@ trigger: |
     AGENT_CORE_ROOT=/path/to/agent-core mage integration:evaluatorGenerator
 
 preconditions:
-  - agents/critic/profile.yaml and agents/generator/profile.yaml validate.
+  - agents/critic/profile.yaml and agents/executor/profile.yaml validate.
   - testdata/integration/rel07-evaluator-generator contains a minimal suite, sample, oracle, and expected result shape.
   - The target can create a temporary output directory for evaluator session results.
 

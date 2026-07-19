@@ -62,7 +62,7 @@ func TestContainerBuildSummaryForDocker(t *testing.T) {
 		"  docker progress: plain",
 		"  container output: streamed directly",
 		"command: DOCKER_BUILDKIT=1 docker build --progress=plain --secret id=git_credentials,src=/home/user/.netrc --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core:latest .",
-		"mounted profile example: docker run --rm -v /path/to/agent-profiles:/profiles/agents:ro -v '$PWD:/work' -w /work agent-core:latest --profile /profiles/agents/agents/generator/profile.yaml --directory /work",
+		"mounted profile example: docker run --rm -v /path/to/agent-profiles:/profiles/agents:ro -v '$PWD:/work' -w /work agent-core:latest --profile /profiles/agents/agents/executor/profile.yaml --directory /work",
 		"integration container example: docker run --rm -v /path/to/agent-profiles:/profiles/agents:ro -w /src agent-core-integration:latest mage integration:uc001",
 	} {
 		if !strings.Contains(got, want) {
@@ -98,7 +98,7 @@ func TestDisplayIntegrationBuildCommandUsesTarget(t *testing.T) {
 func TestDockerfileRuntimeExcludesAgentProfiles(t *testing.T) {
 	content := readDockerfile(t)
 	for _, forbidden := range []string{
-		"/src/agents/generator",
+		"/src/agents/executor",
 		"/src/agents/critic",
 		"/opt/agent-core/agents",
 	} {

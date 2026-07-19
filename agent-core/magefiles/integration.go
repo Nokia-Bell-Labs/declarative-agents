@@ -113,7 +113,7 @@ func (Integration) Uc001() error {
 
 func uc001AgentArgs(profileRoot, coreRoot, workDir string) []string {
 	return []string{
-		"--profile", agentProfilePath(profileRoot, "generator"),
+		"--profile", agentProfilePath(profileRoot, "executor"),
 		"--directory", workDir,
 		"--core-root", coreRoot,
 	}

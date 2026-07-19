@@ -203,7 +203,7 @@ profile_terms: |
   profile to turn raw model text into a candidate tool call for parse_response.
 
 config_files:
-  - directory: $AGENT_PROFILES_ROOT/agents/generator/llm/
+  - directory: $AGENT_PROFILES_ROOT/agents/executor/llm/
     variant_count: 9
     description: |
       Model variants for the generator agent: default, deepseek,

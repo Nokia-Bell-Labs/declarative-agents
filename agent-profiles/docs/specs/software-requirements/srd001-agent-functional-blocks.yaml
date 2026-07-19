@@ -9,7 +9,7 @@ context: |
   Each profile family owns its own SRD for actor boundary, inputs, outputs, tool
   selections, runtime dependencies, and terminal outcomes:
 
-    - srd002-generator            (generator)
+    - srd002-executor            (generator)
     - srd003-critic            (evaluator)
     - srd004-planner              (planner)
     - srd005-jurist               (jurist)
@@ -58,7 +58,7 @@ requirements:
   R3:
     title: Per-family requirement ownership
     items:
-      - R3.1: Each profile family's actor boundary, inputs, outputs, tool selections, runtime dependencies, and terminal outcomes must live in a dedicated per-family SRD (srd002-generator through srd011-knowledge-manager).
+      - R3.1: Each profile family's actor boundary, inputs, outputs, tool selections, runtime dependencies, and terminal outcomes must live in a dedicated per-family SRD (srd002-executor through srd011-knowledge-manager).
       - R3.2: Per-family SRDs must depend on this SRD for the ownership boundary and dependency-direction invariants.
 
 non_goals:

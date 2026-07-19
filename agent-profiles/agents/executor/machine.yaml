@@ -1,13 +1,13 @@
-name: generator
+name: executor
 purpose: |-
-  The generator is a coding agent that solves programming tasks by
+  The executor is a coding agent that solves programming tasks by
   iteratively composing LLM calls with tool execution. It reads files,
   writes code, runs builds and tests, and converges on a solution that
   passes validation.
 configuration:
-  machine: agents/generator/machine.yaml
-  tools: agents/generator/tools.yaml
-  llm_configs: agents/generator/llm/*.yaml
+  machine: agents/executor/machine.yaml
+  tools: agents/executor/tools.yaml
+  llm_configs: agents/executor/llm/*.yaml
   tool_declarations:
   - tools/builtin.yaml
   - tools/exec.yaml

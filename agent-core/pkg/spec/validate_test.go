@@ -523,9 +523,9 @@ func completeToolDeclaration(name string) ToolDeclaration {
 func TestDiscoverToolDeclarationsIncludesProfileFilesAndDirs(t *testing.T) {
 	root := t.TempDir()
 
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "agents", "generator", "llm"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "agents", "executor", "llm"), 0o755))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "tools", "builtin"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "generator", "profile.yaml"), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "executor", "profile.yaml"), []byte(`
 name: generator
 machine: machine.yaml
 tools:
@@ -535,7 +535,7 @@ tool_config_dirs:
 tool_declarations:
   - llm/default.yaml
 `), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "generator", "llm", "default.yaml"), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "executor", "llm", "default.yaml"), []byte(`
 tools:
   - name: invoke_llm
     type: builtin

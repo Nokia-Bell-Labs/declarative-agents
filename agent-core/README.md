@@ -50,7 +50,7 @@ domains include `internal/observability` for tracing and telemetry, and
 Profiles are normal runtime entry points, but standard agent programs now live
 outside this repository. Set `AGENT_PROFILES_ROOT` to an `agent-profiles`
 checkout or bundle, then pass explicit paths such as
-`$AGENT_PROFILES_ROOT/agents/generator/profile.yaml`,
+`$AGENT_PROFILES_ROOT/agents/executor/profile.yaml`,
 `$AGENT_PROFILES_ROOT/agents/critic/profile.yaml`, or
 `$AGENT_PROFILES_ROOT/agents/jurist/profile.yaml`.
 
@@ -136,7 +136,7 @@ gated tests in `cmd/agent/dolt_integration_test.go` run instead of skipping.
 ```bash
 mage build
 AGENT_PROFILES_ROOT=../agent-profiles \
-  bin/agent --profile "$AGENT_PROFILES_ROOT/agents/generator/profile.yaml" --directory "$PWD"
+  bin/agent --profile "$AGENT_PROFILES_ROOT/agents/executor/profile.yaml" --directory "$PWD"
 ```
 
 ## Docker Runtime
@@ -221,7 +221,7 @@ docker run --rm \
   -v "$PWD:/work" \
   -w /work \
   agent-core:latest \
-  --profile /profiles/agents/generator/profile.yaml \
+  --profile /profiles/agents/executor/profile.yaml \
   --directory /work
 ```
 

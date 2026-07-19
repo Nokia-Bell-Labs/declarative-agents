@@ -23,7 +23,7 @@ trigger: |
   An operator runs an installed agent-core image or local agent binary with a
   profile path supplied from agent-profiles:
 
-    agent --profile "$AGENT_PROFILES_ROOT/agents/generator/profile.yaml" \
+    agent --profile "$AGENT_PROFILES_ROOT/agents/executor/profile.yaml" \
           --directory <workspace>
 
   Container callers use the same contract with /profiles:
@@ -56,7 +56,7 @@ touchpoints:
     target: srd001-agent-functional-blocks R1
     reason: Profile-owned files stay in agent-profiles while runtime assets stay in agent-core.
   - id: T2
-    target: per-family SRDs srd002-generator through srd011-knowledge-manager
+    target: per-family SRDs srd002-executor through srd011-knowledge-manager
     reason: Mounted execution must preserve each functional block's actor boundary.
   - id: T3
     target: sm-multi-agent-profile-system system_boundary

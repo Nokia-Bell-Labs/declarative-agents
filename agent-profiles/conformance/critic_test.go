@@ -28,7 +28,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 case "$profile" in
-  *agents/generator/profile.yaml) ;;
+  *agents/executor/profile.yaml) ;;
   *) echo "unexpected child profile: $profile" >&2; exit 42 ;;
 esac
 cat > "$workspace/greet.go" <<'GOEOF'

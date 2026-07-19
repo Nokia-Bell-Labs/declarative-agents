@@ -7,4 +7,4 @@ tasks:
     requirements:
       - R1
     workspace: workspace
-    child_profile: agents/generator/profile.yaml
+    child_profile: agents/executor/profile.yaml

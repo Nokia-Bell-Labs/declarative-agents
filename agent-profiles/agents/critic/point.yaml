@@ -11,7 +11,7 @@ purpose: |-
   The point-level machine (agents/critic/point.yaml) orchestrates
   a single evaluation point: it creates a point directory, copies the
   sample workspace/docs, initializes and commits a git baseline, snapshots
-  the experiment configuration, invokes the generator agent as a subprocess,
+  the experiment configuration, invokes the executor agent as a subprocess,
   checks the results, and collects metrics. It is a deterministic
   pipeline that sequences atomic tools — no LLM calls.
 
@@ -89,7 +89,7 @@ states:
 - name: SnapshotConfig
   meaning: Serializing the full experiment configuration into experiment.yaml.
 - name: RunningAgent
-  meaning: The generator agent is running as a subprocess.
+  meaning: The executor agent is running as a subprocess.
 - name: RunningOracleCheck
   meaning: Running deterministic oracle tests in the point workspace.
 - name: CollectingTraceTokens
@@ -127,11 +127,11 @@ signals:
 - name: ConfigDumped
   trigger: Experiment configuration snapshot written to experiment.yaml.
 - name: HarnessFinished
-  trigger: The generator agent exited normally (exit code 0).
+  trigger: The executor agent exited normally (exit code 0).
 - name: HarnessFailed
-  trigger: The generator agent exited with a non-zero exit code.
+  trigger: The executor agent exited with a non-zero exit code.
 - name: HarnessTimedOut
-  trigger: The generator agent exceeded its time budget.
+  trigger: The executor agent exceeded its time budget.
 - name: OracleCheckPassed
   trigger: Oracle tests passed.
 - name: OracleCheckFailed

@@ -85,7 +85,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 case "$profile" in
-  *agents/generator/profile.yaml) ;;
+  *agents/executor/profile.yaml) ;;
   *) echo "unexpected child profile: $profile" >&2; exit 42 ;;
 esac
 cat > "$workspace/greet.go" <<'GOEOF'
@@ -134,7 +134,7 @@ func assertEvaluatorGeneratorOutput(outputDir string) error {
 	if err != nil {
 		return fmt.Errorf("read experiment.yaml: %w", err)
 	}
-	if !strings.Contains(string(experiment), "agents/generator/profile.yaml") {
+	if !strings.Contains(string(experiment), "agents/executor/profile.yaml") {
 		return fmt.Errorf("experiment.yaml does not record generator profile:\n%s", experiment)
 	}
 	workspace, err := os.ReadFile(filepath.Join(pointDir, "greet.go"))

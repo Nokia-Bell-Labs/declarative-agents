@@ -24,7 +24,7 @@ func TestWriteGeneratorChildAgentExercisesGeneratorProfile(t *testing.T) {
 		t.Fatalf("writeGeneratorChildAgent: %v", err)
 	}
 	cmd := exec.Command(filepath.Join(binDir, "agent"),
-		"--profile", "/profiles/agents/generator/profile.yaml",
+		"--profile", "/profiles/agents/executor/profile.yaml",
 		"--directory", workspace,
 		"--otel-log-file", trace,
 	)
@@ -55,7 +55,7 @@ func TestAssertEvaluatorGeneratorOutputRequiresBoundaryEvidence(t *testing.T) {
   "timed_out": false,
   "test_output": "ok"
 }`)
-	writeFile(t, filepath.Join(pointDir, "experiment.yaml"), "profile: /profiles/agents/generator/profile.yaml\n")
+	writeFile(t, filepath.Join(pointDir, "experiment.yaml"), "profile: /profiles/agents/executor/profile.yaml\n")
 	writeFile(t, filepath.Join(pointDir, "greet.go"), `package greet
 
 func Hello(name string) string {
@@ -81,7 +81,7 @@ func TestAssertEvaluatorGeneratorOutputRejectsMissingOraclePass(t *testing.T) {
   "timed_out": false,
   "test_output": "FAIL"
 }`)
-	writeFile(t, filepath.Join(pointDir, "experiment.yaml"), "profile: /profiles/agents/generator/profile.yaml\n")
+	writeFile(t, filepath.Join(pointDir, "experiment.yaml"), "profile: /profiles/agents/executor/profile.yaml\n")
 	writeFile(t, filepath.Join(pointDir, "greet.go"), `package greet
 
 func Hello(name string) string {

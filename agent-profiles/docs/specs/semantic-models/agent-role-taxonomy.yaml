@@ -11,16 +11,16 @@ overview: |
   set of checks that can later become validation commands, integration targets,
   or documentation review steps.
 
-  The taxonomy is intentionally profile-oriented. It names generator as a
+  The taxonomy is intentionally profile-oriented. It names executor as a
   coding agent, critic as a session and point runner, bench as a human UI
   launcher, and Knowledge Manager as a documentation curator. Those labels
   describe configured behavior. They are not package names, binary names, or
   new runtime modules.
 
 roles:
-  - id: generator
+  - id: executor
     title: Coding agent
-    profile_path: agents/generator/profile.yaml
+    profile_path: agents/executor/profile.yaml
     actor_boundary: model plus workspace tools
     inputs:
       - task prompt
@@ -77,12 +77,12 @@ roles:
       - Resolve suite fixtures through AGENT_PROFILES_ROOT.
       - Confirm point machine runs in isolated workspaces.
       - Confirm failed child runs still produce point summaries and metrics.
-      - Trace critic to generator with rel07.0-uc002-evaluator-generator-profile-boundary.
+      - Trace critic to executor with rel07.0-uc002-evaluator-generator-profile-boundary.
 
   - id: planner
     title: Requirement planner and issue materializer
     profile_path: agents/planner/profile.yaml
-    actor_boundary: requirement graph, model, issue queue, and child generator
+    actor_boundary: requirement graph, model, issue queue, and child executor
     inputs:
       - requirement graph
       - SRD context
@@ -107,10 +107,10 @@ roles:
       - Paused
       - Failed
     checks:
-      - Confirm planner invokes generator as a child profile.
+      - Confirm planner invokes executor as a child profile.
       - Confirm issues are materialized through the issue tracker.
       - Confirm graph terminal states are explicit.
-      - Trace planner to generator with rel07.0-uc003-planner-generator-profile-boundary.
+      - Trace planner to executor with rel07.0-uc003-planner-generator-profile-boundary.
 
   - id: jurist
     title: Specification validator

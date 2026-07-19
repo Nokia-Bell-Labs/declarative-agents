@@ -67,7 +67,7 @@ func TestLoadCorpus_ToolDeclarations(t *testing.T) {
 func TestIsAgentLocalToolDeclarationExternalProfilePath(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, isAgentLocalToolDeclaration("../agent-profiles/agents/generator/llm/default.yaml"))
+	assert.True(t, isAgentLocalToolDeclaration("../agent-profiles/agents/executor/llm/default.yaml"))
 	assert.True(t, isAgentLocalToolDeclaration("/profiles/agents/critic/builtin.yaml"))
 	assert.False(t, isAgentLocalToolDeclaration("tools/builtin/llm/default.yaml"))
 }

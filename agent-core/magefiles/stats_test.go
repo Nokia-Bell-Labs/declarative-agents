@@ -25,9 +25,9 @@ func TestDocsYAMLCategory(t *testing.T) {
 func TestConfigsYAMLCategory(t *testing.T) {
 	tests := map[string]string{
 		"tools/builtin.yaml":                 "shared_tools",
-		"agents/generator/llm/default.yaml":  "llm_configs",
+		"agents/executor/llm/default.yaml":  "llm_configs",
 		"agents/critic/llm/devstral.yaml": "llm_configs",
-		"agents/generator/machine.yaml":      "generator",
+		"agents/executor/machine.yaml":      "executor",
 		"agents/planner/machine.yaml":        "planner",
 		"agents/critic/machine.yaml":      "critic",
 		"agents/bench/machine.yaml":          "bench",
@@ -48,7 +48,7 @@ func TestAddYAMLStats(t *testing.T) {
 
 	addYAMLStats(&stats, "docs/specs/config-formats/machine-format.yaml", 10)
 	addYAMLStats(&stats, "tools/builtin.yaml", 20)
-	addYAMLStats(&stats, "agents/generator/machine.yaml", 7)
+	addYAMLStats(&stats, "agents/executor/machine.yaml", 7)
 	addYAMLStats(&stats, "README.yaml", 3)
 
 	if stats.Total.Files != 4 || stats.Total.Lines != 40 {
@@ -60,7 +60,7 @@ func TestAddYAMLStats(t *testing.T) {
 	if got := stats.Configs.Categories["shared_tools"]; got.Files != 1 || got.Lines != 20 {
 		t.Fatalf("configs shared_tools = %+v, want files=1 lines=20", got)
 	}
-	if got := stats.Configs.Categories["generator"]; got.Files != 1 || got.Lines != 7 {
+	if got := stats.Configs.Categories["executor"]; got.Files != 1 || got.Lines != 7 {
 		t.Fatalf("configs generator = %+v, want files=1 lines=7", got)
 	}
 	if stats.Other.Files != 1 || stats.Other.Lines != 3 {

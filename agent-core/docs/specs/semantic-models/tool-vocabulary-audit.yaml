@@ -15,7 +15,7 @@ scope:
     - $AGENT_PROFILES_ROOT/agents/*/builtin.yaml
     - $AGENT_PROFILES_ROOT/agents/*/llm/*.yaml
   selections:
-    - $AGENT_PROFILES_ROOT/agents/generator/tools.yaml
+    - $AGENT_PROFILES_ROOT/agents/executor/tools.yaml
     - $AGENT_PROFILES_ROOT/agents/planner/tools.yaml
     - $AGENT_PROFILES_ROOT/agents/critic/tools.yaml
     - $AGENT_PROFILES_ROOT/agents/critic/tools-point.yaml

@@ -62,7 +62,7 @@ requirements:
     title: Mounted-profile container runtime
     items:
       - R4.1: Runtime container images SHALL include the agent binary and core-owned runtime assets only.
-      - R4.2: Runtime container images SHALL NOT copy agents/generator, agents/critic, agents/planner, agents/bench, agents/jurist, Knowledge Manager profiles, demos, or profile integration fixtures from agent-core.
+      - R4.2: Runtime container images SHALL NOT copy agents/executor, agents/critic, agents/planner, agents/bench, agents/jurist, Knowledge Manager profiles, demos, or profile integration fixtures from agent-core.
       - R4.3: Container callers SHALL provide profiles by bind mount, image layer supplied by another repository, release asset unpack, or another explicit external path.
       - R4.4: Container proof commands SHALL run cmd/agent with --profile pointing at the mounted profile path and --directory pointing at the mounted workspace.
       - R4.5: The runtime image SHALL install core-owned assets under a fixed path such as /opt/agent-core. That install path SHALL NOT imply that agent profiles are present there. Operators reference core-owned declaration trees with absolute paths in configuration when needed.

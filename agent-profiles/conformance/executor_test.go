@@ -8,16 +8,16 @@ import (
 )
 
 // generatorModel is the model the generator default LLM declaration configures
-// (agents/generator/llm/default.yaml), shared by profile.yaml and
+// (agents/executor/llm/default.yaml), shared by profile.yaml and
 // profile-qwen35b.yaml. generatorQwen27bModel is the model the 27B variant
-// configures (agents/generator/llm/qwen27b.yaml). The behavioral runs gate on
+// configures (agents/executor/llm/qwen27b.yaml). The behavioral runs gate on
 // the relevant model being served by Ollama.
 const (
 	generatorModel        = "qwen3.6:35b-mlx"
 	generatorQwen27bModel = "qwen3.6:27b-mlx"
 )
 
-// TestGeneratorConformance runs the shipped generator profile — the wrapper an
+// TestExecutorConformance runs the shipped executor profile — the wrapper an
 // operator ships, not a synthesized reconstruction — through its model
 // boundary. The generator's first machine action is invoke_llm, which pings
 // Ollama at tool registration and calls the model during the run, so the run is
@@ -31,27 +31,27 @@ const (
 // Only the bounding field is patched — the shipped machine, tools, LLM
 // declaration, and tool_config_dirs are exercised as shipped.
 //
-// Traces srd002-generator: R1.1 (invoke_llm as the machine's model-boundary
+// Traces srd002-executor: R1.1 (invoke_llm as the machine's model-boundary
 // action), R2.2 (the LLM tool family), and R3.2 (a clean terminal outcome).
-func TestGeneratorConformance(t *testing.T) {
-	runBoundedShippedGenerator(t, filepath.Join("agents", "generator", "profile.yaml"), generatorModel)
+func TestExecutorConformance(t *testing.T) {
+	runBoundedShippedGenerator(t, filepath.Join("agents", "executor", "profile.yaml"), generatorModel)
 }
 
-// TestGeneratorQwen35bConformance runs the shipped generator-qwen35b variant.
+// TestExecutorQwen35bConformance runs the shipped generator-qwen35b variant.
 // It shares the default 35B model declaration, so it exercises the same model
 // boundary as profile.yaml through the variant wrapper an operator ships.
-func TestGeneratorQwen35bConformance(t *testing.T) {
-	runBoundedShippedGenerator(t, filepath.Join("agents", "generator", "profile-qwen35b.yaml"), generatorModel)
+func TestExecutorQwen35bConformance(t *testing.T) {
+	runBoundedShippedGenerator(t, filepath.Join("agents", "executor", "profile-qwen35b.yaml"), generatorModel)
 }
 
-// TestGeneratorQwen27bConformance runs the shipped generator-qwen27b variant,
+// TestExecutorQwen27bConformance runs the shipped generator-qwen27b variant,
 // which points at the 27B model declaration. It is gated on that model being
 // served and skips cleanly otherwise.
-func TestGeneratorQwen27bConformance(t *testing.T) {
-	runBoundedShippedGenerator(t, filepath.Join("agents", "generator", "profile-qwen27b.yaml"), generatorQwen27bModel)
+func TestExecutorQwen27bConformance(t *testing.T) {
+	runBoundedShippedGenerator(t, filepath.Join("agents", "executor", "profile-qwen27b.yaml"), generatorQwen27bModel)
 }
 
-// runBoundedShippedGenerator copies the shipped generator profile at relProfile,
+// runBoundedShippedGenerator copies the shipped executor profile at relProfile,
 // bounds its machine to a single iteration by patching only max_iterations (no
 // wrapper rebuild), runs it, and asserts the model boundary fired: a chat
 // <model> gen_ai span under a single root, a clean BudgetExceeded terminal, and
@@ -88,24 +88,24 @@ func runBoundedShippedGenerator(t *testing.T, relProfile, model string) {
 	result.RequireTerminalState(t, "BudgetExceeded")
 }
 
-// TestGeneratorShippedProfileWiring asserts, model-free and ungated, that the
+// TestExecutorShippedProfileWiring asserts, model-free and ungated, that the
 // three wrappers an operator ships for the generator family are wired as the
 // behavioral runs assume: each profile references the shared machine, the tools
 // manifest, and an invoke_llm LLM declaration, and the shared machine seeds the
 // model boundary from Idle and drains its iteration budget to BudgetExceeded.
 // It needs no model, so it holds in the fast default and where Ollama is absent.
 //
-// Traces srd002-generator R1.1 (invoke_llm as the seed model-boundary action)
+// Traces srd002-executor R1.1 (invoke_llm as the seed model-boundary action)
 // and R3.2 (BudgetExhausted reaches the BudgetExceeded terminal).
-func TestGeneratorShippedProfileWiring(t *testing.T) {
+func TestExecutorShippedProfileWiring(t *testing.T) {
 	type generatorProfile struct {
 		rel     string
 		llmDecl string
 	}
 	for _, gp := range []generatorProfile{
-		{filepath.Join("agents", "generator", "profile.yaml"), "llm/default.yaml"},
-		{filepath.Join("agents", "generator", "profile-qwen35b.yaml"), "llm/default.yaml"},
-		{filepath.Join("agents", "generator", "profile-qwen27b.yaml"), "llm/qwen27b.yaml"},
+		{filepath.Join("agents", "executor", "profile.yaml"), "llm/default.yaml"},
+		{filepath.Join("agents", "executor", "profile-qwen35b.yaml"), "llm/default.yaml"},
+		{filepath.Join("agents", "executor", "profile-qwen27b.yaml"), "llm/qwen27b.yaml"},
 	} {
 		var profile struct {
 			Machine          string   `yaml:"machine"`
@@ -128,7 +128,7 @@ func TestGeneratorShippedProfileWiring(t *testing.T) {
 		InitialState string              `yaml:"initial_state"`
 		Transitions  []machineTransition `yaml:"transitions"`
 	}
-	unmarshalShipped(t, filepath.Join("agents", "generator", "machine.yaml"), &machine)
+	unmarshalShipped(t, filepath.Join("agents", "executor", "machine.yaml"), &machine)
 
 	if machine.InitialState != "Idle" {
 		t.Errorf("shipped generator machine initial_state = %q, want Idle", machine.InitialState)
