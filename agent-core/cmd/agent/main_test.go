@@ -418,6 +418,51 @@ func TestApprovalLifecycleProfileSuspendsThroughCheckpointPort(t *testing.T) {
 	require.Contains(t, firstStderr, "terminal state: suspended")
 }
 
+func TestValidateConfigValidProfileExitsZero(t *testing.T) {
+	restore := snapshotAgentFlags()
+	t.Cleanup(func() { restoreAgentFlags(restore) })
+
+	clearAgentFlags()
+	flagProfile = profilePathFromTest(t, "monitor/profile.yaml")
+	flagValidateConfig = true
+
+	stderr, err := captureStderr(t, func() error {
+		return run(rootCmd, nil)
+	})
+	require.NoError(t, err)
+	require.Contains(t, stderr, "config valid")
+	// Validate mode must not enter the run loop or bind servers.
+	require.NotContains(t, stderr, "terminal state")
+}
+
+func TestValidateConfigInvalidRestExitsNonZero(t *testing.T) {
+	restore := snapshotAgentFlags()
+	t.Cleanup(func() { restoreAgentFlags(restore) })
+
+	monitorDir := filepath.Dir(profilePathFromTest(t, "monitor/profile.yaml"))
+	dir := t.TempDir()
+	badRest := filepath.Join(dir, "rest.yaml")
+	require.NoError(t, os.WriteFile(badRest,
+		[]byte("rest:\n  version: v1\n  auth:\n    broken:\n      type: totally-unsupported\n"), 0o644))
+	profile := filepath.Join(dir, "profile.yaml")
+	require.NoError(t, os.WriteFile(profile, []byte(fmt.Sprintf(
+		"name: badrest\nmachine: %s\ntools:\n  - %s\ntool_declarations:\n  - %s\nrest_definitions:\n  - %s\n",
+		filepath.Join(monitorDir, "machine.yaml"),
+		filepath.Join(monitorDir, "tools.yaml"),
+		filepath.Join(monitorDir, "declarations.yaml"),
+		badRest)), 0o644))
+
+	clearAgentFlags()
+	flagProfile = profile
+	flagValidateConfig = true
+
+	_, err := captureStderr(t, func() error {
+		return run(rootCmd, nil)
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported type")
+}
+
 func TestResolveCheckpointDefaultsToNoop(t *testing.T) {
 	t.Parallel()
 
@@ -972,6 +1017,7 @@ type agentFlagSnapshot struct {
 	output           string
 	resumeCheckpoint string
 	resumeSignal     string
+	validateConfig   bool
 }
 
 func snapshotAgentFlags() agentFlagSnapshot {
@@ -986,6 +1032,7 @@ func snapshotAgentFlags() agentFlagSnapshot {
 		output:           flagOutput,
 		resumeCheckpoint: flagResumeCheckpoint,
 		resumeSignal:     flagResumeSignal,
+		validateConfig:   flagValidateConfig,
 	}
 }
 
@@ -1000,6 +1047,7 @@ func restoreAgentFlags(s agentFlagSnapshot) {
 	flagOutput = s.output
 	flagResumeCheckpoint = s.resumeCheckpoint
 	flagResumeSignal = s.resumeSignal
+	flagValidateConfig = s.validateConfig
 }
 
 func clearAgentFlags() {
