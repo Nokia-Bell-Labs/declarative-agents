@@ -30,6 +30,8 @@ spec:
             {{- with include "chatbot-mesh.otlpEndpoint" . }}
             - "--otel-otlp-endpoint"
             - {{ . | quote }}
+            - "--otel-service-name"
+            - "chatbot"
             {{- end }}
           ports:
             - {name: chat, containerPort: {{ .Values.chatbot.ports.chat }}}

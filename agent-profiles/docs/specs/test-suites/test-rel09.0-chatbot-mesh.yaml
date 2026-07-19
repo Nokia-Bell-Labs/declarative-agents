@@ -7,9 +7,9 @@ overview: |
   persistent RAG server answering a vector-in query (srd013), an end-to-end
   chatbot turn that routes, embeds, fans out to two RAGs, composes, and answers
   with a degraded-RAG case (srd014), and a Helm deployment on a kind cluster that
-  exercises the tiered hot swap (srd015). The cases are planned; the integration
-  targets land with the implementation epics (#292 RAG server, #293/#294 chatbot,
-  #296 deployment).
+  exercises the tiered hot swap (srd015). The RAG-server, chatbot, and deployment
+  smoke tracers are implemented; the co-generation and hot-swap tracer lands with
+  the co-generation issue (#314) of the deployment epic (#296).
 
 traces:
   - rel09.0-uc001-rag-server-query
@@ -105,14 +105,46 @@ test_cases:
       - srd014-chatbot-agent AC3
 
   - use_case: rel09.0-uc003-mesh-deployment
-    name: Mesh Helm deployment and hot-swap tracer on kind
+    name: Mesh Helm deployment smoke tracer on kind
+    integration_target: mage integration:helmSmoke
+    go_test: go test ./magefiles -run 'TestSplitImageRef|TestJaegerAgentServices|TestAssertSmoke|TestHelmSmoke'
+    status: implemented
+    description: |
+      Integration.HelmSmoke deploys the chatbot-mesh chart on a disposable kind
+      cluster with the ci values (one RAG unit, external Ollama). It builds the
+      rel06.0 runtime image from the local agent-core checkout and kind-loads it,
+      stages the chatbot and rag-server profiles into the chart ConfigMap, helm
+      installs and waits for every Deployment and StatefulSet ready, port-forwards
+      the chatbot chat Service, posts one chat turn and asserts a served answer,
+      and queries Jaeger for spans from more than one service. Each agent reports a
+      distinct service.name (the chart wires --otel-service-name per agent), so the
+      collector-to-Jaeger pipeline surfaces the mesh as more than one service.
+      Teardown deletes the kind cluster in all paths. The target skips cleanly when
+      docker, kind, helm, kubectl, or the configured Ollama models are absent,
+      naming the missing dependency. Grounded-with-citation retrieval and the swap
+      paths are the co-generation case below (their in-cluster RAG reachability
+      depends on the co-generated client base URLs).
+    inputs:
+      chart: deploy/chatbot-mesh/
+      values: deploy/chatbot-mesh/ci/kind-values.yaml
+      values_rag_list: [rag0]
+    expected:
+      chart_deploys_full_mesh: true
+      chat_turn_served: true
+      spans_from_multiple_services: true
+      skips_clean_without_toolchain: true
+    traces:
+      - rel09.0-uc003-mesh-deployment S1
+      - srd015-chatbot-deployment AC1
+      - srd015-chatbot-deployment AC5
+
+  - use_case: rel09.0-uc003-mesh-deployment
+    name: Mesh co-generation and hot-swap tracer on kind
     integration_target: mage integration:meshDeploy
     status: planned
     description: |
-      helm install the mesh on a kind cluster and exercise the tiered swap. The
-      target proves one chart deploys the chatbot, two values-driven RAG pairs,
-      the LLM, the Dolt backend, and the collector over rel06.0 images with
-      ConfigMap profiles; the chatbot RAG clients are co-generated from the values
+      Extends Integration.HelmSmoke with the co-generation and tiered-swap
+      assertions (GH-314). The chatbot RAG clients are co-generated from the values
       list and the rendered rest.yaml passes ValidateDefinition; repointing a RAG
       is a Service change with no agent config change; and adding a RAG re-renders
       ConfigMaps and rolls out the chatbot with a Dolt checkpoint resume.
@@ -122,13 +154,11 @@ test_cases:
       swap_repoint: rag-a Service endpoint change
       swap_add: rag-c values entry
     expected:
-      chart_deploys_full_mesh: true
       client_config_cogenerated: true
       rendered_rest_yaml_validates: true
       repoint_touches_no_agent_config: true
       add_rag_rollout_resumes_checkpoint: true
     traces:
-      - rel09.0-uc003-mesh-deployment S1
       - rel09.0-uc003-mesh-deployment S2
       - rel09.0-uc003-mesh-deployment S3
       - srd015-chatbot-deployment AC2

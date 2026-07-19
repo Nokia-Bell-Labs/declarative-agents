@@ -40,6 +40,8 @@ spec:
             {{- with include "chatbot-mesh.otlpEndpoint" $root }}
             - "--otel-otlp-endpoint"
             - {{ . | quote }}
+            - "--otel-service-name"
+            - {{ $unit.name | quote }}
             {{- end }}
           env:
             - {name: CHROMA_URL, value: "http://{{ $chromaName }}:{{ $root.Values.chroma.port }}"}
