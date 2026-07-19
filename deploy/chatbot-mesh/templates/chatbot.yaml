@@ -18,6 +18,21 @@ spec:
         {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: chatbot
     spec:
+      {{- if .Values.validateProfiles }}
+      initContainers:
+        # Fail the rollout before the chatbot serves if the co-generated rest.yaml
+        # is invalid (srd015 R2.2). Validate-only: loads and validates the profile,
+        # machine, and REST definitions, then exits 0/1 without binding servers.
+        - name: validate-config
+          image: {{ include "chatbot-mesh.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--profile"
+            - "{{ .Values.profiles.mountPath }}/agents/chatbot/profile.yaml"
+            - "--validate-config"
+          volumeMounts:
+            - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
+      {{- end }}
       containers:
         - name: chatbot
           image: {{ include "chatbot-mesh.image" . | quote }}
@@ -27,6 +42,10 @@ spec:
             - "{{ .Values.profiles.mountPath }}/agents/chatbot/profile.yaml"
             - "--directory"
             - "{{ .Values.profiles.workMountPath }}"
+            {{- with include "chatbot-mesh.doltDSN" . }}
+            - "--dolt-dsn"
+            - {{ . | quote }}
+            {{- end }}
             {{- with include "chatbot-mesh.otlpEndpoint" . }}
             - "--otel-otlp-endpoint"
             - {{ . | quote }}

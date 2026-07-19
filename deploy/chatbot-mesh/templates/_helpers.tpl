@@ -49,6 +49,18 @@ http://{{ include "chatbot-mesh.fullname" . }}-ollama:{{ .Values.llm.port }}
 {{- end -}}
 
 {{/*
+The MySQL-wire DSN to the Dolt sql-server checkpoint backend (agent-core
+srd035/srd036), or empty when Dolt is disabled. The chatbot persists its host
+machine's checkpoints here, so a rollout resumes from durable state rather than
+cold-starting.
+*/}}
+{{- define "chatbot-mesh.doltDSN" -}}
+{{- if .Values.dolt.enabled -}}
+{{ .Values.dolt.user }}@tcp({{ include "chatbot-mesh.fullname" . }}-dolt:{{ .Values.dolt.port }})/{{ .Values.dolt.database }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 The profiles volume. Profile files live under the chart's profiles/ subtree and
 are packaged into one ConfigMap with "/" in each path encoded as "__" (ConfigMap
 keys cannot contain "/"). The volume projects each key back to its nested path
@@ -61,7 +73,13 @@ mount. GH-314 co-generates the chatbot rest.yaml into this subtree before packag
     name: {{ include "chatbot-mesh.fullname" . }}-profiles
     items:
     {{- range $path, $_ := .Files.Glob "profiles/**" }}
-      - key: {{ $path | trimPrefix "profiles/" | replace "/" "__" }}
+      {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
+      {{- if and (ne $key "agents__chatbot__rest.yaml") (ne $key "agents__chatbot__ui__ux.yaml") }}
+      - key: {{ $key }}
         path: {{ $path | trimPrefix "profiles/" }}
+      {{- end }}
     {{- end }}
+      {{- /* The co-generated keys, projected whether or not a packaging step placed the file on disk. */}}
+      - {key: agents__chatbot__rest.yaml, path: agents/chatbot/rest.yaml}
+      - {key: agents__chatbot__ui__ux.yaml, path: agents/chatbot/ui/ux.yaml}
 {{- end -}}

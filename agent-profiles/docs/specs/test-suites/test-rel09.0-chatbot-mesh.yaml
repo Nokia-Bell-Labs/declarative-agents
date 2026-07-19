@@ -139,27 +139,51 @@ test_cases:
       - srd015-chatbot-deployment AC5
 
   - use_case: rel09.0-uc003-mesh-deployment
-    name: Mesh co-generation and hot-swap tracer on kind
+    name: Chatbot rest.yaml co-generation drift lock
+    integration_target: mage integration:helmSmoke
+    go_test: go test ./magefiles -run 'TestChatbotRestCoGenerated|TestChatbotUXMonitored'
+    status: implemented
+    description: |
+      Locks srd015 R2: the chatbot rest.yaml and ux.yaml are rendered from the
+      ragUnits list into the profiles ConfigMap, overriding the packaged keys, so
+      the RAG client entries (rag0..ragN at each unit's Service DNS), the provider
+      egress allowlist, the monitor_proxy upstreams, and the monitored-agents list
+      derive from the same list that creates the RAG objects and cannot drift. A
+      helm template render with a three-RAG values set is asserted to carry exactly
+      those clients and upstreams with no stale loopback entry, and the chatbot
+      servers bind 0.0.0.0. The rendered rest.yaml passes --validate-config (the
+      init-container gate); an invalid render fails the rollout.
+    inputs:
+      chart: deploy/chatbot-mesh/
+      values_rag_list: [alpha, bravo, charlie]
+    expected:
+      client_config_cogenerated: true
+      one_client_per_rag_unit: true
+      no_drifted_or_stale_client: true
+      servers_bind_public: true
+    traces:
+      - rel09.0-uc003-mesh-deployment S2
+      - srd015-chatbot-deployment AC2
+
+  - use_case: rel09.0-uc003-mesh-deployment
+    name: Mesh hot-swap tracer on kind
     integration_target: mage integration:meshDeploy
     status: planned
     description: |
-      Extends Integration.HelmSmoke with the co-generation and tiered-swap
-      assertions (GH-314). The chatbot RAG clients are co-generated from the values
-      list and the rendered rest.yaml passes ValidateDefinition; repointing a RAG
-      is a Service change with no agent config change; and adding a RAG re-renders
-      ConfigMaps and rolls out the chatbot with a Dolt checkpoint resume.
+      Extends Integration.HelmSmoke with the on-cluster swap paths. Repointing a
+      RAG is a Service selector change touching no agent config (satisfied by
+      construction once the clients are co-generated to Service DNS); adding a RAG
+      re-renders ConfigMaps and rolls the chatbot with a Dolt checkpoint resume.
+      The add-RAG path additionally needs the chatbot fan-out machine and rag_merge
+      sources co-generated for N RAGs (coupled to the fan-out redesign in GH-365).
     inputs:
       chart: deploy/chatbot-mesh/
       values_rag_list: [rag-a, rag-b]
       swap_repoint: rag-a Service endpoint change
       swap_add: rag-c values entry
     expected:
-      client_config_cogenerated: true
-      rendered_rest_yaml_validates: true
       repoint_touches_no_agent_config: true
       add_rag_rollout_resumes_checkpoint: true
     traces:
-      - rel09.0-uc003-mesh-deployment S2
       - rel09.0-uc003-mesh-deployment S3
-      - srd015-chatbot-deployment AC2
       - srd015-chatbot-deployment AC3

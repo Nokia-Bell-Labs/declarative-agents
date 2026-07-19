@@ -42,6 +42,7 @@ var (
 	flagResumeCheckpoint string
 	flagResumeSignal     string
 	flagChildAgent       string
+	flagValidateConfig   bool
 )
 
 const (
@@ -78,6 +79,7 @@ func init() {
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
 	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
 	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary the evaluator launches (default: agent, resolved from PATH)")
+	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
 
 	rootCmd.Version = "v0.0.0-dev"
 }
@@ -148,6 +150,9 @@ func run(cmd *cobra.Command, args []string) error {
 	if f := cmd.Flags().Lookup("core-root"); f != nil && f.Changed && strings.TrimSpace(flagCoreRoot) != "" {
 		spec.SetAgentCoreInstallRoot(flagCoreRoot)
 	}
+	if flagValidateConfig {
+		return validateConfig()
+	}
 	prepared, err := prepareRun(cmd)
 	if err != nil {
 		return err
@@ -163,6 +168,24 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "terminal state: %s\n", result.Status)
 	prepared.Shutdown.Apply()
+	return nil
+}
+
+// validateConfig loads the profile, machine spec, tool definitions, and REST
+// definitions and runs the same validation the runtime performs at startup
+// (ValidateDefinition per REST file during load, ValidateToolEmits over the
+// machine), then returns without binding servers or running the loop. A nil
+// return exits 0; a load or validation error propagates to cobra and exits 1.
+// The chatbot deployment runs this as an init-container so an invalid rendered
+// rest.yaml fails the rollout before the agent serves (srd015 R2.2).
+func validateConfig() error {
+	resources, err := loadRunResources()
+	if err != nil {
+		return err
+	}
+	resources.shutdownTelemetry()
+	fmt.Fprintf(os.Stderr, "config valid: profile %s (%d REST client(s), %d server(s))\n",
+		flagProfile, len(resources.RestDefinitions.Clients), len(resources.RestDefinitions.Servers))
 	return nil
 }
 
