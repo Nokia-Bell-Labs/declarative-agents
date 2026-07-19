@@ -13,7 +13,10 @@ rest:
         mode: none
       network:
         schemes: [http]
-        hosts: [127.0.0.1]
+        # The Chroma host is the egress allowlist entry; a values-driven deploy
+        # sets CHROMA_HOST to the Chroma Service DNS name (srd015 R2), defaulting
+        # to loopback for a local run.
+        hosts: [${CHROMA_HOST:-127.0.0.1}]
         ports: [8000]
     local_rag_requests:
       timeout: 10s
@@ -26,6 +29,9 @@ rest:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
         ports: [18085]
+        # A Service routes to the pod IP, so the deploy binds 0.0.0.0 (RAG_BIND_HOST);
+        # the public-listener guard is opted into here, and stays loopback locally.
+        allow_public_listener: true
     local_rag_control:
       timeout: 30s
       read_timeout: 5s
@@ -37,6 +43,7 @@ rest:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
         ports: [18086]
+        allow_public_listener: true
     local_rag_monitor:
       timeout: 5s
       read_timeout: 5s
@@ -48,10 +55,11 @@ rest:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
         ports: [18087]
+        allow_public_listener: true
 
   clients:
     chroma:
-      base_url: http://127.0.0.1:8000
+      base_url: ${CHROMA_URL:-http://127.0.0.1:8000}
       auth_ref: none
       limits_ref: local_rag_client
       operations:
@@ -82,7 +90,7 @@ rest:
               query_embeddings: $.query_embeddings
             carry_forward: [query_embeddings]
           body:
-            name: corpus
+            name: ${RAG_COLLECTION:-corpus}
             get_or_create: true
           success: {status: [200, 201], signal: CollectionReady}
           response:
@@ -132,7 +140,7 @@ rest:
 
   servers:
     chroma_rag_requests:
-      address: 127.0.0.1:18085
+      address: ${RAG_BIND_HOST:-127.0.0.1}:18085
       limits_ref: local_rag_requests
       endpoints:
         query:
@@ -163,7 +171,7 @@ rest:
                     ids: $.mapped.ids
                     documents: $.mapped.documents
                     distances: $.mapped.distances
-                    embedding_model: qwen3-embedding:8b
+                    embedding_model: ${RAG_EMBEDDING_MODEL:-qwen3-embedding:8b}
                 QueryRejected:
                   status: 400
                   content_type: application/json
@@ -180,7 +188,7 @@ rest:
                     operation: $.operation
 
     chroma_rag_control:
-      address: 127.0.0.1:18086
+      address: ${RAG_BIND_HOST:-127.0.0.1}:18086
       limits_ref: local_rag_control
       queue:
         name: chroma_rag_control
@@ -210,7 +218,7 @@ rest:
           binding: health
 
     monitor:
-      address: 127.0.0.1:18087
+      address: ${RAG_BIND_HOST:-127.0.0.1}:18087
       limits_ref: local_rag_monitor
       queue:
         name: chroma_rag_monitor
