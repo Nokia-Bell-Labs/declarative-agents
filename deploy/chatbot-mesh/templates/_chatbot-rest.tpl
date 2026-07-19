@@ -130,6 +130,10 @@ rest:
             query_embeddings: "{{`{{ params.query_embeddings }}`}}"
             n_results: 5
           success: {status: [200], signal: QueryResponded}
+          failures:
+            # 400 embedding-space mismatch -> QueryRejected (excluded, srd014 R3.3),
+            # distinct from a degraded (CommandError) RAG.
+            - {status: [400], signal: QueryRejected}
           response:
             output:
               ids: $.ids

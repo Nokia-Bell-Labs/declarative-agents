@@ -103,6 +103,11 @@ rest:
             query_embeddings: "{{ params.query_embeddings }}"
             n_results: 5
           success: {status: [200], signal: QueryResponded}
+          failures:
+            # An embedding-space mismatch (srd013 R2.3) is a 400 the RAG server
+            # returns; map it to QueryRejected so the machine excludes this source
+            # (srd014 R3.3) distinctly from a degraded (CommandError) RAG.
+            - {status: [400], signal: QueryRejected}
           response:
             output:
               ids: $.ids
@@ -137,6 +142,11 @@ rest:
             query_embeddings: "{{ params.query_embeddings }}"
             n_results: 5
           success: {status: [200], signal: QueryResponded}
+          failures:
+            # An embedding-space mismatch (srd013 R2.3) is a 400 the RAG server
+            # returns; map it to QueryRejected so the machine excludes this source
+            # (srd014 R3.3) distinctly from a degraded (CommandError) RAG.
+            - {status: [400], signal: QueryRejected}
           response:
             output:
               ids: $.ids

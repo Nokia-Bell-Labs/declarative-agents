@@ -16,7 +16,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/compose"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/ragmerge"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/control"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/lifecycle"
@@ -77,23 +76,6 @@ func registerComposeFactories() toolregistry.FactoryRegistrar {
 				Template: cfg.Template,
 				Inputs:   cfg.Inputs,
 				Signal:   core.Signal(cfg.Signal),
-			}, nil
-		})
-		br.Register("rag_merge", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-			var cfg catalog.RagMergeConfig
-			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-				return nil, err
-			}
-			sources := make([]ragmerge.Source, 0, len(cfg.Sources))
-			for _, s := range cfg.Sources {
-				sources = append(sources, ragmerge.Source{Label: s.Label, Tag: s.Tag})
-			}
-			return ragmerge.Builder{
-				ToolName:               def.Name,
-				Sources:                sources,
-				ExpectedEmbeddingModel: cfg.ExpectedEmbeddingModel,
-				MaxChunks:              cfg.MaxChunks,
-				Signal:                 core.Signal(cfg.Signal),
 			}, nil
 		})
 	}

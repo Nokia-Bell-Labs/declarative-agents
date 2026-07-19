@@ -41,9 +41,11 @@ const (
 //   - a factual turn and an analytical turn exercise the $tool router, and the
 //     chatbot span log is asserted to show both the fast and the deep chat model
 //     answered (the router dispatched each word);
-//   - a cross-corpus turn cites chunks from both RAGs by their [rag0]/[rag1] tags
-//     (sequential fan-out and distance-ordered merge);
-//   - stopping rag1 degrades the next turn to a 200 answered from rag0 alone;
+//   - a cross-corpus turn draws the disjoint rag1 corpus into the answer
+//     (sequential fan-out; compose renders each RAG under its [ragN] header, no
+//     merge word — GH-365);
+//   - stopping rag1 degrades the next turn to a 200 answered from rag0 alone, with
+//     the disjoint corpus absent (R3.2 via the CommandError machine transition);
 //   - the chatbot turn and each rag-server it called are one connected trace
 //     (shared trace id, the rag-server span parented under a chatbot span).
 //
@@ -232,7 +234,7 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("rag1 %w", err)
 	}
 
-	fmt.Println("integration:chatbot PASS - router dispatched both chat models, fan-out cited both RAGs, rag1-down turn degraded to a 200, and each rag-server joined the chatbot's connected trace")
+	fmt.Println("integration:chatbot PASS - router dispatched both chat models, fan-out drew both RAG corpora, rag1-down turn degraded to a 200 with the disjoint corpus absent, and each rag-server joined the chatbot's connected trace")
 	return nil
 }
 
@@ -279,11 +281,13 @@ func assertChatbotRoutedTurn(message string) error {
 	return nil
 }
 
-// assertChatbotFanOut proves the sequential two-RAG fan-out: a cross-corpus turn
-// cites chunks tagged from both rag0 and rag1. The chunks reach the model
-// pre-tagged by rag_merge, so a grounded answer that draws on both names both tags.
+// assertChatbotFanOut proves the sequential two-RAG fan-out reaches both corpora.
+// compose renders each RAG's surviving chunks under its own [ragN] header (no merge
+// word); citation is by record content, not an inline per-chunk tag (srd014 R5). A
+// spanning question that does not name the disjoint corpus must still surface it, so
+// the answer carries the Solar Ridge content that only rag1 holds.
 func assertChatbotFanOut() error {
-	resp, status, err := postChatTurn("List every project and system described across the knowledge base and cite each with its bracketed source tag.", "[]")
+	resp, status, err := postChatTurn("List every project and system described across the knowledge base.", "[]")
 	if err != nil {
 		return err
 	}
@@ -293,18 +297,21 @@ func assertChatbotFanOut() error {
 	if resp.Trace.Status != "succeeded" {
 		return fmt.Errorf("fan-out turn trace status = %q, want succeeded", resp.Trace.Status)
 	}
-	for _, tag := range []string{"[rag0]", "[rag1]"} {
-		if !strings.Contains(resp.Answer, tag) {
-			return fmt.Errorf("fan-out turn answer does not cite %s (both RAGs must contribute); answer: %s", tag, resp.Answer)
-		}
+	if !strings.Contains(strings.ToLower(resp.Answer), "solar ridge") {
+		return fmt.Errorf("fan-out answer omits the disjoint rag1 corpus (Solar Ridge); both RAGs must contribute; answer: %s", resp.Answer)
 	}
 	return nil
 }
 
 func assertChatbotDegradedTurn() error {
 	// A follow-up turn carries the prior turn as client-side history (srd014 R4).
+	// rag1 (the disjoint Solar Ridge corpus) is stopped, so its query fails: the
+	// machine routes on via CommandError (degraded, R3.2), compose renders rag1's
+	// section empty, and the turn still answers 200 from rag0 alone. The same
+	// spanning question as the fan-out turn now cannot surface any Solar Ridge
+	// content, since only rag1 held it.
 	history := `[{"role":"user","content":"What is in the knowledge base?"},{"role":"assistant","content":"Several systems and projects."}]`
-	resp, status, err := postChatTurn("What do the Chroma corpus agents use to compute embeddings?", history)
+	resp, status, err := postChatTurn("List every project and system described across the knowledge base.", history)
 	if err != nil {
 		return err
 	}
@@ -317,8 +324,8 @@ func assertChatbotDegradedTurn() error {
 	if resp.Trace.Status != "succeeded" {
 		return fmt.Errorf("degraded turn trace status = %q, want succeeded", resp.Trace.Status)
 	}
-	if strings.Contains(resp.Answer, "[rag1]") {
-		return fmt.Errorf("degraded turn cited [rag1] though rag1 is stopped; answer: %s", resp.Answer)
+	if strings.Contains(strings.ToLower(resp.Answer), "solar ridge") {
+		return fmt.Errorf("degraded turn surfaced the stopped rag1 corpus (Solar Ridge); answer: %s", resp.Answer)
 	}
 	return nil
 }

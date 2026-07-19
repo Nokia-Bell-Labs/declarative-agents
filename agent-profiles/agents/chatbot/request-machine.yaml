@@ -3,11 +3,14 @@ purpose: |-
   One request-scoped chat turn. The chat endpoint seeds this machine with the
   request body (message and history). embed_query embeds the message once; rag_query0
   then rag_query1 fan that one vector out sequentially to the declared RAG servers
-  (each reading it through command-state $from(embed_query)); rag_merge combines the
-  returned chunks distance-ordered with per-RAG tags, skipping a RAG that failed
-  (degraded) or whose embedding model mismatches (excluded); and compose_prompt
-  builds a grounding prompt from the original message and the merged chunks through
-  command-state $from() addressing. route then classifies the composed prompt to a
+  (each reading it through command-state $from(embed_query)). A RAG that failed
+  (CommandError, degraded) or whose embedding model mismatched (a 400 mapped to
+  QueryRejected, excluded) routes on to the next RAG state, so degradation and
+  exclusion are visible machine transitions rather than a merge word; each RAG's
+  outcome stays in command state for the response-metadata step. compose_prompt then
+  builds a grounding prompt from the original message and the surviving per-RAG chunk
+  lists ($from(rag_query0)/$from(rag_query1), each under its own [ragN] header), an
+  unresolved source rendering empty. route then classifies the composed prompt to a
   chat-LLM word ($tool over invoke_llm_fast and invoke_llm_deep) and the chosen word
   answers, reading the composed prompt through command-state $from(compose_prompt)
   (agent-core user_prompt_from) since the $tool dispatch passes the router tool call
@@ -24,8 +27,7 @@ states:
   - {name: Embedding, meaning: The message is being embedded once at the embedding provider.}
   - {name: Retrieving0, meaning: The first RAG server is being queried with the message vector.}
   - {name: Retrieving1, meaning: The second RAG server is being queried with the same vector.}
-  - {name: Merging, meaning: The per-RAG chunk lists are being merged, degraded and mismatched sources dropped.}
-  - {name: Composing, meaning: The grounding prompt is being composed from the message and merged chunks.}
+  - {name: Composing, meaning: The grounding prompt is being composed from the message and the surviving per-RAG chunk lists.}
   - {name: Routing, meaning: The router classifier is picking a chat-LLM word for the composed prompt.}
   - {name: Parsing, meaning: The router response is being parsed into one chat-LLM tool call.}
   - {name: Answering, meaning: The chosen chat-LLM word is answering over the composed prompt.}
@@ -38,7 +40,7 @@ signals:
   - {name: Seed, trigger: The chat endpoint starts a request-scoped turn.}
   - {name: QueryEmbedded, trigger: The provider returned the message embedding.}
   - {name: QueryResponded, trigger: The RAG server returned chunks.}
-  - {name: Merged, trigger: The per-RAG chunk lists were merged into one grounding set.}
+  - {name: QueryRejected, trigger: The RAG server rejected the query embedding (embedding-space mismatch, a mapped 400); the source is excluded.}
   - {name: Composed, trigger: The grounding prompt was rendered.}
   - {name: LLMResponded, trigger: A model word produced a response.}
   - {name: ToolDone, trigger: The router response parsed to one chat-LLM tool call.}
@@ -52,10 +54,10 @@ transitions:
   - {state: Embedding,       signal: CommandError,   next: Failed}
   - {state: Retrieving0,     signal: QueryResponded, next: Retrieving1,   action: rag_query1}
   - {state: Retrieving0,     signal: CommandError,   next: Retrieving1,   action: rag_query1}
-  - {state: Retrieving1,     signal: QueryResponded, next: Merging,       action: rag_merge}
-  - {state: Retrieving1,     signal: CommandError,   next: Merging,       action: rag_merge}
-  - {state: Merging,         signal: Merged,         next: Composing,     action: compose_prompt}
-  - {state: Merging,         signal: CommandError,   next: Composing,     action: compose_prompt}
+  - {state: Retrieving0,     signal: QueryRejected,  next: Retrieving1,   action: rag_query1}
+  - {state: Retrieving1,     signal: QueryResponded, next: Composing,     action: compose_prompt}
+  - {state: Retrieving1,     signal: CommandError,   next: Composing,     action: compose_prompt}
+  - {state: Retrieving1,     signal: QueryRejected,  next: Composing,     action: compose_prompt}
   - {state: Composing,       signal: Composed,       next: Routing,       action: route}
   - {state: Composing,       signal: CommandError,   next: Routing,       action: route}
   - {state: Routing,         signal: LLMResponded,   next: Parsing,       action: parse_route}
