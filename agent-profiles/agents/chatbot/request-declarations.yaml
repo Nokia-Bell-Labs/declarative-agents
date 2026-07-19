@@ -2,6 +2,7 @@ tools:
   - name: embed_query
     type: builtin
     init: rest_client_invoke
+    visibility: internal
     category: boundary
     description: Embed the incoming chat message once at the embedding provider.
     problem: The RAG server is vector-in, so the chatbot must compute the query vector at a provider.
@@ -47,6 +48,7 @@ tools:
   - name: rag_query
     type: builtin
     init: rest_client_invoke
+    visibility: internal
     category: boundary
     description: Query the RAG server with the message vector.
     problem: The chatbot fans the one message embedding out to the RAG server for grounding chunks.
@@ -143,22 +145,160 @@ tools:
         Answer the user's question using only these retrieved chunks. If the chunks
         do not contain the answer, say so plainly and do not speculate.
 
-  - name: invoke_llm
+  - name: route
     type: builtin
     init: invoke_llm
     visibility: internal
     category: boundary
     emits: [LLMResponded, CommandError]
-    description: Answer the user's question over the composed grounding prompt.
-    problem: The chatbot needs a model boundary that answers grounded in the retrieved chunks.
+    description: Classify the composed prompt to one chat-LLM word with a small fast model.
+    problem: The turn must route to a chat-LLM word by query difficulty before answering (srd014 R2).
     goals:
-      - Send the composed grounding prompt to the configured chat model.
-      - Produce a grounded answer citing chunk ids as the terminal turn output.
-      - Keep model, provider, parser, and prompt configuration profile-owned.
+      - Read the composed grounding prompt and emit one tool call over the chat-LLM vocabulary.
+      - Use a small fast classifier model so routing is cheap relative to the answer.
+      - Keep the router prompt and model profile-owned; see router-prompt.md.
     requirements:
       input:
         - must read the composed grounding prompt from the previous Result
-        - must use the configured model against local Ollama
+        - must use the configured small model against local Ollama
+      output:
+        - must emit LLMResponded with a tool call selecting invoke_llm_fast or invoke_llm_deep
+        - must emit CommandError for provider setup, model discovery, or chat failures
+      side_effects:
+        - must call local Ollama POST /api/chat
+      undo:
+        - must restore conversation history from the pre-call snapshot
+    non_goals:
+      - Does not answer the user; it only picks the chat-LLM word.
+      - Does not call embedding or RAG endpoints.
+    output:
+      description: Raw router response carrying one chat-LLM tool call.
+      schema:
+        type: object
+        properties:
+          response: {type: string}
+          provider: {type: string}
+          model: {type: string}
+        required: [response, provider, model]
+    side_effects:
+      - kind: external_api_call
+        target: ollama.chat
+        description: Sends the composed prompt to the configured local classifier model.
+      - kind: state_mutation
+        target: conversation_history
+        state: appended
+        description: Appends the router response after a successful provider call.
+    reversibility:
+      classification: reversible
+      undo: conversation_truncate
+      requires_confirmation: false
+    undo:
+      strategy: conversation_truncate
+      description: Restore conversation history captured before the router call.
+      requires: [conversation_checkpoint]
+    errors:
+      - signal: CommandError
+        condition: provider configuration is invalid, the model is unavailable, or the model call fails
+        message_shape: 'invoke_llm: <provider/model>: <error>'
+        state_after_failure: conversation history is unchanged unless the provider response was already appended
+    relationships:
+      after:
+        - compose_prompt
+    config:
+      model: "qwen2.5:3b"
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      # manifest_state is the tool manifest the router selects over and the state
+      # parse_route validates the chosen word against (parse_response's StateFunc
+      # tracks the most recent invoke_llm manifest state). It must be Answering,
+      # where the chat-LLM words invoke_llm_fast and invoke_llm_deep are the
+      # dynamic-dispatch vocabulary, even though the router runs in machine state
+      # Routing.
+      manifest_state: Answering
+      response_profile: qwen
+      # Route on the original user question, not the composed grounding prompt
+      # (the grounding wrapper biases a small classifier toward the fast word).
+      user_prompt_from: "$from(embed_query).carried.input"
+      max_time: 60
+      llm_timeout: 60
+      # Kept identical to router-prompt.md, the human-readable source of the
+      # classifier prompt and the chat-LLM word descriptions.
+      system_prompt: |
+        You route a user's question to one chat-LLM word. The user question
+        arrives as the message. Pick exactly one word by the question's difficulty:
+
+        - invoke_llm_fast: a small fast model. Use it for short, factual lookups
+          the retrieved chunks answer directly.
+        - invoke_llm_deep: a larger model. Use it for multi-part, analytical, or
+          synthesis questions that reason over several chunks.
+
+        Do not answer the question yourself. Emit exactly one tool call and
+        nothing else. For a short factual lookup emit:
+
+        [tool_call]
+        {"tool":"invoke_llm_fast","parameters":{}}
+        [/tool_call]
+
+        For a multi-part, analytical, or synthesis question emit:
+
+        [tool_call]
+        {"tool":"invoke_llm_deep","parameters":{}}
+        [/tool_call]
+
+  - name: parse_route
+    type: builtin
+    init: parse_response
+    visibility: internal
+    category: word
+    emits: [ToolDone, ParseFailed, TaskCompleted]
+    description: Parse the router response into one chat-LLM tool call.
+    problem: The $tool dispatch needs one validated chat-LLM word parsed from the router response.
+    goals:
+      - Extract the single tool call the router emitted.
+      - Emit ToolDone with the chosen chat-LLM word, or ParseFailed on a misparse or out-of-vocabulary pick.
+    requirements:
+      input:
+        - must read the router response from the previous Result
+        - must validate the chosen tool against the chat-LLM vocabulary available in the Answering manifest state
+      output:
+        - must emit ToolDone with the parsed chat-LLM tool call
+        - must emit ParseFailed when the response is malformed or names an unavailable word
+      errors:
+        - A malformed or out-of-vocabulary response emits ParseFailed so the turn falls back to the default word.
+    non_goals:
+      - Does not call any provider.
+      - Does not answer the user.
+    output:
+      description: The parsed chat-LLM tool call.
+      schema:
+        type: object
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Parsing a response has no durable effect.
+    config:
+      manifest_state: Answering
+      response_profile: qwen
+
+  - name: invoke_llm_fast
+    type: builtin
+    init: invoke_llm
+    visibility: external
+    category: boundary
+    emits: [LLMResponded, CommandError]
+    description: Answer the question over the composed grounding prompt with a small fast model.
+    problem: Short factual questions the chunks answer directly do not need a large model.
+    goals:
+      - Answer grounded in the retrieved chunks, citing the chunk record ids.
+      - Read the composed grounding prompt through command-state $from(compose_prompt).
+      - Serve as the default chat-LLM word on a router misparse or error.
+    requirements:
+      input:
+        - must read the composed grounding prompt from command state (user_prompt_from)
+        - must use the configured small model against local Ollama
       output:
         - must emit LLMResponded when the model returns answer text
         - must emit CommandError for provider setup, model discovery, or chat failures
@@ -202,12 +342,96 @@ tools:
     relationships:
       after:
         - compose_prompt
+        - parse_route
+    config:
+      model: "qwen2.5:3b"
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      manifest_state: Answering
+      response_profile: qwen
+      user_prompt_from: "$from(compose_prompt)"
+      answer_only: true
+      max_time: 120
+      llm_timeout: 120
+      system_prompt: |
+        You are a chatbot that answers a user's question using only the corpus
+        chunks retrieved from a RAG server. The user question and the retrieved
+        chunks arrive together in the message as a composed grounding prompt.
+
+        Rules:
+        - Answer only from the retrieved chunks. Do not use outside knowledge.
+        - If the retrieved chunks do not contain the answer, say so plainly.
+        - Cite the chunk identity (the record id) for each claim you make.
+        - Keep the answer concise and grounded; do not speculate beyond the chunks.
+
+  - name: invoke_llm_deep
+    type: builtin
+    init: invoke_llm
+    visibility: external
+    category: boundary
+    emits: [LLMResponded, CommandError]
+    description: Answer the question over the composed grounding prompt with a larger model.
+    problem: Multi-part or analytical questions need a larger model to reason over several chunks.
+    goals:
+      - Answer grounded in the retrieved chunks, citing the chunk record ids.
+      - Read the composed grounding prompt through command-state $from(compose_prompt).
+      - Handle the analytical questions the router sends its way.
+    requirements:
+      input:
+        - must read the composed grounding prompt from command state (user_prompt_from)
+        - must use the configured larger model against local Ollama
+      output:
+        - must emit LLMResponded when the model returns answer text
+        - must emit CommandError for provider setup, model discovery, or chat failures
+      side_effects:
+        - must call local Ollama POST /api/chat
+      undo:
+        - must restore conversation history from the pre-call snapshot
+    non_goals:
+      - Does not call embedding or RAG endpoints directly.
+      - Does not author or alter the retrieved chunks.
+    output:
+      description: Raw model response.
+      schema:
+        type: object
+        properties:
+          response: {type: string}
+          provider: {type: string}
+          model: {type: string}
+        required: [response, provider, model]
+    side_effects:
+      - kind: external_api_call
+        target: ollama.chat
+        description: Sends the composed grounding prompt to the configured local model.
+      - kind: state_mutation
+        target: conversation_history
+        state: appended
+        description: Appends the model response after a successful provider call.
+    reversibility:
+      classification: reversible
+      undo: conversation_truncate
+      requires_confirmation: false
+    undo:
+      strategy: conversation_truncate
+      description: Restore conversation history captured before the model call.
+      requires: [conversation_checkpoint]
+    errors:
+      - signal: CommandError
+        condition: provider configuration is invalid, the model is unavailable, or the model call fails
+        message_shape: 'invoke_llm: <provider/model>: <error>'
+        state_after_failure: conversation history is unchanged unless the provider response was already appended
+    relationships:
+      after:
+        - compose_prompt
+        - parse_route
     config:
       model: "ornith:9b"
       provider: ollama
       provider_url: "http://localhost:11434"
       manifest_state: Answering
       response_profile: qwen
+      user_prompt_from: "$from(compose_prompt)"
+      answer_only: true
       max_time: 120
       llm_timeout: 120
       system_prompt: |
