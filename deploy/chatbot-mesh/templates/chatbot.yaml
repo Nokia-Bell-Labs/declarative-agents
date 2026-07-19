@@ -24,8 +24,9 @@ spec:
         # does not touch the ConfigMap, so it does not roll the chatbot (R3.1).
         checksum/profiles: {{ include (print $.Template.BasePath "/profiles-configmap.yaml") . | sha256sum }}
     spec:
-      {{- if .Values.validateProfiles }}
+      {{- if or .Values.validateProfiles .Values.ollama.enabled }}
       initContainers:
+        {{- if .Values.validateProfiles }}
         # Fail the rollout before the chatbot serves if the co-generated rest.yaml
         # is invalid (srd015 R2.2). Validate-only: loads and validates the profile,
         # machine, and REST definitions, then exits 0/1 without binding servers.
@@ -38,6 +39,8 @@ spec:
             - "--validate-config"
           volumeMounts:
             - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
+        {{- end }}
+        {{- include "chatbot-mesh.llmReadyInit" . | nindent 8 }}
       {{- end }}
       containers:
         - name: chatbot

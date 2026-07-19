@@ -1,5 +1,12 @@
-{{- if .Values.llm.inCluster }}
+{{- if .Values.ollama.enabled }}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
+{{/*
+The in-cluster LLM tier (srd015 R6): a chart-owned Ollama StatefulSet with a PVC
+for model storage, its Service, a readiness-probe script, and a model-preload Job.
+A StatefulSet with a volumeClaimTemplate is used (not Deployment+PVC) because the
+single-instance topology owns one durable model volume; the per-model topology
+would give each instance its own volume the same way. GPU scheduling is values.
+*/}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -20,12 +27,30 @@ spec:
         {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: ollama
     spec:
+      {{- with .Values.ollama.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ollama.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: ollama
-          image: "{{ .Values.llm.inClusterImage.repository }}:{{ .Values.llm.inClusterImage.tag }}"
-          imagePullPolicy: {{ .Values.llm.inClusterImage.pullPolicy }}
+          image: "{{ .Values.ollama.image.repository }}:{{ .Values.ollama.image.tag }}"
+          imagePullPolicy: {{ .Values.ollama.image.pullPolicy }}
           ports:
             - {name: http, containerPort: {{ .Values.llm.port }}}
+          resources:
+            {{- $res := deepCopy .Values.ollama.resources }}
+            {{- if gt (int .Values.ollama.gpu.count) 0 }}
+            {{- $_ := set (index $res "limits") "nvidia.com/gpu" (.Values.ollama.gpu.count | toString) }}
+            {{- end }}
+            {{- toYaml $res | nindent 12 }}
+          readinessProbe:
+            httpGet: {path: /api/tags, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
           volumeMounts:
             - {name: models, mountPath: /root/.ollama}
   volumeClaimTemplates:
@@ -33,9 +58,12 @@ spec:
         name: models
       spec:
         accessModes: [ReadWriteOnce]
+        {{- with .Values.ollama.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
         resources:
           requests:
-            storage: {{ .Values.llm.storage }}
+            storage: {{ .Values.ollama.persistence.size }}
 ---
 apiVersion: v1
 kind: Service
@@ -50,4 +78,64 @@ spec:
     app.kubernetes.io/component: ollama
   ports:
     - {name: http, port: {{ .Values.llm.port }}, targetPort: http}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-ollama-probe
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+data:
+  # The readiness gate the agent init-containers run: succeed only once every
+  # declared model is present in Ollama /api/tags, so a missing model is a
+  # deploy-time gate rather than a runtime turn failure (R6.3).
+  models-ready.sh: |
+    #!/bin/sh
+    set -eu
+    url="http://{{ $fullname }}-ollama:{{ .Values.llm.port }}/api/tags"
+    tags="$(wget -qO- "$url" 2>/dev/null || echo '')"
+    for m in {{ include "chatbot-mesh.ollamaModels" . }}; do
+      base="${m%%:*}"
+      echo "$tags" | grep -q "$base" || { echo "model $m not present yet"; exit 1; }
+    done
+    echo "all models present"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $fullname }}-ollama-preload
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+  annotations:
+    # Re-render the Job on a model-list change so an added model is pulled; ollama
+    # pull is idempotent, so a re-run over already-present models is a no-op (R6.2).
+    checksum/models: {{ include "chatbot-mesh.ollamaModels" . | sha256sum }}
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ollama-preload
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: preload
+          image: "{{ .Values.ollama.image.repository }}:{{ .Values.ollama.image.tag }}"
+          imagePullPolicy: {{ .Values.ollama.image.pullPolicy }}
+          env:
+            - {name: OLLAMA_HOST, value: "http://{{ $fullname }}-ollama:{{ .Values.llm.port }}"}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              until wget -qO- "$OLLAMA_HOST/api/tags" >/dev/null 2>&1; do
+                echo "waiting for ollama at $OLLAMA_HOST..."; sleep 3
+              done
+              for m in {{ include "chatbot-mesh.ollamaModels" . }}; do
+                echo "pulling $m"; ollama pull "$m"
+              done
+              echo "preload complete"
 {{- end }}

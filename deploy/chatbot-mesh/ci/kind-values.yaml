@@ -38,6 +38,11 @@ ingress:
 provisioner:
   enabled: false
 
+# The smoke/swap tests use an external Ollama on the host; the in-cluster LLM tier
+# is exercised by its own values (ci/kind-llm-values.yaml) so these tests do not
+# wait on a model preload.
+ollama:
+  enabled: false
+
 llm:
-  inCluster: false
   externalURL: http://host.docker.internal:11434

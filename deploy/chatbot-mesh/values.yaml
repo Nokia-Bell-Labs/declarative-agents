@@ -59,14 +59,49 @@ chroma:
     requests: {cpu: 100m, memory: 256Mi}
     limits: {cpu: "1", memory: 1Gi}
 
-# The chat and embedding LLM endpoint. Either an external URL, or an in-cluster
-# Ollama Deployment when llm.inCluster is true.
+# The chat and embedding LLM endpoint for the external path. When the in-cluster
+# LLM tier is disabled (ollama.enabled=false), embedding/chat client entries point
+# at externalURL; port is the Ollama API port either way.
 llm:
-  inCluster: false
   externalURL: http://ollama.default.svc.cluster.local:11434
-  inClusterImage: {repository: ollama/ollama, tag: latest, pullPolicy: IfNotPresent}
   port: 11434
-  storage: 10Gi
+
+# The in-cluster LLM tier (srd015 R6, GH-337): a chart-owned Ollama workload with
+# PVC model storage, a model-preload Job, agent readiness gating on model presence,
+# and GPU scheduling values. Enabled by default so a fresh-cluster install is
+# self-contained. Set enabled=false with an llm.externalURL override to point at an
+# operator-supplied Ollama (the render is byte-identical to the pre-tier chart).
+#
+# Realized as chart-owned templates rather than a nested Helm subchart so the Ollama
+# Service keeps the <release>-<chart>-ollama name the co-generated llmURL depends on
+# (a nested subchart names its Service by the subchart's own fullname).
+ollama:
+  enabled: true
+  image: {repository: ollama/ollama, tag: latest, pullPolicy: IfNotPresent}
+  # The models, named once here, feed both the preload Job and the agents' rendered
+  # config: the embedding model, the chat models (fast + deep), and the router model.
+  models:
+    embedding: qwen3-embedding:8b
+    chat: ["qwen2.5:3b", "ornith:9b"]
+    router: qwen2.5:3b
+  persistence:
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests: {cpu: 500m, memory: 2Gi}
+    limits: {cpu: "4", memory: 8Gi}
+  # GPU scheduling; CPU-only is permitted (the kind smoke path). Set gpu.count > 0
+  # and provide nodeSelector/tolerations for a GPU node pool in production.
+  gpu:
+    count: 0
+  nodeSelector: {}
+  tolerations: []
+  # Topology: a single Ollama instance serving all models (default), or one instance
+  # per logical service (embedding vs chat) when set to per-model. Single is the
+  # default -- one process holds all models in one PVC, simplest and sufficient for
+  # the mesh; per-model maps to the two-logical-services split for isolation or
+  # independent GPU sizing (srd015 R6.5).
+  topology: single
 
 # Dolt checkpoint backend (agent-core srd035/srd036).
 dolt:

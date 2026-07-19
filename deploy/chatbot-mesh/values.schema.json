@@ -30,9 +30,29 @@
     "llm": {
       "type": "object",
       "properties": {
-        "inCluster": {"type": "boolean"},
         "externalURL": {"type": "string"},
         "port": {"type": "integer"}
+      }
+    },
+    "ollama": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"type": "object", "properties": {"repository": {"type": "string"}, "tag": {"type": "string"}}},
+        "models": {
+          "type": "object",
+          "required": ["embedding", "chat", "router"],
+          "properties": {
+            "embedding": {"type": "string"},
+            "chat": {"type": "array", "items": {"type": "string"}},
+            "router": {"type": "string"}
+          }
+        },
+        "persistence": {"type": "object", "properties": {"size": {"type": "string"}, "storageClass": {"type": "string"}}},
+        "gpu": {"type": "object", "properties": {"count": {"type": "integer"}}},
+        "nodeSelector": {"type": "object"},
+        "tolerations": {"type": "array"},
+        "topology": {"type": "string", "enum": ["single", "per-model"]}
       }
     },
     "dolt": {"type": "object", "properties": {"enabled": {"type": "boolean"}}},

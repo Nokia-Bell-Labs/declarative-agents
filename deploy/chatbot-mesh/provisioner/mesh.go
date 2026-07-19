@@ -106,7 +106,7 @@ func (m MeshView) HelmSetArgs() []string {
 		)
 	}
 	args = append(args,
-		fmt.Sprintf("llm.inCluster=%t", m.LLM.InCluster),
+		fmt.Sprintf("ollama.enabled=%t", m.LLM.InCluster),
 		fmt.Sprintf("llm.externalURL=%s", m.LLM.ExternalURL),
 		fmt.Sprintf("chatbot.embeddingModel=%s", m.LLM.EmbedModel),
 	)
