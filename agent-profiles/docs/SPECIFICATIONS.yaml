@@ -229,6 +229,13 @@ semantic_model_index:
     status: implemented
     path: docs/specs/semantic-models/agent-role-taxonomy.yaml
 
+# Renumber pending (GH-332 -> GH-333): road-map.yaml stages release 09 into one
+# release per epic (09.0 core loop, 09.1 routing/fan-out, 09.2 observability, 09.3
+# deployment, 09.4 control plane) plus the 10.0 role-alignment release. The rel09.0
+# use-case and test-suite files below are renamed to their staged ids by GH-333,
+# which also authors the 09.2 observability, 09.4 control-plane, and 10.0 alignment
+# tracers; the road-map records the target ids, this index tracks the files until
+# then.
 use_case_index:
   - id: rel06.0-uc001-mounted-profile-execution
     title: Mounted Profile Execution
