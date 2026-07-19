@@ -330,6 +330,17 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 			name, endpoint.Binding, bindingRedirect,
 		)
 	}
+	if endpoint.MonitorProxy != nil && endpoint.Binding != bindingMonitorProxy {
+		return fmt.Errorf(
+			"endpoint %q has monitor_proxy config but binding is %q (want %q)",
+			name, endpoint.Binding, bindingMonitorProxy,
+		)
+	}
+	if endpoint.Binding == bindingMonitorProxy {
+		if endpoint.MonitorProxy == nil || len(endpoint.MonitorProxy.Upstreams) == 0 {
+			return fmt.Errorf("endpoint %q monitor_proxy requires a non-empty upstreams map", name)
+		}
+	}
 	if endpoint.Binding == bindingStaticAssets {
 		if err := validateStaticAssetsEndpoint(name, endpoint); err != nil {
 			return err
