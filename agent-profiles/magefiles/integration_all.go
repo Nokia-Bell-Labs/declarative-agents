@@ -33,6 +33,7 @@ func (i Integration) All() error {
 		{"monitorControl", i.MonitorControl, false},
 		{"chroma", i.Chroma, true},
 		{"ragServer", i.RagServer, true},
+		{"chatbot", i.Chatbot, true},
 	}
 
 	var passed, failed, skipped int
