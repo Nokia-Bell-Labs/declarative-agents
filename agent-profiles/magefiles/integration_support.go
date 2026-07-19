@@ -40,8 +40,12 @@ func buildIntegrationAgent(coreRoot string) (string, error) {
 // the standalone rag-server tracer; this shared launcher is used where the caller
 // needs the trace path.
 func startDetachedAgent(binary, profilesRoot, coreRoot, profile, tracePath string) (func(kill bool) error, error) {
+	profilePath := profile
+	if !filepath.IsAbs(profilePath) {
+		profilePath = filepath.Join(profilesRoot, profile)
+	}
 	cmd := exec.Command(binary,
-		"--profile", filepath.Join(profilesRoot, profile),
+		"--profile", profilePath,
 		"--directory", os.TempDir(),
 		"--core-root", coreRoot,
 		"--otel-log-file", tracePath,

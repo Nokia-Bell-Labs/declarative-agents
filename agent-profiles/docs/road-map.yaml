@@ -364,7 +364,7 @@ releases:
         status: implemented
       - id: rel09.0-uc002-chatbot-turn
         summary: End-to-end chat turn routes, embeds once, fans out to two RAGs, composes via $from(), answers, and degrades when one RAG fails.
-        status: planned
+        status: implemented
       - id: rel09.0-uc003-mesh-deployment
         summary: One Helm chart deploys the mesh on a kind cluster with values-to-config co-generation, Service repoint, and add-RAG rollout with checkpoint resume.
         status: planned

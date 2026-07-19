@@ -23,22 +23,34 @@ const (
 	chatbotControlHealth = "http://127.0.0.1:18081/api/lifecycle/health"
 	chatbotControlExit   = "http://127.0.0.1:18081/api/lifecycle/exit"
 	chatbotMonitorState  = "http://127.0.0.1:18082/monitor/state"
+
+	// The second rag-server (rag1) is a generated variant of the rag-server
+	// profile serving a disjoint collection on a distinct port triple.
+	rag1ControlHealth = "http://127.0.0.1:18096/api/lifecycle/health"
+	rag1ControlExit   = "http://127.0.0.1:18096/api/lifecycle/exit"
+
+	chromaCorpus2 = "corpus2"
 )
 
-// Chatbot proves a chat turn end to end across the mesh's minimum topology: a
-// Chroma container seeded by the ingest profile, the rag-server agent, the
-// chatbot agent, and an external Ollama for the embedding and chat models. It
-// drives the chat machine_request endpoint (not the browser): a grounded turn
-// returns an answer citing retrieved records, a second turn with the rag-server
-// stopped returns the degraded response shape, and each agent's OTel span log is
-// asserted independently. It skips (does not fail) when Docker or Ollama with the
-// configured models is unavailable, matching Integration.RagServer.
+// Chatbot proves the routed, two-RAG chat turn end to end across the mesh
+// topology: one Chroma container with two disjoint collections, two rag-server
+// agents (rag0 over the ingest fixture, rag1 over a seeded disjoint corpus), the
+// router-enabled chatbot, and an external Ollama for the embedding, router, and
+// two chat models. It drives the chat machine_request endpoint (not the browser):
 //
-// This is the single-RAG reduction of rel09.0-uc002. The $tool router and the
-// two-RAG fan-out with per-RAG degradation (srd014 R2, R3) land with Epic #294;
-// cross-agent trace continuity between the two span logs lands with the
-// observability epic's traceparent work (agent-core srd016), so the two logs are
-// asserted independently here.
+//   - a factual turn and an analytical turn exercise the $tool router, and the
+//     chatbot span log is asserted to show both the fast and the deep chat model
+//     answered (the router dispatched each word);
+//   - a cross-corpus turn cites chunks from both RAGs by their [rag0]/[rag1] tags
+//     (sequential fan-out and distance-ordered merge);
+//   - stopping rag1 degrades the next turn to a 200 answered from rag0 alone;
+//   - each rag-server's span log is asserted independently.
+//
+// It skips (does not fail) when Docker or Ollama with the configured models is
+// unavailable, naming the missing model, matching Integration.RagServer. One
+// Chroma container with two collections stands in for two containers; the disjoint
+// corpora are what the fan-out exercises. Cross-agent trace continuity is the
+// observability epic's work, so the span logs are asserted independently.
 func (Integration) Chatbot() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
@@ -79,35 +91,67 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 	}
 	defer stopChromaContainer(containerID)
 
-	// Seed the served collection through the ingest profile.
+	// Seed rag0's collection (the ingest fixture) and rag1's disjoint collection.
 	if err := runChromaIngest(binary, profilesRoot, coreRoot); err != nil {
 		return err
 	}
-
-	ragTrace, ragCleanup, err := chromaTraceFile("chatbot-ragserver")
+	embedModel, err := chromaEmbedModelFromConfig(profilesRoot)
 	if err != nil {
 		return err
 	}
-	defer ragCleanup()
+	if err := seedChromaCorpus2(embedModel); err != nil {
+		return fmt.Errorf("seed disjoint corpus: %w", err)
+	}
+
+	// Generate the rag1 variant (distinct ports, disjoint collection).
+	rag1Profile, rag1Cleanup, err := generateRag1Variant(profilesRoot)
+	if err != nil {
+		return err
+	}
+	defer rag1Cleanup()
+
+	ragTrace0, ragCleanup0, err := chromaTraceFile("chatbot-rag0")
+	if err != nil {
+		return err
+	}
+	defer ragCleanup0()
+	ragTrace1, ragCleanup1, err := chromaTraceFile("chatbot-rag1")
+	if err != nil {
+		return err
+	}
+	defer ragCleanup1()
 	chatTrace, chatCleanup, err := chromaTraceFile("chatbot")
 	if err != nil {
 		return err
 	}
 	defer chatCleanup()
 
-	// Launch order: rag-server first, then the chatbot whose rag0 client points at it.
-	stopRag, err := startDetachedAgent(binary, profilesRoot, coreRoot, ragServerProfile, ragTrace)
+	stopRag0, err := startDetachedAgent(binary, profilesRoot, coreRoot, ragServerProfile, ragTrace0)
 	if err != nil {
 		return err
 	}
-	ragStopped := false
+	rag0Stopped := false
 	defer func() {
-		if !ragStopped {
-			_ = stopRag(true)
+		if !rag0Stopped {
+			_ = stopRag0(true)
 		}
 	}()
 	if err := waitHTTPStatus(ragControlHealth, http.StatusOK, 30*time.Second); err != nil {
-		return fmt.Errorf("rag-server control health never came up: %w", err)
+		return fmt.Errorf("rag0 control health never came up: %w", err)
+	}
+
+	stopRag1, err := startDetachedAgent(binary, profilesRoot, coreRoot, rag1Profile, ragTrace1)
+	if err != nil {
+		return err
+	}
+	rag1Stopped := false
+	defer func() {
+		if !rag1Stopped {
+			_ = stopRag1(true)
+		}
+	}()
+	if err := waitHTTPStatus(rag1ControlHealth, http.StatusOK, 30*time.Second); err != nil {
+		return fmt.Errorf("rag1 control health never came up: %w", err)
 	}
 
 	stopChat, err := startDetachedAgent(binary, profilesRoot, coreRoot, chatbotProfile, chatTrace)
@@ -127,25 +171,41 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 		return err
 	}
 
-	// Grounded turn: the RAG server is up, so the answer must cite retrieved records.
-	if err := assertChatbotGroundedTurn(); err != nil {
+	// Router: a factual turn and an analytical turn. The chat trace (asserted after
+	// exit) must show both the fast and the deep chat model answered.
+	if err := assertChatbotRoutedTurn("What do the Chroma corpus agents use to compute embeddings?"); err != nil {
+		return fmt.Errorf("factual routed turn: %w", err)
+	}
+	if err := assertChatbotRoutedTurn("Analyze and synthesize the trade-offs across the described systems with multi-step reasoning about their relative merits."); err != nil {
+		return fmt.Errorf("analytical routed turn: %w", err)
+	}
+
+	// Fan-out: a cross-corpus turn cites chunks from both RAGs by their tags.
+	if err := assertChatbotFanOut(); err != nil {
 		return err
 	}
 
-	// Degrade: stop the RAG server gracefully (which flushes its trace), then a
-	// second turn must still return the degraded response shape, not a 500.
-	if _, status, err := requestHTTP(http.MethodPost, ragControlExit, `{"reason":"chatbot integration degrade"}`); err != nil || status/100 != 2 {
-		return fmt.Errorf("rag-server exit request failed: status %d: %v", status, err)
+	// Degrade rag1: stop it gracefully (flushing its trace), then a turn still
+	// returns a 200 answered from rag0 alone.
+	if _, status, err := requestHTTP(http.MethodPost, rag1ControlExit, `{"reason":"chatbot integration degrade"}`); err != nil || status/100 != 2 {
+		return fmt.Errorf("rag1 exit request failed: status %d: %v", status, err)
 	}
-	if err := stopRag(false); err != nil {
-		return fmt.Errorf("rag-server did not exit gracefully: %w", err)
+	if err := stopRag1(false); err != nil {
+		return fmt.Errorf("rag1 did not exit gracefully: %w", err)
 	}
-	ragStopped = true
+	rag1Stopped = true
 	if err := assertChatbotDegradedTurn(); err != nil {
 		return err
 	}
 
-	// Exit the chatbot gracefully so its span log flushes, then assert the trace.
+	// Exit rag0 and the chatbot gracefully so their span logs flush.
+	if _, status, err := requestHTTP(http.MethodPost, ragControlExit, `{"reason":"chatbot integration done"}`); err != nil || status/100 != 2 {
+		return fmt.Errorf("rag0 exit request failed: status %d: %v", status, err)
+	}
+	if err := stopRag0(false); err != nil {
+		return fmt.Errorf("rag0 did not exit gracefully: %w", err)
+	}
+	rag0Stopped = true
 	if _, status, err := requestHTTP(http.MethodPost, chatbotControlExit, `{"reason":"chatbot integration done"}`); err != nil || status/100 != 2 {
 		return fmt.Errorf("chatbot exit request failed: status %d: %v", status, err)
 	}
@@ -154,17 +214,21 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 	}
 	chatStopped = true
 
-	if err := assertChatbotTrace(chatTrace); err != nil {
+	fast, deep, err := chatbotAnswerModels(profilesRoot)
+	if err != nil {
 		return err
 	}
-	// The two span logs are asserted independently. Cross-agent trace continuity
-	// (the chatbot's rag_query span parenting the rag-server machine_request span
-	// through a propagated traceparent) is the observability epic's work.
-	if err := assertRagServerServed(ragTrace); err != nil {
+	if err := assertChatbotRoutingTrace(chatTrace, fast, deep); err != nil {
 		return err
+	}
+	if err := assertRagServerServed(ragTrace0); err != nil {
+		return fmt.Errorf("rag0 %w", err)
+	}
+	if err := assertRagServerServed(ragTrace1); err != nil {
+		return fmt.Errorf("rag1 %w", err)
 	}
 
-	fmt.Println("integration:chatbot PASS - grounded turn answered from retrieved chunks, RAG-down turn degraded to a 200, chatbot trace shows the model answered, rag-server served and exited")
+	fmt.Println("integration:chatbot PASS - router dispatched both chat models, fan-out cited both RAGs, rag1-down turn degraded to a 200, both rag-servers served")
 	return nil
 }
 
@@ -192,38 +256,42 @@ func postChatTurn(message string, history string) (chatResponse, int, error) {
 	return resp, status, nil
 }
 
-func assertChatbotGroundedTurn() error {
-	// The question is answered by the corpus, so retrieval grounds the answer and
-	// the model cites the record it used.
-	resp, status, err := postChatTurn("What do the Chroma corpus agents use to compute embeddings?", "[]")
+// assertChatbotRoutedTurn drives one routed turn and asserts a grounded 200. The
+// router's per-turn choice is asserted collectively from the trace afterwards.
+func assertChatbotRoutedTurn(message string) error {
+	resp, status, err := postChatTurn(message, "[]")
 	if err != nil {
 		return err
 	}
 	if status != http.StatusOK {
-		return fmt.Errorf("grounded turn status = %d, want 200: %s", status, resp.Message+resp.Error)
+		return fmt.Errorf("status = %d, want 200: %s", status, resp.Message+resp.Error)
 	}
 	if strings.TrimSpace(resp.Answer) == "" {
-		return fmt.Errorf("grounded turn returned an empty answer")
+		return fmt.Errorf("empty answer")
 	}
 	if resp.Trace.Status != "succeeded" {
-		return fmt.Errorf("grounded turn trace status = %q, want succeeded", resp.Trace.Status)
+		return fmt.Errorf("trace status = %q, want succeeded", resp.Trace.Status)
 	}
-	// Grounding proof: the answer states a fact that lives only in the retrieved
-	// chunk (the corpus records that the Chroma agents compute embeddings at a
-	// local Ollama provider), so a correct answer names Ollama. The model does not
-	// always emit an explicit bracket citation, so grounding is asserted by the
-	// corpus fact and the rag_query -> invoke_llm trace, not by citation presence.
-	if !strings.Contains(strings.ToLower(resp.Answer), "ollama") {
-		return fmt.Errorf("grounded turn answer is not grounded in the retrieved chunk (no Ollama fact): %s", resp.Answer)
+	return nil
+}
+
+// assertChatbotFanOut proves the sequential two-RAG fan-out: a cross-corpus turn
+// cites chunks tagged from both rag0 and rag1. The chunks reach the model
+// pre-tagged by rag_merge, so a grounded answer that draws on both names both tags.
+func assertChatbotFanOut() error {
+	resp, status, err := postChatTurn("List every project and system described across the knowledge base and cite each with its bracketed source tag.", "[]")
+	if err != nil {
+		return err
 	}
-	// The chatbot passes chunk documents (not Chroma ids) to the model, so any
-	// citation the model does emit is a 1-based position into the fanned-out
-	// results (n_results = 5). Validate the positions the model cited. Asserting
-	// the cited Chroma ids equal the seeded ids needs ids threaded into compose,
-	// which is a follow-on.
-	for _, n := range citedRecordNumbers(resp.Answer) {
-		if n < 1 || n > 5 {
-			return fmt.Errorf("grounded turn cited record %d outside the fanned-out result range [1,5]; answer: %s", n, resp.Answer)
+	if status != http.StatusOK {
+		return fmt.Errorf("fan-out turn status = %d, want 200: %s", status, resp.Message+resp.Error)
+	}
+	if resp.Trace.Status != "succeeded" {
+		return fmt.Errorf("fan-out turn trace status = %q, want succeeded", resp.Trace.Status)
+	}
+	for _, tag := range []string{"[rag0]", "[rag1]"} {
+		if !strings.Contains(resp.Answer, tag) {
+			return fmt.Errorf("fan-out turn answer does not cite %s (both RAGs must contribute); answer: %s", tag, resp.Answer)
 		}
 	}
 	return nil
@@ -231,19 +299,22 @@ func assertChatbotGroundedTurn() error {
 
 func assertChatbotDegradedTurn() error {
 	// A follow-up turn carries the prior turn as client-side history (srd014 R4).
-	history := `[{"role":"user","content":"What is specification-driven development?"},{"role":"assistant","content":"It is the practice of writing specifications first."}]`
-	resp, status, err := postChatTurn("How many Chroma corpus agents are there?", history)
+	history := `[{"role":"user","content":"What is in the knowledge base?"},{"role":"assistant","content":"Several systems and projects."}]`
+	resp, status, err := postChatTurn("What do the Chroma corpus agents use to compute embeddings?", history)
 	if err != nil {
 		return err
 	}
 	if status != http.StatusOK {
-		return fmt.Errorf("degraded turn status = %d, want 200 (RAG down must degrade, not fail): %s", status, resp.Message+resp.Error)
+		return fmt.Errorf("degraded turn status = %d, want 200 (rag1 down must degrade, not fail): %s", status, resp.Message+resp.Error)
 	}
 	if strings.TrimSpace(resp.Answer) == "" {
 		return fmt.Errorf("degraded turn returned an empty answer")
 	}
 	if resp.Trace.Status != "succeeded" {
 		return fmt.Errorf("degraded turn trace status = %q, want succeeded", resp.Trace.Status)
+	}
+	if strings.Contains(resp.Answer, "[rag1]") {
+		return fmt.Errorf("degraded turn cited [rag1] though rag1 is stopped; answer: %s", resp.Answer)
 	}
 	return nil
 }
@@ -259,42 +330,45 @@ func assertChatbotMonitorReachable() error {
 	return nil
 }
 
-// assertChatbotTrace proves, from the chatbot's own span log, that the turn
-// reached the configured chat model and produced an answer: a genai chat span
-// with a positive output-token count.
-//
-// The per-word request-scoped dispatch spans (embed_query, rag_query,
-// compose_prompt, invoke_llm) are NOT asserted here. The machine_request runner
-// dispatches the request-scoped turn with a NoopTracer
-// (agent-core internal/tools/rest/collection.go), so those spans are not exported
-// to the process OTel file; only the host lifecycle words and the genai chat span
-// reach it. Exporting the request-scoped dispatch spans -- and the cross-agent
-// traceparent continuity that would let the chatbot's rag_query span parent the
-// rag-server's machine_request span -- is the observability epic's work
-// (agent-core srd016). The grounded HTTP turn already proves the full
-// embed -> rag -> compose -> answer chain ran, since the answer cannot be grounded
-// in retrieved chunks otherwise.
-func assertChatbotTrace(tracePath string) error {
+// assertChatbotRoutingTrace proves, from the chatbot's own span log, that the
+// router dispatched both chat-LLM words over the turns: a genai chat span for the
+// fast model and one for the deep model. The genai chat spans reach the process
+// OTel file; the per-word request-scoped dispatch spans run under a NoopTracer
+// (agent-core internal/tools/rest/collection.go) and do not, and cross-agent
+// trace continuity is the observability epic's work.
+func assertChatbotRoutingTrace(tracePath, fastModel, deepModel string) error {
 	spans, err := readChromaSpans(tracePath)
 	if err != nil {
 		return err
 	}
+	models := map[string]bool{}
 	for _, s := range spans {
-		if strings.HasPrefix(s.Name, "chat ") {
-			if tokens, ok := s.numericAttr("gen_ai.usage.output_tokens"); ok && tokens > 0 {
-				return nil
-			}
+		if !strings.HasPrefix(s.Name, "chat ") {
+			continue
+		}
+		if m, ok := s.stringAttr("gen_ai.request.model"); ok {
+			models[m] = true
 		}
 	}
-	return fmt.Errorf("chatbot trace shows no completed chat span with output tokens; saw %v", sortedKeys(chromaCommandSet(spans)))
+	for _, want := range []string{fastModel, deepModel} {
+		if !models[want] {
+			return fmt.Errorf("chatbot trace shows no chat span for model %q (router must dispatch both chat words); saw %v", want, sortedModelKeys(models))
+		}
+	}
+	return nil
 }
 
-// assertRagServerServed proves, from the rag-server's own span log, that it
-// served and exited gracefully: its request server launched and the agent exited.
-// The per-query rag_query dispatch runs request-scoped under a NoopTracer (see
-// assertChatbotTrace), so it is not in this log; the grounded turn's HTTP response
-// is the evidence the query was served. Asserted independently of the chatbot
-// trace -- cross-agent trace continuity is the observability epic's work.
+func sortedModelKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// assertRagServerServed proves, from a rag-server's own span log, that it served
+// and exited gracefully: its request server launched and the agent exited.
 func assertRagServerServed(tracePath string) error {
 	spans, err := readChromaSpans(tracePath)
 	if err != nil {
@@ -303,7 +377,7 @@ func assertRagServerServed(tracePath string) error {
 	present := chromaCommandSet(spans)
 	for _, want := range []string{"launch_rag_requests", "exit_agent"} {
 		if !present[want] {
-			return fmt.Errorf("rag-server trace missing %q dispatch; saw %v", want, sortedKeys(present))
+			return fmt.Errorf("trace missing %q dispatch; saw %v", want, sortedKeys(present))
 		}
 	}
 	return nil
@@ -311,9 +385,7 @@ func assertRagServerServed(tracePath string) error {
 
 var citedRecordPattern = regexp.MustCompile(`(?i)record[\s#]*([0-9]+)`)
 
-// citedRecordNumbers extracts the 1-based record positions the model cited from
-// the answer text. The grounding prompt asks the model to cite the record for
-// each claim, and models write those as "[record N]" or "record N".
+// citedRecordNumbers extracts the 1-based record positions the model cited.
 func citedRecordNumbers(answer string) []int {
 	seen := map[int]bool{}
 	var out []int
@@ -329,10 +401,98 @@ func citedRecordNumbers(answer string) []int {
 	return out
 }
 
-// chatbotOllamaSkipReason returns a non-empty reason when Ollama is unreachable
-// or a model the chatbot integration needs is not installed: the chroma embed
-// model that seeds the collection, plus the chatbot's own embedding and chat
-// models. Reading them from config keeps the gate from duplicating model names.
+// disjointCorpus2Docs are the rag1 corpus, disjoint from the ingest fixture, so a
+// cross-corpus turn draws chunks the ingest collection cannot supply.
+var disjointCorpus2Docs = []struct{ id, text string }{
+	{"solar-1", "The Solar Ridge photovoltaic array has a capacity of 55 megawatts across 140000 panels on a decommissioned quarry."},
+	{"solar-2", "The Solar Ridge project feeds a 33 kilovolt substation and includes a 12 megawatt-hour battery for evening dispatch."},
+}
+
+// seedChromaCorpus2 embeds the disjoint documents at Ollama and adds them to a
+// second Chroma collection, so rag1 serves a corpus disjoint from rag0's.
+func seedChromaCorpus2(embedModel string) error {
+	base := "http://127.0.0.1:8000/api/v2/tenants/default_tenant/databases/default_database/collections"
+	data, status, err := requestHTTP(http.MethodPost, base, fmt.Sprintf(`{"name":%q,"get_or_create":true}`, chromaCorpus2))
+	if err != nil {
+		return err
+	}
+	if status != http.StatusOK && status != http.StatusCreated {
+		return fmt.Errorf("resolve %s collection: status %d: %s", chromaCorpus2, status, data)
+	}
+	var collection struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(data, &collection); err != nil {
+		return fmt.Errorf("decode collection id: %w", err)
+	}
+	ids := make([]string, 0, len(disjointCorpus2Docs))
+	docs := make([]string, 0, len(disjointCorpus2Docs))
+	embeddings := make([][]float64, 0, len(disjointCorpus2Docs))
+	for _, d := range disjointCorpus2Docs {
+		vector, err := ollamaEmbedQuery(embedModel, d.text)
+		if err != nil {
+			return fmt.Errorf("embed %s: %w", d.id, err)
+		}
+		ids = append(ids, d.id)
+		docs = append(docs, d.text)
+		embeddings = append(embeddings, vector)
+	}
+	payload, err := json.Marshal(map[string]interface{}{"ids": ids, "documents": docs, "embeddings": embeddings})
+	if err != nil {
+		return err
+	}
+	addData, addStatus, err := requestHTTP(http.MethodPost, base+"/"+collection.ID+"/add", string(payload))
+	if err != nil {
+		return err
+	}
+	if addStatus/100 != 2 {
+		return fmt.Errorf("add to %s: status %d: %s", chromaCorpus2, addStatus, addData)
+	}
+	return nil
+}
+
+// generateRag1Variant copies the rag-server profile into a temp directory and
+// rewrites its ports (18085/6/7 -> 18095/6/7) and served collection
+// (corpus -> corpus2), so rag1 serves the disjoint corpus without a second
+// committed profile. It returns the variant profile path and a cleanup.
+func generateRag1Variant(profilesRoot string) (string, func(), error) {
+	srcDir := filepath.Join(profilesRoot, "agents", "chroma", "rag-server")
+	dstDir, err := os.MkdirTemp("", "agent-profiles-rag1-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("create rag1 variant dir: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(dstDir) }
+	entries, err := os.ReadDir(srcDir)
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("read rag-server profile: %w", err)
+	}
+	replacer := strings.NewReplacer("18085", "18095", "18086", "18096", "18087", "18097")
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		content, err := os.ReadFile(filepath.Join(srcDir, entry.Name()))
+		if err != nil {
+			cleanup()
+			return "", nil, err
+		}
+		out := replacer.Replace(string(content))
+		if entry.Name() == "rest.yaml" {
+			out = strings.Replace(out, "name: corpus\n", "name: "+chromaCorpus2+"\n", 1)
+		}
+		if err := os.WriteFile(filepath.Join(dstDir, entry.Name()), []byte(out), 0o644); err != nil {
+			cleanup()
+			return "", nil, err
+		}
+	}
+	return filepath.Join(dstDir, "profile.yaml"), cleanup, nil
+}
+
+// chatbotOllamaSkipReason returns a non-empty reason when Ollama is unreachable or
+// a model the chatbot integration needs is not installed: the chroma embed model
+// that seeds both collections, the chatbot's embedding model, and the router and
+// two chat models. Reading them from config keeps the gate from duplicating names.
 func chatbotOllamaSkipReason(profilesRoot string) string {
 	if err := waitHTTPStatus(ollamaVersionURL, http.StatusOK, 2*time.Second); err != nil {
 		return fmt.Sprintf("Ollama not reachable at %s: %v", ollamaVersionURL, err)
@@ -355,7 +515,6 @@ func chatbotOllamaSkipReason(profilesRoot string) string {
 
 func chatbotRequiredModels(profilesRoot string) ([]string, error) {
 	set := map[string]bool{}
-	// The ingest seed uses the chroma embedding model.
 	ingestEmbed, err := chromaEmbedModelFromConfig(profilesRoot)
 	if err != nil {
 		return nil, err
@@ -366,11 +525,13 @@ func chatbotRequiredModels(profilesRoot string) ([]string, error) {
 		return nil, err
 	}
 	set[embed] = true
-	chat, err := chatbotChatModelFromConfig(profilesRoot)
+	chatModels, err := chatbotChatModels(profilesRoot)
 	if err != nil {
 		return nil, err
 	}
-	set[chat] = true
+	for _, model := range chatModels {
+		set[model] = true
+	}
 	models := make([]string, 0, len(set))
 	for model := range set {
 		models = append(models, model)
@@ -404,12 +565,13 @@ func chatbotEmbedModelFromConfig(profilesRoot string) (string, error) {
 	return model, nil
 }
 
-// chatbotChatModelFromConfig reads the invoke_llm chat model from the chatbot's
-// request-declarations.yaml.
-func chatbotChatModelFromConfig(profilesRoot string) (string, error) {
+// chatbotToolModels reads the model of every invoke_llm-init word in the chatbot's
+// request-declarations.yaml keyed by word name (route, invoke_llm_fast, invoke_llm_deep).
+func chatbotToolModels(profilesRoot string) (map[string]string, error) {
 	var cfg struct {
 		Tools []struct {
 			Name   string `yaml:"name"`
+			Init   string `yaml:"init"`
 			Config struct {
 				Model string `yaml:"model"`
 			} `yaml:"config"`
@@ -417,15 +579,44 @@ func chatbotChatModelFromConfig(profilesRoot string) (string, error) {
 	}
 	path := filepath.Join(profilesRoot, "agents", "chatbot", "request-declarations.yaml")
 	if err := readIntegrationYAML(path, "chatbot request declarations", &cfg); err != nil {
-		return "", err
+		return nil, err
 	}
+	models := map[string]string{}
 	for _, tool := range cfg.Tools {
-		if tool.Name == "invoke_llm" {
-			if tool.Config.Model == "" {
-				return "", fmt.Errorf("invoke_llm has no model in %s", path)
-			}
-			return tool.Config.Model, nil
+		if tool.Init == "invoke_llm" && tool.Config.Model != "" {
+			models[tool.Name] = tool.Config.Model
 		}
 	}
-	return "", fmt.Errorf("no invoke_llm tool in %s", path)
+	if len(models) == 0 {
+		return nil, fmt.Errorf("no invoke_llm word with a model in %s", path)
+	}
+	return models, nil
+}
+
+// chatbotChatModels returns the distinct models of the chatbot's invoke_llm words.
+func chatbotChatModels(profilesRoot string) ([]string, error) {
+	models, err := chatbotToolModels(profilesRoot)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(models))
+	for _, model := range models {
+		out = append(out, model)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// chatbotAnswerModels returns the fast and deep chat-LLM answer word models.
+func chatbotAnswerModels(profilesRoot string) (fast, deep string, err error) {
+	models, err := chatbotToolModels(profilesRoot)
+	if err != nil {
+		return "", "", err
+	}
+	fast, okFast := models["invoke_llm_fast"]
+	deep, okDeep := models["invoke_llm_deep"]
+	if !okFast || !okDeep {
+		return "", "", fmt.Errorf("chatbot must declare invoke_llm_fast and invoke_llm_deep; got %v", models)
+	}
+	return fast, deep, nil
 }
