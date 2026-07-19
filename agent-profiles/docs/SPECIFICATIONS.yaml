@@ -212,6 +212,24 @@ srd_index:
       of srd028 V30); and OTLP/trace-backend observability wiring.
     status: planned
     path: docs/specs/software-requirements/srd015-chatbot-deployment.yaml
+  - id: srd016-coordinator
+    title: Coordinator Agent Functional Block
+    summary: The mesh control plane's workflow orchestrator; the UX agent delegates
+      a provisioning intent to it, and it sequences the ingestion and reconfiguration
+      workflows, decides the values and config changes, resolves conflicts, and
+      aggregates status, delegating every instance operation to the creator through
+      a declared client and holding no deployment-API authority.
+    status: planned
+    path: docs/specs/software-requirements/srd016-coordinator.yaml
+  - id: srd017-creator
+    title: Creator Agent Functional Block
+    summary: The mesh control plane's agent lifecycle management agent; acting on the
+      coordinator's requests it selects templates, creates child ingest runs, executes
+      checkpoint-resume rollout restarts through the deployment API, terminates
+      instances, and verifies health, holding the deployment-API authority alone and
+      passing no endpoint or credential into a running agent.
+    status: planned
+    path: docs/specs/software-requirements/srd017-creator.yaml
 
 config_format_index: []
 
@@ -340,6 +358,15 @@ use_case_index:
       the Dolt checkpoint, provisioned through a separately-authenticated API.
     status: implemented
     path: docs/specs/use-cases/rel09.3-uc001-mesh-deployment.yaml
+  - id: rel09.4-uc001-control-plane-provisioning
+    title: A Provisioning Intent Flows Chatbot to Coordinator to Creator and Serves
+    summary: A user's add-a-source intent flows from the chatbot to the coordinator,
+      which sequences ingest via the creator and decides the values changes; the
+      creator executes the checkpoint-resume rollout through the deployment API and
+      reports health; the new source serves, with deployment-API authority held by
+      the creator alone.
+    status: specified
+    path: docs/specs/use-cases/rel09.4-uc001-control-plane-provisioning.yaml
   - id: rel10.0-uc001-role-catalog-renames
     title: Evaluator and Generator Families Renamed to Critic and Executor
     summary: The evaluator family is renamed to critic and generator to executor
@@ -436,6 +463,13 @@ test_suite_index:
       Integration.HelmSmoke/HelmSwap/Provisioning.
     status: implemented
     path: docs/specs/test-suites/test-rel09.3-mesh-deployment.yaml
+  - id: test-rel09.4-control-plane
+    title: Test Suite for Release 09.4 Control Plane
+    summary: Planned tracer for the provisioning intent across chatbot, coordinator,
+      and creator -- intent, ingest, reconfigure, checkpoint-resume restart, serve --
+      with the deployment-API authority held by the creator alone.
+    status: specified
+    path: docs/specs/test-suites/test-rel09.4-control-plane.yaml
   - id: test-rel10.0-role-catalog
     title: Test Suite for Release 10.0 Reference-Architecture Role Alignment
     summary: Cases validating the critic/executor renames, the chroma rescope under

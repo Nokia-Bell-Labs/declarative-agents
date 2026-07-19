@@ -1,0 +1,130 @@
+id: srd017-creator
+title: Creator Agent Functional Block
+
+context: |
+  The creator is the mesh's agent lifecycle management (LCM) agent: it makes
+  running instances match what the coordinator (srd016) decided. Acting on the
+  coordinator's requests, it selects the profile and rendered config for an
+  instance (template selection), spawns corpus-ingest child runs (instance
+  creation), restarts reconfigured agents via checkpoint-resume rollouts
+  (termination and creation with resume, srd015 R3.2), verifies post-rollout health
+  (health monitoring), and handles resource allocation. It maps onto the
+  reference-architecture Creator role (template-selection, instance-creation,
+  health-monitoring, termination, resource-allocation), the acting half of the
+  Agent Lifecycle Management component.
+
+  The creator acts; the coordinator decides. The creator makes no workflow or
+  values decision -- it receives a decided instance operation and realizes it. It
+  alone holds deployment-API credentials, authenticated apart from the chat path,
+  and it never passes an endpoint or credential into a running agent. The reusable
+  request runtime, monitor reads, and REST client transport stay in agent-core; the
+  instance-request endpoint, the template resolution, and the declared deployment-API
+  and monitor clients stay profile-owned.
+
+problem: |
+  A decided reconfiguration -- add a RAG, restart an agent with resume, ingest a
+  directory -- must be realized against real instances: resolving a role to a
+  profile and rendered config under the mounted-profile contract, spawning child
+  runs, executing a checkpoint-resume rollout through the deployment API, and
+  verifying health afterward. The mesh needs an agent that performs those
+  mechanics behind one boundary, holds the deployment-API authority alone, and
+  reports health back to the coordinator, without deciding what to change. The
+  requirements must name the instance-request boundary, template selection, the
+  instance operations, health monitoring, and the authority boundary, separately
+  from the agent-core runtime.
+
+goals:
+  - G1: Model the creator as a persistent LCM agent that binds a decided instance operation from the coordinator to a request-scoped run.
+  - G2: Resolve a requested role to its profile path and rendered ConfigMap under the rel06.0 mounted-profile contract (srd034), so an instance runs one image with a supplied profile.
+  - G3: Perform instance operations -- create child ingest runs, execute checkpoint-resume rollouts of reconfigured agents through the deployment API, and terminate instances.
+  - G4: Verify post-operation health via monitor reads and report it to the coordinator.
+  - G5: Hold the deployment-API authority alone, authenticated apart from chat, and never hand an endpoint or credential to a running agent.
+
+requirements:
+  R1:
+    title: Instance-request boundary
+    items:
+      - R1.1: The creator SHALL expose a machine_request instance endpoint (agent-core srd030) that binds one decided instance operation from the coordinator (srd016) to one request-scoped run and maps terminal signals to HTTP status.
+      - R1.2: The creator SHALL run a monitor server (srd033) and a control server (health + lifecycle exit), with loopback-configurable bind addresses.
+      - R1.3: The instance endpoint SHALL accept a declared operation (create, restart, terminate, ingest) with its role and parameters, and SHALL NOT accept an already-resolved endpoint or credential for a running agent from the coordinator.
+  R2:
+    title: Template selection
+    items:
+      - R2.1: The creator SHALL resolve a requested role to its profile path and rendered ConfigMap under the rel06.0 mounted-profile contract (srd034), so an instance runs the shared image with a supplied profile rather than a baked-in program.
+      - R2.2: The creator SHALL NOT author the rendered config; it consumes the co-generated values-to-config output (srd015 R2) the deployment API produces.
+  R3:
+    title: Instance operations
+    items:
+      - R3.1: The creator SHALL create child agent runs -- a corpus-ingest instance per requested directory -- and return each run's outcome.
+      - R3.2: The creator SHALL execute a checkpoint-resume rollout of a reconfigured agent through the deployment API (srd015 R3.2), so the agent resumes from its Dolt checkpoint via --dolt-dsn and --resume-checkpoint rather than cold-starting.
+      - R3.3: The creator SHALL terminate an instance on request and handle resource allocation for a created instance.
+  R4:
+    title: Health monitoring
+    items:
+      - R4.1: After a create, restart, or terminate, the creator SHALL verify the instance's health via monitor reads (srd033) before reporting the operation complete.
+      - R4.2: The creator SHALL report per-operation health and outcome to the coordinator, which aggregates it for the provisioning panel (srd016 R1.3).
+  R5:
+    title: Authority boundary
+    items:
+      - R5.1: The creator alone SHALL hold the deployment-API credentials; the coordinator (srd016) and the chatbot (srd014) SHALL NOT.
+      - R5.2: The creator SHALL authenticate its instance endpoint and its deployment-API client apart from the chat path (srd015 R4 lineage).
+      - R5.3: The creator SHALL NOT pass an endpoint, URL, method, or credential into a running agent; authority is set by declared, validated config, never by a running control surface (agent-core srd028 V30).
+  R6:
+    title: Non-goals
+    items:
+      - R6.1: The creator SHALL NOT decide what to change; the values and config decision is the coordinator's (srd016 R3.1).
+      - R6.2: The creator SHALL NOT hold values co-generation authority; the deployment values are co-generated by the chart (srd015 R2) and applied through the deployment API.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The creator is described as a persistent LCM agent with a machine_request instance endpoint from the coordinator, monitor and control servers, and loopback-configurable bind addresses, accepting no resolved endpoint or credential.
+    traces: [R1.1, R1.2, R1.3]
+  - id: AC2
+    criterion: Template selection resolves a role to a profile path and rendered ConfigMap under the mounted-profile contract without authoring the config.
+    traces: [R2.1, R2.2]
+  - id: AC3
+    criterion: The instance operations -- child ingest runs, checkpoint-resume rollout restarts through the deployment API, and termination with resource allocation -- are specified.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC4
+    criterion: Post-operation health verification via monitor reads is reported to the coordinator for the provisioning panel.
+    traces: [R4.1, R4.2]
+  - id: AC5
+    criterion: The creator alone holds the deployment-API credentials, authenticates apart from chat, and never hands an endpoint or credential to a running agent; deciding what to change and values co-generation authority are non-goals.
+    traces: [R5.1, R5.2, R5.3, R6.1, R6.2]
+
+depends_on:
+  - srd_id: srd016-coordinator
+    symbols_used: [R1, R3, R4]
+  - srd_id: srd015-chatbot-deployment
+    symbols_used: [R2, R3, R4]
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1]
+  - srd_id: srd030-machine-request-rest-binding
+    symbols_used: [R1]
+  - srd_id: srd033-monitor-rest-api
+    symbols_used: [R4]
+  - srd_id: srd028-rest-client-tools
+    symbols_used: [V30]
+
+implementation_status:
+  planned:
+    - The creator profile (agents/creator) and its instance endpoint, template resolution, checkpoint-resume rollout client to the deployment API, and monitor-read health checks. Documentation-only in this release; the profile lands with the control-plane release (09.4). Until then the deployment API executes rollouts directly (srd015 R3.2, R4) and the creator's authority boundary describes where that credential moves.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: A decided reconfiguration must be realized against real instances behind one authority boundary"] --> Goals["Goals: Creator Agent Functional Block"]
+      Goals --> R1["R1: Instance-request boundary"]
+      Goals --> R2["R2: Template selection"]
+      Goals --> R3["R3: Instance operations"]
+      Goals --> R4["R4: Health monitoring"]
+      Goals --> R5["R5: Authority boundary"]
+      Goals --> R6["R6: Non-goals"]
+      R1 --> AC1["AC1: instance endpoint from the coordinator"]
+      R2 --> AC2["AC2: role to profile + rendered config, mounted-profile contract"]
+      R3 --> AC3["AC3: child ingest runs, resume rollout, terminate"]
+      R4 --> AC4["AC4: post-op health reported to the coordinator"]
+      R5 --> AC5["AC5: sole deployment-API authority, no endpoint into an agent"]
+      R6 --> AC5
+    ```
