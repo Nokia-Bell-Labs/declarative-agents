@@ -21,7 +21,7 @@ trigger: |
     AGENT_CORE_ROOT=/path/to/agent-core mage integration:benchEvaluator
 
 preconditions:
-  - agents/bench/profile.yaml and agents/evaluator/profile.yaml validate.
+  - agents/bench/profile.yaml and agents/critic/profile.yaml validate.
   - testdata/integration/rel07-bench-evaluator contains a minimal bench launch request and evaluator suite.
   - The harness uses loopback HTTP or a command-level equivalent with fixture-local output.
 

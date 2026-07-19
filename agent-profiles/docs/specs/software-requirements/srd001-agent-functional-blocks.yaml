@@ -10,7 +10,7 @@ context: |
   selections, runtime dependencies, and terminal outcomes:
 
     - srd002-generator            (generator)
-    - srd003-evaluator            (evaluator)
+    - srd003-critic            (evaluator)
     - srd004-planner              (planner)
     - srd005-jurist               (jurist)
     - srd006-bench                (bench)

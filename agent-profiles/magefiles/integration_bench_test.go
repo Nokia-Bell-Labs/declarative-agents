@@ -38,7 +38,7 @@ func TestWriteEvaluatorChildAgentRecordsEvaluatorOutput(t *testing.T) {
 	}
 	outputDir := filepath.Join(runDir, "eval-results")
 	cmd := exec.Command(evaluator,
-		"--profile", "/profiles/agents/evaluator/profile.yaml",
+		"--profile", "/profiles/agents/critic/profile.yaml",
 		"--request", "/fixtures/suite.yaml",
 		"--output", outputDir,
 	)
@@ -50,7 +50,7 @@ func TestWriteEvaluatorChildAgentRecordsEvaluatorOutput(t *testing.T) {
 		t.Fatalf("shim output missing marker: %s", out)
 	}
 	summary := readTestFile(t, filepath.Join(outputDir, "session-summary.yaml"))
-	for _, want := range []string{"/profiles/agents/evaluator/profile.yaml", "/fixtures/suite.yaml", "status: completed"} {
+	for _, want := range []string{"/profiles/agents/critic/profile.yaml", "/fixtures/suite.yaml", "status: completed"} {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("summary missing %q:\n%s", want, summary)
 		}
@@ -62,7 +62,7 @@ func TestAssertBenchEvaluatorEvidenceRequiresLaunchOutput(t *testing.T) {
 	evidence := benchLaunchEvidence{
 		RequestID:                   "rel07-bench-evaluator",
 		HumanActionReceived:         true,
-		EvaluatorProfile:            "agents/evaluator/profile.yaml",
+		EvaluatorProfile:            "agents/critic/profile.yaml",
 		Suite:                       "suite.yaml",
 		LaunchStatus:                "completed",
 		EvaluatorOutputEvidence:     "eval-results/session-summary.yaml",
@@ -71,7 +71,7 @@ func TestAssertBenchEvaluatorEvidenceRequiresLaunchOutput(t *testing.T) {
 	if err := writeBenchLaunchEvidence(runDir, evidence); err != nil {
 		t.Fatalf("writeBenchLaunchEvidence: %v", err)
 	}
-	writeFile(t, filepath.Join(runDir, "eval-results", "session-summary.yaml"), `profile: /profiles/agents/evaluator/profile.yaml
+	writeFile(t, filepath.Join(runDir, "eval-results", "session-summary.yaml"), `profile: /profiles/agents/critic/profile.yaml
 suite: /fixtures/suite.yaml
 status: completed
 points: 1
@@ -87,7 +87,7 @@ func TestAssertBenchEvaluatorEvidenceRejectsMissingSummary(t *testing.T) {
 	evidence := benchLaunchEvidence{
 		RequestID:                   "rel07-bench-evaluator",
 		HumanActionReceived:         true,
-		EvaluatorProfile:            "agents/evaluator/profile.yaml",
+		EvaluatorProfile:            "agents/critic/profile.yaml",
 		Suite:                       "suite.yaml",
 		LaunchStatus:                "completed",
 		EvaluatorOutputEvidence:     "eval-results/session-summary.yaml",

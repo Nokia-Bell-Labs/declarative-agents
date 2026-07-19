@@ -51,7 +51,7 @@ func (c *runPointCmd) Execute() core.Result {
 
 	agentName := c.config.AgentName
 	if agentName == "" {
-		agentName = "evaluator-point"
+		agentName = "critic-point"
 	}
 	maxIter := c.config.MaxIterations
 	if maxIter <= 0 {

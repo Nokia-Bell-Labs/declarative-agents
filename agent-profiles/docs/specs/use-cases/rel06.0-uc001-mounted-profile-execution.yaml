@@ -91,7 +91,7 @@ success_criteria:
   - id: S5
     criterion: agent-core integration targets can consume demos and fixtures through AGENT_PROFILES_ROOT.
     traces:
-      - srd003-evaluator R2.3
+      - srd003-critic R2.3
       - srd008-monitor R2.1
       - srd011-knowledge-manager R1.2
 

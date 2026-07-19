@@ -15,7 +15,7 @@ import (
 
 func TestSentenceToolMigrationCreatesReplacementWords(t *testing.T) {
 	repo := repositoryRoot(t)
-	sessionSelection := loadToolSelection(t, filepath.Join(repo, "agent-profiles", "agents", "evaluator", "tools.yaml"))
+	sessionSelection := loadToolSelection(t, filepath.Join(repo, "agent-profiles", "agents", "critic", "tools.yaml"))
 	require.NotContains(t, sessionSelection, "load_suite")
 
 	replacementWords := []string{
@@ -29,7 +29,7 @@ func TestSentenceToolMigrationCreatesReplacementWords(t *testing.T) {
 		require.Contains(t, sessionSelection, word)
 	}
 
-	defs := loadToolDefs(t, filepath.Join(repo, "agent-core", "tools", "builtin", "evaluator-session", "all.yaml"))
+	defs := loadToolDefs(t, filepath.Join(repo, "agent-core", "tools", "builtin", "critic-session", "all.yaml"))
 	selected := selectToolDefs(t, defs, replacementWords)
 	for _, def := range selected {
 		require.NotEmpty(t, def.Description, "%s description", def.Name)
@@ -42,9 +42,9 @@ func TestSentenceToolMigrationCreatesReplacementWords(t *testing.T) {
 
 func TestSentenceToolMigrationMachineSequence(t *testing.T) {
 	repo := repositoryRoot(t)
-	spec := loadMachineSpec(t, filepath.Join(repo, "agent-profiles", "agents", "evaluator", "machine.yaml"))
-	selection := loadToolSelection(t, filepath.Join(repo, "agent-profiles", "agents", "evaluator", "tools.yaml"))
-	defs := loadToolDefs(t, filepath.Join(repo, "agent-core", "tools", "builtin", "evaluator-session", "all.yaml"))
+	spec := loadMachineSpec(t, filepath.Join(repo, "agent-profiles", "agents", "critic", "machine.yaml"))
+	selection := loadToolSelection(t, filepath.Join(repo, "agent-profiles", "agents", "critic", "tools.yaml"))
+	defs := loadToolDefs(t, filepath.Join(repo, "agent-core", "tools", "builtin", "critic-session", "all.yaml"))
 	selected := selectToolDefs(t, defs, selection)
 
 	require.NoError(t, catalog.ValidateToolEmits(spec, selected))
@@ -58,9 +58,9 @@ func TestSentenceToolMigrationMachineSequence(t *testing.T) {
 
 func TestSentenceToolMigrationPreservesFailureSignals(t *testing.T) {
 	repo := repositoryRoot(t)
-	spec := loadMachineSpec(t, filepath.Join(repo, "agent-profiles", "agents", "evaluator", "point.yaml"))
-	selection := loadToolSelection(t, filepath.Join(repo, "agent-profiles", "agents", "evaluator", "tools-point.yaml"))
-	defs := loadToolDefs(t, filepath.Join(repo, "agent-core", "tools", "builtin", "evaluator-point", "all.yaml"))
+	spec := loadMachineSpec(t, filepath.Join(repo, "agent-profiles", "agents", "critic", "point.yaml"))
+	selection := loadToolSelection(t, filepath.Join(repo, "agent-profiles", "agents", "critic", "tools-point.yaml"))
+	defs := loadToolDefs(t, filepath.Join(repo, "agent-core", "tools", "builtin", "critic-point", "all.yaml"))
 	selected := selectToolDefs(t, defs, selection)
 
 	require.NoError(t, catalog.ValidateToolEmits(spec, selected))

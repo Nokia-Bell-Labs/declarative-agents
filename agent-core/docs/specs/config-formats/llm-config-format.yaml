@@ -211,7 +211,7 @@ config_files:
       nemotron. Each configures a different local model via Ollama
       with generator-specific system prompts.
 
-  - directory: $AGENT_PROFILES_ROOT/agents/evaluator/llm/
+  - directory: $AGENT_PROFILES_ROOT/agents/critic/llm/
     variant_count: 10
     description: |
       Model variants for the evaluator's benchmark grid:

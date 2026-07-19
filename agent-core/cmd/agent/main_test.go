@@ -58,7 +58,7 @@ func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
 	modeNames := map[string]struct{}{
 		"generator": {},
 		"planner":   {},
-		"evaluator": {},
+		"critic": {},
 		"bench":     {},
 		"jurist":    {},
 	}
@@ -222,7 +222,7 @@ func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
 	profileRoot := profileRootFromTest(t)
 	profiles := []string{
 		"generator/profile.yaml",
-		"evaluator/profile.yaml",
+		"critic/profile.yaml",
 		"bench/profile.yaml",
 		"jurist/profile.yaml",
 		"lifecycle/history/profile.yaml",

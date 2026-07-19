@@ -108,8 +108,8 @@ declaration_layout:
     - tools/builtin/control/
     - tools/builtin/validation/
     - tools/builtin/planner/
-    - tools/builtin/evaluator-session/
-    - tools/builtin/evaluator-point/
+    - tools/builtin/critic-session/
+    - tools/builtin/critic-point/
     - tools/builtin/bench/
     - tools/builtin/spec-validation/
   compatibility_bundles:
@@ -123,7 +123,7 @@ declaration_layout:
     - tools/builtin/lifecycle.yaml
   mode_local_overrides:
     - agents/planner/builtin.yaml
-    - agents/evaluator/builtin.yaml
+    - agents/critic/builtin.yaml
     - agents/bench/builtin.yaml
     - agents/*/llm/*.yaml
   rules:
@@ -180,8 +180,8 @@ implementation:
   - tools/builtin/control/ (planned grouped declarations)
   - tools/builtin/validation/ (planned grouped declarations)
   - tools/builtin/planner/ (planned grouped declarations)
-  - tools/builtin/evaluator-session/ (planned grouped declarations)
-  - tools/builtin/evaluator-point/ (planned grouped declarations)
+  - tools/builtin/critic-session/ (planned grouped declarations)
+  - tools/builtin/critic-point/ (planned grouped declarations)
   - tools/builtin/bench/ (planned grouped declarations)
   - tools/builtin/spec-validation/ (planned grouped declarations)
   - tools/builtin.yaml (compatibility bundle)

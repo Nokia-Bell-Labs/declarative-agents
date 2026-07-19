@@ -7,14 +7,14 @@ purpose: |
 
 overview: |
   Think of the profile system as a directed graph of configured behaviors.
-  Work-producing agents sit beside evaluators and operational boundary agents,
+  Work-producing agents sit beside critics and operational boundary agents,
   but their edges carry different meaning. Migration has to preserve those
   edges after the files leave agent-core; otherwise profile ownership becomes
   visible while behavior quietly changes.
 
   When planner delegates task execution, the edge points to generator. A
-  benchmark point uses a similar edge when evaluator runs a subject profile.
-  From the human side, bench starts evaluator through an operator action in the
+  benchmark point uses a similar edge when critic runs a subject profile.
+  From the human side, bench starts critic through an operator action in the
   web UI. Boundary-oriented profiles face outward toward REST callers,
   supervisors, checkpoint stores, document corpora, and browser users.
 
@@ -42,12 +42,12 @@ role_groups:
       then lets machine-declared validation decide the terminal outcome.
   - id: evaluation_work
     profiles:
-      - evaluator
+      - critic
       - bench
     summary: |
       Evaluation work measures agent behavior. Bench accepts human launch
-      requests, while evaluator expands suites and runs point pipelines.
-      Configured child profile execution stays inside the evaluator point flow.
+      requests, while critic expands suites and runs point pipelines.
+      Configured child profile execution stays inside the critic point flow.
   - id: validation_work
     profiles:
       - jurist
@@ -73,16 +73,16 @@ dependency_directions:
     meaning: Planner materializes and executes tasks through the generator
       profile. Generator does not depend on planner.
     evidence: rel07.0-uc003-planner-generator-profile-boundary
-  - from: evaluator
+  - from: critic
     to: generator
     kind: benchmark_subject_execution
-    meaning: Evaluator point runs can invoke generator or another configured
+    meaning: Critic point runs can invoke generator or another configured
       profile as the benchmark subject.
     evidence: rel07.0-uc002-evaluator-generator-profile-boundary
   - from: bench
-    to: evaluator
+    to: critic
     kind: human_launched_evaluation
-    meaning: Bench serves the human UI and launches evaluator runs.
+    meaning: Bench serves the human UI and launches critic runs.
     evidence: rel07.0-uc004-bench-evaluator-profile-boundary
   - from: monitor
     to: agent-core monitor store
@@ -120,7 +120,7 @@ actor_boundaries:
       - validation commands
     boundary: LLM responses choose selected tools; filesystem and validation
       commands mutate or inspect the workspace.
-  - profile: evaluator
+  - profile: critic
     actors:
       - suite author
       - child agent process
@@ -142,8 +142,8 @@ actor_boundaries:
   - profile: bench
     actors:
       - human operator
-      - evaluator process
-    boundary: Human HTTP actions launch evaluator runs.
+      - critic process
+    boundary: Human HTTP actions launch critic runs.
   - profile: rest
     actors:
       - configured upstream HTTP service
@@ -189,8 +189,8 @@ validation_views:
     selections, declarations, and REST definitions.
   - Mounted container execution checks that /profiles paths can run selected
     profiles without bundled agent directories in the runtime image.
-  - Integration tests check profile relationships such as bench to evaluator,
-    evaluator to generator, planner to generator, and Knowledge Manager control
+  - Integration tests check profile relationships such as bench to critic,
+    critic to generator, planner to generator, and Knowledge Manager control
     exit.
   - Release 07.0 records implemented relationship checks in
     test-rel07.0-profile-integrations.

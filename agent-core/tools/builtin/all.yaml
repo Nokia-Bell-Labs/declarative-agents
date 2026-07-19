@@ -5,8 +5,8 @@ includes:
   - lifecycle/all.yaml
   - validation/all.yaml
   - planner/all.yaml
-  - evaluator-session/all.yaml
-  - evaluator-point/all.yaml
+  - critic-session/all.yaml
+  - critic-point/all.yaml
   - bench/all.yaml
   - spec-validation/all.yaml
 

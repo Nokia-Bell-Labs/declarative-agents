@@ -184,4 +184,4 @@ tools:
     - tool: run_point
       difference: run_point runs one point inside evaluator; launch_eval starts the evaluator process.
   config:
-    profile: agents/evaluator/profile.yaml
+    profile: agents/critic/profile.yaml

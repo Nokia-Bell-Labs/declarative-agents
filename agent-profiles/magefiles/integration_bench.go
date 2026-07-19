@@ -42,7 +42,7 @@ func (Integration) BenchEvaluator() error {
 	if request.Type != "launch_eval" {
 		return fmt.Errorf("bench request type = %q, want launch_eval", request.Type)
 	}
-	if err := requireProfilePaths(profilesRoot, "agents/bench/profile.yaml", "agents/evaluator/profile.yaml"); err != nil {
+	if err := requireProfilePaths(profilesRoot, "agents/bench/profile.yaml", "agents/critic/profile.yaml"); err != nil {
 		return err
 	}
 	runDir, err := os.MkdirTemp("", "agent-profiles-bench-evaluator-*")
@@ -72,7 +72,7 @@ func (Integration) BenchEvaluator() error {
 	evidence := benchLaunchEvidence{
 		RequestID:                   fixtureValue(request.Config, "request_id"),
 		HumanActionReceived:         true,
-		EvaluatorProfile:            "agents/evaluator/profile.yaml",
+		EvaluatorProfile:            "agents/critic/profile.yaml",
 		Suite:                       suitePath,
 		LaunchStatus:                "completed",
 		EvaluatorOutputEvidence:     filepath.ToSlash(filepath.Join(outputRel, "session-summary.yaml")),
@@ -117,7 +117,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 case "$profile" in
-  *agents/evaluator/profile.yaml) ;;
+  *agents/critic/profile.yaml) ;;
   *) echo "unexpected evaluator profile: $profile" >&2; exit 42 ;;
 esac
 mkdir -p "$output"
@@ -152,7 +152,7 @@ func assertBenchEvaluatorEvidence(runDir string, want benchLaunchEvidence) error
 	if err != nil {
 		return fmt.Errorf("read evaluator output evidence: %w", err)
 	}
-	for _, text := range []string{"agents/evaluator/profile.yaml", "status: completed"} {
+	for _, text := range []string{"agents/critic/profile.yaml", "status: completed"} {
 		if !strings.Contains(string(summary), text) {
 			return fmt.Errorf("evaluator summary missing %q:\n%s", text, summary)
 		}

@@ -1,6 +1,6 @@
 request_id: rel07-bench-evaluator
 human_action_received: true
-evaluator_profile: agents/evaluator/profile.yaml
+evaluator_profile: agents/critic/profile.yaml
 suite: suite.yaml
 launch_status: completed
 evaluator_output_evidence: eval-results/session-summary.yaml

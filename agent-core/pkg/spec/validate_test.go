@@ -620,13 +620,13 @@ tools:
 func TestDiscoverMachinesIncludesConfiguredToolSelections(t *testing.T) {
 	root := t.TempDir()
 
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "agents", "evaluator"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "evaluator", "machine.yaml"), []byte(`
-name: evaluator
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "agents", "critic"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "critic", "machine.yaml"), []byte(`
+name: critic-session
 initial_state: Idle
 terminal_states: [Done]
 configuration:
-  point_tools: agents/evaluator/tools-point.yaml
+  point_tools: agents/critic/tools-point.yaml
 states:
   - Idle
   - Done
@@ -637,11 +637,11 @@ transitions:
     signal: Seed
     next: Done
 `), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "evaluator", "tools.yaml"), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "critic", "tools.yaml"), []byte(`
 tools:
   - parse_suite_config
 `), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "evaluator", "tools-point.yaml"), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "critic", "tools-point.yaml"), []byte(`
 tools:
   - create_point_dir
   - run_agent
@@ -650,8 +650,8 @@ tools:
 	_, selections, _, err := discoverAndParseMachines(root)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"parse_suite_config"}, selections["evaluator"])
-	assert.Equal(t, []string{"create_point_dir", "run_agent"}, selections["evaluator:point_tools"])
+	assert.Equal(t, []string{"parse_suite_config"}, selections["critic"])
+	assert.Equal(t, []string{"create_point_dir", "run_agent"}, selections["critic:point_tools"])
 }
 
 func TestValidate_ToolEmitsSignalSet(t *testing.T) {
@@ -1073,8 +1073,8 @@ func TestValidate_MachineDiagnostics_Fixture(t *testing.T) {
 func TestValidate_MachineNameConsistency(t *testing.T) {
 	corpus := &Corpus{
 		Machines: map[string]core.MachineSpec{
-			"evaluator": {
-				Name:           "evaluator-session",
+			"critic": {
+				Name:           "critic-session",
 				InitialState:   "Idle",
 				States:         core.StateSpecs{{Name: "Idle"}},
 				Signals:        core.SignalSpecs{{Name: "Seed"}},
@@ -1090,7 +1090,7 @@ func TestValidate_MachineNameConsistency(t *testing.T) {
 				TerminalStates: []string{"Idle"},
 			},
 		},
-		MachineOrder: []string{"evaluator", "dir-name"},
+		MachineOrder: []string{"critic", "dir-name"},
 	}
 
 	findings := checkMachineNameConsistency(corpus)

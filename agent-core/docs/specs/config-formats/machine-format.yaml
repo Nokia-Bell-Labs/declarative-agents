@@ -362,15 +362,15 @@ examples:
       LLM-chosen tools. Includes purpose, invariants, lifecycle,
       configuration cross-references, and a Mermaid pipeline diagram.
 
-  - file: ../agent-profiles/agents/evaluator/machine.yaml
+  - file: ../agent-profiles/agents/critic/machine.yaml
     description: |
       11 states, session-level orchestration with nested core.Loop.
       Drives grid iteration over (harness, model, sample, rep) points.
       Each point runs the per-point pipeline via a nested core.Loop
-      using ../agent-profiles/agents/evaluator/point.yaml. Rich state/signal metadata
+      using ../agent-profiles/agents/critic/point.yaml. Rich state/signal metadata
       throughout.
 
-  - file: ../agent-profiles/agents/evaluator/point.yaml
+  - file: ../agent-profiles/agents/critic/point.yaml
     description: |
       15 states, 17 signals, linear pipeline with no LLM interaction.
       Walks through workspace preparation, config snapshot, agent

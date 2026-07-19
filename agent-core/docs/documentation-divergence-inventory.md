@@ -40,7 +40,7 @@ Documentation drift:
   profiles.
 - The README package table is useful but does not orient readers around the
   external active agents (`$AGENT_PROFILES_ROOT/agents/generator`,
-  `$AGENT_PROFILES_ROOT/agents/evaluator`, `$AGENT_PROFILES_ROOT/agents/planner`,
+  `$AGENT_PROFILES_ROOT/agents/critic`, `$AGENT_PROFILES_ROOT/agents/planner`,
   `$AGENT_PROFILES_ROOT/agents/bench`, `$AGENT_PROFILES_ROOT/agents/jurist`) or
   profile-first startup.
 

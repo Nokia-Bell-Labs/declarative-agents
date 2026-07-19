@@ -51,7 +51,7 @@ Profiles are normal runtime entry points, but standard agent programs now live
 outside this repository. Set `AGENT_PROFILES_ROOT` to an `agent-profiles`
 checkout or bundle, then pass explicit paths such as
 `$AGENT_PROFILES_ROOT/agents/generator/profile.yaml`,
-`$AGENT_PROFILES_ROOT/agents/evaluator/profile.yaml`, or
+`$AGENT_PROFILES_ROOT/agents/critic/profile.yaml`, or
 `$AGENT_PROFILES_ROOT/agents/jurist/profile.yaml`.
 
 Lifecycle operators use the same external profile path shape.
@@ -234,7 +234,7 @@ docker run --rm \
   -v "$PWD:/work" \
   -w /work \
   agent-core:latest \
-  --profile /profiles/agents/evaluator/profile.yaml \
+  --profile /profiles/agents/critic/profile.yaml \
   --request suites/suite.yaml \
   --output eval-results \
   --directory /work

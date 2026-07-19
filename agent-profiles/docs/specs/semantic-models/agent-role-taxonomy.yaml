@@ -12,7 +12,7 @@ overview: |
   or documentation review steps.
 
   The taxonomy is intentionally profile-oriented. It names generator as a
-  coding agent, evaluator as a session and point runner, bench as a human UI
+  coding agent, critic as a session and point runner, bench as a human UI
   launcher, and Knowledge Manager as a documentation curator. Those labels
   describe configured behavior. They are not package names, binary names, or
   new runtime modules.
@@ -48,9 +48,9 @@ roles:
       - Run mounted profile command with --profile and --directory.
       - Confirm build, lint, and test validation are machine-declared.
 
-  - id: evaluator
+  - id: critic
     title: Evaluation session and point runner
-    profile_path: agents/evaluator/profile.yaml
+    profile_path: agents/critic/profile.yaml
     actor_boundary: suite fixtures plus child agent process
     inputs:
       - suite YAML
@@ -58,8 +58,8 @@ roles:
       - model or profile grid
       - oracle command
     selected_tool_families:
-      - evaluator session
-      - evaluator point
+      - critic session
+      - critic point
       - child profile execution
     runtime_dependencies:
       - agent-core nested loop execution
@@ -77,7 +77,7 @@ roles:
       - Resolve suite fixtures through AGENT_PROFILES_ROOT.
       - Confirm point machine runs in isolated workspaces.
       - Confirm failed child runs still produce point summaries and metrics.
-      - Trace evaluator to generator with rel07.0-uc002-evaluator-generator-profile-boundary.
+      - Trace critic to generator with rel07.0-uc002-evaluator-generator-profile-boundary.
 
   - id: planner
     title: Requirement planner and issue materializer
@@ -139,27 +139,27 @@ roles:
   - id: bench
     title: Human-operated evaluation launcher
     profile_path: agents/bench/profile.yaml
-    actor_boundary: human HTTP operator and evaluator process
+    actor_boundary: human HTTP operator and critic process
     inputs:
       - human UI action
       - experiment configuration
     selected_tool_families:
       - bench UI
-      - evaluator launch
+      - critic launch
     runtime_dependencies:
       - agent-core bench tools
-      - evaluator profile
+      - critic profile
     outputs:
       - served UI
-      - evaluator run request
+      - critic run request
       - launch status
     outcomes:
       - Done
       - Failed
     checks:
       - Confirm serve_ui is the blocking human boundary.
-      - Confirm launch_eval delegates session execution to evaluator.
-      - Trace bench to evaluator with rel07.0-uc004-bench-evaluator-profile-boundary.
+      - Confirm launch_eval delegates session execution to critic.
+      - Trace bench to critic with rel07.0-uc004-bench-evaluator-profile-boundary.
 
   - id: rest
     title: REST boundary sample

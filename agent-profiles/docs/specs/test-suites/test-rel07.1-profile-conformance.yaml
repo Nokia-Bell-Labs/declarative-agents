@@ -59,7 +59,7 @@ overview: |
 
 traces:
   - srd002-generator
-  - srd003-evaluator
+  - srd003-critic
   - srd004-planner
   - srd005-jurist
   - srd006-bench
@@ -102,14 +102,14 @@ test_cases:
       - srd005-jurist AC3
       - sm-agent-role-taxonomy jurist
 
-  - family: evaluator
-    name: Evaluator session pipeline conformance
+  - family: critic
+    name: Critic session pipeline conformance
     status: implemented
-    test: conformance/evaluator_test.go
+    test: conformance/critic_test.go
     coverage: shipped-behavioral
-    coverage_note: Runs the shipped agents/evaluator/profile.yaml directly with a stub generator child on PATH; no field patched.
+    coverage_note: Runs the shipped agents/critic/profile.yaml directly with a stub generator child on PATH; no field patched.
     description: |
-      Runs the evaluator profile with a shell-script stub standing in for the
+      Runs the critic profile with a shell-script stub standing in for the
       generator child on PATH, then asserts the deterministic session pipeline
       vocabulary in the trace under a single root with no error-status spans.
     expected:
@@ -125,9 +125,9 @@ test_cases:
       error_status_spans: 0
       terminal_states: [Done]
     traces:
-      - srd003-evaluator AC1
-      - srd003-evaluator AC2
-      - srd003-evaluator AC3
+      - srd003-critic AC1
+      - srd003-critic AC2
+      - srd003-critic AC3
       - sm-agent-role-taxonomy evaluator
 
   - family: control

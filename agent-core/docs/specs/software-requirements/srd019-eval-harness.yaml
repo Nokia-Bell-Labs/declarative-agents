@@ -20,7 +20,7 @@ requirements:
   R0:
     title: Declarative boundary
     items:
-      - R0.1: The evaluator program SHALL be defined by agents/evaluator/machine.yaml, agents/evaluator/point.yaml, agents/evaluator/tools.yaml, and tool declarations.
+      - R0.1: The evaluator program SHALL be defined by agents/critic/machine.yaml, agents/critic/point.yaml, agents/critic/tools.yaml, and tool declarations.
       - R0.2: Suite YAML SHALL be treated as input data to evaluator tools, not as a third program-definition mechanism.
       - R0.3: parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary SHALL parse and validate suite input data before the evaluator session can iterate points.
       - R0.4: run_agent SHALL consume each resolved suite profile as subprocess input data for the current evaluation point and SHALL invoke the child agent with --profile when ProfilePath is set.
@@ -40,7 +40,7 @@ requirements:
   R2:
     title: Evaluation session execution
     items:
-      - R2.1: The session state machine (agents/evaluator/machine.yaml) initializes the suite via parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary, then iterates suites in (profile, gridPoint, sample, repetition) order via next_point, run_point, and report_session, running each point through a nested core.Loop.
+      - R2.1: The session state machine (agents/critic/machine.yaml) initializes the suite via parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary, then iterates suites in (profile, gridPoint, sample, repetition) order via next_point, run_point, and report_session, running each point through a nested core.Loop.
       - R2.2: PointContext holds per-point mutable state (directories, trace path, tokens, results, timing).
       - R2.3: EvalState is the shared state container whose PC field is updated before each point's loop run.
       - R2.4: SessionResult and PointResult capture aggregate and per-point outcomes.
@@ -49,7 +49,7 @@ requirements:
   R3:
     title: Evaluation tools
     items:
-      - "R3.1": "agents/evaluator/point.yaml SHALL express workspace preparation as separate tools: create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline."
+      - "R3.1": "agents/critic/point.yaml SHALL express workspace preparation as separate tools: create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline."
       - R3.1.1: create_point_dir SHALL create the point directory and set PointContext.PointDir and PointContext.TracePath.
       - R3.1.2: copy_sample_workspace SHALL copy only sample workspace files into PointContext.PointDir.
       - R3.1.3: copy_sample_docs SHALL copy sample docs into PointContext.PointDir/doc when docs exist and SHALL no-op successfully when they do not.
