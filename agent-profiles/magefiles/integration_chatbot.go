@@ -512,7 +512,9 @@ func generateRag1Variant(profilesRoot string) (string, func(), error) {
 		}
 		out := replacer.Replace(string(content))
 		if entry.Name() == "rest.yaml" {
-			out = strings.Replace(out, "name: corpus\n", "name: "+chromaCorpus2+"\n", 1)
+			// The collection name is env-parameterized (GH-369); rewrite the default
+			// so the rag1 variant serves the disjoint corpus under a local run.
+			out = strings.Replace(out, "name: ${RAG_COLLECTION:-corpus}\n", "name: ${RAG_COLLECTION:-"+chromaCorpus2+"}\n", 1)
 		}
 		if err := os.WriteFile(filepath.Join(dstDir, entry.Name()), []byte(out), 0o644); err != nil {
 			cleanup()
