@@ -12,7 +12,6 @@ routes:
     label: Observability
     action: observability_view
     resource: monitor
-    planned: true
   - id: provisioning
     path: /provisioning
     label: Provisioning
@@ -41,12 +40,25 @@ actions:
   observability_view:
     ui_action: observability_view
     route: observability
-    planned: true
   provisioning_view:
     ui_action: provisioning_view
     route: provisioning
     planned: true
+# The observability panel opens one live sub-panel per monitored agent, reading
+# its monitor state and SSE stream through the chatbot's same-origin monitor_proxy
+# (/monitor-proxy/<name>/...). This list is the monitored-agents surface srd015
+# co-generates; keep it in sync with the rest.yaml monitor_proxy upstreams and the
+# SPA agent list in ui/app/src/monitorApi.ts.
+monitored_agents:
+  - name: chatbot
+    label: Chatbot
+  - name: rag0
+    label: RAG server 0
+  - name: rag1
+    label: RAG server 1
 presentation:
   history_client_side: true
   source_citations: true
   degraded_indicator: true
+  observability_per_agent_sse: true
+  observability_turn_correlation: time-window

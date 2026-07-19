@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { sendChat, type Answer, type Turn } from "./api";
+import { useTurns } from "./turns";
 
 interface Message {
   role: "user" | "assistant";
@@ -58,6 +59,7 @@ export default function ChatPanel() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const { startTurn, endTurn } = useTurns();
 
   function scrollToEnd() {
     requestAnimationFrame(() => {
@@ -76,6 +78,9 @@ export default function ChatPanel() {
     setBusy(true);
     scrollToEnd();
 
+    // Record the turn window so the observability panel can correlate the mesh's
+    // events to this turn.
+    const turnId = startTurn(message);
     try {
       const answer: Answer = await sendChat({ message, history: priorHistory });
       setMessages((prev) => [
@@ -89,6 +94,7 @@ export default function ChatPanel() {
         { role: "assistant", content: `Request failed: ${detail}`, error: true },
       ]);
     } finally {
+      endTurn(turnId);
       setBusy(false);
       scrollToEnd();
     }
