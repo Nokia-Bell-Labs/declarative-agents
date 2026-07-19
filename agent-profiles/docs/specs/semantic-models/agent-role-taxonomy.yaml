@@ -300,6 +300,66 @@ roles:
       - Confirm exit releases the documentation listener.
       - Trace profile UX with rel07.0-uc001-documentation-curator-profile-ux.
 
+  # The mesh control plane (srd016, srd017), planned; profiles land with the
+  # control-plane release (09.4). The coordinator decides and sequences; the creator
+  # acts and holds the deployment-API authority alone.
+  - id: coordinator
+    title: Mesh control-plane coordinator
+    profile_path: agents/coordinator/profile.yaml
+    actor_boundary: the UX agent (chatbot) and the creator
+    status: planned
+    inputs:
+      - provisioning intent from the UX agent
+      - per-operation status from the creator
+    selected_tool_families:
+      - machine_request intent server
+      - REST client to the creator
+      - monitor and control servers
+    runtime_dependencies:
+      - agent-core request runtime
+      - agent-core REST client transport
+      - profile-owned intent endpoint and workflow machines
+    outputs:
+      - sequenced instance requests to the creator
+      - decided values and config changes
+      - aggregated status for the provisioning panel
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm every instance operation is a declared-client request to the creator, never a direct deployment-API or run_agent call (srd016 R4).
+      - Confirm the coordinator holds no deployment-API credentials and authenticates apart from chat.
+      - Trace the control plane with rel09.4-uc001-control-plane-provisioning.
+
+  - id: creator
+    title: Mesh control-plane creator
+    profile_path: agents/creator/profile.yaml
+    actor_boundary: the coordinator, the deployment API, and child agent runs
+    status: planned
+    inputs:
+      - decided instance operation from the coordinator
+      - monitor reads for health verification
+    selected_tool_families:
+      - machine_request instance server
+      - REST client to the deployment API
+      - monitor reads
+      - child run creation
+    runtime_dependencies:
+      - agent-core request runtime
+      - agent-core REST client transport and monitor reads
+      - profile-owned instance endpoint and template resolution
+    outputs:
+      - created child ingest runs
+      - checkpoint-resume rollout restarts
+      - post-operation health reported to the coordinator
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm the creator alone holds the deployment-API credentials and passes no endpoint or credential into a running agent (srd017 R5, srd028 V30).
+      - Confirm the creator makes no values or workflow decision (srd017 R6).
+      - Trace the control plane with rel09.4-uc001-control-plane-provisioning.
+
 taxonomy_rules:
   - Each role is a configured program, not a Go package.
   - Actor boundaries name who or what crosses the profile boundary.

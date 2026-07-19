@@ -457,11 +457,11 @@ releases:
     use_cases:
       - id: rel09.4-uc001-control-plane-provisioning
         summary: The coordinator sequences a reconfiguration the UX agent delegates, and the creator materializes and health-monitors the agent instances, resuming from checkpoints on restart.
-        status: planned
+        status: specified
     test_suites:
       - id: test-rel09.4-control-plane
         summary: Tracers for the coordinator's reconfiguration sequencing and the creator's instance lifecycle and checkpoint-resume restart.
-        status: planned
+        status: specified
 
   - version: "10.0"
     name: Reference-architecture role alignment

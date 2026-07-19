@@ -102,6 +102,12 @@ acceptance_criteria:
     traces: [R6.1, R6.2]
 
 depends_on:
+  # The provisioning panel (R5.1) delegates a user's provisioning intent to the
+  # coordinator through a declared client rather than editing config itself; the
+  # coordinator (srd016) and creator (srd017) are the mesh control plane behind the
+  # provisioning surface (srd015 R4). The chat turn path (R1-R3) is unchanged.
+  - srd_id: srd016-coordinator
+    symbols_used: [R1]
   - srd_id: srd011-knowledge-manager
     symbols_used: [R1]
   - srd_id: srd013-rag-server-agent

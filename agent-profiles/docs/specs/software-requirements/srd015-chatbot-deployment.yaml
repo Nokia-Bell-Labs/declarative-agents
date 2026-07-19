@@ -96,6 +96,16 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3]
 
 depends_on:
+  # The provisioning surface (R4) is fronted by the mesh control plane: the
+  # coordinator (srd016) sequences the workflow behind the deployment API and the
+  # creator (srd017) alone holds the deployment-API credentials and executes the
+  # checkpoint-resume rollouts (R3.2). The chart topology (R1.1) adds the coordinator
+  # and creator once the control-plane release (09.4) lands; today the provisioning
+  # panel drives the deployment API directly.
+  - srd_id: srd016-coordinator
+    symbols_used: [R1, R3]
+  - srd_id: srd017-creator
+    symbols_used: [R3, R4]
   - srd_id: srd013-rag-server-agent
     symbols_used: [R1, R2]
   - srd_id: srd014-chatbot-agent
