@@ -153,6 +153,14 @@ type Endpoint struct {
 	MachineRequest     MachineRequest      `yaml:"machine_request,omitempty"`
 	StaticAssets       *StaticAssetsConfig `yaml:"static_assets,omitempty"`
 	Redirect           *RedirectConfig     `yaml:"redirect,omitempty"`
+	MonitorProxy       *MonitorProxyConfig `yaml:"monitor_proxy,omitempty"`
+}
+
+// MonitorProxyConfig maps agent names to their monitor base URLs for binding
+// monitor_proxy, a same-origin reverse proxy. Only these declared upstreams are
+// reachable; the caller supplies the agent key and a path suffix, never a host.
+type MonitorProxyConfig struct {
+	Upstreams map[string]string `yaml:"upstreams"`
 }
 
 // RedirectConfig is HTTP redirect response settings for binding redirect.

@@ -22,6 +22,7 @@ const (
 	bindingStaticMetadata   = "static_metadata"
 	bindingMachineRequest   = "machine_request"
 	bindingLifecycleControl = "lifecycle_control"
+	bindingMonitorProxy     = "monitor_proxy"
 )
 
 var allowedUndeclaredHeaders = map[string]bool{
@@ -57,6 +58,12 @@ func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	if req.Method != endpoint.Method {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// monitor_proxy forwards arbitrary monitor query strings to a declared upstream
+	// and reads the request directly, so it bypasses declared-query/body validation.
+	if endpoint.Binding == bindingMonitorProxy {
+		r.handleEndpoint(w, req, name, endpoint, nil)
 		return
 	}
 	payload, err := readRequestPayload(req, endpoint, r.def.Limits.MaxRequestBytes)
@@ -164,8 +171,96 @@ func (r *serverRuntime) handleEndpoint(
 		r.serveStaticAssets(w, req, endpoint)
 	case bindingRedirect:
 		r.writeRedirect(w, endpoint)
+	case bindingMonitorProxy:
+		r.proxyMonitor(w, req, endpoint)
 	default:
 		http.Error(w, "endpoint binding is not implemented", http.StatusNotImplemented)
+	}
+}
+
+// monitorProxyClient forwards short monitor reads and SSE reconnect requests to a
+// declared upstream. It does not follow redirects, so a compromised upstream
+// cannot bounce the proxy elsewhere.
+var monitorProxyClient = &http.Client{
+	Timeout: 30 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
+
+// proxyMonitor reverse-proxies a GET to the declared upstream monitor for the
+// {agent} path param, so a browser SPA served by this server can read every mesh
+// agent's monitor state and SSE stream through one origin. Only the declared
+// upstreams are reachable; the caller supplies the agent key and the path suffix,
+// never a host, and only GET is forwarded so the proxy cannot drive mutations.
+func (r *serverRuntime) proxyMonitor(w http.ResponseWriter, req *http.Request, endpoint Endpoint) {
+	cfg := endpoint.MonitorProxy
+	if cfg == nil {
+		http.Error(w, "monitor_proxy is not configured", http.StatusInternalServerError)
+		return
+	}
+	if req.Method != http.MethodGet {
+		http.Error(w, "monitor_proxy forwards GET only", http.StatusMethodNotAllowed)
+		return
+	}
+	vars, ok := matchPath(endpoint.Path, req.URL.Path)
+	if !ok {
+		http.NotFound(w, req)
+		return
+	}
+	agent := ""
+	suffix := ""
+	for _, seg := range pathSegments(endpoint.Path) {
+		if n, ok := catchAllParam(seg); ok {
+			suffix = vars[n]
+		} else if n, ok := simpleParam(seg); ok && agent == "" {
+			agent = vars[n]
+		}
+	}
+	base, ok := cfg.Upstreams[agent]
+	if !ok {
+		http.Error(w, "unknown monitor agent", http.StatusNotFound)
+		return
+	}
+	target := strings.TrimRight(base, "/") + "/" + strings.TrimLeft(suffix, "/")
+	if req.URL.RawQuery != "" {
+		target += "?" + req.URL.RawQuery
+	}
+	upstreamReq, err := http.NewRequestWithContext(req.Context(), http.MethodGet, target, nil)
+	if err != nil {
+		http.Error(w, "monitor_proxy target invalid", http.StatusBadGateway)
+		return
+	}
+	if accept := req.Header.Get("Accept"); accept != "" {
+		upstreamReq.Header.Set("Accept", accept)
+	}
+	resp, err := monitorProxyClient.Do(upstreamReq)
+	if err != nil {
+		http.Error(w, "monitor upstream unreachable", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	flusher, _ := w.(http.Flusher)
+	buf := make([]byte, 4096)
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+		if readErr != nil {
+			return
+		}
 	}
 }
 
@@ -524,6 +619,15 @@ func pathSegmentCountsMatch(want, got []string) bool {
 func catchAllParam(segment string) (string, bool) {
 	name, ok := strings.CutSuffix(strings.Trim(segment, "{}"), "...")
 	return name, ok && name != "" && strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}")
+}
+
+// simpleParam returns the name of a non-catch-all "{name}" path segment.
+func simpleParam(segment string) (string, bool) {
+	if !strings.HasPrefix(segment, "{") || !strings.HasSuffix(segment, "}") || strings.HasSuffix(segment, "...}") {
+		return "", false
+	}
+	name := strings.Trim(segment, "{}")
+	return name, name != ""
 }
 
 func pathSegments(path string) []string {
