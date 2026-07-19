@@ -1,26 +1,23 @@
 id: test-rel09.0-chatbot-mesh
-title: Test Suite for Release 09.0 Chatbot Mesh
+title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn
 release: "09.0"
 
 overview: |
-  This suite defines the profile-owned tracer bullets for the chatbot mesh: a
-  persistent RAG server answering a vector-in query (srd013), an end-to-end
-  chatbot turn that routes, embeds, fans out to two RAGs, composes, and answers
-  with a degraded-RAG case (srd014), and a Helm deployment on a kind cluster that
-  exercises the tiered hot swap (srd015). The RAG-server, chatbot, and deployment
-  smoke tracers are implemented; the co-generation and hot-swap tracer lands with
-  the co-generation issue (#314) of the deployment epic (#296).
+  This suite defines the profile-owned tracer bullets for the core loop of the
+  chatbot mesh: a persistent RAG server answering a vector-in query (srd013), and
+  a single-RAG chatbot turn that embeds once, retrieves, composes via $from(),
+  answers, and degrades to a mapped 200 when the RAG fails (srd014). The routing
+  and multi-RAG fan-out are release 09.1; observability is 09.2; deployment is
+  09.3.
 
 traces:
   - rel09.0-uc001-rag-server-query
   - rel09.0-uc002-chatbot-turn
-  - rel09.0-uc003-mesh-deployment
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout, including HTTP trace propagation (agent-core rel08.0) where trace continuity is asserted.
+  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama (or external LLM) are reachable with the configured embedding and answer models.
-  - A kind cluster is available and the rel06.0 binary-only runtime image is loadable for the deployment case.
-  - agent-profiles owns the RAG server, chatbot, and deployment chart assets named by the tracers.
+  - agent-profiles owns the RAG server and chatbot assets named by the tracers.
 
 test_cases:
   - use_case: rel09.0-uc001-rag-server-query
@@ -55,176 +52,32 @@ test_cases:
       - srd013-rag-server-agent AC2
 
   - use_case: rel09.0-uc002-chatbot-turn
-    name: Chatbot turn end-to-end tracer with a degraded RAG
+    name: Single-RAG chatbot turn tracer with a degraded RAG
     integration_target: mage integration:chatbot
     go_test: go test ./magefiles -run 'TestCitedRecordNumbers|TestChatResponse'
     status: implemented
     description: |
-      Integration.Chatbot proves the routed, two-RAG topology of this use case
-      end to end (GH-306 single-RAG, GH-309 routing and fan-out). It starts one
-      Chroma container with two disjoint collections (the ingest fixture for rag0
-      and a seeded disjoint corpus for rag1), launches two rag-server agents and the
-      router-enabled chatbot as long-running subprocesses, and drives the chat
-      machine_request endpoint. A factual turn and an analytical turn exercise the
-      $tool router; the chatbot span log is asserted to show both the fast and the
-      deep chat model answered (the router dispatched each word). A cross-corpus
-      turn cites chunks from both RAGs by their [rag0] and [rag1] tags (sequential
-      fan-out and distance-ordered merge). Stopping rag1 degrades the next turn to a
-      200 answered from rag0 alone (carrying prior turns as client-side history, R4),
-      with no [rag1] citation. Each rag-server span log is asserted independently to
-      show it served and exited. Verified end to end against live Docker and Ollama;
-      skips cleanly without them, naming a missing model.
-
-      One Chroma container with two collections stands in for two containers; the
-      disjoint corpora are what the fan-out exercises. The request-scoped machine now
-      exports its dispatch spans under the machine_request span and propagates
-      traceparent to the RAG servers (GH-362), so the test asserts one connected
-      cross-agent trace: the chatbot turn and each rag-server share a trace id and a
-      rag-server span is parented under a chatbot span. Not covered here: a forced
-      router misparse fixture (the default-word fallback transition is exercised by
-      GH-307 but not asserted live).
+      Integration.Chatbot drives the chat machine_request endpoint and asserts the
+      turn-machine core this use case specifies: embed_query embeds the query once,
+      the turn retrieves from a RAG, compose reads the original message and the
+      retrieved chunks through command-state $from() (no carry_forward chain for the
+      non-adjacent message hop), and the invoke_llm word answers grounded in the
+      chunks. Stopping the RAG degrades the next turn to a 200 answered from the
+      message alone rather than a 500, carrying prior turns as client-side history
+      (R4). The router and the two-RAG fan-out this target also exercises are
+      validated by the 09.1 suite. Verified end to end against live Docker and
+      Ollama; skips cleanly without them, naming a missing model.
     inputs:
       chatbot_profile: agents/chatbot/profile.yaml
-      rag_clients: [rag0, rag1]
-      turns: factual, analytical, cross-corpus, then a degraded follow-up with history
-      fault: rag1 stopped before the degraded turn
+      turns: a grounded turn, then a degraded follow-up with history
+      fault: the RAG stopped before the degraded turn
     expected:
-      router_dispatches_both_chat_models: true
-      fanout_cites_both_rag_tags: true
+      embeds_query_once: true
+      compose_reads_via_from: true
       degraded_turn_returns_200_not_500: true
-      degraded_turn_omits_stopped_rag_tag: true
-      each_rag_server_joins_the_connected_trace: true
-      skip_names_missing_model: true
+      stateless_history_from_browser: true
     traces:
       - rel09.0-uc002-chatbot-turn S1
       - rel09.0-uc002-chatbot-turn S2
       - rel09.0-uc002-chatbot-turn S3
-      - rel09.0-uc002-chatbot-turn S4
       - srd014-chatbot-agent AC1
-      - srd014-chatbot-agent AC2
-      - srd014-chatbot-agent AC3
-
-  - use_case: rel09.0-uc003-mesh-deployment
-    name: Mesh Helm deployment smoke tracer on kind
-    integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run 'TestSplitImageRef|TestJaegerAgentServices|TestAssertSmoke|TestHelmSmoke'
-    status: implemented
-    description: |
-      Integration.HelmSmoke deploys the chatbot-mesh chart on a disposable kind
-      cluster with the ci values (one RAG unit, external Ollama). It builds the
-      rel06.0 runtime image from the local agent-core checkout and kind-loads it,
-      stages the chatbot and rag-server profiles into the chart ConfigMap, helm
-      installs and waits for every Deployment and StatefulSet ready, port-forwards
-      the chatbot chat Service, posts one chat turn and asserts a served answer,
-      and queries Jaeger for spans from more than one service. Each agent reports a
-      distinct service.name (the chart wires --otel-service-name per agent), so the
-      collector-to-Jaeger pipeline surfaces the mesh as more than one service.
-      Teardown deletes the kind cluster in all paths. The target skips cleanly when
-      docker, kind, helm, kubectl, or the configured Ollama models are absent,
-      naming the missing dependency. Grounded-with-citation retrieval and the swap
-      paths are the co-generation case below (their in-cluster RAG reachability
-      depends on the co-generated client base URLs).
-    inputs:
-      chart: deploy/chatbot-mesh/
-      values: deploy/chatbot-mesh/ci/kind-values.yaml
-      values_rag_list: [rag0]
-    expected:
-      chart_deploys_full_mesh: true
-      chat_turn_served: true
-      spans_from_multiple_services: true
-      skips_clean_without_toolchain: true
-    traces:
-      - rel09.0-uc003-mesh-deployment S1
-      - srd015-chatbot-deployment AC1
-      - srd015-chatbot-deployment AC5
-
-  - use_case: rel09.0-uc003-mesh-deployment
-    name: Chatbot rest.yaml co-generation drift lock
-    integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run 'TestChatbotRestCoGenerated|TestChatbotUXMonitored'
-    status: implemented
-    description: |
-      Locks srd015 R2: the chatbot rest.yaml and ux.yaml are rendered from the
-      ragUnits list into the profiles ConfigMap, overriding the packaged keys, so
-      the RAG client entries (rag0..ragN at each unit's Service DNS), the provider
-      egress allowlist, the monitor_proxy upstreams, and the monitored-agents list
-      derive from the same list that creates the RAG objects and cannot drift. A
-      helm template render with a three-RAG values set is asserted to carry exactly
-      those clients and upstreams with no stale loopback entry, and the chatbot
-      servers bind 0.0.0.0. The rendered rest.yaml passes --validate-config (the
-      init-container gate); an invalid render fails the rollout.
-    inputs:
-      chart: deploy/chatbot-mesh/
-      values_rag_list: [alpha, bravo, charlie]
-    expected:
-      client_config_cogenerated: true
-      one_client_per_rag_unit: true
-      no_drifted_or_stale_client: true
-      servers_bind_public: true
-    traces:
-      - rel09.0-uc003-mesh-deployment S2
-      - srd015-chatbot-deployment AC2
-
-  - use_case: rel09.0-uc003-mesh-deployment
-    name: Mesh hot-swap tracer on kind
-    integration_target: mage integration:helmSwap
-    go_test: go test ./magefiles -run TestChatbotFanOutCoGeneratedForNRags
-    status: implemented
-    description: |
-      Integration.HelmSwap proves both tiered-swap paths on a kind cluster. The
-      chatbot fan-out is co-generated for N RAGs (GH-372): request-machine.yaml
-      renders one Retrieving state per RAG (each routing QueryResponded/CommandError/
-      QueryRejected on to the next, the last to Composing) and request-fanout.yaml
-      renders one rag_queryN word and one compose input per unit, all from the
-      ragUnits list. Repointing a rag Service selector leaves the chatbot pod
-      unchanged (R3.1); adding a RAG stands up the new unit, re-renders the
-      co-generated rest.yaml with the new client (locked by the drift test), and
-      rolls the chatbot Deployment via its checksum/profiles annotation so it
-      resumes from its Dolt checkpoint (R3.2). The target asserts the
-      infrastructure contracts (pod identity, workload existence, ConfigMap
-      breadth, rolled generation) via kubectl and helm, so it needs docker, kind,
-      helm, and kubectl but not Ollama; it skips cleanly otherwise and deletes the
-      cluster in all paths. The co-generated N-RAG profile passes --validate-config.
-    inputs:
-      chart: deploy/chatbot-mesh/
-      values_rag_list: [rag0]
-      swap_repoint: rag0 Service selector change
-      swap_add: rag1 values entry
-    expected:
-      fanout_cogenerated_for_n_rags: true
-      repoint_leaves_chatbot_pod_unchanged: true
-      add_rag_rerenders_and_rolls_chatbot: true
-    traces:
-      - rel09.0-uc003-mesh-deployment S3
-      - srd015-chatbot-deployment AC3
-
-  - use_case: rel09.0-uc003-mesh-deployment
-    name: Provisioning deployment API panel-path tracer
-    integration_target: mage integration:provisioning
-    go_test: go test ./deploy/chatbot-mesh/provisioner/...
-    status: implemented
-    description: |
-      Integration.Provisioning drives the deployment API (srd015 R4) end to end
-      against the built provisioner binary, exactly as the provisioning panel does
-      over HTTP: it reads the deployed mesh view (one RAG), rejects an apply from
-      the read-only token (R4.1), applies an add-RAG values patch that renders a
-      helm upgrade with the second RAG (asserted from the recorded helm
-      invocation), and reads the rollout progress. helm and kubectl are stubbed
-      with fake binaries so the HTTP, auth, and values-patch contract is proven
-      without a cluster; the on-cluster rollout is Integration.HelmSwap. The
-      provisioner rejects a payload carrying a field outside the values view
-      (DisallowUnknownFields), so a provisioning payload cannot smuggle a per-agent
-      endpoint (R4.2), and the chatbot rest.yaml declares no provisioning server
-      binding, so no agent endpoint receives one.
-    inputs:
-      deployment_api: /provisioning/api
-      state_rags: [rag0]
-      apply_rags: [rag0, rag1]
-    expected:
-      read_path_returns_mesh_view: true
-      read_token_cannot_apply: true
-      apply_renders_add_rag_upgrade: true
-      no_agent_endpoint_in_payload: true
-    traces:
-      - srd015-chatbot-deployment AC4
-      - srd014-chatbot-agent AC5

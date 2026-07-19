@@ -1,0 +1,90 @@
+id: test-rel10.0-role-catalog
+title: Test Suite for Release 10.0 Reference-Architecture Role Alignment
+release: "10.0"
+
+overview: |
+  This suite validates that the agents/ tree is renamed and moved to match the
+  reference role catalog with profile wiring and conformance intact. It exists
+  before any migration issue starts (no implementation issue before a test suite
+  exists for its use case): the migration issues #325-#328 and #330 implement
+  exactly the cases below. Every case names explicit proof commands and expected
+  outputs so the migrations are checkable.
+
+traces:
+  - rel10.0-uc001-role-catalog-renames
+  - rel10.0-uc002-knowledge-family-rescope
+  - rel10.0-uc003-conformance-fixture-relocation
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout for mage validate and the builtin tool-dir tests.
+  - Docker and Ollama are available for the Integration.Chroma and Integration.MonitorControl cases; they skip cleanly otherwise.
+
+test_cases:
+  - use_case: rel10.0-uc001-role-catalog-renames
+    name: Critic and executor renames validate over the tree
+    integration_target: mage validate
+    go_test: go test ./... (agent-core, for critic-session/critic-point)
+    status: specified
+    description: |
+      After the rename, agents/critic and agents/executor exist and no evaluator or
+      generator family remains; the agent-core builtin tool dirs are critic-session
+      and critic-point and the critic profile's tool_config_dirs point at them. The
+      case validates mage validate over the renamed profile tree, go test over
+      agent-core, and zero-hit greps.
+    inputs:
+      renamed_families: [evaluator->critic, generator->executor]
+      renamed_tool_dirs: [evaluator-session->critic-session, evaluator-point->critic-point]
+    expected:
+      agents_lists_critic_and_executor: true
+      no_evaluator_or_generator_family: true
+      grep_agents_evaluator_generator_zero_hits: true
+      agent_core_builtin_dirs_renamed: true
+      mage_validate_passes: true
+      activity_tool_words_unchanged: true
+    traces:
+      - rel10.0-uc001-role-catalog-renames S1
+      - rel10.0-uc001-role-catalog-renames S2
+      - rel10.0-uc001-role-catalog-renames S3
+
+  - use_case: rel10.0-uc002-knowledge-family-rescope
+    name: Corpus ingest and reader under knowledge-manager pass Integration.Chroma
+    integration_target: mage integration:chroma
+    go_test: go test ./conformance -run TestKnowledgeManager
+    status: specified
+    description: |
+      After the move, agents/knowledge-manager hosts corpus-ingest and
+      corpus-reader and agents/chroma is removed. The case validates Integration.Chroma
+      from the new paths, the knowledge-manager conformance test, and a zero-hit
+      grep for agents/chroma.
+    inputs:
+      moved_profiles: [agents/chroma/ingest->agents/knowledge-manager/corpus-ingest, agents/chroma/reader->agents/knowledge-manager/corpus-reader]
+    expected:
+      knowledge_manager_hosts_corpus_profiles: true
+      agents_chroma_removed: true
+      grep_agents_chroma_zero_hits: true
+      integration_chroma_passes_from_new_paths: true
+    traces:
+      - rel10.0-uc002-knowledge-family-rescope S1
+      - rel10.0-uc002-knowledge-family-rescope S2
+
+  - use_case: rel10.0-uc003-conformance-fixture-relocation
+    name: Conformance fixtures relocate and validate from testdata/conformance
+    integration_target: mage conformance
+    go_test: go test ./conformance
+    status: specified
+    description: |
+      After the move, testdata/conformance holds the rest, control, and lifecycle
+      fixtures and agents/ lists only role families. The case validates mage
+      conformance and Integration.MonitorControl from the new paths, that mage
+      validate discovery reaches the relocated fixtures, and an agents/ directory
+      listing plus a zero-hit grep.
+    inputs:
+      moved_fixtures: [agents/rest->testdata/conformance/rest, agents/control->testdata/conformance/control, agents/lifecycle->testdata/conformance/lifecycle]
+    expected:
+      fixtures_under_testdata_conformance: true
+      agents_lists_only_role_families: true
+      grep_agents_rest_control_lifecycle_zero_hits: true
+      mage_conformance_and_monitor_control_pass: true
+    traces:
+      - rel10.0-uc003-conformance-fixture-relocation S1
+      - rel10.0-uc003-conformance-fixture-relocation S2

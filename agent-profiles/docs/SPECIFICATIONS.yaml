@@ -229,13 +229,12 @@ semantic_model_index:
     status: implemented
     path: docs/specs/semantic-models/agent-role-taxonomy.yaml
 
-# Renumber pending (GH-332 -> GH-333): road-map.yaml stages release 09 into one
-# release per epic (09.0 core loop, 09.1 routing/fan-out, 09.2 observability, 09.3
-# deployment, 09.4 control plane) plus the 10.0 role-alignment release. The rel09.0
-# use-case and test-suite files below are renamed to their staged ids by GH-333,
-# which also authors the 09.2 observability, 09.4 control-plane, and 10.0 alignment
-# tracers; the road-map records the target ids, this index tracks the files until
-# then.
+# Release 09 is staged one release per epic (GH-332): 09.0 core loop, 09.1
+# routing/fan-out, 09.2 observability, 09.3 deployment, 09.4 control plane, plus the
+# 10.0 role-alignment release. The rel09 use-case and test-suite files were
+# renumbered to their staged ids and the observability (09.2) and alignment (10.0)
+# tracers authored by GH-333; the 09.4 control-plane tracers land with srd016/srd017
+# (GH-329).
 use_case_index:
   - id: rel06.0-uc001-mounted-profile-execution
     title: Mounted Profile Execution
@@ -311,22 +310,57 @@ use_case_index:
     summary: RAG server accepts query_embeddings + n_results over a machine_request
       endpoint and returns chunks with ids, distances, and embedding-model
       metadata, with no query embedding or LLM answering in the server.
-    status: planned
+    status: implemented
     path: docs/specs/use-cases/rel09.0-uc001-rag-server-query.yaml
   - id: rel09.0-uc002-chatbot-turn
-    title: Chatbot Turn Routes, Fans Out, and Answers Over Two RAGs
-    summary: Request-scoped turn routes via a $tool classifier, embeds once, fans
-      out to two RAGs, composes via command-state $from(), answers, and degrades
-      when one RAG fails.
-    status: planned
+    title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers
+    summary: Single-RAG request-scoped turn embeds once, retrieves, composes via
+      command-state $from(), answers, and degrades to a mapped 200 when the RAG
+      fails (the core loop; routing and fan-out are 09.1).
+    status: implemented
     path: docs/specs/use-cases/rel09.0-uc002-chatbot-turn.yaml
-  - id: rel09.0-uc003-mesh-deployment
+  - id: rel09.1-uc001-routed-fanout
+    title: Chatbot Turn Routes and Fans Out Over Two RAGs
+    summary: The turn routes via a $tool classifier and fans the one embedding out
+      to two RAGs, citing both disjoint corpora, degrading on a per-RAG failure, and
+      excluding an embedding-space mismatch through visible machine transitions.
+    status: implemented
+    path: docs/specs/use-cases/rel09.1-uc001-routed-fanout.yaml
+  - id: rel09.2-uc001-observability
+    title: Observability Panel Shows Per-Agent State and a Cross-Agent Trace Waterfall
+    summary: The observability panel shows each agent's run state and event stream
+      through the monitor_proxy and renders a selected turn's connected cross-agent
+      trace as a span waterfall from the trace backend.
+    status: implemented
+    path: docs/specs/use-cases/rel09.2-uc001-observability.yaml
+  - id: rel09.3-uc001-mesh-deployment
     title: Helm Chart Deploys the Mesh and Hot-Swaps a RAG Source
     summary: One chart deploys the mesh on a kind cluster with values-to-config
       co-generation, a Service repoint, and an add-RAG rollout that resumes from
-      the Dolt checkpoint.
+      the Dolt checkpoint, provisioned through a separately-authenticated API.
     status: implemented
-    path: docs/specs/use-cases/rel09.0-uc003-mesh-deployment.yaml
+    path: docs/specs/use-cases/rel09.3-uc001-mesh-deployment.yaml
+  - id: rel10.0-uc001-role-catalog-renames
+    title: Evaluator and Generator Families Renamed to Critic and Executor
+    summary: The evaluator family is renamed to critic and generator to executor
+      (reference role names) across agents/, the SRD ids, the taxonomy, and the
+      agent-core builtin tool dirs, with profile wiring and conformance intact.
+    status: specified
+    path: docs/specs/use-cases/rel10.0-uc001-role-catalog-renames.yaml
+  - id: rel10.0-uc002-knowledge-family-rescope
+    title: Chroma Profiles Rescoped Under Knowledge Management as Corpus Ingest and Reader
+    summary: The vendor-named chroma family moves under knowledge-manager as
+      corpus-ingest and corpus-reader; Integration.Chroma passes from the new paths
+      and agents/chroma is removed.
+    status: specified
+    path: docs/specs/use-cases/rel10.0-uc002-knowledge-family-rescope.yaml
+  - id: rel10.0-uc003-conformance-fixture-relocation
+    title: Conformance Grammar Fixtures Relocated to testdata/conformance
+    summary: The rest, control, and lifecycle conformance fixtures move out of
+      agents/ to testdata/conformance so agents/ lists only role families;
+      conformance and Integration.MonitorControl pass from the new paths.
+    status: specified
+    path: docs/specs/use-cases/rel10.0-uc003-conformance-fixture-relocation.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -375,13 +409,40 @@ test_suite_index:
     status: implemented
     path: docs/specs/test-suites/test-rel08.0-chroma-corpus.yaml
   - id: test-rel09.0-chatbot-mesh
-    title: Test Suite for Release 09.0 Chatbot Mesh
-    summary: Profile-owned tracers for the RAG server vector-in query (srd013), the
-      end-to-end chatbot turn with a degraded RAG (srd014), and the Helm mesh
-      deployment on a kind cluster with tiered hot swap (srd015). Planned; the
-      integration targets land with the implementation epics.
-    status: planned
+    title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn
+    summary: Profile-owned tracers for the RAG server vector-in query (srd013) and
+      the single-RAG chatbot turn with a degraded RAG (srd014). Implemented via
+      Integration.RagServer and Integration.Chatbot.
+    status: implemented
     path: docs/specs/test-suites/test-rel09.0-chatbot-mesh.yaml
+  - id: test-rel09.1-routing-fanout
+    title: Test Suite for Release 09.1 Routing and Multi-RAG Fan-Out
+    summary: Tracers for the $tool router word dispatch and the two-RAG fan-out over
+      disjoint corpora with the degraded and embedding-mismatch paths, via
+      Integration.Chatbot.
+    status: implemented
+    path: docs/specs/test-suites/test-rel09.1-routing-fanout.yaml
+  - id: test-rel09.2-observability
+    title: Test Suite for Release 09.2 Observability
+    summary: Tracer for the connected cross-agent trace (Integration.Chatbot asserts
+      a shared trace id and a parented rag-server span); the monitor panels and the
+      waterfall UI are browser-verified.
+    status: implemented
+    path: docs/specs/test-suites/test-rel09.2-observability.yaml
+  - id: test-rel09.3-mesh-deployment
+    title: Test Suite for Release 09.3 Mesh Deployment and Tiered Swap
+    summary: Tracers for the kind deploy smoke, the co-generation drift lock, the
+      repoint and add-RAG swaps, and the provisioning deployment API, via
+      Integration.HelmSmoke/HelmSwap/Provisioning.
+    status: implemented
+    path: docs/specs/test-suites/test-rel09.3-mesh-deployment.yaml
+  - id: test-rel10.0-role-catalog
+    title: Test Suite for Release 10.0 Reference-Architecture Role Alignment
+    summary: Cases validating the critic/executor renames, the chroma rescope under
+      knowledge-manager, and the conformance-fixture relocation with mage validate,
+      mage conformance, go test, and zero-hit greps. Exists before the migrations.
+    status: specified
+    path: docs/specs/test-suites/test-rel10.0-role-catalog.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and

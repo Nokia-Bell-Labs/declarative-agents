@@ -1,0 +1,56 @@
+id: rel10.0-uc002-knowledge-family-rescope
+title: Chroma Profiles Rescoped Under Knowledge Management as Corpus Ingest and Reader
+
+summary: |
+  A maintainer moves the chroma profile family, named after a vendor database, to
+  its reference role under Knowledge Management: agents/chroma/ingest becomes
+  agents/knowledge-manager/corpus-ingest and agents/chroma/reader becomes
+  agents/knowledge-manager/corpus-reader (the rag-server stays a RAG boundary but
+  moves with the family per the migration issue). The move covers the profile
+  directories, the profile/machine ids, the shared chroma REST assets, the
+  integration and conformance tests, and the roadmap statuses. Integration.Chroma
+  passes from the new paths and agents/chroma is removed. Migration issue #327.
+
+actor: A maintainer aligning the role catalog with the reference architecture.
+
+trigger: |
+  The alignment review found the chroma family named after a vendor database
+  instead of its Knowledge Management role.
+
+preconditions:
+  - The chroma ingest and reader profiles exist under agents/chroma with shared REST assets.
+  - Integration.Chroma and the knowledge-manager conformance test reference the current paths.
+  - The knowledge-manager family already hosts the documentation-curator profile.
+
+flow:
+  - id: F1
+    text: agents/chroma/ingest and agents/chroma/reader move to agents/knowledge-manager/corpus-ingest and corpus-reader, with the profile and machine ids renamed to match.
+  - id: F2
+    text: The shared chroma REST assets move with the family and the profiles' relative references are updated; agents/chroma is removed.
+  - id: F3
+    text: Integration.Chroma and the knowledge-manager conformance test are updated to the new paths and pass; the roadmap statuses are updated.
+
+touchpoints:
+  - id: T1
+    target: sm-agent-role-taxonomy
+    reason: The knowledge-manager family gains corpus-ingest and corpus-reader, replacing the vendor-named chroma family.
+  - id: T2
+    target: test-rel10.0-role-catalog knowledge_rescope
+    reason: The suite validates the moved tree with Integration.Chroma and a zero-hit grep for agents/chroma.
+
+success_criteria:
+  - id: S1
+    criterion: The corpus-ingest and corpus-reader profiles live under agents/knowledge-manager, agents/chroma is removed, and grep for agents/chroma returns no hit outside retained historical release records.
+    traces:
+      - sm-agent-role-taxonomy
+  - id: S2
+    criterion: Integration.Chroma passes from the new paths and mage validate passes over the moved tree.
+    traces:
+      - sm-agent-role-taxonomy
+
+out_of_scope:
+  - The critic and executor renames (uc001) and the conformance-fixture relocation (uc003).
+  - Changing the Chroma REST word behavior; only the profile family location changes.
+
+test_suite_trace: test-rel10.0-role-catalog
+status: specified

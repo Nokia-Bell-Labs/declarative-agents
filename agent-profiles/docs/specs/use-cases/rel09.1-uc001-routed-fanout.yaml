@@ -1,0 +1,75 @@
+id: rel09.1-uc001-routed-fanout
+title: Chatbot Turn Routes and Fans Out Over Two RAGs
+
+summary: |
+  A browser posts a chat turn to the chatbot agent (srd014). Beyond the core loop
+  (rel09.0-uc002), the turn adds an LLM classifier that routes to one chat-LLM word
+  through the $tool indirection, and a sequential fan-out that queries two RAG
+  servers with the one query embedding. compose assembles the surviving per-RAG
+  chunks, each under its own [ragN] header, and the chosen invoke_llm word answers.
+  A per-RAG failure degrades the turn (the source routes on via CommandError) and a
+  RAG whose reported embedding model does not match the query embedding is excluded
+  (a 400 mapped to QueryRejected); both are visible machine transitions and stay in
+  command state for the response metadata. This is the routing and fan-out epic
+  (#294).
+
+actor: A browser user sending a chat message across two corpora.
+
+trigger: |
+  The browser posts a chat turn to the chatbot agent's chat endpoint with two RAG
+  servers over disjoint corpora declared.
+
+preconditions:
+  - Two RAG server agents (rel09.0-uc001) are reachable as declared rest.yaml clients over disjoint corpora.
+  - A small router model and two chat-LLM models are reachable as declared clients.
+  - The chatbot profile validates and owns the turn machine, the router prompt, and the fan-out declarations.
+
+flow:
+  - id: F1
+    text: The router makes one classifier call over the original question, parsed to a $tool selection over the declared chat-LLM words, falling back to a default word on misparse or an out-of-set selection.
+  - id: F2
+    text: embed_query embeds the query once; the single vector fans out to the two declared RAG clients sequentially.
+  - id: F3
+    text: A per-RAG query failure routes on via CommandError (degraded), and a 400 embedding-space mismatch routes on via QueryRejected (excluded); both are visible machine transitions and stay in command state.
+  - id: F4
+    text: compose assembles the surviving per-RAG chunks, each under its own [ragN] header, an unresolved (degraded or excluded) source rendering empty.
+  - id: F5
+    text: The $tool-dispatched invoke_llm word answers over the composed prompt, citing chunks from both corpora when both RAGs contribute.
+
+touchpoints:
+  - id: T1
+    target: srd014-chatbot-agent AC2
+    reason: The router is one classifier call parsed to a $tool selection with a normative fallback.
+  - id: T2
+    target: srd014-chatbot-agent AC3
+    reason: Sequential two-RAG fan-out degrades on per-RAG failure and excludes embedding-model mismatches through visible machine transitions.
+  - id: T3
+    target: test-rel09.1-routing-fanout routed_fanout
+    reason: The suite records the router dispatch, the two-RAG fan-out over disjoint corpora, and the degraded and excluded paths.
+
+success_criteria:
+  - id: S1
+    criterion: The turn routes to a chat-LLM word through a $tool classifier selection and falls back to a configured default word on misparse or an out-of-set selection.
+    traces:
+      - srd014-chatbot-agent R2.1
+      - srd014-chatbot-agent R2.3
+  - id: S2
+    criterion: One query embedding fans out to both RAG servers and a spanning question draws chunks from both disjoint corpora into the answer.
+    traces:
+      - srd014-chatbot-agent R3.1
+  - id: S3
+    criterion: A per-RAG failure degrades the turn so the answer is composed from the remaining chunks, noted in command state for the response metadata.
+    traces:
+      - srd014-chatbot-agent R3.2
+  - id: S4
+    criterion: A RAG whose embedding model does not match the query embedding is excluded from the composed chunks (a 400 mapped to QueryRejected) and the exclusion is a visible machine transition.
+    traces:
+      - srd014-chatbot-agent R3.3
+
+out_of_scope:
+  - Parallel fan-out; v1 fan-out is sequential.
+  - The single-RAG core loop, which is rel09.0-uc002.
+  - Panel content and SPA implementation, owned by their own issues.
+
+test_suite_trace: test-rel09.1-routing-fanout
+status: implemented

@@ -1,0 +1,132 @@
+id: test-rel09.3-mesh-deployment
+title: Test Suite for Release 09.3 Mesh Deployment and Tiered Swap
+release: "09.3"
+
+overview: |
+  This suite validates the Helm deployment of the mesh (srd015): the kind deploy
+  smoke, the values-to-config co-generation drift lock, the tiered hot swap
+  (repoint and add-RAG rollout), and the provisioning deployment API. The
+  kind-cluster tracers skip cleanly without docker/kind/helm/kubectl; the
+  co-generation and provisioning tracers run without a cluster.
+
+traces:
+  - rel09.3-uc001-mesh-deployment
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
+  - A kind cluster and docker/helm/kubectl are available for the on-cluster tracers, and the rel06.0 runtime image is loadable.
+  - agent-profiles owns the deployment chart, the provisioner service, and the chatbot/RAG profiles named by the tracers.
+
+test_cases:
+  - use_case: rel09.3-uc001-mesh-deployment
+    name: Mesh Helm deployment smoke tracer on kind
+    integration_target: mage integration:helmSmoke
+    go_test: go test ./magefiles -run 'TestSplitImageRef|TestJaegerAgentServices|TestAssertSmoke|TestHelmSmoke'
+    status: implemented
+    description: |
+      Integration.HelmSmoke deploys the chatbot-mesh chart on a disposable kind
+      cluster with the ci values (one RAG unit, external Ollama). It builds the
+      rel06.0 runtime image from the local agent-core checkout and kind-loads it,
+      stages the chatbot and rag-server profiles into the chart ConfigMap, helm
+      installs and waits for every Deployment and StatefulSet ready, port-forwards
+      the chatbot chat Service, posts one chat turn and asserts a served answer,
+      and queries Jaeger for spans from more than one service (each agent reports a
+      distinct service.name via --otel-service-name). Teardown deletes the cluster
+      in all paths; the target skips cleanly when the toolchain or models are
+      absent.
+    inputs:
+      chart: deploy/chatbot-mesh/
+      values: deploy/chatbot-mesh/ci/kind-values.yaml
+      values_rag_list: [rag0]
+    expected:
+      chart_deploys_full_mesh: true
+      chat_turn_served: true
+      spans_from_multiple_services: true
+      skips_clean_without_toolchain: true
+    traces:
+      - rel09.3-uc001-mesh-deployment S1
+      - srd015-chatbot-deployment AC1
+      - srd015-chatbot-deployment AC5
+
+  - use_case: rel09.3-uc001-mesh-deployment
+    name: Chatbot rest.yaml co-generation drift lock
+    integration_target: mage integration:helmSmoke
+    go_test: go test ./magefiles -run 'TestChatbotRestCoGenerated|TestChatbotUXMonitored|TestChatbotFanOutCoGeneratedForNRags'
+    status: implemented
+    description: |
+      Locks srd015 R2: the chatbot rest.yaml, ux.yaml, request-machine.yaml, and
+      request-fanout.yaml are rendered from the ragUnits list into the profiles
+      ConfigMap, overriding the packaged keys, so the RAG client entries, the
+      provider egress allowlist, the monitor_proxy upstreams, the monitored-agents
+      list, and the N-RAG fan-out chain derive from the same list that creates the
+      RAG objects and cannot drift. A helm template render with a three-RAG values
+      set is asserted to carry exactly those clients, upstreams, and Retrieving
+      states with no stale entry, the chatbot servers bind 0.0.0.0, and the
+      co-generated profile passes --validate-config (the init-container gate).
+    inputs:
+      chart: deploy/chatbot-mesh/
+      values_rag_list: [alpha, bravo, charlie]
+    expected:
+      client_config_cogenerated: true
+      one_client_and_fanout_state_per_rag_unit: true
+      no_drifted_or_stale_client: true
+      rendered_profile_validates: true
+    traces:
+      - rel09.3-uc001-mesh-deployment S2
+      - srd015-chatbot-deployment AC2
+
+  - use_case: rel09.3-uc001-mesh-deployment
+    name: Mesh hot-swap tracer on kind
+    integration_target: mage integration:helmSwap
+    go_test: go test ./magefiles -run TestChatbotFanOutCoGeneratedForNRags
+    status: implemented
+    description: |
+      Integration.HelmSwap proves both tiered-swap paths on a kind cluster.
+      Repointing a rag Service selector leaves the chatbot pod unchanged (R3.1);
+      adding a RAG stands up the new unit, re-renders the co-generated rest.yaml
+      with the new client (locked by the drift test), and rolls the chatbot
+      Deployment via its checksum/profiles annotation so it resumes from its Dolt
+      checkpoint (R3.2). The target asserts the infrastructure contracts (pod
+      identity, workload existence, ConfigMap breadth, rolled generation) via
+      kubectl and helm, so it needs docker/kind/helm/kubectl but not Ollama; it
+      skips cleanly otherwise and deletes the cluster in all paths.
+    inputs:
+      chart: deploy/chatbot-mesh/
+      values_rag_list: [rag0]
+      swap_repoint: rag0 Service selector change
+      swap_add: rag1 values entry
+    expected:
+      repoint_leaves_chatbot_pod_unchanged: true
+      add_rag_rerenders_and_rolls_chatbot: true
+    traces:
+      - rel09.3-uc001-mesh-deployment S3
+      - srd015-chatbot-deployment AC3
+
+  - use_case: rel09.3-uc001-mesh-deployment
+    name: Provisioning deployment API panel-path tracer
+    integration_target: mage integration:provisioning
+    go_test: go test ./deploy/chatbot-mesh/provisioner/...
+    status: implemented
+    description: |
+      Integration.Provisioning drives the deployment API (srd015 R4) end to end
+      against the built provisioner binary, exactly as the provisioning panel does
+      over HTTP: it reads the deployed mesh view, rejects an apply from the
+      read-only token (R4.1), applies an add-RAG values patch that renders a helm
+      upgrade with the second RAG (asserted from the recorded helm invocation), and
+      reads the rollout progress. helm and kubectl are stubbed so the HTTP, auth,
+      and values-patch contract is proven without a cluster. The provisioner rejects
+      a payload carrying a field outside the values view (DisallowUnknownFields), so
+      a provisioning payload cannot smuggle a per-agent endpoint (R4.2), and the
+      chatbot rest.yaml declares no provisioning server binding.
+    inputs:
+      deployment_api: /provisioning/api
+      state_rags: [rag0]
+      apply_rags: [rag0, rag1]
+    expected:
+      read_path_returns_mesh_view: true
+      read_token_cannot_apply: true
+      apply_renders_add_rag_upgrade: true
+      no_agent_endpoint_in_payload: true
+    traces:
+      - rel09.3-uc001-mesh-deployment S3
+      - srd015-chatbot-deployment AC4
