@@ -340,35 +340,155 @@ releases:
       - The reader answer is grounded in chunks retrieved through embed_query -> chroma_query -> invoke_llm.
       - The Chroma and Ollama servers are external preconditions surfaced through chroma_ready and ollama_ready, not started by the agent.
 
+  # Renumber decision (GH-332): the original single "09.0 Chatbot mesh" release
+  # carried three use cases across five epics (#292-#296), and the observability
+  # epic (#295) had no use case. Release 09 is broken into one release per epic so
+  # implementation traces one-to-one, and the too-broad rel09.0-uc002-chatbot-turn
+  # is split -- its single-RAG reduction stays in 09.0 (the core-loop epic #293),
+  # and its router/fan-out/degradation criteria move to 09.1 (the routing epic
+  # #294). The rel09.0 use cases were status planned when this decision was made;
+  # the use-case and test-suite files are renamed to their staged ids by the
+  # follow-on spec issue GH-333, which also authors the observability (09.2),
+  # control-plane (09.4), and alignment (10.0) tracers. Each release below maps
+  # epics to use cases to a test suite one-to-one-to-one.
+
   - version: "09.0"
-    name: Chatbot mesh
+    name: RAG server and single-RAG chatbot turn
     description: |
-      Release 09.0 assembles a multi-agent chatbot mesh: a browser-facing chatbot
-      agent (srd014) that routes a chat turn to one chat-LLM word through a $tool
-      classifier, embeds the query once, fans that vector out to N persistent RAG
-      server agents (srd013, vector-in), composes a grounded prompt, and answers,
-      with non-adjacent data threaded by command-state $from(). The mesh deploys
-      as one Helm chart (srd015) with values-driven RAG pairs, co-generated
-      chatbot client config, a tiered hot swap, and OTLP observability. This
-      release records the documentation and the tracer-bullet use cases; the RAG
-      server, chatbot, routing, observability, and deployment work land in
-      epics #292, #293, #294, #295, and #296.
+      Release 09.0 is the core loop of the chatbot mesh: a persistent RAG server
+      agent (srd013, vector-in) that answers a query_embeddings request with
+      chunks and embedding-model metadata, and a browser-facing chatbot agent
+      (srd014) whose request-scoped turn embeds the message once, queries a single
+      RAG, composes a grounded prompt through command-state $from(), and answers,
+      degrading to a mapped 200 when the RAG fails. Epics #292 (RAG server) and
+      #293 (chatbot core loop).
     status: implemented
     srds:
       - srd013-rag-server-agent
       - srd014-chatbot-agent
-      - srd015-chatbot-deployment
     use_cases:
       - id: rel09.0-uc001-rag-server-query
         summary: Persistent RAG server answers a vector-in query_embeddings request and returns chunks with embedding-model metadata.
         status: implemented
       - id: rel09.0-uc002-chatbot-turn
-        summary: End-to-end chat turn routes, embeds once, fans out to two RAGs, composes via $from(), answers, and degrades when one RAG fails.
-        status: implemented
-      - id: rel09.0-uc003-mesh-deployment
-        summary: One Helm chart deploys the mesh on a kind cluster with values-to-config co-generation, Service repoint, and add-RAG rollout with checkpoint resume.
+        summary: Single-RAG chat turn embeds once, queries one RAG, composes via $from(), answers, and degrades to a 200 when the RAG fails.
         status: implemented
     test_suites:
       - id: test-rel09.0-chatbot-mesh
-        summary: Profile-owned tracers for the RAG server query, the end-to-end chatbot turn with a degraded RAG, and the Helm mesh deployment with tiered hot swap.
+        summary: Profile-owned tracers for the RAG server query and the single-RAG chatbot turn with a degraded RAG.
         status: implemented
+
+  - version: "09.1"
+    name: Routing and multi-RAG fan-out
+    description: |
+      Release 09.1 extends the chatbot turn (srd014 R2, R3) with the LLM $tool
+      router that classifies a question to one chat-LLM word, and the sequential
+      multi-RAG fan-out that embeds once and queries N RAGs, each degraded
+      (CommandError) or embedding-mismatch-excluded (QueryRejected) source routing
+      on as a visible machine transition, compose assembling the surviving
+      per-source chunks. Epic #294.
+    status: implemented
+    srds:
+      - srd014-chatbot-agent
+    use_cases:
+      - id: rel09.1-uc001-routed-fanout
+        summary: A routed chat turn dispatches one chat-LLM word via $tool and fans the one embedding out to two RAGs, citing both corpora and degrading when one fails.
+        status: implemented
+    test_suites:
+      - id: test-rel09.1-routing-fanout
+        summary: Tracers for the $tool router word dispatch, the two-RAG fan-out over disjoint corpora, and the degraded and embedding-mismatch paths.
+        status: implemented
+
+  - version: "09.2"
+    name: Observability
+    description: |
+      Release 09.2 is the observability surface (srd014 R5.1, R5.3): a per-agent
+      monitor panel fed by each agent's monitor read_state and SSE stream through
+      the chatbot's same-origin monitor_proxy, and a cross-agent trace waterfall
+      that renders a turn's connected trace from the Jaeger query API, real
+      because the request-scoped machine exports its spans and propagates
+      traceparent to the RAG servers. Epic #295.
+    status: implemented
+    srds:
+      - srd014-chatbot-agent
+    use_cases:
+      - id: rel09.2-uc001-observability
+        summary: The observability panel shows each agent's run state and event stream and renders a selected turn's connected cross-agent trace as a span waterfall.
+        status: implemented
+    test_suites:
+      - id: test-rel09.2-observability
+        summary: Tracers for the per-agent monitor panels over monitor_proxy and the cross-agent trace waterfall from the trace backend.
+        status: implemented
+
+  - version: "09.3"
+    name: Mesh deployment and tiered swap
+    description: |
+      Release 09.3 deploys the mesh as one Helm chart (srd015) with values-driven
+      RAG pairs, co-generated chatbot client config and N-RAG fan-out from one
+      source, a tiered hot swap (repoint is a Service change; add-RAG re-renders
+      and rolls the chatbot with a Dolt checkpoint resume), OTLP observability,
+      and a provisioning deployment API. Epic #296.
+    status: implemented
+    srds:
+      - srd015-chatbot-deployment
+    use_cases:
+      - id: rel09.3-uc001-mesh-deployment
+        summary: One Helm chart deploys the mesh on a kind cluster with values-to-config co-generation, a Service repoint, and an add-RAG rollout with checkpoint resume, provisioned through a separately-authenticated deployment API.
+        status: implemented
+    test_suites:
+      - id: test-rel09.3-mesh-deployment
+        summary: Tracers for the kind deploy smoke, the co-generation drift lock, the repoint and add-RAG swaps, and the provisioning deployment API.
+        status: implemented
+
+  - version: "09.4"
+    name: Control plane
+    description: |
+      Release 09.4 adds the mesh control plane: a Coordinator agent (srd016) that
+      sequences directory ingestion and reconfiguration and to which the UX agent
+      delegates provisioning intents, and a Creator agent (srd017) for agent
+      lifecycle management (template selection, instance creation, checkpoint-resume
+      restarts, health monitoring) acting on the coordinator's requests. The
+      provisioning and deployment swap surfaces of #296 land behind these roles.
+      Authored by GH-329.
+    status: planned
+    srds:
+      - srd016-coordinator
+      - srd017-creator
+    use_cases:
+      - id: rel09.4-uc001-control-plane-provisioning
+        summary: The coordinator sequences a reconfiguration the UX agent delegates, and the creator materializes and health-monitors the agent instances, resuming from checkpoints on restart.
+        status: planned
+    test_suites:
+      - id: test-rel09.4-control-plane
+        summary: Tracers for the coordinator's reconfiguration sequencing and the creator's instance lifecycle and checkpoint-resume restart.
+        status: planned
+
+  - version: "10.0"
+    name: Reference-architecture role alignment
+    description: |
+      Release 10.0 aligns the agents/ role catalog with the autogenic-systems
+      reference architecture (roles per ITU-T Y.3502 / TM Forum IG1251): the
+      evaluator family is renamed to critic and the generator family to executor
+      (the reference role names they implement), the chroma family moves under
+      knowledge-manager as corpus-ingest and corpus-reader (a role, not a vendor
+      database), and the rest, control, and lifecycle profile directories -- which
+      are conformance grammar fixtures rather than roles -- move to
+      testdata/conformance beside testdata/integration. After this release agents/
+      reads as a role catalog. Epic #323 (issues #325-#328, #330).
+    status: planned
+    proof_commands:
+      - "mage validate  # profile wiring holds over the renamed tree"
+      - "mage conformance  # conformance fixtures pass under testdata/conformance"
+      - "go test ./...  # agent-core critic-session/critic-point builtin tool dirs"
+      - "grep -r 'agents/evaluator\\|agents/generator\\|agents/chroma\\|agents/rest/\\|agents/control/\\|agents/lifecycle/' -- returns no stale path outside retained historical release records"
+    srds:
+      - srd013-rag-server-agent
+      - srd014-chatbot-agent
+    use_cases:
+      - id: rel10.0-uc001-role-catalog-alignment
+        summary: The agents/ tree is renamed and moved to match the reference role catalog (evaluator->critic, generator->executor, chroma->corpus-ingest/corpus-reader, conformance fixtures->testdata/conformance) with profile wiring and conformance intact.
+        status: planned
+    test_suites:
+      - id: test-rel10.0-role-alignment
+        summary: Tracers that mage validate and mage conformance pass over the renamed tree and that no stale agents/ path reference survives.
+        status: planned
