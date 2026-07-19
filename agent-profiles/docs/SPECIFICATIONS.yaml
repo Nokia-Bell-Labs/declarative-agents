@@ -367,6 +367,13 @@ use_case_index:
       the creator alone.
     status: specified
     path: docs/specs/use-cases/rel09.4-uc001-control-plane-provisioning.yaml
+  - id: rel09.5-uc001-in-cluster-llm-tier
+    title: A Fresh-Cluster Install Answers a Turn With No External LLM Dependency
+    summary: A default helm install deploys the Ollama subchart with model preload
+      and readiness gating so a fresh cluster is self-contained; ollama.enabled=false
+      with an endpoint override reproduces the external endpoint, R2 unchanged.
+    status: planned
+    path: docs/specs/use-cases/rel09.5-uc001-in-cluster-llm-tier.yaml
   - id: rel10.0-uc001-role-catalog-renames
     title: Evaluator and Generator Families Renamed to Critic and Executor
     summary: The evaluator family is renamed to critic and generator to executor
@@ -470,6 +477,13 @@ test_suite_index:
       with the deployment-API authority held by the creator alone.
     status: specified
     path: docs/specs/test-suites/test-rel09.4-control-plane.yaml
+  - id: test-rel09.5-llm-tier
+    title: Test Suite for Release 09.5 In-Cluster LLM Tier
+    summary: Planned tracers for the default-install turn with no external LLM
+      dependency, the preload-gated agent readiness, and the disabled-tier endpoint
+      override that leaves the co-generated client entries unchanged.
+    status: planned
+    path: docs/specs/test-suites/test-rel09.5-llm-tier.yaml
   - id: test-rel10.0-role-catalog
     title: Test Suite for Release 10.0 Reference-Architecture Role Alignment
     summary: Cases validating the critic/executor renames, the chroma rescope under
