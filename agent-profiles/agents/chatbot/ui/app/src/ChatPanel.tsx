@@ -81,8 +81,10 @@ export default function ChatPanel() {
     // Record the turn window so the observability panel can correlate the mesh's
     // events to this turn.
     const turnId = startTurn(message);
+    let traceId: string | undefined;
     try {
       const answer: Answer = await sendChat({ message, history: priorHistory });
+      traceId = answer.traceId;
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: answer.text, sources: answer.sources, grounded: answer.grounded },
@@ -94,7 +96,7 @@ export default function ChatPanel() {
         { role: "assistant", content: `Request failed: ${detail}`, error: true },
       ]);
     } finally {
-      endTurn(turnId);
+      endTurn(turnId, traceId);
       setBusy(false);
       scrollToEnd();
     }

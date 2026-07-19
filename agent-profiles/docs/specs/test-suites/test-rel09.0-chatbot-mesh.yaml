@@ -76,13 +76,13 @@ test_cases:
       skips cleanly without them, naming a missing model.
 
       One Chroma container with two collections stands in for two containers; the
-      disjoint corpora are what the fan-out exercises. Not covered here: a forced
+      disjoint corpora are what the fan-out exercises. The request-scoped machine now
+      exports its dispatch spans under the machine_request span and propagates
+      traceparent to the RAG servers (GH-362), so the test asserts one connected
+      cross-agent trace: the chatbot turn and each rag-server share a trace id and a
+      rag-server span is parented under a chatbot span. Not covered here: a forced
       router misparse fixture (the default-word fallback transition is exercised by
-      GH-307 but not asserted live); the per-word dispatch subsequence and
-      cross-agent trace continuity, which need the request-scoped machine_request
-      runs to export their dispatch spans (today under a NoopTracer, so only the host
-      lifecycle words and the genai chat spans reach the process OTel file) -- the
-      observability epic's work.
+      GH-307 but not asserted live).
     inputs:
       chatbot_profile: agents/chatbot/profile.yaml
       rag_clients: [rag0, rag1]
@@ -93,7 +93,7 @@ test_cases:
       fanout_cites_both_rag_tags: true
       degraded_turn_returns_200_not_500: true
       degraded_turn_omits_stopped_rag_tag: true
-      both_rag_server_traces_show_served_and_exited: true
+      each_rag_server_joins_the_connected_trace: true
       skip_names_missing_model: true
     traces:
       - rel09.0-uc002-chatbot-turn S1

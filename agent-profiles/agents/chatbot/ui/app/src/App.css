@@ -287,3 +287,45 @@ body {
 .event-signal { color: var(--accent); }
 .event-cmd { color: var(--text-secondary); }
 .event-raw { color: var(--text-secondary); }
+
+/* Trace waterfall (observability v2) */
+.trace-section {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px 16px;
+  background: var(--bg-primary);
+}
+.trace-head { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+
+.trace-notice {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  padding: 8px 0;
+}
+.trace-notice-warn { color: var(--warning); }
+
+.trace-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.trace-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.trace-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.trace-total { margin-left: auto; color: var(--text-tertiary); font-family: var(--font-mono); }
+
+.trace-waterfall { display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; }
+.trace-row { display: grid; grid-template-columns: 320px 1fr; gap: 10px; align-items: center; }
+.trace-label {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+.trace-svc { font-weight: 600; }
+.trace-track { position: relative; height: 14px; background: var(--bg-tertiary); border-radius: 3px; }
+.trace-bar { position: absolute; top: 2px; height: 10px; border-radius: 3px; min-width: 2px; }

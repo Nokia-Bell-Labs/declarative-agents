@@ -44,13 +44,14 @@ const (
 //   - a cross-corpus turn cites chunks from both RAGs by their [rag0]/[rag1] tags
 //     (sequential fan-out and distance-ordered merge);
 //   - stopping rag1 degrades the next turn to a 200 answered from rag0 alone;
-//   - each rag-server's span log is asserted independently.
+//   - the chatbot turn and each rag-server it called are one connected trace
+//     (shared trace id, the rag-server span parented under a chatbot span).
 //
 // It skips (does not fail) when Docker or Ollama with the configured models is
 // unavailable, naming the missing model, matching Integration.RagServer. One
 // Chroma container with two collections stands in for two containers; the disjoint
-// corpora are what the fan-out exercises. Cross-agent trace continuity is the
-// observability epic's work, so the span logs are asserted independently.
+// corpora are what the fan-out exercises. Cross-agent trace continuity comes from
+// traceparent propagation (GH-310) and request-scoped span export (GH-362).
 func (Integration) Chatbot() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
@@ -221,14 +222,17 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 	if err := assertChatbotRoutingTrace(chatTrace, fast, deep); err != nil {
 		return err
 	}
-	if err := assertRagServerServed(ragTrace0); err != nil {
+	// One connected cross-agent trace: the fan-out turn's chatbot spans and each
+	// rag-server's spans share a trace id, and the rag-server's machine_request
+	// span is parented under a chatbot span (traceparent propagation, GH-310/GH-362).
+	if err := assertConnectedTrace(chatTrace, ragTrace0); err != nil {
 		return fmt.Errorf("rag0 %w", err)
 	}
-	if err := assertRagServerServed(ragTrace1); err != nil {
+	if err := assertConnectedTrace(chatTrace, ragTrace1); err != nil {
 		return fmt.Errorf("rag1 %w", err)
 	}
 
-	fmt.Println("integration:chatbot PASS - router dispatched both chat models, fan-out cited both RAGs, rag1-down turn degraded to a 200, both rag-servers served")
+	fmt.Println("integration:chatbot PASS - router dispatched both chat models, fan-out cited both RAGs, rag1-down turn degraded to a 200, and each rag-server joined the chatbot's connected trace")
 	return nil
 }
 
@@ -367,20 +371,49 @@ func sortedModelKeys(m map[string]bool) []string {
 	return keys
 }
 
-// assertRagServerServed proves, from a rag-server's own span log, that it served
-// and exited gracefully: its request server launched and the agent exited.
-func assertRagServerServed(tracePath string) error {
-	spans, err := readChromaSpans(tracePath)
+// assertConnectedTrace proves the chatbot turn and a rag-server it called are one
+// connected cross-agent trace: their span logs share a trace id, and a rag-server
+// span in that trace is parented under a chatbot span (the chatbot's outbound
+// rag_query REST client span, via traceparent propagation). This replaces the
+// earlier two-independent-logs assertion.
+func assertConnectedTrace(chatTracePath, ragTracePath string) error {
+	chatSpans, err := readChromaSpans(chatTracePath)
 	if err != nil {
 		return err
 	}
-	present := chromaCommandSet(spans)
-	for _, want := range []string{"launch_rag_requests", "exit_agent"} {
-		if !present[want] {
-			return fmt.Errorf("trace missing %q dispatch; saw %v", want, sortedKeys(present))
+	ragSpans, err := readChromaSpans(ragTracePath)
+	if err != nil {
+		return err
+	}
+	chatByID := map[string]string{} // spanID -> traceID, for the shared-trace check
+	chatTraces := map[string]bool{}
+	for _, s := range chatSpans {
+		if s.SpanContext.SpanID != "" {
+			chatByID[s.SpanContext.SpanID] = s.SpanContext.TraceID
+		}
+		if s.SpanContext.TraceID != "" {
+			chatTraces[s.SpanContext.TraceID] = true
 		}
 	}
-	return nil
+	shared := ""
+	for _, s := range ragSpans {
+		if s.SpanContext.TraceID != "" && chatTraces[s.SpanContext.TraceID] {
+			shared = s.SpanContext.TraceID
+			break
+		}
+	}
+	if shared == "" {
+		return fmt.Errorf("no trace id shared between the chatbot and rag-server span logs (cross-agent trace not connected)")
+	}
+	for _, s := range ragSpans {
+		if s.SpanContext.TraceID != shared || s.Parent.SpanID == "" {
+			continue
+		}
+		if chatByID[s.Parent.SpanID] == shared {
+			return nil // a rag-server span is parented under a chatbot span in the shared trace
+		}
+	}
+	return fmt.Errorf("shared trace %s exists but no rag-server span is parented under a chatbot span", shared)
 }
 
 var citedRecordPattern = regexp.MustCompile(`(?i)record[\s#]*([0-9]+)`)
