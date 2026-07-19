@@ -44,7 +44,7 @@ func ParseDefinition(data []byte) (Definition, error) {
 
 func parseDefinitionRaw(data []byte) (Definition, error) {
 	var file DefinitionFile
-	if err := yaml.Unmarshal(data, &file); err != nil {
+	if err := yaml.Unmarshal(expandEnv(data), &file); err != nil {
 		return Definition{}, fmt.Errorf("parse REST definition: %w", err)
 	}
 	return file.Rest, nil
