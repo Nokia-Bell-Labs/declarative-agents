@@ -35,6 +35,7 @@ func (i Integration) All() error {
 		{"ragServer", i.RagServer, true},
 		{"chatbot", i.Chatbot, true},
 		{"helmSmoke", i.HelmSmoke, true},
+		{"helmSwap", i.HelmSwap, true},
 	}
 
 	var passed, failed, skipped int

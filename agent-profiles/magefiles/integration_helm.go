@@ -369,3 +369,194 @@ func jaegerAgentServices(jaegerBase string) (int, []string, error) {
 	}
 	return len(agents), agents, nil
 }
+
+const (
+	helmSwapRelease = "swap"
+	helmSwapCluster = "chatbot-mesh-swap"
+)
+
+// HelmSwap proves the two tiered-swap paths of the chatbot-mesh chart on a kind
+// cluster (srd015 R3): repointing a RAG is a Service selector change that does not
+// roll the chatbot (R3.1), and adding a RAG re-renders the co-generated profile and
+// rolls the chatbot (R3.2). It asserts the infrastructure contracts (pod identity,
+// workload existence, the co-generated ConfigMap breadth) via kubectl and helm, so
+// it needs docker, kind, helm, and kubectl but not Ollama: pod readiness is the
+// health endpoint, and grounded retrieval is the deploy-smoke's concern. Teardown
+// (kind delete) runs in all paths.
+func (Integration) HelmSwap() error {
+	profilesRoot, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	repoRoot := filepath.Dir(profilesRoot)
+	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(repoRoot, "agent-core"))
+	chartDir := filepath.Join(repoRoot, "deploy", "chatbot-mesh")
+	if _, err := os.Stat(filepath.Join(chartDir, "Chart.yaml")); err != nil {
+		return fmt.Errorf("chatbot-mesh chart not found at %s: %w", chartDir, err)
+	}
+	for _, bin := range []string{"docker", "kind", "helm", "kubectl"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			fmt.Printf("SKIP helmSwap: %s not found on PATH\n", bin)
+			return nil
+		}
+	}
+	if !agentCoreCheckoutAvailable(coreRoot) {
+		fmt.Printf("SKIP helmSwap: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
+		return nil
+	}
+	return runHelmSwap(coreRoot, profilesRoot, chartDir)
+}
+
+func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
+	fmt.Printf("helmSwap: building runtime image %s\n", helmImage)
+	if err := buildSmokeRuntimeImage(coreRoot, helmImage); err != nil {
+		return err
+	}
+	stagedChart, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
+	if err != nil {
+		return err
+	}
+	defer cleanupChart()
+
+	if err := kindCreateCluster(helmSwapCluster); err != nil {
+		return err
+	}
+	defer kindDeleteCluster(helmSwapCluster)
+	if err := kindLoadImage(helmSwapCluster, helmImage); err != nil {
+		return err
+	}
+
+	// Deploy with one RAG unit (the ci values default).
+	if err := helmSwapDeploy(stagedChart, "install", nil); err != nil {
+		return err
+	}
+
+	if err := assertSwapRepoint(); err != nil {
+		return err
+	}
+	if err := assertSwapAddRag(stagedChart); err != nil {
+		return err
+	}
+	fmt.Println("integration:helmSwap PASS - repoint left the chatbot pod unchanged; adding a RAG re-rendered the co-generated profile, rolled the chatbot, and stood up the new RAG unit")
+	return nil
+}
+
+// helmSwapDeploy installs or upgrades the release with the given extra --set args.
+func helmSwapDeploy(chartPath, verb string, extra []string) error {
+	repo, tag := splitImageRef(helmImage)
+	args := []string{verb, helmSwapRelease, chartPath,
+		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
+		"--set", "image.repository=" + repo,
+		"--set", "image.tag=" + tag,
+		"--set", "image.pullPolicy=Never",
+		"--wait", "--timeout", helmInstallTimeout.String(),
+	}
+	args = append(args, extra...)
+	cmd := exec.Command("helm", args...)
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("helm %s %s: %w", verb, helmSwapRelease, err)
+	}
+	return nil
+}
+
+// assertSwapRepoint patches the rag0 Service selector and asserts the chatbot pod
+// is unchanged: repointing a RAG source touches no agent configuration and requires
+// no chatbot restart (srd015 R3.1).
+func assertSwapRepoint() error {
+	before, err := chatbotPodName()
+	if err != nil {
+		return err
+	}
+	svc := helmSwapRelease + "-chatbot-mesh-rag0"
+	patch := `{"spec":{"selector":{"chatbot-mesh/rag-unit":"rag0","repointed":"true"}}}`
+	cmd := exec.Command("kubectl", "patch", "service", svc, "-p", patch)
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("repoint patch of %s: %w", svc, err)
+	}
+	after, err := chatbotPodName()
+	if err != nil {
+		return err
+	}
+	if before != after {
+		return fmt.Errorf("repoint rolled the chatbot pod (%s -> %s); a Service selector change must not restart the chatbot (R3.1)", before, after)
+	}
+	return nil
+}
+
+// assertSwapAddRag upgrades the release to two RAG units and asserts the new RAG
+// workload stands up, the co-generated chatbot profile ConfigMap now carries the
+// second RAG client, and the chatbot Deployment rolled to a new generation
+// (srd015 R3.2).
+func assertSwapAddRag(chartPath string) error {
+	genBefore, err := chatbotDeploymentGeneration()
+	if err != nil {
+		return err
+	}
+	extra := []string{
+		"--set", "ragUnits[1].name=rag1",
+		"--set", "ragUnits[1].collection=corpus2",
+		"--set", "ragUnits[1].embeddingModel=qwen3-embedding:8b",
+		"--set", "ragUnits[1].replicas=1",
+	}
+	if err := helmSwapDeploy(chartPath, "upgrade", extra); err != nil {
+		return err
+	}
+	if err := kubectlResourceExists("deployment", helmSwapRelease+"-chatbot-mesh-rag1"); err != nil {
+		return fmt.Errorf("add-RAG did not stand up the rag1 Deployment: %w", err)
+	}
+	cm, err := kubectlConfigMapKey(helmSwapRelease+"-chatbot-mesh-profiles", "agents__chatbot__rest.yaml")
+	if err != nil {
+		return err
+	}
+	if !strings.Contains(cm, "rag1:") {
+		return fmt.Errorf("add-RAG did not re-render the chatbot rest.yaml with the rag1 client (R2/R3.2)")
+	}
+	genAfter, err := chatbotDeploymentGeneration()
+	if err != nil {
+		return err
+	}
+	if genAfter <= genBefore {
+		return fmt.Errorf("add-RAG did not roll the chatbot Deployment (generation %d -> %d); the profile change must trigger a rollout (R3.2)", genBefore, genAfter)
+	}
+	return nil
+}
+
+func chatbotPodName() (string, error) {
+	out, err := exec.Command("kubectl", "get", "pods",
+		"-l", "app.kubernetes.io/component=chatbot",
+		"-o", "jsonpath={.items[0].metadata.name}").Output()
+	if err != nil {
+		return "", fmt.Errorf("get chatbot pod: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func chatbotDeploymentGeneration() (int, error) {
+	out, err := exec.Command("kubectl", "get", "deployment", helmSwapRelease+"-chatbot-mesh-chatbot",
+		"-o", "jsonpath={.metadata.generation}").Output()
+	if err != nil {
+		return 0, fmt.Errorf("get chatbot deployment generation: %w", err)
+	}
+	var gen int
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(out)), "%d", &gen); err != nil {
+		return 0, fmt.Errorf("parse chatbot generation %q: %w", out, err)
+	}
+	return gen, nil
+}
+
+func kubectlResourceExists(kind, name string) error {
+	cmd := exec.Command("kubectl", "get", kind, name)
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	return cmd.Run()
+}
+
+func kubectlConfigMapKey(name, key string) (string, error) {
+	out, err := exec.Command("kubectl", "get", "configmap", name,
+		"-o", "jsonpath={.data."+strings.ReplaceAll(key, ".", "\\.")+"}").Output()
+	if err != nil {
+		return "", fmt.Errorf("get configmap %s key %s: %w", name, key, err)
+	}
+	return string(out), nil
+}

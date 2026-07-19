@@ -17,6 +17,12 @@ spec:
       labels:
         {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: chatbot
+      annotations:
+        # Roll the chatbot when its co-generated profile ConfigMap changes, so a
+        # values-driven RAG add/remove re-renders the profile and rolls the pod
+        # (srd015 R3.2), which resumes from its Dolt checkpoint. Repointing a RAG
+        # does not touch the ConfigMap, so it does not roll the chatbot (R3.1).
+        checksum/profiles: {{ include (print $.Template.BasePath "/profiles-configmap.yaml") . | sha256sum }}
     spec:
       {{- if .Values.validateProfiles }}
       initContainers:

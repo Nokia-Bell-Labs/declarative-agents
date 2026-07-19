@@ -5,6 +5,7 @@ tools:
 tool_declarations:
   - declarations.yaml
   - request-declarations.yaml
+  - request-fanout.yaml
   - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
 rest_definitions:
   - rest.yaml
