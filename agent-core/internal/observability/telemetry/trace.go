@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"sync"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
@@ -113,6 +115,14 @@ func NewRoot(serviceName, name string, cfg ExporterConfig, parentCtx context.Con
 	}
 
 	logExporterConfig(cfg)
+
+	// Set the process providers and W3C propagator globally so spans started via
+	// otel.Tracer(...) (the machine_request server span) export, request-scoped
+	// runs can wrap the provider (NewTraceFromProvider), and cross-agent
+	// traceparent propagation uses the standard context propagator (srd016).
+	otel.SetTracerProvider(tp)
+	otel.SetMeterProvider(mp)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 
 	tracer := tp.Tracer(serviceName)
 	meter := mp.Meter(serviceName)

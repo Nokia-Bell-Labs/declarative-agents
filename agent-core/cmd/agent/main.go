@@ -32,6 +32,7 @@ var (
 	flagCoreRoot         string
 	flagOTelLog          string
 	flagOTelOTLP         string
+	flagOTelService      string
 	flagOTelParent       string
 	flagDirectory        string
 	flagVerboseTrace     bool
@@ -67,6 +68,7 @@ func init() {
 	f.StringVar(&flagCoreRoot, "core-root", "", "maps /opt/agent-core paths in the profile to this directory (development checkout)")
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelOTLP, "otel-otlp-endpoint", "", "OTLP gRPC endpoint for OTel spans (host:port); enables the OTLP exporter (srd008)")
+	f.StringVar(&flagOTelService, "otel-service-name", "agent", "OTel resource service.name for this agent, so a cross-agent trace distinguishes agents")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
 	f.BoolVar(&flagVerboseTrace, "verbose-trace", false, "record LLM input/output in traces")
@@ -285,7 +287,11 @@ func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), 
 	}
 	parentCtx, _ := telemetry.ParseParentSpan(cfg.OTelParent)
 	exporter := telemetry.ExporterConfig{FilePath: cfg.OTelLog, OTLPEndpoint: cfg.OTelOTLP}
-	t, shutdown, err := telemetry.NewRoot("agent", "agent.run", exporter, parentCtx)
+	serviceName := cfg.OTelService
+	if serviceName == "" {
+		serviceName = "agent"
+	}
+	t, shutdown, err := telemetry.NewRoot(serviceName, "agent.run", exporter, parentCtx)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("otel init: %w", err)
 	}
