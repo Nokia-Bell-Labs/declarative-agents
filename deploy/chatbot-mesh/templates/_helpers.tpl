@@ -49,6 +49,25 @@ http://{{ include "chatbot-mesh.fullname" . }}-ollama:{{ .Values.llm.port }}
 {{- end -}}
 
 {{/*
+The mesh view (srd015 R4) the provisioner serves on its read path, projected as
+JSON from the same values that render the topology, so what the panel reads is
+what the chart deploys. Values-plane only: RAG list, LLM endpoint, parameters. No
+per-agent runtime endpoint appears, so the read state carries no agent authority.
+*/}}
+{{- define "chatbot-mesh.meshView" -}}
+{{- $rags := list -}}
+{{- range .Values.ragUnits -}}
+{{- $rags = append $rags (dict "name" .name "collection" .collection "embeddingModel" .embeddingModel "replicas" (int (default 1 .replicas))) -}}
+{{- end -}}
+{{- $view := dict
+  "rags" $rags
+  "llm" (dict "inCluster" .Values.llm.inCluster "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.provisioner.params.chatModel) "embedModel" .Values.chatbot.embeddingModel)
+  "params" (dict "nResults" (int .Values.provisioner.params.nResults) "chunkCap" (int .Values.provisioner.params.chunkCap) "routerDefault" .Values.provisioner.params.routerDefault)
+-}}
+{{- $view | toJson -}}
+{{- end -}}
+
+{{/*
 The MySQL-wire DSN to the Dolt sql-server checkpoint backend (agent-core
 srd035/srd036), or empty when Dolt is disabled. The chatbot persists its host
 machine's checkpoints here, so a rollout resumes from durable state rather than

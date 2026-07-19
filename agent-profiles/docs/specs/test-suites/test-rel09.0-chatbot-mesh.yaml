@@ -197,3 +197,34 @@ test_cases:
     traces:
       - rel09.0-uc003-mesh-deployment S3
       - srd015-chatbot-deployment AC3
+
+  - use_case: rel09.0-uc003-mesh-deployment
+    name: Provisioning deployment API panel-path tracer
+    integration_target: mage integration:provisioning
+    go_test: go test ./deploy/chatbot-mesh/provisioner/...
+    status: implemented
+    description: |
+      Integration.Provisioning drives the deployment API (srd015 R4) end to end
+      against the built provisioner binary, exactly as the provisioning panel does
+      over HTTP: it reads the deployed mesh view (one RAG), rejects an apply from
+      the read-only token (R4.1), applies an add-RAG values patch that renders a
+      helm upgrade with the second RAG (asserted from the recorded helm
+      invocation), and reads the rollout progress. helm and kubectl are stubbed
+      with fake binaries so the HTTP, auth, and values-patch contract is proven
+      without a cluster; the on-cluster rollout is Integration.HelmSwap. The
+      provisioner rejects a payload carrying a field outside the values view
+      (DisallowUnknownFields), so a provisioning payload cannot smuggle a per-agent
+      endpoint (R4.2), and the chatbot rest.yaml declares no provisioning server
+      binding, so no agent endpoint receives one.
+    inputs:
+      deployment_api: /provisioning/api
+      state_rags: [rag0]
+      apply_rags: [rag0, rag1]
+    expected:
+      read_path_returns_mesh_view: true
+      read_token_cannot_apply: true
+      apply_renders_add_rag_upgrade: true
+      no_agent_endpoint_in_payload: true
+    traces:
+      - srd015-chatbot-deployment AC4
+      - srd014-chatbot-agent AC5

@@ -31,6 +31,13 @@ dolt:
 ingress:
   enabled: false
 
+# The provisioner ships its own image (deployment tooling with helm baked in), not
+# the runtime image the smoke/swap tests kind-load. Disable it here so those tests
+# do not wait on an un-loaded image; the deployment API is exercised by
+# Integration.Provisioning against the built binary.
+provisioner:
+  enabled: false
+
 llm:
   inCluster: false
   externalURL: http://host.docker.internal:11434
