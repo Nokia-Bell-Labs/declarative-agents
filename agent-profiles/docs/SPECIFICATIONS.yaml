@@ -318,7 +318,7 @@ use_case_index:
     summary: One chart deploys the mesh on a kind cluster with values-to-config
       co-generation, a Service repoint, and an add-RAG rollout that resumes from
       the Dolt checkpoint.
-    status: planned
+    status: implemented
     path: docs/specs/use-cases/rel09.0-uc003-mesh-deployment.yaml
 
 test_suite_index:

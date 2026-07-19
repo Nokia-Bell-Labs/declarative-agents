@@ -72,4 +72,4 @@ out_of_scope:
   - Production cluster hardening beyond the kind smoke deployment.
 
 test_suite_trace: test-rel09.0-chatbot-mesh
-status: specified
+status: implemented

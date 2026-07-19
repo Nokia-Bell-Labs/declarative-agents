@@ -353,7 +353,7 @@ releases:
       release records the documentation and the tracer-bullet use cases; the RAG
       server, chatbot, routing, observability, and deployment work land in
       epics #292, #293, #294, #295, and #296.
-    status: planned
+    status: implemented
     srds:
       - srd013-rag-server-agent
       - srd014-chatbot-agent
@@ -367,8 +367,8 @@ releases:
         status: implemented
       - id: rel09.0-uc003-mesh-deployment
         summary: One Helm chart deploys the mesh on a kind cluster with values-to-config co-generation, Service repoint, and add-RAG rollout with checkpoint resume.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel09.0-chatbot-mesh
         summary: Profile-owned tracers for the RAG server query, the end-to-end chatbot turn with a degraded RAG, and the Helm mesh deployment with tiered hot swap.
-        status: planned
+        status: implemented

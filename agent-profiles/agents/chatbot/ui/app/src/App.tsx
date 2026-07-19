@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ChatPanel from "./ChatPanel";
 import ObservabilityPanel from "./ObservabilityPanel";
+import ProvisioningPanel from "./ProvisioningPanel";
 import { TurnProvider } from "./turns";
 
 type PanelId = "chat" | "observability" | "provisioning";
@@ -11,22 +12,12 @@ interface NavItem {
   planned?: boolean;
 }
 
-// Three-panel shell (srd014 R5). Chat and observability are built; provisioning is
-// a reserved placeholder that a later epic fills in.
+// Three-panel shell (srd014 R5): chat, observability, and provisioning are built.
 const NAV: NavItem[] = [
   { id: "chat", label: "Chat" },
   { id: "observability", label: "Observability" },
-  { id: "provisioning", label: "Provisioning", planned: true },
+  { id: "provisioning", label: "Provisioning" },
 ];
-
-function Placeholder({ label }: { label: string }) {
-  return (
-    <div className="placeholder">
-      <h2>{label}</h2>
-      <p>This panel is planned. Its content ships in a later epic.</p>
-    </div>
-  );
-}
 
 function panelFor(active: PanelId): React.ReactNode {
   switch (active) {
@@ -35,7 +26,7 @@ function panelFor(active: PanelId): React.ReactNode {
     case "observability":
       return <ObservabilityPanel />;
     default:
-      return <Placeholder label="Provisioning" />;
+      return <ProvisioningPanel />;
   }
 }
 
