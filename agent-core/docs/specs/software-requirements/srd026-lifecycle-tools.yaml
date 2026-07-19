@@ -184,7 +184,7 @@ implementation:
 
 implementation_status:
   done:
-    - agents/lifecycle/history/profile.yaml and agents/lifecycle/rollback/profile.yaml select the lifecycle machines and builtin tool declarations.
+    - testdata/conformance/lifecycle/history/profile.yaml and testdata/conformance/lifecycle/rollback/profile.yaml select the lifecycle machines and builtin tool declarations.
     - Hidden lifecycle subcommands have been removed from cmd/agent; lifecycle operations use the universal profile-first runtime path.
   planned:
     - checkpoint_history reimplemented as a Dolt commit-history read through the srd035 checkpoint port.

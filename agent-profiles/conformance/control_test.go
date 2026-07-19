@@ -13,7 +13,7 @@ import (
 // lifecycle exit endpoint, and asserts the machine routes the enqueued signal
 // through exit_agent to a Succeeded terminal state.
 //
-// It runs the wrapper an operator ships — agents/control/profile.yaml — through a
+// It runs the wrapper an operator ships — testdata/conformance/control/profile.yaml — through a
 // temp copy, patching only the hard-coded bind address and port in rest.yaml so
 // the listener takes a free loopback port. The profile's /opt/agent-core
 // lifecycle tool_config_dir and exit-agent declaration remap onto the checkout
@@ -27,7 +27,7 @@ func TestControlConformance(t *testing.T) {
 	addr := FreeAddr(t)
 	port := PortOf(t, addr)
 
-	profilePath := CopyShippedProfile(t, filepath.Join("agents", "control", "profile.yaml"), map[string]string{
+	profilePath := CopyShippedProfile(t, filepath.Join("testdata", "conformance", "control", "profile.yaml"), map[string]string{
 		"127.0.0.1:0": addr,
 		"ports: [0]":  "ports: [" + port + "]",
 	})

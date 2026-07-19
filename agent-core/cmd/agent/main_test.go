@@ -225,9 +225,9 @@ func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
 		"critic/profile.yaml",
 		"bench/profile.yaml",
 		"jurist/profile.yaml",
-		"lifecycle/history/profile.yaml",
-		"lifecycle/rollback/profile.yaml",
-		"lifecycle/approval/profile.yaml",
+		"../testdata/conformance/lifecycle/history/profile.yaml",
+		"../testdata/conformance/lifecycle/rollback/profile.yaml",
+		"../testdata/conformance/lifecycle/approval/profile.yaml",
 		"knowledge-manager/documentation-curator/profile.yaml",
 	}
 	for _, rel := range profiles {
@@ -361,7 +361,7 @@ func TestControlProfileExitReachesSucceededBeforeDeferredShutdown(t *testing.T) 
 	shutdown := newDeferredShutdown(func() { cancelled = true })
 
 	result := runExitMachine(t, exitMachineCase{
-		machinePath: profilePathFromTest(t, "control/machine.yaml"),
+		machinePath: profilePathFromTest(t, "../testdata/conformance/control/machine.yaml"),
 		launch:      "launch_agent_control",
 		await:       "await_agent_control",
 		terminal:    "Succeeded",
@@ -404,7 +404,7 @@ func TestApprovalLifecycleProfileSuspendsThroughCheckpointPort(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
-	profilePath := profilePathFromTest(t, "lifecycle/approval/profile.yaml")
+	profilePath := profilePathFromTest(t, "../testdata/conformance/lifecycle/approval/profile.yaml")
 
 	clearAgentFlags()
 	flagProfile = profilePath
@@ -487,7 +487,7 @@ func TestResumeWithoutPersistentBackendReportsNoCheckpoint(t *testing.T) {
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
 	clearAgentFlags()
-	flagProfile = profilePathFromTest(t, "lifecycle/approval/profile.yaml")
+	flagProfile = profilePathFromTest(t, "../testdata/conformance/lifecycle/approval/profile.yaml")
 	flagResumeCheckpoint = "missing"
 
 	_, err := captureStderr(t, func() error {

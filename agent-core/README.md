@@ -55,9 +55,9 @@ checkout or bundle, then pass explicit paths such as
 `$AGENT_PROFILES_ROOT/agents/jurist/profile.yaml`.
 
 Lifecycle operators use the same external profile path shape.
-`$AGENT_PROFILES_ROOT/agents/lifecycle/history/profile.yaml` inspects
+`$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/history/profile.yaml` inspects
 checkpoint history through `checkpoint_history`.
-`$AGENT_PROFILES_ROOT/agents/lifecycle/rollback/profile.yaml` rolls back a
+`$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/rollback/profile.yaml` rolls back a
 checkpoint through `checkpoint_rollback`. The removed `agent history` and
 `agent rollback` aliases are not part of the runtime surface.
 
@@ -94,11 +94,11 @@ and Dolt-backed persistence behavior.
 For history and rollback, use the universal runtime flags:
 
 ```bash
-bin/agent --profile "$AGENT_PROFILES_ROOT/agents/lifecycle/history/profile.yaml" \
+bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/history/profile.yaml" \
   --directory "$WORKSPACE" \
   --request requests/history.yaml
 
-bin/agent --profile "$AGENT_PROFILES_ROOT/agents/lifecycle/rollback/profile.yaml" \
+bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/rollback/profile.yaml" \
   --directory "$WORKSPACE" \
   --request requests/rollback.yaml
 ```

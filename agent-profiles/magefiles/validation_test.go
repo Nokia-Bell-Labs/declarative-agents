@@ -29,7 +29,7 @@ func TestDiscoverProfilesIncludesVariants(t *testing.T) {
 	writeNamedProfileFixture(t, root, "generator", "profile-qwen35b.yaml")
 	writeNamedProfileFixture(t, root, "generator", "profile-qwen27b.yaml")
 	writeNamedProfileFixture(t, root, "rest", "ollama-profile.yaml")
-	writeFile(t, filepath.Join(root, "agents", "rest", "profile-notyaml.yml"), "name: ignore\n")
+	writeFile(t, filepath.Join(root, "testdata", "conformance", "rest", "profile-notyaml.yml"), "name: ignore\n")
 
 	profiles, err := discoverProfiles(filepath.Join(root, "agents"))
 	if err != nil {

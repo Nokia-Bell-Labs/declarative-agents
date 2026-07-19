@@ -161,33 +161,6 @@ roles:
       - Confirm launch_eval delegates session execution to critic.
       - Trace bench to critic with rel07.0-uc004-bench-evaluator-profile-boundary.
 
-  - id: rest
-    title: REST boundary sample
-    profile_path: agents/rest/profile.yaml
-    actor_boundary: configured HTTP clients and servers
-    inputs:
-      - REST definitions
-      - OpenAPI import data
-      - inbound webhook event
-    selected_tool_families:
-      - REST client
-      - REST async client
-      - REST server
-    runtime_dependencies:
-      - agent-core REST runtime
-      - profile-owned rest.yaml
-    outputs:
-      - response signals
-      - async completion
-      - webhook event signal
-      - listener lifecycle status
-    outcomes:
-      - Succeeded
-      - Failed
-    checks:
-      - Confirm REST authority lives in rest.yaml.
-      - Confirm server launch, await, and stop are explicit machine states.
-
   - id: monitor
     title: Embedded monitor REST reader
     profile_path: agents/monitor/profile.yaml
@@ -210,61 +183,6 @@ roles:
     checks:
       - Confirm REST reads use cached monitor state.
       - Confirm exit is routed through configured control.
-      - Trace monitor/control status with rel07.0-uc005-monitor-control-profile-boundary.
-
-  - id: lifecycle
-    title: Checkpoint, rollback, and approval profiles
-    profile_path: agents/lifecycle/*/profile.yaml
-    actor_boundary: operator, checkpoint store, and workspace
-    inputs:
-      - checkpoint ID
-      - target iteration
-      - approval signal
-    selected_tool_families:
-      - checkpoint_history
-      - checkpoint_rollback
-      - suspend
-      - done
-    runtime_dependencies:
-      - agent-core lifecycle ports
-      - checkpoint store
-      - workspace restore support
-    outputs:
-      - history report
-      - rewritten checkpoint
-      - suspended checkpoint
-      - approved or rejected terminal state
-    outcomes:
-      - Done
-      - Succeeded
-      - Rejected
-      - Failed
-    checks:
-      - Confirm lifecycle behavior is expressed as machine actions.
-      - Confirm approval uses resume signals instead of hidden CLI branches.
-
-  - id: control
-    title: REST lifecycle control profile
-    profile_path: agents/control/profile.yaml
-    actor_boundary: lifecycle supervisor
-    inputs:
-      - REST control request
-    selected_tool_families:
-      - control REST
-      - exit_agent
-    runtime_dependencies:
-      - agent-core REST runtime
-      - agent-core lifecycle vocabulary
-    outputs:
-      - selected control signal
-      - AgentExited signal
-      - terminal status
-    outcomes:
-      - Succeeded
-      - Failed
-    checks:
-      - Confirm HTTP handlers enqueue signals only.
-      - Confirm MachineSpec routes ExitRequested to exit_agent.
       - Trace monitor/control status with rel07.0-uc005-monitor-control-profile-boundary.
 
   - id: documentation-curator
@@ -360,8 +278,99 @@ roles:
       - Confirm the creator makes no values or workflow decision (srd017 R6).
       - Trace the control plane with rel09.4-uc001-control-plane-provisioning.
 
+
+# Conformance grammar fixtures, not roles (GH-328). Their only executors are the
+# conformance tests and the monitor/control mage integration target; they prove
+# REST boundary words, control signals, and checkpoint/suspend/resume vocabulary
+# at runtime. They live under testdata/conformance/, outside the agents/ role
+# catalog. The mesh (srd014) gives each agent embedded monitor/control servers via
+# its own rest.yaml rather than deploying these standalone profiles.
+conformance_fixtures:
+  - id: rest
+    title: REST boundary sample
+    profile_path: testdata/conformance/rest/profile.yaml
+    actor_boundary: configured HTTP clients and servers
+    inputs:
+      - REST definitions
+      - OpenAPI import data
+      - inbound webhook event
+    selected_tool_families:
+      - REST client
+      - REST async client
+      - REST server
+    runtime_dependencies:
+      - agent-core REST runtime
+      - profile-owned rest.yaml
+    outputs:
+      - response signals
+      - async completion
+      - webhook event signal
+      - listener lifecycle status
+    outcomes:
+      - Succeeded
+      - Failed
+    checks:
+      - Confirm REST authority lives in rest.yaml.
+      - Confirm server launch, await, and stop are explicit machine states.
+
+  - id: control
+    title: REST lifecycle control profile
+    profile_path: testdata/conformance/control/profile.yaml
+    actor_boundary: lifecycle supervisor
+    inputs:
+      - REST control request
+    selected_tool_families:
+      - control REST
+      - exit_agent
+    runtime_dependencies:
+      - agent-core REST runtime
+      - agent-core lifecycle vocabulary
+    outputs:
+      - selected control signal
+      - AgentExited signal
+      - terminal status
+    outcomes:
+      - Succeeded
+      - Failed
+    checks:
+      - Confirm HTTP handlers enqueue signals only.
+      - Confirm MachineSpec routes ExitRequested to exit_agent.
+      - Trace monitor/control status with rel07.0-uc005-monitor-control-profile-boundary.
+
+  - id: lifecycle
+    title: Checkpoint, rollback, and approval profiles
+    profile_path: testdata/conformance/lifecycle/*/profile.yaml
+    actor_boundary: operator, checkpoint store, and workspace
+    inputs:
+      - checkpoint ID
+      - target iteration
+      - approval signal
+    selected_tool_families:
+      - checkpoint_history
+      - checkpoint_rollback
+      - suspend
+      - done
+    runtime_dependencies:
+      - agent-core lifecycle ports
+      - checkpoint store
+      - workspace restore support
+    outputs:
+      - history report
+      - rewritten checkpoint
+      - suspended checkpoint
+      - approved or rejected terminal state
+    outcomes:
+      - Done
+      - Succeeded
+      - Rejected
+      - Failed
+    checks:
+      - Confirm lifecycle behavior is expressed as machine actions.
+      - Confirm approval uses resume signals instead of hidden CLI branches.
+
 taxonomy_rules:
   - Each role is a configured program, not a Go package.
+  - Conformance grammar fixtures (rest, control, lifecycle) are not roles; they live under testdata/conformance/ and prove runtime vocabulary, keeping agents/ a role catalog (GH-328).
   - Actor boundaries name who or what crosses the profile boundary.
   - Runtime dependencies name agent-core capabilities without copying them into
     agent-profiles.

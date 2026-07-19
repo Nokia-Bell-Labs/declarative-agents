@@ -9,8 +9,8 @@ summary: |
   their tool signals.
 
   The proof belongs in agent-profiles because the machine wiring under
-  agents/lifecycle and the tool selections in agents/lifecycle/tools.yaml and
-  agents/lifecycle/approval/tools.yaml are profile-owned. agent-core supplies the
+  agents/lifecycle and the tool selections in testdata/conformance/lifecycle/tools.yaml and
+  testdata/conformance/lifecycle/approval/tools.yaml are profile-owned. agent-core supplies the
   lifecycle ports, the checkpoint store, and workspace restore support, but it
   should not encode the approval gate or history and rollback flows as
   core-owned CLI behavior.
@@ -20,13 +20,13 @@ actor: Profile maintainer verifying lifecycle history, rollback, and approval be
 trigger: |
   A maintainer runs each lifecycle program from agent-profiles:
 
-    agent --profile "$AGENT_PROFILES_ROOT/agents/lifecycle/history/profile.yaml"
-    agent --profile "$AGENT_PROFILES_ROOT/agents/lifecycle/rollback/profile.yaml"
-    agent --profile "$AGENT_PROFILES_ROOT/agents/lifecycle/approval/profile.yaml"
+    agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/history/profile.yaml"
+    agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/rollback/profile.yaml"
+    agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/approval/profile.yaml"
 
 preconditions:
-  - agents/lifecycle/history.yaml and agents/lifecycle/rollback.yaml select checkpoint_history and checkpoint_rollback from agents/lifecycle/tools.yaml.
-  - agents/lifecycle/approval/machine.yaml selects suspend and done from agents/lifecycle/approval/tools.yaml.
+  - testdata/conformance/lifecycle/history.yaml and testdata/conformance/lifecycle/rollback.yaml select checkpoint_history and checkpoint_rollback from testdata/conformance/lifecycle/tools.yaml.
+  - testdata/conformance/lifecycle/approval/machine.yaml selects suspend and done from testdata/conformance/lifecycle/approval/tools.yaml.
   - A checkpoint ID, a target iteration, and an approval signal are available as inputs.
 
 flow:

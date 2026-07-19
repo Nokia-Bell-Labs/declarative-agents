@@ -660,7 +660,7 @@ overview:
       current:
         - internal/tools/rest/
         - tools/builtin/rest/all.yaml
-        - external agent-profiles/agents/rest/
+        - external agent-profiles/testdata/conformance/rest/
         - testdata/integration/rel03-rest-tools/
         - docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
         - docs/specs/software-requirements/srd028-rest-client-tools.yaml
@@ -926,7 +926,7 @@ overview:
     profile_first_lifecycle_diagram: |
       ```mermaid
       flowchart LR
-        P[agent-profiles/agents/lifecycle/*/profile.yaml] --> M[Lifecycle MachineSpec]
+        P[agent-profiles/testdata/conformance/lifecycle/*/profile.yaml] --> M[Lifecycle MachineSpec]
         P --> S[tools.yaml selection]
         P --> D[ToolDef declarations]
         S --> D

@@ -4,8 +4,8 @@ purpose: |-
   The machine runs one declared history action, then exits with a
   success or failure state based on the tool signal.
 configuration:
-  machine: agents/lifecycle/history.yaml
-  tools: agents/lifecycle/tools.yaml
+  machine: testdata/conformance/lifecycle/history.yaml
+  tools: testdata/conformance/lifecycle/tools.yaml
 invariants:
 - Checkpoint history inspection is a machine action.
 - The operation reads checkpoint state and does not mutate checkpoints.

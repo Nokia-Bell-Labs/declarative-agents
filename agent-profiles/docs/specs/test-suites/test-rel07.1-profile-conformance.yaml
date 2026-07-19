@@ -135,7 +135,7 @@ test_cases:
     status: implemented
     test: conformance/control_test.go
     coverage: shipped-behavioral
-    coverage_note: Copies the shipped agents/control/profile.yaml and patches only the harness-controlled loopback address and port.
+    coverage_note: Copies the shipped testdata/conformance/control/profile.yaml and patches only the harness-controlled loopback address and port.
     description: |
       Launches the control profile with the async serve harness, waits for its
       health endpoint, posts a lifecycle exit request, and waits for the agent to
@@ -227,7 +227,7 @@ test_cases:
     gate: dolt
     test: conformance/lifecycle_test.go
     coverage: shipped-behavioral
-    coverage_note: Runs the shipped agents/lifecycle/approval/profile.yaml directly across the two suspend/resume CLI invocations; no field patched.
+    coverage_note: Runs the shipped testdata/conformance/lifecycle/approval/profile.yaml directly across the two suspend/resume CLI invocations; no field patched.
     description: |
       Drives the approval lifecycle profile across the two CLI invocations the
       suspend/resume flow requires. Run one dispatches the suspend tool, persists
@@ -255,7 +255,7 @@ test_cases:
     gate: dolt
     test: conformance/lifecycle_history_rollback_test.go
     coverage: shipped-behavioral
-    coverage_note: Runs the shipped agents/lifecycle/{approval,history,rollback}/profile.yaml directly against a persisted checkpoint; no field patched.
+    coverage_note: Runs the shipped testdata/conformance/lifecycle/{approval,history,rollback}/profile.yaml directly against a persisted checkpoint; no field patched.
     description: |
       Drives the standalone history and rollback lifecycle families
       (rel02.0-uc002) against a checkpoint another run persisted. A suspend run
@@ -435,7 +435,7 @@ test_cases:
     test: conformance/rest_test.go TestRestOllamaConformance
     coverage: shipped-behavioral
     coverage_note: |
-      Runs the shipped agents/rest/ollama-profile.yaml directly; no field patched.
+      Runs the shipped testdata/conformance/rest/ollama-profile.yaml directly; no field patched.
       Unlike the sample machine's machine-sequenced client head, the model-selected
       REST client word runs in-profile because the model chooses it and its
       upstream is the local Ollama itself.

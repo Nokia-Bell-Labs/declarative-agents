@@ -29,7 +29,7 @@ import (
 func TestLifecycleApprovalSuspendResume(t *testing.T) {
 	RequireCoreRoot(t)
 	dolt := StartDolt(t)
-	profile := filepath.Join("agents", "lifecycle", "approval", "profile.yaml")
+	profile := filepath.Join("testdata", "conformance", "lifecycle", "approval", "profile.yaml")
 
 	// suspend runs the profile with no resume signal so it dispatches the
 	// suspend tool, persists the checkpoint, and exits suspended. It asserts the

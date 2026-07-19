@@ -5,10 +5,10 @@ purpose: |-
   then feeds the live REST result back so the final answer names observed
   models instead of guessing.
 configuration:
-  machine: agents/rest/ollama-machine.yaml
-  tools: agents/rest/ollama-tools.yaml
+  machine: testdata/conformance/rest/ollama-machine.yaml
+  tools: testdata/conformance/rest/ollama-tools.yaml
 invariants:
-  - REST authority lives in agents/rest/ollama-rest.yaml.
+  - REST authority lives in testdata/conformance/rest/ollama-rest.yaml.
   - The selected model-visible manifest contains only ollama_list_models and done.
   - OpenAPI imports populate REST definitions without generated Go code.
   - The final answer must use model names from the REST result.

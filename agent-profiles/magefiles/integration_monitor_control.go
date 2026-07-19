@@ -51,7 +51,7 @@ func (Integration) MonitorControl() error {
 	if err != nil {
 		return err
 	}
-	if err := requireProfilePaths(profilesRoot, "agents/monitor/profile.yaml", "agents/control/profile.yaml"); err != nil {
+	if err := requireProfilePaths(profilesRoot, "agents/monitor/profile.yaml", "testdata/conformance/control/profile.yaml"); err != nil {
 		return err
 	}
 	evidence, err := collectMonitorControlEvidence(profilesRoot)
@@ -82,7 +82,7 @@ func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence,
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
-	controlREST, err := readMonitorControlREST(filepath.Join(profilesRoot, "agents", "control", "rest.yaml"))
+	controlREST, err := readMonitorControlREST(filepath.Join(profilesRoot, "testdata", "conformance", "control", "rest.yaml"))
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
@@ -90,7 +90,7 @@ func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence,
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
-	controlMachine, err := readMonitorControlMachine(filepath.Join(profilesRoot, "agents", "control", "machine.yaml"))
+	controlMachine, err := readMonitorControlMachine(filepath.Join(profilesRoot, "testdata", "conformance", "control", "machine.yaml"))
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
@@ -104,7 +104,7 @@ func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence,
 	}
 	evidence := monitorControlEvidence{
 		MonitorProfile:          "agents/monitor/profile.yaml",
-		ControlProfile:          "agents/control/profile.yaml",
+		ControlProfile:          "testdata/conformance/control/profile.yaml",
 		MonitorStateRoutes:      monitorStateRoutes(monitorREST),
 		ControlExitRoute:        controlExit.Path,
 		MonitorControlRoute:     monitorControl.Path,

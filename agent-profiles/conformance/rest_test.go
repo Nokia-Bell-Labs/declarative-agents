@@ -12,14 +12,14 @@ import (
 )
 
 // restOllamaModel is the model the rest ollama-profile variant configures
-// (agents/rest/ollama-llm.yaml invoke_llm config). The behavioral variant run
+// (testdata/conformance/rest/ollama-llm.yaml invoke_llm config). The behavioral variant run
 // gates on this model being served by Ollama.
 const restOllamaModel = "qwen3.6:35b-mlx"
 
 // restWebhookMachine bounds the rest sample profile to its inbound webhook
 // server boundary: launch the configured webhook server, await one inbound
 // webhook event, then stop to reach Succeeded. It mirrors the launch/await/stop
-// tail of the full rest machine (agents/rest/machine.yaml) — the wiring
+// tail of the full rest machine (testdata/conformance/rest/machine.yaml) — the wiring
 // TestRestShippedProfileWiring asserts the shipped machine actually ships — but
 // omits the client read/create/await head. The client head is exercised hermetically at
 // the agent-core package level (rest.TestRESTClient_AwaitOperationPolling drives
@@ -115,7 +115,7 @@ func TestRestConformance(t *testing.T) {
 	RequireCoreRoot(t)
 	tmp := t.TempDir()
 	addr := FreeAddr(t)
-	restDir := ProfilePath(filepath.Join("agents", "rest"))
+	restDir := ProfilePath(filepath.Join("testdata", "conformance", "rest"))
 
 	restContent := rewriteFile(t, filepath.Join(restDir, "rest.yaml"), map[string]string{
 		"127.0.0.1:0":                 addr,
@@ -153,7 +153,7 @@ rest_definitions:
 // TestRestShippedProfileWiring asserts, model-free and ungated, that the two
 // wrappers an operator ships for the rest family are wired as the behavioral
 // runs assume. It proves (a) the shipped sample machine
-// (agents/rest/machine.yaml) actually contains the launch -> await -> stop
+// (testdata/conformance/rest/machine.yaml) actually contains the launch -> await -> stop
 // inbound webhook boundary that TestRestConformance drives via a bounded
 // machine — the sample profile's client read/create/await head cannot run
 // in-profile (see restWebhookMachine), so the boundary is the runnable slice of
@@ -171,7 +171,7 @@ func TestRestShippedProfileWiring(t *testing.T) {
 		InitialState string              `yaml:"initial_state"`
 		Transitions  []machineTransition `yaml:"transitions"`
 	}
-	unmarshalShipped(t, filepath.Join("agents", "rest", "machine.yaml"), &machine)
+	unmarshalShipped(t, filepath.Join("testdata", "conformance", "rest", "machine.yaml"), &machine)
 
 	requireTransition(t, machine.Transitions, "AwaitingPayment", "RESTResponded", "LaunchingWebhook", "launch_payment_webhooks")
 	requireTransition(t, machine.Transitions, "LaunchingWebhook", "ServerLaunched", "WaitingWebhook", "await_payment_webhook")
@@ -186,7 +186,7 @@ func TestRestShippedProfileWiring(t *testing.T) {
 		ToolDeclarations []string `yaml:"tool_declarations"`
 		RESTDefinitions  []string `yaml:"rest_definitions"`
 	}
-	unmarshalShipped(t, filepath.Join("agents", "rest", "ollama-profile.yaml"), &variant)
+	unmarshalShipped(t, filepath.Join("testdata", "conformance", "rest", "ollama-profile.yaml"), &variant)
 
 	if variant.Machine != "ollama-machine.yaml" {
 		t.Errorf("shipped rest ollama-profile machine = %q, want ollama-machine.yaml", variant.Machine)
@@ -221,7 +221,7 @@ func TestRestOllamaConformance(t *testing.T) {
 	RequireOllama(t, restOllamaModel)
 
 	result := Run(t, RunConfig{
-		Profile:   filepath.Join("agents", "rest", "ollama-profile.yaml"),
+		Profile:   filepath.Join("testdata", "conformance", "rest", "ollama-profile.yaml"),
 		Directory: t.TempDir(),
 	})
 

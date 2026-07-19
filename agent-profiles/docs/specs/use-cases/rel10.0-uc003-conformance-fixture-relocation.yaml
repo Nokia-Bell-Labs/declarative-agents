@@ -53,4 +53,4 @@ out_of_scope:
   - Changing the fixture grammar content; only the location changes.
 
 test_suite_trace: test-rel10.0-role-catalog
-status: specified
+status: implemented

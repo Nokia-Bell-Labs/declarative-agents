@@ -1,6 +1,6 @@
 # Release 03.0 REST Design Audit
 
-Issue `agent-core-g60h` audits the REST runtime package and its release evidence. Main evidence comes from `internal/tools/rest/` and `tools/builtin/rest/all.yaml`. Profile evidence lives under `agent-profiles/agents/rest/` (or `$AGENT_PROFILES_ROOT/agents/rest/` at runtime); fixture evidence lives under `testdata/integration/rel03-rest-tools/`; release status evidence lives in `docs/SPECIFICATIONS.yaml`.
+Issue `agent-core-g60h` audits the REST runtime package and its release evidence. Main evidence comes from `internal/tools/rest/` and `tools/builtin/rest/all.yaml`. Profile evidence lives under `agent-profiles/testdata/conformance/rest/` (or `$AGENT_PROFILES_ROOT/testdata/conformance/rest/` at runtime); fixture evidence lives under `testdata/integration/rel03-rest-tools/`; release status evidence lives in `docs/SPECIFICATIONS.yaml`.
 
 Method: I treated a REST behavior as supported only when a requirement, profile or config artifact, and Go test pointed to the same behavior. Partial support stays visible as follow-up work.
 
@@ -22,7 +22,7 @@ D1 passes. Implementation follows the three REST SRDs and `test-rel03.0-rest-too
 
 ### D2 YAML-First Structured Docs
 
-D2 passes. Sample YAML lives under `agent-profiles/agents/rest/`. It covers profile setup and machine grammar. It also covers tool selection, REST config, and OpenAPI input. Fixture copies live in `testdata/integration/rel03-rest-tools/`. Markdown fits this report because the output is prose review material.
+D2 passes. Sample YAML lives under `agent-profiles/testdata/conformance/rest/`. It covers profile setup and machine grammar. It also covers tool selection, REST config, and OpenAPI input. Fixture copies live in `testdata/integration/rel03-rest-tools/`. Markdown fits this report because the output is prose review material.
 
 ### D3 Traceability
 
@@ -30,11 +30,11 @@ D3 passes. `docs/SPECIFICATIONS.yaml` links release 03.0 to `test-rel03.0-rest-t
 
 ### D4 Profile-First Runtime Docs
 
-D4 passes. `$AGENT_PROFILES_ROOT/agents/rest/profile.yaml` loads REST definitions through the profile contract implemented by `internal/tools/catalog/profile.go` and used by `cmd/agent/main.go`. Tool declarations reference named REST config through `rest_ref`, `resource`, and `operation`. No REST sample describes a separate REST binary.
+D4 passes. `$AGENT_PROFILES_ROOT/testdata/conformance/rest/profile.yaml` loads REST definitions through the profile contract implemented by `internal/tools/catalog/profile.go` and used by `cmd/agent/main.go`. Tool declarations reference named REST config through `rest_ref`, `resource`, and `operation`. No REST sample describes a separate REST binary.
 
 ### D5 Tool Language Boundary
 
-D5 passes. ToolDefs in `tools/builtin/rest/all.yaml` and `$AGENT_PROFILES_ROOT/agents/rest/declarations.yaml` declare the contract metadata required by the tool language. Sequencing for the sample payment flow lives in `$AGENT_PROFILES_ROOT/agents/rest/machine.yaml`, not in Go command code. Shared REST ToolDefs can keep explicit listener effects after `agent-core-usbz.2`.
+D5 passes. ToolDefs in `tools/builtin/rest/all.yaml` and `$AGENT_PROFILES_ROOT/testdata/conformance/rest/declarations.yaml` declare the contract metadata required by the tool language. Sequencing for the sample payment flow lives in `$AGENT_PROFILES_ROOT/testdata/conformance/rest/machine.yaml`, not in Go command code. Shared REST ToolDefs can keep explicit listener effects after `agent-core-usbz.2`.
 
 ## Execution And Go Style
 
@@ -48,7 +48,7 @@ Function and file size checks pass through `mage lint`, `go vet ./...`, and `go 
 
 ### Hidden Workflow Sequencing
 
-Workflow ownership passes. Client send and await are separate words in `client_command.go` and `client_async.go`. Launch, await, and stop are separate server words in `command.go` and `server_state.go`. HTTP handlers in `server_routes.go` validate requests and enqueue events; they do not select MachineSpec actions. Sample sequencing appears in `$AGENT_PROFILES_ROOT/agents/rest/machine.yaml`.
+Workflow ownership passes. Client send and await are separate words in `client_command.go` and `client_async.go`. Launch, await, and stop are separate server words in `command.go` and `server_state.go`. HTTP handlers in `server_routes.go` validate requests and enqueue events; they do not select MachineSpec actions. Sample sequencing appears in `$AGENT_PROFILES_ROOT/testdata/conformance/rest/machine.yaml`.
 
 ### Validation And Safety
 
@@ -62,7 +62,7 @@ Server validation and redaction gaps are closed. `TestRESTServer_RejectsUndeclar
 
 Shared REST ToolDefs pass. `tools/builtin/rest/all.yaml` includes the expected boundary contract fields. `rest_server_launch` and `rest_server_stop` use `network_listen` and `network_listener_shutdown`. Those names match REST SRD language and are accepted by the contract audit after `agent-core-usbz.2`.
 
-Sample REST ToolDefs pass. `$AGENT_PROFILES_ROOT/agents/rest/declarations.yaml` loads through the normal profile path. `mage audit` validates the selected REST profile, including declared emits against `$AGENT_PROFILES_ROOT/agents/rest/machine.yaml`.
+Sample REST ToolDefs pass. `$AGENT_PROFILES_ROOT/testdata/conformance/rest/declarations.yaml` loads through the normal profile path. `mage audit` validates the selected REST profile, including declared emits against `$AGENT_PROFILES_ROOT/testdata/conformance/rest/machine.yaml`.
 
 ## Quality Gates
 

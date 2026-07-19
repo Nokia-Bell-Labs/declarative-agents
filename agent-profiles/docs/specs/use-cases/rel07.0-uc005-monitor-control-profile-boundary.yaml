@@ -20,7 +20,7 @@ trigger: |
     AGENT_CORE_ROOT=/path/to/agent-core mage integration:monitorControl
 
 preconditions:
-  - agents/monitor/profile.yaml and agents/control/profile.yaml validate.
+  - agents/monitor/profile.yaml and testdata/conformance/control/profile.yaml validate.
   - testdata/integration/rel07-monitor-control/expected/evidence.yaml defines expected boundary evidence.
   - agent-core remains responsible for rest_server_launch, rest_await_event, rest_server_stop, and exit_agent implementations.
 
