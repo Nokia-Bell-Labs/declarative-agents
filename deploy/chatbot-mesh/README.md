@@ -39,6 +39,22 @@ chatbot-mesh/
   ci/kind-values.yaml   small-footprint values for the smoke test
 ```
 
+## LLM tier
+
+The chart ships an in-cluster LLM tier (srd015 R6): an Ollama StatefulSet with a PVC for model storage, a model-preload `Job` that pulls the declared models, and a readiness gate so the chatbot waits (in an init container) until every model is present in Ollama `/api/tags` before it serves. It is enabled by default, so a fresh-cluster `helm install` is self-contained.
+
+The models are named once in `ollama.models` (the embedding model, the chat models, and the router model) and feed both the preload Job and the co-generated agent config, so a model cannot be preloaded but unrendered or gated-on but unpulled.
+
+To point at an operator-supplied Ollama instead, disable the tier and override the endpoint — the render is identical to the pre-tier external behavior and the co-generated client entries are unchanged (R2):
+
+```bash
+helm install mesh deploy/chatbot-mesh --set ollama.enabled=false --set llm.externalURL=http://my-ollama:11434
+```
+
+GPU scheduling is values-driven: set `ollama.gpu.count` and provide `ollama.nodeSelector`/`ollama.tolerations` for a GPU node pool. The `ci/kind-llm-values.yaml` smoke path runs CPU-only small models; this diverges from GPU production sizing by design (R6.4, recorded limitation). Topology defaults to a single Ollama instance serving all models (`ollama.topology: single`); `per-model` maps to the embedding-vs-chat two-service split (R6.5).
+
+Realized as chart-owned templates rather than a nested Helm subchart so the Ollama Service keeps the `<release>-chatbot-mesh-ollama` name the co-generated LLM URL depends on.
+
 ## Technology choices
 
 Profiles ride in a ConfigMap projected to nested paths through `items[].path`, because ConfigMap keys cannot contain `/`; this keeps one image and lets a values edit re-render an agent's program. Jaeger all-in-one is the trace backend for v1 because its query API is the simplest target for the observability panel's cross-agent waterfall.

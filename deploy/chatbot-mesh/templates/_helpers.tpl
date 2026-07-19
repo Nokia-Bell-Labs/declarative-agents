@@ -34,11 +34,51 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* The LLM base URL: in-cluster Ollama Service or the external endpoint. */}}
 {{- define "chatbot-mesh.llmURL" -}}
-{{- if .Values.llm.inCluster -}}
+{{- if .Values.ollama.enabled -}}
 http://{{ include "chatbot-mesh.fullname" . }}-ollama:{{ .Values.llm.port }}
 {{- else -}}
 {{ .Values.llm.externalURL }}
 {{- end -}}
+{{- end -}}
+
+{{/*
+The full list of models the LLM tier must hold: the embedding model, every chat
+model, and the router model, named once in values (GH-337). The preload Job pulls
+these and the agent readiness probe checks for them, so a model cannot be preloaded
+but unrendered or gated-on but unpulled.
+*/}}
+{{- define "chatbot-mesh.ollamaModels" -}}
+{{- $models := list .Values.ollama.models.embedding .Values.ollama.models.router -}}
+{{- range .Values.ollama.models.chat -}}
+{{- $models = append $models . -}}
+{{- end -}}
+{{- $models | uniq | join " " -}}
+{{- end -}}
+
+{{/*
+The LLM-tier readiness init container (srd015 R6.3): an agent pod blocks in Init
+until every declared model is present in the in-cluster Ollama /api/tags, so a
+missing model is a deploy-time gate rather than a runtime turn failure. Rendered
+only when the in-cluster tier is enabled; an external endpoint is the operator's to
+have ready. busybox supplies wget and grep.
+*/}}
+{{- define "chatbot-mesh.llmReadyInit" -}}
+{{- if .Values.ollama.enabled }}
+- name: wait-for-llm-models
+  image: busybox:1.36
+  command: ["/bin/sh", "-c"]
+  args:
+    - |
+      set -eu
+      url="http://{{ include "chatbot-mesh.fullname" . }}-ollama:{{ .Values.llm.port }}/api/tags"
+      for m in {{ include "chatbot-mesh.ollamaModels" . }}; do
+        base="${m%%:*}"
+        until wget -qO- "$url" 2>/dev/null | grep -q "$base"; do
+          echo "waiting for model $m at $url..."; sleep 5
+        done
+      done
+      echo "LLM tier ready: all models present"
+{{- end }}
 {{- end -}}
 
 {{/* The OTLP endpoint agents export to: the collector, else empty. */}}
@@ -61,7 +101,7 @@ per-agent runtime endpoint appears, so the read state carries no agent authority
 {{- end -}}
 {{- $view := dict
   "rags" $rags
-  "llm" (dict "inCluster" .Values.llm.inCluster "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.provisioner.params.chatModel) "embedModel" .Values.chatbot.embeddingModel)
+  "llm" (dict "inCluster" .Values.ollama.enabled "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.provisioner.params.chatModel) "embedModel" .Values.chatbot.embeddingModel)
   "params" (dict "nResults" (int .Values.provisioner.params.nResults) "chunkCap" (int .Values.provisioner.params.chunkCap) "routerDefault" .Values.provisioner.params.routerDefault)
 -}}
 {{- $view | toJson -}}
