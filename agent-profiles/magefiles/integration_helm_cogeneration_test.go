@@ -11,6 +11,71 @@ import (
 	"testing"
 )
 
+// TestChatbotFanOutCoGeneratedForNRags locks GH-372: the chatbot request-machine
+// fan-out chain and the request-fanout rag_queryN words are rendered from the
+// ragUnits list, so a values change scales the fan-out breadth with the topology.
+// A three-RAG render must carry the full Retrieving0->1->2->Composing chain, one
+// rag_queryN word per unit, and a matching compose input per source.
+func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chart := findChartDir(t)
+	args := []string{"template", "t", chart}
+	for i, name := range []string{"alpha", "bravo", "charlie"} {
+		args = append(args,
+			"--set", fmt.Sprintf("ragUnits[%d].name=%s", i, name),
+			"--set", fmt.Sprintf("ragUnits[%d].collection=c%d", i, i),
+			"--set", fmt.Sprintf("ragUnits[%d].embeddingModel=m", i),
+		)
+	}
+	out, err := exec.Command("helm", args...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	render := string(out)
+	machine := configMapKeyBlock(render, "agents__chatbot__request-machine.yaml")
+	fanout := configMapKeyBlock(render, "agents__chatbot__request-fanout.yaml")
+	if machine == "" || fanout == "" {
+		t.Fatal("co-generated request-machine.yaml or request-fanout.yaml key not found")
+	}
+
+	// The chain: each RAG state routes on to the next; the last routes to Composing.
+	wantTransitions := []string{
+		"state: Embedding,       signal: QueryEmbedded,  next: Retrieving0,   action: rag_query0",
+		"state: Retrieving0,     signal: QueryRejected,  next: Retrieving1, action: rag_query1",
+		"state: Retrieving1,     signal: CommandError,   next: Retrieving2, action: rag_query2",
+		"state: Retrieving2,     signal: QueryResponded, next: Composing, action: compose_prompt",
+	}
+	for _, tr := range wantTransitions {
+		if !strings.Contains(machine, tr) {
+			t.Errorf("co-generated machine missing transition: %s", tr)
+		}
+	}
+	if strings.Contains(machine, "Retrieving3") {
+		t.Error("co-generated machine has a Retrieving3 state for a three-RAG values set")
+	}
+	// One rag_queryN word and one compose input per unit.
+	for i := 0; i < 3; i++ {
+		if !strings.Contains(fanout, fmt.Sprintf("name: rag_query%d", i)) {
+			t.Errorf("co-generated fanout missing rag_query%d", i)
+		}
+		if !strings.Contains(fanout, fmt.Sprintf("chunks%d: $from(rag_query%d).mapped.documents", i, i)) {
+			t.Errorf("co-generated compose missing chunks%d input", i)
+		}
+		if !strings.Contains(fanout, fmt.Sprintf("[rag%d]", i)) {
+			t.Errorf("co-generated compose template missing [rag%d] header", i)
+		}
+	}
+	if strings.Contains(fanout, "name: rag_query3") {
+		t.Error("co-generated fanout has rag_query3 for a three-RAG values set")
+	}
+	// The runtime {{ chunksN }} template body must survive Helm rendering literally.
+	if !strings.Contains(fanout, "{{ chunks2 }}") {
+		t.Error("co-generated compose template did not preserve the literal {{ chunks2 }} body")
+	}
+}
+
 // TestChatbotRestCoGeneratedFromRagUnits locks srd015 R2.1: the chatbot rest.yaml
 // RAG client entries are template output derived from the ragUnits list, so a
 // drifted or hand-edited client entry is impossible by construction. It renders

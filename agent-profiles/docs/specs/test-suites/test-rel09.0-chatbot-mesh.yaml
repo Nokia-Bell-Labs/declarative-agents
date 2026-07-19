@@ -167,24 +167,33 @@ test_cases:
 
   - use_case: rel09.0-uc003-mesh-deployment
     name: Mesh hot-swap tracer on kind
-    integration_target: mage integration:meshDeploy
-    status: planned
+    integration_target: mage integration:helmSwap
+    go_test: go test ./magefiles -run TestChatbotFanOutCoGeneratedForNRags
+    status: implemented
     description: |
-      Extends Integration.HelmSmoke with the on-cluster swap paths. Repointing a
-      RAG is a Service selector change touching no agent config (satisfied by
-      construction once the clients are co-generated to Service DNS); adding a RAG
-      re-renders ConfigMaps and rolls the chatbot with a Dolt checkpoint resume.
-      The add-RAG path additionally needs the chatbot fan-out machine and the
-      compose per-source inputs co-generated for N RAGs (the fan-out is visible
-      machine guards plus compose after GH-365).
+      Integration.HelmSwap proves both tiered-swap paths on a kind cluster. The
+      chatbot fan-out is co-generated for N RAGs (GH-372): request-machine.yaml
+      renders one Retrieving state per RAG (each routing QueryResponded/CommandError/
+      QueryRejected on to the next, the last to Composing) and request-fanout.yaml
+      renders one rag_queryN word and one compose input per unit, all from the
+      ragUnits list. Repointing a rag Service selector leaves the chatbot pod
+      unchanged (R3.1); adding a RAG stands up the new unit, re-renders the
+      co-generated rest.yaml with the new client (locked by the drift test), and
+      rolls the chatbot Deployment via its checksum/profiles annotation so it
+      resumes from its Dolt checkpoint (R3.2). The target asserts the
+      infrastructure contracts (pod identity, workload existence, ConfigMap
+      breadth, rolled generation) via kubectl and helm, so it needs docker, kind,
+      helm, and kubectl but not Ollama; it skips cleanly otherwise and deletes the
+      cluster in all paths. The co-generated N-RAG profile passes --validate-config.
     inputs:
       chart: deploy/chatbot-mesh/
-      values_rag_list: [rag-a, rag-b]
-      swap_repoint: rag-a Service endpoint change
-      swap_add: rag-c values entry
+      values_rag_list: [rag0]
+      swap_repoint: rag0 Service selector change
+      swap_add: rag1 values entry
     expected:
-      repoint_touches_no_agent_config: true
-      add_rag_rollout_resumes_checkpoint: true
+      fanout_cogenerated_for_n_rags: true
+      repoint_leaves_chatbot_pod_unchanged: true
+      add_rag_rerenders_and_rolls_chatbot: true
     traces:
       - rel09.0-uc003-mesh-deployment S3
       - srd015-chatbot-deployment AC3

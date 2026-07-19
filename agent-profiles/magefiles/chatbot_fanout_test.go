@@ -95,23 +95,32 @@ func TestChatbotFanOutRoutesDegradedAndExcluded(t *testing.T) {
 
 // TestChatbotComposeReadsEachRagSource locks that compose_prompt reads each RAG's
 // documents directly (no rag_merge indirection) so a degraded/excluded source
-// renders empty rather than failing the compose.
+// renders empty rather than failing the compose. The fan-out words live in
+// request-fanout.yaml (split out in GH-372 so only that file varies with the RAG
+// count); the base declarations must carry no fan-out residue.
 func TestChatbotComposeReadsEachRagSource(t *testing.T) {
-	path := filepath.Join("..", "agents", "chatbot", "request-declarations.yaml")
-	data, err := os.ReadFile(path)
+	fanout := filepath.Join("..", "agents", "chatbot", "request-fanout.yaml")
+	data, err := os.ReadFile(fanout)
 	if err != nil {
-		t.Skipf("request-declarations.yaml not found: %v", err)
+		t.Skipf("request-fanout.yaml not found: %v", err)
 	}
 	text := string(data)
-	if strings.Contains(text, "rag_merge") {
-		t.Error("request-declarations.yaml still references rag_merge (GH-365)")
+	if strings.Contains(text, "rag_merge") || strings.Contains(text, "$from(rag_merge)") {
+		t.Error("request-fanout.yaml still references rag_merge (GH-365)")
 	}
 	for _, sel := range []string{"$from(rag_query0).mapped.documents", "$from(rag_query1).mapped.documents"} {
 		if !strings.Contains(text, sel) {
 			t.Errorf("compose_prompt does not read %s directly", sel)
 		}
 	}
-	if strings.Contains(text, "$from(rag_merge)") {
-		t.Error("compose_prompt still reads $from(rag_merge)")
+	// The base declarations must no longer carry the fan-out words.
+	base := filepath.Join("..", "agents", "chatbot", "request-declarations.yaml")
+	if bdata, err := os.ReadFile(base); err == nil {
+		if strings.Contains(string(bdata), "rag_merge") {
+			t.Error("request-declarations.yaml still references rag_merge (GH-365)")
+		}
+		if strings.Contains(string(bdata), "name: rag_query0") {
+			t.Error("request-declarations.yaml still declares the fan-out words; they moved to request-fanout.yaml (GH-372)")
+		}
 	}
 }
