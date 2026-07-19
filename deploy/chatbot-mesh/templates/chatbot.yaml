@@ -1,0 +1,94 @@
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-chatbot
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chatbot
+spec:
+  replicas: {{ .Values.chatbot.replicas }}
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: chatbot
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: chatbot
+    spec:
+      containers:
+        - name: chatbot
+          image: {{ include "chatbot-mesh.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--profile"
+            - "{{ .Values.profiles.mountPath }}/agents/chatbot/profile.yaml"
+            - "--directory"
+            - "{{ .Values.profiles.workMountPath }}"
+            {{- with include "chatbot-mesh.otlpEndpoint" . }}
+            - "--otel-otlp-endpoint"
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - {name: chat, containerPort: {{ .Values.chatbot.ports.chat }}}
+            - {name: control, containerPort: {{ .Values.chatbot.ports.control }}}
+            - {name: monitor, containerPort: {{ .Values.chatbot.ports.monitor }}}
+          readinessProbe:
+            httpGet: {path: /api/lifecycle/health, port: control}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.chatbot.resources | nindent 12 }}
+          volumeMounts:
+            - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
+            - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
+      volumes:
+        {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
+        - name: work
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-chatbot
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chatbot
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: chatbot
+  ports:
+    - {name: chat, port: {{ .Values.chatbot.ports.chat }}, targetPort: chat}
+    - {name: control, port: {{ .Values.chatbot.ports.control }}, targetPort: control}
+    - {name: monitor, port: {{ .Values.chatbot.ports.monitor }}, targetPort: monitor}
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}-chatbot
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chatbot
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-chatbot
+                port: {name: chat}
+{{- end }}

@@ -1,0 +1,85 @@
+{{- if .Values.collector.enabled }}
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-collector
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:{{ .Values.collector.otlpGRPCPort }}
+          http:
+            endpoint: 0.0.0.0:{{ .Values.collector.otlpHTTPPort }}
+    processors:
+      batch: {}
+    exporters:
+      {{- if .Values.jaeger.enabled }}
+      otlp/jaeger:
+        endpoint: {{ $fullname }}-jaeger:{{ .Values.jaeger.otlpGRPCPort }}
+        tls:
+          insecure: true
+      {{- end }}
+      debug:
+        verbosity: basic
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [{{ if .Values.jaeger.enabled }}otlp/jaeger{{ else }}debug{{ end }}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-collector
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: collector
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: collector
+    spec:
+      containers:
+        - name: collector
+          image: "{{ .Values.collector.image.repository }}:{{ .Values.collector.image.tag }}"
+          imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
+          args: ["--config=/etc/collector/config.yaml"]
+          ports:
+            - {name: otlp-grpc, containerPort: {{ .Values.collector.otlpGRPCPort }}}
+            - {name: otlp-http, containerPort: {{ .Values.collector.otlpHTTPPort }}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/collector, readOnly: true}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $fullname }}-collector
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-collector
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+  ports:
+    - {name: otlp-grpc, port: {{ .Values.collector.otlpGRPCPort }}, targetPort: otlp-grpc}
+    - {name: otlp-http, port: {{ .Values.collector.otlpHTTPPort }}, targetPort: otlp-http}
+{{- end }}

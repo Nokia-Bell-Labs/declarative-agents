@@ -1,0 +1,97 @@
+# Chatbot mesh values. The ragUnits list is the single source of truth for the RAG
+# topology: each entry renders a rag-server Deployment/Service and a Chroma
+# StatefulSet/Service, and (in GH-314) the chatbot rest.yaml RAG client entries.
+
+# The rel06.0 mounted-profile runtime image, one image across every agent role.
+image:
+  repository: ghcr.io/nokia-bell-labs/declarative-agents/agent-core
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Profiles are supplied to each agent from a ConfigMap mounted at /profiles; the
+# agent runs agent-entrypoint --profile /profiles/agents/<name>/profile.yaml.
+profiles:
+  mountPath: /profiles
+  workMountPath: /work
+
+chatbot:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+  ports:
+    chat: 18080
+    control: 18081
+    monitor: 18082
+
+# Each RAG unit is one rag-server agent paired with its own Chroma database.
+# name is a DNS label; collection is the Chroma collection it serves;
+# embeddingModel is the embedding-space identity the chatbot uses for mismatch
+# handling (srd013 R2.3, srd014 R3.3).
+ragUnits:
+  - name: rag0
+    collection: corpus
+    embeddingModel: qwen3-embedding:8b
+    replicas: 1
+  - name: rag1
+    collection: corpus2
+    embeddingModel: qwen3-embedding:8b
+    replicas: 1
+
+ragServer:
+  ports:
+    query: 18085
+    control: 18086
+    monitor: 18087
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+
+chroma:
+  image: {repository: chromadb/chroma, tag: "1.5.3", pullPolicy: IfNotPresent}
+  port: 8000
+  storage: 1Gi
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+
+# The chat and embedding LLM endpoint. Either an external URL, or an in-cluster
+# Ollama Deployment when llm.inCluster is true.
+llm:
+  inCluster: false
+  externalURL: http://ollama.default.svc.cluster.local:11434
+  inClusterImage: {repository: ollama/ollama, tag: latest, pullPolicy: IfNotPresent}
+  port: 11434
+  storage: 10Gi
+
+# Dolt checkpoint backend (agent-core srd035/srd036).
+dolt:
+  enabled: true
+  image: {repository: dolthub/dolt-sql-server, tag: latest, pullPolicy: IfNotPresent}
+  port: 3306
+  storage: 1Gi
+  rootHost: "%"
+
+# OTel collector receives OTLP from every agent (R5.1) and exports to the trace
+# backend that the observability panel queries (R5.2).
+collector:
+  enabled: true
+  image: {repository: otel/opentelemetry-collector-contrib, tag: "0.116.0", pullPolicy: IfNotPresent}
+  otlpGRPCPort: 4317
+  otlpHTTPPort: 4318
+
+jaeger:
+  enabled: true
+  image: {repository: jaegertracing/all-in-one, tag: "1.62.0", pullPolicy: IfNotPresent}
+  otlpGRPCPort: 4317
+  queryPort: 16686
+
+ingress:
+  enabled: true
+  className: ""
+  host: chatbot.local
+  annotations: {}
+
+# Validate the rendered chatbot rest.yaml before serving (R2.2). The co-generation
+# that renders it from ragUnits lands in GH-314; the init check wires here.
+validateProfiles: true

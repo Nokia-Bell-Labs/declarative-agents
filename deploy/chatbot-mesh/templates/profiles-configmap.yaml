@@ -1,0 +1,13 @@
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-profiles
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: profiles
+data:
+  {{- range $path, $_ := .Files.Glob "profiles/**" }}
+  {{ $path | trimPrefix "profiles/" | replace "/" "__" }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}

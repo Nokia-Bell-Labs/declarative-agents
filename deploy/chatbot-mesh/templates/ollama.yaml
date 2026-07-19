@@ -1,0 +1,53 @@
+{{- if .Values.llm.inCluster }}
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}-ollama
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+spec:
+  serviceName: {{ $fullname }}-ollama
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ollama
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: "{{ .Values.llm.inClusterImage.repository }}:{{ .Values.llm.inClusterImage.tag }}"
+          imagePullPolicy: {{ .Values.llm.inClusterImage.pullPolicy }}
+          ports:
+            - {name: http, containerPort: {{ .Values.llm.port }}}
+          volumeMounts:
+            - {name: models, mountPath: /root/.ollama}
+  volumeClaimTemplates:
+    - metadata:
+        name: models
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: {{ .Values.llm.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-ollama
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+  ports:
+    - {name: http, port: {{ .Values.llm.port }}, targetPort: http}
+{{- end }}
