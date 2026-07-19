@@ -44,8 +44,12 @@ type FactoryDeps struct {
 	CredentialResolver CredentialResolver
 }
 
-// BuiltinRegistrar registers builtin factories for a selected tool set.
-type BuiltinRegistrar func(*toolregistry.BuiltinRegistry, map[string]bool)
+// BuiltinRegistrar registers builtin factories for a selected tool set. The
+// request registry is passed so factories that resolve tool vocabularies (for
+// example parse_response and the $tool dispatch) bind to the request-local
+// registry rather than the host agent's, and so per-request conversations stay
+// isolated across machine_request runs.
+type BuiltinRegistrar func(*toolregistry.BuiltinRegistry, map[string]bool, *core.Registry)
 
 // ProfileMachineRequestRunnerDeps wires profile-backed machine_request runs.
 type ProfileMachineRequestRunnerDeps struct {
@@ -101,6 +105,13 @@ func (r *ProfileMachineRequestRunner) prepareConfig(cfg MachineRequest) (Machine
 	}
 	cfg.MachineSpec = &machine
 	cfg.Registry = reg
+	// Wire dynamic $tool dispatch so a request-scoped machine can route to an
+	// LLM-selected external word (for example the chatbot router picking a
+	// chat-LLM word). Verbose is false, so the action returns the resolved
+	// command directly, keeping command-state injection working on it.
+	cfg.ToolAction = toolregistry.BuildDynamicToolAction(toolregistry.DynamicToolActionDeps{
+		Registry: reg,
+	})
 	cfg.Budget = machine.BudgetSpec.ToBudget(core.Budget{MaxIterations: 10})
 	return cfg, nil
 }
@@ -150,11 +161,52 @@ func requestToolDefs(profile catalog.AgentProfile, machine core.MachineSpec) ([]
 	if err != nil {
 		return nil, fmt.Errorf("machine_config_invalid: load request tool declarations: %w", err)
 	}
-	defs, err := catalog.SelectTools(catalog.MergeToolDefs(dirDefs, fileDefs), machineActionNames(machine))
+	merged := catalog.MergeToolDefs(dirDefs, fileDefs)
+	selection := machineActionNames(machine)
+	if machineHasDynamicDispatch(machine) {
+		// A $tool transition dispatches an LLM-selected external word that may not
+		// appear as a literal transition action (for example a chat-LLM word the
+		// router picks but the machine never names directly). Include the external
+		// vocabulary so those words are selected and registered, without
+		// duplicating a word already named as a transition action.
+		seen := make(map[string]bool, len(selection))
+		for _, name := range selection {
+			seen[name] = true
+		}
+		for _, name := range dynamicDispatchVocabulary(merged) {
+			if !seen[name] {
+				seen[name] = true
+				selection = append(selection, name)
+			}
+		}
+	}
+	defs, err := catalog.SelectTools(merged, selection)
 	if err != nil {
 		return nil, fmt.Errorf("machine_config_invalid: select request tools: %w", err)
 	}
 	return defs, nil
+}
+
+// machineHasDynamicDispatch reports whether any transition dispatches via $tool.
+func machineHasDynamicDispatch(machine core.MachineSpec) bool {
+	for _, transition := range machine.Transitions {
+		if transition.Action == "$tool" {
+			return true
+		}
+	}
+	return false
+}
+
+// dynamicDispatchVocabulary returns the names of the external-visibility tool
+// defs, the vocabulary a $tool transition may dispatch.
+func dynamicDispatchVocabulary(defs []catalog.ToolDef) []string {
+	var names []string
+	for _, def := range defs {
+		if def.Visibility != "internal" {
+			names = append(names, def.Name)
+		}
+	}
+	return names
 }
 
 func (r *ProfileMachineRequestRunner) registerRequestTools(
@@ -167,7 +219,7 @@ func (r *ProfileMachineRequestRunner) registerRequestTools(
 	builtins := toolregistry.NewBuiltinRegistry()
 	selected := toolregistry.SelectedBuiltinInits(defs)
 	if r.deps.RegisterBuiltins != nil {
-		r.deps.RegisterBuiltins(builtins, selected)
+		r.deps.RegisterBuiltins(builtins, selected, reg)
 	}
 	vars := r.requestVars(profilePath, profile)
 	if err := toolregistry.RegisterUnifiedToolsForMachine(reg, builtins, vars["directory"], machine, defs, vars, r.deps.ExecBuilder); err != nil {

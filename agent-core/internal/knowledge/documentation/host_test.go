@@ -227,7 +227,7 @@ func TestMachineRequestFactoriesUseSelectedInits(t *testing.T) {
 	registerMachineRequestFactories(builtins, map[string]bool{
 		"list_resource":      true,
 		"doc_index_response": true,
-	})
+	}, core.NewRegistry())
 
 	_, ok := builtins.Resolve("list_resource")
 	require.True(t, ok)

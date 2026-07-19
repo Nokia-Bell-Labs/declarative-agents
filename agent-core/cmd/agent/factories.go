@@ -10,6 +10,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation/bench"
 	benchui "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation/bench/ui"
 	docsapi "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/knowledge/documentation"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/pipeline"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
@@ -153,8 +154,16 @@ func registerLLMFactories(st *agentState) toolregistry.FactoryRegistrar {
 
 func invokeLLMFactory(st *agentState) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		// In an isolated (request-local) state each invoke_llm word gets its own
+		// conversation, so a router word's tool call does not pollute the answer
+		// word's history. The shared conversation stays the default so host agents
+		// keep reset_history and undo coherence across their looped invoke_llm word.
+		history := st.conversation
+		if st.isolateConversations {
+			history = llm.NewConversation(nil, "", llm.ChatOptions{})
+		}
 		return toollm.NewInvokeLLMBuilder(def, toollm.InvokeLLMFactoryDeps{
-			History:    st.conversation,
+			History:    history,
 			Registry:   st.registry,
 			Tracer:     st.tracer,
 			Verbose:    st.verbose,
@@ -346,11 +355,33 @@ func profileMachineRequestRunner(st *agentState) toolrest.MachineRequestRunner {
 			"directory": st.directory,
 			"request":   st.request,
 		},
-		RegisterBuiltins: func(br *toolregistry.BuiltinRegistry, selected map[string]bool) {
-			registerBuiltinFactories(br, st, selected)
+		RegisterBuiltins: func(br *toolregistry.BuiltinRegistry, selected map[string]bool, reg *core.Registry) {
+			registerBuiltinFactories(br, requestLocalState(st, reg), selected)
 		},
 		ExecBuilder: execBuilder,
 	})
+}
+
+// requestLocalState returns a per-request agentState for machine_request tool
+// factories. It shares the host's immutable deps (tracer, verbose, ctx,
+// directories) but binds tool construction to the request's own registry and a
+// fresh conversation and parse-retry and manifest-state tracker, so
+// parse_response and $tool resolve the tool vocabulary against the request
+// registry and the request's invoke_llm words neither share history with the
+// host agent nor leak state across requests.
+func requestLocalState(host *agentState, reg *core.Registry) *agentState {
+	local := *host
+	local.registry = reg
+	local.conversation = llm.NewConversation(nil, "", llm.ChatOptions{})
+	local.isolateConversations = true
+	local.manifestState = ""
+	local.tracker = validation.NewToolTracker()
+	maxConsecutive := 0
+	if host.parseRetries != nil {
+		maxConsecutive = host.parseRetries.MaxConsecutive
+	}
+	local.parseRetries = &toollm.ParseErrorRetryTracker{MaxConsecutive: maxConsecutive}
+	return &local
 }
 
 func registerDocumentationFactories() toolregistry.FactoryRegistrar {

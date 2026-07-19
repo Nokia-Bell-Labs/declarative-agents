@@ -54,6 +54,29 @@ func TestDefaultAssembler_RendersManifest(t *testing.T) {
 	assert.Contains(t, sysContent, "Read a file from disk.")
 }
 
+func TestDefaultAssembler_SuppressManifestOmitsTools(t *testing.T) {
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{
+		Name:        "read_file",
+		Description: "Read a file from disk.",
+		InputSchema: json.RawMessage(`{"type":"object"}`),
+		Visibility:  core.External,
+	}, nil)
+
+	conv := NewConversation(nil, "", ChatOptions{})
+	asm := &DefaultAssembler{
+		Prompt:           prompt.Prompt{Role: "You answer directly."},
+		SuppressManifest: true,
+	}
+
+	msgs := asm.AssembleMessages(conv, reg, core.State("Idle"))
+	require.NotEmpty(t, msgs)
+	// The tool manifest is omitted so an answer-only word produces a final answer
+	// instead of a tool call, even though the state has external tools available.
+	assert.NotContains(t, msgs[0].Content, "read_file")
+	assert.Contains(t, msgs[0].Content, "You answer directly.")
+}
+
 func TestDefaultAssembler_AppendsConversationMessages(t *testing.T) {
 	reg := core.NewRegistry()
 	conv := NewConversation(nil, "", ChatOptions{})

@@ -13,6 +13,11 @@ import (
 type DefaultAssembler struct {
 	Prompt prompt.Prompt
 	Parser ResponseParser
+	// SuppressManifest omits the tool manifest from the system prompt so the
+	// model produces a final answer rather than a tool call. Set for an answer-only
+	// invoke_llm word that a $tool router dispatches into a state whose manifest
+	// would otherwise offer it the chat-LLM vocabulary (including itself).
+	SuppressManifest bool
 }
 
 func (a *DefaultAssembler) AssembleMessages(conv *Conversation, registry *core.Registry, state core.State) []Message {
@@ -34,7 +39,7 @@ func (a *DefaultAssembler) AssembleMessages(conv *Conversation, registry *core.R
 		Envelope:     envelope,
 		StrictFormat: strict,
 	}
-	if len(manifest) > 0 {
+	if len(manifest) > 0 && !a.SuppressManifest {
 		data.ToolManifest = prompt.SerializeManifest(manifest)
 	}
 

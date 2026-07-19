@@ -89,6 +89,11 @@ type LLMToolConfig struct {
 	// a $tool router) can read a non-adjacent composed prompt. Omitted: the user
 	// message stays the previous Result's Output.
 	UserPromptFrom  string `json:"user_prompt_from"`
+	// AnswerOnly omits the tool manifest from the prompt so the word produces a
+	// final answer rather than a tool call. Set for a chat-LLM word a $tool router
+	// dispatches, which the manifest of the state it runs in would otherwise offer
+	// the chat-LLM vocabulary (including itself).
+	AnswerOnly      bool   `json:"answer_only"`
 	NumCtx          int    `json:"num_ctx"`
 	LLMTimeout      int    `json:"llm_timeout"`
 	MaxTime         int    `json:"max_time"`
