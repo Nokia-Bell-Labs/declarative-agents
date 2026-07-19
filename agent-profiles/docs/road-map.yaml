@@ -463,6 +463,33 @@ releases:
         summary: Tracers for the coordinator's reconfiguration sequencing and the creator's instance lifecycle and checkpoint-resume restart.
         status: specified
 
+  # rel09.5 validates the completed rel09.0-09.3 mesh with an in-cluster LLM tier
+  # (a minor release, no renumbering of the deployment releases). The epic proposed
+  # rel09.1 for this, but GH-332 assigned rel09.1 to routing/fan-out; 09.5 is the
+  # next free number in the chatbot-mesh 09.x line.
+  - version: "09.5"
+    name: In-cluster LLM tier
+    description: |
+      Release 09.5 promotes Ollama from an external values-driven endpoint to a
+      first-class, chart-owned LLM tier (srd015 R6): an optional Ollama subchart,
+      enabled by default, with PVC-backed model storage, a model-preload Job, agent
+      readiness gated on model presence, and GPU scheduling values. A fresh-cluster
+      install is self-contained; setting ollama.enabled=false with an endpoint
+      override reproduces the external-endpoint behavior, and the co-generation
+      contract (R2) is unchanged either way. This is a minor release validating the
+      completed rel09.0-09.3 mesh. Epic #335.
+    status: planned
+    srds:
+      - srd015-chatbot-deployment
+    use_cases:
+      - id: rel09.5-uc001-in-cluster-llm-tier
+        summary: A fresh-cluster install with defaults answers a chat turn with zero external LLM dependency; the disabled-tier override reproduces the external endpoint, and agents are not ready until the models are pulled.
+        status: planned
+    test_suites:
+      - id: test-rel09.5-llm-tier
+        summary: Tracers for the default-install turn, the disabled-tier endpoint override, the preload-gate ordering, and the CPU-only kind smoke.
+        status: planned
+
   - version: "10.0"
     name: Reference-architecture role alignment
     description: |

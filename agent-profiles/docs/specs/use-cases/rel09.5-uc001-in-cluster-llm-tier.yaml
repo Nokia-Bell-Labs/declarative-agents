@@ -1,0 +1,75 @@
+id: rel09.5-uc001-in-cluster-llm-tier
+title: A Fresh-Cluster Install Answers a Turn With No External LLM Dependency
+
+summary: |
+  An operator installs the chatbot-mesh chart with defaults on a fresh Kubernetes
+  cluster. The in-cluster LLM tier (srd015 R6) -- an optional Ollama subchart
+  enabled by default -- deploys Ollama with PVC-backed model storage and a
+  model-preload Job that pulls the embedding model, every declared chat model, and
+  the router model before the tier reports ready. The agent pods gate their
+  readiness on those models being present, so no turn fails at runtime for a
+  missing model. Once ready, a chat turn is answered end to end with zero external
+  LLM dependency. An operator running a shared Ollama instead sets
+  ollama.enabled=false with an endpoint override, reproducing the external-endpoint
+  behavior; the co-generated client entries (R2) are identical either way.
+
+actor: An operator installing and running the mesh on a fresh cluster.
+
+trigger: |
+  The operator runs helm install with default values on a fresh cluster, or with
+  ollama.enabled=false and an endpoint override.
+
+preconditions:
+  - The chart ships the Ollama subchart enabled by default with the model names declared once in values.
+  - A CPU-only kind cluster is available for the smoke path (GPU scheduling is values-driven for production).
+  - The embedding, chat, and router model names are the same values that render the agents' client config.
+
+flow:
+  - id: F1
+    text: helm install with defaults deploys the Ollama subchart with PVC-backed model storage alongside the chatbot, RAG units, Dolt, and collector.
+  - id: F2
+    text: A model-preload Job pulls the embedding model, every declared chat model, and the router model into the PVC before the LLM tier reports ready.
+  - id: F3
+    text: The agent pods gate their readiness on the LLM tier reporting the required models present (Ollama /api/tags), so a missing model is a deploy-time gate rather than a runtime turn failure.
+  - id: F4
+    text: Once every workload is ready, a chat turn is answered end to end with zero external LLM dependency.
+  - id: F5
+    text: Setting ollama.enabled=false with an endpoint override points the embedding and chat client values at an operator-supplied service, reproducing the external-endpoint behavior; the co-generated client entries are identical.
+
+touchpoints:
+  - id: T1
+    target: srd015-chatbot-deployment AC6
+    reason: The in-cluster LLM tier, model preload, readiness gating, and enabled/external switch are specified.
+  - id: T2
+    target: srd015-chatbot-deployment AC2
+    reason: Both the in-cluster and external paths render into the same co-generated client entries (R2 unchanged).
+  - id: T3
+    target: test-rel09.5-llm-tier llm_tier
+    reason: The suite records the default-install turn, the disabled-tier override, and the preload-gate ordering.
+
+success_criteria:
+  - id: S1
+    criterion: A default helm install on a fresh cluster answers a chat turn with no external LLM dependency; the Ollama subchart is deployed with PVC model storage.
+    traces:
+      - srd015-chatbot-deployment R6.1
+  - id: S2
+    criterion: The model-preload Job pulls the embedding, chat, and router models -- named once in values -- into the PVC before the tier reports ready, and the same names render the agents' config.
+    traces:
+      - srd015-chatbot-deployment R6.2
+  - id: S3
+    criterion: Agent pods are not ready until the required models are present, so a missing model is a deploy-time gate rather than a runtime turn failure.
+    traces:
+      - srd015-chatbot-deployment R6.3
+  - id: S4
+    criterion: Setting ollama.enabled=false with an endpoint override reproduces the external-endpoint behavior with identical co-generated client entries.
+    traces:
+      - srd015-chatbot-deployment R6.1
+      - srd015-chatbot-deployment R2.1
+
+out_of_scope:
+  - GPU production sizing; the kind smoke path runs CPU-only small models and diverges from production sizing by design (R6.4).
+  - The provisioning-panel model controls, which are the rel09.5 implementation issue GH-338.
+  - The chat turn machine itself (releases 09.0/09.1) and the deployment topology (09.3).
+
+test_suite_trace: test-rel09.5-llm-tier
+status: planned

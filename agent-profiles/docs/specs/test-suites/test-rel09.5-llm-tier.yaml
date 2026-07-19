@@ -1,0 +1,78 @@
+id: test-rel09.5-llm-tier
+title: Test Suite for Release 09.5 In-Cluster LLM Tier
+release: "09.5"
+
+overview: |
+  This suite validates the in-cluster LLM tier (srd015 R6): a default helm install
+  answers a turn with no external LLM dependency, the disabled-tier override
+  reproduces the external endpoint, agent readiness is gated on model preload, and
+  the kind smoke path runs CPU-only. The cases are planned; the Ollama subchart and
+  the kind validation land with the implementation issues GH-337 and GH-338.
+
+traces:
+  - rel09.5-uc001-in-cluster-llm-tier
+
+preconditions:
+  - A CPU-only kind cluster and docker/helm/kubectl are available for the smoke path; the small models are pullable.
+  - The chart ships the Ollama subchart enabled by default with the model names declared once in values.
+
+test_cases:
+  - use_case: rel09.5-uc001-in-cluster-llm-tier
+    name: Default install answers a turn with no external LLM dependency
+    integration_target: mage integration:llmTier
+    status: planned
+    description: |
+      helm install with defaults on a kind cluster deploys the Ollama subchart with
+      PVC model storage and a model-preload Job; the test waits for the LLM tier and
+      the agents ready (readiness gated on the models present), then serves one chat
+      turn and asserts a grounded answer with no external LLM endpoint configured.
+      CPU-only small models; the smoke/production sizing divergence is a recorded
+      limitation.
+    inputs:
+      chart: deploy/chatbot-mesh/
+      values: defaults (ollama.enabled=true)
+      models: small CPU-only embedding, chat, and router models
+    expected:
+      ollama_subchart_deployed_with_pvc: true
+      preload_job_pulls_all_declared_models: true
+      turn_answered_no_external_llm: true
+    traces:
+      - rel09.5-uc001-in-cluster-llm-tier S1
+      - srd015-chatbot-deployment AC6
+
+  - use_case: rel09.5-uc001-in-cluster-llm-tier
+    name: Preload gates agent readiness
+    integration_target: mage integration:llmTier
+    status: planned
+    description: |
+      Before the model-preload Job completes, the agent pods are not ready; after
+      the models are present in Ollama /api/tags the agents become ready. The test
+      asserts the readiness ordering, so a missing model is a deploy-time gate
+      rather than a runtime turn failure.
+    inputs:
+      chart: deploy/chatbot-mesh/
+      readiness_probe: models present in /api/tags
+    expected:
+      agents_not_ready_before_preload: true
+      agents_ready_after_preload: true
+    traces:
+      - rel09.5-uc001-in-cluster-llm-tier S2
+      - rel09.5-uc001-in-cluster-llm-tier S3
+
+  - use_case: rel09.5-uc001-in-cluster-llm-tier
+    name: Disabled-tier endpoint override reproduces external behavior
+    integration_target: go test ./deploy/chatbot-mesh (helm template)
+    status: planned
+    description: |
+      With ollama.enabled=false and an endpoint override, no Ollama workload or
+      preload Job renders, and the embedding and chat client values point at the
+      operator-supplied service. A helm template diff asserts the co-generated
+      chatbot client entries are identical to the in-cluster path (R2 unchanged).
+    inputs:
+      values: ollama.enabled=false, llm.externalURL override
+    expected:
+      no_ollama_workload_rendered: true
+      client_entries_identical_to_incluster: true
+    traces:
+      - rel09.5-uc001-in-cluster-llm-tier S4
+      - srd015-chatbot-deployment AC2

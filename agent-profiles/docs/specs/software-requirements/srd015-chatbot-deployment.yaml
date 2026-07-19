@@ -37,6 +37,7 @@ goals:
   - G3: Define a tiered hot-swap model -- Service repoint, values re-render plus checkpoint-resume rollout -- and exclude in-process client-registry mutation.
   - G4: Define the provisioning surface as a config-plane deployment API, authenticated apart from the chat path, that never submits an endpoint to a running agent.
   - G5: Define the OTLP export and trace-backend wiring the observability panel queries.
+  - G6: Define an in-cluster LLM tier -- an optional Ollama subchart, enabled by default, with model preload, readiness gating, and GPU scheduling -- so a fresh-cluster install is self-contained, while an operator-supplied external endpoint remains a values switch that leaves the co-generation contract (R2) unchanged.
 
 requirements:
   R1:
@@ -70,6 +71,14 @@ requirements:
       - R5.1: Every agent SHALL export OTLP to the in-cluster OTel collector.
       - R5.2: A trace backend (for example Tempo or Jaeger) SHALL be a chart dependency that the observability panel queries for cross-agent traces.
       - R5.3: Cross-agent trace continuity SHALL rely on HTTP traceparent propagation (agent-core srd016 R4/R5); without it the observability panel v1 SHALL fall back to per-agent monitor SSE correlated by request id.
+  R6:
+    title: In-cluster LLM tier
+    items:
+      - R6.1: The chart SHALL include an optional Ollama subchart, enabled by default, that deploys Ollama in-cluster with PVC-backed model storage; when disabled (ollama.enabled=false) the embedding and chat endpoint values SHALL point at an operator-supplied service. Both paths SHALL render into the same co-generated client entries, so R2 is unchanged either way.
+      - R6.2: A model-preload Job (or init container) SHALL pull the embedding model, every declared chat model, and the router model into the PVC before the tier reports ready; the model names SHALL be declared once in values and flow to both the preload and the agents' rendered config, so a model cannot be preloaded but unrendered or vice versa.
+      - R6.3: Agent pods SHALL gate their readiness on the LLM tier reporting the required models present (Ollama /api/tags), so a missing model is a deploy-time gate rather than a runtime turn failure.
+      - R6.4: GPU scheduling (nodeSelector, tolerations, resource requests/limits) SHALL be values; a CPU-only deployment SHALL be permitted for the kind smoke path.
+      - R6.5: The single-instance-vs-per-model topology SHALL be a values decision; the default SHALL be a single Ollama instance serving all models, with per-model instances mapping to the two-logical-services (embedding vs chat) split when set. The choice and its rationale SHALL be recorded.
 
 non_goals:
   - Define Go package APIs for agent-core runtime, the checkpoint port, or the monitor.
@@ -77,6 +86,7 @@ non_goals:
   - Feeding runtime endpoints to agents from the provisioning surface (R4.2).
   - Owning the SPA panel content; the provisioning and observability panels are their own issues.
   - Replacing the rel06.0 mounted-profile image contract or building per-role images.
+  - Matching GPU production sizing on the kind smoke path; the smoke path runs CPU-only small models and diverges from production sizing by design (R6.4).
 
 acceptance_criteria:
   - id: AC1
@@ -94,6 +104,9 @@ acceptance_criteria:
   - id: AC5
     criterion: The observability wiring is specified with OTLP export, a trace-backend chart dependency the panel queries, and the traceparent-or-SSE fallback for cross-agent continuity.
     traces: [R5.1, R5.2, R5.3]
+  - id: AC6
+    criterion: The in-cluster LLM tier is specified -- an optional Ollama subchart enabled by default with PVC model storage and an enabled/external switch that leaves R2 unchanged, a model-preload Job pulling the embedding, chat, and router models named once in values, agent readiness gated on model presence, GPU scheduling as values with a CPU-only path, and a recorded single-instance default topology.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
 
 depends_on:
   # The provisioning surface (R4) is fronted by the mesh control plane: the
@@ -131,6 +144,7 @@ implementation_status:
     - Provisioning deployment API and panel (R4.1, R4.2, R4.3, GH-315): a minimal in-cluster values-patch service (deploy/chatbot-mesh/provisioner, standard-library Go, no agent-core dependency) is the deployment API the panel drives. It serves the mesh view read from a chart-projected mesh-state ConfigMap, and on apply it validates a values-plane patch (DisallowUnknownFields, so a payload cannot smuggle a per-agent endpoint, R4.2) and renders it as a helm upgrade that re-renders the co-generated topology and rolls the chatbot. Bearer-token auth from a Secret separate from the chat path; the read token works with read-only RBAC, the apply token gates POST. The chart ships its ServiceAccount and namespace-scoped Role/RoleBinding, and the chatbot ingress routes /provisioning to it same-origin so the panel's apply avoids the GET-only monitor_proxy and no call crosses origin (the deployment-plane counterpart of agent-core srd028 V30, R4.3). The chatbot rest.yaml declares no provisioning server binding, so no agent endpoint receives a provisioning payload. Integration.Provisioning drives the built binary over HTTP end to end (read the mesh, reject an apply from the read token, render the add-RAG helm upgrade, report rollout) with helm/kubectl stubbed; the service unit tests cover auth and validation.
   planned:
     - Grounded on-cluster hot-swap turn (R3.2 live): Integration.HelmSwap asserts the infrastructure swap contracts without Ollama; a live turn citing a newly added corpus after a rollout pairs with a Docker+Ollama host run of the mesh. The provisioner image build (helm baked in) and its on-cluster apply pair with that host run. Cross-agent trace continuity in the observability panel v2 (R5.3), GH-312.
+    - In-cluster LLM tier (R6, epic GH-335): an optional Ollama subchart enabled by default with PVC model storage, a model-preload Job pulling the embedding, chat, and router models named once in values, agent readiness gated on model presence (/api/tags), GPU scheduling as values with a CPU-only kind path, and a single-instance default topology. When ollama.enabled=false the endpoint values point at an operator-supplied service, reproducing today's external-endpoint behavior; the co-generation contract (R2) is unchanged either way. Validated by the rel09.5 release (GH-336 docs, GH-337 subchart, GH-338 kind validation + provisioning model controls). Today the chart deploys a single-container Ollama Deployment with no preload or readiness gate.
 
 diagrams:
   deployment: |
@@ -139,7 +153,9 @@ diagrams:
       Ingress["Ingress"] --> Chatbot["Chatbot agent (UX + turn machine)"]
       Chatbot -->|vector-in query| RAG1["RAG agent 1 + Chroma 1"]
       Chatbot -->|vector-in query| RAGn["RAG agent N + Chroma N"]
-      Chatbot -->|invoke_llm| LLM["Chat LLM (in-cluster or external)"]
+      Chatbot -->|invoke_llm / embed| LLM["LLM tier: Ollama subchart (default) or external endpoint"]
+      Preload["Model-preload Job"] -->|pull models to PVC| LLM
+      LLM -.->|/api/tags readiness gate| Chatbot
       Chatbot -->|checkpoint/resume| Dolt["Dolt backend"]
       Chatbot -->|OTLP| Collector["OTel collector"]
       RAG1 -->|OTLP| Collector
