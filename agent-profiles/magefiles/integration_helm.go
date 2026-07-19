@@ -560,3 +560,172 @@ func kubectlConfigMapKey(name, key string) (string, error) {
 	}
 	return string(out), nil
 }
+
+const (
+	helmLLMRelease = "llm"
+	helmLLMCluster = "chatbot-mesh-llm"
+
+	helmLLMChatURL   = "http://127.0.0.1:18080/api/v1/chat"
+	helmLLMHealthURL = "http://127.0.0.1:18081/api/lifecycle/health"
+	helmLLMTagsURL   = "http://127.0.0.1:11434/api/tags"
+
+	// Model pulls run on CPU inside kind; --wait blocks on the preload Job and the
+	// chatbot's wait-for-llm-models init container, so the install itself carries the
+	// long timeout and the post-assertions are quick confirmations.
+	helmLLMInstallTimeout = 20 * time.Minute
+	helmLLMReadyTimeout   = 3 * time.Minute
+)
+
+// helmLLMModels are the CPU-only small models the kind LLM-tier values pull; the
+// assertion confirms /api/tags reports each one after preload.
+var helmLLMModels = []string{"all-minilm", "qwen2.5:0.5b"}
+
+// HelmLLMTier deploys the chart with the in-cluster LLM tier enabled on a kind
+// cluster and proves the tier stands up: the Ollama StatefulSet becomes ready, the
+// preload Job pulls the configured models once, /api/tags reports them, and the
+// chatbot serves a turn wired to the in-cluster endpoint (srd015 R6, rel09.5
+// uc001). CPU-only small models keep it runnable without a GPU, a recorded
+// divergence from GPU production sizing (R6.4). It gates on docker, kind, helm, and
+// kubectl, recording a skip for each missing dependency; unlike helmSmoke it needs
+// no external Ollama because the tier under test is the in-cluster one. Teardown
+// (kind delete) runs in all paths.
+func (Integration) HelmLLMTier() error {
+	profilesRoot, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	repoRoot := filepath.Dir(profilesRoot)
+	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(repoRoot, "agent-core"))
+	chartDir := filepath.Join(repoRoot, "deploy", "chatbot-mesh")
+	if _, err := os.Stat(filepath.Join(chartDir, "Chart.yaml")); err != nil {
+		return fmt.Errorf("chatbot-mesh chart not found at %s: %w", chartDir, err)
+	}
+	for _, bin := range []string{"docker", "kind", "helm", "kubectl"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			fmt.Printf("SKIP helmLLMTier: %s not found on PATH\n", bin)
+			return nil
+		}
+	}
+	if !agentCoreCheckoutAvailable(coreRoot) {
+		fmt.Printf("SKIP helmLLMTier: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
+		return nil
+	}
+	return runHelmLLMTier(coreRoot, profilesRoot, chartDir)
+}
+
+func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
+	fmt.Printf("helmLLMTier: building runtime image %s\n", helmImage)
+	if err := buildSmokeRuntimeImage(coreRoot, helmImage); err != nil {
+		return err
+	}
+	stagedChart, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
+	if err != nil {
+		return err
+	}
+	defer cleanupChart()
+
+	if err := kindCreateCluster(helmLLMCluster); err != nil {
+		return err
+	}
+	defer kindDeleteCluster(helmLLMCluster)
+	if err := kindLoadImage(helmLLMCluster, helmImage); err != nil {
+		return err
+	}
+	if err := helmInstallLLM(stagedChart); err != nil {
+		return err
+	}
+
+	// --wait already blocked on these, but assert them directly so a regression in
+	// the preload Job or readiness gate reads as a tier failure, not a chat failure.
+	if err := kubectlRolloutStatus("statefulset", helmLLMRelease+"-chatbot-mesh-ollama", helmLLMReadyTimeout); err != nil {
+		return fmt.Errorf("ollama StatefulSet did not become ready: %w", err)
+	}
+	if err := waitJobComplete(helmLLMRelease+"-chatbot-mesh-ollama-preload", helmLLMReadyTimeout); err != nil {
+		return fmt.Errorf("ollama preload Job did not complete: %w", err)
+	}
+
+	stopTags, err := kubectlPortForward("svc/"+helmLLMRelease+"-chatbot-mesh-ollama", 11434)
+	if err != nil {
+		return err
+	}
+	if err := assertLLMModelsLoaded(helmLLMTagsURL, helmLLMModels, helmLLMReadyTimeout); err != nil {
+		stopTags()
+		return err
+	}
+	stopTags()
+
+	stop, err := kubectlPortForward("svc/"+helmLLMRelease+"-chatbot-mesh-chatbot", 18080, 18081)
+	if err != nil {
+		return err
+	}
+	defer stop()
+	if err := waitHTTPStatus(helmLLMHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
+		return fmt.Errorf("chatbot control health not ready: %w", err)
+	}
+	if err := assertSmokeChatServed(helmLLMChatURL); err != nil {
+		return fmt.Errorf("chatbot did not serve a turn against the in-cluster LLM: %w", err)
+	}
+
+	fmt.Println("integration:helmLLMTier PASS - the chart stood up the in-cluster Ollama tier, the preload Job pulled the configured models, /api/tags reported them, and the chatbot served a turn against the in-cluster endpoint")
+	return nil
+}
+
+func helmInstallLLM(chartPath string) error {
+	repo, tag := splitImageRef(helmImage)
+	cmd := exec.Command("helm", "install", helmLLMRelease, chartPath,
+		"--values", filepath.Join(chartPath, "ci", "kind-llm-values.yaml"),
+		"--set", "image.repository="+repo,
+		"--set", "image.tag="+tag,
+		"--set", "image.pullPolicy=Never",
+		"--wait", "--timeout", helmLLMInstallTimeout.String(),
+	)
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("helm install %s: %w", helmLLMRelease, err)
+	}
+	return nil
+}
+
+func kubectlRolloutStatus(kind, name string, timeout time.Duration) error {
+	cmd := exec.Command("kubectl", "rollout", "status", kind+"/"+name, "--timeout", timeout.String())
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	return cmd.Run()
+}
+
+func waitJobComplete(name string, timeout time.Duration) error {
+	cmd := exec.Command("kubectl", "wait", "--for=condition=complete", "job/"+name, "--timeout", timeout.String())
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	return cmd.Run()
+}
+
+// assertLLMModelsLoaded polls Ollama's /api/tags until every configured model is
+// reported, so the preload contract (models present before the agents query) is
+// checked directly rather than inferred from readiness.
+func assertLLMModelsLoaded(tagsURL string, models []string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		data, status, err := requestHTTP(http.MethodGet, tagsURL, "")
+		if err != nil {
+			lastErr = err
+		} else if status != http.StatusOK {
+			lastErr = fmt.Errorf("ollama /api/tags status %d", status)
+		} else {
+			body := string(data)
+			missing := ""
+			for _, m := range models {
+				if !strings.Contains(body, m) {
+					missing = m
+					break
+				}
+			}
+			if missing == "" {
+				fmt.Printf("helmLLMTier: /api/tags reports all configured models: %s\n", strings.Join(models, ", "))
+				return nil
+			}
+			lastErr = fmt.Errorf("ollama /api/tags missing model %q: %s", missing, strings.TrimSpace(body))
+		}
+		time.Sleep(3 * time.Second)
+	}
+	return lastErr
+}

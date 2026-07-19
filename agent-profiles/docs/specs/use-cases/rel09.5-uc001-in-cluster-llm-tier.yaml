@@ -68,8 +68,7 @@ success_criteria:
 
 out_of_scope:
   - GPU production sizing; the kind smoke path runs CPU-only small models and diverges from production sizing by design (R6.4).
-  - The provisioning-panel model controls, which are the rel09.5 implementation issue GH-338.
   - The chat turn machine itself (releases 09.0/09.1) and the deployment topology (09.3).
 
 test_suite_trace: test-rel09.5-llm-tier
-status: planned
+status: implemented

@@ -34,14 +34,20 @@ type RagView struct {
 	Status         string `json:"status,omitempty"`
 }
 
-// LLMView is the chat/embedding LLM endpoint: an external URL or an in-cluster
-// Ollama. These are deployment values rendered into config, not submitted to a
-// running agent.
+// LLMView is the chat/embedding LLM endpoint: an external URL or the in-cluster
+// Ollama tier (srd015 R6). When in-cluster, the model set -- the embedding model,
+// the chat models, and the router model -- and the topology are the values the
+// preload Job and the agents' config share. These are deployment values rendered
+// into config, not submitted to a running agent.
 type LLMView struct {
-	InCluster   bool   `json:"inCluster"`
-	ExternalURL string `json:"externalURL"`
-	ChatModel   string `json:"chatModel"`
-	EmbedModel  string `json:"embedModel"`
+	InCluster   bool     `json:"inCluster"`
+	ExternalURL string   `json:"externalURL"`
+	EmbedModel  string   `json:"embedModel"`
+	ChatModels  []string `json:"chatModels"`
+	RouterModel string   `json:"routerModel"`
+	Topology    string   `json:"topology,omitempty"`
+	// ChatModel is the first chat model, kept for the panel's single-model summary.
+	ChatModel string `json:"chatModel,omitempty"`
 }
 
 // ParamsView groups the interesting parameters (srd015 parameter grouping): the
@@ -83,6 +89,14 @@ func (m MeshView) Validate() error {
 	if !m.LLM.InCluster && strings.TrimSpace(m.LLM.ExternalURL) == "" {
 		return fmt.Errorf("llm: an external URL is required when not in-cluster")
 	}
+	if m.LLM.InCluster {
+		if strings.TrimSpace(m.LLM.EmbedModel) == "" || strings.TrimSpace(m.LLM.RouterModel) == "" || len(m.LLM.ChatModels) == 0 {
+			return fmt.Errorf("llm: the in-cluster tier requires an embedding model, a router model, and at least one chat model")
+		}
+		if m.LLM.Topology != "" && m.LLM.Topology != "single" && m.LLM.Topology != "per-model" {
+			return fmt.Errorf("llm.topology %q must be single or per-model", m.LLM.Topology)
+		}
+	}
 	if m.Params.NResults <= 0 {
 		return fmt.Errorf("params.nResults must be > 0")
 	}
@@ -110,5 +124,20 @@ func (m MeshView) HelmSetArgs() []string {
 		fmt.Sprintf("llm.externalURL=%s", m.LLM.ExternalURL),
 		fmt.Sprintf("chatbot.embeddingModel=%s", m.LLM.EmbedModel),
 	)
+	if m.LLM.InCluster {
+		// The models named once flow to both the preload Job and the agents' config
+		// (srd015 R6.2), so a values-patch that changes the chat models re-renders
+		// the tier and the config together.
+		args = append(args,
+			fmt.Sprintf("ollama.models.embedding=%s", m.LLM.EmbedModel),
+			fmt.Sprintf("ollama.models.router=%s", m.LLM.RouterModel),
+		)
+		for i, model := range m.LLM.ChatModels {
+			args = append(args, fmt.Sprintf("ollama.models.chat[%d]=%s", i, model))
+		}
+		if m.LLM.Topology != "" {
+			args = append(args, fmt.Sprintf("ollama.topology=%s", m.LLM.Topology))
+		}
+	}
 	return args
 }

@@ -131,7 +131,10 @@ spec:
           args:
             - |
               set -eu
-              until wget -qO- "$OLLAMA_HOST/api/tags" >/dev/null 2>&1; do
+              # The ollama image ships neither wget nor curl, so reachability is
+              # probed with the ollama CLI itself (it honors OLLAMA_HOST), not an
+              # HTTP client that is absent from the image.
+              until ollama list >/dev/null 2>&1; do
                 echo "waiting for ollama at $OLLAMA_HOST..."; sleep 3
               done
               for m in {{ include "chatbot-mesh.ollamaModels" . }}; do

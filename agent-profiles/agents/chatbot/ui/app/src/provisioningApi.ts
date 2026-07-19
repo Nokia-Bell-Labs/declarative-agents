@@ -25,6 +25,9 @@ export interface LLMView {
   externalURL: string;
   chatModel: string;
   embedModel: string;
+  chatModels?: string[];
+  routerModel?: string;
+  topology?: string;
 }
 
 export interface ParamsView {
@@ -102,6 +105,14 @@ export function diffMesh(current: MeshView, draft: MeshView): string[] {
   }
   if (current.llm.externalURL !== draft.llm.externalURL || current.llm.inCluster !== draft.llm.inCluster) {
     lines.push(`LLM endpoint ${current.llm.externalURL || "in-cluster"}→${draft.llm.externalURL || "in-cluster"}`);
+  }
+  const curChat = (current.llm.chatModels ?? []).join(",");
+  const nextChat = (draft.llm.chatModels ?? []).join(",");
+  if (curChat !== nextChat) {
+    lines.push(`LLM chat models ${curChat || "—"}→${nextChat || "—"}`);
+  }
+  if ((current.llm.routerModel ?? "") !== (draft.llm.routerModel ?? "")) {
+    lines.push(`LLM router model ${current.llm.routerModel || "—"}→${draft.llm.routerModel || "—"}`);
   }
   if (current.params.nResults !== draft.params.nResults) {
     lines.push(`params.nResults ${current.params.nResults}→${draft.params.nResults}`);

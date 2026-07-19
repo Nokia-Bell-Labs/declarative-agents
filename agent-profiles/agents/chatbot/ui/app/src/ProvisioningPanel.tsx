@@ -99,6 +99,52 @@ export default function ProvisioningPanel() {
             </label>
           </section>
 
+          {draft.llm.inCluster && (
+            <section className="prov-section prov-llm-tier">
+              <h3>In-cluster LLM tier</h3>
+              <p className="prov-note">
+                {draft.llm.topology === "per-model" ? "one Ollama per model" : "single Ollama"}, preloaded once — the
+                models named here flow to both the preload Job and the agents' config.
+              </p>
+              <label className="prov-field">
+                <span>embedding model</span>
+                <input
+                  value={draft.llm.embedModel}
+                  onChange={(e) =>
+                    setDraft({ ...draft, llm: { ...draft.llm, embedModel: e.target.value } })
+                  }
+                />
+              </label>
+              <label className="prov-field">
+                <span>router model</span>
+                <input
+                  value={draft.llm.routerModel ?? ""}
+                  onChange={(e) =>
+                    setDraft({ ...draft, llm: { ...draft.llm, routerModel: e.target.value } })
+                  }
+                />
+              </label>
+              <label className="prov-field">
+                <span>chat models</span>
+                <input
+                  value={(draft.llm.chatModels ?? []).join(", ")}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      llm: {
+                        ...draft.llm,
+                        chatModels: e.target.value
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean),
+                      },
+                    })
+                  }
+                />
+              </label>
+            </section>
+          )}
+
           <section className="prov-section">
             <h3>Parameters</h3>
             <label className="prov-field">
