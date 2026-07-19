@@ -17,8 +17,8 @@ import (
 
 const (
 	chromaCorpusFixture = "testdata/integration/rel08-chroma-corpus"
-	chromaIngestProfile = "agents/chroma/ingest/profile.yaml"
-	chromaReaderProfile = "agents/chroma/reader/profile.yaml"
+	chromaIngestProfile = "agents/knowledge-manager/corpus-ingest/profile.yaml"
+	chromaReaderProfile = "agents/knowledge-manager/corpus-reader/profile.yaml"
 
 	chromaImage = "chromadb/chroma:1.5.3"
 
@@ -55,7 +55,7 @@ func (Integration) Chroma() error {
 }
 
 func requireChromaProfiles(profilesRoot string) error {
-	return requireProfilePaths(profilesRoot, chromaIngestProfile, chromaReaderProfile, "agents/chroma/rest.yaml")
+	return requireProfilePaths(profilesRoot, chromaIngestProfile, chromaReaderProfile, "agents/knowledge-manager/corpus-rest.yaml")
 }
 
 // chromaOllamaSkipReason returns a non-empty reason when Ollama is unreachable,
@@ -93,7 +93,7 @@ func chromaRequiredModels(profilesRoot string) ([]string, error) {
 		return nil, err
 	}
 	set[embed] = true
-	for _, profile := range []string{"ingest", "reader"} {
+	for _, profile := range []string{"corpus-ingest", "corpus-reader"} {
 		chat, err := chromaChatModelFromConfig(profilesRoot, profile)
 		if err != nil {
 			return nil, err
@@ -109,7 +109,7 @@ func chromaRequiredModels(profilesRoot string) ([]string, error) {
 }
 
 // chromaEmbedModelFromConfig reads the embedding model from the ollama embed
-// operation in agents/chroma/rest.yaml.
+// operation in agents/knowledge-manager/corpus-rest.yaml.
 func chromaEmbedModelFromConfig(profilesRoot string) (string, error) {
 	var cfg struct {
 		Rest struct {
@@ -122,7 +122,7 @@ func chromaEmbedModelFromConfig(profilesRoot string) (string, error) {
 			} `yaml:"clients"`
 		} `yaml:"rest"`
 	}
-	path := filepath.Join(profilesRoot, "agents", "chroma", "rest.yaml")
+	path := filepath.Join(profilesRoot, "agents", "knowledge-manager", "corpus-rest.yaml")
 	if err := readIntegrationYAML(path, "chroma rest asset", &cfg); err != nil {
 		return "", err
 	}
@@ -144,7 +144,7 @@ func chromaChatModelFromConfig(profilesRoot, profile string) (string, error) {
 			} `yaml:"config"`
 		} `yaml:"tools"`
 	}
-	path := filepath.Join(profilesRoot, "agents", "chroma", profile, "declarations.yaml")
+	path := filepath.Join(profilesRoot, "agents", "knowledge-manager", profile, "declarations.yaml")
 	if err := readIntegrationYAML(path, "chroma declarations", &cfg); err != nil {
 		return "", err
 	}
@@ -276,7 +276,7 @@ func runChromaIngest(binary, profilesRoot, coreRoot string) error {
 }
 
 func runChromaReader(binary, profilesRoot, coreRoot string) error {
-	workspace, err := os.MkdirTemp("", "agent-profiles-chroma-reader-*")
+	workspace, err := os.MkdirTemp("", "agent-profiles-corpus-reader-*")
 	if err != nil {
 		return fmt.Errorf("create reader workspace: %w", err)
 	}

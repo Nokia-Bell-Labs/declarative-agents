@@ -1,8 +1,9 @@
-name: chroma-reader
+name: corpus-ingest
 machine: machine.yaml
 tools:
   - tools.yaml
 tool_declarations:
+  - /opt/agent-core/tools/builtin/llm/all.yaml
   - declarations.yaml
 rest_definitions:
-  - ../rest.yaml
+  - ../corpus-rest.yaml

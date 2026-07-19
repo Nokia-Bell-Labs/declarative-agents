@@ -50,14 +50,14 @@ test_cases:
     name: Corpus ingest and reader under knowledge-manager pass Integration.Chroma
     integration_target: mage integration:chroma
     go_test: go test ./conformance -run TestKnowledgeManager
-    status: specified
+    status: implemented
     description: |
       After the move, agents/knowledge-manager hosts corpus-ingest and
       corpus-reader and agents/chroma is removed. The case validates Integration.Chroma
       from the new paths, the knowledge-manager conformance test, and a zero-hit
       grep for agents/chroma.
     inputs:
-      moved_profiles: [agents/chroma/ingest->agents/knowledge-manager/corpus-ingest, agents/chroma/reader->agents/knowledge-manager/corpus-reader]
+      moved_profiles: [agents/knowledge-manager/corpus-ingest->agents/knowledge-manager/corpus-ingest, agents/knowledge-manager/corpus-reader->agents/knowledge-manager/corpus-reader]
     expected:
       knowledge_manager_hosts_corpus_profiles: true
       agents_chroma_removed: true

@@ -46,9 +46,9 @@ test_cases:
       thread the agent-supplied vector and carried document and id into the add
       body. The added count is verified with chroma_count.
     inputs:
-      ingest_profile: agents/chroma/ingest/profile.yaml
-      chroma_rest: agents/chroma/rest/chroma.yaml
-      ollama_rest: agents/chroma/rest/ollama.yaml
+      ingest_profile: agents/knowledge-manager/corpus-ingest/profile.yaml
+      chroma_rest: agents/knowledge-manager/corpus-rest.yaml
+      ollama_rest: agents/knowledge-manager/corpus-rest.yaml
       corpus_fixture: testdata/integration/rel08-chroma-corpus/corpus/
       embedding_model: configured Ollama embedding model
     expected:
@@ -77,9 +77,9 @@ test_cases:
       retrieve the configured number of nearest chunks, and those chunks ground
       the model answer. No model authors a raw embedding vector.
     inputs:
-      reader_profile: agents/chroma/reader/profile.yaml
-      chroma_rest: agents/chroma/rest/chroma.yaml
-      ollama_rest: agents/chroma/rest/ollama.yaml
+      reader_profile: agents/knowledge-manager/corpus-reader/profile.yaml
+      chroma_rest: agents/knowledge-manager/corpus-rest.yaml
+      ollama_rest: agents/knowledge-manager/corpus-rest.yaml
       request_question: fixture question string
       result_count: configured nearest-chunk count
     expected:

@@ -25,7 +25,7 @@ trigger: |
 preconditions:
   - A Chroma server is running against a persistence directory (chroma run --path <dir>), started by the harness or operator, not the agent.
   - An Ollama server is reachable and has the configured embedding model pulled.
-  - agents/chroma/ingest profile validates and owns the Chroma and Ollama REST definitions and the corpus selection.
+  - agents/knowledge-manager/corpus-ingest profile validates and owns the Chroma and Ollama REST definitions and the corpus selection.
 
 flow:
   - id: F1

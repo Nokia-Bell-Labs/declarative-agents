@@ -34,7 +34,7 @@ spec:
           # reads these from the environment.
           args:
             - "--profile"
-            - "{{ $root.Values.profiles.mountPath }}/agents/chroma/rag-server/profile.yaml"
+            - "{{ $root.Values.profiles.mountPath }}/agents/knowledge-manager/rag-server/profile.yaml"
             - "--directory"
             - "{{ $root.Values.profiles.workMountPath }}"
             {{- with include "chatbot-mesh.otlpEndpoint" $root }}

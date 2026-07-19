@@ -3,8 +3,8 @@ title: Chroma Profiles Rescoped Under Knowledge Management as Corpus Ingest and 
 
 summary: |
   A maintainer moves the chroma profile family, named after a vendor database, to
-  its reference role under Knowledge Management: agents/chroma/ingest becomes
-  agents/knowledge-manager/corpus-ingest and agents/chroma/reader becomes
+  its reference role under Knowledge Management: agents/knowledge-manager/corpus-ingest becomes
+  agents/knowledge-manager/corpus-ingest and agents/knowledge-manager/corpus-reader becomes
   agents/knowledge-manager/corpus-reader (the rag-server stays a RAG boundary but
   moves with the family per the migration issue). The move covers the profile
   directories, the profile/machine ids, the shared chroma REST assets, the
@@ -24,7 +24,7 @@ preconditions:
 
 flow:
   - id: F1
-    text: agents/chroma/ingest and agents/chroma/reader move to agents/knowledge-manager/corpus-ingest and corpus-reader, with the profile and machine ids renamed to match.
+    text: agents/knowledge-manager/corpus-ingest and agents/knowledge-manager/corpus-reader move to agents/knowledge-manager/corpus-ingest and corpus-reader, with the profile and machine ids renamed to match.
   - id: F2
     text: The shared chroma REST assets move with the family and the profiles' relative references are updated; agents/chroma is removed.
   - id: F3
@@ -53,4 +53,4 @@ out_of_scope:
   - Changing the Chroma REST word behavior; only the profile family location changes.
 
 test_suite_trace: test-rel10.0-role-catalog
-status: specified
+status: implemented

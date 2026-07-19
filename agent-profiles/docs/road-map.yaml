@@ -490,10 +490,10 @@ releases:
         status: implemented
       - id: rel10.0-uc002-knowledge-family-rescope
         summary: The vendor-named chroma family moves under knowledge-manager as corpus-ingest and corpus-reader.
-        status: specified
+        status: implemented
       - id: rel10.0-uc003-conformance-fixture-relocation
         summary: The rest, control, and lifecycle conformance fixtures move to testdata/conformance so agents/ lists only role families.
-        status: specified
+        status: implemented
     test_suites:
       - id: test-rel10.0-role-catalog
         summary: Cases validating the critic/executor renames, the chroma rescope, and the conformance-fixture relocation with mage validate, mage conformance, go test, and zero-hit greps.

@@ -9,7 +9,7 @@ before `helm package`/`helm install`:
 
 ```
 agent-profiles/agents/chatbot/            -> profiles/agents/chatbot/
-agent-profiles/agents/chroma/rag-server/  -> profiles/agents/chroma/rag-server/
+agent-profiles/agents/knowledge-manager/rag-server/  -> profiles/agents/knowledge-manager/rag-server/
 ```
 
 The chatbot `rest.yaml`, `ui/ux.yaml`, `request-machine.yaml`, and

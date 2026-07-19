@@ -496,7 +496,7 @@ func seedChromaCorpus2(embedModel string) error {
 // (corpus -> corpus2), so rag1 serves the disjoint corpus without a second
 // committed profile. It returns the variant profile path and a cleanup.
 func generateRag1Variant(profilesRoot string) (string, func(), error) {
-	srcDir := filepath.Join(profilesRoot, "agents", "chroma", "rag-server")
+	srcDir := filepath.Join(profilesRoot, "agents", "knowledge-manager", "rag-server")
 	dstDir, err := os.MkdirTemp("", "agent-profiles-rag1-*")
 	if err != nil {
 		return "", nil, fmt.Errorf("create rag1 variant dir: %w", err)
