@@ -188,6 +188,24 @@ rest:
                   body:
                     error: command_error
                     message: $.message
+        monitor_proxy:
+          method: GET
+          path: /monitor-proxy/{agent}/{path...}
+          binding: monitor_proxy
+          # Same-origin reverse proxy so the SPA reads every mesh agent's monitor
+          # state and SSE stream through this server (agent-core monitor_proxy,
+          # GH-358). The upstreams are the monitored-agents surface srd015
+          # co-generates; keep them in sync with ui/ux.yaml monitored_agents and
+          # the SPA agent list in ui/app/src/monitorApi.ts.
+          monitor_proxy:
+            upstreams:
+              chatbot: http://127.0.0.1:18082
+              rag0: http://127.0.0.1:18087
+              rag1: http://127.0.0.1:18097
+          request:
+            path:
+              agent: {type: string}
+              path: {type: string}
         ui:
           method: GET
           path: /ui/{path...}
