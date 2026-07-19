@@ -26,7 +26,7 @@ trigger: |
 preconditions:
   - A Chroma server is running with a collection already ingested by rel08.0-uc001-corpus-ingest.
   - An Ollama server is reachable and has the configured embedding model and the answer model available.
-  - agents/chroma/reader profile validates and owns the Chroma and Ollama REST definitions and the reader prompt.
+  - agents/knowledge-manager/corpus-reader profile validates and owns the Chroma and Ollama REST definitions and the reader prompt.
 
 flow:
   - id: F1

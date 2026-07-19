@@ -1,4 +1,4 @@
-name: chroma-reader
+name: corpus-reader
 purpose: |-
   The Chroma reader profile answers a question grounded in chunks retrieved from
   a local Chroma collection. It checks the Chroma and Ollama servers, embeds the
@@ -14,7 +14,7 @@ purpose: |-
   the collection id and carries the query vector forward so chroma_query can
   thread both.
 invariants:
-  - REST authority lives in agents/chroma/rest.yaml.
+  - REST authority lives in agents/knowledge-manager/corpus-rest.yaml.
   - MachineSpec owns sequencing between the embed, Chroma, and invoke_llm words.
   - No embedding vector is authored by a model; the query vector threads between words.
   - The Chroma and Ollama servers are external preconditions, surfaced through chroma_ready and ollama_ready, not started by the agent.

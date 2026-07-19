@@ -379,7 +379,7 @@ use_case_index:
     summary: The vendor-named chroma family moves under knowledge-manager as
       corpus-ingest and corpus-reader; Integration.Chroma passes from the new paths
       and agents/chroma is removed.
-    status: specified
+    status: implemented
     path: docs/specs/use-cases/rel10.0-uc002-knowledge-family-rescope.yaml
   - id: rel10.0-uc003-conformance-fixture-relocation
     title: Conformance Grammar Fixtures Relocated to testdata/conformance

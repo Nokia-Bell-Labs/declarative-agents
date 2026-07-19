@@ -52,7 +52,7 @@ func (Integration) HelmSmoke() error {
 	chartDir := filepath.Join(repoRoot, "deploy", "chatbot-mesh")
 	if err := requireProfilePaths(profilesRoot,
 		"agents/chatbot/profile.yaml", "agents/chatbot/rest.yaml",
-		"agents/chroma/rag-server/profile.yaml",
+		"agents/knowledge-manager/rag-server/profile.yaml",
 	); err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 	}
 	programs := []struct{ src, rel string }{
 		{"agents/chatbot", "profiles/agents/chatbot"},
-		{"agents/chroma/rag-server", "profiles/agents/chroma/rag-server"},
+		{"agents/knowledge-manager/rag-server", "profiles/agents/knowledge-manager/rag-server"},
 	}
 	for _, p := range programs {
 		if err := copyDirContents(filepath.Join(profilesRoot, p.src), filepath.Join(dst, p.rel)); err != nil {

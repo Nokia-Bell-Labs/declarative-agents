@@ -76,7 +76,7 @@ docker run -d --name chroma -p 8000:8000 chromadb/chroma:latest
 curl -s http://localhost:8000/api/v2/heartbeat   # readiness
 ```
 
-The corpus is loaded out of band by the `agents/chroma/ingest` profile; the RAG
+The corpus is loaded out of band by the `agents/knowledge-manager/corpus-ingest` profile; the RAG
 server and reader only serve an already-ingested collection named `corpus` under
 `default_tenant/default_database`.
 
@@ -111,7 +111,7 @@ bin/agent \
 ```
 
 Server profiles bind loopback ports declared in their `rest.yaml`. For the RAG
-server (`agents/chroma/rag-server`) these are the query endpoint on 18085, the
+server (`agents/knowledge-manager/rag-server`) these are the query endpoint on 18085, the
 control server (health + lifecycle exit) on 18086, and the monitor server (state
 views + SSE) on 18087. Check health and request a graceful exit:
 

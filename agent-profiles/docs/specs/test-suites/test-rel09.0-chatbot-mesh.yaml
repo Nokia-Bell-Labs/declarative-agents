@@ -36,8 +36,8 @@ test_cases:
       skips cleanly without them. No query embedding or LLM answering happens in
       the RAG server.
     inputs:
-      rag_profile: agents/chroma/rag-server/profile.yaml
-      chroma_rest: agents/chroma/rag-server/rest.yaml
+      rag_profile: agents/knowledge-manager/rag-server/profile.yaml
+      chroma_rest: agents/knowledge-manager/rag-server/rest.yaml
       query_embeddings: Ollama-embedded query vector
       n_results: 3
     expected:

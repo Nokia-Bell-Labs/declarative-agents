@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	ragServerProfile = "agents/chroma/rag-server/profile.yaml"
+	ragServerProfile = "agents/knowledge-manager/rag-server/profile.yaml"
 
 	ragQueryURL      = "http://127.0.0.1:18085/api/v1/rag/query"
 	ragControlHealth = "http://127.0.0.1:18086/api/lifecycle/health"
@@ -37,7 +37,7 @@ func (Integration) RagServer() error {
 		return err
 	}
 	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(filepath.Dir(profilesRoot), "agent-core"))
-	if err := requireProfilePaths(profilesRoot, ragServerProfile, chromaIngestProfile, "agents/chroma/rest.yaml"); err != nil {
+	if err := requireProfilePaths(profilesRoot, ragServerProfile, chromaIngestProfile, "agents/knowledge-manager/corpus-rest.yaml"); err != nil {
 		return err
 	}
 	if reason := chromaOllamaSkipReason(profilesRoot); reason != "" {
