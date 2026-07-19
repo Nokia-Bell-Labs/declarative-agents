@@ -45,23 +45,23 @@ tools:
       rest_ref: embedding
       operation: embed_query
 
-  - name: rag_query
+  - name: rag_query0
     type: builtin
     init: rest_client_invoke
     visibility: internal
     category: boundary
-    description: Query the RAG server with the message vector.
-    problem: The chatbot fans the one message embedding out to the RAG server for grounding chunks.
+    description: Query the first RAG server with the message vector.
+    problem: The chatbot fans the one message embedding out to each declared RAG server for grounding chunks.
     goals:
-      - Thread the message embedding into the RAG server query.
-      - Return the retrieved chunk ids and documents.
+      - Thread the message embedding into the first RAG server query.
+      - Return the retrieved chunk ids, documents, distances, and embedding model.
     requirements:
       input:
-        - The query embedding is selected from the previous embed Result output.
+        - The query embedding is selected from embed_query through command-state $from() addressing.
       output:
-        - Output includes the retrieved chunk ids and documents.
+        - Output includes the retrieved chunk ids, documents, distances, and the RAG embedding model.
       errors:
-        - Network, timeout, schema, and mapping failures emit CommandError.
+        - Network, timeout, schema, and mapping failures emit CommandError so the turn degrades to the next RAG.
     non_goals:
       - Does not author the query vector.
       - Does not accept runtime method, URL, host, or auth overrides.
@@ -77,6 +77,8 @@ tools:
         properties:
           ids: {type: array}
           documents: {type: array}
+          distances: {type: array}
+          embedding_model: {type: string}
     side_effects:
       - kind: external_api
         target: rag_server.query
@@ -89,7 +91,100 @@ tools:
       description: Querying the RAG server does not mutate state.
     config:
       rest_ref: rag0
-      operation: query
+      operation: rag0_query
+
+  - name: rag_query1
+    type: builtin
+    init: rest_client_invoke
+    visibility: internal
+    category: boundary
+    description: Query the second RAG server with the same message vector.
+    problem: The chatbot fans the one message embedding out to each declared RAG server for grounding chunks.
+    goals:
+      - Thread the same message embedding into the second RAG server query.
+      - Return the retrieved chunk ids, documents, distances, and embedding model.
+    requirements:
+      input:
+        - The query embedding is selected from embed_query through command-state $from() addressing.
+      output:
+        - Output includes the retrieved chunk ids, documents, distances, and the RAG embedding model.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError so the turn degrades with the remaining chunks.
+    non_goals:
+      - Does not author the query vector.
+      - Does not accept runtime method, URL, host, or auth overrides.
+    parameters:
+      type: object
+      properties:
+        query_embeddings: {type: array}
+    emits: [QueryResponded, CommandError]
+    output:
+      description: Mapped RAG server query result.
+      schema:
+        type: object
+        properties:
+          ids: {type: array}
+          documents: {type: array}
+          distances: {type: array}
+          embedding_model: {type: string}
+    side_effects:
+      - kind: external_api
+        target: rag_server.query
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Querying the RAG server does not mutate state.
+    config:
+      rest_ref: rag1
+      operation: rag1_query
+
+  - name: rag_merge
+    type: builtin
+    init: rag_merge
+    visibility: internal
+    category: response
+    description: Merge the per-RAG chunk lists distance-ordered with per-RAG source tags.
+    problem: A multi-RAG turn must combine several RAG results into one grounding set, dropping a failed or embedding-mismatched RAG.
+    goals:
+      - Read each RAG query result through command-state $from() addressing.
+      - Merge the chunks ordered by distance, tag each with its RAG, and cap the total.
+      - Skip a RAG that failed (degraded) or whose embedding model mismatches (excluded), recording each.
+    requirements:
+      input:
+        - Each RAG query result is selected from prior steps through $from() addressing.
+      output:
+        - Output is the merged, tagged, distance-ordered chunk list with the degraded and excluded RAG labels.
+      errors:
+        - A missing or empty RAG source is recorded as degraded and skipped, not fatal.
+    non_goals:
+      - Does not call any provider or author chunks.
+      - Does not receive transport authority.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [Merged, CommandError]
+    output:
+      description: The merged grounding chunk set with degraded and excluded metadata.
+      schema:
+        type: object
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Merging chunk lists has no durable effect.
+    config:
+      signal: Merged
+      expected_embedding_model: qwen3-embedding:8b
+      max_chunks: 8
+      sources:
+        - {label: rag_query0, tag: rag0}
+        - {label: rag_query1, tag: rag1}
 
   - name: compose_prompt
     type: builtin
@@ -99,7 +194,7 @@ tools:
     description: Compose the grounding prompt from the message and retrieved chunks.
     problem: The answer step needs the original message and the non-adjacent retrieved chunks in one prompt without carry_forward chains.
     goals:
-      - Read the original message from embed_query and the chunks from rag_query through command-state $from().
+      - Read the original message from embed_query and the merged chunks from rag_merge through command-state $from().
       - Render one grounding prompt for the model.
     requirements:
       input:
@@ -131,7 +226,7 @@ tools:
       signal: Composed
       inputs:
         message: $from(embed_query).carried.input
-        chunks: $from(rag_query).mapped.documents
+        chunks: $from(rag_merge).mapped.documents
       template: |
         A user asked the following question:
 
