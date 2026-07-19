@@ -57,33 +57,45 @@ test_cases:
   - use_case: rel09.0-uc002-chatbot-turn
     name: Chatbot turn end-to-end tracer with a degraded RAG
     integration_target: mage integration:chatbot
-    status: planned
+    go_test: go test ./magefiles -run 'TestCitedRecordNumbers|TestChatResponse'
+    status: implemented
+    reduction: single-RAG
     description: |
-      Post a chat turn to the chatbot with two RAG servers declared. The target
-      proves the route -> embed -> fan-out(2) -> compose -> answer trace order:
-      the router selects a chat-LLM word via $tool with a default fallback, one
-      embedding fans out to both RAGs, the original query and chunks reach compose
-      through command-state $from(), and one RAG made to fail degrades the turn so
-      the answer uses the remaining chunks with the failure noted in metadata.
+      Integration.Chatbot proves the single-RAG reduction of this use case (GH-306).
+      It starts a Chroma container seeded by the ingest profile, launches the
+      rag-server then the chatbot as long-running subprocesses, and drives the chat
+      machine_request endpoint. A grounded turn returns a 200 answer grounded in the
+      retrieved chunk (the answer states a corpus-only fact); a second turn with the
+      rag-server stopped returns the degraded response shape (a 200, not a 500),
+      also carrying prior turns as client-side history (R4). The chatbot span log is
+      asserted to show the model answered (a genai chat span with output tokens),
+      and the rag-server span log is asserted independently to show it served and
+      exited. Verified end to end against live Docker and Ollama; skips cleanly
+      without them.
+
+      Planned for Epic #294 and the observability epic, not covered here: the $tool
+      router with default fallback (R2) and the two-RAG fan-out with per-RAG
+      degradation and embedding-model mismatch exclusion (R3); the ordered per-word
+      dispatch subsequence embed -> rag -> compose -> invoke_llm and cross-agent
+      trace continuity, both of which need the request-scoped machine_request runs
+      to export their dispatch spans (today they run under a NoopTracer, so only the
+      host lifecycle words and the genai chat span reach the process OTel file).
     inputs:
       chatbot_profile: agents/chatbot/profile.yaml
-      rag_clients: [rag-a, rag-b]
-      turn_message: fixture question with conversation history
-      fault: rag-b query fails
+      rag_clients: [rag0]
+      turn_message: corpus-answerable question, then a follow-up with history
+      fault: rag-server stopped before the second turn
     expected:
-      trace_order: [route, embed_query, rag_fanout, compose, invoke_llm]
-      router_selected_llm_word: true
-      one_embedding_fanned_out: true
-      from_addressing_used: true
-      degraded_answer_from_remaining_chunks: true
-      failure_noted_in_metadata: true
+      grounded_turn_answers_from_chunks: true
+      grounded_turn_status_200: true
+      degraded_turn_returns_200_not_500: true
+      chatbot_trace_shows_model_answered: true
+      rag_server_trace_shows_served_and_exited: true
+      two_span_logs_asserted_independently: true
     traces:
       - rel09.0-uc002-chatbot-turn S1
       - rel09.0-uc002-chatbot-turn S2
-      - rel09.0-uc002-chatbot-turn S3
-      - rel09.0-uc002-chatbot-turn S4
-      - srd014-chatbot-agent AC2
-      - srd014-chatbot-agent AC3
+      - srd014-chatbot-agent AC1
 
   - use_case: rel09.0-uc003-mesh-deployment
     name: Mesh Helm deployment and hot-swap tracer on kind
