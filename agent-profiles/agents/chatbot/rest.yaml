@@ -14,7 +14,7 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [11434, 18085]
+        ports: [11434, 18085, 18095]
     local_chat_requests:
       timeout: 130s
       read_timeout: 130s
@@ -87,7 +87,7 @@ rest:
       auth_ref: none
       limits_ref: local_provider
       operations:
-        query:
+        rag0_query:
           method: POST
           path: /api/v1/rag/query
           params:
@@ -96,9 +96,9 @@ rest:
               required: [query_embeddings]
               properties:
                 query_embeddings: {type: array}
-            body_source: previous_result
+            body_source: command_state
             input_mapping:
-              query_embeddings: $.mapped.embedding
+              query_embeddings: $from(embed_query).mapped.embedding
           body:
             query_embeddings: "{{ params.query_embeddings }}"
             n_results: 5
@@ -107,6 +107,42 @@ rest:
             output:
               ids: $.ids
               documents: $.documents
+              distances: $.distances
+              embedding_model: $.embedding_model
+          side_effects:
+            - kind: external_api
+              target: rag_server.query
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+    rag1:
+      base_url: http://127.0.0.1:18095
+      auth_ref: none
+      limits_ref: local_provider
+      operations:
+        rag1_query:
+          method: POST
+          path: /api/v1/rag/query
+          params:
+            body_schema:
+              type: object
+              required: [query_embeddings]
+              properties:
+                query_embeddings: {type: array}
+            body_source: command_state
+            input_mapping:
+              query_embeddings: $from(embed_query).mapped.embedding
+          body:
+            query_embeddings: "{{ params.query_embeddings }}"
+            n_results: 5
+          success: {status: [200], signal: QueryResponded}
+          response:
+            output:
+              ids: $.ids
+              documents: $.documents
+              distances: $.distances
+              embedding_model: $.embedding_model
           side_effects:
             - kind: external_api
               target: rag_server.query
