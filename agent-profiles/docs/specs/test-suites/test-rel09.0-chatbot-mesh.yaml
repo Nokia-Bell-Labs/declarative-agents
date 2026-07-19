@@ -59,43 +59,50 @@ test_cases:
     integration_target: mage integration:chatbot
     go_test: go test ./magefiles -run 'TestCitedRecordNumbers|TestChatResponse'
     status: implemented
-    reduction: single-RAG
     description: |
-      Integration.Chatbot proves the single-RAG reduction of this use case (GH-306).
-      It starts a Chroma container seeded by the ingest profile, launches the
-      rag-server then the chatbot as long-running subprocesses, and drives the chat
-      machine_request endpoint. A grounded turn returns a 200 answer grounded in the
-      retrieved chunk (the answer states a corpus-only fact); a second turn with the
-      rag-server stopped returns the degraded response shape (a 200, not a 500),
-      also carrying prior turns as client-side history (R4). The chatbot span log is
-      asserted to show the model answered (a genai chat span with output tokens),
-      and the rag-server span log is asserted independently to show it served and
-      exited. Verified end to end against live Docker and Ollama; skips cleanly
-      without them.
+      Integration.Chatbot proves the routed, two-RAG topology of this use case
+      end to end (GH-306 single-RAG, GH-309 routing and fan-out). It starts one
+      Chroma container with two disjoint collections (the ingest fixture for rag0
+      and a seeded disjoint corpus for rag1), launches two rag-server agents and the
+      router-enabled chatbot as long-running subprocesses, and drives the chat
+      machine_request endpoint. A factual turn and an analytical turn exercise the
+      $tool router; the chatbot span log is asserted to show both the fast and the
+      deep chat model answered (the router dispatched each word). A cross-corpus
+      turn cites chunks from both RAGs by their [rag0] and [rag1] tags (sequential
+      fan-out and distance-ordered merge). Stopping rag1 degrades the next turn to a
+      200 answered from rag0 alone (carrying prior turns as client-side history, R4),
+      with no [rag1] citation. Each rag-server span log is asserted independently to
+      show it served and exited. Verified end to end against live Docker and Ollama;
+      skips cleanly without them, naming a missing model.
 
-      Planned for Epic #294 and the observability epic, not covered here: the $tool
-      router with default fallback (R2) and the two-RAG fan-out with per-RAG
-      degradation and embedding-model mismatch exclusion (R3); the ordered per-word
-      dispatch subsequence embed -> rag -> compose -> invoke_llm and cross-agent
-      trace continuity, both of which need the request-scoped machine_request runs
-      to export their dispatch spans (today they run under a NoopTracer, so only the
-      host lifecycle words and the genai chat span reach the process OTel file).
+      One Chroma container with two collections stands in for two containers; the
+      disjoint corpora are what the fan-out exercises. Not covered here: a forced
+      router misparse fixture (the default-word fallback transition is exercised by
+      GH-307 but not asserted live); the per-word dispatch subsequence and
+      cross-agent trace continuity, which need the request-scoped machine_request
+      runs to export their dispatch spans (today under a NoopTracer, so only the host
+      lifecycle words and the genai chat spans reach the process OTel file) -- the
+      observability epic's work.
     inputs:
       chatbot_profile: agents/chatbot/profile.yaml
-      rag_clients: [rag0]
-      turn_message: corpus-answerable question, then a follow-up with history
-      fault: rag-server stopped before the second turn
+      rag_clients: [rag0, rag1]
+      turns: factual, analytical, cross-corpus, then a degraded follow-up with history
+      fault: rag1 stopped before the degraded turn
     expected:
-      grounded_turn_answers_from_chunks: true
-      grounded_turn_status_200: true
+      router_dispatches_both_chat_models: true
+      fanout_cites_both_rag_tags: true
       degraded_turn_returns_200_not_500: true
-      chatbot_trace_shows_model_answered: true
-      rag_server_trace_shows_served_and_exited: true
-      two_span_logs_asserted_independently: true
+      degraded_turn_omits_stopped_rag_tag: true
+      both_rag_server_traces_show_served_and_exited: true
+      skip_names_missing_model: true
     traces:
       - rel09.0-uc002-chatbot-turn S1
       - rel09.0-uc002-chatbot-turn S2
+      - rel09.0-uc002-chatbot-turn S3
+      - rel09.0-uc002-chatbot-turn S4
       - srd014-chatbot-agent AC1
+      - srd014-chatbot-agent AC2
+      - srd014-chatbot-agent AC3
 
   - use_case: rel09.0-uc003-mesh-deployment
     name: Mesh Helm deployment and hot-swap tracer on kind
