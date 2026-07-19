@@ -6,3 +6,8 @@ figures/*.png
 .vscode/
 *.swp
 magefiles/mage_output_file.go
+
+# chatbot-mesh Helm chart packaged profiles (copied at package time) and artifacts
+deploy/chatbot-mesh/profiles/agents/
+deploy/chatbot-mesh/*.tgz
+deploy/chatbot-mesh/charts/

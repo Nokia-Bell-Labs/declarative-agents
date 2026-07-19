@@ -1,0 +1,36 @@
+# Small-footprint values for the kind smoke test (the smoke test itself lands in
+# its own issue). One RAG unit, minimal resources, no ingress, tiny storage.
+image:
+  pullPolicy: IfNotPresent
+
+chatbot:
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+
+ragUnits:
+  - name: rag0
+    collection: corpus
+    embeddingModel: qwen3-embedding:8b
+    replicas: 1
+
+ragServer:
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+
+chroma:
+  storage: 256Mi
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+
+dolt:
+  storage: 256Mi
+
+ingress:
+  enabled: false
+
+llm:
+  inCluster: false
+  externalURL: http://host.docker.internal:11434

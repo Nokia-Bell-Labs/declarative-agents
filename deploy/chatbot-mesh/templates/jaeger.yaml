@@ -1,0 +1,50 @@
+{{- if .Values.jaeger.enabled }}
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-jaeger
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: jaeger
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: "{{ .Values.jaeger.image.repository }}:{{ .Values.jaeger.image.tag }}"
+          imagePullPolicy: {{ .Values.jaeger.image.pullPolicy }}
+          env:
+            - {name: COLLECTOR_OTLP_ENABLED, value: "true"}
+          ports:
+            - {name: otlp-grpc, containerPort: {{ .Values.jaeger.otlpGRPCPort }}}
+            - {name: query, containerPort: {{ .Values.jaeger.queryPort }}}
+          readinessProbe:
+            httpGet: {path: /, port: query}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-jaeger
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: jaeger
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: jaeger
+  ports:
+    - {name: otlp-grpc, port: {{ .Values.jaeger.otlpGRPCPort }}, targetPort: otlp-grpc}
+    - {name: query, port: {{ .Values.jaeger.queryPort }}, targetPort: query}
+{{- end }}

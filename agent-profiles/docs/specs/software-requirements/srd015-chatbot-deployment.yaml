@@ -109,7 +109,12 @@ depends_on:
   - srd_id: srd016-traceparent
     symbols_used: [R4, R5]
 
-implementation_status: planned
+implementation_status:
+  done:
+    - Helm chart topology (R1.1, R1.2, R1.3, R1.4, GH-313): deploy/chatbot-mesh deploys the chatbot Deployment/Service/Ingress, a values-driven ragUnits list each rendering a rag-server Deployment/Service and a Chroma StatefulSet/Service, a Dolt StatefulSet/Service, an OTel collector, and a Jaeger trace backend, all over the rel06.0 mounted-profile image with each agent's profile projected from a ConfigMap (nested paths restored through items[].path) and run as agent-entrypoint --profile /profiles/agents/<name>/profile.yaml. The RAG count and identity are the ragUnits values, so adding a source is a values edit. helm lint passes and helm template renders clean with the default and ci/kind-values.
+    - OTLP export flag (R5.1, GH-313): agent-core cmd/agent gains --otel-otlp-endpoint (srd008), which the chart wires from the collector Service so every agent exports OTLP to the in-cluster collector; the collector exports to Jaeger (R5.2).
+  planned:
+    - Values-to-config co-generation of the chatbot rest.yaml RAG client entries from ragUnits with a ValidateDefinition check (R2), and the tiered warm swap with checkpoint-resume rollout (R3), GH-314. The provisioning panel (R4), GH-315. Cross-agent trace continuity in the observability panel v2 (R5.3), GH-312. The kind smoke test lands in its own issue.
 
 diagrams:
   deployment: |

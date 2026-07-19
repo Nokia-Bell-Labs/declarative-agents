@@ -1,0 +1,60 @@
+{{- if .Values.dolt.enabled }}
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}-dolt
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dolt
+spec:
+  serviceName: {{ $fullname }}-dolt
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: dolt
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: dolt
+    spec:
+      containers:
+        - name: dolt
+          image: "{{ .Values.dolt.image.repository }}:{{ .Values.dolt.image.tag }}"
+          imagePullPolicy: {{ .Values.dolt.image.pullPolicy }}
+          env:
+            - {name: DOLT_ROOT_HOST, value: {{ .Values.dolt.rootHost | quote }}}
+          ports:
+            - {name: mysql, containerPort: {{ .Values.dolt.port }}}
+          readinessProbe:
+            exec:
+              command: ["dolt", "sql", "-q", "SELECT 1"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/dolt}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: {{ .Values.dolt.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-dolt
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dolt
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: dolt
+  ports:
+    - {name: mysql, port: {{ .Values.dolt.port }}, targetPort: mysql}
+{{- end }}
