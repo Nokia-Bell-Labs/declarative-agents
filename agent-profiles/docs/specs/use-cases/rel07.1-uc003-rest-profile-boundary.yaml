@@ -9,8 +9,8 @@ summary: |
   reaches a Succeeded or Failed terminal state.
 
   The proof belongs in agent-profiles because the REST authority in
-  agents/rest/rest.yaml, the OpenAPI import assets under agents/rest/openapi,
-  and the word selection in agents/rest/machine.yaml and agents/rest/tools.yaml
+  testdata/conformance/rest/rest.yaml, the OpenAPI import assets under testdata/conformance/rest/openapi,
+  and the word selection in testdata/conformance/rest/machine.yaml and testdata/conformance/rest/tools.yaml
   are profile-owned. The ollama-* profile variant shows the same boundary words
   bound to a different REST definition set. agent-core supplies the reusable HTTP
   runtime, but it should not encode the REST definitions or OpenAPI imports as
@@ -21,16 +21,16 @@ actor: Profile maintainer verifying REST client and server boundary behavior.
 trigger: |
   A maintainer runs the REST sample profile from agent-profiles:
 
-    agent --profile "$AGENT_PROFILES_ROOT/agents/rest/profile.yaml"
+    agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/rest/profile.yaml"
 
   The ollama variant uses the same contract:
 
-    agent --profile "$AGENT_PROFILES_ROOT/agents/rest/ollama-profile.yaml"
+    agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/rest/ollama-profile.yaml"
 
 preconditions:
-  - agents/rest/profile.yaml selects agents/rest/machine.yaml, agents/rest/tools.yaml, agents/rest/declarations.yaml, and agents/rest/rest.yaml.
-  - agents/rest/tools.yaml selects get_payment, create_payment, await_payment, launch_payment_webhooks, await_payment_webhook, and stop_payment_webhooks.
-  - agents/rest/openapi/payments.yaml and agents/rest/openapi/ollama.yaml supply OpenAPI import data without generating Go code.
+  - testdata/conformance/rest/profile.yaml selects testdata/conformance/rest/machine.yaml, testdata/conformance/rest/tools.yaml, testdata/conformance/rest/declarations.yaml, and testdata/conformance/rest/rest.yaml.
+  - testdata/conformance/rest/tools.yaml selects get_payment, create_payment, await_payment, launch_payment_webhooks, await_payment_webhook, and stop_payment_webhooks.
+  - testdata/conformance/rest/openapi/payments.yaml and testdata/conformance/rest/openapi/ollama.yaml supply OpenAPI import data without generating Go code.
 
 flow:
   - id: F1
@@ -63,7 +63,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: REST authority lives in agents/rest/rest.yaml and the ollama variant's ollama-rest.yaml while MachineSpec owns sequencing between boundary words.
+    criterion: REST authority lives in testdata/conformance/rest/rest.yaml and the ollama variant's ollama-rest.yaml while MachineSpec owns sequencing between boundary words.
     traces:
       - srd007-rest R2.3
       - sm-agent-role-taxonomy rest checks

@@ -475,12 +475,12 @@ releases:
       are conformance grammar fixtures rather than roles -- move to
       testdata/conformance beside testdata/integration. After this release agents/
       reads as a role catalog. Epic #323 (issues #325-#328, #330).
-    status: planned
+    status: implemented
     proof_commands:
       - "mage validate  # profile wiring holds over the renamed tree"
       - "mage conformance  # conformance fixtures pass under testdata/conformance"
       - "go test ./...  # agent-core critic-session/critic-point builtin tool dirs"
-      - "grep -r 'agents/critic\\|agents/executor\\|agents/chroma\\|agents/rest/\\|agents/control/\\|agents/lifecycle/' -- returns no stale path outside retained historical release records"
+      - "grep -r 'agents/critic\\|agents/executor\\|agents/chroma\\|testdata/conformance/rest/\\|testdata/conformance/control/\\|testdata/conformance/lifecycle/' -- returns no stale path outside retained historical release records"
     srds:
       - srd013-rag-server-agent
       - srd014-chatbot-agent
@@ -497,4 +497,4 @@ releases:
     test_suites:
       - id: test-rel10.0-role-catalog
         summary: Cases validating the critic/executor renames, the chroma rescope, and the conformance-fixture relocation with mage validate, mage conformance, go test, and zero-hit greps.
-        status: specified
+        status: implemented

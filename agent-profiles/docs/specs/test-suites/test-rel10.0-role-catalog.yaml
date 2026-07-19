@@ -71,7 +71,7 @@ test_cases:
     name: Conformance fixtures relocate and validate from testdata/conformance
     integration_target: mage conformance
     go_test: go test ./conformance
-    status: specified
+    status: implemented
     description: |
       After the move, testdata/conformance holds the rest, control, and lifecycle
       fixtures and agents/ lists only role families. The case validates mage

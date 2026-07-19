@@ -82,13 +82,13 @@ Lifecycle profile invocations:
 
 ```bash
 agent \
-  --profile agents/lifecycle/history/profile.yaml \
+  --profile testdata/conformance/lifecycle/history/profile.yaml \
   --directory "$PWD" \
   --dolt-dsn "$DOLT_DSN" \
   --request requests/history.yaml
 
 agent \
-  --profile agents/lifecycle/rollback/profile.yaml \
+  --profile testdata/conformance/lifecycle/rollback/profile.yaml \
   --directory "$PWD" \
   --dolt-dsn "$DOLT_DSN" \
   --request requests/rollback.yaml
@@ -105,7 +105,7 @@ Enable persistent history with Dolt:
 
 ```bash
 agent \
-  --profile agents/lifecycle/history/profile.yaml \
+  --profile testdata/conformance/lifecycle/history/profile.yaml \
   --directory "$PWD" \
   --dolt-dsn "$DOLT_DSN" \
   --request requests/history.yaml
@@ -181,7 +181,7 @@ checkpoint: latest
 
 ```bash
 agent \
-  --profile agents/lifecycle/history/profile.yaml \
+  --profile testdata/conformance/lifecycle/history/profile.yaml \
   --directory "$PWD" \
   --request requests/history.yaml
 ```
@@ -200,7 +200,7 @@ to_iteration: 7
 
 ```bash
 agent \
-  --profile agents/lifecycle/rollback/profile.yaml \
+  --profile testdata/conformance/lifecycle/rollback/profile.yaml \
   --directory "$PWD" \
   --request requests/rollback.yaml
 ```
@@ -269,8 +269,8 @@ missing or irreversible, or a receipt-consuming Undo failed.
 Older notes may mention hidden `agent history`, `agent rollback`, `.agent-state`,
 `--state-store-dir`, `StateStore`, `Workspace`, `GitWorkspace`, or
 `CheckpointPolicy`. Treat those as historical background. Normal lifecycle
-operation uses `agent --profile agents/lifecycle/history/profile.yaml` and
-`agent --profile agents/lifecycle/rollback/profile.yaml`, with `--dolt-dsn` when
+operation uses `agent --profile testdata/conformance/lifecycle/history/profile.yaml` and
+`agent --profile testdata/conformance/lifecycle/rollback/profile.yaml`, with `--dolt-dsn` when
 durable persistence is required. Runtime data stays on the universal `agent`
 command. Checkpoint selection and target iteration stay in request files or typed
 tool config.

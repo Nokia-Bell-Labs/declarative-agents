@@ -4,10 +4,10 @@ purpose: |-
   The machine shows sync client, async client, server signal, and OpenAPI
   import flows as explicit grammar steps.
 configuration:
-  machine: agents/rest/machine.yaml
-  tools: agents/rest/tools.yaml
+  machine: testdata/conformance/rest/machine.yaml
+  tools: testdata/conformance/rest/tools.yaml
 invariants:
-  - REST authority lives in agents/rest/rest.yaml.
+  - REST authority lives in testdata/conformance/rest/rest.yaml.
   - MachineSpec owns sequencing between REST boundary words.
   - OpenAPI imports populate REST definitions without generating Go code.
 initial_state: Idle

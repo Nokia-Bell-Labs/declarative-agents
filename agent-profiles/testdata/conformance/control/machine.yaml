@@ -4,8 +4,8 @@ purpose: |-
   REST handlers enqueue control signals. MachineSpec routes the selected signal
   to lifecycle vocabulary.
 configuration:
-  machine: agents/control/machine.yaml
-  tools: agents/control/tools.yaml
+  machine: testdata/conformance/control/machine.yaml
+  tools: testdata/conformance/control/tools.yaml
 invariants:
   - HTTP handlers enqueue signals only.
   - rest_await_event selects one control event.

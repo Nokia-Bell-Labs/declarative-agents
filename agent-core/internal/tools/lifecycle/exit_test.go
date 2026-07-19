@@ -264,7 +264,7 @@ func lifecycleProfileRoot(t *testing.T) string {
 		if hasLifecycleProfile(candidate, "control/profile.yaml") {
 			return candidate
 		}
-		nested := filepath.Join(candidate, "agents")
+		nested := filepath.Join(candidate, "testdata", "conformance")
 		if hasLifecycleProfile(nested, "control/profile.yaml") {
 			return nested
 		}

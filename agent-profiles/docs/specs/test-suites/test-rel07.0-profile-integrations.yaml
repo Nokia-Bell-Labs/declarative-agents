@@ -157,7 +157,7 @@ test_cases:
       routing, and monitor listener cleanup contracts.
     inputs:
       monitor_profile: agents/monitor/profile.yaml
-      control_profile: agents/control/profile.yaml
+      control_profile: testdata/conformance/control/profile.yaml
       expected_evidence: testdata/integration/rel07-monitor-control/expected/evidence.yaml
     expected:
       monitor_state_exposed: true

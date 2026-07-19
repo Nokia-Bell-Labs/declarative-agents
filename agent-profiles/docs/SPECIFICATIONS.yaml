@@ -386,7 +386,7 @@ use_case_index:
     summary: The rest, control, and lifecycle conformance fixtures move out of
       agents/ to testdata/conformance so agents/ lists only role families;
       conformance and Integration.MonitorControl pass from the new paths.
-    status: specified
+    status: implemented
     path: docs/specs/use-cases/rel10.0-uc003-conformance-fixture-relocation.yaml
 
 test_suite_index:

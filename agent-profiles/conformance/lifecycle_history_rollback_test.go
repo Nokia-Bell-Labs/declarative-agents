@@ -31,7 +31,7 @@ func TestLifecycleHistoryRollback(t *testing.T) {
 	// persisted step (the suspend at iteration 1), the natural shape a lifecycle
 	// run leaves behind for later inspection and rollback.
 	suspendRes := Run(t, RunConfig{
-		Profile: filepath.Join("agents", "lifecycle", "approval", "profile.yaml"),
+		Profile: filepath.Join("testdata", "conformance", "lifecycle", "approval", "profile.yaml"),
 		Args:    []string{"--dolt-dsn", dolt.DSN()},
 	})
 	suspendRes.RequireExit(t, 0)
@@ -44,7 +44,7 @@ func TestLifecycleHistoryRollback(t *testing.T) {
 	t.Run("History", func(t *testing.T) {
 		req := writeEphemeral(t, t.TempDir(), "request.yaml", "checkpoint: "+runID+"\n")
 		res := Run(t, RunConfig{
-			Profile: filepath.Join("agents", "lifecycle", "history", "profile.yaml"),
+			Profile: filepath.Join("testdata", "conformance", "lifecycle", "history", "profile.yaml"),
 			Request: req,
 			Args:    []string{"--dolt-dsn", dolt.DSN()},
 		})
@@ -61,7 +61,7 @@ func TestLifecycleHistoryRollback(t *testing.T) {
 	t.Run("Rollback", func(t *testing.T) {
 		req := writeEphemeral(t, t.TempDir(), "request.yaml", "checkpoint: "+runID+"\nto_iteration: 1\n")
 		res := Run(t, RunConfig{
-			Profile: filepath.Join("agents", "lifecycle", "rollback", "profile.yaml"),
+			Profile: filepath.Join("testdata", "conformance", "lifecycle", "rollback", "profile.yaml"),
 			Request: req,
 			Args:    []string{"--dolt-dsn", dolt.DSN()},
 		})

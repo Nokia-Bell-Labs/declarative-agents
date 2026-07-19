@@ -37,7 +37,7 @@ func TestAssertMonitorControlEvidenceRejectsMissingLifecycleRouting(t *testing.T
 	runDir := t.TempDir()
 	evidence := monitorControlEvidence{
 		MonitorProfile:          "agents/monitor/profile.yaml",
-		ControlProfile:          "agents/control/profile.yaml",
+		ControlProfile:          "testdata/conformance/control/profile.yaml",
 		MonitorStateRoutes:      []string{"/monitor/state"},
 		ControlExitRoute:        "/api/lifecycle/exit",
 		MonitorControlRoute:     "/monitor/control/exit",
@@ -77,7 +77,7 @@ func TestReadMonitorControlEvidenceParsesExpectedFixture(t *testing.T) {
 func writeMonitorControlFixture(t *testing.T, root, controlAction string) {
 	t.Helper()
 	writeFile(t, filepath.Join(root, "agents", "monitor", "profile.yaml"), "name: monitor\n")
-	writeFile(t, filepath.Join(root, "agents", "control", "profile.yaml"), "name: control\n")
+	writeFile(t, filepath.Join(root, "testdata", "conformance", "control", "profile.yaml"), "name: control\n")
 	writeFile(t, filepath.Join(root, "agents", "monitor", "rest.yaml"), `rest:
   servers:
     monitor:
@@ -93,7 +93,7 @@ func writeMonitorControlFixture(t *testing.T, root, controlAction string) {
           binding: emit_signal
           signal: ExitRequested
 `)
-	writeFile(t, filepath.Join(root, "agents", "control", "rest.yaml"), `rest:
+	writeFile(t, filepath.Join(root, "testdata", "conformance", "control", "rest.yaml"), `rest:
   servers:
     agent_control:
       endpoints:
@@ -112,7 +112,7 @@ func writeMonitorControlFixture(t *testing.T, root, controlAction string) {
     signal: ServerStopped
     next: Done
 `)
-	writeFile(t, filepath.Join(root, "agents", "control", "machine.yaml"), `transitions:
+	writeFile(t, filepath.Join(root, "testdata", "conformance", "control", "machine.yaml"), `transitions:
   - state: AwaitingControl
     signal: ExitRequested
     next: Exiting

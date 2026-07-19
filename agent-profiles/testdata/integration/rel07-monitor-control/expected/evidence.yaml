@@ -1,5 +1,5 @@
 monitor_profile: agents/monitor/profile.yaml
-control_profile: agents/control/profile.yaml
+control_profile: testdata/conformance/control/profile.yaml
 monitor_state_routes:
   - /monitor/machine
   - /monitor/state

@@ -32,11 +32,11 @@ invocation: |
           [--resume-checkpoint <id>] [--resume-signal <signal>]
 
   Lifecycle profile invocations.
-    agent --profile /work/agent-profiles/agents/lifecycle/history/profile.yaml \
+    agent --profile /work/agent-profiles/testdata/conformance/lifecycle/history/profile.yaml \
           --directory <workspace> \
           --request requests/history.yaml
 
-    agent --profile /work/agent-profiles/agents/lifecycle/rollback/profile.yaml \
+    agent --profile /work/agent-profiles/testdata/conformance/lifecycle/rollback/profile.yaml \
           --directory <workspace> \
           --request requests/rollback.yaml
 

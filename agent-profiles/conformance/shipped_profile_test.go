@@ -15,7 +15,7 @@ import (
 // I/O and does not build the agent binary, so it runs in the model-free fast
 // default without the sibling agent-core checkout.
 func TestCopyShippedProfile(t *testing.T) {
-	const rel = "agents/rest/profile.yaml"
+	const rel = "testdata/conformance/rest/profile.yaml"
 	srcDir := filepath.Dir(ProfilePath(rel))
 
 	// The rest profile is a good tree exemplar: it has a hard-coded listen
