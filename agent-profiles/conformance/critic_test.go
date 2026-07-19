@@ -46,7 +46,7 @@ fi
 echo "generator profile boundary exercised"
 `
 
-// TestEvaluatorConformance runs the evaluator profile over the proven
+// TestCriticConformance runs the critic profile over the proven
 // rel07-evaluator-generator suite fixture with a stubbed generator child agent
 // passed via --child-agent-binary, and asserts the deterministic session
 // pipeline reaches the Done terminal state with no live model.
@@ -54,10 +54,10 @@ echo "generator profile boundary exercised"
 // It mirrors magefiles/integration_evaluator.go but asserts on the OTel trace
 // instead of on-disk artifacts.
 //
-// Traces srd003-evaluator: R1.1 (deterministic parse -> expand -> nested point
+// Traces srd003-critic: R1.1 (deterministic parse -> expand -> nested point
 // -> report session pipeline), R2.2 (evaluator session and child-execution tool
 // families), and R3.2 (Done terminal outcome).
-func TestEvaluatorConformance(t *testing.T) {
+func TestCriticConformance(t *testing.T) {
 	RequireCoreRoot(t)
 
 	// The point machine launches the child generator agent from the configured
@@ -71,7 +71,7 @@ func TestEvaluatorConformance(t *testing.T) {
 	}
 
 	result := Run(t, RunConfig{
-		Profile: filepath.Join("agents", "evaluator", "profile.yaml"),
+		Profile: filepath.Join("agents", "critic", "profile.yaml"),
 		Request: ProfilePath(filepath.Join("testdata", "integration", "rel07-evaluator-generator", "suite.yaml")),
 		Output:  t.TempDir(),
 		Args:    []string{"--child-agent-binary", stubAgent},

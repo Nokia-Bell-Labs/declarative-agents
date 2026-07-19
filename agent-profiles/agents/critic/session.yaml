@@ -1,4 +1,4 @@
-# Tool declarations for the evaluator session-level tools.
+# Tool declarations for the critic session-level tools.
 # These tools drive the session machine (grid iteration, nested point loops).
 # Per-point tools are declared in tools/builtin.yaml.
 
@@ -7,7 +7,7 @@ tools:
     type: builtin
     init: parse_suite_config
     visibility: internal
-    description: "Read and validate evaluator suite YAML metadata."
+    description: "Read and validate critic suite YAML metadata."
     config:
       output_dir: eval-results
       reps: 1
@@ -16,19 +16,19 @@ tools:
     type: builtin
     init: discover_suite_samples
     visibility: internal
-    description: "Discover evaluator samples from the parsed suite samples directory."
+    description: "Discover critic samples from the parsed suite samples directory."
 
   - name: expand_eval_grid
     type: builtin
     init: expand_eval_grid
     visibility: internal
-    description: "Expand evaluator suite grid parameters into concrete grid points."
+    description: "Expand critic suite grid parameters into concrete grid points."
 
   - name: init_eval_session
     type: builtin
     init: init_eval_session
     visibility: internal
-    description: "Create the evaluator session output directory and resolve runtime defaults."
+    description: "Create the critic session output directory and resolve runtime defaults."
 
   - name: report_suite_summary
     type: builtin

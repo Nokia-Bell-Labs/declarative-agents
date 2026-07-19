@@ -29,14 +29,14 @@ func TestLaunchEvalFactoryAcceptsProfileConfig(t *testing.T) {
 		Name: "launch_eval",
 		Init: "launch_eval",
 		Config: map[string]interface{}{
-			"profile": "agents/evaluator/profile.yaml",
+			"profile": "agents/critic/profile.yaml",
 		},
 	}, nil)
 
 	require.NoError(t, err)
 	launchBuilder, ok := builder.(*LaunchEvalBuilder)
 	require.True(t, ok)
-	require.Equal(t, "agents/evaluator/profile.yaml", launchBuilder.Config.Profile)
+	require.Equal(t, "agents/critic/profile.yaml", launchBuilder.Config.Profile)
 }
 
 func TestLaunchEvalUsesSharedExecuteConfigArgs(t *testing.T) {
@@ -52,7 +52,7 @@ func TestLaunchEvalUsesSharedExecuteConfigArgs(t *testing.T) {
 	data, err := json.Marshal(action)
 	require.NoError(t, err)
 	cmd := &launchEvalCmd{res: core.Result{Output: string(data)}, config: execute.Config{
-		Binary: script, Profile: "agents/evaluator/profile.yaml",
+		Binary: script, Profile: "agents/critic/profile.yaml",
 	}}
 
 	result := cmd.Execute()
@@ -60,7 +60,7 @@ func TestLaunchEvalUsesSharedExecuteConfigArgs(t *testing.T) {
 	require.Equal(t, EvalCompleted, result.Signal)
 	args, err := os.ReadFile(argsPath)
 	require.NoError(t, err)
-	require.Contains(t, string(args), "--profile\nagents/evaluator/profile.yaml")
+	require.Contains(t, string(args), "--profile\nagents/critic/profile.yaml")
 	require.Contains(t, string(args), "--request\nsuites/basic.yaml")
 	require.Contains(t, string(args), "--output\nout/eval")
 }

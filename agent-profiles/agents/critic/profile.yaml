@@ -1,0 +1,9 @@
+name: critic
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_config_dirs:
+  - /opt/agent-core/tools/builtin/critic-session
+  - /opt/agent-core/tools/builtin/critic-point
+tool_declarations:
+  - builtin.yaml

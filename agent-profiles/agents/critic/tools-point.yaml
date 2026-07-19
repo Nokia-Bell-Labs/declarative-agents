@@ -1,4 +1,4 @@
-# Tool selection for the evaluator point machine (point.yaml).
+# Tool selection for the critic point machine (point.yaml).
 # Loaded by run_point to build the nested point registry.
 
 tools:

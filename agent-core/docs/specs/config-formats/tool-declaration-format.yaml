@@ -668,12 +668,12 @@ target_grouped_layout:
     - path: tools/builtin/planner/
       owns: [extract_task, extract_all, assemble_prompt, parse_plan, create_issue, execute_task, check_result]
       kind: shared planner-family declarations
-    - path: tools/builtin/evaluator-session/
+    - path: tools/builtin/critic-session/
       owns: [parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, report_suite_summary, next_point, run_point, report_session]
-      kind: shared evaluator-session declarations
-    - path: tools/builtin/evaluator-point/
+      kind: shared critic-session declarations
+    - path: tools/builtin/critic-point/
       owns: [create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, commit_workspace_baseline, dump_config, run_agent, run_oracle_check, collect_trace_tokens, check_agent_version, summarize_point_results, collect_metrics]
-      kind: shared evaluator-point declarations
+      kind: shared critic-point declarations
     - path: tools/builtin/bench/
       owns: [serve_ui, launch_eval]
       kind: shared bench declarations

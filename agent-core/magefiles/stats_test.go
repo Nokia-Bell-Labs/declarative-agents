@@ -26,10 +26,10 @@ func TestConfigsYAMLCategory(t *testing.T) {
 	tests := map[string]string{
 		"tools/builtin.yaml":                 "shared_tools",
 		"agents/generator/llm/default.yaml":  "llm_configs",
-		"agents/evaluator/llm/devstral.yaml": "llm_configs",
+		"agents/critic/llm/devstral.yaml": "llm_configs",
 		"agents/generator/machine.yaml":      "generator",
 		"agents/planner/machine.yaml":        "planner",
-		"agents/evaluator/machine.yaml":      "evaluator",
+		"agents/critic/machine.yaml":      "critic",
 		"agents/bench/machine.yaml":          "bench",
 		"agents/jurist/machine.yaml":         "jurist",
 		"configs/experimental/machine.yaml":  "configs_other",

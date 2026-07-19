@@ -33,7 +33,7 @@ test_cases:
       agent-core, and zero-hit greps.
     inputs:
       renamed_families: [evaluator->critic, generator->executor]
-      renamed_tool_dirs: [evaluator-session->critic-session, evaluator-point->critic-point]
+      renamed_tool_dirs: [critic-session->critic-session, critic-point->critic-point]
     expected:
       agents_lists_critic_and_executor: true
       no_evaluator_or_generator_family: true

@@ -242,8 +242,8 @@ declaration_placement:
     control: tools/builtin/control/
     validation: tools/builtin/validation/
     planner: tools/builtin/planner/
-    evaluator_session: tools/builtin/evaluator-session/
-    evaluator_point: tools/builtin/evaluator-point/
+    evaluator_session: tools/builtin/critic-session/
+    evaluator_point: tools/builtin/critic-point/
     bench: tools/builtin/bench/
     spec_validation: tools/builtin/spec-validation/
   shared_exec_groups:
@@ -391,7 +391,7 @@ example_tools:
     side_effects:
       - kind: nested_machine_execution
         target: evaluator_point_machine
-        description: "Runs agents/evaluator/point.yaml with point tools."
+        description: "Runs agents/critic/point.yaml with point tools."
       - kind: state_mutation
         target: eval_session_state
         description: "Records the completed point result."

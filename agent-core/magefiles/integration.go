@@ -180,7 +180,7 @@ func (Integration) Uc002() error {
 
 func uc002AgentArgs(profileRoot, coreRoot, requestPath, outputDir string) []string {
 	return []string{
-		"--profile", agentProfilePath(profileRoot, "evaluator"),
+		"--profile", agentProfilePath(profileRoot, "critic"),
 		"--request", requestPath,
 		"--output", outputDir,
 		"--core-root", coreRoot,

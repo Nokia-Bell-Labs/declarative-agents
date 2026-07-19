@@ -118,12 +118,12 @@ srd_index:
       dependencies, outputs, and terminal outcomes.
     status: implemented
     path: docs/specs/software-requirements/srd002-generator.yaml
-  - id: srd003-evaluator
+  - id: srd003-critic
     title: Evaluator Functional Block
     summary: Evaluator session and point pipeline boundary, inputs, tool
       selections, runtime dependencies, outputs, and terminal outcomes.
     status: implemented
-    path: docs/specs/software-requirements/srd003-evaluator.yaml
+    path: docs/specs/software-requirements/srd003-critic.yaml
   - id: srd004-planner
     title: Planner Functional Block
     summary: Planner requirement-graph boundary, inputs, tool selections,

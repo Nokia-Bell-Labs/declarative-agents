@@ -111,8 +111,8 @@ grouped_declaration_loading:
     They add <profile-root>/planner/builtin.yaml for child-agent config and
     <profile-root>/planner/llm/*.yaml for model config.
 
-    Evaluator profiles load builtin/evaluator-session and
-    builtin/evaluator-point declarations. The agent-local
+    Evaluator profiles load builtin/critic-session and
+    builtin/critic-point declarations. The agent-local
     <profile-root>/evaluator/builtin.yaml file supplies suite and point-machine config,
     and run_point loads <profile-root>/evaluator/tools-point.yaml for the nested point
     machine.

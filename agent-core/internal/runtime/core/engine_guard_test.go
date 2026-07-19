@@ -20,7 +20,7 @@ func TestCoreSourceDoesNotEmbedModeOrToolPolicyNames(t *testing.T) {
 	forbidden := map[string]struct{}{
 		"generator":          {},
 		"planner":            {},
-		"evaluator":          {},
+		"critic":          {},
 		"bench":              {},
 		"jurist":             {},
 		"invoke_llm":         {},

@@ -71,7 +71,7 @@ test_cases:
       The target creates point/session output proving child profile invocation,
       oracle accounting, trace evidence, and fixture-local result paths.
     inputs:
-      evaluator_profile: agents/evaluator/profile.yaml
+      evaluator_profile: agents/critic/profile.yaml
       subject_profile: agents/generator/profile.yaml
       suite: testdata/integration/rel07-evaluator-generator/suite.yaml
       expected_summary: testdata/integration/rel07-evaluator-generator/expected/summary.yaml
@@ -128,7 +128,7 @@ test_cases:
       and evaluator launch request, not a full evaluator benchmark.
     inputs:
       bench_profile: agents/bench/profile.yaml
-      evaluator_profile: agents/evaluator/profile.yaml
+      evaluator_profile: agents/critic/profile.yaml
       launch_request: testdata/integration/rel07-bench-evaluator/request.yaml
       suite: testdata/integration/rel07-bench-evaluator/suite.yaml
       expected_launch: testdata/integration/rel07-bench-evaluator/expected/launch.yaml

@@ -99,7 +99,7 @@ func TestDockerfileRuntimeExcludesAgentProfiles(t *testing.T) {
 	content := readDockerfile(t)
 	for _, forbidden := range []string{
 		"/src/agents/generator",
-		"/src/agents/evaluator",
+		"/src/agents/critic",
 		"/opt/agent-core/agents",
 	} {
 		if strings.Contains(content, forbidden) {

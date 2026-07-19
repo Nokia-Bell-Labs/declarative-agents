@@ -160,8 +160,8 @@ test_cases:
       - rel06.0-uc001-mounted-profile-execution S5
       - srd002-generator R1.1
       - srd002-generator R3.1
-      - srd003-evaluator R1.1
-      - srd003-evaluator R2.3
+      - srd003-critic R1.1
+      - srd003-critic R2.3
       - sm-agent-role-taxonomy generator
       - sm-agent-role-taxonomy evaluator
 
