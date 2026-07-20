@@ -41,6 +41,15 @@ tools:
     undo:
       strategy: compensating_action
       description: Stop the query REST server if the launch owns the listener.
+    errors:
+      - signal: CommandError
+        condition: Query REST server config, bind, route, or schema failure.
+        state_after_failure: No query route is exposed.
+    relationships:
+      overlaps:
+        - tool: rest_server_launch
+          difference: This profile-specific word binds only the query machine_request REST route set.
+      before: [await_rag_control]
     config:
       rest_ref: chroma_rag_requests
 
@@ -86,6 +95,15 @@ tools:
     undo:
       strategy: compensating_action
       description: Stop the control REST server if the launch owns the listener.
+    errors:
+      - signal: CommandError
+        condition: Control REST server config, bind, route, or schema failure.
+        state_after_failure: No control route is exposed.
+    relationships:
+      overlaps:
+        - tool: rest_server_launch
+          difference: This profile-specific word binds only the control exit and health route set.
+      before: [await_rag_control]
     config:
       rest_ref: chroma_rag_control
 
@@ -131,6 +149,15 @@ tools:
     undo:
       strategy: compensating_action
       description: Stop the monitor REST server if the launch owns the listener.
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server config, bind, route, or schema failure.
+        state_after_failure: No monitor route is exposed.
+    relationships:
+      overlaps:
+        - tool: rest_server_launch
+          difference: This profile-specific word binds only the monitor REST route set.
+      before: [await_rag_control]
     config:
       rest_ref: monitor
 
@@ -179,6 +206,19 @@ tools:
     undo:
       strategy: noop
       description: Queue restore is not implemented.
+    errors:
+      - signal: AwaitTimedOut
+        condition: No configured lifecycle exit event arrives before the timeout elapses.
+        state_after_failure: Listeners remain open; the machine may retry the await or exit.
+      - signal: ServerStopped
+        condition: A configured source server stops while awaiting under the emit_server_stopped policy.
+        state_after_failure: The stopped source no longer delivers events; other sources continue.
+      - signal: CommandError
+        condition: A configured source server is missing or a queue read fails.
+        state_after_failure: Listener state is unchanged.
+    relationships:
+      after: [launch_rag_requests, launch_rag_control, launch_monitor_rest]
+      before: [stop_monitor_rest, stop_rag_requests]
     config:
       sources:
         - server: chroma_rag_control
@@ -231,6 +271,13 @@ tools:
     undo:
       strategy: noop
       description: Relaunch is a separate MachineSpec action.
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server is missing, shutdown times out, or cleanup fails.
+        state_after_failure: Monitor listener state may be partially stopped.
+    relationships:
+      after: [await_rag_control]
+      before: [stop_rag_requests]
     config:
       rest_ref: monitor
 
@@ -275,5 +322,11 @@ tools:
     undo:
       strategy: noop
       description: Relaunch is a separate MachineSpec action.
+    errors:
+      - signal: CommandError
+        condition: Query REST server is missing, shutdown times out, or cleanup fails.
+        state_after_failure: Query listener state may be partially stopped.
+    relationships:
+      after: [await_rag_control, stop_monitor_rest]
     config:
       rest_ref: chroma_rag_requests
