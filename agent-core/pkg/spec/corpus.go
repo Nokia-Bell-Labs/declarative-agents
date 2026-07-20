@@ -257,8 +257,7 @@ func discoverAndParseTestSuites(rootDir string) (map[string]TestSuite, error) {
 
 func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[string][]string, []string, error) {
 	profilesPath := resolveProfileAssetsRoot(rootDir)
-	entries, err := os.ReadDir(profilesPath)
-	if err != nil {
+	if _, err := os.ReadDir(profilesPath); err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil, nil, nil
 		}
@@ -269,12 +268,8 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 	toolSel := make(map[string][]string)
 	var order []string
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		agentName := entry.Name()
-		machPath := filepath.Join(profilesPath, agentName, "machine.yaml")
+	for _, pd := range collectProfileDirs(profilesPath) {
+		machPath := filepath.Join(pd.Dir, "machine.yaml")
 		if _, err := os.Stat(machPath); err != nil {
 			continue
 		}
@@ -282,13 +277,13 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("parse machine %s: %w", machPath, err)
 		}
-		machines[agentName] = ms
-		order = append(order, agentName)
+		machines[pd.Name] = ms
+		order = append(order, pd.Name)
 
-		toolsPath := filepath.Join(profilesPath, agentName, "tools.yaml")
+		toolsPath := filepath.Join(pd.Dir, "tools.yaml")
 		if data, err := os.ReadFile(toolsPath); err == nil {
 			if tools := parseToolSelection(data); len(tools) > 0 {
-				toolSel[agentName] = tools
+				toolSel[pd.Name] = tools
 			}
 		}
 		for key, value := range ms.Configuration {
@@ -301,7 +296,7 @@ func discoverAndParseMachines(rootDir string) (map[string]core.MachineSpec, map[
 			}
 			if data, err := os.ReadFile(resolveRootPath(rootDir, filepath.Dir(machPath), path)); err == nil {
 				if tools := parseToolSelection(data); len(tools) > 0 {
-					toolSel[agentName+":"+key] = tools
+					toolSel[pd.Name+":"+key] = tools
 				}
 			}
 		}
@@ -364,18 +359,13 @@ func discoverAndParseToolDeclarations(rootDir string) (map[string]ToolDeclaratio
 	declFiles = append(declFiles, yamlFilesInDir(filepath.Join(rootDir, "tools", "exec"))...)
 
 	profilesPath := resolveProfileAssetsRoot(rootDir)
-	if entries, err := os.ReadDir(profilesPath); err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			override := filepath.Join(profilesPath, entry.Name(), "builtin.yaml")
-			if _, err := os.Stat(override); err == nil {
-				declFiles = append(declFiles, override)
-			}
-			declFiles = append(declFiles, yamlFilesInDir(filepath.Join(profilesPath, entry.Name(), "llm"))...)
-			declFiles = append(declFiles, declarationFilesFromProfile(filepath.Join(profilesPath, entry.Name(), "profile.yaml"))...)
+	for _, pd := range collectProfileDirs(profilesPath) {
+		override := filepath.Join(pd.Dir, "builtin.yaml")
+		if _, err := os.Stat(override); err == nil {
+			declFiles = append(declFiles, override)
 		}
+		declFiles = append(declFiles, yamlFilesInDir(filepath.Join(pd.Dir, "llm"))...)
+		declFiles = append(declFiles, declarationFilesFromProfile(filepath.Join(pd.Dir, "profile.yaml"))...)
 	}
 
 	for _, path := range declFiles {

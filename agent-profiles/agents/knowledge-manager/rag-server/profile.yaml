@@ -1,4 +1,4 @@
-name: chroma-rag-server
+name: rag-server
 machine: machine.yaml
 tools:
   - tools.yaml

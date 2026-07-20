@@ -1,4 +1,4 @@
-name: chroma-rag-server
+name: rag-server
 purpose: |-
   The Chroma RAG server profile hosts the reader retrieval chain as a persistent
   service. It launches a machine_request query server, a control server, and a

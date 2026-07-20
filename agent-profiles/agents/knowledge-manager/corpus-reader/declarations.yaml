@@ -40,6 +40,14 @@ tools:
     undo:
       strategy: noop
       description: A heartbeat check does not mutate state.
+    errors:
+      - signal: CommandError
+        condition: The chroma client definition is missing, or the heartbeat call fails on network, timeout, or mapping.
+        state_after_failure: No Chroma state is read or changed.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Chroma heartbeat readiness probe.
     config:
       rest_ref: chroma
       operation: heartbeat
@@ -85,6 +93,14 @@ tools:
     undo:
       strategy: noop
       description: A version check does not mutate state.
+    errors:
+      - signal: CommandError
+        condition: The ollama client definition is missing, or the version call fails on network, timeout, or mapping.
+        state_after_failure: No Ollama state is read or changed.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Ollama version readiness probe.
     config:
       rest_ref: ollama
       operation: version
@@ -129,6 +145,15 @@ tools:
     undo:
       strategy: noop
       description: Computing an embedding does not mutate state.
+    errors:
+      - signal: CommandError
+        condition: The Ollama embeddings call fails on network, timeout, schema, or mapping.
+        state_after_failure: No query embedding is produced and no state changes.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Ollama query-embedding operation.
+      before: [resolve_collection]
     config:
       rest_ref: ollama
       operation: embed_query
@@ -175,6 +200,16 @@ tools:
     undo:
       strategy: noop
       description: Create-or-get is idempotent for a stable collection name.
+    errors:
+      - signal: CommandError
+        condition: The Chroma create-or-get collection call fails on network, timeout, schema, or mapping.
+        state_after_failure: The collection id is unresolved; create-or-get is idempotent so there is no net change.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Chroma create-or-get collection operation for the query path.
+      after: [embed_query]
+      before: [chroma_query]
     config:
       rest_ref: chroma
       operation: create_or_get_collection_query
@@ -221,6 +256,16 @@ tools:
     undo:
       strategy: noop
       description: Querying a collection does not mutate state.
+    errors:
+      - signal: CommandError
+        condition: The Chroma query call fails on network, timeout, schema, or mapping.
+        state_after_failure: No records are read and no state changes.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Chroma vector query operation.
+      after: [resolve_collection]
+      before: [invoke_llm]
     config:
       rest_ref: chroma
       operation: query_records

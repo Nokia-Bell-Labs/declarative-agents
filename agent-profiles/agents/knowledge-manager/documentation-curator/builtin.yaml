@@ -45,7 +45,7 @@ tools:
           addr:
             type: string
     side_effects:
-      - kind: server
+      - kind: network_listen
         target: documentation_curator_http
         state: running
         description: Starts the local documentation UX and API server.
@@ -95,6 +95,20 @@ tools:
     init: rest_server_launch
     category: boundary
     description: Launch generic lifecycle control routes for documentation-curator.
+    problem: The documentation-curator process must expose a control plane for health checks and graceful lifecycle exit.
+    goals:
+      - Register the control exit and health routes.
+      - Keep control access inside the existing REST server tool path.
+    requirements:
+      input:
+        - Tool config references the trusted control REST server definition.
+      output:
+        - Output reports server name, bound address, and route count.
+      errors:
+        - Config, bind, route conflict, and schema failures emit CommandError.
+    non_goals:
+      - Does not execute lifecycle behavior inside HTTP handlers.
+      - Does not accept runtime transport authority.
     emits: [ServerLaunched, CommandError]
     parameters:
       type: object
@@ -126,6 +140,21 @@ tools:
     init: rest_await_event
     category: boundary
     description: Await generic lifecycle control events for documentation-curator.
+    problem: The documentation-curator process needs one grammar-visible wait word so it stays alive while serving the UX.
+    goals:
+      - Wait on the control server queue after launch.
+      - Accept only configured lifecycle exit events.
+      - Return the selected lifecycle signal to MachineSpec.
+    requirements:
+      input:
+        - Tool config references the trusted control REST server queue.
+      output:
+        - Output reports source, route, signal, payload, and request ID.
+      errors:
+        - Missing server, timeout, stopped server, and queue failures emit declared signals.
+    non_goals:
+      - Does not read or mutate documentation content.
+      - Does not execute lifecycle behavior inside HTTP handlers.
     emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     parameters:
       type: object

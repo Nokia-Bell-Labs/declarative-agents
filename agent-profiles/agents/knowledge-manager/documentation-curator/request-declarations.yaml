@@ -37,7 +37,7 @@ tools:
             extension: {type: string}
             size: {type: integer}
     side_effects:
-      - kind: filesystem
+      - kind: filesystem_read
         target: docs_resource
         state: read_only
     reversibility:
@@ -102,7 +102,7 @@ tools:
           extension: {type: string}
           size: {type: integer}
     side_effects:
-      - kind: filesystem
+      - kind: filesystem_read
         target: docs_resource
         state: read_only
     reversibility:
