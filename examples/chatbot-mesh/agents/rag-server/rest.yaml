@@ -14,7 +14,7 @@ rest:
       network:
         schemes: [http]
         # The Chroma host is the egress allowlist entry; a values-driven deploy
-        # sets CHROMA_HOST to the Chroma Service DNS name (srd015 R2), defaulting
+        # sets CHROMA_HOST to the Chroma Service DNS name (srd003 R2), defaulting
         # to loopback for a local run.
         hosts: [${CHROMA_HOST:-127.0.0.1}]
         ports: [8000]

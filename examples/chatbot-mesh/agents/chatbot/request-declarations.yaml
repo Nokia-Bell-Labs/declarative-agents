@@ -52,7 +52,7 @@ tools:
     category: boundary
     emits: [LLMResponded, CommandError]
     description: Classify the composed prompt to one chat-LLM word with a small fast model.
-    problem: The turn must route to a chat-LLM word by query difficulty before answering (srd014 R2).
+    problem: The turn must route to a chat-LLM word by query difficulty before answering (srd002 R2).
     goals:
       - Read the composed grounding prompt and emit one tool call over the chat-LLM vocabulary.
       - Use a small fast classifier model so routing is cheap relative to the answer.

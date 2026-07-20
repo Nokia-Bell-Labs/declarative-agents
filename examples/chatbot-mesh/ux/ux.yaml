@@ -1,0 +1,61 @@
+id: chatbot-ui
+title: Chatbot Agent UI
+source_owner: agents/chatbot
+routes:
+  - id: chat
+    path: /chat
+    label: Chat
+    action: chat_send
+    resource: chat
+  - id: observability
+    path: /observability
+    label: Observability
+    action: observability_view
+    resource: monitor
+sidebar:
+  title: Chatbot
+  groups:
+    chat:
+      label: Chat
+      order: 0
+    observability:
+      label: Observability
+      order: 1
+actions:
+  chat_send:
+    ui_action: chat_send
+    request_machine_action: chat
+    route: chat
+    endpoint: /api/v1/chat
+    method: POST
+  observability_view:
+    ui_action: observability_view
+    route: observability
+# The observability panel opens one live sub-panel per monitored agent, reading
+# its monitor state and SSE stream through the chatbot's same-origin monitor_proxy
+# (/monitor-proxy/<name>/...). This list is the monitored-agents surface srd003
+# co-generates; keep it in sync with the rest.yaml monitor_proxy upstreams and the
+# SPA agent list in app/src/monitorApi.ts.
+monitored_agents:
+  - name: chatbot
+    label: Chatbot
+  - name: rag0
+    label: RAG server 0
+  - name: rag1
+    label: RAG server 1
+# The trace backend the observability v2 waterfall queries by trace id, reached
+# same-origin through the chatbot's monitor_proxy (the jaeger upstream in
+# rest.yaml). This is the same values-driven surface srd003 co-generates; keep the
+# name in sync with the rest.yaml monitor_proxy upstream and TRACE_BACKEND in the
+# SPA traceApi.ts. Absent locally, so the waterfall degrades to a missing-backend
+# notice.
+trace_backend:
+  name: jaeger
+  query_path: /monitor-proxy/jaeger/api/traces/{trace_id}
+presentation:
+  history_client_side: true
+  source_citations: true
+  degraded_indicator: true
+  observability_per_agent_sse: true
+  observability_turn_correlation: time-window
+  observability_trace_waterfall: true

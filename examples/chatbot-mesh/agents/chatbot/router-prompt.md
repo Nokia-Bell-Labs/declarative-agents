@@ -3,7 +3,7 @@
 The router (`route` in
 [request-declarations.yaml](request-declarations.yaml)) is a small fast
 classifier that picks one chat-LLM word for the composed grounding prompt before
-the turn answers (srd014 R2). The prompt below is the source of the `route`
+the turn answers (srd002 R2). The prompt below is the source of the `route`
 word's `system_prompt`; keep the two identical. The chat-LLM vocabulary the
 router chooses from is exactly the declared `$tool` words, and a misparse or an
 out-of-vocabulary pick falls back to the default word `invoke_llm_fast`.

@@ -2,7 +2,7 @@
 # compose that assembles the surviving per-source chunk lists into the grounding
 # prompt. This file is the two-RAG local default; a values-driven deploy renders it
 # (and request-machine.yaml) for N RAGs from the ragUnits list, keeping the fan-out
-# breadth and the RAG topology from one source (srd015 R2, GH-372). Kept separate
+# breadth and the RAG topology from one source (srd003 R2, GH-372). Kept separate
 # from request-declarations.yaml so only this small file varies with the RAG count.
 tools:
   - name: rag_query0
@@ -22,7 +22,7 @@ tools:
         - Output includes the retrieved chunk ids, documents, distances, and the RAG embedding model.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError so the turn degrades to the next RAG.
-        - A 400 embedding-space mismatch (srd013 R2.3) emits QueryRejected so this source is excluded from the composed chunks.
+        - A 400 embedding-space mismatch (srd001 R2.3) emits QueryRejected so this source is excluded from the composed chunks.
     non_goals:
       - Does not author the query vector.
       - Does not accept runtime method, URL, host, or auth overrides.
@@ -71,7 +71,7 @@ tools:
         - Output includes the retrieved chunk ids, documents, distances, and the RAG embedding model.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError so the turn degrades with the remaining chunks.
-        - A 400 embedding-space mismatch (srd013 R2.3) emits QueryRejected so this source is excluded from the composed chunks.
+        - A 400 embedding-space mismatch (srd001 R2.3) emits QueryRejected so this source is excluded from the composed chunks.
     non_goals:
       - Does not author the query vector.
       - Does not accept runtime method, URL, host, or auth overrides.
@@ -124,7 +124,7 @@ tools:
     non_goals:
       - Does not call any provider or author chunks.
       - Does not receive transport authority.
-      - Does not order or cap chunks; per-source top-k is bounded upstream by the RAG query n_results (srd013 R2.1).
+      - Does not order or cap chunks; per-source top-k is bounded upstream by the RAG query n_results (srd001 R2.1).
     parameters:
       type: object
       properties: {}

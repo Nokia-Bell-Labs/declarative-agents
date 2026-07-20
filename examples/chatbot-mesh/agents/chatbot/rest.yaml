@@ -104,9 +104,9 @@ rest:
             n_results: 5
           success: {status: [200], signal: QueryResponded}
           failures:
-            # An embedding-space mismatch (srd013 R2.3) is a 400 the RAG server
+            # An embedding-space mismatch (srd001 R2.3) is a 400 the RAG server
             # returns; map it to QueryRejected so the machine excludes this source
-            # (srd014 R3.3) distinctly from a degraded (CommandError) RAG.
+            # (srd002 R3.3) distinctly from a degraded (CommandError) RAG.
             - {status: [400], signal: QueryRejected}
           response:
             output:
@@ -143,9 +143,9 @@ rest:
             n_results: 5
           success: {status: [200], signal: QueryResponded}
           failures:
-            # An embedding-space mismatch (srd013 R2.3) is a 400 the RAG server
+            # An embedding-space mismatch (srd001 R2.3) is a 400 the RAG server
             # returns; map it to QueryRejected so the machine excludes this source
-            # (srd014 R3.3) distinctly from a degraded (CommandError) RAG.
+            # (srd002 R3.3) distinctly from a degraded (CommandError) RAG.
             - {status: [400], signal: QueryRejected}
           response:
             output:
@@ -204,9 +204,9 @@ rest:
           binding: monitor_proxy
           # Same-origin reverse proxy so the SPA reads every mesh agent's monitor
           # state and SSE stream through this server (agent-core monitor_proxy,
-          # GH-358). The upstreams are the monitored-agents surface srd015
-          # co-generates; keep them in sync with ui/ux.yaml monitored_agents and
-          # the SPA agent list in ui/app/src/monitorApi.ts.
+          # GH-358). The upstreams are the monitored-agents surface srd003
+          # co-generates; keep them in sync with ux/ux.yaml monitored_agents and
+          # the SPA agent list in ux/app/src/monitorApi.ts.
           monitor_proxy:
             upstreams:
               chatbot: http://127.0.0.1:18082
@@ -226,7 +226,7 @@ rest:
           path: /ui/{path...}
           binding: static_assets
           static_assets:
-            root: agents/chatbot/ui/app/dist
+            root: ux/app/dist
             index: index.html
             spa: true
           request:
