@@ -1,0 +1,104 @@
+tools:
+  - name: apply_instance
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Realize the decided operation by driving the deployment API's apply path.
+    problem: A decided instance operation must be realized against real instances, and the creator alone holds the deployment-API authority that does so.
+    goals:
+      - Drive the deployment API to apply the decided operation for the requested role.
+      - Consume the co-generated values-to-config output the deployment API produces without authoring it.
+      - Carry the requested collection forward for the health report.
+    requirements:
+      input:
+        - The operation, role, and collection are selected from the seeded instance body.
+      output:
+        - Output includes the deployment API's revision, with the requested collection carried forward.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not decide what to change; the values decision is the coordinator's.
+      - Does not accept a runtime method, URL, host, or credential for the deployment API.
+    parameters:
+      type: object
+      properties:
+        operation: {type: string}
+        role: {type: string}
+        collection: {type: string}
+    emits: [InstanceApplied, CommandError]
+    output:
+      description: Deployment-API apply result with the carried request.
+      schema:
+        type: object
+        properties:
+          mapped: {type: object}
+          carried: {type: object}
+    side_effects:
+      - kind: external_api
+        target: deployment_api.apply
+        state: instance_applied
+    reversibility:
+      classification: compensatable
+      undo: apply_instance
+    undo:
+      strategy: compensating_action
+      description: A superseding apply reverses a prior operation through the deployment API.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, schema, or mapping failure reaching the deployment API.
+        state_after_failure: The operation outcome is unknown; the request ends in Failed.
+    relationships:
+      before: [verify_health]
+    config:
+      rest_ref: deployment_api
+      operation: apply_instance
+
+  - name: verify_health
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Verify the instance's health through the deployment API's rollout read.
+    problem: A created or restarted instance must be confirmed healthy before the operation is reported complete.
+    goals:
+      - Read the rollout status from the deployment API.
+      - Report the instance health and revision for the coordinator's aggregated status.
+    requirements:
+      input:
+        - The rollout read takes no request-scoped input beyond the applied operation.
+      output:
+        - Output includes the reported health phase and revision.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not mutate the deployment state; the read is idempotent.
+      - Does not accept a runtime method, URL, host, or credential for the deployment API.
+    parameters:
+      type: object
+      properties: {}
+    emits: [HealthReported, CommandError]
+    output:
+      description: Deployment-API rollout health.
+      schema:
+        type: object
+        properties:
+          health: {type: string}
+          revision: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: deployment_api.rollout
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Reading the rollout status does not mutate state.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, schema, or mapping failure reaching the deployment API.
+        state_after_failure: The instance health is unknown; the request ends in Failed.
+    relationships:
+      after: [apply_instance]
+    config:
+      rest_ref: deployment_api
+      operation: read_rollout

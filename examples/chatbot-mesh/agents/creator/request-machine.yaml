@@ -1,0 +1,35 @@
+name: creator-instance-request
+purpose: |-
+  One request-scoped run of a decided instance operation. The machine_request
+  instance endpoint seeds this machine with the operation body from the coordinator
+  (the operation -- create, restart, terminate, or ingest -- its role, and the
+  parameters). The creator realizes the operation by driving the deployment API
+  (apply_instance), then verifies the instance's health through the deployment API's
+  rollout read (verify_health) before the terminal HealthReported signal maps the
+  reported health to the HTTP response. The creator acts on the coordinator's
+  decision; it alone bears the deployment-API credential, it authors no values
+  decision, and it passes no endpoint or credential into a running agent.
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 6
+states:
+  - {name: AwaitingRequest, meaning: Seeded by the trusted instance endpoint with the decided operation body.}
+  - {name: Applying, meaning: The creator is realizing the operation by driving the deployment API.}
+  - {name: Verifying, meaning: The creator is reading the rollout status to verify the instance's health.}
+  - {name: HealthReported, meaning: Terminal. The instance is healthy and the reported health is ready for the HTTP response.}
+  - {name: Failed, meaning: Terminal. A deployment-API boundary word failed.}
+terminal_states:
+  - HealthReported
+  - Failed
+signals:
+  - {name: Seed, trigger: The instance endpoint starts a request-scoped run.}
+  - {name: InstanceApplied, trigger: The deployment API accepted the operation and started the rollout.}
+  - {name: HealthReported, trigger: The rollout read reported the instance healthy.}
+  - {name: CommandError, trigger: A deployment-API boundary word failed.}
+transitions:
+  - {state: AwaitingRequest, signal: Seed,            next: Applying,  action: apply_instance}
+  - {state: AwaitingRequest, signal: CommandError,    next: Failed}
+  - {state: Applying,        signal: InstanceApplied, next: Verifying, action: verify_health}
+  - {state: Applying,        signal: CommandError,    next: Failed}
+  - {state: Verifying,       signal: HealthReported,  next: HealthReported}
+  - {state: Verifying,       signal: CommandError,    next: Failed}
