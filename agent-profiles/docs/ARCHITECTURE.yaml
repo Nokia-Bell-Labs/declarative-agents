@@ -189,7 +189,8 @@ related_documents:
     purpose: Per-profile role taxonomy for migration and validation work.
   - doc: ../examples/chatbot-mesh/docs/ARCHITECTURE.yaml
     purpose: The deployable chatbot mesh example (a chatbot fanning one embedding
-      out to N Chroma-backed RAG servers), relocated to examples/chatbot-mesh/ as a
-      standalone, copyable program with its own docs/specs, Helm chart, and ux SPA.
-      Its mesh agents derive from the chatbot and knowledge-manager profile families
-      here.
+      out to N Chroma-backed RAG servers, plus a control plane of a coordinator and
+      creator that turn a provisioning intent into an ingest and a rollout),
+      relocated to examples/chatbot-mesh/ as a standalone, copyable program with its
+      own docs/specs, Helm chart, and ux SPA. Its mesh agents derive from the chatbot
+      and knowledge-manager profile families here.

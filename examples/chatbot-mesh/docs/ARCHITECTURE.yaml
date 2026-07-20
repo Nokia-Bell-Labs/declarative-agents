@@ -18,9 +18,9 @@ overview:
     chart, and the documents. Operators run each agent as the agent-core image with
     a mounted profile: `agent --profile /profiles/agents/<name>/profile.yaml`.
 
-    This architecture covers the data plane only. The control plane (a coordinator
-    that sequences reconfiguration, a creator that manages agent lifecycle, and the
-    provisioning surface) is a deferred addition and is not a component here.
+    This architecture covers the data plane and the control plane. The control plane
+    -- a coordinator that sequences reconfiguration, a creator that manages agent
+    lifecycle, and the provisioning surface -- is release rel05.0.
 
   turn_flow_diagram: |
     ```mermaid
@@ -80,11 +80,32 @@ components:
       model lists and reads the corpus, the machine embeds each document at Ollama
       and threads the vector into a Chroma add. Used to make the example
       self-seeding for its integration tests.
+  - name: coordinator agent
+    path: agents/coordinator/
+    responsibility: |
+      The control plane's workflow orchestrator (srd004). Bind a provisioning intent
+      the chatbot delegates to a request-scoped run, sequence the ingestion and
+      reconfiguration through declared requests to the creator, decide the values
+      patch, and aggregate status. Hold no deployment-API authority.
+  - name: creator agent
+    path: agents/creator/
+    responsibility: |
+      The control plane's agent lifecycle manager (srd005). Realize a decided
+      instance operation by driving the deployment API, verify the instance's health
+      through a rollout read, and report back. The only agent that declares a
+      deployment-API client; it alone holds that authority.
+  - name: provisioner
+    path: provisioner/
+    responsibility: |
+      The deployment-plane values-patch service (srd003 R4) the creator drives and
+      the panel reads: it serves the mesh view and applies values edits that trigger
+      a rollout, authenticated apart from chat. Standard-library Go, not an agent.
   - name: user interface
     path: ux/
     responsibility: |
-      The single-page application (chat, observability, and trace panels) and its
-      UX config. Rendered into the deployed agents from the Helm chart.
+      The single-page application (chat, observability, trace, and provisioning
+      panels) and its UX config. Rendered into the deployed agents from the Helm
+      chart. The provisioning panel delegates an intent to the coordinator.
   - name: Helm chart
     path: helm/
     responsibility: |
@@ -187,15 +208,17 @@ project_structure:
       role: The decisions record and the standalone-program framing.
 
 implementation_status:
-  current_focus: Extract the mesh from the shared catalog into this self-governing
-    example; the data-plane behavior is already implemented and is being relocated.
+  current_focus: The example is a self-governing, standalone program; the data plane
+    and the control plane are both extracted and implemented here.
   progress:
-    - done: The mesh behavior (RAG server, chat turn, routing, fan-out,
-        observability, Helm deployment, in-cluster model tier) is implemented in
-        the shared catalog.
-    - pending: Extraction of the agents, UX, chart, and specs into this directory.
-    - pending: The example's own magefile audit and integration entry.
-    - deferred: The control plane (coordinator, creator, provisioning surface).
+    - done: The data-plane mesh (RAG server, chat turn, routing, fan-out,
+        observability, Helm deployment, in-cluster model tier) is implemented, with
+        the agents, UX, chart, and specs in this directory.
+    - done: The example's own magefile audit and integration entries (chroma,
+        rag-server, chatbot, helm smoke/swap/llm-tier, provisioning, control plane).
+    - done: The control plane (coordinator srd004, creator srd005, and the
+        provisioner deployment surface), realized as mage integration:controlPlane
+        (rel05.0).
 
 related_documents:
   - doc: docs/VISION.yaml
@@ -207,7 +230,11 @@ related_documents:
   - doc: docs/specs/software-requirements/srd002-chatbot-agent.yaml
     purpose: The chatbot agent requirements (relocated, renumbered).
   - doc: docs/specs/software-requirements/srd003-chatbot-deployment.yaml
-    purpose: The deployment requirements (relocated, renumbered; provisioning
-      deferred to the control-plane addition).
+    purpose: The deployment requirements (relocated, renumbered), including the
+      provisioning authority boundary (R4).
+  - doc: docs/specs/software-requirements/srd004-coordinator.yaml
+    purpose: The coordinator agent requirements (control plane).
+  - doc: docs/specs/software-requirements/srd005-creator.yaml
+    purpose: The creator agent requirements (control plane).
   - doc: README.md
     purpose: The decisions record and standalone-program framing.
