@@ -13,6 +13,16 @@ overview: |
   external references rather than indexing them here. The control plane
   (coordinator, creator, and the provisioning surface) is release rel05.0.
 
+  The corpus is validated by the jurist (mage audit): it loads and validates with no
+  errors. The jurist reports orphaned-srd, uncovered-ac, and untraced-success
+  -criterion warnings uniformly across the data-plane and control-plane specs; these
+  are systemic, not per-spec drift. The orphaned-srd warnings stem from the jurist's
+  graph builder not parsing object-format touchpoints ({id, target, reason}) into SRD
+  edges, tracked in issue #448; the coverage warnings reflect the convention of
+  tracing success criteria to requirements. The authoring-level chain is intact:
+  every SRD is indexed and placed in ARCHITECTURE, every use case targets its SRDs
+  through touchpoints, and every test suite traces its use case.
+
 roadmap_summary:
   - version: "00.0"
     name: RAG server and single-RAG chatbot turn
