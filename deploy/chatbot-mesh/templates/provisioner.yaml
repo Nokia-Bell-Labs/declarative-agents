@@ -94,6 +94,9 @@ spec:
         - name: provisioner
           image: "{{ .Values.provisioner.image.repository }}:{{ .Values.provisioner.image.tag }}"
           imagePullPolicy: {{ .Values.provisioner.image.pullPolicy }}
+          args:
+            - --read-token-file=/etc/provisioner-tokens/readToken
+            - --apply-token-file=/etc/provisioner-tokens/applyToken
           ports:
             - {name: api, containerPort: {{ .Values.provisioner.port }}}
           env:
@@ -102,12 +105,6 @@ spec:
             - {name: PROVISION_RELEASE, value: {{ .Release.Name | quote }}}
             - {name: PROVISION_NAMESPACE, value: {{ .Release.Namespace | quote }}}
             - {name: PROVISION_DEPLOYMENT, value: {{ $fullname }}-chatbot}
-            - name: PROVISION_READ_TOKEN
-              valueFrom:
-                secretKeyRef: {name: {{ $fullname }}-provisioner, key: readToken}
-            - name: PROVISION_APPLY_TOKEN
-              valueFrom:
-                secretKeyRef: {name: {{ $fullname }}-provisioner, key: applyToken}
           readinessProbe:
             httpGet: {path: /provisioning/api/health, port: api}
             initialDelaySeconds: 3
@@ -116,10 +113,14 @@ spec:
             {{- toYaml .Values.provisioner.resources | nindent 12 }}
           volumeMounts:
             - {name: mesh-state, mountPath: /etc/provisioner, readOnly: true}
+            - {name: provisioner-tokens, mountPath: /etc/provisioner-tokens, readOnly: true}
       volumes:
         - name: mesh-state
           configMap:
             name: {{ $fullname }}-mesh-state
+        - name: provisioner-tokens
+          secret:
+            secretName: {{ $fullname }}-provisioner
 ---
 apiVersion: v1
 kind: Service

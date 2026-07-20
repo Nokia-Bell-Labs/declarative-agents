@@ -105,6 +105,7 @@ configuration:
   - Do not add mode-specific branches to cmd/agent when a profile, machine, or ToolDef can express the behavior.
   - Use typed config structs when decoding ToolDef config.
   - Keep compatibility paths explicit and tested.
+  - Sanctioned exceptions to the no-os.Getenv rule, outside cmd/agent, are the substitution feature in internal/tools/rest/envexpand.go (os.LookupEnv expands ${VAR:-default} references in mounted REST definitions from chart-injected values, not an ad-hoc config channel) and the deploy/chatbot-mesh provisioner (a Kubernetes deployment-plane service that reads its non-secret settings from chart-set env; its secret tokens are read from mounted-Secret files, not env). magefiles/ may read build or CI env where no configuration alternative exists.
 tool_language:
   rules:
   - MachineSpec owns workflow sequencing.
