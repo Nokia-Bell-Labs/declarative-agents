@@ -89,8 +89,8 @@ func TestApplyValidatesMeshView(t *testing.T) {
 		"no rags":         `{"rags":[],"llm":{"externalURL":"http://o"},"params":{"nResults":5}}`,
 		"bad rag name":    `{"rags":[{"name":"Rag_0","collection":"c","embeddingModel":"m"}],"llm":{"externalURL":"http://o"},"params":{"nResults":5}}`,
 		"zero nResults":   `{"rags":[{"name":"rag0","collection":"c","embeddingModel":"m"}],"llm":{"externalURL":"http://o"},"params":{"nResults":0}}`,
-		"external no url":  `{"rags":[{"name":"rag0","collection":"c","embeddingModel":"m"}],"llm":{"inCluster":false},"params":{"nResults":5}}`,
-		"dup rag name":     `{"rags":[{"name":"rag0","collection":"c","embeddingModel":"m"},{"name":"rag0","collection":"d","embeddingModel":"m"}],"llm":{"externalURL":"http://o"},"params":{"nResults":5}}`,
+		"external no url": `{"rags":[{"name":"rag0","collection":"c","embeddingModel":"m"}],"llm":{"inCluster":false},"params":{"nResults":5}}`,
+		"dup rag name":    `{"rags":[{"name":"rag0","collection":"c","embeddingModel":"m"},{"name":"rag0","collection":"d","embeddingModel":"m"}],"llm":{"externalURL":"http://o"},"params":{"nResults":5}}`,
 	}
 	for name, body := range cases {
 		rec := do(s, http.MethodPost, "/provisioning/api/apply", "apply-tok", body)

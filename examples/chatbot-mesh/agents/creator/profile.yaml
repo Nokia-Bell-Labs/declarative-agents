@@ -1,0 +1,10 @@
+name: creator
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml
+  - request-declarations.yaml
+  - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
+rest_definitions:
+  - rest.yaml

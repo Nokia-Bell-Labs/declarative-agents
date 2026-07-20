@@ -1,0 +1,60 @@
+name: creator
+purpose: |-
+  The creator profile hosts the mesh control plane's agent lifecycle management (LCM)
+  agent as a persistent service. It launches a machine_request instance server, a
+  control server, and a monitor server, then idles in AwaitingControl until a
+  lifecycle exit event is enqueued, at which point it exits the agent and stops the
+  servers. Each inbound instance operation runs a request-scoped machine
+  (request-machine.yaml): the creator realizes a decided operation (create, restart,
+  terminate, ingest) by driving the deployment API, then verifies the instance's
+  health before reporting back to the coordinator. The creator acts on the
+  coordinator's decisions; it alone holds the deployment-API credentials (srd005), it
+  authors no values decision, and it passes no endpoint or credential into a running
+  agent.
+invariants:
+  - REST authority lives in this profile's rest.yaml; no runtime input supplies transport authority.
+  - The creator alone holds the deployment-API authority; it is the only agent that declares a deployment-API client, and the bearer credential is deployment-realized (a mounted Secret), never a runtime-supplied one.
+  - The creator consumes the co-generated values-to-config output through the deployment API; it authors no values decision (that is the coordinator's).
+initial_state: Idle
+budget:
+  max_iterations: 10000
+states:
+  - {name: Idle, meaning: Initial state before the creator servers start.}
+  - {name: LaunchingRequests, meaning: The machine_request instance server is starting.}
+  - {name: LaunchingControl, meaning: The control server is starting.}
+  - {name: LaunchingMonitor, meaning: The monitor server is starting.}
+  - {name: AwaitingControl, meaning: Serving; waiting for a lifecycle exit event.}
+  - {name: Exiting, meaning: Routing ExitRequested to exit_agent.}
+  - {name: StoppingMonitor, meaning: Stopping the monitor server.}
+  - {name: StoppingRequests, meaning: Stopping the instance server.}
+  - {name: Failed, meaning: Terminal. A server or boundary word failed.}
+  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit.}
+terminal_states:
+  - Done
+  - Failed
+signals:
+  - {name: Seed, trigger: Agent startup.}
+  - {name: ServerLaunched, trigger: A server launched.}
+  - {name: ExitRequested, trigger: A lifecycle exit event was enqueued.}
+  - {name: AgentExited, trigger: exit_agent completed.}
+  - {name: ServerStopped, trigger: A server stopped.}
+  - {name: AwaitTimedOut, trigger: No lifecycle event arrived before the await timeout.}
+  - {name: CommandError, trigger: A server or boundary word failed.}
+transitions:
+  - {state: Idle,              signal: Seed,           next: LaunchingRequests, action: launch_creator_requests}
+  - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl,   action: launch_creator_control}
+  - {state: LaunchingRequests, signal: CommandError,   next: Failed}
+  - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest}
+  - {state: LaunchingControl,  signal: CommandError,   next: Failed}
+  - {state: LaunchingMonitor,  signal: ServerLaunched, next: AwaitingControl,    action: await_creator_control}
+  - {state: LaunchingMonitor,  signal: CommandError,   next: Failed}
+  - {state: AwaitingControl,   signal: ExitRequested,  next: Exiting,            action: exit_agent}
+  - {state: AwaitingControl,   signal: AwaitTimedOut,  next: AwaitingControl,    action: await_creator_control}
+  - {state: AwaitingControl,   signal: ServerStopped,  next: Failed}
+  - {state: AwaitingControl,   signal: CommandError,   next: Failed}
+  - {state: Exiting,           signal: AgentExited,    next: StoppingMonitor,    action: stop_monitor_rest}
+  - {state: Exiting,           signal: CommandError,   next: Failed}
+  - {state: StoppingMonitor,   signal: ServerStopped,  next: StoppingRequests,   action: stop_creator_requests}
+  - {state: StoppingMonitor,   signal: CommandError,   next: Failed}
+  - {state: StoppingRequests,  signal: ServerStopped,  next: Done}
+  - {state: StoppingRequests,  signal: CommandError,   next: Failed}

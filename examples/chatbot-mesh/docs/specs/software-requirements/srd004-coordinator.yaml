@@ -1,0 +1,146 @@
+id: srd004-coordinator
+title: Coordinator Agent Functional Block
+
+context: |
+  The mesh control plane is two agents. The coordinator is the workflow
+  orchestrator: the UX agent (chatbot, srd002) accomplishes a user's provisioning
+  intent by delegating it to the coordinator, which sequences the ingestion and
+  reconfiguration workflows, decides what the mesh should look like (the values and
+  config changes), resolves conflicts, and aggregates status for the provisioning
+  panel. It plays the reference-architecture Coordinator role
+  (workflow-synchronization, conflict-resolution, consensus and status); the
+  Agent Lifecycle Management component names the Orchestration and Coordination
+  Engine as its primary interaction, which is the coordinator-to-creator boundary
+  here.
+
+  The coordinator decides; the creator (srd005) acts. Every instance operation --
+  creating a child ingest run, restarting a reconfigured agent, terminating an
+  instance -- is a declared-client request to the creator, never a direct call to
+  the deployment API or a run_agent word. The coordinator holds no deployment-API
+  credentials and runs no instances. The reusable request runtime, monitor server,
+  and REST client transport stay in agent-core; the intent endpoint mapping, the
+  workflow machines, and the declared creator client stay profile-owned.
+
+problem: |
+  The provisioning surface (srd003 R4) edits deployment values and triggers
+  rollouts, but a user's intent -- "add this directory as a knowledge source" --
+  is a workflow, not a single values edit: it ingests corpora, decides the values
+  changes, restarts affected agents, and reports progress. The mesh needs an agent
+  that owns that workflow, sequences it, and aggregates its status, while keeping
+  the decision-versus-action split and the authority boundary of srd003 R4 intact.
+  The requirements must name the intent boundary, the ingestion and reconfiguration
+  workflows, the delegation-to-creator rule, and what the coordinator does not do,
+  separately from the agent-core request and REST runtime.
+
+goals:
+  - G1: Model the coordinator as a persistent workflow orchestrator that binds a user provisioning intent from the UX agent to a request-scoped workflow run.
+  - G2: Sequence the ingestion workflow -- given directories and target collections, drive corpus-ingest instance requests through the creator and verify the outcomes.
+  - G3: Sequence the reconfiguration workflow -- decide the values and config changes, request rollout of the affected agents through the creator, and confirm reported health.
+  - G4: Keep every instance operation a declared-client request to the creator, so the coordinator never holds deployment-API authority or runs an instance directly.
+  - G5: Aggregate per-step status and progress so the provisioning panel can render a running intent, while keeping the intent endpoint and workflow machines profile-owned.
+
+requirements:
+  R1:
+    title: Provisioning-intent boundary
+    items:
+      - R1.1: The coordinator SHALL expose a machine_request intent endpoint (agent-core srd030) that binds one inbound provisioning intent from the UX agent (srd002) to one request-scoped run of a workflow machine and maps terminal signals to HTTP status.
+      - R1.2: The intent endpoint SHALL accept a declared intent (add or remove a knowledge source, reconfigure a parameter) and SHALL NOT accept a host, URL, method, or credential for a running agent (srd003 R4.2 lineage, agent-core srd028 V30).
+      - R1.3: The coordinator SHALL run a monitor server (agent-core srd033) and a control server (health + lifecycle exit), and SHALL aggregate per-step status and progress into a form the provisioning panel can render.
+      - R1.4: The intent, monitor, and control server bind addresses SHALL be loopback-configurable inputs rather than agent-authored values.
+  R2:
+    title: Ingestion workflow
+    items:
+      - R2.1: Given directories and their target collections, the coordinator SHALL sequence one corpus-ingest instance request per directory to the creator (srd005) and collect the per-directory outcomes.
+      - R2.2: The coordinator SHALL verify each ingested collection's count against the requested source before treating the ingestion step as complete.
+      - R2.3: A failed or partial ingest SHALL be reported in the aggregated status and SHALL NOT silently advance the reconfiguration workflow.
+  R3:
+    title: Reconfiguration workflow
+    items:
+      - R3.1: The coordinator SHALL decide the values and config changes that realize an intent (which RAG units, parameters, or LLM endpoints change) and SHALL be the sole author of that decision.
+      - R3.2: The coordinator SHALL request rollout or restart of the affected agents from the creator (srd005) and SHALL confirm the health the creator reports before completing the intent.
+      - R3.3: The coordinator SHALL resolve conflicts between concurrent intents so two intents do not apply contradictory values, serializing or rejecting as needed.
+  R4:
+    title: Delegation boundary
+    items:
+      - R4.1: Every instance operation -- create, restart, terminate -- SHALL be a declared rest.yaml client request to the creator (srd005), never a direct deployment-API call or a run_agent word from the coordinator.
+      - R4.2: The coordinator SHALL hold no deployment-API credentials and SHALL authenticate its intent endpoint apart from the chat path.
+      - R4.3: All coordinator clients SHALL be declared rest.yaml entries; no endpoint reaches the coordinator from runtime input (agent-core srd028 V30).
+  R5:
+    title: Non-goals
+    items:
+      - R5.1: The coordinator SHALL NOT orchestrate the chat turn path (route, embed, fan-out, compose); that stays in the chatbot (srd002).
+      - R5.2: The coordinator SHALL NOT perform agent lifecycle mechanics (template selection, instance creation, rollout execution, health probing); those are the creator (srd005).
+      - R5.3: The coordinator SHALL NOT mutate a running agent's client registry in process; reconfiguration is a rollout (srd003 R3.3).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The coordinator is described as a persistent workflow orchestrator with a machine_request intent endpoint from the UX agent, monitor and control servers, aggregated status, and loopback-configurable bind addresses, accepting no agent endpoint or credential.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+  - id: AC2
+    criterion: The ingestion workflow sequences one corpus-ingest instance request per directory through the creator, verifies collection counts, and reports partial failures without advancing.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: The reconfiguration workflow makes the coordinator the sole author of the values and config decision, requests rollout from the creator, confirms reported health, and resolves conflicts between concurrent intents.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC4
+    criterion: Every instance operation is a declared-client request to the creator; the coordinator holds no deployment-API credentials, authenticates apart from chat, and receives no endpoint from runtime input.
+    traces: [R4.1, R4.2, R4.3]
+  - id: AC5
+    criterion: The turn-path, LCM-mechanics, and in-process-mutation non-goals are stated as SHALL NOT requirements, cross-referencing srd002, srd005, and srd003 R3.3.
+    traces: [R5.1, R5.2, R5.3]
+
+depends_on:
+  - srd_id: srd002-chatbot-agent
+    symbols_used: [R5]
+  - srd_id: srd003-chatbot-deployment
+    symbols_used: [R2, R3, R4]
+  - srd_id: srd005-creator
+    symbols_used: [R1, R2, R3, R4]
+
+platform_dependencies:
+  # agent-core runtime contracts this agent builds on. External references, owned
+  # by agent-core, not part of this example's corpus.
+  - srd_id: srd030-machine-request-rest-binding
+    provider: agent-core
+    symbols_used: [R1]
+  - srd_id: srd033-monitor-rest-api
+    provider: agent-core
+    symbols_used: [R1]
+  - srd_id: srd028-rest-client-tools
+    provider: agent-core
+    symbols_used: [V30]
+
+implementation_status:
+  planned:
+    - >-
+      The coordinator profile (agents/coordinator) and its intent endpoint,
+      ingestion and reconfiguration workflow machines, and declared creator client.
+      Documentation-only until the control-plane release (rel05.0) builds the
+      profile; the provisioning panel drives the deployment API directly (srd003
+      R4) until the coordinator sequences the intent.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: A provisioning intent is a workflow, not one values edit"] --> Goals["Goals: Coordinator Agent Functional Block"]
+      Goals --> R1["R1: Provisioning-intent boundary"]
+      Goals --> R2["R2: Ingestion workflow"]
+      Goals --> R3["R3: Reconfiguration workflow"]
+      Goals --> R4["R4: Delegation boundary"]
+      Goals --> R5["R5: Non-goals"]
+      R1 --> AC1["AC1: intent endpoint + status aggregation, no agent endpoint"]
+      R2 --> AC2["AC2: sequence ingest via creator, verify counts"]
+      R3 --> AC3["AC3: sole values decision, rollout via creator, conflict resolution"]
+      R4 --> AC4["AC4: every instance op delegated to the creator"]
+      R5 --> AC5["AC5: not the turn path, not LCM, not in-process mutation"]
+    ```
+  control_plane: |
+    ```mermaid
+    flowchart LR
+      User["User"] --> Chatbot["Chatbot (UX, srd002)"]
+      Chatbot -->|provisioning intent| Coordinator["Coordinator (srd004)"]
+      Coordinator -->|instance requests| Creator["Creator (srd005)"]
+      Creator -->|values edit + rollout| DeployAPI["Deployment API (srd003 R4)"]
+      Coordinator -->|status| Chatbot
+    ```

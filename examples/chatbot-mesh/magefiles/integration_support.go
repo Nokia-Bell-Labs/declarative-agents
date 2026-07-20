@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -119,6 +120,26 @@ func readIntegrationYAML(path, label string, out any) error {
 	}
 	if err := yaml.Unmarshal(data, out); err != nil {
 		return fmt.Errorf("parse %s: %w", label, err)
+	}
+	return nil
+}
+
+// freeLoopbackAddr binds an ephemeral loopback port and returns its address, so a
+// tracer can hand a real free address to a subprocess it launches.
+func freeLoopbackAddr() (string, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	defer listener.Close()
+	return listener.Addr().String(), nil
+}
+
+// writeExecutable writes a script to path with the executable bit set, for the
+// fake helm/kubectl binaries a tracer puts on PATH.
+func writeExecutable(path, script, label string) error {
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		return fmt.Errorf("write %s: %w", label, err)
 	}
 	return nil
 }

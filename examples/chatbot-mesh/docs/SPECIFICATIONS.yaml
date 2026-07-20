@@ -2,16 +2,16 @@ id: chatbot-mesh-example-specifications
 title: Chatbot Mesh Example Specification Index
 
 overview: |
-  Specification index for the standalone chatbot mesh example. Three SRDs define
-  the data-plane program: the RAG server agent (srd001), the chatbot agent
-  (srd002), and the Helm deployment model (srd003). Six use cases exercise them
-  across five releases (rel00.0 through rel04.0), each with a formal test suite.
+  Specification index for the standalone chatbot mesh example. Five SRDs define the
+  program: three data-plane -- the RAG server agent (srd001), the chatbot agent
+  (srd002), and the Helm deployment model (srd003) -- and two control-plane -- the
+  coordinator (srd004) and the creator (srd005). Seven use cases exercise them
+  across six releases (rel00.0 through rel05.0), each with a formal test suite.
 
   The example runs on the agent-core runtime and cites agent-core platform SRDs
   (srd028, srd030, srd033, srd034, srd035, srd036, and srd016 traceparent) as
   external references rather than indexing them here. The control plane
-  (coordinator, creator, and the provisioning surface) is a deferred addition and
-  is not part of this index.
+  (coordinator, creator, and the provisioning surface) is release rel05.0.
 
 roadmap_summary:
   - version: "00.0"
@@ -39,6 +39,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: implemented
+  - version: "05.0"
+    name: Control plane
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
 
 srd_index:
   - id: srd001-rag-server-agent
@@ -53,6 +58,14 @@ srd_index:
     title: Chatbot Mesh Deployment Model
     summary: One Helm chart with values-driven RAG pairs, co-generated client config, tiered hot swap, and an in-cluster LLM tier.
     path: docs/specs/software-requirements/srd003-chatbot-deployment.yaml
+  - id: srd004-coordinator
+    title: Coordinator Agent Functional Block
+    summary: Persistent workflow orchestrator that binds a provisioning intent and sequences ingestion and reconfiguration through the creator.
+    path: docs/specs/software-requirements/srd004-coordinator.yaml
+  - id: srd005-creator
+    title: Creator Agent Functional Block
+    summary: Agent lifecycle manager that realizes decided instance operations and alone holds the deployment-API authority.
+    path: docs/specs/software-requirements/srd005-creator.yaml
 
 use_case_index:
   - id: rel00.0-uc001-rag-server-query
@@ -91,6 +104,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel04.0-llm-tier
     path: docs/specs/use-cases/rel04.0-uc001-in-cluster-llm-tier.yaml
+  - id: rel05.0-uc001-control-plane-provisioning
+    title: A Provisioning Intent Flows Chatbot to Coordinator to Creator and Serves
+    release: "05.0"
+    status: implemented
+    test_suite: test-rel05.0-control-plane
+    path: docs/specs/use-cases/rel05.0-uc001-control-plane-provisioning.yaml
 
 test_suite_index:
   - id: test-rel00.0-chatbot-mesh
@@ -118,3 +137,8 @@ test_suite_index:
     release: "04.0"
     traces: [rel04.0-uc001-in-cluster-llm-tier]
     path: docs/specs/test-suites/test-rel04.0-llm-tier.yaml
+  - id: test-rel05.0-control-plane
+    title: Test Suite for Release 05.0 Control Plane
+    release: "05.0"
+    traces: [rel05.0-uc001-control-plane-provisioning]
+    path: docs/specs/test-suites/test-rel05.0-control-plane.yaml

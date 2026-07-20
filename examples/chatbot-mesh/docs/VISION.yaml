@@ -16,10 +16,11 @@ executive_summary: |
   runs against the agent-core runtime with no dependency on the other profiles in
   this repository.
 
-  This cut is the data plane: the chatbot, the RAG servers, a corpus-ingest agent
-  that seeds the vector store, observability, and Helm deployment. The control
-  plane (coordinator, creator, and the provisioning surface) is a separate,
-  deferred addition.
+  The example spans the data plane -- the chatbot, the RAG servers, a corpus-ingest
+  agent that seeds the vector store, observability, and Helm deployment -- and the
+  control plane: a coordinator that sequences a provisioning intent, a creator that
+  manages agent lifecycle, and the provisioning surface (the deployment API and its
+  panel). The control plane is release rel05.0.
 
 problem: |
   A framework claim is easier to trust when one artifact demonstrates it end to
@@ -81,9 +82,6 @@ not:
   - We do not restate agent-core platform requirements (REST client tools,
     machine_request binding, monitor, mounted profiles, checkpoint, command-state,
     traceparent); we cite them as external references.
-  - We do not include the control plane in this cut. The coordinator agent, the
-    creator agent, and the provisioning surface (the deployment API and its panel)
-    are deferred to a separate addition.
   - We do not share Chroma retrieval config with the knowledge-manager corpus
     demo; the mesh owns its own copy.
   - We do not invert co-generation in this cut. The Helm chart renders the

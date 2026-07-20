@@ -1,9 +1,10 @@
 import { useState } from "react";
 import ChatPanel from "./ChatPanel";
 import ObservabilityPanel from "./ObservabilityPanel";
+import ProvisioningPanel from "./ProvisioningPanel";
 import { TurnProvider } from "./turns";
 
-type PanelId = "chat" | "observability";
+type PanelId = "chat" | "observability" | "provisioning";
 
 interface NavItem {
   id: PanelId;
@@ -11,19 +12,21 @@ interface NavItem {
   planned?: boolean;
 }
 
-// Two-panel shell (srd002 R5): chat and observability. The provisioning panel is
-// part of the deferred control-plane addition and is not in this data-plane cut.
+// Three-panel shell (srd002 R5): chat, observability, and provisioning are built.
 const NAV: NavItem[] = [
   { id: "chat", label: "Chat" },
   { id: "observability", label: "Observability" },
+  { id: "provisioning", label: "Provisioning" },
 ];
 
 function panelFor(active: PanelId): React.ReactNode {
   switch (active) {
     case "chat":
       return <ChatPanel />;
-    default:
+    case "observability":
       return <ObservabilityPanel />;
+    default:
+      return <ProvisioningPanel />;
   }
 }
 

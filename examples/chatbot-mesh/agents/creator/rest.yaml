@@ -1,0 +1,240 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local_deployment_client:
+      timeout: 130s
+      read_timeout: 130s
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        # The deployment-API host is the egress allowlist entry; a values-driven deploy
+        # sets PROVISIONER_HOST to the provisioner Service DNS name, defaulting to
+        # loopback locally.
+        hosts: [${PROVISIONER_HOST:-127.0.0.1}]
+        ports: [18090]
+    local_creator_instance:
+      timeout: 130s
+      read_timeout: 130s
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18110]
+        allow_public_listener: true
+    local_creator_control:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18111]
+        allow_public_listener: true
+    local_creator_monitor:
+      timeout: 5s
+      read_timeout: 5s
+      max_request_bytes: 4096
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18112]
+        allow_public_listener: true
+
+  clients:
+    deployment_api:
+      # The creator alone holds the deployment-API authority (srd005 R5.1): it is the
+      # only agent in the mesh that declares a deployment-API client (the chatbot and
+      # coordinator declare none). The bearer credential is deployment-realized -- the
+      # creator's pod mounts the deployment-API Secret and the provisioner enforces the
+      # token -- rather than resolved in the declarative runtime, which carries no
+      # credential resolver. No runtime input supplies the endpoint or the credential.
+      base_url: ${DEPLOYMENT_API_URL:-http://127.0.0.1:18090}
+      auth_ref: none
+      limits_ref: local_deployment_client
+      operations:
+        apply_instance:
+          # Realize the decided operation by driving the deployment API's apply path
+          # (srd005 R3). The creator consumes the co-generated values-to-config output
+          # the deployment API produces (srd005 R2.2); it authors no values decision.
+          # The operation, its role, and its parameters are threaded from the seeded
+          # coordinator request; no endpoint or credential for a running agent is sent.
+          method: POST
+          path: /provisioning/api/apply
+          params:
+            body_schema:
+              type: object
+              required: [operation]
+              properties:
+                operation: {type: string}
+                role: {type: string}
+                collection: {type: string}
+            body_source: previous_result
+            input_mapping:
+              operation: $.operation
+              role: $.role
+              collection: $.collection
+            carry_forward: [collection]
+          body:
+            operation: "{{ params.operation }}"
+            role: "{{ params.role }}"
+            collection: "{{ params.collection }}"
+          success: {status: [200], signal: InstanceApplied}
+          response:
+            output:
+              revision: $.revision
+          side_effects:
+            - kind: external_api
+              target: deployment_api.apply
+              state: instance_applied
+          reversibility:
+            classification: compensatable
+            undo: apply_instance
+            description: A superseding apply reverses a prior one through the deployment API.
+        read_rollout:
+          # Verify the instance's health through the deployment API's rollout read
+          # (srd005 R4.1) before reporting the operation complete.
+          method: GET
+          path: /provisioning/api/rollout
+          params:
+            body_source: none
+          success: {status: [200], signal: HealthReported}
+          response:
+            output:
+              health: $.phase
+              revision: $.revision
+          side_effects:
+            - kind: external_api
+              target: deployment_api.rollout
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+
+  servers:
+    creator_instance:
+      # The instance endpoint is served on its own service and port, reached only by
+      # the coordinator (srd005 R1). It accepts a declared operation and SHALL NOT
+      # accept an already-resolved endpoint or credential from the coordinator; no
+      # runtime input supplies transport authority.
+      address: ${CREATOR_BIND_HOST:-127.0.0.1}:18110
+      limits_ref: local_creator_instance
+      endpoints:
+        instance:
+          method: POST
+          path: /api/v1/instance
+          binding: machine_request
+          request:
+            body_schema:
+              type: object
+              required: [operation]
+              properties:
+                operation: {type: string}
+                role: {type: string}
+                directory: {type: string}
+                collection: {type: string}
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            timeout: 130s
+            request:
+              body:
+                operation: $.operation
+                role: $.role
+                directory: $.directory
+                collection: $.collection
+            response:
+              terminal_signals:
+                HealthReported:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    status: healthy
+                    health: $.mapped.health
+                    revision: $.mapped.revision
+                CommandError:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    error: command_error
+                    stage: $.failure_stage
+                    message: $.message
+                    operation: $.operation
+
+    creator_control:
+      address: ${CREATOR_BIND_HOST:-127.0.0.1}:18111
+      limits_ref: local_creator_control
+      queue:
+        name: creator_control
+        capacity: 8
+        timeout: 30s
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+      endpoints:
+        exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+                status: {type: string}
+          response:
+            output:
+              accepted: "true"
+        health:
+          method: GET
+          path: /api/lifecycle/health
+          binding: health
+
+    monitor:
+      address: ${CREATOR_BIND_HOST:-127.0.0.1}:18112
+      limits_ref: local_creator_monitor
+      queue:
+        name: creator_monitor
+        capacity: 8
+        overflow: reject
+        timeout: 100ms
+      shutdown:
+        timeout: 2s
+        drain_policy: drain
+        stop_listeners: true
+        unblock_await_signal: ServerStopped
+      endpoints:
+        machine_spec:  {method: GET, path: /monitor/machine,       binding: read_state,    monitor_view: machine_spec}
+        current_state: {method: GET, path: /monitor/state,         binding: read_state,    monitor_view: current_state}
+        tools:         {method: GET, path: /monitor/tools,         binding: read_state,    monitor_view: tools}
+        metrics:       {method: GET, path: /monitor/metrics,       binding: read_state,    monitor_view: metrics}
+        recent_events: {method: GET, path: /monitor/events,        binding: read_state,    monitor_view: events}
+        event_stream:  {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
+        control_exit:
+          method: POST
+          path: /monitor/control/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+          response:
+            output:
+              accepted: "true"

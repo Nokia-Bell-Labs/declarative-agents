@@ -1,0 +1,152 @@
+{{- if .Values.provisioner.enabled }}
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+{{/*
+The provisioning deployment API (srd003 R4): a minimal in-cluster values-patch
+service the panel drives to view the mesh and apply values edits that trigger a
+rollout. It edits deployment values and triggers rollouts only; it never submits
+an endpoint to a running agent. The current mesh view is projected from the same
+values that render the topology, so what the panel reads matches what the chart
+deploys.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-mesh-state
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioner
+data:
+  mesh.json: |-
+    {{- include "chatbot-mesh.meshView" . | nindent 4 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullname }}-provisioner
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-provisioner
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioner
+rules:
+  # Read the deployment state for the read path and rollout status.
+  - apiGroups: [""]
+    resources: [configmaps, services]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets]
+    verbs: [get, list, watch]
+  {{- if .Values.provisioner.allowApply }}
+  # The apply path runs helm upgrade in-cluster, which manages the chart's objects
+  # and the release Secret. Scoped to this namespace by the RoleBinding.
+  - apiGroups: [""]
+    resources: [configmaps, secrets, services]
+    verbs: [create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets]
+    verbs: [create, update, patch]
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-provisioner
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}-provisioner
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-provisioner
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: provisioner
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: provisioner
+      annotations:
+        checksum/mesh-state: {{ include "chatbot-mesh.meshView" . | sha256sum }}
+    spec:
+      serviceAccountName: {{ $fullname }}-provisioner
+      containers:
+        - name: provisioner
+          image: "{{ .Values.provisioner.image.repository }}:{{ .Values.provisioner.image.tag }}"
+          imagePullPolicy: {{ .Values.provisioner.image.pullPolicy }}
+          args:
+            - --read-token-file=/etc/provisioner-tokens/readToken
+            - --apply-token-file=/etc/provisioner-tokens/applyToken
+          ports:
+            - {name: api, containerPort: {{ .Values.provisioner.port }}}
+          env:
+            - {name: PROVISION_ADDR, value: ":{{ .Values.provisioner.port }}"}
+            - {name: PROVISION_STATE_FILE, value: /etc/provisioner/mesh.json}
+            - {name: PROVISION_RELEASE, value: {{ .Release.Name | quote }}}
+            - {name: PROVISION_NAMESPACE, value: {{ .Release.Namespace | quote }}}
+            - {name: PROVISION_DEPLOYMENT, value: {{ $fullname }}-chatbot}
+          readinessProbe:
+            httpGet: {path: /provisioning/api/health, port: api}
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.provisioner.resources | nindent 12 }}
+          volumeMounts:
+            - {name: mesh-state, mountPath: /etc/provisioner, readOnly: true}
+            - {name: provisioner-tokens, mountPath: /etc/provisioner-tokens, readOnly: true}
+      volumes:
+        - name: mesh-state
+          configMap:
+            name: {{ $fullname }}-mesh-state
+        - name: provisioner-tokens
+          secret:
+            secretName: {{ $fullname }}-provisioner
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-provisioner
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioner
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioner
+  ports:
+    - {name: api, port: {{ .Values.provisioner.port }}, targetPort: api}
+{{- if .Values.provisioner.tokenSecret.create }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $fullname }}-provisioner
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioner
+type: Opaque
+stringData:
+  readToken: {{ .Values.provisioner.tokenSecret.readToken | quote }}
+  applyToken: {{ .Values.provisioner.tokenSecret.applyToken | quote }}
+{{- end }}
+{{- end }}

@@ -6,8 +6,8 @@ overview: |
   They derive from the shared catalog's rel09.0-09.3 and rel09.5; the behavior is
   implemented and is being relocated into this directory. Requirement and use-case
   ids are renumbered to the example's own scheme (srd001-003, rel00.0+). The
-  control plane (coordinator, creator, and the provisioning surface) is deferred
-  and is not a release here.
+  control plane (coordinator srd004, creator srd005, and the provisioning surface)
+  is release rel05.0.
 
 releases:
   - version: "00.0"
@@ -84,8 +84,8 @@ releases:
       co-generated chatbot client config and N-RAG fan-out from one source, a
       tiered hot swap (repoint is a Service change; add-RAG re-renders and rolls
       the chatbot with a Dolt checkpoint resume), and OTLP observability. The
-      provisioning deployment API (srd003 R4) is deferred to the control-plane
-      addition; this release covers the topology and the swap paths.
+      provisioning deployment API (srd003 R4) is the control-plane release
+      (rel05.0); this release covers the topology and the swap paths.
     status: implemented
     srds:
       - srd003-chatbot-deployment
@@ -120,11 +120,27 @@ releases:
         summary: Tracers for the default-install turn, the disabled-tier endpoint override, the preload-gate ordering, and the CPU-only kind smoke.
         status: implemented
 
-deferred:
-  - name: Control plane
-    summary: |
-      A coordinator agent that sequences directory ingestion and reconfiguration
-      and to which the chatbot delegates provisioning intents, a creator agent for
-      agent lifecycle management, and the provisioning surface (the deployment API
-      and its panel). These are a separate addition to the example, not a data-plane
-      release.
+  - version: "05.0"
+    name: Control plane
+    description: |
+      The mesh gains a control plane on top of the data-plane topology: a
+      coordinator agent (srd004) that binds a user's provisioning intent, sequences
+      the ingestion and reconfiguration workflows, and decides the values changes,
+      and a creator agent (srd005) that realizes each instance operation and alone
+      holds the deployment-API authority. A provisioning intent flows chatbot ->
+      coordinator -> creator: the chatbot delegates through a declared client, the
+      coordinator sequences corpus-ingest runs and the rollout, the creator executes
+      the checkpoint-resume rollout through the deployment API (srd003 R4) and
+      reports health, and the new source serves a grounded turn.
+    status: implemented
+    srds:
+      - srd004-coordinator
+      - srd005-creator
+    use_cases:
+      - id: rel05.0-uc001-control-plane-provisioning
+        summary: A provisioning intent flows chatbot -> coordinator -> creator, ingests and reconfigures, and the new source serves a grounded turn; only the creator holds the deployment-API authority.
+        status: implemented
+    test_suites:
+      - id: test-rel05.0-control-plane
+        summary: Tracer for the intent -> ingest -> reconfigure -> restart -> serve flow across the three agents, asserting the authority boundary. Realized as mage integration:controlPlane (deterministic, no cluster); the live grounded turn rides on integration:chatbot and the deploy swap.
+        status: implemented

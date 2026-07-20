@@ -1,0 +1,110 @@
+tools:
+  - name: request_ingest
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Delegate a corpus-ingest run for the requested directory to the creator.
+    problem: A provisioning intent must ingest the directory before the mesh can serve it, and the coordinator delegates every instance operation rather than running it.
+    goals:
+      - Request one corpus-ingest instance from the creator for the intent's directory and collection.
+      - Carry the intent's RAG name, collection, and embedding model forward for the reconfiguration decision.
+      - Route a creator-reported count shortfall to a distinct rejection rather than a failure.
+    requirements:
+      input:
+        - The directory and collection are selected from the seeded intent body.
+      output:
+        - Output includes the creator-reported collection and count, with the intent fields carried forward.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError; a creator 422 emits IngestRejected.
+    non_goals:
+      - Does not run the ingest itself; the creator materializes the corpus-ingest instance.
+      - Does not accept a runtime method, URL, host, or credential for the creator.
+    parameters:
+      type: object
+      properties:
+        directory: {type: string}
+        collection: {type: string}
+    emits: [IngestReported, Rejected, CommandError]
+    output:
+      description: Creator-reported ingest result with the carried intent.
+      schema:
+        type: object
+        properties:
+          mapped: {type: object}
+          carried: {type: object}
+    side_effects:
+      - kind: external_api
+        target: creator.instance
+        state: instance_created
+    reversibility:
+      classification: compensatable
+      undo: creator_terminate
+    undo:
+      strategy: compensating_action
+      description: A created ingest instance is terminated through the creator on a later failure; the coordinator issues the compensating request.
+    errors:
+      - signal: Rejected
+        condition: The creator reports the ingested collection count does not meet the requested source.
+        state_after_failure: No reconfiguration is decided; the request ends in Rejected.
+      - signal: CommandError
+        condition: Network, timeout, schema, or mapping failure reaching the creator.
+        state_after_failure: No instance is known to be created; the request ends in Failed.
+    relationships:
+      before: [request_rollout]
+    config:
+      rest_ref: creator
+      operation: creator_ingest
+
+  - name: request_rollout
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Decide the values patch and delegate the checkpoint-resume rollout to the creator.
+    problem: The coordinator is the sole author of which RAG unit to add, and it realizes that decision by delegating the rollout to the creator rather than editing config itself.
+    goals:
+      - Build the add-RAG values patch from the carried intent (the coordinator's decision).
+      - Request the reconfiguration rollout from the creator and thread the decided patch.
+      - Return the creator-reported health and revision for the aggregated status.
+    requirements:
+      input:
+        - The RAG name, collection, and embedding model are selected from the carried intent.
+      output:
+        - Output includes the creator-reported rollout health and revision.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not execute the rollout itself; the creator holds the deployment-API authority.
+      - Does not accept a runtime method, URL, host, or credential for the creator.
+    parameters:
+      type: object
+      properties:
+        rag_name: {type: string}
+        collection: {type: string}
+        embedding_model: {type: string}
+    emits: [Reconfigured, CommandError]
+    output:
+      description: Creator-reported rollout health.
+      schema:
+        type: object
+        properties:
+          health: {type: string}
+          revision: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: creator.instance
+        state: rollout_executed
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: A completed rollout is superseded by a subsequent decided rollout, not undone in place.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, schema, or mapping failure reaching the creator.
+        state_after_failure: The rollout outcome is unknown; the request ends in Failed.
+    relationships:
+      after: [request_ingest]
+    config:
+      rest_ref: creator
+      operation: creator_rollout

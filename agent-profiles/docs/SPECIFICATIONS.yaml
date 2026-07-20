@@ -218,7 +218,8 @@ srd_index:
       a provisioning intent to it, and it sequences the ingestion and reconfiguration
       workflows, decides the values and config changes, resolves conflicts, and
       aggregates status, delegating every instance operation to the creator through
-      a declared client and holding no deployment-API authority.
+      a declared client and holding no deployment-API authority. Relocated to
+      examples/chatbot-mesh as srd004-coordinator (GH-430); the example is canonical.
     status: planned
     path: docs/specs/software-requirements/srd016-coordinator.yaml
   - id: srd017-creator
@@ -227,7 +228,8 @@ srd_index:
       coordinator's requests it selects templates, creates child ingest runs, executes
       checkpoint-resume rollout restarts through the deployment API, terminates
       instances, and verifies health, holding the deployment-API authority alone and
-      passing no endpoint or credential into a running agent.
+      passing no endpoint or credential into a running agent. Relocated to
+      examples/chatbot-mesh as srd005-creator (GH-430); the example is canonical.
     status: planned
     path: docs/specs/software-requirements/srd017-creator.yaml
 
@@ -258,8 +260,11 @@ semantic_model_index:
 # 09.1, 09.2, 09.3, and 09.5 use cases and test suites — now live with the
 # standalone example at examples/chatbot-mesh/docs/specs, renumbered to srd001-003
 # and rel00.0-04.0. The entries below remain for history; the example is the
-# canonical copy. The 09.4 control plane (srd016/srd017) stays here until its own
-# relocation.
+# canonical copy.
+#
+# Relocated (GH-430): the 09.4 control plane — srd016/srd017 and the rel09.4 use
+# case and test suite — now live with the example too, renumbered to srd004/srd005
+# and rel05.0. The entries below remain for history; the example is canonical.
 use_case_index:
   - id: rel06.0-uc001-mounted-profile-execution
     title: Mounted Profile Execution

@@ -8,7 +8,7 @@ Profile-driven runtime and design patterns for declarative, tool-augmented agent
 |-----------|-------------|
 | [`agent-core/`](agent-core/) | Runtime engine — state machines, tool dispatch, LLM integration, profile loading, and a standard tool library. Go. |
 | [`agent-profiles/`](agent-profiles/) | External agent programs and profile YAML assets consumed by agent-core. |
-| [`examples/chatbot-mesh/`](examples/chatbot-mesh/) | Standalone, copyable example: the browser-facing chatbot mesh — a chatbot agent that fans one query embedding out to N Chroma-backed RAG servers and routes to a chat LLM. Ships its own docs/specs, agents, ux SPA, and Helm chart, runs on the agent-core image, and self-governs its corpus with `mage audit`. |
+| [`examples/chatbot-mesh/`](examples/chatbot-mesh/) | Standalone, copyable example: the browser-facing chatbot mesh — a chatbot agent that fans one query embedding out to N Chroma-backed RAG servers and routes to a chat LLM, plus a control plane (a coordinator and creator that turn a provisioning intent into an ingest and a rollout through a deployment API). Ships its own docs/specs, agents, ux SPA, and Helm chart, runs on the agent-core image, and self-governs its corpus with `mage audit`. |
 | [`design-patterns/`](design-patterns/) | White paper source: *Design Patterns for Declarative Agents* — eleven patterns for building reliable agents (markdown, PlantUML, IEEE build). |
 | [`magefiles/`](magefiles/) | Repository-wide build targets: release tagging, stats aggregation, sub-module dispatch. |
 

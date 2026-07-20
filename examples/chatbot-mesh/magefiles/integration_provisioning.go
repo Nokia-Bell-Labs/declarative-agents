@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// Provisioning drives the deployment API (srd015 R4) end to end against the real
+// Provisioning drives the deployment API (srd003 R4) end to end against the real
 // provisioner binary: it reads the deployed mesh view, applies an add-RAG values
 // patch, and reads the rollout, exactly as the provisioning panel does over HTTP.
 // The apply path's helm upgrade and the rollout's kubectl are stubbed with fake
@@ -26,8 +26,7 @@ func (Integration) Provisioning() error {
 	if err != nil {
 		return err
 	}
-	repoRoot := filepath.Dir(profilesRoot)
-	provDir := filepath.Join(repoRoot, "deploy", "chatbot-mesh", "provisioner")
+	provDir := filepath.Join(profilesRoot, "provisioner")
 	if _, err := os.Stat(filepath.Join(provDir, "go.mod")); err != nil {
 		fmt.Printf("SKIP provisioning: provisioner module not found at %s\n", provDir)
 		return nil

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-// Command provisioner is the chatbot-mesh deployment-plane API (srd015 R4): a
+// Command provisioner is the chatbot-mesh deployment-plane API (srd003 R4): a
 // minimal in-cluster service the provisioning panel drives to view the mesh and
 // submit values edits that trigger a rollout. It edits deployment values and
 // triggers rollouts only; it never submits an endpoint to a running agent
@@ -35,7 +35,7 @@ type RagView struct {
 }
 
 // LLMView is the chat/embedding LLM endpoint: an external URL or the in-cluster
-// Ollama tier (srd015 R6). When in-cluster, the model set -- the embedding model,
+// Ollama tier (srd003 R6). When in-cluster, the model set -- the embedding model,
 // the chat models, and the router model -- and the topology are the values the
 // preload Job and the agents' config share. These are deployment values rendered
 // into config, not submitted to a running agent.
@@ -50,7 +50,7 @@ type LLMView struct {
 	ChatModel string `json:"chatModel,omitempty"`
 }
 
-// ParamsView groups the interesting parameters (srd015 parameter grouping): the
+// ParamsView groups the interesting parameters (srd003 parameter grouping): the
 // per-RAG retrieval bound, the composed-chunk cap, and the router default word.
 type ParamsView struct {
 	NResults      int    `json:"nResults"`
@@ -107,7 +107,7 @@ func (m MeshView) Validate() error {
 }
 
 // HelmSetArgs renders the mesh view as helm --set arguments for the rollout, so
-// the apply path re-renders the same co-generated topology (srd015 R2) the chart
+// the apply path re-renders the same co-generated topology (srd003 R2) the chart
 // produces from these values. RAG status is read-only and never rendered.
 func (m MeshView) HelmSetArgs() []string {
 	var args []string
@@ -126,7 +126,7 @@ func (m MeshView) HelmSetArgs() []string {
 	)
 	if m.LLM.InCluster {
 		// The models named once flow to both the preload Job and the agents' config
-		// (srd015 R6.2), so a values-patch that changes the chat models re-renders
+		// (srd003 R6.2), so a values-patch that changes the chat models re-renders
 		// the tier and the config together.
 		args = append(args,
 			fmt.Sprintf("ollama.models.embedding=%s", m.LLM.EmbedModel),

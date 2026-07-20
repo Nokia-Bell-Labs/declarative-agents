@@ -105,7 +105,7 @@ test_cases:
   - use_case: rel09.3-uc001-mesh-deployment
     name: Provisioning deployment API panel-path tracer
     integration_target: mage integration:provisioning
-    go_test: go test ./deploy/chatbot-mesh/provisioner/...
+    go_test: go test ./examples/chatbot-mesh/provisioner/...
     status: implemented
     description: |
       Integration.Provisioning drives the deployment API (srd015 R4) end to end

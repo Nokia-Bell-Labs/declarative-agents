@@ -190,6 +190,8 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 	programs := []struct{ src, rel string }{
 		{"agents/chatbot", "profiles/agents/chatbot"},
 		{"agents/rag-server", "profiles/agents/rag-server"},
+		{"agents/coordinator", "profiles/agents/coordinator"},
+		{"agents/creator", "profiles/agents/creator"},
 		{"ux", "profiles/ux"},
 	}
 	for _, p := range programs {

@@ -148,6 +148,47 @@ rest:
             classification: reversible
             undo: noop
 {{- end }}
+{{- if .Values.controlPlane.enabled }}
+    # The declared client the provisioning panel uses to delegate a provisioning
+    # intent to the coordinator (srd002 R5.1, srd004 R1). Fixed authority: the
+    # chatbot edits no deployment config itself and feeds no runtime endpoint here.
+    coordinator:
+      base_url: http://{{ $fullname }}-coordinator:{{ .Values.controlPlane.coordinator.ports.intent }}
+      auth_ref: none
+      limits_ref: local_provider
+      operations:
+        delegate_provision:
+          method: POST
+          path: /api/v1/provision
+          params:
+            body_schema:
+              type: object
+              required: [rag_name, collection]
+              properties:
+                rag_name: {type: string}
+                collection: {type: string}
+                embedding_model: {type: string}
+                directory: {type: string}
+            body_source: previous_result
+            input_mapping:
+              rag_name: $.rag_name
+              collection: $.collection
+              embedding_model: $.embedding_model
+              directory: $.directory
+          body:
+            rag_name: "{{`{{ params.rag_name }}`}}"
+            collection: "{{`{{ params.collection }}`}}"
+            embedding_model: "{{`{{ params.embedding_model }}`}}"
+            directory: "{{`{{ params.directory }}`}}"
+          success: {status: [200], signal: ProvisionDelegated}
+          side_effects:
+            - kind: external_api
+              target: coordinator.provision
+              state: intent_delegated
+          reversibility:
+            classification: reversible
+            undo: noop
+{{- end }}
 
   servers:
     chatbot_chat:

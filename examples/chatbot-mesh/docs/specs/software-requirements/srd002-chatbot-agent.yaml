@@ -66,7 +66,7 @@ requirements:
   R5:
     title: UX surface
     items:
-      - R5.1: The agent SHALL declare two panels -- chat and observability -- in ux.yaml. The provisioning panel is deferred to the control-plane addition and is not part of this data-plane cut.
+      - R5.1: The agent SHALL declare three panels -- chat, observability, and provisioning -- in ux.yaml. The provisioning panel delegates a user's provisioning intent to the coordinator (srd004) through a declared client rather than editing config itself.
       - R5.2: static_assets SHALL serve the built SPA that renders the panels; the SPA build and panel content requirements SHALL be owned by their own issues, not this SRD.
   R6:
     title: Transport-authority boundary
@@ -95,7 +95,7 @@ acceptance_criteria:
     criterion: Stateless-v1 sessions (browser-sent history, no server store) and the durable-session follow-on are stated as requirements and non-goals rather than prose.
     traces: [R4.1, R4.2]
   - id: AC5
-    criterion: The two-panel ux.yaml surface over a static_assets-served SPA is declared, with panel content and SPA build deferred to their own issues.
+    criterion: The three-panel ux.yaml surface over a static_assets-served SPA is declared, with panel content and SPA build deferred to their own issues.
     traces: [R5.1, R5.2]
   - id: AC6
     criterion: The transport-authority boundary is stated so declared rest.yaml clients hold authority and neither the turn machine nor the UX can supply a runtime endpoint.
@@ -104,6 +104,12 @@ acceptance_criteria:
 depends_on:
   - srd_id: srd001-rag-server-agent
     symbols_used: [R2]
+  # The provisioning panel (R5.1) delegates a user's provisioning intent to the
+  # coordinator through a declared client rather than editing config itself; the
+  # coordinator (srd004) and creator (srd005) are the mesh control plane behind the
+  # provisioning surface (srd003 R4). The chat turn path (R1-R3) is unchanged.
+  - srd_id: srd004-coordinator
+    symbols_used: [R1]
 
 platform_dependencies:
   # agent-core runtime contracts this agent builds on. External references, owned

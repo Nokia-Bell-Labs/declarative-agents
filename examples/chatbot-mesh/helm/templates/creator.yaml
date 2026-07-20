@@ -1,0 +1,91 @@
+{{- if .Values.controlPlane.enabled }}
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+{{- $tokenSecret := .Values.controlPlane.creator.deploymentApiTokenSecret.name | default (printf "%s-provisioner" $fullname) -}}
+# --- Creator: the control plane's agent lifecycle manager (srd005). It alone holds
+# the deployment-API credential, mounted from a Secret apart from the chat path. ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-creator
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: creator
+spec:
+  replicas: {{ .Values.controlPlane.creator.replicas }}
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: creator
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: creator
+    spec:
+      containers:
+        - name: creator
+          image: {{ include "chatbot-mesh.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--profile"
+            - "{{ .Values.profiles.mountPath }}/agents/creator/profile.yaml"
+            - "--directory"
+            - "{{ .Values.profiles.workMountPath }}"
+            {{- with include "chatbot-mesh.otlpEndpoint" . }}
+            - "--otel-otlp-endpoint"
+            - {{ . | quote }}
+            - "--otel-service-name"
+            - "creator"
+            {{- end }}
+          # The creator is the only agent that reaches the deployment API (the
+          # provisioner). Its bearer credential is the provisioner apply token,
+          # mounted from a Secret at a file path apart from the chat path (the #392
+          # file-mount pattern), never injected as env or runtime input. It binds
+          # 0.0.0.0 so its Services route to the pod.
+          env:
+            - {name: CREATOR_BIND_HOST, value: "0.0.0.0"}
+            - {name: DEPLOYMENT_API_URL, value: "http://{{ $fullname }}-provisioner:{{ .Values.provisioner.port }}"}
+            - {name: PROVISIONER_HOST, value: "{{ $fullname }}-provisioner"}
+            - {name: DEPLOYMENT_API_TOKEN_FILE, value: "/etc/creator-tokens/deployment-api"}
+          ports:
+            - {name: instance, containerPort: {{ .Values.controlPlane.creator.ports.instance }}}
+            - {name: control, containerPort: {{ .Values.controlPlane.creator.ports.control }}}
+            - {name: monitor, containerPort: {{ .Values.controlPlane.creator.ports.monitor }}}
+          readinessProbe:
+            httpGet: {path: /api/lifecycle/health, port: control}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.controlPlane.creator.resources | nindent 12 }}
+          volumeMounts:
+            - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
+            - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
+            - {name: deployment-api-token, mountPath: /etc/creator-tokens, readOnly: true}
+      volumes:
+        {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
+        - name: work
+          emptyDir: {}
+        - name: deployment-api-token
+          secret:
+            secretName: {{ $tokenSecret }}
+            optional: true
+            items:
+              - key: {{ .Values.controlPlane.creator.deploymentApiTokenSecret.key }}
+                path: deployment-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-creator
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: creator
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: creator
+  ports:
+    - {name: instance, port: {{ .Values.controlPlane.creator.ports.instance }}, targetPort: instance}
+    - {name: control, port: {{ .Values.controlPlane.creator.ports.control }}, targetPort: control}
+    - {name: monitor, port: {{ .Values.controlPlane.creator.ports.monitor }}, targetPort: monitor}
+{{- end }}

@@ -7,10 +7,10 @@ single agent, on a fresh machine for development and verification.
 
 The mesh is a set of container agents: a browser-facing chatbot agent that fans
 one query embedding out to N RAG server agents (Chroma-backed) and routes to a
-chat LLM. The data-plane Helm chart now lives with the standalone example at
-`examples/chatbot-mesh/helm/`; this directory retains the provisioner
-(control-plane) tooling. This README covers both the local dev loop and the
-Kubernetes path.
+chat LLM. The Helm chart now lives with the standalone example at
+`examples/chatbot-mesh/helm/`, and the provisioner (control-plane deployment API)
+with it at `examples/chatbot-mesh/provisioner/`. This README covers both the local
+dev loop and the Kubernetes path.
 
 ## Prerequisites
 
@@ -152,7 +152,7 @@ kind delete cluster --name chatbot-mesh
 
 See `examples/chatbot-mesh/helm/README.md` for the chart, its values schema, and
 the values-to-config co-generation. The provisioner (control-plane deployment
-API) remains under this directory pending the control-plane follow-up.
+API) lives at `examples/chatbot-mesh/provisioner/`.
 
 ## Current Status
 
