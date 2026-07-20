@@ -3,13 +3,13 @@
 package filesystem
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 )
 
 type findCmd struct {
@@ -27,12 +27,13 @@ func (f *findCmd) Execute() core.Result {
 	if err != nil {
 		return toolFailed("find", fmt.Sprintf("path rejected: %s", err))
 	}
-	cmd := exec.Command("rg", args...)
-	cmd.Dir = cmdDir
-	out, err := cmd.CombinedOutput()
-	output := strings.TrimRight(string(out), "\n")
-	if err != nil {
-		return findError(err, output)
+	// The ripgrep subprocess runs through the shared, process-group-managed
+	// subprocess support rather than the tool spawning it itself, so the tool holds
+	// only its search contract and the transport stays in one place (GH-447).
+	res := subprocess.Run(context.Background(), subprocess.Spec{Binary: "rg", Args: args, Dir: cmdDir})
+	output := strings.TrimRight(res.Stdout, "\n")
+	if !res.Success() {
+		return findError(res, output)
 	}
 	if f.outputLineCap > 0 {
 		output = capOutput(output, f.outputLineCap)
@@ -52,16 +53,22 @@ func (f *findCmd) ripgrepArgs() ([]string, string, error) {
 	return append(args, resolved), "", nil
 }
 
-func findError(err error, output string) core.Result {
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		if exitErr.ExitCode() == 1 {
-			return core.Result{Output: "", Signal: core.ToolDone, CommandName: "find"}
-		}
-		msg := fmt.Sprintf("find failed (exit %d): %s\nNote: query uses ripgrep regex syntax, not glob. Use \\.go$ to match Go files.", exitErr.ExitCode(), output)
+// findError maps a failed ripgrep run to a machine result. ripgrep exits 1 when it
+// finds no matches -- a successful empty search, not an error -- and >1 on a real
+// failure; a timeout or a spawn failure (for example ripgrep not installed) is an
+// infrastructure error.
+func findError(res *subprocess.Result, output string) core.Result {
+	switch {
+	case res.ExitCode == 1:
+		return core.Result{Output: "", Signal: core.ToolDone, CommandName: "find"}
+	case res.ExitCode > 1:
+		msg := fmt.Sprintf("find failed (exit %d): %s\nNote: query uses ripgrep regex syntax, not glob. Use \\.go$ to match Go files.", res.ExitCode, output)
 		return toolFailed("find", msg)
+	case res.TimedOut:
+		return toolFailed("find", "find timed out")
+	default:
+		return toolFailed("find", fmt.Sprintf("find error: %v", res.Err))
 	}
-	return toolFailed("find", fmt.Sprintf("find error: %s", err))
 }
 
 // FindBuilder constructs find commands.

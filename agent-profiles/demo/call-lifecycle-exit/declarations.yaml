@@ -1,0 +1,54 @@
+# Copyright (c) 2026 Nokia. All rights reserved.
+tools:
+  - name: post_exit
+    type: builtin
+    init: rest_client_invoke
+    visibility: internal
+    category: boundary
+    description: Post the fixed lifecycle-exit request to the target agent's control server.
+    problem: The demo must ask a running agent to exit, and that request is a declared REST call, not an embedded HTTP client.
+    goals:
+      - Resolve the curator client and the post_exit operation.
+      - Post the fixed exit request and return the control server's acceptance.
+    requirements:
+      input:
+        - Runtime input supplies no transport authority or request parameters; the reason is fixed in the operation.
+      output:
+        - Output reports the control server's acceptance.
+      errors:
+        - Definition, network, timeout, and mapping failures emit CommandError.
+    non_goals:
+      - Does not accept a runtime method, URL, host, or credential for the control server.
+      - Does not read or start the target agent.
+    parameters:
+      type: object
+      properties: {}
+      additional_properties: false
+    emits: [ExitAccepted, CommandError]
+    output:
+      description: Mapped control-server acceptance.
+      schema:
+        type: object
+        properties:
+          accepted: {type: string}
+    side_effects:
+      - kind: external_api
+        target: curator.lifecycle_exit
+        state: exit_requested
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: The demo posts a single exit request; the caller holds no state to roll back.
+    errors:
+      - signal: CommandError
+        condition: The curator client definition is missing, or the exit call fails on network, timeout, or mapping.
+        state_after_failure: The exit request outcome is unknown to the caller.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This demo-specific word binds the control-server lifecycle-exit operation.
+    config:
+      rest_ref: curator
+      operation: post_exit

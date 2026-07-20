@@ -1,0 +1,53 @@
+# Copyright (c) 2026 Nokia. All rights reserved.
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local_curator_control:
+      timeout: 10s
+      read_timeout: 10s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        # The control-server host is the egress allowlist entry; a values-driven demo
+        # sets CURATOR_HOST to the target agent's control DNS name, defaulting to
+        # loopback locally.
+        hosts: [${CURATOR_HOST:-127.0.0.1}, localhost]
+        ports: [18082]
+  clients:
+    curator:
+      # The lifecycle-exit endpoint of a running agent's control server. The demo
+      # posts one exit request through this declared client; the control-server URL
+      # is a declared client base, not runtime input, and the endpoint carries no
+      # transport authority (auth: none).
+      base_url: ${CURATOR_URL:-http://127.0.0.1:18082}
+      auth_ref: none
+      limits_ref: local_curator_control
+      operations:
+        post_exit:
+          # Post the fixed lifecycle-exit request. The reason is declared in the
+          # operation body, not supplied at run time (body_source: none). The control
+          # server's exit endpoint accepts on 202; 200 is tolerated for parity with
+          # control servers that answer the emit_signal binding with 200.
+          method: POST
+          path: /api/lifecycle/exit
+          params:
+            body_source: none
+          body:
+            reason: "demo presentation"
+          success: {status: [200, 202], signal: ExitAccepted}
+          response:
+            output:
+              accepted: $.accepted
+          side_effects:
+            - kind: external_api
+              target: curator.lifecycle_exit
+              state: exit_requested
+          reversibility:
+            classification: reversible
+            description: The demo posts a single lifecycle-exit request; the caller holds no state to roll back.
