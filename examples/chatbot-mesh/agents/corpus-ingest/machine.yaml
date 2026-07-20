@@ -1,0 +1,195 @@
+name: corpus-ingest
+purpose: |-
+  The Chroma ingest profile loads a repository corpus into a local Chroma
+  collection. It checks the Chroma and Ollama servers, then lets the model drive
+  a per-document loop: the model lists the corpus (list_resource), chooses the
+  next file to read (read_resource), or signals done. After each read the machine
+  sequences the deterministic embedding steps -- embed the document at Ollama,
+  create-or-get the collection (which resolves the returned collection id and
+  carries the embedding, document, and id forward), and add the agent-supplied
+  vector to Chroma -- before returning to the model for the next file. When the
+  model is done the machine re-resolves the collection and verifies the count.
+
+  Only listing and file selection are model-driven; the embed-to-add vector step
+  is machine-sequenced because a model cannot author a raw embedding vector. The
+  vector rides between boundary words through the agent-core previous-Result
+  parameter threading (srd028 R12).
+invariants:
+  - REST authority lives in corpus-rest.yaml.
+  - MachineSpec owns sequencing between read, embed, and Chroma words.
+  - The model chooses only which file to list or read, or when to stop; it never authors an embedding vector.
+  - The model-visible manifest contains only list_resource, read_resource, and done.
+  - The Chroma and Ollama servers are external preconditions, surfaced through chroma_ready and ollama_ready, not started by the agent.
+initial_state: Idle
+budget:
+  max_iterations: 128
+  max_consecutive_parse_errors: 3
+states:
+  - name: Idle
+    meaning: Initial state before the ingest flow starts.
+  - name: CheckingChroma
+    meaning: The Chroma v2 heartbeat is being checked.
+  - name: CheckingOllama
+    meaning: The Ollama version endpoint is being checked.
+  - name: Composing
+    meaning: The model is listing the corpus, choosing a file, or signalling done; and the machine routes a completed tool by its result signal.
+  - name: Parsing
+    meaning: The model response is being parsed into one tool request.
+  - name: Embedding
+    meaning: The document text is being embedded at Ollama.
+  - name: ResolvingCollection
+    meaning: The collection is being create-or-got and the embedding is carried forward.
+  - name: Adding
+    meaning: The agent-supplied embedding is being added to the collection.
+  - name: ResolvingCountCollection
+    meaning: The collection id is being re-resolved for the count verification.
+  - name: Counting
+    meaning: The collection item count is being read for verification.
+  - name: Succeeded
+    meaning: Terminal. The corpus was ingested and the count verified.
+  - name: Failed
+    meaning: Terminal. A REST, read, embedding, or model boundary word failed.
+  - name: BudgetExceeded
+    meaning: Terminal. The loop exhausted its iteration or parse-error budget.
+terminal_states:
+  - Succeeded
+  - Failed
+  - BudgetExceeded
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: ChromaReady
+    trigger: The Chroma heartbeat returned a configured success status.
+  - name: OllamaReady
+    trigger: The Ollama version endpoint returned a configured success status.
+  - name: LLMResponded
+    trigger: The model returned a response.
+  - name: ToolDone
+    trigger: The parser found a model-selected tool call.
+  - name: TaskCompleted
+    trigger: The model called done to end ingestion.
+  - name: ParseFailed
+    trigger: The model response could not be parsed.
+  - name: DocumentListReady
+    trigger: The corpus documents were listed.
+  - name: DocumentReady
+    trigger: The model-selected document was read.
+  - name: DocumentMissing
+    trigger: The model-selected path did not resolve to a document.
+  - name: DocumentParseFailed
+    trigger: The document could not be parsed.
+  - name: DocumentResourceDenied
+    trigger: The model-selected path was outside the configured corpus resource.
+  - name: DocumentEmbedded
+    trigger: Ollama returned an embedding vector for the document.
+  - name: CollectionReady
+    trigger: The collection was create-or-got and its id resolved.
+  - name: DocumentAdded
+    trigger: The agent-supplied embedding was added to the collection.
+  - name: CountReady
+    trigger: The collection item count was read.
+  - name: BudgetExhausted
+    trigger: Iteration or parse-error budget was exhausted.
+  - name: CommandError
+    trigger: Runtime or REST boundary infrastructure failed.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: CheckingChroma
+    action: chroma_ready
+  - state: CheckingChroma
+    signal: ChromaReady
+    next: CheckingOllama
+    action: ollama_ready
+  - state: CheckingChroma
+    signal: CommandError
+    next: Failed
+  - state: CheckingOllama
+    signal: OllamaReady
+    next: Composing
+    action: invoke_llm
+  - state: CheckingOllama
+    signal: CommandError
+    next: Failed
+  - state: Composing
+    signal: LLMResponded
+    next: Parsing
+    action: parse_response
+  - state: Composing
+    signal: ToolDone
+    next: Composing
+    action: invoke_llm
+  - state: Composing
+    signal: CommandError
+    next: Failed
+  - state: Composing
+    signal: BudgetExhausted
+    next: BudgetExceeded
+  - state: Parsing
+    signal: ToolDone
+    next: Composing
+    action: $tool
+  - state: Parsing
+    signal: TaskCompleted
+    next: ResolvingCountCollection
+    action: count_collection
+  - state: Parsing
+    signal: ParseFailed
+    next: Composing
+    action: report_parse_error
+  - state: Parsing
+    signal: CommandError
+    next: Failed
+  - state: Composing
+    signal: DocumentListReady
+    next: Composing
+    action: invoke_llm
+  - state: Composing
+    signal: DocumentReady
+    next: Embedding
+    action: embed_document
+  - state: Composing
+    signal: DocumentMissing
+    next: Composing
+    action: invoke_llm
+  - state: Composing
+    signal: DocumentParseFailed
+    next: Composing
+    action: invoke_llm
+  - state: Composing
+    signal: DocumentResourceDenied
+    next: Failed
+  - state: Embedding
+    signal: DocumentEmbedded
+    next: ResolvingCollection
+    action: resolve_collection
+  - state: Embedding
+    signal: CommandError
+    next: Failed
+  - state: ResolvingCollection
+    signal: CollectionReady
+    next: Adding
+    action: chroma_add
+  - state: ResolvingCollection
+    signal: CommandError
+    next: Failed
+  - state: Adding
+    signal: DocumentAdded
+    next: Composing
+    action: invoke_llm
+  - state: Adding
+    signal: CommandError
+    next: Failed
+  - state: ResolvingCountCollection
+    signal: CollectionReady
+    next: Counting
+    action: chroma_count
+  - state: ResolvingCountCollection
+    signal: CommandError
+    next: Failed
+  - state: Counting
+    signal: CountReady
+    next: Succeeded
+  - state: Counting
+    signal: CommandError
+    next: Failed

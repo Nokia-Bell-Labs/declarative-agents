@@ -1,0 +1,262 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local_corpus:
+      timeout: 30s
+      read_timeout: 30s
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1]
+        ports: [8000, 11434]
+  clients:
+    ollama:
+      base_url: http://127.0.0.1:11434
+      auth_ref: none
+      limits_ref: local_corpus
+      operations:
+        version:
+          method: GET
+          path: /api/version
+          params:
+            body_source: none
+          success: {status: [200], signal: OllamaReady}
+          response:
+            output:
+              version: $.version
+          side_effects:
+            - kind: external_api
+              target: ollama.version
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        embed:
+          method: POST
+          path: /api/embeddings
+          params:
+            body_schema:
+              type: object
+              required: [input]
+              properties:
+                input: {type: string}
+                id: {type: string}
+            body_source: previous_result
+            input_mapping:
+              input: $.raw
+              id: $.path
+            carry_forward: [input, id]
+          body:
+            model: qwen3-embedding:8b
+            prompt: "{{ params.input }}"
+          success: {status: [200], signal: DocumentEmbedded}
+          response:
+            output:
+              embedding: $.embedding
+          side_effects:
+            - kind: external_api
+              target: ollama.embeddings
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        embed_query:
+          method: POST
+          path: /api/embeddings
+          params:
+            body_source: previous_result
+            input_mapping: {}
+          body:
+            model: qwen3-embedding:8b
+            prompt: "What does this corpus describe?"
+          success: {status: [200], signal: QueryEmbedded}
+          response:
+            output:
+              embedding: $.embedding
+          side_effects:
+            - kind: external_api
+              target: ollama.embeddings
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+    chroma:
+      base_url: http://127.0.0.1:8000
+      auth_ref: none
+      limits_ref: local_corpus
+      operations:
+        heartbeat:
+          method: GET
+          path: /api/v2/heartbeat
+          params:
+            body_source: none
+          success: {status: [200], signal: ChromaReady}
+          side_effects:
+            - kind: external_api
+              target: chroma.heartbeat
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        create_or_get_collection_carry:
+          method: POST
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections
+          params:
+            body_schema:
+              type: object
+              required: [embeddings, documents, ids]
+              properties:
+                embeddings: {type: array}
+                documents: {type: string}
+                ids: {type: string}
+            body_source: previous_result
+            input_mapping:
+              embeddings: $.mapped.embedding
+              documents: $.carried.input
+              ids: $.carried.id
+            carry_forward: [embeddings, documents, ids]
+          body:
+            name: corpus
+            get_or_create: true
+          success: {status: [200, 201], signal: CollectionReady}
+          response:
+            output:
+              collection_id: $.id
+          side_effects:
+            - kind: external_api
+              target: chroma.collection
+              state: collection_upserted
+          reversibility:
+            classification: reversible
+            undo: noop
+        create_or_get_collection:
+          method: POST
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections
+          params:
+            body_source: previous_result
+            input_mapping: {}
+          body:
+            name: corpus
+            get_or_create: true
+          success: {status: [200, 201], signal: CollectionReady}
+          response:
+            output:
+              collection_id: $.id
+          side_effects:
+            - kind: external_api
+              target: chroma.collection
+              state: collection_upserted
+          reversibility:
+            classification: reversible
+            undo: noop
+        add_records:
+          method: POST
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections/{collection}/add
+          params:
+            path:
+              collection: {type: string}
+            body_schema:
+              type: object
+              required: [embeddings, documents, ids]
+              properties:
+                embeddings: {type: array}
+                documents: {type: string}
+                ids: {type: string}
+            body_source: previous_result
+            input_mapping:
+              collection: $.mapped.collection_id
+              embeddings: $.carried.embeddings
+              documents: $.carried.documents
+              ids: $.carried.ids
+          body:
+            embeddings: ["{{ params.embeddings }}"]
+            documents: ["{{ params.documents }}"]
+            ids: ["{{ params.ids }}"]
+          success: {status: [200, 201], signal: DocumentAdded}
+          side_effects:
+            - kind: external_api
+              target: chroma.records
+              state: records_added
+          reversibility:
+            classification: reversible
+            undo: noop
+        count_records:
+          method: GET
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections/{collection}/count
+          params:
+            path:
+              collection: {type: string}
+            body_source: previous_result
+            input_mapping:
+              collection: $.mapped.collection_id
+          success: {status: [200], signal: CountReady}
+          side_effects:
+            - kind: external_api
+              target: chroma.count
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        create_or_get_collection_query:
+          method: POST
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections
+          params:
+            body_schema:
+              type: object
+              required: [query_embeddings]
+              properties:
+                query_embeddings: {type: array}
+            body_source: previous_result
+            input_mapping:
+              query_embeddings: $.mapped.embedding
+            carry_forward: [query_embeddings]
+          body:
+            name: corpus
+            get_or_create: true
+          success: {status: [200, 201], signal: CollectionReady}
+          response:
+            output:
+              collection_id: $.id
+          side_effects:
+            - kind: external_api
+              target: chroma.collection
+              state: collection_upserted
+          reversibility:
+            classification: reversible
+            undo: noop
+        query_records:
+          method: POST
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections/{collection}/query
+          params:
+            path:
+              collection: {type: string}
+            body_schema:
+              type: object
+              required: [query_embeddings]
+              properties:
+                query_embeddings: {type: array}
+            body_source: previous_result
+            input_mapping:
+              collection: $.mapped.collection_id
+              query_embeddings: $.carried.query_embeddings
+          body:
+            query_embeddings: ["{{ params.query_embeddings }}"]
+            n_results: 5
+          success: {status: [200], signal: QueryResponded}
+          response:
+            output:
+              ids: $.ids
+              documents: $.documents
+          side_effects:
+            - kind: external_api
+              target: chroma.query
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
