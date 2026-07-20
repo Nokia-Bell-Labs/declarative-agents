@@ -662,8 +662,8 @@ coverage_gaps: |
   documentation_curator_requests.document, checks raw YAML and rendered
   content, and records request trace evidence.
   internal/tools/rest, tools/builtin/rest declarations,
-  OpenAPI import compilation, REST runtime tests, agents/rest profile
-  examples, and the documentation host are implemented. docs/rel03-rest-design-audit.md records the design
+  OpenAPI import compilation, REST runtime tests, testdata/conformance/rest
+  profile examples, and the documentation host are implemented. docs/rel03-rest-design-audit.md records the design
   audit result. REST side-effect vocabulary now accepts listener and listener
   shutdown effects in the contract audit. Credential resolution, redirect
   allowlists, request and response size limits, server query and header
