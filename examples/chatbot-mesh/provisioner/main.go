@@ -108,7 +108,7 @@ func fileState(path string) func() (MeshView, error) {
 
 // helmApply renders the validated mesh view as helm --set args and upgrades the
 // release in place, which re-renders the co-generated topology and rolls the
-// chatbot (srd015 R2/R3). It never contacts a running agent.
+// chatbot (srd003 R2/R3). It never contacts a running agent.
 func helmApply(cfg Config) func(MeshView) error {
 	return func(view MeshView) error {
 		args := []string{"upgrade", cfg.Release, cfg.ChartDir,

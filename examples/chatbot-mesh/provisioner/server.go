@@ -25,7 +25,7 @@ type Server struct {
 
 // RolloutStatus is the chatbot Deployment's rollout progress the panel polls.
 type RolloutStatus struct {
-	Phase    string `json:"phase"`   // "progressing" | "complete" | "unknown"
+	Phase    string `json:"phase"` // "progressing" | "complete" | "unknown"
 	Ready    int    `json:"ready"`
 	Desired  int    `json:"desired"`
 	Revision int    `json:"revision"`

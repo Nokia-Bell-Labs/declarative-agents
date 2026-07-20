@@ -139,3 +139,35 @@ ingress:
 # Validate the rendered chatbot rest.yaml before serving (R2.2). The co-generation
 # that renders it from ragUnits lands in GH-314; the init check wires here.
 validateProfiles: true
+
+# The provisioning deployment API (srd003 R4): a minimal in-cluster values-patch
+# service the provisioning panel drives to view the mesh and apply values edits
+# that trigger a rollout, authenticated apart from chat. It never submits an
+# endpoint to a running agent. Reached same-origin via the chatbot ingress at
+# /provisioning.
+provisioner:
+  enabled: true
+  # The service image bundles the chart and helm so apply can `helm upgrade` the
+  # release in place; build it from examples/chatbot-mesh/provisioner.
+  image: {repository: ghcr.io/nokia-bell-labs/declarative-agents/chatbot-mesh-provisioner, tag: "0.1.0", pullPolicy: IfNotPresent}
+  port: 18090
+  # allowApply grants the apply-path RBAC (helm upgrade manages the chart objects).
+  # Set false for a read-only provisioning surface.
+  allowApply: true
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  # The read/apply bearer tokens, held in a Secret separate from the chat path
+  # (which has no auth). Provide your own Secret (create: false) or let the chart
+  # create one from these values. The read token works with read-only RBAC.
+  tokenSecret:
+    create: true
+    readToken: ""
+    applyToken: ""
+  # The interesting parameters the panel edits, grouped per srd003. They seed the
+  # read-state mesh view; nResults is the per-RAG retrieval bound (srd001 R2.1).
+  params:
+    nResults: 5
+    chunkCap: 0
+    routerDefault: invoke_llm_fast
+    chatModel: "qwen2.5:3b"
