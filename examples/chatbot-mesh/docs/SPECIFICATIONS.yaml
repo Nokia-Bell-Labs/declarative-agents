@@ -1,0 +1,120 @@
+id: chatbot-mesh-example-specifications
+title: Chatbot Mesh Example Specification Index
+
+overview: |
+  Specification index for the standalone chatbot mesh example. Three SRDs define
+  the data-plane program: the RAG server agent (srd001), the chatbot agent
+  (srd002), and the Helm deployment model (srd003). Six use cases exercise them
+  across five releases (rel00.0 through rel04.0), each with a formal test suite.
+
+  The example runs on the agent-core runtime and cites agent-core platform SRDs
+  (srd028, srd030, srd033, srd034, srd035, srd036, and srd016 traceparent) as
+  external references rather than indexing them here. The control plane
+  (coordinator, creator, and the provisioning surface) is a deferred addition and
+  is not part of this index.
+
+roadmap_summary:
+  - version: "00.0"
+    name: RAG server and single-RAG chatbot turn
+    use_cases_done: 2
+    use_cases_total: 2
+    status: implemented
+  - version: "01.0"
+    name: Routing and multi-RAG fan-out
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "02.0"
+    name: Observability
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "03.0"
+    name: Mesh deployment and tiered swap
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "04.0"
+    name: In-cluster LLM tier
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+
+srd_index:
+  - id: srd001-rag-server-agent
+    title: RAG Server Agent Functional Block
+    summary: Persistent vector-in retrieval service behind a machine_request query endpoint.
+    path: docs/specs/software-requirements/srd001-rag-server-agent.yaml
+  - id: srd002-chatbot-agent
+    title: Chatbot Agent Functional Block
+    summary: Browser-facing agent whose request-scoped turn routes, fans out to RAG servers, composes, and answers.
+    path: docs/specs/software-requirements/srd002-chatbot-agent.yaml
+  - id: srd003-chatbot-deployment
+    title: Chatbot Mesh Deployment Model
+    summary: One Helm chart with values-driven RAG pairs, co-generated client config, tiered hot swap, and an in-cluster LLM tier.
+    path: docs/specs/software-requirements/srd003-chatbot-deployment.yaml
+
+use_case_index:
+  - id: rel00.0-uc001-rag-server-query
+    title: Persistent RAG Server Answers a Vector-In Query
+    release: "00.0"
+    status: implemented
+    test_suite: test-rel00.0-chatbot-mesh
+    path: docs/specs/use-cases/rel00.0-uc001-rag-server-query.yaml
+  - id: rel00.0-uc002-chatbot-turn
+    title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers
+    release: "00.0"
+    status: implemented
+    test_suite: test-rel00.0-chatbot-mesh
+    path: docs/specs/use-cases/rel00.0-uc002-chatbot-turn.yaml
+  - id: rel01.0-uc001-routed-fanout
+    title: Chatbot Turn Routes and Fans Out Over Two RAGs
+    release: "01.0"
+    status: implemented
+    test_suite: test-rel01.0-routing-fanout
+    path: docs/specs/use-cases/rel01.0-uc001-routed-fanout.yaml
+  - id: rel02.0-uc001-observability
+    title: Observability Panel Shows Per-Agent State and a Cross-Agent Trace Waterfall
+    release: "02.0"
+    status: implemented
+    test_suite: test-rel02.0-observability
+    path: docs/specs/use-cases/rel02.0-uc001-observability.yaml
+  - id: rel03.0-uc001-mesh-deployment
+    title: Helm Chart Deploys the Mesh and Hot-Swaps a RAG Source
+    release: "03.0"
+    status: implemented
+    test_suite: test-rel03.0-mesh-deployment
+    path: docs/specs/use-cases/rel03.0-uc001-mesh-deployment.yaml
+  - id: rel04.0-uc001-in-cluster-llm-tier
+    title: A Fresh-Cluster Install Answers a Turn With No External LLM Dependency
+    release: "04.0"
+    status: implemented
+    test_suite: test-rel04.0-llm-tier
+    path: docs/specs/use-cases/rel04.0-uc001-in-cluster-llm-tier.yaml
+
+test_suite_index:
+  - id: test-rel00.0-chatbot-mesh
+    title: Test Suite for Release 00.0 RAG Server and Single-RAG Chatbot Turn
+    release: "00.0"
+    traces: [rel00.0-uc001-rag-server-query, rel00.0-uc002-chatbot-turn]
+    path: docs/specs/test-suites/test-rel00.0-chatbot-mesh.yaml
+  - id: test-rel01.0-routing-fanout
+    title: Test Suite for Release 01.0 Routing and Multi-RAG Fan-Out
+    release: "01.0"
+    traces: [rel01.0-uc001-routed-fanout]
+    path: docs/specs/test-suites/test-rel01.0-routing-fanout.yaml
+  - id: test-rel02.0-observability
+    title: Test Suite for Release 02.0 Observability
+    release: "02.0"
+    traces: [rel02.0-uc001-observability]
+    path: docs/specs/test-suites/test-rel02.0-observability.yaml
+  - id: test-rel03.0-mesh-deployment
+    title: Test Suite for Release 03.0 Mesh Deployment and Tiered Swap
+    release: "03.0"
+    traces: [rel03.0-uc001-mesh-deployment]
+    path: docs/specs/test-suites/test-rel03.0-mesh-deployment.yaml
+  - id: test-rel04.0-llm-tier
+    title: Test Suite for Release 04.0 In-Cluster LLM Tier
+    release: "04.0"
+    traces: [rel04.0-uc001-in-cluster-llm-tier]
+    path: docs/specs/test-suites/test-rel04.0-llm-tier.yaml
