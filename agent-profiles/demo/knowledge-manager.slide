@@ -16,8 +16,14 @@ Open the running servers after they start:
 
 * Call the lifecycle exit API
 
-After the Knowledge Manager is running, run this snippet to POST `ExitRequested`
-to the curator control server (default `http://127.0.0.1:18082/api/lifecycle/exit`).
-Expect HTTP 202 Accepted.
+After the Knowledge Manager is running, post the exit request to its control
+server (default `http://127.0.0.1:18082/api/lifecycle/exit`, HTTP 202 Accepted).
+The request is itself a declarative agent, not a bespoke HTTP client: a one-state
+machine binds the rest tool, posts the fixed request, and reaches a terminal
+`succeeded` state. Run it through the same interpreter that runs the curator:
 
-.play call_lifecycle_exit/main.go /START OMIT/,/END OMIT/
+	agent --profile demo/call-lifecycle-exit/profile.yaml --directory .
+
+The REST authority lives in the profile, not in runtime input:
+
+.code call-lifecycle-exit/rest.yaml /post_exit:/,/signal: ExitAccepted/

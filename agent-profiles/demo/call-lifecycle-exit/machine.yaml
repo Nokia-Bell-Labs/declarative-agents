@@ -1,0 +1,49 @@
+# Copyright (c) 2026 Nokia. All rights reserved.
+name: call-lifecycle-exit
+purpose: |-
+  The lifecycle-exit demo agent. It posts one lifecycle-exit request to a running
+  agent's control server through a declared REST client, then terminates. The
+  behavior used to be a standalone Go binary (call_lifecycle_exit/main.go);
+  expressing it as a one-state machine that binds the rest tool makes the demo an
+  instance of the system's own thesis -- runtime behavior lives in YAML and is run
+  by the interpreter, not in an ad-hoc HTTP client.
+invariants:
+  - REST authority lives in rest.yaml; the control-server URL is a declared client base, not runtime input.
+  - The exit request body is fixed in the REST operation, not supplied at run time.
+  - The model plays no part; the single boundary word is machine-sequenced from Seed.
+initial_state: Idle
+budget:
+  max_iterations: 4
+states:
+  - name: Idle
+    meaning: Initial state before the exit request is posted.
+  - name: Posting
+    meaning: The lifecycle-exit request is in flight to the control server.
+  - name: Done
+    meaning: Terminal. The control server accepted the exit request.
+  - name: Failed
+    meaning: Terminal. The control-server call failed.
+terminal_states:
+  - Done
+  - Failed
+signals:
+  - name: Seed
+    trigger: Agent startup.
+  - name: ExitAccepted
+    trigger: The control server accepted the lifecycle-exit request.
+  - name: CommandError
+    trigger: The control-server call failed on network, timeout, or mapping.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Posting
+    action: post_exit
+  - state: Idle
+    signal: CommandError
+    next: Failed
+  - state: Posting
+    signal: ExitAccepted
+    next: Done
+  - state: Posting
+    signal: CommandError
+    next: Failed
