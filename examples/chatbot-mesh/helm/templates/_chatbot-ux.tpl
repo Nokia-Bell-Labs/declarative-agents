@@ -20,6 +20,11 @@ routes:
     label: Observability
     action: observability_view
     resource: monitor
+  - id: provisioning
+    path: /provisioning
+    label: Provisioning
+    action: provisioning_view
+    resource: provisioning
 sidebar:
   title: Chatbot
   groups:
@@ -29,6 +34,9 @@ sidebar:
     observability:
       label: Observability
       order: 1
+    provisioning:
+      label: Provisioning
+      order: 2
 actions:
   chat_send:
     ui_action: chat_send
@@ -39,6 +47,9 @@ actions:
   observability_view:
     ui_action: observability_view
     route: observability
+  provisioning_view:
+    ui_action: provisioning_view
+    route: provisioning
 monitored_agents:
   - name: chatbot
     label: Chatbot
@@ -51,6 +62,11 @@ trace_backend:
   name: jaeger
   query_path: /monitor-proxy/jaeger/api/traces/{trace_id}
 {{- end }}
+{{- if .Values.provisioner.enabled }}
+deployment_api:
+  base_path: /provisioning/api
+  auth: bearer_token
+{{- end }}
 presentation:
   history_client_side: true
   source_citations: true
@@ -58,4 +74,5 @@ presentation:
   observability_per_agent_sse: true
   observability_turn_correlation: time-window
   observability_trace_waterfall: true
+  provisioning_panel: {{ .Values.provisioner.enabled }}
 {{- end -}}

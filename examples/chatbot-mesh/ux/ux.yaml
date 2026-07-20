@@ -12,6 +12,11 @@ routes:
     label: Observability
     action: observability_view
     resource: monitor
+  - id: provisioning
+    path: /provisioning
+    label: Provisioning
+    action: provisioning_view
+    resource: provisioning
 sidebar:
   title: Chatbot
   groups:
@@ -21,6 +26,9 @@ sidebar:
     observability:
       label: Observability
       order: 1
+    provisioning:
+      label: Provisioning
+      order: 2
 actions:
   chat_send:
     ui_action: chat_send
@@ -31,6 +39,9 @@ actions:
   observability_view:
     ui_action: observability_view
     route: observability
+  provisioning_view:
+    ui_action: provisioning_view
+    route: provisioning
 # The observability panel opens one live sub-panel per monitored agent, reading
 # its monitor state and SSE stream through the chatbot's same-origin monitor_proxy
 # (/monitor-proxy/<name>/...). This list is the monitored-agents surface srd003
@@ -52,6 +63,13 @@ monitored_agents:
 trace_backend:
   name: jaeger
   query_path: /monitor-proxy/jaeger/api/traces/{trace_id}
+# The provisioning panel drives the deployment API same-origin at /provisioning/api,
+# routed by the chatbot ingress to the provisioner Service (srd003 R4). The Helm
+# render gates this on provisioner.enabled; the local source declares it so a local
+# run wires the panel to a reachable deployment API.
+deployment_api:
+  base_path: /provisioning/api
+  auth: bearer_token
 presentation:
   history_client_side: true
   source_citations: true
@@ -59,3 +77,4 @@ presentation:
   observability_per_agent_sse: true
   observability_turn_correlation: time-window
   observability_trace_waterfall: true
+  provisioning_panel: true
