@@ -73,13 +73,22 @@ func runProvisioningIntegration(provDir string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(binary)
+	readTokenFile := filepath.Join(workDir, "read-token")
+	applyTokenFile := filepath.Join(workDir, "apply-token")
+	if err := os.WriteFile(readTokenFile, []byte("read-tok"), 0o600); err != nil {
+		return err
+	}
+	if err := os.WriteFile(applyTokenFile, []byte("apply-tok"), 0o600); err != nil {
+		return err
+	}
+	cmd := exec.Command(binary,
+		"--read-token-file="+readTokenFile,
+		"--apply-token-file="+applyTokenFile,
+	)
 	cmd.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"PROVISION_ADDR="+addr,
 		"PROVISION_STATE_FILE="+stateFile,
-		"PROVISION_READ_TOKEN=read-tok",
-		"PROVISION_APPLY_TOKEN=apply-tok",
 		"PROVISION_CHART_DIR="+workDir,
 	)
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr

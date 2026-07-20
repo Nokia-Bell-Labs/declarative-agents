@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,8 +14,10 @@ import (
 	"strings"
 )
 
-// Config is the provisioner's environment, set by the chart from the values and a
-// Secret. The tokens live in a Secret mounted as env, separate from the chat path.
+// Config is the provisioner's runtime configuration. The non-secret settings come
+// from the chart as env; the read and apply tokens are read from a Secret mounted
+// as files, named by --read-token-file and --apply-token-file, so the secret
+// values never pass through the process environment.
 type Config struct {
 	Addr        string
 	StateFile   string // JSON mesh view, projected from the chart-rendered values ConfigMap
@@ -27,23 +30,52 @@ type Config struct {
 	KubeContext string
 }
 
-func loadConfig() Config {
+func loadConfig(readTokenPath, applyTokenPath string) (Config, error) {
+	readToken, err := tokenFromFile(readTokenPath)
+	if err != nil {
+		return Config{}, err
+	}
+	applyToken, err := tokenFromFile(applyTokenPath)
+	if err != nil {
+		return Config{}, err
+	}
 	return Config{
 		Addr:       envOr("PROVISION_ADDR", ":18090"),
 		StateFile:  envOr("PROVISION_STATE_FILE", "/etc/provisioner/mesh.json"),
-		ReadToken:  os.Getenv("PROVISION_READ_TOKEN"),
-		ApplyToken: os.Getenv("PROVISION_APPLY_TOKEN"),
+		ReadToken:  readToken,
+		ApplyToken: applyToken,
 		Release:    envOr("PROVISION_RELEASE", "chatbot-mesh"),
 		ChartDir:   envOr("PROVISION_CHART_DIR", "/chart"),
 		Namespace:  envOr("PROVISION_NAMESPACE", "default"),
 		Deployment: envOr("PROVISION_DEPLOYMENT", "chatbot-mesh-chatbot"),
+	}, nil
+}
+
+// tokenFromFile reads a bearer token from a mounted Secret file, trimming
+// surrounding whitespace. An empty path yields an empty token, so the read token
+// (a read-only credential) is optional while the apply token is checked in main.
+func tokenFromFile(path string) (string, error) {
+	if path == "" {
+		return "", nil
 	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read token file %s: %w", path, err)
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 func main() {
-	cfg := loadConfig()
+	readTokenPath := flag.String("read-token-file", "", "path to a file holding the read API token (optional)")
+	applyTokenPath := flag.String("apply-token-file", "", "path to a file holding the apply API token (required)")
+	flag.Parse()
+
+	cfg, err := loadConfig(*readTokenPath, *applyTokenPath)
+	if err != nil {
+		log.Fatalf("provisioner: %v", err)
+	}
 	if cfg.ApplyToken == "" {
-		log.Fatal("provisioner: PROVISION_APPLY_TOKEN is required")
+		log.Fatal("provisioner: an apply token is required (--apply-token-file)")
 	}
 	srv := &Server{
 		State:      fileState(cfg.StateFile),
