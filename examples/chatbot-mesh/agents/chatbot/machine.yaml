@@ -1,0 +1,56 @@
+name: chatbot
+purpose: |-
+  The chatbot agent fronts the mesh. It launches a machine_request chat server, a
+  control server, and a monitor server, then idles in AwaitingControl until a
+  lifecycle exit event is enqueued, at which point it exits the agent and stops the
+  servers. Each inbound chat request runs a request-scoped turn
+  (request-machine.yaml): it embeds the message once, routes to a chat-LLM word,
+  fans the one embedding out to the declared RAG servers, composes the answer
+  prompt from the retrieved chunks, and answers.
+invariants:
+  - REST authority lives in this profile's rest.yaml; no runtime input supplies transport authority.
+  - RAG and LLM endpoints are declared rest.yaml clients; the turn selects among declared words and clients only.
+  - The chat turn is stateless; the browser sends the conversation history with each request.
+initial_state: Idle
+budget:
+  max_iterations: 10000
+states:
+  - {name: Idle, meaning: Initial state before the chatbots start.}
+  - {name: LaunchingRequests, meaning: The machine_request query server is starting.}
+  - {name: LaunchingControl, meaning: The control server is starting.}
+  - {name: LaunchingMonitor, meaning: The monitor server is starting.}
+  - {name: AwaitingControl, meaning: Serving; waiting for a lifecycle exit event.}
+  - {name: Exiting, meaning: Routing ExitRequested to exit_agent.}
+  - {name: StoppingMonitor, meaning: Stopping the monitor server.}
+  - {name: StoppingRequests, meaning: Stopping the query server.}
+  - {name: Failed, meaning: Terminal. A server or boundary word failed.}
+  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit.}
+terminal_states:
+  - Done
+  - Failed
+signals:
+  - {name: Seed, trigger: Agent startup.}
+  - {name: ServerLaunched, trigger: A server launched.}
+  - {name: ExitRequested, trigger: A lifecycle exit event was enqueued.}
+  - {name: AgentExited, trigger: exit_agent completed.}
+  - {name: ServerStopped, trigger: A server stopped.}
+  - {name: AwaitTimedOut, trigger: No lifecycle event arrived before the await timeout.}
+  - {name: CommandError, trigger: A server or boundary word failed.}
+transitions:
+  - {state: Idle,              signal: Seed,           next: LaunchingRequests, action: launch_chat_requests}
+  - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl,   action: launch_chatbot_control}
+  - {state: LaunchingRequests, signal: CommandError,   next: Failed}
+  - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest}
+  - {state: LaunchingControl,  signal: CommandError,   next: Failed}
+  - {state: LaunchingMonitor,  signal: ServerLaunched, next: AwaitingControl,    action: await_chatbot_control}
+  - {state: LaunchingMonitor,  signal: CommandError,   next: Failed}
+  - {state: AwaitingControl,   signal: ExitRequested,  next: Exiting,            action: exit_agent}
+  - {state: AwaitingControl,   signal: AwaitTimedOut,  next: AwaitingControl,    action: await_chatbot_control}
+  - {state: AwaitingControl,   signal: ServerStopped,  next: Failed}
+  - {state: AwaitingControl,   signal: CommandError,   next: Failed}
+  - {state: Exiting,           signal: AgentExited,    next: StoppingMonitor,    action: stop_monitor_rest}
+  - {state: Exiting,           signal: CommandError,   next: Failed}
+  - {state: StoppingMonitor,   signal: ServerStopped,  next: StoppingRequests,   action: stop_chat_requests}
+  - {state: StoppingMonitor,   signal: CommandError,   next: Failed}
+  - {state: StoppingRequests,  signal: ServerStopped,  next: Done}
+  - {state: StoppingRequests,  signal: CommandError,   next: Failed}

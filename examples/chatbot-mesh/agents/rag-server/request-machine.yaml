@@ -1,0 +1,36 @@
+name: chroma-rag-request
+purpose: |-
+  One request-scoped run of the RAG query. The machine_request query endpoint
+  seeds this machine with the request body (query_embeddings and n_results). The
+  collection is create-or-got (carrying the query vector forward), then queried
+  with the caller-supplied vector, and the terminal QueryResponded signal maps
+  the retrieved chunks to the HTTP response. No embedding and no answering happen
+  here; the caller supplies the vector and composes any answer.
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 6
+states:
+  - {name: AwaitingRequest, meaning: Seeded by the trusted query endpoint with the request body.}
+  - {name: ResolvingCollection, meaning: Create-or-get the collection and carry the query vector forward.}
+  - {name: Querying, meaning: Query the resolved collection with the caller-supplied vector.}
+  - {name: QueryResponded, meaning: Terminal. The retrieved chunks are ready for the HTTP response.}
+  - {name: QueryRejected, meaning: Terminal. Chroma rejected the query vector (for example an embedding-space or dimension mismatch).}
+  - {name: Failed, meaning: Terminal. A Chroma boundary word failed.}
+terminal_states:
+  - QueryResponded
+  - QueryRejected
+  - Failed
+signals:
+  - {name: Seed, trigger: The query endpoint starts a request-scoped run.}
+  - {name: CollectionReady, trigger: The collection was create-or-got and the vector carried forward.}
+  - {name: QueryResponded, trigger: Chroma returned the retrieved chunks.}
+  - {name: QueryRejected, trigger: Chroma rejected the query vector with a client error.}
+  - {name: CommandError, trigger: A Chroma boundary word failed.}
+transitions:
+  - {state: AwaitingRequest,     signal: Seed,            next: ResolvingCollection, action: rag_resolve}
+  - {state: AwaitingRequest,     signal: CommandError,    next: Failed}
+  - {state: ResolvingCollection, signal: CollectionReady, next: Querying,            action: rag_query}
+  - {state: ResolvingCollection, signal: CommandError,    next: Failed}
+  - {state: Querying,            signal: QueryResponded,  next: QueryResponded}
+  - {state: Querying,            signal: QueryRejected,   next: QueryRejected}
+  - {state: Querying,            signal: CommandError,    next: Failed}

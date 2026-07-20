@@ -1,0 +1,155 @@
+{{- $root := . -}}
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+{{- range $unit := .Values.ragUnits }}
+{{- $ragName := printf "%s-%s" $fullname $unit.name -}}
+{{- $chromaName := printf "%s-%s-chroma" $fullname $unit.name -}}
+# --- RAG unit {{ $unit.name }}: rag-server agent + its Chroma database ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $ragName }}
+  labels:
+    {{- include "chatbot-mesh.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: rag-server
+    chatbot-mesh/rag-unit: {{ $unit.name }}
+spec:
+  replicas: {{ $unit.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" $root | nindent 6 }}
+      chatbot-mesh/rag-unit: {{ $unit.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: rag-server
+        chatbot-mesh/rag-unit: {{ $unit.name }}
+    spec:
+      containers:
+        - name: rag-server
+          image: {{ include "chatbot-mesh.image" $root | quote }}
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          # GH-314 co-generates a per-unit rag-server profile pointing at this
+          # unit's Chroma Service and collection; until then the mounted profile
+          # reads these from the environment.
+          args:
+            - "--profile"
+            - "{{ $root.Values.profiles.mountPath }}/agents/rag-server/profile.yaml"
+            - "--directory"
+            - "{{ $root.Values.profiles.workMountPath }}"
+            {{- with include "chatbot-mesh.otlpEndpoint" $root }}
+            - "--otel-otlp-endpoint"
+            - {{ . | quote }}
+            - "--otel-service-name"
+            - {{ $unit.name | quote }}
+            {{- end }}
+          # The rag-server profile is env-parameterized (GH-369): one mounted
+          # profile points at this unit's Chroma Service and collection and binds
+          # 0.0.0.0 so its Services route to the pod.
+          env:
+            - {name: CHROMA_URL, value: "http://{{ $chromaName }}:{{ $root.Values.chroma.port }}"}
+            - {name: CHROMA_HOST, value: {{ $chromaName | quote }}}
+            - {name: RAG_COLLECTION, value: {{ $unit.collection | quote }}}
+            - {name: RAG_EMBEDDING_MODEL, value: {{ $unit.embeddingModel | quote }}}
+            - {name: RAG_BIND_HOST, value: "0.0.0.0"}
+          ports:
+            - {name: query, containerPort: {{ $root.Values.ragServer.ports.query }}}
+            - {name: control, containerPort: {{ $root.Values.ragServer.ports.control }}}
+            - {name: monitor, containerPort: {{ $root.Values.ragServer.ports.monitor }}}
+          readinessProbe:
+            httpGet: {path: /api/lifecycle/health, port: control}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $root.Values.ragServer.resources | nindent 12 }}
+          volumeMounts:
+            - {name: profiles, mountPath: {{ $root.Values.profiles.mountPath }}, readOnly: true}
+            - {name: work, mountPath: {{ $root.Values.profiles.workMountPath }}}
+      volumes:
+        {{- include "chatbot-mesh.profilesVolume" $root | nindent 8 }}
+        - name: work
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $ragName }}
+  labels:
+    {{- include "chatbot-mesh.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: rag-server
+    chatbot-mesh/rag-unit: {{ $unit.name }}
+  annotations:
+    chatbot-mesh/embedding-model: {{ $unit.embeddingModel | quote }}
+    chatbot-mesh/collection: {{ $unit.collection | quote }}
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" $root | nindent 4 }}
+    chatbot-mesh/rag-unit: {{ $unit.name }}
+  ports:
+    - {name: query, port: {{ $root.Values.ragServer.ports.query }}, targetPort: query}
+    - {name: control, port: {{ $root.Values.ragServer.ports.control }}, targetPort: control}
+    - {name: monitor, port: {{ $root.Values.ragServer.ports.monitor }}, targetPort: monitor}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $chromaName }}
+  labels:
+    {{- include "chatbot-mesh.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: chroma
+    chatbot-mesh/rag-unit: {{ $unit.name }}
+spec:
+  serviceName: {{ $chromaName }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: chroma
+      chatbot-mesh/rag-unit: {{ $unit.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: chroma
+        chatbot-mesh/rag-unit: {{ $unit.name }}
+    spec:
+      containers:
+        - name: chroma
+          image: "{{ $root.Values.chroma.image.repository }}:{{ $root.Values.chroma.image.tag }}"
+          imagePullPolicy: {{ $root.Values.chroma.image.pullPolicy }}
+          ports:
+            - {name: http, containerPort: {{ $root.Values.chroma.port }}}
+          readinessProbe:
+            httpGet: {path: /api/v2/heartbeat, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $root.Values.chroma.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: {{ $root.Values.chroma.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $chromaName }}
+  labels:
+    {{- include "chatbot-mesh.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: chroma
+    chatbot-mesh/rag-unit: {{ $unit.name }}
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" $root | nindent 4 }}
+    app.kubernetes.io/component: chroma
+    chatbot-mesh/rag-unit: {{ $unit.name }}
+  ports:
+    - {name: http, port: {{ $root.Values.chroma.port }}, targetPort: http}
+---
+{{- end }}

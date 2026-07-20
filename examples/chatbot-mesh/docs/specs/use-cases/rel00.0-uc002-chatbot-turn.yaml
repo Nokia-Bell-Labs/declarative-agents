@@ -1,0 +1,71 @@
+id: rel00.0-uc002-chatbot-turn
+title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers
+
+summary: |
+  A browser posts a chat turn to the chatbot agent (srd002). The turn runs a
+  request-scoped machine: embed_query embeds the query once, that vector queries a
+  single RAG server (srd001, vector-in), compose builds a answer prompt from the
+  returned chunks and the original query, and an invoke_llm word answers; the
+  terminal signal maps to the HTTP chat response. Non-adjacent data reaches compose
+  and answer through command-state $from() rather than carry_forward chains. When
+  the RAG fails, the turn degrades and answers from the message alone as a mapped
+  200 rather than a 500. This is the core loop (epic #293); the $tool router and
+  the multi-RAG fan-out are release 01.0.
+
+actor: A browser user sending a chat message.
+
+trigger: |
+  The browser posts a chat turn (message plus conversation history) to the
+  chatbot agent's chat endpoint with one RAG server declared.
+
+preconditions:
+  - A RAG server agent (rel00.0-uc001) is reachable as a declared rest.yaml client.
+  - A chat LLM and an embedding provider are reachable as declared clients.
+  - The chatbot profile validates and owns the turn machine and the ux.yaml panel placement.
+
+flow:
+  - id: F1
+    text: The chat endpoint binds the turn to a request-scoped machine seeded with the request body.
+  - id: F2
+    text: embed_query embeds the incoming query once; the single vector is the retrieval input.
+  - id: F3
+    text: The turn queries the declared RAG client with the query vector and selects the returned chunks.
+  - id: F4
+    text: compose reads the original query and the retrieved chunks through command-state $from() and builds the answer prompt.
+  - id: F5
+    text: The invoke_llm word answers over the composed prompt and the terminal signal maps to the HTTP chat response; a RAG failure degrades the turn to a mapped 200 answered from the message alone.
+
+touchpoints:
+  - id: T1
+    target: srd002-chatbot-agent AC1
+    reason: The turn is a request-scoped machine with $from() data flow and one embedding computed once.
+  - id: T2
+    target: srd002-chatbot-agent AC4
+    reason: The turn is stateless; the browser sends conversation history with each turn.
+  - id: T3
+    target: test-rel00.0-chatbot-mesh chatbot_turn
+    reason: The suite records the turn inputs and the expected embed -> retrieve -> compose -> answer trace, including the degraded-RAG case.
+
+success_criteria:
+  - id: S1
+    criterion: One query embedding is computed once, and the original query and the retrieved chunks reach compose and answer through command-state $from() rather than carry_forward chains.
+    traces:
+      - srd002-chatbot-agent R1.1
+      - srd002-chatbot-agent R1.2
+      - srd002-chatbot-agent R1.3
+  - id: S2
+    criterion: A RAG failure degrades the turn so it answers from the message alone as a mapped 200 rather than a 500.
+    traces:
+      - srd002-chatbot-agent R3.2
+  - id: S3
+    criterion: The turn is stateless; conversation history arrives from the browser with each turn.
+    traces:
+      - srd002-chatbot-agent R4.1
+
+out_of_scope:
+  - The $tool router and multi-RAG fan-out, which are release 01.0.
+  - Server-side session storage; the turn is stateless in v1.
+  - Panel content and SPA implementation, owned by their own issues.
+
+test_suite_trace: test-rel00.0-chatbot-mesh
+status: implemented

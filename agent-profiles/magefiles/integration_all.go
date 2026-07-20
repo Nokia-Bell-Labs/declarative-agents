@@ -31,11 +31,6 @@ func (i Integration) All() error {
 		{"plannerGenerator", i.PlannerGenerator, false},
 		{"benchEvaluator", i.BenchEvaluator, false},
 		{"monitorControl", i.MonitorControl, false},
-		{"chroma", i.Chroma, true},
-		{"ragServer", i.RagServer, true},
-		{"chatbot", i.Chatbot, true},
-		{"helmSmoke", i.HelmSmoke, true},
-		{"helmSwap", i.HelmSwap, true},
 		{"provisioning", i.Provisioning, false},
 	}
 

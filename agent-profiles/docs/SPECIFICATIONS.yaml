@@ -253,6 +253,13 @@ semantic_model_index:
 # renumbered to their staged ids and the observability (09.2) and alignment (10.0)
 # tracers authored by GH-333; the 09.4 control-plane tracers land with srd016/srd017
 # (GH-329).
+#
+# Relocated (GH-418): the mesh data-plane specs — srd013/014/015 and the rel09.0,
+# 09.1, 09.2, 09.3, and 09.5 use cases and test suites — now live with the
+# standalone example at examples/chatbot-mesh/docs/specs, renumbered to srd001-003
+# and rel00.0-04.0. The entries below remain for history; the example is the
+# canonical copy. The 09.4 control plane (srd016/srd017) stays here until its own
+# relocation.
 use_case_index:
   - id: rel06.0-uc001-mounted-profile-execution
     title: Mounted Profile Execution

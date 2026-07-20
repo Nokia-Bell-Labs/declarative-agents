@@ -354,6 +354,10 @@ releases:
 
   - version: "09.0"
     name: RAG server and single-RAG chatbot turn
+    relocated_to: >-
+      Relocated to examples/chatbot-mesh (rel00.0). The mesh data-plane specs
+      (SRDs, use cases, test suites) now live with the standalone example; this
+      entry remains for history. The control plane (09.4) stays here.
     description: |
       Release 09.0 is the core loop of the chatbot mesh: a persistent RAG server
       agent (srd013, vector-in) that answers a query_embeddings request with
@@ -380,6 +384,10 @@ releases:
 
   - version: "09.1"
     name: Routing and multi-RAG fan-out
+    relocated_to: >-
+      Relocated to examples/chatbot-mesh (rel01.0). The mesh data-plane specs
+      (SRDs, use cases, test suites) now live with the standalone example; this
+      entry remains for history. The control plane (09.4) stays here.
     description: |
       Release 09.1 extends the chatbot turn (srd014 R2, R3) with the LLM $tool
       router that classifies a question to one chat-LLM word, and the sequential
@@ -401,6 +409,10 @@ releases:
 
   - version: "09.2"
     name: Observability
+    relocated_to: >-
+      Relocated to examples/chatbot-mesh (rel02.0). The mesh data-plane specs
+      (SRDs, use cases, test suites) now live with the standalone example; this
+      entry remains for history. The control plane (09.4) stays here.
     description: |
       Release 09.2 is the observability surface (srd014 R5.1, R5.3): a per-agent
       monitor panel fed by each agent's monitor read_state and SSE stream through
@@ -422,6 +434,10 @@ releases:
 
   - version: "09.3"
     name: Mesh deployment and tiered swap
+    relocated_to: >-
+      Relocated to examples/chatbot-mesh (rel03.0). The mesh data-plane specs
+      (SRDs, use cases, test suites) now live with the standalone example; this
+      entry remains for history. The control plane (09.4) stays here.
     description: |
       Release 09.3 deploys the mesh as one Helm chart (srd015) with values-driven
       RAG pairs, co-generated chatbot client config and N-RAG fan-out from one
@@ -469,6 +485,10 @@ releases:
   # next free number in the chatbot-mesh 09.x line.
   - version: "09.5"
     name: In-cluster LLM tier
+    relocated_to: >-
+      Relocated to examples/chatbot-mesh (rel04.0). The mesh data-plane specs
+      (SRDs, use cases, test suites) now live with the standalone example; this
+      entry remains for history. The control plane (09.4) stays here.
     description: |
       Release 09.5 promotes Ollama from an external values-driven endpoint to a
       first-class, chart-owned LLM tier (srd015 R6): an optional Ollama subchart,

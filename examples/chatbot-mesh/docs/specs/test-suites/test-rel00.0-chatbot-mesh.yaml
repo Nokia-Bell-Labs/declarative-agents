@@ -1,0 +1,83 @@
+id: test-rel00.0-chatbot-mesh
+title: Test Suite for Release 00.0 RAG Server and Single-RAG Chatbot Turn
+release: "00.0"
+
+overview: |
+  This suite defines the profile-owned tracer bullets for the core loop of the
+  chatbot mesh: a persistent RAG server answering a vector-in query (srd001), and
+  a single-RAG chatbot turn that embeds once, retrieves, composes via $from(),
+  answers, and degrades to a mapped 200 when the RAG fails (srd002). The routing
+  and multi-RAG fan-out are release 01.0; observability is 02.0; deployment is
+  03.0.
+
+traces:
+  - rel00.0-uc001-rag-server-query
+  - rel00.0-uc002-chatbot-turn
+
+preconditions:
+  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
+  - A Chroma server and an Ollama (or external LLM) are reachable with the configured embedding and answer models.
+  - agent-profiles owns the RAG server and chatbot assets named by the tracers.
+
+test_cases:
+  - use_case: rel00.0-uc001-rag-server-query
+    name: RAG server vector-in query tracer
+    integration_target: mage integration:ragServer
+    go_test: go test ./magefiles -run TestParseRagQueryResponse
+    status: implemented
+    description: |
+      Integration.RagServer starts a Chroma container, seeds a collection by
+      running the ingest profile, launches the rag-server as a long-running
+      subprocess, embeds a query at Ollama for a matching-dimension vector, posts
+      it to the machine_request query endpoint, and asserts the returned chunks
+      with record ids and distances, the embedding-model metadata, a mapped 400
+      for a wrong-dimension vector, a reachable monitor current_state, and a
+      graceful lifecycle exit. Verified end to end against live Docker and Ollama;
+      skips cleanly without them. No query embedding or LLM answering happens in
+      the RAG server.
+    inputs:
+      rag_profile: agents/rag-server/profile.yaml
+      chroma_rest: agents/rag-server/rest.yaml
+      query_embeddings: Ollama-embedded query vector
+      n_results: 3
+    expected:
+      query_endpoint_accepts_vector: true
+      chunks_with_ids_and_distances: true
+      metadata_names_embedding_model: true
+      no_llm_answer_step: true
+    traces:
+      - rel00.0-uc001-rag-server-query S1
+      - rel00.0-uc001-rag-server-query S2
+      - rel00.0-uc001-rag-server-query S3
+      - srd001-rag-server-agent AC2
+
+  - use_case: rel00.0-uc002-chatbot-turn
+    name: Single-RAG chatbot turn tracer with a degraded RAG
+    integration_target: mage integration:chatbot
+    go_test: go test ./magefiles -run 'TestCitedRecordNumbers|TestChatResponse'
+    status: implemented
+    description: |
+      Integration.Chatbot drives the chat machine_request endpoint and asserts the
+      turn-machine core this use case specifies: embed_query embeds the query once,
+      the turn retrieves from a RAG, compose reads the original message and the
+      retrieved chunks through command-state $from() (no carry_forward chain for the
+      non-adjacent message hop), and the invoke_llm word answers from the
+      chunks. Stopping the RAG degrades the next turn to a 200 answered from the
+      message alone rather than a 500, carrying prior turns as client-side history
+      (R4). The router and the two-RAG fan-out this target also exercises are
+      validated by the 01.0 suite. Verified end to end against live Docker and
+      Ollama; skips cleanly without them, naming a missing model.
+    inputs:
+      chatbot_profile: agents/chatbot/profile.yaml
+      turns: a turn answered from retrieved chunks, then a degraded follow-up with history
+      fault: the RAG stopped before the degraded turn
+    expected:
+      embeds_query_once: true
+      compose_reads_via_from: true
+      degraded_turn_returns_200_not_500: true
+      stateless_history_from_browser: true
+    traces:
+      - rel00.0-uc002-chatbot-turn S1
+      - rel00.0-uc002-chatbot-turn S2
+      - rel00.0-uc002-chatbot-turn S3
+      - srd002-chatbot-agent AC1

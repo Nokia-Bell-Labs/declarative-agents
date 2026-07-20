@@ -1,0 +1,130 @@
+id: chatbot-mesh-example-roadmap
+title: Chatbot Mesh Example Road Map
+
+overview: |
+  These releases restage the data-plane chatbot mesh as the example's own plan.
+  They derive from the shared catalog's rel09.0-09.3 and rel09.5; the behavior is
+  implemented and is being relocated into this directory. Requirement and use-case
+  ids are renumbered to the example's own scheme (srd001-003, rel00.0+). The
+  control plane (coordinator, creator, and the provisioning surface) is deferred
+  and is not a release here.
+
+releases:
+  - version: "00.0"
+    name: RAG server and single-RAG chatbot turn
+    description: |
+      The core loop: a persistent RAG server agent (srd001, vector-in) that answers
+      a query_embeddings request with chunks and embedding-model metadata, and a
+      browser-facing chatbot agent (srd002) whose request-scoped turn embeds the
+      message once, queries a single RAG, composes the answer prompt from the
+      retrieved chunks through command-state $from(), and answers, degrading to a
+      mapped 200 when the RAG
+      fails.
+    status: implemented
+    srds:
+      - srd001-rag-server-agent
+      - srd002-chatbot-agent
+    use_cases:
+      - id: rel00.0-uc001-rag-server-query
+        summary: Persistent RAG server answers a vector-in query_embeddings request and returns chunks with embedding-model metadata.
+        status: implemented
+      - id: rel00.0-uc002-chatbot-turn
+        summary: Single-RAG chat turn embeds once, queries one RAG, composes via $from(), answers, and degrades to a 200 when the RAG fails.
+        status: implemented
+    test_suites:
+      - id: test-rel00.0-chatbot-mesh
+        summary: Tracers for the RAG server query and the single-RAG chatbot turn with a degraded RAG.
+        status: implemented
+
+  - version: "01.0"
+    name: Routing and multi-RAG fan-out
+    description: |
+      The chatbot turn (srd002 R2, R3) gains the LLM $tool router that classifies a
+      question to one chat-LLM word, and the sequential multi-RAG fan-out that
+      embeds once and queries N RAGs, each degraded (CommandError) or
+      embedding-mismatch-excluded (QueryRejected) source routing on as a visible
+      machine transition, compose assembling the surviving per-source chunks.
+    status: implemented
+    srds:
+      - srd002-chatbot-agent
+    use_cases:
+      - id: rel01.0-uc001-routed-fanout
+        summary: A routed chat turn dispatches one chat-LLM word via $tool and fans the one embedding out to two RAGs, citing both corpora and degrading when one fails.
+        status: implemented
+    test_suites:
+      - id: test-rel01.0-routing-fanout
+        summary: Tracers for the $tool router word dispatch, the two-RAG fan-out over disjoint corpora, and the degraded and embedding-mismatch paths.
+        status: implemented
+
+  - version: "02.0"
+    name: Observability
+    description: |
+      The observability surface (srd002 R5.1, R5.3): a per-agent monitor panel fed
+      by each agent's monitor read_state and SSE stream through the chatbot's
+      same-origin monitor_proxy, and a cross-agent trace waterfall that renders a
+      turn's connected trace from the Jaeger query API, real because the
+      request-scoped machine exports its spans and propagates traceparent to the
+      RAG servers (agent-core srd016).
+    status: implemented
+    srds:
+      - srd002-chatbot-agent
+    use_cases:
+      - id: rel02.0-uc001-observability
+        summary: The observability panel shows each agent's run state and event stream and renders a selected turn's connected cross-agent trace as a span waterfall.
+        status: implemented
+    test_suites:
+      - id: test-rel02.0-observability
+        summary: Tracers for the per-agent monitor panels over monitor_proxy and the cross-agent trace waterfall from the trace backend.
+        status: implemented
+
+  - version: "03.0"
+    name: Mesh deployment and tiered swap
+    description: |
+      The mesh deploys as one Helm chart (srd003) with values-driven RAG pairs,
+      co-generated chatbot client config and N-RAG fan-out from one source, a
+      tiered hot swap (repoint is a Service change; add-RAG re-renders and rolls
+      the chatbot with a Dolt checkpoint resume), and OTLP observability. The
+      provisioning deployment API (srd003 R4) is deferred to the control-plane
+      addition; this release covers the topology and the swap paths.
+    status: implemented
+    srds:
+      - srd003-chatbot-deployment
+    use_cases:
+      - id: rel03.0-uc001-mesh-deployment
+        summary: One Helm chart deploys the mesh on a kind cluster with values-to-config co-generation, a Service repoint, and an add-RAG rollout with checkpoint resume.
+        status: implemented
+    test_suites:
+      - id: test-rel03.0-mesh-deployment
+        summary: Tracers for the kind deploy smoke, the co-generation drift lock, and the repoint and add-RAG swaps.
+        status: implemented
+
+  - version: "04.0"
+    name: In-cluster LLM tier
+    description: |
+      The chart promotes Ollama from an external values-driven endpoint to a
+      first-class, chart-owned LLM tier (srd003 R6): an optional Ollama subchart,
+      enabled by default, with PVC-backed model storage, a model-preload Job, agent
+      readiness gated on model presence, and GPU scheduling values. A fresh-cluster
+      install is self-contained; setting ollama.enabled=false with an endpoint
+      override reproduces the external-endpoint behavior, and the co-generation
+      contract (R2) is unchanged either way.
+    status: implemented
+    srds:
+      - srd003-chatbot-deployment
+    use_cases:
+      - id: rel04.0-uc001-in-cluster-llm-tier
+        summary: A fresh-cluster install with defaults answers a chat turn with zero external LLM dependency; the disabled-tier override reproduces the external endpoint, and agents are not ready until the models are pulled.
+        status: implemented
+    test_suites:
+      - id: test-rel04.0-llm-tier
+        summary: Tracers for the default-install turn, the disabled-tier endpoint override, the preload-gate ordering, and the CPU-only kind smoke.
+        status: implemented
+
+deferred:
+  - name: Control plane
+    summary: |
+      A coordinator agent that sequences directory ingestion and reconfiguration
+      and to which the chatbot delegates provisioning intents, a creator agent for
+      agent lifecycle management, and the provisioning surface (the deployment API
+      and its panel). These are a separate addition to the example, not a data-plane
+      release.

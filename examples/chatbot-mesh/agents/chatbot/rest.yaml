@@ -1,0 +1,305 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local_provider:
+      timeout: 130s
+      read_timeout: 130s
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [11434, 18085, 18095]
+    local_chat_requests:
+      timeout: 130s
+      read_timeout: 130s
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18080]
+    local_chatbot_control:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18081]
+    local_chatbot_monitor:
+      timeout: 5s
+      read_timeout: 5s
+      max_request_bytes: 4096
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18082]
+
+  clients:
+    embedding:
+      base_url: http://127.0.0.1:11434
+      auth_ref: none
+      limits_ref: local_provider
+      operations:
+        embed_query:
+          method: POST
+          path: /api/embeddings
+          params:
+            body_schema:
+              type: object
+              required: [input]
+              properties:
+                input: {type: string}
+            body_source: previous_result
+            input_mapping:
+              input: $.message
+            carry_forward: [input]
+          body:
+            model: qwen3-embedding:8b
+            prompt: "{{ params.input }}"
+          success: {status: [200], signal: QueryEmbedded}
+          response:
+            output:
+              embedding: $.embedding
+          side_effects:
+            - kind: external_api
+              target: ollama.embeddings
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+    rag0:
+      base_url: http://127.0.0.1:18085
+      auth_ref: none
+      limits_ref: local_provider
+      operations:
+        rag0_query:
+          method: POST
+          path: /api/v1/rag/query
+          params:
+            body_schema:
+              type: object
+              required: [query_embeddings]
+              properties:
+                query_embeddings: {type: array}
+            body_source: command_state
+            input_mapping:
+              query_embeddings: $from(embed_query).mapped.embedding
+          body:
+            query_embeddings: "{{ params.query_embeddings }}"
+            n_results: 5
+          success: {status: [200], signal: QueryResponded}
+          failures:
+            # An embedding-space mismatch (srd001 R2.3) is a 400 the RAG server
+            # returns; map it to QueryRejected so the machine excludes this source
+            # (srd002 R3.3) distinctly from a degraded (CommandError) RAG.
+            - {status: [400], signal: QueryRejected}
+          response:
+            output:
+              ids: $.ids
+              documents: $.documents
+              distances: $.distances
+              embedding_model: $.embedding_model
+          side_effects:
+            - kind: external_api
+              target: rag_server.query
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+    rag1:
+      base_url: http://127.0.0.1:18095
+      auth_ref: none
+      limits_ref: local_provider
+      operations:
+        rag1_query:
+          method: POST
+          path: /api/v1/rag/query
+          params:
+            body_schema:
+              type: object
+              required: [query_embeddings]
+              properties:
+                query_embeddings: {type: array}
+            body_source: command_state
+            input_mapping:
+              query_embeddings: $from(embed_query).mapped.embedding
+          body:
+            query_embeddings: "{{ params.query_embeddings }}"
+            n_results: 5
+          success: {status: [200], signal: QueryResponded}
+          failures:
+            # An embedding-space mismatch (srd001 R2.3) is a 400 the RAG server
+            # returns; map it to QueryRejected so the machine excludes this source
+            # (srd002 R3.3) distinctly from a degraded (CommandError) RAG.
+            - {status: [400], signal: QueryRejected}
+          response:
+            output:
+              ids: $.ids
+              documents: $.documents
+              distances: $.distances
+              embedding_model: $.embedding_model
+          side_effects:
+            - kind: external_api
+              target: rag_server.query
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+
+  servers:
+    chatbot_chat:
+      address: 127.0.0.1:18080
+      limits_ref: local_chat_requests
+      endpoints:
+        chat:
+          method: POST
+          path: /api/v1/chat
+          binding: machine_request
+          request:
+            body_schema:
+              type: object
+              required: [message]
+              properties:
+                message: {type: string}
+                history: {type: array}
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            timeout: 130s
+            request:
+              body:
+                message: $.message
+                history: $.history
+            response:
+              terminal_signals:
+                LLMResponded:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    answer: $.output
+                CommandError:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    error: command_error
+                    message: $.message
+        monitor_proxy:
+          method: GET
+          path: /monitor-proxy/{agent}/{path...}
+          binding: monitor_proxy
+          # Same-origin reverse proxy so the SPA reads every mesh agent's monitor
+          # state and SSE stream through this server (agent-core monitor_proxy,
+          # GH-358). The upstreams are the monitored-agents surface srd003
+          # co-generates; keep them in sync with ux/ux.yaml monitored_agents and
+          # the SPA agent list in ux/app/src/monitorApi.ts.
+          monitor_proxy:
+            upstreams:
+              chatbot: http://127.0.0.1:18082
+              rag0: http://127.0.0.1:18087
+              rag1: http://127.0.0.1:18097
+              # The trace backend the observability v2 waterfall queries by trace id
+              # (Jaeger query API). Absent locally, so the trace panel degrades to a
+              # backend-missing notice; the Helm chart points this at the Jaeger
+              # Service. Same-origin through the proxy, like the monitor upstreams.
+              jaeger: http://127.0.0.1:16686
+          request:
+            path:
+              agent: {type: string}
+              path: {type: string}
+        ui:
+          method: GET
+          path: /ui/{path...}
+          binding: static_assets
+          static_assets:
+            root: ux/app/dist
+            index: index.html
+            spa: true
+          request:
+            path:
+              path: {type: string}
+        root_redirect:
+          method: GET
+          path: /
+          binding: redirect
+          redirect:
+            location: /ui/
+            status: 302
+
+    chatbot_control:
+      address: 127.0.0.1:18081
+      limits_ref: local_chatbot_control
+      queue:
+        name: chatbot_control
+        capacity: 8
+        timeout: 30s
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+      endpoints:
+        exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+                status: {type: string}
+          response:
+            output:
+              accepted: "true"
+        health:
+          method: GET
+          path: /api/lifecycle/health
+          binding: health
+
+    monitor:
+      address: 127.0.0.1:18082
+      limits_ref: local_chatbot_monitor
+      queue:
+        name: chatbot_monitor
+        capacity: 8
+        overflow: reject
+        timeout: 100ms
+      shutdown:
+        timeout: 2s
+        drain_policy: drain
+        stop_listeners: true
+        unblock_await_signal: ServerStopped
+      endpoints:
+        machine_spec:  {method: GET, path: /monitor/machine,       binding: read_state,    monitor_view: machine_spec}
+        current_state: {method: GET, path: /monitor/state,         binding: read_state,    monitor_view: current_state}
+        tools:         {method: GET, path: /monitor/tools,         binding: read_state,    monitor_view: tools}
+        metrics:       {method: GET, path: /monitor/metrics,       binding: read_state,    monitor_view: metrics}
+        recent_events: {method: GET, path: /monitor/events,        binding: read_state,    monitor_view: events}
+        event_stream:  {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
+        control_exit:
+          method: POST
+          path: /monitor/control/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+          response:
+            output:
+              accepted: "true"

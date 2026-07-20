@@ -1,0 +1,3 @@
+# Node dependencies for the ux SPA. Run `npm ci` in ux/app to restore.
+# The built SPA (ux/app/dist) is committed, so it is intentionally not ignored.
+**/node_modules/

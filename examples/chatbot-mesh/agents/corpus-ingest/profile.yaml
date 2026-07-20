@@ -1,0 +1,11 @@
+name: corpus-ingest
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - /opt/agent-core/tools/builtin/done.yaml
+  - /opt/agent-core/tools/builtin/parse-response.yaml
+  - /opt/agent-core/tools/builtin/report-parse-error.yaml
+  - declarations.yaml
+rest_definitions:
+  - corpus-rest.yaml
