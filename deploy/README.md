@@ -7,9 +7,10 @@ single agent, on a fresh machine for development and verification.
 
 The mesh is a set of container agents: a browser-facing chatbot agent that fans
 one query embedding out to N RAG server agents (Chroma-backed) and routes to a
-chat LLM. The Helm chart under `chatbot-mesh/` (planned, tracked by the
-deployment epic) deploys that topology; this README covers both the local dev
-loop and the Kubernetes path.
+chat LLM. The data-plane Helm chart now lives with the standalone example at
+`examples/chatbot-mesh/helm/`; this directory retains the provisioner
+(control-plane) tooling. This README covers both the local dev loop and the
+Kubernetes path.
 
 ## Prerequisites
 
@@ -133,22 +134,25 @@ cd ../agent-core && mage audit && go test ./...
 go test ./cmd/agent -run 'TestDoltCheckpoint|TestDoltCommandState'
 ```
 
-## Kubernetes Deployment (planned)
+## Kubernetes Deployment
 
-The mesh chart lives under `chatbot-mesh/` and deploys the chatbot, N
-values-driven RAG (agent + Chroma) pairs, the chat LLM, the Dolt backend, and an
-OTel collector over rel06.0 binary-only images with profiles mounted from
-ConfigMaps (srd015). The smoke path is a local kind cluster:
+The data-plane mesh chart lives with the standalone example at
+`examples/chatbot-mesh/helm/`. It deploys the chatbot, N values-driven RAG
+(agent + Chroma) pairs, the chat LLM, the Dolt backend, and an OTel collector
+over binary-only images with profiles mounted from ConfigMaps, and co-generates
+the chatbot config from the RAG list. The smoke path is a local kind cluster:
 
 ```bash
 kind create cluster --name chatbot-mesh
-helm install chatbot-mesh deploy/chatbot-mesh -f deploy/chatbot-mesh/values.yaml
+helm install chatbot-mesh examples/chatbot-mesh/helm \
+  -f examples/chatbot-mesh/helm/ci/kind-values.yaml
 kubectl get pods
 kind delete cluster --name chatbot-mesh
 ```
 
-The chart, its values schema, and the values-to-config co-generation are tracked
-by the deployment epic and are not yet in this directory.
+See `examples/chatbot-mesh/helm/README.md` for the chart, its values schema, and
+the values-to-config co-generation. The provisioner (control-plane deployment
+API) remains under this directory pending the control-plane follow-up.
 
 ## Current Status
 
@@ -162,8 +166,8 @@ progress, so a fresh checkout is not misread as fully working.
 | Agent build + server lifecycle | Verified (health, monitor, control all serve) |
 | Spec docs (rel08.0, rel09.0) | Merged; audits clean |
 | RAG server request path | Blocked — see below |
-| Chatbot agent, routing, SPA panels | Not yet implemented |
-| Helm chart + kind smoke test | Not yet implemented |
+| Chatbot agent, routing, ux SPA | Implemented in `examples/chatbot-mesh/` |
+| Helm chart + kind smoke test | Implemented in `examples/chatbot-mesh/helm/` |
 | Ollama-gated integration tracers | Require the models above; not run here |
 
 Known blocker (RAG server query path): a `machine_request` seed is a structured
