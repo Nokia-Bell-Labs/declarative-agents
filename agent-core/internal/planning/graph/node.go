@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package graph builds and maintains a dependency DAG of requirement
-// items using dominikbraun/graph. Implements srd002-dependency-graph.
+// items using dominikbraun/graph.
 package graph
 
 import "fmt"

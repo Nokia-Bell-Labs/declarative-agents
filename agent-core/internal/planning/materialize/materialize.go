@@ -4,9 +4,8 @@
 // Package materialize converts an ImplementationPlan into a tracked issue
 // in the target project via the issue-tracker CLI.
 //
-// TODO(gh-issues): the CLI invocation still targets the legacy `bd` binary.
-// Replace it with a GitHub Issues integration.
-// Implements srd009-materializer.
+// TODO(GH-404): the CLI invocation still targets the legacy `bd` binary;
+// replace it with a GitHub Issues integration.
 package materialize
 
 import (

@@ -2,7 +2,6 @@
 
 // Package plan defines the ImplementationPlan types produced by the
 // planning engine and consumed by the materializer.
-// Implements srd008-planning-engine R2 (implementation plan types).
 package plan
 
 // ImplementationPlan describes what files to create or modify, which

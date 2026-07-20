@@ -16,7 +16,6 @@ import (
 // The response may contain YAML wrapped in markdown code fences or
 // bare YAML. Returns a descriptive error for empty input, unparseable
 // YAML, or missing required fields.
-// Implements srd008-planning-engine R3.
 func ParsePlan(raw string) (ImplementationPlan, error) {
 	if strings.TrimSpace(raw) == "" {
 		return ImplementationPlan{}, fmt.Errorf("parse plan: empty input")

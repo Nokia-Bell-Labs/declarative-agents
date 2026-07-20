@@ -53,7 +53,6 @@ var tmpl = template.Must(template.New("prompt").Funcs(template.FuncMap{
 
 // AssemblePrompt builds a planning prompt from task context, SRD metadata,
 // dependency context, and optional failure context for retries.
-// Implements srd008-planning-engine R1.
 func AssemblePrompt(task TaskContext, srd SRDContext, depContext []DepItem, failureCtx []string) (string, error) {
 	data := promptData{
 		Task:       task,
