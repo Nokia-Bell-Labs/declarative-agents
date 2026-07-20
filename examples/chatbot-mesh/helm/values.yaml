@@ -171,3 +171,29 @@ provisioner:
     chunkCap: 0
     routerDefault: invoke_llm_fast
     chatModel: "qwen2.5:3b"
+
+# The control plane (srd004 coordinator, srd005 creator): two persistent agents on
+# the runtime image that turn a provisioning intent into an ingest and a rollout
+# through the deployment API. Disabled by default; the data plane serves without it.
+# The chatbot gains its declared coordinator client only when this is enabled.
+controlPlane:
+  enabled: false
+  coordinator:
+    replicas: 1
+    ports: {intent: 18100, control: 18101, monitor: 18102}
+    resources:
+      requests: {cpu: 50m, memory: 64Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+  creator:
+    replicas: 1
+    ports: {instance: 18110, control: 18111, monitor: 18112}
+    resources:
+      requests: {cpu: 50m, memory: 64Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    # The deployment-API bearer token the creator uses to drive the provisioner,
+    # mounted from a Secret separate from the chat path (the #392 file-mount pattern:
+    # read from a mounted file, never from env or runtime input). Defaults to the
+    # release provisioner Secret's applyToken; set name to point at your own.
+    deploymentApiTokenSecret:
+      name: ""
+      key: applyToken

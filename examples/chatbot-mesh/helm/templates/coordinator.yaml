@@ -1,0 +1,79 @@
+{{- if .Values.controlPlane.enabled }}
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+# --- Coordinator: the control plane's provisioning-intent orchestrator (srd004) ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-coordinator
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coordinator
+spec:
+  replicas: {{ .Values.controlPlane.coordinator.replicas }}
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: coordinator
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: coordinator
+    spec:
+      containers:
+        - name: coordinator
+          image: {{ include "chatbot-mesh.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--profile"
+            - "{{ .Values.profiles.mountPath }}/agents/coordinator/profile.yaml"
+            - "--directory"
+            - "{{ .Values.profiles.workMountPath }}"
+            {{- with include "chatbot-mesh.otlpEndpoint" . }}
+            - "--otel-otlp-endpoint"
+            - {{ . | quote }}
+            - "--otel-service-name"
+            - "coordinator"
+            {{- end }}
+          # The coordinator delegates every instance op to the creator through its
+          # declared client; the creator Service DNS is the only endpoint it needs,
+          # and it binds 0.0.0.0 so its Services route to the pod. It holds no
+          # deployment-API credential.
+          env:
+            - {name: COORDINATOR_BIND_HOST, value: "0.0.0.0"}
+            - {name: CREATOR_URL, value: "http://{{ $fullname }}-creator:{{ .Values.controlPlane.creator.ports.instance }}"}
+            - {name: CREATOR_HOST, value: "{{ $fullname }}-creator"}
+          ports:
+            - {name: intent, containerPort: {{ .Values.controlPlane.coordinator.ports.intent }}}
+            - {name: control, containerPort: {{ .Values.controlPlane.coordinator.ports.control }}}
+            - {name: monitor, containerPort: {{ .Values.controlPlane.coordinator.ports.monitor }}}
+          readinessProbe:
+            httpGet: {path: /api/lifecycle/health, port: control}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.controlPlane.coordinator.resources | nindent 12 }}
+          volumeMounts:
+            - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
+            - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
+      volumes:
+        {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
+        - name: work
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-coordinator
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coordinator
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: coordinator
+  ports:
+    - {name: intent, port: {{ .Values.controlPlane.coordinator.ports.intent }}, targetPort: intent}
+    - {name: control, port: {{ .Values.controlPlane.coordinator.ports.control }}, targetPort: control}
+    - {name: monitor, port: {{ .Values.controlPlane.coordinator.ports.monitor }}, targetPort: monitor}
+{{- end }}
