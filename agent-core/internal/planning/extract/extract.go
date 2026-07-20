@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 // Package extract selects weight-bounded tasks from the dependency graph.
-// Implements srd003-task-extraction.
 package extract
 
 import (
