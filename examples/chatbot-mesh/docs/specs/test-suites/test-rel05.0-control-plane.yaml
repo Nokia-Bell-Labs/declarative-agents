@@ -22,7 +22,7 @@ test_cases:
   - use_case: rel05.0-uc001-control-plane-provisioning
     name: Provisioning intent tracer across chatbot, coordinator, and creator
     integration_target: mage integration:controlPlane
-    status: planned
+    status: implemented
     description: |
       Drives a provisioning intent end to end: the chatbot delegates an add-a-source
       intent to the coordinator through its declared client; the coordinator

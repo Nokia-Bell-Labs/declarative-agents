@@ -94,4 +94,4 @@ out_of_scope:
   - The mesh deployment topology and tiered swap themselves, which are srd003 and release rel03.0; this use case adds the control-plane flow on top of them.
 
 test_suite_trace: test-rel05.0-control-plane
-status: specified
+status: implemented

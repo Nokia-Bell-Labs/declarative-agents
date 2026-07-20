@@ -132,15 +132,15 @@ releases:
       coordinator sequences corpus-ingest runs and the rollout, the creator executes
       the checkpoint-resume rollout through the deployment API (srd003 R4) and
       reports health, and the new source serves a grounded turn.
-    status: specified
+    status: implemented
     srds:
       - srd004-coordinator
       - srd005-creator
     use_cases:
       - id: rel05.0-uc001-control-plane-provisioning
         summary: A provisioning intent flows chatbot -> coordinator -> creator, ingests and reconfigures, and the new source serves a grounded turn; only the creator holds the deployment-API authority.
-        status: specified
+        status: implemented
     test_suites:
       - id: test-rel05.0-control-plane
-        summary: Tracer for the intent -> ingest -> reconfigure -> restart -> serve flow across the three agents, asserting the authority boundary.
-        status: planned
+        summary: Tracer for the intent -> ingest -> reconfigure -> restart -> serve flow across the three agents, asserting the authority boundary. Realized as mage integration:controlPlane (deterministic, no cluster); the live grounded turn rides on integration:chatbot and the deploy swap.
+        status: implemented
