@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// TestOllamaTierRendersWithDefaults locks srd015 R6: with the defaults
+// TestOllamaTierRendersWithDefaults locks srd003 R6: with the defaults
 // (ollama.enabled=true) the chart renders the in-cluster LLM tier -- an Ollama
 // StatefulSet, its Service, the model-preload Job pulling every declared model,
 // and the chatbot's wait-for-llm-models readiness init container.
@@ -23,10 +23,10 @@ func TestOllamaTierRendersWithDefaults(t *testing.T) {
 	}
 	render := string(out)
 	for _, want := range []string{
-		"name: t-chatbot-mesh-ollama",       // StatefulSet + Service
+		"name: t-chatbot-mesh-ollama",         // StatefulSet + Service
 		"name: t-chatbot-mesh-ollama-preload", // preload Job
-		"name: wait-for-llm-models",          // chatbot readiness init
-		"ollama pull",                        // the preload pulls models
+		"name: wait-for-llm-models",           // chatbot readiness init
+		"ollama pull",                         // the preload pulls models
 	} {
 		if !strings.Contains(render, want) {
 			t.Errorf("default render missing %q (the LLM tier must render with defaults)", want)
@@ -44,7 +44,7 @@ func TestOllamaTierRendersWithDefaults(t *testing.T) {
 	}
 	// The preload runs the ollama image, which ships neither wget nor curl, so its
 	// reachability probe must be the ollama CLI, never an HTTP client absent from
-	// the image (GH-338 live validation: a wget probe hung the preload forever).
+	// the image (a wget probe hung the preload forever).
 	if !strings.Contains(render, "until ollama list") {
 		t.Error("preload reachability probe must use `ollama list` (the ollama image has no wget/curl)")
 	}

@@ -31,50 +31,6 @@ func buildIntegrationAgent(coreRoot string) (string, error) {
 	return binary, nil
 }
 
-// startDetachedAgent launches an agent profile as a long-running subprocess with
-// its OTel spans written to tracePath, and returns a stop function. stop(kill=false)
-// waits up to 15s for a graceful exit after the caller has requested a lifecycle
-// exit; stop(kill=true) force-kills. The trace file is the caller's to read and
-// remove, so the chatbot integration can assert each agent's spans after its
-// graceful exit flushes them. startRagServer manages its own trace lifecycle for
-// the standalone rag-server tracer; this shared launcher is used where the caller
-// needs the trace path.
-func startDetachedAgent(binary, profilesRoot, coreRoot, profile, tracePath string) (func(kill bool) error, error) {
-	profilePath := profile
-	if !filepath.IsAbs(profilePath) {
-		profilePath = filepath.Join(profilesRoot, profile)
-	}
-	cmd := exec.Command(binary,
-		"--profile", profilePath,
-		"--directory", os.TempDir(),
-		"--core-root", coreRoot,
-		"--otel-log-file", tracePath,
-	)
-	cmd.Dir = profilesRoot
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("start %s: %w", profile, err)
-	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-	return func(kill bool) error {
-		if kill {
-			_ = cmd.Process.Kill()
-			<-done
-			return nil
-		}
-		select {
-		case <-done:
-			return nil
-		case <-time.After(15 * time.Second):
-			_ = cmd.Process.Kill()
-			<-done
-			return fmt.Errorf("%s did not stop within 15s after exit request", profile)
-		}
-	}, nil
-}
-
 func freeLoopbackAddr() (string, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

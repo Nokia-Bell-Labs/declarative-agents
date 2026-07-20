@@ -11,11 +11,11 @@ import (
 	"testing"
 )
 
-// TestChatbotFanOutCoGeneratedForNRags locks GH-372: the chatbot request-machine
-// fan-out chain and the request-fanout rag_queryN words are rendered from the
-// ragUnits list, so a values change scales the fan-out breadth with the topology.
-// A three-RAG render must carry the full Retrieving0->1->2->Composing chain, one
-// rag_queryN word per unit, and a matching compose input per source.
+// TestChatbotFanOutCoGeneratedForNRags locks the chatbot request-machine fan-out
+// chain and the request-fanout rag_queryN words to the ragUnits list, so a values
+// change scales the fan-out breadth with the topology. A three-RAG render must
+// carry the full Retrieving0->1->2->Composing chain, one rag_queryN word per unit,
+// and a matching compose input per source.
 func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
@@ -76,7 +76,7 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 	}
 }
 
-// TestChatbotRestCoGeneratedFromRagUnits locks srd015 R2.1: the chatbot rest.yaml
+// TestChatbotRestCoGeneratedFromRagUnits locks srd003 R2.1: the chatbot rest.yaml
 // RAG client entries are template output derived from the ragUnits list, so a
 // drifted or hand-edited client entry is impossible by construction. It renders
 // the chart with a three-RAG values set and asserts the co-generated rest.yaml
@@ -138,7 +138,7 @@ func TestChatbotRestCoGeneratedFromRagUnits(t *testing.T) {
 }
 
 // TestChatbotUXMonitoredAgentsCoGenerated locks the monitored-agents surface to
-// the same ragUnits list (srd015 R2).
+// the same ragUnits list (srd003 R2).
 func TestChatbotUXMonitoredAgentsCoGenerated(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
@@ -150,7 +150,7 @@ func TestChatbotUXMonitoredAgentsCoGenerated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("helm template: %v\n%s", err, out)
 	}
-	ux := configMapKeyBlock(string(out), "agents__chatbot__ui__ux.yaml")
+	ux := configMapKeyBlock(string(out), "ux__ux.yaml")
 	if ux == "" {
 		t.Fatal("co-generated ux.yaml key not found")
 	}
@@ -194,7 +194,7 @@ func findChartDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 	for {
-		candidate := filepath.Join(dir, "deploy", "chatbot-mesh", "Chart.yaml")
+		candidate := filepath.Join(dir, "helm", "Chart.yaml")
 		if _, err := os.Stat(candidate); err == nil {
 			return filepath.Dir(candidate)
 		}

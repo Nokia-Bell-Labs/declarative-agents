@@ -27,6 +27,12 @@ const (
 	helmSpanTimeout    = 60 * time.Second
 )
 
+// exampleChartDir returns the chatbot-mesh Helm chart under the example, which
+// ships with the example rather than as a sibling deploy directory.
+func exampleChartDir(profilesRoot string) string {
+	return filepath.Join(profilesRoot, "helm")
+}
+
 // HelmSmoke deploys the chatbot-mesh chart on a disposable kind cluster with the
 // ci values and proves the mesh stands up, serves a chat turn, and exports spans
 // from more than one service. It gates on docker, kind, helm, and kubectl and on
@@ -34,25 +40,20 @@ const (
 // each missing dependency rather than failing. Teardown (kind delete) runs in
 // all paths.
 //
-// Scope: this is the deploy smoke bar (srd015 R1/R5, uc003 S1). The chatbot's
-// in-cluster RAG client base URLs are co-generated from the ragUnits list in
-// GH-314; until then the mounted rest.yaml points the RAG clients at loopback, so
-// the mesh serves a turn (200 with a non-empty answer) but grounded-with-citation
-// retrieval and the repoint/add swap paths land with that co-generation target.
-// The span assertion needs each agent to report a distinct service.name, which
-// the chart wires (chatbot and each rag unit) so the collector-to-Jaeger pipeline
-// surfaces the mesh as more than one service.
+// Scope: this is the deploy smoke bar (srd003 R1/R5, uc rel03.0 S1). The span
+// assertion needs each agent to report a distinct service.name, which the chart
+// wires (chatbot and each rag unit) so the collector-to-Jaeger pipeline surfaces
+// the mesh as more than one service.
 func (Integration) HelmSmoke() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	repoRoot := filepath.Dir(profilesRoot)
-	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(repoRoot, "agent-core"))
-	chartDir := filepath.Join(repoRoot, "deploy", "chatbot-mesh")
+	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	chartDir := exampleChartDir(profilesRoot)
 	if err := requireProfilePaths(profilesRoot,
 		"agents/chatbot/profile.yaml", "agents/chatbot/rest.yaml",
-		"agents/knowledge-manager/rag-server/profile.yaml",
+		"agents/rag-server/profile.yaml",
 	); err != nil {
 		return err
 	}
@@ -75,7 +76,7 @@ func helmSmokeSkipReason(profilesRoot, coreRoot string) string {
 			return fmt.Sprintf("%s not found on PATH", bin)
 		}
 	}
-	if !agentCoreCheckoutAvailable(coreRoot) {
+	if !agentCoreAvailable(coreRoot) {
 		return fmt.Sprintf("agent-core checkout not found at %s (set %s)", coreRoot, agentCoreRootEnv)
 	}
 	return chatbotOllamaSkipReason(profilesRoot)
@@ -172,9 +173,9 @@ func buildSmokeRuntimeImage(coreRoot, image string) error {
 }
 
 // stageSmokeChart copies the chart to a temp directory and stages the agent
-// programs into its profiles subtree (the PACKAGING.md step), so the ConfigMap
-// carries the chatbot and rag-server profiles the deployment mounts. It returns
-// the staged chart path and a cleanup function.
+// programs and the ux into its profiles subtree (the PACKAGING.md step), so the
+// ConfigMap carries the chatbot and rag-server profiles and the SPA the deployment
+// mounts. It returns the staged chart path and a cleanup function.
 func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 	staged, err := os.MkdirTemp("", "chatbot-mesh-chart-*")
 	if err != nil {
@@ -188,7 +189,8 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 	}
 	programs := []struct{ src, rel string }{
 		{"agents/chatbot", "profiles/agents/chatbot"},
-		{"agents/knowledge-manager/rag-server", "profiles/agents/knowledge-manager/rag-server"},
+		{"agents/rag-server", "profiles/agents/rag-server"},
+		{"ux", "profiles/ux"},
 	}
 	for _, p := range programs {
 		if err := copyDirContents(filepath.Join(profilesRoot, p.src), filepath.Join(dst, p.rel)); err != nil {
@@ -299,9 +301,8 @@ func kubectlPortForward(target string, ports ...int) (func(), error) {
 }
 
 // assertSmokeChatServed posts one chat turn and asserts the mesh answered (200
-// with a non-empty answer). Grounded-with-citation retrieval is a co-generation
-// criterion (GH-314); the deploy smoke bar is that the served machine_request
-// endpoint routes a turn through the chatbot in cluster.
+// with a non-empty answer). The deploy smoke bar is that the served
+// machine_request endpoint routes a turn through the chatbot in cluster.
 func assertSmokeChatServed(url string) error {
 	body := `{"message":"Summarize the most relevant record you can retrieve."}`
 	data, status, err := requestHTTP(http.MethodPost, url, body)
@@ -376,7 +377,7 @@ const (
 )
 
 // HelmSwap proves the two tiered-swap paths of the chatbot-mesh chart on a kind
-// cluster (srd015 R3): repointing a RAG is a Service selector change that does not
+// cluster (srd003 R3): repointing a RAG is a Service selector change that does not
 // roll the chatbot (R3.1), and adding a RAG re-renders the co-generated profile and
 // rolls the chatbot (R3.2). It asserts the infrastructure contracts (pod identity,
 // workload existence, the co-generated ConfigMap breadth) via kubectl and helm, so
@@ -388,9 +389,8 @@ func (Integration) HelmSwap() error {
 	if err != nil {
 		return err
 	}
-	repoRoot := filepath.Dir(profilesRoot)
-	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(repoRoot, "agent-core"))
-	chartDir := filepath.Join(repoRoot, "deploy", "chatbot-mesh")
+	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	chartDir := exampleChartDir(profilesRoot)
 	if _, err := os.Stat(filepath.Join(chartDir, "Chart.yaml")); err != nil {
 		return fmt.Errorf("chatbot-mesh chart not found at %s: %w", chartDir, err)
 	}
@@ -400,7 +400,7 @@ func (Integration) HelmSwap() error {
 			return nil
 		}
 	}
-	if !agentCoreCheckoutAvailable(coreRoot) {
+	if !agentCoreAvailable(coreRoot) {
 		fmt.Printf("SKIP helmSwap: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
 		return nil
 	}
@@ -462,7 +462,7 @@ func helmSwapDeploy(chartPath, verb string, extra []string) error {
 
 // assertSwapRepoint patches the rag0 Service selector and asserts the chatbot pod
 // is unchanged: repointing a RAG source touches no agent configuration and requires
-// no chatbot restart (srd015 R3.1).
+// no chatbot restart (srd003 R3.1).
 func assertSwapRepoint() error {
 	before, err := chatbotPodName()
 	if err != nil {
@@ -488,7 +488,7 @@ func assertSwapRepoint() error {
 // assertSwapAddRag upgrades the release to two RAG units and asserts the new RAG
 // workload stands up, the co-generated chatbot profile ConfigMap now carries the
 // second RAG client, and the chatbot Deployment rolled to a new generation
-// (srd015 R3.2).
+// (srd003 R3.2).
 func assertSwapAddRag(chartPath string) error {
 	genBefore, err := chatbotDeploymentGeneration()
 	if err != nil {
@@ -583,20 +583,19 @@ var helmLLMModels = []string{"all-minilm", "qwen2.5:0.5b"}
 // HelmLLMTier deploys the chart with the in-cluster LLM tier enabled on a kind
 // cluster and proves the tier stands up: the Ollama StatefulSet becomes ready, the
 // preload Job pulls the configured models once, /api/tags reports them, and the
-// chatbot serves a turn wired to the in-cluster endpoint (srd015 R6, rel09.5
-// uc001). CPU-only small models keep it runnable without a GPU, a recorded
-// divergence from GPU production sizing (R6.4). It gates on docker, kind, helm, and
-// kubectl, recording a skip for each missing dependency; unlike helmSmoke it needs
-// no external Ollama because the tier under test is the in-cluster one. Teardown
-// (kind delete) runs in all paths.
+// chatbot serves a turn wired to the in-cluster endpoint (srd003 R6). CPU-only
+// small models keep it runnable without a GPU, a recorded divergence from GPU
+// production sizing (R6.4). It gates on docker, kind, helm, and kubectl, recording
+// a skip for each missing dependency; unlike helmSmoke it needs no external Ollama
+// because the tier under test is the in-cluster one. Teardown (kind delete) runs in
+// all paths.
 func (Integration) HelmLLMTier() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	repoRoot := filepath.Dir(profilesRoot)
-	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(repoRoot, "agent-core"))
-	chartDir := filepath.Join(repoRoot, "deploy", "chatbot-mesh")
+	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	chartDir := exampleChartDir(profilesRoot)
 	if _, err := os.Stat(filepath.Join(chartDir, "Chart.yaml")); err != nil {
 		return fmt.Errorf("chatbot-mesh chart not found at %s: %w", chartDir, err)
 	}
@@ -606,7 +605,7 @@ func (Integration) HelmLLMTier() error {
 			return nil
 		}
 	}
-	if !agentCoreCheckoutAvailable(coreRoot) {
+	if !agentCoreAvailable(coreRoot) {
 		fmt.Printf("SKIP helmLLMTier: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
 		return nil
 	}
