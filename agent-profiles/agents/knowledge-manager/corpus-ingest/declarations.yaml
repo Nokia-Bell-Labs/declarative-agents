@@ -41,6 +41,14 @@ tools:
     undo:
       strategy: noop
       description: A heartbeat check does not mutate state.
+    errors:
+      - signal: CommandError
+        condition: The chroma client definition is missing, or the heartbeat call fails on network, timeout, or mapping.
+        state_after_failure: No Chroma state is read or changed.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Chroma heartbeat readiness probe.
     config:
       rest_ref: chroma
       operation: heartbeat
@@ -87,6 +95,14 @@ tools:
     undo:
       strategy: noop
       description: A version check does not mutate state.
+    errors:
+      - signal: CommandError
+        condition: The ollama client definition is missing, or the version call fails on network, timeout, or mapping.
+        state_after_failure: No Ollama state is read or changed.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Ollama version readiness probe.
     config:
       rest_ref: ollama
       operation: version
@@ -135,6 +151,16 @@ tools:
     undo:
       strategy: noop
       description: Computing an embedding does not mutate state.
+    errors:
+      - signal: CommandError
+        condition: The Ollama embeddings call fails on network, timeout, schema, or mapping.
+        state_after_failure: No embedding is produced and no state changes.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Ollama document-embedding operation.
+      after: [read_resource]
+      before: [resolve_collection]
     config:
       rest_ref: ollama
       operation: embed
@@ -184,6 +210,16 @@ tools:
     undo:
       strategy: noop
       description: Create-or-get is idempotent for a stable collection name.
+    errors:
+      - signal: CommandError
+        condition: The Chroma create-or-get collection call fails on network, timeout, schema, or mapping.
+        state_after_failure: The collection id is unresolved; create-or-get is idempotent so there is no net change.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Chroma create-or-get collection operation for the add path.
+      after: [embed_document]
+      before: [chroma_add]
     config:
       rest_ref: chroma
       operation: create_or_get_collection_carry
@@ -228,6 +264,15 @@ tools:
     undo:
       strategy: noop
       description: Create-or-get is idempotent for a stable collection name.
+    errors:
+      - signal: CommandError
+        condition: The Chroma create-or-get collection call fails on network, timeout, schema, or mapping.
+        state_after_failure: The collection id is unresolved; create-or-get is idempotent so there is no net change.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Chroma create-or-get collection operation for the count path.
+      before: [chroma_count]
     config:
       rest_ref: chroma
       operation: create_or_get_collection
@@ -277,6 +322,15 @@ tools:
     undo:
       strategy: noop
       description: Records can be removed by a separate delete word.
+    errors:
+      - signal: CommandError
+        condition: The Chroma add call fails on network, timeout, schema, or mapping.
+        state_after_failure: The record is not written to the collection.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Chroma add-records operation.
+      after: [resolve_collection]
     config:
       rest_ref: chroma
       operation: add_records
@@ -323,6 +377,15 @@ tools:
     undo:
       strategy: noop
       description: Reading a count does not mutate state.
+    errors:
+      - signal: CommandError
+        condition: The Chroma count call fails on network, timeout, or mapping.
+        state_after_failure: No count is read and no state changes.
+    relationships:
+      overlaps:
+        - tool: rest_client_invoke
+          difference: This profile-specific word binds the Chroma count-records operation.
+      after: [count_collection]
     config:
       rest_ref: chroma
       operation: count_records
@@ -371,6 +434,15 @@ tools:
     undo:
       strategy: noop
       description: Listing is read-only.
+    errors:
+      - signal: DocumentResourceDenied
+        condition: The requested resource name is not a configured document resource.
+        state_after_failure: No documents are listed and no state changes.
+      - signal: CommandError
+        condition: Scanning the configured resource root fails.
+        state_after_failure: No documents are listed and no state changes.
+    relationships:
+      before: [read_resource]
     config:
       resources:
         corpus:
@@ -423,6 +495,22 @@ tools:
     undo:
       strategy: noop
       description: Reading is read-only.
+    errors:
+      - signal: DocumentMissing
+        condition: The selected resource-relative path does not exist.
+        state_after_failure: No document is read and no state changes.
+      - signal: DocumentResourceDenied
+        condition: The requested resource name or path is outside the configured resource.
+        state_after_failure: No document is read and no state changes.
+      - signal: DocumentParseFailed
+        condition: The document cannot be read or decoded under the configured mode.
+        state_after_failure: No document is read and no state changes.
+      - signal: CommandError
+        condition: The resource read fails for a reason other than the declared document signals.
+        state_after_failure: No document is read and no state changes.
+    relationships:
+      after: [list_resource]
+      before: [embed_document]
     config:
       resources:
         corpus:
@@ -488,6 +576,9 @@ tools:
         condition: provider configuration is invalid, the model is unavailable, or the model call fails
         message_shape: 'invoke_llm: <provider/model>: <error>'
         state_after_failure: conversation history is unchanged unless the provider response was already appended
+    relationships:
+      after: [chroma_ready, ollama_ready]
+      before: [list_resource, read_resource]
     config:
       model: "ornith:9b"
       provider: ollama
