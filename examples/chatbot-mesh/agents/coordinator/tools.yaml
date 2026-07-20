@@ -1,0 +1,8 @@
+tools:
+  - launch_coordinator_requests
+  - launch_coordinator_control
+  - launch_monitor_rest
+  - await_coordinator_control
+  - stop_monitor_rest
+  - stop_coordinator_requests
+  - exit_agent

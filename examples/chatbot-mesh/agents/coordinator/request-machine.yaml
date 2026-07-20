@@ -1,0 +1,40 @@
+name: coordinator-provisioning-request
+purpose: |-
+  One request-scoped run of a provisioning intent. The machine_request intent
+  endpoint seeds this machine with the intent body: the RAG name and its target
+  collection, the embedding model, and the directory to add as a knowledge source.
+  The coordinator delegates a corpus-ingest run for the directory to the creator
+  (request_ingest); when the creator reports the ingest met the requested source, the
+  coordinator decides the values patch that adds the new RAG source and delegates the
+  rollout to the creator (request_rollout), threading the decided patch from the
+  carried intent and the ingest result. The terminal Reconfigured signal maps the
+  aggregated status to the HTTP response. Every instance operation is a request to the
+  creator; the coordinator authors the decision but holds no deployment-API authority.
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 8
+states:
+  - {name: AwaitingRequest, meaning: Seeded by the trusted intent endpoint with the provisioning intent body.}
+  - {name: Ingesting, meaning: The creator is running the corpus-ingest for the requested directory and verifying the collection count.}
+  - {name: Reconfiguring, meaning: The coordinator decided the values patch and the creator is executing the checkpoint-resume rollout.}
+  - {name: Reconfigured, meaning: Terminal. The rollout completed and the aggregated status is ready for the HTTP response.}
+  - {name: Rejected, meaning: Terminal. The creator reported the ingest did not meet the requested source.}
+  - {name: Failed, meaning: Terminal. A creator boundary word failed.}
+terminal_states:
+  - Reconfigured
+  - Rejected
+  - Failed
+signals:
+  - {name: Seed, trigger: The intent endpoint starts a request-scoped run.}
+  - {name: IngestReported, trigger: The creator reported the ingest met the requested source and returned the collection count.}
+  - {name: Rejected, trigger: The creator reported the ingest did not meet the requested source.}
+  - {name: Reconfigured, trigger: The creator reported the rollout completed and returned the health.}
+  - {name: CommandError, trigger: A creator boundary word failed.}
+transitions:
+  - {state: AwaitingRequest, signal: Seed,           next: Ingesting,     action: request_ingest}
+  - {state: AwaitingRequest, signal: CommandError,   next: Failed}
+  - {state: Ingesting,       signal: IngestReported, next: Reconfiguring, action: request_rollout}
+  - {state: Ingesting,       signal: Rejected,       next: Rejected}
+  - {state: Ingesting,       signal: CommandError,   next: Failed}
+  - {state: Reconfiguring,   signal: Reconfigured,   next: Reconfigured}
+  - {state: Reconfiguring,   signal: CommandError,   next: Failed}
