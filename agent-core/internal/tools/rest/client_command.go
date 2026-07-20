@@ -354,7 +354,7 @@ func (c *clientCmd) executeRequest(request *http.Request) core.Result {
 	if err != nil {
 		return clientOperationError(c.toolName, "network_io", redactError(err, c.operation, c.credentials), c.operation)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	result, err := mapClientResponse(c.toolName, c.operation, response, attempts, duration, c.params)
 	if err != nil {
 		return result

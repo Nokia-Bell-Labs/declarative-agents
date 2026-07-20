@@ -165,11 +165,11 @@ func ComputeDetailed(groups map[GroupKey][]EvalRunResult) []SampleModelRow {
 // PrintModelTable writes a model-level summary table.
 func PrintModelTable(w io.Writer, stats []ModelStats) {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(tw, "MODEL\tRUNS\tSUCCESS\tCLEAN\tRECOVERY\tSTUCK\tMEAN ITER\tMEAN TOK\tMEAN DUR\n")
-	fmt.Fprintf(tw, "-----\t----\t-------\t-----\t--------\t-----\t---------\t--------\t--------\n")
+	_, _ = fmt.Fprintf(tw, "MODEL\tRUNS\tSUCCESS\tCLEAN\tRECOVERY\tSTUCK\tMEAN ITER\tMEAN TOK\tMEAN DUR\n")
+	_, _ = fmt.Fprintf(tw, "-----\t----\t-------\t-----\t--------\t-----\t---------\t--------\t--------\n")
 
 	for _, s := range stats {
-		fmt.Fprintf(tw, "%s\t%d\t%.0f%%\t%.0f%%\t%.0f%%\t%.0f%%\t%.1f\t%.0f\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%d\t%.0f%%\t%.0f%%\t%.0f%%\t%.0f%%\t%.1f\t%.0f\t%s\n",
 			s.Model,
 			s.Runs,
 			s.SuccessRate*100,
@@ -181,7 +181,7 @@ func PrintModelTable(w io.Writer, stats []ModelStats) {
 			s.MeanDuration.Truncate(time.Second),
 		)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 
 	totalRuns := 0
 	totalSuccess := 0
@@ -193,18 +193,18 @@ func PrintModelTable(w io.Writer, stats []ModelStats) {
 	if totalRuns > 0 {
 		overallRate = float64(totalSuccess) / float64(totalRuns) * 100
 	}
-	fmt.Fprintf(w, "\n%d model rows, %d total runs, %.0f%% overall success\n",
+	_, _ = fmt.Fprintf(w, "\n%d model rows, %d total runs, %.0f%% overall success\n",
 		len(stats), totalRuns, overallRate)
 }
 
 // PrintDetailedTable writes per-(sample, model) rows with convergence counts.
 func PrintDetailedTable(w io.Writer, rows []SampleModelRow) {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(tw, "SAMPLE\tMODEL\tRUNS\tSUCCESS\tCLEAN\tCONVERGED\tIMPROVING\tFLAT\tREGRESS\tMEAN ITER\tMEAN DUR\n")
-	fmt.Fprintf(tw, "------\t-----\t----\t-------\t-----\t---------\t---------\t----\t-------\t---------\t--------\n")
+	_, _ = fmt.Fprintf(tw, "SAMPLE\tMODEL\tRUNS\tSUCCESS\tCLEAN\tCONVERGED\tIMPROVING\tFLAT\tREGRESS\tMEAN ITER\tMEAN DUR\n")
+	_, _ = fmt.Fprintf(tw, "------\t-----\t----\t-------\t-----\t---------\t---------\t----\t-------\t---------\t--------\n")
 
 	for _, r := range rows {
-		fmt.Fprintf(tw, "%s\t%s\t%d\t%.0f%%\t%d\t%d\t%d\t%d\t%d\t%.1f\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%.0f%%\t%d\t%d\t%d\t%d\t%d\t%.1f\t%s\n",
 			r.Sample,
 			r.Model,
 			r.Runs,
@@ -218,7 +218,7 @@ func PrintDetailedTable(w io.Writer, rows []SampleModelRow) {
 			r.MeanDuration.Truncate(time.Second),
 		)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 // PrintProgression writes per-run tool progression timelines.
@@ -239,8 +239,8 @@ func PrintProgression(w io.Writer, groups map[GroupKey][]EvalRunResult) {
 	})
 
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(tw, "SAMPLE\tMODEL\tREP\tRESULT\tCONVERGENCE\tPROGRESSION\n")
-	fmt.Fprintf(tw, "------\t-----\t---\t------\t-----------\t-----------\n")
+	_, _ = fmt.Fprintf(tw, "SAMPLE\tMODEL\tREP\tRESULT\tCONVERGENCE\tPROGRESSION\n")
+	_, _ = fmt.Fprintf(tw, "------\t-----\t---\t------\t-----------\t-----------\n")
 
 	for _, e := range entries {
 		for _, r := range e.runs {
@@ -254,11 +254,11 @@ func PrintProgression(w io.Writer, groups map[GroupKey][]EvalRunResult) {
 				conv = string(r.Progression.Overall)
 				prog = r.Progression.Summary
 			}
-			fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\t%s\n",
 				e.key.Sample, e.key.Model, r.Repetition, result, conv, prog)
 		}
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 // WriteCSV writes detailed per-run data as CSV.
@@ -267,7 +267,7 @@ func WriteCSV(path string, groups map[GroupKey][]EvalRunResult) error {
 	if err != nil {
 		return fmt.Errorf("create CSV: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	w := csv.NewWriter(f)
 	defer w.Flush()

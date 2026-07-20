@@ -32,7 +32,7 @@ func TestRedirect_GETReturnsStatusAndLocation(t *testing.T) {
 	}
 	resp, err := client.Get(baseURL + "/")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
 	require.Equal(t, "/ui/", resp.Header.Get("Location"))
 }
@@ -59,7 +59,7 @@ func TestRedirect_default302WhenStatusOmitted(t *testing.T) {
 	}
 	resp, err := client.Get(baseURL + "/here")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusFound, resp.StatusCode)
 	require.Equal(t, "/there", resp.Header.Get("Location"))
 }

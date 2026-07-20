@@ -146,7 +146,7 @@ func (a *Adapter) Chat(ctx context.Context, messages []llm.Message, opts llm.Cha
 		tr.RecordError(fmt.Errorf("ollama chat request failed: %w", err))
 		return llm.ChatResponse{}, fmt.Errorf("ollama chat request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -223,7 +223,7 @@ func (a *Adapter) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 		a.traceEvent("list_models.error", attribute.String("error", err.Error()))
 		return nil, fmt.Errorf("failed to connect to Ollama at %s: %w", a.baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		a.traceEvent("list_models.error", attribute.Int("http.status_code", resp.StatusCode))
@@ -279,7 +279,7 @@ func (a *Adapter) checkModel() error {
 		a.traceEvent("check_model.error", attribute.String("error", err.Error()))
 		return fmt.Errorf("failed to connect to Ollama at %s: %w", a.baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		a.traceEvent("check_model.error", attribute.Int("http.status_code", resp.StatusCode))

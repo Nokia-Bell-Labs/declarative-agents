@@ -185,7 +185,7 @@ func requestStatusWithHeaders(
 	}
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	require.Equal(t, want, resp.StatusCode)
 }
@@ -197,7 +197,7 @@ func requestBody(t *testing.T, method, url, body string, want int) string {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, want, resp.StatusCode, string(data))
@@ -216,7 +216,7 @@ func getJSON(t *testing.T, url string) map[string]interface{} {
 	t.Helper()
 	resp, err := http.Get(url)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var output map[string]interface{}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&output))
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -229,7 +229,7 @@ func streamResponse(url string, bodyC chan<- string, errC chan<- error) {
 		errC <- err
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		errC <- err

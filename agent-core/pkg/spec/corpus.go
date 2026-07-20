@@ -78,7 +78,7 @@ func LoadCorpus(rootDir string, opts ...CorpusOption) (*Corpus, error) {
 
 	docsPath := filepath.Join(rootDir, DocsDir)
 	if _, err := os.Stat(docsPath); err != nil {
-		if !(options.optional && os.IsNotExist(err)) {
+		if !options.optional || !os.IsNotExist(err) {
 			return nil, fmt.Errorf("docs directory not found in %s: %w", rootDir, err)
 		}
 	}

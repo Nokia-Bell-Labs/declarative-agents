@@ -43,7 +43,7 @@ func (c *nextPointCmd) Execute() core.Result {
 	}
 
 	c.es.PC = pc
-	fmt.Fprintf(c.es.Stderr, "  → %s\n", pc.PointID)
+	_, _ = fmt.Fprintf(c.es.Stderr, "  → %s\n", pc.PointID)
 
 	return core.Result{
 		Signal:      SigPointReady,

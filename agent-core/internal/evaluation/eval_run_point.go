@@ -82,7 +82,7 @@ func (c *runPointCmd) Execute() core.Result {
 
 	_, loopErr := core.Loop(params, c.es.Ctx)
 	if loopErr != nil {
-		fmt.Fprintf(c.es.Stderr, "    ERROR: %v\n", loopErr)
+		_, _ = fmt.Fprintf(c.es.Stderr, "    ERROR: %v\n", loopErr)
 	}
 
 	c.es.RecordPoint(pc)
@@ -93,7 +93,7 @@ func (c *runPointCmd) Execute() core.Result {
 	} else if !pc.TestsPassed {
 		status = "FAIL"
 	}
-	fmt.Fprintf(c.es.Stderr, "    %s (exit=%d tokens=%d %s)\n",
+	_, _ = fmt.Fprintf(c.es.Stderr, "    %s (exit=%d tokens=%d %s)\n",
 		status, pc.ExitCode, pc.Tokens, pc.Duration.Round(time.Second))
 
 	return core.Result{

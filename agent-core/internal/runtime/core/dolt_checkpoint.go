@@ -405,7 +405,7 @@ func loadExecution(db Database, runID string) (Execution, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var execution Execution
 	for rows.Next() {

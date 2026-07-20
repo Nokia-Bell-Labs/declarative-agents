@@ -774,7 +774,7 @@ func proofRequestBody(t *testing.T, url string) string {
 	t.Helper()
 	resp, err := http.Get(url)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var body bytes.Buffer
 	_, err = body.ReadFrom(resp.Body)
 	require.NoError(t, err)
@@ -790,7 +790,7 @@ func waitForProofMonitorRoute(t *testing.T, url string) {
 		if err != nil {
 			return false
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		return resp.StatusCode == http.StatusOK
 	}, 2*time.Second, 10*time.Millisecond)
 }
@@ -799,7 +799,7 @@ func postProofMonitorExit(t *testing.T, url string) {
 	t.Helper()
 	resp, err := http.Post(url, "application/json", strings.NewReader(`{"reason":"test"}`))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
 }
 

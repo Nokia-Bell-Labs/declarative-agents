@@ -223,7 +223,7 @@ func (c *reportSuiteSummaryCmd) Undo(_ core.Result) core.Result { return core.No
 func (c *reportSuiteSummaryCmd) Execute() core.Result {
 	suite := c.es.Suite
 	total := len(suite.Profiles) * len(c.es.gridPoints) * len(suite.Samples) * c.es.reps
-	fmt.Fprintf(c.es.Stderr, "Suite %q: %d profiles x %d samples x %d reps = %d points\n",
+	_, _ = fmt.Fprintf(c.es.Stderr, "Suite %q: %d profiles x %d samples x %d reps = %d points\n",
 		suite.Name, len(suite.Profiles), len(suite.Samples), c.es.reps, total)
 
 	return core.Result{

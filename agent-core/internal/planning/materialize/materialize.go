@@ -131,7 +131,7 @@ func (m *MaterializeTask) createIssue(
 	if err != nil {
 		return "", &MaterializeFailed{Cause: err}
 	}
-	defer os.Remove(tmpFile)
+	defer func() { _ = os.Remove(tmpFile) }()
 
 	args := buildBdArgs(tmpFile, title, dir, deps)
 
@@ -150,11 +150,11 @@ func writeTempDesc(desc string) (string, error) {
 	}
 	path := f.Name()
 	if _, err := f.WriteString(desc); err != nil {
-		f.Close()
-		os.Remove(path)
+		_ = f.Close()
+		_ = os.Remove(path)
 		return "", fmt.Errorf("write temp description: %w", err)
 	}
-	f.Close()
+	_ = f.Close()
 	return path, nil
 }
 

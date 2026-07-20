@@ -64,7 +64,7 @@ func TestBrowserHeadersAllowedOnStaticAssetsEndpoint(t *testing.T) {
 	}
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	data, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestBrowserHeadersAllowedOnMonitorReadState(t *testing.T) {
 	}
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)

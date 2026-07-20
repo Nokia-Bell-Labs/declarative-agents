@@ -175,7 +175,7 @@ func buildShutdown(
 			}
 			if file != nil {
 				tmpName := file.Name()
-				file.Close()
+				_ = file.Close()
 				if err := os.Rename(tmpName, finalPath); err != nil {
 					log.Printf("telemetry: rename %s -> %s: %v", tmpName, finalPath, err)
 				}
@@ -241,14 +241,14 @@ func fileExporters(path, serviceName string) (
 	}
 	traceExp, err := stdouttrace.New(stdouttrace.WithWriter(f))
 	if err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return nil, nil, nil, fmt.Errorf("trace exporter: %w", err)
 	}
 	metricExp, err := stdoutmetric.New(stdoutmetric.WithWriter(f))
 	if err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return nil, nil, nil, fmt.Errorf("metric exporter: %w", err)
 	}
 	return f, traceExp, metricExp, nil

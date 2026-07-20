@@ -110,7 +110,7 @@ func TestRequestSeedExposesParametersNotTransportMetadata(t *testing.T) {
 type plainTextRespondBuilder struct{ signal core.Signal }
 
 func (b plainTextRespondBuilder) Build(_ core.Result) core.Command {
-	return plainTextRespondCommand{signal: b.signal}
+	return plainTextRespondCommand(b)
 }
 
 type plainTextRespondCommand struct{ signal core.Signal }
