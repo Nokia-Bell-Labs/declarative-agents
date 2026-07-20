@@ -89,6 +89,63 @@ func parseTaggedList(node *yaml.Node) []string {
 	return result
 }
 
+// parseTouchpointList parses the use-case touchpoints field, which accepts three
+// forms: a scalar string ("srdNNN R1 -- desc"), a tagged mapping
+// ({T1: "srdNNN R1 -- desc"}), or an object ({id, target, reason}). The object
+// form is folded into the canonical "<target> -- <reason>" string that
+// parseTouchpoint already parses into an SRD touches edge and its citation
+// groups; without this, the flattened "target: srdNNN AC1" string defeats
+// parseTouchpoint and every SRD is falsely orphaned (GH-448). Scalar and tagged
+// forms pass through unchanged.
+func parseTouchpointList(node *yaml.Node) []string {
+	if node == nil || node.Kind == 0 {
+		return nil
+	}
+	n := node
+	if n.Kind == yaml.DocumentNode && len(n.Content) > 0 {
+		n = n.Content[0]
+	}
+	if n.Kind != yaml.SequenceNode {
+		return nil
+	}
+
+	var result []string
+	for _, item := range n.Content {
+		switch item.Kind {
+		case yaml.ScalarNode:
+			result = append(result, item.Value)
+		case yaml.MappingNode:
+			result = append(result, touchpointFromMapping(item)...)
+		}
+	}
+	return result
+}
+
+// touchpointFromMapping folds an object-format touchpoint ({id, target, reason})
+// into a single canonical "<target> -- <reason>" string. The id is a display
+// label the graph does not need, so it is dropped rather than prefixed (a
+// non-Tn label would otherwise defeat parseTouchpoint). A mapping without a
+// target key is the tagged form ({T1: "srdNNN R1 -- desc"}) and keeps its
+// "key: value" flattening.
+func touchpointFromMapping(item *yaml.Node) []string {
+	fields := make(map[string]string, len(item.Content)/2)
+	var flattened []string
+	for i := 0; i+1 < len(item.Content); i += 2 {
+		k := item.Content[i].Value
+		v := item.Content[i+1].Value
+		fields[k] = v
+		flattened = append(flattened, k+": "+v)
+	}
+	target := fields["target"]
+	if target == "" {
+		return flattened
+	}
+	if reason := fields["reason"]; reason != "" {
+		return []string{target + " -- " + reason}
+	}
+	return []string{target}
+}
+
 func parseRequirements(node *yaml.Node) (map[string]RequirementGroup, []string, error) {
 	if node == nil || node.Kind == 0 {
 		return nil, nil, nil
@@ -247,7 +304,7 @@ func ParseUseCase(path string) (UseCase, error) {
 		Actor:           raw.Actor,
 		Trigger:         raw.Trigger,
 		Flow:            parseTaggedList(&raw.Flow),
-		Touchpoints:     parseTaggedList(&raw.Touchpoints),
+		Touchpoints:     parseTouchpointList(&raw.Touchpoints),
 		SuccessCriteria: raw.SuccessCriteria,
 		OutOfScope:      parseTaggedList(&raw.OutOfScope),
 		TestSuite:       raw.TestSuite,

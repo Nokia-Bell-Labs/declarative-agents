@@ -78,6 +78,41 @@ func TestValidate_OrphanedSRD(t *testing.T) {
 	_ = c
 }
 
+// TestValidate_ObjectTouchpointNotOrphaned proves the GH-448 fix end to end: a use
+// case whose touchpoint uses the object form ({id, target, reason}) -- as the
+// example corpora author them -- builds a touches edge and an acceptance-criterion
+// citation, so the SRD is neither orphaned nor flagged as a bare touchpoint.
+func TestValidate_ObjectTouchpointNotOrphaned(t *testing.T) {
+	corpus := &Corpus{
+		SRDs: map[string]SRD{
+			"srd004-coordinator": {
+				ID:                 "srd004-coordinator",
+				AcceptanceCriteria: []AcceptanceCriterion{{ID: "AC1", Criterion: "The coordinator binds the intent."}},
+			},
+		},
+		UseCases: map[string]UseCase{
+			"rel05.0-uc001": {
+				ID: "rel05.0-uc001",
+				// The parser has already folded the {id, target, reason} object into
+				// this canonical string (see TestParseUseCase_ObjectTouchpoints).
+				Touchpoints: []string{"srd004-coordinator AC1 -- The coordinator binds the intent."},
+			},
+		},
+		SRDOrder: []string{"srd004-coordinator"},
+		UCOrder:  []string{"rel05.0-uc001"},
+	}
+
+	g, err := BuildGraph(corpus)
+	require.NoError(t, err)
+
+	assert.Contains(t, g.OutgoingByRel("rel05.0-uc001", RelTouches), "srd004-coordinator",
+		"the object-form touchpoint must build a touches edge")
+	assert.Contains(t, g.OutgoingByRel("rel05.0-uc001", RelCites), "srd004-coordinator:AC1",
+		"the cited acceptance criterion must build a cites edge")
+	assert.Empty(t, checkOrphanedSRDs(g), "the touched SRD must not be orphaned")
+	assert.Empty(t, checkBareTouchpoints(g, corpus), "an AC-citing touchpoint is not bare")
+}
+
 func TestValidate_UncoveredReqItems(t *testing.T) {
 	g, _ := loadTestGraphAndCorpus(t)
 
