@@ -129,9 +129,12 @@ func sourceOrUnknown(source string) string {
 	return source
 }
 
-// checkToolEmitsSignalSet verifies that tool emits signals are valid
-// signal names in the machine that uses the tool.
-
+// checkToolEmitsSignalSet verifies that the tools a machine dispatches emit
+// signals the machine can route. A machine dispatches a tool as a named
+// transition action, or, when it uses $tool dynamic dispatch, any selected tool.
+// Tools a profile selects only for REST or machine_request bindings run in
+// request-scoped sentences and route their signals there, so they are out of
+// scope for the dispatching machine's signal set.
 func checkToolEmitsSignalSet(corpus *Corpus) []Finding {
 	var findings []Finding
 	for _, agentName := range corpus.MachineOrder {
@@ -140,8 +143,24 @@ func checkToolEmitsSignalSet(corpus *Corpus) []Finding {
 		for _, sig := range ms.Signals {
 			signalSet[sig.Name] = true
 		}
-		selected := corpus.ToolSelections[agentName]
-		for _, toolName := range selected {
+
+		dispatchesAny := false
+		actionTools := make(map[string]bool)
+		for _, tr := range ms.Transitions {
+			switch tr.Action {
+			case "":
+				// A transition with no action dispatches no tool.
+			case "$tool":
+				dispatchesAny = true
+			default:
+				actionTools[tr.Action] = true
+			}
+		}
+
+		for _, toolName := range corpus.ToolSelections[agentName] {
+			if !dispatchesAny && !actionTools[toolName] {
+				continue
+			}
 			td, ok := corpus.ToolDeclarations[toolName]
 			if !ok {
 				continue

@@ -661,7 +661,58 @@ func TestValidate_ToolEmitsSignalSet(t *testing.T) {
 				Name: "agent", InitialState: "Idle",
 				States:         core.StateSpecs{{Name: "Idle"}},
 				Signals:        core.SignalSpecs{{Name: "Seed"}, {Name: "ToolDone"}},
+				Transitions:    []core.TransitionSpec{{State: "Idle", Signal: "Seed", Next: "Idle", Action: "work"}},
+				TerminalStates: []string{"Idle"},
+			},
+		},
+		ToolSelections: map[string][]string{"agent": {"work"}},
+		ToolDeclarations: map[string]ToolDeclaration{
+			"work": {Name: "work", Emits: []string{"ToolDone", "UnknownSignal"}},
+		},
+		MachineOrder: []string{"agent"},
+	}
+
+	findings := checkToolEmitsSignalSet(corpus)
+	require.Len(t, findings, 1)
+	assert.Contains(t, findings[0].Message, "UnknownSignal")
+}
+
+// TestValidate_ToolEmitsSignalSetSkipsUndispatchedTool checks that a tool the
+// profile selects but the machine never dispatches — the REST or
+// machine_request binding case — is not validated against the machine's signal
+// set, since it routes its signals in a request-scoped sentence.
+func TestValidate_ToolEmitsSignalSetSkipsUndispatchedTool(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"agent": {
+				Name: "agent", InitialState: "Idle",
+				States:         core.StateSpecs{{Name: "Idle"}},
+				Signals:        core.SignalSpecs{{Name: "Seed"}},
 				Transitions:    []core.TransitionSpec{{State: "Idle", Signal: "Seed", Next: "Idle"}},
+				TerminalStates: []string{"Idle"},
+			},
+		},
+		ToolSelections: map[string][]string{"agent": {"rest_bound"}},
+		ToolDeclarations: map[string]ToolDeclaration{
+			"rest_bound": {Name: "rest_bound", Emits: []string{"RESTResponded"}},
+		},
+		MachineOrder: []string{"agent"},
+	}
+
+	assert.Empty(t, checkToolEmitsSignalSet(corpus))
+}
+
+// TestValidate_ToolEmitsSignalSetDynamicDispatch checks that a machine using
+// $tool dynamic dispatch validates every selected tool, since it can invoke any
+// of them.
+func TestValidate_ToolEmitsSignalSetDynamicDispatch(t *testing.T) {
+	corpus := &Corpus{
+		Machines: map[string]core.MachineSpec{
+			"agent": {
+				Name: "agent", InitialState: "Idle",
+				States:         core.StateSpecs{{Name: "Idle"}},
+				Signals:        core.SignalSpecs{{Name: "Seed"}, {Name: "ToolDone"}},
+				Transitions:    []core.TransitionSpec{{State: "Idle", Signal: "Seed", Next: "Idle", Action: "$tool"}},
 				TerminalStates: []string{"Idle"},
 			},
 		},
