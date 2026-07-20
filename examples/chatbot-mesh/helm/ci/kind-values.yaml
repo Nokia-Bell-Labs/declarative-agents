@@ -31,13 +31,6 @@ dolt:
 ingress:
   enabled: false
 
-# The provisioner ships its own image (deployment tooling with helm baked in), not
-# the runtime image the smoke/swap tests kind-load. Disable it here so those tests
-# do not wait on an un-loaded image; the deployment API is exercised by
-# Integration.Provisioning against the built binary.
-provisioner:
-  enabled: false
-
 # The smoke/swap tests use an external Ollama on the host; the in-cluster LLM tier
 # is exercised by its own values (ci/kind-llm-values.yaml) so these tests do not
 # wait on a model preload.

@@ -34,9 +34,6 @@ dolt:
 ingress:
   enabled: false
 
-provisioner:
-  enabled: false
-
 # The in-cluster LLM tier: CPU-only small models (no GPU), tiny storage.
 ollama:
   enabled: true

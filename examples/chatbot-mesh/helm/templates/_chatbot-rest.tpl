@@ -208,7 +208,7 @@ rest:
           path: /ui/{path...}
           binding: static_assets
           static_assets:
-            root: agents/chatbot/ui/app/dist
+            root: ux/app/dist
             index: index.html
             spa: true
           request:

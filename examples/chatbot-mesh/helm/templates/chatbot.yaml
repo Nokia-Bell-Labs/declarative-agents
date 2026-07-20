@@ -115,18 +115,6 @@ spec:
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
-          {{- if .Values.provisioner.enabled }}
-          # The provisioning panel reaches the deployment API same-origin at
-          # /provisioning, so its POST apply avoids the GET-only monitor_proxy and
-          # no call crosses origin (srd015 R4). Matched before / so the chatbot
-          # never sees a provisioning request.
-          - path: /provisioning
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ $fullname }}-provisioner
-                port: {name: api}
-          {{- end }}
           - path: /
             pathType: Prefix
             backend:

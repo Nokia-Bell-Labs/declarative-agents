@@ -89,25 +89,6 @@ have ready. busybox supplies wget and grep.
 {{- end -}}
 
 {{/*
-The mesh view (srd015 R4) the provisioner serves on its read path, projected as
-JSON from the same values that render the topology, so what the panel reads is
-what the chart deploys. Values-plane only: RAG list, LLM endpoint, parameters. No
-per-agent runtime endpoint appears, so the read state carries no agent authority.
-*/}}
-{{- define "chatbot-mesh.meshView" -}}
-{{- $rags := list -}}
-{{- range .Values.ragUnits -}}
-{{- $rags = append $rags (dict "name" .name "collection" .collection "embeddingModel" .embeddingModel "replicas" (int (default 1 .replicas))) -}}
-{{- end -}}
-{{- $view := dict
-  "rags" $rags
-  "llm" (dict "inCluster" .Values.ollama.enabled "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.provisioner.params.chatModel) "embedModel" .Values.chatbot.embeddingModel "chatModels" .Values.ollama.models.chat "routerModel" .Values.ollama.models.router "topology" .Values.ollama.topology)
-  "params" (dict "nResults" (int .Values.provisioner.params.nResults) "chunkCap" (int .Values.provisioner.params.chunkCap) "routerDefault" .Values.provisioner.params.routerDefault)
--}}
-{{- $view | toJson -}}
-{{- end -}}
-
-{{/*
 The MySQL-wire DSN to the Dolt sql-server checkpoint backend (agent-core
 srd035/srd036), or empty when Dolt is disabled. The chatbot persists its host
 machine's checkpoints here, so a rollout resumes from durable state rather than
@@ -131,7 +112,7 @@ mount. GH-314 co-generates the chatbot rest.yaml into this subtree before packag
   configMap:
     name: {{ include "chatbot-mesh.fullname" . }}-profiles
     items:
-    {{- $cogen := list "agents__chatbot__rest.yaml" "agents__chatbot__ui__ux.yaml" "agents__chatbot__request-machine.yaml" "agents__chatbot__request-fanout.yaml" }}
+    {{- $cogen := list "agents__chatbot__rest.yaml" "ux__ux.yaml" "agents__chatbot__request-machine.yaml" "agents__chatbot__request-fanout.yaml" }}
     {{- range $path, $_ := .Files.Glob "profiles/**" }}
       {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
       {{- if not (has $key $cogen) }}
@@ -141,7 +122,7 @@ mount. GH-314 co-generates the chatbot rest.yaml into this subtree before packag
     {{- end }}
       {{- /* The co-generated keys, projected whether or not a packaging step placed the file on disk. */}}
       - {key: agents__chatbot__rest.yaml, path: agents/chatbot/rest.yaml}
-      - {key: agents__chatbot__ui__ux.yaml, path: agents/chatbot/ui/ux.yaml}
+      - {key: ux__ux.yaml, path: ux/ux.yaml}
       - {key: agents__chatbot__request-machine.yaml, path: agents/chatbot/request-machine.yaml}
       - {key: agents__chatbot__request-fanout.yaml, path: agents/chatbot/request-fanout.yaml}
 {{- end -}}
