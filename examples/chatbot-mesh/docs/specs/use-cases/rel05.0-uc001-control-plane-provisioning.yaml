@@ -1,0 +1,97 @@
+id: rel05.0-uc001-control-plane-provisioning
+title: A Provisioning Intent Flows Chatbot to Coordinator to Creator and Serves
+
+summary: |
+  A user asks the UX agent (chatbot, srd002) to add a directory as a knowledge
+  source. The chatbot delegates the provisioning intent to the coordinator
+  (srd004) through a declared client rather than editing any config itself. The
+  coordinator sequences the workflow: it requests a corpus-ingest run per directory
+  from the creator (srd005), verifies the collection counts, decides the values
+  changes that add the new RAG source, and requests a rollout of the affected
+  agents. The creator (srd005) realizes each operation -- selecting the profile and
+  rendered config, spawning the ingest child run, executing the checkpoint-resume
+  rollout through the deployment API (srd003 R3.2), and verifying post-rollout
+  health -- and reports health back to the coordinator, which aggregates status for
+  the provisioning panel. The new source then serves a grounded turn. All
+  deployment-API authority sits with the creator; no running agent receives an
+  endpoint or credential (srd003 R4, agent-core srd028 V30).
+
+actor: A user adding a knowledge source through the UX agent.
+
+trigger: |
+  The user tells the chatbot to add a directory as a knowledge source; the chatbot
+  delegates the intent to the coordinator.
+
+preconditions:
+  - The chatbot, coordinator, and creator profiles are deployed with declared clients between them.
+  - The coordinator and creator authenticate apart from the chat path; the creator alone holds the deployment-API credentials.
+  - The deployment API (srd003 R4) and the chart's values-to-config co-generation are available.
+
+flow:
+  - id: F1
+    text: The chatbot delegates the user's provisioning intent to the coordinator through a declared client; it submits no host, URL, or credential.
+  - id: F2
+    text: The coordinator requests a corpus-ingest run per directory from the creator and verifies each ingested collection's count before proceeding.
+  - id: F3
+    text: The coordinator decides the values changes that add the new RAG source and requests a rollout of the affected agents from the creator.
+  - id: F4
+    text: The creator selects each instance's profile and rendered config, spawns the ingest child run, executes the checkpoint-resume rollout through the deployment API, and verifies post-rollout health.
+  - id: F5
+    text: The creator reports health to the coordinator, which aggregates status for the provisioning panel; a subsequent chat turn is grounded in the newly added source.
+
+touchpoints:
+  - id: T1
+    target: srd004-coordinator AC1
+    reason: The coordinator binds the UX agent's intent to a workflow run and aggregates status.
+  - id: T2
+    target: srd004-coordinator AC2
+    reason: The coordinator sequences the ingest per directory through the creator and verifies counts.
+  - id: T3
+    target: srd004-coordinator AC3
+    reason: The coordinator is the sole author of the values decision and requests the rollout.
+  - id: T4
+    target: srd005-creator AC3
+    reason: The creator spawns the ingest run and executes the checkpoint-resume rollout through the deployment API.
+  - id: T5
+    target: srd005-creator AC5
+    reason: The creator alone holds the deployment-API credentials and passes no endpoint into a running agent.
+  - id: T6
+    target: test-rel05.0-control-plane provisioning_intent
+    reason: The suite records the intent -> ingest -> reconfigure -> restart -> serve flow across the three agents.
+
+success_criteria:
+  - id: S1
+    criterion: The chatbot delegates the intent to the coordinator through a declared client and submits no endpoint or credential to any agent.
+    traces:
+      - srd004-coordinator R1.1
+      - srd004-coordinator R1.2
+  - id: S2
+    criterion: The coordinator sequences a corpus-ingest run per directory through the creator and verifies collection counts before reconfiguring.
+    traces:
+      - srd004-coordinator R2.1
+      - srd004-coordinator R2.2
+  - id: S3
+    criterion: The coordinator decides the values changes and requests a rollout; the creator executes the checkpoint-resume rollout through the deployment API and verifies health.
+    traces:
+      - srd004-coordinator R3.1
+      - srd005-creator R3.2
+      - srd003-chatbot-deployment R3.2
+  - id: S4
+    criterion: The creator alone holds the deployment-API authority, both control-plane agents authenticate apart from chat, and no running agent receives an endpoint or credential.
+    traces:
+      - srd005-creator R5.1
+      - srd005-creator R5.3
+      - srd003-chatbot-deployment R4.2
+  - id: S5
+    criterion: After the rollout the newly added source serves a grounded chat turn, and the coordinator's aggregated status renders in the provisioning panel.
+    traces:
+      - srd003-chatbot-deployment R2.1
+      - srd004-coordinator R1.3
+
+out_of_scope:
+  - The chat turn path itself (route, embed, fan-out, compose), which is srd002 and releases rel00.0/rel01.0.
+  - In-process client-registry mutation of a running agent; reconfiguration is a rollout (srd003 R3.3).
+  - The mesh deployment topology and tiered swap themselves, which are srd003 and release rel03.0; this use case adds the control-plane flow on top of them.
+
+test_suite_trace: test-rel05.0-control-plane
+status: specified
