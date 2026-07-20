@@ -125,6 +125,18 @@ tool_language:
     authority boundary. This is the same component #392 exempted from the no-os.Getenv
     rule above. The recurring declarative-decomposition audit cites this instead of
     re-flagging the provisioner.'
+  - 'Sanctioned home for LLM transport (tool-contract pattern, design-patterns 04):
+    internal/model/llm/ is the model-client adapter layer, and the http.Client
+    construction in internal/tools/llm/invoke.go that wires it is exempt from the
+    rest-tool-carries-transport rule. LLM inference is a distinct transport concern --
+    streaming responses, per-request model options (options.go), and provider-specific
+    request and response shapes -- that the declarative rest tool (fixed operations,
+    no streaming, no dynamic options) does not model. internal/model/llm/ is a
+    deliberate pluggable-provider abstraction (ollama today, other providers behind the
+    same interfaces). invoke_llm''s response parsing is already a separate tool, the
+    right shape; only the inference transport lives in the adapter. The recurring
+    declarative-decomposition audit cites this instead of re-flagging invoke.go and the
+    ollama adapter.'
 testing:
   rules:
   - Use table-driven tests with named rows and t.Run.
