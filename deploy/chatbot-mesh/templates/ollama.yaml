@@ -79,28 +79,6 @@ spec:
   ports:
     - {name: http, port: {{ .Values.llm.port }}, targetPort: http}
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ $fullname }}-ollama-probe
-  labels:
-    {{- include "chatbot-mesh.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ollama
-data:
-  # The readiness gate the agent init-containers run: succeed only once every
-  # declared model is present in Ollama /api/tags, so a missing model is a
-  # deploy-time gate rather than a runtime turn failure (R6.3).
-  models-ready.sh: |
-    #!/bin/sh
-    set -eu
-    url="http://{{ $fullname }}-ollama:{{ .Values.llm.port }}/api/tags"
-    tags="$(wget -qO- "$url" 2>/dev/null || echo '')"
-    for m in {{ include "chatbot-mesh.ollamaModels" . }}; do
-      base="${m%%:*}"
-      echo "$tags" | grep -q "$base" || { echo "model $m not present yet"; exit 1; }
-    done
-    echo "all models present"
----
 apiVersion: batch/v1
 kind: Job
 metadata:
