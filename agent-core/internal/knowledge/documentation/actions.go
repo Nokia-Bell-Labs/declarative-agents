@@ -152,7 +152,7 @@ func profileActionToolDefs(defs []catalog.ToolDef) []catalog.ToolDef {
 // Run decodes and dispatches one action request.
 func (r *ProfileWorkflowRunner) Run(req *http.Request) (ActionResponse, error) {
 	var action actionRequest
-	defer req.Body.Close()
+	defer func() { _ = req.Body.Close() }()
 	if err := json.NewDecoder(req.Body).Decode(&action); err != nil {
 		return ActionResponse{}, fmt.Errorf("invalid action payload")
 	}
@@ -409,7 +409,7 @@ func (p *LazyMachineRequestProxy) forward(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	writeProxiedDocumentResponse(w, resp)
 }
 

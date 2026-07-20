@@ -37,7 +37,7 @@ func (c *reportSessionCmd) Execute() core.Result {
 	c.es.FinalizeSession()
 	r := &c.es.Result
 
-	fmt.Fprintf(c.es.Stderr, "\nSession complete: %d/%d passed (%d timed out) in %s\n",
+	_, _ = fmt.Fprintf(c.es.Stderr, "\nSession complete: %d/%d passed (%d timed out) in %s\n",
 		r.Passed, r.TotalPoints, r.TimedOut, r.Duration.Round(time.Second))
 
 	return core.Result{

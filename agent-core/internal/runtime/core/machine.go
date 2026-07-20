@@ -389,10 +389,10 @@ func BuildTransitionTable(spec MachineSpec, reg *Registry, toolAction ActionFunc
 		}
 
 		var action ActionFunc
-		switch {
-		case tr.Action == "":
+		switch tr.Action {
+		case "":
 			action = nil
-		case tr.Action == "$tool":
+		case "$tool":
 			if toolAction == nil {
 				return nil, nil, fmt.Errorf("transition[%d]: $tool action requires a toolAction function", i)
 			}

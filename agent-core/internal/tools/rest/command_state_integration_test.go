@@ -79,7 +79,6 @@ func TestRESTClient_CommandStateTracerBulletNonAdjacentWithRestart(t *testing.T)
 	// reload, and rebuild the command-state view from the reloaded log.
 	cp := &core.InMemoryCheckpoint{}
 	require.NoError(t, cp.Save(core.Position{}, execution))
-	execution = nil
 	_, restored, err := cp.Load()
 	require.NoError(t, err)
 	view := core.NewCommandStateView(restored)

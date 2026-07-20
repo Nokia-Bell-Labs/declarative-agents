@@ -143,7 +143,7 @@ func TestRESTClient_CommandStateRejectionTable(t *testing.T) {
 				op.Params.BodySource = bodySourcePreviousResult
 				op.Params.InputMapping["query_embeddings"] = "$from(embed_query).embedding"
 			},
-			message: "must start with $.",
+			message: "must use the $. prefix",
 		},
 	}
 	for _, tc := range tests {

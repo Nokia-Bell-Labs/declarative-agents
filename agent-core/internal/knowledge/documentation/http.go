@@ -137,7 +137,7 @@ func (h Handler) decidePatch(w http.ResponseWriter, r *http.Request, status stri
 }
 
 func decodeRequest(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON request body")
 		return false

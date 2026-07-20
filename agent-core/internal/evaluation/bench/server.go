@@ -119,7 +119,7 @@ func spaHandler(assets fs.FS) http.Handler {
 			serveIndexHTML(w, assets)
 			return
 		}
-		f.Close()
+		_ = f.Close()
 
 		fileServer.ServeHTTP(w, r)
 	})

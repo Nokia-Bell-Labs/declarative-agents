@@ -237,7 +237,7 @@ func postControl(t *testing.T, url, body string) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
 }

@@ -64,7 +64,7 @@ func ReplayFile(path string, endpoint string, tr ...tracing.Tracer) error {
 		replayEvent(t, "replay.connect_error", attribute.String("error", err.Error()))
 		return fmt.Errorf("replay: connect to %s: %w", endpoint, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	exp, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
 	if err != nil {

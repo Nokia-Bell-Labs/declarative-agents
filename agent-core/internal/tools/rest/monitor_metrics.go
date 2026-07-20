@@ -50,7 +50,7 @@ func requestBodyBytes(req *http.Request) int {
 	if err != nil {
 		return 0
 	}
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 	data, err := io.ReadAll(body)
 	if err != nil {
 		return 0

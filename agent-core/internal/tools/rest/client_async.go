@@ -144,7 +144,7 @@ func executeClientOnce(
 	if err != nil {
 		return clientOperationError(toolName, "network_io", redactError(err, op, creds), op)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	result, _ := mapClientResponse(toolName, op, response, 1, time.Since(start), params)
 	return result
 }

@@ -153,7 +153,7 @@ type yamlPathFilter struct {
 
 func parseYAMLPath(path string) ([]yamlPathSegment, error) {
 	if !strings.HasPrefix(path, "$.") {
-		return nil, fmt.Errorf("yaml_path %q must start with $.", path)
+		return nil, fmt.Errorf("yaml_path %q must use the $. prefix", path)
 	}
 	rawSegments, err := splitPathSegments(strings.TrimPrefix(path, "$."))
 	if err != nil {

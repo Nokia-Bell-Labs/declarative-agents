@@ -501,7 +501,7 @@ func TestCuratorControlRouteFeedsRestAwaitEvent(t *testing.T) {
 type fakeWorkflowRunner struct{}
 
 func (fakeWorkflowRunner) Run(r *http.Request) (ActionResponse, error) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	return ActionResponse{
 		Data: map[string]interface{}{"status": "valid"},
 		Tool: "doc_validate", Signal: "RESTResponded",
@@ -592,7 +592,7 @@ func getHTTPBody(t *testing.T, url string) string {
 	t.Helper()
 	resp, err := http.Get(url)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var body map[string]interface{}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	data, err := json.Marshal(body)
@@ -604,7 +604,7 @@ func postHTTPJSON(t *testing.T, url, body string) {
 	t.Helper()
 	resp, err := http.Post(url, "application/json", strings.NewReader(body))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
 }
 

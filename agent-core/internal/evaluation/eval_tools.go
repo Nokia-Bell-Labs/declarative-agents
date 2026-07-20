@@ -299,7 +299,7 @@ func (c *checkAgentVersionCmd) Execute() core.Result {
 		pc.VersionMismatch = true
 		msg := fmt.Sprintf("version mismatch: config=%s trace=%s", pc.Harness.Version, pc.TraceVersion)
 		if pc.Stderr != nil {
-			fmt.Fprintf(pc.Stderr, "  WARN: %s\n", msg)
+			_, _ = fmt.Fprintf(pc.Stderr, "  WARN: %s\n", msg)
 		}
 		return core.Result{
 			CommandName: c.Name(),

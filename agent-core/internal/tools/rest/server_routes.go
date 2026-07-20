@@ -239,7 +239,7 @@ func (r *serverRuntime) proxyMonitor(w http.ResponseWriter, req *http.Request, e
 		http.Error(w, "monitor upstream unreachable", http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	for key, values := range resp.Header {
 		for _, value := range values {
 			w.Header().Add(key, value)
@@ -305,7 +305,7 @@ func (r *serverRuntime) serveStaticAssets(w http.ResponseWriter, req *http.Reque
 		http.NotFound(w, req)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	http.ServeContent(w, req, info.Name(), info.ModTime(), f)
 }
 
@@ -323,7 +323,7 @@ func openStaticAssetFile(d http.Dir, rel, idx string, spa bool) (http.File, os.F
 	}
 	info, err := f.Stat()
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		if spa {
 			return openStaticLeafFile(d, idx)
 		}
@@ -332,7 +332,7 @@ func openStaticAssetFile(d http.Dir, rel, idx string, spa bool) (http.File, os.F
 	if !info.IsDir() {
 		return f, info, nil
 	}
-	f.Close()
+	_ = f.Close()
 	if f2, info2, err := openStaticLeafFile(d, path.Join(key, idx)); err == nil {
 		return f2, info2, nil
 	}
@@ -349,11 +349,11 @@ func openStaticLeafFile(d http.Dir, name string) (http.File, os.FileInfo, error)
 	}
 	info, err := f.Stat()
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, nil, err
 	}
 	if info.IsDir() {
-		f.Close()
+		_ = f.Close()
 		return nil, nil, os.ErrNotExist
 	}
 	return f, info, nil

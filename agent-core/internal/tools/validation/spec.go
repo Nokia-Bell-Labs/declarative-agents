@@ -147,11 +147,11 @@ func (c *formatReportCmd) Execute() core.Result {
 	summary := specSummary(c.vs)
 	if c.vs.HasErrors {
 		output := fmt.Sprintf("%s\nvalidate: %s — %d error(s)", report, summary, len(spec.Errors(c.vs.Findings)))
-		fmt.Fprintln(c.vs.stderr(), output)
+		_, _ = fmt.Fprintln(c.vs.stderr(), output)
 		return core.Result{Signal: core.ToolFailed, Output: output, CommandName: c.Name()}
 	}
 	output := fmt.Sprintf("%s\nvalidate: %s — OK", report, summary)
-	fmt.Fprintln(c.vs.stderr(), output)
+	_, _ = fmt.Fprintln(c.vs.stderr(), output)
 	return core.Result{Signal: core.ToolDone, Output: output, CommandName: c.Name()}
 }
 

@@ -1,0 +1,23 @@
+# Pins the linter set for `mage lint` (golangci-lint run ./...) so the release
+# gate is reproducible regardless of the installed golangci-lint version. With
+# default: none the enabled set is explicit here, so a future release changing
+# its default linters cannot silently change the gate verdict.
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck      # every error is handled or intentionally discarded (go-style)
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+# Report every issue. The golangci-lint defaults (max-same-issues: 3,
+# max-issues-per-linter: 50) cap output, so identical-message findings such as
+# unchecked f.Close rotate between runs and the reported set is both incomplete
+# and non-deterministic. Zero disables the caps so the gate is complete and
+# reproducible.
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
