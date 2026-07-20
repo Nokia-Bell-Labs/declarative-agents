@@ -1,0 +1,213 @@
+id: architecture-chatbot-mesh-example
+title: "Chatbot Mesh Architecture"
+
+overview:
+  summary: |
+    The chatbot mesh is a program of declarative agents that run on the agent-core
+    runtime. A browser-facing chatbot agent runs a request-scoped turn: it embeds
+    the message once, routes the question to a chat model, fans the embedding out
+    to one or more RAG server agents, composes the answer prompt from the surviving
+    sources through command-state selectors, and answers. Each RAG server agent
+    serves a vector-in query against a Chroma collection. A corpus-ingest agent
+    seeds those collections from a document directory under model control.
+
+    Runtime ownership stays with agent-core. That project provides the agent
+    binary, the state-machine engine, the REST client and server tools, the
+    machine_request binding, the monitor, the checkpoint store, and the container
+    image. The example provides the YAML programs, the user interface, the Helm
+    chart, and the documents. Operators run each agent as the agent-core image with
+    a mounted profile: `agent --profile /profiles/agents/<name>/profile.yaml`.
+
+    This architecture covers the data plane only. The control plane (a coordinator
+    that sequences reconfiguration, a creator that manages agent lifecycle, and the
+    provisioning surface) is a deferred addition and is not a component here.
+
+  turn_flow_diagram: |
+    ```mermaid
+    flowchart LR
+      U[Browser SPA] -->|chat request| CB[Chatbot agent]
+      CB -->|embed once| OLL[Ollama embed]
+      CB -->|route question| RTR[$tool router -> chat-LLM word]
+      CB -->|fan out one embedding| R0[RAG server 0]
+      CB -->|fan out one embedding| R1[RAG server 1]
+      R0 -->|query_embeddings| CH0[(Chroma collection 0)]
+      R1 -->|query_embeddings| CH1[(Chroma collection 1)]
+      CB -->|compose surviving chunks| ANS[Answer from chunks]
+      ING[Corpus-ingest agent] -->|seed collections| CH0
+      CB -.->|monitor SSE / traceparent| OBS[Observability + Jaeger]
+    ```
+
+interfaces:
+  - name: --profile
+    summary: |
+      agent-core CLI argument pointing at a profile.yaml under this example.
+      Each mesh agent runs as the agent-core image with a mounted profile path.
+  - name: chatbot chat REST endpoint
+    summary: |
+      The browser SPA posts a chat request to the chatbot's machine_request chat
+      endpoint; the turn machine runs one request-scoped sentence and maps the
+      terminal output to the HTTP response.
+  - name: RAG server query endpoint
+    summary: |
+      A vector-in machine_request endpoint that accepts query_embeddings and
+      returns chunks with embedding-model metadata. The chatbot is its client.
+  - name: monitor and trace surfaces
+    summary: |
+      Each agent exposes a monitor read-state and SSE stream (agent-core srd033);
+      the chatbot proxies them same-origin. Request-scoped spans propagate
+      W3C traceparent (agent-core srd016) and export to an OTel collector and
+      Jaeger for the cross-agent waterfall.
+
+components:
+  - name: chatbot agent
+    path: agents/chatbot/
+    responsibility: |
+      Run the request-scoped turn: embed once, route the question to a chat-LLM
+      word through a $tool classifier, fan the embedding out to the configured RAG
+      servers, thread each source through command-state $from() selectors, compose
+      the answer prompt from the surviving chunks, and answer. Degrade to a
+      mapped 200 when a source fails or rejects the embedding.
+  - name: RAG server agent
+    path: agents/rag-server/
+    responsibility: |
+      Serve a persistent vector-in retrieval service. Accept a query_embeddings
+      request, query the configured Chroma collection, and return chunks with
+      embedding-model metadata. The Chroma REST config is owned inline here.
+  - name: corpus-ingest agent
+    path: agents/corpus-ingest/
+    responsibility: |
+      Seed a Chroma collection from a document directory under model control: the
+      model lists and reads the corpus, the machine embeds each document at Ollama
+      and threads the vector into a Chroma add. Used to make the example
+      self-seeding for its integration tests.
+  - name: user interface
+    path: ux/
+    responsibility: |
+      The single-page application (chat, observability, and trace panels) and its
+      UX config. Rendered into the deployed agents from the Helm chart.
+  - name: Helm chart
+    path: helm/
+    responsibility: |
+      Deploy the mesh as one chart: the chatbot Deployment and Service, a
+      values-driven list of RAG pairs each rendering a RAG server and a Chroma
+      store, an in-cluster Ollama model tier, a Dolt checkpoint backend, and an
+      OTel collector with a Jaeger backend. Co-generate the chatbot client config,
+      user interface, and N-RAG fan-out from the values.
+  - name: documentation
+    path: docs/
+    responsibility: |
+      Own the example's vision, architecture, road map, and specification corpus
+      (software requirements, use cases, test suites).
+
+design_decisions:
+  - id: 1
+    title: Standalone program on a shared runtime
+    decision: |
+      The example runs on the published agent-core image. Agents are YAML
+      profiles the runtime loads; the example references no profile outside this
+      directory and cites agent-core platform requirements externally.
+    benefits:
+      - Copying the directory copies a working program.
+      - The example demonstrates that agent behavior is configuration on a
+        reusable runtime.
+      - Runtime changes stay covered by agent-core's own gates.
+  - id: 2
+    title: The mesh owns its Chroma retrieval config
+    decision: |
+      The RAG server owns its Chroma REST config inline, and the copied
+      corpus-ingest agent carries the retrieval config it needs. The example does
+      not share retrieval config with the knowledge-manager corpus demo.
+    benefits:
+      - Self-containment: the folder carries everything the mesh queries and seeds.
+      - No cross-example coupling that breaks on a move.
+  - id: 3
+    title: Helm and UX are top-level directories
+    decision: |
+      The deployment chart lives under `helm/` and the interface under `ux/`,
+      each clearly marked, rather than under `deploy/` or nested beneath an agent.
+    benefits:
+      - A reader locates the deployment and the interface immediately.
+      - The chart and the profiles it deploys live in one project.
+  - id: 4
+    title: Co-generation stays, for now
+    decision: |
+      The Helm chart renders the chatbot client config, user interface, and
+      N-RAG fan-out from the values. The packaged profile copies are the local
+      integration source; the render overrides them in the cluster. Inverting this
+      so the profile is the source is a separate follow-up.
+    benefits:
+      - The move is an extraction, not a redesign.
+      - One source (the values) drives the deployed topology and client config.
+
+technology_choices:
+  - component: Agent programs
+    technology: YAML profiles on agent-core
+    purpose: The runtime loads machines, tool selections, declarations, and REST
+      config; agent behavior stays configuration.
+  - component: Retrieval
+    technology: Chroma
+    purpose: Vector store the RAG servers query and the ingest agent seeds.
+  - component: Models
+    technology: Ollama
+    purpose: Embedding and chat models, external by default and promotable to an
+      in-cluster tier by the chart.
+  - component: Checkpoint backend
+    technology: Dolt
+    purpose: Versioned-SQL checkpoint persistence for resume across restarts.
+  - component: Observability
+    technology: OpenTelemetry collector and Jaeger
+    purpose: Per-agent monitor streams and the cross-agent trace waterfall.
+  - component: Deployment
+    technology: Helm
+    purpose: One chart deploys the mesh with values-driven RAG pairs and an
+      in-cluster model tier.
+
+project_structure:
+  configuration:
+    - path: agents/
+      role: The chatbot, RAG server, and corpus-ingest agent programs.
+    - path: ux/
+      role: The single-page application and UX config.
+    - path: helm/
+      role: The deployment chart.
+  documentation:
+    - path: docs/VISION.yaml
+      role: Goals, boundaries, and success criteria.
+    - path: docs/ARCHITECTURE.yaml
+      role: Components, interfaces, and decisions.
+    - path: docs/road-map.yaml
+      role: The example's own release plan.
+    - path: docs/specs/software-requirements/
+      role: srd001 rag-server, srd002 chatbot, srd003 deployment.
+    - path: docs/specs/use-cases/
+      role: The data-plane use cases the releases deliver.
+    - path: docs/specs/test-suites/
+      role: The test suites that validate the use cases.
+    - path: README.md
+      role: The decisions record and the standalone-program framing.
+
+implementation_status:
+  current_focus: Extract the mesh from the shared catalog into this self-governing
+    example; the data-plane behavior is already implemented and is being relocated.
+  progress:
+    - done: The mesh behavior (RAG server, chat turn, routing, fan-out,
+        observability, Helm deployment, in-cluster model tier) is implemented in
+        the shared catalog.
+    - pending: Extraction of the agents, UX, chart, and specs into this directory.
+    - pending: The example's own magefile audit and integration entry.
+    - deferred: The control plane (coordinator, creator, provisioning surface).
+
+related_documents:
+  - doc: docs/VISION.yaml
+    purpose: Goals, boundaries, and success criteria.
+  - doc: docs/road-map.yaml
+    purpose: The example's release plan.
+  - doc: docs/specs/software-requirements/srd001-rag-server-agent.yaml
+    purpose: The RAG server agent requirements (relocated, renumbered).
+  - doc: docs/specs/software-requirements/srd002-chatbot-agent.yaml
+    purpose: The chatbot agent requirements (relocated, renumbered).
+  - doc: docs/specs/software-requirements/srd003-chatbot-deployment.yaml
+    purpose: The deployment requirements (relocated, renumbered; provisioning
+      deferred to the control-plane addition).
+  - doc: README.md
+    purpose: The decisions record and standalone-program framing.
