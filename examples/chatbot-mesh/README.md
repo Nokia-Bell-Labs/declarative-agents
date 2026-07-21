@@ -10,6 +10,8 @@ Every agent is a YAML profile the agent-core runtime loads. There is no bespoke 
 
 The example is a standalone *program*, not a standalone *runtime*. It runs on the published agent-core image the way a jar runs on a JVM. Copy the `examples/chatbot-mesh/` directory and it runs against agent-core with no dependency on any other profile in this repository.
 
+For a reader's walkthrough of how the parts fit together — a single chat turn, live reconfiguration, and deployment, with diagrams — see [docs/how-it-works.md](docs/how-it-works.md).
+
 ## Turn flow
 
 ```mermaid
