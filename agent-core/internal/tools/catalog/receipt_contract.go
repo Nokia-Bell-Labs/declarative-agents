@@ -4,6 +4,7 @@ package catalog
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
@@ -65,4 +66,57 @@ func hasStateMutatingEffect(def ToolDef) bool {
 		}
 	}
 	return false
+}
+
+// ValidateReceiptContract is the static, declaration-time counterpart to
+// ValidateReceiptPresence. It reports an error finding when a tool declared
+// reversible or compensatable with state-mutating side effects declares no
+// receipt-consuming undo, so its persisted effect could never be reversed after
+// a restart (srd025 R3.5, R3.2). It is checked over ToolDefs at load/audit time,
+// where no runtime Result is available, so a broken declaration fails validation
+// before the tool ever runs.
+func ValidateReceiptContract(def ToolDef) ContractFinding {
+	if !declaresReversibleMutation(def) {
+		return ContractFinding{}
+	}
+	if declaresReceiptConsumingUndo(def) {
+		return ContractFinding{}
+	}
+	return ContractFinding{
+		ToolName: def.Name,
+		Field:    "undo",
+		Severity: ContractSeverityError,
+		Category: contractCategory(def),
+		Message: fmt.Sprintf("tool %q is declared %s with state-mutating effects but declares no receipt-consuming undo; its persisted effect could not be reversed after a restart",
+			def.Name, def.Reversibility.Classification),
+		Remediation: "declare an undo strategy other than noop that consumes the tool's opaque receipt (srd025 R3.2), or reclassify the tool as irreversible",
+	}
+}
+
+// declaresReceiptConsumingUndo reports whether the tool declares an undo that can
+// reverse a persisted mutation. A missing or noop strategy cannot, so it is not
+// a receipt-consuming undo.
+func declaresReceiptConsumingUndo(def ToolDef) bool {
+	strategy := def.Undo.Strategy
+	if strategy == "" {
+		strategy = def.Reversibility.Undo
+	}
+	return strategy != "" && strategy != "noop"
+}
+
+// ValidateReceiptContracts aggregates ValidateReceiptContract over the selected
+// tools into a single error, for the canonical load/audit gate that fails a
+// profile whose reversible tools cannot honor the receipt-driven rollback model
+// (srd025 R3.5).
+func ValidateReceiptContracts(defs []ToolDef) error {
+	var msgs []string
+	for _, def := range defs {
+		if finding := ValidateReceiptContract(def); finding.ToolName != "" {
+			msgs = append(msgs, finding.Message)
+		}
+	}
+	if len(msgs) > 0 {
+		return fmt.Errorf("receipt-contract validation failed: %s", strings.Join(msgs, "; "))
+	}
+	return nil
 }

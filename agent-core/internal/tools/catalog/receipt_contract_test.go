@@ -81,3 +81,61 @@ func TestValidateReceiptPresenceIgnoresIrreversibleTool(t *testing.T) {
 type assertErr struct{}
 
 func (assertErr) Error() string { return "boom" }
+
+func TestValidateReceiptContractPassesReceiptBackedTool(t *testing.T) {
+	t.Parallel()
+
+	finding := ValidateReceiptContract(reversibleWriteDef())
+
+	assert.Empty(t, finding.ToolName)
+}
+
+func TestValidateReceiptContractFailsMutatingReversibleWithNoopUndo(t *testing.T) {
+	t.Parallel()
+
+	def := ToolDef{
+		Name:          "write",
+		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "filesystem_write"}}},
+	}
+
+	finding := ValidateReceiptContract(def)
+
+	require.NotEmpty(t, finding.ToolName)
+	assert.Equal(t, "undo", finding.Field)
+	assert.Equal(t, ContractSeverityError, finding.Severity)
+	assert.Contains(t, finding.Message, "no receipt-consuming undo")
+}
+
+func TestValidateReceiptContractIgnoresReadOnlyReversibleTool(t *testing.T) {
+	t.Parallel()
+
+	def := ToolDef{
+		Name:          "find",
+		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "filesystem_read"}}},
+	}
+
+	finding := ValidateReceiptContract(def)
+
+	assert.Empty(t, finding.ToolName)
+}
+
+func TestValidateReceiptContractsAggregatesSelectedTools(t *testing.T) {
+	t.Parallel()
+
+	bad := ToolDef{
+		Name:          "rest_set_issue",
+		Reversibility: ToolReversibility{Classification: "compensatable"},
+		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "resource_mutation"}}},
+	}
+
+	// A good selection passes.
+	require.NoError(t, ValidateReceiptContracts([]ToolDef{reversibleWriteDef()}))
+
+	// A selection containing an invalid reversible declaration fails, naming it.
+	err := ValidateReceiptContracts([]ToolDef{reversibleWriteDef(), bad})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "rest_set_issue")
+	assert.Contains(t, err.Error(), "no receipt-consuming undo")
+}

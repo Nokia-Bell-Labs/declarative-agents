@@ -249,6 +249,10 @@ func loadRunResources() (runResources, error) {
 		shutdownTelemetry()
 		return runResources{}, err
 	}
+	if err := catalog.ValidateReceiptContracts(defs); err != nil {
+		shutdownTelemetry()
+		return runResources{}, err
+	}
 	return runResources{
 		Config: cfg, Tracer: tracer, Meter: meter, Definitions: defs,
 		RestDefinitions: restDefs, Machine: machineSpec,

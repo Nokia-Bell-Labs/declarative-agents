@@ -96,7 +96,7 @@ tools:
         target: rest_server_queue
         state: selected_event_consumed
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop
@@ -159,7 +159,7 @@ tools:
         target: rest_server_state
         state: server_stopped
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop

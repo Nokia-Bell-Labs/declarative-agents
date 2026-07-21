@@ -463,6 +463,44 @@ func TestValidateConfigInvalidRestExitsNonZero(t *testing.T) {
 	require.Contains(t, err.Error(), "unsupported type")
 }
 
+func TestValidateConfigInvalidReceiptContractExitsNonZero(t *testing.T) {
+	restore := snapshotAgentFlags()
+	t.Cleanup(func() { restoreAgentFlags(restore) })
+
+	monitorDir := filepath.Dir(profilePathFromTest(t, "monitor/profile.yaml"))
+	// Corrupt one already-selected monitor tool back to the inconsistent form
+	// GH-494 targets: reversible with a state-mutating effect but a noop undo.
+	// --validate-config must reject it (srd025 R3.5; GH-494).
+	realDecls, err := os.ReadFile(filepath.Join(monitorDir, "declarations.yaml"))
+	require.NoError(t, err)
+	corrupted := strings.Replace(string(realDecls),
+		"      classification: irreversible\n      undo: noop",
+		"      classification: reversible\n      undo: noop", 1)
+	require.NotEqual(t, string(realDecls), corrupted, "expected an irreversible+noop tool to corrupt")
+
+	dir := t.TempDir()
+	badDecls := filepath.Join(dir, "declarations.yaml")
+	require.NoError(t, os.WriteFile(badDecls, []byte(corrupted), 0o644))
+	profile := filepath.Join(dir, "profile.yaml")
+	require.NoError(t, os.WriteFile(profile, []byte(fmt.Sprintf(
+		"name: badreceipt\nmachine: %s\ntools:\n  - %s\ntool_declarations:\n  - %s\nrest_definitions:\n  - %s\n",
+		filepath.Join(monitorDir, "machine.yaml"),
+		filepath.Join(monitorDir, "tools.yaml"),
+		badDecls,
+		filepath.Join(monitorDir, "rest.yaml"))), 0o644))
+
+	clearAgentFlags()
+	flagProfile = profile
+	flagValidateConfig = true
+
+	_, err = captureStderr(t, func() error {
+		return run(rootCmd, nil)
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "receipt-contract validation failed")
+	require.Contains(t, err.Error(), "no receipt-consuming undo")
+}
+
 func TestResolveCheckpointDefaultsToNoop(t *testing.T) {
 	t.Parallel()
 
