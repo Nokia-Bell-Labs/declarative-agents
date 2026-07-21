@@ -49,7 +49,9 @@ func (Integration) EvaluatorGenerator() error {
 		return err
 	}
 	cmd := exec.Command(binary,
-		"--profile", filepath.Join(profilesRoot, "agents", "evaluator", "profile.yaml"),
+		// The evaluator role shipped as agents/critic after the rel10 rename
+		// (GH-498); the removed agents/evaluator path failed this live target.
+		"--profile", filepath.Join(profilesRoot, "agents", "critic", "profile.yaml"),
 		"--request", filepath.Join(profilesRoot, evaluatorGeneratorSuite),
 		"--output", outputDir,
 		"--core-root", coreRoot,
