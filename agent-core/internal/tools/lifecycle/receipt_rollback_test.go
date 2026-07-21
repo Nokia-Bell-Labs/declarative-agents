@@ -74,7 +74,7 @@ func TestRollbackViaReceiptsContinuesPastFailure(t *testing.T) {
 		{Iteration: 3, CommandName: "fails", Signal: core.ToolDone, Receipt: "r-fail"},
 	}
 
-	summary, err := rollbackViaReceipts(rollbackViaReceiptsOptions{
+	report, err := rollbackViaReceipts(rollbackViaReceiptsOptions{
 		Reverter:        &recordingReverter{},
 		Registry:        reg,
 		RunID:           "run-mix",
@@ -84,14 +84,15 @@ func TestRollbackViaReceiptsContinuesPastFailure(t *testing.T) {
 
 	var partial *PartialRollbackError
 	require.ErrorAs(t, err, &partial)
-	require.Equal(t, 1, partial.Reverted, summary)
+	require.Equal(t, 1, partial.Reverted, report.Detail)
 	require.Len(t, partial.Failures, 1)
 	require.Equal(t, "fails", partial.Failures[0].CommandName)
 	require.Equal(t, "undo boom", partial.Failures[0].Detail)
 
-	require.Contains(t, summary, "step=1 ok: undone")
-	require.Contains(t, summary, "step=2 fails: undo failed")
-	require.Contains(t, summary, "reversed 1, skipped 0, failed 1")
+	require.Equal(t, 1, report.Reverted)
+	require.Contains(t, report.Detail, "step=1 ok: undone")
+	require.Contains(t, report.Detail, "step=2 fails: undo failed")
+	require.Contains(t, report.Detail, "reversed 1, skipped 0, failed 1")
 }
 
 // TestRollbackViaReceiptsCleanWhenAllReverse proves a fully reversible run
@@ -107,7 +108,7 @@ func TestRollbackViaReceiptsCleanWhenAllReverse(t *testing.T) {
 		{Iteration: 2, CommandName: "ok", Signal: core.ToolDone, Receipt: "r-ok"},
 	}
 
-	summary, err := rollbackViaReceipts(rollbackViaReceiptsOptions{
+	report, err := rollbackViaReceipts(rollbackViaReceiptsOptions{
 		Reverter:        &recordingReverter{},
 		Registry:        reg,
 		RunID:           "run-clean",
@@ -115,5 +116,6 @@ func TestRollbackViaReceiptsCleanWhenAllReverse(t *testing.T) {
 		TargetIteration: 1,
 	})
 	require.NoError(t, err)
-	require.Contains(t, summary, "reversed 1, skipped 0, failed 0")
+	require.Equal(t, 1, report.Reverted)
+	require.Contains(t, report.Detail, "reversed 1, skipped 0, failed 0")
 }

@@ -3,6 +3,7 @@
 package lifecycle
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -59,6 +60,18 @@ type entryOutcome struct {
 	failure *UndoFailure
 }
 
+// rollbackReport is the structured result of a receipt walk, projected into the
+// checkpoint_rollback tool's declared output schema (srd026 R3.8): run identity,
+// target step, reverted count, and the names of skipped irreversible entries.
+// Detail carries the per-entry human-readable report for tracing and operators.
+type rollbackReport struct {
+	RunID      string
+	TargetStep int
+	Reverted   int
+	Skipped    []string
+	Detail     string
+}
+
 // rollbackViaReceipts reverts the run's persisted DB state to the target step,
 // then walks the entries after the target in reverse, reversing each tool's
 // external effect through its receipt-driven Undo. DB revert and external
@@ -69,40 +82,75 @@ type entryOutcome struct {
 // but yields a *PartialRollbackError so the caller reports CommandError rather
 // than a clean rollback (srd026 R3.7, R6.4). The returned summary always carries
 // the per-entry report and a reversed/skipped/failed tally (srd026 R3.8).
-func rollbackViaReceipts(opts rollbackViaReceiptsOptions) (string, error) {
+func rollbackViaReceipts(opts rollbackViaReceiptsOptions) (rollbackReport, error) {
 	targetStep, err := resolveTargetStep(opts.Execution, opts.TargetIteration)
 	if err != nil {
-		return "", err
+		return rollbackReport{}, err
 	}
 	if err := opts.Reverter.Revert(opts.RunID, targetStep); err != nil {
-		return "", fmt.Errorf("revert run %q to step %d: %w", opts.RunID, targetStep, err)
+		return rollbackReport{}, fmt.Errorf("revert run %q to step %d: %w", opts.RunID, targetStep, err)
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "rolled back run %s to iteration %d (step %d)\n", opts.RunID, opts.TargetIteration, targetStep)
-	reversed, skipped := 0, 0
+	report := rollbackReport{RunID: opts.RunID, TargetStep: targetStep, Skipped: []string{}}
 	var failures []UndoFailure
 	for step := len(opts.Execution) - 1; step > targetStep; step-- {
-		outcome := undoEntry(opts.Registry, opts.Tracer, step, opts.Execution[step])
+		entry := opts.Execution[step]
+		outcome := undoEntry(opts.Registry, opts.Tracer, step, entry)
 		b.WriteString(outcome.line)
 		switch {
 		case outcome.failure != nil:
 			failures = append(failures, *outcome.failure)
 		case outcome.skipped:
-			skipped++
+			report.Skipped = append(report.Skipped, entry.CommandName)
 		default:
-			reversed++
+			report.Reverted++
 		}
 	}
-	fmt.Fprintf(&b, "reversed %d, skipped %d, failed %d\n", reversed, skipped, len(failures))
+	fmt.Fprintf(&b, "reversed %d, skipped %d, failed %d\n", report.Reverted, len(report.Skipped), len(failures))
+	report.Detail = b.String()
 	if len(failures) > 0 {
-		return b.String(), &PartialRollbackError{
+		return report, &PartialRollbackError{
 			RunID:      opts.RunID,
 			TargetStep: targetStep,
-			Reverted:   reversed,
+			Reverted:   report.Reverted,
 			Failures:   failures,
 		}
 	}
-	return b.String(), nil
+	return report, nil
+}
+
+// rollbackOutput projects a rollback report into the checkpoint_rollback tool's
+// declared JSON output schema {run, target_step, reverted_entries,
+// skipped_irreversible} (srd026 R3.8). On a partial failure it adds the failed
+// entries and the error message so an operator retains the detail required to
+// choose retry, resume, or stop (srd026 R6.3). detail carries the per-entry
+// human-readable report.
+func rollbackOutput(report rollbackReport, partial *PartialRollbackError) string {
+	skipped := report.Skipped
+	if skipped == nil {
+		skipped = []string{}
+	}
+	m := map[string]any{
+		"run":                  report.RunID,
+		"target_step":          report.TargetStep,
+		"reverted_entries":     report.Reverted,
+		"skipped_irreversible": skipped,
+		"detail":               report.Detail,
+	}
+	if partial != nil {
+		failed := make([]map[string]any, len(partial.Failures))
+		for i, f := range partial.Failures {
+			failed[i] = map[string]any{"step": f.Step, "command": f.CommandName, "detail": f.Detail}
+		}
+		m["failed_entries"] = failed
+		m["error"] = partial.Error()
+	}
+	out, err := json.Marshal(m)
+	if err != nil {
+		return report.Detail
+	}
+	return string(out)
 }
 
 // resolveTargetStep maps a target iteration to its step index in the ordered

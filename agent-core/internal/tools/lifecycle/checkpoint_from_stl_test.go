@@ -78,9 +78,17 @@ func TestCheckpointHistoryExecuteFormatsExecutionLog(t *testing.T) {
 
 	require.Equal(t, core.ToolDone, res.Signal)
 	require.Equal(t, "checkpoint_history", res.CommandName)
-	require.Contains(t, res.Output, "state: Working")
-	require.Contains(t, res.Output, "step=0  iteration=1  read  Idle -> Reading  signal=ToolDone")
-	require.Contains(t, res.Output, "step=1  iteration=2  write  Reading -> Working  signal=ToolDone  reversible")
+
+	// Output is the structured checkpoint-history schema {run, history} (#493).
+	var out struct {
+		Run     string `json:"run"`
+		History string `json:"history"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(res.Output), &out))
+	require.Equal(t, "latest", out.Run)
+	require.Contains(t, out.History, "state: Working")
+	require.Contains(t, out.History, "step=0  iteration=1  read  Idle -> Reading  signal=ToolDone")
+	require.Contains(t, out.History, "step=1  iteration=2  write  Reading -> Working  signal=ToolDone  reversible")
 }
 
 func TestCheckpointHistoryExecuteRequiresCheckpoint(t *testing.T) {
@@ -386,4 +394,65 @@ func writeLifecycleJSON(t *testing.T, w http.ResponseWriter, status int, payload
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	require.NoError(t, json.NewEncoder(w).Encode(payload))
+}
+
+// TestCheckpointRollbackStructuredOutputMatchesSchema decodes the rollback
+// Result.Output against the declared checkpoint-rollback schema and asserts the
+// required fields — run, target_step, reverted_entries — and skipped list are
+// present and correct (srd026 R3.8; GH-493).
+func TestCheckpointRollbackStructuredOutputMatchesSchema(t *testing.T) {
+	t.Parallel()
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "ok", Visibility: core.Internal}, reverserStub{name: "ok"})
+	rev := &fakeReverter{}
+	require.NoError(t, rev.Save(core.Position{CurrentState: "Working"}, core.Execution{
+		{Iteration: 1, CommandName: "read", Signal: core.ToolDone},
+		{Iteration: 2, CommandName: "ok", Signal: core.ToolDone, Receipt: "r-ok"},
+	}))
+
+	toIteration := 1
+	cmd := (&CheckpointRollbackBuilder{
+		Config:     catalog.CheckpointRollbackConfig{ToIteration: &toIteration},
+		Checkpoint: rev,
+		Registry:   reg,
+		RunID:      "run-x",
+	}).Build(core.Result{})
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal, res.Output)
+
+	var out struct {
+		Run                 string   `json:"run"`
+		TargetStep          int      `json:"target_step"`
+		RevertedEntries     int      `json:"reverted_entries"`
+		SkippedIrreversible []string `json:"skipped_irreversible"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(res.Output), &out))
+	require.Equal(t, "run-x", out.Run)
+	require.Equal(t, 0, out.TargetStep)
+	require.Equal(t, 1, out.RevertedEntries)
+	require.NotNil(t, out.SkippedIrreversible)
+}
+
+// TestCheckpointHistoryEchoesExplicitRunSelector proves the structured history
+// output surfaces the explicitly selected run identity (srd026 R2.1; GH-493).
+func TestCheckpointHistoryEchoesExplicitRunSelector(t *testing.T) {
+	t.Parallel()
+	cp := &core.InMemoryCheckpoint{}
+	require.NoError(t, cp.Save(core.Position{CurrentState: "Working"},
+		core.Execution{{Iteration: 1, CommandName: "read", Signal: core.ToolDone}}))
+
+	cmd := (&CheckpointHistoryBuilder{
+		Config:     catalog.CheckpointHistoryConfig{Checkpoint: "run-42"},
+		Checkpoint: cp,
+	}).Build(core.Result{})
+	res := cmd.Execute()
+	require.Equal(t, core.ToolDone, res.Signal)
+
+	var out struct {
+		Run     string `json:"run"`
+		History string `json:"history"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(res.Output), &out))
+	require.Equal(t, "run-42", out.Run)
+	require.NotEmpty(t, out.History)
 }

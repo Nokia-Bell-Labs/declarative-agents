@@ -3,6 +3,7 @@
 package lifecycle
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -37,7 +38,17 @@ func (c *checkpointHistoryCmd) Execute() core.Result {
 	if err != nil {
 		return commandError(c.Name(), err)
 	}
-	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: core.FormatExecutionHistory(pos, exec)}
+	// Structured output matching the declared checkpoint-history schema
+	// {run, history}: run echoes the selected run (explicit id or "latest"),
+	// history is the stable digest (srd026 R2.1, R2.6; #493).
+	out, err := json.Marshal(map[string]any{
+		"run":     c.config.SelectedCheckpoint(),
+		"history": core.FormatExecutionHistory(pos, exec),
+	})
+	if err != nil {
+		return commandError(c.Name(), fmt.Errorf("encode history output: %w", err))
+	}
+	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: string(out)}
 }
 
 func (c *checkpointHistoryCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
@@ -84,7 +95,7 @@ func (c *checkpointRollbackCmd) Execute() core.Result {
 	if err != nil {
 		return commandError(c.Name(), err)
 	}
-	summary, err := rollbackViaReceipts(rollbackViaReceiptsOptions{
+	report, err := rollbackViaReceipts(rollbackViaReceiptsOptions{
 		Reverter:        c.checkpoint,
 		Registry:        c.registry,
 		Tracer:          c.tracer,
@@ -96,18 +107,19 @@ func (c *checkpointRollbackCmd) Execute() core.Result {
 		var partial *PartialRollbackError
 		if errors.As(err, &partial) {
 			// The DB Revert succeeded but external effects are only partly
-			// reversed; report CommandError and keep the per-entry report so an
-			// operator can choose retry, resume, or stop (srd026 R3.7, R6.3).
+			// reversed; report CommandError and keep the structured report plus
+			// failure detail so an operator can choose retry, resume, or stop
+			// (srd026 R3.7, R6.3).
 			return core.Result{
 				Signal:      core.CommandError,
 				CommandName: c.Name(),
-				Output:      summary + partial.Error(),
+				Output:      rollbackOutput(report, partial),
 				Err:         partial,
 			}
 		}
 		return commandError(c.Name(), err)
 	}
-	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: summary}
+	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: rollbackOutput(report, nil)}
 }
 
 func (c *checkpointRollbackCmd) Undo(_ core.Result) core.Result {
