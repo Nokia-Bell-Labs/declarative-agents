@@ -1,0 +1,151 @@
+id: srd006-executor
+title: Executor Agent Functional Block
+
+context: |
+  The executor is the mesh's deployment-plane actuator: the declarative agent that
+  realizes the deployment API (srd003 R4) the creator (srd005) drives and the panel
+  reads. It plays the reference-architecture Executor role (command-execution,
+  rollback, validate-service): it validates a decided values patch against the
+  chart's schema, applies it as a rollout, verifies the rollout, and rolls back on
+  failure. It supersedes the standard-library Go provisioner with a state machine
+  whose container carries the helm and kubectl CLIs, bound as exec tools, plus the
+  write and read builtins.
+
+  The executor acts; it decides nothing. The coordinator (srd004) decides the values
+  changes and the creator (srd005) owns the instance lifecycle; the executor receives
+  a decided, values-plane patch and realizes it. It edits deployment values and
+  triggers rollouts only; it never submits a host, URL, method, or credential to a
+  running agent (srd003 R4.2), the deployment-plane counterpart of agent-core srd028
+  V30. Authority is set by declared, validated config, never by this control surface.
+  The reusable request runtime, monitor, REST server, and exec tools stay in
+  agent-core; the actuation surface, the validate-apply-verify machine, and the
+  declared helm and kubectl bindings stay profile-owned.
+
+problem: |
+  The deployment API that patches values and rolls the mesh is standard-library Go
+  that shells out to helm and kubectl (issue #429 recorded the exemption). The same
+  actuation is expressible as a declarative agent -- a state machine binding the
+  helm and kubectl CLIs present in its container -- with the values validation moved
+  to the chart's native schema and the rollout phase read from a CLI exit code,
+  needing no engine change. The requirements must name the actuation surface, the
+  validate-then-apply and verify-then-rollback machine, the authority boundary, and
+  the sanctioned image divergence, separately from the agent-core runtime.
+
+goals:
+  - G1: Model the executor as a persistent deployment-plane agent that exposes the state, apply, and rollout surface on the Service the provisioner served, so the creator's declared client and the panel are unchanged.
+  - G2: Validate a submitted values patch against the chart's schema before applying, and apply it as a values-file rollout rather than per-field --set construction.
+  - G3: Verify the rollout from a CLI status read and roll the release back on an apply or verify failure.
+  - G4: Hold no chat authority; authenticate the actuation surface apart from chat and set authority by declared, validated config alone.
+  - G5: Carry the helm and kubectl CLIs in the executor image as a recorded, sanctioned divergence from the binary-only image contract (srd003 R1.3).
+
+requirements:
+  R1:
+    title: Actuation surface
+    items:
+      - R1.1: The executor SHALL expose the deployment API surface -- a read state endpoint, a POST apply endpoint bound as a request-scoped machine_request (agent-core srd030), and a read rollout endpoint -- on the Service name and port the provisioner served, so the creator's declared deployment_api client (srd005) and the provisioning panel are unchanged.
+      - R1.2: The executor SHALL run a control server (health and lifecycle exit) and a monitor server (agent-core srd033), with loopback-configurable bind addresses.
+      - R1.3: The apply endpoint SHALL bind one inbound values patch to one request-scoped run and map terminal signals to HTTP status.
+  R2:
+    title: Validate then apply
+    items:
+      - R2.1: The executor SHALL validate a submitted values patch against the chart's values schema by a helm dry-run before applying, rejecting a non-conforming patch with a client error and no rollout.
+      - R2.2: The executor SHALL materialize the validated patch as a values file and apply it with helm upgrade --reuse-values --atomic, re-rendering the co-generated topology (srd003 R2), rather than constructing per-field --set arguments from the patch.
+      - R2.3: The patch SHALL be values-plane only; the executor SHALL NOT submit a host, URL, method, or credential to a running agent (srd003 R4.2).
+  R3:
+    title: Verify and roll back
+    items:
+      - R3.1: After an apply, the executor SHALL verify the affected Deployment's rollout via kubectl rollout status and report the phase from its exit outcome.
+      - R3.2: On an apply or verify failure, the executor SHALL roll the release back -- the atomic upgrade self-rolls-back, with an explicit helm rollback for a verify stall -- and report the failure.
+  R4:
+    title: Authority boundary
+    items:
+      - R4.1: The executor SHALL hold no chat authority; its actuation surface SHALL be authenticated apart from the chat path at the deployment plane (srd003 R4.1), and the apply path SHALL be reached only by the creator (srd005).
+      - R4.2: Authority SHALL be set by declared, validated config, never by this control surface (srd003 R4.3, agent-core srd028 V30); the executor SHALL accept no endpoint or credential for a running agent.
+      - R4.3: REST authority SHALL live in the executor's declared rest.yaml; no runtime input SHALL supply transport authority.
+  R5:
+    title: Non-goals and packaging
+    items:
+      - R5.1: The executor SHALL NOT decide the values changes; that decision is the coordinator's (srd004 R3.1).
+      - R5.2: The executor SHALL NOT select templates or own agent lifecycle; those are the creator's (srd005).
+      - R5.3: The executor image SHALL carry the helm and kubectl CLIs alongside the runtime binary; this is a sanctioned divergence from the binary-only image contract (srd003 R1.3), recorded so the declarative-decomposition audit does not re-flag it.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The executor exposes the state, apply, and rollout surface on the provisioner's Service name and port with the apply endpoint bound as a request-scoped machine_request, alongside control and monitor servers on loopback-configurable addresses.
+    traces: [R1.1, R1.2, R1.3]
+  - id: AC2
+    criterion: A submitted patch is validated against the chart's values schema by a helm dry-run and, when valid, materialized as a values file and applied with helm upgrade --reuse-values --atomic -- values-plane only, with no per-field --set construction and no endpoint submitted to a running agent.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: The rollout is verified via kubectl rollout status and its phase reported, and an apply or verify failure rolls the release back and reports the failure.
+    traces: [R3.1, R3.2]
+  - id: AC4
+    criterion: The actuation surface is authenticated apart from chat and reached only by the creator, authority is set by declared validated config and never by this surface (agent-core srd028 V30), and REST authority lives in the profile with no runtime-supplied transport authority.
+    traces: [R4.1, R4.2, R4.3]
+  - id: AC5
+    criterion: Deciding the values (coordinator) and template selection or lifecycle (creator) are non-goals, and the executor image carries helm and kubectl as a recorded, sanctioned divergence from the binary-only image contract.
+    traces: [R5.1, R5.2, R5.3]
+
+depends_on:
+  - srd_id: srd003-chatbot-deployment
+    symbols_used: [R2, R3, R4]
+  - srd_id: srd005-creator
+    symbols_used: [R3, R5]
+
+platform_dependencies:
+  # agent-core runtime contracts this agent builds on. External references, owned
+  # by agent-core, not part of this example's corpus.
+  - srd_id: srd029-rest-server-tools
+    provider: agent-core
+    symbols_used: [R1]
+  - srd_id: srd030-machine-request-rest-binding
+    provider: agent-core
+    symbols_used: [R1]
+  - srd_id: srd033-monitor-rest-api
+    provider: agent-core
+    symbols_used: [R1]
+  - srd_id: srd021-agent-cli-exec-tool
+    provider: agent-core
+    symbols_used: [R2, R3]
+  - srd_id: srd028-rest-client-tools
+    provider: agent-core
+    symbols_used: [V30]
+
+implementation_status:
+  planned:
+    - >-
+      The executor profile (agents/executor) -- its state/apply/rollout servers,
+      the validate-apply-verify request machine, and the declared helm and kubectl
+      exec bindings -- the chart values.schema.json that carries the values
+      validation, and the executor image and Deployment that replace the
+      provisioner. Land across release rel06.0. Until then the standard-library Go
+      provisioner realizes srd003 R4 and issue #429 records the interim exemption.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: The deployment API is imperative Go; the same actuation is a declarative agent binding container CLIs"] --> Goals["Goals: Executor Agent Functional Block"]
+      Goals --> R1["R1: Actuation surface"]
+      Goals --> R2["R2: Validate then apply"]
+      Goals --> R3["R3: Verify and roll back"]
+      Goals --> R4["R4: Authority boundary"]
+      Goals --> R5["R5: Non-goals and packaging"]
+      R1 --> AC1["AC1: state/apply/rollout surface, control + monitor servers"]
+      R2 --> AC2["AC2: schema dry-run then values-file apply"]
+      R3 --> AC3["AC3: rollout verify and rollback"]
+      R4 --> AC4["AC4: authenticated apart from chat, authority by declared config"]
+      R5 --> AC5["AC5: not the decision or LCM; sanctioned CLI image"]
+    ```
+  actuation_machine: |
+    ```mermaid
+    flowchart LR
+      Apply["POST /provisioning/api/apply (creator)"] --> Validate["Validate: helm upgrade --dry-run --atomic -f overrides.yaml"]
+      Validate -->|Valid| ApplyStep["Apply: helm upgrade --atomic --wait -f overrides.yaml --reuse-values"]
+      Validate -->|Invalid| Reject["400"]
+      ApplyStep -->|Applied| Verify["Verify: kubectl rollout status deploy/chatbot"]
+      ApplyStep -->|CommandError| Rollback["helm rollback"]
+      Verify -->|HealthReported| Done["200"]
+      Verify -->|RolloutStalled| Rollback
+      Rollback --> Failed["500"]
+    ```

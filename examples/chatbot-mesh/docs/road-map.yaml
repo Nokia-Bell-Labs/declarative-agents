@@ -7,7 +7,9 @@ overview: |
   implemented and is being relocated into this directory. Requirement and use-case
   ids are renumbered to the example's own scheme (srd001-003, rel00.0+). The
   control plane (coordinator srd004, creator srd005, and the provisioning surface)
-  is release rel05.0.
+  is release rel05.0. Release rel06.0 replaces the standard-library Go provisioning
+  surface with the executor (srd006), a declarative agent that binds the helm and
+  kubectl CLIs in its container.
 
 releases:
   - version: "00.0"
@@ -144,3 +146,27 @@ releases:
       - id: test-rel05.0-control-plane
         summary: Tracer for the intent -> ingest -> reconfigure -> restart -> serve flow across the three agents, asserting the authority boundary. Realized as mage integration:controlPlane (deterministic, no cluster); the live grounded turn rides on integration:chatbot and the deploy swap.
         status: implemented
+
+  - version: "06.0"
+    name: Declarative executor agent
+    description: |
+      The deployment API (srd003 R4) moves from the standard-library Go provisioner
+      to the executor (srd006), a declarative agent whose container carries the helm
+      and kubectl CLIs bound as exec tools. A decided values patch from the creator
+      is validated against the chart's values.schema.json by a helm dry-run, applied
+      as a values-file rollout (helm upgrade --reuse-values --atomic) rather than
+      per-field --set construction, verified via kubectl rollout status, and rolled
+      back on failure. The authority boundary is unchanged -- the apply path is
+      reached only by the creator and authority stays set by declared, validated
+      config -- and no agent-core change is required.
+    status: planned
+    srds:
+      - srd006-executor
+    use_cases:
+      - id: rel06.0-uc001-declarative-executor
+        summary: The executor agent validates a values patch against the chart schema, applies it as a values-file rollout, verifies the rollout, and rolls back on failure, replacing the Go provisioner with zero agent-core changes.
+        status: planned
+    test_suites:
+      - id: test-rel06.0-executor
+        summary: Tracer for the validate -> apply -> verify -> rollback flow against the executor agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:executor.
+        status: planned

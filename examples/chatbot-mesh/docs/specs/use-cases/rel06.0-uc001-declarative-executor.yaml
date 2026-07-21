@@ -1,0 +1,103 @@
+id: rel06.0-uc001-declarative-executor
+title: The Executor Agent Realizes the Deployment API and Rolls Out a Values Change
+
+summary: |
+  The creator (srd005) submits a decided, values-plane patch to the executor
+  (srd006) -- the declarative agent that replaces the standard-library Go
+  provisioner as the deployment API (srd003 R4). The executor validates the patch
+  against the chart's values schema with a helm dry-run, rejecting a non-conforming
+  patch without a rollout. For a valid patch it materializes the values as a file and
+  applies helm upgrade --reuse-values --atomic, re-rendering the co-generated
+  topology, then verifies the affected Deployment's rollout via kubectl rollout
+  status and reports the phase, rolling the release back on an apply or verify
+  failure. Throughout, the executor edits deployment values and triggers rollouts
+  only; the patch carries no host, URL, method, or credential for a running agent,
+  the apply path is reached only by the creator, and authority stays set by declared,
+  validated config (srd003 R4, agent-core srd028 V30). No agent-core change is
+  required: the actuation is a state machine binding the helm and kubectl CLIs in the
+  executor's container.
+
+actor: The creator agent, realizing a decided instance operation behind the deployment API.
+
+trigger: |
+  The coordinator decides a values change (add a RAG source, reconfigure a
+  parameter) and the creator submits it to the executor's apply endpoint.
+
+preconditions:
+  - The executor profile is deployed with its state, apply, and rollout servers on the Service name and port the provisioner served.
+  - The executor image carries the helm and kubectl CLIs, and its ServiceAccount can upgrade the release and read the Deployment.
+  - The chart carries a values.schema.json encoding the deployment values constraints.
+  - The apply path is reached only by the creator, authenticated apart from the chat path.
+
+flow:
+  - id: F1
+    text: The creator posts the decided values patch to the executor's apply endpoint through its declared client; it submits no host, URL, method, or credential for a running agent.
+  - id: F2
+    text: The executor validates the patch against the chart's values schema with a helm dry-run and rejects a non-conforming patch with a client error and no rollout.
+  - id: F3
+    text: The executor materializes the validated patch as a values file and applies helm upgrade --reuse-values --atomic, re-rendering the co-generated topology, rather than constructing per-field --set arguments.
+  - id: F4
+    text: The executor verifies the affected Deployment's rollout via kubectl rollout status and reports the phase, rolling the release back on an apply or verify failure.
+  - id: F5
+    text: The executor reports health to the creator, which reports it to the coordinator; a subsequent chat turn is grounded in the applied change.
+
+touchpoints:
+  - id: T1
+    target: srd006-executor AC1
+    reason: The executor exposes the state, apply, and rollout surface on the provisioner's Service name and port with a request-scoped apply endpoint.
+  - id: T2
+    target: srd006-executor AC2
+    reason: The executor validates the patch against the chart schema by a dry-run and applies it as a values-file rollout, values-plane only.
+  - id: T3
+    target: srd006-executor AC3
+    reason: The executor verifies the rollout and rolls back on an apply or verify failure.
+  - id: T4
+    target: srd006-executor AC4
+    reason: The actuation surface is authenticated apart from chat, reached only by the creator, and authority stays set by declared validated config.
+  - id: T5
+    target: srd006-executor AC5
+    reason: Deciding the values and owning lifecycle are non-goals; the executor image carries helm and kubectl as a recorded divergence.
+  - id: T6
+    target: srd003-chatbot-deployment AC4
+    reason: The executor realizes the separately-authenticated deployment API that never submits an endpoint to a running agent.
+
+success_criteria:
+  - id: S1
+    criterion: The executor exposes the state, apply, and rollout surface on the provisioner's Service name and port, so the creator's declared client and the panel are unchanged.
+    traces:
+      - srd006-executor R1.1
+      - srd006-executor R1.3
+      - srd006-executor AC1
+  - id: S2
+    criterion: A non-conforming values patch is rejected by the chart-schema dry-run with a client error and no rollout.
+    traces:
+      - srd006-executor R2.1
+      - srd006-executor AC2
+  - id: S3
+    criterion: A valid patch is materialized as a values file and applied with helm upgrade --reuse-values --atomic, re-rendering the co-generated topology, with no per-field --set construction.
+    traces:
+      - srd006-executor R2.2
+      - srd003-chatbot-deployment R2.1
+      - srd006-executor AC2
+  - id: S4
+    criterion: The rollout is verified via kubectl rollout status and its phase reported, and an apply or verify failure rolls the release back.
+    traces:
+      - srd006-executor R3.1
+      - srd006-executor R3.2
+      - srd006-executor AC3
+  - id: S5
+    criterion: The patch submits no endpoint or credential to a running agent, the apply path is reached only by the creator, and authority stays set by declared validated config.
+    traces:
+      - srd006-executor R4.1
+      - srd006-executor R4.2
+      - srd003-chatbot-deployment R4.2
+      - srd006-executor AC4
+      - srd003-chatbot-deployment AC4
+
+out_of_scope:
+  - The decision of what to change, which is the coordinator's (srd004 R3.1).
+  - Template selection and agent lifecycle, which are the creator's (srd005).
+  - The chat turn path itself (route, embed, fan-out, compose), which is srd002.
+
+test_suite_trace: test-rel06.0-executor
+status: planned

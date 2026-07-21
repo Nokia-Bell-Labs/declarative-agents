@@ -20,7 +20,8 @@ overview:
 
     This architecture covers the data plane and the control plane. The control plane
     -- a coordinator that sequences reconfiguration, a creator that manages agent
-    lifecycle, and the provisioning surface -- is release rel05.0.
+    lifecycle, and the provisioning surface -- is release rel05.0. Release rel06.0
+    realizes the provisioning surface as the executor declarative agent (srd006).
 
   turn_flow_diagram: |
     ```mermaid
@@ -94,12 +95,15 @@ components:
       instance operation by driving the deployment API, verify the instance's health
       through a rollout read, and report back. The only agent that declares a
       deployment-API client; it alone holds that authority.
-  - name: provisioner
+  - name: provisioner (deployment API)
     path: provisioner/
     responsibility: |
-      The deployment-plane values-patch service (srd003 R4) the creator drives and
-      the panel reads: it serves the mesh view and applies values edits that trigger
-      a rollout, authenticated apart from chat. Standard-library Go, not an agent.
+      The deployment-plane actuation surface (srd003 R4) the creator drives and the
+      panel reads: it serves the mesh view, validates a values patch, applies it as a
+      rollout, and reports rollout status, authenticated apart from chat. Release
+      rel06.0 realizes this surface as the executor declarative agent (srd006) -- a
+      validate-apply-verify state machine binding the helm and kubectl CLIs in its
+      container; the standard-library Go provisioner is the interim realization.
   - name: user interface
     path: ux/
     responsibility: |
@@ -236,5 +240,7 @@ related_documents:
     purpose: The coordinator agent requirements (control plane).
   - doc: docs/specs/software-requirements/srd005-creator.yaml
     purpose: The creator agent requirements (control plane).
+  - doc: docs/specs/software-requirements/srd006-executor.yaml
+    purpose: The executor agent requirements (deployment plane) that replace the Go provisioner.
   - doc: README.md
     purpose: The decisions record and standalone-program framing.

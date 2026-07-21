@@ -58,7 +58,7 @@ requirements:
   R4:
     title: Provisioning authority boundary
     items:
-      - R4.1: The UX provisioning panel SHALL drive values edits and rollouts through a deployment API (a Helm operator or equivalent), authenticated separately from the chat path.
+      - R4.1: The UX provisioning panel SHALL drive values edits and rollouts through a deployment API (a Helm operator or equivalent), authenticated separately from the chat path. The executor agent (srd006) realizes this deployment API as a declarative agent from release rel06.0; the standard-library Go provisioner is the interim realization.
       - R4.2: The provisioning surface SHALL NOT submit hosts, URLs, methods, or credentials to any running agent endpoint; it changes deployment values and triggers rollouts only.
       - R4.3: R4.2 is the deployment-plane counterpart of agent-core srd028 V30 (runtime input cannot acquire transport authority), so authority is set by declared and validated config, whether at render time or dispatch time, never by a running control surface. The coordinator (srd004) and creator (srd005) are the mesh control plane that sequences and executes intents behind this surface.
   R5:
