@@ -1,0 +1,25 @@
+name: executor-rollout-request
+purpose: |-
+  One request-scoped read of the chatbot Deployment's rollout status, serving the
+  rollout GET endpoint (srd006 R1.1). The machine polls kubectl rollout status with a
+  short timeout: a zero exit is a complete rollout, a non-zero exit is a still-progressing
+  one. kubectl computes the phase; the machine maps the two outcomes to the response.
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 3
+states:
+  - {name: AwaitingRequest, meaning: Seeded by the rollout endpoint.}
+  - {name: Polling, meaning: Reading the Deployment rollout status.}
+  - {name: Complete, meaning: Terminal. The rollout is complete.}
+  - {name: Progressing, meaning: Terminal. The rollout is still progressing.}
+terminal_states:
+  - Complete
+  - Progressing
+signals:
+  - {name: Seed, trigger: The rollout endpoint starts a request-scoped run.}
+  - {name: ToolDone, trigger: kubectl reported the rollout complete.}
+  - {name: ToolFailed, trigger: kubectl reported the rollout still progressing.}
+transitions:
+  - {state: AwaitingRequest, signal: Seed,       next: Polling,     action: kubectl_rollout_poll}
+  - {state: Polling,         signal: ToolDone,   next: Complete}
+  - {state: Polling,         signal: ToolFailed, next: Progressing}

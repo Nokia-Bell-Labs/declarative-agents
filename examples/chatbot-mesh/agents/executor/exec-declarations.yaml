@@ -170,6 +170,55 @@ tools:
       strategy: noop
       description: A rollback is itself the compensating action.
 
+  - name: kubectl_rollout_poll
+    type: exec
+    binary: kubectl
+    args: [rollout, status, deployment/chatbot-mesh-chatbot, --namespace, default, --timeout, 3s]
+    category: boundary
+    visibility: internal
+    description: Read the Deployment's rollout status for the rollout GET endpoint, with a short timeout so the read returns promptly; ToolDone means complete, ToolFailed means still progressing.
+    problem: The rollout read endpoint must report completion without blocking a poll, so it uses a short timeout and reports the outcome via the exit code.
+    goals:
+      - Report the rollout completion with a short bounded timeout.
+      - Emit ToolDone when complete and ToolFailed when still progressing or timed out.
+    requirements:
+      input:
+        - must read the configured Deployment's rollout status with a short timeout
+      output:
+        - must include exit status and captured status output
+      errors:
+        - a non-zero exit is reported as progressing, not an error signal
+    non_goals:
+      - Does not mutate cluster state.
+      - Does not distinguish a cluster error from a still-progressing rollout (exec emits one failure signal).
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: kubectl rollout status process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        target: kubectl
+        description: Runs `kubectl rollout status` with a short timeout as a child process; reads status and mutates nothing.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the rollout is not complete within the short timeout (still progressing)
+        message_shape: <captured kubectl status output>
+        state_after_failure: no cluster state changed; the caller polls again
+    relationships:
+      after: [helm_upgrade]
+    undo:
+      strategy: noop
+      description: A status read mutates nothing.
+
   - name: kubectl_rollout_status
     type: exec
     binary: kubectl

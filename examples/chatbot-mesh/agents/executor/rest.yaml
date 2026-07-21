@@ -86,6 +86,31 @@ rest:
                   content_type: application/json
                   body:
                     error: rolled_back
+        rollout:
+          # Read the chatbot Deployment's rollout status (srd006 R1.1). kubectl
+          # computes the phase; a complete rollout is ToolDone, a still-progressing
+          # one is ToolFailed, both mapped to 200 with the phase in the body.
+          method: GET
+          path: /provisioning/api/rollout
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: rollout-machine.yaml
+            timeout: 10s
+            request:
+              body: {}
+            response:
+              terminal_signals:
+                ToolDone:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    phase: complete
+                ToolFailed:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    phase: progressing
 
     executor_control:
       address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18091

@@ -12,6 +12,7 @@ examples/chatbot-mesh/agents/chatbot/      -> profiles/agents/chatbot/
 examples/chatbot-mesh/agents/rag-server/   -> profiles/agents/rag-server/
 examples/chatbot-mesh/agents/coordinator/  -> profiles/agents/coordinator/   (control plane)
 examples/chatbot-mesh/agents/creator/      -> profiles/agents/creator/       (control plane)
+examples/chatbot-mesh/agents/executor/     -> profiles/agents/executor/       (deployment plane, srd006)
 examples/chatbot-mesh/ux/                   -> profiles/ux/
 ```
 
