@@ -51,7 +51,14 @@ test_cases:
       - rel05.0-uc001-control-plane-provisioning S3
       - rel05.0-uc001-control-plane-provisioning S4
       - rel05.0-uc001-control-plane-provisioning S5
+      - srd004-coordinator AC1
       - srd004-coordinator AC2
       - srd004-coordinator AC3
+      - srd004-coordinator AC4
+      - srd004-coordinator AC5
+      - srd005-creator AC1
+      - srd005-creator AC2
       - srd005-creator AC3
+      - srd005-creator AC4
       - srd005-creator AC5
+      - srd003-chatbot-deployment AC4
