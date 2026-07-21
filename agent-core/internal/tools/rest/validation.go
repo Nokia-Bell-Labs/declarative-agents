@@ -299,6 +299,13 @@ func validatePublicListener(name string, server Server, limits map[string]LimitP
 }
 
 func validateEndpoint(name string, endpoint Endpoint) error {
+	if !handledServerBindings[endpoint.Binding] {
+		if endpoint.Binding == "" {
+			return fmt.Errorf("endpoint %q has no binding; declare one of: %s", name, sortedServerBindings())
+		}
+		return fmt.Errorf("endpoint %q has unknown binding %q; the runtime returns 501 for it. Declare one of: %s",
+			name, endpoint.Binding, sortedServerBindings())
+	}
 	if endpoint.Binding == bindingDynamicSignal && len(endpoint.AllowedSignals) == 0 {
 		return fmt.Errorf("endpoint %q emit_dynamic_signal requires allowed_signals", name)
 	}
