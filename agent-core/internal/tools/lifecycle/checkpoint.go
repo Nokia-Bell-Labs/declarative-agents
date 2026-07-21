@@ -3,6 +3,7 @@
 package lifecycle
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
@@ -92,6 +93,18 @@ func (c *checkpointRollbackCmd) Execute() core.Result {
 		TargetIteration: *c.config.ToIteration,
 	})
 	if err != nil {
+		var partial *PartialRollbackError
+		if errors.As(err, &partial) {
+			// The DB Revert succeeded but external effects are only partly
+			// reversed; report CommandError and keep the per-entry report so an
+			// operator can choose retry, resume, or stop (srd026 R3.7, R6.3).
+			return core.Result{
+				Signal:      core.CommandError,
+				CommandName: c.Name(),
+				Output:      summary + partial.Error(),
+				Err:         partial,
+			}
+		}
 		return commandError(c.Name(), err)
 	}
 	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: summary}

@@ -293,9 +293,19 @@ func TestCheckpointRollbackReportsMissingRESTCompensationExecutor(t *testing.T) 
 	}).Build(core.Result{})
 	res := cmd.Execute()
 
-	require.Equal(t, core.ToolDone, res.Signal, res.Output)
+	// A receipt-walk Undo that fails is a partial rollback, not a clean one:
+	// the tool must report CommandError and name the entry whose external
+	// effect was not reversed (srd026 R3.7, R6.3, R6.4; GH-491).
+	require.Equal(t, core.CommandError, res.Signal, res.Output)
 	require.Contains(t, res.Output, "step=1 rest_set_issue: undo failed")
 	require.Contains(t, res.Output, "compensation_lookup")
+	require.Contains(t, res.Output, "receipt-walk Undo failure")
+
+	var partial *PartialRollbackError
+	require.ErrorAs(t, res.Err, &partial)
+	require.Equal(t, 0, partial.Reverted)
+	require.Len(t, partial.Failures, 1)
+	require.Equal(t, "rest_set_issue", partial.Failures[0].CommandName)
 }
 
 func TestCheckpointRollbackUndoRequestsCompensation(t *testing.T) {
