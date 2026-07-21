@@ -39,6 +39,9 @@ func Build() error {
 			if err := runInDir(uiDir, "npm", "install"); err != nil {
 				return fmt.Errorf("%s npm install: %w", uiDir, err)
 			}
+			if err := auditUIDeps(uiDir); err != nil {
+				return err
+			}
 			fmt.Printf("building frontend for %s\n", uiDir)
 			if err := runInDir(uiDir, "npm", "run", "build"); err != nil {
 				return fmt.Errorf("%s frontend build: %w", uiDir, err)
@@ -71,6 +74,19 @@ var embeddedUIDirs = []string{
 func hasUI(uiDir string) bool {
 	_, err := os.Stat(filepath.Join(uiDir, "package.json"))
 	return err == nil
+}
+
+// auditUIDeps fails the build when an embedded frontend has a known production
+// dependency vulnerability. These bundles are served to a browser, so a
+// sanitizer or other runtime dependency defect is a release finding rather than
+// a printed-and-ignored warning. Dev-only tooling (build/test) is out of scope,
+// so the gate omits dev dependencies and trips at the moderate advisory level.
+func auditUIDeps(uiDir string) error {
+	fmt.Printf("auditing frontend deps for %s\n", uiDir)
+	if err := runInDir(uiDir, "npm", "audit", "--omit=dev", "--audit-level=moderate"); err != nil {
+		return fmt.Errorf("%s npm audit: known production dependency vulnerability (run `npm audit fix` in %s): %w", uiDir, uiDir, err)
+	}
+	return nil
 }
 
 func runInDir(dir string, name string, args ...string) error {
