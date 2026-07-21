@@ -88,6 +88,42 @@ test_suite: test-rel00.0
 	assert.Equal(t, []string{"T1: srd001-auth R1, R2 -- authentication flow"}, uc.Touchpoints)
 }
 
+func TestParseUseCase_ObjectTouchpoints(t *testing.T) {
+	path := writeUseCaseFile(t, `id: rel05.0-uc001-object
+title: Object touchpoint
+summary: Object touchpoint parsing.
+actor: Tester
+trigger: Parse use case.
+flow:
+  - F1: Parse the file.
+touchpoints:
+  - id: T1
+    target: srd004-coordinator AC1
+    reason: The coordinator binds the provisioning intent.
+  - id: T2
+    target: srd005-creator AC2
+    reason: The creator realizes the instance.
+success_criteria: []
+out_of_scope: []
+test_suite: test-rel05.0
+`)
+
+	uc, err := ParseUseCase(path)
+	require.NoError(t, err)
+
+	// Each {id, target, reason} object folds into one canonical string; the id
+	// label is dropped and the reason follows the "--" separator.
+	assert.Equal(t, []string{
+		"srd004-coordinator AC1 -- The coordinator binds the provisioning intent.",
+		"srd005-creator AC2 -- The creator realizes the instance.",
+	}, uc.Touchpoints)
+
+	// The folded string parses back into an SRD touches edge and an AC citation.
+	srdID, groups := parseTouchpoint(uc.Touchpoints[0])
+	assert.Equal(t, "srd004-coordinator", srdID)
+	assert.Equal(t, []string{"AC1"}, groups)
+}
+
 func TestParseTestSuite(t *testing.T) {
 	ts, err := ParseTestSuite(filepath.Join("testdata", "valid", "docs", "specs",
 		"test-suites", "test-rel00.0.yaml"))

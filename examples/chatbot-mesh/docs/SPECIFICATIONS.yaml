@@ -14,14 +14,12 @@ overview: |
   (coordinator, creator, and the provisioning surface) is release rel05.0.
 
   The corpus is validated by the jurist (mage audit): it loads and validates with no
-  errors. The jurist reports orphaned-srd, uncovered-ac, and untraced-success
-  -criterion warnings uniformly across the data-plane and control-plane specs; these
-  are systemic, not per-spec drift. The orphaned-srd warnings stem from the jurist's
-  graph builder not parsing object-format touchpoints ({id, target, reason}) into SRD
-  edges, tracked in issue #448; the coverage warnings reflect the convention of
-  tracing success criteria to requirements. The authoring-level chain is intact:
-  every SRD is indexed and placed in ARCHITECTURE, every use case targets its SRDs
-  through touchpoints, and every test suite traces its use case.
+  errors and no warnings. The traceability chain is complete: every use case
+  touchpoint builds an SRD edge (the object-format {id, target, reason} touchpoints
+  parse since GH-448), every success criterion traces an acceptance criterion
+  alongside its requirement groups, and every acceptance criterion is covered by a
+  test case. Every SRD is indexed and placed in ARCHITECTURE, every use case targets
+  its SRDs through touchpoints, and every test suite traces its use case.
 
 roadmap_summary:
   - version: "00.0"

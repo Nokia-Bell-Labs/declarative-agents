@@ -52,3 +52,4 @@ test_cases:
       - rel01.0-uc001-routed-fanout S4
       - srd002-chatbot-agent AC2
       - srd002-chatbot-agent AC3
+      - srd002-chatbot-agent AC6

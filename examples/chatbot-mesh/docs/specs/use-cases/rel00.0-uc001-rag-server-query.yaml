@@ -52,16 +52,19 @@ success_criteria:
     criterion: The query endpoint accepts a caller-supplied query_embeddings vector and n_results and does not require question text.
     traces:
       - srd001-rag-server-agent R2.1
+      - srd001-rag-server-agent AC2
   - id: S2
     criterion: The response returns chunks with record ids, distances, and metadata that names the served collection's embedding model.
     traces:
       - srd001-rag-server-agent R2.2
       - srd001-rag-server-agent R2.3
+      - srd001-rag-server-agent AC2
   - id: S3
     criterion: The retrieval runs as a request-scoped machine over one served collection, with no LLM answering step in the RAG server.
     traces:
       - srd001-rag-server-agent R1.1
       - srd001-rag-server-agent R1.5
+      - srd001-rag-server-agent AC1
 
 out_of_scope:
   - Embedding the query, which the caller does.

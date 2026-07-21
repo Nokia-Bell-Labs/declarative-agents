@@ -55,16 +55,19 @@ success_criteria:
     traces:
       - srd003-chatbot-deployment R1.1
       - srd003-chatbot-deployment R1.3
+      - srd003-chatbot-deployment AC1
   - id: S2
     criterion: The chatbot RAG client entries are co-generated from the same values list that creates the RAG Deployments and Services, and the rendered rest.yaml passes ValidateDefinition.
     traces:
       - srd003-chatbot-deployment R2.1
       - srd003-chatbot-deployment R2.2
+      - srd003-chatbot-deployment AC2
   - id: S3
     criterion: Repointing an existing RAG is a Service change with no agent config change; adding a RAG is a values re-render plus a rollout in which the chatbot resumes from its Dolt checkpoint.
     traces:
       - srd003-chatbot-deployment R3.1
       - srd003-chatbot-deployment R3.2
+      - srd003-chatbot-deployment AC3
 
 out_of_scope:
   - In-process client-registry mutation of a running agent.

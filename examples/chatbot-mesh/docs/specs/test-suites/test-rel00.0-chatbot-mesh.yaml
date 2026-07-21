@@ -49,7 +49,11 @@ test_cases:
       - rel00.0-uc001-rag-server-query S1
       - rel00.0-uc001-rag-server-query S2
       - rel00.0-uc001-rag-server-query S3
+      - srd001-rag-server-agent AC1
       - srd001-rag-server-agent AC2
+      - srd001-rag-server-agent AC3
+      - srd001-rag-server-agent AC4
+      - srd001-rag-server-agent AC5
 
   - use_case: rel00.0-uc002-chatbot-turn
     name: Single-RAG chatbot turn tracer with a degraded RAG
@@ -81,3 +85,4 @@ test_cases:
       - rel00.0-uc002-chatbot-turn S2
       - rel00.0-uc002-chatbot-turn S3
       - srd002-chatbot-agent AC1
+      - srd002-chatbot-agent AC4

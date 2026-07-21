@@ -6,7 +6,9 @@ import "strings"
 
 // --- Touchpoint/trace parsing helpers ---
 
-// parseTouchpoint extracts the SRD ID and cited R-groups from a touchpoint string.
+// parseTouchpoint extracts the SRD ID and cited groups from a touchpoint string.
+// A group is a requirement group (R1, R2.1) or an acceptance criterion (AC1);
+// both resolve to a "srdID:group" node, so both are collected (GH-448).
 // Formats: "srd005-cli R1 -- description" or "T1: srd005-cli R1 -- description".
 func parseTouchpoint(tp string) (string, []string) {
 	desc := strings.SplitN(tp, "--", 2)
@@ -25,7 +27,10 @@ func parseTouchpoint(tp string) (string, []string) {
 	var groups []string
 	for _, p := range parts[1:] {
 		p = strings.TrimRight(p, ",")
-		if p != "" && p[0] == 'R' {
+		if p == "" {
+			continue
+		}
+		if p[0] == 'R' || strings.HasPrefix(p, "AC") {
 			groups = append(groups, p)
 		}
 	}
