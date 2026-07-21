@@ -1,8 +1,10 @@
 {{- if .Values.controlPlane.enabled }}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
-{{- $tokenSecret := .Values.controlPlane.creator.deploymentApiTokenSecret.name | default (printf "%s-provisioner" $fullname) -}}
-# --- Creator: the control plane's agent lifecycle manager (srd005). It alone holds
-# the deployment-API credential, mounted from a Secret apart from the chat path. ---
+{{- $tokenSecret := .Values.controlPlane.creator.deploymentApiTokenSecret.name | default (printf "%s-executor" $fullname) -}}
+# --- Creator: the control plane's agent lifecycle manager (srd005). It reaches the
+# executor deployment API (srd006), which is authenticated apart from chat by a
+# NetworkPolicy; the optional token mount below supports an operator-supplied auth
+# proxy in front of the executor. ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -37,22 +39,17 @@ spec:
             - "--otel-service-name"
             - "creator"
             {{- end }}
-          # The creator is the only agent that reaches the deployment API (the
-          # provisioner). Its bearer credential is the provisioner apply token,
-          # mounted from a Secret at a file path apart from the chat path (the #392
-          # file-mount pattern), never injected as env or runtime input. It binds
-          # 0.0.0.0 so its Services route to the pod.
+          # The creator reaches the executor deployment API (srd006). The executor's
+          # apply surface is network-authenticated (NetworkPolicy), so no bearer is
+          # required; the optional token mount below (the #392 file-mount pattern)
+          # supplies a credential only when an operator fronts the executor with an
+          # auth proxy. It binds 0.0.0.0 so its Services route to the pod.
           env:
             - {name: CREATOR_BIND_HOST, value: "0.0.0.0"}
-            {{- if .Values.executor.enabled }}
             # The deployment API is the executor agent (srd006); the creator's client
-            # reaches its apply Service, unchanged in port from the provisioner.
+            # reaches its apply Service.
             - {name: DEPLOYMENT_API_URL, value: "http://{{ $fullname }}-executor:{{ .Values.executor.ports.apply }}"}
             - {name: PROVISIONER_HOST, value: "{{ $fullname }}-executor"}
-            {{- else }}
-            - {name: DEPLOYMENT_API_URL, value: "http://{{ $fullname }}-provisioner:{{ .Values.provisioner.port }}"}
-            - {name: PROVISIONER_HOST, value: "{{ $fullname }}-provisioner"}
-            {{- end }}
             - {name: DEPLOYMENT_API_TOKEN_FILE, value: "/etc/creator-tokens/deployment-api"}
           ports:
             - {name: instance, containerPort: {{ .Values.controlPlane.creator.ports.instance }}}

@@ -13,6 +13,19 @@ binary-only runtime image because a deployment-plane agent needs its CLIs in its
 container. Recorded here so the declarative-decomposition audit does not re-flag it.
 */}}
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-mesh-state
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: executor
+data:
+  # The mesh view (srd003 R4) projected from the same values that render the
+  # topology, mounted read-only for the executor's state read path.
+  mesh.json: |-
+    {{- include "chatbot-mesh.meshView" . | nindent 4 }}
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ $fullname }}-executor
@@ -114,10 +127,14 @@ spec:
           volumeMounts:
             - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
             - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
+            - {name: mesh-state, mountPath: /etc/executor, readOnly: true}
       volumes:
         {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
         - name: work
           emptyDir: {}
+        - name: mesh-state
+          configMap:
+            name: {{ $fullname }}-mesh-state
 ---
 apiVersion: v1
 kind: Service

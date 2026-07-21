@@ -64,12 +64,12 @@ trace_backend:
   name: jaeger
   query_path: /monitor-proxy/jaeger/api/traces/{trace_id}
 # The provisioning panel drives the deployment API same-origin at /provisioning/api,
-# routed by the chatbot ingress to the provisioner Service (srd003 R4). The Helm
-# render gates this on provisioner.enabled; the local source declares it so a local
+# routed by the chatbot ingress to the executor Service (srd006). The Helm
+# render gates this on executor.enabled; the local source declares it so a local
 # run wires the panel to a reachable deployment API.
 deployment_api:
   base_path: /provisioning/api
-  auth: bearer_token
+  auth: none
 presentation:
   history_client_side: true
   source_citations: true

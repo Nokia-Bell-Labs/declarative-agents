@@ -56,7 +56,7 @@
         "topology": {"type": "string", "enum": ["single", "per-model"]}
       }
     },
-    "provisioner": {
+    "executor": {
       "type": "object",
       "properties": {
         "params": {

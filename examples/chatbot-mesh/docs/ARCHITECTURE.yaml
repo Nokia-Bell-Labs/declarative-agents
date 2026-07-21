@@ -95,15 +95,16 @@ components:
       instance operation by driving the deployment API, verify the instance's health
       through a rollout read, and report back. The only agent that declares a
       deployment-API client; it alone holds that authority.
-  - name: provisioner (deployment API)
-    path: provisioner/
+  - name: executor
+    path: agents/executor/
     responsibility: |
-      The deployment-plane actuation surface (srd003 R4) the creator drives and the
-      panel reads: it serves the mesh view, validates a values patch, applies it as a
-      rollout, and reports rollout status, authenticated apart from chat. Release
-      rel06.0 realizes this surface as the executor declarative agent (srd006) -- a
-      validate-apply-verify state machine binding the helm and kubectl CLIs in its
-      container; the standard-library Go provisioner is the interim realization.
+      The deployment-plane actuation agent (srd006): the declarative agent that
+      realizes the deployment API (srd003 R4) the creator drives and the panel reads.
+      Its request-machine writes the decided values patch, validates it against the
+      chart schema with a helm dry-run, applies it as an atomic rollout, verifies the
+      rollout, and rolls back on failure -- binding the helm and kubectl CLIs in its
+      container as exec words. Authenticated apart from chat by a NetworkPolicy. It
+      replaces the standard-library Go provisioner.
   - name: user interface
     path: ux/
     responsibility: |
@@ -221,7 +222,7 @@ implementation_status:
     - done: The example's own magefile audit and integration entries (chroma,
         rag-server, chatbot, helm smoke/swap/llm-tier, provisioning, control plane).
     - done: The control plane (coordinator srd004, creator srd005, and the
-        provisioner deployment surface), realized as mage integration:controlPlane
+        executor deployment surface srd006), realized as mage integration:controlPlane
         (rel05.0).
 
 related_documents:

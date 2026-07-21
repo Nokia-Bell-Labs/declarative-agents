@@ -34,7 +34,7 @@ dolt:
 ingress:
   enabled: false
 
-provisioner:
+executor:
   enabled: false
 
 # The in-cluster LLM tier: CPU-only small models (no GPU), tiny storage.

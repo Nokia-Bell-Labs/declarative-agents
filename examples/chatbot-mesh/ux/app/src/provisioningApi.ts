@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // The deployment API the provisioning panel drives (srd003 R4). It is same-origin
-// at /provisioning, routed by the chatbot ingress to the provisioner Service, so
+// at /provisioning, routed by the chatbot ingress to the executor Service, so
 // the panel's POST apply avoids the GET-only monitor_proxy and no call crosses
 // origin. The panel never calls an agent endpoint; provisioning changes deployment
 // values and triggers rollouts only (R4.2). The base is values-driven via ux.yaml;
@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export const PROVISIONING_BASE =
   (globalThis as { PROVISIONING_API?: string }).PROVISIONING_API ?? "/provisioning/api";
 
-// MeshView mirrors the provisioner's values-plane view: RAG topology, the LLM
+// MeshView mirrors the executor values-plane view: RAG topology, the LLM
 // endpoint, and the interesting parameters. There is no per-agent runtime endpoint
 // field, so the panel cannot submit transport authority to a running agent.
 export interface RagView {

@@ -114,12 +114,14 @@ platform_dependencies:
 implementation_status:
   planned:
     - >-
-      The executor profile (agents/executor) -- its state/apply/rollout servers,
-      the validate-apply-verify request machine, and the declared helm and kubectl
-      exec bindings -- the chart values.schema.json that carries the values
-      validation, and the executor image and Deployment that replace the
-      provisioner. Land across release rel06.0. Until then the standard-library Go
-      provisioner realizes srd003 R4 and issue #429 records the interim exemption.
+      The executor profile (agents/executor) -- its apply/control/monitor servers,
+      the validate-apply-verify-rollback request machine, and the declared helm and
+      kubectl exec bindings -- the chart values.schema.json that carries the values
+      validation, and the executor Deployment, image, and NetworkPolicy that replace
+      the provisioner, are built for release rel06.0; the Go provisioner is removed
+      and issue #429's deployment-plane exemption no longer applies. The remaining
+      planned work is the live on-cluster rollout (built image, integration:executor)
+      and the state and rollout read endpoints (issue #466).
 
 diagrams:
   requirements_trace: |
