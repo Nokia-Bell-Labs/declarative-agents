@@ -1,0 +1,260 @@
+# Exec tool declarations for the executor agent (srd006): the helm and kubectl
+# CLIs its container carries, bound as agent-core exec tools (agent-core srd021).
+# The executor's request-machine binds these words to realize a decided values
+# patch as a validate -> apply -> verify -> rollback rollout. Each runs one child
+# process and emits ToolDone on a zero exit, ToolFailed on a non-zero exit, and
+# CommandError when the process cannot start; the request-machine distinguishes
+# success from failure by the state it is in.
+tools:
+  - name: helm_dry_run
+    type: exec
+    binary: helm
+    args: [upgrade, --reuse-values, --atomic, --dry-run]
+    category: boundary
+    visibility: internal
+    description: Validate a values patch against the chart values.schema.json without applying it, by rendering the release with helm upgrade --dry-run.
+    problem: The executor must reject a non-conforming values patch before any rollout, using the chart's own schema rather than a bespoke validator.
+    goals:
+      - Render the release with the submitted values file and --dry-run so helm validates it against values.schema.json.
+      - Emit ToolDone on a clean render and ToolFailed when the schema or template rejects the patch.
+    requirements:
+      input:
+        - must run against the configured release and chart with the written values file
+        - accepts the release, chart, namespace, and valuesFile parameters
+      output:
+        - must include exit status and captured stdout/stderr
+      errors:
+        - must emit CommandError when helm cannot be started
+    non_goals:
+      - Does not apply the patch; it only renders and validates.
+      - Does not decide the values; the coordinator does.
+    parameters:
+      type: object
+      properties:
+        release: {type: string, positional: true}
+        chart: {type: string, positional: true}
+        namespace: {type: string, flag: --namespace}
+        valuesFile: {type: string, flag: -f}
+      required: [release, chart, valuesFile]
+    emits: [ToolDone, ToolFailed, CommandError]
+    output:
+      description: helm upgrade --dry-run process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          stdout: {type: string}
+          stderr: {type: string}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        target: helm
+        description: Runs `helm upgrade --dry-run` as a child process; renders only, mutates no cluster state.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: CommandError
+        condition: helm cannot be started or the chart path is invalid
+        message_shape: 'helm_dry_run: <error>'
+        state_after_failure: no cluster state changed
+      - signal: ToolFailed
+        condition: helm renders with a non-zero exit (schema or template rejection)
+        message_shape: <captured helm output>
+        state_after_failure: no cluster state changed
+    relationships:
+      before: [helm_upgrade]
+      overlaps:
+        - tool: helm_upgrade
+          difference: helm_dry_run renders and validates only; helm_upgrade applies and rolls the release.
+    undo:
+      strategy: noop
+      description: A dry-run mutates no cluster state.
+
+  - name: helm_upgrade
+    type: exec
+    binary: helm
+    args: [upgrade, --reuse-values, --atomic, --wait]
+    category: boundary
+    visibility: internal
+    description: Apply a validated values patch by upgrading the release in place, re-rendering the co-generated topology and rolling the affected agents.
+    problem: The executor must realize a decided values patch as an in-place rollout without constructing per-field --set arguments.
+    goals:
+      - Upgrade the release with the written values file, reusing prior values, atomically, waiting for readiness.
+      - Emit ToolDone when the rollout succeeds and ToolFailed when it fails; --atomic self-rolls-back a failed upgrade.
+    requirements:
+      input:
+        - must run against the configured release and chart with the written values file
+        - accepts the release, chart, namespace, and valuesFile parameters
+      output:
+        - must include exit status and captured stdout/stderr
+      errors:
+        - must emit CommandError when helm cannot be started
+    non_goals:
+      - Does not construct per-field --set arguments; the patch flows as a values file.
+      - Does not submit any endpoint or credential to a running agent.
+    parameters:
+      type: object
+      properties:
+        release: {type: string, positional: true}
+        chart: {type: string, positional: true}
+        namespace: {type: string, flag: --namespace}
+        valuesFile: {type: string, flag: -f}
+      required: [release, chart, valuesFile]
+    emits: [ToolDone, ToolFailed, CommandError]
+    output:
+      description: helm upgrade process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          stdout: {type: string}
+          stderr: {type: string}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        target: helm
+        description: Runs `helm upgrade --atomic --wait` as a child process; upgrades the release and rolls the affected Deployments.
+    reversibility:
+      classification: compensatable
+      undo: helm_rollback
+      requires_confirmation: false
+    errors:
+      - signal: CommandError
+        condition: helm cannot be started or the chart path is invalid
+        message_shape: 'helm_upgrade: <error>'
+        state_after_failure: the release is unchanged
+      - signal: ToolFailed
+        condition: the upgrade exits non-zero; --atomic rolls the release back to the prior revision
+        message_shape: <captured helm output>
+        state_after_failure: the release is rolled back to its prior revision
+    relationships:
+      after: [helm_dry_run]
+      before: [kubectl_rollout_status]
+      overlaps:
+        - tool: helm_dry_run
+          difference: helm_upgrade applies and rolls the release; helm_dry_run only renders and validates.
+    undo:
+      strategy: compensating_action
+      description: helm_rollback returns the release to its prior revision when a verify stall follows a successful upgrade.
+
+  - name: helm_rollback
+    type: exec
+    binary: helm
+    args: [rollback]
+    category: boundary
+    visibility: internal
+    description: Roll the release back to its prior revision when a verify stall follows an apply that helm did not itself roll back.
+    problem: A rollout that applies cleanly but stalls in verification must be reversed to the last good revision.
+    goals:
+      - Roll the configured release back to its immediately prior revision.
+      - Emit ToolDone on success and ToolFailed on failure.
+    requirements:
+      input:
+        - accepts the release parameter
+      output:
+        - must include exit status and captured output
+      errors:
+        - must emit CommandError when helm cannot be started
+    non_goals:
+      - Does not decide when to roll back; the request-machine does.
+    parameters:
+      type: object
+      properties:
+        release: {type: string, positional: true}
+      required: [release]
+    emits: [ToolDone, ToolFailed, CommandError]
+    output:
+      description: helm rollback process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        target: helm
+        description: Runs `helm rollback` as a child process; returns the release to its prior revision.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: CommandError
+        condition: helm cannot be started
+        message_shape: 'helm_rollback: <error>'
+        state_after_failure: the release revision is unchanged
+      - signal: ToolFailed
+        condition: the rollback exits non-zero
+        message_shape: <captured helm output>
+        state_after_failure: the release may remain on the failed revision and needs operator attention
+    relationships:
+      after: [helm_upgrade, kubectl_rollout_status]
+    undo:
+      strategy: noop
+      description: A rollback is itself the compensating action.
+
+  - name: kubectl_rollout_status
+    type: exec
+    binary: kubectl
+    args: [rollout, status]
+    category: boundary
+    visibility: internal
+    description: Verify the affected Deployment's rollout, letting kubectl compute the phase; a non-zero exit is a stalled or timed-out rollout.
+    problem: The executor must verify a rollout completed without computing the phase itself; kubectl rollout status does that and reports it through its exit code.
+    goals:
+      - Report the Deployment's rollout completion via kubectl rollout status with a bounded timeout.
+      - Emit ToolDone when the rollout completes and ToolFailed when it stalls or times out.
+    requirements:
+      input:
+        - accepts the resource, namespace, and timeout parameters
+      output:
+        - must include exit status and captured status output
+      errors:
+        - must emit CommandError when kubectl cannot be started
+    non_goals:
+      - Does not mutate cluster state; it reads rollout status only.
+      - Does not compute the phase in the mapping layer; kubectl computes it.
+    parameters:
+      type: object
+      properties:
+        resource: {type: string, positional: true}
+        namespace: {type: string, flag: --namespace}
+        timeout: {type: string, flag: --timeout}
+      required: [resource]
+    emits: [ToolDone, ToolFailed, CommandError]
+    output:
+      description: kubectl rollout status process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        target: kubectl
+        description: Runs `kubectl rollout status` as a child process; reads the Deployment's rollout progress and mutates nothing.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: CommandError
+        condition: kubectl cannot be started
+        message_shape: 'kubectl_rollout_status: <error>'
+        state_after_failure: no cluster state changed
+      - signal: ToolFailed
+        condition: the rollout stalls or the timeout elapses before completion
+        message_shape: <captured kubectl status output>
+        state_after_failure: the rollout is incomplete; the request-machine rolls the release back
+    relationships:
+      after: [helm_upgrade]
+      before: [helm_rollback]
+    undo:
+      strategy: noop
+      description: A status read mutates nothing.
