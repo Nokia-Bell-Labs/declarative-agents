@@ -1,0 +1,8 @@
+tools:
+  - launch_executor_requests
+  - launch_executor_control
+  - launch_monitor_rest
+  - await_executor_control
+  - stop_monitor_rest
+  - stop_executor_requests
+  - exit_agent

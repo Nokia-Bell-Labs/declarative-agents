@@ -1,0 +1,58 @@
+name: executor
+purpose: |-
+  The executor profile hosts the deployment-plane actuation agent (srd006) as a
+  persistent service. It launches a machine_request apply server, a control server,
+  and a monitor server, then idles in AwaitingControl until a lifecycle exit event
+  is enqueued, at which point it exits the agent and stops the servers. Each inbound
+  apply request runs a request-scoped machine (apply-machine.yaml): the executor
+  writes the decided values patch to a file, validates it against the chart schema
+  with a helm dry-run, applies it as a rollout, verifies the rollout, and rolls back
+  on failure. The executor acts on the creator's decision; it authors no values
+  decision and passes no endpoint or credential into a running agent.
+invariants:
+  - REST authority lives in this profile's rest.yaml; no runtime input supplies transport authority.
+  - The executor edits deployment values and triggers rollouts only; it submits no host, URL, method, or credential to a running agent (srd006 R4.2, agent-core srd028 V30).
+  - The values patch flows to helm as a written file, never as authority; the helm and kubectl invocations are static exec words whose only runtime input is the values file content.
+initial_state: Idle
+budget:
+  max_iterations: 10000
+states:
+  - {name: Idle, meaning: Initial state before the executor servers start.}
+  - {name: LaunchingRequests, meaning: The machine_request apply server is starting.}
+  - {name: LaunchingControl, meaning: The control server is starting.}
+  - {name: LaunchingMonitor, meaning: The monitor server is starting.}
+  - {name: AwaitingControl, meaning: Serving; waiting for a lifecycle exit event.}
+  - {name: Exiting, meaning: Routing ExitRequested to exit_agent.}
+  - {name: StoppingMonitor, meaning: Stopping the monitor server.}
+  - {name: StoppingRequests, meaning: Stopping the apply server.}
+  - {name: Failed, meaning: Terminal. A server or boundary word failed.}
+  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit.}
+terminal_states:
+  - Done
+  - Failed
+signals:
+  - {name: Seed, trigger: Agent startup.}
+  - {name: ServerLaunched, trigger: A server launched.}
+  - {name: ExitRequested, trigger: A lifecycle exit event was enqueued.}
+  - {name: AgentExited, trigger: exit_agent completed.}
+  - {name: ServerStopped, trigger: A server stopped.}
+  - {name: AwaitTimedOut, trigger: No lifecycle event arrived before the await timeout.}
+  - {name: CommandError, trigger: A server or boundary word failed.}
+transitions:
+  - {state: Idle,              signal: Seed,           next: LaunchingRequests, action: launch_executor_requests}
+  - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl,   action: launch_executor_control}
+  - {state: LaunchingRequests, signal: CommandError,   next: Failed}
+  - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest}
+  - {state: LaunchingControl,  signal: CommandError,   next: Failed}
+  - {state: LaunchingMonitor,  signal: ServerLaunched, next: AwaitingControl,    action: await_executor_control}
+  - {state: LaunchingMonitor,  signal: CommandError,   next: Failed}
+  - {state: AwaitingControl,   signal: ExitRequested,  next: Exiting,            action: exit_agent}
+  - {state: AwaitingControl,   signal: AwaitTimedOut,  next: AwaitingControl,    action: await_executor_control}
+  - {state: AwaitingControl,   signal: ServerStopped,  next: Failed}
+  - {state: AwaitingControl,   signal: CommandError,   next: Failed}
+  - {state: Exiting,           signal: AgentExited,    next: StoppingMonitor,    action: stop_monitor_rest}
+  - {state: Exiting,           signal: CommandError,   next: Failed}
+  - {state: StoppingMonitor,   signal: ServerStopped,  next: StoppingRequests,   action: stop_executor_requests}
+  - {state: StoppingMonitor,   signal: CommandError,   next: Failed}
+  - {state: StoppingRequests,  signal: ServerStopped,  next: Done}
+  - {state: StoppingRequests,  signal: CommandError,   next: Failed}

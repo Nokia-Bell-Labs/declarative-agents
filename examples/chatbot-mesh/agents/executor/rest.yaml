@@ -1,0 +1,152 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local_executor_apply:
+      timeout: 130s
+      read_timeout: 130s
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18090]
+        allow_public_listener: true
+    local_executor_control:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18091]
+        allow_public_listener: true
+    local_executor_monitor:
+      timeout: 5s
+      read_timeout: 5s
+      max_request_bytes: 4096
+      max_response_bytes: 1048576
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18092]
+        allow_public_listener: true
+
+  servers:
+    executor_apply:
+      # The apply endpoint is served on the Service name and port the provisioner
+      # served (srd006 R1.1), so the creator's declared deployment_api client is
+      # unchanged. It accepts a decided values-overrides document and SHALL NOT
+      # accept an endpoint or credential for a running agent; no runtime input
+      # supplies transport authority.
+      address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18090
+      limits_ref: local_executor_apply
+      endpoints:
+        apply:
+          method: POST
+          path: /provisioning/api/apply
+          binding: machine_request
+          request:
+            body_schema:
+              type: object
+              required: [content]
+              properties:
+                content: {type: string}
+          machine_request:
+            profile: profile.yaml
+            machine: apply-machine.yaml
+            timeout: 130s
+            request:
+              body:
+                content: $.content
+                path: /work/overrides.yaml
+            response:
+              terminal_signals:
+                TaskCompleted:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    status: applied
+                ToolFailed:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    error: apply_failed
+                ToolDone:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    error: rolled_back
+
+    executor_control:
+      address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18091
+      limits_ref: local_executor_control
+      queue:
+        name: executor_control
+        capacity: 8
+        timeout: 30s
+      shutdown:
+        timeout: 5s
+        drain_policy: drain_then_stop
+      endpoints:
+        exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+                status: {type: string}
+          response:
+            output:
+              accepted: "true"
+        health:
+          method: GET
+          path: /api/lifecycle/health
+          binding: health
+
+    monitor:
+      address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18092
+      limits_ref: local_executor_monitor
+      queue:
+        name: executor_monitor
+        capacity: 8
+        overflow: reject
+        timeout: 100ms
+      shutdown:
+        timeout: 2s
+        drain_policy: drain
+        stop_listeners: true
+        unblock_await_signal: ServerStopped
+      endpoints:
+        machine_spec:  {method: GET, path: /monitor/machine,       binding: read_state,    monitor_view: machine_spec}
+        current_state: {method: GET, path: /monitor/state,         binding: read_state,    monitor_view: current_state}
+        tools:         {method: GET, path: /monitor/tools,         binding: read_state,    monitor_view: tools}
+        metrics:       {method: GET, path: /monitor/metrics,       binding: read_state,    monitor_view: metrics}
+        recent_events: {method: GET, path: /monitor/events,        binding: read_state,    monitor_view: events}
+        event_stream:  {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
+        control_exit:
+          method: POST
+          path: /monitor/control/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+          response:
+            output:
+              accepted: "true"
