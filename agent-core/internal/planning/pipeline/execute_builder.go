@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 )
@@ -23,6 +24,9 @@ func (c *executeTaskCmd) Undo(_ core.Result) core.Result {
 func (c *executeTaskCmd) Execute() core.Result {
 	if c.ps.CurrentTask == nil || c.ps.CurrentPlan == nil {
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Output: "no current task or plan"}
+	}
+	if err := c.ps.advanceTaskNodesTo(graph.Executing); err != nil {
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
 	}
 	result, err := execute.Execute(
 		c.ps.Ctx,
