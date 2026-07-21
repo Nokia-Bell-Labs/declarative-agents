@@ -12,7 +12,21 @@ data:
   {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
   {{- if not (has $key $cogen) }}
   {{ $key }}: |-
+  {{- if eq $key "agents__executor__exec-declarations.yaml" }}
+    {{- /* Rewrite the executor exec args' placeholder coordinates to the installed
+          release so an executor installed under any release name targets its own
+          release, namespace, and chatbot Deployment rather than a baked
+          chatbot-mesh/default (GH-484). The deployment token is replaced before
+          the bare release token because it contains it. */}}
+    {{- $exec := $.Files.Get $path }}
+    {{- $exec = $exec | replace "deployment/chatbot-mesh-chatbot" (printf "deployment/%s-chatbot" $fullname) }}
+    {{- $exec = $exec | replace "upgrade, chatbot-mesh," (printf "upgrade, %s," $.Release.Name) }}
+    {{- $exec = $exec | replace "rollback, chatbot-mesh]" (printf "rollback, %s]" $.Release.Name) }}
+    {{- $exec = $exec | replace "--namespace, default," (printf "--namespace, %s," $.Release.Namespace) }}
+    {{- $exec | nindent 4 }}
+  {{- else }}
     {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
   {{- end }}
   {{- end }}
   # Co-generated from .Values.ragUnits (srd003 R2), overriding the packaged keys so
