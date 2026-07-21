@@ -16,6 +16,7 @@ helm lint helm -f helm/schema-fixtures/<file>.yaml
 | Fixture | Rule exercised (MeshView.Validate parity) |
 |---|---|
 | valid-add-rag.yaml | a well-formed add-a-RAG patch lints clean |
+| dup-rag-name.yaml | ragUnit names must be unique (chart-render fail guard, GH-465) |
 | bad-rag-name.yaml | rag name must match `^[a-z]([-a-z0-9]*[a-z0-9])?$` |
 | bad-nresults.yaml | provisioner.params.nResults must be >= 1 |
 | incluster-missing-chat.yaml | the in-cluster tier requires >= 1 chat model |

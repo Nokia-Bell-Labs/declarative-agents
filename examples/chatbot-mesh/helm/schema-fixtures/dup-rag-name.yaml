@@ -1,0 +1,5 @@
+# Two RAG units with the same name. values.schema.json cannot express by-key
+# uniqueness, so the rag-units template fail-guards it (GH-465): helm render fails.
+ragUnits:
+  - {name: rag0, collection: corpus, embeddingModel: qwen3-embedding:8b, replicas: 1}
+  - {name: rag0, collection: corpus2, embeddingModel: qwen3-embedding:8b, replicas: 1}
