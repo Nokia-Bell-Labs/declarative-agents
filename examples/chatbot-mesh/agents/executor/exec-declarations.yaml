@@ -1,50 +1,50 @@
 # Exec tool declarations for the executor agent (srd006): the helm and kubectl
 # CLIs its container carries, bound as agent-core exec tools (agent-core srd021).
 # The executor's request-machine binds these words to realize a decided values
-# patch as a validate -> apply -> verify -> rollback rollout. Each runs one child
-# process and emits ToolDone on a zero exit, ToolFailed on a non-zero exit, and
-# CommandError when the process cannot start; the request-machine distinguishes
-# success from failure by the state it is in.
+# patch as a validate -> apply -> verify -> rollback rollout.
+#
+# The args are fully static: agent-core exec tools take no environment and map
+# params only from the previous result by name (ExecBuilder.Build ->
+# ExtractStringParam), so a per-field parameter would be order-nondeterministic
+# (properties is a Go map) and unsourced. The only dynamic input is the values
+# file content, which the write_overrides word writes to /work/overrides.yaml
+# from the request seed; helm reads that fixed path. The release, namespace, and
+# deployment name are the chart defaults here; the chart renders them from
+# .Release.* into this profile's ConfigMap under the mounted-profile contract
+# (srd003 R1.3/R2) when it is deployed (GH-463).
+#
+# Each runs one child process and emits ToolDone on a zero exit and ToolFailed on
+# a non-zero exit (agent-core exec emits exactly these two); the request-machine
+# distinguishes success from failure by the state it is in.
 tools:
   - name: helm_dry_run
     type: exec
     binary: helm
-    args: [upgrade, --reuse-values, --atomic, --dry-run]
+    args: [upgrade, chatbot-mesh, /chart, --namespace, default, --reuse-values, --atomic, --dry-run, -f, /work/overrides.yaml]
     category: boundary
     visibility: internal
     description: Validate a values patch against the chart values.schema.json without applying it, by rendering the release with helm upgrade --dry-run.
     problem: The executor must reject a non-conforming values patch before any rollout, using the chart's own schema rather than a bespoke validator.
     goals:
-      - Render the release with the submitted values file and --dry-run so helm validates it against values.schema.json.
+      - Render the release with the written values file and --dry-run so helm validates it against values.schema.json.
       - Emit ToolDone on a clean render and ToolFailed when the schema or template rejects the patch.
     requirements:
       input:
-        - must run against the configured release and chart with the written values file
-        - accepts the release, chart, namespace, and valuesFile parameters
+        - must render the configured release and chart against /work/overrides.yaml
       output:
         - must include exit status and captured stdout/stderr
       errors:
-        - must emit CommandError when helm cannot be started
+        - must emit ToolFailed when the render is rejected
     non_goals:
       - Does not apply the patch; it only renders and validates.
       - Does not decide the values; the coordinator does.
-    parameters:
-      type: object
-      properties:
-        release: {type: string, positional: true}
-        chart: {type: string, positional: true}
-        namespace: {type: string, flag: --namespace}
-        valuesFile: {type: string, flag: -f}
-      required: [release, chart, valuesFile]
-    emits: [ToolDone, ToolFailed, CommandError]
+    emits: [ToolDone, ToolFailed]
     output:
       description: helm upgrade --dry-run process result.
       schema:
         type: object
         properties:
           exit_code: {type: integer}
-          stdout: {type: string}
-          stderr: {type: string}
           output: {type: string}
         required: [exit_code, output]
     side_effects:
@@ -56,10 +56,6 @@ tools:
       undo: noop
       requires_confirmation: false
     errors:
-      - signal: CommandError
-        condition: helm cannot be started or the chart path is invalid
-        message_shape: 'helm_dry_run: <error>'
-        state_after_failure: no cluster state changed
       - signal: ToolFailed
         condition: helm renders with a non-zero exit (schema or template rejection)
         message_shape: <captured helm output>
@@ -76,7 +72,7 @@ tools:
   - name: helm_upgrade
     type: exec
     binary: helm
-    args: [upgrade, --reuse-values, --atomic, --wait]
+    args: [upgrade, chatbot-mesh, /chart, --namespace, default, --reuse-values, --atomic, --wait, -f, /work/overrides.yaml]
     category: boundary
     visibility: internal
     description: Apply a validated values patch by upgrading the release in place, re-rendering the co-generated topology and rolling the affected agents.
@@ -86,32 +82,21 @@ tools:
       - Emit ToolDone when the rollout succeeds and ToolFailed when it fails; --atomic self-rolls-back a failed upgrade.
     requirements:
       input:
-        - must run against the configured release and chart with the written values file
-        - accepts the release, chart, namespace, and valuesFile parameters
+        - must upgrade the configured release and chart against /work/overrides.yaml
       output:
         - must include exit status and captured stdout/stderr
       errors:
-        - must emit CommandError when helm cannot be started
+        - must emit ToolFailed when the upgrade fails
     non_goals:
       - Does not construct per-field --set arguments; the patch flows as a values file.
       - Does not submit any endpoint or credential to a running agent.
-    parameters:
-      type: object
-      properties:
-        release: {type: string, positional: true}
-        chart: {type: string, positional: true}
-        namespace: {type: string, flag: --namespace}
-        valuesFile: {type: string, flag: -f}
-      required: [release, chart, valuesFile]
-    emits: [ToolDone, ToolFailed, CommandError]
+    emits: [ToolDone, ToolFailed]
     output:
       description: helm upgrade process result.
       schema:
         type: object
         properties:
           exit_code: {type: integer}
-          stdout: {type: string}
-          stderr: {type: string}
           output: {type: string}
         required: [exit_code, output]
     side_effects:
@@ -123,10 +108,6 @@ tools:
       undo: helm_rollback
       requires_confirmation: false
     errors:
-      - signal: CommandError
-        condition: helm cannot be started or the chart path is invalid
-        message_shape: 'helm_upgrade: <error>'
-        state_after_failure: the release is unchanged
       - signal: ToolFailed
         condition: the upgrade exits non-zero; --atomic rolls the release back to the prior revision
         message_shape: <captured helm output>
@@ -144,7 +125,7 @@ tools:
   - name: helm_rollback
     type: exec
     binary: helm
-    args: [rollback]
+    args: [rollback, chatbot-mesh]
     category: boundary
     visibility: internal
     description: Roll the release back to its prior revision when a verify stall follows an apply that helm did not itself roll back.
@@ -154,19 +135,14 @@ tools:
       - Emit ToolDone on success and ToolFailed on failure.
     requirements:
       input:
-        - accepts the release parameter
+        - must roll the configured release back to its prior revision
       output:
         - must include exit status and captured output
       errors:
-        - must emit CommandError when helm cannot be started
+        - must emit ToolFailed when the rollback fails
     non_goals:
       - Does not decide when to roll back; the request-machine does.
-    parameters:
-      type: object
-      properties:
-        release: {type: string, positional: true}
-      required: [release]
-    emits: [ToolDone, ToolFailed, CommandError]
+    emits: [ToolDone, ToolFailed]
     output:
       description: helm rollback process result.
       schema:
@@ -184,10 +160,6 @@ tools:
       undo: noop
       requires_confirmation: false
     errors:
-      - signal: CommandError
-        condition: helm cannot be started
-        message_shape: 'helm_rollback: <error>'
-        state_after_failure: the release revision is unchanged
       - signal: ToolFailed
         condition: the rollback exits non-zero
         message_shape: <captured helm output>
@@ -201,7 +173,7 @@ tools:
   - name: kubectl_rollout_status
     type: exec
     binary: kubectl
-    args: [rollout, status]
+    args: [rollout, status, deployment/chatbot-mesh-chatbot, --namespace, default, --timeout, 120s]
     category: boundary
     visibility: internal
     description: Verify the affected Deployment's rollout, letting kubectl compute the phase; a non-zero exit is a stalled or timed-out rollout.
@@ -211,22 +183,15 @@ tools:
       - Emit ToolDone when the rollout completes and ToolFailed when it stalls or times out.
     requirements:
       input:
-        - accepts the resource, namespace, and timeout parameters
+        - must read the configured Deployment's rollout status with a bounded timeout
       output:
         - must include exit status and captured status output
       errors:
-        - must emit CommandError when kubectl cannot be started
+        - must emit ToolFailed when the rollout stalls or times out
     non_goals:
       - Does not mutate cluster state; it reads rollout status only.
       - Does not compute the phase in the mapping layer; kubectl computes it.
-    parameters:
-      type: object
-      properties:
-        resource: {type: string, positional: true}
-        namespace: {type: string, flag: --namespace}
-        timeout: {type: string, flag: --timeout}
-      required: [resource]
-    emits: [ToolDone, ToolFailed, CommandError]
+    emits: [ToolDone, ToolFailed]
     output:
       description: kubectl rollout status process result.
       schema:
@@ -244,10 +209,6 @@ tools:
       undo: noop
       requires_confirmation: false
     errors:
-      - signal: CommandError
-        condition: kubectl cannot be started
-        message_shape: 'kubectl_rollout_status: <error>'
-        state_after_failure: no cluster state changed
       - signal: ToolFailed
         condition: the rollout stalls or the timeout elapses before completion
         message_shape: <captured kubectl status output>
