@@ -1,7 +1,12 @@
 # Pins the linter set for `mage lint` (golangci-lint run ./...) so the release
-# gate is reproducible regardless of the installed golangci-lint version. With
+# gate is reproducible for a given golangci-lint major version. With
 # default: none the enabled set is explicit here, so a future release changing
 # its default linters cannot silently change the gate verdict.
+#
+# This is the v2 config schema and is not readable by golangci-lint v1. The
+# linter set is pinned here; the binary major version is not, so `mage lint`
+# preflights it (checkGolangciLintVersion) and fails with install guidance when
+# the installed major version does not match the version below.
 version: "2"
 
 linters:
