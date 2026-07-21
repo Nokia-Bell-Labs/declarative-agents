@@ -44,8 +44,15 @@ spec:
           # 0.0.0.0 so its Services route to the pod.
           env:
             - {name: CREATOR_BIND_HOST, value: "0.0.0.0"}
+            {{- if .Values.executor.enabled }}
+            # The deployment API is the executor agent (srd006); the creator's client
+            # reaches its apply Service, unchanged in port from the provisioner.
+            - {name: DEPLOYMENT_API_URL, value: "http://{{ $fullname }}-executor:{{ .Values.executor.ports.apply }}"}
+            - {name: PROVISIONER_HOST, value: "{{ $fullname }}-executor"}
+            {{- else }}
             - {name: DEPLOYMENT_API_URL, value: "http://{{ $fullname }}-provisioner:{{ .Values.provisioner.port }}"}
             - {name: PROVISIONER_HOST, value: "{{ $fullname }}-provisioner"}
+            {{- end }}
             - {name: DEPLOYMENT_API_TOKEN_FILE, value: "/etc/creator-tokens/deployment-api"}
           ports:
             - {name: instance, containerPort: {{ .Values.controlPlane.creator.ports.instance }}}

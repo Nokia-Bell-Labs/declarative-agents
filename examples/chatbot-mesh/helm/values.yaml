@@ -172,6 +172,27 @@ provisioner:
     routerDefault: invoke_llm_fast
     chatModel: "qwen2.5:3b"
 
+# The executor (srd006): the declarative agent that replaces the standard-library Go
+# provisioner as the deployment API (srd003 R4). It runs the agent-core runtime with a
+# mounted profile whose request-machine binds the helm and kubectl CLIs as exec words.
+# Disabled by default until the executor image is published; enabling it points the
+# creator's deployment_api client at the executor Service instead of the provisioner.
+executor:
+  enabled: false
+  # The executor image bundles the runtime, helm, kubectl, and the chart at /chart
+  # (srd003 R1.3 sanctioned divergence). Built from examples/chatbot-mesh/executor.Dockerfile.
+  image: {repository: ghcr.io/nokia-bell-labs/declarative-agents/chatbot-mesh-executor, tag: "0.1.0", pullPolicy: IfNotPresent}
+  ports: {apply: 18090, control: 18091, monitor: 18092}
+  # allowApply grants the apply-path RBAC (helm upgrade manages the chart objects).
+  allowApply: true
+  # Authenticate the apply surface apart from the chat path at the network layer:
+  # only the creator may reach the apply port (srd006 R4.1).
+  networkPolicy:
+    enabled: true
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+
 # The control plane (srd004 coordinator, srd005 creator): two persistent agents on
 # the runtime image that turn a provisioning intent into an ingest and a rollout
 # through the deployment API. Disabled by default; the data plane serves without it.
