@@ -1,0 +1,3 @@
+# rag name is not a DNS-1035 label (uppercase, leading digit rejected).
+ragUnits:
+  - {name: Rag_2, collection: corpus3, embeddingModel: qwen3-embedding:8b, replicas: 1}

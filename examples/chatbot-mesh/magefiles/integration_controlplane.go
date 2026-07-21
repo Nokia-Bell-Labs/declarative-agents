@@ -25,7 +25,7 @@ const (
 // ControlPlane proves the mesh control-plane flow end to end without a cluster: a
 // provisioning intent flows chatbot -> coordinator -> creator -> deployment API. The
 // coordinator and creator run as the real declarative agents; a fake deployment API
-// stands in for the provisioner and records what the creator sends. The test drives
+// stands in for the executor (srd006) and records what the creator sends. The test drives
 // the intent the way the chatbot's provisioning panel does -- a POST through the
 // coordinator's declared intent endpoint -- then asserts the coordinator sequenced
 // an ingest and a rollout through the creator, the creator drove the deployment API,
@@ -211,8 +211,9 @@ func (r *deploymentAPIRecorder) endpointAuthorityField() string {
 	return r.badField
 }
 
-// startFakeDeploymentAPI binds the provisioner's default address and answers the
-// apply and rollout paths the creator drives, recording each call. It returns a
+// startFakeDeploymentAPI binds the deployment API's default address (:18090, the
+// executor's apply port) and answers the apply and rollout paths the creator drives,
+// recording each call. It returns a
 // stop function, or an error if the port is already bound.
 func startFakeDeploymentAPI(rec *deploymentAPIRecorder) (func(), error) {
 	listener, err := net.Listen("tcp", cpDeploymentAPIAddr)

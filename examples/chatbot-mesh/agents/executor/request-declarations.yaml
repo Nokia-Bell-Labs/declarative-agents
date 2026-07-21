@@ -1,0 +1,107 @@
+tools:
+  - name: write_overrides
+    type: builtin
+    init: file_write
+    category: word
+    visibility: internal
+    description: Write the decided values overrides to the values file the helm words read.
+    problem: The decided values patch arrives on the apply request and must reach helm as a file, since the helm exec words take no per-field arguments.
+    goals:
+      - Write the seeded overrides content to the fixed values-file path.
+      - Emit ToolDone on a successful write and ToolFailed on a filesystem failure.
+    requirements:
+      input:
+        - The content and path are selected from the seeded apply body (parameters.content, parameters.path).
+      output:
+        - Output reports the written path and byte count.
+      errors:
+        - A filesystem failure emits ToolFailed.
+    non_goals:
+      - Does not decide the values; the coordinator does.
+      - Does not apply or render the patch; the helm words do.
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: The values-file path to write (seeded literal /work/overrides.yaml).
+        content:
+          type: string
+          description: The values overrides content from the apply request.
+      required:
+        - path
+        - content
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: Values-file write result.
+      schema:
+        type: object
+        properties:
+          path: {type: string}
+          bytes_written: {type: integer}
+        required: [path, bytes_written]
+    side_effects:
+      - kind: filesystem_write
+        target: workspace_file
+        description: Creates or overwrites the values file the helm words read.
+    reversibility:
+      classification: reversible
+      undo: workspace_restore
+    undo:
+      strategy: workspace_restore
+      description: Restore the workspace ref captured before the write.
+    errors:
+      - signal: ToolFailed
+        condition: The values file cannot be written.
+        message_shape: 'write_overrides: <error>'
+        state_after_failure: No values file is written; the request ends in Failed.
+    relationships:
+      before: [helm_dry_run]
+
+  - name: verified
+    type: builtin
+    init: done
+    category: word
+    visibility: internal
+    description: Emit the success terminal signal after the rollout is verified, so the apply response maps to a distinct 200.
+    problem: The exec words emit only ToolDone and ToolFailed, so the success terminal needs a distinct signal to map apart from a rolled-back failure.
+    goals:
+      - Emit TaskCompleted once the rollout is verified.
+      - Give the apply endpoint a terminal signal distinct from ToolDone and ToolFailed.
+    requirements:
+      input:
+        - Takes no request-scoped input beyond the verified rollout.
+      output:
+        - Output reports task completion.
+      errors:
+        - None; the word only signals completion.
+    non_goals:
+      - Does not mutate the cluster; the rollout already completed.
+      - Does not decide success; the machine reaches this word only on a verified rollout.
+    parameters:
+      type: object
+      properties: {}
+    emits: [TaskCompleted]
+    output:
+      description: Success confirmation.
+      schema:
+        type: object
+        properties:
+          status: {type: string}
+    side_effects:
+      - kind: state_mutation
+        target: request_run
+        state: completed
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Signalling completion mutates no external state.
+    errors:
+      - signal: TaskCompleted
+        condition: The rollout was verified.
+        message_shape: applied
+        state_after_failure: Not applicable; this word signals success.
+    relationships:
+      after: [kubectl_rollout_status]

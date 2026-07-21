@@ -1,0 +1,63 @@
+id: test-rel06.0-executor
+title: Test Suite for Release 06.0 Declarative Executor Agent
+release: "06.0"
+
+overview: |
+  This suite validates the executor agent (srd006): the declarative deployment API
+  that replaces the standard-library Go provisioner. It drives a decided values patch
+  through validate, apply, and verify, asserting that a non-conforming patch is
+  rejected by the chart-schema dry-run, that a valid patch is applied as a values-file
+  rollout and verified via kubectl rollout status, that an apply or verify failure
+  rolls back, and that the authority boundary holds. The case is planned; the executor
+  profile, the chart values schema, and the integration target land with the rel06.0
+  release.
+
+traces:
+  - rel06.0-uc001-declarative-executor
+
+preconditions:
+  - agent-core is available for the request runtime, REST server, and exec tools.
+  - The executor profile is deployed with its state, apply, and rollout servers on the Service the provisioner served; its image carries helm and kubectl.
+  - The chart carries a values.schema.json, and the apply path is reached only by the creator, authenticated apart from chat.
+
+test_cases:
+  - use_case: rel06.0-uc001-declarative-executor
+    name: Executor validates, applies, and verifies a values change through the deployment API
+    integration_target: mage integration:executor
+    status: planned
+    description: |
+      Drives a decided values patch end to end against the executor agent: the creator
+      posts the patch to the apply endpoint through its declared client; the executor
+      validates it against the chart's values schema by a helm dry-run, rejecting a
+      non-conforming patch with a client error and no rollout; for a valid patch the
+      executor materializes the values as a file and applies helm upgrade
+      --reuse-values --atomic, re-rendering the co-generated topology; the executor
+      verifies the affected Deployment's rollout via kubectl rollout status and reports
+      the phase, rolling the release back on an apply or verify failure; and it reports
+      health back. Asserts the authority boundary: the patch carries no endpoint or
+      credential for a running agent, the apply path is reached only by the creator,
+      and authority stays set by declared validated config.
+    inputs:
+      valid_patch: add a RAG source through a values-plane patch
+      invalid_patch: a patch violating the chart values schema
+      agents: [creator, executor]
+    expected:
+      invalid_patch_rejected_by_schema_dry_run_no_rollout: true
+      valid_patch_applied_as_values_file_reuse_values_atomic: true
+      no_per_field_set_construction: true
+      rollout_verified_via_kubectl_rollout_status: true
+      apply_or_verify_failure_rolls_back: true
+      patch_carries_no_endpoint_or_credential: true
+      only_creator_calls_apply: true
+    traces:
+      - rel06.0-uc001-declarative-executor S1
+      - rel06.0-uc001-declarative-executor S2
+      - rel06.0-uc001-declarative-executor S3
+      - rel06.0-uc001-declarative-executor S4
+      - rel06.0-uc001-declarative-executor S5
+      - srd006-executor AC1
+      - srd006-executor AC2
+      - srd006-executor AC3
+      - srd006-executor AC4
+      - srd006-executor AC5
+      - srd003-chatbot-deployment AC4

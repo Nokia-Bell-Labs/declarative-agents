@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "chatbot-mesh values",
+  "$comment": "Encodes the deployment-values constraints the executor agent (srd006) relies on helm to enforce, replacing the standard-library provisioner's MeshView.Validate. A helm dry-run against this schema is the executor's validate step.",
   "type": "object",
   "required": ["image", "ragUnits"],
   "properties": {
@@ -20,7 +21,7 @@
         "type": "object",
         "required": ["name", "collection", "embeddingModel"],
         "properties": {
-          "name": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+          "name": {"type": "string", "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"},
           "collection": {"type": "string", "minLength": 1},
           "embeddingModel": {"type": "string", "minLength": 1},
           "replicas": {"type": "integer", "minimum": 0}
@@ -43,9 +44,9 @@
           "type": "object",
           "required": ["embedding", "chat", "router"],
           "properties": {
-            "embedding": {"type": "string"},
-            "chat": {"type": "array", "items": {"type": "string"}},
-            "router": {"type": "string"}
+            "embedding": {"type": "string", "minLength": 1},
+            "chat": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+            "router": {"type": "string", "minLength": 1}
           }
         },
         "persistence": {"type": "object", "properties": {"size": {"type": "string"}, "storageClass": {"type": "string"}}},
@@ -53,6 +54,20 @@
         "nodeSelector": {"type": "object"},
         "tolerations": {"type": "array"},
         "topology": {"type": "string", "enum": ["single", "per-model"]}
+      }
+    },
+    "executor": {
+      "type": "object",
+      "properties": {
+        "params": {
+          "type": "object",
+          "properties": {
+            "nResults": {"type": "integer", "minimum": 1},
+            "chunkCap": {"type": "integer", "minimum": 0},
+            "routerDefault": {"type": "string"},
+            "chatModel": {"type": "string"}
+          }
+        }
       }
     },
     "dolt": {"type": "object", "properties": {"enabled": {"type": "boolean"}}},
@@ -65,5 +80,28 @@
         "host": {"type": "string"}
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "$comment": "In-cluster LLM tier requires the model set (MeshView.Validate in-cluster branch: embedding, router, and at least one chat model).",
+      "if": {
+        "required": ["ollama"],
+        "properties": {"ollama": {"properties": {"enabled": {"const": true}}}}
+      },
+      "then": {
+        "properties": {"ollama": {"required": ["models"]}}
+      }
+    },
+    {
+      "$comment": "External LLM requires an endpoint (MeshView.Validate not-in-cluster branch: externalURL is required when ollama is disabled).",
+      "if": {
+        "required": ["ollama"],
+        "properties": {"ollama": {"properties": {"enabled": {"const": false}}}}
+      },
+      "then": {
+        "required": ["llm"],
+        "properties": {"llm": {"required": ["externalURL"], "properties": {"externalURL": {"type": "string", "minLength": 1}}}}
+      }
+    }
+  ]
 }

@@ -2,16 +2,19 @@ id: chatbot-mesh-example-specifications
 title: Chatbot Mesh Example Specification Index
 
 overview: |
-  Specification index for the standalone chatbot mesh example. Five SRDs define the
+  Specification index for the standalone chatbot mesh example. Six SRDs define the
   program: three data-plane -- the RAG server agent (srd001), the chatbot agent
-  (srd002), and the Helm deployment model (srd003) -- and two control-plane -- the
-  coordinator (srd004) and the creator (srd005). Seven use cases exercise them
-  across six releases (rel00.0 through rel05.0), each with a formal test suite.
+  (srd002), and the Helm deployment model (srd003) -- two control-plane -- the
+  coordinator (srd004) and the creator (srd005) -- and the deployment-plane executor
+  (srd006). Eight use cases exercise them across seven releases (rel00.0 through
+  rel06.0), each with a formal test suite.
 
   The example runs on the agent-core runtime and cites agent-core platform SRDs
-  (srd028, srd030, srd033, srd034, srd035, srd036, and srd016 traceparent) as
-  external references rather than indexing them here. The control plane
-  (coordinator, creator, and the provisioning surface) is release rel05.0.
+  (srd021, srd028, srd029, srd030, srd033, srd034, srd035, srd036, and srd016
+  traceparent) as external references rather than indexing them here. The control
+  plane (coordinator, creator, and the provisioning surface) is release rel05.0; the
+  executor (srd006) that replaces the Go provisioning surface with a declarative
+  agent is release rel06.0.
 
   The corpus is validated by the jurist (mage audit): it loads and validates with no
   errors and no warnings. The traceability chain is complete: every use case
@@ -52,6 +55,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: implemented
+  - version: "06.0"
+    name: Declarative executor agent
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
 
 srd_index:
   - id: srd001-rag-server-agent
@@ -74,6 +82,10 @@ srd_index:
     title: Creator Agent Functional Block
     summary: Agent lifecycle manager that realizes decided instance operations and alone holds the deployment-API authority.
     path: docs/specs/software-requirements/srd005-creator.yaml
+  - id: srd006-executor
+    title: Executor Agent Functional Block
+    summary: Declarative deployment API that validates a values patch against the chart schema, applies it as a rollout, verifies it, and rolls back, binding the helm and kubectl CLIs as exec tools.
+    path: docs/specs/software-requirements/srd006-executor.yaml
 
 use_case_index:
   - id: rel00.0-uc001-rag-server-query
@@ -118,6 +130,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel05.0-control-plane
     path: docs/specs/use-cases/rel05.0-uc001-control-plane-provisioning.yaml
+  - id: rel06.0-uc001-declarative-executor
+    title: The Executor Agent Realizes the Deployment API and Rolls Out a Values Change
+    release: "06.0"
+    status: planned
+    test_suite: test-rel06.0-executor
+    path: docs/specs/use-cases/rel06.0-uc001-declarative-executor.yaml
 
 test_suite_index:
   - id: test-rel00.0-chatbot-mesh
@@ -150,3 +168,8 @@ test_suite_index:
     release: "05.0"
     traces: [rel05.0-uc001-control-plane-provisioning]
     path: docs/specs/test-suites/test-rel05.0-control-plane.yaml
+  - id: test-rel06.0-executor
+    title: Test Suite for Release 06.0 Declarative Executor Agent
+    release: "06.0"
+    traces: [rel06.0-uc001-declarative-executor]
+    path: docs/specs/test-suites/test-rel06.0-executor.yaml

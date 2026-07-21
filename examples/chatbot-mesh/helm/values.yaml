@@ -140,32 +140,28 @@ ingress:
 # that renders it from ragUnits lands in GH-314; the init check wires here.
 validateProfiles: true
 
-# The provisioning deployment API (srd003 R4): a minimal in-cluster values-patch
-# service the provisioning panel drives to view the mesh and apply values edits
-# that trigger a rollout, authenticated apart from chat. It never submits an
-# endpoint to a running agent. Reached same-origin via the chatbot ingress at
-# /provisioning.
-provisioner:
+# The executor (srd006): the declarative deployment API (srd003 R4) -- the agent-core
+# runtime with a mounted profile whose request-machine binds the helm and kubectl CLIs
+# as exec words. It views the mesh and applies values edits that trigger a rollout,
+# never submitting an endpoint to a running agent. Reached same-origin via the chatbot
+# ingress at /provisioning.
+executor:
   enabled: true
-  # The service image bundles the chart and helm so apply can `helm upgrade` the
-  # release in place; build it from examples/chatbot-mesh/provisioner.
-  image: {repository: ghcr.io/nokia-bell-labs/declarative-agents/chatbot-mesh-provisioner, tag: "0.1.0", pullPolicy: IfNotPresent}
-  port: 18090
+  # The executor image bundles the runtime, helm, kubectl, and the chart at /chart
+  # (srd003 R1.3 sanctioned divergence). Built from examples/chatbot-mesh/executor.Dockerfile.
+  image: {repository: ghcr.io/nokia-bell-labs/declarative-agents/chatbot-mesh-executor, tag: "0.1.0", pullPolicy: IfNotPresent}
+  ports: {apply: 18090, control: 18091, monitor: 18092}
   # allowApply grants the apply-path RBAC (helm upgrade manages the chart objects).
-  # Set false for a read-only provisioning surface.
   allowApply: true
+  # Authenticate the apply surface apart from the chat path at the network layer:
+  # only the creator may reach the apply port (srd006 R4.1).
+  networkPolicy:
+    enabled: true
   resources:
     requests: {cpu: 50m, memory: 64Mi}
     limits: {cpu: 500m, memory: 256Mi}
-  # The read/apply bearer tokens, held in a Secret separate from the chat path
-  # (which has no auth). Provide your own Secret (create: false) or let the chart
-  # create one from these values. The read token works with read-only RBAC.
-  tokenSecret:
-    create: true
-    readToken: ""
-    applyToken: ""
-  # The interesting parameters the panel edits, grouped per srd003. They seed the
-  # read-state mesh view; nResults is the per-RAG retrieval bound (srd001 R2.1).
+  # The interesting parameters the panel edits (srd003). They seed the read-state mesh
+  # view; nResults is the per-RAG retrieval bound (srd001 R2.1).
   params:
     nResults: 5
     chunkCap: 0
@@ -190,10 +186,10 @@ controlPlane:
     resources:
       requests: {cpu: 50m, memory: 64Mi}
       limits: {cpu: 500m, memory: 256Mi}
-    # The deployment-API bearer token the creator uses to drive the provisioner,
-    # mounted from a Secret separate from the chat path (the #392 file-mount pattern:
-    # read from a mounted file, never from env or runtime input). Defaults to the
-    # release provisioner Secret's applyToken; set name to point at your own.
+    # Optional deployment-API bearer token, mounted from a Secret separate from the
+    # chat path (the #392 file-mount pattern). The executor's apply surface is
+    # network-authenticated (NetworkPolicy), so this is unused unless an operator
+    # fronts the executor with an auth proxy; set name to point at your own Secret.
     deploymentApiTokenSecret:
       name: ""
       key: applyToken

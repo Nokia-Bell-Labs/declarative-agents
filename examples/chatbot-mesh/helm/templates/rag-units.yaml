@@ -1,5 +1,18 @@
 {{- $root := . -}}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
+{{/*
+Guard: ragUnit names must be unique. JSON Schema cannot express uniqueness by a
+sub-key, so values.schema.json does not catch a duplicate; without this guard the
+range below would render two objects with the same metadata.name and the executor's
+helm --dry-run (srd006 R2.1) would not reject the patch. Fail render on a duplicate.
+*/}}
+{{- $ragNames := list -}}
+{{- range $unit := .Values.ragUnits -}}
+{{- $ragNames = append $ragNames $unit.name -}}
+{{- end -}}
+{{- if ne (len $ragNames) (len (uniq $ragNames)) -}}
+{{- fail (printf "ragUnits names must be unique; got %v" $ragNames) -}}
+{{- end -}}
 {{- range $unit := .Values.ragUnits }}
 {{- $ragName := printf "%s-%s" $fullname $unit.name -}}
 {{- $chromaName := printf "%s-%s-chroma" $fullname $unit.name -}}
