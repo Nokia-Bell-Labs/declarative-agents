@@ -187,20 +187,34 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 		cleanup()
 		return "", nil, err
 	}
-	programs := []struct{ src, rel string }{
-		{"agents/chatbot", "profiles/agents/chatbot"},
-		{"agents/rag-server", "profiles/agents/rag-server"},
-		{"agents/coordinator", "profiles/agents/coordinator"},
-		{"agents/creator", "profiles/agents/creator"},
-		{"ux", "profiles/ux"},
-	}
-	for _, p := range programs {
+	for _, p := range chartProfilePrograms() {
 		if err := copyDirContents(filepath.Join(profilesRoot, p.src), filepath.Join(dst, p.rel)); err != nil {
 			cleanup()
 			return "", nil, err
 		}
 	}
 	return dst, cleanup, nil
+}
+
+// chartProfileProgram is one source-to-staged mapping copied into the packaged
+// chart's profiles subtree before helm package/install.
+type chartProfileProgram struct{ src, rel string }
+
+// chartProfilePrograms is the single authoritative list of agent programs and
+// the ux staged into the chart's profiles ConfigMap. It MUST cover every agent
+// profile mounted by an enabled Deployment (see helm/templates/*.yaml); the
+// executor (srd006) Deployment mounts agents/executor/profile.yaml, so omitting
+// it here left an enabled executor with no profile to start (GH-485).
+// TestStagedProfilesCoverEnabledDeployments enforces the coverage.
+func chartProfilePrograms() []chartProfileProgram {
+	return []chartProfileProgram{
+		{"agents/chatbot", "profiles/agents/chatbot"},
+		{"agents/rag-server", "profiles/agents/rag-server"},
+		{"agents/coordinator", "profiles/agents/coordinator"},
+		{"agents/creator", "profiles/agents/creator"},
+		{"agents/executor", "profiles/agents/executor"},
+		{"ux", "profiles/ux"},
+	}
 }
 
 func copyDirContents(src, dst string) error {
