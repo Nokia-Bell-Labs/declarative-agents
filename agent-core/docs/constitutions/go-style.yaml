@@ -105,26 +105,22 @@ configuration:
   - Do not add mode-specific branches to cmd/agent when a profile, machine, or ToolDef can express the behavior.
   - Use typed config structs when decoding ToolDef config.
   - Keep compatibility paths explicit and tested.
-  - Sanctioned exceptions to the no-os.Getenv rule, outside cmd/agent, are the substitution feature in internal/tools/rest/envexpand.go (os.LookupEnv expands ${VAR:-default} references in mounted REST definitions from chart-injected values, not an ad-hoc config channel) and the examples/chatbot-mesh/provisioner (a Kubernetes deployment-plane service that reads its non-secret settings from chart-set env; its secret tokens are read from mounted-Secret files, not env). magefiles/ may read build or CI env where no configuration alternative exists.
+  - Sanctioned exception to the no-os.Getenv rule, outside cmd/agent, is the substitution feature in internal/tools/rest/envexpand.go (os.LookupEnv expands ${VAR:-default} references in mounted REST definitions from chart-injected values, not an ad-hoc config channel). magefiles/ may read build or CI env where no configuration alternative exists.
 tool_language:
   rules:
   - MachineSpec owns workflow sequencing.
   - ToolDef owns the contract for one vocabulary word.
   - Boundary tools must declare side effects, emitted signals, and undo or compensation.
   - New workflow behavior should prefer machine.yaml transitions over compound Go tools.
-  - 'Sanctioned exception to executables-are-agents (design-patterns 02/03) and to
-    machine-owns-orchestration: the examples/chatbot-mesh/provisioner is a
-    deployment-plane service, not a model-driven agent. It runs helm upgrade and
-    kubectl to mutate the cluster''s chart objects behind an authenticated
-    deployment API. Its declarative front is the creator agent (srd005), which drives
-    that API; the provisioner is the executable arm that alone wields the cluster
-    credentials and helm/kubectl binaries, keeping that authority out of the
-    declarative runtime (which carries no credential resolver). Converting it to an
-    agent profile with exec-tool bindings would duplicate the creator and place
-    cluster-mutation authority inside a running agent, against the control-plane
-    authority boundary. This is the same component #392 exempted from the no-os.Getenv
-    rule above. The recurring declarative-decomposition audit cites this instead of
-    re-flagging the provisioner.'
+  - 'Deployment-plane authority lives in the executor agent (srd006), a declarative
+    profile that binds helm and kubectl as exec words behind an authenticated apply
+    API. The creator agent (srd005) drives that API; the executor alone wields the
+    cluster credentials and helm/kubectl binaries, keeping that authority out of the
+    general declarative runtime (which carries no credential resolver). Because the
+    executor is itself an agent profile rather than a bespoke Go service, no
+    executable-arm exception to executables-are-agents is needed; the recurring
+    declarative-decomposition audit checks that deployment logic stays in the executor
+    profile.'
   - 'Sanctioned home for LLM transport (tool-contract pattern, design-patterns 04):
     internal/model/llm/ is the model-client adapter layer, and the http.Client
     construction in internal/tools/llm/invoke.go that wires it is exempt from the
