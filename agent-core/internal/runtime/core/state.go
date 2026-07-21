@@ -23,6 +23,19 @@ type TransitionValue struct {
 // TransitionTable maps state-signal pairs to transitions.
 type TransitionTable map[TransitionInput]TransitionValue
 
+// HasState reports whether the machine references the given state, either as the
+// source of a transition or as a transition's destination. Resume uses it to
+// reject a checkpoint whose restored state no longer exists in the current
+// machine (srd025 R6.4, R6.5).
+func (t TransitionTable) HasState(s State) bool {
+	for in, tv := range t {
+		if in.State == s || tv.NextState == s {
+			return true
+		}
+	}
+	return false
+}
+
 // TerminalFunc returns true for states that should stop the loop.
 // Supplied by the domain layer.
 type TerminalFunc func(State) bool
