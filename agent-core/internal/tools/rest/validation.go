@@ -538,7 +538,7 @@ func machineRequestYAMLSet(cfg MachineRequest) bool {
 		return true
 	}
 	m := cfg.Request
-	return len(m.Body) > 0 || len(m.Query) > 0 || len(m.Path) > 0 || len(m.Headers) > 0 || len(m.Metadata) > 0
+	return len(m.Body) > 0 || len(m.Query) > 0 || len(m.Path) > 0 || len(m.Headers) > 0
 }
 
 func queueConfigSet(q QueueConfig) bool {
