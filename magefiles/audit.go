@@ -12,9 +12,9 @@ import (
 type statFunc func(string) (os.FileInfo, error)
 type auditRunner func(string) error
 
-// Audit runs mage audit in each sub-module.
+// Audit runs mage audit in each sub-module and participating example module.
 func Audit() error {
-	return auditSubModules(subModules, os.Stat, runMageAudit)
+	return auditSubModules(auditParticipants(), os.Stat, runMageAudit)
 }
 
 func auditSubModules(modules []string, stat statFunc, run auditRunner) error {

@@ -18,9 +18,14 @@ var Aliases = map[string]interface{}{
 type unitTestRunner func(string) error
 type moduleTestDetector func(string) (bool, error)
 
-// Test runs unit tests for sub-modules that contain Go tests.
+// Test runs unit tests for every participating module: platform sub-modules
+// through their mage test target, then example modules through go test (they
+// own Go tests but expose no mage test target).
 func Test() error {
-	return testSubModules(subModules, moduleHasGoTests, runMageTest)
+	if err := testSubModules(subModules, moduleHasGoTests, runMageTest); err != nil {
+		return err
+	}
+	return testSubModules(exampleModules, moduleHasGoTests, runGoUnitTests)
 }
 
 // TestUnit is a compatibility target for mage test:unit; use Test for release gates.
