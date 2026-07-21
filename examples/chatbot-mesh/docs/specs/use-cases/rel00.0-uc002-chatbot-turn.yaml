@@ -53,14 +53,17 @@ success_criteria:
       - srd002-chatbot-agent R1.1
       - srd002-chatbot-agent R1.2
       - srd002-chatbot-agent R1.3
+      - srd002-chatbot-agent AC1
   - id: S2
     criterion: A RAG failure degrades the turn so it answers from the message alone as a mapped 200 rather than a 500.
     traces:
       - srd002-chatbot-agent R3.2
+      - srd002-chatbot-agent AC3
   - id: S3
     criterion: The turn is stateless; conversation history arrives from the browser with each turn.
     traces:
       - srd002-chatbot-agent R4.1
+      - srd002-chatbot-agent AC4
 
 out_of_scope:
   - The $tool router and multi-RAG fan-out, which are release 01.0.

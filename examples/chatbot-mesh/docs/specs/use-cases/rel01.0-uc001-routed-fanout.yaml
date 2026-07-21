@@ -53,18 +53,22 @@ success_criteria:
     traces:
       - srd002-chatbot-agent R2.1
       - srd002-chatbot-agent R2.3
+      - srd002-chatbot-agent AC2
   - id: S2
     criterion: One query embedding fans out to both RAG servers and a spanning question draws chunks from both disjoint corpora into the answer.
     traces:
       - srd002-chatbot-agent R3.1
+      - srd002-chatbot-agent AC3
   - id: S3
     criterion: A per-RAG failure degrades the turn so the answer is composed from the remaining chunks, noted in command state for the response metadata.
     traces:
       - srd002-chatbot-agent R3.2
+      - srd002-chatbot-agent AC3
   - id: S4
     criterion: A RAG whose embedding model does not match the query embedding is excluded from the composed chunks (a 400 mapped to QueryRejected) and the exclusion is a visible machine transition.
     traces:
       - srd002-chatbot-agent R3.3
+      - srd002-chatbot-agent AC3
 
 out_of_scope:
   - Parallel fan-out; v1 fan-out is sequential.

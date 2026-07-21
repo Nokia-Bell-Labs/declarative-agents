@@ -52,19 +52,24 @@ success_criteria:
     criterion: A default helm install on a fresh cluster answers a chat turn with no external LLM dependency; the Ollama subchart is deployed with PVC model storage.
     traces:
       - srd003-chatbot-deployment R6.1
+      - srd003-chatbot-deployment AC6
   - id: S2
     criterion: The model-preload Job pulls the embedding, chat, and router models -- named once in values -- into the PVC before the tier reports ready, and the same names render the agents' config.
     traces:
       - srd003-chatbot-deployment R6.2
+      - srd003-chatbot-deployment AC6
   - id: S3
     criterion: Agent pods are not ready until the required models are present, so a missing model is a deploy-time gate rather than a runtime turn failure.
     traces:
       - srd003-chatbot-deployment R6.3
+      - srd003-chatbot-deployment AC6
   - id: S4
     criterion: Setting ollama.enabled=false with an endpoint override reproduces the external-endpoint behavior with identical co-generated client entries.
     traces:
       - srd003-chatbot-deployment R6.1
       - srd003-chatbot-deployment R2.1
+      - srd003-chatbot-deployment AC6
+      - srd003-chatbot-deployment AC2
 
 out_of_scope:
   - GPU production sizing; the kind smoke path runs CPU-only small models and diverges from production sizing by design (R6.4).

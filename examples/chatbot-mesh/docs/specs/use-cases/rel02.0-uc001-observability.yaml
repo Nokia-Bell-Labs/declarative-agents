@@ -50,14 +50,17 @@ success_criteria:
     criterion: The panel renders one live sub-panel per monitored agent, each showing run state, a metric-sample counter, and a run-event feed, read through the same-origin monitor_proxy.
     traces:
       - srd002-chatbot-agent R5.1
+      - srd002-chatbot-agent AC5
   - id: S2
     criterion: Selecting a turn renders its connected cross-agent trace as a span waterfall grouped by service.name, fetched from the trace backend through the monitor_proxy.
     traces:
       - srd002-chatbot-agent R5.1
+      - srd002-chatbot-agent AC5
   - id: S3
     criterion: Cross-agent trace continuity relies on traceparent propagation; when the trace backend is absent the waterfall degrades to a notice and the monitor panels stay live.
     traces:
       - srd002-chatbot-agent R5.3
+      - srd002-chatbot-agent AC5
 
 out_of_scope:
   - Request-id-tagged turn correlation, a follow-on that needs the monitor run events to carry the request id.
