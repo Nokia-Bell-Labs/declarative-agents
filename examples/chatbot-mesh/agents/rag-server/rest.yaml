@@ -82,13 +82,15 @@ rest:
           params:
             body_schema:
               type: object
-              required: [query_embeddings]
+              required: [query_embeddings, n_results]
               properties:
                 query_embeddings: {type: array}
+                n_results: {type: integer, minimum: 1}
             body_source: previous_result
             input_mapping:
               query_embeddings: $.query_embeddings
-            carry_forward: [query_embeddings]
+              n_results: $.n_results
+            carry_forward: [query_embeddings, n_results]
           body:
             name: ${RAG_COLLECTION:-corpus}
             get_or_create: true
@@ -111,16 +113,18 @@ rest:
               collection: {type: string}
             body_schema:
               type: object
-              required: [query_embeddings]
+              required: [query_embeddings, n_results]
               properties:
                 query_embeddings: {type: array}
+                n_results: {type: integer, minimum: 1}
             body_source: previous_result
             input_mapping:
               collection: $.mapped.collection_id
               query_embeddings: $.carried.query_embeddings
+              n_results: $.carried.n_results
           body:
             query_embeddings: ["{{ params.query_embeddings }}"]
-            n_results: 5
+            n_results: "{{ params.n_results }}"
             include: ["documents", "distances", "metadatas"]
           success: {status: [200], signal: QueryResponded}
           failures:
@@ -150,10 +154,10 @@ rest:
           request:
             body_schema:
               type: object
-              required: [query_embeddings]
+              required: [query_embeddings, n_results]
               properties:
                 query_embeddings: {type: array}
-                n_results: {type: integer}
+                n_results: {type: integer, minimum: 1}
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml

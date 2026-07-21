@@ -122,8 +122,10 @@ implementation_status:
       against a live Chroma.
   planned:
     - >-
-      Request-supplied n_results (fixed at the configured default today) and the
-      optional text-in fallback (R5).
+      The optional text-in fallback (R5). Request-supplied n_results is now
+      threaded from the query request through command state into the Chroma
+      query (bounded at minimum 1); the ragServer tracer asserts the returned
+      chunk cardinality honors it.
 
 diagrams:
   requirements_trace: |
