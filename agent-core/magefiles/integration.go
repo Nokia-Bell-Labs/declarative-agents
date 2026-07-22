@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -176,13 +177,63 @@ func (Integration) Uc002() error {
 		return fmt.Errorf("uc002: evaluator failed: %w", err)
 	}
 
-	entries, err := os.ReadDir(outputDir)
-	if err != nil || len(entries) == 0 {
-		return fmt.Errorf("uc002: no results in output dir %s", outputDir)
+	passed, total, err := validateEvaluationResults(outputDir)
+	if err != nil {
+		return fmt.Errorf("uc002: invalid evaluator results: %w", err)
 	}
 
-	fmt.Printf("uc002: PASS — evaluator completed with %d result entries\n", len(entries))
+	fmt.Printf("uc002: PASS — evaluator completed with %d/%d successful points\n", passed, total)
 	return nil
+}
+
+func validateEvaluationResults(outputDir string) (passed, total int, err error) {
+	var validationErrors []error
+	walkErr := filepath.Walk(outputDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			validationErrors = append(validationErrors, walkErr)
+			return nil
+		}
+		if info.IsDir() || info.Name() != "meta.json" {
+			return nil
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("read %s: %w", path, readErr))
+			return nil
+		}
+		var meta struct {
+			Sample      string `json:"sample"`
+			Model       string `json:"model"`
+			TestsPassed bool   `json:"tests_passed"`
+		}
+		if decodeErr := json.Unmarshal(data, &meta); decodeErr != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("parse %s: %w", path, decodeErr))
+			return nil
+		}
+		total++
+		if meta.Sample == "" || meta.Model == "" {
+			validationErrors = append(validationErrors, fmt.Errorf("%s requires sample and model", path))
+		}
+		pointDir := filepath.Dir(path)
+		for _, artifact := range []string{"experiment.yaml", "trace.ndjson"} {
+			if _, statErr := os.Stat(filepath.Join(pointDir, artifact)); statErr != nil {
+				validationErrors = append(validationErrors, fmt.Errorf("%s missing %s: %w", path, artifact, statErr))
+			}
+		}
+		if meta.TestsPassed {
+			passed++
+		}
+		return nil
+	})
+	if walkErr != nil {
+		validationErrors = append(validationErrors, walkErr)
+	}
+	if total == 0 {
+		validationErrors = append(validationErrors, fmt.Errorf("no valid point metadata under %s", outputDir))
+	} else if passed == 0 {
+		validationErrors = append(validationErrors, fmt.Errorf("all %d evaluation points failed", total))
+	}
+	return passed, total, errors.Join(validationErrors...)
 }
 
 func uc002AgentArgs(profileRoot, coreRoot, requestPath, outputDir string) []string {
