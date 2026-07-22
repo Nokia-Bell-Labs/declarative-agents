@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -16,6 +17,10 @@ import (
 	"github.com/magefile/mage/mg"
 	"gopkg.in/yaml.v3"
 )
+
+const integrationHTTPRequestTimeout = 2 * time.Second
+
+var integrationHTTPClient = &http.Client{Timeout: integrationHTTPRequestTimeout}
 
 // Integration groups the example's end-to-end tracer targets. Each starts real
 // services (a Chroma container, the mesh agents, an external Ollama) and skips
@@ -78,22 +83,42 @@ func startDetachedAgent(binary, profilesRoot, coreRoot, profile, tracePath strin
 }
 
 func waitHTTPStatus(url string, want int, timeout time.Duration) error {
+	return waitHTTPStatusWithClient(integrationHTTPClient, url, want, timeout)
+}
+
+func waitHTTPStatusWithClient(client *http.Client, url string, want int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		resp, err := http.Get(url)
+		remaining := time.Until(deadline)
+		ctx, cancel := context.WithTimeout(context.Background(), min(integrationHTTPRequestTimeout, remaining))
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err == nil {
-			_ = resp.Body.Close()
-			if resp.StatusCode == want {
-				return nil
+			var resp *http.Response
+			resp, err = client.Do(req)
+			if err == nil {
+				_ = resp.Body.Close()
+				if resp.StatusCode == want {
+					cancel()
+					return nil
+				}
+				lastErr = fmt.Errorf("status %d", resp.StatusCode)
 			}
-			lastErr = fmt.Errorf("status %d", resp.StatusCode)
-		} else {
-			lastErr = err
 		}
-		time.Sleep(100 * time.Millisecond)
+		cancel()
+		if err == nil {
+			remaining = time.Until(deadline)
+			if remaining > 0 {
+				time.Sleep(min(100*time.Millisecond, remaining))
+			}
+			continue
+		}
+		lastErr = err
 	}
-	return lastErr
+	if lastErr == nil {
+		lastErr = context.DeadlineExceeded
+	}
+	return fmt.Errorf("wait for %s status %d: %w", url, want, lastErr)
 }
 
 func requestHTTP(method, url, body string) ([]byte, int, error) {
@@ -104,7 +129,7 @@ func requestHTTP(method, url, body string) ([]byte, int, error) {
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := integrationHTTPClient.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
