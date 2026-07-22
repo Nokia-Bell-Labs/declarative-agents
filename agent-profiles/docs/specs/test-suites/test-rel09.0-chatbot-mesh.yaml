@@ -23,7 +23,7 @@ test_cases:
   - use_case: rel09.0-uc001-rag-server-query
     name: RAG server vector-in query tracer
     integration_target: mage integration:ragServer
-    go_test: go test ./magefiles -run TestParseRagQueryResponse
+    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run TestParseRagQueryResponse
     status: implemented
     description: |
       Integration.RagServer starts a Chroma container, seeds a collection by
@@ -54,7 +54,7 @@ test_cases:
   - use_case: rel09.0-uc002-chatbot-turn
     name: Single-RAG chatbot turn tracer with a degraded RAG
     integration_target: mage integration:chatbot
-    go_test: go test ./magefiles -run 'TestCitedRecordNumbers|TestChatResponse'
+    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run 'TestCitedRecordNumbers|TestChatResponse'
     status: implemented
     description: |
       Integration.Chatbot drives the chat machine_request endpoint and asserts the

@@ -53,7 +53,8 @@ func BootSmoke() error {
 	return bootSmoke(root, coreRoot)
 }
 
-// bootSmoke builds the agent from coreRoot and preflights every audited profile.
+// bootSmoke builds the agent from coreRoot, preflights every audited profile,
+// and resolves this module's formal go_test evidence against its real tests.
 func bootSmoke(root, coreRoot string) error {
 	profiles, err := discoverAuditProfiles(root)
 	if err != nil {
@@ -63,7 +64,10 @@ func bootSmoke(root, coreRoot string) error {
 	if err != nil {
 		return err
 	}
-	return bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles)
+	if err := bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles); err != nil {
+		return err
+	}
+	return validateTestEvidence(defaultSmokeRun, binary, root)
 }
 
 // bootSmokeProfiles runs `agent --validate-config` over each profile, which is
