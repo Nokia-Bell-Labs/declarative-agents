@@ -27,6 +27,11 @@ test_cases:
       machine_loaded: true
       terminal_states: [Succeeded, Failed, BudgetExceeded]
       validation_sequence: build_then_lint_then_test
+    planned:
+      # TestExecutorShippedProfileWiring asserts machine_loaded and the terminal
+      # states, but no current test asserts validation_sequence
+      # (build_then_lint_then_test). That assertion is planned, not proven.
+      - validation_sequence build_then_lint_then_test
     traces:
       - srd006-yaml-machine-config AC3
       - srd013-standard-tool-library AC2
@@ -290,6 +295,9 @@ test_cases:
       tools: bench/tools.yaml
       declarations: bench/builtin.yaml
     expected:
+      # Coverage is split across two tests. The go_test above asserts
+      # launch_eval loads from profile config; serve_ui selection is asserted by
+      # TestBenchConformance (the bench transition case below, cross-module).
       serve_ui_selected: true
       launch_eval_selected: true
     traces:
