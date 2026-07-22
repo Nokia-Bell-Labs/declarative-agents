@@ -23,11 +23,11 @@ release_03_0_support:
     - OpenAPI-bound endpoint preservation for configured endpoint behavior.
     - REST client compensation mementos and rollback-time execution for mutating operations with configured compensation.
     - machine_request terminal response schema validation before success responses.
+    - lifecycle_control endpoints: ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback selector, and the endpoint enqueues the lifecycle request event for MachineSpec routing rather than running a lifecycle operation directly (TestRESTServer_LifecycleControlEnqueuesSignals). Configured emit_signal control routes that MachineSpec routes to exit_agent remain as an alternative used by current control profiles.
   partial:
     - rest_await_event read_policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
   reserved:
     - document_resources top-level config and machine_request.document_resources are typed target-format fields that ValidateDefinition rejects until generic REST document resource loading is implemented. Current request machines use profile-selected filesystem resource ToolDefs.
-    - lifecycle_control endpoint config is documented for the target format but current control profiles use emit_signal routes that MachineSpec routes to exit_agent.
 
 schema:
   description: |
@@ -406,7 +406,7 @@ schema:
       - field: lifecycle_control
         type: lifecycle_control_config
         required: false
-        description: Reserved target-format lifecycle control request mapping. Current profiles use emit_signal control endpoints routed through MachineSpec.
+        description: Lifecycle control request mapping. ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback selector; the endpoint enqueues the lifecycle request event for MachineSpec routing rather than running a lifecycle operation directly. Current control profiles alternatively use emit_signal control endpoints routed through MachineSpec.
       - field: machine_request
         type: machine_request_config
         required: false
