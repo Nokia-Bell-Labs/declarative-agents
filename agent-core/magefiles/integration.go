@@ -267,7 +267,7 @@ func buildIfNeeded() (string, error) {
 }
 
 func requireOllama() error {
-	resp, err := http.Get("http://localhost:11434/api/version")
+	resp, err := integrationHTTPClient.Get("http://localhost:11434/api/version")
 	if err != nil {
 		return fmt.Errorf("ollama not reachable at localhost:11434: %w", err)
 	}
@@ -279,7 +279,7 @@ func requireOllama() error {
 }
 
 func requireModel(model string) error {
-	resp, err := http.Get("http://localhost:11434/api/tags")
+	resp, err := integrationHTTPClient.Get("http://localhost:11434/api/tags")
 	if err != nil {
 		return fmt.Errorf("ollama not reachable: %w", err)
 	}

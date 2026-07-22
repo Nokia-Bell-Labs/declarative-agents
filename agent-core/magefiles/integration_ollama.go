@@ -81,7 +81,7 @@ func requireOllamaModels(model string) ([]string, error) {
 }
 
 func fetchOllamaModelNames() ([]string, error) {
-	resp, err := http.Get("http://127.0.0.1:11434/api/tags")
+	resp, err := integrationHTTPClient.Get("http://127.0.0.1:11434/api/tags")
 	if err != nil {
 		return nil, err
 	}
