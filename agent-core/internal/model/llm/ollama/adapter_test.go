@@ -273,30 +273,33 @@ func TestOllamaMigrationRemovesLegacyAdapterPaths(t *testing.T) {
 // matchModel
 // ---------------------------------------------------------------------------
 
-func TestMatchModel_NoTag_MatchesAnyTag(t *testing.T) {
+func TestMatchModel(t *testing.T) {
 	t.Parallel()
-	models := []modelEntry{{Name: "llama3:latest"}, {Name: "llama3:8b"}}
-	require.True(t, matchModel("llama3", models))
-}
-
-func TestMatchModel_WithTag_ExactOnly(t *testing.T) {
-	t.Parallel()
-	models := []modelEntry{{Name: "llama3:latest"}, {Name: "llama3:8b"}}
-	require.True(t, matchModel("llama3:8b", models))
-	require.False(t, matchModel("llama3:70b", models))
-}
-
-func TestMatchModel_CaseInsensitive(t *testing.T) {
-	t.Parallel()
-	models := []modelEntry{{Name: "Llama3:Latest"}}
-	require.True(t, matchModel("LLAMA3", models))
-	require.True(t, matchModel("llama3:latest", models))
-}
-
-func TestMatchModel_Empty(t *testing.T) {
-	t.Parallel()
-	require.False(t, matchModel("llama3", nil))
-	require.False(t, matchModel("llama3", []modelEntry{}))
+	standard := []modelEntry{{Name: "llama3:latest"}, {Name: "llama3:8b"}}
+	tests := []struct {
+		name    string
+		request string
+		models  []modelEntry
+		want    bool
+	}{
+		{name: "bare name matches any tag", request: "llama3", models: standard, want: true},
+		{name: "exact tag", request: "llama3:8b", models: standard, want: true},
+		{name: "tag mismatch", request: "llama3:70b", models: standard},
+		{name: "bare case insensitive", request: "LLAMA3", models: []modelEntry{{Name: "Llama3:Latest"}}, want: true},
+		{name: "tag case insensitive", request: "llama3:latest", models: []modelEntry{{Name: "Llama3:Latest"}}, want: true},
+		{name: "bare entry", request: "llama3", models: []modelEntry{{Name: "llama3"}}, want: true},
+		{name: "different model", request: "qwen", models: standard},
+		{name: "nil inventory", request: "llama3", models: nil},
+		{name: "empty inventory", request: "llama3", models: []modelEntry{}},
+		{name: "empty request", request: "", models: standard},
+		{name: "whitespace request", request: " ", models: standard},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, matchModel(tt.request, tt.models))
+		})
+	}
 }
 
 // ---------------------------------------------------------------------------
