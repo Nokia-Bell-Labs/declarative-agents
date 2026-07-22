@@ -2,11 +2,6 @@
 # split issue; the guard rejects new entries and rejects stale entries after a
 # split brings a file under 500 lines.
 
-# GH-656: REST endpoint and runtime contract splits.
-file:internal/tools/rest/client_test.go
-file:internal/tools/rest/server_machine_request_test.go
-file:internal/tools/rest/server_test.go
-
 # GH-657: catalog, LLM, and lifecycle tool-contract splits.
 file:internal/tools/catalog/loading_from_stl_test.go
 file:internal/tools/lifecycle/checkpoint_from_stl_test.go
