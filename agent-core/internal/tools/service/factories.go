@@ -30,7 +30,7 @@ const (
 	InitRunScenarioTests    = "run_scenario_validators"
 	InitCollectVerdict      = "collect_scenario_verdict"
 	InitTeardownScenario    = "teardown_scenario"
-	InitReportSession       = "report_session"
+	InitReportSession       = "report_scenario_session"
 )
 
 // StandardInits lists every service builtin init name.

@@ -1,0 +1,54 @@
+name: rig-smoke-validator
+purpose: |-
+  Drives the subject the rig started and passes only when it answers. The
+  check runs on the way into Checking, so its signal decides the terminal
+  state; routing straight to a terminal would pass regardless of the result.
+configuration:
+  machine: machine.yaml
+  tools: tools.yaml
+initial_state: Idle
+budget:
+  max_iterations: 6
+states:
+  - name: Idle
+    meaning: Before the subject is driven.
+  - name: Checking
+    meaning: The subject read has run; its signal decides the outcome.
+  - name: Passed
+    meaning: Terminal. The subject answered as expected.
+  - name: Failed
+    meaning: Terminal. The subject did not answer as expected.
+terminal_states: [Passed, Failed]
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: SubjectAnswered
+    trigger: The subject served the expected route.
+  - name: RESTResourceRead
+    trigger: The read succeeded and mapped to the generic read signal.
+  - name: RESTMissing
+    trigger: The subject returned a not-found for the expected route.
+  - name: RESTDomainFailed
+    trigger: The subject returned a mapped domain failure.
+  - name: CommandError
+    trigger: The subject was unreachable or the response could not be mapped.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Checking
+    action: check_subject_health
+  - state: Checking
+    signal: SubjectAnswered
+    next: Passed
+  - state: Checking
+    signal: RESTResourceRead
+    next: Passed
+  - state: Checking
+    signal: RESTMissing
+    next: Failed
+  - state: Checking
+    signal: RESTDomainFailed
+    next: Failed
+  - state: Checking
+    signal: CommandError
+    next: Failed

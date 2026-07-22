@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -37,9 +38,22 @@ func TestMain(m *testing.M) {
 		runChildServer()
 		return
 	case "exit0":
+		// Real agents report their terminal status on stderr; the rig reads it
+		// because the binary's exit code does not distinguish success from a
+		// failed terminal state.
+		fmt.Fprintln(os.Stderr, "terminal state: succeeded")
 		os.Exit(0)
 	case "exit3":
+		fmt.Fprintln(os.Stderr, "terminal state: failed")
 		os.Exit(3)
+	case "exit0silent":
+		// Exits zero and reports nothing: proved nothing.
+		os.Exit(0)
+	case "exit0failed":
+		// Exits zero but reports a failed terminal: the case exit code alone
+		// cannot see.
+		fmt.Fprintln(os.Stderr, "terminal state: failed")
+		os.Exit(0)
 	case "hang":
 		// A bare select{} would trip Go's deadlock detector and exit at once;
 		// sleeping actually hangs, which is what the timeout path needs.

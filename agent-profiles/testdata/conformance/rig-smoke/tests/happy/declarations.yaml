@@ -1,0 +1,47 @@
+tools:
+  - name: check_subject_health
+    type: builtin
+    init: rest_client_get
+    visibility: internal
+    category: boundary
+    description: Read the subject's health route to prove it served this scenario.
+    problem: A scenario must assert something about the subject it was given.
+    goals:
+      - Call the subject at the address the rig published.
+    requirements:
+      input:
+        - Tool config references the subject client resource.
+      output:
+        - Output reports the response status and body.
+      errors:
+        - Transport and mapping failures emit CommandError.
+    non_goals:
+      - Does not start or stop the subject.
+    parameters:
+      type: object
+      properties: {}
+    emits: [SubjectAnswered, RESTResourceRead, CommandError]
+    output:
+      description: Subject health response.
+      schema:
+        type: object
+        properties:
+          status: {type: integer}
+    side_effects:
+      - kind: state_read
+        target: subject_agent
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: A read changes nothing.
+    errors:
+      - signal: CommandError
+        condition: The subject is unreachable or the response cannot be mapped.
+        state_after_failure: No state changes.
+    config:
+      rest_ref: subject
+      resource: health
+      operation: get

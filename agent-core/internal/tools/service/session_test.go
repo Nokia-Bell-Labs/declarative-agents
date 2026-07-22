@@ -3,6 +3,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -401,4 +402,36 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 	err = validateToolConfig("i", InitInitScenarioSession, ToolConfig{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "requires at least one root")
+}
+
+// TestRunValidators_FailedTerminalWithZeroExit locks in the contract that
+// makes the rig able to fail at all: the agent binary exits 0 whether its
+// machine reached a success terminal or a failure terminal, so a validator is
+// judged on its reported terminal status, not its exit code alone.
+func TestRunValidators_FailedTerminalWithZeroExit(t *testing.T) {
+	t.Parallel()
+
+	outcomes := RunValidators(context.Background(), os.Args[0], []ValidatorSpec{
+		{Name: "reports-failed", Profile: "p", Env: []string{envChildMode + "=exit0failed"}},
+		{Name: "reports-ok", Profile: "p", Env: []string{envChildMode + "=exit0"}},
+		{Name: "silent", Profile: "p", Env: []string{envChildMode + "=exit0silent"}},
+	}, 30*time.Second)
+
+	byName := map[string]ValidatorOutcome{}
+	for _, outcome := range outcomes {
+		byName[outcome.Name] = outcome
+	}
+
+	// Exit 0 but a failed terminal is a failure.
+	require.Equal(t, 0, byName["reports-failed"].ExitCode)
+	require.Equal(t, "failed", byName["reports-failed"].Terminal)
+	require.False(t, byName["reports-failed"].Passed,
+		"a validator whose machine reached Failed must not pass because it exited 0")
+
+	require.True(t, byName["reports-ok"].Passed)
+	require.Equal(t, "succeeded", byName["reports-ok"].Terminal)
+
+	// A validator that reported no terminal state proved nothing.
+	require.False(t, byName["silent"].Passed)
+	require.Contains(t, byName["silent"].Error, "no terminal state")
 }

@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ type ValidatorOutcome struct {
 	ExitCode int    `json:"exit_code"`
 	Passed   bool   `json:"passed"`
 	TimedOut bool   `json:"timed_out"`
+	Terminal string `json:"terminal,omitempty"`
 	Stdout   string `json:"stdout,omitempty"`
 	Stderr   string `json:"stderr,omitempty"`
 	Error    string `json:"error,omitempty"`
@@ -80,8 +82,41 @@ func runOneValidator(ctx context.Context, binary string, spec ValidatorSpec, tim
 	if result.Err != nil {
 		outcome.Error = result.Err.Error()
 	}
-	outcome.Passed = result.ExitCode == 0 && !result.TimedOut && result.Err == nil
+	outcome.Terminal = terminalStatus(result.Stderr)
+	outcome.Passed = result.ExitCode == 0 && !result.TimedOut && result.Err == nil &&
+		outcome.Terminal != terminalFailed
+	if outcome.Passed && outcome.Terminal == "" {
+		// A validator that never reported a terminal status did not prove
+		// anything, so it does not pass by default.
+		outcome.Passed = false
+		outcome.Error = "validator reported no terminal state"
+	}
 	return outcome
+}
+
+const (
+	terminalPrefix = "terminal state: "
+	terminalFailed = "failed"
+)
+
+// terminalStatus reads the terminal status the agent binary reports on stderr.
+//
+// Exit code alone cannot answer this: the binary exits 0 whether its machine
+// reached a success terminal or a failure terminal, so a validator whose
+// machine reached Failed would otherwise be scored as passing. Parsing the
+// reported status is the contained way to see the real outcome; making the
+// binary's exit code reflect its terminal status is a CLI contract change that
+// affects every caller, tracked separately.
+func terminalStatus(stderr string) string {
+	index := strings.LastIndex(stderr, terminalPrefix)
+	if index < 0 {
+		return ""
+	}
+	rest := stderr[index+len(terminalPrefix):]
+	if end := strings.IndexAny(rest, "\r\n"); end >= 0 {
+		rest = rest[:end]
+	}
+	return strings.TrimSpace(rest)
 }
 
 // AllPassed reports whether every validator passed, which is how a scenario

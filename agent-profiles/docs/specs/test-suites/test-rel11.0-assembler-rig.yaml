@@ -17,10 +17,12 @@ overview: |
   real inventory. Each implementing issue renames the field and sets status to
   implemented when its evidence lands.
 
-  GH-668 delivered the twin, so the four twin cases below now carry go_test and
+  GH-668 delivered the twin, so the four twin cases below carry go_test and
   status implemented; the request-log case cites the delivered test name,
-  TestTwinRequestLogRecordsCalls. The assembler cases stay planned until GH-669
-  and GH-670.
+  TestTwinRequestLogRecordsCalls. GH-669 delivered the assembler profile, so the
+  shipped-profile case is implemented and the boot smoke covers both families.
+  The cases naming mage rig stay planned until GH-670 adds that target and the
+  self-proving scenarios.
 
 traces:
   - rel11.0-uc001-assembler-scenario-run
@@ -222,8 +224,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Assembler and twin profiles validate and boot as shipped profiles
-    planned_integration_target: mage validate
-    status: planned
+    integration_target: mage validate
+    status: implemented
     description: |
       The assembler and twin profiles load and validate against agent-core and
       pass the shipped-profile boot smoke alongside the existing families, so

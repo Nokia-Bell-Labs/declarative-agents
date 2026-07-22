@@ -1,0 +1,3 @@
+# The subject serves its health on its own route, so the scenario declares it
+# rather than relying on the rig's default.
+subject_health_path: /_subject/health

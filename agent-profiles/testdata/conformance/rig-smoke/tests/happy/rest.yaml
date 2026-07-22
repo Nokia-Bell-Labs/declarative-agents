@@ -1,0 +1,26 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local:
+      timeout: 5s
+      read_timeout: 5s
+      max_response_bytes: 65536
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+  clients:
+    subject:
+      # The rig publishes the subject's address here; the validator drives it.
+      base_url: ${SUBJECT_URL:-http://127.0.0.1:1}
+      auth_ref: none
+      limits_ref: local
+      resources:
+        health:
+          path: /_subject/health
+          operations:
+            get:
+              method: GET
+              success: {status: [200], signal: SubjectAnswered}

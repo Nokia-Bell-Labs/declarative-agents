@@ -1,0 +1,8 @@
+name: rig-smoke-subject
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - ../../../agents/twin/declarations.yaml
+rest_definitions:
+  - rest.yaml
