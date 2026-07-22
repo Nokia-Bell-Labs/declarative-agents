@@ -6,6 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -51,6 +54,47 @@ func TestWaitHTTPStatusReturnsOnExpectedStatus(t *testing.T) {
 
 	if err := waitHTTPStatusWithClient(&http.Client{}, server.URL, http.StatusAccepted, time.Second); err != nil {
 		t.Fatalf("waitHTTPStatusWithClient() error: %v", err)
+	}
+}
+
+func TestDetachedAgentCleanupReportsProcessOutcomes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		script      string
+		forceKill   bool
+		wait        time.Duration
+		wantErrText string
+	}{
+		{name: "zero exit", script: "#!/bin/sh\nexit 0\n", wait: time.Second},
+		{name: "spontaneous crash", script: "#!/bin/sh\nexit 7\n", wait: time.Second, wantErrText: "exit status 7"},
+		{name: "expected force kill", script: "#!/bin/sh\nwhile :; do :; done\n", forceKill: true, wait: time.Second},
+		{name: "graceful timeout", script: "#!/bin/sh\nwhile :; do :; done\n", wait: 20 * time.Millisecond, wantErrText: "did not stop within"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			binary := filepath.Join(root, "fake-agent")
+			if err := os.WriteFile(binary, []byte(tt.script), 0o700); err != nil {
+				t.Fatalf("write fake agent: %v", err)
+			}
+			stop, err := startDetachedAgentWithTimeout(binary, root, root, "profile.yaml", filepath.Join(root, "trace.json"), tt.wait)
+			if err != nil {
+				t.Fatalf("startDetachedAgentWithTimeout(): %v", err)
+			}
+			err = stop(tt.forceKill)
+			if tt.wantErrText == "" {
+				if err != nil {
+					t.Fatalf("stop() error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErrText) {
+				t.Fatalf("stop() error = %v, want text %q", err, tt.wantErrText)
+			}
+		})
 	}
 }
 

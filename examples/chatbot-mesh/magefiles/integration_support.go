@@ -47,6 +47,10 @@ func requireProfilePaths(root string, rels ...string) error {
 // remove, so an integration can assert each agent's spans after its graceful exit
 // flushes them.
 func startDetachedAgent(binary, profilesRoot, coreRoot, profile, tracePath string) (func(kill bool) error, error) {
+	return startDetachedAgentWithTimeout(binary, profilesRoot, coreRoot, profile, tracePath, 15*time.Second)
+}
+
+func startDetachedAgentWithTimeout(binary, profilesRoot, coreRoot, profile, tracePath string, gracefulWait time.Duration) (func(kill bool) error, error) {
 	profilePath := profile
 	if !filepath.IsAbs(profilePath) {
 		profilePath = filepath.Join(profilesRoot, profile)
@@ -67,17 +71,28 @@ func startDetachedAgent(binary, profilesRoot, coreRoot, profile, tracePath strin
 	go func() { done <- cmd.Wait() }()
 	return func(kill bool) error {
 		if kill {
-			_ = cmd.Process.Kill()
-			<-done
+			if err := cmd.Process.Kill(); err != nil {
+				return fmt.Errorf("kill %s: %w", profile, err)
+			}
+			_ = <-done // a signal exit is expected after an explicit force-kill.
 			return nil
 		}
 		select {
-		case <-done:
+		case err := <-done:
+			if err != nil {
+				return fmt.Errorf("%s exited during graceful shutdown: %w", profile, err)
+			}
 			return nil
-		case <-time.After(15 * time.Second):
-			_ = cmd.Process.Kill()
-			<-done
-			return fmt.Errorf("%s did not stop within 15s after exit request", profile)
+		case <-time.After(gracefulWait):
+			killErr := cmd.Process.Kill()
+			waitErr := <-done
+			if killErr != nil {
+				return fmt.Errorf("%s did not stop within %s; kill failed: %w", profile, gracefulWait, killErr)
+			}
+			if waitErr != nil {
+				return fmt.Errorf("%s did not stop within %s (forced process exit: %v)", profile, gracefulWait, waitErr)
+			}
+			return fmt.Errorf("%s did not stop within %s", profile, gracefulWait)
 		}
 	}, nil
 }
