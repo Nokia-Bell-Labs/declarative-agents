@@ -38,11 +38,12 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Loop produces cancelled status on context cancellation
-    go_test: TestLoop_ContextCancellation
+    go_test: TestLoop_ContextCancellation, TestLoop_ActiveDispatchCancellation
     inputs:
-      context: "pre-cancelled"
+      contexts: [pre_cancelled, cancelled_during_active_dispatch]
     expected:
       status: cancelled
+      active_context_command_joined: true
     traces:
       - srd005-agentic-loop AC5
 

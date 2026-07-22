@@ -316,6 +316,55 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	require.Equal(t, StatusCancelled, rr.Status)
 }
 
+func TestLoop_ActiveDispatchCancellation(t *testing.T) {
+	t.Parallel()
+	started := make(chan struct{})
+	finished := make(chan struct{})
+	command := &dispatchContextBlockingCmd{started: started, finished: finished}
+	registry := NewRegistry()
+	registry.Register(ToolSpec{Name: command.Name(), Visibility: Internal}, activeCommandBuilder{command})
+	params := LoopParams{
+		InitialState: "Start",
+		Registry:     registry,
+		Table: TransitionTable{
+			{State: "Start", Signal: Seed}: {
+				NextState: "Working",
+				Action:    func(Result) Command { return command },
+			},
+		},
+		IsTerminal: func(State) bool { return false },
+		Trace:      &loopRecorder{},
+		Budget:     Budget{MaxIterations: 10},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	results := make(chan RunResult, 1)
+	go func() {
+		result, _ := Loop(params, ctx)
+		results <- result
+	}()
+	<-started
+	cancel()
+
+	select {
+	case result := <-results:
+		require.Equal(t, StatusCancelled, result.Status)
+		require.Equal(t, State("Working"), result.FinalState)
+		require.Len(t, result.Events, 1)
+		require.Equal(t, CommandError, result.Events[0].Signal)
+	case <-time.After(time.Second):
+		t.Fatal("Loop remained blocked after active command cancellation")
+	}
+	select {
+	case <-finished:
+	default:
+		t.Fatal("active context command was not joined before Loop returned")
+	}
+}
+
+type activeCommandBuilder struct{ command Command }
+
+func (b activeCommandBuilder) Build(Result) Command { return b.command }
+
 func TestLoop_ValidateParamsHook(t *testing.T) {
 	t.Parallel()
 	tr := &loopRecorder{}

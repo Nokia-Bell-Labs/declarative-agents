@@ -201,7 +201,9 @@ func (r *loopRunner) stopForNilCommand(cmd Command) bool {
 
 func (r *loopRunner) dispatch(cmd Command, labels MetricLabels, transitionSignal Signal, fromState State) {
 	injectCommandState(cmd, r.execution)
-	r.result = dispatchWithMonitor(cmd, r.trace, r.params.CommandTimeout, r.params.MonitorRecorder, r.dispatchContext(labels))
+	r.result = dispatchWithMonitorContext(
+		r.ctx, cmd, r.trace, r.params.CommandTimeout, r.params.MonitorRecorder, r.dispatchContext(labels),
+	)
 	r.signal = r.result.Signal
 	r.applyAfterDispatch(cmd)
 	r.accumulateResult()

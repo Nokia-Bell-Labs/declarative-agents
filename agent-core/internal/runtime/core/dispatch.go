@@ -29,6 +29,17 @@ func dispatchWithMonitor(
 	rec monitor.RuntimeRecorder,
 	dispatchCtx monitor.DispatchContext,
 ) Result {
+	return dispatchWithMonitorContext(context.Background(), cmd, tr, timeout, rec, dispatchCtx)
+}
+
+func dispatchWithMonitorContext(
+	ctx context.Context,
+	cmd Command,
+	tr tracing.Tracer,
+	timeout time.Duration,
+	rec monitor.RuntimeRecorder,
+	dispatchCtx monitor.DispatchContext,
+) Result {
 	spanName := genai.ToolSpanName(cmd.Name())
 	var spanAttrs []attribute.KeyValue
 	spanAttrs = append(spanAttrs, genai.ToolAttrs(cmd.Name(), genai.ToolTypeFunction)...)
@@ -51,7 +62,7 @@ func dispatchWithMonitor(
 	if aware, ok := cmd.(TraceContextAware); ok {
 		aware.SetTraceContext(oteltrace.SpanContextFromContext(child.Context()))
 	}
-	res := SafeExecute(cmd, timeout)
+	res := SafeExecuteContext(ctx, cmd, timeout)
 
 	res.CommandName = cmd.Name()
 	if toolMetrics != nil {
@@ -66,13 +77,20 @@ func dispatchWithMonitor(
 // commands that outlive a timeout detach, but their single buffered result send
 // can always complete without racing or blocking on the returned timeout value.
 func SafeExecute(cmd Command, timeout time.Duration) Result {
-	if contextual, ok := cmd.(ContextCommand); ok {
-		return safeExecuteContext(cmd, contextual, timeout)
-	}
-	return safeExecuteLegacy(cmd, timeout)
+	return SafeExecuteContext(context.Background(), cmd, timeout)
 }
 
-func safeExecuteLegacy(cmd Command, timeout time.Duration) Result {
+// SafeExecuteContext runs a command with caller cancellation. ContextCommand
+// implementations are canceled and joined; legacy commands detach so the caller
+// can still stop without changing their historical timeout behavior.
+func SafeExecuteContext(ctx context.Context, cmd Command, timeout time.Duration) Result {
+	if contextual, ok := cmd.(ContextCommand); ok {
+		return safeExecuteContext(ctx, cmd, contextual, timeout)
+	}
+	return safeExecuteLegacy(ctx, cmd, timeout)
+}
+
+func safeExecuteLegacy(ctx context.Context, cmd Command, timeout time.Duration) Result {
 	results := make(chan Result, 1)
 	start := time.Now()
 
@@ -81,10 +99,12 @@ func safeExecuteLegacy(cmd Command, timeout time.Duration) Result {
 	}()
 
 	if timeout <= 0 {
-		res := <-results
-		FillDuration(&res, start)
-		ForceErrorSignal(&res)
-		return res
+		select {
+		case res := <-results:
+			return finishCommandResult(res, start)
+		case <-ctx.Done():
+			return canceledCommandResult(cmd, ctx.Err(), start)
+		}
 	}
 
 	timer := time.NewTimer(timeout)
@@ -92,21 +112,16 @@ func safeExecuteLegacy(cmd Command, timeout time.Duration) Result {
 
 	select {
 	case res := <-results:
-		FillDuration(&res, start)
-		ForceErrorSignal(&res)
-		return res
+		return finishCommandResult(res, start)
+	case <-ctx.Done():
+		return canceledCommandResult(cmd, ctx.Err(), start)
 	case <-timer.C:
-		return Result{
-			Signal: CommandError,
-			Err:    fmt.Errorf("timeout executing %s after %s", cmd.Name(), timeout),
-			Output: fmt.Sprintf("timeout: %s", cmd.Name()),
-			Cost:   Cost{Duration: time.Since(start)},
-		}
+		return timeoutCommandResult(cmd, timeout, start)
 	}
 }
 
-func safeExecuteContext(cmd Command, contextual ContextCommand, timeout time.Duration) Result {
-	ctx, cancel := context.WithCancel(context.Background())
+func safeExecuteContext(parent context.Context, cmd Command, contextual ContextCommand, timeout time.Duration) Result {
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	results := make(chan Result, 1)
 	start := time.Now()
@@ -114,27 +129,52 @@ func safeExecuteContext(cmd Command, contextual ContextCommand, timeout time.Dur
 		results <- executeSafely(cmd, func() Result { return contextual.ExecuteContext(ctx) })
 	}()
 	if timeout <= 0 {
-		res := <-results
-		FillDuration(&res, start)
-		ForceErrorSignal(&res)
-		return res
+		select {
+		case res := <-results:
+			return finishCommandResult(res, start)
+		case <-parent.Done():
+			cancel()
+			<-results
+			return canceledCommandResult(cmd, parent.Err(), start)
+		}
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
 	case res := <-results:
-		FillDuration(&res, start)
-		ForceErrorSignal(&res)
-		return res
+		return finishCommandResult(res, start)
+	case <-parent.Done():
+		cancel()
+		<-results
+		return canceledCommandResult(cmd, parent.Err(), start)
 	case <-timer.C:
 		cancel()
 		<-results
-		return Result{
-			Signal: CommandError,
-			Err:    fmt.Errorf("timeout executing %s after %s", cmd.Name(), timeout),
-			Output: fmt.Sprintf("timeout: %s", cmd.Name()),
-			Cost:   Cost{Duration: time.Since(start)},
-		}
+		return timeoutCommandResult(cmd, timeout, start)
+	}
+}
+
+func finishCommandResult(result Result, start time.Time) Result {
+	FillDuration(&result, start)
+	ForceErrorSignal(&result)
+	return result
+}
+
+func timeoutCommandResult(cmd Command, timeout time.Duration, start time.Time) Result {
+	return Result{
+		Signal: CommandError,
+		Err:    fmt.Errorf("timeout executing %s after %s", cmd.Name(), timeout),
+		Output: fmt.Sprintf("timeout: %s", cmd.Name()),
+		Cost:   Cost{Duration: time.Since(start)},
+	}
+}
+
+func canceledCommandResult(cmd Command, err error, start time.Time) Result {
+	return Result{
+		Signal: CommandError,
+		Err:    fmt.Errorf("cancelled executing %s: %w", cmd.Name(), err),
+		Output: fmt.Sprintf("cancelled: %s", cmd.Name()),
+		Cost:   Cost{Duration: time.Since(start)},
 	}
 }
 
