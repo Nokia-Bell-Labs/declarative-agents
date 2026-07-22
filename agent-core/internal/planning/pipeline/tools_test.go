@@ -204,7 +204,7 @@ func TestParsePlanBuilder_ValidYAML(t *testing.T) {
 	result := cmd.Execute()
 
 	assert.Equal(t, SigPlanReady, result.Signal)
-	assert.NotNil(t, ps.CurrentPlan)
+	require.NotNil(t, ps.CurrentPlan)
 	assert.Equal(t, "Implement config parser", ps.CurrentPlan.Title)
 }
 

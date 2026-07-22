@@ -299,10 +299,10 @@ func TestValidate_MachineActionResolution(t *testing.T) {
 
 	findings := checkMachineActionResolution(corpus)
 
+	require.Len(t, findings, 1, "only 'bad' should have an unresolved action")
 	for _, f := range findings {
 		assert.Equal(t, "error", f.Level)
 	}
-	assert.Len(t, findings, 1, "only 'bad' should have an unresolved action")
 	assert.Contains(t, findings[0].Message, "missing_tool")
 }
 

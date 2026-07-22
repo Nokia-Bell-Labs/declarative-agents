@@ -168,7 +168,7 @@ func TestBuildGraph_DFSFrom(t *testing.T) {
 
 	// Initially only root nodes are ready
 	reachable := g.DFSFrom("srd001-auth-R1.1")
-	assert.NotEmpty(t, reachable)
+	require.NotEmpty(t, reachable)
 	assert.Equal(t, "srd001-auth-R1.1", reachable[0].ID)
 }
 

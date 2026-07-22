@@ -19,7 +19,7 @@ func TestParseToolDefs(t *testing.T) {
 
 	defs, err := ParseToolDefs(readFixture(t, "exectool_tools.yaml"))
 	require.NoError(t, err)
-	assert.Len(t, defs, 2)
+	require.Len(t, defs, 2)
 
 	assert.Equal(t, "greet", defs[0].Name)
 	assert.Equal(t, "exec", defs[0].Type)
@@ -34,7 +34,7 @@ func TestParseToolDefs(t *testing.T) {
 	assert.Equal(t, "stdout", defs[0].SideEffects.Items[0].Kind)
 
 	mappings := defs[0].ExtractParamMappings()
-	assert.Len(t, mappings, 2)
+	require.Len(t, mappings, 2)
 
 	nameMapping := findMapping(mappings, "name")
 	require.NotNil(t, nameMapping)
