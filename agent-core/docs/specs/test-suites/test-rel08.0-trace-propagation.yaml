@@ -7,7 +7,7 @@ traces:
 
 preconditions:
   - srd016-traceparent (amended) defines outbound injection (R4) and inbound extraction (R5) over REST.
-  - ParseTraceparent/FormatTraceparent/ParseParentSpan exist; spawned-child --otel-parent-span proof is tracked by GH-640.
+  - ParseTraceparent/FormatTraceparent/ParseParentSpan and spawned-child --otel-parent-span propagation are implemented.
   - Epic #295 child GH-310 owns the executable inject/extract Go tests these cases name.
 
 test_cases:
@@ -106,8 +106,8 @@ test_cases:
 
   - use_case: rel08.0-uc001-http-trace-propagation
     name: Spawned child consumes otel-parent-span
-    go_test: planned under GH-640
-    status: planned
+    go_test: go test ./internal/support/execute -run '^TestRunAgent.*OTelParent'
+    status: implemented
     description: |
       Start a controlled child through the shared subprocess path and verify its
       exported span keeps the caller trace ID and parent span ID.
@@ -116,6 +116,9 @@ test_cases:
     expected:
       child_parented_on_caller: true
       child_span_exported: true
+      missing_parent_emits_root: true
+      malformed_parent_reports_diagnostic: true
+      child_failure_preserves_stderr: true
     traces:
       - rel08.0-uc001-http-trace-propagation S1
       - srd016-traceparent AC4
