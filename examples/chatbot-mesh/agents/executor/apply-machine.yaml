@@ -4,10 +4,17 @@ purpose: |-
   endpoint seeds this machine with the overrides content and a fixed values-file
   path. The executor writes the overrides to the file (write_overrides), validates
   them against the chart schema with a helm dry-run (helm_dry_run), applies the
-  patch as an atomic rollout (helm_upgrade), verifies the rollout (kubectl_rollout_status),
-  and confirms success (verified). A failed apply is self-rolled-back by --atomic; a
+  patch as an atomic rollout (helm_upgrade), and verifies the rollout
+  (kubectl_rollout_status). A failed apply is self-rolled-back by --atomic; a
   verify stall is compensated by helm_rollback. The executor authors no values
   decision and passes no endpoint or credential into a running agent.
+
+  Every word here is an exec word, so each emits only ToolDone or ToolFailed. The
+  outcomes are told apart by the terminal state a run ends in rather than by the
+  signal that got it there: a dry-run reject is the caller's bad patch (Rejected),
+  a write or apply failure is ours (Failed), and a compensated verify stall is its
+  own outcome (RolledBack). The apply endpoint maps those states to 400, 500, and
+  500 with distinct bodies (srd030 R4.3; GH-615).
 initial_state: AwaitingRequest
 budget:
   max_iterations: 8
@@ -17,28 +24,29 @@ states:
   - {name: Validating, meaning: Rendering the release with --dry-run to validate against the chart schema.}
   - {name: Applying, meaning: Applying the patch as an atomic, waited rollout.}
   - {name: Verifying, meaning: Reading the Deployment rollout status to confirm completion.}
-  - {name: Confirming, meaning: Emitting the success terminal signal.}
   - {name: RollingBack, meaning: Rolling the release back after a verify stall.}
   - {name: Done, meaning: Terminal. The rollout applied and verified.}
-  - {name: Failed, meaning: Terminal. Validation rejected the patch, the apply failed, or the release was rolled back.}
+  - {name: Rejected, meaning: Terminal. The dry-run rejected the patch against the chart schema; the caller sent a bad patch and nothing was applied.}
+  - {name: RolledBack, meaning: Terminal. The rollout stalled and the release was rolled back to the prior revision.}
+  - {name: Failed, meaning: Terminal. The values file could not be written, the apply failed, or the rollback itself failed.}
 terminal_states:
   - Done
+  - Rejected
+  - RolledBack
   - Failed
 signals:
   - {name: Seed, trigger: The apply endpoint starts a request-scoped run.}
   - {name: ToolDone, trigger: A boundary word exited zero.}
   - {name: ToolFailed, trigger: A boundary word exited non-zero.}
-  - {name: TaskCompleted, trigger: The success confirmation word completed.}
 transitions:
-  - {state: AwaitingRequest, signal: Seed,          next: Writing,      action: write_overrides}
-  - {state: Writing,         signal: ToolDone,      next: Validating,   action: helm_dry_run}
-  - {state: Writing,         signal: ToolFailed,    next: Failed}
-  - {state: Validating,      signal: ToolDone,      next: Applying,     action: helm_upgrade}
-  - {state: Validating,      signal: ToolFailed,    next: Failed}
-  - {state: Applying,        signal: ToolDone,      next: Verifying,    action: kubectl_rollout_status}
-  - {state: Applying,        signal: ToolFailed,    next: Failed}
-  - {state: Verifying,       signal: ToolDone,      next: Confirming,   action: verified}
-  - {state: Verifying,       signal: ToolFailed,    next: RollingBack,  action: helm_rollback}
-  - {state: Confirming,      signal: TaskCompleted, next: Done}
-  - {state: RollingBack,     signal: ToolDone,      next: Failed}
-  - {state: RollingBack,     signal: ToolFailed,    next: Failed}
+  - {state: AwaitingRequest, signal: Seed,       next: Writing,     action: write_overrides}
+  - {state: Writing,         signal: ToolDone,   next: Validating,  action: helm_dry_run}
+  - {state: Writing,         signal: ToolFailed, next: Failed}
+  - {state: Validating,      signal: ToolDone,   next: Applying,    action: helm_upgrade}
+  - {state: Validating,      signal: ToolFailed, next: Rejected}
+  - {state: Applying,        signal: ToolDone,   next: Verifying,   action: kubectl_rollout_status}
+  - {state: Applying,        signal: ToolFailed, next: Failed}
+  - {state: Verifying,       signal: ToolDone,   next: Done}
+  - {state: Verifying,       signal: ToolFailed, next: RollingBack, action: helm_rollback}
+  - {state: RollingBack,     signal: ToolDone,   next: RolledBack}
+  - {state: RollingBack,     signal: ToolFailed, next: Failed}

@@ -302,13 +302,21 @@ func machineRequestAgentName(req MachineRequestRun) string {
 	return "machine_request"
 }
 
+// machineRequestTerminalStatus classifies a terminal state as run success or
+// failure from the HTTP status the endpoint maps it to, so the run status a
+// caller sees agrees with the response code it gets.
+//
+// The terminal-state map answers this directly. The terminal-signal map is
+// consulted next only for the machines that name a state after the signal
+// reaching it, where the two keys coincide; that lookup predates the state map
+// and stays so those configurations keep their classification (GH-615).
 func machineRequestTerminalStatus(cfg MachineRequest) func(core.State) core.RunStatus {
 	return func(state core.State) core.RunStatus {
+		if mapping, ok := cfg.Response.TerminalStates[string(state)]; ok {
+			return runStatusForHTTP(mapping.Status)
+		}
 		if mapping, ok := cfg.Response.TerminalSignals[string(state)]; ok {
-			if mapping.Status >= 200 && mapping.Status < 400 {
-				return core.StatusSucceeded
-			}
-			return core.StatusFailed
+			return runStatusForHTTP(mapping.Status)
 		}
 		switch state {
 		case core.State("Succeeded"), core.State("Done"), core.State("Passed"):
@@ -319,6 +327,15 @@ func machineRequestTerminalStatus(cfg MachineRequest) func(core.State) core.RunS
 			return core.StatusFailed
 		}
 	}
+}
+
+// runStatusForHTTP reads a mapped status code as run success or failure. An
+// unset status defaults to 200 at write time, so it reads as success here.
+func runStatusForHTTP(status int) core.RunStatus {
+	if status == 0 || (status >= 200 && status < 400) {
+		return core.StatusSucceeded
+	}
+	return core.StatusFailed
 }
 
 func machineRequestInitialSignal(cfg MachineRequest) core.Signal {
@@ -439,9 +456,12 @@ func (r *serverRuntime) writeMachineResponse(
 	endpoint Endpoint,
 	result MachineRequestResult,
 ) {
-	mapping, ok := endpoint.MachineRequest.Response.TerminalSignals[result.TerminalSignal]
+	mapping, _, ok := endpoint.MachineRequest.Response.ResponseMapping(
+		string(result.Run.FinalState), result.TerminalSignal)
 	if !ok {
-		writeMachineRequestError(w, fmt.Errorf("response_missing: terminal signal %q is not mapped", result.TerminalSignal))
+		writeMachineRequestError(w, fmt.Errorf(
+			"response_missing: neither terminal state %q nor terminal signal %q is mapped",
+			result.Run.FinalState, result.TerminalSignal))
 		return
 	}
 	status := mapping.Status

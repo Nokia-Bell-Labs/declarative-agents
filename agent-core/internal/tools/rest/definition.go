@@ -210,9 +210,34 @@ type MachineRequestMapping struct {
 	Headers map[string]string `yaml:"headers,omitempty"`
 }
 
-// MachineRequestResponse maps terminal machine output to HTTP.
+// MachineRequestResponse maps terminal machine output to HTTP, keyed either by
+// the terminal state the run ended in or by the signal that drove it there.
+//
+// Signal keying alone bounds a machine to as many distinct responses as it has
+// distinct terminal signals. Exec words emit only ToolDone, ToolFailed, and
+// CommandError, so an exec-driven request machine cannot separate a client
+// error from a server error however many terminal states it declares: every
+// failure arrives as ToolFailed. Keying by terminal state lifts that bound
+// without a bespoke Go word whose only job is to mint a distinguishable signal
+// (srd030 R4.3; GH-615).
+//
+// TerminalStates is consulted first because a state is the more specific fact:
+// many signals may reach one state, and one signal may reach many.
 type MachineRequestResponse struct {
+	TerminalStates  map[string]MachineResponseMapping `yaml:"terminal_states,omitempty"`
 	TerminalSignals map[string]MachineResponseMapping `yaml:"terminal_signals,omitempty"`
+}
+
+// ResponseMapping resolves the HTTP mapping for one finished run. It returns the
+// matched key description so a diagnostic can name what was looked up.
+func (r MachineRequestResponse) ResponseMapping(state, signal string) (MachineResponseMapping, string, bool) {
+	if mapping, ok := r.TerminalStates[state]; ok {
+		return mapping, "terminal state " + state, true
+	}
+	if mapping, ok := r.TerminalSignals[signal]; ok {
+		return mapping, "terminal signal " + signal, true
+	}
+	return MachineResponseMapping{}, "", false
 }
 
 // MachineResponseMapping defines one terminal HTTP response mapping.

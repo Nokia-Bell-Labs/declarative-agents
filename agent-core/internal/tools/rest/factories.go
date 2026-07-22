@@ -263,6 +263,11 @@ func machineActionNames(machine core.MachineSpec) []string {
 	return names
 }
 
+// validateMachineResponses rejects a response map keyed on something the
+// machine cannot produce. A mapped signal must be declared, and a mapped state
+// must be declared terminal -- a non-terminal state never ends a run, so a
+// mapping onto one is dead configuration that would surface as a
+// response_missing at request time instead of at load (srd030 R2.5; GH-615).
 func validateMachineResponses(machine core.MachineSpec, response MachineRequestResponse) error {
 	signals := map[string]bool{}
 	for _, signal := range machine.Signals.Names() {
@@ -271,6 +276,16 @@ func validateMachineResponses(machine core.MachineSpec, response MachineRequestR
 	for signal := range response.TerminalSignals {
 		if !signals[signal] {
 			return fmt.Errorf("machine_config_invalid: response terminal signal %q is not declared", signal)
+		}
+	}
+	terminals := map[string]bool{}
+	for _, state := range machine.TerminalStates {
+		terminals[state] = true
+	}
+	for state := range response.TerminalStates {
+		if !terminals[state] {
+			return fmt.Errorf("machine_config_invalid: response terminal state %q is not a terminal state of machine %q",
+				state, machine.Name)
 		}
 	}
 	return nil
