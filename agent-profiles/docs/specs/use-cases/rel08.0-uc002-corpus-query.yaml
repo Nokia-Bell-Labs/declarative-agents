@@ -7,7 +7,10 @@ summary: |
   agent-supplied query vector for the nearest chunks, and invokes the model over
   the retrieved chunks to produce a grounded answer. The proof belongs in
   agent-profiles because the Chroma and Ollama REST definitions, the collection
-  identity, and the reader prompt are profile-owned assets.
+  identity, and the reader prompt are profile-owned assets. No current tracer
+  exercises this grounded-answer path: the relocated example integration:chroma
+  proves ingest only, so this use case is specified, not yet behaviorally proven,
+  pending a restored profile-owned reader tracer (#251).
 
   As in ingest, Chroma does not embed the query server-side over its raw HTTP
   API, so the query vector is computed by the embed word and threaded into the
@@ -19,9 +22,10 @@ actor: Profile maintainer or operator asking a question against an ingested corp
 
 trigger: |
   A maintainer runs the Chroma corpus integration target with a running Chroma
-  server holding an ingested collection and a reachable Ollama:
+  server holding an ingested collection and a reachable Ollama. No such target
+  covers the reader path today; a profile-owned reader tracer is pending (#251):
 
-    AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma
+    AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma   # reader path not yet covered
 
 preconditions:
   - A Chroma server is running with a collection already ingested by rel08.0-uc001-corpus-ingest.

@@ -31,7 +31,10 @@ overview: |
   add and query through the agent-core previous-Result parameter capability
   (srd028 R12), because Chroma does not embed server-side over its raw HTTP API.
   srd012 owns the family requirements; the 08.0 use cases and test suite trace to
-  it and name mage integration:chroma as the executable evidence.
+  it. The mage integration:chroma target was relocated to examples/chatbot-mesh
+  in the mesh extraction and proves ingest count only over the example's copied
+  profile, so the profile-owned ingest+reader tracer is pending (#251) and the
+  08.0 cases are planned, not yet behaviorally proven here.
 
   A reader can now start at the SRD, follow the semantic model role entries,
   reach the two mounted-profile use cases, and land on named commands such as
@@ -81,8 +84,9 @@ roadmap_summary:
       (srd028 R12), because Chroma does not embed server-side over its raw HTTP
       API. The ingest is a model-driven loop that lists and reads the corpus while
       the machine sequences the deterministic embed and add steps. The mage
-      integration:chroma target passes end-to-end -- ingest loads the corpus and
-      the reader grounds an answer in the retrieved chunks.
+      integration:chroma target was relocated to examples/chatbot-mesh and proves
+      ingest count only over the example's copied profile; the profile-owned
+      ingest+reader tracer over the knowledge-manager profiles is pending (#251).
 
 foundation_document_index:
   - id: agent-profiles
@@ -451,10 +455,11 @@ test_suite_index:
     summary: Profile-owned tracer for Chroma corpus ingest and query. Both
       profiles embed at a local Ollama provider and thread the vector into Chroma
       add and query (srd028 R12), because Chroma does not embed server-side. The
-      integration target mage integration:chroma passes end-to-end -- the
-      model-driven ingest loads the corpus (#251) and the reader grounds an answer
-      in the retrieved chunks.
-    status: implemented
+      mage integration:chroma target was relocated to examples/chatbot-mesh and
+      proves ingest count only over the example's copied profile; the reader
+      grounded-answer path is not exercised, so both cases are planned pending a
+      restored profile-owned ingest+reader tracer (#251).
+    status: planned
     path: docs/specs/test-suites/test-rel08.0-chroma-corpus.yaml
   - id: test-rel09.0-chatbot-mesh
     title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn
@@ -579,8 +584,7 @@ coverage_gaps: |
 
   Release 08.0 adds the Chroma corpus agents. srd012 owns the family and the two
   use cases (rel08.0-uc001-corpus-ingest, rel08.0-uc002-corpus-query) trace to it
-  through touchpoints; test-rel08.0-chroma-corpus traces to both and names mage
-  integration:chroma as executable evidence. The provider-embedding threading
+  through touchpoints; test-rel08.0-chroma-corpus traces to both. The provider-embedding threading
   that release 07.1 recorded as missing for the rest client head -- REST client
   tools enforcing a declared-only runtime input contract that verbatim output
   threading does not satisfy -- is now available: agent-core #245 added
@@ -593,7 +597,10 @@ coverage_gaps: |
   fixed under #250, and revealed that the ingest could not load a corpus without
   a model-driven loop; #251 redesigned the ingest so the model lists and reads
   the corpus while the machine sequences the deterministic embed and add steps.
-  The mage integration:chroma target now passes end-to-end -- ingest loads the
-  corpus and the reader grounds an answer in the retrieved chunks -- so the 08.0
-  use cases and test suite are implemented. The run requires a reachable Chroma
-  server and an Ollama with the configured models.
+  The mesh extraction then moved the mage integration:chroma target out of
+  agent-profiles into examples/chatbot-mesh, where it proves ingest count only
+  over the example's copied profile; the reader grounded-answer path is not
+  exercised there. So the 08.0 use cases and test suite are specified and planned,
+  not behaviorally proven here, pending a restored profile-owned ingest+reader
+  tracer (#251). The intended run requires a reachable Chroma server and an Ollama
+  with the configured models.
