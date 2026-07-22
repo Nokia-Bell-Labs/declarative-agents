@@ -50,6 +50,8 @@ tools:
       roots:
         - agents
         - testdata/conformance
+    relationships:
+      before: [next_scenario]
 
   - name: next_scenario
     type: builtin
@@ -98,6 +100,9 @@ tools:
         condition: The scenario's manifest cannot be read or parsed.
         state_after_failure: The cursor has advanced past the scenario.
     config: {}
+    relationships:
+      after: [discover_scenarios, teardown_scenario]
+      before: [start_scenario_twins, report_rig_session]
 
   - name: start_scenario_twins
     type: builtin
@@ -148,6 +153,9 @@ tools:
         state_after_failure: Twins started before the failure stay tracked for teardown.
     config:
       profile: agents/twin/profile.yaml
+    relationships:
+      after: [next_scenario]
+      before: [start_scenario_subject]
 
   - name: start_scenario_subject
     type: builtin
@@ -199,6 +207,9 @@ tools:
         condition: The subject profile is missing, or the process fails to spawn.
         state_after_failure: The scenario's twins stay tracked for teardown.
     config: {}
+    relationships:
+      after: [start_scenario_twins]
+      before: [await_scenario_subject]
 
   - name: await_scenario_subject
     type: builtin
@@ -250,6 +261,9 @@ tools:
       url: /healthz
       timeout: 30s
       interval: 100ms
+    relationships:
+      after: [start_scenario_subject]
+      before: [run_scenario_validators]
 
   - name: run_scenario_validators
     type: builtin
@@ -301,6 +315,9 @@ tools:
         state_after_failure: No validator ran and no outcome is recorded.
     config:
       timeout: 5m
+    relationships:
+      after: [await_scenario_subject]
+      before: [collect_scenario_verdict]
 
   - name: collect_scenario_verdict
     type: builtin
@@ -344,8 +361,14 @@ tools:
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
-    errors: []
+    errors:
+      - signal: CommandError
+        condition: The collected validator results cannot be reduced to a verdict.
+        state_after_failure: No verdict is recorded for the scenario; the run ends in Failed.
     config: {}
+    relationships:
+      after: [run_scenario_validators]
+      before: [teardown_scenario]
 
   - name: fail_scenario_start
     type: builtin
@@ -386,7 +409,10 @@ tools:
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
-    errors: []
+    errors:
+      - signal: CommandError
+        condition: The failure verdict cannot be recorded.
+        state_after_failure: The scenario's cause is lost; the run ends in Failed.
     relationships:
       overlaps:
         - tool: collect_scenario_verdict
@@ -433,7 +459,10 @@ tools:
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
-    errors: []
+    errors:
+      - signal: CommandError
+        condition: The unhealthy verdict cannot be recorded.
+        state_after_failure: The scenario's cause is lost; the run ends in Failed.
     relationships:
       overlaps:
         - tool: collect_scenario_verdict
@@ -480,7 +509,10 @@ tools:
     undo:
       strategy: irreversible
       description: A recorded verdict is part of the run report.
-    errors: []
+    errors:
+      - signal: CommandError
+        condition: The validator-failure verdict cannot be recorded.
+        state_after_failure: The scenario's cause is lost; the run ends in Failed.
     relationships:
       overlaps:
         - tool: collect_scenario_verdict
@@ -529,11 +561,17 @@ tools:
     undo:
       strategy: irreversible
       description: A stopped child is restarted by a new scenario, not by an undo.
-    errors: []
+    errors:
+      - signal: CommandError
+        condition: A scenario child cannot be torn down.
+        state_after_failure: Scenario children may still be running; the run ends in Failed.
     config:
       grace: 5s
+    relationships:
+      after: [collect_scenario_verdict, fail_scenario_start, fail_scenario_unhealthy, fail_scenario_validators]
+      before: [next_scenario]
 
-  - name: report_session
+  - name: report_rig_session
     type: builtin
     init: report_scenario_session
     visibility: internal
@@ -575,5 +613,10 @@ tools:
     undo:
       strategy: noop
       description: Reporting reads the collected verdicts and changes nothing.
-    errors: []
+    errors:
+      - signal: CommandError
+        condition: The collected verdicts cannot be reduced to a run result.
+        state_after_failure: No run result is reported; the run ends in Failed.
     config: {}
+    relationships:
+      after: [next_scenario]

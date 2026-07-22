@@ -108,7 +108,7 @@ transitions:
   - state: AdvancingScenario
     signal: AllScenariosDone
     next: Reporting
-    action: report_session
+    action: report_rig_session
   - state: AdvancingScenario
     signal: CommandError
     next: Failed

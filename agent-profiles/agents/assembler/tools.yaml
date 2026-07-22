@@ -16,4 +16,4 @@ tools:
   - fail_scenario_unhealthy
   - fail_scenario_validators
   - teardown_scenario
-  - report_session
+  - report_rig_session
