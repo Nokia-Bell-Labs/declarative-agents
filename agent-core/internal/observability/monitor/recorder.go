@@ -53,11 +53,12 @@ type Recorder struct {
 	upDown     map[string]metric.Float64UpDownCounter
 	histograms map[string]metric.Float64Histogram
 	gauges     map[string]metric.Float64Gauge
+	emit       func(context.Context, MetricSample) error
 }
 
 // NewRecorder creates a recorder backed by a store and optional OTel meter.
 func NewRecorder(store *Store, meter metric.Meter) *Recorder {
-	return &Recorder{
+	recorder := &Recorder{
 		store:      store,
 		meter:      meter,
 		counters:   make(map[string]metric.Float64Counter),
@@ -65,6 +66,8 @@ func NewRecorder(store *Store, meter metric.Meter) *Recorder {
 		histograms: make(map[string]metric.Float64Histogram),
 		gauges:     make(map[string]metric.Float64Gauge),
 	}
+	recorder.emit = recorder.emitMetric
+	return recorder
 }
 
 // RecordMetric validates, stores, and exports one normalized metric sample.
@@ -80,8 +83,10 @@ func (r *Recorder) RecordMetric(ctx context.Context, sample MetricSample) error 
 	if r.store != nil {
 		r.store.RecordSample(sample)
 	}
-	if err := r.emitMetric(ctx, sample); err != nil {
-		r.recordDiagnostic(sample, err)
+	if r.emit != nil {
+		if err := r.emit(ctx, sample); err != nil {
+			r.recordDiagnostic(sample, err)
+		}
 	}
 	return nil
 }

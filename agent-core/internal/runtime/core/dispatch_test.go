@@ -215,6 +215,28 @@ func requireDispatchSample(t *testing.T, samples []monitor.MetricSample, name st
 	t.Fatalf("missing sample %s in %#v", name, samples)
 }
 
+func TestDispatch_MetricExportFailurePreservesCommandResult(t *testing.T) {
+	t.Parallel()
+	exportErr := fmt.Errorf("metric collector unavailable")
+	recorder := &dispatchRuntimeRecorder{err: exportErr}
+	want := Result{
+		CommandName: "build", Signal: ToolDone, Output: `{"built":true}`,
+		Cost: Cost{Duration: 17 * time.Millisecond, TokensIn: 2, TokensOut: 3, Dollars: 0.04},
+	}
+	got := dispatchWithMonitor(
+		dispatchResultCmd{name: "build", res: want},
+		&dispatchTestTracer{},
+		0,
+		recorder,
+		monitor.DispatchContext{RunID: "run-1", State: "Working", Iteration: 2},
+	)
+
+	require.Equal(t, want, got)
+	require.NotEmpty(t, recorder.samples)
+	require.Equal(t, "ToolDone", recorder.samples[0].Signal)
+	require.Equal(t, "success", recorder.samples[0].Status)
+}
+
 type dispatchResultCmd struct {
 	name string
 	res  Result
@@ -300,11 +322,12 @@ func dispatchAttrs(attrs []attribute.KeyValue) map[string]attribute.Value {
 
 type dispatchRuntimeRecorder struct {
 	samples []monitor.MetricSample
+	err     error
 }
 
 func (r *dispatchRuntimeRecorder) RecordMetric(_ context.Context, sample monitor.MetricSample) error {
 	r.samples = append(r.samples, sample)
-	return nil
+	return r.err
 }
 func (r *dispatchRuntimeRecorder) RecordEvent(context.Context, monitor.RunEvent) error { return nil }
 func (r *dispatchRuntimeRecorder) RecordRun(context.Context, monitor.RunSnapshot) error {

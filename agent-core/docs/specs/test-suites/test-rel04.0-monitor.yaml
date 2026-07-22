@@ -166,7 +166,7 @@ test_cases:
 
   - use_case: rel04.0-uc001-configurable-tool-metrics
     name: OpenTelemetry export reads normalized samples
-    go_test: TestMonitorOTelExport_NormalizedSamples
+    go_test: TestMonitorOTelExport_NormalizedSamples, TestMonitorOTelExport_FailureRecordsDiagnosticAndPreservesSample, TestDispatch_MetricExportFailurePreservesCommandResult
     status: implemented
     description: |
       Export normalized monitor samples through an OpenTelemetry metric path.

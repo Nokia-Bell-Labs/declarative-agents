@@ -69,7 +69,11 @@ func (r *Recorder) counter(sample MetricSample) (metric.Float64Counter, error) {
 	if inst, ok := r.counters[sample.Name]; ok {
 		return inst, nil
 	}
-	inst, err := r.meter.Float64Counter(sample.Name)
+	inst, err := r.meter.Float64Counter(
+		sample.Name,
+		metric.WithUnit(sample.Unit),
+		metric.WithDescription(sample.Description),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +87,11 @@ func (r *Recorder) upDownCounter(sample MetricSample) (metric.Float64UpDownCount
 	if inst, ok := r.upDown[sample.Name]; ok {
 		return inst, nil
 	}
-	inst, err := r.meter.Float64UpDownCounter(sample.Name)
+	inst, err := r.meter.Float64UpDownCounter(
+		sample.Name,
+		metric.WithUnit(sample.Unit),
+		metric.WithDescription(sample.Description),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +105,11 @@ func (r *Recorder) histogram(sample MetricSample) (metric.Float64Histogram, erro
 	if inst, ok := r.histograms[sample.Name]; ok {
 		return inst, nil
 	}
-	inst, err := r.meter.Float64Histogram(sample.Name)
+	inst, err := r.meter.Float64Histogram(
+		sample.Name,
+		metric.WithUnit(sample.Unit),
+		metric.WithDescription(sample.Description),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +123,11 @@ func (r *Recorder) gauge(sample MetricSample) (metric.Float64Gauge, error) {
 	if inst, ok := r.gauges[sample.Name]; ok {
 		return inst, nil
 	}
-	inst, err := r.meter.Float64Gauge(sample.Name)
+	inst, err := r.meter.Float64Gauge(
+		sample.Name,
+		metric.WithUnit(sample.Unit),
+		metric.WithDescription(sample.Description),
+	)
 	if err != nil {
 		return nil, err
 	}
