@@ -88,9 +88,12 @@ func TestRESTClient_SafetyAndAsyncConformance(t *testing.T) {
 func requireAsyncCorrelationAndIdempotencyHeader(t *testing.T) {
 	t.Helper()
 
-	var idempotencyKey string
+	idempotencyKeys := make(chan string, 1)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		idempotencyKey = req.Header.Get("Idempotency-Key")
+		select {
+		case idempotencyKeys <- req.Header.Get("Idempotency-Key"):
+		default:
+		}
 		writeJSON(w, http.StatusOK, map[string]interface{}{"id": "corr"})
 	}))
 	defer upstream.Close()
@@ -106,7 +109,12 @@ func requireAsyncCorrelationAndIdempotencyHeader(t *testing.T) {
 		"order_id": "corr", "correlation": "payment-corr",
 	}).Execute()
 	require.Equal(t, core.Signal("RESTAccepted"), send.Signal, send.Output)
-	require.Eventually(t, func() bool { return idempotencyKey == "corr" }, time.Second, time.Millisecond)
+	select {
+	case idempotencyKey := <-idempotencyKeys:
+		require.Equal(t, "corr", idempotencyKey)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for async idempotency header")
+	}
 
 	await := asyncCommand(def, state, InitClientAwait, map[string]interface{}{"correlation": "payment-corr"}).Execute()
 	require.Equal(t, core.Signal("RESTResponded"), await.Signal, await.Output)
