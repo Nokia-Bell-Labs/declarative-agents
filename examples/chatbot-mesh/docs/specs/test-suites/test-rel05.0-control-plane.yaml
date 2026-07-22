@@ -3,12 +3,22 @@ title: Test Suite for Release 05.0 Control Plane
 release: "05.0"
 
 overview: |
-  This suite validates the mesh control plane (srd004 coordinator, srd005 creator):
-  a provisioning intent flows from the UX agent through the coordinator's ingestion
-  and reconfiguration workflows to the creator's instance operations and back as
-  aggregated status, with the deployment-API authority held by the creator alone.
-  The cases are planned; the coordinator and creator profiles and their tracer land
-  with the control-plane release.
+  This suite covers the mesh control plane (srd004 coordinator, srd005 creator):
+  a provisioning intent flows from the UX agent through the coordinator to the
+  creator's instance operations and back as aggregated status, with the
+  deployment-API authority held by the creator alone.
+
+  The integration:controlPlane tracer is a fake-backed transport-and-authority
+  proof. It runs the real coordinator and creator agents against a fake deployment
+  API and proves the intent flow (chatbot -> coordinator -> creator -> deployment
+  API), the request/response sequencing, and the authority boundary (no endpoint or
+  credential crosses, only the creator calls the deployment API). It does not prove
+  the behavioral lifecycle: a real corpus-ingest with count verification, a real
+  checkpoint-resume rollout, distinct create/restart/terminate workflows, or a
+  grounded turn on a newly added source. Those need the real executor and profiles
+  (the executor behavioral tracer is integration:executor) and are not asserted
+  here; the trace links below relate the case to the srd004/srd005 acceptance
+  criteria structurally, not as behavioral proof.
 
 traces:
   - rel05.0-uc001-control-plane-provisioning
@@ -24,27 +34,30 @@ test_cases:
     integration_target: mage integration:controlPlane
     status: implemented
     description: |
-      Drives a provisioning intent end to end: the chatbot delegates an add-a-source
-      intent to the coordinator through its declared client; the coordinator
-      requests a corpus-ingest run per directory from the creator and verifies the
-      collection counts; the coordinator decides the values changes and requests a
-      rollout; the creator selects the profiles, spawns the ingest run, executes the
-      checkpoint-resume rollout through the deployment API, verifies health, and
-      reports it back; the coordinator aggregates status; and a subsequent chat turn
-      is grounded in the newly added source. Asserts the authority boundary: the
-      chatbot and coordinator submit no endpoint or credential, and only the creator
-      calls the deployment API.
+      Drives a provisioning intent through the real coordinator and creator agents
+      against a fake deployment API: the chatbot delegates an add-a-source intent to
+      the coordinator through its declared client; the coordinator sequences an
+      ingest request then a rollout request to the creator, forwarding the desired
+      values; the creator drives the deployment API's apply and reads the rollout;
+      the coordinator aggregates status. Asserts the authority boundary: the chatbot
+      and coordinator submit no endpoint or credential, and only the creator calls
+      the deployment API. The deployment API is a fake, so this proves transport
+      sequencing and authority, not the behavioral lifecycle -- a real corpus-ingest
+      with count verification, a real checkpoint-resume rollout, or a grounded turn
+      on the new source are not asserted (see overview).
     inputs:
       intent: add a directory as a knowledge source
       directories: [one seeded directory]
       agents: [chatbot, coordinator, creator]
     expected:
       chatbot_delegates_intent_no_credential: true
-      coordinator_sequences_ingest_and_verifies_counts: true
-      coordinator_decides_values_and_requests_rollout: true
-      creator_executes_resume_rollout_and_reports_health: true
+      coordinator_sequences_ingest_then_rollout: true
+      coordinator_forwards_values_and_requests_rollout: true
+      creator_drives_apply_and_reads_rollout_via_deployment_api: true
       only_creator_calls_deployment_api: true
-      new_source_serves_a_grounded_turn: true
+      # Not proven by this fake-backed tracer (see overview): real corpus-ingest
+      # count verification, a real checkpoint-resume rollout, and a grounded turn
+      # on the newly added source.
     traces:
       - rel05.0-uc001-control-plane-provisioning S1
       - rel05.0-uc001-control-plane-provisioning S2
