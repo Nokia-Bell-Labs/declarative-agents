@@ -168,5 +168,5 @@ releases:
         status: planned
     test_suites:
       - id: test-rel06.0-executor
-        summary: Tracer for the validate -> apply -> verify -> rollback flow against the executor agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:executor.
+        summary: Tracer for the validate -> apply -> verify -> rollback flow against the executor agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Planned; to be realized as mage integration:executor, which is not yet implemented. integration:controlPlane exercises the coordinator and creator against a fake deployment API and is not executor evidence.
         status: planned
