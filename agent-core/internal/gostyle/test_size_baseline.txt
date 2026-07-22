@@ -1,8 +1,3 @@
 # Temporary oversized Go test suites. Each entry is assigned to an explicit
 # split issue; the guard rejects new entries and rejects stale entries after a
-# split brings a file under 500 lines.
-
-# GH-657: catalog, LLM, and lifecycle tool-contract splits.
-file:internal/tools/catalog/loading_from_stl_test.go
-file:internal/tools/lifecycle/checkpoint_from_stl_test.go
-file:internal/tools/llm/behavior_from_stl_test.go
+# split brings a file under 500 lines. The baseline is currently empty.
