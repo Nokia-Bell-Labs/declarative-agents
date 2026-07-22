@@ -21,7 +21,13 @@ test_cases:
   - use_case: rel01.0-uc001-routed-fanout
     name: Routed two-RAG fan-out tracer over disjoint corpora
     integration_target: mage integration:chatbot
-    go_test: go test ./magefiles -run 'TestChatbotFanOut|TestChatbotComposeReadsEachRagSource'
+    # Module-local unit evidence for the co-generated fan-out chain. The named
+    # behaviors under expected are live outcomes proven by the integration target
+    # above, not by this command. The previous command also named
+    # TestChatbotComposeReadsEachRagSource, which lives in agent-profiles and not
+    # in this module; the surviving TestChatbotFanOut branch matched an unrelated
+    # co-generation test, so the missing proof went unreported (GH-592).
+    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$'
     status: implemented
     description: |
       Integration.Chatbot starts one Chroma container with two disjoint collections
