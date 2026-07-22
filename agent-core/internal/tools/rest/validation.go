@@ -617,7 +617,8 @@ func validateSelectorForm(name, source, selector string) error {
 		}
 		return nil
 	}
-	if !strings.HasPrefix(selector, "$.") {
+	parsed, ok := core.ParseSelector(selector)
+	if !ok || parsed.Label != "" {
 		return fmt.Errorf("operation %q input_mapping selector %q must use the $. prefix", name, selector)
 	}
 	return nil

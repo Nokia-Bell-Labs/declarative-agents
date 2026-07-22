@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 func TestResponseSelectorsShareNestedMapSemantics(t *testing.T) {
@@ -41,6 +44,43 @@ func TestResponseSelectorsShareNestedMapSemantics(t *testing.T) {
 			assert.Equal(t, tt.want, selectorValue(tt.selector, payload), "client response mapping")
 			assert.Equal(t, tt.want, responseValue(tt.selector, payload), "server response mapping")
 			assert.Equal(t, tt.want, machineSelectorValue(tt.selector, payload), "machine response mapping")
+		})
+	}
+}
+
+func TestCurrentAndFromSelectorsResolveEquivalentPaths(t *testing.T) {
+	t.Parallel()
+	output := `{"data":{"id":"doc-1"}}`
+	source := map[string]interface{}{"data": map[string]interface{}{"id": "doc-1"}}
+	current, ok := resolveResultSelector("$.data.id", source)
+	require.True(t, ok)
+	view := core.NewCommandStateView(core.Execution{{
+		CommandName: "load",
+		Result:      core.ResultDigest{Output: output},
+	}})
+	prior, err := core.ResolveFromSelector(view, "$from(load).data.id")
+	require.NoError(t, err)
+	assert.Equal(t, current, prior)
+}
+
+func TestValidateSelectorFormRejectsMalformedComponents(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		source   string
+		selector string
+	}{
+		{name: "current empty path", source: bodySourcePreviousResult, selector: "$."},
+		{name: "current empty component", source: bodySourcePreviousResult, selector: "$.data..id"},
+		{name: "current whitespace", source: bodySourcePreviousResult, selector: "$.data. id"},
+		{name: "from empty path", source: bodySourceCommandState, selector: "$from(load)."},
+		{name: "from empty component", source: bodySourceCommandState, selector: "$from(load).data..id"},
+		{name: "from malformed parenthesis", source: bodySourceCommandState, selector: "$from(load)).data.id"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Error(t, validateSelectorForm("probe", tt.source, tt.selector))
 		})
 	}
 }

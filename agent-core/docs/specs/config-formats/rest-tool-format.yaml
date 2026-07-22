@@ -1489,6 +1489,8 @@ validation_rules:
     rule: Hand-authored REST YAML MUST reject fields unknown to the typed definition model at every nesting level.
   - id: V34
     rule: Inbound JSON bodies MUST contain exactly one object and satisfy declared string, number, integral integer, object, array, boolean, or null field types.
+  - id: V35
+    rule: $.path and $from(label).path selectors MUST use the shared dotted-path grammar; empty components, whitespace or control characters, malformed parentheses, and empty labels or paths are invalid.
 
 invalid_examples:
   ambiguous_resource_operation: |

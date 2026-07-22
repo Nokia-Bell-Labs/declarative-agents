@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // CommandStateView is a read-only forward view over a run's execution log. Any
@@ -73,29 +74,90 @@ func injectCommandState(cmd Command, priorSteps Execution) {
 	}
 }
 
+// ParsedSelector is the canonical AST for $.path and $from(label).path selectors.
+// An empty Label identifies the current value; Path always has nonempty components.
+type ParsedSelector struct {
+	Label string
+	Path  []string
+}
+
+// ParseSelector parses the shared dotted-selector grammar used by validation and
+// resolution. Empty components, whitespace/control characters, malformed
+// parentheses, and noncanonical prefixes are rejected.
+func ParseSelector(selector string) (ParsedSelector, bool) {
+	var parsed ParsedSelector
+	var path string
+	switch {
+	case strings.HasPrefix(selector, "$."):
+		path = strings.TrimPrefix(selector, "$.")
+	case strings.HasPrefix(selector, "$from("):
+		remainder := strings.TrimPrefix(selector, "$from(")
+		closeIdx := strings.Index(remainder, ")")
+		if closeIdx <= 0 {
+			return ParsedSelector{}, false
+		}
+		parsed.Label = remainder[:closeIdx]
+		if !validSelectorLabel(parsed.Label) {
+			return ParsedSelector{}, false
+		}
+		after := remainder[closeIdx+1:]
+		if !strings.HasPrefix(after, ".") {
+			return ParsedSelector{}, false
+		}
+		path = strings.TrimPrefix(after, ".")
+	default:
+		return ParsedSelector{}, false
+	}
+	parsed.Path = strings.Split(path, ".")
+	for _, component := range parsed.Path {
+		if !validSelectorComponent(component) {
+			return ParsedSelector{}, false
+		}
+	}
+	return parsed, true
+}
+
+func validSelectorLabel(label string) bool {
+	return validSelectorComponent(label) &&
+		!strings.ContainsAny(label, "().")
+}
+
+func validSelectorComponent(component string) bool {
+	if component == "" || strings.TrimSpace(component) != component {
+		return false
+	}
+	for _, r := range component {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// Resolve walks a parsed selector path against one decoded JSON object.
+func (s ParsedSelector) Resolve(source map[string]interface{}) (interface{}, bool) {
+	var current interface{} = source
+	for _, key := range s.Path {
+		container, ok := current.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		current, ok = container[key]
+		if !ok {
+			return nil, false
+		}
+	}
+	return current, true
+}
+
 // ParseFromSelector splits a $from(label).dotted.path selector into its label and
-// path. It returns ok=false for any other selector form, so callers can reject a
-// malformed or wrong-form selector (srd038-command-state-store R2).
+// path. It returns ok=false for current-value or malformed selectors.
 func ParseFromSelector(selector string) (label, path string, ok bool) {
-	const prefix = "$from("
-	if !strings.HasPrefix(selector, prefix) {
+	parsed, ok := ParseSelector(selector)
+	if !ok || parsed.Label == "" {
 		return "", "", false
 	}
-	remainder := selector[len(prefix):]
-	closeIdx := strings.Index(remainder, ")")
-	if closeIdx <= 0 {
-		return "", "", false
-	}
-	label = remainder[:closeIdx]
-	after := remainder[closeIdx+1:]
-	if !strings.HasPrefix(after, ".") {
-		return "", "", false
-	}
-	path = strings.TrimPrefix(after, ".")
-	if label == "" || path == "" {
-		return "", "", false
-	}
-	return label, path, true
+	return parsed.Label, strings.Join(parsed.Path, "."), true
 }
 
 // ResolveFromSelector resolves a $from(label).path selector against the
@@ -104,10 +166,12 @@ func ParseFromSelector(selector string) (label, path string, ok bool) {
 // selector, an absent view, an unresolved label, non-JSON output, or a missing
 // path, so a caller never silently reads an empty value (srd038 R1.5, R2, R3).
 func ResolveFromSelector(view CommandStateView, selector string) (interface{}, error) {
-	label, path, ok := ParseFromSelector(selector)
-	if !ok {
+	parsed, ok := ParseSelector(selector)
+	if !ok || parsed.Label == "" {
 		return nil, fmt.Errorf("selector %q is not a $from(label).path selector", selector)
 	}
+	label := parsed.Label
+	path := strings.Join(parsed.Path, ".")
 	if view == nil {
 		return nil, fmt.Errorf("selector %q: no command-state view is configured", selector)
 	}
@@ -119,26 +183,9 @@ func ResolveFromSelector(view CommandStateView, selector string) (interface{}, e
 	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
 		return nil, fmt.Errorf("selector %q: step %q output is not a JSON object", selector, label)
 	}
-	value, ok := walkDottedPath(decoded, path)
+	value, ok := parsed.Resolve(decoded)
 	if !ok {
 		return nil, fmt.Errorf("selector %q: path %q not found in step %q output", selector, path, label)
 	}
 	return value, nil
-}
-
-// walkDottedPath walks a dotted path (for example "mapped.embedding") into nested
-// maps.
-func walkDottedPath(source map[string]interface{}, path string) (interface{}, bool) {
-	var current interface{} = source
-	for _, key := range strings.Split(path, ".") {
-		container, ok := current.(map[string]interface{})
-		if !ok {
-			return nil, false
-		}
-		current, ok = container[key]
-		if !ok {
-			return nil, false
-		}
-	}
-	return current, true
 }
