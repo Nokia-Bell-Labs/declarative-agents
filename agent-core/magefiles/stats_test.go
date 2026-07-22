@@ -5,39 +5,55 @@ package main
 import "testing"
 
 func TestDocsYAMLCategory(t *testing.T) {
-	tests := map[string]string{
-		"docs/ARCHITECTURE.yaml":                                   "top_level",
-		"docs/specs/config-formats/machine-format.yaml":            "config_formats",
-		"docs/specs/semantic-models/tool-language.yaml":            "semantic_models",
-		"docs/specs/software-requirements/srd001-core-types.yaml":  "software_requirements",
-		"docs/specs/use-cases/rel01.0-uc001-generator-coding.yaml": "use_cases",
-		"docs/specs/test-suites/test-rel00.0.yaml":                 "test_suites",
-		"docs/specs/other/example.yaml":                            "specs_other",
-		"docs/notes/internal/example.yaml":                         "docs_other",
+	t.Parallel()
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "top level", path: "docs/ARCHITECTURE.yaml", want: "top_level"},
+		{name: "config format", path: "docs/specs/config-formats/machine-format.yaml", want: "config_formats"},
+		{name: "semantic model", path: "docs/specs/semantic-models/tool-language.yaml", want: "semantic_models"},
+		{name: "software requirement", path: "docs/specs/software-requirements/srd001-core-types.yaml", want: "software_requirements"},
+		{name: "use case", path: "docs/specs/use-cases/rel01.0-uc001-generator-coding.yaml", want: "use_cases"},
+		{name: "test suite", path: "docs/specs/test-suites/test-rel00.0.yaml", want: "test_suites"},
+		{name: "other spec", path: "docs/specs/other/example.yaml", want: "specs_other"},
+		{name: "other docs", path: "docs/notes/internal/example.yaml", want: "docs_other"},
 	}
-	for path, want := range tests {
-		if got := docsYAMLCategory(path); got != want {
-			t.Fatalf("docsYAMLCategory(%q) = %q, want %q", path, got, want)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := docsYAMLCategory(tt.path); got != tt.want {
+				t.Fatalf("docsYAMLCategory(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
 	}
 }
 
 func TestConfigsYAMLCategory(t *testing.T) {
-	tests := map[string]string{
-		"tools/builtin.yaml":                 "shared_tools",
-		"agents/executor/llm/default.yaml":  "llm_configs",
-		"agents/critic/llm/devstral.yaml": "llm_configs",
-		"agents/executor/machine.yaml":      "executor",
-		"agents/planner/machine.yaml":        "planner",
-		"agents/critic/machine.yaml":      "critic",
-		"agents/bench/machine.yaml":          "bench",
-		"agents/jurist/machine.yaml":         "jurist",
-		"configs/experimental/machine.yaml":  "configs_other",
+	t.Parallel()
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "shared tools", path: "tools/builtin.yaml", want: "shared_tools"},
+		{name: "executor LLM", path: "agents/executor/llm/default.yaml", want: "llm_configs"},
+		{name: "critic LLM", path: "agents/critic/llm/devstral.yaml", want: "llm_configs"},
+		{name: "executor", path: "agents/executor/machine.yaml", want: "executor"},
+		{name: "planner", path: "agents/planner/machine.yaml", want: "planner"},
+		{name: "critic", path: "agents/critic/machine.yaml", want: "critic"},
+		{name: "bench", path: "agents/bench/machine.yaml", want: "bench"},
+		{name: "jurist", path: "agents/jurist/machine.yaml", want: "jurist"},
+		{name: "other config", path: "configs/experimental/machine.yaml", want: "configs_other"},
 	}
-	for path, want := range tests {
-		if got := configsYAMLCategory(path); got != want {
-			t.Fatalf("configsYAMLCategory(%q) = %q, want %q", path, got, want)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := configsYAMLCategory(tt.path); got != tt.want {
+				t.Fatalf("configsYAMLCategory(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
 	}
 }
 

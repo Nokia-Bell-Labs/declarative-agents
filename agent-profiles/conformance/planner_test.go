@@ -3,8 +3,12 @@
 package conformance
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -101,6 +105,63 @@ func TestPlannerConformance(t *testing.T) {
 	// srd004 AC2: load_graph seeded the requirement graph into pipeline state.
 	if _, _, ok := result.Spans.FindEvent("pipeline.graph_loaded"); !ok {
 		t.Fatalf("no pipeline.graph_loaded event; span names: %v\noutput:\n%s", result.Spans.Names(), result.Output)
+	}
+}
+
+// TestPlannerShippedProfileTerminalExecution runs the shipped pass-through
+// planner variant through its real execute_task factory and command. A controlled
+// child executable isolates the process boundary while the shipped profile,
+// declarations, graph loader, extractor, validators, and transition table remain
+// in control of command selection and terminal state mapping.
+func TestPlannerShippedProfileTerminalExecution(t *testing.T) {
+	coreRoot := RequireCoreRoot(t)
+	ollama := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tags" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"models":[{"name":"qwen3.6:35b-mlx"}]}`))
+	}))
+	defer ollama.Close()
+
+	profile := CopyShippedProfile(t, filepath.Join("agents", "planner", "profile.yaml"), map[string]string{
+		"machine: machine.yaml":  "machine: machine-passthrough.yaml",
+		"http://localhost:11434": ollama.URL,
+	})
+	workspace := t.TempDir()
+	requireCopyFS(t, workspace, filepath.Join(coreRoot, "pkg", "spec", "testdata", "valid"))
+	writeEphemeral(t, workspace, "go.mod", "module plannerproof\n\ngo 1.26\n")
+	writeEphemeral(t, workspace, "plannerproof_test.go", "package plannerproof\n\nimport \"testing\"\n\nfunc TestProof(t *testing.T) {}\n")
+
+	childArgs := filepath.Join(t.TempDir(), "child-args.txt")
+	child := filepath.Join(t.TempDir(), "agent")
+	writeEphemeral(t, filepath.Dir(child), filepath.Base(child), fmt.Sprintf(
+		"#!/bin/sh\nset -eu\nprintf '%%s\\n' \"$*\" > %q\n", childArgs,
+	))
+	if err := os.Chmod(child, 0o755); err != nil {
+		t.Fatalf("chmod controlled child: %v", err)
+	}
+
+	result := Run(t, RunConfig{
+		Profile: profile, Directory: workspace,
+		Args: []string{"--child-agent-binary", child},
+	})
+
+	result.RequireExit(t, 0)
+	result.RootRequired(t)
+	result.RequireToolSpans(t, "load_graph", "extract_all", "execute_task", "vet", "build", "test", "check_result")
+	result.RequireTerminalState(t, "Completed")
+	args := readFile(t, childArgs)
+	if !strings.Contains(args, "--profile agents/executor/profile.yaml") {
+		t.Fatalf("execute_task child args do not select shipped executor profile:\n%s", args)
+	}
+}
+
+func requireCopyFS(t *testing.T, destination, source string) {
+	t.Helper()
+	if err := os.CopyFS(destination, os.DirFS(source)); err != nil {
+		t.Fatalf("copy planner proof corpus: %v", err)
 	}
 }
 

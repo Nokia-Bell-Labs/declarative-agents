@@ -24,6 +24,7 @@ requirements:
       - R1.3: ParseTestSuite reads a test suite YAML file into a TestSuite struct with test cases and traces.
       - R1.4: ParseRoadmap reads road-map.yaml into a Roadmap struct with releases and use case references.
       - R1.5: ParseSpecIndex reads SPECIFICATIONS.yaml into a SpecIndex struct.
+      - R1.6: Tagged goals, non-goals, flows, out-of-scope items, and touchpoints SHALL reject unsupported or ambiguous YAML shapes with artifact and field diagnostics; every accepted list element SHALL produce exactly one ordered logical item.
 
   R2:
     title: Graph construction
@@ -70,8 +71,8 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: ParseSRD, ParseUseCase, ParseTestSuite, ParseRoadmap, ParseSpecIndex produce typed structs from YAML files.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+    criterion: ParseSRD, ParseUseCase, ParseTestSuite, ParseRoadmap, and ParseSpecIndex produce typed structs from YAML files without silently dropping malformed tagged-list elements.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
 
   - id: AC2
     criterion: BuildGraph constructs a directed labeled property graph from a Corpus with correct node kinds and edge relationships.

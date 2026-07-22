@@ -94,39 +94,13 @@ func (s *ServerState) Launch(def ServerDefinition) (map[string]interface{}, erro
 	s.mu.Lock()
 	if _, exists := s.servers[def.Name]; exists {
 		s.mu.Unlock()
+		_ = runtime.listener.Close()
 		return nil, fmt.Errorf("REST server %q is already launched", def.Name)
 	}
 	s.servers[def.Name] = runtime
 	s.mu.Unlock()
 	go serveRuntime(runtime)
 	return runtime.launchOutput(), nil
-}
-
-// Await waits for one inbound event, timeout, or shutdown.
-func (s *ServerState) Await(name string) (InboundEvent, string, error) {
-	runtime, err := s.runtime(name)
-	if err != nil {
-		return InboundEvent{}, "CommandError", err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), runtime.awaitTimeout())
-	defer cancel()
-	result := runtime.awaitMatching(ctx, awaitFilter{server: name}, StoppedSourceEmitServerStopped)
-	if result.signal == "" && result.err == nil {
-		return InboundEvent{Source: name}, "AwaitTimedOut", nil
-	}
-	return result.event, result.signal, result.err
-}
-
-// AwaitAny waits across multiple launched REST server queues.
-func (s *ServerState) AwaitAny(options AwaitAnyOptions) (InboundEvent, string, error) {
-	sources, err := s.resolveAwaitSources(options)
-	if err != nil {
-		return InboundEvent{}, "CommandError", err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), awaitAnyTimeout(options))
-	defer cancel()
-	result := waitAnySource(ctx, cancel, sources)
-	return result.event, result.signal, result.err
 }
 
 // Stop shuts down a configured REST server and drains queued events.

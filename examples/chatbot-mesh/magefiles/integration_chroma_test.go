@@ -3,10 +3,42 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestStartRequiredChromaContainerClassifiesLaunchOutcome(t *testing.T) {
+	t.Parallel()
+	launchErr := errors.New("docker run failed")
+	tests := []struct {
+		name    string
+		id      string
+		err     error
+		wantErr bool
+	}{
+		{name: "started", id: "container-id"},
+		{name: "docker failure", err: launchErr, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			id, err := startRequiredChromaContainer("/data", func(string) (string, error) {
+				return tt.id, tt.err
+			})
+			if tt.wantErr {
+				if !errors.Is(err, launchErr) {
+					t.Fatalf("error = %v, want wrapped launch error", err)
+				}
+				return
+			}
+			if err != nil || id != tt.id {
+				t.Fatalf("result = (%q, %v), want (%q, nil)", id, err, tt.id)
+			}
+		})
+	}
+}
 
 func TestChromaRequiredModelsFromConfig(t *testing.T) {
 	root := t.TempDir()

@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+const integrationHTTPRequestTimeout = 2 * time.Second
+
+var integrationHTTPClient = &http.Client{Timeout: integrationHTTPRequestTimeout}
+
 func buildFreshAgentFor(name string) (string, error) {
 	fmt.Printf("building fresh agent binary for %s...\n", name)
 	if err := Build(); err != nil {
@@ -46,26 +50,52 @@ func freeLoopbackAddress() (string, error) {
 }
 
 func waitHTTPStatus(url string, want int, timeout time.Duration) error {
+	return waitHTTPStatusWithClient(integrationHTTPClient, url, want, timeout)
+}
+
+func waitHTTPStatusWithClient(client *http.Client, url string, want int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		resp, err := http.Get(url)
+		remaining := time.Until(deadline)
+		requestTimeout := min(integrationHTTPRequestTimeout, remaining)
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err == nil {
-			_ = resp.Body.Close()
-			if resp.StatusCode == want {
-				return nil
+			var resp *http.Response
+			resp, err = client.Do(req)
+			if err == nil {
+				_ = resp.Body.Close()
+				if resp.StatusCode == want {
+					cancel()
+					return nil
+				}
+				lastErr = fmt.Errorf("%s returned status %d", url, resp.StatusCode)
 			}
-			lastErr = fmt.Errorf("%s returned status %d", url, resp.StatusCode)
-		} else {
-			lastErr = err
 		}
-		time.Sleep(100 * time.Millisecond)
+		cancel()
+		if err == nil {
+			remaining = time.Until(deadline)
+			if remaining > 0 {
+				time.Sleep(min(100*time.Millisecond, remaining))
+			}
+			continue
+		}
+		lastErr = err
 	}
-	return lastErr
+	if lastErr == nil {
+		lastErr = context.DeadlineExceeded
+	}
+	return fmt.Errorf("wait for %s status %d: %w", url, want, lastErr)
 }
 
 func postJSONStatus(url, body string, want int) error {
-	resp, err := http.Post(url, "application/json", strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := integrationHTTPClient.Do(req)
 	if err != nil {
 		return err
 	}

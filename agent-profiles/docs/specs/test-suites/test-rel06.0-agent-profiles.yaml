@@ -172,14 +172,15 @@ test_cases:
     status: implemented
     description: |
       Run agent-core integration targets from the agent-core repository with
-      AGENT_PROFILES_ROOT pointing at agent-profiles. uc004 consumes monitor
-      profile proof metadata. Concrete Knowledge Manager/documentation-curator
-      proof moves to the profile-owned Rel07 suite.
+      AGENT_PROFILES_ROOT pointing at agent-profiles. uc004 consumes the shipped
+      monitor profile. The rel04-monitor YAML record is documentation-only
+      metadata, not an executable input. Concrete Knowledge Manager/
+      documentation-curator proof moves to the profile-owned Rel07 suite.
     inputs:
-      monitor_fixture: testdata/integration/rel04-monitor/monitor-rest.yaml
+      monitor_profile: agents/monitor/profile.yaml
       knowledge_manager_profile_proof: test-rel07.0-profile-integrations
     expected:
-      monitor_metadata_external: true
+      monitor_profile_external: true
       knowledge_manager_profile_external: rel07_planned
     traces:
       - rel06.0-uc001-mounted-profile-execution S2

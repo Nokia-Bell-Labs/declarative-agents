@@ -38,11 +38,12 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Loop produces cancelled status on context cancellation
-    go_test: TestLoop_ContextCancellation
+    go_test: TestLoop_ContextCancellation, TestLoop_ActiveDispatchCancellation
     inputs:
-      context: "pre-cancelled"
+      contexts: [pre_cancelled, cancelled_during_active_dispatch]
     expected:
       status: cancelled
+      active_context_command_joined: true
     traces:
       - srd005-agentic-loop AC5
 
@@ -195,7 +196,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Missing initial_state produces validation error
-    go_test: TestParseMachineSpec_MissingInitialState
+    go_test: TestParseMachineSpecValidationErrors
     inputs:
       yaml: "no initial_state field"
     expected:
@@ -205,7 +206,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Unknown state in transition produces validation error
-    go_test: TestParseMachineSpec_UnknownStateInTransition
+    go_test: TestParseMachineSpecValidationErrors
     inputs:
       yaml: "transition references state 'C' not in states list"
     expected:
@@ -215,7 +216,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Unknown signal in transition produces validation error
-    go_test: TestParseMachineSpec_UnknownSignalInTransition
+    go_test: TestParseMachineSpecValidationErrors
     inputs:
       yaml: "transition references signal 'Unknown' not in signals list"
     expected:
@@ -225,7 +226,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Terminal state not in states list produces validation error
-    go_test: TestParseMachineSpec_TerminalNotInStates
+    go_test: TestParseMachineSpecValidationErrors
     inputs:
       yaml: "terminal_states: [Z] but Z not in states"
     expected:
@@ -552,7 +553,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: File exporter writes temp file and renames atomically
-    go_test: TestNewRoot_FileExporter
+    go_test: TestNewRoot_TempFileUsesServiceName, TestNewRoot_FileExporter
     inputs:
       config: "ExporterConfig{FilePath: target}"
     expected:
@@ -564,6 +565,8 @@ test_cases:
   - use_case: rel00.0-uc001-domain-agent-integration
     name: OTLP exporter configuration accepted
     go_test: TestNewRoot_OTLPExporter
+    status: planned
+    follow_up_issue: "#601"
     inputs:
       config: "ExporterConfig{OTLPEndpoint: localhost:4317}"
     expected:
@@ -574,6 +577,8 @@ test_cases:
   - use_case: rel00.0-uc001-domain-agent-integration
     name: TraceAdapter satisfies tracing.Tracer and wraps Push
     go_test: TestTraceAdapter_SatisfiesInterface
+    status: planned
+    follow_up_issue: "#601"
     inputs:
       adapter: "TraceAdapter{T: trace}"
     expected:
@@ -585,6 +590,8 @@ test_cases:
   - use_case: rel00.0-uc001-domain-agent-integration
     name: ReplayFile reads OTLP JSON and sends spans
     go_test: TestReplayFile_InvalidPath
+    status: planned
+    follow_up_issue: "#550"
     inputs:
       path: "/nonexistent/trace.json"
     expected:
@@ -791,7 +798,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: SerializeManifest normalizes schema JSON
-    go_test: TestNormalizeSchema_ReIndents
+    go_test: TestNormalizeSchema
     inputs:
       schema: "compact JSON object"
     expected:
@@ -917,7 +924,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Traceparent formats valid and invalid contexts
-    go_test: TestFormatTraceparent_Valid
+    go_test: TestParseTraceparentProtocolBoundaries
     inputs:
       span_context: valid
     expected:

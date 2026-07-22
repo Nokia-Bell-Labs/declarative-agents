@@ -36,4 +36,5 @@ tools:
           type: string
           description: "Directory to list"
           positional: true
+          position: 1
           default: "."

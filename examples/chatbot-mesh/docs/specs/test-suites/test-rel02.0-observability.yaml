@@ -34,7 +34,8 @@ test_cases:
       are browser-verified against the live mesh (GH-311, GH-312): each sub-panel
       shows an agent's run state and event feed read through the monitor_proxy, and
       selecting a turn renders its span waterfall, degrading to a backend-missing
-      notice when the trace backend is absent.
+      notice when the trace backend is absent. The named Go test covers response
+      trace decoding only; the Mage target owns live cross-agent parenting evidence.
     inputs:
       chatbot_profile: agents/chatbot/profile.yaml
       rag_clients: [rag0, rag1]

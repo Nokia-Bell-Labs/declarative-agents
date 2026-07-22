@@ -10,6 +10,7 @@ import (
 
 // Uc004 runs rel04.0: embedded monitor profile proof through cmd/agent wiring.
 func (Integration) Uc004() error {
+	beginUC("uc004")
 	cmd := exec.Command(
 		"go", "test", "./cmd/agent", "./internal/tools/rest",
 		"-run", "TestMonitorReleaseProfileProof|TestMonitorCLIProfileServesUntilControlExit|TestMonitorProfileUsesEphemeralLoopbackDefault|TestMonitorREST_FactoryUsesLiveMonitorState",

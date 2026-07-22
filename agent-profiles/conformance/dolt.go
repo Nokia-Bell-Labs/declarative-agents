@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -42,8 +43,12 @@ type DoltServer struct {
 	dataDir string // the "agent" database directory (a dolt repo)
 	env     []string
 	cancel  context.CancelFunc
+	cmd     *exec.Cmd
 	out     *bytes.Buffer
 	done    chan struct{}
+	waitErr error
+	stop    sync.Once
+	stopErr error
 }
 
 // StartDolt initializes an isolated dolt database and starts a sql-server bound
@@ -86,12 +91,19 @@ func StartDolt(t *testing.T) *DoltServer {
 		cancel()
 		t.Fatalf("start dolt sql-server: %v", err)
 	}
-	s := &DoltServer{t: t, dataDir: dataDir, env: env, cancel: cancel, out: out, done: make(chan struct{})}
+	s := &DoltServer{
+		t: t, dataDir: dataDir, env: env, cancel: cancel, cmd: cmd,
+		out: out, done: make(chan struct{}),
+	}
 	go func() {
-		_ = cmd.Wait()
+		s.waitErr = cmd.Wait()
 		close(s.done)
 	}()
-	t.Cleanup(s.Stop)
+	t.Cleanup(func() {
+		if err := s.Stop(); err != nil {
+			t.Errorf("stop dolt sql-server: %v\noutput:\n%s", err, s.out.String())
+		}
+	})
 
 	s.waitListen(addr, 30*time.Second)
 	s.dsn = fmt.Sprintf("root@tcp(127.0.0.1:%s)/agent", port)
@@ -120,15 +132,38 @@ func (s *DoltServer) LatestRunBranch(t *testing.T) string {
 	return ""
 }
 
-// Stop cancels the server process and waits briefly for it to exit.
-func (s *DoltServer) Stop() {
-	if s.cancel != nil {
-		s.cancel()
-	}
-	select {
-	case <-s.done:
-	case <-time.After(3 * time.Second):
-	}
+// Stop cancels and joins the server process before its temporary directory is
+// removed. If context cancellation does not terminate Dolt promptly, Stop
+// explicitly kills and joins it so background filesystem activity cannot race
+// t.TempDir cleanup.
+func (s *DoltServer) Stop() error {
+	s.stop.Do(func() {
+		if s.cancel != nil {
+			s.cancel()
+		}
+		select {
+		case <-s.done:
+		case <-time.After(3 * time.Second):
+			if s.cmd == nil || s.cmd.Process == nil {
+				s.stopErr = fmt.Errorf("timed out waiting for server shutdown")
+				return
+			}
+			if err := s.cmd.Process.Kill(); err != nil && !strings.Contains(err.Error(), "process already finished") {
+				s.stopErr = fmt.Errorf("kill after shutdown timeout: %w", err)
+				return
+			}
+			<-s.done
+		}
+		if s.waitErr != nil && !isExpectedDoltShutdown(s.waitErr) {
+			s.stopErr = fmt.Errorf("server exited unexpectedly: %w", s.waitErr)
+		}
+	})
+	return s.stopErr
+}
+
+func isExpectedDoltShutdown(err error) bool {
+	exitErr, ok := err.(*exec.ExitError)
+	return ok && (exitErr.ExitCode() == -1 || exitErr.ExitCode() == 137)
 }
 
 // waitListen blocks until the server accepts a TCP connection or the timeout

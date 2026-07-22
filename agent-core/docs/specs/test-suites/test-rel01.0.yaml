@@ -17,11 +17,12 @@ preconditions:
 
 test_cases:
   - use_case: rel01.0-uc001-generator-coding
-    name: Generator profile loads machine and validation sequence
-    go_test: cd ../agent-profiles && go test ./conformance -run 'TestExecutorShippedProfileWiring'
+    name: Executor profile loads machine and validation sequence
+    go_test: TestExecutorConfig_MachineLoads
+    status: implemented
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
-      machine: generator/machine.yaml
+      profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
+      machine: agents/executor/machine.yaml
       validation_actions: [build, lint, test]
     expected:
       machine_loaded: true
@@ -37,10 +38,11 @@ test_cases:
       - srd013-standard-tool-library AC2
 
   - use_case: rel01.0-uc001-generator-coding
-    name: Generator selected tools load from YAML declarations
-    go_test: cd ../agent-profiles && go test ./conformance -run 'TestExecutorShippedProfileWiring'
+    name: Executor selected tools load from YAML declarations
+    go_test: TestExecutorConfig_ToolsLoad
+    status: implemented
     inputs:
-      tools: generator/tools.yaml
+      tools: agents/executor/tools.yaml
       declarations:
         - tools/builtin
         - tools/exec
@@ -61,11 +63,12 @@ test_cases:
       - srd023-cli-exec-tools AC4
 
   - use_case: rel01.0-uc001-generator-coding
-    name: Generator transition table validates selected tool emits
-    go_test: cd ../agent-profiles && go test ./conformance -run 'TestExecutorShippedProfileWiring'
+    name: Executor transition table validates selected tool emits
+    go_test: TestExecutorConfig_TransitionTable
+    status: implemented
     inputs:
-      machine: generator/machine.yaml
-      selected_tools: generator/tools.yaml
+      machine: agents/executor/machine.yaml
+      selected_tools: agents/executor/tools.yaml
     expected:
       transition_table_builds: true
       selected_tool_emits_handled: true
@@ -78,7 +81,7 @@ test_cases:
     name: Qwen profile strips thinking blocks and extracts tool envelope
     go_test: mage integration:uc001
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
       sample: testdata/integration/uc001-generator-coding
       model: qwen3.6:35b-mlx
     expected:
@@ -136,7 +139,7 @@ test_cases:
     name: Generator solves sample and passes validation
     go_test: mage integration:uc001
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
       workspace: testdata/integration/uc001-generator-coding
       validation: build_lint_test
     expected:
@@ -148,11 +151,12 @@ test_cases:
       - srd013-standard-tool-library AC2
 
   - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Evaluator session machine loads from profile config
-    go_test: cd ../agent-profiles && go test ./conformance -run 'TestCriticConformance'
+    name: Critic session machine loads from profile config
+    go_test: TestCriticConfig_SessionMachineLoads
+    status: implemented
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
-      machine: evaluator/machine.yaml
+      profile: ${AGENT_PROFILES_ROOT}/agents/critic/profile.yaml
+      machine: agents/critic/machine.yaml
     expected:
       machine_loaded: true
       terminal_states: [Done, Failed]
@@ -162,12 +166,13 @@ test_cases:
       - srd019-eval-harness AC0
 
   - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Evaluator session tools load from selected declarations
-    go_test: cd ../agent-profiles && go test ./conformance -run 'TestCriticConformance'
+    name: Critic session tools load from selected declarations
+    go_test: TestCriticConfig_ToolsLoad
+    status: implemented
     inputs:
-      tools: evaluator/tools.yaml
+      tools: agents/critic/tools.yaml
       declarations:
-        - evaluator/builtin.yaml
+        - agents/critic/builtin.yaml
         - tools/builtin
     expected:
       selected_tools_include:
@@ -185,11 +190,12 @@ test_cases:
       - srd022-builtin-tools AC5
 
   - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Evaluator session transition table validates emitted signals
-    go_test: cd ../agent-profiles && go test ./conformance -run 'TestCriticConformance'
+    name: Critic session transition table validates emitted signals
+    go_test: TestCriticConfig_TransitionTable
+    status: implemented
     inputs:
-      machine: evaluator/machine.yaml
-      selected_tools: evaluator/tools.yaml
+      machine: agents/critic/machine.yaml
+      selected_tools: agents/critic/tools.yaml
     expected:
       transition_table_builds: true
       emitted_signals_have_transitions: true
@@ -199,11 +205,12 @@ test_cases:
       - srd022-builtin-tools AC4
 
   - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Evaluator point machine prepares isolated workspace
-    go_test: go test ./internal/evaluation -run 'TestPointWorkspaceToolsPrepareWorkspaceSequence'
+    name: Critic point machine prepares isolated workspace
+    go_test: TestCriticConfig_PointTransitionTable
+    status: implemented
     inputs:
-      point_machine: evaluator/point.yaml
-      point_tools: evaluator/tools-point.yaml
+      point_machine: agents/critic/point.yaml
+      point_tools: agents/critic/tools-point.yaml
     expected:
       workspace_tools_selected: true
       run_agent_selected: true
@@ -233,8 +240,8 @@ test_cases:
     go_test: TestNextPointIteratesProfiles
     inputs:
       profiles:
-        - generator/profile-qwen35b.yaml
-        - generator/profile-qwen27b.yaml
+        - agents/executor/profile-qwen35b.yaml
+        - agents/executor/profile-qwen27b.yaml
       samples: discovered_samples
     expected:
       first_profile_selected: true
@@ -248,7 +255,7 @@ test_cases:
     name: Evaluator integration writes result directory
     go_test: mage integration:uc002
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/agents/critic/profile.yaml
       suite: testdata/integration/uc002-evaluator-benchmark/suite.yaml
       output: eval-results
     expected:
@@ -276,10 +283,11 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench profile loads state machine
-    go_test: cd ../agent-profiles && go test ./conformance -run 'TestBenchConformance'
+    go_test: TestBenchConfig_MachineLoads
+    status: implemented
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/bench/profile.yaml
-      machine: bench/machine.yaml
+      profile: ${AGENT_PROFILES_ROOT}/agents/bench/profile.yaml
+      machine: agents/bench/machine.yaml
     expected:
       machine_loaded: true
       terminal_states: [Done, Failed]
@@ -290,10 +298,11 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench tools load serve_ui and launch_eval
-    go_test: go test ./internal/evaluation/bench -run 'TestLaunchEvalFactoryAcceptsProfileConfig'
+    go_test: TestBenchConfig_ToolsLoad
+    status: implemented
     inputs:
-      tools: bench/tools.yaml
-      declarations: bench/builtin.yaml
+      tools: agents/bench/tools.yaml
+      declarations: agents/bench/builtin.yaml
     expected:
       # Coverage is split across two tests. The go_test above asserts
       # launch_eval loads from profile config; serve_ui selection is asserted by
@@ -307,10 +316,11 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench transition table validates UI action flow
-    go_test: cd ../agent-profiles && go test ./conformance -run 'TestBenchConformance'
+    go_test: TestBenchConfig_TransitionTable
+    status: implemented
     inputs:
-      machine: bench/machine.yaml
-      selected_tools: bench/tools.yaml
+      machine: agents/bench/machine.yaml
+      selected_tools: agents/bench/tools.yaml
     expected:
       serving_action: serve_ui
       launching_action: launch_eval
@@ -325,7 +335,7 @@ test_cases:
     go_test: TestLaunchEvalFactoryAcceptsProfileConfig
     inputs:
       tool: launch_eval
-      profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/agents/critic/profile.yaml
     expected:
       profile_config_accepted: true
       legacy_machine_flags_not_required: true
@@ -401,7 +411,7 @@ test_cases:
     name: Agent child process args stay profile-first
     go_test: TestBuildArgs_ProfileOnly
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+      profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
     expected:
       profile_flag_present: true
       machine_and_model_flags_absent: true

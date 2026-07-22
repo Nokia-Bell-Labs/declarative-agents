@@ -7,7 +7,7 @@ traces:
 
 preconditions:
   - srd016-traceparent (amended) defines outbound injection (R4) and inbound extraction (R5) over REST.
-  - The ParseTraceparent/FormatTraceparent/ParseParentSpan primitives and the subprocess --otel-parent-span path already exist and are unchanged.
+  - ParseTraceparent/FormatTraceparent/ParseParentSpan and spawned-child --otel-parent-span propagation are implemented.
   - Epic #295 child GH-310 owns the executable inject/extract Go tests these cases name.
 
 test_cases:
@@ -88,18 +88,37 @@ test_cases:
       - srd016-traceparent AC5
 
   - use_case: rel08.0-uc001-http-trace-propagation
-    name: Subprocess otel-parent-span path is unchanged
-    go_test: go test ./internal/tools/rest -run TestOtelParentSpanPropagationUnchanged
+    name: ParseParentSpan restores a formatted remote parent
+    go_test: go test ./internal/tools/rest -run '^TestParseParentSpanRoundTripAndEmptyInput$'
     status: implemented
     description: |
-      The subprocess --otel-parent-span propagation continues to parent a spawned
-      child on its caller's span, independent of and complementary to the HTTP
-      path.
+      Format one SpanContext, parse it back in-process, and verify trace ID,
+      span ID, and remote-parent identity. Empty input remains a background
+      context. This is parser evidence, not subprocess transport evidence.
+    inputs:
+      traceparent: formatted remote SpanContext
+    expected:
+      parsed_trace_id_preserved: true
+      parsed_span_id_preserved: true
+      empty_input_has_no_parent: true
+    traces:
+      - rel08.0-uc001-http-trace-propagation S1
+
+  - use_case: rel08.0-uc001-http-trace-propagation
+    name: Spawned child consumes otel-parent-span
+    go_test: go test ./internal/support/execute -run '^TestRunAgent.*OTelParent'
+    status: implemented
+    description: |
+      Start a controlled child through the shared subprocess path and verify its
+      exported span keeps the caller trace ID and parent span ID.
     inputs:
       child_launch: subprocess with --otel-parent-span
     expected:
       child_parented_on_caller: true
-      unaffected_by_http_path: true
+      child_span_exported: true
+      missing_parent_emits_root: true
+      malformed_parent_reports_diagnostic: true
+      child_failure_preserves_stderr: true
     traces:
       - rel08.0-uc001-http-trace-propagation S1
       - srd016-traceparent AC4

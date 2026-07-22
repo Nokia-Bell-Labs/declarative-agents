@@ -226,18 +226,33 @@ func validateSpec(spec MachineSpec) error {
 
 	stateNames := spec.States.Names()
 	stateSet := make(map[string]bool)
+	stateIndexes := make(map[string]int)
 	for i, s := range stateNames {
 		if s == "" {
 			errs = append(errs, fmt.Sprintf("states[%d]: name is required", i))
 			continue
 		}
+		if first, exists := stateIndexes[s]; exists {
+			errs = append(errs, fmt.Sprintf("states[%d]: duplicate name %q (first declared at states[%d])", i, s, first))
+			continue
+		}
+		stateIndexes[s] = i
 		stateSet[s] = true
 	}
 
 	if spec.InitialState != "" && !stateSet[spec.InitialState] {
 		errs = append(errs, fmt.Sprintf("initial_state %q not in states list", spec.InitialState))
 	}
-	for _, ts := range spec.TerminalStates {
+	terminalIndexes := make(map[string]int)
+	for i, ts := range spec.TerminalStates {
+		if first, exists := terminalIndexes[ts]; exists {
+			errs = append(errs, fmt.Sprintf(
+				"terminal_states[%d]: duplicate state %q (first declared at terminal_states[%d])",
+				i, ts, first,
+			))
+			continue
+		}
+		terminalIndexes[ts] = i
 		if !stateSet[ts] {
 			errs = append(errs, fmt.Sprintf("terminal_state %q not in states list", ts))
 		}
@@ -245,15 +260,31 @@ func validateSpec(spec MachineSpec) error {
 
 	signalNames := spec.Signals.Names()
 	signalSet := make(map[string]bool)
+	signalIndexes := make(map[string]int)
 	for i, s := range signalNames {
 		if s == "" {
 			errs = append(errs, fmt.Sprintf("signals[%d]: name is required", i))
 			continue
 		}
+		if first, exists := signalIndexes[s]; exists {
+			errs = append(errs, fmt.Sprintf("signals[%d]: duplicate name %q (first declared at signals[%d])", i, s, first))
+			continue
+		}
+		signalIndexes[s] = i
 		signalSet[s] = true
 	}
 
+	transitionIndexes := make(map[TransitionInput]int)
 	for i, tr := range spec.Transitions {
+		key := TransitionInput{State: State(tr.State), Signal: Signal(tr.Signal)}
+		if first, exists := transitionIndexes[key]; exists {
+			errs = append(errs, fmt.Sprintf(
+				"transitions[%d]: duplicate state %q and signal %q (first declared at transitions[%d])",
+				i, tr.State, tr.Signal, first,
+			))
+		} else {
+			transitionIndexes[key] = i
+		}
 		if !stateSet[tr.State] {
 			errs = append(errs, fmt.Sprintf("transition[%d]: state %q not in states list", i, tr.State))
 		}

@@ -61,6 +61,9 @@ func LoadGraph(path string) (*Graph, error) {
 	if err := yaml.Unmarshal(data, &state); err != nil {
 		return nil, fmt.Errorf("unmarshal graph state: %w", err)
 	}
+	if err := validateGraphState(state); err != nil {
+		return nil, fmt.Errorf("validate graph state: %w", err)
+	}
 
 	g := &Graph{
 		dag:   dag.New(nodeHash, dag.Directed(), dag.Acyclic()),
@@ -86,4 +89,47 @@ func LoadGraph(path string) (*Graph, error) {
 	}
 
 	return g, nil
+}
+
+func validateGraphState(state GraphState) error {
+	nodeIDs := make(map[string]int, len(state.Nodes))
+	validStatuses := map[Status]bool{
+		Pending: true, Planning: true, Executing: true, Done: true, Failed: true,
+	}
+	for i, node := range state.Nodes {
+		if node.ID == "" {
+			return fmt.Errorf("nodes[%d].id is required", i)
+		}
+		if first, exists := nodeIDs[node.ID]; exists {
+			return fmt.Errorf("nodes[%d].id %q duplicates nodes[%d].id", i, node.ID, first)
+		}
+		nodeIDs[node.ID] = i
+		if node.SRDID == "" {
+			return fmt.Errorf("nodes[%d] %q srd_id is required", i, node.ID)
+		}
+		if !validStatuses[node.Status] {
+			return fmt.Errorf("nodes[%d] %q status %q is invalid", i, node.ID, node.Status)
+		}
+		if node.Retries < 0 {
+			return fmt.Errorf("nodes[%d] %q retries must be nonnegative", i, node.ID)
+		}
+		if node.Status == Failed && node.Retries == 0 {
+			return fmt.Errorf("nodes[%d] %q failed status requires at least one retry", i, node.ID)
+		}
+	}
+	for i, edge := range state.Edges {
+		if edge.Source == "" {
+			return fmt.Errorf("edges[%d].source is required", i)
+		}
+		if edge.Target == "" {
+			return fmt.Errorf("edges[%d].target is required", i)
+		}
+		if _, exists := nodeIDs[edge.Source]; !exists {
+			return fmt.Errorf("edges[%d].source %q does not reference a node", i, edge.Source)
+		}
+		if _, exists := nodeIDs[edge.Target]; !exists {
+			return fmt.Errorf("edges[%d].target %q does not reference a node", i, edge.Target)
+		}
+	}
+	return nil
 }

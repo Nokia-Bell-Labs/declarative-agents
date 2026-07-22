@@ -42,7 +42,11 @@ func (Integration) Chroma() error {
 	if err := requireProfilePaths(profilesRoot, chromaIngestProfile, corpusRestAsset); err != nil {
 		return err
 	}
-	if reason := chromaOllamaSkipReason(profilesRoot); reason != "" {
+	requiredModels, err := chromaRequiredModels(profilesRoot)
+	if err != nil {
+		return fmt.Errorf("invalid shipped Chroma model config: %w", err)
+	}
+	if reason := chromaOllamaSkipReasonForModels(requiredModels); reason != "" {
 		fmt.Printf("SKIP chroma: %s\n", reason)
 		return nil
 	}
@@ -71,7 +75,11 @@ func Seed() error {
 	if err := requireProfilePaths(profilesRoot, chromaIngestProfile, corpusRestAsset); err != nil {
 		return err
 	}
-	if reason := chromaOllamaSkipReason(profilesRoot); reason != "" {
+	requiredModels, err := chromaRequiredModels(profilesRoot)
+	if err != nil {
+		return fmt.Errorf("invalid shipped Chroma model config: %w", err)
+	}
+	if reason := chromaOllamaSkipReasonForModels(requiredModels); reason != "" {
 		fmt.Printf("SKIP seed: %s\n", reason)
 		return nil
 	}
@@ -96,12 +104,16 @@ func Seed() error {
 // installed. The required models come from the shipped config, so the gate never
 // duplicates the model names.
 func chromaOllamaSkipReason(profilesRoot string) string {
-	if err := waitHTTPStatus(ollamaVersionURL, http.StatusOK, 2*time.Second); err != nil {
-		return fmt.Sprintf("Ollama not reachable at %s: %v", ollamaVersionURL, err)
-	}
 	required, err := chromaRequiredModels(profilesRoot)
 	if err != nil {
 		return fmt.Sprintf("read chroma model config: %v", err)
+	}
+	return chromaOllamaSkipReasonForModels(required)
+}
+
+func chromaOllamaSkipReasonForModels(required []string) string {
+	if err := waitHTTPStatus(ollamaVersionURL, http.StatusOK, 2*time.Second); err != nil {
+		return fmt.Sprintf("Ollama not reachable at %s: %v", ollamaVersionURL, err)
 	}
 	names, err := fetchChromaOllamaModels()
 	if err != nil {
@@ -236,10 +248,9 @@ func runChromaIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("create chroma data dir: %w", err)
 	}
 	defer os.RemoveAll(dataDir)
-	containerID, err := startChromaContainer(dataDir)
+	containerID, err := startRequiredChromaContainer(dataDir, startChromaContainer)
 	if err != nil {
-		fmt.Printf("SKIP chroma: %s\n", err)
-		return nil
+		return err
 	}
 	defer stopChromaContainer(containerID)
 	if err := runChromaIngest(binary, profilesRoot, coreRoot); err != nil {
@@ -247,6 +258,14 @@ func runChromaIntegration(profilesRoot, coreRoot string) error {
 	}
 	fmt.Println("integration:chroma PASS - ingest loaded the corpus and the collection count verified documents were written")
 	return nil
+}
+
+func startRequiredChromaContainer(dataDir string, start func(string) (string, error)) (string, error) {
+	containerID, err := start(dataDir)
+	if err != nil {
+		return "", fmt.Errorf("start required Chroma container: %w", err)
+	}
+	return containerID, nil
 }
 
 // startChromaContainer runs the chromadb/chroma image detached with the

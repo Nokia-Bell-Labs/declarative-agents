@@ -48,6 +48,7 @@ requirements:
       - R2.2: When two steps in a run share a label, $from SHALL resolve to the most recent (highest step_index) matching step.
       - R2.3: Absolute step indices SHALL NOT be part of the authoring surface; authors address steps only by command name or label.
       - R2.4: Label resolution SHALL be scoped to the current run; a selector SHALL NOT resolve to a step in any other run (see R6 non-goal on cross-run addressing).
+      - R2.5: Current-value and $from selectors SHALL share one dotted-path grammar that rejects empty components, whitespace or control characters, malformed parentheses, and empty labels or paths.
   R3:
     title: Authority boundary
     items:
@@ -81,8 +82,8 @@ acceptance_criteria:
     criterion: The store is a read-only forward view keyed by (run_id, step_index), populated from in-memory Entries during a run and rehydrated from the srd036 tool_outputs plane after restart, with a typed error for an unresolved label.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
   - id: AC2
-    criterion: Authors select an earlier step by command name or label through $from(<label>).<dotted-path>, duplicate labels resolve most-recent-wins, absolute step indices are not part of the authoring surface, and resolution is run-scoped.
-    traces: [R2.1, R2.2, R2.3, R2.4]
+    criterion: Authors select an earlier step by command name or label through a canonical $from(<label>).<dotted-path> grammar, duplicate labels resolve most-recent-wins, absolute step indices are not part of the authoring surface, and resolution is run-scoped.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
   - id: AC3
     criterion: A consumer receives only the fields it selects into declared params, selectors can never name transport authority and are rejected when they try, receipts are structurally unaddressable via the srd036 split, and undeclared targets are rejected.
     traces: [R3.1, R3.2, R3.3, R3.4]
@@ -127,6 +128,7 @@ implementation_status:
     - REST body_source command_state consumption and $from(label).path selector validation (V32): clientCmd implements CommandStateAware and resolves selectors against the injected view, with the no-store rejection enforced at runtime (R13.5). Delivered by GH-278.
     - rel07.0-uc001 tracer bullet (a three-word chain where word 3 selects word 1 non-adjacently and the run resumes mid-chain) and a commit-per-step large-blob storage benchmark showing per-step write cost bounded by the new blob (~linear, not cumulative). Delivered by GH-279.
     - Shared $from resolution: core.ParseFromSelector and core.ResolveFromSelector factor the selector parse and path walk out of the REST client so a second consumer, the compose builtin, resolves $from(label).path against the same view. The compose word renders a template from $from selectors, letting a later word (invoke_llm) receive one composed input assembled from non-adjacent prior steps without carry_forward chains. Delivered by GH-342.
+    - Canonical selector AST: core.ParseSelector validates both $.path and $from(label).path forms, and the parsed selector owns the shared nested-map resolver used by core and REST consumers.
 
 diagrams:
   requirements_trace: |

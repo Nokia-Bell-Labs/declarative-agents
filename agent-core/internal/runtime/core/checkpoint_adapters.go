@@ -4,6 +4,7 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 )
 
@@ -33,6 +34,9 @@ type InMemoryCheckpoint struct {
 }
 
 func (c *InMemoryCheckpoint) Save(position Position, execution Execution) error {
+	if conversation := position.Snapshot.Conversation; len(conversation) > 0 && !json.Valid(conversation) {
+		return fmt.Errorf("in-memory checkpoint save: conversation is not valid JSON")
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.position = clonePosition(position)

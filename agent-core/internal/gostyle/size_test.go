@@ -20,6 +20,7 @@ import (
 
 const (
 	maxProductionFileLines = 500
+	maxTestFileLines       = 500
 	maxFunctionLines       = 40
 )
 
@@ -80,6 +81,47 @@ func TestGoStyleSizeConstitution(t *testing.T) {
 	}
 }
 
+// TestGoTestFileSize enforces focused test ownership. Existing oversized suites
+// are temporary, issue-linked debt in test_size_baseline.txt; new oversized test
+// files fail immediately, and completed splits make their baseline entries stale.
+func TestGoTestFileSize(t *testing.T) {
+	root := moduleRoot(t)
+	baseline := loadBaseline(t, filepath.Join(thisDir(t), "test_size_baseline.txt"))
+	seen := map[string]bool{}
+	var newViolations []string
+	walkGoFiles(t, root, func(rel, abs string) {
+		if !isTestGoFile(rel) {
+			return
+		}
+		data, err := os.ReadFile(abs)
+		require.NoError(t, err)
+		if strings.Count(string(data), "\n")+1 <= maxTestFileLines {
+			return
+		}
+		key := "file:" + rel
+		seen[key] = true
+		if !baseline[key] {
+			newViolations = append(newViolations, key)
+		}
+	})
+	var stale []string
+	for key := range baseline {
+		if !seen[key] {
+			stale = append(stale, key)
+		}
+	}
+	sort.Strings(newViolations)
+	sort.Strings(stale)
+	if len(newViolations) > 0 {
+		t.Errorf("new oversized Go test files (split by behavior; max %d lines):\n  %s",
+			maxTestFileLines, strings.Join(newViolations, "\n  "))
+	}
+	if len(stale) > 0 {
+		t.Errorf("stale test_size_baseline.txt entries now under the limit -- delete them:\n  %s",
+			strings.Join(stale, "\n  "))
+	}
+}
+
 func thisDir(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
@@ -134,7 +176,20 @@ func isProductionGoFile(rel string) bool {
 	return true
 }
 
-func walkProductionGoFiles(t *testing.T, root string, fn func(rel, abs string)) {
+func isTestGoFile(rel string) bool {
+	if !strings.HasSuffix(rel, "_test.go") || strings.HasSuffix(rel, ".pb_test.go") {
+		return false
+	}
+	for _, seg := range strings.Split(rel, string(os.PathSeparator)) {
+		switch seg {
+		case "node_modules", "testdata", "vendor":
+			return false
+		}
+	}
+	return true
+}
+
+func walkGoFiles(t *testing.T, root string, fn func(rel, abs string)) {
 	t.Helper()
 	require.NoError(t, filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -147,9 +202,16 @@ func walkProductionGoFiles(t *testing.T, root string, fn func(rel, abs string)) 
 		if err != nil {
 			return err
 		}
+		fn(rel, path)
+		return nil
+	}))
+}
+
+func walkProductionGoFiles(t *testing.T, root string, fn func(rel, abs string)) {
+	t.Helper()
+	walkGoFiles(t, root, func(rel, path string) {
 		if isProductionGoFile(rel) {
 			fn(rel, path)
 		}
-		return nil
-	}))
+	})
 }

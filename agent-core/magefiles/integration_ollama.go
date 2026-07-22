@@ -17,15 +17,15 @@ const (
 	ollamaLLMRel         = "rest/ollama-llm.yaml"
 	ollamaPrompt         = "List the local Ollama models available on this machine."
 	ollamaListModelsTool = "ollama_list_models"
-	// ollamaTestModel is the default chat model for the Ollama uc005 tracer.
-	// It is separate from qwen35b, which the generator/evaluator gates require
-	// for the qwen35b-specific generator profiles.
-	ollamaTestModel = "ornith:9b"
 )
 
 // Uc005 runs rel03.0-uc005: Qwen lists Ollama models through an OpenAPI REST tool.
 func (Integration) Uc005() error {
-	model := configuredOllamaModel()
+	beginUC("uc005")
+	model, err := configuredOllamaModel()
+	if err != nil {
+		return fmt.Errorf("uc005: resolve configured model: %w", err)
+	}
 	names, err := requireOllamaModels(model)
 	if err != nil {
 		return skipUC("uc005", err.Error())
@@ -62,8 +62,38 @@ func (r ollamaIntegrationRun) args() []string {
 	}
 }
 
-func configuredOllamaModel() string {
-	return ollamaTestModel
+func configuredOllamaModel() (string, error) {
+	rootDir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	profileRoot, err := resolveAgentProfilesRoot(rootDir)
+	if err != nil {
+		return "", err
+	}
+	return configuredOllamaModelFromRoot(profileRoot)
+}
+
+func configuredOllamaModelFromRoot(profileRoot string) (string, error) {
+	data, err := os.ReadFile(profileAbs(profileRoot, ollamaLLMRel))
+	if err != nil {
+		return "", err
+	}
+	inInvokeLLM := false
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "- name:") {
+			inInvokeLLM = strings.TrimSpace(strings.TrimPrefix(trimmed, "- name:")) == "invoke_llm"
+			continue
+		}
+		if inInvokeLLM && strings.HasPrefix(trimmed, "model:") {
+			model := strings.Trim(strings.TrimSpace(strings.TrimPrefix(trimmed, "model:")), `"'`)
+			if model != "" {
+				return model, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("%s does not configure invoke_llm.model", ollamaLLMRel)
 }
 
 func requireOllamaModels(model string) ([]string, error) {
@@ -81,7 +111,7 @@ func requireOllamaModels(model string) ([]string, error) {
 }
 
 func fetchOllamaModelNames() ([]string, error) {
-	resp, err := http.Get("http://127.0.0.1:11434/api/tags")
+	resp, err := integrationHTTPClient.Get("http://127.0.0.1:11434/api/tags")
 	if err != nil {
 		return nil, err
 	}

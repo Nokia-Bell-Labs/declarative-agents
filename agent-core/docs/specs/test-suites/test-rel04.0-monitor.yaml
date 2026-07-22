@@ -30,8 +30,7 @@ test_cases:
       workflow labels, OpenTelemetry export, REST OpenAPI output, launch-output
       bound address discovery, and cached event-stream frames.
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/monitor/profile.yaml
-      fixture: testdata/integration/rel04-monitor/monitor-rest.yaml
+      profile: ${AGENT_PROFILES_ROOT}/agents/monitor/profile.yaml
     expected:
       cmd_agent_monitor_recorder_wired: true
       live_store_used_by_rest: true
@@ -167,7 +166,7 @@ test_cases:
 
   - use_case: rel04.0-uc001-configurable-tool-metrics
     name: OpenTelemetry export reads normalized samples
-    go_test: TestMonitorOTelExport_NormalizedSamples
+    go_test: TestMonitorOTelExport_NormalizedSamples, TestMonitorOTelExport_FailureRecordsDiagnosticAndPreservesSample, TestDispatch_MetricExportFailurePreservesCommandResult
     status: implemented
     description: |
       Export normalized monitor samples through an OpenTelemetry metric path.

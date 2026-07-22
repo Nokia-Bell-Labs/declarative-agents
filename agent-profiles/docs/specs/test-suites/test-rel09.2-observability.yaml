@@ -10,19 +10,23 @@ overview: |
   trace id across the chatbot and each rag-server, a rag-server span parented under
   a chatbot span); the panel rendering is browser-verified against the live mesh.
 
+  This retained suite is a historical relocation pointer. The canonical suite,
+  profiles, tests, and integration target live under examples/chatbot-mesh as
+  release 02.0.
+
 traces:
   - rel09.2-uc001-observability
 
 preconditions:
   - agent-core is available with HTTP trace propagation (agent-core rel08.0), so the request-scoped machine exports spans and propagates traceparent.
   - The chatbot serves the SPA and the monitor_proxy binding; a trace backend is reachable for the waterfall (else the panel degrades to a notice).
-  - agent-profiles owns the chatbot ui assets and ux.yaml monitored_agents.
+  - examples/chatbot-mesh owns the chatbot UI assets and ux.yaml monitored_agents.
 
 test_cases:
   - use_case: rel09.2-uc001-observability
     name: Connected cross-agent trace tracer
-    integration_target: mage integration:chatbot
-    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run TestChatResponse
+    integration_target: cd ../examples/chatbot-mesh && mage integration:chatbot
+    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run '^TestChatResponseDecodesTrace$'
     status: implemented
     description: |
       Integration.Chatbot asserts one connected cross-agent trace: because the
@@ -36,7 +40,7 @@ test_cases:
       selecting a turn renders its span waterfall, degrading to a backend-missing
       notice when the trace backend is absent.
     inputs:
-      chatbot_profile: agents/chatbot/profile.yaml
+      chatbot_profile: ../examples/chatbot-mesh/agents/chatbot/profile.yaml
       rag_clients: [rag0, rag1]
       monitored_agents: [chatbot, rag0, rag1]
       trace_backend: jaeger (query API through monitor_proxy)

@@ -196,26 +196,31 @@ func TestBuildGraph_EdgesReturnsSorted(t *testing.T) {
 }
 
 func TestParseTouchpoint(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
+		name      string
 		input     string
 		wantSRD   string
 		wantGroup []string
 	}{
-		{"srd005-cli R1, R2, R3 -- description", "srd005-cli", []string{"R1", "R2", "R3"}},
-		{"T1: srd005-cli R1, R2 -- description", "srd005-cli", []string{"R1", "R2"}},
-		{"T12: srd026-lifecycle-tools R1 -- lifecycle tools", "srd026-lifecycle-tools", []string{"R1"}},
-		{"T1 srd005-cli R1 -- malformed tag", "", nil},
-		{"TA: srd005-cli R1 -- malformed tag", "", nil},
-		{"T1: srd999-missing R1 -- unknown SRD stays parseable", "srd999-missing", []string{"R1"}},
-		{"srd001-auth R1 -- desc", "srd001-auth", []string{"R1"}},
-		{"agent-core telemetry -- something", "", nil},
-		{"", "", nil},
+		{name: "multiple requirement groups", input: "srd005-cli R1, R2, R3 -- description", wantSRD: "srd005-cli", wantGroup: []string{"R1", "R2", "R3"}},
+		{name: "tagged reference", input: "T1: srd005-cli R1, R2 -- description", wantSRD: "srd005-cli", wantGroup: []string{"R1", "R2"}},
+		{name: "multi-digit tag", input: "T12: srd026-lifecycle-tools R1 -- lifecycle tools", wantSRD: "srd026-lifecycle-tools", wantGroup: []string{"R1"}},
+		{name: "missing tag colon", input: "T1 srd005-cli R1 -- malformed tag"},
+		{name: "nonnumeric tag", input: "TA: srd005-cli R1 -- malformed tag"},
+		{name: "unknown SRD remains parseable", input: "T1: srd999-missing R1 -- unknown SRD stays parseable", wantSRD: "srd999-missing", wantGroup: []string{"R1"}},
+		{name: "untagged reference", input: "srd001-auth R1 -- desc", wantSRD: "srd001-auth", wantGroup: []string{"R1"}},
+		{name: "unrelated prose", input: "agent-core telemetry -- something"},
+		{name: "empty", input: ""},
 	}
 
 	for _, tt := range tests {
-		srd, groups := parseTouchpoint(tt.input)
-		assert.Equal(t, tt.wantSRD, srd, "input: %s", tt.input)
-		assert.Equal(t, tt.wantGroup, groups, "input: %s", tt.input)
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			srd, groups := parseTouchpoint(tt.input)
+			assert.Equal(t, tt.wantSRD, srd)
+			assert.Equal(t, tt.wantGroup, groups)
+		})
 	}
 }
 

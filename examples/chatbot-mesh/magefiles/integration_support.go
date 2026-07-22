@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -16,6 +17,10 @@ import (
 	"github.com/magefile/mage/mg"
 	"gopkg.in/yaml.v3"
 )
+
+const integrationHTTPRequestTimeout = 2 * time.Second
+
+var integrationHTTPClient = &http.Client{Timeout: integrationHTTPRequestTimeout}
 
 // Integration groups the example's end-to-end tracer targets. Each starts real
 // services (a Chroma container, the mesh agents, an external Ollama) and skips
@@ -42,6 +47,10 @@ func requireProfilePaths(root string, rels ...string) error {
 // remove, so an integration can assert each agent's spans after its graceful exit
 // flushes them.
 func startDetachedAgent(binary, profilesRoot, coreRoot, profile, tracePath string) (func(kill bool) error, error) {
+	return startDetachedAgentWithTimeout(binary, profilesRoot, coreRoot, profile, tracePath, 15*time.Second)
+}
+
+func startDetachedAgentWithTimeout(binary, profilesRoot, coreRoot, profile, tracePath string, gracefulWait time.Duration) (func(kill bool) error, error) {
 	profilePath := profile
 	if !filepath.IsAbs(profilePath) {
 		profilePath = filepath.Join(profilesRoot, profile)
@@ -62,38 +71,69 @@ func startDetachedAgent(binary, profilesRoot, coreRoot, profile, tracePath strin
 	go func() { done <- cmd.Wait() }()
 	return func(kill bool) error {
 		if kill {
-			_ = cmd.Process.Kill()
-			<-done
+			if err := cmd.Process.Kill(); err != nil {
+				return fmt.Errorf("kill %s: %w", profile, err)
+			}
+			_ = <-done // a signal exit is expected after an explicit force-kill.
 			return nil
 		}
 		select {
-		case <-done:
+		case err := <-done:
+			if err != nil {
+				return fmt.Errorf("%s exited during graceful shutdown: %w", profile, err)
+			}
 			return nil
-		case <-time.After(15 * time.Second):
-			_ = cmd.Process.Kill()
-			<-done
-			return fmt.Errorf("%s did not stop within 15s after exit request", profile)
+		case <-time.After(gracefulWait):
+			killErr := cmd.Process.Kill()
+			waitErr := <-done
+			if killErr != nil {
+				return fmt.Errorf("%s did not stop within %s; kill failed: %w", profile, gracefulWait, killErr)
+			}
+			if waitErr != nil {
+				return fmt.Errorf("%s did not stop within %s (forced process exit: %v)", profile, gracefulWait, waitErr)
+			}
+			return fmt.Errorf("%s did not stop within %s", profile, gracefulWait)
 		}
 	}, nil
 }
 
 func waitHTTPStatus(url string, want int, timeout time.Duration) error {
+	return waitHTTPStatusWithClient(integrationHTTPClient, url, want, timeout)
+}
+
+func waitHTTPStatusWithClient(client *http.Client, url string, want int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		resp, err := http.Get(url)
+		remaining := time.Until(deadline)
+		ctx, cancel := context.WithTimeout(context.Background(), min(integrationHTTPRequestTimeout, remaining))
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err == nil {
-			_ = resp.Body.Close()
-			if resp.StatusCode == want {
-				return nil
+			var resp *http.Response
+			resp, err = client.Do(req)
+			if err == nil {
+				_ = resp.Body.Close()
+				if resp.StatusCode == want {
+					cancel()
+					return nil
+				}
+				lastErr = fmt.Errorf("status %d", resp.StatusCode)
 			}
-			lastErr = fmt.Errorf("status %d", resp.StatusCode)
-		} else {
-			lastErr = err
 		}
-		time.Sleep(100 * time.Millisecond)
+		cancel()
+		if err == nil {
+			remaining = time.Until(deadline)
+			if remaining > 0 {
+				time.Sleep(min(100*time.Millisecond, remaining))
+			}
+			continue
+		}
+		lastErr = err
 	}
-	return lastErr
+	if lastErr == nil {
+		lastErr = context.DeadlineExceeded
+	}
+	return fmt.Errorf("wait for %s status %d: %w", url, want, lastErr)
 }
 
 func requestHTTP(method, url, body string) ([]byte, int, error) {
@@ -104,7 +144,7 @@ func requestHTTP(method, url, body string) ([]byte, int, error) {
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := integrationHTTPClient.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
