@@ -7,7 +7,7 @@ overview: |
   smoke, the values-to-config co-generation drift lock, and the tiered hot swap
   (repoint and add-RAG rollout). The kind-cluster tracers skip cleanly without
   docker/kind/helm/kubectl; the co-generation tracers run without a cluster. The
-  provisioning deployment API is deferred to the control-plane addition.
+  provisioning deployment API belongs to the control-plane surface (coordinator, creator, executor) and is out of scope for this data-plane suite.
 
 traces:
   - rel03.0-uc001-mesh-deployment

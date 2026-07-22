@@ -15,10 +15,9 @@ context: |
   keeps one runtime image across every agent role and lets a values change
   re-render profiles without rebuilding images.
 
-  Proposed chart location: a new top-level examples/chatbot-mesh/helm/ directory
-  (confirm with the maintainer in review). The chart, values schema, and rollout
-  scripting are deployment-plane artifacts; nothing here feeds hosts or URLs into
-  a running agent.
+  Chart location: the top-level examples/chatbot-mesh/helm/ directory. The chart,
+  values schema, and rollout scripting are deployment-plane artifacts; nothing
+  here feeds hosts or URLs into a running agent.
 
 problem: |
   The mesh needs a reproducible deployment whose topology and the chatbot's RAG

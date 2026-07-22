@@ -64,7 +64,7 @@ success_criteria:
 
 out_of_scope:
   - Request-id-tagged turn correlation, a follow-on that needs the monitor run events to carry the request id.
-  - The provisioning panel, deferred to the control-plane addition.
+  - The provisioning panel, part of the control-plane surface (coordinator, creator, executor) and out of scope for this data-plane use case.
 
 test_suite_trace: test-rel02.0-observability
 status: implemented
