@@ -25,10 +25,12 @@ tools:
         type: string
         description: Source directory path (appends /. for contents)
         positional: true
+        position: 1
       destination:
         type: string
         description: Destination directory path
         positional: true
+        position: 2
     required:
     - source
     - destination

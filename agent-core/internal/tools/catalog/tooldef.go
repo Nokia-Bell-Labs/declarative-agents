@@ -5,6 +5,7 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 
@@ -16,6 +17,7 @@ var cliExtensionKeys = map[string]bool{
 	"positional": true,
 	"bool_flag":  true,
 	"default":    true,
+	"position":   true,
 }
 
 // ToolDef is a declarative, YAML-driven tool definition.
@@ -153,6 +155,7 @@ type ParamMapping struct {
 	BoolFlag   bool
 	Default    string
 	Required   bool
+	Position   int
 }
 
 // ToolDefsFile is the top-level YAML structure for declaration files.
@@ -267,8 +270,24 @@ func (td *ToolDef) ExtractParamMappings() []ParamMapping {
 		if d, ok := pMap["default"].(string); ok {
 			pm.Default = d
 		}
+		if position, ok := pMap["position"].(int); ok {
+			pm.Position = position
+		}
 		mappings = append(mappings, pm)
 	}
+	sort.Slice(mappings, func(i, j int) bool {
+		left, right := mappings[i], mappings[j]
+		switch {
+		case left.Position > 0 && right.Position > 0 && left.Position != right.Position:
+			return left.Position < right.Position
+		case left.Position > 0 && right.Position == 0:
+			return true
+		case left.Position == 0 && right.Position > 0:
+			return false
+		default:
+			return left.Name < right.Name
+		}
+	})
 	return mappings
 }
 

@@ -50,6 +50,7 @@ func TestParseToolDefs(t *testing.T) {
 	pathMapping := findMapping(pathMappings, "path")
 	require.NotNil(t, pathMapping)
 	assert.True(t, pathMapping.Positional)
+	assert.Equal(t, 1, pathMapping.Position)
 	assert.Equal(t, ".", pathMapping.Default)
 }
 
@@ -225,6 +226,7 @@ func TestStripCLIExtensions(t *testing.T) {
 				"positional":  false,
 				"bool_flag":   false,
 				"default":     "hello",
+				"position":    1,
 			},
 		},
 		"required": []interface{}{"msg"},
@@ -243,6 +245,7 @@ func TestStripCLIExtensions(t *testing.T) {
 	assert.NotContains(t, msg, "positional")
 	assert.NotContains(t, msg, "bool_flag")
 	assert.NotContains(t, msg, "default")
+	assert.NotContains(t, msg, "position")
 
 	assert.Contains(t, cleaned, "required")
 	assert.Equal(t, "object", cleaned["type"])
@@ -337,6 +340,29 @@ func TestExtractParamMappings_Full(t *testing.T) {
 	assert.True(t, verbose.BoolFlag)
 	assert.Equal(t, "-v", verbose.Flag)
 	assert.False(t, verbose.Required)
+}
+
+func TestExtractParamMappingsUsesPositionThenStableName(t *testing.T) {
+	t.Parallel()
+	td := ToolDef{Parameters: map[string]interface{}{
+		"properties": map[string]interface{}{
+			"zeta":        map[string]interface{}{"positional": true},
+			"destination": map[string]interface{}{"positional": true, "position": 3},
+			"verbose":     map[string]interface{}{"flag": "-v", "bool_flag": true, "position": 2},
+			"source":      map[string]interface{}{"positional": true, "position": 1},
+			"alpha":       map[string]interface{}{"flag": "--alpha"},
+		},
+	}}
+	want := []string{"source", "verbose", "destination", "alpha", "zeta"}
+
+	for range 500 {
+		mappings := td.ExtractParamMappings()
+		names := make([]string, 0, len(mappings))
+		for _, mapping := range mappings {
+			names = append(names, mapping.Name)
+		}
+		assert.Equal(t, want, names)
+	}
 }
 
 func TestLoadToolSelection(t *testing.T) {

@@ -524,6 +524,13 @@ parameter_extensions:
         Default value used when the LLM omits the parameter. Applied
         before CLI argument construction.
 
+    - field: position
+      type: int
+      description: |
+        Positive ordering key for mapped arguments. Positioned mappings are
+        appended in ascending order after the tool's base args. Unpositioned
+        mappings follow in stable parameter-name order.
+
 declaration_files:
   - file: tools/builtin/
     description: |
