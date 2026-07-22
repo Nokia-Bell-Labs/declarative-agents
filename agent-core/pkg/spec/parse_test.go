@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func TestParseSRD(t *testing.T) {
@@ -172,6 +173,80 @@ test_suite: test-rel05.0
 	srdID, groups := parseTouchpoint(uc.Touchpoints[0])
 	assert.Equal(t, "srd004-coordinator", srdID)
 	assert.Equal(t, []string{"AC1"}, groups)
+}
+
+func TestParseUseCaseRejectsMalformedTaggedLists(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		field   string
+		wantErr string
+	}{
+		{name: "flow scalar", field: "flow: not-a-list", wantErr: "flow: expected sequence"},
+		{name: "flow null item", field: "flow:\n  - null", wantErr: "flow[0]"},
+		{name: "flow nested sequence", field: "flow:\n  - [nested]", wantErr: "flow[0]"},
+		{name: "flow multi-key mapping", field: "flow:\n  - F1: one\n    F2: two", wantErr: "one scalar mapping entry"},
+		{name: "touchpoint multi-key tagged mapping", field: "touchpoints:\n  - T1: one\n    T2: two", wantErr: "tagged mapping must contain exactly one entry"},
+		{name: "touchpoint nested target", field: "touchpoints:\n  - target: [srd001 R1]", wantErr: "mapping keys and values must be scalars"},
+		{name: "touchpoint unknown object key", field: "touchpoints:\n  - target: srd001 R1\n    typo: value", wantErr: `unknown key "typo"`},
+		{name: "out of scope null", field: "out_of_scope: null", wantErr: "out_of_scope: expected sequence"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			path := writeUseCaseFile(t, "id: malformed\n"+tt.field+"\n")
+			_, err := ParseUseCase(path)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, path)
+			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestParseSRDRejectsMalformedGoalLists(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		field   string
+		wantErr string
+	}{
+		{name: "goals mapping", field: "goals:\n  G1: value", wantErr: "goals: expected sequence"},
+		{name: "goals null", field: "goals:\n  - null", wantErr: "goals[0]"},
+		{name: "non-goals nested", field: "non_goals:\n  - [nested]", wantErr: "non_goals[0]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			const source = "docs/specs/software-requirements/srd-malformed.yaml"
+			_, err := parseSRDBytes([]byte("id: malformed\n"+tt.field+"\n"), source)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, source)
+			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func FuzzParseTaggedListNeverDropsAcceptedItems(f *testing.F) {
+	f.Add("- G1: goal\n- plain")
+	f.Add("- null")
+	f.Add("- [nested]")
+	f.Add("not-a-list")
+	f.Fuzz(func(t *testing.T, raw string) {
+		var node yaml.Node
+		if err := yaml.Unmarshal([]byte(raw), &node); err != nil {
+			return
+		}
+		values, err := parseTaggedList(&node, "field")
+		if err != nil {
+			return
+		}
+		current := &node
+		if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+			current = node.Content[0]
+		}
+		require.Equal(t, len(current.Content), len(values))
+	})
 }
 
 func TestParseTestSuite(t *testing.T) {
