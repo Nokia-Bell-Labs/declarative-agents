@@ -94,6 +94,7 @@ func (s *ServerState) Launch(def ServerDefinition) (map[string]interface{}, erro
 	s.mu.Lock()
 	if _, exists := s.servers[def.Name]; exists {
 		s.mu.Unlock()
+		_ = runtime.listener.Close()
 		return nil, fmt.Errorf("REST server %q is already launched", def.Name)
 	}
 	s.servers[def.Name] = runtime
