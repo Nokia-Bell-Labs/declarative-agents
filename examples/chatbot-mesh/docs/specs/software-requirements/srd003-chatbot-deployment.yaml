@@ -149,6 +149,13 @@ implementation_status:
     - >-
       A live on-cluster hot-swap turn citing a newly added corpus, paired with a
       Docker and Ollama host run.
+    - >-
+      The R3.2 checkpoint-resume rollout is not yet fully realized: the chart
+      renders --dolt-dsn but not --resume-checkpoint, and Integration.HelmSwap
+      proves the rollout mechanics (re-render, rolled Deployment generation), not a
+      restored checkpoint. Rendering the resume argument (once the rollout's
+      checkpoint-selection is defined) and a Dolt tracer proving pre-rollout state
+      is restored afterward remain to do.
 
 diagrams:
   deployment: |

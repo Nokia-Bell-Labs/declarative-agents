@@ -81,15 +81,18 @@ test_cases:
     go_test: go test ./magefiles -run TestChatbotFanOutCoGeneratedForNRags
     status: implemented
     description: |
-      Integration.HelmSwap proves both tiered-swap paths on a kind cluster.
-      Repointing a rag Service selector leaves the chatbot pod unchanged (R3.1);
-      adding a RAG stands up the new unit, re-renders the co-generated rest.yaml
-      with the new client (locked by the drift test), and rolls the chatbot
-      Deployment via its checksum/profiles annotation so it resumes from its Dolt
-      checkpoint (R3.2). The target asserts the infrastructure contracts (pod
-      identity, workload existence, ConfigMap breadth, rolled generation) via
-      kubectl and helm, so it needs docker/kind/helm/kubectl but not Ollama; it
-      skips cleanly otherwise and deletes the cluster in all paths.
+      Integration.HelmSwap proves the tiered-swap rollout mechanics on a kind
+      cluster. Repointing a rag Service selector leaves the chatbot pod unchanged
+      (R3.1); adding a RAG stands up the new unit, re-renders the co-generated
+      rest.yaml with the new client (locked by the drift test), and rolls the
+      chatbot Deployment via its checksum/profiles annotation (R3.2). The target
+      asserts the rollout infrastructure contracts (pod identity, workload
+      existence, ConfigMap breadth, rolled generation) via kubectl and helm, so it
+      needs docker/kind/helm/kubectl but not Ollama; it skips cleanly otherwise and
+      deletes the cluster in all paths. It does not prove checkpoint-resume: the
+      chart renders --dolt-dsn but not --resume-checkpoint, and no restored
+      pre-rollout state is observed. The R3.2 resume-checkpoint rendering and a
+      Dolt state-restored-after-rollout tracer are not covered here.
     inputs:
       chart: examples/chatbot-mesh/helm/
       values_rag_list: [rag0]
