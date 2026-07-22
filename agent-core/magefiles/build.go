@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 	"github.com/magefile/mage/sh"
 )
 
@@ -134,7 +135,36 @@ func Audit() error {
 	if auditRunFailed(output.String()) {
 		return fmt.Errorf("audit failed: jurist reported failed terminal status")
 	}
+	if err := validateGoTestEvidence(rootDir); err != nil {
+		return err
+	}
 	return nil
+}
+
+// validateGoTestEvidence checks that every formal test suite's go_test evidence
+// resolves to a real Go test in this module. It is invoked explicitly from Audit
+// rather than through generic corpus loading, so a suite that cites a renamed,
+// deleted, or zero-match test fails the audit instead of silently passing.
+func validateGoTestEvidence(rootDir string) error {
+	fmt.Println("validating formal go_test evidence...")
+	findings, err := spec.AuditGoTestEvidence(rootDir)
+	if err != nil {
+		return fmt.Errorf("validate go_test evidence: %w", err)
+	}
+	return goTestEvidenceError(findings)
+}
+
+// goTestEvidenceError renders the validator's findings as an audit error, or nil
+// when the evidence is clean.
+func goTestEvidenceError(findings []spec.Finding) error {
+	if len(findings) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	for _, f := range findings {
+		fmt.Fprintf(&b, "  [%s] %s: %s\n", f.Level, f.SuiteID, f.Message)
+	}
+	return fmt.Errorf("go_test evidence validation failed: %d finding(s)\n%s", len(findings), b.String())
 }
 
 // JuristCharterSmoke runs the profile-owned demo charter against its fixture.

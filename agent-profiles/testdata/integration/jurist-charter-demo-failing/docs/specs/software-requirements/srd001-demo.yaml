@@ -1,0 +1,24 @@
+id: srd001-demo
+title: Jurist Charter Demo
+
+problem: |
+  The failing demo fixture needs a minimal specification corpus that carries one
+  error-level violation so the jurist reaches the Failed terminal.
+
+goals:
+  - G1: Load a small corpus before charter-only checks execute.
+
+requirements:
+  R1:
+    title: Demo corpus
+    items:
+      - R1.1: Provide one SRD file for graph construction.
+      # R1.2 is intentionally left uncovered by any acceptance criterion so the
+      # builtin spec-corpus charter raises an error-level uncovered-req-item
+      # finding, driving the run to the Failed terminal.
+      - R1.2: Provide an uncovered requirement item so a charter error fires.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The fixture can be loaded before generic charter checks run.
+    traces: [R1.1]

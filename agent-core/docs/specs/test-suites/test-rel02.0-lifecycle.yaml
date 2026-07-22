@@ -331,7 +331,7 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: Lifecycle profiles wire checkpoint_history and checkpoint_rollback
-    go_test: TestCheckpointHistoryExecuteFormatsExecutionLog, TestCheckpointRollbackRevertsDBStateToTargetStep
+    go_test: cd ../agent-profiles && go test ./conformance -run '^TestLifecycleHistoryRollback$'
     status: done
     description: |
       The history and rollback lifecycle profiles load their MachineSpec,
