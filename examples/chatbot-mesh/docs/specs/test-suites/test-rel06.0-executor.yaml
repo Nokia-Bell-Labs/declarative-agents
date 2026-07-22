@@ -92,8 +92,8 @@ test_cases:
 
   - use_case: rel06.0-uc001-declarative-executor
     name: The panel route reaches only the authorized surface
-    integration_target: mage integration (kind request proof, GH-682)
-    status: specified
+    integration_target: mage integration:policyProof (GH-682)
+    status: done
     description: |
       Proves against a live cluster with NetworkPolicy enforcement active that the
       browser provisioning route reaches the coordinator and that the executor apply
@@ -112,6 +112,8 @@ test_cases:
       browser_route_reaches_coordinator: true
       executor_apply_refuses_non_creator: true
       creator_instance_port_not_ingress_reachable: true
+      coordinator_reaches_creator_instance: true
+      creator_reaches_executor_apply: true
     traces:
       - rel06.0-uc001-declarative-executor S6
       - srd006-executor AC6

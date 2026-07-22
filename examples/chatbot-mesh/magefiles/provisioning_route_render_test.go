@@ -238,3 +238,36 @@ func TestNoProvisioningRouteWithoutTheControlPlane(t *testing.T) {
 		t.Error("the executor NetworkPolicy stopped rendering when the control plane is disabled")
 	}
 }
+
+// TestCreatorInstanceIsCoordinatorOnly pins the policy GH-685 added. The creator
+// is the only pod the executor admits to its apply surface, so an unconstrained
+// instance port was the widest remaining path to apply: reach the creator and it
+// reaches the executor for you. The GH-682 kind proof measured that reachability
+// before this policy existed.
+func TestCreatorInstanceIsCoordinatorOnly(t *testing.T) {
+	docs := renderMesh(t, "controlPlane.enabled=true")
+
+	policy := findByKindComponent(docs, "NetworkPolicy", "creator")
+	if policy == nil {
+		t.Fatal("no creator NetworkPolicy rendered; the instance port is open to the whole cluster")
+	}
+	if len(policy.Spec.Ingress) != 1 {
+		t.Fatalf("creator policy has %d ingress rules, want exactly 1", len(policy.Spec.Ingress))
+	}
+	rule := policy.Spec.Ingress[0]
+	for _, from := range rule.From {
+		if from.NamespaceSelector != nil {
+			t.Errorf("creator policy admits a namespaceSelector %v; the instance port is coordinator-only", from.NamespaceSelector.MatchLabels)
+		}
+		if from.PodSelector == nil {
+			t.Error("creator policy has a from entry with no podSelector")
+			continue
+		}
+		if got := from.PodSelector.MatchLabels["app.kubernetes.io/component"]; got != "coordinator" {
+			t.Errorf("creator policy admits component %q, want coordinator only", got)
+		}
+	}
+	if len(rule.Ports) != 1 || rule.Ports[0].Port != "instance" {
+		t.Errorf("creator policy opens %v, want the instance port only", rule.Ports)
+	}
+}
