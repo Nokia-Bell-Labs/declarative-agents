@@ -102,6 +102,11 @@ type TestCase struct {
 	UseCase     string   `yaml:"use_case"`
 	Description string   `yaml:"description"`
 	Traces      []string `yaml:"traces"`
+	// GoTest is the formal evidence string naming the Go test(s) that validate
+	// this case: a bare test name, a comma-separated list, a "go test <pkgs>
+	// [-run <regex>]" command, or a Mage/descriptive label. ValidateGoTestEvidence
+	// checks the executable forms against the real test inventory.
+	GoTest string `yaml:"go_test"`
 }
 
 // Roadmap is the parsed road-map.yaml.
