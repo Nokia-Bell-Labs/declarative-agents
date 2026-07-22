@@ -3,7 +3,14 @@ title: Test Suite for Release 09.5 In-Cluster LLM Tier
 release: "09.5"
 
 overview: |
-  This suite validates the in-cluster LLM tier (srd015 R6): a default helm install
+  Non-canonical historical record. The in-cluster LLM tier was extracted to
+  examples/chatbot-mesh/, which owns the chart, the Ollama subchart, and the
+  integration:helmLLMTier tracer. Its canonical suite is
+  examples/chatbot-mesh/docs/specs/test-suites/test-rel04.0-llm-tier.yaml. This
+  file remains as a pointer to that history, so its proof commands run from the
+  canonical module.
+
+  This suite validated the in-cluster LLM tier (srd015 R6): a default helm install
   answers a turn with no external LLM dependency, the disabled-tier override
   reproduces the external endpoint, agent readiness is gated on model preload, and
   the kind smoke path runs CPU-only. The Ollama tier and its render tracers landed
@@ -20,7 +27,7 @@ preconditions:
 test_cases:
   - use_case: rel09.5-uc001-in-cluster-llm-tier
     name: Default install answers a turn with no external LLM dependency
-    integration_target: mage integration:helmLLMTier
+    integration_target: cd ../examples/chatbot-mesh && mage integration:helmLLMTier
     status: implemented
     description: |
       helm install with defaults on a kind cluster deploys the Ollama subchart with
@@ -43,7 +50,7 @@ test_cases:
 
   - use_case: rel09.5-uc001-in-cluster-llm-tier
     name: Preload gates agent readiness
-    integration_target: mage integration:helmLLMTier
+    integration_target: cd ../examples/chatbot-mesh && mage integration:helmLLMTier
     status: implemented
     description: |
       Before the model-preload Job completes, the agent pods are not ready; after
@@ -62,7 +69,8 @@ test_cases:
 
   - use_case: rel09.5-uc001-in-cluster-llm-tier
     name: Disabled-tier endpoint override reproduces external behavior
-    integration_target: go test ./magefiles -run TestOllamaDisabledReproducesExternalEndpoint
+    integration_target: cd ../examples/chatbot-mesh && mage integration:helmLLMTier
+    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run '^TestOllamaDisabledReproducesExternalEndpoint$'
     status: implemented
     description: |
       With ollama.enabled=false and an endpoint override, no Ollama workload or

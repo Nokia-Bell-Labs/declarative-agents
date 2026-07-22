@@ -3,12 +3,17 @@ title: Test Suite for Release 09.4 Control Plane
 release: "09.4"
 
 overview: |
-  This suite validates the mesh control plane (srd016 coordinator, srd017 creator):
+  Non-canonical historical record. The mesh control plane was extracted to
+  examples/chatbot-mesh/, which owns the coordinator and creator profiles, the
+  deployment API, and the integration:controlPlane tracer. Its canonical suite is
+  examples/chatbot-mesh/docs/specs/test-suites/test-rel05.0-control-plane.yaml.
+  This file remains as a pointer to that history, so its proof commands run from
+  the canonical module.
+
+  This suite validated the mesh control plane (srd016 coordinator, srd017 creator):
   a provisioning intent flows from the UX agent through the coordinator's ingestion
   and reconfiguration workflows to the creator's instance operations and back as
   aggregated status, with the deployment-API authority held by the creator alone.
-  The cases are planned; the coordinator and creator profiles and their tracer land
-  with the control-plane release.
 
 traces:
   - rel09.4-uc001-control-plane-provisioning
@@ -21,7 +26,7 @@ preconditions:
 test_cases:
   - use_case: rel09.4-uc001-control-plane-provisioning
     name: Provisioning intent tracer across chatbot, coordinator, and creator
-    integration_target: mage integration:controlPlane
+    integration_target: cd ../examples/chatbot-mesh && mage integration:controlPlane
     status: planned
     description: |
       Drives a provisioning intent end to end: the chatbot delegates an add-a-source
