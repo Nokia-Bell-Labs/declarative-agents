@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/profiles"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
@@ -289,32 +290,21 @@ func controlProfileAssetPath(t *testing.T, rel string) string {
 	return filepath.Join(lifecycleProfileRoot(t), "control", filepath.FromSlash(rel))
 }
 
+// lifecycleProfileRoot locates the profile-owned lifecycle conformance
+// fixtures. The fixtures belong to agent-profiles, so a checkout of agent-core
+// alone is a supported state: the run skips rather than failing, which keeps
+// `go test ./...` hermetic here the same way it is in agent-profiles
+// (srd034 R3.3, R3.4; GH-512).
 func lifecycleProfileRoot(t *testing.T) string {
 	t.Helper()
-	root := repoRootFromLifecycleTest(t)
-	for _, candidate := range lifecycleProfileRootCandidates(root) {
-		if hasLifecycleProfile(candidate, "control/profile.yaml") {
-			return candidate
-		}
-		nested := filepath.Join(candidate, "testdata", "conformance")
-		if hasLifecycleProfile(nested, "control/profile.yaml") {
-			return nested
-		}
+	res := profiles.ResolveFrom(repoRootFromLifecycleTest(t))
+	switch res.Outcome {
+	case profiles.Invalid:
+		t.Fatalf("%s; unset it to use a discovered checkout", res.Reason())
+	case profiles.Absent:
+		t.Skipf("lifecycle conformance fixtures unavailable: %s", res.Reason())
 	}
-	t.Fatalf("profile root not found; place agent-profiles next to agent-core or under ./agent-profiles")
-	return ""
-}
-
-func lifecycleProfileRootCandidates(root string) []string {
-	return []string{
-		filepath.Join(filepath.Dir(root), "agent-profiles"),
-		filepath.Join(root, "agent-profiles"),
-	}
-}
-
-func hasLifecycleProfile(root, rel string) bool {
-	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel)))
-	return err == nil && !info.IsDir()
+	return res.ConformanceRoot()
 }
 
 func repoRootFromLifecycleTest(t *testing.T) string {

@@ -1,0 +1,54 @@
+# Tool declarations for the synthetic session machine. Each word carries the
+# full contract metadata a sentence tool is required to declare, so a core test
+# can assert the contract without reading a shipped profile.
+tools:
+  - name: load_input
+    type: exec
+    category: word
+    binary: session-load-input
+    description: "Read the session input file into memory."
+    emits: [Loaded, StepFailed]
+    side_effects:
+      - kind: none
+        description: "Read-only tool."
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    undo:
+      strategy: noop
+      description: "No state is changed."
+
+  - name: prepare_work
+    type: exec
+    category: word
+    binary: session-prepare-work
+    description: "Expand the loaded input into the work items for the session."
+    emits: [Prepared, StepFailed]
+    side_effects:
+      - kind: none
+        description: "Computes in memory."
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    undo:
+      strategy: noop
+      description: "No state is changed."
+
+  - name: report_result
+    type: exec
+    category: word
+    binary: session-report-result
+    description: "Write the session summary."
+    emits: [Reported, StepFailed]
+    side_effects:
+      - kind: file_write
+        description: "Writes the summary artifact."
+    reversibility:
+      classification: reversible
+      undo: delete
+      requires_confirmation: false
+    undo:
+      strategy: delete
+      description: "Remove the written summary artifact."

@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/profiles"
 )
 
 type shippedMachine struct {
@@ -166,26 +168,23 @@ func TestBenchConfig_TransitionTable(t *testing.T) {
 	}
 }
 
+// requireAgentProfilesRoot resolves the shipped profiles this wiring check
+// reads, through the one resolver agent-core uses for external checkouts. An
+// absent checkout skips; a configured but unusable one fails (GH-512).
 func requireAgentProfilesRoot(t *testing.T) string {
 	t.Helper()
-	if explicit := os.Getenv("AGENT_PROFILES_ROOT"); explicit != "" {
-		requireDirectory(t, explicit)
-		return explicit
-	}
 	_, currentFile, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "agent-profiles"))
-	if info, err := os.Stat(root); err != nil || !info.IsDir() {
-		t.Skipf("agent-profiles checkout unavailable; set AGENT_PROFILES_ROOT (resolved %s)", root)
-	}
-	return root
-}
+	moduleRoot := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
 
-func requireDirectory(t *testing.T, path string) {
-	t.Helper()
-	info, err := os.Stat(path)
-	require.NoError(t, err)
-	require.True(t, info.IsDir(), "%s is not a directory", path)
+	res := profiles.ResolveFrom(moduleRoot)
+	switch res.Outcome {
+	case profiles.Invalid:
+		t.Fatalf("%s; unset it to use a discovered checkout", res.Reason())
+	case profiles.Absent:
+		t.Skipf("agent-profiles checkout unavailable: %s", res.Reason())
+	}
+	return res.Path
 }
 
 func readShippedMachine(t *testing.T, root, profile, name string) shippedMachine {

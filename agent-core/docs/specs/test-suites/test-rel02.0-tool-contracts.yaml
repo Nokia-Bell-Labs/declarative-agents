@@ -155,12 +155,16 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Sentence tool migration creates replacement word declarations
-    go_test: TestSentenceToolMigrationCreatesReplacementWords
+    go_test: TestSessionWordsDeclareFullContract, TestPointWordsDeclareFullContract, TestSessionWordsReplaceLoadSuite
     status: done
     description: |
       Given a legacy aggregate tool, identify each observable verb and create
       one ToolDef per word. Replacement declarations must include the
       required contract metadata.
+
+      The declarations are core-owned, so the proof reads them from
+      tools/builtin. That a shipped profile selects them is proven in
+      agent-profiles by test-rel07.1-profile-conformance (GH-512).
     inputs:
       legacy_tool: load_suite
       identified_words:
@@ -180,15 +184,20 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: MachineSpec owns migrated workflow sequence
-    go_test: TestSentenceToolMigrationMachineSequence
+    go_test: TestSessionPipelineEmitsValidate, TestUndeclaredEmitIsRejected, TestSelectionRejectsUndeclaredWord
     status: done
     description: |
       Rewire a migrated workflow so machine.yaml has one state/action step per
       replacement word. Startup validation should confirm each named action is
       registered and each emitted signal has a transition.
+
+      This is the reusable contract, so it is proven on a synthetic
+      session-shaped machine under internal/evaluation/testdata rather than on a
+      shipped profile, including the rejections: an emit the machine never
+      declares, and a selected word no declaration provides (GH-512).
     inputs:
-      machine: migrated_workflow_machine
-      replacement_words: [word_a, word_b, word_c]
+      machine: internal/evaluation/testdata/session_machine.yaml
+      replacement_words: [load_input, prepare_work, report_result]
     expected:
       named_actions_registered: true
       emitted_signals_declared: true
@@ -242,20 +251,25 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Migration preserves intermediate failure signals
-    go_test: TestSentenceToolMigrationPreservesFailureSignals
+    go_test: TestSessionPipelineFailureSignalsRoute, TestPointWordsDeclareFullContract
     status: done
     description: |
       Split a workflow-shaped tool into multiple words and verify the migrated
       machine exposes intermediate failure transitions that the aggregate had
       hidden or collapsed.
+
+      Core proves the property: every stage word declares a failure emit, and
+      every failure emit has a transition. The shipped critic point sequence that
+      exercises it is proven in agent-profiles by
+      test-rel07.1-profile-conformance (GH-512).
     inputs:
-      migrated_sequence: [run_oracle_check, collect_trace_tokens, check_agent_version, summarize_point_results]
-      failure_points: [oracle_failed, trace_missing, version_mismatch]
+      migrated_sequence: [load_input, prepare_work, report_result]
+      point_words: [run_oracle_check, collect_trace_tokens, check_agent_version, summarize_point_results]
+      failure_points: [step_failed]
     expected:
-      oracle_failure_transition: explicit
-      trace_missing_result: documented_success_or_failure
-      version_mismatch_warning_transition: explicit
-      summary_uses_collected_state: true
+      each_stage_failure_transition: explicit
+      point_words_declare_failure_emits: true
+      failure_routes_to_terminal: true
     traces:
       - srd006-yaml-machine-config AC3
       - srd013-standard-tool-library AC9

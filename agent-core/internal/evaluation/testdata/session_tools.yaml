@@ -1,0 +1,6 @@
+# Tool selection for the synthetic session machine. The order is the order the
+# machine sequences the words, so a selection-driven test reads as a pipeline.
+tools:
+  - load_input
+  - prepare_work
+  - report_result

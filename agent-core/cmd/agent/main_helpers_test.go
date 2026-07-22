@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/profiles"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 	"github.com/stretchr/testify/require"
@@ -157,32 +158,19 @@ func repoRootFromRuntime() string {
 	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
 }
 
+// profileRootFromTest locates the shipped agent profiles these end-to-end
+// checks launch. The profiles belong to agent-profiles, so a checkout of
+// agent-core alone skips rather than failing (srd034 R3.3, R3.4; GH-512).
 func profileRootFromTest(t *testing.T) string {
 	t.Helper()
-	root := repoRootFromTest(t)
-	for _, candidate := range profileRootCandidates(root) {
-		if hasTestProfile(candidate, "executor") || hasTestProfile(candidate, "monitor") {
-			return candidate
-		}
-		nested := filepath.Join(candidate, "agents")
-		if hasTestProfile(nested, "executor") || hasTestProfile(nested, "monitor") {
-			return nested
-		}
+	res := profiles.ResolveFrom(repoRootFromTest(t))
+	switch res.Outcome {
+	case profiles.Invalid:
+		t.Fatalf("%s; unset it to use a discovered checkout", res.Reason())
+	case profiles.Absent:
+		t.Skipf("shipped agent profiles unavailable: %s", res.Reason())
 	}
-	t.Fatalf("profile root not found; place agent-profiles next to agent-core or under ./agent-profiles")
-	return ""
-}
-
-func profileRootCandidates(root string) []string {
-	return []string{
-		filepath.Join(filepath.Dir(root), "agent-profiles"),
-		filepath.Join(root, "agent-profiles"),
-	}
-}
-
-func hasTestProfile(root, rel string) bool {
-	_, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel), "profile.yaml"))
-	return err == nil
+	return res.AgentsRoot()
 }
 
 func profilePathFromTest(t *testing.T, rel string) string {

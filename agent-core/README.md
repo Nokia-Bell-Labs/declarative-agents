@@ -79,10 +79,20 @@ tracer bullets, including the Knowledge Manager documentation-curator profile
 and browser workflow, belong to `agent-profiles` with the profile assets they
 exercise.
 
-Core package tests should prove reusable runtime contracts without depending on
-a shipped profile path. Profile-owned integration suites can still run this
-binary with `--profile` and an external profile checkout when they need
-end-to-end evidence for a specific agent program.
+Core package tests prove reusable runtime contracts without depending on a
+shipped profile path. They read synthetic fixtures under the package's own
+`testdata/`, or core-owned assets under `tools/`. Profile-owned integration
+suites run this binary with `--profile` and an external profile checkout when
+they need end-to-end evidence for a specific agent program, and the assertion
+that a particular shipped profile is wired a particular way lives in
+`agent-profiles` with the assets it reads.
+
+A core test that does want a real profile resolves one through
+`internal/support/profiles`, which honors `AGENT_PROFILES_ROOT` and otherwise
+discovers a sibling or nested checkout. A checkout of `agent-core` alone is a
+supported state: such a test skips with a diagnostic naming the remedy, so
+`go test ./...` stays hermetic. A set-but-unusable `AGENT_PROFILES_ROOT` fails
+instead of skipping, so a typo in the path cannot look like a clean run.
 
 ## Lifecycle Operations
 

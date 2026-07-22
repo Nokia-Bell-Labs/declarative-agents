@@ -1,0 +1,23 @@
+# Negative fixture: report_result emits a signal session_machine.yaml does not
+# declare. Loading succeeds; emits validation is what must reject it.
+tools:
+  - name: load_input
+    type: exec
+    category: word
+    binary: session-load-input
+    description: "Read the session input file into memory."
+    emits: [Loaded, StepFailed]
+
+  - name: prepare_work
+    type: exec
+    category: word
+    binary: session-prepare-work
+    description: "Expand the loaded input into the work items for the session."
+    emits: [Prepared, StepFailed]
+
+  - name: report_result
+    type: exec
+    category: word
+    binary: session-report-result
+    description: "Write the session summary."
+    emits: [Summarized, StepFailed]
