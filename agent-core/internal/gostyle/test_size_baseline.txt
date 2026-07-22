@@ -1,0 +1,19 @@
+# Temporary oversized Go test suites. Each entry is assigned to an explicit
+# split issue; the guard rejects new entries and rejects stale entries after a
+# split brings a file under 500 lines.
+
+# GH-655: runtime and model behavior splits.
+file:internal/model/llm/ollama/adapter_test.go
+file:internal/runtime/core/dolt_checkpoint_test.go
+file:internal/runtime/core/loop_test.go
+file:internal/runtime/core/machine_test.go
+
+# GH-656: REST endpoint and runtime contract splits.
+file:internal/tools/rest/client_test.go
+file:internal/tools/rest/server_machine_request_test.go
+file:internal/tools/rest/server_test.go
+
+# GH-657: catalog, LLM, and lifecycle tool-contract splits.
+file:internal/tools/catalog/loading_from_stl_test.go
+file:internal/tools/lifecycle/checkpoint_from_stl_test.go
+file:internal/tools/llm/behavior_from_stl_test.go

@@ -34,9 +34,13 @@ func readRequiredChatbotAsset(t *testing.T, path string) []byte {
 	return data
 }
 
+func chatbotAssetPath(name string) string {
+	return filepath.Join("..", "..", "examples", "chatbot-mesh", "agents", "chatbot", name)
+}
+
 func loadChatbotMachine(t *testing.T) chatbotMachine {
 	t.Helper()
-	path := filepath.Join("..", "agents", "chatbot", "request-machine.yaml")
+	path := chatbotAssetPath("request-machine.yaml")
 	data := readRequiredChatbotAsset(t, path)
 	var m chatbotMachine
 	if err := yaml.Unmarshal(data, &m); err != nil {
@@ -105,7 +109,7 @@ func TestChatbotFanOutRoutesDegradedAndExcluded(t *testing.T) {
 // request-fanout.yaml (split out in GH-372 so only that file varies with the RAG
 // count); the base declarations must carry no fan-out residue.
 func TestChatbotComposeReadsEachRagSource(t *testing.T) {
-	fanout := filepath.Join("..", "agents", "chatbot", "request-fanout.yaml")
+	fanout := chatbotAssetPath("request-fanout.yaml")
 	data := readRequiredChatbotAsset(t, fanout)
 	text := string(data)
 	if strings.Contains(text, "rag_merge") || strings.Contains(text, "$from(rag_merge)") {
@@ -117,7 +121,7 @@ func TestChatbotComposeReadsEachRagSource(t *testing.T) {
 		}
 	}
 	// The base declarations must no longer carry the fan-out words.
-	base := filepath.Join("..", "agents", "chatbot", "request-declarations.yaml")
+	base := chatbotAssetPath("request-declarations.yaml")
 	bdata := readRequiredChatbotAsset(t, base)
 	if strings.Contains(string(bdata), "rag_merge") {
 		t.Error("request-declarations.yaml still references rag_merge (GH-365)")

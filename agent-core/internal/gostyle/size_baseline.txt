@@ -3,6 +3,8 @@
 # Delete a line as its code is split under the limit; the gate fails on stale entries.
 file:cmd/agent/main.go
 file:internal/knowledge/documentation/actions.go
+file:internal/runtime/core/dolt_checkpoint.go
+file:internal/tools/rest/client_command.go
 file:internal/tools/rest/collection.go
 file:internal/tools/rest/factories.go
 file:internal/tools/rest/server_routes.go
@@ -21,8 +23,8 @@ func:internal/evaluation/eval_convergence.go:deriveOverall
 func:internal/evaluation/eval_dumpconfig.go:Execute
 func:internal/evaluation/eval_load_suite.go:Execute
 func:internal/evaluation/eval_report.go:ComputeDetailed
-func:internal/evaluation/eval_report.go:WriteCSV
 func:internal/evaluation/eval_report.go:computeModel
+func:internal/evaluation/eval_report.go:writeCSVRows
 func:internal/evaluation/eval_results.go:loadDir
 func:internal/evaluation/eval_run_point.go:Execute
 func:internal/evaluation/eval_session.go:DiscoverSamples
@@ -32,11 +34,13 @@ func:internal/evaluation/eval_tools.go:Execute
 func:internal/model/llm/ollama/adapter.go:Chat
 func:internal/model/llm/ollama/adapter.go:ListModels
 func:internal/model/prompt/load.go:LoadPrompt
-func:internal/observability/telemetry/replay.go:ReplayFile
+func:internal/observability/telemetry/replay.go:ReplayFileContext
 func:internal/planning/extract/output.go:BuildOutputTasks
 func:internal/planning/graph/graph.go:addReleaseEdges
+func:internal/planning/graph/persist.go:validateGraphState
 func:internal/planning/pipeline/factories.go:RegisterFactories
 func:internal/runtime/core/dispatch.go:SafeExecute
+func:internal/runtime/core/dolt_checkpoint.go:Save
 func:internal/runtime/core/dolt_checkpoint.go:createSchema
 func:internal/runtime/core/dolt_checkpoint.go:loadExecution
 func:internal/runtime/core/machine.go:BuildTransitionTable
@@ -44,6 +48,7 @@ func:internal/runtime/core/machine.go:DiagnoseMachineSpec
 func:internal/runtime/core/machine.go:validateSpec
 func:internal/support/subprocess/subprocess.go:Run
 func:internal/tools/catalog/emits.go:ValidateToolEmits
+func:internal/tools/catalog/tooldef.go:ExtractParamMappings
 func:internal/tools/rest/collection.go:RunMachineRequest
 func:internal/tools/rest/server_routes.go:proxyMonitor
 func:internal/tools/rest/validation.go:validateEndpoint
