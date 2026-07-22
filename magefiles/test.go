@@ -28,6 +28,11 @@ func Test() error {
 	if err := testSubModules(exampleModules, moduleHasGoTests, runGoUnitTests); err != nil {
 		return err
 	}
+	// The root magefiles module carries shared packages (kindrig); it is in
+	// neither module list, so without this step its tests never gate a release.
+	if err := testSubModules([]string{"magefiles"}, moduleHasGoTests, runGoUnitTests); err != nil {
+		return err
+	}
 	// Shipped UI reproducibility gate: fail if a tracked dist no longer matches a
 	// clean source build (GH-518). Skips cleanly where node/npm is absent.
 	return UIDist()

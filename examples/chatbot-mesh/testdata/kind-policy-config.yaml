@@ -1,0 +1,14 @@
+# Kind cluster configuration for integration:policyProof. disableDefaultCNI
+# drops kindnet, whose absence is what lets a policy-enforcing CNI (Calico)
+# take over; the podSubnet is Calico's expected default. The node image is
+# pinned by version and digest so every machine creates the same cluster
+# (eng01-kind-test-demo-rig); the digest is the default node image of kind
+# v0.32.0.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  disableDefaultCNI: true
+  podSubnet: "192.168.0.0/16"
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5

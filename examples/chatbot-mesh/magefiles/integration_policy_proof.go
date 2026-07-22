@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
 // The GH-502 defect was a route and a policy that disagreed: the ingress pointed
@@ -33,24 +35,17 @@ import (
 // of trusting the default (GH-682).
 
 const (
-	policyKindCluster = "chatbot-mesh-policy"
+	policyKindCluster = "da-chatbot-mesh-policy"
 	policyMeshNS      = "mesh"
 	policyIngressNS   = "ingress-nginx"
 	policyRelease     = "rel"
 	// calicoManifest is pinned: an unpinned CNI would let the proof's meaning
 	// drift with an upstream release.
 	calicoManifest = "https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/calico.yaml"
+	// policyKindConfig is the checked-in cluster configuration: default CNI
+	// disabled so Calico can take over, node image pinned (eng01).
+	policyKindConfig = "testdata/kind-policy-config.yaml"
 )
-
-// policyKindConfig is the cluster kind creates. disableDefaultCNI drops kindnet,
-// whose absence is what lets a policy-enforcing CNI take over; the podSubnet is
-// Calico's expected default.
-const policyKindConfig = `kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-networking:
-  disableDefaultCNI: true
-  podSubnet: "192.168.0.0/16"
-`
 
 // reachability is the observable a probe produces. It is deliberately two-valued:
 // the assertions care whether a connection completed, not why it did not.
@@ -157,7 +152,7 @@ func runPolicyProof(chartDir string) error {
 	if err != nil {
 		return err
 	}
-	defer cluster.release(defaultKindRun)
+	defer cluster.Release(kindrig.DefaultRun)
 
 	if err := assertPolicyEnforcementActive(); err != nil {
 		return err
@@ -181,27 +176,21 @@ func runPolicyProof(chartDir string) error {
 // still runs against it, so a reused cluster that does not enforce is caught; a
 // reused cluster that enforces differently is not, which is why the printed notice
 // names the risk.
-func ensurePolicyCluster() (kindCluster, error) {
-	if kindClusterExists(defaultKindRun, policyKindCluster) {
+func ensurePolicyCluster() (kindrig.Cluster, error) {
+	if kindrig.Exists(kindrig.DefaultRun, policyKindCluster) {
 		fmt.Printf("kind: reusing pre-existing cluster %s; it will not be deleted. "+
 			"If it was not created by this target its CNI may differ from %s\n",
 			policyKindCluster, calicoManifest)
-		return kindCluster{Name: policyKindCluster}, nil
+		return kindrig.Cluster{Name: policyKindCluster}, nil
 	}
-
-	configPath, cleanup, err := writeTempFile("kind-policy-*.yaml", policyKindConfig)
-	if err != nil {
-		return kindCluster{}, err
-	}
-	defer cleanup()
 
 	fmt.Printf("policyProof: creating %s with the default CNI disabled\n", policyKindCluster)
 	// The node stays NotReady until a CNI lands, so a Ready wait here would always
-	// time out. Calico is installed next and the readiness wait follows it.
-	if _, err := defaultKindRun("create", "cluster", "--name", policyKindCluster, "--config", configPath); err != nil {
-		return kindCluster{}, fmt.Errorf("kind create cluster %s: %w", policyKindCluster, err)
+	// time out (wait 0). Calico is installed next and the readiness wait follows it.
+	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, policyKindCluster, policyKindConfig, 0)
+	if err != nil {
+		return kindrig.Cluster{}, err
 	}
-	cluster := kindCluster{Name: policyKindCluster, Created: true}
 
 	fmt.Println("policyProof: installing Calico")
 	if err := kubectlPolicy("apply", "-f", calicoManifest); err != nil {
@@ -363,21 +352,6 @@ func applyPolicyYAML(manifest string, extra ...string) error {
 	cmd.Stdin = strings.NewReader(manifest)
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 	return cmd.Run()
-}
-
-func writeTempFile(pattern, content string) (string, func(), error) {
-	f, err := os.CreateTemp("", pattern)
-	if err != nil {
-		return "", func() {}, err
-	}
-	if _, err := f.WriteString(content); err != nil {
-		f.Close()
-		return "", func() {}, err
-	}
-	if err := f.Close(); err != nil {
-		return "", func() {}, err
-	}
-	return f.Name(), func() { _ = os.Remove(f.Name()) }, nil
 }
 
 // httpdPod renders a pod that serves its own name over HTTP on one named port.
