@@ -1,0 +1,47 @@
+tools:
+  - name: drive_chat_turn
+    type: builtin
+    init: rest_client_invoke
+    visibility: internal
+    category: boundary
+    description: Post one chat turn to the chatbot the rig started and map its answer.
+    problem: The chatbot's routed turn must be proven against controlled dependencies rather than live services.
+    goals:
+      - Post a message to the chatbot at the address the rig published.
+      - Map the response to the signal this scenario expects.
+    requirements:
+      input:
+        - Tool config fixes the operation; the message is literal fixture data.
+      output:
+        - Output reports the answer field of the turn response.
+      errors:
+        - Unreachable or unmapped responses emit CommandError.
+    non_goals:
+      - Does not start or stop the chatbot; the rig owns that.
+    parameters:
+      type: object
+      properties: {}
+    emits: [SubjectAnswered, SubjectBroke, RESTResponded, CommandError]
+    output:
+      description: The chatbot's turn response.
+      schema:
+        type: object
+        properties:
+          answer: {type: string}
+    side_effects:
+      - kind: external_api
+        target: chatbot.chat
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: A chat turn against twins changes nothing durable.
+    errors:
+      - signal: CommandError
+        condition: The chatbot is unreachable or returns an unmapped status.
+        state_after_failure: No state changes.
+    config:
+      rest_ref: subject
+      operation: chat_turn

@@ -1,0 +1,52 @@
+name: chatbot-turn-validator
+purpose: |-
+  Drives one routed chatbot turn while the first RAG twin fails every query.
+  Passing means the chatbot degraded the way srd002 requires: the failed
+  source is excluded and the turn still answers from the remaining one.
+
+  The drive runs on the way into Checking so its signal decides the terminal
+  state; routing straight to a terminal would pass regardless of the result.
+configuration:
+  machine: machine.yaml
+  tools: tools.yaml
+initial_state: Idle
+budget:
+  max_iterations: 6
+states:
+  - name: Idle
+    meaning: Before the chatbot is driven.
+  - name: Checking
+    meaning: The turn has run; its signal decides the outcome.
+  - name: Passed
+    meaning: Terminal. The chatbot answered the turn.
+  - name: Failed
+    meaning: Terminal. The chatbot did not answer.
+terminal_states: [Passed, Failed]
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: SubjectAnswered
+    trigger: The chatbot returned an answer for the turn.
+  - name: SubjectBroke
+    trigger: The chatbot reported a command error.
+  - name: RESTResponded
+    trigger: The invoke succeeded and mapped to the generic response signal.
+  - name: CommandError
+    trigger: The chatbot was unreachable or returned an unmapped status.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Checking
+    action: drive_chat_turn
+  - state: Checking
+    signal: SubjectAnswered
+    next: Passed
+  - state: Checking
+    signal: RESTResponded
+    next: Passed
+  - state: Checking
+    signal: SubjectBroke
+    next: Failed
+  - state: Checking
+    signal: CommandError
+    next: Failed

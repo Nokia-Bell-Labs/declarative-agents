@@ -22,6 +22,8 @@ var rigExpectedVerdicts = []string{
 	"ScenarioFailed", // rig-subject/broken: the deliberately wrong expectation must fail
 	"ScenarioPassed", // rig-subject/dep-failure: the subject degraded correctly
 	"ScenarioPassed", // rig-subject/happy-path
+	"ScenarioPassed", // chatbot/degraded-rag: the turn answers while rag0 fails every query
+	"ScenarioPassed", // chatbot/single-turn: the routed turn against twin provider and RAGs
 	"ScenarioPassed", // rag-server/query: the mesh agent against a twin Chroma
 }
 

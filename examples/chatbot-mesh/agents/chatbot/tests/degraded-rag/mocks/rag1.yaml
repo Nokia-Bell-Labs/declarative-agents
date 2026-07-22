@@ -1,0 +1,11 @@
+# Digital twin for the second RAG server, same contract as rag0.
+routes:
+  - method: POST
+    path: /api/v1/rag/query
+    responses:
+      - status: 200
+        body:
+          ids: [["rag1-doc-1"]]
+          documents: [["rag1 chunk about the twins"]]
+          distances: [[0.2]]
+          embedding_model: "qwen3-embedding:8b"
