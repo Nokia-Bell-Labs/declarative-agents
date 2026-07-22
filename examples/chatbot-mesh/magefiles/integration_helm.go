@@ -3,21 +3,21 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
 const (
 	helmRelease     = "smoke"
-	helmKindCluster = "chatbot-mesh-smoke"
+	helmKindCluster = "da-chatbot-mesh-smoke"
 	helmImage       = "declarative-agents/agent-core:smoke"
 
 	helmChatURL    = "http://127.0.0.1:18080/api/v1/chat"
@@ -25,6 +25,7 @@ const (
 	helmJaegerBase = "http://127.0.0.1:16686"
 
 	helmInstallTimeout = 5 * time.Minute
+	helmClusterWait    = 120 * time.Second
 	helmReadyTimeout   = 90 * time.Second
 	helmSpanTimeout    = 60 * time.Second
 )
@@ -33,6 +34,14 @@ const (
 // ships with the example rather than as a sibling deploy directory.
 func exampleChartDir(profilesRoot string) string {
 	return filepath.Join(profilesRoot, "helm")
+}
+
+// helmKindConfig is the checked-in cluster configuration the helm scenarios
+// share; it pins the node image so every machine creates the same cluster
+// (eng01). It sits in the source chart's ci directory beside the kind values,
+// not in the staged copy, so staging cannot drift it.
+func helmKindConfig(chartDir string) string {
+	return filepath.Join(chartDir, "ci", "kind-config.yaml")
 }
 
 // HelmSmoke deploys the chatbot-mesh chart on a disposable kind cluster with the
@@ -95,13 +104,13 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	cluster, err := kindEnsureCluster(defaultKindRun, helmKindCluster)
+	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmKindCluster, helmKindConfig(chartDir), helmClusterWait)
 	if err != nil {
 		return err
 	}
-	defer cluster.release(defaultKindRun)
+	defer cluster.Release(kindrig.DefaultRun)
 
-	if err := kindLoadImage(helmKindCluster, helmImage); err != nil {
+	if err := kindrig.LoadImage(helmKindCluster, helmImage); err != nil {
 		return err
 	}
 	if err := helmInstallSmoke(stagedChart, helmImage); err != nil {
@@ -231,79 +240,6 @@ func copyDirContents(src, dst string) error {
 	return nil
 }
 
-// kindRunner runs one kind subcommand and returns its combined output. Injected
-// so cluster ownership is testable against a fake kind without a real cluster.
-type kindRunner func(args ...string) ([]byte, error)
-
-// defaultKindRun streams kind's output so a multi-minute create still reports
-// progress live, while also capturing it for the caller.
-func defaultKindRun(args ...string) ([]byte, error) {
-	cmd := exec.Command("kind", args...)
-	var buf bytes.Buffer
-	cmd.Stdout = io.MultiWriter(os.Stderr, &buf)
-	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
-	err := cmd.Run()
-	return buf.Bytes(), err
-}
-
-// kindCluster records whether this run created the cluster it is using. Only a
-// cluster this run created may be deleted: the integration targets use fixed
-// cluster names and reuse one that is already up, so deleting unconditionally
-// destroys a developer or CI cluster the test did not create (GH-589).
-type kindCluster struct {
-	Name    string
-	Created bool
-}
-
-// kindEnsureCluster reuses an existing cluster or creates one, recording which
-// happened so release can decide whether deletion is ours to perform.
-func kindEnsureCluster(run kindRunner, name string) (kindCluster, error) {
-	if kindClusterExists(run, name) {
-		fmt.Printf("kind: reusing pre-existing cluster %s; it will not be deleted\n", name)
-		return kindCluster{Name: name}, nil
-	}
-	if _, err := run("create", "cluster", "--name", name, "--wait", "120s"); err != nil {
-		return kindCluster{}, fmt.Errorf("kind create cluster %s: %w", name, err)
-	}
-	return kindCluster{Name: name, Created: true}, nil
-}
-
-// release deletes the cluster only when this run created it. A cleanup failure
-// is reported but not fatal: the target's own result is what matters.
-func (c kindCluster) release(run kindRunner) {
-	if !c.Created {
-		if c.Name != "" {
-			fmt.Printf("kind: leaving pre-existing cluster %s in place\n", c.Name)
-		}
-		return
-	}
-	if _, err := run("delete", "cluster", "--name", c.Name); err != nil {
-		fmt.Printf("kind: delete cluster %s failed: %v\n", c.Name, err)
-	}
-}
-
-func kindClusterExists(run kindRunner, name string) bool {
-	out, err := run("get", "clusters")
-	if err != nil {
-		return false
-	}
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if strings.TrimSpace(line) == name {
-			return true
-		}
-	}
-	return false
-}
-
-func kindLoadImage(cluster, image string) error {
-	cmd := exec.Command("kind", "load", "docker-image", image, "--name", cluster)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("kind load docker-image %s: %w", image, err)
-	}
-	return nil
-}
-
 func helmInstallSmoke(chartPath, image string) error {
 	repo, tag := splitImageRef(image)
 	cmd := exec.Command("helm", "install", helmRelease, chartPath,
@@ -424,7 +360,7 @@ func jaegerAgentServices(jaegerBase string) (int, []string, error) {
 
 const (
 	helmSwapRelease = "swap"
-	helmSwapCluster = "chatbot-mesh-swap"
+	helmSwapCluster = "da-chatbot-mesh-swap"
 )
 
 // HelmSwap proves the two tiered-swap paths of the chatbot-mesh chart on a kind
@@ -469,12 +405,12 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	swapCluster, err := kindEnsureCluster(defaultKindRun, helmSwapCluster)
+	swapCluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmSwapCluster, helmKindConfig(chartDir), helmClusterWait)
 	if err != nil {
 		return err
 	}
-	defer swapCluster.release(defaultKindRun)
-	if err := kindLoadImage(helmSwapCluster, helmImage); err != nil {
+	defer swapCluster.Release(kindrig.DefaultRun)
+	if err := kindrig.LoadImage(helmSwapCluster, helmImage); err != nil {
 		return err
 	}
 
@@ -615,7 +551,7 @@ func kubectlConfigMapKey(name, key string) (string, error) {
 
 const (
 	helmLLMRelease = "llm"
-	helmLLMCluster = "chatbot-mesh-llm"
+	helmLLMCluster = "da-chatbot-mesh-llm"
 
 	helmLLMChatURL   = "http://127.0.0.1:18080/api/v1/chat"
 	helmLLMHealthURL = "http://127.0.0.1:18081/api/lifecycle/health"
@@ -675,12 +611,12 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	llmCluster, err := kindEnsureCluster(defaultKindRun, helmLLMCluster)
+	llmCluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmLLMCluster, helmKindConfig(chartDir), helmClusterWait)
 	if err != nil {
 		return err
 	}
-	defer llmCluster.release(defaultKindRun)
-	if err := kindLoadImage(helmLLMCluster, helmImage); err != nil {
+	defer llmCluster.Release(kindrig.DefaultRun)
+	if err := kindrig.LoadImage(helmLLMCluster, helmImage); err != nil {
 		return err
 	}
 	if err := helmInstallLLM(stagedChart); err != nil {
