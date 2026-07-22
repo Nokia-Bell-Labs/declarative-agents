@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -104,25 +105,42 @@ func PDF() error {
 
 // Clean removes generated PNGs and PDFs.
 func Clean() error {
-	pngs, _ := filepath.Glob(filepath.Join(figuresDir, "*.png"))
+	return cleanArtifacts(figuresDir, outputDir, filepath.Glob, os.ReadDir, os.Remove)
+}
+
+func cleanArtifacts(
+	figures, output string,
+	glob func(string) ([]string, error),
+	readDir func(string) ([]os.DirEntry, error),
+	remove func(string) error,
+) error {
+	var errs []error
+	pngs, err := glob(filepath.Join(figures, "*.png"))
+	if err != nil {
+		errs = append(errs, fmt.Errorf("list generated figures: %w", err))
+	}
 	for _, f := range pngs {
 		fmt.Printf("rm %s\n", f)
-		os.Remove(f)
+		if err := remove(f); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf("remove %s: %w", f, err))
+		}
 	}
 
-	entries, err := os.ReadDir(outputDir)
+	entries, err := readDir(output)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
+		if !os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf("list generated output %s: %w", output, err))
 		}
-		return err
+	} else {
+		for _, e := range entries {
+			path := filepath.Join(output, e.Name())
+			fmt.Printf("rm %s\n", path)
+			if err := remove(path); err != nil && !os.IsNotExist(err) {
+				errs = append(errs, fmt.Errorf("remove %s: %w", path, err))
+			}
+		}
 	}
-	for _, e := range entries {
-		path := filepath.Join(outputDir, e.Name())
-		fmt.Printf("rm %s\n", path)
-		os.Remove(path)
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func discoverMarkdownChapters() ([]string, error) {
