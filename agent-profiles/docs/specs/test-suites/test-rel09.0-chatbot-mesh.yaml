@@ -10,6 +10,10 @@ overview: |
   and multi-RAG fan-out are release 09.1; observability is 09.2; deployment is
   09.3.
 
+  This retained suite is a historical relocation pointer. The canonical suite,
+  profiles, tests, and integration targets live under examples/chatbot-mesh as
+  release 00.0.
+
 traces:
   - rel09.0-uc001-rag-server-query
   - rel09.0-uc002-chatbot-turn
@@ -17,13 +21,13 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama (or external LLM) are reachable with the configured embedding and answer models.
-  - agent-profiles owns the RAG server and chatbot assets named by the tracers.
+  - examples/chatbot-mesh owns the RAG server and chatbot assets named by the tracers.
 
 test_cases:
   - use_case: rel09.0-uc001-rag-server-query
     name: RAG server vector-in query tracer
-    integration_target: mage integration:ragServer
-    go_test: go test ./magefiles -run TestParseRagQueryResponse
+    integration_target: cd ../examples/chatbot-mesh && mage integration:ragServer
+    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run '^(TestParseRagQueryResponseChunksAndMetadata|TestParseRagQueryResponseEmptyChunks|TestParseRagQueryResponseNoIDs)$'
     status: implemented
     description: |
       Integration.RagServer starts a Chroma container, seeds a collection by
@@ -36,8 +40,8 @@ test_cases:
       skips cleanly without them. No query embedding or LLM answering happens in
       the RAG server.
     inputs:
-      rag_profile: agents/knowledge-manager/rag-server/profile.yaml
-      chroma_rest: agents/knowledge-manager/rag-server/rest.yaml
+      rag_profile: ../examples/chatbot-mesh/agents/rag-server/profile.yaml
+      chroma_rest: ../examples/chatbot-mesh/agents/rag-server/rest.yaml
       query_embeddings: Ollama-embedded query vector
       n_results: 3
     expected:
@@ -53,8 +57,8 @@ test_cases:
 
   - use_case: rel09.0-uc002-chatbot-turn
     name: Single-RAG chatbot turn tracer with a degraded RAG
-    integration_target: mage integration:chatbot
-    go_test: go test ./magefiles -run 'TestCitedRecordNumbers|TestChatResponse'
+    integration_target: cd ../examples/chatbot-mesh && mage integration:chatbot
+    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run '^(TestCitedRecordNumbersBracketed|TestCitedRecordNumbersDedupesAndSorts|TestCitedRecordNumbersUngrounded|TestChatResponseDecodesTrace)$'
     status: implemented
     description: |
       Integration.Chatbot drives the chat machine_request endpoint and asserts the
@@ -68,7 +72,7 @@ test_cases:
       validated by the 09.1 suite. Verified end to end against live Docker and
       Ollama; skips cleanly without them, naming a missing model.
     inputs:
-      chatbot_profile: agents/chatbot/profile.yaml
+      chatbot_profile: ../examples/chatbot-mesh/agents/chatbot/profile.yaml
       turns: a grounded turn, then a degraded follow-up with history
       fault: the RAG stopped before the degraded turn
     expected:
