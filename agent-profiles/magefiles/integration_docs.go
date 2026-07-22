@@ -342,7 +342,7 @@ func postDocumentationCuratorExit(controlAddr string) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := integrationHTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("post lifecycle exit: %w", err)
 	}
