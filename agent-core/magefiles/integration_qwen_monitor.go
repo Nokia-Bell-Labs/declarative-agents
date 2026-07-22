@@ -24,7 +24,10 @@ const (
 // Uc008 runs rel05.0-uc001: Qwen exposes live token metrics through the embedded monitor.
 func (Integration) Uc008() error {
 	beginUC("uc008")
-	model := configuredOllamaModel()
+	model, err := configuredOllamaModel()
+	if err != nil {
+		return fmt.Errorf("uc008: resolve configured model: %w", err)
+	}
 	if _, err := requireOllamaModels(model); err != nil {
 		return skipUC("uc008", err.Error())
 	}
