@@ -18,7 +18,7 @@ preconditions:
 test_cases:
   - use_case: rel01.0-uc001-generator-coding
     name: Generator profile loads machine and validation sequence
-    go_test: TestGeneratorConfig_MachineLoads
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestExecutorShippedProfileWiring'
     inputs:
       profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
       machine: generator/machine.yaml
@@ -33,7 +33,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Generator selected tools load from YAML declarations
-    go_test: TestGeneratorConfig_ToolsLoad
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestExecutorShippedProfileWiring'
     inputs:
       tools: generator/tools.yaml
       declarations:
@@ -57,7 +57,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Generator transition table validates selected tool emits
-    go_test: TestGeneratorConfig_TransitionTable
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestExecutorShippedProfileWiring'
     inputs:
       machine: generator/machine.yaml
       selected_tools: generator/tools.yaml
@@ -144,7 +144,7 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator session machine loads from profile config
-    go_test: TestEvaluatorConfig_SessionMachineLoads
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestCriticConformance'
     inputs:
       profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
       machine: evaluator/machine.yaml
@@ -158,7 +158,7 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator session tools load from selected declarations
-    go_test: TestEvaluatorConfig_ToolsLoad
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestCriticConformance'
     inputs:
       tools: evaluator/tools.yaml
       declarations:
@@ -181,7 +181,7 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator session transition table validates emitted signals
-    go_test: TestEvaluatorConfig_TransitionTable
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestCriticConformance'
     inputs:
       machine: evaluator/machine.yaml
       selected_tools: evaluator/tools.yaml
@@ -195,7 +195,7 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator point machine prepares isolated workspace
-    go_test: TestEvaluatorConfig_PointTransitionTable
+    go_test: go test ./internal/evaluation -run 'TestPointWorkspaceToolsPrepareWorkspaceSequence'
     inputs:
       point_machine: evaluator/point.yaml
       point_tools: evaluator/tools-point.yaml
@@ -271,7 +271,7 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench profile loads state machine
-    go_test: TestBenchConfig_MachineLoads
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestBenchConformance'
     inputs:
       profile: ${AGENT_PROFILES_ROOT}/bench/profile.yaml
       machine: bench/machine.yaml
@@ -285,7 +285,7 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench tools load serve_ui and launch_eval
-    go_test: TestBenchConfig_ToolsLoad
+    go_test: go test ./internal/evaluation/bench -run 'TestLaunchEvalFactoryAcceptsProfileConfig'
     inputs:
       tools: bench/tools.yaml
       declarations: bench/builtin.yaml
@@ -299,7 +299,7 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench transition table validates UI action flow
-    go_test: TestBenchConfig_TransitionTable
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestBenchConformance'
     inputs:
       machine: bench/machine.yaml
       selected_tools: bench/tools.yaml
@@ -402,7 +402,7 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Self invoke maps child process success and failure
-    go_test: go test ./internal/tools/stl -run 'TestSelfInvokeBuilder_Execute_(Success|Failure)$'
+    go_test: go test ./internal/tools/control -run 'TestSelfInvokeBuilder_Execute_(Success|Failure)$'
     inputs:
       child_binary: echo
       failure_binary: false
@@ -463,7 +463,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Builtin tool config decodes typed structs and errors
-    go_test: go test ./internal/tools/stl -run 'TestDecodeToolConfig'
+    go_test: go test ./internal/tools/catalog -run 'TestDecodeToolConfig'
     inputs:
       configs: "child agent, LLM, load suite, run point, serve_ui"
     expected:
@@ -488,7 +488,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Exec tools map argv, process outcomes, caps, and timeouts
-    go_test: go test ./internal/tools/exec ./internal/tools/stl -run 'Test(ExecCmd_(BuildArgs|Execute)|ExecBuilder_|RunProcGroup)'
+    go_test: go test ./internal/tools/exec -run 'Test(ExecCmd_(BuildArgs|Execute)|ExecBuilder_|RunProcGroup)'
     inputs:
       exec_defs: "argv mapping, working dir, output cap, precondition, process group timeout"
     expected:
