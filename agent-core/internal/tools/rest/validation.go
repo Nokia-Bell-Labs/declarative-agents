@@ -211,6 +211,9 @@ func validateOperation(name string, operation Operation, mutatingResource bool, 
 	if err := validateRequestBinding(name, operation.Params); err != nil {
 		return err
 	}
+	if err := validateStatusMappings(name, operation); err != nil {
+		return err
+	}
 	if isMutatingOperation(operation, mutatingResource) {
 		if err := validateMutatingOperation(name, operation); err != nil {
 			return err
@@ -220,6 +223,27 @@ func validateOperation(name string, operation Operation, mutatingResource bool, 
 		return validateAsyncOperation(name, *operation.Async, clientOps)
 	}
 	return validateResponseMapping(name, operation.Response)
+}
+
+func validateStatusMappings(name string, operation Operation) error {
+	owners := make(map[int]string)
+	mappings := append([]StatusMapping{operation.Success}, operation.Failures...)
+	for index, mapping := range mappings {
+		owner := fmt.Sprintf("failure[%d] signal %q", index-1, mapping.Signal)
+		if index == 0 {
+			owner = fmt.Sprintf("success signal %q", mapping.Signal)
+		}
+		for _, status := range mapping.Status {
+			if previous, exists := owners[status]; exists {
+				return fmt.Errorf(
+					"operation %q maps HTTP status %d more than once (%s and %s)",
+					name, status, previous, owner,
+				)
+			}
+			owners[status] = owner
+		}
+	}
+	return nil
 }
 
 func validateMutatingOperation(name string, operation Operation) error {
