@@ -1,0 +1,12 @@
+# Digital twin for the first RAG server: the chatbot's rag_query0 word maps
+# $.ids/$.documents/$.distances/$.embedding_model from a 200 (srd002).
+routes:
+  - method: POST
+    path: /api/v1/rag/query
+    responses:
+      - status: 200
+        body:
+          ids: [["rag0-doc-1"]]
+          documents: [["rag0 chunk about the rig"]]
+          distances: [[0.1]]
+          embedding_model: "qwen3-embedding:8b"

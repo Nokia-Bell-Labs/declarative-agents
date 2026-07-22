@@ -1,0 +1,44 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local:
+      timeout: 60s
+      read_timeout: 60s
+      max_request_bytes: 65536
+      max_response_bytes: 65536
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+  clients:
+    subject:
+      # The rig publishes the chatbot's pinned chat address here.
+      base_url: ${SUBJECT_URL:-http://127.0.0.1:1}
+      auth_ref: none
+      limits_ref: local
+      operations:
+        chat_turn:
+          method: POST
+          path: /api/v1/chat
+          params:
+            # Self-contained: nothing is read from a previous Result.
+            body_source: none
+          body:
+            message: "What does the corpus describe?"
+          success: {status: [200], signal: SubjectAnswered}
+          failures:
+            - status: [500]
+              signal: SubjectBroke
+              domain_error_code: command_error
+          response:
+            output:
+              answer: $.answer
+          side_effects:
+            - kind: external_api
+              target: chatbot.chat
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop

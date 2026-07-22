@@ -1,0 +1,45 @@
+# Digital twin for the Ollama provider, claiming these behaviors:
+# - GET /api/tags: model discovery, as read by agent-core's adapter checkModel
+#   (internal/model/llm/ollama/adapter.go tagsResp). It must list every model
+#   the chatbot's invoke_llm words declare: qwen2.5:3b (route, fast) and
+#   ornith:9b (deep).
+# - POST /api/embeddings: the embed_query REST word maps $.embedding.
+# - POST /api/chat: adapter chatResp shape {message:{role,content},...}. The
+#   route call and the answer call hit this route in order, so the script's
+#   first response is a parseable tool call ({"tool": ...}, the parse_response
+#   contract) selecting the fast chat word, and the second is the answer.
+# The real-stack ladder (#408) validates these claims against live Ollama.
+routes:
+  - method: GET
+    path: /api/tags
+    responses:
+      - status: 200
+        body:
+          models:
+            - name: "qwen2.5:3b"
+            - name: "ornith:9b"
+
+  - method: POST
+    path: /api/embeddings
+    responses:
+      - status: 200
+        body:
+          embedding: [0.11, 0.22, 0.33, 0.44]
+
+  - method: POST
+    path: /api/chat
+    responses:
+      - status: 200
+        body:
+          message:
+            role: assistant
+            content: '{"tool":"invoke_llm_fast"}'
+          eval_count: 4
+          prompt_eval_count: 12
+      - status: 200
+        body:
+          message:
+            role: assistant
+            content: "The corpus describes the assembler rig and its digital twins."
+          eval_count: 11
+          prompt_eval_count: 42
