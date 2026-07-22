@@ -112,7 +112,9 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	// to the coordinator, carrying the full desired mesh state as a values-plane
 	// document (srd004 R3.1) and no host, URL, or credential (srd002 R5.1).
 	intent := `{"values":"{\"ragUnits\":[{\"name\":\"rag0\",\"collection\":\"corpus\"},{\"name\":\"rag2\",\"collection\":\"corpus2\"}]}","rag_name":"rag2","collection":"corpus2","embedding_model":"qwen3-embedding:8b","directory":"/corpus/new"}`
-	data, status, err := requestHTTP(http.MethodPost, cpCoordinatorProvision, intent)
+	// The coordinator answers the intent by driving a model-backed machine, so
+	// this is inference work behind an HTTP call, not a probe (GH-709 R2).
+	data, status, err := requestInference(http.MethodPost, cpCoordinatorProvision, intent, "coordinator provision intent")
 	if err != nil {
 		return fmt.Errorf("provision intent request failed: %w", err)
 	}
