@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,7 +16,10 @@ import (
 	"time"
 )
 
-const defaultRunTimeout = 90 * time.Second
+const (
+	defaultRunTimeout = 90 * time.Second
+	agentCoreRootEnv  = "AGENT_CORE_ROOT"
+)
 
 // RunConfig describes a single agent CLI invocation for a family test.
 type RunConfig struct {
@@ -117,21 +121,45 @@ func (r RunResult) RequireToolSpans(t *testing.T, tools ...string) {
 // (cmd/agent/main.go: telemetry.NewRoot("agent", "agent.run", ...)).
 const RootSpanName = "agent.run"
 
-// RequireCoreRoot returns the sibling agent-core checkout path, derived from the
-// package's own location, or skips the test when that checkout is absent so
-// plain `go test ./...` stays hermetic for docs-only checkouts. The conformance
-// package builds the agent binary from that checkout.
+// RequireCoreRoot returns the explicit AGENT_CORE_ROOT checkout when configured,
+// otherwise it falls back to a sibling agent-core checkout. An invalid explicit
+// path fails because it is a caller configuration error; an absent fallback
+// skips so plain `go test ./...` stays hermetic for docs-only checkouts.
 func RequireCoreRoot(t *testing.T) string {
 	t.Helper()
-	root := filepath.Join(filepath.Dir(ProfilesRoot()), "agent-core")
-	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
-		t.Skipf("agent-core checkout not found at %s; skipping conformance run", root)
+	explicitRoot := os.Getenv(agentCoreRootEnv)
+	fallbackRoot := filepath.Join(filepath.Dir(ProfilesRoot()), "agent-core")
+	root, found, err := resolveCoreRoot(explicitRoot, fallbackRoot)
+	if err != nil {
+		t.Fatalf("resolve agent-core checkout: %v", err)
 	}
+	if !found {
+		t.Skipf("agent-core checkout not found at %s and %s is unset; skipping conformance run", fallbackRoot, agentCoreRootEnv)
+	}
+	return root
+}
+
+func resolveCoreRoot(explicitRoot, fallbackRoot string) (root string, found bool, err error) {
+	root = explicitRoot
+	explicit := root != ""
+	if !explicit {
+		root = fallbackRoot
+	}
+
 	abs, err := filepath.Abs(root)
 	if err != nil {
-		t.Fatalf("resolve %q: %v", root, err)
+		return "", false, fmt.Errorf("make %q absolute: %w", root, err)
 	}
-	return abs
+	if _, err := os.Stat(filepath.Join(abs, "go.mod")); err != nil {
+		if explicit {
+			return "", false, fmt.Errorf("%s=%q does not identify an agent-core checkout: %w", agentCoreRootEnv, explicitRoot, err)
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("inspect fallback checkout %q: %w", abs, err)
+	}
+	return abs, true, nil
 }
 
 // ProfilesRoot returns the agent-profiles repository root (the parent of this
