@@ -114,8 +114,8 @@ rest:
                     error: apply_failed
         rollout:
           # Read the chatbot Deployment's rollout status (srd006 R1.1). kubectl
-          # computes the phase; a complete rollout is ToolDone, a still-progressing
-          # one is ToolFailed, both mapped to 200 with the phase in the body.
+          # computes the phase, then the machine reads the Deployment itself for
+          # the counts.
           method: GET
           path: /provisioning/api/rollout
           binding: machine_request
@@ -126,19 +126,45 @@ rest:
             request:
               body: {}
             response:
-              terminal_signals:
-                ToolDone:
+              # Keyed by terminal state, not terminal signal. Both reads are exec
+              # words emitting only ToolDone and ToolFailed, and the counts read
+              # emits ToolDone for a complete and a progressing rollout alike, so
+              # signal keying could not tell the three outcomes apart -- nor
+              # separate a broken read from a slow rollout, which is the whole
+              # point of the second read (srd030 R4.6; GH-615).
+              terminal_states:
+                # ready, desired, and revision come from the last word's output:
+                # kubectl_get_rollout_counts renders the Deployment as a JSON
+                # object, which the binding maps by field (srd030 R4.3).
+                Complete:
                   status: 200
                   content_type: application/json
                   body:
                     schema_version: "1"
                     phase: complete
-                ToolFailed:
+                    ready: $.ready
+                    desired: $.desired
+                    revision: $.revision
+                Progressing:
                   status: 200
                   content_type: application/json
                   body:
                     schema_version: "1"
                     phase: progressing
+                    ready: $.ready
+                    desired: $.desired
+                    revision: $.revision
+                # kubectl could not read the Deployment: it is absent, or the
+                # kubeconfig, RBAC, or API server denies the read. Reporting a
+                # phase here would render a broken read as an ongoing rollout in
+                # a panel that polls every 3s, indefinitely.
+                Unavailable:
+                  status: 502
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    status: unavailable
+                    error: rollout_read_failed
 
     executor_control:
       address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18091

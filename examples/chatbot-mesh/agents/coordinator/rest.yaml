@@ -150,6 +150,9 @@ rest:
           response:
             output:
               phase: $.phase
+              ready: $.ready
+              desired: $.desired
+              revision: $.revision
           side_effects:
             - kind: external_api
               target: creator.rollout
@@ -297,6 +300,12 @@ rest:
                   body:
                     schema_version: "1"
                     phase: $.mapped.phase
+                    # The counts the executor reads off the Deployment (srd006
+                    # R3.3), carried through the creator so the panel renders
+                    # every field its RolloutStatus declares. GH-686.
+                    ready: $.mapped.ready
+                    desired: $.mapped.desired
+                    revision: $.mapped.revision
                 # A poll that cannot read the status is an error, not a successful
                 # unknown phase: the panel would otherwise show "progressing"
                 # indefinitely while the read was broken.

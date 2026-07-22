@@ -98,8 +98,12 @@ rest:
             undo: apply_instance
         read_rollout:
           # Verify the instance's health through the deployment API's rollout read
-          # (srd005 R4.1) before reporting the operation complete. The executor's
-          # trimmed rollout response carries the phase (srd006 R1.4).
+          # (srd005 R4.1) before reporting the operation complete. The rollout
+          # response carries the phase and the Deployment's counts (srd006 R1.4,
+          # R3.3); all four travel on so the panel renders what it declares. A
+          # read the executor could not serve answers 502, which is outside the
+          # declared success status and so emits CommandError rather than a
+          # phase.
           method: GET
           path: /provisioning/api/rollout
           params:
@@ -108,6 +112,9 @@ rest:
           response:
             output:
               health: $.phase
+              ready: $.ready
+              desired: $.desired
+              revision: $.revision
           side_effects:
             - kind: external_api
               target: deployment_api.rollout
@@ -198,6 +205,9 @@ rest:
                   body:
                     schema_version: "1"
                     phase: $.mapped.health
+                    ready: $.mapped.ready
+                    desired: $.mapped.desired
+                    revision: $.mapped.revision
                 Failed:
                   status: 502
                   content_type: application/json

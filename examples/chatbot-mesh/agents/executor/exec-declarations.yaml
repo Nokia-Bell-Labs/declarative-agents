@@ -179,21 +179,21 @@ tools:
     args: [rollout, status, deployment/chatbot-mesh-chatbot, --namespace, default, --timeout, 3s]
     category: boundary
     visibility: internal
-    description: Read the Deployment's rollout status for the rollout GET endpoint, with a short timeout so the read returns promptly; ToolDone means complete, ToolFailed means still progressing.
+    description: Read the Deployment's rollout status for the rollout GET endpoint, with a short timeout so the read returns promptly; ToolDone means complete, ToolFailed means not complete.
     problem: The rollout read endpoint must report completion without blocking a poll, so it uses a short timeout and reports the outcome via the exit code.
     goals:
       - Report the rollout completion with a short bounded timeout.
-      - Emit ToolDone when complete and ToolFailed when still progressing or timed out.
+      - Emit ToolDone when complete and ToolFailed when the rollout is not complete or the read failed.
     requirements:
       input:
         - must read the configured Deployment's rollout status with a short timeout
       output:
         - must include exit status and captured status output
       errors:
-        - a non-zero exit is reported as progressing, not an error signal
+        - a non-zero exit is carried as the not-complete outcome, which kubectl_get_rollout_counts then separates into progressing and unreachable
     non_goals:
       - Does not mutate cluster state.
-      - Does not distinguish a cluster error from a still-progressing rollout (exec emits one failure signal).
+      - Does not itself distinguish a cluster error from a still-progressing rollout (exec emits one failure signal); kubectl_get_rollout_counts runs next and fails cleanly when the Deployment cannot be read, so the machine reaches Unavailable rather than reporting progress.
     emits: [ToolDone, ToolFailed]
     output:
       description: kubectl rollout status process result.
@@ -214,14 +214,78 @@ tools:
       requires_confirmation: false
     errors:
       - signal: ToolFailed
-        condition: the rollout is not complete within the short timeout (still progressing)
+        condition: the rollout is not complete within the short timeout (still progressing), or kubectl could not read the Deployment at all
         message_shape: <captured kubectl status output>
-        state_after_failure: no cluster state changed; the caller polls again
+        state_after_failure: no cluster state changed; the machine reads the counts next, which separates the two cases
     relationships:
       after: [helm_upgrade]
+      before: [kubectl_get_rollout_counts]
     undo:
       strategy: noop
       description: A status read mutates nothing.
+
+  # The go-template renders the Deployment as one compact JSON object, which is
+  # what lets the rollout response map ready, desired, and revision as fields
+  # rather than as one opaque string (agent-core srd030 R4.3). Every field is
+  # guarded because a Deployment carries no readyReplicas until a replica is
+  # ready and no revision annotation until the controller writes one, and an
+  # ungated miss would render `<no value>` in the middle of the object and emit
+  # invalid JSON. --allow-missing-template-keys is kubectl's default; it is
+  # stated because the guards depend on a missing key evaluating false rather
+  # than erroring.
+  - name: kubectl_get_rollout_counts
+    type: exec
+    binary: kubectl
+    args: [get, deployment/chatbot-mesh-chatbot, --namespace, default, -o, 'go-template={"ready":{{if .status}}{{if .status.readyReplicas}}{{.status.readyReplicas}}{{else}}0{{end}}{{else}}0{{end}},"desired":{{if .spec.replicas}}{{.spec.replicas}}{{else}}0{{end}},"revision":{{if .metadata.annotations}}{{if index .metadata.annotations "deployment.kubernetes.io/revision"}}{{index .metadata.annotations "deployment.kubernetes.io/revision"}}{{else}}0{{end}}{{else}}0{{end}}}', --allow-missing-template-keys=true]
+    category: boundary
+    visibility: internal
+    description: Read the Deployment's replica counts and revision as one JSON object, so the rollout response carries ready, desired, and revision alongside the phase, and a read that cannot reach the Deployment fails rather than reporting progress.
+    problem: kubectl rollout status exits non-zero both when a rollout is still progressing and when the Deployment, kubeconfig, RBAC, or API server makes the read impossible, so the phase alone cannot tell an ongoing rollout from a broken one, and it carries no counts for the panel to render.
+    goals:
+      - Emit the ready and desired replica counts and the Deployment revision as a JSON object the response body maps by field.
+      - Emit ToolFailed when the Deployment cannot be read, so the machine reaches Unavailable instead of reporting a phase.
+    requirements:
+      input:
+        - must read the configured Deployment in the configured namespace
+      output:
+        - must emit a JSON object carrying ready, desired, and revision as numbers
+      errors:
+        - must emit ToolFailed when the Deployment is absent or the cluster read fails
+    non_goals:
+      - Does not mutate cluster state.
+      - Does not compute the phase; kubectl_rollout_poll does, and the machine carries it in the terminal state.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: The Deployment's rollout counts, rendered by the go-template as a JSON object so the response body maps ready, desired, and revision by field.
+      schema:
+        type: object
+        properties:
+          ready: {type: integer}
+          desired: {type: integer}
+          revision: {type: integer}
+        required: [ready, desired, revision]
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: kubectl
+        description: Runs `kubectl get deployment -o go-template` as a child process; reads the Deployment and mutates nothing.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the Deployment does not exist, or the kubeconfig, RBAC, or API server makes the read impossible
+        message_shape: <captured kubectl error output>
+        state_after_failure: no cluster state changed; the machine reaches Unavailable and the endpoint answers 502
+    relationships:
+      after: [kubectl_rollout_poll]
+      overlaps:
+        - tool: kubectl_rollout_poll
+          difference: kubectl_rollout_poll decides the phase from the rollout status exit code; kubectl_get_rollout_counts reads the Deployment object for the counts and proves the read itself works.
+    undo:
+      strategy: noop
+      description: An object read mutates nothing.
 
   - name: kubectl_rollout_status
     type: exec

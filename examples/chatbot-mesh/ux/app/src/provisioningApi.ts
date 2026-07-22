@@ -49,12 +49,16 @@ export interface MeshView {
   params: ParamsView;
 }
 
+// RolloutStatus is what the coordinator's rollout poll serves, field for field:
+// the phase the executor reads from kubectl and the counts it reads off the
+// Deployment, carried through the creator (GH-686). There is no "unknown" phase
+// and no message -- a read the mesh cannot serve answers 502 at every hop rather
+// than a successful unknown, so fetchRollout throws instead of resolving.
 export interface RolloutStatus {
-  phase: "progressing" | "complete" | "unknown";
+  phase: "progressing" | "complete";
   ready: number;
   desired: number;
   revision: number;
-  message?: string;
 }
 
 function authHeaders(token: string): HeadersInit {

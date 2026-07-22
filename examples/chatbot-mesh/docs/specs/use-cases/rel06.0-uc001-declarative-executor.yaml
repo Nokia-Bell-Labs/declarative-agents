@@ -37,7 +37,7 @@ flow:
   - id: F3
     text: The executor materializes the validated patch as a values file and applies helm upgrade --reuse-values --atomic, re-rendering the co-generated topology, rather than constructing per-field --set arguments.
   - id: F4
-    text: The executor verifies the affected Deployment's rollout via kubectl rollout status and reports the phase, rolling the release back on an apply or verify failure.
+    text: The executor verifies the affected Deployment's rollout via kubectl rollout status and reports the phase with the Deployment's ready and desired replicas and revision, rolling the release back on an apply or verify failure.
   - id: F5
     text: The executor reports health to the creator, which reports it to the coordinator; a subsequent chat turn is grounded in the applied change.
 
@@ -102,6 +102,12 @@ success_criteria:
       - srd004-coordinator R1.5
       - srd006-executor AC6
       - srd003-chatbot-deployment AC7
+
+  - id: S7
+    criterion: The rollout read reports the phase with the Deployment's ready and desired replicas and revision, and a read the cluster cannot serve -- an absent Deployment, a wrong kubeconfig, a denied RBAC read, an unreachable API server -- returns a gateway error at every hop rather than a phase, so a broken read is never rendered as a progressing rollout.
+    traces:
+      - srd006-executor R3.3
+      - srd006-executor AC3
 
 out_of_scope:
   - The decision of what to change, which is the coordinator's (srd004 R3.1).
