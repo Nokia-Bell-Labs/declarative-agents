@@ -9,13 +9,14 @@ preconditions:
   - srd039-mock-endpoint-binding defines the mock binding, fixture format, request log, and validation.
   - srd040-service-child-tools defines start_service, await_healthy, stop_service, run_validators, and list_scenarios.
   - GH-666 implements the mock binding; GH-667 implements the service-child tools. Test names below are the contracts those issues implement.
-  - Cases carry planned_go_test rather than go_test because the named tests do not exist yet. The formal go_test evidence validator checks every go_test string against the real test inventory, so citing an unwritten test would record false evidence. Each implementing issue renames planned_go_test to go_test and sets status to implemented when its test lands.
+  - Cases carry planned_go_test rather than go_test until their named tests exist. The formal go_test evidence validator checks every go_test string against the real test inventory, so citing an unwritten test would record false evidence. Each implementing issue renames planned_go_test to go_test and sets status to implemented when its test lands.
+  - GH-666 delivered the mock binding, so the four mock cases below now carry go_test and status implemented. The service-child cases stay planned until GH-667.
 
 test_cases:
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Mock binding serves scripted responses in order
-    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingServesScriptedResponses
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingServesScriptedResponses
+    status: implemented
     description: |
       An endpoint with the mock binding serves a route's ordered responses on
       successive requests, repeats the last response after the script is
@@ -32,8 +33,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Request log returns received requests in order
-    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingRequestLog
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingRequestLog
+    status: implemented
     description: |
       After a scripted request sequence, the log endpoint returns every
       received request in order with method, path, headers, and body, and
@@ -50,8 +51,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Malformed fixture fails validate-config and startup
-    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingFixtureValidation
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingFixtureValidation
+    status: implemented
     description: |
       Fixtures with an unknown method, an empty response list, and a duplicate
       route each fail validation with a named error under --validate-config
@@ -67,8 +68,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Concurrent requests neither skip nor duplicate script positions
-    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingConcurrentSequencing
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingConcurrentSequencing
+    status: implemented
     description: |
       Concurrent requests to a scripted route consume script positions exactly
       once each, and a serial sequence is deterministic.

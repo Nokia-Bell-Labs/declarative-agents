@@ -71,6 +71,7 @@ type AwaitAnyOptions struct {
 type serverRuntime struct {
 	name           string
 	def            ServerDefinition
+	mock           *mockState
 	httpServer     *http.Server
 	listener       net.Listener
 	queue          chan InboundEvent
@@ -156,6 +157,12 @@ func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
 	if err := validateRouteConflicts(def.Server.Endpoints); err != nil {
 		return nil, err
 	}
+	// Fixtures load before the listener binds, so a malformed fixture stops the
+	// server from serving rather than failing the first request (srd039 R4.2).
+	mock, err := newMockState(def.Server.Endpoints)
+	if err != nil {
+		return nil, err
+	}
 	listener, err := net.Listen("tcp", def.Server.Address)
 	if err != nil {
 		return nil, fmt.Errorf("bind REST server %q: %w", def.Name, err)
@@ -165,7 +172,7 @@ func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
 		requestMon = monitor.NewRecorder(def.Monitor.Store, nil)
 	}
 	runtime := &serverRuntime{
-		name: def.Name, def: def, listener: listener, stopped: make(chan struct{}),
+		name: def.Name, def: def, mock: mock, listener: listener, stopped: make(chan struct{}),
 		runner:         machineRequestRunner(def.MachineRequestRunner),
 		requestMonitor: requestMon,
 		queue:          make(chan InboundEvent, queueCapacity(def.Server.Queue)), owned: true,

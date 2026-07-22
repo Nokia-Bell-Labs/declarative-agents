@@ -361,6 +361,19 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 			name, endpoint.Binding, bindingRedirect,
 		)
 	}
+	if endpoint.Mock != nil && endpoint.Binding != bindingMock {
+		return fmt.Errorf(
+			"endpoint %q has mock config but binding is %q (want %q)",
+			name, endpoint.Binding, bindingMock,
+		)
+	}
+	// Fixtures are read and checked here so --validate-config rejects a malformed
+	// fixture before the server is ever started (srd039 R4.2).
+	if endpoint.Binding == bindingMock {
+		if _, err := mockRoutes(name, endpoint.Mock); err != nil {
+			return err
+		}
+	}
 	if endpoint.MonitorProxy != nil && endpoint.Binding != bindingMonitorProxy {
 		return fmt.Errorf(
 			"endpoint %q has monitor_proxy config but binding is %q (want %q)",

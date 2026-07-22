@@ -24,6 +24,8 @@ const (
 	bindingMachineRequest   = "machine_request"
 	bindingLifecycleControl = "lifecycle_control"
 	bindingMonitorProxy     = "monitor_proxy"
+	bindingMock             = "mock"
+	bindingMockLog          = "mock_log"
 )
 
 // handledServerBindings is the closed set of endpoint bindings handleEndpoint
@@ -45,6 +47,8 @@ var handledServerBindings = map[string]bool{
 	bindingStaticAssets:     true,
 	bindingRedirect:         true,
 	bindingMonitorProxy:     true,
+	bindingMock:             true,
+	bindingMockLog:          true,
 }
 
 // sortedServerBindings returns the handled bindings in stable order for
@@ -87,6 +91,13 @@ func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	name, endpoint, vars, pathFound := r.matchEndpoint(req)
 	if !pathFound {
 		http.NotFound(w, req)
+		return
+	}
+	// A mock endpoint is a mount point, not one declared route: its fixture
+	// decides which methods and paths answer, so it precedes the declared-method
+	// check and reads the request body directly (srd039 R2.1).
+	if endpoint.Binding == bindingMock {
+		r.serveMock(w, req)
 		return
 	}
 	if req.Method != endpoint.Method {
@@ -206,6 +217,8 @@ func (r *serverRuntime) handleEndpoint(
 		r.writeRedirect(w, endpoint)
 	case bindingMonitorProxy:
 		r.proxyMonitor(w, req, endpoint)
+	case bindingMockLog:
+		r.writeMockLog(w)
 	default:
 		http.Error(w, "endpoint binding is not implemented", http.StatusNotImplemented)
 	}
