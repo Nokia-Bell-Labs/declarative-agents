@@ -549,3 +549,68 @@ releases:
       - id: test-rel10.0-role-catalog
         summary: Cases validating the critic/executor renames, the chroma rescope, and the conformance-fixture relocation with mage validate, mage conformance, go test, and zero-hit greps.
         status: implemented
+
+  - version: "11.0"
+    name: Assembler test rig
+    description: |
+      Release 11.0 adds the repository's reusable test rig as two new role
+      families. The assembler (srd018) is the rig itself: a deterministic
+      machine that discovers scenarios under configurable roots, and for each
+      one starts the digital-twin mocks its subject depends on, starts the
+      subject with its REST dependencies redirected at those twins, runs the
+      scenario's validator machines, reduces their terminal states to a
+      verdict, and tears every child down. The twin (srd019) is one generic
+      profile that stands in for any REST dependency, serving the canned,
+      scripted responses a scenario fixture declares and recording a request
+      log validators assert against.
+
+      Tests are profile-owned data. A scenario is a tests/<scenario>/
+      directory beside the agent it tests, holding validator machines and
+      fixtures, so one subject carries several tests and adding one never
+      edits the rig. Discovery roots cover both the agent families here and
+      the agents under examples/, so one rig serves the whole repository. No
+      scenario needs a live service and none needs a container image per
+      test: every child is the same agent binary over a mounted profile.
+
+      The runtime words the rig calls are agent-core release 09.0 (srd039
+      mock endpoint binding, srd040 service-child tools). This release records
+      the profile-owned documentation; the twin lands in GH-668, the assembler
+      in GH-669, and the reference subject with its scenarios and the mage
+      target in GH-670. Epic #662.
+    status: planned
+    related_agent_core_release: "09.0"
+    planned_work:
+      - id: gh-665
+        summary: Specify the assembler and twin profile families (this release's documentation).
+        status: done
+      - id: gh-668
+        summary: Add the twin profile and fixture conformance.
+        status: open
+      - id: gh-669
+        summary: Add the assembler profile (the rig machine).
+        status: open
+      - id: gh-670
+        summary: Add the reference subject, self-proving scenarios, and the mage rig target.
+        status: open
+    srds:
+      - srd018-assembler
+      - srd019-twin
+    use_cases:
+      - id: rel11.0-uc001-assembler-scenario-run
+        summary: The assembler runs an agent's scenarios to a verdict with no live services, a fresh subject per scenario, and a failing scenario that names its cause.
+        status: specified
+      - id: rel11.0-uc002-twin-serves-fixtures
+        summary: One twin profile stands in for any REST dependency, scripts response sequences, and records a request log validators assert against.
+        status: specified
+    test_suites:
+      - id: test-rel11.0-assembler-rig
+        summary: Cases for fixture serving and sequencing, two twins from one profile, request-log verification, malformed-fixture rejection, an end-to-end scenario verdict, several scenarios per subject, a scripted dependency failure, a deliberate rig failure, no-orphan repeatable runs, cross-root discovery, and shipped-profile validation.
+        status: specified
+    proof:
+      - mage validate
+      - AGENT_CORE_ROOT=/path/to/agent-core mage rig
+    success_markers:
+      - Adding a test means adding files under a tests/ directory, never editing the assembler.
+      - One twin profile serves every dependency; response content lives in scenario fixtures.
+      - Scenarios run with no live Chroma, Ollama, Docker, or Kubernetes.
+      - The rig can fail: a wrong expectation reaches Failed and names the failing validator.
