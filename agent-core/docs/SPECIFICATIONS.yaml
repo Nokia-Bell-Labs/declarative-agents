@@ -23,7 +23,8 @@ overview: |
   02.0 covers srd025, srd026, srd035, and srd036. Release 03.0 covers srd027
   through srd031. Release 04.0 covers srd032 and srd033. Release 06.0 covers
   srd034. Release 07.0 covers srd038 and the amended srd036 and srd028 for the
-  command-state store and two-plane persistence (planned). Release 08.0 covers
+  command-state store and two-plane persistence (implemented; the end-to-end
+  process-restart lifecycle tracer is component-level, see test-rel07.0). Release 08.0 covers
   the amended srd016 for HTTP trace propagation. Release 99.0 covers
   srd037 planning work.
 
