@@ -117,7 +117,7 @@ test_cases:
 
   - use_case: rel06.0-uc002-profile-validation
     name: Profile bundle tags use local daily revisions
-    go_test: go test ./magefiles -run 'Test(CreateReleaseTag|NextRevisionFromTags|ValidateReleaseBranch)'
+    go_test: cd ../magefiles && go test ./... -run 'Test(CreateReleaseTag|NextRevisionFromTags|ValidateReleaseBranch)'
     integration_target: mage tag
     status: implemented
     description: |

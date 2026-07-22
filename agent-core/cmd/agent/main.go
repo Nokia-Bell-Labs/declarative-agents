@@ -43,6 +43,7 @@ var (
 	flagResumeSignal     string
 	flagChildAgent       string
 	flagValidateConfig   bool
+	flagValidateEvidence bool
 )
 
 const (
@@ -80,6 +81,7 @@ func init() {
 	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
 	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary the evaluator launches (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
+	f.BoolVar(&flagValidateEvidence, "validate-test-evidence", false, "resolve every formal test suite's go_test evidence under --directory against that module's real Go tests, then exit 0 (all resolve) or 1 (findings); for an audit gate in a module that does not import agent-core")
 
 	rootCmd.Version = "v0.0.0-dev"
 }
@@ -150,6 +152,9 @@ func run(cmd *cobra.Command, args []string) error {
 	if f := cmd.Flags().Lookup("core-root"); f != nil && f.Changed && strings.TrimSpace(flagCoreRoot) != "" {
 		spec.SetAgentCoreInstallRoot(flagCoreRoot)
 	}
+	if flagValidateEvidence {
+		return validateTestEvidence(flagDirectory)
+	}
 	if flagValidateConfig {
 		return validateConfig()
 	}
@@ -169,6 +174,37 @@ func run(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(os.Stderr, "terminal state: %s\n", result.Status)
 	prepared.Shutdown.Apply()
 	return nil
+}
+
+// validateTestEvidence resolves every formal test suite's go_test evidence under
+// dir against the real Go tests of the module rooted there, and returns an error
+// listing each entry that cannot be resolved.
+//
+// agent-profiles and chatbot-mesh deliberately do not import agent-core, so they
+// cannot call spec.AuditGoTestEvidence in process. Exposing it here lets their
+// audit gates reach the same resolver through the agent binary they already
+// build, the way the GH-614 boot smoke reuses --validate-config (GH-652).
+func validateTestEvidence(dir string) error {
+	if strings.TrimSpace(dir) == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("resolve working directory: %w", err)
+		}
+		dir = cwd
+	}
+	findings, err := spec.AuditGoTestEvidence(dir)
+	if err != nil {
+		return fmt.Errorf("validate test evidence in %s: %w", dir, err)
+	}
+	if len(findings) == 0 {
+		fmt.Fprintf(os.Stderr, "test evidence valid: every go_test entry under %s resolves\n", dir)
+		return nil
+	}
+	var b strings.Builder
+	for _, f := range findings {
+		fmt.Fprintf(&b, "  [%s] %s: %s\n", f.Level, f.SuiteID, f.Message)
+	}
+	return fmt.Errorf("test evidence validation failed in %s: %d finding(s)\n%s", dir, len(findings), b.String())
 }
 
 // validateConfig loads the profile, machine spec, tool definitions, and REST

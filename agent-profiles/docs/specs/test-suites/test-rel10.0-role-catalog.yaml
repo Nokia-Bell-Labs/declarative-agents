@@ -23,7 +23,7 @@ test_cases:
   - use_case: rel10.0-uc001-role-catalog-renames
     name: Critic and executor renames validate over the tree
     integration_target: mage validate
-    go_test: go test ./... (agent-core, for critic-session/critic-point)
+    go_test: cd ../agent-core && go test ./...
     status: implemented
     description: |
       After the rename, agents/critic and agents/executor exist and no evaluator or

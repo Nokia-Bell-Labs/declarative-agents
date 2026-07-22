@@ -60,7 +60,12 @@ func Audit() error {
 	if err != nil {
 		return err
 	}
-	return bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles)
+	if err := bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles); err != nil {
+		return err
+	}
+	// A proof command can name a test that lives in another module and still exit
+	// green, so resolve this example's go_test evidence against its real tests.
+	return validateTestEvidence(defaultSmokeRun, binary, root)
 }
 
 // resolveAuditTools locates the agent-core runtime checkout and the jurist

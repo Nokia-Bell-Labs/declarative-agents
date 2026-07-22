@@ -23,13 +23,13 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A kind cluster and docker/helm/kubectl are available for the on-cluster tracers, and the rel06.0 runtime image is loadable.
-  - Historical: these assets were relocated to examples/chatbot-mesh/ (the provisioner service replaced by the executor, srd006), which now owns the deployment chart and the chatbot/RAG profiles.
+  - "Historical: these assets were relocated to examples/chatbot-mesh/ (the provisioner service replaced by the executor, srd006), which now owns the deployment chart and the chatbot/RAG profiles."
 
 test_cases:
   - use_case: rel09.3-uc001-mesh-deployment
     name: Mesh Helm deployment smoke tracer on kind
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run 'TestSplitImageRef|TestJaegerAgentServices|TestAssertSmoke|TestHelmSmoke'
+    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run 'TestSplitImageRef|TestJaegerAgentServices|TestAssertSmoke|TestHelmSmoke'
     status: implemented
     description: |
       Integration.HelmSmoke deploys the chatbot-mesh chart on a disposable kind
@@ -59,7 +59,7 @@ test_cases:
   - use_case: rel09.3-uc001-mesh-deployment
     name: Chatbot rest.yaml co-generation drift lock
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run 'TestChatbotRestCoGenerated|TestChatbotUXMonitored|TestChatbotFanOutCoGeneratedForNRags'
+    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run 'TestChatbotRestCoGenerated|TestChatbotUXMonitored|TestChatbotFanOutCoGeneratedForNRags'
     status: implemented
     description: |
       Locks srd015 R2: the chatbot rest.yaml, ux.yaml, request-machine.yaml, and
@@ -86,7 +86,7 @@ test_cases:
   - use_case: rel09.3-uc001-mesh-deployment
     name: Mesh hot-swap tracer on kind
     integration_target: mage integration:helmSwap
-    go_test: go test ./magefiles -run TestChatbotFanOutCoGeneratedForNRags
+    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run TestChatbotFanOutCoGeneratedForNRags
     status: implemented
     description: |
       Integration.HelmSwap proves both tiered-swap paths on a kind cluster.
