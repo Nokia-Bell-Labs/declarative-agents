@@ -3,6 +3,11 @@
 package evaluation
 
 import (
+	"bytes"
+	"encoding/csv"
+	"errors"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -78,4 +83,110 @@ func TestComputeDetailedAggregatesSampleModelRows(t *testing.T) {
 	assert.Equal(t, 12.0, rows[0].MeanTokens)
 	assert.Equal(t, time.Second, rows[0].MeanDuration)
 	assert.Equal(t, 1, rows[0].Convergences[Converged])
+}
+
+func TestWriteCSVSuccessfulRoundTrip(t *testing.T) {
+	t.Parallel()
+	var output bytes.Buffer
+	writer := &trackingWriteCloser{Writer: &output}
+	groups := csvTestGroups("progress\ncontinued")
+
+	require.NoError(t, writeCSV(writer, groups))
+	require.True(t, writer.closed)
+	records, err := csv.NewReader(bytes.NewReader(output.Bytes())).ReadAll()
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	assert.Equal(t, "sample", records[0][0])
+	assert.Equal(t, "sample-a", records[1][0])
+	assert.Equal(t, "progress continued", records[1][11])
+}
+
+func TestWriteCSVPropagatesWriteFlushAndCloseFailures(t *testing.T) {
+	t.Parallel()
+	writeFailure := errors.New("injected write failure")
+	closeFailure := errors.New("injected close failure")
+	tests := []struct {
+		name       string
+		writer     *trackingWriteCloser
+		groups     map[GroupKey][]EvalRunResult
+		wantErrors []error
+	}{
+		{
+			name: "buffered flush failure",
+			writer: &trackingWriteCloser{
+				Writer: errorWriter{err: writeFailure},
+			},
+			groups:     csvTestGroups("small"),
+			wantErrors: []error{writeFailure},
+		},
+		{
+			name: "direct large-row write failure",
+			writer: &trackingWriteCloser{
+				Writer: errorWriter{err: writeFailure},
+			},
+			groups:     csvTestGroups(strings.Repeat("x", 8192)),
+			wantErrors: []error{writeFailure},
+		},
+		{
+			name: "close failure",
+			writer: &trackingWriteCloser{
+				Writer:   io.Discard,
+				closeErr: closeFailure,
+			},
+			groups:     csvTestGroups("small"),
+			wantErrors: []error{closeFailure},
+		},
+		{
+			name: "flush and close failures aggregate",
+			writer: &trackingWriteCloser{
+				Writer:   errorWriter{err: writeFailure},
+				closeErr: closeFailure,
+			},
+			groups:     csvTestGroups("small"),
+			wantErrors: []error{writeFailure, closeFailure},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := writeCSV(tt.writer, tt.groups)
+			require.Error(t, err)
+			for _, want := range tt.wantErrors {
+				assert.ErrorIs(t, err, want)
+			}
+			assert.True(t, tt.writer.closed)
+		})
+	}
+}
+
+type trackingWriteCloser struct {
+	io.Writer
+	closeErr error
+	closed   bool
+}
+
+func (w *trackingWriteCloser) Close() error {
+	w.closed = true
+	return w.closeErr
+}
+
+type errorWriter struct {
+	err error
+}
+
+func (w errorWriter) Write([]byte) (int, error) {
+	return 0, w.err
+}
+
+func csvTestGroups(summary string) map[GroupKey][]EvalRunResult {
+	return map[GroupKey][]EvalRunResult{
+		{Sample: "sample-a", Model: "model-a"}: {{
+			Sample:      "sample-a",
+			Model:       "model-a",
+			Repetition:  1,
+			TestsPassed: true,
+			Progression: &RunProgression{Overall: Converged, Summary: summary},
+		}},
+	}
 }
