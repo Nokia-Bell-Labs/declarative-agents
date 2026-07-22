@@ -102,7 +102,8 @@ func TestExecute_ScriptExitNonZero(t *testing.T) {
 	assert.Equal(t, 1, result.ExitCode)
 	assert.False(t, result.Success())
 	assert.Contains(t, result.Stdout, "stdout-output")
-	assert.Contains(t, result.Stdout, "stderr-output")
+	assert.Contains(t, result.Stderr, "stderr-output")
+	assert.NotContains(t, result.Stdout, "stderr-output")
 	assert.True(t, result.Duration > 0)
 }
 

@@ -9,6 +9,7 @@
 package subprocess
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -99,11 +100,15 @@ func Run(ctx context.Context, spec Spec) *Result {
 	}
 
 	start := time.Now()
-	output, err := cmd.CombinedOutput()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
 	elapsed := time.Since(start)
 
 	result := &Result{
-		Stdout:   string(output),
+		Stdout:   stdout.String(),
+		Stderr:   stderr.String(),
 		Duration: elapsed,
 	}
 
@@ -111,6 +116,9 @@ func Run(ctx context.Context, spec Spec) *Result {
 		if childCtx.Err() == context.DeadlineExceeded {
 			result.TimedOut = true
 			result.ExitCode = -1
+		} else if childCtx.Err() != nil {
+			result.ExitCode = -1
+			result.Err = childCtx.Err()
 		} else if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
 		} else {
