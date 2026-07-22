@@ -3,8 +3,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -93,10 +95,11 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	if err := kindCreateCluster(helmKindCluster); err != nil {
+	cluster, err := kindEnsureCluster(defaultKindRun, helmKindCluster)
+	if err != nil {
 		return err
 	}
-	defer kindDeleteCluster(helmKindCluster)
+	defer cluster.release(defaultKindRun)
 
 	if err := kindLoadImage(helmKindCluster, helmImage); err != nil {
 		return err
@@ -228,21 +231,59 @@ func copyDirContents(src, dst string) error {
 	return nil
 }
 
-func kindCreateCluster(name string) error {
-	if kindClusterExists(name) {
-		fmt.Printf("helmSmoke: reusing existing kind cluster %s\n", name)
-		return nil
-	}
-	cmd := exec.Command("kind", "create", "cluster", "--name", name, "--wait", "120s")
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("kind create cluster %s: %w", name, err)
-	}
-	return nil
+// kindRunner runs one kind subcommand and returns its combined output. Injected
+// so cluster ownership is testable against a fake kind without a real cluster.
+type kindRunner func(args ...string) ([]byte, error)
+
+// defaultKindRun streams kind's output so a multi-minute create still reports
+// progress live, while also capturing it for the caller.
+func defaultKindRun(args ...string) ([]byte, error) {
+	cmd := exec.Command("kind", args...)
+	var buf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stderr, &buf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+	err := cmd.Run()
+	return buf.Bytes(), err
 }
 
-func kindClusterExists(name string) bool {
-	out, err := exec.Command("kind", "get", "clusters").Output()
+// kindCluster records whether this run created the cluster it is using. Only a
+// cluster this run created may be deleted: the integration targets use fixed
+// cluster names and reuse one that is already up, so deleting unconditionally
+// destroys a developer or CI cluster the test did not create (GH-589).
+type kindCluster struct {
+	Name    string
+	Created bool
+}
+
+// kindEnsureCluster reuses an existing cluster or creates one, recording which
+// happened so release can decide whether deletion is ours to perform.
+func kindEnsureCluster(run kindRunner, name string) (kindCluster, error) {
+	if kindClusterExists(run, name) {
+		fmt.Printf("kind: reusing pre-existing cluster %s; it will not be deleted\n", name)
+		return kindCluster{Name: name}, nil
+	}
+	if _, err := run("create", "cluster", "--name", name, "--wait", "120s"); err != nil {
+		return kindCluster{}, fmt.Errorf("kind create cluster %s: %w", name, err)
+	}
+	return kindCluster{Name: name, Created: true}, nil
+}
+
+// release deletes the cluster only when this run created it. A cleanup failure
+// is reported but not fatal: the target's own result is what matters.
+func (c kindCluster) release(run kindRunner) {
+	if !c.Created {
+		if c.Name != "" {
+			fmt.Printf("kind: leaving pre-existing cluster %s in place\n", c.Name)
+		}
+		return
+	}
+	if _, err := run("delete", "cluster", "--name", c.Name); err != nil {
+		fmt.Printf("kind: delete cluster %s failed: %v\n", c.Name, err)
+	}
+}
+
+func kindClusterExists(run kindRunner, name string) bool {
+	out, err := run("get", "clusters")
 	if err != nil {
 		return false
 	}
@@ -252,12 +293,6 @@ func kindClusterExists(name string) bool {
 		}
 	}
 	return false
-}
-
-func kindDeleteCluster(name string) {
-	cmd := exec.Command("kind", "delete", "cluster", "--name", name)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	_ = cmd.Run()
 }
 
 func kindLoadImage(cluster, image string) error {
@@ -434,10 +469,11 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	if err := kindCreateCluster(helmSwapCluster); err != nil {
+	swapCluster, err := kindEnsureCluster(defaultKindRun, helmSwapCluster)
+	if err != nil {
 		return err
 	}
-	defer kindDeleteCluster(helmSwapCluster)
+	defer swapCluster.release(defaultKindRun)
 	if err := kindLoadImage(helmSwapCluster, helmImage); err != nil {
 		return err
 	}
@@ -639,10 +675,11 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	if err := kindCreateCluster(helmLLMCluster); err != nil {
+	llmCluster, err := kindEnsureCluster(defaultKindRun, helmLLMCluster)
+	if err != nil {
 		return err
 	}
-	defer kindDeleteCluster(helmLLMCluster)
+	defer llmCluster.release(defaultKindRun)
 	if err := kindLoadImage(helmLLMCluster, helmImage); err != nil {
 		return err
 	}
