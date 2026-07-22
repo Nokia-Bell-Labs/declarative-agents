@@ -20,15 +20,84 @@ import (
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
-func TestRESTServerMachineRequestSuccess(t *testing.T) {
+func TestRESTServerMachineRequestTerminalStatusMapping(t *testing.T) {
 	t.Parallel()
-	state, baseURL := launchMachineRequestServer(t, "DocumentationReady", 0, false)
-	defer stopRESTServer(t, state, "machine")
+	tests := []struct {
+		name      string
+		signal    string
+		fail      bool
+		status    int
+		location  string
+		bodyKey   string
+		bodyValue string
+		runStatus core.RunStatus
+	}{
+		{
+			name: "2xx success", signal: "DocumentationReady", status: http.StatusCreated,
+			bodyKey: "greeting", bodyValue: "hello alice", runStatus: core.StatusSucceeded,
+		},
+		{
+			name: "3xx success without automatic redirect", signal: "DocumentationReady", status: http.StatusFound,
+			location: "/not-followed", bodyKey: "greeting", bodyValue: "hello alice", runStatus: core.StatusSucceeded,
+		},
+		{
+			name: "4xx failure", signal: "DocumentMissing", status: http.StatusNotFound,
+			bodyKey: "error", bodyValue: "missing document", runStatus: core.StatusFailed,
+		},
+		{
+			name: "5xx failure", signal: "DocumentationReady", fail: true, status: http.StatusInternalServerError,
+			bodyKey: "error", bodyValue: "command failed", runStatus: core.StatusFailed,
+		},
+	}
 
-	body := postJSON(t, baseURL+"/docs", `{"name":"alice"}`, http.StatusOK)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := machineRequestConfig(tt.signal, 0, tt.fail)
+			terminalSignal := tt.signal
+			if tt.fail {
+				terminalSignal = string(core.CommandError)
+			}
+			cfg.MachineSpec = &core.MachineSpec{
+				Name:           "status-mapping",
+				InitialState:   "Start",
+				States:         core.StateSpecsFromNames("Start", "Responding", terminalSignal),
+				TerminalStates: []string{terminalSignal},
+				Signals:        core.SignalSpecsFromNames(string(core.Seed), terminalSignal),
+				Transitions: []core.TransitionSpec{
+					{State: "Start", Signal: string(core.Seed), Next: "Responding", Action: "respond"},
+					{State: "Responding", Signal: terminalSignal, Next: terminalSignal},
+				},
+			}
+			mapping := cfg.Response.TerminalSignals[terminalSignal]
+			mapping.Status = tt.status
+			if tt.location != "" {
+				mapping.Headers = map[string]string{"Location": tt.location}
+			}
+			cfg.Response.TerminalSignals[terminalSignal] = mapping
+			state, baseURL := launchMachineRequestServerWithConfig(t, cfg)
+			defer stopRESTServer(t, state, "machine")
 
-	require.Equal(t, "hello alice", body["greeting"])
-	require.Equal(t, "DocumentationReady", body["trace"].(map[string]interface{})["terminal_signal"])
+			req, err := http.NewRequest(http.MethodPost, baseURL+"/docs", strings.NewReader(`{"name":"alice"}`))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			}}
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer func() { require.NoError(t, resp.Body.Close()) }()
+			var body map[string]interface{}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+
+			require.Equal(t, tt.status, resp.StatusCode)
+			require.Equal(t, tt.location, resp.Header.Get("Location"))
+			require.Equal(t, tt.bodyValue, body[tt.bodyKey])
+			trace := body["trace"].(map[string]interface{})
+			require.Equal(t, terminalSignal, trace["terminal_signal"])
+			require.Equal(t, string(tt.runStatus), trace["status"])
+		})
+	}
 }
 
 func TestRESTServerMachineRequestRecordsMonitorEvents(t *testing.T) {
@@ -72,17 +141,6 @@ func TestRESTServerMachineRequestTraceEnvelope(t *testing.T) {
 	require.Equal(t, string(core.StatusSucceeded), trace["status"])
 }
 
-func TestRESTServerMachineRequestMissingResource(t *testing.T) {
-	t.Parallel()
-	state, baseURL := launchMachineRequestServer(t, "DocumentMissing", 0, false)
-	defer stopRESTServer(t, state, "machine")
-
-	body := postJSON(t, baseURL+"/docs", `{"name":"missing"}`, http.StatusNotFound)
-
-	require.Equal(t, "missing document", body["error"])
-	require.Equal(t, "DocumentMissing", body["trace"].(map[string]interface{})["terminal_signal"])
-}
-
 func TestRESTServerMachineRequestTimeout(t *testing.T) {
 	t.Parallel()
 	state, baseURL := launchMachineRequestServer(t, "DocumentationReady", 50*time.Millisecond, false)
@@ -91,17 +149,6 @@ func TestRESTServerMachineRequestTimeout(t *testing.T) {
 	body := requestBody(t, http.MethodPost, baseURL+"/docs", `{"name":"slow"}`, http.StatusGatewayTimeout)
 
 	require.Contains(t, body, "machine_timeout")
-}
-
-func TestRESTServerMachineRequestCommandError(t *testing.T) {
-	t.Parallel()
-	state, baseURL := launchMachineRequestServer(t, "DocumentationReady", 0, true)
-	defer stopRESTServer(t, state, "machine")
-
-	body := postJSON(t, baseURL+"/docs", `{"name":"broken"}`, http.StatusInternalServerError)
-
-	require.Equal(t, "command failed", body["error"])
-	require.Equal(t, "CommandError", body["trace"].(map[string]interface{})["terminal_signal"])
 }
 
 func TestRESTServerMachineRequestTerminalResponseSchema(t *testing.T) {
