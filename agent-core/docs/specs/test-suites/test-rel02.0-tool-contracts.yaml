@@ -262,7 +262,7 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Lifecycle builtin declarations expose full adapter contracts
-    go_test: TestLifecycleProfilesValidateMachineWiring, TestBuiltinMigratedContractsValidateAtErrorLevel
+    go_test: TestParseToolDefs_ContractFields, TestParseToolDefs_BuiltinType
     status: done
     description: |
       Inspect the checkpoint_history and checkpoint_rollback ToolDefs. Both
@@ -289,7 +289,7 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Lifecycle tool contracts reject exec-wrapper behavior
-    go_test: TestLifecycleProfilesValidateMachineWiring
+    go_test: TestParseToolDefs_BuiltinType, TestCheckpointRollbackRevertsDBStateToTargetStep
     status: done
     description: |
       Check lifecycle ToolDefs for hidden shelling into the agent binary. Desired

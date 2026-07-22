@@ -594,9 +594,9 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Checkpoint contracts compile and round-trip
-    go_test: TestCheckpointContractsCompileAndRoundTrip
+    go_test: TestInMemoryCheckpointRoundTripsConversationAndReceipts
     inputs:
-      checkpoint: "agent snapshot, domain JSON, workspace ref, history digest"
+      checkpoint: "conversation and opaque persisted receipts (Execution entries), position snapshot"
     expected:
       state_layers_separate: true
       json_round_trip: true

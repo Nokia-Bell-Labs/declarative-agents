@@ -83,7 +83,7 @@ test_cases:
 
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: Position and Execution JSON wire format
-    go_test: TestCheckpointWireFormat, TestCheckpointContractsCompileAndRoundTrip
+    go_test: TestCheckpointWireFormat, TestInMemoryCheckpointRoundTripsConversationAndReceipts
     status: done
     description: |
       Position serializes as an object with current_state, last_signal, and a
@@ -331,7 +331,7 @@ test_cases:
 
   - use_case: rel02.0-uc002-history-rollback
     name: Lifecycle profiles wire checkpoint_history and checkpoint_rollback
-    go_test: TestLifecycleProfilesValidateMachineWiring
+    go_test: TestCheckpointHistoryExecuteFormatsExecutionLog, TestCheckpointRollbackRevertsDBStateToTargetStep
     status: done
     description: |
       The history and rollback lifecycle profiles load their MachineSpec,
