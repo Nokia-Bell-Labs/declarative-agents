@@ -49,6 +49,7 @@
             "router": {"type": "string", "minLength": 1}
           }
         },
+        "preload": {"type": "object", "properties": {"suspend": {"type": "boolean"}}},
         "persistence": {"type": "object", "properties": {"size": {"type": "string"}, "storageClass": {"type": "string"}}},
         "gpu": {"type": "object", "properties": {"count": {"type": "integer"}}},
         "nodeSelector": {"type": "object"},

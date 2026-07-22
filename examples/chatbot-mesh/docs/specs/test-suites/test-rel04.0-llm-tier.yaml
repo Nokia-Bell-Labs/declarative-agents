@@ -62,11 +62,12 @@ test_cases:
   - use_case: rel04.0-uc001-in-cluster-llm-tier
     name: Preload controls the observed agent readiness transition
     integration_target: mage integration:helmLLMTier
-    status: planned
-    follow_up_issue: "#647"
+    go_test: go test ./magefiles -run 'Test(LLMPreloadReadinessTransition|HelmLLMTierInstallExposesTransition)'
+    status: implemented
     description: |
-      Observe chatbot and RAG workloads unready while preload is incomplete,
-      then ready only after every configured model appears in Ollama.
+      Install without Helm --wait and hold the preload Job suspended while
+      observing chatbot and RAG workloads unready. Resume preload, assert every
+      configured model appears, then observe each workload become ready.
     expected:
       agents_not_ready_before_preload: true
       agents_ready_after_preload: true

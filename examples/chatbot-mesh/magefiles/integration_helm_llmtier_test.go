@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"os/exec"
 	"strings"
 	"testing"
@@ -101,4 +102,125 @@ func TestOllamaDisabledReproducesExternalEndpoint(t *testing.T) {
 			t.Errorf("external-tier render removed agent workload %q", workload)
 		}
 	}
+}
+
+func TestLLMPreloadReadinessTransitionSequence(t *testing.T) {
+	var calls []string
+	run := func(name string, args ...string) ([]byte, error) {
+		call := name + " " + strings.Join(args, " ")
+		calls = append(calls, call)
+		switch {
+		case strings.Contains(call, "get job/llm-chatbot-mesh-ollama-preload"):
+			return []byte(`{"spec":{"suspend":true},"status":{"succeeded":0}}`), nil
+		case strings.Contains(call, "get deployment"):
+			return []byte(`{"items":[
+				{"metadata":{"name":"llm-chatbot-mesh-chatbot","labels":{"app.kubernetes.io/component":"chatbot"}},"spec":{"replicas":1},"status":{"readyReplicas":0}},
+				{"metadata":{"name":"llm-chatbot-mesh-rag0","labels":{"app.kubernetes.io/component":"rag-server"}},"spec":{"replicas":1},"status":{"readyReplicas":0}}
+			]}`), nil
+		default:
+			return []byte("ok"), nil
+		}
+	}
+
+	workloads, err := beginLLMPreloadTransition(run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := finishLLMPreloadTransition(run, workloads); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := workloads, []string{"llm-chatbot-mesh-chatbot", "llm-chatbot-mesh-rag0"}; strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("workloads = %v, want %v", got, want)
+	}
+	sequence := strings.Join(calls, "\n")
+	for _, ordered := range []string{
+		"get job/llm-chatbot-mesh-ollama-preload",
+		"get deployment",
+		"patch job/llm-chatbot-mesh-ollama-preload",
+		"wait --for=condition=complete",
+		"rollout status deployment/llm-chatbot-mesh-chatbot",
+		"rollout status deployment/llm-chatbot-mesh-rag0",
+	} {
+		index := strings.Index(sequence, ordered)
+		if index < 0 {
+			t.Fatalf("command sequence missing %q:\n%s", ordered, sequence)
+		}
+		sequence = sequence[index+len(ordered):]
+	}
+}
+
+func TestLLMPreloadReadinessTransitionDiagnostics(t *testing.T) {
+	tests := []struct {
+		name     string
+		job      string
+		workload string
+		failOn   string
+		wantErr  string
+	}{
+		{
+			name: "preload not suspended", job: `{"spec":{"suspend":false},"status":{}}`,
+			wantErr: "requires suspended incomplete Job",
+		},
+		{
+			name: "agent already ready", job: `{"spec":{"suspend":true},"status":{}}`,
+			workload: `{"items":[
+				{"metadata":{"name":"chatbot","labels":{"app.kubernetes.io/component":"chatbot"}},"spec":{"replicas":1},"status":{"readyReplicas":1}},
+				{"metadata":{"name":"rag0","labels":{"app.kubernetes.io/component":"rag-server"}},"spec":{"replicas":1},"status":{}}
+			]}`,
+			wantErr: "became ready before preload",
+		},
+		{
+			name: "preload wait failure", job: `{"spec":{"suspend":true},"status":{}}`,
+			workload: unreadyLLMWorkloadsJSON(), failOn: "wait --for=condition=complete",
+			wantErr: "preload Job did not complete",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			run := func(name string, args ...string) ([]byte, error) {
+				call := name + " " + strings.Join(args, " ")
+				if tc.failOn != "" && strings.Contains(call, tc.failOn) {
+					return []byte("controlled kubectl diagnostic"), errors.New("controlled failure")
+				}
+				if strings.Contains(call, "get job/") {
+					return []byte(tc.job), nil
+				}
+				if strings.Contains(call, "get deployment") {
+					return []byte(tc.workload), nil
+				}
+				return []byte("ok"), nil
+			}
+			_, err := beginLLMPreloadTransition(run)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("error = %v, want containing %q", err, tc.wantErr)
+			}
+			if tc.failOn != "" && !strings.Contains(err.Error(), "controlled kubectl diagnostic") {
+				t.Fatalf("error missing live command diagnostic: %v", err)
+			}
+		})
+	}
+}
+
+func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
+	var command string
+	err := helmInstallLLMWithRunner("/chart", func(name string, args ...string) ([]byte, error) {
+		command = name + " " + strings.Join(args, " ")
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(command, " --wait") {
+		t.Fatalf("helm install hides readiness transition behind --wait: %s", command)
+	}
+	if !strings.Contains(command, "--set ollama.preload.suspend=true") {
+		t.Fatalf("helm install does not suspend preload for observation: %s", command)
+	}
+}
+
+func unreadyLLMWorkloadsJSON() string {
+	return `{"items":[
+		{"metadata":{"name":"chatbot","labels":{"app.kubernetes.io/component":"chatbot"}},"spec":{"replicas":1},"status":{}},
+		{"metadata":{"name":"rag0","labels":{"app.kubernetes.io/component":"rag-server"}},"spec":{"replicas":1},"status":{}}
+	]}`
 }

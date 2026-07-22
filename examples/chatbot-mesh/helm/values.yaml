@@ -84,6 +84,10 @@ ollama:
     embedding: qwen3-embedding:8b
     chat: ["qwen2.5:3b", "ornith:9b"]
     router: qwen2.5:3b
+  preload:
+    # Test-only transition observation may install this Job suspended, assert
+    # agents are unready, then resume it. Production defaults to immediate pull.
+    suspend: false
   persistence:
     size: 10Gi
     storageClass: ""
