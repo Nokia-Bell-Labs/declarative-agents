@@ -1,0 +1,179 @@
+tools:
+  - name: launch_twin_rest
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch the twin REST endpoints that serve a scenario's fixture.
+    problem: A subject agent under test needs its REST dependency to answer controlled responses without a live upstream service.
+    goals:
+      - Register the fixture-backed mock mount, the request log, health, and control routes.
+      - Load and validate the scenario fixture before serving any request.
+    requirements:
+      input:
+        - Tool config references the trusted twin REST server definition.
+        - The fixture path and listen address come from the environment, so one profile serves any dependency.
+      output:
+        - Output reports server name, bound address, route count, and binding kinds.
+      errors:
+        - Config, bind, route conflict, schema, and malformed-fixture failures emit CommandError.
+    non_goals:
+      - Does not proxy to, record from, or replay a real upstream service.
+      - Does not assert anything about the requests it receives; a validator does that.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerLaunched, CommandError]
+    output:
+      description: Twin REST server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+          bindings: {type: array}
+    side_effects:
+      - kind: network_listen
+        target: twin_rest_server
+        state: listener_started
+      - kind: state_mutation
+        target: rest_server_state
+        state: routes_registered
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the REST server if the launch command owns the listener.
+    errors:
+      - signal: CommandError
+        condition: Twin REST server config, bind, route, schema, or fixture validation failure.
+        state_after_failure: No twin route is exposed and no request is served.
+    relationships:
+      overlaps:
+        - tool: rest_server_launch
+          difference: This profile-specific word binds the fixture-backed twin route set.
+    config:
+      rest_ref: twin
+
+  - name: await_twin_control
+    type: builtin
+    init: rest_await_event
+    visibility: internal
+    category: boundary
+    description: Await the twin REST control exit event.
+    problem: The twin must keep serving while a subject is exercised, then stop on request rather than on a timer.
+    goals:
+      - Wait on the twin server queue after launch.
+      - Accept only configured twin control events.
+      - Return the selected lifecycle signal to MachineSpec.
+    requirements:
+      input:
+        - Tool config references the trusted twin REST server queue.
+      output:
+        - Output reports source, route, signal, payload, and request ID.
+      errors:
+        - Missing server, timeout, stopped server, and queue failures emit declared signals.
+    non_goals:
+      - Does not read or mutate the fixture or the request log.
+      - Does not execute lifecycle behavior inside HTTP handlers.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    output:
+      description: Selected twin control event.
+      schema:
+        type: object
+        properties:
+          source: {type: string}
+          route: {type: string}
+          signal: {type: string}
+          payload: {type: object}
+          request_id: {type: string}
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: selected_event_consumed
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: A consumed control event cannot be returned to the queue.
+    errors:
+      - signal: CommandError
+        condition: Twin control source is missing or stopped with command_error policy.
+        state_after_failure: Twin listener state is unchanged.
+    relationships:
+      after: [launch_twin_rest]
+      before: [stop_twin_rest]
+    config:
+      sources:
+        - server: twin
+          routes: [control_exit]
+          signals: [ExitRequested]
+      # Tool declarations are not environment-expanded (only REST definitions
+      # are), so this bound is literal. It must outlast a scenario: a rig
+      # normally stops the twin explicitly, and an early timeout here would
+      # take the dependency down mid-scenario.
+      timeout: 10m
+      stopped_behavior: emit_server_stopped
+
+  - name: stop_twin_rest
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: Stop the owned twin REST listener.
+    problem: The twin must release its listener and its recorded log before reaching a success terminal state.
+    goals:
+      - Stop the configured twin REST server.
+      - Drain queued twin control events according to server shutdown config.
+      - Emit ServerStopped so MachineSpec can route to Done.
+    requirements:
+      input:
+        - Tool config references the trusted twin REST server definition.
+      output:
+        - Output reports server name, bound address, drained events, dropped events, and stopped status.
+      errors:
+        - Missing server, shutdown timeout, and cleanup failures emit CommandError.
+    non_goals:
+      - Does not persist the request log; it is scoped to the server instance.
+      - Does not relaunch the twin server.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerStopped, CommandError]
+    output:
+      description: Twin REST server stop result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          drained_events: {type: integer}
+          dropped_events: {type: integer}
+          status: {type: string}
+    side_effects:
+      - kind: network_listener_shutdown
+        target: twin_rest_server
+        state: listener_stopped
+      - kind: state_mutation
+        target: rest_server_state
+        state: server_stopped
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: The listener and its per-instance request log are gone; relaunch is a separate action.
+    errors:
+      - signal: CommandError
+        condition: Twin REST server is missing, shutdown times out, or cleanup fails.
+        state_after_failure: Twin listener state may be partially stopped.
+    relationships:
+      after: [await_twin_control]
+    config:
+      rest_ref: twin

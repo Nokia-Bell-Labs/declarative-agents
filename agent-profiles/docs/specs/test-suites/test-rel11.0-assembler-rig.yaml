@@ -12,10 +12,15 @@ overview: |
   reference subject with its scenarios and the mage target that runs them.
 
   Cases carry planned_go_test and planned_integration_target rather than
-  go_test and integration_target, because the named tests and targets do not
-  exist yet and the formal evidence validator checks every cited command
-  against the real inventory. Each implementing issue renames the field and
-  sets status to implemented when its evidence lands.
+  go_test and integration_target until the named tests and targets exist,
+  because the formal evidence validator checks every cited command against the
+  real inventory. Each implementing issue renames the field and sets status to
+  implemented when its evidence lands.
+
+  GH-668 delivered the twin, so the four twin cases below now carry go_test and
+  status implemented; the request-log case cites the delivered test name,
+  TestTwinRequestLogRecordsCalls. The assembler cases stay planned until GH-669
+  and GH-670.
 
 traces:
   - rel11.0-uc001-assembler-scenario-run
@@ -30,8 +35,8 @@ test_cases:
   - use_case: rel11.0-uc002-twin-serves-fixtures
     name: One twin profile serves a fixture and scripts a sequence
     planned_integration_target: mage rig
-    planned_go_test: go test ./conformance -run TestTwinServesFixtureSequence
-    status: planned
+    go_test: go test ./conformance -run TestTwinServesFixtureSequence
+    status: implemented
     description: |
       The shipped twin profile starts with a fixture path and address supplied
       by environment, serves the fixture's routes, returns a route's ordered
@@ -49,8 +54,8 @@ test_cases:
 
   - use_case: rel11.0-uc002-twin-serves-fixtures
     name: Two twins from one profile serve different dependencies
-    planned_go_test: go test ./conformance -run TestTwinTwoInstancesDifferentFixtures
-    status: planned
+    go_test: go test ./conformance -run TestTwinTwoInstancesDifferentFixtures
+    status: implemented
     description: |
       Two twin instances start from the same shipped profile with different
       fixtures and addresses, each serving its own dependency's routes, with
@@ -69,8 +74,8 @@ test_cases:
 
   - use_case: rel11.0-uc002-twin-serves-fixtures
     name: Validator reads the twin request log to verify outbound calls
-    planned_go_test: go test ./conformance -run TestTwinRequestLogVerifiesSubjectCalls
-    status: planned
+    go_test: go test ./conformance -run TestTwinRequestLogRecordsCalls
+    status: implemented
     description: |
       After a subject drives its dependency, the twin's log route returns the
       received requests in order with method, path, and body, and a validator
@@ -89,8 +94,8 @@ test_cases:
 
   - use_case: rel11.0-uc002-twin-serves-fixtures
     name: Malformed fixture blocks the twin from serving
-    planned_go_test: go test ./conformance -run TestTwinMalformedFixtureFailsStartup
-    status: planned
+    go_test: go test ./conformance -run TestTwinMalformedFixtureFailsStartup
+    status: implemented
     description: |
       A twin started against a malformed fixture fails configuration
       validation and startup with a named error, before serving any request,

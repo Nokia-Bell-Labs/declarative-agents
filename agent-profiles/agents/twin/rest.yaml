@@ -1,0 +1,81 @@
+rest:
+  version: v1
+  limits:
+    local_twin:
+      timeout: 5s
+      read_timeout: 5s
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      network:
+        hosts: [${TWIN_HOST:-127.0.0.1}, localhost]
+  servers:
+    twin:
+      # One generic profile serves any dependency: the address and the fixture
+      # file both come from the environment, so a scenario supplies what this
+      # twin stands in for without editing the profile (srd019 R2.1).
+      address: ${TWIN_ADDRESS:-127.0.0.1:0}
+      limits_ref: local_twin
+      queue:
+        name: twin
+        capacity: 8
+        overflow: reject
+        timeout: 100ms
+      shutdown:
+        timeout: 2s
+        drain_policy: drain
+        stop_listeners: true
+        unblock_await_signal: ServerStopped
+      endpoints:
+        health:
+          method: GET
+          path: /_twin/health
+          binding: health
+
+        request_log:
+          method: GET
+          path: /_twin/log
+          binding: mock_log
+
+        control_exit:
+          method: POST
+          path: /_twin/control/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+          response:
+            output:
+              accepted: true
+
+        # The catch-all mount is last in specificity: the literal routes above
+        # win, and everything else is answered from the fixture. Its declared
+        # method is not a constraint -- the fixture decides which methods and
+        # paths answer (srd039 R2.1).
+        mock:
+          method: GET
+          path: /{path...}
+          binding: mock
+          mock:
+            # TWIN_FIXTURES is the scenario's fixture file. It expands to empty
+            # when unset, which is how an unconfigured twin loads: the inline
+            # route below keeps the shipped profile valid on its own, so the
+            # boot smoke can validate it without a scenario. A fixture path
+            # would have to resolve against the working directory, so a default
+            # path here would be fragile; an inline route is not.
+            fixtures: ${TWIN_FIXTURES}
+            routes:
+              - method: GET
+                path: /_twin/unconfigured
+                responses:
+                  - status: 200
+                    body:
+                      twin: unconfigured
+                      detail: Set TWIN_FIXTURES to the scenario fixture this twin should serve.
+          request:
+            path:
+              path:
+                type: string

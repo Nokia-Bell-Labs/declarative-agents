@@ -1,0 +1,9 @@
+# Fixture content is environment-expanded like other REST definitions, so one
+# fixture can serve a value a scenario supplies at start.
+routes:
+  - method: GET
+    path: /v1/echo
+    responses:
+      - status: 200
+        body:
+          value: ${TWIN_ECHO_VALUE:-default-value}
