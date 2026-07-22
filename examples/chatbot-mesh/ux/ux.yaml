@@ -63,10 +63,14 @@ monitored_agents:
 trace_backend:
   name: jaeger
   query_path: /monitor-proxy/jaeger/api/traces/{trace_id}
-# The provisioning panel drives the deployment API same-origin at /provisioning/api,
-# routed by the chatbot ingress to the executor Service (srd006). The Helm
-# render gates this on executor.enabled; the local source declares it so a local
-# run wires the panel to a reachable deployment API.
+# The provisioning panel submits its intent same-origin at /provisioning/api,
+# routed by the chatbot ingress to the coordinator's intent server (srd004 R1.5).
+# The coordinator orchestrates and the creator alone reaches the executor's apply
+# surface (srd003 R4.4), so the panel never calls the deployment API directly --
+# that route was unreachable under NetworkPolicy enforcement, which is what GH-502
+# fixed. The local source declares the path so a local run wires the panel to a
+# reachable intake. The key name is retained; the base path names the intake, not
+# the agent behind it.
 deployment_api:
   base_path: /provisioning/api
   auth: none

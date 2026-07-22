@@ -10,6 +10,11 @@ purpose: |-
   carried intent. The terminal Reconfigured signal maps the aggregated status to the
   HTTP response. Every instance operation is a request to the creator; the
   coordinator orchestrates but holds no deployment-API authority.
+
+  An operator apply from the provisioning panel changes values without adding a
+  source, so it has no directory to ingest and enters on SeedValues, skipping the
+  ingest leg. Which leg a run took is readable from the machine rather than hidden
+  in a word, because the endpoint chooses the seed (srd004 R1.6; GH-680).
 initial_state: AwaitingRequest
 budget:
   max_iterations: 8
@@ -25,13 +30,15 @@ terminal_states:
   - Rejected
   - Failed
 signals:
-  - {name: Seed, trigger: The intent endpoint starts a request-scoped run.}
+  - {name: Seed, trigger: The intent endpoint starts a request-scoped run that adds a knowledge source.}
+  - {name: SeedValues, trigger: The apply endpoint starts a request-scoped run that only changes values.}
   - {name: IngestReported, trigger: The creator reported the ingest met the requested source and returned the collection count.}
   - {name: Rejected, trigger: The creator reported the ingest did not meet the requested source.}
   - {name: Reconfigured, trigger: The creator reported the rollout completed and returned the health.}
   - {name: CommandError, trigger: A creator boundary word failed.}
 transitions:
   - {state: AwaitingRequest, signal: Seed,           next: Ingesting,     action: request_ingest}
+  - {state: AwaitingRequest, signal: SeedValues,     next: Reconfiguring, action: request_rollout}
   - {state: AwaitingRequest, signal: CommandError,   next: Failed}
   - {state: Ingesting,       signal: IngestReported, next: Reconfiguring, action: request_rollout}
   - {state: Ingesting,       signal: Rejected,       next: Rejected}
