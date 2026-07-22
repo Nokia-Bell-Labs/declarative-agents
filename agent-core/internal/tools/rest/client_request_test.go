@@ -13,6 +13,65 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
+func TestRESTClientPathParameterRenderingContract(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		input         map[string]interface{}
+		operationPath string
+		wantPath      string
+		wantErr       string
+	}{
+		{name: "missing", input: map[string]interface{}{"owner": "acme", "repo": "agent-core"}, wantErr: `path param "number" is required`},
+		{name: "empty", input: params(""), wantErr: `path param "number" is required`},
+		{name: "whitespace", input: params("  "), wantErr: `path param "number" is required`},
+		{name: "null", input: params("1"), wantErr: `path param "number" is required`},
+		{name: "extra conflicting authority", input: map[string]interface{}{"owner": "acme", "repo": "agent-core", "number": "1", "host": "other"}, wantErr: `runtime input field "host" cannot set REST authority`},
+		{name: "encoded", input: params("a/b ?"), wantPath: "/repos/acme/agent-core/issues/a%2Fb%20%3F"},
+		{
+			name: "repeated token", input: params("1"),
+			operationPath: "/owners/{owner}/again/{owner}",
+			wantPath:      "/owners/acme/again/acme",
+		},
+	}
+	tests[3].input["number"] = nil
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			requests := 0
+			var escapedPath string
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				requests++
+				escapedPath = req.URL.EscapedPath()
+				writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok"})
+			}))
+			defer upstream.Close()
+			def := clientDefinition(t, upstream.URL, issueClient())
+			if tt.operationPath != "" {
+				client := def.Clients["github"]
+				resource := client.Resources["issue"]
+				operation := resource.Operations["get"]
+				operation.Path = tt.operationPath
+				resource.Operations["get"] = operation
+				client.Resources["issue"] = resource
+				def.Clients["github"] = client
+			}
+
+			result := clientCommand(t, def, InitClientGet, "get", tt.input).Execute()
+			if tt.wantErr != "" {
+				require.Equal(t, core.CommandError, result.Signal)
+				require.ErrorContains(t, result.Err, tt.wantErr)
+				require.Zero(t, requests, "invalid path parameters must fail before transport")
+				return
+			}
+			require.Equal(t, core.Signal("RESTResourceRead"), result.Signal, result.Output)
+			require.Equal(t, 1, requests)
+			require.Equal(t, tt.wantPath, escapedPath)
+		})
+	}
+}
+
 // TestRESTClient_ThreadsPreviousResultParams proves body_source previous_result
 // selects declared params from a prior Result output through input_mapping, so
 // the prior Result's fixed output shape no longer trips the declared-only

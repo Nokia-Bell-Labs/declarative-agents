@@ -44,6 +44,7 @@ requirements:
       - R2.4: Runtime input SHALL supply only declared path, query, header, and body parameters.
       - R2.5: Runtime input MAY come from explicit tool parameters, previous Result output, or command state when declared by the tool.
       - R2.6: Runtime input SHALL NOT supply arbitrary method, URL, authentication, redirect policy, or destination host.
+      - R2.7: Every declared path parameter SHALL be present and nonempty before URL rendering or transport; repeated placeholders SHALL use the same escaped value.
 
   R3:
     title: Resource-oriented words
@@ -215,8 +216,8 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2]
 
   - id: AC2
-    criterion: Tool config fixes client, resource, operation, transport policy, and schemas while runtime input supplies only declared path, query, header, and body parameters.
-    traces: [R2.3, R2.4, R2.5, R2.6]
+    criterion: Tool config fixes client, resource, operation, transport policy, and schemas while runtime input supplies only declared parameters and every path parameter is present, nonempty, and escaped before transport.
+    traces: [R2.3, R2.4, R2.5, R2.6, R2.7]
 
   - id: AC3
     criterion: Resource-oriented get, set, create, and delete words are preferred for resource-shaped endpoints and declare resource-specific effects and undo expectations.

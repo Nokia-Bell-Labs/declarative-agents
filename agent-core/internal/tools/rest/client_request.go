@@ -172,7 +172,8 @@ func validateDeclaredRuntimeParams(params map[string]interface{}, binding Reques
 		}
 	}
 	for name := range binding.Path {
-		if _, ok := params[name]; !ok {
+		value, ok := params[name]
+		if !ok || value == nil || strings.TrimSpace(fmt.Sprint(value)) == "" {
 			return fmt.Errorf("path param %q is required", name)
 		}
 	}
