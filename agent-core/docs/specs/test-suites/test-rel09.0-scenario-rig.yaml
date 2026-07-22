@@ -83,8 +83,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Serve-mode child lifecycle leaves no orphans
-    planned_go_test: go test ./internal/tools/service -run TestServiceChild_StartAwaitStopNoOrphans
-    status: planned
+    go_test: go test ./internal/tools/service -run TestServiceChild_StartAwaitStopNoOrphans
+    status: implemented
     description: |
       start_service spawns a serve-mode child with injected environment,
       await_healthy reports healthy, stop_service stops it, and no process
@@ -103,8 +103,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: await_healthy times out within its declared bound
-    planned_go_test: go test ./internal/tools/service -run TestServiceChild_AwaitHealthyTimeout
-    status: planned
+    go_test: go test ./internal/tools/service -run TestServiceChild_AwaitHealthyTimeout
+    status: implemented
     description: |
       await_healthy against a never-healthy address emits the timeout signal
       within the declared bound rather than polling forever.
@@ -119,8 +119,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: run_validators reports concurrent terminal states and timeouts
-    planned_go_test: go test ./internal/tools/service -run TestRunValidators_ConcurrentTerminalStatesAndTimeout
-    status: planned
+    go_test: go test ./internal/tools/service -run TestRunValidators_ConcurrentTerminalStatesAndTimeout
+    status: implemented
     description: |
       Two validator profiles run concurrently and both terminal states are
       reported keyed by validator; a deliberately hung validator is stopped at
@@ -137,8 +137,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: list_scenarios is deterministic over a fixture tree
-    planned_go_test: go test ./internal/tools/service -run TestListScenarios_DeterministicDiscovery
-    status: planned
+    go_test: go test ./internal/tools/service -run TestListScenarios_DeterministicDiscovery
+    status: implemented
     description: |
       list_scenarios over a fixture tree with two subjects and three scenarios
       returns the expected entries, sorted, with subject directory, scenario
@@ -155,8 +155,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Service tool declarations state reversibility and undo honestly
-    planned_go_test: go test ./internal/tools/service -run TestServiceTools_DeclarationsReversibilityAndUndo
-    status: planned
+    go_test: go test ./internal/tools/service -run TestServiceTools_DeclarationsReversibilityAndUndo
+    status: implemented
     description: |
       Each service word's declaration states its reversibility and undo
       strategy consistently: start_service is reversible with stop_service as

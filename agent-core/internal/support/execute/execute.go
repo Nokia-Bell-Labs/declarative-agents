@@ -39,6 +39,7 @@ type Config struct {
 	OTelLogFile string        // --otel-log-file flag for child trace capture.
 	Timeout     time.Duration // Per-invocation timeout. Default: 10 minutes.
 	OTelDir     string        // Directory for temporary OTel log files.
+	Env         []string      // Additional KEY=VALUE vars for the child, appended to the parent environment.
 }
 
 func (c *Config) binary() string {
@@ -151,6 +152,7 @@ func (c Config) subprocessSpec(extraArgs ...string) subprocess.Spec {
 	return subprocess.Spec{
 		Binary:        c.binary(),
 		Args:          args,
+		Env:           c.Env,
 		Timeout:       c.timeout(),
 		PropagateOTel: true,
 	}
