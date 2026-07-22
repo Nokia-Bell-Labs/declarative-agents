@@ -185,9 +185,9 @@ func buildSmokeRuntimeImage(coreRoot, image string) error {
 }
 
 // stageSmokeChart copies the chart to a temp directory and stages the agent
-// programs and the ux into its profiles subtree (the PACKAGING.md step), so the
-// ConfigMap carries the chatbot and rag-server profiles and the SPA the deployment
-// mounts. It returns the staged chart path and a cleanup function.
+// programs and the ux artifacts into its profiles subtree (the PACKAGING.md
+// step), so the ConfigMap carries the agent profiles and the SPA bundle the
+// chatbot serves. It returns the staged chart path and a cleanup function.
 func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 	staged, err := os.MkdirTemp("", "chatbot-mesh-chart-*")
 	if err != nil {
@@ -200,7 +200,7 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 		return "", nil, err
 	}
 	for _, p := range chartProfilePrograms() {
-		if err := copyDirContents(filepath.Join(profilesRoot, p.src), filepath.Join(dst, p.rel)); err != nil {
+		if err := stageProfilePath(filepath.Join(profilesRoot, p.src), filepath.Join(dst, p.rel)); err != nil {
 			cleanup()
 			return "", nil, err
 		}
@@ -209,15 +209,27 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 }
 
 // chartProfileProgram is one source-to-staged mapping copied into the packaged
-// chart's profiles subtree before helm package/install.
+// chart's profiles subtree before helm package/install. src names either a
+// directory or a single file.
 type chartProfileProgram struct{ src, rel string }
 
 // chartProfilePrograms is the single authoritative list of agent programs and
-// the ux staged into the chart's profiles ConfigMap. It MUST cover every agent
-// profile mounted by an enabled Deployment (see helm/templates/*.yaml); the
-// executor (srd006) Deployment mounts agents/executor/profile.yaml, so omitting
-// it here left an enabled executor with no profile to start (GH-485).
+// ux artifacts staged into the chart's profiles ConfigMap. It MUST cover every
+// agent profile mounted by an enabled Deployment (see helm/templates/*.yaml);
+// the executor (srd006) Deployment mounts agents/executor/profile.yaml, so
+// omitting it here left an enabled executor with no profile to start (GH-485).
 // TestStagedProfilesCoverEnabledDeployments enforces the coverage.
+//
+// The ux contributes two entries rather than its whole tree, because every file
+// staged here becomes a ConfigMap key and a projected mount item in every agent
+// pod (profiles-configmap.yaml and profilesVolume both glob profiles/**). The
+// chart consumes exactly two things from the ux: ux.yaml, the UI descriptor, and
+// ux/app/dist, the built bundle the chatbot's static_assets binding serves at
+// /ui (agents/chatbot/rest.yaml). Staging the tree also carried the panel
+// sources, the tsconfig, and a 60 KiB package-lock.json into every pod, and it
+// swept in node_modules whenever a developer had run npm install -- which helm
+// rejects outright, since esbuild's binary is over the 5 MiB per-file chart
+// limit (GH-702).
 func chartProfilePrograms() []chartProfileProgram {
 	return []chartProfileProgram{
 		{"agents/chatbot", "profiles/agents/chatbot"},
@@ -225,8 +237,29 @@ func chartProfilePrograms() []chartProfileProgram {
 		{"agents/coordinator", "profiles/agents/coordinator"},
 		{"agents/creator", "profiles/agents/creator"},
 		{"agents/executor", "profiles/agents/executor"},
-		{"ux", "profiles/ux"},
+		{"ux/ux.yaml", "profiles/ux/ux.yaml"},
+		{"ux/app/dist", "profiles/ux/app/dist"},
 	}
+}
+
+// stageProfilePath copies one staging entry, whether it names a directory or a
+// single file.
+func stageProfilePath(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("stage %s: %w", src, err)
+	}
+	if info.IsDir() {
+		return copyDirContents(src, dst)
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return fmt.Errorf("create %s: %w", filepath.Dir(dst), err)
+	}
+	cmd := exec.Command("cp", "-a", src, dst)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("copy %s -> %s: %s: %w", src, dst, strings.TrimSpace(string(out)), err)
+	}
+	return nil
 }
 
 func copyDirContents(src, dst string) error {

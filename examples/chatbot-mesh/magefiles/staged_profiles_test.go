@@ -62,7 +62,8 @@ func TestStagedProfilesCoverEnabledDeployments(t *testing.T) {
 
 // TestPackagingDocMatchesStagingList proves PACKAGING.md documents exactly the
 // programs the code stages, so a packaging change cannot be documentation-only
-// (GH-485).
+// (GH-485). The destination is matched as written rather than with a trailing
+// slash appended, because a staging entry may name a single file (GH-702).
 func TestPackagingDocMatchesStagingList(t *testing.T) {
 	chartDir := findChartDir(t)
 	doc, err := os.ReadFile(filepath.Join(chartDir, "profiles", "PACKAGING.md"))
@@ -70,7 +71,7 @@ func TestPackagingDocMatchesStagingList(t *testing.T) {
 		t.Fatalf("read PACKAGING.md: %v", err)
 	}
 	for _, p := range chartProfilePrograms() {
-		if !containsStr(string(doc), p.rel+"/") {
+		if !containsStr(string(doc), p.rel) {
 			t.Errorf("PACKAGING.md does not document staged program %q (%s)", p.src, p.rel)
 		}
 	}
