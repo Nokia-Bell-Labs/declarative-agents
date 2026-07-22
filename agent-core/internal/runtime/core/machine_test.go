@@ -5,6 +5,10 @@ package core
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 const validYAML = `
@@ -47,6 +51,76 @@ func TestParseMachineSpec_Valid(t *testing.T) {
 	}
 	if len(spec.Transitions) != 3 {
 		t.Errorf("transitions count = %d, want 3", len(spec.Transitions))
+	}
+}
+
+func TestParseMachineSpecRejectsDuplicateGrammarEntries(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		input   string
+		wantErr string
+	}{
+		{
+			name:    "state name",
+			input:   strings.Replace(validYAML, "states: [Idle, Running, Done, Error]", "states: [Idle, Running, Done, Error, Running]", 1),
+			wantErr: `states[4]: duplicate name "Running"`,
+		},
+		{
+			name:    "terminal state",
+			input:   strings.Replace(validYAML, "terminal_states: [Done, Error]", "terminal_states: [Done, Error, Done]", 1),
+			wantErr: `terminal_states[2]: duplicate state "Done"`,
+		},
+		{
+			name:    "signal name",
+			input:   strings.Replace(validYAML, "signals: [Start, Finished, Failed]", "signals: [Start, Finished, Failed, Start]", 1),
+			wantErr: `signals[3]: duplicate name "Start"`,
+		},
+		{
+			name: "transition key",
+			input: validYAML + `
+  - state: Idle
+    signal: Start
+    next: Error
+`,
+			wantErr: `transitions[3]: duplicate state "Idle" and signal "Start"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := ParseMachineSpec([]byte(tt.input))
+			require.ErrorContains(t, err, tt.wantErr)
+			assert.ErrorContains(t, err, "first declared at")
+		})
+	}
+}
+
+func TestMachineSpecTransitionTableRoundTripPreservesSemantics(t *testing.T) {
+	t.Parallel()
+	spec, err := ParseMachineSpec([]byte(validYAML))
+	require.NoError(t, err)
+	encoded, err := yaml.Marshal(spec)
+	require.NoError(t, err)
+	roundTrip, err := ParseMachineSpec(encoded)
+	require.NoError(t, err)
+
+	registry := NewRegistry()
+	registry.Register(ToolSpec{Name: "do_work"}, &dummyBuilder{name: "do_work"})
+	originalTable, _, err := BuildTransitionTable(spec, registry, nil)
+	require.NoError(t, err)
+	roundTripTable, _, err := BuildTransitionTable(roundTrip, registry, nil)
+	require.NoError(t, err)
+
+	require.Len(t, originalTable, len(spec.Transitions))
+	require.Len(t, roundTripTable, len(roundTrip.Transitions))
+	require.Equal(t, len(originalTable), len(roundTripTable))
+	for key, original := range originalTable {
+		restored, exists := roundTripTable[key]
+		require.True(t, exists, "missing transition %#v after round trip", key)
+		assert.Equal(t, original.NextState, restored.NextState)
+		assert.Equal(t, original.Action == nil, restored.Action == nil)
 	}
 }
 
