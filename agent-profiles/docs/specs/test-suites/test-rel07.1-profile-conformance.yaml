@@ -93,16 +93,25 @@ preconditions:
 
 test_cases:
   - family: jurist
-    name: Jurist deterministic charter validation conformance
+    name: Jurist charter validation single-run conformance
     status: implemented
     test: conformance/jurist_test.go
     coverage: shipped-behavioral
-    coverage_note: Runs the shipped agents/jurist/profile.yaml directly against the demo-charter fixture; no field patched.
+    coverage_note: |
+      Single-run behavioral coverage: runs the shipped agents/jurist/profile.yaml
+      directly against the demo-charter fixture once (no field patched). This does
+      not exercise the jurist deterministic contract — it does not repeat identical
+      input to compare results, snapshot the workspace to prove read-only
+      execution, run both a clean and an intentionally failing corpus, or assert
+      finding provenance (charter/rule source). Those srd005 criteria are tracked
+      as follow-up #597.
     description: |
       Runs the jurist profile against a specification corpus and the demo charter
-      suite, then asserts the linear load, validate, and report pipeline in the
-      trace with no LLM tool family, a single root span, and no error-status
-      spans. Covers both the Passed and Failed terminal outcomes.
+      suite once, then asserts the linear load, validate, and report pipeline in
+      the trace with no LLM tool family, a single root span, and no error-status
+      spans. The single run reaches a valid jurist terminal and the assertion
+      accepts either Passed or Failed; it does not run separate clean and failing
+      corpora to demonstrate both outcomes.
     expected:
       asserted_tool_spans: [load_corpus, validate_specs, format_report]
       llm_tool_family_selected: false
