@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// The deployment API the provisioning panel drives (srd003 R4). It is same-origin
-// at /provisioning, routed by the chatbot ingress to the executor Service, so
-// the panel's POST apply avoids the GET-only monitor_proxy and no call crosses
-// origin. The panel never calls an agent endpoint; provisioning changes deployment
-// values and triggers rollouts only (R4.2). The base is values-driven via ux.yaml;
-// it defaults to the same-origin path.
+// The provisioning surface the panel drives (srd003 R4). It is same-origin at
+// /provisioning, routed by the chatbot ingress to the coordinator's intent
+// server, so the panel's POST apply avoids the GET-only monitor_proxy and no call
+// crosses origin. The base is values-driven via ux.yaml and defaults to the
+// same-origin path.
+//
+// The panel does not reach the deployment API. Its apply is an operator
+// desired-state decision (srd004 R3.1) submitted to the coordinator, which
+// orchestrates the creator, which alone calls the executor's apply surface
+// (srd003 R4.4, srd006 R4.1). Pointing the panel at the executor directly is what
+// GH-502 fixed: the executor NetworkPolicy admits only creator-labelled pods, so
+// that route was unreachable wherever policy is enforced. Provisioning changes
+// deployment values and triggers rollouts only (R4.2).
 export const PROVISIONING_BASE =
   (globalThis as { PROVISIONING_API?: string }).PROVISIONING_API ?? "/provisioning/api";
 

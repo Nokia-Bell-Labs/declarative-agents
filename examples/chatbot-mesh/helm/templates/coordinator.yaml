@@ -76,4 +76,38 @@ spec:
     - {name: intent, port: {{ .Values.controlPlane.coordinator.ports.intent }}, targetPort: intent}
     - {name: control, port: {{ .Values.controlPlane.coordinator.ports.control }}, targetPort: control}
     - {name: monitor, port: {{ .Values.controlPlane.coordinator.ports.monitor }}, targetPort: monitor}
+{{- if .Values.controlPlane.coordinator.networkPolicy.enabled }}
+---
+# The panel's intake is the one browser-reachable control-plane surface (srd004
+# R1.5), so the ingress controller is admitted here and nowhere else. Only the
+# intent port opens; the monitor and control ports carry no browser traffic and
+# stay unreachable from outside the mesh.
+#
+# The selectors are values so an operator can name their own ingress controller;
+# the defaults match a conventional ingress-nginx install. An explicit selector
+# rather than an open port is the point. The executor's policy is precise about
+# who may reach its apply surface, and this one is precise about who may reach the
+# intake (srd003 R4.5; GH-502).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-coordinator
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coordinator
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: coordinator
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            {{- toYaml .Values.controlPlane.coordinator.networkPolicy.ingressController.namespaceSelector | nindent 12 }}
+          podSelector:
+            {{- toYaml .Values.controlPlane.coordinator.networkPolicy.ingressController.podSelector | nindent 12 }}
+      ports:
+        - {protocol: TCP, port: intent}
+{{- end }}
 {{- end }}

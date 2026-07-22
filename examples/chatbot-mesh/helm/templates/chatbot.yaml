@@ -115,17 +115,29 @@ spec:
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
-          {{- if .Values.executor.enabled }}
-          # The provisioning panel reaches the deployment API same-origin at
-          # /provisioning, so its POST apply avoids the GET-only monitor_proxy and
-          # no call crosses origin (srd003 R4). Matched before / so the chatbot
-          # never sees a provisioning request.
+          {{- if .Values.controlPlane.enabled }}
+          # The provisioning panel submits its intent same-origin at /provisioning,
+          # so its POST apply avoids the GET-only monitor_proxy and no call crosses
+          # origin (srd003 R4.1). Matched before / so the chatbot never sees a
+          # provisioning request.
+          #
+          # The backend is the coordinator, not the executor. Routing browser
+          # traffic at the executor's apply Service was GH-502: the executor
+          # NetworkPolicy admits only creator-labelled pods, so an ingress
+          # controller could never reach it and the shipped route was dead wherever
+          # policy is enforced. The intent now enters at the coordinator, which
+          # orchestrates the creator, which alone calls the apply surface
+          # (srd003 R4.4, srd004 R1.5, srd006 R4.1).
+          #
+          # Gated on controlPlane rather than executor: without the coordinator
+          # there is no legitimate provisioning intake, and rendering a route to a
+          # surface the policy blocks is what made the defect invisible.
           - path: /provisioning
             pathType: Prefix
             backend:
               service:
-                name: {{ $fullname }}-executor
-                port: {name: apply}
+                name: {{ $fullname }}-coordinator
+                port: {name: intent}
           {{- end }}
           - path: /
             pathType: Prefix

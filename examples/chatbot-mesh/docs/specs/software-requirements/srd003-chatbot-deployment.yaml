@@ -57,9 +57,11 @@ requirements:
   R4:
     title: Provisioning authority boundary
     items:
-      - R4.1: The UX provisioning panel SHALL drive values edits and rollouts through a deployment API (a Helm operator or equivalent), authenticated separately from the chat path. The executor agent (srd006) realizes this deployment API as a declarative agent (release rel06.0).
+      - R4.1: The UX provisioning panel SHALL drive values edits and rollouts by submitting the desired values-plane document to the coordinator's intent endpoint (srd004 R1.1), which is the panel's only provisioning intake. The control plane realizes it -- the coordinator sequences, the creator executes (srd005 R3.2) -- and the executor agent (srd006) realizes the deployment API the creator drives (release rel06.0).
       - R4.2: The provisioning surface SHALL NOT submit hosts, URLs, methods, or credentials to any running agent endpoint; it changes deployment values and triggers rollouts only.
       - R4.3: R4.2 is the deployment-plane counterpart of agent-core srd028 V30 (runtime input cannot acquire transport authority), so authority is set by declared and validated config, whether at render time or dispatch time, never by a running control surface. The coordinator (srd004) and creator (srd005) are the mesh control plane that sequences and executes intents behind this surface.
+      - R4.4: The panel SHALL NOT reach the deployment API directly. Exactly one path reaches the apply surface -- panel to coordinator to creator to executor -- so the creator remains its only caller (srd006 R4.1) whether the change originated with the coordinator or with the operator.
+      - R4.5: The provisioning surface SHALL be authenticated separately from the chat path. That separation is deployment-realized by a distinct ingress route reaching only the coordinator's intent port, and by NetworkPolicy admitting the apply surface only from the creator. The declarative REST servers carry no inbound authentication, so a requirement resting on application auth alone would be enforced nowhere.
   R5:
     title: Observability wiring
     items:
@@ -95,6 +97,12 @@ acceptance_criteria:
   - id: AC4
     criterion: The provisioning surface is a separately-authenticated deployment API that edits values and triggers rollouts and never submits an endpoint to a running agent, stated as the deployment-plane counterpart of agent-core srd028 V30 with the cross-reference.
     traces: [R4.1, R4.2, R4.3]
+
+  - id: AC7
+    criterion: The panel reaches the deployment API through the control plane only -- coordinator, then creator -- so exactly one path reaches the apply surface, and the separation from the chat path is named as deployment-realized rather than application-enforced.
+    traces: [R4.1, R4.4, R4.5]
+    tests:
+      - "test-rel06.0-executor: The panel route reaches only the authorized surface"
   - id: AC5
     criterion: The observability wiring is specified with OTLP export, a trace-backend chart dependency the panel queries, and the traceparent-or-SSE fallback for cross-agent continuity.
     traces: [R5.1, R5.2, R5.3]

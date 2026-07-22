@@ -1,0 +1,36 @@
+name: coordinator-rollout-request
+purpose: |-
+  One request-scoped read of the rollout status, serving the panel's poll. The
+  panel polls while a reconfiguration proceeds and reads progress from the
+  coordinator, not from the deployment API, which no browser may reach
+  (srd003 R4.4, srd004 R1.3). The coordinator asks the creator
+  (read_creator_rollout), which reads the executor's rollout endpoint.
+
+  This machine is separate from the provisioning request machine because a poll
+  is a read: it drives no instance operation, decides nothing, and must not
+  perturb a reconfiguration already in flight. Keeping it separate means a poll
+  cannot enter the ingest or rollout legs however it is seeded.
+
+  A read that fails terminates in Failed rather than reporting an unknown phase,
+  so a broken poll is visible as an error instead of an indefinite "progressing"
+  (GH-684).
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 3
+states:
+  - {name: AwaitingRequest, meaning: Seeded by the rollout endpoint.}
+  - {name: Reading, meaning: Asking the creator for the rollout status.}
+  - {name: StatusRead, meaning: Terminal. The creator reported the rollout phase.}
+  - {name: Failed, meaning: Terminal. The status could not be read.}
+terminal_states:
+  - StatusRead
+  - Failed
+signals:
+  - {name: Seed, trigger: The rollout endpoint starts a request-scoped read.}
+  - {name: StatusRead, trigger: The creator reported the rollout phase.}
+  - {name: CommandError, trigger: The creator could not be reached or its response did not map.}
+transitions:
+  - {state: AwaitingRequest, signal: Seed,         next: Reading, action: read_creator_rollout}
+  - {state: AwaitingRequest, signal: CommandError, next: Failed}
+  - {state: Reading,         signal: StatusRead,   next: StatusRead}
+  - {state: Reading,         signal: CommandError, next: Failed}
