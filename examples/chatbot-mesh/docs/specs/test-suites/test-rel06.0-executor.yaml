@@ -64,8 +64,9 @@ test_cases:
 
   - use_case: rel06.0-uc001-declarative-executor
     name: The rendered chart routes provisioning to the coordinator
-    integration_target: mage test (rendered-chart Go test, GH-681)
-    status: specified
+    integration_target: mage test (magefiles/provisioning_route_render_test.go, GH-681)
+    go_test: TestProvisioningIngressRoutesToTheCoordinator, TestExecutorApplyStaysCreatorOnly, TestCoordinatorAdmitsOnlyTheIngressControllerOnIntent, TestNoProvisioningRouteWithoutTheControlPlane
+    status: done
     description: |
       Asserts over the rendered chart, not the template text, that browser
       provisioning traffic and the apply surface agree on one authority path: the
