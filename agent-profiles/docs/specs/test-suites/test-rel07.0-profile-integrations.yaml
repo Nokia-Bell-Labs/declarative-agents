@@ -89,15 +89,20 @@ test_cases:
       - sm-multi-agent-profile-system dependency_directions evaluator->generator
 
   - use_case: rel07.0-uc003-planner-generator-profile-boundary
-    name: Planner executes materialized work through generator
+    name: Planner-to-generator boundary (synthesized component evidence)
     follow_up_issue: "#109"
     integration_target: mage integration:plannerGenerator
     go_test: go test ./magefiles -run TestAssertPlannerGeneratorStateRequiresTraceAndTerminalState
     status: implemented
+    coverage: synthesized-component
     description: |
-      Run planner with a small requirement/task fixture and execute the
-      materialized work through generator. The target records graph
-      terminal state and child run outcome without writing real external issues.
+      Synthesized component evidence, not a full shipped-profile run. The target
+      drives graph load and task extraction with a Mage-side synthesized flow and
+      a stub generator child, recording graph terminal state and child run outcome
+      without writing real external issues. The shipped planner profile machine —
+      issue materialization, child delegation, checks, and a terminal trace as one
+      end-to-end flow — is not exercised here; that behavioral proof is tracked by
+      #109.
     inputs:
       planner_profile: agents/planner/profile.yaml
       child_profile: agents/executor/profile.yaml

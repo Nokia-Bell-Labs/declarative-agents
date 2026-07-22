@@ -19,7 +19,7 @@ const (
 	documentationServerStopped  = core.Signal("ServerStopped")
 )
 
-// ToolConfig configures the serve_documentation boundary word.
+// ToolConfig configures the launch_documentation boundary word.
 type ToolConfig struct {
 	Addr        string `json:"addr"`
 	DocsDir     string `json:"docs_dir"`
@@ -29,8 +29,14 @@ type ToolConfig struct {
 }
 
 // RegisterFactories registers Knowledge Manager documentation builtin factories.
+// launch_documentation and stop_documentation share one host lifecycle owner, so
+// stop tears down exactly the listener launch started; each word names one forward
+// operation for MachineSpec rather than one word branching on the prior signal
+// (GH-508).
 func RegisterFactories(br *toolregistry.BuiltinRegistry) {
-	br.Register("serve_documentation", ServeDocumentationFactory())
+	host := NewDocumentationHostLifecycle()
+	br.Register("launch_documentation", LaunchDocumentationFactory(host))
+	br.Register("stop_documentation", StopDocumentationFactory(host))
 	RegisterRequestFactories(br)
 }
 
@@ -40,14 +46,22 @@ func RegisterRequestFactories(br *toolregistry.BuiltinRegistry) {
 	br.Register("doc_detail_response", responseFactory("doc_detail_response", "DocumentDetailReady"))
 }
 
-// ServeDocumentationFactory creates builders for the documentation UI host.
-func ServeDocumentationFactory() toolregistry.BuiltinFactory {
+// LaunchDocumentationFactory creates builders that start the documentation UI host
+// on the shared lifecycle owner.
+func LaunchDocumentationFactory(host *DocumentationHostLifecycle) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		cfg, err := decodeToolConfig(def)
 		if err != nil {
 			return nil, err
 		}
-		return ServeDocumentationBuilder{Config: cfg, Host: NewDocumentationHostLifecycle()}, nil
+		return launchDocumentationBuilder{config: cfg, host: host}, nil
+	}
+}
+
+// StopDocumentationFactory creates builders that stop the shared documentation host.
+func StopDocumentationFactory(host *DocumentationHostLifecycle) toolregistry.BuiltinFactory {
+	return func(catalog.ToolDef, map[string]string) (core.Builder, error) {
+		return stopDocumentationBuilder{host: host}, nil
 	}
 }
 
@@ -57,13 +71,8 @@ func responseFactory(name string, signal core.Signal) toolregistry.BuiltinFactor
 	}
 }
 
-// ServeDocumentationBuilder creates serve_documentation commands.
-type ServeDocumentationBuilder struct {
-	Config ToolConfig
-	Host   *DocumentationHostLifecycle
-}
-
-// DocumentationHostLifecycle owns the serve_documentation listener.
+// DocumentationHostLifecycle owns the documentation listener launch_documentation
+// starts and stop_documentation stops.
 type DocumentationHostLifecycle struct {
 	mu      sync.Mutex
 	running *RunningServer
@@ -74,42 +83,36 @@ func NewDocumentationHostLifecycle() *DocumentationHostLifecycle {
 	return &DocumentationHostLifecycle{}
 }
 
-func (b ServeDocumentationBuilder) Build(previous core.Result) core.Command {
-	host := b.Host
+func hostOrNew(host *DocumentationHostLifecycle) *DocumentationHostLifecycle {
 	if host == nil {
-		host = NewDocumentationHostLifecycle()
+		return NewDocumentationHostLifecycle()
 	}
-	return serveDocumentationCmd{
-		config: b.Config, host: host,
-		stop: serveDocumentationShouldStop(previous.Signal),
-	}
+	return host
 }
 
-// serveDocumentationShouldStop reports whether a serve_documentation dispatch is
-// the teardown stop rather than the startup launch. The curator machine dispatches
-// the tool twice — to launch at Idle and to stop during shutdown — and teardown
-// opens with AgentExited but passes through the monitor stop (ServerStopped) before
-// reaching the docs stop, so either teardown-phase signal selects the stop path.
-func serveDocumentationShouldStop(previous core.Signal) bool {
-	return previous == core.Signal("AgentExited") || previous == documentationServerStopped
-}
-
-type serveDocumentationCmd struct {
+// launchDocumentationBuilder creates launch_documentation commands.
+type launchDocumentationBuilder struct {
 	config ToolConfig
 	host   *DocumentationHostLifecycle
-	stop   bool
 }
 
-func (c serveDocumentationCmd) Name() string { return "serve_documentation" }
-
-func (c serveDocumentationCmd) Undo(_ core.Result) core.Result {
-	return c.stopHost()
+func (b launchDocumentationBuilder) Build(_ core.Result) core.Command {
+	return launchDocumentationCmd{config: b.config, host: hostOrNew(b.host)}
 }
 
-func (c serveDocumentationCmd) Execute() core.Result {
-	if c.stop {
-		return c.stopHost()
-	}
+type launchDocumentationCmd struct {
+	config ToolConfig
+	host   *DocumentationHostLifecycle
+}
+
+func (c launchDocumentationCmd) Name() string { return "launch_documentation" }
+
+// Undo tears the host down, so a launch is compensated during a rollback (GH-508).
+func (c launchDocumentationCmd) Undo(_ core.Result) core.Result {
+	return stopDocumentationHost(c.host, c.Name())
+}
+
+func (c launchDocumentationCmd) Execute() core.Result {
 	running, err := c.host.Start(HostConfig{
 		Addr:        c.config.Addr,
 		DocsDir:     c.config.DocsDir,
@@ -127,12 +130,35 @@ func (c serveDocumentationCmd) Execute() core.Result {
 	})}
 }
 
-func (c serveDocumentationCmd) stopHost() core.Result {
-	addr, err := c.host.Stop()
+// stopDocumentationBuilder creates stop_documentation commands.
+type stopDocumentationBuilder struct {
+	host *DocumentationHostLifecycle
+}
+
+func (b stopDocumentationBuilder) Build(_ core.Result) core.Command {
+	return stopDocumentationCmd{host: hostOrNew(b.host)}
+}
+
+type stopDocumentationCmd struct {
+	host *DocumentationHostLifecycle
+}
+
+func (c stopDocumentationCmd) Name() string { return "stop_documentation" }
+
+// Undo is a noop: a stopped listener is re-established by a separate launch action.
+func (c stopDocumentationCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
+
+func (c stopDocumentationCmd) Execute() core.Result {
+	return stopDocumentationHost(c.host, c.Name())
+}
+
+// stopDocumentationHost stops the shared documentation host and reports the released address.
+func stopDocumentationHost(host *DocumentationHostLifecycle, name string) core.Result {
+	addr, err := host.Stop()
 	if err != nil {
-		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Err: err, Output: err.Error()}
+		return core.Result{Signal: core.CommandError, CommandName: name, Err: err, Output: err.Error()}
 	}
-	return core.Result{Signal: documentationServerStopped, CommandName: c.Name(), Output: jsonOutput(map[string]string{
+	return core.Result{Signal: documentationServerStopped, CommandName: name, Output: jsonOutput(map[string]string{
 		"signal": string(documentationServerStopped),
 		"addr":   addr,
 	})}

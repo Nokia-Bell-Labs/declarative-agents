@@ -3,11 +3,19 @@ title: Test Suite for Release 09.3 Mesh Deployment and Tiered Swap
 release: "09.3"
 
 overview: |
-  This suite validates the Helm deployment of the mesh (srd015): the kind deploy
+  Non-canonical historical record. The chatbot mesh was extracted to
+  examples/chatbot-mesh/; its deployment specs are srd003 (chart) and srd006
+  (executor deployment API) with the test suites under examples/chatbot-mesh/.
+  The provisioner service this suite names was replaced by the executor
+  (srd006); the mage integration:provisioning target and the
+  examples/chatbot-mesh/provisioner/ package no longer exist. This file remains
+  only as a pointer to that history.
+
+  This suite validated the Helm deployment of the mesh (srd015): the kind deploy
   smoke, the values-to-config co-generation drift lock, the tiered hot swap
   (repoint and add-RAG rollout), and the provisioning deployment API. The
-  kind-cluster tracers skip cleanly without docker/kind/helm/kubectl; the
-  co-generation and provisioning tracers run without a cluster.
+  kind-cluster tracers skipped cleanly without docker/kind/helm/kubectl; the
+  co-generation and provisioning tracers ran without a cluster.
 
 traces:
   - rel09.3-uc001-mesh-deployment
@@ -15,7 +23,7 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A kind cluster and docker/helm/kubectl are available for the on-cluster tracers, and the rel06.0 runtime image is loadable.
-  - agent-profiles owns the deployment chart, the provisioner service, and the chatbot/RAG profiles named by the tracers.
+  - Historical: these assets were relocated to examples/chatbot-mesh/ (the provisioner service replaced by the executor, srd006), which now owns the deployment chart and the chatbot/RAG profiles.
 
 test_cases:
   - use_case: rel09.3-uc001-mesh-deployment
@@ -104,12 +112,17 @@ test_cases:
 
   - use_case: rel09.3-uc001-mesh-deployment
     name: Provisioning deployment API panel-path tracer
-    integration_target: mage integration:provisioning
-    go_test: go test ./examples/chatbot-mesh/provisioner/...
-    status: implemented
+    integration_target: (superseded) mage integration:provisioning
+    go_test: (superseded) go test ./examples/chatbot-mesh/provisioner/...
+    status: superseded
     description: |
-      Integration.Provisioning drives the deployment API (srd015 R4) end to end
-      against the built provisioner binary, exactly as the provisioning panel does
+      Superseded. The provisioner binary and the integration:provisioning target
+      were removed; the executor (examples/chatbot-mesh, srd006) is the deployment
+      API, exercised by mage integration:controlPlane. The paragraph below is the
+      historical description of the deleted provisioner tracer.
+
+      Integration.Provisioning drove the deployment API (srd015 R4) end to end
+      against the built provisioner binary, exactly as the provisioning panel did
       over HTTP: it reads the deployed mesh view, rejects an apply from the
       read-only token (R4.1), applies an add-RAG values patch that renders a helm
       upgrade with the second RAG (asserted from the recorded helm invocation), and

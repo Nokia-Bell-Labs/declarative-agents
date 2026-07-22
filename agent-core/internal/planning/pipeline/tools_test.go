@@ -244,6 +244,14 @@ func TestCheckResultBuilder_Pass(t *testing.T) {
 	task := ps.Extractor.ExtractNext(ps.Graph, ps.MaxWeight)
 	require.NotNil(t, task)
 	ps.CurrentTask = task
+	// The extract and execute phases advance the nodes before check runs; mirror
+	// that so check_result marks them Done from Executing (GH-507).
+	for _, id := range task.NodeIDs {
+		n, ok := ps.Graph.Node(id)
+		require.True(t, ok)
+		require.NoError(t, n.MarkPlanning())
+		require.NoError(t, n.MarkExecuting())
+	}
 
 	builder := &CheckResultBuilder{PS: ps}
 	cmd := builder.Build(core.Result{Signal: core.ToolDone})
@@ -251,6 +259,10 @@ func TestCheckResultBuilder_Pass(t *testing.T) {
 
 	assert.Equal(t, core.ValidationPassed, result.Signal)
 	assert.Contains(t, result.Output, "completed")
+	for _, id := range task.NodeIDs {
+		n, _ := ps.Graph.Node(id)
+		assert.Equal(t, graph.Done, n.Status)
+	}
 }
 
 func TestCheckResultBuilder_UndoRestoresGraphStatusAfterPass(t *testing.T) {
@@ -421,3 +433,37 @@ var _ llm.PromptAssembler = (*PlannerAssembler)(nil)
 
 // Ensure unused plan import is consumed (types used in assertions above).
 var _ plan.ImplementationPlan
+
+// TestPlannerNodeLifecycleAdvancesAndDoesNotRepeat proves the GH-507 fix: a ready
+// node is selected once, advances Pending -> Planning -> Executing -> Done across
+// the extract/execute/check phases, leaves Graph.Ready as soon as it is selected,
+// and is never re-selected once complete.
+func TestPlannerNodeLifecycleAdvancesAndDoesNotRepeat(t *testing.T) {
+	t.Parallel()
+	ps := minimalState(t)
+	require.Len(t, ps.Graph.Ready(), 1, "one node ready at start")
+	nid := ps.Graph.Ready()[0].ID
+
+	// Extract selects the node and marks it Planning, so it leaves Ready.
+	extract := (&ExtractTaskBuilder{PS: ps}).Build(core.Result{})
+	res := extract.Execute()
+	require.Equal(t, SigTaskExtracted, res.Signal, res.Output)
+	n, _ := ps.Graph.Node(nid)
+	require.Equal(t, graph.Planning, n.Status)
+	require.Empty(t, ps.Graph.Ready(), "selected node must not stay ready")
+
+	// Execute advances it to Executing (the real execute runs a child; here we
+	// drive the phase transition the executor owns).
+	require.NoError(t, ps.advanceTaskNodesTo(graph.Executing))
+	require.Equal(t, graph.Executing, n.Status)
+
+	// Check marks it Done on success.
+	check := (&CheckResultBuilder{PS: ps}).Build(core.Result{Signal: core.ToolDone})
+	res = check.Execute()
+	require.Equal(t, core.ValidationPassed, res.Signal, res.Output)
+	require.Equal(t, graph.Done, n.Status)
+
+	// A completed node is never re-selected: the next extract finds no work.
+	res = (&ExtractTaskBuilder{PS: ps}).Build(core.Result{}).Execute()
+	require.NotEqual(t, SigTaskExtracted, res.Signal, "completed node must not be re-extracted")
+}

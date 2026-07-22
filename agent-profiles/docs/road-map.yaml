@@ -238,7 +238,7 @@ releases:
         summary: Boundary use-case validation for the jurist, lifecycle, and rest families.
         status: specified
       - id: test-rel07.1-profile-conformance
-        summary: Executable per-family OpenTelemetry conformance for all ten families, all implemented shipped-behavioral (runs the shipped profile.yaml/variant, copy-and-patch only harness-controlled fields). Generator (with qwen27b/qwen35b variants), the planner behavioral run, and the rest ollama-profile variant are Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated; rest proves its inbound webhook server boundary over the shipped REST config (client head proven at the agent-core package level). Generator, planner, and rest carry ungated load-and-wiring companions.
+        summary: Executable per-family OpenTelemetry conformance for all ten families. Nine are implemented shipped-behavioral (runs the shipped profile.yaml/variant, copy-and-patch only harness-controlled fields); the rest sample server boundary is bounded-behavioral (shipped REST config and declarations over a synthesized launch/await/stop machine). Generator (with qwen27b/qwen35b variants), the planner behavioral run, and the rest ollama-profile variant are Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated; rest proves its inbound webhook server boundary over the shipped REST config (client head proven at the agent-core package level). Generator, planner, and rest carry ungated load-and-wiring companions.
         status: implemented
     proof:
       - mage validate
@@ -323,17 +323,17 @@ releases:
     use_cases:
       - id: rel08.0-uc001-corpus-ingest
         summary: Ingest profile lists and reads a corpus under model control, embeds at Ollama, and threads vectors into Chroma add.
-        status: implemented
+        status: specified
       - id: rel08.0-uc002-corpus-query
         summary: Reader profile embeds a question, threads the vector into Chroma query, and answers grounded in retrieved chunks.
-        status: implemented
+        status: specified
     test_suites:
       - id: test-rel08.0-chroma-corpus
-        summary: Profile-owned tracer for Chroma ingest and query with provider embedding threaded into Chroma.
-        status: implemented
+        summary: Profile-owned tracer for Chroma ingest and query. The mage integration:chroma target was relocated to examples/chatbot-mesh (ingest count only over the copied profile); the profile-owned ingest+reader tracer is pending (#251).
+        status: planned
     proof:
       - mage validate
-      - AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma (requires a running Chroma server and a reachable Ollama with the configured models)
+      - AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma  # relocated to examples/chatbot-mesh (ingest only); profile-owned tracer pending #251
     success_markers:
       - The ingest and reader profiles are pure agent-profiles configuration over existing agent-core words.
       - Every Chroma add and query carries an agent-supplied embedding vector threaded from the Ollama embed word, never a model-authored or server-side vector.

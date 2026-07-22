@@ -596,7 +596,7 @@ test_cases:
     name: Checkpoint contracts compile and round-trip
     go_test: TestInMemoryCheckpointRoundTripsConversationAndReceipts
     inputs:
-      checkpoint: "agent snapshot, domain JSON, workspace ref, history digest"
+      checkpoint: "conversation and opaque persisted receipts (Execution entries), position snapshot"
     expected:
       state_layers_separate: true
       json_round_trip: true

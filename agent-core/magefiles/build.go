@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
@@ -40,6 +42,9 @@ func Build() error {
 			fmt.Printf("installing frontend deps for %s\n", uiDir)
 			if err := runInDir(uiDir, "npm", "install"); err != nil {
 				return fmt.Errorf("%s npm install: %w", uiDir, err)
+			}
+			if err := auditUIDeps(uiDir); err != nil {
+				return err
 			}
 			fmt.Printf("building frontend for %s\n", uiDir)
 			if err := runInDir(uiDir, "npm", "run", "build"); err != nil {
@@ -73,6 +78,19 @@ var embeddedUIDirs = []string{
 func hasUI(uiDir string) bool {
 	_, err := os.Stat(filepath.Join(uiDir, "package.json"))
 	return err == nil
+}
+
+// auditUIDeps fails the build when an embedded frontend has a known production
+// dependency vulnerability. These bundles are served to a browser, so a
+// sanitizer or other runtime dependency defect is a release finding rather than
+// a printed-and-ignored warning. Dev-only tooling (build/test) is out of scope,
+// so the gate omits dev dependencies and trips at the moderate advisory level.
+func auditUIDeps(uiDir string) error {
+	fmt.Printf("auditing frontend deps for %s\n", uiDir)
+	if err := runInDir(uiDir, "npm", "audit", "--omit=dev", "--audit-level=moderate"); err != nil {
+		return fmt.Errorf("%s npm audit: known production dependency vulnerability (run `npm audit fix` in %s): %w", uiDir, uiDir, err)
+	}
+	return nil
 }
 
 func runInDir(dir string, name string, args ...string) error {
@@ -254,9 +272,53 @@ func assertJuristCharterSmoke(output string) error {
 	return nil
 }
 
-// Lint runs golangci-lint on the project.
+// requiredGolangciLintMajor is the golangci-lint major version the repository's
+// .golangci.yml schema (version: "2") requires. golangci-lint v1 cannot read a
+// v2 config and aborts mid-run, so Lint preflights the binary and fails with
+// installation guidance rather than a schema error deep in the tool output.
+const requiredGolangciLintMajor = 2
+
+const golangciLintInstallURL = "https://golangci-lint.run/welcome/install/"
+
+// Lint runs golangci-lint on the project after verifying a compatible binary.
 func Lint() error {
+	if err := checkGolangciLintVersion(requiredGolangciLintMajor); err != nil {
+		return err
+	}
 	return sh.Run("golangci-lint", "run", "./...")
+}
+
+// checkGolangciLintVersion verifies a golangci-lint binary whose major version
+// matches the .golangci.yml schema is on PATH.
+func checkGolangciLintVersion(wantMajor int) error {
+	path, err := exec.LookPath("golangci-lint")
+	if err != nil {
+		return fmt.Errorf("golangci-lint not found on PATH: the .golangci.yml gate needs golangci-lint v%d; install it from %s", wantMajor, golangciLintInstallURL)
+	}
+	out, err := exec.Command(path, "version").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("golangci-lint version: %w", err)
+	}
+	major, err := parseGolangciLintMajor(string(out))
+	if err != nil {
+		return fmt.Errorf("parse golangci-lint version from %q: %w", strings.TrimSpace(string(out)), err)
+	}
+	if major != wantMajor {
+		return fmt.Errorf("golangci-lint v%d is required by .golangci.yml (version: %q) but v%d is installed; install golangci-lint v%d from %s", wantMajor, strconv.Itoa(wantMajor), major, wantMajor, golangciLintInstallURL)
+	}
+	return nil
+}
+
+var golangciLintVersionRE = regexp.MustCompile(`(\d+)\.\d+\.\d+`)
+
+// parseGolangciLintMajor extracts the major version from `golangci-lint version`
+// output, whose stable substring is "has version X.Y.Z" across v1 and v2.
+func parseGolangciLintMajor(output string) (int, error) {
+	m := golangciLintVersionRE.FindStringSubmatch(output)
+	if m == nil {
+		return 0, fmt.Errorf("no semantic version found")
+	}
+	return strconv.Atoi(m[1])
 }
 
 // Install runs go install for all cmd/ packages.

@@ -8,7 +8,7 @@ overview: |
   reproduces the external endpoint, agent readiness is gated on model preload, and
   the kind smoke path runs CPU-only. The in-cluster LLM tier, its render tracers,
   and the CPU-only kind validation (integration:helmLLMTier) are implemented; the
-  provisioning-panel model controls are part of the deferred control-plane addition.
+  provisioning-panel model controls belong to the control-plane surface (coordinator, creator, executor) and are out of scope for this suite.
 
 traces:
   - rel04.0-uc001-in-cluster-llm-tier

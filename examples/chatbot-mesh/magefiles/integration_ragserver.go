@@ -100,6 +100,9 @@ func runRagServerIntegration(profilesRoot, coreRoot string) error {
 	if err := assertRagQueryReturnsChunks(vector); err != nil {
 		return err
 	}
+	if err := assertRagQueryHonorsNResults(vector); err != nil {
+		return err
+	}
 	if err := assertRagWrongDimensionRejected(len(vector)); err != nil {
 		return err
 	}
@@ -204,11 +207,40 @@ func assertRagQueryReturnsChunks(vector []float64) error {
 	if resp.chunkCount() == 0 {
 		return fmt.Errorf("rag query returned no chunks: %s", data)
 	}
+	if resp.chunkCount() > 3 {
+		return fmt.Errorf("rag query returned %d chunks for n_results=3; request count not honored: %s", resp.chunkCount(), data)
+	}
 	if resp.EmbeddingModel == "" {
 		return fmt.Errorf("rag query response is missing the embedding_model metadata: %s", data)
 	}
 	if resp.Trace.TerminalSignal != "QueryResponded" {
 		return fmt.Errorf("rag query terminal signal = %q, want QueryResponded", resp.Trace.TerminalSignal)
+	}
+	return nil
+}
+
+// assertRagQueryHonorsNResults proves the request-supplied n_results caps the
+// returned chunk count. n_results=1 must yield at most one chunk, which the old
+// hard-coded n_results=5 could not satisfy against a multi-document corpus
+// (srd001 AC2; GH-501).
+func assertRagQueryHonorsNResults(vector []float64) error {
+	body, err := ragQueryBody(vector, 1)
+	if err != nil {
+		return err
+	}
+	data, status, err := requestHTTP(http.MethodPost, ragQueryURL, body)
+	if err != nil {
+		return err
+	}
+	if status != http.StatusOK {
+		return fmt.Errorf("rag query n_results=1 returned status %d: %s", status, data)
+	}
+	resp, err := parseRagQueryResponse(data)
+	if err != nil {
+		return err
+	}
+	if resp.chunkCount() != 1 {
+		return fmt.Errorf("rag query n_results=1 returned %d chunks, want exactly 1: %s", resp.chunkCount(), data)
 	}
 	return nil
 }

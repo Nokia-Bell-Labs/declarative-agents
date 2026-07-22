@@ -33,7 +33,7 @@ requirements:
   R1:
     title: File tools
     items:
-      - R1.1: read tool reads file contents with optional line range (startLine, endLine).
+      - R1.1: read tool reads file contents with optional line range (startLine, endLine). With raw set, it returns the file's exact bytes with no line-number prefixes, so a request-machine can serve a file verbatim as an HTTP body (the agent-facing line-numbered form would corrupt such a payload).
       - R1.2: write tool creates or overwrites a file at a validated path.
       - R1.3: edit tool performs search-and-replace operations on files.
       - R1.4: find tool searches file contents using ripgrep with workspace confinement.

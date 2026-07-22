@@ -110,8 +110,9 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	}
 
 	// Drive the intent the chatbot's provisioning panel does: a declared-client POST
-	// to the coordinator, carrying no host, URL, or credential (srd002 R5.1).
-	intent := `{"rag_name":"rag2","collection":"corpus2","embedding_model":"qwen3-embedding:8b","directory":"/corpus/new"}`
+	// to the coordinator, carrying the full desired mesh state as a values-plane
+	// document (srd004 R3.1) and no host, URL, or credential (srd002 R5.1).
+	intent := `{"values":"{\"ragUnits\":[{\"name\":\"rag0\",\"collection\":\"corpus\"},{\"name\":\"rag2\",\"collection\":\"corpus2\"}]}","rag_name":"rag2","collection":"corpus2","embedding_model":"qwen3-embedding:8b","directory":"/corpus/new"}`
 	data, status, err := requestHTTP(http.MethodPost, cpCoordinatorProvision, intent)
 	if err != nil {
 		return fmt.Errorf("provision intent request failed: %w", err)
@@ -229,14 +230,20 @@ func startFakeDeploymentAPI(rec *deploymentAPIRecorder) (func(), error) {
 		rec.mu.Lock()
 		rec.applies++
 		rec.mu.Unlock()
-		writeJSON(w, map[string]interface{}{"revision": 3})
+		// Mirror the executor's versioned apply response (srd006 R1.4): a
+		// schema_version-tagged status. Strict request validation (schema_version +
+		// content required, helm dry-run) is proven against the real executor by the
+		// integration:executor tracer (#602); here the fake records the call.
+		writeJSON(w, map[string]interface{}{"schema_version": "1", "status": "applied"})
 	})
 	mux.HandleFunc("/provisioning/api/rollout", func(w http.ResponseWriter, req *http.Request) {
 		rec.record(req, nil)
 		rec.mu.Lock()
 		rec.rollouts++
 		rec.mu.Unlock()
-		writeJSON(w, map[string]interface{}{"phase": "complete", "ready": 2, "desired": 2, "revision": 3})
+		// Mirror the executor's trimmed rollout response (srd006 R1.4): schema_version
+		// and phase only.
+		writeJSON(w, map[string]interface{}{"schema_version": "1", "phase": "complete"})
 	})
 	srv := &http.Server{Handler: mux}
 	go func() { _ = srv.Serve(listener) }()

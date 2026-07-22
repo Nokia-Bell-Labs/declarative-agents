@@ -3,6 +3,7 @@
 package rest
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,9 +43,17 @@ func ParseDefinition(data []byte) (Definition, error) {
 	return def, nil
 }
 
+// parseDefinitionRaw decodes a trusted REST definition with strict field
+// checking. REST definitions are trusted, chart-mounted config, so an unknown
+// field is an authoring error, not data to ignore: KnownFields(true) rejects it
+// loudly instead of silently dropping it. This closes the gap where documented
+// but unimplemented machine_request fields (error_responses, trace, and the
+// like) were accepted and then had no effect (GH-486).
 func parseDefinitionRaw(data []byte) (Definition, error) {
 	var file DefinitionFile
-	if err := yaml.Unmarshal(expandEnv(data), &file); err != nil {
+	dec := yaml.NewDecoder(bytes.NewReader(expandEnv(data)))
+	dec.KnownFields(true)
+	if err := dec.Decode(&file); err != nil {
 		return Definition{}, fmt.Errorf("parse REST definition: %w", err)
 	}
 	return file.Rest, nil

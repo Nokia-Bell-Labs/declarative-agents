@@ -5,10 +5,10 @@ purpose: |-
   and a monitor server, then idles in AwaitingControl until a lifecycle exit event is
   enqueued, at which point it exits the agent and stops the servers. Each inbound
   provisioning intent runs a request-scoped machine (request-machine.yaml): it
-  delegates a corpus-ingest run per intent to the creator, decides the values patch,
-  and delegates the rollout to the creator, aggregating status for the provisioning
-  panel. The coordinator decides and sequences; every instance operation is a declared
-  client request to the creator (srd004). It holds no deployment-API credentials and
+  delegates a corpus-ingest run per intent to the creator, forwards the caller's
+  desired values document, and delegates the rollout to the creator, aggregating
+  status for the provisioning panel. The coordinator orchestrates and sequences; every
+  instance operation is a declared client request to the creator (srd004). It holds no deployment-API credentials and
   runs no instances directly.
 invariants:
   - REST authority lives in this profile's rest.yaml; no runtime input supplies transport authority.

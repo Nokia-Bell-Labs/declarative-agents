@@ -34,7 +34,7 @@ flowchart TB
   subgraph CP["Control plane — reconfigures the mesh"]
     CO["Coordinator<br/>decides what changes"]
     CR["Creator<br/>acts: lifecycle + rollout"]
-    PR["Provisioner<br/>values-patch service"]
+    EX["Executor<br/>declarative deployment API (srd006)"]
   end
 
   User -->|chat turn| CB
@@ -46,7 +46,7 @@ flowchart TB
   ING -->|seed| CH0
 
   CO -->|declared-client request| CR
-  CR -->|values edit + rollout| PR
+  CR -->|values edit + rollout| EX
   CR -.->|spawns ingest| ING
   CR -.->|health| CO
 ```
@@ -79,8 +79,9 @@ The normative detail lives in the SRDs: the RAG server in
 [srd001](specs/software-requirements/srd001-rag-server-agent.yaml), the chatbot in
 [srd002](specs/software-requirements/srd002-chatbot-agent.yaml), the deployment in
 [srd003](specs/software-requirements/srd003-chatbot-deployment.yaml), the
-coordinator in [srd004](specs/software-requirements/srd004-coordinator.yaml), and
-the creator in [srd005](specs/software-requirements/srd005-creator.yaml).
+coordinator in [srd004](specs/software-requirements/srd004-coordinator.yaml), the
+creator in [srd005](specs/software-requirements/srd005-creator.yaml), and the
+executor in [srd006](specs/software-requirements/srd006-executor.yaml).
 
 ## A single chat turn
 

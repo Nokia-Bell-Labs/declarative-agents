@@ -2,6 +2,14 @@ id: srd015-chatbot-deployment
 title: Chatbot Mesh Deployment and Provisioning Model
 
 context: |
+  Non-canonical historical record. The chatbot mesh was extracted to
+  examples/chatbot-mesh/; the canonical deployment specs are srd003 (chart) and
+  srd006 (executor deployment API). The provisioning deployment API described
+  here (R4, examples/chatbot-mesh/provisioner) was replaced by the executor
+  (srd006), which the creator drives; the provisioner package and its
+  integration:provisioning target no longer exist. This SRD remains only as a
+  pointer to that history.
+
   The chatbot mesh runs as a set of container agents on Kubernetes: one chatbot
   agent (srd014) fronting N RAG server agents (srd013), each RAG paired with its
   Chroma database, plus a chat LLM (in-cluster or external), a Dolt checkpoint

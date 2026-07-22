@@ -113,7 +113,8 @@ func TestBuiltinFactoryCatalogSelectsEntriesByInit(t *testing.T) {
 	require.True(t, byName["spec_validation"].selectedBy(map[string]bool{"validate_specs": true}))
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_history": true}))
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_rollback": true}))
-	require.True(t, byName["documentation"].selectedBy(map[string]bool{"serve_documentation": true}))
+	require.True(t, byName["documentation"].selectedBy(map[string]bool{"launch_documentation": true}))
+	require.True(t, byName["documentation"].selectedBy(map[string]bool{"stop_documentation": true}))
 	require.False(t, byName["planning"].selectedBy(map[string]bool{"launch_eval": true}))
 }
 
@@ -140,7 +141,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 		"report_session", "run_agent", "run_oracle_check", "collect_trace_tokens",
 		"check_agent_version", "summarize_point_results", "collect_metrics",
 		"dump_config", "serve_ui", "launch_eval", "load_corpus", "validate_specs",
-		"format_report", "serve_documentation",
+		"format_report", "launch_documentation", "stop_documentation",
 	} {
 		require.True(t, covered[init], "catalog should cover init %q", init)
 	}
@@ -383,10 +384,11 @@ func TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown(t *testing.T)
 
 	result := runExitMachine(t, exitMachineCase{
 		machinePath:   profilePathFromTest(t, "knowledge-manager/documentation-curator/machine.yaml"),
-		launch:        "serve_documentation",
+		launch:        "launch_documentation",
 		secondLaunch:  "launch_curator_control",
 		monitorLaunch: "launch_monitor_rest",
 		monitorStop:   "stop_monitor_rest",
+		docsStop:      "stop_documentation",
 		await:         "await_curator_control",
 		terminal:      "Done",
 		shutdown:      shutdown,
@@ -463,6 +465,44 @@ func TestValidateConfigInvalidRestExitsNonZero(t *testing.T) {
 	require.Contains(t, err.Error(), "unsupported type")
 }
 
+func TestValidateConfigInvalidReceiptContractExitsNonZero(t *testing.T) {
+	restore := snapshotAgentFlags()
+	t.Cleanup(func() { restoreAgentFlags(restore) })
+
+	monitorDir := filepath.Dir(profilePathFromTest(t, "monitor/profile.yaml"))
+	// Corrupt one already-selected monitor tool back to the inconsistent form
+	// GH-494 targets: reversible with a state-mutating effect but a noop undo.
+	// --validate-config must reject it (srd025 R3.5; GH-494).
+	realDecls, err := os.ReadFile(filepath.Join(monitorDir, "declarations.yaml"))
+	require.NoError(t, err)
+	corrupted := strings.Replace(string(realDecls),
+		"      classification: irreversible\n      undo: noop",
+		"      classification: reversible\n      undo: noop", 1)
+	require.NotEqual(t, string(realDecls), corrupted, "expected an irreversible+noop tool to corrupt")
+
+	dir := t.TempDir()
+	badDecls := filepath.Join(dir, "declarations.yaml")
+	require.NoError(t, os.WriteFile(badDecls, []byte(corrupted), 0o644))
+	profile := filepath.Join(dir, "profile.yaml")
+	require.NoError(t, os.WriteFile(profile, []byte(fmt.Sprintf(
+		"name: badreceipt\nmachine: %s\ntools:\n  - %s\ntool_declarations:\n  - %s\nrest_definitions:\n  - %s\n",
+		filepath.Join(monitorDir, "machine.yaml"),
+		filepath.Join(monitorDir, "tools.yaml"),
+		badDecls,
+		filepath.Join(monitorDir, "rest.yaml"))), 0o644))
+
+	clearAgentFlags()
+	flagProfile = profile
+	flagValidateConfig = true
+
+	_, err = captureStderr(t, func() error {
+		return run(rootCmd, nil)
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "receipt-contract validation failed")
+	require.Contains(t, err.Error(), "no receipt-consuming undo")
+}
+
 func TestResolveCheckpointDefaultsToNoop(t *testing.T) {
 	t.Parallel()
 
@@ -502,6 +542,7 @@ type exitMachineCase struct {
 	secondLaunch  string
 	monitorLaunch string
 	monitorStop   string
+	docsStop      string
 	await         string
 	terminal      string
 	shutdown      *deferredShutdown
@@ -558,6 +599,9 @@ func runExitMachine(t *testing.T, tc exitMachineCase) core.RunResult {
 	}
 	if tc.monitorStop != "" {
 		registerStaticSignal(reg, tc.monitorStop, "ServerStopped", "{}", "")
+	}
+	if tc.docsStop != "" {
+		registerStaticSignal(reg, tc.docsStop, "ServerStopped", "{}", "")
 	}
 	registerStaticSignal(reg, tc.await, "ExitRequested", exitEventOutput(), "")
 	reg.Register(core.ToolSpec{Name: "exit_agent"}, lifecycle.ExitBuilder{

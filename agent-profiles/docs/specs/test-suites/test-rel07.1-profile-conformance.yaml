@@ -28,13 +28,23 @@ overview: |
     its trace. Where the harness must control an environment-bound field it copies
     the shipped profile tree and patches only that field — a listen address/port,
     a corpus directory, or the iteration budget — never the machine, tools, or
-    wrapper (see conformance/serve.go CopyShippedProfile). No case reconstructs a
-    synthesized profile.
+    wrapper (see conformance/serve.go CopyShippedProfile). The one exception is
+    the rest sample boundary case, classified bounded-behavioral below; every
+    other case runs the shipped wrapper without reconstructing a profile.
   - load-and-wiring: an ungated, model-free companion assertion that parses the
     shipped profile and machine YAML and checks the load and machine wiring the
     behavioral run assumes. It needs no model or server, so it holds in the fast
     default and where a gate is absent. The generator, planner, and rest families
     carry a load-and-wiring companion alongside their gated behavioral runs.
+  - bounded-behavioral: the case runs the shipped REST config and declarations
+    and drives real shipped server behavior, but through a bounded machine and
+    tools list synthesized to a documented subset of the shipped machine (the
+    launch/await/stop server tail), because the shipped machine's client
+    read/create/await head cannot run in a profile machine. It is stronger than
+    load-and-wiring (it launches the server and routes a live inbound signal to a
+    terminal) but is not pure shipped-behavioral (it does not run the shipped
+    machine unmodified). Only the rest sample boundary case carries it; the
+    omitted client head is proven at the agent-core package level.
 
   Representative-vs-variant: the generator and rest families ship variants beyond
   the representative profile.yaml, and each shipped variant is annotated with its
@@ -42,7 +52,7 @@ overview: |
   profile-qwen27b.yaml all run shipped-behavioral (Ollama-gated on their declared
   model, skipping cleanly when it is absent). The rest ollama-profile.yaml runs
   shipped-behavioral (Ollama-gated); the rest sample profile's inbound webhook
-  server boundary runs shipped-behavioral over the shipped REST config through a
+  server boundary runs bounded-behavioral over the shipped REST config through a
   bounded launch/await/stop machine, because its client create/await head cannot
   run in a profile machine — REST client tools enforce a declared-only runtime
   input contract that the loop's verbatim output threading does not satisfy, so
@@ -54,8 +64,10 @@ overview: |
   registration, so with no reachable model the profile cannot start); lifecycle
   suspend/resume and history/rollback are Dolt-gated (checkpoints persist only
   when --dolt-dsn names a running dolt sql-server). Their load-and-wiring
-  companions and the ungated families run without any gate. All ten families now
-  have implemented shipped-behavioral conformance.
+  companions and the ungated families run without any gate. All ten families have
+  implemented conformance: shipped-behavioral for nine, and bounded-behavioral for
+  the rest sample server boundary (with the client head proven at the agent-core
+  package level).
 
 traces:
   - srd002-executor
@@ -81,16 +93,25 @@ preconditions:
 
 test_cases:
   - family: jurist
-    name: Jurist deterministic charter validation conformance
+    name: Jurist charter validation single-run conformance
     status: implemented
     test: conformance/jurist_test.go
     coverage: shipped-behavioral
-    coverage_note: Runs the shipped agents/jurist/profile.yaml directly against the demo-charter fixture; no field patched.
+    coverage_note: |
+      Single-run behavioral coverage: runs the shipped agents/jurist/profile.yaml
+      directly against the demo-charter fixture once (no field patched). This does
+      not exercise the jurist deterministic contract — it does not repeat identical
+      input to compare results, snapshot the workspace to prove read-only
+      execution, run both a clean and an intentionally failing corpus, or assert
+      finding provenance (charter/rule source). Those srd005 criteria are tracked
+      as follow-up #597.
     description: |
       Runs the jurist profile against a specification corpus and the demo charter
-      suite, then asserts the linear load, validate, and report pipeline in the
-      trace with no LLM tool family, a single root span, and no error-status
-      spans. Covers both the Passed and Failed terminal outcomes.
+      suite once, then asserts the linear load, validate, and report pipeline in
+      the trace with no LLM tool family, a single root span, and no error-status
+      spans. The single run reaches a valid jurist terminal and the assertion
+      accepts either Passed or Failed; it does not run separate clean and failing
+      corpora to demonstrate both outcomes.
     expected:
       asserted_tool_spans: [load_corpus, validate_specs, format_report]
       llm_tool_family_selected: false
@@ -186,7 +207,8 @@ test_cases:
       in the trace and a Done terminal state with no error-status spans.
     expected:
       asserted_tool_spans:
-        - serve_documentation
+        - launch_documentation
+        - stop_documentation
         - launch_curator_control
         - launch_monitor_rest
         - await_curator_control
@@ -394,14 +416,17 @@ test_cases:
     name: REST inbound webhook server boundary conformance
     status: implemented
     test: conformance/rest_test.go TestRestConformance
-    coverage: shipped-behavioral
+    coverage: bounded-behavioral
     coverage_note: |
       Runs the shipped rest sample REST config and declarations for the inbound
       webhook boundary, patching only the harness-controlled listen address and
       OpenAPI import path. The launch/await/stop server words run through a bounded
-      machine because the shipped machine's client read/create/await head cannot
-      run in a profile machine (recorded reason below); this is the documented
-      exception, not a rebuilt wrapper.
+      machine and tools list synthesized to the shipped machine's server tail,
+      because the shipped machine's client read/create/await head cannot run in a
+      profile machine (recorded reason below). This is bounded-behavioral, not
+      shipped-behavioral: real shipped server behavior over a synthesized subset
+      machine, with the shipped full-machine wiring asserted separately by
+      TestRestShippedProfileWiring and the client head by the agent-core package.
     description: |
       Drives the rest sample profile's inbound webhook server boundary to a
       Succeeded terminal. A bounded machine reuses the shipped profile's REST

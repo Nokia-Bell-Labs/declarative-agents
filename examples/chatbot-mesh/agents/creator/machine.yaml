@@ -14,7 +14,7 @@ purpose: |-
 invariants:
   - REST authority lives in this profile's rest.yaml; no runtime input supplies transport authority.
   - The creator alone holds the deployment-API authority; it is the only agent that declares a deployment-API client, and the bearer credential is deployment-realized (a mounted Secret), never a runtime-supplied one.
-  - The creator consumes the co-generated values-to-config output through the deployment API; it authors no values decision (that is the coordinator's).
+  - The creator forwards the coordinator's decided values-plane document to the deployment API as the apply content; it authors no values decision (that is the coordinator's).
 initial_state: Idle
 budget:
   max_iterations: 10000

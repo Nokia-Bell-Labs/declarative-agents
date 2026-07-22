@@ -139,7 +139,7 @@ requirements:
 
 non_goals:
   - Defining outbound REST client tools; see srd028-rest-client-tools.
-  - Implementing modeled lifecycle_control endpoints beyond the current release 03.0 runtime.
+  - Implementing lifecycle_control actions beyond the validated set (exit, pause, rollback_request, resume, inject_signal), or running lifecycle operations directly rather than enqueueing request events for MachineSpec routing.
   - Defining a general web framework for arbitrary Go handlers.
   - Allowing HTTP handlers to run hidden workflows outside MachineSpec.
   - Letting lifecycle control endpoints bypass rest_server_await, rest_await_event, or MachineSpec routing.
@@ -243,9 +243,9 @@ implementation_status:
     - Plain Go tests for launch, await, fan-in filters, timeout, stopped-source signals, stop, shutdown policy validation, stream shutdown unblocking, validation failures, redaction, invoke_handler, stream_events, machine_request, and Knowledge Manager conformance.
     - OpenAPI server binding preserves configured response mapping, machine_request, monitor view, queue, signal, and allowed_signals while importing method, path, request schema, and response schema.
     - Queue overflow behavior supports reject, drop_oldest, and drop_newest. Unsupported shutdown queue controls are rejected during ValidateDefinition.
+    - Modeled lifecycle_control endpoints (R5.8, R11.4, R11.6): ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback target selector, and the endpoint enqueues the lifecycle request event for MachineSpec routing without running any lifecycle operation directly (proven by TestRESTServer_LifecycleControlEnqueuesSignals). Configured emit_signal control routes that MachineSpec routes to exit_agent remain as an alternative used by current control profiles.
   partial:
-    - R5.8 and R11.4 lifecycle control behavior is currently represented by configured emit_signal control routes that MachineSpec routes to exit_agent. Modeled lifecycle_control endpoint config remains reserved target-format behavior.
-    - R10 read_policy values other than the default first-available behavior are rejected during ToolDef factory validation.
+    - R10 read_policy supports only the default first_available behavior; priority_order, round_robin, and other values are rejected during ToolDef factory validation (TestRESTServer_ControlQueueAndReadPolicyConformance).
   planned_follow_up:
     - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for server control, queue, and read_policy conformance.
 

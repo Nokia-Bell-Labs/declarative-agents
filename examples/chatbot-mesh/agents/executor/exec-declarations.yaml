@@ -8,10 +8,12 @@
 # ExtractStringParam), so a per-field parameter would be order-nondeterministic
 # (properties is a Go map) and unsourced. The only dynamic input is the values
 # file content, which the write_overrides word writes to /work/overrides.yaml
-# from the request seed; helm reads that fixed path. The release, namespace, and
-# deployment name are the chart defaults here; the chart renders them from
-# .Release.* into this profile's ConfigMap under the mounted-profile contract
-# (srd003 R1.3/R2) when it is deployed (GH-463).
+# from the request seed; helm reads that fixed path. The chatbot-mesh release,
+# default namespace, and chatbot-mesh-chatbot deployment below are placeholder
+# defaults kept as valid YAML for agent-core validation; when the chart packages
+# this file, profiles-configmap.yaml rewrites them to the installed release name,
+# namespace, and <fullname>-chatbot Deployment so an executor installed under any
+# release targets its own release (mounted-profile contract, srd003 R1.3/R2; GH-484).
 #
 # Each runs one child process and emits ToolDone on a zero exit and ToolFailed on
 # a non-zero exit (agent-core exec emits exactly these two); the request-machine
@@ -49,6 +51,7 @@ tools:
         required: [exit_code, output]
     side_effects:
       - kind: child_process
+        state: read_only
         target: helm
         description: Runs `helm upgrade --dry-run` as a child process; renders only, mutates no cluster state.
     reversibility:
@@ -156,7 +159,7 @@ tools:
         target: helm
         description: Runs `helm rollback` as a child process; returns the release to its prior revision.
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
       requires_confirmation: false
     errors:
@@ -202,6 +205,7 @@ tools:
         required: [exit_code, output]
     side_effects:
       - kind: child_process
+        state: read_only
         target: kubectl
         description: Runs `kubectl rollout status` with a short timeout as a child process; reads status and mutates nothing.
     reversibility:
@@ -251,6 +255,7 @@ tools:
         required: [exit_code, output]
     side_effects:
       - kind: child_process
+        state: read_only
         target: kubectl
         description: Runs `kubectl rollout status` as a child process; reads the Deployment's rollout progress and mutates nothing.
     reversibility:

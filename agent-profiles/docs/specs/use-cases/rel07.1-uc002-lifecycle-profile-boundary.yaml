@@ -11,9 +11,10 @@ summary: |
   The proof belongs in agent-profiles because the machine wiring under
   testdata/conformance/lifecycle and the tool selections in testdata/conformance/lifecycle/tools.yaml and
   testdata/conformance/lifecycle/approval/tools.yaml are profile-owned. agent-core supplies the
-  lifecycle ports, the checkpoint store, and workspace restore support, but it
-  should not encode the approval gate or history and rollback flows as
-  core-owned CLI behavior.
+  lifecycle ports, the checkpoint store, and receipt-backed rollback (opaque
+  persisted receipts consumed by a receipt-walk Undo, replacing the earlier
+  workspace-restore model), but it should not encode the approval gate or
+  history and rollback flows as core-owned CLI behavior.
 
 actor: Profile maintainer verifying lifecycle history, rollback, and approval behavior.
 

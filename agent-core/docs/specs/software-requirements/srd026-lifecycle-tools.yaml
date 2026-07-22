@@ -150,9 +150,12 @@ test_trace_plan:
   - test_suite: test-rel03.0-rest-tools
     covers: [AC7]
   - existing_go_tests:
-      - internal/tools/stl/checkpoint_lifecycle_test.go
-      - internal/runtime/core/checkpoint_ops_test.go
-      - internal/runtime/core/rollback_test.go
+      - internal/tools/lifecycle/checkpoint_from_stl_test.go
+      - internal/tools/lifecycle/receipt_rollback_test.go
+      - internal/tools/catalog/receipt_contract_test.go
+      - internal/runtime/core/checkpoint_test.go
+      - internal/runtime/core/checkpoint_adapters_test.go
+      - internal/runtime/core/dolt_checkpoint_test.go
 
 depends_on:
   - srd_id: srd001-core-types
@@ -178,9 +181,11 @@ related_documents:
   - srd027-rest-tool-runtime
 
 implementation:
-  - internal/tools/stl/checkpoint_lifecycle.go
-  - internal/tools/stl/toolconfig.go
-  - internal/runtime/core/checkpoint_ops.go
+  - internal/tools/lifecycle/checkpoint.go
+  - internal/tools/lifecycle/receipt_rollback.go
+  - internal/tools/catalog/receipt_contract.go
+  - internal/runtime/core/checkpoint.go
+  - internal/runtime/core/checkpoint_adapters.go
 
 implementation_status:
   done:

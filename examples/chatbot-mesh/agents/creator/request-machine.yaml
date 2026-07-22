@@ -2,13 +2,14 @@ name: creator-instance-request
 purpose: |-
   One request-scoped run of a decided instance operation. The machine_request
   instance endpoint seeds this machine with the operation body from the coordinator
-  (the operation -- create, restart, terminate, or ingest -- its role, and the
-  parameters). The creator realizes the operation by driving the deployment API
-  (apply_instance), then verifies the instance's health through the deployment API's
-  rollout read (verify_health) before the terminal HealthReported signal maps the
-  reported health to the HTTP response. The creator acts on the coordinator's
-  decision; it alone bears the deployment-API credential, it authors no values
-  decision, and it passes no endpoint or credential into a running agent.
+  (the operation -- create, restart, terminate, or ingest -- its role, and for a
+  rollout the decided values-plane document as content). The creator realizes the
+  operation by forwarding the content to the deployment API (apply_instance), then
+  verifies the instance's health through the deployment API's rollout read
+  (verify_health) before the terminal HealthReported signal maps the reported health
+  to the HTTP response. The creator acts on the coordinator's decision; it alone
+  bears the deployment-API credential, it authors no values decision, and it passes
+  no endpoint or credential into a running agent.
 initial_state: AwaitingRequest
 budget:
   max_iterations: 6

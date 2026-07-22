@@ -33,23 +33,18 @@ const (
 // agents; validate_specs runs the corpus consistency checks; a single error
 // finding (a broken index path, touchpoint, or citation) fails the target. The
 // jurist exits zero on a failing corpus, so the outcome is read from its terminal
-// state, not the process exit code. Skips cleanly (does not fail) when the
-// agent-core checkout or the jurist profile is not reachable, so a copied-out
-// example without the platform tools still runs `mage`.
+// state, not the process exit code. Audit is the self-governance gate: it fails
+// clearly when the agent-core runtime or the jurist validator profile is not
+// reachable, rather than skipping, so a copied-out example without the platform
+// tools reports an honest failure instead of a false green.
 func Audit() error {
 	root, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(root, "agent-core"))
-	if !agentCoreAvailable(coreRoot) {
-		fmt.Printf("SKIP audit: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
-		return nil
-	}
-	juristProfile := envOrDefault(juristProfileEnv, siblingPath(root, juristProfileRel))
-	if _, statErr := os.Stat(juristProfile); statErr != nil {
-		fmt.Printf("SKIP audit: jurist profile not found at %s (set %s)\n", juristProfile, juristProfileEnv)
-		return nil
+	coreRoot, juristProfile, err := resolveAuditTools(root)
+	if err != nil {
+		return err
 	}
 	binary, err := buildAgent(coreRoot)
 	if err != nil {
@@ -57,6 +52,23 @@ func Audit() error {
 	}
 	defer func() { _ = os.Remove(binary) }()
 	return runJurist(binary, juristProfile, root, coreRoot)
+}
+
+// resolveAuditTools locates the agent-core runtime checkout and the jurist
+// validator profile the self-governance audit requires. Both are mandatory: the
+// gate cannot validate the corpus without the runtime that executes the jurist
+// or the validator profile itself, so a missing tool is a clear failure, not a
+// skip. Skip behavior is reserved for explicitly optional integration targets.
+func resolveAuditTools(root string) (coreRoot, juristProfile string, err error) {
+	coreRoot = envOrDefault(agentCoreRootEnv, siblingPath(root, "agent-core"))
+	if !agentCoreAvailable(coreRoot) {
+		return "", "", fmt.Errorf("audit: agent-core checkout not found at %s (set %s); the self-governance gate requires the agent-core runtime", coreRoot, agentCoreRootEnv)
+	}
+	juristProfile = envOrDefault(juristProfileEnv, siblingPath(root, juristProfileRel))
+	if _, statErr := os.Stat(juristProfile); statErr != nil {
+		return "", "", fmt.Errorf("audit: jurist validator profile not found at %s (set %s); the self-governance gate requires its validator", juristProfile, juristProfileEnv)
+	}
+	return coreRoot, juristProfile, nil
 }
 
 func runJurist(binary, juristProfile, root, coreRoot string) error {

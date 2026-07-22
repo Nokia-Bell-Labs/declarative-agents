@@ -38,6 +38,19 @@ func extractIntParam(jsonOutput, key string) int {
 	return 0
 }
 
+func extractBoolParam(jsonOutput, key string) bool {
+	var params struct {
+		Parameters map[string]interface{} `json:"parameters"`
+	}
+	if err := json.Unmarshal([]byte(jsonOutput), &params); err != nil {
+		return false
+	}
+	if v, ok := params.Parameters[key].(bool); ok {
+		return v
+	}
+	return false
+}
+
 func missingParam(toolName, missing string) core.Command {
 	return failedParamCmd{toolName: toolName, missing: missing}
 }

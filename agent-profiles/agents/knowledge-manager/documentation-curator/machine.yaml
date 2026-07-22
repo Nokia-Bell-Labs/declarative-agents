@@ -19,13 +19,13 @@ invariants:
   - Documentation API access uses localhost-only REST limits from rest.yaml.
   - The monitor REST listener on the profile monitor port serves read-only snapshots and static UX while the machine awaits control events.
 lifecycle: |-
-  1. Idle -> LaunchingDocs (Seed): serve_documentation starts the documentation host.
+  1. Idle -> LaunchingDocs (Seed): launch_documentation starts the documentation host.
   2. LaunchingDocs -> LaunchingControl (ServerLaunched): start generic control REST routes.
   3. LaunchingControl -> LaunchingMonitor (ServerLaunched): launch_monitor_rest starts the monitor REST listener.
   4. LaunchingMonitor -> AwaitingControl (ServerLaunched): await_curator_control waits for lifecycle control events.
   5. AwaitingControl -> Exiting (ExitRequested): run exit_agent.
   6. Exiting -> StoppingMonitor (AgentExited): stop_monitor_rest stops the monitor listener.
-  7. StoppingMonitor -> StoppingDocs (ServerStopped): serve_documentation stops the documentation host.
+  7. StoppingMonitor -> StoppingDocs (ServerStopped): stop_documentation stops the documentation host.
   8. StoppingDocs -> Done (ServerStopped): exit completed and the documentation listener is released.
 pipeline_diagram: |-
   ```mermaid
@@ -87,7 +87,7 @@ transitions:
   - state: Idle
     signal: Seed
     next: LaunchingDocs
-    action: serve_documentation
+    action: launch_documentation
     metric_labels:
       phase: docs_launch
   - state: LaunchingDocs
@@ -168,7 +168,7 @@ transitions:
   - state: StoppingMonitor
     signal: ServerStopped
     next: StoppingDocs
-    action: serve_documentation
+    action: stop_documentation
     metric_labels:
       phase: docs_shutdown
   - state: StoppingMonitor

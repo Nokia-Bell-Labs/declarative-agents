@@ -7,7 +7,11 @@ summary: |
   provider, and writes the document, id, and agent-supplied vector to Chroma,
   then verifies the collection item count. The proof belongs in agent-profiles
   because the Chroma and Ollama REST definitions, the collection identity, and
-  the corpus selection are profile-owned assets.
+  the corpus selection are profile-owned assets. The mage integration:chroma
+  target was relocated to examples/chatbot-mesh in the mesh extraction and proves
+  ingest over the example's copied profile; the profile-owned tracer over the
+  knowledge-manager corpus-ingest profile is pending (#251), so this use case is
+  specified, not yet behaviorally proven here.
 
   Chroma does not embed text server-side over its raw HTTP API, so the vector is
   computed by the embed word and threaded into the Chroma add word using the
@@ -18,9 +22,11 @@ actor: Profile maintainer or operator ingesting a repository corpus.
 
 trigger: |
   A maintainer runs the Chroma corpus integration target with a running Chroma
-  server and a reachable Ollama:
+  server and a reachable Ollama. The target currently lives in the example
+  (examples/chatbot-mesh, ingest over the copied profile); a profile-owned
+  equivalent is pending (#251):
 
-    AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma
+    AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma   # in examples/chatbot-mesh
 
 preconditions:
   - A Chroma server is running against a persistence directory (chroma run --path <dir>), started by the harness or operator, not the agent.

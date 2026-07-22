@@ -15,6 +15,23 @@ var subModules = []string{
 	"design-patterns",
 }
 
+// exampleModules are standalone example modules that participate in the root
+// audit and Go-test gates but expose no build, stats, or default target. Each
+// owns a mage audit target and Go tests under magefiles/, so the root gate runs
+// those two directly rather than the full submodule target set. They are absent
+// from Build, Stats, and All because they define no such targets: an example is
+// a deployable artifact governed by its own spec corpus, not a platform module.
+var exampleModules = []string{
+	"examples/chatbot-mesh",
+}
+
+// auditParticipants lists every module the root audit gate dispatches to: the
+// platform submodules plus the example modules, all of which own a mage audit
+// target.
+func auditParticipants() []string {
+	return append(append([]string{}, subModules...), exampleModules...)
+}
+
 type buildRunner func(string) error
 
 // All runs the default mage target in each sub-module (default target).

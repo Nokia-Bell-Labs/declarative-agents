@@ -220,10 +220,14 @@ implementation_status:
         observability, Helm deployment, in-cluster model tier) is implemented, with
         the agents, UX, chart, and specs in this directory.
     - done: The example's own magefile audit and integration entries (chroma,
-        rag-server, chatbot, helm smoke/swap/llm-tier, provisioning, control plane).
-    - done: The control plane (coordinator srd004, creator srd005, and the
-        executor deployment surface srd006), realized as mage integration:controlPlane
-        (rel05.0).
+        rag-server, chatbot, helm smoke/swap/llm-tier, control plane).
+    - done: The control-plane coordinator (srd004) and creator (srd005), realized
+        as mage integration:controlPlane (rel05.0, deterministic, driving a fake
+        deployment API).
+    - planned: The executor deployment surface (srd006) that replaces the Go
+        provisioner. Its behavioral tracer mage integration:executor is not yet
+        implemented, so integration:controlPlane is not executor evidence
+        (test-rel06.0-executor is planned).
 
 related_documents:
   - doc: docs/VISION.yaml
