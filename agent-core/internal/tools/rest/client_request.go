@@ -414,12 +414,15 @@ func validateCIDR(host string, policy NetworkPolicy) error {
 	if err != nil {
 		return err
 	}
+	if len(ips) == 0 {
+		return fmt.Errorf("host %q resolved to no addresses", host)
+	}
 	for _, ip := range ips {
-		if ipAllowedByCIDR(ip, policy.CIDRs) {
-			return nil
+		if !ipAllowedByCIDR(ip, policy.CIDRs) {
+			return fmt.Errorf("host %q resolves outside CIDR policy: %s", host, ip)
 		}
 	}
-	return fmt.Errorf("host %q is not allowed by CIDR policy", host)
+	return nil
 }
 
 func hostIPs(host string) ([]net.IP, error) {
