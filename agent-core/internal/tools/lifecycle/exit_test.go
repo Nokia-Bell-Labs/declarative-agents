@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -27,53 +28,84 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestExitAgentEmitsAgentExited(t *testing.T) {
+func TestExitAgentStatusAndOutput(t *testing.T) {
 	t.Parallel()
-	var shutdownCalled bool
-	cmd := (ExitBuilder{
-		Config:   ExitConfig{Reason: "operator", Status: "success", DrainPolicy: "stop_servers"},
-		Shutdown: func() { shutdownCalled = true },
-	}).Build(core.Result{})
+	tests := []struct {
+		name       string
+		config     ExitConfig
+		previous   string
+		wantOutput map[string]string
+		wantErr    string
+	}{
+		{
+			name: "omitted config defaults to success",
+			wantOutput: map[string]string{
+				"reason": "operator requested shutdown", "status": "success",
+				"drain_policy": "", "signal": "AgentExited",
+			},
+		},
+		{
+			name:   "explicit success",
+			config: ExitConfig{Reason: "operator", Status: "success", DrainPolicy: "stop_servers"},
+			wantOutput: map[string]string{
+				"reason": "operator", "status": "success",
+				"drain_policy": "stop_servers", "signal": "AgentExited",
+			},
+		},
+		{
+			name:   "explicit failure",
+			config: ExitConfig{Reason: "tool failed", Status: "failed"},
+			wantOutput: map[string]string{
+				"reason": "tool failed", "status": "failed",
+				"drain_policy": "", "signal": "AgentExited",
+			},
+		},
+		{
+			name:     "unrelated runtime payload preserves config",
+			config:   ExitConfig{Reason: "default reason", Status: "success", DrainPolicy: "stop_servers"},
+			previous: `{"payload":{"operator":"tester"}}`,
+			wantOutput: map[string]string{
+				"reason": "default reason", "status": "success",
+				"drain_policy": "stop_servers", "signal": "AgentExited",
+			},
+		},
+		{
+			name:     "runtime payload overrides config",
+			config:   ExitConfig{Reason: "default reason", Status: "success", DrainPolicy: "stop_servers"},
+			previous: `{"payload":{"reason":"runtime reason","status":"failed","drain_policy":"drain_then_stop","checkpoint_id":"cp-1"}}`,
+			wantOutput: map[string]string{
+				"reason": "runtime reason", "status": "failed", "drain_policy": "drain_then_stop",
+				"checkpoint_id": "cp-1", "signal": "AgentExited",
+			},
+		},
+		{
+			name:     "malformed runtime status",
+			previous: `{"payload":{"status":42}}`,
+			wantErr:  `payload field "status" must be a string`,
+		},
+	}
 
-	res := cmd.Execute()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			shutdownCalled := false
+			res := (ExitBuilder{
+				Config:   tt.config,
+				Shutdown: func() { shutdownCalled = true },
+			}).Build(core.Result{Output: tt.previous}).Execute()
 
-	require.Equal(t, core.Signal("AgentExited"), res.Signal)
-	require.True(t, shutdownCalled)
-	require.Contains(t, res.Output, "operator")
-}
-
-func TestExitAgentUsesRuntimeEventPayload(t *testing.T) {
-	t.Parallel()
-	previous := core.Result{Output: `{"payload":{"reason":"runtime reason","status":"failed","drain_policy":"drain_then_stop","checkpoint_id":"cp-1"}}`}
-	cmd := (ExitBuilder{
-		Config:   ExitConfig{Reason: "default reason", Status: "success", DrainPolicy: "stop_servers"},
-		Shutdown: func() {},
-	}).Build(previous)
-
-	res := cmd.Execute()
-	output := requireExitOutput(t, res)
-
-	require.Equal(t, core.Signal("AgentExited"), res.Signal)
-	require.Equal(t, "runtime reason", output["reason"])
-	require.Equal(t, "failed", output["status"])
-	require.Equal(t, "drain_then_stop", output["drain_policy"])
-	require.Equal(t, "cp-1", output["checkpoint_id"])
-	require.Equal(t, "AgentExited", output["signal"])
-}
-
-func TestExitAgentPreservesConfigDefaultsWithoutPayloadValues(t *testing.T) {
-	t.Parallel()
-	cmd := (ExitBuilder{
-		Config:   ExitConfig{Reason: "default reason", Status: "success", DrainPolicy: "stop_servers"},
-		Shutdown: func() {},
-	}).Build(core.Result{Output: `{"payload":{"operator":"tester"}}`})
-
-	output := requireExitOutput(t, cmd.Execute())
-
-	require.Equal(t, "default reason", output["reason"])
-	require.Equal(t, "success", output["status"])
-	require.Equal(t, "stop_servers", output["drain_policy"])
-	require.Equal(t, "AgentExited", output["signal"])
+			if tt.wantErr != "" {
+				require.Equal(t, core.CommandError, res.Signal)
+				require.ErrorContains(t, res.Err, tt.wantErr)
+				assert.False(t, shutdownCalled)
+				return
+			}
+			require.Equal(t, core.Signal("AgentExited"), res.Signal)
+			require.Equal(t, "exit_agent", res.CommandName)
+			assert.True(t, shutdownCalled)
+			assert.Equal(t, tt.wantOutput, requireExitOutput(t, res))
+		})
+	}
 }
 
 func TestExitAgentRejectsMalformedPreviousResult(t *testing.T) {
