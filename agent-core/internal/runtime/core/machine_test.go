@@ -280,10 +280,9 @@ func transitionMetricLabelYAML(label string) string {
 	return strings.Replace(validYAML, "    action: do_work", "    action: do_work\n    metric_labels:\n      "+label, 1)
 }
 
-func TestParseMachineSpec_RichValidationErrorsUseNames(t *testing.T) {
+func TestParseMachineSpecValidationErrors(t *testing.T) {
 	t.Parallel()
-
-	yaml := `
+	richConflicts := `
 name: rich-bad
 initial_state: Start
 states:
@@ -298,110 +297,34 @@ transitions:
     signal: MissingSignal
     next: Missing
 `
-	_, err := ParseMachineSpec([]byte(yaml))
-	if err == nil {
-		t.Fatal("expected validation error")
+	tests := []struct {
+		name  string
+		yaml  string
+		wants []string
+	}{
+		{name: "missing initial state", yaml: strings.Replace(validYAML, "initial_state: Idle\n", "", 1), wants: []string{"initial_state is required"}},
+		{name: "unknown transition state", yaml: strings.Replace(validYAML, "state: Idle", "state: Missing", 1), wants: []string{`state "Missing" not in states list`}},
+		{name: "unknown transition signal", yaml: strings.Replace(validYAML, "signal: Start", "signal: Missing", 1), wants: []string{`signal "Missing" not in signals list`}},
+		{name: "unknown terminal state", yaml: strings.Replace(validYAML, "terminal_states: [Done, Error]", "terminal_states: [Done, Missing]", 1), wants: []string{`terminal_state "Missing" not in states list`}},
+		{
+			name: "rich names and conflicting references", yaml: richConflicts,
+			wants: []string{
+				"states[1]: name is required",
+				"signals[1]: name is required",
+				`terminal_state "Missing" not in states list`,
+				`signal "MissingSignal" not in signals list`,
+			},
+		},
 	}
-	for _, want := range []string{
-		"states[1]: name is required",
-		"signals[1]: name is required",
-		`terminal_state "Missing" not in states list`,
-		`signal "MissingSignal" not in signals list`,
-	} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("error %q missing %q", err.Error(), want)
-		}
-	}
-}
-
-func TestParseMachineSpec_MissingInitialState(t *testing.T) {
-	t.Parallel()
-
-	yaml := `
-name: bad
-states: [A]
-terminal_states: [A]
-signals: [S]
-transitions:
-  - state: A
-    signal: S
-    next: A
-`
-	_, err := ParseMachineSpec([]byte(yaml))
-	if err == nil {
-		t.Fatal("expected error for missing initial_state")
-	}
-	if !strings.Contains(err.Error(), "initial_state is required") {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestParseMachineSpec_UnknownStateInTransition(t *testing.T) {
-	t.Parallel()
-
-	yaml := `
-name: bad
-initial_state: A
-states: [A, B]
-terminal_states: [B]
-signals: [Go]
-transitions:
-  - state: C
-    signal: Go
-    next: B
-`
-	_, err := ParseMachineSpec([]byte(yaml))
-	if err == nil {
-		t.Fatal("expected error for unknown state in transition")
-	}
-	if !strings.Contains(err.Error(), `state "C" not in states list`) {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestParseMachineSpec_UnknownSignalInTransition(t *testing.T) {
-	t.Parallel()
-
-	yaml := `
-name: bad
-initial_state: A
-states: [A, B]
-terminal_states: [B]
-signals: [Go]
-transitions:
-  - state: A
-    signal: Unknown
-    next: B
-`
-	_, err := ParseMachineSpec([]byte(yaml))
-	if err == nil {
-		t.Fatal("expected error for unknown signal in transition")
-	}
-	if !strings.Contains(err.Error(), `signal "Unknown" not in signals list`) {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestParseMachineSpec_TerminalNotInStates(t *testing.T) {
-	t.Parallel()
-
-	yaml := `
-name: bad
-initial_state: A
-states: [A]
-terminal_states: [Z]
-signals: [Go]
-transitions:
-  - state: A
-    signal: Go
-    next: A
-`
-	_, err := ParseMachineSpec([]byte(yaml))
-	if err == nil {
-		t.Fatal("expected error for terminal state not in states list")
-	}
-	if !strings.Contains(err.Error(), `terminal_state "Z" not in states list`) {
-		t.Errorf("unexpected error: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := ParseMachineSpec([]byte(tt.yaml))
+			require.Error(t, err)
+			for _, want := range tt.wants {
+				assert.ErrorContains(t, err, want)
+			}
+		})
 	}
 }
 
