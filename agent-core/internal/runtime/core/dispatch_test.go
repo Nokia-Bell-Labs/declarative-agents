@@ -77,6 +77,38 @@ func TestSafeExecute_TimeoutAndIndefiniteWait(t *testing.T) {
 	require.Greater(t, wait.Cost.Duration, time.Duration(0))
 }
 
+func TestSafeExecute_CompletionTimeoutRaceHasSingleResultOwner(t *testing.T) {
+	t.Parallel()
+	for range 500 {
+		result := SafeExecute(dispatchResultCmd{name: "racy", res: Result{Signal: ToolDone}}, time.Nanosecond)
+		if result.Signal == CommandError {
+			require.ErrorContains(t, result.Err, "timeout executing racy")
+			continue
+		}
+		require.Equal(t, ToolDone, result.Signal)
+		require.NoError(t, result.Err)
+	}
+}
+
+func TestSafeExecute_LegacyWorkerCanFinishAfterTimeout(t *testing.T) {
+	t.Parallel()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	finished := make(chan struct{})
+	cmd := &dispatchBlockingCmd{started: started, release: release, finished: finished}
+
+	result := SafeExecute(cmd, time.Millisecond)
+	require.Equal(t, CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "timeout executing blocking")
+	<-started
+	close(release)
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("legacy worker remained blocked after command returned")
+	}
+}
+
 func TestFillDurationAndForceErrorSignal(t *testing.T) {
 	t.Parallel()
 	start := time.Now().Add(-time.Millisecond)
@@ -92,6 +124,21 @@ func TestFillDurationAndForceErrorSignal(t *testing.T) {
 	FillDuration(&kept, start)
 	require.Equal(t, 10*time.Millisecond, kept.Cost.Duration)
 }
+
+type dispatchBlockingCmd struct {
+	started  chan struct{}
+	release  chan struct{}
+	finished chan struct{}
+}
+
+func (c *dispatchBlockingCmd) Name() string { return "blocking" }
+func (c *dispatchBlockingCmd) Execute() Result {
+	close(c.started)
+	<-c.release
+	close(c.finished)
+	return Result{Signal: ToolDone}
+}
+func (c *dispatchBlockingCmd) Undo(Result) Result { return NoopUndo(c.Name()) }
 
 func TestDispatchWithMonitor_EmitsDispatchMetrics(t *testing.T) {
 	t.Parallel()

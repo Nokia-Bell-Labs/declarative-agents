@@ -62,27 +62,30 @@ func dispatchWithMonitor(
 	return res
 }
 
-// SafeExecute runs a command with panic recovery and optional timeout.
-func SafeExecute(cmd Command, timeout time.Duration) (res Result) {
-	done := make(chan struct{})
+// SafeExecute runs a command with panic recovery and optional timeout. Legacy
+// commands that outlive a timeout detach, but their single buffered result send
+// can always complete without racing or blocking on the returned timeout value.
+func SafeExecute(cmd Command, timeout time.Duration) Result {
+	results := make(chan Result, 1)
 	start := time.Now()
 
 	go func() {
+		var result Result
 		defer func() {
 			if r := recover(); r != nil {
-				res = Result{
+				result = Result{
 					Signal: CommandError,
 					Err:    fmt.Errorf("panic in %s: %v", cmd.Name(), r),
 					Output: fmt.Sprintf("panic: %v", r),
 				}
 			}
-			close(done)
+			results <- result
 		}()
-		res = cmd.Execute()
+		result = cmd.Execute()
 	}()
 
 	if timeout <= 0 {
-		<-done
+		res := <-results
 		FillDuration(&res, start)
 		ForceErrorSignal(&res)
 		return res
@@ -92,7 +95,7 @@ func SafeExecute(cmd Command, timeout time.Duration) (res Result) {
 	defer timer.Stop()
 
 	select {
-	case <-done:
+	case res := <-results:
 		FillDuration(&res, start)
 		ForceErrorSignal(&res)
 		return res
