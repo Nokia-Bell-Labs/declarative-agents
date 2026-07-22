@@ -93,10 +93,13 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	if err := kindCreateCluster(helmKindCluster); err != nil {
+	created, err := kindCreateCluster(helmKindCluster)
+	if err != nil {
 		return err
 	}
-	defer kindDeleteCluster(helmKindCluster)
+	if created {
+		defer deleteOwnedKindCluster(created, helmKindCluster, kindDeleteCluster)
+	}
 
 	if err := kindLoadImage(helmKindCluster, helmImage); err != nil {
 		return err
@@ -214,17 +217,29 @@ func copyDirContents(src, dst string) error {
 	return nil
 }
 
-func kindCreateCluster(name string) error {
-	if kindClusterExists(name) {
+func kindCreateCluster(name string) (bool, error) {
+	return ensureKindCluster(name, kindClusterExists, func(name string) error {
+		cmd := exec.Command("kind", "create", "cluster", "--name", name, "--wait", "120s")
+		cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+		return cmd.Run()
+	})
+}
+
+func ensureKindCluster(name string, exists func(string) bool, create func(string) error) (bool, error) {
+	if exists(name) {
 		fmt.Printf("helmSmoke: reusing existing kind cluster %s\n", name)
-		return nil
+		return false, nil
 	}
-	cmd := exec.Command("kind", "create", "cluster", "--name", name, "--wait", "120s")
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("kind create cluster %s: %w", name, err)
+	if err := create(name); err != nil {
+		return false, fmt.Errorf("kind create cluster %s: %w", name, err)
 	}
-	return nil
+	return true, nil
+}
+
+func deleteOwnedKindCluster(created bool, name string, deleteCluster func(string)) {
+	if created {
+		deleteCluster(name)
+	}
 }
 
 func kindClusterExists(name string) bool {
@@ -420,10 +435,13 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	if err := kindCreateCluster(helmSwapCluster); err != nil {
+	created, err := kindCreateCluster(helmSwapCluster)
+	if err != nil {
 		return err
 	}
-	defer kindDeleteCluster(helmSwapCluster)
+	if created {
+		defer deleteOwnedKindCluster(created, helmSwapCluster, kindDeleteCluster)
+	}
 	if err := kindLoadImage(helmSwapCluster, helmImage); err != nil {
 		return err
 	}
@@ -625,10 +643,13 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	if err := kindCreateCluster(helmLLMCluster); err != nil {
+	created, err := kindCreateCluster(helmLLMCluster)
+	if err != nil {
 		return err
 	}
-	defer kindDeleteCluster(helmLLMCluster)
+	if created {
+		defer deleteOwnedKindCluster(created, helmLLMCluster, kindDeleteCluster)
+	}
 	if err := kindLoadImage(helmLLMCluster, helmImage); err != nil {
 		return err
 	}
