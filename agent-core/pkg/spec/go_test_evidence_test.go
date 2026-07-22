@@ -136,3 +136,75 @@ func TestBareTestNames(t *testing.T) {
 		t.Errorf("descriptive prose is not a bare-name list")
 	}
 }
+
+// TestTopLevelBranchesSplitsOnlyOutsideGroups asserts alternation splitting
+// treats a top-level "|" as separate named proofs while leaving group
+// alternation (a shared-prefix shorthand) and malformed patterns whole.
+func TestTopLevelBranchesSplitsOnlyOutsideGroups(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		want    []string
+	}{
+		{"single name", "TestFoo", []string{"TestFoo"}},
+		{"top-level alternation", "TestFoo|TestBar", []string{"TestFoo", "TestBar"}},
+		{"group alternation stays whole", "Test(Foo|Bar)", []string{"Test(Foo|Bar)"}},
+		{
+			"mixed group and top-level",
+			"TestDispatch_(A|B)|TestOther",
+			[]string{"TestDispatch_(A|B)", "TestOther"},
+		},
+		{"character class stays whole", "Test[A|B]oo", []string{"Test[A|B]oo"}},
+		{"escaped pipe is not a split", `TestFoo\|Bar`, []string{`TestFoo\|Bar`}},
+		{"unbalanced group is not split", "Test(Foo|Bar", []string{"Test(Foo|Bar"}},
+		{"empty branch is not split", "TestFoo|", []string{"TestFoo|"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := topLevelBranches(tt.pattern)
+			if strings.Join(got, "\x00") != strings.Join(tt.want, "\x00") {
+				t.Errorf("topLevelBranches(%q) = %v, want %v", tt.pattern, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestCheckRunPatternRequiresEveryBranchToMatch is the GH-592 regression guard:
+// a command whose other branch still matches must not pass while one named proof
+// matches nothing.
+func TestCheckRunPatternRequiresEveryBranchToMatch(t *testing.T) {
+	inv := testInventory()
+	specPkg := "example.com/mod/pkg/spec"
+
+	if got := inv.checkRunPattern("TestFoo|TestBar", []string{specPkg}); got != "" {
+		t.Errorf("both branches exist, want pass, got %q", got)
+	}
+
+	got := inv.checkRunPattern("TestFoo|TestNotHere", []string{specPkg})
+	if got == "" {
+		t.Fatal("a branch matching no test must fail even when another branch matches")
+	}
+	for _, want := range []string{"TestNotHere", "matches no test"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("problem %q missing %q", got, want)
+		}
+	}
+	// The whole-pattern message is reserved for a single-branch miss, so the
+	// report points at the offending name rather than the entire command.
+	if !strings.Contains(got, "names") {
+		t.Errorf("multi-branch miss should name the branch, got %q", got)
+	}
+
+	if got := inv.checkRunPattern("TestNotHere", []string{specPkg}); !strings.Contains(got, "matches no test") {
+		t.Errorf("single-branch miss should still report, got %q", got)
+	}
+}
+
+// TestCheckRunPatternGroupAlternationUnchanged asserts a shared-prefix group is
+// still judged as one proof, so an existing command keeps passing.
+func TestCheckRunPatternGroupAlternationUnchanged(t *testing.T) {
+	inv := testInventory()
+	if got := inv.checkRunPattern("Test(Foo|NotHere)", []string{"example.com/mod/pkg/spec"}); got != "" {
+		t.Errorf("group alternation should match as one pattern, got %q", got)
+	}
+}
