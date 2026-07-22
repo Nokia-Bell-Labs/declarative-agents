@@ -25,8 +25,8 @@ func TestCollectMonitorControlEvidenceRecordsRoutesAndLifecycleBoundary(t *testi
 	if evidence.ControlLifecycleSignal != "AgentExited" {
 		t.Fatalf("control lifecycle signal = %q", evidence.ControlLifecycleSignal)
 	}
-	if !evidence.MonitorListenerCleanup {
-		t.Fatalf("expected monitor listener cleanup evidence: %#v", evidence)
+	if !evidence.MonitorStopTransition {
+		t.Fatalf("expected declared monitor stop transition evidence: %#v", evidence)
 	}
 	if !evidence.HTTPHandlersEnqueueOnly {
 		t.Fatalf("expected enqueue-only lifecycle evidence: %#v", evidence)
@@ -43,7 +43,7 @@ func TestAssertMonitorControlEvidenceRejectsMissingLifecycleRouting(t *testing.T
 		MonitorControlRoute:     "/monitor/control/exit",
 		MonitorExitSignal:       "ExitRequested",
 		ControlLifecycleSignal:  "AgentExited",
-		MonitorListenerCleanup:  true,
+		MonitorStopTransition:   true,
 		HTTPHandlersEnqueueOnly: false,
 		TargetOwner:             "agent-profiles",
 	}

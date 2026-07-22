@@ -2,15 +2,16 @@ id: rel07.0-uc005-monitor-control-profile-boundary
 title: Monitor Control Profile Boundary
 
 summary: |
-  The monitor/control proof records profile-owned evidence for boundary runtime
-  behavior. Monitor exposes cached runtime state through declared REST routes,
-  accepts a control exit request, and routes cleanup through MachineSpec. Control
-  accepts a lifecycle exit request and routes it through visible lifecycle
-  vocabulary from ExitRequested to exit_agent and AgentExited.
+  The monitor/control proof records profile-owned load-and-wiring evidence for
+  declared boundary behavior. Monitor config exposes cached runtime state
+  through REST routes, accepts a control exit request, and declares cleanup
+  routing through MachineSpec. Control config accepts a lifecycle exit request
+  and declares visible routing from ExitRequested to exit_agent and AgentExited.
 
-  The proof stays configuration-level because monitor and control behavior is
-  encoded in profile-owned YAML assets while agent-core owns the REST and
-  lifecycle builtin implementations.
+  Runtime listener cleanup is exercised by monitor conformance. This proof stays
+  configuration-level because monitor and control behavior is encoded in
+  profile-owned YAML assets while agent-core owns the REST and lifecycle
+  builtin implementations.
 
 actor: Profile maintainer verifying monitor/control boundary behavior.
 
@@ -34,7 +35,7 @@ flow:
   - id: F4
     text: The monitor MachineSpec routes ExitRequested to stop_monitor_rest, while control routes ExitRequested to exit_agent.
   - id: F5
-    text: The tracer records listener cleanup, AgentExited routing, and target ownership evidence.
+    text: The tracer records the declared monitor stop transition, AgentExited routing, and target ownership evidence.
 
 touchpoints:
   - id: T1
@@ -52,7 +53,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The tracer records implemented monitor/control boundary evidence.
+    criterion: The tracer records implemented monitor/control load-and-wiring evidence.
     traces:
       - test-rel07.0-profile-integrations monitor_control_boundary
   - id: S2

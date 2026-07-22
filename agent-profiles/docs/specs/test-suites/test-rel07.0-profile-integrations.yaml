@@ -152,9 +152,11 @@ test_cases:
     status: implemented
     description: |
       Record profile-owned monitor/control boundary evidence from the concrete
-      monitor and control YAML assets. The target proves monitor state routes,
+      monitor and control YAML assets. This is load-and-wiring evidence: the
+      target proves monitor state routes,
       control exit routes, emit_signal HTTP boundaries, MachineSpec lifecycle
-      routing, and monitor listener cleanup contracts.
+      routing, and the declared monitor stop transition. Runtime listener
+      shutdown is exercised by the separate monitor conformance test.
     inputs:
       monitor_profile: agents/monitor/profile.yaml
       control_profile: testdata/conformance/control/profile.yaml
@@ -162,7 +164,7 @@ test_cases:
     expected:
       monitor_state_exposed: true
       lifecycle_signal_routed: true
-      listener_released: true
+      monitor_stop_transition_declared: true
       http_handlers_enqueue_only: true
       target_owner: agent-profiles
     traces:

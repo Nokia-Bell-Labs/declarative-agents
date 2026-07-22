@@ -10,6 +10,6 @@ control_exit_route: /api/lifecycle/exit
 monitor_control_route: /monitor/control/exit
 monitor_exit_signal: ExitRequested
 control_lifecycle_signal: AgentExited
-monitor_listener_cleanup: true
+monitor_stop_transition_declared: true
 http_handlers_enqueue_only: true
 target_owner: agent-profiles
