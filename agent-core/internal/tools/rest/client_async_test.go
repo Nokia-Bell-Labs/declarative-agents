@@ -74,17 +74,6 @@ func TestRESTClient_AsyncCorrelationAndIdempotencyHeader(t *testing.T) {
 	requireAsyncCorrelationAndIdempotencyHeader(t)
 }
 
-func TestRESTClient_SafetyAndAsyncConformance(t *testing.T) {
-	t.Parallel()
-
-	t.Run("CIDR allowlist policy", requireCIDRAllowlistPolicy)
-	t.Run("response schema and domain error output", requireResponseSchemaAndDomainErrorOutput)
-	t.Run("async correlation and idempotency header", requireAsyncCorrelationAndIdempotencyHeader)
-	t.Run("async retry policy validation", requireAsyncRetryPolicyValidation)
-	t.Run("await_operation unknown reference rejected", requireAwaitOperationUnknownReferenceRejected)
-	t.Run("await_operation defined reference accepted", requireAwaitOperationDefinedReferenceAccepted)
-}
-
 func requireAsyncCorrelationAndIdempotencyHeader(t *testing.T) {
 	t.Helper()
 
