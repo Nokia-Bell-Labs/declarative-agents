@@ -98,6 +98,8 @@ functions:
 files:
   max_production_lines: 500
   split_rule: Split large files by responsibility before adding unrelated behavior.
+enforcement:
+  gate: internal/gostyle/size_test.go checks both limits across every production Go file in the module (tests, generated, Mage, and vendored code excluded). Files and functions over the limits today are grandfathered in internal/gostyle/size_baseline.txt; the gate fails on any new oversized file or function, and on any stale baseline entry once its code is split. Delete a baseline line as its file or function drops under the limit.
 configuration:
   rules:
   - Runtime agent behavior belongs in YAML profiles, machines, tools, and tool declarations.
