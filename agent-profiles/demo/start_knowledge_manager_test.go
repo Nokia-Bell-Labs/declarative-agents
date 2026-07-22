@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -235,12 +236,28 @@ func TestDocumentationCuratorMonitorIntegrationHTTP(t *testing.T) {
 
 	agentBin := buildCuratorIntegrationAgent(t, coreRoot)
 	tmpProfile := prepareDemoProfile(filepath.Join(profilesRoot, knowledgeManagerProfile), profilesRoot, coreRoot)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve monitor address: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	monitorAddress := listener.Addr().String()
+	restPath := filepath.Join(filepath.Dir(tmpProfile), "rest.yaml")
+	restConfig := readFile(restPath)
+	const shippedMonitorAddress = "127.0.0.1:18084"
+	if !strings.Contains(restConfig, shippedMonitorAddress) {
+		t.Fatalf("temp profile rest config does not contain monitor address %s", shippedMonitorAddress)
+	}
+	writeDemoFile(t, restPath, strings.Replace(restConfig, shippedMonitorAddress, monitorAddress, 1))
 
 	var logBuf bytes.Buffer
 	cmd := exec.Command(agentBin, "--profile", tmpProfile, "--directory", coreRoot, "--core-root", coreRoot)
 	cmd.Dir = profilesRoot
 	cmd.Stdout = &logBuf
 	cmd.Stderr = &logBuf
+	if err := listener.Close(); err != nil {
+		t.Fatalf("release reserved monitor address: %v", err)
+	}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start agent: %v", err)
 	}
@@ -252,7 +269,7 @@ func TestDocumentationCuratorMonitorIntegrationHTTP(t *testing.T) {
 		}
 	})
 
-	base := "http://127.0.0.1:18084"
+	base := "http://" + monitorAddress
 	pollHTTPStatus(t, base+"/monitor/state", http.StatusOK, 60*time.Second)
 	stateBody := mustGETBody(t, base+"/monitor/state")
 	if !strings.Contains(stateBody, `"run"`) {
