@@ -194,3 +194,78 @@ test_cases:
       - rel09.0-uc001-scenario-rig-run S1
       - rel09.0-uc001-scenario-rig-run S2
       - rel09.0-uc001-scenario-rig-run S3
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Scenario session iterates each scenario exactly once
+    go_test: go test ./internal/tools/service -run TestScenarioSession_IteratesEachScenarioOnce
+    status: implemented
+    description: |
+      The session seeds from discovery roots and walks every scenario once in
+      deterministic order, then reports the work list exhausted. This is the
+      cursor the assembler machine loops on (srd018 R1.1).
+    inputs:
+      tree: two subjects, three scenarios
+    expected:
+      visited_once_each: true
+      deterministic_order: true
+      exhausted_stays_exhausted: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S5
+      - srd040-service-child-tools AC4
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: A twin's runtime address reaches the subject's environment
+    go_test: go test ./internal/tools/service -run TestScenarioSteps_ThreadsTwinURLIntoSubject
+    status: implemented
+    description: |
+      A twin binds a port chosen at runtime, and the subject started for that
+      scenario observes the twin's base URL in its environment under the
+      variable derived from the fixture name. This is the dependency
+      redirection the pipeline depends on (srd018 R4.1); without it the
+      per-scenario steps cannot be expressed as machine transitions.
+    inputs:
+      fixture: mocks/dep.yaml
+    expected:
+      env_var_derived: DEP_URL
+      subject_observes_twin_url: true
+      subject_profile_resolved_from_scenario: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S1
+      - srd040-service-child-tools AC1
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: A failed scenario tears its children down and names its cause
+    go_test: go test ./internal/tools/service -run TestScenarioSteps_TeardownRunsOnFailurePath
+    status: implemented
+    description: |
+      A subject that never becomes healthy drives the health-timeout signal;
+      the machine routes to a forced verdict and teardown, leaving nothing
+      running, and the session report names the cause (srd018 R1.5, R6.2).
+    inputs:
+      subject: started but never serving
+      health_timeout: declared
+    expected:
+      health_timeout_signal: true
+      nothing_running_after_teardown: true
+      report_names_cause: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S3
+      - srd040-service-child-tools AC1
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Verdict passes only when every validator passed
+    go_test: go test ./internal/tools/service -run TestScenarioSession_VerdictNamesItsCause
+    status: implemented
+    description: |
+      A scenario passes only when all its validators passed; a failure names
+      the failing validator and why, and the aggregate names the first failing
+      scenario. An empty run does not pass (srd018 R6.1, R6.2).
+    inputs:
+      scenarios: [all-pass, one-failing, forced-reason]
+    expected:
+      pass_requires_all: true
+      failure_names_validator: true
+      empty_run_does_not_pass: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S4
+      - srd040-service-child-tools AC3

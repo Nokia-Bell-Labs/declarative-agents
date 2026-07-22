@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -469,4 +470,16 @@ func TestServiceCommand_UnsupportedInit(t *testing.T) {
 		Build(core.Result{}).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "unsupported service init")
+}
+
+// httpGetBody fetches a URL and returns its body, used to confirm a child
+// observed the environment it was started with.
+func httpGetBody(t *testing.T, url string) string {
+	t.Helper()
+	resp, err := http.Get(url)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return string(data)
 }

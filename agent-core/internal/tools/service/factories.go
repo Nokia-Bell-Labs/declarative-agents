@@ -18,11 +18,27 @@ const (
 	InitStopService   = "stop_service"
 	InitRunValidators = "run_validators"
 	InitListScenarios = "list_scenarios"
+
+	// The assembler's session words. Each per-scenario step reads the current
+	// scenario from the session, so the pipeline stays visible as machine
+	// transitions while working on data discovered at runtime (srd018 R1).
+	InitInitScenarioSession = "init_scenario_session"
+	InitNextScenario        = "next_scenario"
+	InitStartTwins          = "start_scenario_twins"
+	InitStartSubject        = "start_scenario_subject"
+	InitAwaitSubject        = "await_scenario_subject"
+	InitRunScenarioTests    = "run_scenario_validators"
+	InitCollectVerdict      = "collect_scenario_verdict"
+	InitTeardownScenario    = "teardown_scenario"
+	InitReportSession       = "report_session"
 )
 
 // StandardInits lists every service builtin init name.
 var StandardInits = []string{
 	InitStartService, InitAwaitHealthy, InitStopService, InitRunValidators, InitListScenarios,
+	InitInitScenarioSession, InitNextScenario, InitStartTwins, InitStartSubject,
+	InitAwaitSubject, InitRunScenarioTests, InitCollectVerdict, InitTeardownScenario,
+	InitReportSession,
 }
 
 // Result signals. Healthy and HealthTimeout are distinct so a machine can
@@ -37,6 +53,18 @@ const (
 	SignalValidatorsCompleted  core.Signal = "ValidatorsCompleted"
 	SignalValidatorsIncomplete core.Signal = "ValidatorsIncomplete"
 	SignalScenariosListed      core.Signal = "ScenariosListed"
+
+	SignalSessionSeeded    core.Signal = "SessionSeeded"
+	SignalNoScenarios      core.Signal = "NoScenarios"
+	SignalScenarioReady    core.Signal = "ScenarioReady"
+	SignalAllScenariosDone core.Signal = "AllScenariosDone"
+	SignalTwinsStarted     core.Signal = "TwinsStarted"
+	SignalSubjectStarted   core.Signal = "SubjectStarted"
+	SignalScenarioPassed   core.Signal = "ScenarioPassed"
+	SignalScenarioFailed   core.Signal = "ScenarioFailed"
+	SignalScenarioTornDown core.Signal = "ScenarioTornDown"
+	SignalSessionPassed    core.Signal = "SessionPassed"
+	SignalSessionFailed    core.Signal = "SessionFailed"
 )
 
 // ToolConfig is the declared config for every service word. Each word reads
@@ -57,17 +85,35 @@ type ToolConfig struct {
 
 	Validators []ValidatorSpec `yaml:"validators,omitempty"`
 	Roots      []string        `yaml:"roots,omitempty"`
+
+	// Reason forces a scenario verdict to fail with this text, so a machine
+	// can route a failed start or health step to a verdict that names the
+	// cause rather than an empty one.
+	Reason string `yaml:"reason,omitempty"`
+
+	// AddressEnv names the environment variable that carries the address the
+	// rig allocated to a child. A child binds a port the rig chose, so it has
+	// to be told which one: its profile declares address: ${VAR:-...} and this
+	// names that VAR. Defaults to TWIN_ADDRESS for twins and SUBJECT_ADDRESS
+	// for the subject.
+	AddressEnv string `yaml:"address_env,omitempty"`
 }
 
 // FactoryDeps holds service factory dependencies.
 type FactoryDeps struct {
-	State *State
+	State   *State
+	Session *ScenarioSessionState
 }
 
-// RegisterBuiltins registers every service builtin factory.
+// RegisterBuiltins registers every service builtin factory. The session and
+// the service state are shared across the words, so every child started during
+// a run is reachable for teardown.
 func RegisterBuiltins(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	if deps.State == nil {
 		deps.State = NewState()
+	}
+	if deps.Session == nil {
+		deps.Session = NewScenarioSession(deps.State)
 	}
 	for _, init := range StandardInits {
 		br.Register(init, factoryFor(init, deps))
@@ -83,7 +129,10 @@ func factoryFor(init string, deps FactoryDeps) toolregistry.BuiltinFactory {
 		if err := validateToolConfig(def.Name, init, cfg); err != nil {
 			return nil, err
 		}
-		return Builder{ToolName: def.Name, Init: init, Config: cfg, State: deps.State}, nil
+		return Builder{
+			ToolName: def.Name, Init: init, Config: cfg,
+			State: deps.State, Session: deps.Session,
+		}, nil
 	}
 }
 
@@ -113,9 +162,13 @@ func validateToolConfig(name, init string, cfg ToolConfig) error {
 				return fmt.Errorf("tool %q (%s) validator %d requires a profile", name, init, i)
 			}
 		}
-	case InitListScenarios:
+	case InitListScenarios, InitInitScenarioSession:
 		if len(cfg.Roots) == 0 {
 			return fmt.Errorf("tool %q (%s) requires at least one root", name, init)
+		}
+	case InitStartTwins:
+		if cfg.Profile == "" {
+			return fmt.Errorf("tool %q (%s) requires the twin profile", name, init)
 		}
 	}
 	return nil
@@ -127,11 +180,16 @@ type Builder struct {
 	Init     string
 	Config   ToolConfig
 	State    *State
+	Session  *ScenarioSessionState
 }
 
 // Build creates one service command.
 func (b Builder) Build(_ core.Result) core.Command {
-	return command{toolName: b.ToolName, init: b.Init, cfg: b.Config, state: b.State}
+	session := b.Session
+	if session == nil {
+		session = NewScenarioSession(b.State)
+	}
+	return command{toolName: b.ToolName, init: b.Init, cfg: b.Config, state: b.State, session: session}
 }
 
 type command struct {
@@ -139,6 +197,7 @@ type command struct {
 	init     string
 	cfg      ToolConfig
 	state    *State
+	session  *ScenarioSessionState
 }
 
 func (c command) Name() string { return c.toolName }
@@ -157,6 +216,24 @@ func (c command) ExecuteContext(ctx context.Context) core.Result {
 		return c.runValidators(ctx)
 	case InitListScenarios:
 		return c.listScenarios()
+	case InitInitScenarioSession:
+		return c.initSession()
+	case InitNextScenario:
+		return c.nextScenario()
+	case InitStartTwins:
+		return c.startTwins()
+	case InitStartSubject:
+		return c.startSubject()
+	case InitAwaitSubject:
+		return c.awaitSubject()
+	case InitRunScenarioTests:
+		return c.runScenarioValidators(ctx)
+	case InitCollectVerdict:
+		return c.collectVerdict()
+	case InitTeardownScenario:
+		return c.teardownScenario()
+	case InitReportSession:
+		return c.reportSession()
 	default:
 		return commandError(c.toolName, fmt.Errorf("unsupported service init %q", c.init))
 	}
@@ -167,12 +244,18 @@ func (c command) ExecuteContext(ctx context.Context) core.Result {
 // R3.3). The declarations must match this, or the corpus audit reports a
 // tool-undo mismatch.
 func (c command) Undo(_ core.Result) core.Result {
-	if c.init != InitStartService {
+	switch c.init {
+	case InitStartService:
+		output := c.state.Stop(c.cfg.Service, parseDuration(c.cfg.Grace, defaultStopGrace))
+		return core.Result{
+			Signal: SignalServiceStopped, CommandName: c.toolName, Output: jsonOutput(output),
+		}
+	case InitStartTwins, InitStartSubject:
+		// Both start children, so both reverse by tearing the scenario's
+		// children down rather than leaving a subtree running.
+		return c.teardownScenario()
+	default:
 		return core.NoopUndo(c.toolName)
-	}
-	output := c.state.Stop(c.cfg.Service, parseDuration(c.cfg.Grace, defaultStopGrace))
-	return core.Result{
-		Signal: SignalServiceStopped, CommandName: c.toolName, Output: jsonOutput(output),
 	}
 }
 
