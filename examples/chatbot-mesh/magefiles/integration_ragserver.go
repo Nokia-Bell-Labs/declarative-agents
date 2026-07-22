@@ -40,7 +40,11 @@ func (Integration) RagServer() error {
 	if err := requireProfilePaths(profilesRoot, ragServerProfile, chromaIngestProfile, corpusRestAsset); err != nil {
 		return err
 	}
-	if reason := chromaOllamaSkipReason(profilesRoot); reason != "" {
+	requiredModels, err := chromaRequiredModels(profilesRoot)
+	if err != nil {
+		return fmt.Errorf("invalid shipped RAG model config: %w", err)
+	}
+	if reason := chromaOllamaSkipReasonForModels(requiredModels); reason != "" {
 		fmt.Printf("SKIP ragServer: %s\n", reason)
 		return nil
 	}
@@ -61,10 +65,9 @@ func runRagServerIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("create chroma data dir: %w", err)
 	}
 	defer os.RemoveAll(dataDir)
-	containerID, err := startChromaContainer(dataDir)
+	containerID, err := startRequiredChromaContainer(dataDir, startChromaContainer)
 	if err != nil {
-		fmt.Printf("SKIP ragServer: %s\n", err)
-		return nil
+		return fmt.Errorf("rag-server dependency startup: %w", err)
 	}
 	defer stopChromaContainer(containerID)
 
