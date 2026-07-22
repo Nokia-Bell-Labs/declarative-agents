@@ -1,0 +1,154 @@
+id: eng01-kind-test-demo-rig
+title: "Standard kind Rig for Agent Integration Tests and Demos"
+
+introduction: |
+  Every example in this repository needs the same two capabilities: an
+  integration test that proves the mesh works on a real Kubernetes
+  cluster, and a demo a person can drive from a browser or terminal.
+  The chatbot-mesh example grew a working rig for both in its magefiles:
+  dependency gating, image bake, kind image load, a chart values overlay
+  for cluster runs, pre-existing-cluster detection, and teardown in all
+  paths. Nothing in that rig is specific to chatbot-mesh, and each new
+  example would otherwise re-invent it with small divergences.
+
+  This guideline standardizes the rig. It fixes the toolchain, the
+  cluster lifecycle, image delivery, network access, the mage verbs
+  every example exposes, and failure evidence capture. We assume docker
+  as the container engine and kind (Kubernetes in Docker) as the cluster
+  runtime; helm delivers the charts. Podman support is deferred but the
+  design keeps the engine behind an interface so it can be added without
+  reworking the rig.
+
+sections:
+  - title: "Toolchain and preflight"
+    content: |
+      The rig depends on four host binaries. Nothing else may be assumed
+      on the host; everything further runs inside the cluster.
+
+      Table 1: Required host toolchain
+
+      | Tool | Role | Failure mode when absent |
+      |------|------|--------------------------|
+      | docker | Builds images, hosts the kind nodes | Integration targets skip; demo targets fail with install instructions |
+      | kind | Creates and deletes the cluster, loads images | Same as docker |
+      | helm | Installs and upgrades the example charts | Same as docker |
+      | kubectl | Waits, port-forwards, collects evidence | Same as docker |
+
+      Integration targets keep the existing chatbot-mesh convention:
+      when a binary is missing they skip and name the missing dependency
+      rather than failing, so a laptop without docker can still run unit
+      tests. Demo targets invert this: a person asked for the demo, so a
+      missing tool is an error with a one-line install pointer.
+
+      Versions are pinned in one checked-in place. The kind node image
+      is coupled to the kind binary version, and helm and kubectl skew
+      against the cluster version, so unpinned tools produce different
+      clusters on different machines. A preflight target (mage doctor)
+      checks binary presence, minimum versions, and, on macOS, that the
+      docker virtual machine has enough CPU and memory for a mesh plus
+      its observability stack; an undersized virtual machine presents as
+      pods pending forever, and the preflight turns that into a clear
+      message before any cluster is created.
+
+  - title: "Cluster lifecycle"
+    content: |
+      Each scenario owns one named cluster, `da-<example>-<scenario>`,
+      created from a checked-in kind configuration file next to the
+      scenario. The configuration pins the node image by version and
+      digest (`kindest/node:vX.Y.Z@sha256:...`) and declares any
+      `extraPortMappings`. Creating a cluster without a configuration
+      file is not permitted; the file is what makes two machines produce
+      the same cluster.
+
+      Clusters are disposable by default. A target that creates a
+      cluster deletes it in all exit paths, including failure. The one
+      exception is the existing reuse convention: when the named cluster
+      already exists before the target runs, the target reuses it and
+      leaves it in place, so a developer iterating on a chart keeps the
+      multi-minute cluster creation out of the loop.
+
+      Readiness is observed, never assumed. Targets wait with
+      `kubectl wait --for=condition=Ready` and `kubectl rollout status`
+      with explicit timeouts. Sleep loops are not permitted.
+
+  - title: "Image delivery"
+    content: |
+      Images are built from the current checkout and tagged with the
+      short git commit hash, never `latest`. The build target bakes the
+      binary into a minimal runtime image and loads it into the cluster
+      with `kind load docker-image`. The chart's kind values overlay
+      sets `pullPolicy: IfNotPresent` so the loaded image is used and
+      the cluster never reaches for a registry.
+
+      Image loading stays behind the runner interface the chatbot-mesh
+      rig already uses for kind subcommands. When load times become a
+      problem, or when podman support arrives, the documented kind
+      local-registry pattern replaces `kind load` behind that interface
+      without touching scenario code.
+
+  - title: "Network access"
+    content: |
+      Tests and demos reach the cluster differently. Integration tests
+      use `kubectl port-forward` because the forward lives and dies with
+      the test process and needs no cluster add-ons. Demos use an
+      ingress: the scenario's kind configuration maps host ports to the
+      ingress controller through `extraPortMappings`, the demo target
+      installs ingress-nginx, and every agent in the mesh is reachable
+      at a stable `localhost:<port>/<agent>` path the README can print.
+
+      Services of type LoadBalancer are not permitted in kind values
+      overlays; kind has no load balancer, and the service would pend
+      forever. A chart that needs one for production exposes it behind a
+      values switch that the kind overlay turns off.
+
+  - title: "Standard mage verbs"
+    content: |
+      Every example exposes the same verbs with the same contracts, so a
+      person who has run one example can run them all.
+
+      Table 2: Rig verbs each example exposes
+
+      | Verb | Contract |
+      |------|----------|
+      | doctor | Checks toolchain presence, versions, and host resources; reports, never mutates |
+      | demo:up | Creates or reuses the cluster, deploys the chart, prints the localhost URLs; fails on missing tools |
+      | demo:down | Deletes the demo cluster and nothing else |
+      | integration:* | One verb per proof (smoke, swap, policy); skips on missing tools; creates and deletes its own cluster; prints a one-line PASS statement naming what was proven |
+
+      The cluster-lifecycle code (create from configuration, reuse
+      detection, image load, teardown, log export) moves from the
+      chatbot-mesh magefiles into a shared package under the repository
+      root magefiles, and chatbot-mesh becomes the first consumer of the
+      shared package rather than the owner of the pattern. Each example
+      then ships only its scenario: a kind configuration, a chart with a
+      `ci/kind-values.yaml` overlay, and the assertions that make its
+      integration verbs meaningful.
+
+  - title: "Evidence and failure capture"
+    content: |
+      A failed cluster run must leave enough behind to diagnose without
+      re-running. On any integration failure the rig runs
+      `kind export logs` into the evidence directory the existing
+      test-evidence machinery manages, alongside `kubectl describe` and
+      pod logs for the namespaces the scenario touched. Successful runs
+      keep the existing convention of a single PASS line stating what
+      was proven, so transcript grep remains the audit trail.
+
+  - title: "Deferred: podman"
+    content: |
+      Podman can host kind through an experimental provider, but its
+      image-load path differs from docker's and its rootless mode adds
+      host requirements we do not want in the standard preflight yet.
+      We defer it. Two design constraints keep the door open: the rig
+      invokes the engine and kind only through the runner interface, and
+      no scenario code names docker outside the preflight. Adding podman
+      later means teaching the preflight to detect the engine and set
+      the kind provider environment variable, and swapping `kind load`
+      for the local-registry pattern.
+
+references:
+  - "kind Quick Start, https://kind.sigs.k8s.io/docs/user/quick-start/"
+  - "kind Local Registry, https://kind.sigs.k8s.io/docs/user/local-registry/"
+  - "kind Ingress, https://kind.sigs.k8s.io/docs/user/ingress/"
+  - "examples/chatbot-mesh/magefiles/integration_helm.go (existing rig this guideline generalizes)"
+  - "examples/chatbot-mesh/magefiles/test_evidence.go (evidence machinery)"

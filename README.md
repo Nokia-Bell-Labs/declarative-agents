@@ -10,6 +10,7 @@ Profile-driven runtime and design patterns for declarative, tool-augmented agent
 | [`agent-profiles/`](agent-profiles/) | External agent programs and profile YAML assets consumed by agent-core. |
 | [`examples/chatbot-mesh/`](examples/chatbot-mesh/) | Standalone, copyable example: the browser-facing chatbot mesh — a chatbot agent that fans one query embedding out to N Chroma-backed RAG servers and routes to a chat LLM, plus a control plane (a coordinator and creator that turn a provisioning intent into an ingest and a rollout through a deployment API). Ships its own docs/specs, agents, ux SPA, and Helm chart, runs on the agent-core image, and self-governs its corpus with `mage audit`. |
 | [`design-patterns/`](design-patterns/) | White paper source: *Design Patterns for Declarative Agents* — eleven patterns for building reliable agents (markdown, PlantUML, IEEE build). |
+| [`docs/engineering/`](docs/engineering/) | Engineering guidelines that span modules and examples, starting with the standard kind rig for integration tests and demos. |
 | [`magefiles/`](magefiles/) | Repository-wide build targets: release tagging, stats aggregation, sub-module dispatch. |
 
 ## Build
