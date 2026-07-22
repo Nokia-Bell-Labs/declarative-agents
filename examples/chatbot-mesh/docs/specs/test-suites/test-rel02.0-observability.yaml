@@ -22,7 +22,7 @@ test_cases:
   - use_case: rel02.0-uc001-observability
     name: Connected cross-agent trace tracer
     integration_target: mage integration:chatbot
-    go_test: go test ./magefiles -run TestChatResponse
+    go_test: go test ./magefiles -run '^TestChatResponseDecodesTrace$'
     status: implemented
     description: |
       Integration.Chatbot asserts one connected cross-agent trace: because the
