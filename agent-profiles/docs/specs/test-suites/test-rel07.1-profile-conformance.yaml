@@ -151,6 +151,41 @@ test_cases:
       - srd003-critic AC3
       - sm-agent-role-taxonomy evaluator
 
+  - family: critic
+    name: Critic shipped-profile sentence-word selection and machine wiring
+    status: implemented
+    test: magefiles/critic_wiring_test.go
+    coverage: load-and-wiring
+    coverage_note: |
+      Ungated and model-free; parses the shipped critic session and point assets
+      only. This assertion previously lived in an agent-core package test that
+      read these files across the module boundary, which srd034 assigns to the
+      repository owning the profile (GH-512).
+    description: |
+      Asserts, without a model, that the shipped critic selection asks for the
+      five words that replaced load_suite and no longer asks for load_suite, that
+      machine.yaml sequences those words through to the nested point advance, and
+      that point.yaml routes harness, oracle, and version-mismatch failures
+      onward to a summary rather than stranding the point.
+    expected:
+      retired_word_absent: load_suite
+      session_sequence:
+        - parse_suite_config
+        - discover_suite_samples
+        - expand_eval_grid
+        - init_eval_session
+        - report_suite_summary
+        - next_point
+      point_failure_signals_routed:
+        - HarnessFailed
+        - HarnessTimedOut
+        - OracleCheckFailed
+        - AgentVersionMismatch
+    traces:
+      - srd003-critic AC1
+      - srd003-critic AC3
+      - sm-agent-role-taxonomy evaluator
+
   - family: control
     name: Control signal-intake conformance
     status: implemented

@@ -1,0 +1,66 @@
+# Synthetic session-shaped machine for agent-core contract tests.
+#
+# It has the shape a sentence-tool session pipeline has -- each stage is
+# reached by the preceding stage's tool emitting a signal the next state
+# accepts -- without naming or reading any shipped agent profile. Core owns
+# the loader and emits-validation contract; agent-profiles owns the assertion
+# that a particular shipped profile is wired this way (GH-512).
+name: session_pipeline
+purpose: "Exercise the catalog loading and emits-validation contract."
+initial_state: Idle
+
+states:
+  - name: Idle
+    meaning: "No session has been seeded."
+  - name: Loading
+    meaning: "Reading the session input."
+  - name: Preparing
+    meaning: "Expanding the loaded input into work."
+  - name: Reporting
+    meaning: "Summarizing the prepared work."
+  - name: Done
+    meaning: "The session finished."
+  - name: Failed
+    meaning: "A stage failed."
+
+terminal_states:
+  - Done
+  - Failed
+
+signals:
+  - name: Seed
+    trigger: "The caller starts a session."
+  - name: Loaded
+    trigger: "The input was read."
+  - name: Prepared
+    trigger: "The work was expanded."
+  - name: Reported
+    trigger: "The summary was written."
+  - name: StepFailed
+    trigger: "A stage could not complete."
+
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Loading
+    action: load_input
+  - state: Loading
+    signal: Loaded
+    next: Preparing
+    action: prepare_work
+  - state: Preparing
+    signal: Prepared
+    next: Reporting
+    action: report_result
+  - state: Reporting
+    signal: Reported
+    next: Done
+  - state: Loading
+    signal: StepFailed
+    next: Failed
+  - state: Preparing
+    signal: StepFailed
+    next: Failed
+  - state: Reporting
+    signal: StepFailed
+    next: Failed
