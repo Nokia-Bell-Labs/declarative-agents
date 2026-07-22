@@ -73,6 +73,15 @@ func minimalState(t *testing.T) *State {
 	}
 }
 
+func markAllDone(t *testing.T, g *graph.Graph) {
+	t.Helper()
+	for _, node := range g.Nodes() {
+		require.NoError(t, node.MarkPlanning())
+		require.NoError(t, node.MarkExecuting())
+		require.NoError(t, node.MarkDone())
+	}
+}
+
 func TestExtractTaskBuilder_ExtractsTask(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
@@ -108,11 +117,7 @@ func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
 
-	for _, n := range ps.Graph.Nodes() {
-		_ = n.MarkPlanning()
-		_ = n.MarkExecuting()
-		_ = n.MarkDone()
-	}
+	markAllDone(t, ps.Graph)
 
 	builder := &ExtractTaskBuilder{PS: ps}
 	cmd := builder.Build(core.Result{})
@@ -155,11 +160,7 @@ func TestExtractAllBuilder_UndoRestoresPipelineState(t *testing.T) {
 func TestExtractAllBuilder_NoReady(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
-	for _, n := range ps.Graph.Nodes() {
-		_ = n.MarkPlanning()
-		_ = n.MarkExecuting()
-		_ = n.MarkDone()
-	}
+	markAllDone(t, ps.Graph)
 
 	builder := &ExtractAllBuilder{PS: ps}
 	cmd := builder.Build(core.Result{})
