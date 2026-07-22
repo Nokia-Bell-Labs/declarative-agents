@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -29,6 +30,7 @@ type intakeEndpoint struct {
 		} `yaml:"body_schema"`
 	} `yaml:"request"`
 	MachineRequest struct {
+		Machine       string `yaml:"machine"`
 		InitialSignal string `yaml:"initial_signal"`
 		Response      struct {
 			TerminalStates  map[string]struct{ Status int } `yaml:"terminal_states"`
@@ -261,5 +263,137 @@ func TestApplyMapsOutcomesByTerminalState(t *testing.T) {
 		if !terminal[state] {
 			t.Errorf("apply maps %q, which the machine does not declare terminal", state)
 		}
+	}
+}
+
+// The panel polls rollout progress from the coordinator, not from the deployment
+// API, which no browser may reach (srd003 R4.4, srd004 R1.3). The chain is
+// coordinator -> creator -> executor; these pin both hops the mesh owns (GH-684).
+
+// TestCoordinatorServesThePanelRolloutPoll proves the poll has somewhere to land.
+// After GH-681 the /provisioning prefix routes to the coordinator, so a missing
+// endpoint here would 404 the panel's poll rather than 403 it.
+func TestCoordinatorServesThePanelRolloutPoll(t *testing.T) {
+	rollout, ok := coordinatorIntentEndpoints(t)["rollout"]
+	if !ok {
+		t.Fatal("coordinator intent server declares no rollout endpoint; the panel's poll would 404")
+	}
+	if rollout.Method != "GET" {
+		t.Errorf("rollout method = %q, want GET", rollout.Method)
+	}
+	if rollout.Path != "/provisioning/api/rollout" {
+		t.Errorf("rollout path = %q, want /provisioning/api/rollout (the path useRollout polls)", rollout.Path)
+	}
+}
+
+// TestRolloutPollUsesItsOwnMachine proves a poll cannot disturb a reconfiguration
+// already in flight. Sharing the provisioning machine would put a read on the
+// same legs as an apply.
+func TestRolloutPollUsesItsOwnMachine(t *testing.T) {
+	endpoints := coordinatorIntentEndpoints(t)
+	rollout := endpoints["rollout"]
+	apply := endpoints["apply"]
+
+	if rollout.MachineRequest.Machine == "" {
+		t.Fatal("rollout endpoint names no machine")
+	}
+	if rollout.MachineRequest.Machine == apply.MachineRequest.Machine {
+		t.Errorf("rollout and apply share machine %q; a poll must not enter the apply legs", rollout.MachineRequest.Machine)
+	}
+
+	var machine intakeMachine
+	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), rollout.MachineRequest.Machine), &machine)
+	for _, tr := range machine.Transitions {
+		if tr.Action == "request_ingest" || tr.Action == "request_rollout" {
+			t.Errorf("the poll machine drives %q; a read applies nothing", tr.Action)
+		}
+	}
+}
+
+// TestRolloutReadFailureIsNotASuccessfulUnknown is the assertion that matters for
+// a poller. If a broken read returned 200 with an unknown phase, the panel would
+// show "progressing" forever and the operator would never learn the read failed.
+func TestRolloutReadFailureIsNotASuccessfulUnknown(t *testing.T) {
+	rollout := coordinatorIntentEndpoints(t)["rollout"]
+	states := rollout.MachineRequest.Response.TerminalStates
+	if len(states) == 0 {
+		t.Fatal("rollout maps no terminal states; a read failure and a successful read would share one status")
+	}
+
+	ok, present := states["StatusRead"]
+	if !present {
+		t.Fatal("rollout does not map StatusRead")
+	}
+	if ok.Status != 200 {
+		t.Errorf("StatusRead maps to %d, want 200", ok.Status)
+	}
+
+	failed, present := states["Failed"]
+	if !present {
+		t.Fatal("rollout does not map Failed; a read that cannot reach the creator would fall through")
+	}
+	if failed.Status < 400 {
+		t.Errorf("Failed maps to %d, which the panel reads as success", failed.Status)
+	}
+}
+
+// TestCreatorRolloutReadIsCoordinatorFacing proves the read exists on the creator
+// and stays off the browser path. The creator exposes no browser-facing surface
+// (srd005 R5.4) -- it is the only pod the executor admits to the apply surface, so
+// widening its reachability would widen the path to apply.
+func TestCreatorRolloutReadIsCoordinatorFacing(t *testing.T) {
+	var rest intakeRest
+	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "rest.yaml"), &rest)
+
+	server, ok := rest.Rest.Servers["creator_instance"]
+	if !ok {
+		t.Fatal("creator_instance server not declared")
+	}
+	rollout, ok := server.Endpoints["rollout"]
+	if !ok {
+		t.Fatal("creator declares no rollout read; the coordinator has nothing to poll")
+	}
+	if rollout.Method != "GET" {
+		t.Errorf("creator rollout method = %q, want GET", rollout.Method)
+	}
+	if rollout.MachineRequest.InitialSignal != "SeedHealth" {
+		t.Errorf("creator rollout initial_signal = %q, want SeedHealth (the verify leg alone)", rollout.MachineRequest.InitialSignal)
+	}
+
+	// The read must not be served on a browser-reachable path prefix. Only the
+	// coordinator's intent server carries /provisioning.
+	if strings.HasPrefix(rollout.Path, "/provisioning") {
+		t.Errorf("creator rollout path %q is on the browser prefix; the creator is coordinator-facing only", rollout.Path)
+	}
+
+	states := rollout.MachineRequest.Response.TerminalStates
+	if failed, present := states["Failed"]; !present || failed.Status < 400 {
+		t.Error("creator rollout does not map Failed to an error status; a failed read would surface as a healthy phase")
+	}
+}
+
+// TestCreatorHealthLegIsReusedNotDuplicated proves the read runs the existing
+// verify leg. A second way to read the same thing would drift from the first.
+func TestCreatorHealthLegIsReusedNotDuplicated(t *testing.T) {
+	var machine intakeMachine
+	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "request-machine.yaml"), &machine)
+
+	var seeded bool
+	for _, tr := range machine.Transitions {
+		if tr.State == "AwaitingRequest" && tr.Signal == "SeedHealth" {
+			seeded = true
+			if tr.Action != "verify_health" {
+				t.Errorf("SeedHealth drives %q, want verify_health", tr.Action)
+			}
+			if tr.Next != "Verifying" {
+				t.Errorf("SeedHealth reaches %q, want Verifying", tr.Next)
+			}
+		}
+		if tr.State == "AwaitingRequest" && tr.Signal == "SeedHealth" && tr.Action == "apply_instance" {
+			t.Error("the rollout read drives apply_instance; a poll applies nothing")
+		}
+	}
+	if !seeded {
+		t.Fatal("no AwaitingRequest + SeedHealth transition; the read-only leg does not exist")
 	}
 }

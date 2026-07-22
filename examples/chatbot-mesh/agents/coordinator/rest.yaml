@@ -138,6 +138,25 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
+        creator_rollout_status:
+          # Read the rollout status the creator reads from the deployment API, so
+          # the coordinator can aggregate progress for the panel (srd004 R1.3). A
+          # read: it drives no instance operation and decides nothing. GH-684.
+          method: GET
+          path: /api/v1/rollout
+          params:
+            body_source: none
+          success: {status: [200], signal: StatusRead}
+          response:
+            output:
+              phase: $.phase
+          side_effects:
+            - kind: external_api
+              target: creator.rollout
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
 
   servers:
     coordinator_intent:
@@ -256,6 +275,38 @@ rest:
                     stage: $.failure_stage
                     message: $.message
                     operation: $.operation
+        rollout:
+          # The panel's rollout poll (srd004 R1.3). It reads progress here rather
+          # than from the deployment API, which no browser may reach (srd003 R4.4).
+          # Its own machine, because a poll is a read and must not enter the ingest
+          # or rollout legs of the provisioning machine. GH-684.
+          method: GET
+          path: /provisioning/api/rollout
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: rollout-machine.yaml
+            timeout: 20s
+            request:
+              body: {}
+            response:
+              terminal_states:
+                StatusRead:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    phase: $.mapped.phase
+                # A poll that cannot read the status is an error, not a successful
+                # unknown phase: the panel would otherwise show "progressing"
+                # indefinitely while the read was broken.
+                Failed:
+                  status: 502
+                  content_type: application/json
+                  body:
+                    error: rollout_read_failed
+                    stage: $.failure_stage
+                    message: $.message
 
     coordinator_control:
       address: ${COORDINATOR_BIND_HOST:-127.0.0.1}:18101

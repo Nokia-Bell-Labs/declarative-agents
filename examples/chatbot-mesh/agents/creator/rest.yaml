@@ -170,6 +170,41 @@ rest:
                     stage: $.failure_stage
                     message: $.message
                     operation: $.operation
+        rollout:
+          # The rollout status the coordinator polls while a reconfiguration runs,
+          # so it can aggregate progress for the provisioning panel (srd004 R1.3).
+          # Reached by the coordinator, not a browser: the creator exposes no
+          # browser-facing surface (srd005 R5.4). GH-684.
+          method: GET
+          path: /api/v1/rollout
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            timeout: 15s
+            # SeedHealth runs the verify leg alone. A poll is a read: it applies
+            # nothing and mutates no instance state.
+            initial_signal: SeedHealth
+            request:
+              body: {}
+            response:
+              # Keyed by terminal state. A read that fails must not arrive as a
+              # successful unknown phase, so Failed is its own response rather than
+              # collapsing into the 200 (agent-core srd030 R4.6, GH-615).
+              terminal_states:
+                HealthReported:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    phase: $.mapped.health
+                Failed:
+                  status: 502
+                  content_type: application/json
+                  body:
+                    error: rollout_read_failed
+                    stage: $.failure_stage
+                    message: $.message
 
     creator_control:
       address: ${CREATOR_BIND_HOST:-127.0.0.1}:18111

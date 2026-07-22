@@ -105,3 +105,52 @@ tools:
     config:
       rest_ref: creator
       operation: creator_rollout
+
+  - name: read_creator_rollout
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Read the rollout status from the creator so the panel's poll is served by the coordinator.
+    problem: The panel polls rollout progress while a reconfiguration runs, and it reads that progress from the coordinator rather than from the deployment API, which no browser may reach.
+    goals:
+      - Read the creator-reported rollout phase.
+      - Serve the aggregated status the provisioning panel renders (srd004 R1.3).
+    requirements:
+      input:
+        - Takes no request-scoped input; the read is unparameterized.
+      output:
+        - Output carries the creator-reported rollout phase.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError rather than an unknown phase.
+    non_goals:
+      - Does not drive an instance operation; a poll mutates nothing.
+      - Does not accept a runtime method, URL, host, or credential for the creator.
+    parameters:
+      type: object
+      properties: {}
+    emits: [StatusRead, CommandError]
+    output:
+      description: Creator-reported rollout phase.
+      schema:
+        type: object
+        properties:
+          phase: {type: string}
+    side_effects:
+      - kind: external_api
+        target: creator.rollout
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Reading the rollout status changes nothing.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, schema, or mapping failure reaching the creator.
+        state_after_failure: No status is reported; the request ends in Failed.
+    relationships:
+      after: [request_rollout]
+    config:
+      rest_ref: creator
+      operation: creator_rollout_status
