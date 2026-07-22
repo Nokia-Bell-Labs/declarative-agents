@@ -86,6 +86,7 @@ requirements:
       - R6.5: REST runtime SHOULD support configured network allowlists for schemes, hosts, CIDRs, and ports.
       - R6.6: REST runtime SHALL reject unknown operations, unknown routes, schema-invalid parameters, and disallowed destinations with structured errors.
       - R6.7: REST runtime SHALL redact configured secrets from Result output, traces, logs, and error messages.
+      - R6.8: Hand-authored REST YAML SHALL reject fields that are unknown to the typed definition model, including unknown nested fields.
 
   R7:
     title: Observability and structured errors
@@ -161,8 +162,8 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7]
 
   - id: AC6
-    criterion: Safety controls cover schema validation, auth abstraction, timeouts, retries, redirects, size limits, network allowlists, destination rejection, and secret redaction.
-    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7]
+    criterion: Safety controls cover strict definition fields, schema validation, auth abstraction, timeouts, retries, redirects, size limits, network allowlists, destination rejection, and secret redaction.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7, R6.8]
 
   - id: AC7
     criterion: Observability and error requirements preserve redaction while exposing operation identity, status, timing, byte counts, failure stage, diagnostics, resulting signal, and configured monitor metrics through the shared recorder path.
@@ -219,6 +220,7 @@ implementation_status:
     - REST compensation undo mementos and rollback-time compensation execution for mutating client operations that declare compensation metadata.
     - machine_request terminal response schema validation before success responses.
     - Typed loading plus explicit validation rejection for reserved rest.document_resources and machine_request.document_resources config.
+    - Strict known-field decoding for hand-authored REST YAML at every typed nesting level.
   partial:
     - R10 lifecycle control routing is currently proven through configured emit_signal control routes and MachineSpec exit_agent transitions. Modeled lifecycle_control endpoint config remains reserved target-format behavior.
     - R10 read policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.

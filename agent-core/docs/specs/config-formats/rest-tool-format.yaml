@@ -1485,6 +1485,8 @@ validation_rules:
     rule: A body value equal to a single "{{ params.NAME }}" token MUST render the param's raw typed value, so a flat vector param placed inside a nested array element renders as a nested array rather than a stringified scalar.
   - id: V32
     rule: $from(<label>).<path> selectors are valid only under body_source command_state, and $.-style selectors are valid only under body_source previous_result; an input_mapping selector whose form does not match its body_source is rejected.
+  - id: V33
+    rule: Hand-authored REST YAML MUST reject fields unknown to the typed definition model at every nesting level.
 
 invalid_examples:
   ambiguous_resource_operation: |
