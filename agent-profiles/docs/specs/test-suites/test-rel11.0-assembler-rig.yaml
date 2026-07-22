@@ -23,8 +23,12 @@ overview: |
   test, and the mage rig target, so those cases now carry real evidence. The
   no-orphan case cites TestRigSelfProof, whose two consecutive full runs are
   the delivered repeatability proof alongside the agent-core teardown test.
-  One case stays planned: cross-root discovery over the examples tree lands
-  with GH-671, which adds the first scenarios under examples/.
+  GH-671 added the first examples scenario (the chatbot-mesh rag-server
+  against a twin Chroma) and the cross-root proof: the example's
+  mage integration:rig runs one assembler over the mesh agents and the
+  agent-profiles reference subject in a single pass, so every case now
+  carries real evidence. The chatbot-turn scenarios continue in a
+  follow-on issue.
 
 traces:
   - rel11.0-uc001-assembler-scenario-run
@@ -208,8 +212,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Discovery covers the examples tree with no special-casing
-    planned_go_test: go test ./conformance -run TestAssemblerDiscoversConfiguredRoots
-    status: planned
+    integration_target: mage integration:rig (run from examples/chatbot-mesh)
+    status: implemented
     description: |
       With roots configured to cover both the agent families and the examples
       tree, discovery enumerates scenarios from both, sorted and deterministic,

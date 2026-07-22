@@ -1,0 +1,56 @@
+name: rag-query-validator
+purpose: |-
+  Drives the rag-server's vector-in query boundary against a twin Chroma and
+  passes when the server answers with chunks and embedding-model metadata.
+
+  The drive runs on the way into Checking so its signal decides the terminal
+  state; routing straight to a terminal would pass regardless of the result.
+configuration:
+  machine: machine.yaml
+  tools: tools.yaml
+initial_state: Idle
+budget:
+  max_iterations: 6
+states:
+  - name: Idle
+    meaning: Before the subject is driven.
+  - name: Checking
+    meaning: The query has run; its signal decides the outcome.
+  - name: Passed
+    meaning: Terminal. The rag-server answered the query.
+  - name: Failed
+    meaning: Terminal. The rag-server did not answer as expected.
+terminal_states: [Passed, Failed]
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: SubjectAnswered
+    trigger: The rag-server returned chunks for the query.
+  - name: SubjectRejected
+    trigger: The rag-server rejected the query embedding.
+  - name: SubjectBroke
+    trigger: The rag-server reported a command error.
+  - name: RESTResponded
+    trigger: The invoke succeeded and mapped to the generic response signal.
+  - name: CommandError
+    trigger: The rag-server was unreachable or returned an unmapped status.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Checking
+    action: drive_rag_query
+  - state: Checking
+    signal: SubjectAnswered
+    next: Passed
+  - state: Checking
+    signal: RESTResponded
+    next: Passed
+  - state: Checking
+    signal: SubjectRejected
+    next: Failed
+  - state: Checking
+    signal: SubjectBroke
+    next: Failed
+  - state: Checking
+    signal: CommandError
+    next: Failed

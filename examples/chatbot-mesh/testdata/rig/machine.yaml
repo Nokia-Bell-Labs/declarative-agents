@@ -1,0 +1,193 @@
+name: assembler-rig
+purpose: |-
+  Discovers scenarios beside the agents they test and composes each one: the
+  scenario's digital twins, the subject agent under test with its dependencies
+  redirected at those twins, and the scenario's validators. Reduces the
+  validators' terminal states to a per-scenario verdict, tears every child
+  down, and reports the aggregate.
+
+  Each scenario gets a fresh subject, and teardown runs on the success path and
+  on every failure edge, so no child outlives the scenario that started it.
+configuration:
+  machine: agents/assembler/machine.yaml
+  tools: agents/assembler/tools.yaml
+metric_labels:
+  profile: assembler
+initial_state: Idle
+budget:
+  # Nine steps per scenario plus discovery and reporting. This bounds the
+  # scenario loop (srd018 R6.4); a corpus of twenty scenarios fits comfortably.
+  max_iterations: 200
+states:
+  - name: Idle
+    meaning: Initial state before scenario discovery.
+  - name: Discovering
+    meaning: Enumerating scenarios under the configured roots.
+  - name: AdvancingScenario
+    meaning: Taking the next scenario from the work list, or finding the list exhausted.
+  - name: StartingTwins
+    meaning: Starting one digital twin per fixture the scenario declares.
+  - name: StartingSubject
+    meaning: Starting the agent under test with each twin's runtime address injected.
+  - name: AwaitingSubject
+    meaning: Waiting for the subject to serve before driving it.
+  - name: RunningValidators
+    meaning: Running the scenario's validator machines against its subject.
+  - name: CollectingVerdict
+    meaning: Deriving this scenario's verdict from its validator outcomes.
+  - name: MarkingFailure
+    meaning: Recording a verdict for a scenario that failed before its validators ran.
+  - name: TearingDown
+    meaning: Stopping every child this scenario started.
+  - name: Reporting
+    meaning: Reducing every scenario verdict into the run result.
+  - name: Passed
+    meaning: Terminal. Every scenario passed.
+  - name: Failed
+    meaning: Terminal. A scenario failed, discovery found nothing, or a word errored.
+terminal_states:
+  - Passed
+  - Failed
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: SessionSeeded
+    trigger: Discovery found at least one scenario.
+  - name: NoScenarios
+    trigger: Discovery found no scenario under the configured roots.
+  - name: ScenarioReady
+    trigger: The work list yielded another scenario.
+  - name: AllScenariosDone
+    trigger: The work list is exhausted.
+  - name: TwinsStarted
+    trigger: Every twin the scenario declares is running.
+  - name: SubjectStarted
+    trigger: The agent under test is running with its dependencies redirected.
+  - name: Healthy
+    trigger: The subject answered its health route.
+  - name: HealthTimeout
+    trigger: The subject did not serve within the declared bound.
+  - name: ValidatorsCompleted
+    trigger: Every validator ran to completion.
+  - name: ValidatorsIncomplete
+    trigger: A validator timed out or failed to start.
+  - name: ScenarioPassed
+    trigger: Every validator in the scenario passed.
+  - name: ScenarioFailed
+    trigger: A validator failed, or a step before them did.
+  - name: ScenarioTornDown
+    trigger: Every child the scenario started is stopped.
+  - name: SessionPassed
+    trigger: Every scenario passed.
+  - name: SessionFailed
+    trigger: At least one scenario failed.
+  - name: CommandError
+    trigger: A rig word failed.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Discovering
+    action: discover_scenarios
+
+  # An empty corpus is a failure, not a silent pass: nothing was proven.
+  - state: Discovering
+    signal: SessionSeeded
+    next: AdvancingScenario
+    action: next_scenario
+  - state: Discovering
+    signal: NoScenarios
+    next: Failed
+  - state: Discovering
+    signal: CommandError
+    next: Failed
+
+  - state: AdvancingScenario
+    signal: ScenarioReady
+    next: StartingTwins
+    action: start_scenario_twins
+  - state: AdvancingScenario
+    signal: AllScenariosDone
+    next: Reporting
+    action: report_session
+  - state: AdvancingScenario
+    signal: CommandError
+    next: Failed
+
+  # Every failure edge below records a verdict naming its cause, then tears the
+  # scenario's children down before the loop continues (srd018 R1.5, R6.2).
+  - state: StartingTwins
+    signal: TwinsStarted
+    next: StartingSubject
+    action: start_scenario_subject
+  - state: StartingTwins
+    signal: CommandError
+    next: MarkingFailure
+    action: fail_scenario_start
+
+  - state: StartingSubject
+    signal: SubjectStarted
+    next: AwaitingSubject
+    action: await_scenario_subject
+  - state: StartingSubject
+    signal: CommandError
+    next: MarkingFailure
+    action: fail_scenario_start
+
+  - state: AwaitingSubject
+    signal: Healthy
+    next: RunningValidators
+    action: run_scenario_validators
+  - state: AwaitingSubject
+    signal: HealthTimeout
+    next: MarkingFailure
+    action: fail_scenario_unhealthy
+  - state: AwaitingSubject
+    signal: CommandError
+    next: MarkingFailure
+    action: fail_scenario_start
+
+  # A validator that ran and failed still produced a verdict, so both outcomes
+  # route to the same collection step; the verdict itself decides pass or fail.
+  - state: RunningValidators
+    signal: ValidatorsCompleted
+    next: CollectingVerdict
+    action: collect_scenario_verdict
+  - state: RunningValidators
+    signal: ValidatorsIncomplete
+    next: CollectingVerdict
+    action: collect_scenario_verdict
+  - state: RunningValidators
+    signal: CommandError
+    next: MarkingFailure
+    action: fail_scenario_validators
+
+  - state: CollectingVerdict
+    signal: ScenarioPassed
+    next: TearingDown
+    action: teardown_scenario
+  - state: CollectingVerdict
+    signal: ScenarioFailed
+    next: TearingDown
+    action: teardown_scenario
+
+  - state: MarkingFailure
+    signal: ScenarioFailed
+    next: TearingDown
+    action: teardown_scenario
+
+  # A failed scenario does not end the run: every scenario is exercised and the
+  # aggregate reports at the end.
+  - state: TearingDown
+    signal: ScenarioTornDown
+    next: AdvancingScenario
+    action: next_scenario
+
+  - state: Reporting
+    signal: SessionPassed
+    next: Passed
+  - state: Reporting
+    signal: SessionFailed
+    next: Failed
+  - state: Reporting
+    signal: CommandError
+    next: Failed

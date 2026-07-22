@@ -33,8 +33,14 @@ type ScenarioVerdict struct {
 type ScenarioManifest struct {
 	// SubjectProfile overrides the default of <subject-dir>/profile.yaml.
 	SubjectProfile string `yaml:"subject_profile,omitempty"`
-	// SubjectHealthPath is the path polled after the subject starts.
+	// SubjectHealthPath is the path polled after the subject starts. A full
+	// http URL is used as-is, for a subject whose health lives on a different
+	// listener than the one the validator drives.
 	SubjectHealthPath string `yaml:"subject_health_path,omitempty"`
+	// SubjectAddress pins the subject's address instead of allocating one, for
+	// a shipped subject that binds fixed ports (for example the mesh agents).
+	// The published SUBJECT_URL and the health probe use it.
+	SubjectAddress string `yaml:"subject_address,omitempty"`
 	// SubjectRequest is passed to the subject as --request.
 	SubjectRequest string `yaml:"subject_request,omitempty"`
 	// Env adds literal environment entries to the subject.
@@ -42,6 +48,11 @@ type ScenarioManifest struct {
 	// FixtureEnv maps a fixture base name to the environment variable that
 	// should carry that twin's base URL, overriding the derived name.
 	FixtureEnv map[string]string `yaml:"fixture_env,omitempty"`
+	// FixtureAddress pins a fixture's twin to a fixed address instead of an
+	// allocated one, for a subject whose network limits allow only its real
+	// dependency's port. The twin then stands exactly where the dependency
+	// stands. Scenarios run sequentially, so a pinned port does not collide.
+	FixtureAddress map[string]string `yaml:"fixture_address,omitempty"`
 }
 
 // runningTwin is one twin started for the current scenario.
@@ -310,7 +321,7 @@ var nonEnvChars = regexp.MustCompile(`[^A-Za-z0-9]+`)
 // subject's declared variable line up without a manifest. A scenario that
 // needs a different name declares fixture_env.
 func fixtureEnvVar(fixturePath string, overrides map[string]string) string {
-	base := strings.TrimSuffix(filepath.Base(fixturePath), filepath.Ext(fixturePath))
+	base := fixtureBase(fixturePath)
 	if override, ok := overrides[base]; ok && override != "" {
 		return override
 	}

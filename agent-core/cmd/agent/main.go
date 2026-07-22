@@ -151,6 +151,12 @@ func (s *deferredShutdown) Apply() {
 func run(cmd *cobra.Command, args []string) error {
 	if f := cmd.Flags().Lookup("core-root"); f != nil && f.Changed && strings.TrimSpace(flagCoreRoot) != "" {
 		spec.SetAgentCoreInstallRoot(flagCoreRoot)
+		// Export the mapping so child agents inherit it: a rig spawning this
+		// binary's children (twins, subjects, validators) must resolve
+		// /opt/agent-core references the same way the parent does.
+		_ = os.Setenv("AGENT_CORE_ROOT", strings.TrimSpace(flagCoreRoot))
+	} else if env := strings.TrimSpace(os.Getenv("AGENT_CORE_ROOT")); env != "" {
+		spec.SetAgentCoreInstallRoot(env)
 	}
 	if flagValidateEvidence {
 		return validateTestEvidence(flagDirectory)

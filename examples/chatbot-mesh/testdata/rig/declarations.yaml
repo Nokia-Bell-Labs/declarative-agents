@@ -1,0 +1,580 @@
+tools:
+  - name: discover_scenarios
+    type: builtin
+    init: init_scenario_session
+    visibility: internal
+    category: boundary
+    description: Enumerate scenarios under the configured roots and seed the work list.
+    problem: The rig must find its work as data beside the agents it tests, without a per-repository-area rig.
+    goals:
+      - Enumerate tests/<scenario>/ directories under declared roots.
+      - Seed the session cursor the scenario loop advances.
+    requirements:
+      input:
+        - Tool config declares the discovery roots.
+      output:
+        - Output reports the scenario count and the roots searched.
+      errors:
+        - An unreadable root emits CommandError; a missing root is skipped.
+    non_goals:
+      - Does not start any child; discovery only reads the tree.
+    parameters:
+      type: object
+      properties: {}
+    emits: [SessionSeeded, NoScenarios, CommandError]
+    output:
+      description: Discovery result.
+      schema:
+        type: object
+        properties:
+          scenarios: {type: integer}
+          roots: {type: array}
+    side_effects:
+      - kind: state_mutation
+        target: scenario_session
+        state: work_list_seeded
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: A seeded work list is replaced by a new run, not restored.
+    errors:
+      - signal: CommandError
+        condition: A declared root exists but cannot be read.
+        state_after_failure: The work list is empty.
+    config:
+      # Copy-and-patch of the shipped assembler (gh-229 convention): only the
+      # harness-controlled roots differ. Run from the chatbot-mesh root, one
+      # rig discovers the mesh agents' scenarios and the agent-profiles
+      # reference subject in a single pass -- the cross-root proof.
+      roots:
+        - agents
+        - ../../agent-profiles/testdata/conformance
+
+  - name: next_scenario
+    type: builtin
+    init: next_scenario
+    visibility: internal
+    category: boundary
+    description: Take the next scenario from the work list.
+    problem: The scenario loop needs a cursor it can advance and an exhaustion signal it can route on.
+    goals:
+      - Advance the cursor and load the scenario's optional manifest.
+      - Report exhaustion so the machine can move to reporting.
+    requirements:
+      input:
+        - The session holds the seeded work list.
+      output:
+        - Output reports the subject, scenario, validator count, and fixture count.
+      errors:
+        - An unreadable scenario manifest emits CommandError.
+    non_goals:
+      - Does not start or stop any child.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ScenarioReady, AllScenariosDone, CommandError]
+    output:
+      description: The scenario now current, or the run report when exhausted.
+      schema:
+        type: object
+        properties:
+          subject: {type: string}
+          scenario: {type: string}
+          validators: {type: integer}
+          fixtures: {type: integer}
+    side_effects:
+      - kind: state_mutation
+        target: scenario_session
+        state: cursor_advanced
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: A consumed cursor position is not restored.
+    errors:
+      - signal: CommandError
+        condition: The scenario's manifest cannot be read or parsed.
+        state_after_failure: The cursor has advanced past the scenario.
+    config: {}
+
+  - name: start_scenario_twins
+    type: builtin
+    init: start_scenario_twins
+    visibility: internal
+    category: boundary
+    description: Start one digital twin per fixture the current scenario declares.
+    problem: A subject's REST dependencies must answer controlled responses rather than a live service.
+    goals:
+      - Start the shipped twin profile once per fixture, each on its own address.
+      - Record each twin's runtime base URL against the variable the subject reads.
+    requirements:
+      input:
+        - Tool config declares the twin profile the rig starts.
+        - The session holds the current scenario and its fixtures.
+      output:
+        - Output reports each twin's fixture, service name, environment variable, and base URL.
+      errors:
+        - A spawn or port failure emits CommandError.
+    non_goals:
+      - Does not choose fixture content; a scenario owns that.
+    parameters:
+      type: object
+      properties: {}
+    emits: [TwinsStarted, CommandError]
+    output:
+      description: The twins started for this scenario.
+      schema:
+        type: object
+        properties:
+          twins: {type: array}
+    side_effects:
+      - kind: child_agent_execution
+        target: twin_agent
+        state: twin_serving
+      - kind: state_mutation
+        target: scenario_session
+        state: twins_recorded
+    reversibility:
+      classification: compensatable
+      undo: teardown_scenario
+    undo:
+      strategy: compensating_action
+      description: Stop the scenario's children rather than leave them running.
+    errors:
+      - signal: CommandError
+        condition: A twin fails to spawn or no port can be reserved.
+        state_after_failure: Twins started before the failure stay tracked for teardown.
+    config:
+      profile: ../../agent-profiles/agents/twin/profile.yaml
+
+  - name: start_scenario_subject
+    type: builtin
+    init: start_scenario_subject
+    visibility: internal
+    category: boundary
+    description: Start the agent under test with its dependencies redirected at this scenario's twins.
+    problem: The subject must reach the scenario's twins rather than a live service, without editing its profile.
+    goals:
+      - Resolve the subject from the scenario's own directory.
+      - Inject each twin's runtime base URL and the allocated listen address.
+    requirements:
+      input:
+        - The session holds the current scenario and the twins started for it.
+      output:
+        - Output reports the subject service, profile, base URL, and injected environment.
+      errors:
+        - A spawn or port failure emits CommandError.
+    non_goals:
+      - Does not modify the subject's machine, tools, or declared behavior.
+    parameters:
+      type: object
+      properties: {}
+    emits: [SubjectStarted, CommandError]
+    output:
+      description: The subject started for this scenario.
+      schema:
+        type: object
+        properties:
+          subject: {type: string}
+          profile: {type: string}
+          base_url: {type: string}
+          env: {type: array}
+    side_effects:
+      - kind: child_agent_execution
+        target: subject_agent
+        state: subject_serving
+      - kind: state_mutation
+        target: scenario_session
+        state: subject_recorded
+    reversibility:
+      classification: compensatable
+      undo: teardown_scenario
+    undo:
+      strategy: compensating_action
+      description: Stop the scenario's children rather than leave them running.
+    errors:
+      - signal: CommandError
+        condition: The subject profile is missing, or the process fails to spawn.
+        state_after_failure: The scenario's twins stay tracked for teardown.
+    config: {}
+
+  - name: await_scenario_subject
+    type: builtin
+    init: await_scenario_subject
+    visibility: internal
+    category: boundary
+    description: Wait for the subject to serve before driving it.
+    problem: Driving a subject that has not bound its port yields a false failure.
+    goals:
+      - Poll the subject's health route within a declared bound.
+      - Report healthy and timeout as distinct signals the machine routes on.
+    requirements:
+      input:
+        - The session holds the started subject's base URL.
+        - Tool config declares the health path, timeout, and interval; a scenario may override the path.
+      output:
+        - Output reports the URL polled, attempts, and outcome.
+      errors:
+        - No subject started emits CommandError.
+    non_goals:
+      - Does not poll without a limit.
+    parameters:
+      type: object
+      properties: {}
+    emits: [Healthy, HealthTimeout, CommandError]
+    output:
+      description: Health poll result.
+      schema:
+        type: object
+        properties:
+          url: {type: string}
+          attempts: {type: integer}
+          status: {type: integer}
+    side_effects:
+      - kind: state_read
+        target: subject_agent
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Polling changes no state.
+    errors:
+      - signal: CommandError
+        condition: No subject has been started for the current scenario.
+        state_after_failure: No child state changes.
+    config:
+      url: /healthz
+      timeout: 30s
+      interval: 100ms
+
+  - name: run_scenario_validators
+    type: builtin
+    init: run_scenario_validators
+    visibility: internal
+    category: boundary
+    description: Run this scenario's validator machines against its subject.
+    problem: A scenario's expectations are themselves machines, and several may share one subject.
+    goals:
+      - Run every validator the scenario declares, concurrently, to completion.
+      - Report each terminal state so a verdict can name a failure.
+    requirements:
+      input:
+        - The session holds the current scenario's validator profiles and the subject URL.
+        - Tool config declares the overall timeout.
+      output:
+        - Output reports each validator's terminal state and whether all passed.
+      errors:
+        - A scenario declaring no validator emits CommandError.
+    non_goals:
+      - Does not decide the verdict; collect_scenario_verdict does.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ValidatorsCompleted, ValidatorsIncomplete, CommandError]
+    output:
+      description: Validator outcomes for this scenario.
+      schema:
+        type: object
+        properties:
+          validators: {type: array}
+          passed: {type: boolean}
+    side_effects:
+      - kind: child_agent_execution
+        target: validator_agent
+        state: validators_completed
+      - kind: state_mutation
+        target: scenario_session
+        state: outcomes_recorded
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: A validator run that already drove the subject cannot be unrun.
+    errors:
+      - signal: CommandError
+        condition: The scenario declares no validator machine.
+        state_after_failure: No validator ran and no outcome is recorded.
+    config:
+      timeout: 5m
+
+  - name: collect_scenario_verdict
+    type: builtin
+    init: collect_scenario_verdict
+    visibility: internal
+    category: boundary
+    description: Derive this scenario's verdict from its validator outcomes.
+    problem: A scenario passes only when every expectation in it held, and a failure must name its cause.
+    goals:
+      - Pass only when every validator passed.
+      - Name the failing validator and why when one did not.
+    requirements:
+      input:
+        - The session holds the current scenario's validator outcomes.
+      output:
+        - Output reports the subject, scenario, pass state, reason, and outcomes.
+      errors:
+        - None; a scenario with no outcome is a failed verdict, not an error.
+    non_goals:
+      - Does not stop any child; teardown does.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ScenarioPassed, ScenarioFailed]
+    output:
+      description: This scenario's verdict.
+      schema:
+        type: object
+        properties:
+          subject: {type: string}
+          scenario: {type: string}
+          passed: {type: boolean}
+          reason: {type: string}
+    side_effects:
+      - kind: state_mutation
+        target: scenario_session
+        state: verdict_recorded
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: A recorded verdict is part of the run report.
+    errors: []
+    config: {}
+
+  - name: fail_scenario_start
+    type: builtin
+    init: collect_scenario_verdict
+    visibility: internal
+    category: boundary
+    description: Record a failed verdict for a scenario whose children did not start.
+    problem: A scenario that fails before its validators run must still name why in the report.
+    goals:
+      - Record a failed verdict carrying the start failure as its reason.
+    requirements:
+      input:
+        - Tool config declares the reason this failure edge records.
+      output:
+        - Output reports the failed verdict.
+      errors:
+        - None.
+    non_goals:
+      - Does not stop any child; teardown does.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ScenarioFailed]
+    output:
+      description: The failed verdict.
+      schema:
+        type: object
+        properties:
+          passed: {type: boolean}
+          reason: {type: string}
+    side_effects:
+      - kind: state_mutation
+        target: scenario_session
+        state: verdict_recorded
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: A recorded verdict is part of the run report.
+    errors: []
+    relationships:
+      overlaps:
+        - tool: collect_scenario_verdict
+          difference: This word forces a failure reason for a start failure.
+    config:
+      reason: the scenario's twins or subject failed to start
+
+  - name: fail_scenario_unhealthy
+    type: builtin
+    init: collect_scenario_verdict
+    visibility: internal
+    category: boundary
+    description: Record a failed verdict for a scenario whose subject never served.
+    problem: A subject that never binds must fail its scenario with that cause rather than a validator error.
+    goals:
+      - Record a failed verdict carrying the health timeout as its reason.
+    requirements:
+      input:
+        - Tool config declares the reason this failure edge records.
+      output:
+        - Output reports the failed verdict.
+      errors:
+        - None.
+    non_goals:
+      - Does not stop any child; teardown does.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ScenarioFailed]
+    output:
+      description: The failed verdict.
+      schema:
+        type: object
+        properties:
+          passed: {type: boolean}
+          reason: {type: string}
+    side_effects:
+      - kind: state_mutation
+        target: scenario_session
+        state: verdict_recorded
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: A recorded verdict is part of the run report.
+    errors: []
+    relationships:
+      overlaps:
+        - tool: collect_scenario_verdict
+          difference: This word forces a failure reason for a health timeout.
+    config:
+      reason: the subject never became healthy within its declared bound
+
+  - name: fail_scenario_validators
+    type: builtin
+    init: collect_scenario_verdict
+    visibility: internal
+    category: boundary
+    description: Record a failed verdict for a scenario whose validators could not run.
+    problem: A scenario that declares no runnable validator must fail with that cause.
+    goals:
+      - Record a failed verdict carrying the validator failure as its reason.
+    requirements:
+      input:
+        - Tool config declares the reason this failure edge records.
+      output:
+        - Output reports the failed verdict.
+      errors:
+        - None.
+    non_goals:
+      - Does not stop any child; teardown does.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ScenarioFailed]
+    output:
+      description: The failed verdict.
+      schema:
+        type: object
+        properties:
+          passed: {type: boolean}
+          reason: {type: string}
+    side_effects:
+      - kind: state_mutation
+        target: scenario_session
+        state: verdict_recorded
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: A recorded verdict is part of the run report.
+    errors: []
+    relationships:
+      overlaps:
+        - tool: collect_scenario_verdict
+          difference: This word forces a failure reason for a validator run that could not start.
+    config:
+      reason: the scenario's validators could not be run
+
+  - name: teardown_scenario
+    type: builtin
+    init: teardown_scenario
+    visibility: internal
+    category: boundary
+    description: Stop every child this scenario started.
+    problem: A child that outlives its scenario leaks a port and corrupts the next run.
+    goals:
+      - Stop the subject and every twin, gracefully then forcibly.
+      - Leave nothing running before the loop continues.
+    requirements:
+      input:
+        - The session holds the children started for the current scenario.
+        - Tool config declares the graceful stop budget.
+      output:
+        - Output reports what was stopped and what remains running.
+      errors:
+        - None; stopping an already-stopped child succeeds.
+    non_goals:
+      - Does not decide the verdict.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ScenarioTornDown]
+    output:
+      description: Teardown result.
+      schema:
+        type: object
+        properties:
+          stopped: {type: array}
+          running: {type: array}
+    side_effects:
+      - kind: child_process
+        target: scenario_children
+        state: children_stopped
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: A stopped child is restarted by a new scenario, not by an undo.
+    errors: []
+    config:
+      grace: 5s
+
+  - name: report_session
+    type: builtin
+    init: report_scenario_session
+    visibility: internal
+    category: boundary
+    description: Reduce every scenario verdict into the run result.
+    problem: A run must report one verdict, and a failure must name which scenario caused it.
+    goals:
+      - Pass only when every scenario passed.
+      - Name the failing scenarios and the first failure.
+    requirements:
+      input:
+        - The session holds every collected verdict.
+      output:
+        - Output reports the scenario count, aggregate pass state, and the verdicts.
+      errors:
+        - None; a run with no verdict does not pass.
+    non_goals:
+      - Does not stop any child.
+    parameters:
+      type: object
+      properties: {}
+    emits: [SessionPassed, SessionFailed]
+    output:
+      description: The run report.
+      schema:
+        type: object
+        properties:
+          scenarios: {type: integer}
+          passed: {type: boolean}
+          verdicts: {type: array}
+          first_failure: {type: object}
+    side_effects:
+      - kind: state_read
+        target: scenario_session
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Reporting reads the collected verdicts and changes nothing.
+    errors: []
+    config: {}

@@ -1,0 +1,50 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local:
+      timeout: 10s
+      read_timeout: 10s
+      max_request_bytes: 65536
+      max_response_bytes: 65536
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+  clients:
+    subject:
+      # The rig publishes the rag-server's pinned query address here.
+      base_url: ${SUBJECT_URL:-http://127.0.0.1:1}
+      auth_ref: none
+      limits_ref: local
+      operations:
+        rag_query:
+          method: POST
+          path: /api/v1/rag/query
+          params:
+            # Self-contained: nothing is read from a previous Result.
+            body_source: none
+          body:
+            query_embeddings: [[0.1, 0.2, 0.3, 0.4]]
+            n_results: 2
+          success: {status: [200], signal: SubjectAnswered}
+          failures:
+            - status: [400]
+              signal: SubjectRejected
+              domain_error_code: query_rejected
+            - status: [500, 502, 503]
+              signal: SubjectBroke
+              domain_error_code: command_error
+          response:
+            output:
+              ids: $.ids
+              documents: $.documents
+              embedding_model: $.embedding_model
+          side_effects:
+            - kind: external_api
+              target: rag_server.query
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop

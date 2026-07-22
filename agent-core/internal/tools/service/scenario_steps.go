@@ -101,9 +101,13 @@ func (c command) startTwins() core.Result {
 // to bind and which fixture to serve.
 func (c command) startOneTwin(scenario Scenario, manifest ScenarioManifest, fixture string) (runningTwin, error) {
 	name := twinServiceName(scenario, fixture)
-	address, err := FreeAddress()
-	if err != nil {
-		return runningTwin{}, err
+	address := manifest.FixtureAddress[fixtureBase(fixture)]
+	if address == "" {
+		free, err := FreeAddress()
+		if err != nil {
+			return runningTwin{}, err
+		}
+		address = free
 	}
 	env := append([]string{
 		addressEnvName(c.cfg.AddressEnv, defaultTwinAddressEnv) + "=" + address,
@@ -138,9 +142,7 @@ func (c command) startSubject() core.Result {
 	}
 	_, manifest, _ := c.session.Current()
 
-	// The subject binds an address the rig chose, so it has to be told which
-	// one, the same way a twin is.
-	address, err := FreeAddress()
+	address, err := subjectAddress(manifest)
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
@@ -168,6 +170,15 @@ func (c command) startSubject() core.Result {
 	}
 }
 
+// subjectAddress resolves where the subject binds: the manifest's pinned
+// address for a subject that ships fixed ports, or a freshly reserved one.
+func subjectAddress(manifest ScenarioManifest) (string, error) {
+	if manifest.SubjectAddress != "" {
+		return manifest.SubjectAddress, nil
+	}
+	return FreeAddress()
+}
+
 // awaitSubject health-checks the subject that this scenario started.
 func (c command) awaitSubject() core.Result {
 	_, baseURL := c.session.Subject()
@@ -182,9 +193,14 @@ func (c command) awaitSubject() core.Result {
 	if path == "" {
 		path = defaultSubjectHealthPath
 	}
+	target := baseURL + path
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		// Health on a different listener than the driven one.
+		target = path
+	}
 
 	output, healthy := c.session.Services.AwaitHealthy(
-		baseURL+path,
+		target,
 		parseDuration(c.cfg.Timeout, defaultHealthTimeout),
 		parseDuration(c.cfg.Interval, defaultHealthInterval),
 	)
@@ -278,6 +294,12 @@ func twinServiceName(scenario Scenario, fixture string) string {
 
 func subjectServiceName(scenario Scenario) string {
 	return fmt.Sprintf("subject-%s-%s", scenario.Subject, scenario.Name)
+}
+
+// fixtureBase names a fixture by its file base without extension, the key the
+// manifest's fixture_env and fixture_address maps use.
+func fixtureBase(fixturePath string) string {
+	return strings.TrimSuffix(filepath.Base(fixturePath), filepath.Ext(fixturePath))
 }
 
 // validatorName labels a validator by its scenario-relative directory, so a
