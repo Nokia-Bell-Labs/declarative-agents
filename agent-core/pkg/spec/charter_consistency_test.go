@@ -134,15 +134,7 @@ func TestExecuteConsistencyChecksSortsFindingsDeterministically(t *testing.T) {
 	findings, err := ExecuteConsistencyChecks(root, charters)
 
 	require.NoError(t, err)
-	require.Len(t, findings, 4)
-	assert.Equal(t, "suite-a", findings[0].SuiteID)
-	assert.Equal(t, "a.yaml", findings[0].File)
-	assert.Equal(t, "suite-a", findings[1].SuiteID)
-	assert.Equal(t, "z.yaml", findings[1].File)
-	assert.Equal(t, "suite-b", findings[2].SuiteID)
-	assert.Equal(t, "a.yaml", findings[2].File)
-	assert.Equal(t, "suite-b", findings[3].SuiteID)
-	assert.Equal(t, "z.yaml", findings[3].File)
+	requireDeterministicCharterOrder(t, findings, ".yaml")
 }
 
 func TestExecuteConsistencyChecksFilterSelectsOnlyMatchingEntries(t *testing.T) {

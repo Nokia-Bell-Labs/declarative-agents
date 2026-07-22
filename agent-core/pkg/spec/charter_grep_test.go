@@ -121,8 +121,7 @@ func TestExecuteGrepChecksRegexPattern(t *testing.T) {
 
 func TestExecuteGrepChecksSortsFindingsDeterministically(t *testing.T) {
 	root := t.TempDir()
-	writeTargetFile(t, root, "z.md", "cobbler\n")
-	writeTargetFile(t, root, "a.md", "cobbler\n")
+	writeDeterministicCharterFiles(t, root, ".md", "cobbler\n")
 	charters := []Charter{
 		grepCharter("suite-b", CharterCheck{ID: "word", Kind: "grep_check", Severity: "warning", Include: []string{"*.md"}, Patterns: []string{"cobbler"}}),
 		grepCharter("suite-a", CharterCheck{ID: "word", Kind: "grep_check", Severity: "warning", Include: []string{"*.md"}, Patterns: []string{"cobbler"}}),
@@ -131,15 +130,7 @@ func TestExecuteGrepChecksSortsFindingsDeterministically(t *testing.T) {
 	findings, err := ExecuteGrepChecks(root, charters)
 
 	require.NoError(t, err)
-	require.Len(t, findings, 4)
-	assert.Equal(t, "suite-a", findings[0].SuiteID)
-	assert.Equal(t, "a.md", findings[0].File)
-	assert.Equal(t, "suite-a", findings[1].SuiteID)
-	assert.Equal(t, "z.md", findings[1].File)
-	assert.Equal(t, "suite-b", findings[2].SuiteID)
-	assert.Equal(t, "a.md", findings[2].File)
-	assert.Equal(t, "suite-b", findings[3].SuiteID)
-	assert.Equal(t, "z.md", findings[3].File)
+	requireDeterministicCharterOrder(t, findings, ".md")
 }
 
 func TestExecuteGrepChecksMissingModeEmitsFinding(t *testing.T) {
@@ -172,4 +163,28 @@ func writeTargetFile(t *testing.T, root, rel, data string) {
 	path := filepath.Join(root, rel)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, []byte(data), 0o644))
+}
+
+func requireDeterministicCharterOrder(t *testing.T, findings []Finding, extension string) {
+	t.Helper()
+	require.Len(t, findings, 4)
+	expected := []struct {
+		suite string
+		file  string
+	}{
+		{suite: "suite-a", file: "a" + extension},
+		{suite: "suite-a", file: "z" + extension},
+		{suite: "suite-b", file: "a" + extension},
+		{suite: "suite-b", file: "z" + extension},
+	}
+	for index, want := range expected {
+		assert.Equal(t, want.suite, findings[index].SuiteID)
+		assert.Equal(t, want.file, findings[index].File)
+	}
+}
+
+func writeDeterministicCharterFiles(t *testing.T, root, extension, data string) {
+	t.Helper()
+	writeTargetFile(t, root, "z"+extension, data)
+	writeTargetFile(t, root, "a"+extension, data)
 }
