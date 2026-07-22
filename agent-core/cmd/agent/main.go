@@ -174,10 +174,15 @@ func run(cmd *cobra.Command, args []string) error {
 // validateConfig loads the profile, machine spec, tool definitions, and REST
 // definitions and runs the same validation the runtime performs at startup
 // (ValidateDefinition per REST file during load, ValidateToolEmits over the
-// machine), then returns without binding servers or running the loop. A nil
-// return exits 0; a load or validation error propagates to cobra and exits 1.
+// machine, and ValidateReceiptContracts over the selected ToolDefs), then
+// returns without binding servers or running the loop. A nil return exits 0; a
+// load or validation error propagates to cobra and exits 1.
+//
 // The chatbot deployment runs this as an init-container so an invalid rendered
-// rest.yaml fails the rollout before the agent serves (srd015 R2.2).
+// rest.yaml fails the rollout before the agent serves (srd015 R2.2). The
+// agent-profiles and chatbot-mesh audit gates run it over every shipped profile
+// as a boot smoke, so a profile the runtime would reject fails the audit rather
+// than surfacing the first time an agent starts (GH-614).
 func validateConfig() error {
 	resources, err := loadRunResources()
 	if err != nil {
