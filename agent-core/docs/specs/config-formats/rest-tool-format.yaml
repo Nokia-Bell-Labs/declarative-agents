@@ -1487,6 +1487,8 @@ validation_rules:
     rule: $from(<label>).<path> selectors are valid only under body_source command_state, and $.-style selectors are valid only under body_source previous_result; an input_mapping selector whose form does not match its body_source is rejected.
   - id: V33
     rule: Hand-authored REST YAML MUST reject fields unknown to the typed definition model at every nesting level.
+  - id: V34
+    rule: Inbound JSON bodies MUST contain exactly one object and satisfy declared string, number, integral integer, object, array, boolean, or null field types.
 
 invalid_examples:
   ambiguous_resource_operation: |

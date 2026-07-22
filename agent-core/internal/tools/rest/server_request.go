@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,8 +32,16 @@ func readRequestBody(payload map[string]interface{}, req *http.Request, bodySche
 		return payload, nil
 	}
 	body := map[string]interface{}{}
-	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&body); err != nil {
 		return nil, err
+	}
+	var trailing interface{}
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return nil, fmt.Errorf("request body must contain exactly one JSON object")
+		}
+		return nil, fmt.Errorf("invalid trailing request body data: %w", err)
 	}
 	if err := validateBodySchema(bodySchema, body); err != nil {
 		return nil, err
@@ -170,7 +180,11 @@ func validateBodySchema(schema map[string]interface{}, payload map[string]interf
 		}
 	}
 	for field, spec := range props {
-		if err := validateJSONType(field, spec, payload[field]); err != nil {
+		value, exists := payload[field]
+		if !exists {
+			continue
+		}
+		if err := validateJSONType(field, spec, value); err != nil {
 			return err
 		}
 	}
@@ -178,9 +192,6 @@ func validateBodySchema(schema map[string]interface{}, payload map[string]interf
 }
 
 func validateJSONType(field string, spec interface{}, value interface{}) error {
-	if value == nil {
-		return nil
-	}
 	rules, _ := spec.(map[string]interface{})
 	want, _ := rules["type"].(string)
 	if want == "" || jsonTypeMatches(want, value) {
@@ -194,13 +205,24 @@ func jsonTypeMatches(want string, value interface{}) bool {
 	case "string":
 		_, ok := value.(string)
 		return ok
-	case "number", "integer":
+	case "number":
 		_, ok := value.(float64)
 		return ok
+	case "integer":
+		number, ok := value.(float64)
+		return ok && math.Trunc(number) == number
 	case "object":
 		_, ok := value.(map[string]interface{})
 		return ok
+	case "array":
+		_, ok := value.([]interface{})
+		return ok
+	case "boolean":
+		_, ok := value.(bool)
+		return ok
+	case "null":
+		return value == nil
 	default:
-		return true
+		return false
 	}
 }
