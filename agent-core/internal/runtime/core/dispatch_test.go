@@ -113,7 +113,7 @@ func TestDispatchWithMonitor_EmitsDispatchMetrics(t *testing.T) {
 
 	require.Equal(t, ToolDone, res.Signal)
 	requireDispatchSample(t, rec.samples, "dispatch_duration", monitor.MetricSample{
-		Kind: monitor.InstrumentHistogram, Unit: "ms", ToolName: "metric_cmd",
+		Kind: monitor.InstrumentHistogram, Unit: "ms", Value: float64(res.Cost.Duration.Milliseconds()), ToolName: "metric_cmd",
 		RunID: "run-1", State: "Working", Signal: "ToolDone", Status: "success",
 		Attributes: map[string]string{"agent.name": "agent-a", "phase": "dispatch"},
 	})
