@@ -574,7 +574,8 @@ func responseValue(selector string, payload map[string]interface{}) interface{} 
 		return false
 	}
 	if strings.HasPrefix(selector, "$.") {
-		return payload[strings.TrimPrefix(selector, "$.")]
+		value, _ := resolveResultSelector(selector, payload)
+		return value
 	}
 	return selector
 }
