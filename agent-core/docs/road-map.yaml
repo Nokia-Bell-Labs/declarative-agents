@@ -332,6 +332,50 @@ releases:
         summary: Formal tests for outbound injection, inbound extraction parenting the machine_request span, absent/malformed fallback, and the unchanged subprocess path
         status: implemented
 
+  - version: "09.0"
+    name: Scenario rig runtime
+    description: |
+      Release 09.0 gives the runtime the words a scenario test rig needs. A
+      mock REST endpoint binding (srd039) serves canned, scripted responses
+      from fixture data and records a request log, so a digital-twin profile
+      can stand in for a real upstream service and a validator can assert what
+      a subject agent actually sent. Service-child tools (srd040) start, health
+      check, and stop background serve-mode child agents, run validator
+      machines concurrently to completion, and discover scenario directories
+      under configured roots.
+
+      The rig itself — the assembler and twin profiles, scenario authoring
+      conventions, and the reference subject — is agent-profiles release 11.0
+      work over these words (Epic #662). This release records the
+      documentation and the runtime contracts; the mock binding lands in
+      GH-666 and the service-child tools in GH-667.
+    status: planned
+    planned_work:
+      - id: gh-664
+        summary: Specify the mock REST binding and service-child tools (this release's documentation).
+        status: done
+      - id: gh-666
+        summary: Implement the mock REST endpoint binding.
+        status: open
+      - id: gh-667
+        summary: Add service-child, validator, and scenario-discovery builtin tools.
+        status: open
+    srds:
+      - srd039-mock-endpoint-binding
+      - srd040-service-child-tools
+    use_cases:
+      - id: rel09.0-uc001-scenario-rig-run
+        summary: A rig machine runs one scenario hermetically to a verdict over a twin, a subject, and concurrent validators.
+        status: specified
+    test_suites:
+      - id: test-rel09.0-scenario-rig
+        summary: Formal tests for scripted mock responses, the request log, fixture validation, serve-mode child lifecycle, concurrent validators, deterministic discovery, and the end-to-end scenario tracer.
+        status: specified
+    proof:
+      - go test ./internal/tools/rest -run 'TestRESTServer_MockBinding'
+      - go test ./internal/tools/service
+      - mage audit
+
   - version: "99.0"
     name: Tool dispatch simplification planning
     description: |

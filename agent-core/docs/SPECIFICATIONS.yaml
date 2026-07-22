@@ -2,13 +2,13 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Thirty-seven SRDs define the
-  generic agentic loop engine and its supporting packages across eight releases.
+  Specification index for the agent-core framework. Thirty-nine SRDs define the
+  generic agentic loop engine and its supporting packages across nine releases.
   Releases 00.0, 01.0, 02.0, 04.0, 05.0, and 06.0 have implemented proof in the
   indexed use cases and test suites. Release 03.0 remains open for REST
   conformance follow-up work: named-test alignment and rollback-time REST
   compensation execution.
-  Twenty-two use cases exercise the SRDs across the eight releases. Nine formal YAML test suites cover 215 acceptance test
+  Twenty-three use cases exercise the SRDs across the nine releases. Nine formal YAML test suites cover 215 acceptance test
   cases across releases 00.0 through 06.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -25,7 +25,9 @@ overview: |
   srd034. Release 07.0 covers srd038 and the amended srd036 and srd028 for the
   command-state store and two-plane persistence (implemented; the end-to-end
   process-restart lifecycle tracer is component-level, see test-rel07.0). Release 08.0 covers
-  the amended srd016 for HTTP trace propagation. Release 99.0 covers
+  the amended srd016 for HTTP trace propagation. Release 09.0 covers srd039 and
+  srd040 for the scenario rig runtime: the mock REST endpoint binding and the
+  service-child, validator, and scenario-discovery tools. Release 99.0 covers
   srd037 planning work.
 
   Release 02.0 storage revision.
@@ -78,6 +80,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: done
+  - version: "09.0"
+    name: Scenario rig runtime
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
   - version: "99.0"
     name: Tool dispatch simplification planning
     use_cases_done: 1
@@ -256,6 +263,16 @@ srd_index:
     summary: Planning requirements for a core-level read-only forward view over the run's execution log, letting any word select declared params from an earlier labeled step through a $from selector, rehydrated from the srd036 tool_outputs plane after restart, with a declared-param-only authority boundary that never exposes transport or receipts, branch-scoped lifetime tied to Revert and terminal reaping, and redaction before persistence.
     status: planned
     path: docs/specs/software-requirements/srd038-command-state-store.yaml
+  - id: srd039-mock-endpoint-binding
+    title: Mock REST Endpoint Binding
+    summary: A mock binding for inbound REST endpoints that serves canned responses from fixture data, with routes keyed by method and literal path, ordered response scripts whose last entry repeats, a 404-and-record miss path, a request log served for validator assertions, fixture validation at --validate-config and startup, and concurrency-safe sequencing.
+    status: planned
+    path: docs/specs/software-requirements/srd039-mock-endpoint-binding.yaml
+  - id: srd040-service-child-tools
+    title: Service-Child and Scenario Tools
+    summary: Words for a rig machine that composes other machines - start_service, await_healthy, and stop_service for background serve-mode children with injected environment and process-group reaping; run_validators for concurrent run-to-completion validators with per-validator terminal states and a bounded timeout; and list_scenarios for deterministic scenario discovery under declared roots.
+    status: planned
+    path: docs/specs/software-requirements/srd040-service-child-tools.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -470,6 +487,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel08.0-trace-propagation
     path: docs/specs/use-cases/rel08.0-uc001-http-trace-propagation.yaml
+  - id: rel09.0-uc001-scenario-rig-run
+    title: A rig machine runs one scenario hermetically to a verdict
+    release: "09.0"
+    status: specified
+    test_suite: test-rel09.0-scenario-rig
+    path: docs/specs/use-cases/rel09.0-uc001-scenario-rig-run.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -565,6 +588,14 @@ test_suite_index:
     formal_test_cases: 5
     status: implemented
     path: docs/specs/test-suites/test-rel08.0-trace-propagation.yaml
+  - id: test-rel09.0-scenario-rig
+    title: Test Suite for Release 09.0 Scenario Rig Runtime
+    release: "09.0"
+    traces:
+      - rel09.0-uc001-scenario-rig-run
+    formal_test_cases: 10
+    status: specified
+    path: docs/specs/test-suites/test-rel09.0-scenario-rig.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"

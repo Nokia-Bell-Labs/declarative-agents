@@ -1,0 +1,195 @@
+id: test-rel09.0-scenario-rig
+title: Test Suite for Release 09.0 Scenario Rig Runtime
+release: "09.0"
+
+traces:
+  - rel09.0-uc001-scenario-rig-run
+
+preconditions:
+  - srd039-mock-endpoint-binding defines the mock binding, fixture format, request log, and validation.
+  - srd040-service-child-tools defines start_service, await_healthy, stop_service, run_validators, and list_scenarios.
+  - GH-666 implements the mock binding; GH-667 implements the service-child tools. Test names below are the contracts those issues implement.
+  - Cases carry planned_go_test rather than go_test because the named tests do not exist yet. The formal go_test evidence validator checks every go_test string against the real test inventory, so citing an unwritten test would record false evidence. Each implementing issue renames planned_go_test to go_test and sets status to implemented when its test lands.
+
+test_cases:
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Mock binding serves scripted responses in order
+    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingServesScriptedResponses
+    status: planned
+    description: |
+      An endpoint with the mock binding serves a route's ordered responses on
+      successive requests, repeats the last response after the script is
+      exhausted, and returns 404 for an unmatched route.
+    inputs:
+      fixture_route: "POST /deploy with responses [200, 500]"
+      requests: [POST /deploy, POST /deploy, POST /deploy, GET /nope]
+    expected:
+      statuses: [200, 500, 500, 404]
+    traces:
+      - rel09.0-uc001-scenario-rig-run S1
+      - srd039-mock-endpoint-binding AC1
+      - srd039-mock-endpoint-binding AC2
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Request log returns received requests in order
+    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingRequestLog
+    status: planned
+    description: |
+      After a scripted request sequence, the log endpoint returns every
+      received request in order with method, path, headers, and body, and
+      flags the unmatched request as a miss.
+    inputs:
+      requests: [POST /deploy body A, GET /nope]
+    expected:
+      log_length: 2
+      first_entry: {method: POST, path: /deploy, body: A, matched: true}
+      second_entry: {method: GET, path: /nope, matched: false}
+    traces:
+      - rel09.0-uc001-scenario-rig-run S2
+      - srd039-mock-endpoint-binding AC3
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Malformed fixture fails validate-config and startup
+    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingFixtureValidation
+    status: planned
+    description: |
+      Fixtures with an unknown method, an empty response list, and a duplicate
+      route each fail validation with a named error under --validate-config
+      and at server startup, before any request is served.
+    inputs:
+      fixtures: [unknown_method, empty_responses, duplicate_route]
+    expected:
+      validate_config_fails: true
+      server_start_fails: true
+      error_named: true
+    traces:
+      - srd039-mock-endpoint-binding AC4
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Concurrent requests neither skip nor duplicate script positions
+    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingConcurrentSequencing
+    status: planned
+    description: |
+      Concurrent requests to a scripted route consume script positions exactly
+      once each, and a serial sequence is deterministic.
+    inputs:
+      concurrent_requests: 8
+      script_length: 8
+    expected:
+      each_position_served_once: true
+    traces:
+      - srd039-mock-endpoint-binding AC5
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Serve-mode child lifecycle leaves no orphans
+    planned_go_test: go test ./internal/tools/service -run TestServiceChild_StartAwaitStopNoOrphans
+    status: planned
+    description: |
+      start_service spawns a serve-mode child with injected environment,
+      await_healthy reports healthy, stop_service stops it, and no process
+      from the child's group survives; a repeated cycle passes without port
+      leakage.
+    inputs:
+      child: serve-mode agent profile with env addition
+      cycles: 2
+    expected:
+      healthy_signal: true
+      child_group_gone_after_stop: true
+      second_cycle_passes: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S3
+      - srd040-service-child-tools AC1
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: await_healthy times out within its declared bound
+    planned_go_test: go test ./internal/tools/service -run TestServiceChild_AwaitHealthyTimeout
+    status: planned
+    description: |
+      await_healthy against a never-healthy address emits the timeout signal
+      within the declared bound rather than polling forever.
+    inputs:
+      target: reserved unserved port
+      timeout: declared
+    expected:
+      timeout_signal: true
+      bounded_duration: true
+    traces:
+      - srd040-service-child-tools AC2
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: run_validators reports concurrent terminal states and timeouts
+    planned_go_test: go test ./internal/tools/service -run TestRunValidators_ConcurrentTerminalStatesAndTimeout
+    status: planned
+    description: |
+      Two validator profiles run concurrently and both terminal states are
+      reported keyed by validator; a deliberately hung validator is stopped at
+      the overall timeout and reported as timed out, not omitted.
+    inputs:
+      validators: [passing, failing, hung]
+      overall_timeout: declared
+    expected:
+      per_validator_terminal_states: true
+      hung_reported_timed_out: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S4
+      - srd040-service-child-tools AC3
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: list_scenarios is deterministic over a fixture tree
+    planned_go_test: go test ./internal/tools/service -run TestListScenarios_DeterministicDiscovery
+    status: planned
+    description: |
+      list_scenarios over a fixture tree with two subjects and three scenarios
+      returns the expected entries, sorted, with subject directory, scenario
+      name, validator profiles, and fixture files; repeated runs are identical.
+    inputs:
+      tree: two subjects, three tests/<scenario>/ directories
+    expected:
+      entries: 3
+      sorted: true
+      repeat_identical: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S5
+      - srd040-service-child-tools AC4
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Service tool declarations state reversibility and undo honestly
+    planned_go_test: go test ./internal/tools/service -run TestServiceTools_DeclarationsReversibilityAndUndo
+    status: planned
+    description: |
+      Each service word's declaration states its reversibility and undo
+      strategy consistently: start_service is reversible with stop_service as
+      its undo, stop_service is noop, and no word declares itself irreversible
+      with a noop undo. A spawn failure surfaces as a tool error signal rather
+      than a panic, and no word invokes a model.
+    inputs:
+      words: [start_service, await_healthy, stop_service, run_validators, list_scenarios]
+      spawn_failure_case: nonexistent profile path
+    expected:
+      reversibility_consistent: true
+      no_undo_mismatch: true
+      spawn_failure_is_error_signal: true
+      no_model_invocation: true
+    traces:
+      - srd040-service-child-tools AC5
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: One scenario runs end-to-end to a verdict
+    planned_go_test: go test ./internal/tools/service -run TestScenarioRig_EndToEndVerdict
+    status: planned
+    description: |
+      A tracer over the full flow: twin from fixture, subject with dependency
+      URL injected, health, one passing validator asserting the twin request
+      log, verdict derived from the terminal state, teardown. A variant whose
+      fixture scripts a 500 exercises the subject failure path and still
+      passes via the validator's expectation.
+    inputs:
+      scenario: twin + subject + validator, happy and scripted-failure variants
+    expected:
+      happy_verdict: Passed
+      scripted_failure_verdict: Passed
+      no_processes_after: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S1
+      - rel09.0-uc001-scenario-rig-run S2
+      - rel09.0-uc001-scenario-rig-run S3
