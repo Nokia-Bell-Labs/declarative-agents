@@ -743,10 +743,10 @@ patterns:
         cite: fowler-event-sourcing-2005
         kind: external
         note: State as a replayable/reversible log of events; the execution record is the same kind of traversable log.
-      - system: Reference implementation — coding-agent rollback
+      - system: Design intent — coding-agent rollback
         cite: reference-implementation
         kind: internal
-        note: When validation fails, checkpoint_rollback reverts the Dolt history to the last good step and replays the intervening receipts to restore the files, and the model retries with clean context instead of debugging its contaminated history.
+        note: Design intent, not a shipped profile. The checkpoint_rollback lifecycle tool reverts the Dolt history to the last good step and replays the intervening receipts to restore the files; a coding-agent profile that triggers this automatically on validation failure so the model retries with clean context is intended, but no shipped agent profile wires checkpoint_rollback into such a flow.
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -984,10 +984,10 @@ patterns:
         cite: aws-step-functions-callback-2024
         kind: external
         note: A workflow task can suspend on an external callback token before resuming, matching the declared wait-resume structure of approval gates.
-      - system: Reference implementation — deployment confirmation
+      - system: Design intent — deployment confirmation
         cite: reference-implementation
         kind: internal
-        note: A coding agent gates between validation and deployment; approval deploys, rejection rolls back to the pre-deployment checkpoint, and each decision is recorded for compliance.
+        note: The approval gate is shipped only as a conformance fixture (agent-profiles/testdata/conformance/lifecycle/approval). A deployed coding agent that gates between validation and deployment — approval deploys, rejection rolls back to the pre-deployment checkpoint, each decision recorded for compliance — is design intent, not a shipped profile.
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -1033,7 +1033,12 @@ patterns:
       four-branch decision tree: succeeded with no cycles is Clean, succeeded
       with cycles is Recovery, failed with repetition is Stuck, failed without
       repetition is Divergent. Infrastructure crashes and timeouts before any
-      dispatch are recorded outside the taxonomy.
+      dispatch are recorded outside the taxonomy. This four-type outcome taxonomy
+      is the pattern's intent; the shipped reference evaluator
+      (agent-core internal/evaluation) instead classifies per-tool metric
+      snapshots into a six-class progression — Clean, Converged, Improving, Flat,
+      Regressing, NoData — from which aggregate Recovery/Stuck rates are derived
+      (see the reference-implementation known use below).
     consequences:
       benefits:
         - Actionable diagnostics and quantitative model comparison beyond binary metrics.
@@ -1158,10 +1163,10 @@ patterns:
         cite: otel-spec-2024
         kind: external
         note: The same instrumentation feed exported as live gauges and counters for real-time dashboards of an in-progress run.
-      - system: Reference implementation — long-running coding agents
+      - system: Design intent — long-running coding agents
         cite: reference-implementation
         kind: internal
-        note: An operator watches transitions stream past, spots Stuck-pattern cycles, and injects RollbackRequested to restore the last checkpoint and try a different approach.
+        note: Design intent, not a shipped profile. An operator watching transitions stream past could spot Stuck-pattern cycles and inject a rollback signal to restore the last checkpoint and try a different approach; no shipped agent profile defines a RollbackRequested signal today.
     provenance: [reference-implementation, external-corroboration]
 
 # =============================================================================
