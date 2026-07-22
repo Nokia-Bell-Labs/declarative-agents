@@ -6,20 +6,17 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
 
-const (
-	defaultRunTimeout = 90 * time.Second
-	agentCoreRootEnv  = "AGENT_CORE_ROOT"
-)
+const defaultRunTimeout = 90 * time.Second
 
 // RunConfig describes a single agent CLI invocation for a family test.
 type RunConfig struct {
@@ -121,45 +118,82 @@ func (r RunResult) RequireToolSpans(t *testing.T, tools ...string) {
 // (cmd/agent/main.go: telemetry.NewRoot("agent", "agent.run", ...)).
 const RootSpanName = "agent.run"
 
-// RequireCoreRoot returns the explicit AGENT_CORE_ROOT checkout when configured,
-// otherwise it falls back to a sibling agent-core checkout. An invalid explicit
-// path fails because it is a caller configuration error; an absent fallback
-// skips so plain `go test ./...` stays hermetic for docs-only checkouts.
-func RequireCoreRoot(t *testing.T) string {
-	t.Helper()
-	explicitRoot := os.Getenv(agentCoreRootEnv)
-	fallbackRoot := filepath.Join(filepath.Dir(ProfilesRoot()), "agent-core")
-	root, found, err := resolveCoreRoot(explicitRoot, fallbackRoot)
-	if err != nil {
-		t.Fatalf("resolve agent-core checkout: %v", err)
-	}
-	if !found {
-		t.Skipf("agent-core checkout not found at %s and %s is unset; skipping conformance run", fallbackRoot, agentCoreRootEnv)
-	}
-	return root
+// AgentCoreRootEnv is the documented way to point the conformance run at an
+// agent-core checkout that is not a sibling of this repository. The formal
+// suites name it as the prerequisite alongside the sibling layout, and the mage
+// targets already honor it.
+const AgentCoreRootEnv = "AGENT_CORE_ROOT"
+
+// coreRootOutcome is how the conformance prerequisite resolved.
+type coreRootOutcome int
+
+const (
+	// coreRootFound: a usable checkout was located.
+	coreRootFound coreRootOutcome = iota
+	// coreRootAbsent: nothing was configured and no sibling exists, so the run
+	// skips and plain `go test ./...` stays hermetic for docs-only checkouts.
+	coreRootAbsent
+	// coreRootInvalid: AGENT_CORE_ROOT was set but does not hold a checkout. An
+	// explicit configuration that cannot be honored is a misconfiguration, so the
+	// run fails rather than skipping and hiding it (GH-584).
+	coreRootInvalid
+)
+
+// coreRootResolution records the resolved path, where it came from, and what the
+// caller should do about it.
+type coreRootResolution struct {
+	Path    string
+	Source  string
+	Outcome coreRootOutcome
 }
 
-func resolveCoreRoot(explicitRoot, fallbackRoot string) (root string, found bool, err error) {
-	root = explicitRoot
-	explicit := root != ""
-	if !explicit {
-		root = fallbackRoot
+// isCoreCheckout reports whether dir holds an agent-core module the conformance
+// harness can build the agent binary from.
+func isCoreCheckout(dir string) bool {
+	if strings.TrimSpace(dir) == "" {
+		return false
 	}
+	info, err := os.Stat(filepath.Join(dir, "go.mod"))
+	return err == nil && !info.IsDir()
+}
 
-	abs, err := filepath.Abs(root)
+// resolveCoreRoot applies the documented prerequisite policy: an explicitly
+// configured AGENT_CORE_ROOT wins and must be usable, otherwise the sibling
+// checkout is used, otherwise the prerequisite is absent. It is pure so the
+// policy is table-tested without touching the process environment.
+func resolveCoreRoot(env, sibling string) coreRootResolution {
+	if strings.TrimSpace(env) != "" {
+		if isCoreCheckout(env) {
+			return coreRootResolution{Path: env, Source: AgentCoreRootEnv, Outcome: coreRootFound}
+		}
+		return coreRootResolution{Path: env, Source: AgentCoreRootEnv, Outcome: coreRootInvalid}
+	}
+	if isCoreCheckout(sibling) {
+		return coreRootResolution{Path: sibling, Source: "sibling checkout", Outcome: coreRootFound}
+	}
+	return coreRootResolution{Path: sibling, Source: "sibling checkout", Outcome: coreRootAbsent}
+}
+
+// RequireCoreRoot returns the agent-core checkout the conformance package builds
+// the agent binary from, honoring AGENT_CORE_ROOT and falling back to the
+// sibling checkout. A set-but-unusable AGENT_CORE_ROOT fails the test; an
+// entirely absent prerequisite skips it.
+func RequireCoreRoot(t *testing.T) string {
+	t.Helper()
+	res := resolveCoreRoot(os.Getenv(AgentCoreRootEnv), filepath.Join(filepath.Dir(ProfilesRoot()), "agent-core"))
+	switch res.Outcome {
+	case coreRootInvalid:
+		t.Fatalf("%s=%s does not hold an agent-core checkout (no go.mod); unset it to use the sibling checkout",
+			AgentCoreRootEnv, res.Path)
+	case coreRootAbsent:
+		t.Skipf("agent-core checkout not found at %s and %s is unset; skipping conformance run",
+			res.Path, AgentCoreRootEnv)
+	}
+	abs, err := filepath.Abs(res.Path)
 	if err != nil {
-		return "", false, fmt.Errorf("make %q absolute: %w", root, err)
+		t.Fatalf("resolve %q from %s: %v", res.Path, res.Source, err)
 	}
-	if _, err := os.Stat(filepath.Join(abs, "go.mod")); err != nil {
-		if explicit {
-			return "", false, fmt.Errorf("%s=%q does not identify an agent-core checkout: %w", agentCoreRootEnv, explicitRoot, err)
-		}
-		if errors.Is(err, os.ErrNotExist) {
-			return "", false, nil
-		}
-		return "", false, fmt.Errorf("inspect fallback checkout %q: %w", abs, err)
-	}
-	return abs, true, nil
+	return abs
 }
 
 // ProfilesRoot returns the agent-profiles repository root (the parent of this

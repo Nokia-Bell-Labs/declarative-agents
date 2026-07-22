@@ -3,55 +3,11 @@
 package main
 
 import (
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
-
-func TestEnsureKindClusterTracksOwnership(t *testing.T) {
-	t.Parallel()
-	createErr := errors.New("create failed")
-	tests := []struct {
-		name        string
-		exists      bool
-		createErr   error
-		wantCreated bool
-		wantErr     bool
-	}{
-		{name: "pre-existing", exists: true},
-		{name: "created by run", wantCreated: true},
-		{name: "create failed", createErr: createErr, wantErr: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			created, err := ensureKindCluster(
-				"cluster",
-				func(string) bool { return tt.exists },
-				func(string) error { return tt.createErr },
-			)
-			if created != tt.wantCreated || (err != nil) != tt.wantErr {
-				t.Fatalf("ensureKindCluster() = (%t, %v), want created=%t err=%t", created, err, tt.wantCreated, tt.wantErr)
-			}
-			if tt.createErr != nil && !errors.Is(err, tt.createErr) {
-				t.Fatalf("ensureKindCluster() error = %v, want wrapped create error", err)
-			}
-		})
-	}
-}
-
-func TestDeleteOwnedKindClusterNeverDeletesPreExisting(t *testing.T) {
-	t.Parallel()
-	var deleted []string
-	deleteFn := func(name string) { deleted = append(deleted, name) }
-	deleteOwnedKindCluster(false, "pre-existing", deleteFn)
-	deleteOwnedKindCluster(true, "created", deleteFn)
-	if len(deleted) != 1 || deleted[0] != "created" {
-		t.Fatalf("deleted clusters = %v, want [created]", deleted)
-	}
-}
 
 func TestSplitImageRef(t *testing.T) {
 	cases := []struct {

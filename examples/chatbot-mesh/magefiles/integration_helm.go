@@ -3,8 +3,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -93,13 +95,11 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	created, err := kindCreateCluster(helmKindCluster)
+	cluster, err := kindEnsureCluster(defaultKindRun, helmKindCluster)
 	if err != nil {
 		return err
 	}
-	if created {
-		defer deleteOwnedKindCluster(created, helmKindCluster, kindDeleteCluster)
-	}
+	defer cluster.release(defaultKindRun)
 
 	if err := kindLoadImage(helmKindCluster, helmImage); err != nil {
 		return err
@@ -231,33 +231,59 @@ func copyDirContents(src, dst string) error {
 	return nil
 }
 
-func kindCreateCluster(name string) (bool, error) {
-	return ensureKindCluster(name, kindClusterExists, func(name string) error {
-		cmd := exec.Command("kind", "create", "cluster", "--name", name, "--wait", "120s")
-		cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-		return cmd.Run()
-	})
+// kindRunner runs one kind subcommand and returns its combined output. Injected
+// so cluster ownership is testable against a fake kind without a real cluster.
+type kindRunner func(args ...string) ([]byte, error)
+
+// defaultKindRun streams kind's output so a multi-minute create still reports
+// progress live, while also capturing it for the caller.
+func defaultKindRun(args ...string) ([]byte, error) {
+	cmd := exec.Command("kind", args...)
+	var buf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stderr, &buf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+	err := cmd.Run()
+	return buf.Bytes(), err
 }
 
-func ensureKindCluster(name string, exists func(string) bool, create func(string) error) (bool, error) {
-	if exists(name) {
-		fmt.Printf("helmSmoke: reusing existing kind cluster %s\n", name)
-		return false, nil
-	}
-	if err := create(name); err != nil {
-		return false, fmt.Errorf("kind create cluster %s: %w", name, err)
-	}
-	return true, nil
+// kindCluster records whether this run created the cluster it is using. Only a
+// cluster this run created may be deleted: the integration targets use fixed
+// cluster names and reuse one that is already up, so deleting unconditionally
+// destroys a developer or CI cluster the test did not create (GH-589).
+type kindCluster struct {
+	Name    string
+	Created bool
 }
 
-func deleteOwnedKindCluster(created bool, name string, deleteCluster func(string)) {
-	if created {
-		deleteCluster(name)
+// kindEnsureCluster reuses an existing cluster or creates one, recording which
+// happened so release can decide whether deletion is ours to perform.
+func kindEnsureCluster(run kindRunner, name string) (kindCluster, error) {
+	if kindClusterExists(run, name) {
+		fmt.Printf("kind: reusing pre-existing cluster %s; it will not be deleted\n", name)
+		return kindCluster{Name: name}, nil
+	}
+	if _, err := run("create", "cluster", "--name", name, "--wait", "120s"); err != nil {
+		return kindCluster{}, fmt.Errorf("kind create cluster %s: %w", name, err)
+	}
+	return kindCluster{Name: name, Created: true}, nil
+}
+
+// release deletes the cluster only when this run created it. A cleanup failure
+// is reported but not fatal: the target's own result is what matters.
+func (c kindCluster) release(run kindRunner) {
+	if !c.Created {
+		if c.Name != "" {
+			fmt.Printf("kind: leaving pre-existing cluster %s in place\n", c.Name)
+		}
+		return
+	}
+	if _, err := run("delete", "cluster", "--name", c.Name); err != nil {
+		fmt.Printf("kind: delete cluster %s failed: %v\n", c.Name, err)
 	}
 }
 
-func kindClusterExists(name string) bool {
-	out, err := exec.Command("kind", "get", "clusters").Output()
+func kindClusterExists(run kindRunner, name string) bool {
+	out, err := run("get", "clusters")
 	if err != nil {
 		return false
 	}
@@ -267,12 +293,6 @@ func kindClusterExists(name string) bool {
 		}
 	}
 	return false
-}
-
-func kindDeleteCluster(name string) {
-	cmd := exec.Command("kind", "delete", "cluster", "--name", name)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	_ = cmd.Run()
 }
 
 func kindLoadImage(cluster, image string) error {
@@ -449,13 +469,11 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	created, err := kindCreateCluster(helmSwapCluster)
+	swapCluster, err := kindEnsureCluster(defaultKindRun, helmSwapCluster)
 	if err != nil {
 		return err
 	}
-	if created {
-		defer deleteOwnedKindCluster(created, helmSwapCluster, kindDeleteCluster)
-	}
+	defer swapCluster.release(defaultKindRun)
 	if err := kindLoadImage(helmSwapCluster, helmImage); err != nil {
 		return err
 	}
@@ -657,13 +675,11 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	created, err := kindCreateCluster(helmLLMCluster)
+	llmCluster, err := kindEnsureCluster(defaultKindRun, helmLLMCluster)
 	if err != nil {
 		return err
 	}
-	if created {
-		defer deleteOwnedKindCluster(created, helmLLMCluster, kindDeleteCluster)
-	}
+	defer llmCluster.release(defaultKindRun)
 	if err := kindLoadImage(helmLLMCluster, helmImage); err != nil {
 		return err
 	}
@@ -671,8 +687,8 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 
-	// --wait already blocked on these, but assert them directly so a regression in
-	// the preload Job or readiness gate reads as a tier failure, not a chat failure.
+	// Ollama must serve before the suspended preload Job can be resumed; agent
+	// readiness remains blocked until the transition proof below completes.
 	if err := kubectlRolloutStatus("statefulset", helmLLMRelease+"-chatbot-mesh-ollama", helmLLMReadyTimeout); err != nil {
 		return fmt.Errorf("ollama StatefulSet did not become ready: %w", err)
 	}
