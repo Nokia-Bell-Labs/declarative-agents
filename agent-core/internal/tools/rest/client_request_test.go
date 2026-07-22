@@ -80,7 +80,7 @@ func TestRESTClient_CarryForwardOmittedWithoutConfig(t *testing.T) {
 	def := clientDefinition(t, upstream.URL, issueClient())
 
 	var output map[string]interface{}
-	result := clientCommand(def, InitClientGet, "get", params("1")).Execute()
+	result := clientCommand(t, def, InitClientGet, "get", params("1")).Execute()
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
 	require.NotContains(t, output, "carried")
 }

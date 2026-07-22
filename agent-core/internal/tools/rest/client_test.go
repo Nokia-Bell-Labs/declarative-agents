@@ -41,7 +41,7 @@ func TestRESTClient_RejectsAuthorityOverride(t *testing.T) {
 	defer upstream.Close()
 	def := clientDefinition(t, upstream.URL, issueClient())
 
-	result := clientCommand(def, InitClientGet, "get", map[string]interface{}{
+	result := clientCommand(t, def, InitClientGet, "get", map[string]interface{}{
 		"owner": "acme", "repo": "agent-core", "number": "1", "url": "https://evil.example",
 	}).Execute()
 
@@ -94,13 +94,13 @@ func requireRESTClientCompensationUndoReceipt(t *testing.T) {
 	defer upstream.Close()
 	def := clientDefinition(t, upstream.URL, issueClient())
 
-	read := clientCommand(def, InitClientGet, "get", params("1"))
+	read := clientCommand(t, def, InitClientGet, "get", params("1"))
 	readRes := read.Execute()
 	require.Equal(t, core.Signal("RESTResourceRead"), readRes.Signal)
 	require.Empty(t, readRes.Receipt)
 	require.Equal(t, core.ToolDone, read.Undo(core.Result{}).Signal)
 
-	write := clientCommand(def, InitClientSet, "set", params("1", "new"))
+	write := clientCommand(t, def, InitClientSet, "set", params("1", "new"))
 	writeRes := write.Execute()
 	require.Equal(t, core.Signal("RESTResourceWritten"), writeRes.Signal)
 	require.NotEmpty(t, writeRes.Receipt)
@@ -122,7 +122,7 @@ func TestRESTClient_CompensationExecutorRunsFromReceipt(t *testing.T) {
 	}))
 	defer upstream.Close()
 	def := clientDefinition(t, upstream.URL, issueClient())
-	write := clientCommand(def, InitClientSet, "set", params("1", "new"))
+	write := clientCommand(t, def, InitClientSet, "set", params("1", "new"))
 	res := write.Execute()
 	require.Equal(t, core.Signal("RESTResourceWritten"), res.Signal)
 	require.NotEmpty(t, res.Receipt)
@@ -144,7 +144,7 @@ func TestRESTClient_CompensationExecutorReportsMissingOperation(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(issueHandler))
 	defer upstream.Close()
 	def := clientDefinition(t, upstream.URL, issueClient())
-	write := clientCommand(def, InitClientSet, "set", params("1", "new"))
+	write := clientCommand(t, def, InitClientSet, "set", params("1", "new"))
 	res := write.Execute()
 	require.Equal(t, core.Signal("RESTResourceWritten"), res.Signal)
 	receipt := replaceRESTCompensationOperation(t, res.Receipt, "missing")
@@ -174,7 +174,7 @@ func TestRESTClient_RedactionRunsBeforePersistence(t *testing.T) {
 	// issueClient's get operation redacts body.secret.
 	def := clientDefinition(t, upstream.URL, issueClient())
 
-	result := clientCommand(def, InitClientGet, "get", params("1")).Execute()
+	result := clientCommand(t, def, InitClientGet, "get", params("1")).Execute()
 	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal)
 
 	// The redacted value is absent from the persisted Result output and the
@@ -199,7 +199,7 @@ func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
 		Type: authHeaderToken, Header: "X-Token", TokenRef: "token_ref",
 	}}
 
-	result := clientCommandWithCredentials(def, InitClientGet, "get", params("1"), authCredentials()).Execute()
+	result := clientCommandWithCredentials(t, def, InitClientGet, "get", params("1"), authCredentials()).Execute()
 	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal)
 	require.NotContains(t, result.Output, "synthetic-token")
 	require.NotContains(t, result.Output, "body-secret")
@@ -209,7 +209,7 @@ func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
 	op := badDef.Clients["github"].Resources["issue"].Operations["get"]
 	op.Success.Status = []int{201}
 	badDef.Clients["github"].Resources["issue"].Operations["get"] = op
-	result = clientCommand(badDef, InitClientGet, "get", params("1")).Execute()
+	result = clientCommand(t, badDef, InitClientGet, "get", params("1")).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "status_mapping")
 }
@@ -229,7 +229,7 @@ func TestRESTRedactionPolicy_UnifiesOutputErrorsAndMonitorLabels(t *testing.T) {
 		Type: authHeaderToken, Header: "X-Token", TokenRef: "token_ref",
 	}}
 
-	result := clientCommandWithCredentials(def, InitClientGet, "get", params("1"), authCredentials()).Execute()
+	result := clientCommandWithCredentials(t, def, InitClientGet, "get", params("1"), authCredentials()).Execute()
 	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal)
 	require.NotContains(t, result.Output, "synthetic-token")
 	require.Contains(t, result.Output, redactedValue)
@@ -268,7 +268,7 @@ func TestRESTClient_ResolvesAuthCredentialRefs(t *testing.T) {
 			defer upstream.Close()
 			def := authenticatedDefinition(t, upstream.URL, tc.auth)
 
-			result := clientCommandWithCredentials(def, InitClientGet, "get", params("1"), authCredentials()).Execute()
+			result := clientCommandWithCredentials(t, def, InitClientGet, "get", params("1"), authCredentials()).Execute()
 
 			require.Equal(t, core.Signal("RESTResourceRead"), result.Signal, result.Output)
 			require.True(t, accepted)
@@ -286,7 +286,7 @@ func TestRESTClient_MissingCredentialReferenceFailsAuthResolution(t *testing.T) 
 	defer upstream.Close()
 	def := authenticatedDefinition(t, upstream.URL, AuthProfile{Type: authBearer, TokenRef: "missing_token"})
 
-	result := clientCommandWithCredentials(def, InitClientGet, "get", params("1"), authCredentials()).Execute()
+	result := clientCommandWithCredentials(t, def, InitClientGet, "get", params("1"), authCredentials()).Execute()
 
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "auth_resolution")
@@ -312,7 +312,7 @@ func TestRESTClient_RedirectAllowlistPolicy(t *testing.T) {
 
 	blocked := clientDefinition(t, redirect.URL, issueClient())
 	setRedirectPolicy(blocked, RedirectPolicy{Mode: redirectAllowlist, AllowHosts: []string{"example.invalid"}})
-	result := clientCommand(blocked, InitClientGet, "get", params("1")).Execute()
+	result := clientCommand(t, blocked, InitClientGet, "get", params("1")).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "network_io")
 }
@@ -329,14 +329,14 @@ func TestRESTClient_RequestAndResponseSizeLimits(t *testing.T) {
 
 	requestLimited := clientDefinition(t, upstream.URL, issueClient())
 	setRequestLimit(requestLimited, 8)
-	result := clientCommand(requestLimited, InitClientSet, "set", params("1", strings.Repeat("x", 32))).Execute()
+	result := clientCommand(t, requestLimited, InitClientSet, "set", params("1", strings.Repeat("x", 32))).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "request_rendering")
 	require.Zero(t, requests)
 
 	responseLimited := clientDefinition(t, upstream.URL, issueClient())
 	setResponseLimit(responseLimited, 8)
-	result = clientCommand(responseLimited, InitClientGet, "get", params("1")).Execute()
+	result = clientCommand(t, responseLimited, InitClientGet, "get", params("1")).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "size_limit")
 	require.NotContains(t, result.Output, strings.Repeat("x", 16))
@@ -365,7 +365,7 @@ func requireCIDRAllowlistPolicy(t *testing.T) {
 
 	blocked := clientDefinition(t, upstream.URL, issueClient())
 	setNetworkPolicy(blocked, NetworkPolicy{CIDRs: []string{"10.0.0.0/8"}})
-	result := clientCommand(blocked, InitClientGet, "get", params("1")).Execute()
+	result := clientCommand(t, blocked, InitClientGet, "get", params("1")).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "request_rendering")
 	require.Equal(t, 1, requests)
@@ -394,11 +394,11 @@ func requireResponseSchemaAndDomainErrorOutput(t *testing.T) {
 	op.Failures[1].DomainErrorCode = "validation_failed"
 	def.Clients["github"].Resources["issue"].Operations["get"] = op
 
-	result := clientCommand(def, InitClientGet, "get", params("1")).Execute()
+	result := clientCommand(t, def, InitClientGet, "get", params("1")).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "response_mapping")
 
-	result = clientCommand(def, InitClientGet, "get", params("domain")).Execute()
+	result = clientCommand(t, def, InitClientGet, "get", params("domain")).Execute()
 	require.Equal(t, core.Signal("RESTDomainFailed"), result.Signal, result.Output)
 	require.Contains(t, result.Output, `"domain_error_code":"validation_failed"`)
 }
@@ -410,7 +410,7 @@ func TestRESTClientRecordsMonitorMetrics(t *testing.T) {
 	}))
 	defer upstream.Close()
 	rec := &restMetricRecorder{}
-	cmd := clientCommand(clientDefinition(t, upstream.URL, issueClient()), InitClientGet, "get", params("1"))
+	cmd := clientCommand(t, clientDefinition(t, upstream.URL, issueClient()), InitClientGet, "get", params("1"))
 	cmd.(core.MonitorRecorderAware).SetMonitorRecorder(rec)
 
 	result := cmd.Execute()
@@ -434,6 +434,7 @@ func TestRESTClientMetricConfigCanDisableSamples(t *testing.T) {
 	defer upstream.Close()
 	rec := &restMetricRecorder{}
 	cmd := clientCommandWithMetrics(
+		t,
 		clientDefinition(t, upstream.URL, issueClient()),
 		InitClientGet,
 		"get",
@@ -454,7 +455,7 @@ func TestRESTClientMetricsCarryDispatchEnvelope(t *testing.T) {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"title": "ok"})
 	}))
 	defer upstream.Close()
-	cmd := clientCommand(clientDefinition(t, upstream.URL, issueClient()), InitClientGet, "get", params("1"))
+	cmd := clientCommand(t, clientDefinition(t, upstream.URL, issueClient()), InitClientGet, "get", params("1"))
 
 	samples := runRESTMetricLoop(t, cmd, core.Signal("RESTResourceRead"))
 
