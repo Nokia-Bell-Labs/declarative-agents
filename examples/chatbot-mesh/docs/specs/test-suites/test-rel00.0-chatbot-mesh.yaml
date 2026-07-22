@@ -23,7 +23,7 @@ test_cases:
   - use_case: rel00.0-uc001-rag-server-query
     name: RAG server vector-in query tracer
     integration_target: mage integration:ragServer
-    go_test: go test ./magefiles -run '^(TestParseRagQueryResponseChunksAndMetadata|TestParseRagQueryResponseEmptyChunks|TestParseRagQueryResponseNoIDs)$'
+    go_test: go test ./magefiles -run '^TestParseRagQueryResponseChunksAndMetadata$|^TestParseRagQueryResponseEmptyChunks$|^TestParseRagQueryResponseNoIDs$|^TestRagQueryBodyMarshalsVector$'
     status: implemented
     description: |
       Integration.RagServer starts a Chroma container, seeds a collection by
@@ -34,8 +34,7 @@ test_cases:
       for a wrong-dimension vector, a reachable monitor current_state, and a
       graceful lifecycle exit. Verified end to end against live Docker and Ollama;
       skips cleanly without them. No query embedding or LLM answering happens in
-      the RAG server. The named Go tests cover response parsing only; the Mage
-      target owns live profile and service behavior.
+      the RAG server.
     inputs:
       rag_profile: agents/rag-server/profile.yaml
       chroma_rest: agents/rag-server/rest.yaml
@@ -59,7 +58,7 @@ test_cases:
   - use_case: rel00.0-uc002-chatbot-turn
     name: Single-RAG chatbot turn tracer with a degraded RAG
     integration_target: mage integration:chatbot
-    go_test: go test ./magefiles -run '^(TestCitedRecordNumbersBracketed|TestCitedRecordNumbersDedupesAndSorts|TestCitedRecordNumbersUngrounded|TestChatResponseDecodesTrace)$'
+    go_test: go test ./magefiles -run '^TestCitedRecordNumbersBracketed$|^TestCitedRecordNumbersDedupesAndSorts$|^TestCitedRecordNumbersUngrounded$|^TestChatResponseDecodesTrace$'
     status: implemented
     description: |
       Integration.Chatbot drives the chat machine_request endpoint and asserts the
@@ -71,9 +70,7 @@ test_cases:
       message alone rather than a 500, carrying prior turns as client-side history
       (R4). The router and the two-RAG fan-out this target also exercises are
       validated by the 01.0 suite. Verified end to end against live Docker and
-      Ollama; skips cleanly without them, naming a missing model. The named Go
-      tests cover citation and response decoding; the Mage target owns the live
-      turn and degraded-service assertions.
+      Ollama; skips cleanly without them, naming a missing model.
     inputs:
       chatbot_profile: agents/chatbot/profile.yaml
       turns: a turn answered from retrieved chunks, then a degraded follow-up with history
