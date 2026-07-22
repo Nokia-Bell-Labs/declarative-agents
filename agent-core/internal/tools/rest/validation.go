@@ -469,8 +469,8 @@ func validateMachineRequestEndpoint(name string, endpoint Endpoint) error {
 	if cfg.Profile == "" && cfg.Machine == "" && cfg.MachineSpec == nil {
 		return fmt.Errorf("endpoint %q machine_request requires profile, machine, or machine spec", name)
 	}
-	if len(cfg.Response.TerminalSignals) == 0 {
-		return fmt.Errorf("endpoint %q machine_request requires response terminal_signals", name)
+	if len(cfg.Response.TerminalSignals) == 0 && len(cfg.Response.TerminalStates) == 0 {
+		return fmt.Errorf("endpoint %q machine_request requires response terminal_states or terminal_signals", name)
 	}
 	if cfg.Timeout == "" {
 		return fmt.Errorf("endpoint %q machine_request requires timeout", name)
@@ -558,7 +558,8 @@ func machineRequestYAMLSet(cfg MachineRequest) bool {
 	if cfg.Profile != "" || cfg.Machine != "" || cfg.InitialSignal != "" || cfg.Timeout != "" {
 		return true
 	}
-	if len(cfg.DocumentResources) > 0 || len(cfg.Response.TerminalSignals) > 0 {
+	if len(cfg.DocumentResources) > 0 || len(cfg.Response.TerminalSignals) > 0 ||
+		len(cfg.Response.TerminalStates) > 0 {
 		return true
 	}
 	m := cfg.Request

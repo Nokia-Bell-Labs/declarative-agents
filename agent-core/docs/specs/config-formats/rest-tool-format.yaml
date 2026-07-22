@@ -553,8 +553,19 @@ schema:
     fields:
       - field: terminal_signals
         type: map[string]machine_request_terminal_response
-        required: true
-        description: HTTP response mapping by allowed terminal signal.
+        required: false
+        description: HTTP response mapping by allowed terminal signal. Either this or terminal_states is required.
+      - field: terminal_states
+        type: map[string]machine_request_terminal_response
+        required: false
+        description: |
+          HTTP response mapping by terminal machine state. Resolved before
+          terminal_signals when both are present, because many signals may reach
+          one terminal state and one signal may reach many. A request machine
+          built from exec words emits only ToolDone and ToolFailed, so state
+          keying is what lets it return a distinct response per outcome
+          (GH-615). Each key must be a terminal state of the request machine, or
+          the endpoint fails configuration validation.
 
   machine_request_terminal_response:
     fields:

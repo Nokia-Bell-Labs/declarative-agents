@@ -58,50 +58,8 @@ tools:
     relationships:
       before: [helm_dry_run]
 
-  - name: verified
-    type: builtin
-    init: done
-    category: word
-    visibility: internal
-    description: Emit the success terminal signal after the rollout is verified, so the apply response maps to a distinct 200.
-    problem: The exec words emit only ToolDone and ToolFailed, so the success terminal needs a distinct signal to map apart from a rolled-back failure.
-    goals:
-      - Emit TaskCompleted once the rollout is verified.
-      - Give the apply endpoint a terminal signal distinct from ToolDone and ToolFailed.
-    requirements:
-      input:
-        - Takes no request-scoped input beyond the verified rollout.
-      output:
-        - Output reports task completion.
-      errors:
-        - None; the word only signals completion.
-    non_goals:
-      - Does not mutate the cluster; the rollout already completed.
-      - Does not decide success; the machine reaches this word only on a verified rollout.
-    parameters:
-      type: object
-      properties: {}
-    emits: [TaskCompleted]
-    output:
-      description: Success confirmation.
-      schema:
-        type: object
-        properties:
-          status: {type: string}
-    side_effects:
-      - kind: state_mutation
-        target: request_run
-        state: completed
-    reversibility:
-      classification: irreversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Signalling completion mutates no external state.
-    errors:
-      - signal: TaskCompleted
-        condition: The rollout was verified.
-        message_shape: applied
-        state_after_failure: Not applicable; this word signals success.
-    relationships:
-      after: [kubectl_rollout_status]
+  # The `verified` word was removed with GH-615. It did no work: it existed only
+  # to emit TaskCompleted so the apply endpoint had a success signal distinct
+  # from the ToolDone/ToolFailed that exec words emit. Terminal-state response
+  # mapping makes Done distinguishable without it, so Verifying now transitions
+  # straight to Done.

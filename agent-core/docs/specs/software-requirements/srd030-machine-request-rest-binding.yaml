@@ -56,6 +56,9 @@ requirements:
       - R4.1: A machine_request run SHALL produce an HTTP response only from configured terminal response data.
       - R4.2: Response words SHALL be the only bridge from machine output back to HTTP status, headers, and body.
       - R4.3: Configuration SHALL map allowed terminal signals or response word output to status code, headers, body fields, and content type. When the terminal word emits plain text rather than a JSON object (for example invoke_llm's raw model answer), the binding SHALL expose it under an output key so a body selector can map $.output; JSON object outputs SHALL be mapped by their fields unchanged.
+      - R4.6: Configuration MAY map allowed terminal states to the same response fields as terminal signals, so a request machine whose words emit a fixed signal vocabulary can still return distinct responses per outcome. Words that emit only ToolDone and ToolFailed SHALL NOT bound a machine to two distinct responses.
+      - R4.7: When both maps are configured, the binding SHALL resolve the terminal state first and fall back to the terminal signal, since many signals may reach one terminal state and one signal may reach many.
+      - R4.8: A configured terminal state that the request MachineSpec does not declare terminal SHALL fail configuration validation, and an unmapped terminal SHALL report both the terminal state and the terminal signal that were looked up.
       - R4.4: The binding SHALL reject terminal output that cannot satisfy the configured response schema.
       - R4.5: Missing response output SHALL map to a configured default response or a structured server error.
 
@@ -105,6 +108,12 @@ acceptance_criteria:
     criterion: Response extraction uses configured response words or terminal output to shape HTTP status, headers, body, and content type.
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
 
+  - id: AC8
+    criterion: Terminal-state response mapping lets an exec-driven request machine return a distinct response per outcome, resolves state before signal when both are configured, rejects a mapped state the machine never terminates in, and names both keys when no mapping matches.
+    traces: [R4.6, R4.7, R4.8]
+    tests:
+      - "test-rel03.0-rest-tools: Terminal state mapping separates client and server errors"
+
   - id: AC6
     criterion: Error and timeout mapping cover validation, config, run, timeout, cancellation, response, and redaction behavior.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
@@ -139,6 +148,7 @@ implementation_status:
     - internal/knowledge/documentation owns the documentation_curator_requests lifecycle through a same-origin proxy that stays a transport adapter over the generic REST server.
     - Plain go test covers generic request-to-machine response behavior, trace evidence, selected request factories, and same-origin proxy lifecycle cleanup; the concrete browser tracer belongs to agent-profiles.
     - Configured machine_request terminal response schemas are enforced before success responses; invalid terminal output maps to response_invalid error handling.
+    - Response mapping accepts terminal_states alongside terminal_signals and resolves state first, so an exec-driven request machine returns a distinct response per outcome; examples/chatbot-mesh executor apply maps Done, Rejected, RolledBack, and Failed to 200, 400, 500, and 500.
   partial: []
   planned_follow_up: []
 

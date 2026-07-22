@@ -74,27 +74,44 @@ rest:
                 content: $.content
                 path: /work/overrides.yaml
             response:
-              terminal_signals:
-                TaskCompleted:
+              # Keyed by terminal state, not terminal signal: every word in
+              # apply-machine.yaml is an exec word emitting only ToolDone or
+              # ToolFailed, so signal keying could not separate a rejected patch
+              # from a failed apply, nor a successful rollback from either
+              # (srd030 R4.3; GH-615).
+              terminal_states:
+                Done:
                   status: 200
                   content_type: application/json
                   body:
                     schema_version: "1"
                     status: applied
-                ToolFailed:
-                  status: 500
+                # The dry-run rejected the patch against the chart schema. The
+                # caller sent bad values and nothing was applied, so this is a
+                # client error and retrying the same patch will not help.
+                Rejected:
+                  status: 400
                   content_type: application/json
                   body:
                     schema_version: "1"
-                    status: rolled_back
-                    error: apply_failed
-                ToolDone:
+                    status: rejected
+                    error: validate_rejected
+                # The rollout stalled and helm_rollback restored the prior
+                # revision. The release is intact; the patch did not take.
+                RolledBack:
                   status: 500
                   content_type: application/json
                   body:
                     schema_version: "1"
                     status: rolled_back
                     error: rolled_back
+                Failed:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    status: failed
+                    error: apply_failed
         rollout:
           # Read the chatbot Deployment's rollout status (srd006 R1.1). kubectl
           # computes the phase; a complete rollout is ToolDone, a still-progressing

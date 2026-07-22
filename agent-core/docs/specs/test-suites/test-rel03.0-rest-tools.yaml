@@ -615,6 +615,54 @@ test_cases:
       - srd029-rest-server-tools AC9
 
   - use_case: rel03.0-uc003-rest-server-signals
+    name: Terminal state mapping separates client and server errors
+    go_test: TestMachineRequestTerminalStateSeparatesClientAndServerErrors, TestMachineRequestTerminalStateOutranksSignal, TestMachineRequestFallsBackToSignalMapping
+    status: done
+    description: |
+      A request machine built from exec words emits only ToolDone and ToolFailed,
+      so two different failures reach two different terminal states through the
+      same signal. Keyed by terminal state the endpoint returns a distinct
+      response for each: a validate reject is the caller's fault, an apply
+      failure is the server's. State resolves before signal when both maps are
+      configured, and a config with only terminal_signals behaves as before.
+    inputs:
+      machine: apply-shaped, terminal states Done, Rejected, Failed
+      words: exec-shaped, emitting only ToolDone or ToolFailed
+      response_map: {Done: 200, Rejected: 400, Failed: 500}
+    expected:
+      validate_reject_status: 400
+      apply_failure_status: 500
+      success_status: 200
+      failures_share_terminal_signal: true
+      terminal_state_outranks_terminal_signal: true
+      signal_only_config_unchanged: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - srd030-machine-request-rest-binding AC8
+
+  - use_case: rel03.0-uc003-rest-server-signals
+    name: Terminal response configuration fails closed
+    go_test: TestValidateMachineResponsesRejectsNonTerminalState, TestMachineRequestEndpointAcceptsEitherResponseMap, TestMachineRequestUnmappedTerminalNamesBothKeys
+    status: done
+    description: |
+      A mapping onto a state the machine never terminates in can never fire, so
+      it fails at load rather than surfacing as a per-request response_missing.
+      One of the two response maps is required, either alone suffices, and an
+      unmapped terminal names both the state and the signal that were looked up.
+    inputs:
+      non_terminal_state_mapping: Applying
+      empty_response_map: true
+      unmapped_terminal: Rejected
+    expected:
+      non_terminal_state_rejected_at_load: true
+      either_map_accepted: true
+      neither_map_rejected: true
+      diagnostic_names_state_and_signal: true
+    traces:
+      - rel03.0-uc003-rest-server-signals S2
+      - srd030-machine-request-rest-binding AC8
+
+  - use_case: rel03.0-uc003-rest-server-signals
     name: Server validation rejects unsafe inbound traffic
     go_test: TestRESTServer_RequestValidationFailures
     status: done
