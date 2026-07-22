@@ -100,6 +100,11 @@ func Validate() error {
 	if err := validateProfiles(root, coreRoot); err != nil {
 		return err
 	}
+	// Static wiring passes for profiles the runtime rejects, so preflight each one
+	// through the agent's own startup path before declaring the audit clean.
+	if err := bootSmoke(root, coreRoot); err != nil {
+		return err
+	}
 	return validateJuristCharterDemo(root, coreRoot)
 }
 
@@ -117,24 +122,9 @@ func ContainerSmoke() error {
 }
 
 func validateProfiles(root, coreRoot string) error {
-	profiles, err := discoverProfiles(filepath.Join(root, "agents"))
+	profiles, err := discoverAuditProfiles(root)
 	if err != nil {
 		return err
-	}
-	if len(profiles) == 0 {
-		return fmt.Errorf("no profile-shaped YAML files found under agents")
-	}
-	// The conformance grammar fixtures (rest, control, lifecycle) live under
-	// testdata/conformance rather than agents/ (they are not roles, GH-328), but
-	// they are still profiles and must keep schema and path validation. The
-	// directory is optional so a synthetic root with only agents/ still validates.
-	conformanceDir := filepath.Join(root, "testdata", "conformance")
-	if _, statErr := os.Stat(conformanceDir); statErr == nil {
-		fixtures, err := discoverProfiles(conformanceDir)
-		if err != nil {
-			return err
-		}
-		profiles = append(profiles, fixtures...)
 	}
 	for _, profile := range profiles {
 		if err := validateProfile(profile, coreRoot); err != nil {

@@ -51,7 +51,16 @@ func Audit() error {
 		return err
 	}
 	defer func() { _ = os.Remove(binary) }()
-	return runJurist(binary, juristProfile, root, coreRoot)
+	if err := runJurist(binary, juristProfile, root, coreRoot); err != nil {
+		return err
+	}
+	// The jurist validates the specification corpus, not whether an agent can
+	// start, so preflight every mesh profile through the runtime's own load path.
+	profiles, err := meshProfiles(root)
+	if err != nil {
+		return err
+	}
+	return bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles)
 }
 
 // resolveAuditTools locates the agent-core runtime checkout and the jurist
