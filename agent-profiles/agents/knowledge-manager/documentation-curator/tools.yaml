@@ -1,5 +1,6 @@
 tools:
-  - serve_documentation
+  - launch_documentation
+  - stop_documentation
   - launch_curator_control
   - await_curator_control
   - launch_monitor_rest

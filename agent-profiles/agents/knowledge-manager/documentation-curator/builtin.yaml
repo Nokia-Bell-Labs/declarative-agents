@@ -1,15 +1,14 @@
 tools:
-  - name: serve_documentation
+  - name: launch_documentation
     type: builtin
-    init: serve_documentation
+    init: launch_documentation
     visibility: internal
     emits:
       - ServerLaunched
-      - ServerStopped
       - CommandError
     description: Start the standalone Knowledge Manager documentation UI and API host.
     category: boundary
-    problem: The documentation-curator profile needs one host boundary word that starts the documentation UX without relying on bench routes.
+    problem: The documentation-curator profile needs a host boundary word that starts the documentation UX without relying on bench routes, named as one forward operation for MachineSpec.
     goals:
       - Start the documentation UI and API host from profile-owned config.
       - Serve documentation content from the configured docs root.
@@ -19,7 +18,6 @@ tools:
         - must read addr and docs_dir from ToolDef config
       output:
         - must emit ServerLaunched when the host starts
-        - must emit ServerStopped when the owned host stops
         - must emit CommandError when the host cannot start or exits with an error
       side_effects:
         - must bind a local HTTP server
@@ -31,12 +29,13 @@ tools:
       - Does not validate or mutate documentation content.
       - Does not run evaluator or bench workflows.
       - Does not call an LLM.
+      - Does not stop the host; stop_documentation does.
     parameters:
       type: object
       properties: {}
       additionalProperties: false
     output:
-      description: Documentation host lifecycle status.
+      description: Documentation host launch status.
       schema:
         type: object
         properties:
@@ -55,7 +54,7 @@ tools:
         description: Exposes read-only documentation list/get/search routes through localhost.
     reversibility:
       classification: compensatable
-      undo: server_shutdown
+      undo: stop_documentation
       requires_confirmation: false
     undo:
       strategy: compensating_action
@@ -65,11 +64,7 @@ tools:
     errors:
       - signal: CommandError
         condition: docs_dir is missing, address binding fails, or the HTTP server exits with an error
-        message_shape: 'serve_documentation: <error>'
-        state_after_failure: no durable docs state is changed
-      - signal: CommandError
-        condition: stop is requested but no documentation host is running
-        message_shape: 'documentation host is not running'
+        message_shape: 'launch_documentation: <error>'
         state_after_failure: no durable docs state is changed
     relationships:
       before:
@@ -82,13 +77,79 @@ tools:
         - doc_suggest_changes
       overlaps:
         - tool: serve_ui
-          difference: serve_documentation hosts Knowledge Manager docs only; serve_ui hosts bench experiment workflows.
+          difference: launch_documentation hosts Knowledge Manager docs only; serve_ui hosts bench experiment workflows.
     config:
       addr: :18081
       docs_dir: docs
       configs_dir: configs
       source_dir: .
       profile_path: agents/knowledge-manager/documentation-curator/profile.yaml
+
+  - name: stop_documentation
+    type: builtin
+    init: stop_documentation
+    visibility: internal
+    emits:
+      - ServerStopped
+      - CommandError
+    description: Stop the owned Knowledge Manager documentation host and release its address.
+    category: boundary
+    problem: The shutdown sequence needs an explicit teardown word for the host launch_documentation started, named as a forward operation rather than folded into the launch word.
+    goals:
+      - Stop the owned documentation host listener.
+      - Release the bound address.
+    requirements:
+      input:
+        - takes no config; it stops the shared host launch_documentation started
+      output:
+        - must emit ServerStopped when the owned host stops
+        - must emit CommandError when the host cannot be stopped
+      side_effects:
+        - must release the bound HTTP listener
+      undo:
+        - none; a relaunch is a separate launch_documentation action
+      errors:
+        - must emit CommandError when no documentation host is running
+    non_goals:
+      - Does not start the host; launch_documentation does.
+      - Does not validate or mutate documentation content.
+      - Does not call an LLM.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    output:
+      description: Documentation host stop status.
+      schema:
+        type: object
+        properties:
+          signal:
+            type: string
+          addr:
+            type: string
+    side_effects:
+      - kind: network_listener_shutdown
+        target: documentation_curator_http
+        state: listener_stopped
+        description: Stops the local documentation UX and API server and releases the bound address.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    undo:
+      strategy: noop
+      description: A stopped documentation listener is re-established by a separate launch_documentation action.
+    errors:
+      - signal: CommandError
+        condition: stop is requested but no documentation host is running
+        message_shape: 'documentation host is not running'
+        state_after_failure: no durable docs state is changed
+    relationships:
+      after:
+        - launch_documentation
+      overlaps:
+        - tool: stop_monitor_rest
+          difference: stop_documentation stops the documentation host; stop_monitor_rest stops the monitor REST listener.
 
   - name: launch_curator_control
     type: builtin
@@ -168,7 +229,7 @@ tools:
         target: rest_server_queue
         state: selected_event_consumed
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop

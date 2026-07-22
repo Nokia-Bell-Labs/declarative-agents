@@ -113,7 +113,8 @@ func TestBuiltinFactoryCatalogSelectsEntriesByInit(t *testing.T) {
 	require.True(t, byName["spec_validation"].selectedBy(map[string]bool{"validate_specs": true}))
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_history": true}))
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_rollback": true}))
-	require.True(t, byName["documentation"].selectedBy(map[string]bool{"serve_documentation": true}))
+	require.True(t, byName["documentation"].selectedBy(map[string]bool{"launch_documentation": true}))
+	require.True(t, byName["documentation"].selectedBy(map[string]bool{"stop_documentation": true}))
 	require.False(t, byName["planning"].selectedBy(map[string]bool{"launch_eval": true}))
 }
 
@@ -140,7 +141,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 		"report_session", "run_agent", "run_oracle_check", "collect_trace_tokens",
 		"check_agent_version", "summarize_point_results", "collect_metrics",
 		"dump_config", "serve_ui", "launch_eval", "load_corpus", "validate_specs",
-		"format_report", "serve_documentation",
+		"format_report", "launch_documentation", "stop_documentation",
 	} {
 		require.True(t, covered[init], "catalog should cover init %q", init)
 	}
@@ -383,10 +384,11 @@ func TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown(t *testing.T)
 
 	result := runExitMachine(t, exitMachineCase{
 		machinePath:   profilePathFromTest(t, "knowledge-manager/documentation-curator/machine.yaml"),
-		launch:        "serve_documentation",
+		launch:        "launch_documentation",
 		secondLaunch:  "launch_curator_control",
 		monitorLaunch: "launch_monitor_rest",
 		monitorStop:   "stop_monitor_rest",
+		docsStop:      "stop_documentation",
 		await:         "await_curator_control",
 		terminal:      "Done",
 		shutdown:      shutdown,
@@ -540,6 +542,7 @@ type exitMachineCase struct {
 	secondLaunch  string
 	monitorLaunch string
 	monitorStop   string
+	docsStop      string
 	await         string
 	terminal      string
 	shutdown      *deferredShutdown
@@ -596,6 +599,9 @@ func runExitMachine(t *testing.T, tc exitMachineCase) core.RunResult {
 	}
 	if tc.monitorStop != "" {
 		registerStaticSignal(reg, tc.monitorStop, "ServerStopped", "{}", "")
+	}
+	if tc.docsStop != "" {
+		registerStaticSignal(reg, tc.docsStop, "ServerStopped", "{}", "")
 	}
 	registerStaticSignal(reg, tc.await, "ExitRequested", exitEventOutput(), "")
 	reg.Register(core.ToolSpec{Name: "exit_agent"}, lifecycle.ExitBuilder{

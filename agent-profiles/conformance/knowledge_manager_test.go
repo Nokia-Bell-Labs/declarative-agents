@@ -75,12 +75,13 @@ func TestKnowledgeManagerConformance(t *testing.T) {
 	// srd011 R2.2/R3.1: documentation host, control launch/await, monitor
 	// launch/stop, and exit_agent lifecycle vocabulary is visible.
 	result.RequireToolSpans(t,
-		"serve_documentation",
+		"launch_documentation",
 		"launch_curator_control",
 		"launch_monitor_rest",
 		"await_curator_control",
 		"exit_agent",
 		"stop_monitor_rest",
+		"stop_documentation",
 	)
 
 	// srd011 R3.2: the machine reaches the Done terminal state.

@@ -207,7 +207,8 @@ test_cases:
       in the trace and a Done terminal state with no error-status spans.
     expected:
       asserted_tool_spans:
-        - serve_documentation
+        - launch_documentation
+        - stop_documentation
         - launch_curator_control
         - launch_monitor_rest
         - await_curator_control

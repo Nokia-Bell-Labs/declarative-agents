@@ -106,7 +106,7 @@ func writeDocumentationCuratorFixture(t *testing.T, root string) {
 	writeFile(t, filepath.Join(base, "openapi.yaml"), "servers:\n  - url: http://127.0.0.1:18081\n")
 	writeFile(t, filepath.Join(base, "ui", "ux.yaml"), "id: documentation-curator-ui\n")
 	writeFile(t, filepath.Join(base, "builtin.yaml"), `tools:
-  - name: serve_documentation
+  - name: launch_documentation
     config:
       addr: :18081
       docs_dir: docs

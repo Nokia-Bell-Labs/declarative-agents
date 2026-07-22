@@ -239,10 +239,10 @@ func TestMachineRequestFactoriesUseSelectedInits(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestServeDocumentationUndoStopsOwnedListener(t *testing.T) {
+func TestLaunchDocumentationUndoStopsOwnedListener(t *testing.T) {
 	t.Parallel()
 	host := NewDocumentationHostLifecycle()
-	cmd := newServeDocumentationCommand(t, host).Build(core.Result{})
+	cmd := newLaunchDocumentationBuilder(t, host).Build(core.Result{})
 	res := cmd.Execute()
 	require.Equal(t, core.Signal("ServerLaunched"), res.Signal)
 	addr := requireResultAddr(t, res)
@@ -291,13 +291,13 @@ func TestStandaloneServerServesContextFiles(t *testing.T) {
 	require.Contains(t, source.Body.String(), `"language":"go"`)
 }
 
-func newServeDocumentationCommand(t *testing.T, host *DocumentationHostLifecycle) ServeDocumentationBuilder {
+func newLaunchDocumentationBuilder(t *testing.T, host *DocumentationHostLifecycle) launchDocumentationBuilder {
 	t.Helper()
 	root := t.TempDir()
 	writeDocFixture(t, root, "VISION.yaml", "title: Vision\n")
-	return ServeDocumentationBuilder{
-		Config: ToolConfig{Addr: "127.0.0.1:0", DocsDir: root},
-		Host:   host,
+	return launchDocumentationBuilder{
+		config: ToolConfig{Addr: "127.0.0.1:0", DocsDir: root},
+		host:   host,
 	}
 }
 
@@ -306,7 +306,8 @@ func curatorExitLoopParams(t *testing.T, host *DocumentationHostLifecycle, launc
 	machine, err := core.LoadMachineSpec(curatorProfileAssetPath(t, "machine.yaml"))
 	require.NoError(t, err)
 	reg := core.NewRegistry()
-	reg.Register(core.ToolSpec{Name: "serve_documentation"}, newServeDocumentationCommand(t, host))
+	reg.Register(core.ToolSpec{Name: "launch_documentation"}, newLaunchDocumentationBuilder(t, host))
+	reg.Register(core.ToolSpec{Name: "stop_documentation"}, stopDocumentationBuilder{host: host})
 	registerStaticDocsSignal(reg, "launch_docs_control", "ServerLaunched", "{}")
 	registerStaticDocsSignal(reg, "launch_monitor_rest", "ServerLaunched", "{}")
 	registerStaticDocsSignal(reg, "stop_monitor_rest", "ServerStopped", "{}")
@@ -322,7 +323,7 @@ func curatorExitLoopParams(t *testing.T, host *DocumentationHostLifecycle, launc
 func captureLaunchAddr(t *testing.T, launchedAddr *string) func(core.RunResult, core.Result) core.RunResult {
 	t.Helper()
 	return func(rr core.RunResult, res core.Result) core.RunResult {
-		if res.CommandName == "serve_documentation" && res.Signal == core.Signal("ServerLaunched") {
+		if res.CommandName == "launch_documentation" && res.Signal == core.Signal("ServerLaunched") {
 			*launchedAddr = requireResultAddr(t, res)
 		}
 		return rr
@@ -383,7 +384,7 @@ func requireDocsHostStoppedEvent(t *testing.T, result core.RunResult) {
 	t.Helper()
 	require.NotEmpty(t, result.Events)
 	last := result.Events[len(result.Events)-1]
-	require.Equal(t, "serve_documentation", last.CommandName)
+	require.Equal(t, "stop_documentation", last.CommandName)
 	require.Equal(t, core.Signal("ServerStopped"), last.Signal)
 }
 
@@ -471,7 +472,8 @@ func TestCuratorProfileSelectsGenericControlExitFlow(t *testing.T) {
 
 	require.NoError(t, catalog.ValidateToolEmits(machine, defs))
 	names := toolNames(defs)
-	require.Contains(t, names, "serve_documentation")
+	require.Contains(t, names, "launch_documentation")
+	require.Contains(t, names, "stop_documentation")
 	require.Contains(t, names, "launch_docs_control")
 	require.Contains(t, names, "await_docs_control")
 	require.Contains(t, names, "exit_agent")
@@ -665,7 +667,8 @@ func repoRootFromDocsRuntime() string {
 }
 
 const docsRuntimeToolsYAML = `tools:
-  - serve_documentation
+  - launch_documentation
+  - stop_documentation
   - launch_docs_control
   - await_docs_control
   - launch_monitor_rest
@@ -687,10 +690,14 @@ const docsRuntimeToolsYAML = `tools:
 `
 
 const docsRuntimeBuiltinYAML = `tools:
-  - name: serve_documentation
+  - name: launch_documentation
     type: builtin
-    init: serve_documentation
-    emits: [ServerLaunched, ServerStopped, CommandError]
+    init: launch_documentation
+    emits: [ServerLaunched, CommandError]
+  - name: stop_documentation
+    type: builtin
+    init: stop_documentation
+    emits: [ServerStopped, CommandError]
   - name: launch_docs_control
     type: builtin
     init: rest_server_launch
@@ -849,7 +856,7 @@ transitions:
   - state: Idle
     signal: Seed
     next: LaunchingDocs
-    action: serve_documentation
+    action: launch_documentation
   - state: LaunchingDocs
     signal: ServerLaunched
     next: LaunchingControl
@@ -897,7 +904,7 @@ transitions:
   - state: StoppingMonitor
     signal: ServerStopped
     next: StoppingDocs
-    action: serve_documentation
+    action: stop_documentation
   - state: StoppingMonitor
     signal: CommandError
     next: Failed
