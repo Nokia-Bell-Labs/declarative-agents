@@ -64,8 +64,7 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	rec := &deploymentAPIRecorder{}
 	stopAPI, err := startFakeDeploymentAPI(rec)
 	if err != nil {
-		fmt.Printf("SKIP controlPlane: %s\n", err)
-		return nil
+		return fmt.Errorf("controlPlane requires fake deployment API: %w", err)
 	}
 	defer stopAPI()
 
@@ -216,9 +215,13 @@ func (r *deploymentAPIRecorder) endpointAuthorityField() string {
 // recording each call. It returns a
 // stop function, or an error if the port is already bound.
 func startFakeDeploymentAPI(rec *deploymentAPIRecorder) (func(), error) {
-	listener, err := net.Listen("tcp", cpDeploymentAPIAddr)
+	return startFakeDeploymentAPIOnAddr(rec, cpDeploymentAPIAddr)
+}
+
+func startFakeDeploymentAPIOnAddr(rec *deploymentAPIRecorder, address string) (func(), error) {
+	listener, err := net.Listen("tcp", address)
 	if err != nil {
-		return nil, fmt.Errorf("bind fake deployment API on %s: %w", cpDeploymentAPIAddr, err)
+		return nil, fmt.Errorf("bind fake deployment API on %s: %w", address, err)
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/provisioning/api/apply", func(w http.ResponseWriter, req *http.Request) {
@@ -240,7 +243,10 @@ func startFakeDeploymentAPI(rec *deploymentAPIRecorder) (func(), error) {
 	})
 	srv := &http.Server{Handler: mux}
 	go func() { _ = srv.Serve(listener) }()
-	return func() { _ = srv.Close() }, nil
+	return func() {
+		_ = srv.Close()
+		_ = listener.Close()
+	}, nil
 }
 
 func writeJSON(w http.ResponseWriter, obj map[string]interface{}) {
