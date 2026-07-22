@@ -5,6 +5,7 @@ package spec
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +25,7 @@ func TestExecuteConsistencyChecksEqualsPassesForMatchingField(t *testing.T) {
 	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
 
 	require.NoError(t, err)
-	require.Empty(t, findings)
+	assert.Empty(t, findings)
 }
 
 func TestExecuteConsistencyChecksEqualsReportsMismatchWithProvenance(t *testing.T) {
@@ -44,13 +45,13 @@ func TestExecuteConsistencyChecksEqualsReportsMismatchWithProvenance(t *testing.
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Equal(t, "warning", findings[0].Level)
-	require.Equal(t, "manifest-suite", findings[0].SuiteID)
-	require.Equal(t, "status-done", findings[0].CheckID)
-	require.Equal(t, "consistency_check", findings[0].Kind)
-	require.Equal(t, "manifest.yaml", findings[0].File)
-	require.Equal(t, 1, findings[0].Line)
-	require.Contains(t, findings[0].Message, "draft")
+	assert.Equal(t, "warning", findings[0].Level)
+	assert.Equal(t, "manifest-suite", findings[0].SuiteID)
+	assert.Equal(t, "status-done", findings[0].CheckID)
+	assert.Equal(t, "consistency_check", findings[0].Kind)
+	assert.Equal(t, "manifest.yaml", findings[0].File)
+	assert.Equal(t, 1, findings[0].Line)
+	assert.Contains(t, findings[0].Message, "draft")
 }
 
 func TestExecuteConsistencyChecksRequiredPathExists(t *testing.T) {
@@ -75,9 +76,9 @@ experiments:
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Equal(t, "manifest.yaml", findings[0].File)
-	require.Equal(t, 4, findings[0].Line)
-	require.Contains(t, findings[0].Message, "results/missing.json")
+	assert.Equal(t, "manifest.yaml", findings[0].File)
+	assert.Equal(t, 4, findings[0].Line)
+	assert.Contains(t, findings[0].Message, "results/missing.json")
 }
 
 func TestExecuteConsistencyChecksRequiredWhenTargetFieldMissing(t *testing.T) {
@@ -97,9 +98,9 @@ func TestExecuteConsistencyChecksRequiredWhenTargetFieldMissing(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Equal(t, "manifest.yaml", findings[0].File)
-	require.Equal(t, 1, findings[0].Line)
-	require.Contains(t, findings[0].Message, "$.artifact")
+	assert.Equal(t, "manifest.yaml", findings[0].File)
+	assert.Equal(t, 1, findings[0].Line)
+	assert.Contains(t, findings[0].Message, "$.artifact")
 }
 
 func TestExecuteConsistencyChecksRequiredWhenFalsePasses(t *testing.T) {
@@ -118,7 +119,7 @@ func TestExecuteConsistencyChecksRequiredWhenFalsePasses(t *testing.T) {
 	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
 
 	require.NoError(t, err)
-	require.Empty(t, findings)
+	assert.Empty(t, findings)
 }
 
 func TestExecuteConsistencyChecksSortsFindingsDeterministically(t *testing.T) {
@@ -134,14 +135,14 @@ func TestExecuteConsistencyChecksSortsFindingsDeterministically(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 4)
-	require.Equal(t, "suite-a", findings[0].SuiteID)
-	require.Equal(t, "a.yaml", findings[0].File)
-	require.Equal(t, "suite-a", findings[1].SuiteID)
-	require.Equal(t, "z.yaml", findings[1].File)
-	require.Equal(t, "suite-b", findings[2].SuiteID)
-	require.Equal(t, "a.yaml", findings[2].File)
-	require.Equal(t, "suite-b", findings[3].SuiteID)
-	require.Equal(t, "z.yaml", findings[3].File)
+	assert.Equal(t, "suite-a", findings[0].SuiteID)
+	assert.Equal(t, "a.yaml", findings[0].File)
+	assert.Equal(t, "suite-a", findings[1].SuiteID)
+	assert.Equal(t, "z.yaml", findings[1].File)
+	assert.Equal(t, "suite-b", findings[2].SuiteID)
+	assert.Equal(t, "a.yaml", findings[2].File)
+	assert.Equal(t, "suite-b", findings[3].SuiteID)
+	assert.Equal(t, "z.yaml", findings[3].File)
 }
 
 func TestExecuteConsistencyChecksFilterSelectsOnlyMatchingEntries(t *testing.T) {
@@ -177,7 +178,7 @@ experiments:
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Contains(t, findings[0].Message, "results/done-missing.json")
+	assert.Contains(t, findings[0].Message, "results/done-missing.json")
 }
 
 func TestExecuteConsistencyChecksFilterNegationExcludesMatchingEntries(t *testing.T) {
@@ -203,7 +204,7 @@ experiments:
 	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
 
 	require.NoError(t, err)
-	require.Empty(t, findings)
+	assert.Empty(t, findings)
 }
 
 func TestExecuteConsistencyChecksFilterEqualsEvaluatesMatchingEntriesOnly(t *testing.T) {
@@ -228,7 +229,7 @@ experiments:
 	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
 
 	require.NoError(t, err)
-	require.Empty(t, findings)
+	assert.Empty(t, findings)
 }
 
 func TestExecuteConsistencyChecksMalformedFilterReturnsError(t *testing.T) {
@@ -246,7 +247,7 @@ func TestExecuteConsistencyChecksMalformedFilterReturnsError(t *testing.T) {
 	_, err := ExecuteConsistencyChecks(root, []Charter{charter})
 
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "field=value")
+	assert.Contains(t, err.Error(), "field=value")
 }
 
 func consistencyCharter(id string, check CharterCheck) Charter {

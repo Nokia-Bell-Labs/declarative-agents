@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,13 +27,13 @@ func TestExecuteGrepChecksForbiddenTermMatchesWithProvenance(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Equal(t, "error", findings[0].Level)
-	require.Equal(t, "prose-suite", findings[0].SuiteID)
-	require.Equal(t, "no-internal-vocabulary", findings[0].CheckID)
-	require.Equal(t, "grep_check", findings[0].Kind)
-	require.Equal(t, "papers/main.md", findings[0].File)
-	require.Equal(t, 2, findings[0].Line)
-	require.Equal(t, "Publication prose must not leak internal vocabulary.", findings[0].Message)
+	assert.Equal(t, "error", findings[0].Level)
+	assert.Equal(t, "prose-suite", findings[0].SuiteID)
+	assert.Equal(t, "no-internal-vocabulary", findings[0].CheckID)
+	assert.Equal(t, "grep_check", findings[0].Kind)
+	assert.Equal(t, "papers/main.md", findings[0].File)
+	assert.Equal(t, 2, findings[0].Line)
+	assert.Equal(t, "Publication prose must not leak internal vocabulary.", findings[0].Message)
 }
 
 func TestExecuteGrepChecksNoMatchPasses(t *testing.T) {
@@ -49,7 +50,7 @@ func TestExecuteGrepChecksNoMatchPasses(t *testing.T) {
 	findings, err := ExecuteGrepChecks(root, []Charter{charter})
 
 	require.NoError(t, err)
-	require.Empty(t, findings)
+	assert.Empty(t, findings)
 }
 
 func TestExecuteGrepChecksExcludesFiles(t *testing.T) {
@@ -68,7 +69,7 @@ func TestExecuteGrepChecksExcludesFiles(t *testing.T) {
 	findings, err := ExecuteGrepChecks(root, []Charter{charter})
 
 	require.NoError(t, err)
-	require.Empty(t, findings)
+	assert.Empty(t, findings)
 }
 
 func TestExecuteGrepChecksUsesCharterTargetDefaultsAndSeverity(t *testing.T) {
@@ -94,8 +95,8 @@ func TestExecuteGrepChecksUsesCharterTargetDefaultsAndSeverity(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Equal(t, "warning", findings[0].Level)
-	require.Equal(t, "docs/a.md", findings[0].File)
+	assert.Equal(t, "warning", findings[0].Level)
+	assert.Equal(t, "docs/a.md", findings[0].File)
 }
 
 func TestExecuteGrepChecksRegexPattern(t *testing.T) {
@@ -114,8 +115,8 @@ func TestExecuteGrepChecksRegexPattern(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Equal(t, "paper.md", findings[0].File)
-	require.Equal(t, 1, findings[0].Line)
+	assert.Equal(t, "paper.md", findings[0].File)
+	assert.Equal(t, 1, findings[0].Line)
 }
 
 func TestExecuteGrepChecksSortsFindingsDeterministically(t *testing.T) {
@@ -131,14 +132,14 @@ func TestExecuteGrepChecksSortsFindingsDeterministically(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 4)
-	require.Equal(t, "suite-a", findings[0].SuiteID)
-	require.Equal(t, "a.md", findings[0].File)
-	require.Equal(t, "suite-a", findings[1].SuiteID)
-	require.Equal(t, "z.md", findings[1].File)
-	require.Equal(t, "suite-b", findings[2].SuiteID)
-	require.Equal(t, "a.md", findings[2].File)
-	require.Equal(t, "suite-b", findings[3].SuiteID)
-	require.Equal(t, "z.md", findings[3].File)
+	assert.Equal(t, "suite-a", findings[0].SuiteID)
+	assert.Equal(t, "a.md", findings[0].File)
+	assert.Equal(t, "suite-a", findings[1].SuiteID)
+	assert.Equal(t, "z.md", findings[1].File)
+	assert.Equal(t, "suite-b", findings[2].SuiteID)
+	assert.Equal(t, "a.md", findings[2].File)
+	assert.Equal(t, "suite-b", findings[3].SuiteID)
+	assert.Equal(t, "z.md", findings[3].File)
 }
 
 func TestExecuteGrepChecksMissingModeEmitsFinding(t *testing.T) {
@@ -157,9 +158,9 @@ func TestExecuteGrepChecksMissingModeEmitsFinding(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Empty(t, findings[0].File)
+	assert.Empty(t, findings[0].File)
 	require.Zero(t, findings[0].Line)
-	require.Contains(t, findings[0].Message, "not found")
+	assert.Contains(t, findings[0].Message, "not found")
 }
 
 func grepCharter(id string, check CharterCheck) Charter {
