@@ -142,7 +142,7 @@ tools:
         target: rest_command_state
         state: async_request_consumed
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop
@@ -246,7 +246,7 @@ tools:
         target: rest_server_queue
         state: event_consumed
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop
@@ -299,7 +299,7 @@ tools:
         target: rest_server_state
         state: server_stopped
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop

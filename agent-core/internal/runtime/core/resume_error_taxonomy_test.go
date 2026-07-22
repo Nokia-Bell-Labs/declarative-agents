@@ -70,6 +70,36 @@ func TestResumeErrorTaxonomy(t *testing.T) {
 	}
 }
 
+// TestResumeCompatibilityUsesMachineSpecBeforeTableBuilt proves a checkpoint at a
+// state the machine still declares resumes on the entrypoints that carry a
+// MachineSpec but no pre-built transition table — the agent CLI --resume path,
+// where initFromMachine builds the table only after LoadResume returns (GH-521).
+func TestResumeCompatibilityUsesMachineSpecBeforeTableBuilt(t *testing.T) {
+	t.Parallel()
+	spec := MachineSpec{
+		InitialState: "Idle",
+		States:       StateSpecsFromNames("Idle", "AwaitingApproval", "Done"),
+	}
+	suspended := func(state State) *InMemoryCheckpoint {
+		cp := &InMemoryCheckpoint{}
+		_ = cp.Save(
+			Position{CurrentState: state, LastSignal: AwaitApproval},
+			Execution{{Iteration: 1, CommandName: "suspend", ToState: state, Signal: AwaitApproval}},
+		)
+		return cp
+	}
+
+	// A mid-run state the spec still declares resumes even though the table is empty.
+	params := LoopParams{InitialState: "Idle", MachineSpec: &spec, Checkpoint: suspended("AwaitingApproval")}
+	_, err := LoadResume(params)
+	require.NoError(t, err)
+
+	// A state the spec no longer declares stays classified as incompatible.
+	params.Checkpoint = suspended("RemovedState")
+	_, err = LoadResume(params)
+	require.ErrorIs(t, err, ErrCheckpointIncompatible)
+}
+
 // TestResumeLoadFailurePreservesBackendDetail proves the load-failure error keeps
 // the adapter's message for operator diagnosis (srd025 R6.5, srd035 R6.5).
 func TestResumeLoadFailurePreservesBackendDetail(t *testing.T) {

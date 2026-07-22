@@ -79,10 +79,37 @@ func validateResumeCompatibility(params LoopParams, pos Position) error {
 	if params.IsTerminal != nil && params.IsTerminal(pos.CurrentState) {
 		return nil
 	}
-	if params.InitialState == pos.CurrentState || params.Table.HasState(pos.CurrentState) {
+	if resumeStateDefined(params, pos.CurrentState) {
 		return nil
 	}
 	return fmt.Errorf("%w: restored state %q is not defined in the current machine", ErrCheckpointIncompatible, pos.CurrentState)
+}
+
+// resumeStateDefined reports whether the restored state exists in the machine the
+// resumed loop will run. params.Table is populated only once Loop initializes the
+// machine, so on the resume entrypoints that carry a MachineSpec or MachineFile
+// (the agent CLI --resume path) the table is still empty here; fall back to the
+// machine's declared states so a valid mid-run state is not misread as removed.
+func resumeStateDefined(params LoopParams, state State) bool {
+	if params.InitialState == state {
+		return true
+	}
+	if len(params.Table) > 0 {
+		return params.Table.HasState(state)
+	}
+	if params.MachineSpec == nil && params.MachineFile == "" {
+		return false
+	}
+	spec, err := loopMachineSpec(&params)
+	if err != nil {
+		return false
+	}
+	for _, name := range spec.States.Names() {
+		if State(name) == state {
+			return true
+		}
+	}
+	return false
 }
 
 // Resume loads the persisted snapshot through params.Checkpoint and re-enters the
