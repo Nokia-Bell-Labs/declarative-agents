@@ -58,7 +58,7 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Typed input and output contracts are machine-consumable
-    go_test: TestSelectedToolOutputContractsLoad
+    go_test: TestParseToolDefs_ContractFields, TestValidate_SelectedToolContractCompletenessPassesCompleteTool
     status: done
     description: |
       Load a tool declaration with JSON Schema parameters and output.schema.
@@ -200,7 +200,7 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Boundary and nested-machine tools declare their boundary effects
-    go_test: TestSelectedBoundaryToolContractsLoad
+    go_test: TestValidate_ToolBoundaryCategory
     status: done
     description: |
       Exercise a tool that invokes a child process, nested machine, model, or
@@ -222,7 +222,7 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Deprecated compatibility aggregate is hidden from new workflows
-    go_test: TestBuiltinToolContractAuditClassifiesMigrationCoverage, TestBuiltinMigratedContractsValidateAtErrorLevel
+    go_test: TestAuditToolContractsClassifiesCoverage, TestValidateToolContractsStrictAndLegacyModes
     status: done
     description: |
       Keep a legacy aggregate only as deprecated compatibility. It should be
@@ -262,8 +262,9 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Lifecycle builtin declarations expose full adapter contracts
-    go_test: TestLifecycleProfilesValidateMachineWiring, TestBuiltinMigratedContractsValidateAtErrorLevel
-    status: done
+    go_test: TestLifecycleProfilesValidateMachineWiring
+    status: planned
+    follow_up_issue: "#506"
     description: |
       Inspect the checkpoint_history and checkpoint_rollback ToolDefs. Both
       declarations should expose the required adapter contract fields and the
@@ -290,7 +291,8 @@ test_cases:
   - use_case: rel02.0-uc003-tool-authoring
     name: Lifecycle tool contracts reject exec-wrapper behavior
     go_test: TestLifecycleProfilesValidateMachineWiring
-    status: done
+    status: planned
+    follow_up_issue: "#506"
     description: |
       Check lifecycle ToolDefs for hidden shelling into the agent binary. Desired
       declarations should be builtin adapters, selected by lifecycle

@@ -498,7 +498,7 @@ test_cases:
   # --- srd008: telemetry ---
   - use_case: rel00.0-uc001-domain-agent-integration
     name: NewRoot rejects empty ExporterConfig
-    go_test: TestNewRoot_EmptyConfig
+    go_test: TestNewRoot_EmptyConfigError
     inputs:
       config: "ExporterConfig{} (both fields empty)"
     expected:
@@ -508,7 +508,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Trace Push creates child, Event records event, SetAttributes sets attributes
-    go_test: TestTrace_PushEventSetAttributes
+    go_test: TestNewRoot_PushAndEvent
     inputs:
       trace: "Trace from NewRoot with file exporter"
     expected:
@@ -520,7 +520,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Trace Context returns context, Meter returns meter
-    go_test: TestTrace_ContextAndMeter
+    go_test: TestNewRoot_PushAndEvent
     inputs:
       trace: "Trace from NewRoot"
     expected:
@@ -552,7 +552,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: File exporter writes temp file and renames atomically
-    go_test: TestNewRoot_FileExporterAtomicRename
+    go_test: TestNewRoot_TempFileUsesServiceName, TestNewRoot_FileExporter
     inputs:
       config: "ExporterConfig{FilePath: target}"
     expected:
@@ -564,6 +564,8 @@ test_cases:
   - use_case: rel00.0-uc001-domain-agent-integration
     name: OTLP exporter configuration accepted
     go_test: TestNewRoot_OTLPExporter
+    status: planned
+    follow_up_issue: "#601"
     inputs:
       config: "ExporterConfig{OTLPEndpoint: localhost:4317}"
     expected:
@@ -574,6 +576,8 @@ test_cases:
   - use_case: rel00.0-uc001-domain-agent-integration
     name: TraceAdapter satisfies tracing.Tracer and wraps Push
     go_test: TestTraceAdapter_SatisfiesInterface
+    status: planned
+    follow_up_issue: "#601"
     inputs:
       adapter: "TraceAdapter{T: trace}"
     expected:
@@ -585,6 +589,8 @@ test_cases:
   - use_case: rel00.0-uc001-domain-agent-integration
     name: ReplayFile reads OTLP JSON and sends spans
     go_test: TestReplayFile_InvalidPath
+    status: planned
+    follow_up_issue: "#550"
     inputs:
       path: "/nonexistent/trace.json"
     expected:
@@ -985,7 +991,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: LLM tools parse responses and manage retry state
-    go_test: go test ./internal/tools/stl -run 'Test(InvokeLLM|ParseResponse|ReportParseError|ResetHistory)'
+    go_test: go test ./internal/tools/llm -run 'Test(InvokeLLM|ParseResponse|ReportParseError|ResetHistory)'
     inputs:
       llm_tools: "invoke_llm, parse_response, report_parse_error, reset_history"
     expected:
@@ -998,7 +1004,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Subprocess helpers map output and process groups
-    go_test: go test ./internal/tools/stl -run 'Test(SubprocessResult|CapOutput|ExtractStringParam|ProcGroupCmd|RunProcGroup)'
+    go_test: go test ./internal/tools/exec -run 'Test(SubprocessResult|CapOutput|ExtractStringParam|ProcGroupCmd|RunProcGroup)'
     inputs:
       subprocesses: "success, non-zero exit, timeout, missing binary"
     expected:
@@ -1011,7 +1017,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Tool declarations load and register selected tools
-    go_test: go test ./internal/tools/stl -run 'Test(LoadToolDeclarations|SelectTools|RegisterToolDefs|ParseToolDefs)'
+    go_test: go test ./internal/tools/catalog ./internal/tools/exec -run 'Test(LoadToolDeclarations|SelectTools|RegisterToolDefs|ParseToolDefs)'
     inputs:
       declarations: "builtin and exec tool YAML"
       selection: "selected tool names"
@@ -1025,7 +1031,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Tool metrics parse test and build output
-    go_test: go test ./internal/tools/stl -run 'TestParse(Test|Build)Metrics'
+    go_test: go test ./internal/tools/exec -run 'TestParse(Test|Build)Metrics'
     inputs:
       outputs: "go test and go build output samples"
     expected:
