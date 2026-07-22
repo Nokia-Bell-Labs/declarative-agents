@@ -25,7 +25,7 @@ func TestOllamaTierRendersWithDefaults(t *testing.T) {
 	for _, want := range []string{
 		"name: t-chatbot-mesh-ollama",         // StatefulSet + Service
 		"name: t-chatbot-mesh-ollama-preload", // preload Job
-		"name: wait-for-llm-models",           // chatbot readiness init
+		"name: wait-for-llm-models",           // agent readiness init
 		"ollama pull",                         // the preload pulls models
 	} {
 		if !strings.Contains(render, want) {
@@ -50,6 +50,15 @@ func TestOllamaTierRendersWithDefaults(t *testing.T) {
 	}
 	if strings.Contains(render, "wget -qO- \"$OLLAMA_HOST") {
 		t.Error("preload must not probe reachability with wget: the ollama image ships no wget, so the loop never exits")
+	}
+	// The default chart has one chatbot and one RAG workload. Both must carry the
+	// positive preload-completion gate. Removing the gate from either workload,
+	// or rendering it only when Ollama is disabled, changes this exact count.
+	if got := strings.Count(render, "- name: wait-for-llm-models"); got != 2 {
+		t.Errorf("wait-for-llm-models init containers = %d, want 2 (chatbot + RAG)", got)
+	}
+	if got := strings.Count(render, "until wget -qO- \"$url\""); got != 2 {
+		t.Errorf("positive model-presence gates = %d, want 2", got)
 	}
 }
 
@@ -81,5 +90,15 @@ func TestOllamaDisabledReproducesExternalEndpoint(t *testing.T) {
 	}
 	if !strings.Contains(render, "base_url: http://ollama.example:11434") {
 		t.Error("disabled render does not point the embedding client at the external endpoint override")
+	}
+	// External-tier rendering removes chart-owned Ollama resources and their
+	// preload gates, but retains both agent workloads.
+	for _, workload := range []string{
+		"name: t-chatbot-mesh-chatbot",
+		"name: t-chatbot-mesh-rag0",
+	} {
+		if !strings.Contains(render, workload) {
+			t.Errorf("external-tier render removed agent workload %q", workload)
+		}
 	}
 }
