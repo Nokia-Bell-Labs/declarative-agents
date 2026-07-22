@@ -25,13 +25,19 @@ type chatbotMachine struct {
 	} `yaml:"transitions"`
 }
 
+func readRequiredChatbotAsset(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read required chatbot asset %s: %v", path, err)
+	}
+	return data
+}
+
 func loadChatbotMachine(t *testing.T) chatbotMachine {
 	t.Helper()
 	path := filepath.Join("..", "agents", "chatbot", "request-machine.yaml")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Skipf("chatbot request-machine.yaml not found: %v", err)
-	}
+	data := readRequiredChatbotAsset(t, path)
 	var m chatbotMachine
 	if err := yaml.Unmarshal(data, &m); err != nil {
 		t.Fatalf("parse request-machine.yaml: %v", err)
@@ -100,10 +106,7 @@ func TestChatbotFanOutRoutesDegradedAndExcluded(t *testing.T) {
 // count); the base declarations must carry no fan-out residue.
 func TestChatbotComposeReadsEachRagSource(t *testing.T) {
 	fanout := filepath.Join("..", "agents", "chatbot", "request-fanout.yaml")
-	data, err := os.ReadFile(fanout)
-	if err != nil {
-		t.Skipf("request-fanout.yaml not found: %v", err)
-	}
+	data := readRequiredChatbotAsset(t, fanout)
 	text := string(data)
 	if strings.Contains(text, "rag_merge") || strings.Contains(text, "$from(rag_merge)") {
 		t.Error("request-fanout.yaml still references rag_merge (GH-365)")
@@ -115,12 +118,11 @@ func TestChatbotComposeReadsEachRagSource(t *testing.T) {
 	}
 	// The base declarations must no longer carry the fan-out words.
 	base := filepath.Join("..", "agents", "chatbot", "request-declarations.yaml")
-	if bdata, err := os.ReadFile(base); err == nil {
-		if strings.Contains(string(bdata), "rag_merge") {
-			t.Error("request-declarations.yaml still references rag_merge (GH-365)")
-		}
-		if strings.Contains(string(bdata), "name: rag_query0") {
-			t.Error("request-declarations.yaml still declares the fan-out words; they moved to request-fanout.yaml (GH-372)")
-		}
+	bdata := readRequiredChatbotAsset(t, base)
+	if strings.Contains(string(bdata), "rag_merge") {
+		t.Error("request-declarations.yaml still references rag_merge (GH-365)")
+	}
+	if strings.Contains(string(bdata), "name: rag_query0") {
+		t.Error("request-declarations.yaml still declares the fan-out words; they moved to request-fanout.yaml (GH-372)")
 	}
 }
