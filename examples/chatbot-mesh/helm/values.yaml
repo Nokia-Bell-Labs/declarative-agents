@@ -209,6 +209,12 @@ controlPlane:
   creator:
     replicas: 1
     ports: {instance: 18110, control: 18111, monitor: 18112}
+    # The instance endpoint is reached only by the coordinator (srd005 R1.1, R5.4).
+    # Without this the port is open to every pod in the cluster, and since the
+    # creator is the only pod the executor admits to its apply surface, that is the
+    # widest remaining path to apply (GH-685).
+    networkPolicy:
+      enabled: true
     resources:
       requests: {cpu: 50m, memory: 64Mi}
       limits: {cpu: 500m, memory: 256Mi}

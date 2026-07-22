@@ -92,4 +92,34 @@ spec:
     - {name: instance, port: {{ .Values.controlPlane.creator.ports.instance }}, targetPort: instance}
     - {name: control, port: {{ .Values.controlPlane.creator.ports.control }}, targetPort: control}
     - {name: monitor, port: {{ .Values.controlPlane.creator.ports.monitor }}, targetPort: monitor}
+{{- if .Values.controlPlane.creator.networkPolicy.enabled }}
+---
+# The instance endpoint is reached only by the coordinator (srd005 R1.1, R5.4).
+# Until GH-685 this port carried no policy at all, so anything in the cluster could
+# ask the creator to act -- and the creator is the only pod the executor admits to
+# its apply surface (srd006 R4.1), which made an unconstrained instance port the
+# widest remaining path to apply. The GH-682 kind proof measured exactly that: an
+# ingress-controller pod reached this port before this policy existed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-creator
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: creator
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: creator
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "chatbot-mesh.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: coordinator
+      ports:
+        - {protocol: TCP, port: instance}
+{{- end }}
 {{- end }}
