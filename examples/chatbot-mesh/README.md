@@ -68,4 +68,6 @@ mage integration:controlPlane  # exercise the coordinator and creator control pl
 
 Run `mage -l` to list the named `integration:*` targets (chatbot, ragServer, chroma, controlPlane, helmSmoke, helmSwap, helmLLMTier); each skips cleanly when its toolchain is absent.
 
+`mage audit` is the self-governance gate. It runs the jurist validator over the example's own corpus, so it needs the agent-core runtime (`AGENT_CORE_ROOT`, default sibling `../agent-core`) and the jurist validator profile (`JURIST_PROFILE`, default sibling `agent-profiles/agents/jurist/profile.yaml`) — the two dev-time platform tools this gate depends on. Unlike the optional `integration:*` targets, it fails clearly rather than skipping when either tool is missing, so a copied-out example reports an honest failure instead of a false green.
+
 The agents run on the agent-core image with a mounted profile, for example `agent --profile agents/chatbot/profile.yaml`. The Helm chart deploys the mesh on a kind cluster; see `helm/` for values and CI configuration.
