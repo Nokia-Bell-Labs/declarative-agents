@@ -238,7 +238,7 @@ releases:
         summary: Boundary use-case validation for the jurist, lifecycle, and rest families.
         status: specified
       - id: test-rel07.1-profile-conformance
-        summary: Executable per-family OpenTelemetry conformance for all ten families, all implemented shipped-behavioral (runs the shipped profile.yaml/variant, copy-and-patch only harness-controlled fields). Generator (with qwen27b/qwen35b variants), the planner behavioral run, and the rest ollama-profile variant are Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated; rest proves its inbound webhook server boundary over the shipped REST config (client head proven at the agent-core package level). Generator, planner, and rest carry ungated load-and-wiring companions.
+        summary: Executable per-family OpenTelemetry conformance for all ten families. Nine are implemented shipped-behavioral (runs the shipped profile.yaml/variant, copy-and-patch only harness-controlled fields); the rest sample server boundary is bounded-behavioral (shipped REST config and declarations over a synthesized launch/await/stop machine). Generator (with qwen27b/qwen35b variants), the planner behavioral run, and the rest ollama-profile variant are Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated; rest proves its inbound webhook server boundary over the shipped REST config (client head proven at the agent-core package level). Generator, planner, and rest carry ungated load-and-wiring companions.
         status: implemented
     proof:
       - mage validate

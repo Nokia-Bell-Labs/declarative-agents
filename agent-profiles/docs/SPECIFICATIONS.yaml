@@ -433,11 +433,13 @@ test_suite_index:
     title: Test Suite for Release 07.1 Profile Conformance
     summary: Executable per-family OpenTelemetry conformance for all ten profile
       families, traced to srd002-srd011 and sm-agent-role-taxonomy; integration
-      target mage conformance. Every case runs the shipped profile.yaml wrapper or
-      a named shipped variant (copy-and-patch only harness-controlled fields), so
-      coverage is shipped-behavioral rather than synthesized; the generator and
-      rest families also run their shipped variants and carry an ungated
-      load-and-wiring companion. Generator (with qwen27b/qwen35b variants), the
+      target mage conformance. Nine families run the shipped profile.yaml wrapper
+      or a named shipped variant (copy-and-patch only harness-controlled fields),
+      so their coverage is shipped-behavioral rather than synthesized; the rest
+      sample server boundary is bounded-behavioral (shipped REST config and
+      declarations over a synthesized launch/await/stop machine, client head at
+      the agent-core package level). The generator and rest families also run
+      their shipped variants and carry an ungated load-and-wiring companion. Generator (with qwen27b/qwen35b variants), the
       planner behavioral run, and the rest ollama-profile variant are
       Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated;
       rest proves its inbound webhook server boundary with async await_operation
@@ -546,10 +548,15 @@ coverage_gaps: |
   families through the agent-core CLI and asserts on the captured OpenTelemetry
   trace (span vocabulary and terminal state), tracing every family to its
   srd002-srd011 acceptance criteria and sm-agent-role-taxonomy role. Coverage is
-  shipped-behavioral, not synthesized: every case runs the shipped profile.yaml
-  wrapper (or a named shipped variant), copying it only to patch harness-controlled
-  fields — a listen address/port, a corpus directory, or the iteration budget —
-  never rebuilding the machine, tools, or wrapper. Representative-vs-variant is
+  shipped-behavioral, not synthesized, for nine families: each runs the shipped
+  profile.yaml wrapper (or a named shipped variant), copying it only to patch
+  harness-controlled fields — a listen address/port, a corpus directory, or the
+  iteration budget — never rebuilding the machine, tools, or wrapper. The rest
+  sample server boundary is the one bounded-behavioral case: it runs the shipped
+  REST config and declarations but a synthesized bounded launch/await/stop
+  machine, because the shipped machine's client head cannot run in a profile
+  machine (that head is proven at the agent-core package level).
+  Representative-vs-variant is
   recorded explicitly: the generator ships and runs profile.yaml plus the
   profile-qwen35b and profile-qwen27b variants, and the rest family runs the
   sample inbound webhook boundary plus the ollama-profile variant; the generator,
