@@ -56,10 +56,14 @@ rest:
           path: /provisioning/api/apply
           binding: machine_request
           request:
+            # The apply request carries the decided values-plane document as content
+            # under the versioned deployment_api_contract (srd006 R1.4); the executor
+            # writes and applies it, deciding no values (R5.1).
             body_schema:
               type: object
-              required: [content]
+              required: [schema_version, content]
               properties:
+                schema_version: {type: string}
                 content: {type: string}
           machine_request:
             profile: profile.yaml
@@ -75,16 +79,21 @@ rest:
                   status: 200
                   content_type: application/json
                   body:
+                    schema_version: "1"
                     status: applied
                 ToolFailed:
                   status: 500
                   content_type: application/json
                   body:
+                    schema_version: "1"
+                    status: rolled_back
                     error: apply_failed
                 ToolDone:
                   status: 500
                   content_type: application/json
                   body:
+                    schema_version: "1"
+                    status: rolled_back
                     error: rolled_back
         rollout:
           # Read the chatbot Deployment's rollout status (srd006 R1.1). kubectl
@@ -105,11 +114,13 @@ rest:
                   status: 200
                   content_type: application/json
                   body:
+                    schema_version: "1"
                     phase: complete
                 ToolFailed:
                   status: 200
                   content_type: application/json
                   body:
+                    schema_version: "1"
                     phase: progressing
 
     executor_control:
