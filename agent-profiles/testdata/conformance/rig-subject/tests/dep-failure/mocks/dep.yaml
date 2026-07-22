@@ -1,0 +1,13 @@
+# The dependency succeeds once, then fails. The subject's clean failure path
+# is what this scenario asserts, so the scenario passes when the subject
+# degrades correctly.
+routes:
+  - method: GET
+    path: /v1/record
+    responses:
+      - status: 200
+        body:
+          state: present
+      - status: 500
+        body:
+          error: dependency exploded

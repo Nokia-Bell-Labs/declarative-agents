@@ -1,0 +1,2 @@
+# The subject serves health on its own route rather than the rig's default.
+subject_health_path: /_subject/health

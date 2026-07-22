@@ -1,0 +1,49 @@
+name: rig-subject-request
+purpose: |-
+  One request: read the dependency and terminate on a signal the endpoint maps
+  to an HTTP response. A dependency failure reaches the Failed terminal cleanly
+  rather than crashing the request.
+configuration:
+  machine: request-machine.yaml
+  tools: request-tools.yaml
+initial_state: Idle
+budget:
+  max_iterations: 4
+states:
+  - name: Idle
+    meaning: Before the dependency is read.
+  - name: Reading
+    meaning: The dependency read has run; its signal decides the outcome.
+  - name: Done
+    meaning: Terminal. The dependency answered.
+  - name: Failed
+    meaning: Terminal. The dependency did not answer as contracted.
+terminal_states: [Done, Failed]
+signals:
+  - name: Seed
+    trigger: Request machine start.
+  - name: RESTResourceRead
+    trigger: The dependency answered successfully.
+  - name: RESTDomainFailed
+    trigger: The dependency returned a mapped domain failure.
+  - name: RESTMissing
+    trigger: The dependency returned not-found.
+  - name: CommandError
+    trigger: The dependency was unreachable or unmapped.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Reading
+    action: read_dependency
+  - state: Reading
+    signal: RESTResourceRead
+    next: Done
+  - state: Reading
+    signal: RESTDomainFailed
+    next: Failed
+  - state: Reading
+    signal: RESTMissing
+    next: Failed
+  - state: Reading
+    signal: CommandError
+    next: Failed

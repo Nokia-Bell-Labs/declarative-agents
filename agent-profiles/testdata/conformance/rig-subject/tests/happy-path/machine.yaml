@@ -1,0 +1,55 @@
+name: rig-subject-validator
+purpose: |-
+  Passes when the subject reports its dependency answered.
+
+  The drive runs on the way into Checking so its signal decides the terminal
+  state; routing straight to a terminal would pass regardless of the result.
+configuration:
+  machine: machine.yaml
+  tools: tools.yaml
+initial_state: Idle
+budget:
+  max_iterations: 6
+states:
+  - name: Idle
+    meaning: Before the subject is driven.
+  - name: Checking
+    meaning: The subject has been driven; its answer decides the outcome.
+  - name: Passed
+    meaning: Terminal. The subject behaved as this scenario expects.
+  - name: Failed
+    meaning: Terminal. The subject did not behave as this scenario expects.
+terminal_states: [Passed, Failed]
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: SubjectAnswered
+    trigger: The subject reported its dependency answered.
+  - name: SubjectDegraded
+    trigger: The subject reported its dependency unavailable, its clean failure path.
+  - name: SubjectBroke
+    trigger: The subject returned an unreachable or missing mapping.
+  - name: RESTResourceRead
+    trigger: The read succeeded and mapped to the generic read signal.
+  - name: CommandError
+    trigger: The subject was unreachable or returned an unmapped status.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Checking
+    action: drive_subject
+  - state: Checking
+    signal: SubjectAnswered
+    next: Passed
+  - state: Checking
+    signal: SubjectDegraded
+    next: Failed
+  - state: Checking
+    signal: SubjectBroke
+    next: Failed
+  - state: Checking
+    signal: RESTResourceRead
+    next: Passed
+  - state: Checking
+    signal: CommandError
+    next: Failed

@@ -1,0 +1,48 @@
+tools:
+  - name: drive_subject
+    type: builtin
+    init: rest_client_get
+    visibility: internal
+    category: boundary
+    description: Read the subject's dependency-reading route and map its answer to a signal.
+    problem: A scenario must assert what the subject does when its dependency behaves a given way.
+    goals:
+      - Call the subject at the address the rig published.
+      - Map the subject's response to the signal this scenario expects.
+    requirements:
+      input:
+        - Tool config references the subject client resource.
+      output:
+        - Output reports the subject's mapped response.
+      errors:
+        - Unreachable or unmapped responses emit CommandError.
+    non_goals:
+      - Does not start or stop the subject; the rig owns that.
+    parameters:
+      type: object
+      properties: {}
+    emits: [SubjectAnswered, SubjectDegraded, SubjectBroke, RESTResourceRead, CommandError]
+    output:
+      description: The subject's response.
+      schema:
+        type: object
+        properties:
+          dependency: {type: string}
+    side_effects:
+      - kind: state_read
+        target: subject_agent
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Driving a read-only route changes nothing.
+    errors:
+      - signal: CommandError
+        condition: The subject is unreachable or returns an unmapped status.
+        state_after_failure: No state changes.
+    config:
+      rest_ref: subject
+      resource: read
+      operation: get

@@ -1,0 +1,7 @@
+# The request-scoped machine resolves its words from the same profile, so
+# read_dependency is selected here alongside the server lifecycle words.
+tools:
+  - launch_subject_rest
+  - await_subject_control
+  - stop_subject_rest
+  - read_dependency

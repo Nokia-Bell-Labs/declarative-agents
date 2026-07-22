@@ -1,0 +1,72 @@
+name: rig-subject
+purpose: |-
+  A reference agent under test: it serves a route whose request-scoped machine
+  reads one REST dependency, so a dependency failure surfaces as a mapped
+  response rather than preventing the agent from starting. The rig points that
+  dependency at a scenario's twin.
+configuration:
+  machine: machine.yaml
+  tools: tools.yaml
+metric_labels:
+  profile: rig-subject
+initial_state: Idle
+budget:
+  max_iterations: 6
+states:
+  - name: Idle
+    meaning: Before the subject serves.
+  - name: Launching
+    meaning: The REST server launch command is running.
+  - name: Serving
+    meaning: Routes are available while the machine waits for a control event.
+  - name: Stopping
+    meaning: The machine stops its owned listener.
+  - name: Done
+    meaning: Terminal. The listener stopped without error.
+  - name: Failed
+    meaning: Terminal. Launch or control failed.
+terminal_states: [Done, Failed]
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: ServerLaunched
+    trigger: Routes were registered.
+  - name: ExitRequested
+    trigger: A rig or operator requested exit.
+  - name: AwaitTimedOut
+    trigger: No control event arrived.
+  - name: ServerStopped
+    trigger: The listener stopped.
+  - name: CommandError
+    trigger: A lifecycle command failed.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Launching
+    action: launch_subject_rest
+  - state: Launching
+    signal: ServerLaunched
+    next: Serving
+    action: await_subject_control
+  - state: Launching
+    signal: CommandError
+    next: Failed
+  - state: Serving
+    signal: ExitRequested
+    next: Stopping
+    action: stop_subject_rest
+  - state: Serving
+    signal: AwaitTimedOut
+    next: Failed
+  - state: Serving
+    signal: ServerStopped
+    next: Failed
+  - state: Serving
+    signal: CommandError
+    next: Failed
+  - state: Stopping
+    signal: ServerStopped
+    next: Done
+  - state: Stopping
+    signal: CommandError
+    next: Failed

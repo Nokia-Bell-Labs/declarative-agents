@@ -1,0 +1,38 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local:
+      timeout: 10s
+      read_timeout: 10s
+      max_request_bytes: 65536
+      max_response_bytes: 65536
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+  clients:
+    subject:
+      # The rig publishes the subject's address as SUBJECT_URL.
+      base_url: ${SUBJECT_URL:-http://127.0.0.1:1}
+      auth_ref: none
+      limits_ref: local
+      resources:
+        read:
+          path: /v1/read
+          operations:
+            get:
+              method: GET
+              # Self-contained: a repeated drive must not read the previous
+              # drive's output as runtime params.
+              params:
+                body_source: none
+              success: {status: [200], signal: SubjectAnswered}
+              failures:
+                - status: [503]
+                  signal: SubjectDegraded
+                  domain_error_code: dependency_unavailable
+                - status: [502, 404]
+                  signal: SubjectBroke
+                  domain_error_code: dependency_unreachable

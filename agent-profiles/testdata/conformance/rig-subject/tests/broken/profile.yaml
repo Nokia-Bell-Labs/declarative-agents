@@ -1,4 +1,4 @@
-name: rig-smoke-validator
+name: rig-subject-validator
 machine: machine.yaml
 tools:
   - tools.yaml

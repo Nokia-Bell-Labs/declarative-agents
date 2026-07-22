@@ -1,0 +1,109 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    local:
+      timeout: 5s
+      read_timeout: 5s
+      max_request_bytes: 65536
+      max_response_bytes: 65536
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+  clients:
+    dependency:
+      # The rig publishes the scenario twin's runtime address here. The
+      # fixture file name decides the variable: mocks/dep.yaml -> DEP_URL.
+      base_url: ${DEP_URL:-http://127.0.0.1:1}
+      auth_ref: none
+      limits_ref: local
+      resources:
+        record:
+          path: /v1/record
+          operations:
+            get:
+              method: GET
+              # Self-contained: the machine_request seed carries transport
+              # fields (path) this word does not declare, and it needs nothing
+              # from the seed.
+              params:
+                body_source: none
+              success: {status: [200], signal: RESTResourceRead}
+              failures:
+                - status: [404]
+                  signal: RESTMissing
+                - status: [500, 502, 503]
+                  signal: RESTDomainFailed
+                  domain_error_code: dependency_unavailable
+              response:
+                output:
+                  state: $.state
+  servers:
+    subject:
+      address: ${SUBJECT_ADDRESS:-127.0.0.1:0}
+      limits_ref: local
+      queue:
+        name: subject
+        capacity: 8
+        overflow: reject
+        timeout: 100ms
+      shutdown:
+        timeout: 2s
+        drain_policy: drain
+        stop_listeners: true
+        unblock_await_signal: ServerStopped
+      endpoints:
+        health:
+          method: GET
+          path: /_subject/health
+          binding: health
+
+        read_record:
+          method: GET
+          path: /v1/read
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            timeout: 20s
+            response:
+              terminal_signals:
+                # The dependency answered: the subject reports what it read.
+                RESTResourceRead:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    dependency: answered
+                # The dependency failed: a mapped 503, not a crash. This is the
+                # subject's clean failure path a scenario asserts.
+                RESTDomainFailed:
+                  status: 503
+                  content_type: application/json
+                  body:
+                    dependency: unavailable
+                RESTMissing:
+                  status: 404
+                  content_type: application/json
+                  body:
+                    dependency: missing
+                CommandError:
+                  status: 502
+                  content_type: application/json
+                  body:
+                    dependency: unreachable
+
+        control_exit:
+          method: POST
+          path: /_subject/control/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+          response:
+            output:
+              accepted: true

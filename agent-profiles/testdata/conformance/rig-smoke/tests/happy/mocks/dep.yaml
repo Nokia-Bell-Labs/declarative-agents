@@ -1,6 +1,0 @@
-routes:
-  - method: GET
-    path: /v1/ping
-    responses:
-      - status: 200
-        body: {pong: true}

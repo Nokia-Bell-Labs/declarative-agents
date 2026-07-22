@@ -585,13 +585,16 @@ releases:
         status: done
       - id: gh-668
         summary: Add the twin profile and fixture conformance.
-        status: open
+        status: done
       - id: gh-669
         summary: Add the assembler profile (the rig machine).
-        status: open
+        status: done
       - id: gh-670
         summary: Add the reference subject, self-proving scenarios, and the mage rig target.
-        status: open
+        status: done
+      - id: gh-678
+        summary: Add the scenario-session layer in agent-core (split from gh-669).
+        status: done
     srds:
       - srd018-assembler
       - srd019-twin
