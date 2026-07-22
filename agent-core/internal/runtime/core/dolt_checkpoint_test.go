@@ -161,6 +161,18 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 			}
 		}
 		return sql.ErrNoRows
+	case strings.Contains(query, "DELETE FROM receipts"):
+		deleteRowsAtOrAfter(f.store.receipts, args[0].(string), args[1].(int))
+		return nil
+	case strings.Contains(query, "DELETE FROM tool_outputs"):
+		deleteRowsAtOrAfter(f.store.results, args[0].(string), args[1].(int))
+		return nil
+	case strings.Contains(query, "DELETE FROM execution_steps"):
+		deleteRowsAtOrAfter(f.store.steps, args[0].(string), args[1].(int))
+		return nil
+	case strings.Contains(query, "DELETE FROM transitions"):
+		deleteRowsAtOrAfter(f.store.transitions, args[0].(string), args[1].(int))
+		return nil
 	case strings.Contains(query, "REPLACE INTO machines"):
 		f.store.machines[args[0].(string)] = machineRow{
 			currentState: args[1].(string),
@@ -201,6 +213,19 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		return nil
 	}
 	return nil
+}
+
+func deleteRowsAtOrAfter[T any](rows map[string]T, runID string, step int) {
+	prefix := runID + "|"
+	for key := range rows {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		index, err := strconv.Atoi(strings.TrimPrefix(key, prefix))
+		if err == nil && index >= step {
+			delete(rows, key)
+		}
+	}
 }
 
 func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
@@ -445,6 +470,46 @@ func TestDoltCheckpointSaveLoadRoundTrip(t *testing.T) {
 	require.Equal(t, "", gotExec[1].Receipt)
 }
 
+func TestDoltCheckpointSaveReplacesShortenedHistoryAndReceipt(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", nil)
+	original := threeStepExecution()
+	for length := 1; length <= len(original); length++ {
+		require.NoError(t, cp.Save(samplePosition(), original[:length]))
+	}
+
+	replacement := append(Execution(nil), original[:2]...)
+	replacement[1].Result.Output = "replacement"
+	replacement[1].Receipt = ""
+	require.NoError(t, cp.Save(samplePosition(), replacement))
+	require.NoError(t, cp.Save(samplePosition(), replacement), "repeated replacement is idempotent")
+
+	_, got, err := cp.Load()
+	require.NoError(t, err)
+	require.Equal(t, replacement, got)
+	require.NotContains(t, db.store.steps, rowKey("run-1", 2))
+	require.NotContains(t, db.store.results, rowKey("run-1", 2))
+	require.NotContains(t, db.store.receipts, rowKey("run-1", 1))
+	require.NotContains(t, db.store.receipts, rowKey("run-1", 2))
+}
+
+func TestDoltCheckpointSaveEmptyExecutionReapsAllStepRows(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", nil)
+	require.NoError(t, cp.Save(samplePosition(), sampleExecution()))
+	require.NoError(t, cp.Save(samplePosition(), nil))
+
+	_, got, err := cp.Load()
+	require.NoError(t, err)
+	require.Empty(t, got)
+	require.Empty(t, db.store.transitions)
+	require.Empty(t, db.store.steps)
+	require.Empty(t, db.store.results)
+	require.Empty(t, db.store.receipts)
+}
+
 func TestDoltCheckpointSplitsToolOutputsAndReceipts(t *testing.T) {
 	t.Parallel()
 	db := newFakeDB()
@@ -612,7 +677,7 @@ func TestDoltCheckpointTerminalReapsBothPlanesWithBranch(t *testing.T) {
 	require.False(t, db.branches["run-1"], "run branch and both of its planes are reaped")
 }
 
-// receiptReverser is a receipt-consuming command stub: its Undo records the
+// receiptReverser is a receipt-consuming test command: its Undo records the
 // opaque receipt it was handed, standing in for a tool that reverses its own
 // external effect from the receipt.
 type receiptReverser struct{ seen string }
