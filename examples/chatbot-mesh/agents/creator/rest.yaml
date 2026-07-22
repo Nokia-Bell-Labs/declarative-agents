@@ -69,34 +69,26 @@ rest:
       operations:
         apply_instance:
           # Realize the decided operation by driving the deployment API's apply path
-          # (srd005 R3). The creator consumes the co-generated values-to-config output
-          # the deployment API produces (srd005 R2.2); it authors no values decision.
-          # The operation, its role, and its parameters are threaded from the seeded
-          # coordinator request; no endpoint or credential for a running agent is sent.
+          # (srd005 R3). The creator forwards the coordinator's decided values-plane
+          # document as the versioned apply request content (srd006 R1.4); it authors
+          # no values decision (srd005 R2.2). No endpoint or credential for a running
+          # agent is sent; the executor validates the content against the chart schema.
           method: POST
           path: /provisioning/api/apply
           params:
             body_schema:
               type: object
-              required: [operation]
               properties:
-                operation: {type: string}
-                role: {type: string}
-                collection: {type: string}
+                content: {type: string}
             body_source: previous_result
             input_mapping:
-              operation: $.operation
-              role: $.role
-              collection: $.collection
-            carry_forward: [collection]
+              content: $.content
           body:
-            operation: "{{ params.operation }}"
-            role: "{{ params.role }}"
-            collection: "{{ params.collection }}"
+            schema_version: "1"
+            content: "{{ params.content }}"
           success: {status: [200], signal: InstanceApplied}
           response:
-            output:
-              revision: $.revision
+            output: {}
           side_effects:
             - kind: external_api
               target: deployment_api.apply
@@ -104,10 +96,10 @@ rest:
           reversibility:
             classification: compensatable
             undo: apply_instance
-            description: A superseding apply reverses a prior one through the deployment API.
         read_rollout:
           # Verify the instance's health through the deployment API's rollout read
-          # (srd005 R4.1) before reporting the operation complete.
+          # (srd005 R4.1) before reporting the operation complete. The executor's
+          # trimmed rollout response carries the phase (srd006 R1.4).
           method: GET
           path: /provisioning/api/rollout
           params:
@@ -116,7 +108,6 @@ rest:
           response:
             output:
               health: $.phase
-              revision: $.revision
           side_effects:
             - kind: external_api
               target: deployment_api.rollout
@@ -139,6 +130,10 @@ rest:
           path: /api/v1/instance
           binding: machine_request
           request:
+            # The coordinator's rollout operation carries the decided values-plane
+            # document as content (srd006 R1.4); the creator forwards it to the
+            # executor apply. content is optional here so a non-rollout operation
+            # (e.g. ingest) omits it.
             body_schema:
               type: object
               required: [operation]
@@ -147,6 +142,7 @@ rest:
                 role: {type: string}
                 directory: {type: string}
                 collection: {type: string}
+                content: {type: string}
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
@@ -157,6 +153,7 @@ rest:
                 role: $.role
                 directory: $.directory
                 collection: $.collection
+                content: $.content
             response:
               terminal_signals:
                 HealthReported:
@@ -165,7 +162,6 @@ rest:
                   body:
                     status: healthy
                     health: $.mapped.health
-                    revision: $.mapped.revision
                 CommandError:
                   status: 500
                   content_type: application/json

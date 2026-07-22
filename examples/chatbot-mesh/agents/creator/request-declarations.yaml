@@ -3,17 +3,17 @@ tools:
     type: builtin
     init: rest_client_invoke
     category: boundary
-    description: Realize the decided operation by driving the deployment API's apply path.
+    description: Realize the decided operation by forwarding the values document to the deployment API's apply path.
     problem: A decided instance operation must be realized against real instances, and the creator alone holds the deployment-API authority that does so.
     goals:
-      - Drive the deployment API to apply the decided operation for the requested role.
-      - Consume the co-generated values-to-config output the deployment API produces without authoring it.
-      - Carry the requested collection forward for the health report.
+      - Forward the coordinator's decided values-plane document as the versioned apply request content (srd006 R1.4).
+      - Drive the deployment API to apply it, authoring no values decision.
+      - Advance to the health verification when the deployment API accepts the apply.
     requirements:
       input:
-        - The operation, role, and collection are selected from the seeded instance body.
+        - The values document (content) is selected from the seeded instance body.
       output:
-        - Output includes the deployment API's revision, with the requested collection carried forward.
+        - Output reports the deployment API's apply status.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError.
     non_goals:
@@ -22,17 +22,14 @@ tools:
     parameters:
       type: object
       properties:
-        operation: {type: string}
-        role: {type: string}
-        collection: {type: string}
+        content: {type: string}
     emits: [InstanceApplied, CommandError]
     output:
-      description: Deployment-API apply result with the carried request.
+      description: Deployment-API apply status.
       schema:
         type: object
         properties:
-          mapped: {type: object}
-          carried: {type: object}
+          status: {type: string}
     side_effects:
       - kind: external_api
         target: deployment_api.apply
@@ -66,7 +63,7 @@ tools:
       input:
         - The rollout read takes no request-scoped input beyond the applied operation.
       output:
-        - Output includes the reported health phase and revision.
+        - Output includes the reported health phase.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError.
     non_goals:
@@ -82,7 +79,6 @@ tools:
         type: object
         properties:
           health: {type: string}
-          revision: {type: integer}
     side_effects:
       - kind: external_api
         target: deployment_api.rollout
