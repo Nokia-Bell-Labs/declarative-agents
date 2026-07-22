@@ -2,24 +2,39 @@ name: executor-rollout-request
 purpose: |-
   One request-scoped read of the chatbot Deployment's rollout status, serving the
   rollout GET endpoint (srd006 R1.1). The machine polls kubectl rollout status with a
-  short timeout: a zero exit is a complete rollout, a non-zero exit is a still-progressing
-  one. kubectl computes the phase; the machine maps the two outcomes to the response.
+  short timeout -- a zero exit is a complete rollout, a non-zero exit is not-complete --
+  and then reads the Deployment itself for the replica counts and revision. The second
+  read is what makes the outcome honest: kubectl rollout status exits non-zero for a
+  missing Deployment, a wrong kubeconfig, a denied RBAC read, or an unreachable API
+  server just as it does for a progressing rollout, so a phase taken from that exit code
+  alone reports a wholly broken read as ongoing progress. When the counts read fails the
+  machine lands in Unavailable and the endpoint answers 502; when it succeeds the phase
+  survives in the terminal state the poll chose, and the counts come from the last word's
+  output (agent-core srd030 R4.6).
 initial_state: AwaitingRequest
 budget:
-  max_iterations: 3
+  max_iterations: 5
 states:
-  - {name: AwaitingRequest, meaning: Seeded by the rollout endpoint.}
-  - {name: Polling, meaning: Reading the Deployment rollout status.}
-  - {name: Complete, meaning: Terminal. The rollout is complete.}
-  - {name: Progressing, meaning: Terminal. The rollout is still progressing.}
+  - {name: AwaitingRequest,   meaning: Seeded by the rollout endpoint.}
+  - {name: Polling,           meaning: Reading the Deployment rollout status.}
+  - {name: ReadingComplete,   meaning: The rollout is complete; reading the counts.}
+  - {name: ReadingProgressing, meaning: The rollout is not complete; reading the counts.}
+  - {name: Complete,          meaning: Terminal. The rollout is complete.}
+  - {name: Progressing,       meaning: Terminal. The rollout is still progressing.}
+  - {name: Unavailable,       meaning: Terminal. The Deployment could not be read, so no phase is reportable.}
 terminal_states:
   - Complete
   - Progressing
+  - Unavailable
 signals:
-  - {name: Seed, trigger: The rollout endpoint starts a request-scoped run.}
-  - {name: ToolDone, trigger: kubectl reported the rollout complete.}
-  - {name: ToolFailed, trigger: kubectl reported the rollout still progressing.}
+  - {name: Seed,       trigger: The rollout endpoint starts a request-scoped run.}
+  - {name: ToolDone,   trigger: kubectl reported the rollout complete, or the counts read succeeded.}
+  - {name: ToolFailed, trigger: kubectl reported the rollout not complete, or the counts read failed.}
 transitions:
-  - {state: AwaitingRequest, signal: Seed,       next: Polling,     action: kubectl_rollout_poll}
-  - {state: Polling,         signal: ToolDone,   next: Complete}
-  - {state: Polling,         signal: ToolFailed, next: Progressing}
+  - {state: AwaitingRequest,    signal: Seed,       next: Polling,            action: kubectl_rollout_poll}
+  - {state: Polling,            signal: ToolDone,   next: ReadingComplete,    action: kubectl_get_rollout_counts}
+  - {state: Polling,            signal: ToolFailed, next: ReadingProgressing, action: kubectl_get_rollout_counts}
+  - {state: ReadingComplete,    signal: ToolDone,   next: Complete}
+  - {state: ReadingComplete,    signal: ToolFailed, next: Unavailable}
+  - {state: ReadingProgressing, signal: ToolDone,   next: Progressing}
+  - {state: ReadingProgressing, signal: ToolFailed, next: Unavailable}

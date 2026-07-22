@@ -57,6 +57,7 @@ requirements:
     items:
       - R3.1: After an apply, the executor SHALL verify the affected Deployment's rollout via kubectl rollout status and report the phase from its exit outcome.
       - R3.2: On an apply or verify failure, the executor SHALL roll the release back -- the atomic upgrade self-rolls-back, with an explicit helm rollback for a verify stall -- and report the failure.
+      - R3.3: The rollout read SHALL read the Deployment object after the status poll and report its ready and desired replicas and revision with the phase; a read the cluster cannot serve SHALL return a gateway error rather than a phase, so a broken read is never reported as a progressing rollout.
   R4:
     title: Authority boundary
     items:
@@ -81,10 +82,11 @@ deployment_api_contract:
     values-plane document as content: the coordinator decides it (srd004 R3.1),
     the creator forwards it (srd005 R2.2), and the executor validates and applies
     it (R2.1, R2.2) -- the executor authors no values (R5.1) and no transport
-    authority crosses the surface (R2.3, R4.2). The response fields are limited to
-    what the executor emits statically from a terminal signal; ready, desired, and
-    revision are omitted because extracting them would require parsing helm and
-    kubectl output, an enhancement no consumer depends on today.
+    authority crosses the surface (R2.3, R4.2). The apply response fields are what
+    the executor emits statically from a terminal state. The rollout response also
+    carries ready, desired, and revision, read from the Deployment object rather
+    than parsed out of CLI prose (R3.3), so the panel renders the counts it
+    declares.
   apply_request:
     endpoint: POST /provisioning/api/apply
     fields:
@@ -100,7 +102,12 @@ deployment_api_contract:
     endpoint: GET /provisioning/api/rollout
     fields:
       - {name: schema_version, type: string, required: true}
-      - {name: phase, type: string, required: true, note: progressing | complete}
+      - {name: phase, type: string, required: true, note: progressing | complete; absent on the 502, which carries status and error instead}
+      - {name: ready, type: integer, required: true, note: ready replicas of the chatbot Deployment}
+      - {name: desired, type: integer, required: true, note: desired replicas of the chatbot Deployment}
+      - {name: revision, type: integer, required: true, note: the Deployment's current rollout revision}
+      - {name: status, type: string, required: false, note: unavailable, on the 502 alone}
+      - {name: error, type: string, required: false, note: rollout_read_failed, on the 502 alone}
 
 acceptance_criteria:
   - id: AC1
@@ -110,8 +117,8 @@ acceptance_criteria:
     criterion: A submitted values document is validated against the chart's values schema by a helm dry-run and, when valid, written to a values file and applied with helm upgrade --reuse-values --atomic -- values-plane only, with no per-field --set construction and no endpoint submitted to a running agent.
     traces: [R2.1, R2.2, R2.3]
   - id: AC3
-    criterion: The rollout is verified via kubectl rollout status and its phase reported, and an apply or verify failure rolls the release back and reports the failure.
-    traces: [R3.1, R3.2]
+    criterion: The rollout is verified via kubectl rollout status and its phase reported with the Deployment's ready and desired replicas and revision, a read the cluster cannot serve returns a gateway error rather than a phase, and an apply or verify failure rolls the release back and reports the failure.
+    traces: [R3.1, R3.2, R3.3]
   - id: AC4
     criterion: The actuation surface is authenticated apart from chat and reached only by the creator, authority is set by declared validated config and never by this surface (agent-core srd028 V30), and REST authority lives in the profile with no runtime-supplied transport authority.
     traces: [R4.1, R4.2, R4.3]
