@@ -263,11 +263,18 @@ test_cases:
   - use_case: rel02.0-uc003-tool-authoring
     name: Lifecycle builtin declarations expose full adapter contracts
     go_test: TestBuiltinFactoryCatalogSelectsEntriesByInit, TestValidateToolContractsStrictAndLegacyModes
-    status: done
+    status: planned
     description: |
       Inspect the checkpoint_history and checkpoint_rollback ToolDefs. Both
       declarations should expose the required adapter contract fields and the
       correct builtin init value.
+
+      Partial proof only. TestBuiltinFactoryCatalogSelectsEntriesByInit asserts
+      the tools are builtin adapters selected by their init (type_builtin,
+      init_present); TestValidateToolContractsStrictAndLegacyModes holds a
+      migrated contract to error level. No current test asserts the full
+      nine-field adapter contract set for these ToolDefs, so the remaining
+      field-presence checks are listed under planned rather than expected.
     inputs:
       lifecycle_tools:
         - checkpoint_history
@@ -275,13 +282,16 @@ test_cases:
     expected:
       type_builtin: true
       init_present: true
-      emits_present: true
-      output_present: true
-      side_effects_present: true
-      reversibility_present: true
-      undo_present: true
-      errors_present: true
-      relationships_present: true
+    planned:
+      # Claimed by this case but not asserted by the go_test above for the
+      # checkpoint_history and checkpoint_rollback ToolDefs; planned, not proven.
+      - emits_present
+      - output_present
+      - side_effects_present
+      - reversibility_present
+      - undo_present
+      - errors_present
+      - relationships_present
     traces:
       - srd022-builtin-tools AC1
       - srd025-rollback-lifecycle AC6
