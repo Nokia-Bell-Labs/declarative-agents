@@ -541,7 +541,7 @@ tools:
         target: rest_server_queue
         state: selected_event_consumed
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop
@@ -600,9 +600,9 @@ tools:
       - kind: network_listener_shutdown
         target: monitor_rest_server
         state: listener_stopped
-      - kind: state_mutation
+      - kind: network_listener_shutdown
         target: rest_server_state
-        state: server_stopped
+        state: listener_stopped
     reversibility:
       classification: reversible
       undo: noop

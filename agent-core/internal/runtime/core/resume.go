@@ -4,7 +4,22 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
+)
+
+// Resume error classifications. Resume distinguishes three failure modes so an
+// operator or caller can tell a nonexistent checkpoint from persisted state the
+// current machine can no longer resume, from a backend that failed to load
+// (srd025 R6.5). Missing is reported through the existing ErrNoCheckpoint
+// sentinel; the two below cover the other classes.
+var (
+	// ErrCheckpointIncompatible signals the persisted checkpoint does not match
+	// the current machine, for example its restored state no longer exists.
+	ErrCheckpointIncompatible = errors.New("resume: checkpoint incompatible with current machine")
+	// ErrCheckpointLoadFailed signals the checkpoint backend failed to load the
+	// persisted snapshot (as opposed to there being none).
+	ErrCheckpointLoadFailed = errors.New("resume: checkpoint load failed")
 )
 
 // ResumeState is the loaded snapshot plus loop params seeded to re-enter the
@@ -25,7 +40,15 @@ type ResumeState struct {
 func LoadResume(params LoopParams) (ResumeState, error) {
 	pos, exec, err := resolveCheckpoint(params.Checkpoint).Load()
 	if err != nil {
-		return ResumeState{}, fmt.Errorf("resume: load: %w", err)
+		if errors.Is(err, ErrNoCheckpoint) {
+			// Nothing persisted: keep the ErrNoCheckpoint classification so
+			// callers can tell "no checkpoint" from a backend load failure.
+			return ResumeState{}, fmt.Errorf("resume: %w", err)
+		}
+		return ResumeState{}, fmt.Errorf("%w: %v", ErrCheckpointLoadFailed, err)
+	}
+	if err := validateResumeCompatibility(params, pos); err != nil {
+		return ResumeState{}, err
 	}
 	sig := params.InitialSignal
 	if sig == "" {
@@ -42,6 +65,51 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 	}
 	params.InitialExecution = exec
 	return ResumeState{Params: params, Position: pos, Execution: exec}, nil
+}
+
+// validateResumeCompatibility rejects a checkpoint the current machine cannot
+// resume before the loop re-enters at a dropped state and dead-ends on an
+// unhandled state-signal pair. A checkpoint is compatible when its restored
+// state is terminal or is still defined in the current machine (srd025 R6.4,
+// R6.5). An empty restored state carries no position to validate.
+func validateResumeCompatibility(params LoopParams, pos Position) error {
+	if pos.CurrentState == "" {
+		return nil
+	}
+	if params.IsTerminal != nil && params.IsTerminal(pos.CurrentState) {
+		return nil
+	}
+	if resumeStateDefined(params, pos.CurrentState) {
+		return nil
+	}
+	return fmt.Errorf("%w: restored state %q is not defined in the current machine", ErrCheckpointIncompatible, pos.CurrentState)
+}
+
+// resumeStateDefined reports whether the restored state exists in the machine the
+// resumed loop will run. params.Table is populated only once Loop initializes the
+// machine, so on the resume entrypoints that carry a MachineSpec or MachineFile
+// (the agent CLI --resume path) the table is still empty here; fall back to the
+// machine's declared states so a valid mid-run state is not misread as removed.
+func resumeStateDefined(params LoopParams, state State) bool {
+	if params.InitialState == state {
+		return true
+	}
+	if len(params.Table) > 0 {
+		return params.Table.HasState(state)
+	}
+	if params.MachineSpec == nil && params.MachineFile == "" {
+		return false
+	}
+	spec, err := loopMachineSpec(&params)
+	if err != nil {
+		return false
+	}
+	for _, name := range spec.States.Names() {
+		if State(name) == state {
+			return true
+		}
+	}
+	return false
 }
 
 // Resume loads the persisted snapshot through params.Checkpoint and re-enters the

@@ -16,7 +16,7 @@ traces:
 preconditions:
   - agent-core is available with HTTP trace propagation (agent-core rel08.0), so the request-scoped machine exports spans and propagates traceparent.
   - The chatbot serves the SPA and the monitor_proxy binding; a trace backend is reachable for the waterfall (else the panel degrades to a notice).
-  - agent-profiles owns the chatbot ui assets and ux.yaml monitored_agents.
+  - This example owns the chatbot ui assets and ux.yaml monitored_agents, under examples/chatbot-mesh/ux/.
 
 test_cases:
   - use_case: rel02.0-uc001-observability

@@ -12,6 +12,9 @@ import (
 )
 
 // Stats runs mage stats in each sub-module and outputs combined JSON to stdout.
+// Example modules (exampleModules) are excluded on purpose: they expose no mage
+// stats target, so there is nothing to combine. They still participate in the
+// audit and Go-test gates (see Audit and Test).
 func Stats() error {
 	results := make(map[string]json.RawMessage)
 

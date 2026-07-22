@@ -3,11 +3,19 @@ title: Test Suite for Release 09.3 Mesh Deployment and Tiered Swap
 release: "09.3"
 
 overview: |
-  This suite validates the Helm deployment of the mesh (srd015): the kind deploy
+  Non-canonical historical record. The chatbot mesh was extracted to
+  examples/chatbot-mesh/; its deployment specs are srd003 (chart) and srd006
+  (executor deployment API) with the test suites under examples/chatbot-mesh/.
+  The provisioner service this suite names was replaced by the executor
+  (srd006); the mage integration:provisioning target and the
+  examples/chatbot-mesh/provisioner/ package no longer exist. This file remains
+  only as a pointer to that history.
+
+  This suite validated the Helm deployment of the mesh (srd015): the kind deploy
   smoke, the values-to-config co-generation drift lock, the tiered hot swap
   (repoint and add-RAG rollout), and the provisioning deployment API. The
-  kind-cluster tracers skip cleanly without docker/kind/helm/kubectl; the
-  co-generation and provisioning tracers run without a cluster.
+  kind-cluster tracers skipped cleanly without docker/kind/helm/kubectl; the
+  co-generation and provisioning tracers ran without a cluster.
 
   This retained suite is a historical relocation pointer. The canonical suite,
   chart, tests, and integration targets live under examples/chatbot-mesh as

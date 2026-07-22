@@ -34,7 +34,7 @@ requirements:
     items:
       - R2.1: Lifecycle inputs must include a checkpoint ID, a target iteration, and an approval signal.
       - R2.2: The lifecycle profiles must select the checkpoint_history, checkpoint_rollback, suspend, and done tool families.
-      - R2.3: Lifecycle runtime dependencies are the agent-core lifecycle ports, the checkpoint store, and workspace restore support.
+      - R2.3: Lifecycle runtime dependencies are the agent-core lifecycle ports, the checkpoint store, and receipt-backed rollback (opaque persisted receipts consumed by a receipt-walk Undo, replacing the earlier workspace-restore model).
   R3:
     title: Outputs and outcomes
     items:

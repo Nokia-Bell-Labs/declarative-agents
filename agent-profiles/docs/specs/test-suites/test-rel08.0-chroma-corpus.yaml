@@ -15,10 +15,17 @@ overview: |
   definitions, corpus fixture, and expected output evidence, and the run has a
   reachable Chroma server and Ollama with the configured models. The integration
   target and its fixtures landed (#242, #243, #244), and the ingest was
-  redesigned as a model-driven loop that actually loads the corpus (#251). The
-  mage integration:chroma target now passes end-to-end -- ingest loads the corpus
-  and the reader grounds an answer in the retrieved chunks -- so the cases are
-  implemented.
+  redesigned as a model-driven loop that actually loads the corpus (#251).
+
+  The mesh extraction moved the mage integration:chroma target out of
+  agent-profiles; it no longer ships here. Its relocated counterpart in
+  examples/chatbot-mesh runs over the example's copied corpus-ingest profile and
+  verifies ingest and the collection count only -- not the knowledge-manager
+  corpus-reader grounded-answer path. So neither case has a profile-owned
+  executable tracer at present: profile validation confirms the ingest and reader
+  profiles load, the ingest behavior is proven only over the example's copy, and
+  the reader grounded-answer behavior is not exercised. Both cases are therefore
+  planned pending a restored profile-owned ingest+reader tracer (follow-up #251).
 
 traces:
   - rel08.0-uc001-corpus-ingest
@@ -34,10 +41,13 @@ test_cases:
   - use_case: rel08.0-uc001-corpus-ingest
     name: Chroma corpus ingest tracer
     follow_up_issue: "#251"
-    integration_target: mage integration:chroma
-    status: implemented
+    integration_target: (relocated) mage integration:chroma in examples/chatbot-mesh, over the example's copied corpus-ingest profile (ingest and count only)
+    status: planned
     description: |
-      Run the ingest profile over a small corpus fixture. The target proves
+      Planned: no agent-profiles-owned tracer. The relocated example target proves
+      ingest and the collection count over the example's copied profile, not the
+      knowledge-manager corpus-ingest profile named here. The intended tracer would
+      run the ingest profile over a small corpus fixture and prove
       chroma_ready and ollama_ready preconditions, create-or-get collection
       identity resolution with no server-side embedding function, and a
       model-driven loop in which the model lists the corpus and selects each file
@@ -68,11 +78,13 @@ test_cases:
   - use_case: rel08.0-uc002-corpus-query
     name: Chroma corpus query tracer
     follow_up_issue: "#251"
-    integration_target: mage integration:chroma
-    status: implemented
+    integration_target: (none) no profile-owned tracer; the relocated example integration:chroma does not cover the corpus-reader grounded-answer path
+    status: planned
     description: |
-      Run the reader profile against the ingested collection. The target proves
-      the embed_query -> chroma_query -> invoke_llm trace order: the query vector
+      Planned: the corpus-reader grounded-answer path is not exercised by any
+      current tracer (the relocated example target proves ingest only). The
+      intended tracer would run the reader profile against the ingested collection
+      and prove the embed_query -> chroma_query -> invoke_llm trace order: the query vector
       is computed at Ollama, threaded into the Chroma query body, used to
       retrieve the configured number of nearest chunks, and those chunks ground
       the model answer. No model authors a raw embedding vector.

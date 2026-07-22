@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -28,7 +29,9 @@ func (c *checkResultCmd) Execute() core.Result {
 	if c.prevRes.Signal == core.ToolFailed || c.prevRes.Signal == core.CommandError {
 		return c.retryResult()
 	}
-	c.markTaskDone()
+	if err := c.markTaskDone(); err != nil {
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
+	}
 	remaining := len(c.ps.Graph.Ready())
 	msg := fmt.Sprintf("task completed; %d tasks remaining", remaining)
 	if remaining == 0 {
@@ -66,19 +69,18 @@ func (c *checkResultCmd) retryResult() core.Result {
 	}
 }
 
-func (c *checkResultCmd) markTaskDone() {
+func (c *checkResultCmd) markTaskDone() error {
 	if c.ps.CurrentTask == nil || c.ps.Graph == nil {
-		return
+		return nil
 	}
-	for _, nid := range c.ps.CurrentTask.NodeIDs {
-		if n, _ := c.ps.Graph.Node(nid); n != nil {
-			_ = n.MarkDone()
-		}
+	if err := c.ps.advanceTaskNodesTo(graph.Done); err != nil {
+		return err
 	}
 	c.ps.Tracer.Event("pipeline.task_completed",
 		attribute.String("task.id", c.ps.CurrentTask.ID),
 		attribute.Int("remaining", len(c.ps.Graph.Ready())),
 	)
+	return nil
 }
 
 // CheckResultBuilder constructs check_result commands.

@@ -52,6 +52,23 @@ func TestRead_LineRange(t *testing.T) {
 	assert.NotContains(t, res.Output, "1|a")
 }
 
+func TestRead_Raw(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	body := `{"ragUnits":[{"name":"rag0"}]}`
+	require.NoError(t, os.WriteFile(filepath.Join(root, "state.json"), []byte(body), 0o644))
+
+	b := &ReadBuilder{Root: root}
+	cmd := b.Build(toolReq(`{"path":"state.json","raw":true}`))
+	res := cmd.Execute()
+	assert.Equal(t, core.ToolDone, res.Signal)
+	// Raw output is the file's exact bytes, so a machine can serve it verbatim as
+	// an HTTP body; no line-number prefix corrupts the JSON.
+	assert.Equal(t, body, res.Output)
+	assert.NotContains(t, res.Output, "1|")
+}
+
 func TestRead_Directory(t *testing.T) {
 	t.Parallel()
 

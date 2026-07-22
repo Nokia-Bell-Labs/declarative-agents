@@ -146,7 +146,7 @@ func TestPrepareDemoProfilePointsAtCoreDocs(t *testing.T) {
 	writeDemoFile(t, filepath.Join(profileDir, "request-machine.yaml"), "name: request\n")
 	writeDemoFile(t, filepath.Join(profileDir, "ui", "ux.yaml"), "id: documentation-curator-ui\n")
 	writeDemoFile(t, filepath.Join(profileDir, "builtin.yaml"), `tools:
-  - name: serve_documentation
+  - name: launch_documentation
     config:
       docs_dir: docs
       configs_dir: configs
@@ -188,7 +188,7 @@ func TestPrepareDemoProfileCopiesMonitorAssetsAndRewritesRest(t *testing.T) {
 	writeDemoFile(t, filepath.Join(profileDir, "ui", "ux.yaml"), "id: documentation-curator-ui\n")
 	writeDemoFile(t, filepath.Join(profileDir, "ui", "monitor", "dist", "index.html"), "<html>monitor</html>\n")
 	writeDemoFile(t, filepath.Join(profileDir, "builtin.yaml"), `tools:
-  - name: serve_documentation
+  - name: launch_documentation
     config:
       docs_dir: docs
       configs_dir: configs

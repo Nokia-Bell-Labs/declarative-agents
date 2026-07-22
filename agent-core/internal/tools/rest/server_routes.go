@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -24,6 +25,38 @@ const (
 	bindingLifecycleControl = "lifecycle_control"
 	bindingMonitorProxy     = "monitor_proxy"
 )
+
+// handledServerBindings is the closed set of endpoint bindings handleEndpoint
+// dispatches. A binding outside this set falls to the 501 default handler, so
+// config validation rejects it up front (validateEndpoint) rather than letting
+// --validate-config approve a route that can only fail at runtime (#510). This
+// set is the single source of truth; keep it in sync with the switch in
+// handleEndpoint.
+var handledServerBindings = map[string]bool{
+	bindingEmitSignal:       true,
+	bindingDynamicSignal:    true,
+	bindingLifecycleControl: true,
+	bindingReadState:        true,
+	bindingInvokeHandler:    true,
+	bindingStreamEvents:     true,
+	bindingHealth:           true,
+	bindingStaticMetadata:   true,
+	bindingMachineRequest:   true,
+	bindingStaticAssets:     true,
+	bindingRedirect:         true,
+	bindingMonitorProxy:     true,
+}
+
+// sortedServerBindings returns the handled bindings in stable order for
+// diagnostics.
+func sortedServerBindings() string {
+	names := make([]string, 0, len(handledServerBindings))
+	for b := range handledServerBindings {
+		names = append(names, b)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
+}
 
 var allowedUndeclaredHeaders = map[string]bool{
 	"accept": true, "accept-encoding": true, "accept-language": true,

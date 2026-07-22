@@ -1,8 +1,0 @@
-tools:
-  - launch_rag_requests
-  - launch_rag_control
-  - launch_monitor_rest
-  - await_rag_control
-  - stop_monitor_rest
-  - stop_rag_requests
-  - exit_agent

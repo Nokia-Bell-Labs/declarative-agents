@@ -23,7 +23,7 @@ preconditions:
 test_cases:
   - use_case: rel06.0-uc001-declarative-executor
     name: Executor validates, applies, and verifies a values change through the deployment API
-    integration_target: mage integration:executor
+    integration_target: mage integration:executor (planned, not yet implemented; integration:controlPlane drives a fake deployment API and is not executor evidence)
     status: planned
     description: |
       Drives a decided values patch end to end against the executor agent: the creator

@@ -205,7 +205,7 @@ tools:
         target: chroma.collection
         state: collection_upserted
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop
@@ -257,7 +257,7 @@ tools:
     side_effects:
       - kind: external_api
         target: chroma.collection
-        state: collection_upserted
+        state: read_only
     reversibility:
       classification: reversible
       undo: noop
@@ -317,7 +317,7 @@ tools:
         target: chroma.records
         state: records_added
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop

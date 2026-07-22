@@ -47,22 +47,28 @@ test_cases:
       - rel10.0-uc001-role-catalog-renames S3
 
   - use_case: rel10.0-uc002-knowledge-family-rescope
-    name: Corpus ingest and reader under knowledge-manager pass Integration.Chroma
-    integration_target: mage integration:chroma
+    name: Corpus ingest and reader relocate under knowledge-manager (rescope)
     go_test: go test ./conformance -run TestKnowledgeManager
     status: implemented
     description: |
       After the move, agents/knowledge-manager hosts corpus-ingest and
-      corpus-reader and agents/chroma is removed. The case validates Integration.Chroma
-      from the new paths, the knowledge-manager conformance test, and a zero-hit
-      grep for agents/chroma.
+      corpus-reader and agents/chroma is removed. The case validates the rescope:
+      the profiles resolve from the new paths (mage validate), the
+      documentation-curator conformance test passes from the knowledge-manager
+      family, and a zero-hit grep for agents/chroma. It does not validate
+      Chroma ingest/reader behavior: mage integration:chroma was relocated to
+      examples/chatbot-mesh (ingest-count only over the copied profile) and
+      TestKnowledgeManager exercises the documentation-curator server lifecycle,
+      not the corpus paths. The profile-owned corpus ingest+reader tracer is
+      pending (#251).
     inputs:
       moved_profiles: [agents/knowledge-manager/corpus-ingest->agents/knowledge-manager/corpus-ingest, agents/knowledge-manager/corpus-reader->agents/knowledge-manager/corpus-reader]
     expected:
       knowledge_manager_hosts_corpus_profiles: true
       agents_chroma_removed: true
       grep_agents_chroma_zero_hits: true
-      integration_chroma_passes_from_new_paths: true
+      mage_validate_passes: true
+      documentation_curator_conformance_passes: true
     traces:
       - rel10.0-uc002-knowledge-family-rescope S1
       - rel10.0-uc002-knowledge-family-rescope S2

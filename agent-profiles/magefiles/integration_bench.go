@@ -61,7 +61,9 @@ func (Integration) BenchEvaluator() error {
 	}
 	outputDir := filepath.Join(runDir, outputRel)
 	cmd := exec.Command(evaluatorBin,
-		"--profile", filepath.Join(profilesRoot, "agents", "evaluator", "profile.yaml"),
+		// The evaluator role shipped as agents/critic after the rel10 rename; the
+		// removed agents/evaluator path failed this live target (GH-498).
+		"--profile", filepath.Join(profilesRoot, "agents", "critic", "profile.yaml"),
 		"--request", filepath.Join(fixtureRoot, suitePath),
 		"--output", outputDir,
 	)

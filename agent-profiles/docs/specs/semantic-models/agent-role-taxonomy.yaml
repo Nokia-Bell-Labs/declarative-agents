@@ -353,7 +353,7 @@ conformance_fixtures:
     runtime_dependencies:
       - agent-core lifecycle ports
       - checkpoint store
-      - workspace restore support
+      - receipt-backed rollback (opaque persisted receipts, receipt-walk Undo)
     outputs:
       - history report
       - rewritten checkpoint

@@ -88,15 +88,34 @@ func parseTaggedList(node *yaml.Node, field string) ([]string, error) {
 			}
 			result = append(result, item.Value)
 		case yaml.MappingNode:
-			if len(item.Content) != 2 || item.Content[0].Kind != yaml.ScalarNode || item.Content[1].Kind != yaml.ScalarNode {
-				return nil, fmt.Errorf("%s[%d]: expected one scalar mapping entry", field, index)
+			value, err := taggedListMapping(item)
+			if err != nil {
+				return nil, fmt.Errorf("%s[%d]: %w", field, index, err)
 			}
-			result = append(result, item.Content[0].Value+": "+item.Content[1].Value)
+			result = append(result, value)
 		default:
 			return nil, fmt.Errorf("%s[%d]: unsupported YAML kind %d", field, index, item.Kind)
 		}
 	}
 	return result, nil
+}
+
+func taggedListMapping(item *yaml.Node) (string, error) {
+	if len(item.Content) == 2 && item.Content[0].Kind == yaml.ScalarNode && item.Content[1].Kind == yaml.ScalarNode {
+		return item.Content[0].Value + ": " + item.Content[1].Value, nil
+	}
+	fields := map[string]string{}
+	for i := 0; i+1 < len(item.Content); i += 2 {
+		key, value := item.Content[i], item.Content[i+1]
+		if key.Kind != yaml.ScalarNode || value.Kind != yaml.ScalarNode || value.Tag == "!!null" {
+			return "", fmt.Errorf("mapping keys and values must be scalars")
+		}
+		fields[key.Value] = value.Value
+	}
+	if len(fields) == 2 && fields["id"] != "" && fields["text"] != "" {
+		return fields["id"] + ": " + fields["text"], nil
+	}
+	return "", fmt.Errorf("expected one scalar mapping entry or an id/text object")
 }
 
 // parseTouchpointList parses the use-case touchpoints field, which accepts three

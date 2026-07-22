@@ -1227,22 +1227,24 @@ test_cases:
       - srd029-rest-server-tools AC9
 
   - use_case: rel03.0-uc003-rest-server-signals
-    name: REST server control and queue policies are enforced
+    name: REST server control and queue policies are enforced; unsupported read policies rejected
     go_test: TestRESTServer_ControlQueueAndReadPolicyConformance
     status: done
     description: |
-      Validate modeled lifecycle_control enqueueing, endpoint queue overrides,
-      and explicit read_policy support beyond the default first-available
-      behavior.
+      Validate modeled lifecycle_control enqueueing and endpoint queue overrides,
+      and that read_policy validation supports only first_available (the default):
+      other read policies such as priority_order and round_robin are rejected at
+      validation, not honored.
     inputs:
       endpoint_bindings: [lifecycle_control, emit_signal]
       queue_policies: [reject, drop_oldest, drop_newest]
-      read_policies: [priority_order, round_robin]
+      supported_read_policies: [first_available]
+      rejected_read_policies: [priority_order, round_robin]
     expected:
       lifecycle_handlers_execute_directly: false
       lifecycle_events_enqueued: true
-      unsupported_policies_rejected: true
-      configured_policies_honored: true
+      configured_queue_policy_honored: true
+      unsupported_queue_drain_and_read_policies_rejected: true
     traces:
       - srd027-rest-tool-runtime AC10
       - srd029-rest-server-tools AC5
@@ -1251,7 +1253,7 @@ test_cases:
 
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST client safety and async selectors are enforced
-    go_test: TestRESTClient_SafetyAndAsyncConformance
+    go_test: TestRESTClient_CIDRAllowlistPolicy, TestRESTClient_ResponseSchemaAndDomainErrorOutput, TestRESTClient_AsyncCorrelationAndIdempotencyHeader, TestRESTClient_AwaitOperationReferenceValidation
     status: done
     description: |
       Validate CIDR allowlists, response schema checks, domain_error_code

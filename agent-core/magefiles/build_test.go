@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 func TestAuditRunFailed(t *testing.T) {
@@ -121,6 +123,26 @@ func TestAssertJuristCharterSmokeReportsMissingFinding(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "grep_check") {
 		t.Fatalf("error = %q, want missing grep_check", err)
+	}
+}
+
+func TestGoTestEvidenceError(t *testing.T) {
+	if err := goTestEvidenceError(nil); err != nil {
+		t.Fatalf("clean evidence should not error, got %v", err)
+	}
+
+	findings := []spec.Finding{
+		{Level: "error", SuiteID: "test-rel00.0", Message: `test case "x" go_test "TestGone": no Go test named TestGone`},
+		{Level: "error", SuiteID: "test-rel01.0", Message: `test case "y" go_test "go test ./nope": unknown package ./nope`},
+	}
+	err := goTestEvidenceError(findings)
+	if err == nil {
+		t.Fatal("findings should produce an audit error")
+	}
+	for _, want := range []string{"2 finding(s)", "test-rel00.0", "TestGone", "unknown package ./nope"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q missing %q", err.Error(), want)
+		}
 	}
 }
 

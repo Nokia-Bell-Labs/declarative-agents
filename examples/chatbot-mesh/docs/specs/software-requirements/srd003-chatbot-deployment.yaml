@@ -15,10 +15,9 @@ context: |
   keeps one runtime image across every agent role and lets a values change
   re-render profiles without rebuilding images.
 
-  Proposed chart location: a new top-level examples/chatbot-mesh/helm/ directory
-  (confirm with the maintainer in review). The chart, values schema, and rollout
-  scripting are deployment-plane artifacts; nothing here feeds hosts or URLs into
-  a running agent.
+  Chart location: the top-level examples/chatbot-mesh/helm/ directory. The chart,
+  values schema, and rollout scripting are deployment-plane artifacts; nothing
+  here feeds hosts or URLs into a running agent.
 
 problem: |
   The mesh needs a reproducible deployment whose topology and the chatbot's RAG
@@ -150,6 +149,13 @@ implementation_status:
     - >-
       A live on-cluster hot-swap turn citing a newly added corpus, paired with a
       Docker and Ollama host run.
+    - >-
+      The R3.2 checkpoint-resume rollout is not yet fully realized: the chart
+      renders --dolt-dsn but not --resume-checkpoint, and Integration.HelmSwap
+      proves the rollout mechanics (re-render, rolled Deployment generation), not a
+      restored checkpoint. Rendering the resume argument (once the rollout's
+      checkpoint-selection is defined) and a Dolt tracer proving pre-rollout state
+      is restored afterward remain to do.
 
 diagrams:
   deployment: |

@@ -18,6 +18,7 @@ type readCmd struct {
 	path      string
 	startLine int
 	endLine   int
+	raw       bool
 	recorder  monitor.ToolMetricsRecorder
 	metrics   core.MetricConfig
 }
@@ -42,6 +43,13 @@ func (r *readCmd) Execute() core.Result {
 		return toolFailed("read", fmt.Sprintf("file appears to be binary: %s", RelPath(r.root, resolved)))
 	}
 	r.recordFilesystemMetric("bytes_read", float64(len(data)))
+	if r.raw {
+		// Return the file's exact bytes with no line-number prefixes, so a
+		// machine can map a file verbatim to an HTTP body (e.g. a request-machine
+		// serving a JSON mesh-view). The agent-facing line-numbered form would
+		// corrupt such a payload.
+		return core.Result{Output: string(data), Signal: core.ToolDone, CommandName: "read"}
+	}
 	return readLines(data, r.startLine, r.endLine)
 }
 
@@ -112,6 +120,7 @@ func (b *ReadBuilder) Build(res core.Result) core.Command {
 		path:      p,
 		startLine: extractIntParam(res.Output, "start_line"),
 		endLine:   extractIntParam(res.Output, "end_line"),
+		raw:       extractBoolParam(res.Output, "raw"),
 		metrics:   b.Metrics,
 	}
 }
@@ -121,7 +130,7 @@ func ReadToolSpec() core.ToolSpec {
 	return core.ToolSpec{
 		Name:        "read",
 		Description: "Read a single file's contents. Path must point to a file, not a directory. Use find to discover file paths first.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"File path relative to workspace root (must be a file, not a directory)"},"start_line":{"type":"integer","description":"Start line (1-indexed, inclusive)"},"end_line":{"type":"integer","description":"End line (1-indexed, inclusive)"}},"required":["path"]}`),
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"File path relative to workspace root (must be a file, not a directory)"},"start_line":{"type":"integer","description":"Start line (1-indexed, inclusive)"},"end_line":{"type":"integer","description":"End line (1-indexed, inclusive)"},"raw":{"type":"boolean","description":"Return the file's exact bytes with no line-number prefixes (for verbatim machine reads served as an HTTP body)"}},"required":["path"]}`),
 		Visibility:  core.External,
 	}
 }

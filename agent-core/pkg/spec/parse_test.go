@@ -185,7 +185,7 @@ func TestParseUseCaseRejectsMalformedTaggedLists(t *testing.T) {
 		{name: "flow scalar", field: "flow: not-a-list", wantErr: "flow: expected sequence"},
 		{name: "flow null item", field: "flow:\n  - null", wantErr: "flow[0]"},
 		{name: "flow nested sequence", field: "flow:\n  - [nested]", wantErr: "flow[0]"},
-		{name: "flow multi-key mapping", field: "flow:\n  - F1: one\n    F2: two", wantErr: "one scalar mapping entry"},
+		{name: "flow multi-key mapping", field: "flow:\n  - F1: one\n    F2: two", wantErr: "id/text object"},
 		{name: "touchpoint multi-key tagged mapping", field: "touchpoints:\n  - T1: one\n    T2: two", wantErr: "tagged mapping must contain exactly one entry"},
 		{name: "touchpoint nested target", field: "touchpoints:\n  - target: [srd001 R1]", wantErr: "mapping keys and values must be scalars"},
 		{name: "touchpoint unknown object key", field: "touchpoints:\n  - target: srd001 R1\n    typo: value", wantErr: `unknown key "typo"`},
@@ -202,6 +202,14 @@ func TestParseUseCaseRejectsMalformedTaggedLists(t *testing.T) {
 			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}
+}
+
+func TestParseUseCaseAcceptsExplicitFlowObjects(t *testing.T) {
+	t.Parallel()
+	path := writeUseCaseFile(t, "id: explicit-flow\nflow:\n  - id: F1\n    text: first step\n")
+	useCase, err := ParseUseCase(path)
+	require.NoError(t, err)
+	require.Equal(t, []string{"F1: first step"}, useCase.Flow)
 }
 
 func TestParseSRDRejectsMalformedGoalLists(t *testing.T) {

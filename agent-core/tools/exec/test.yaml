@@ -59,7 +59,9 @@ tools:
   side_effects:
   - kind: child_process
     target: go_toolchain
-    description: Runs `go test -count=1` as a child process.
+    state: read_only
+    description: Runs `go test -count=1` as a child process. Read-only because the
+      command compiles and runs tests without a repository mutation to reverse.
   - kind: filesystem_read
     target: workspace
     description: Reads Go source, module, and test files from the workspace.

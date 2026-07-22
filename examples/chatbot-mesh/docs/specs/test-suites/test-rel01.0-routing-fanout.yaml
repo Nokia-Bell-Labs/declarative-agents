@@ -15,7 +15,7 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama are reachable with the configured embedding, router, and two chat-LLM models.
-  - agent-profiles owns the chatbot profile, the router prompt, and the fan-out declarations.
+  - This example owns the chatbot profile, the router prompt, and the fan-out declarations, under examples/chatbot-mesh/agents/.
 
 test_cases:
   - use_case: rel01.0-uc001-routed-fanout

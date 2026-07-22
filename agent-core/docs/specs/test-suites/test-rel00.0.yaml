@@ -195,7 +195,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Missing initial_state produces validation error
-    go_test: TestParseMachineSpec_MissingInitialState
+    go_test: TestParseMachineSpecValidationErrors
     inputs:
       yaml: "no initial_state field"
     expected:
@@ -205,7 +205,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Unknown state in transition produces validation error
-    go_test: TestParseMachineSpec_UnknownStateInTransition
+    go_test: TestParseMachineSpecValidationErrors
     inputs:
       yaml: "transition references state 'C' not in states list"
     expected:
@@ -215,7 +215,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Unknown signal in transition produces validation error
-    go_test: TestParseMachineSpec_UnknownSignalInTransition
+    go_test: TestParseMachineSpecValidationErrors
     inputs:
       yaml: "transition references signal 'Unknown' not in signals list"
     expected:
@@ -225,7 +225,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Terminal state not in states list produces validation error
-    go_test: TestParseMachineSpec_TerminalNotInStates
+    go_test: TestParseMachineSpecValidationErrors
     inputs:
       yaml: "terminal_states: [Z] but Z not in states"
     expected:
@@ -600,9 +600,9 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Checkpoint contracts compile and round-trip
-    go_test: TestCheckpointContractsCompileAndRoundTrip
+    go_test: TestInMemoryCheckpointRoundTripsConversationAndReceipts
     inputs:
-      checkpoint: "agent snapshot, domain JSON, workspace ref, history digest"
+      checkpoint: "conversation and opaque persisted receipts (Execution entries), position snapshot"
     expected:
       state_layers_separate: true
       json_round_trip: true
@@ -797,7 +797,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: SerializeManifest normalizes schema JSON
-    go_test: TestNormalizeSchema_ReIndents
+    go_test: TestNormalizeSchema
     inputs:
       schema: "compact JSON object"
     expected:
@@ -923,7 +923,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Traceparent formats valid and invalid contexts
-    go_test: TestFormatTraceparent_Valid
+    go_test: TestParseTraceparentProtocolBoundaries
     inputs:
       span_context: valid
     expected:

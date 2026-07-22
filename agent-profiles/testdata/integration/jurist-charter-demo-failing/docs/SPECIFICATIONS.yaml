@@ -1,0 +1,21 @@
+id: jurist-demo-specifications
+title: Jurist Demo Specification Index
+
+overview: |
+  Minimal specification index for running generic jurist charter checks.
+
+roadmap_summary:
+  - version: "99.0"
+    name: Charter demo
+    use_cases_done: 0
+    use_cases_total: 0
+    status: open
+
+srd_index:
+  - id: srd001-demo
+    title: Jurist Charter Demo
+    summary: Minimal corpus for generic charter checks.
+    path: docs/specs/software-requirements/srd001-demo.yaml
+
+use_case_index: []
+test_suite_index: []

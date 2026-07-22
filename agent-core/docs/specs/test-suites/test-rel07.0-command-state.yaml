@@ -40,7 +40,12 @@ test_cases:
     description: |
       In a three-word chain the third word selects the first word's vector by
       label past the intervening word and renders it as a nested array through the
-      single-token raw passthrough.
+      single-token raw passthrough. The TracerBulletNonAdjacentWithRestart variant
+      is component integration: it manually assembles the Execution and an
+      InMemoryCheckpoint and injects the CommandStateView to simulate the
+      post-restart state, rather than running core.Loop suspend/resume in a fresh
+      process; it proves the selector resolves against a rehydrated store, not the
+      end-to-end lifecycle path.
     inputs:
       chain: [embed_query, record_event, query_collection]
       selector: $from(embed_query).embedding
@@ -74,10 +79,16 @@ test_cases:
     name: Restart rehydration resolves the same label mid-chain
     go_test: go test ./internal/runtime/core -run 'TestCommandStateViewRehydrates(AcrossInMemoryCheckpoint|FromDoltLoad)'
     status: implemented
+    coverage: component-integration
     description: |
-      A run suspends after the first word; a fresh process rehydrates the store
-      from the tool_outputs plane so the later word resolves the same label with
-      an equivalent value.
+      A run suspends after the first word; the store rehydrates from the persisted
+      tool_outputs plane so the later word resolves the same label with an
+      equivalent value. This is component integration: the test reconstructs the
+      store from a fresh checkpoint load (InMemory and Dolt), not a real OS process
+      restart running core.Loop suspend/resume, so it proves the rehydration logic
+      rather than an end-to-end lifecycle resume. The process-restart tracer that
+      runs core.Loop, suspends, resumes in a new process, and resolves the label is
+      not exercised here.
     inputs:
       suspend_after: embed_query
       resume_in: fresh_process

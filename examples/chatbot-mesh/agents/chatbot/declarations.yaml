@@ -201,11 +201,11 @@ tools:
         target: rest_server_queue
         state: selected_event_consumed
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop
-      description: Queue restore is not implemented.
+      description: A consumed control event is not restored; after a restart the machine re-awaits it (irreversible).
     errors:
       - signal: AwaitTimedOut
         condition: No configured lifecycle exit event arrives before the timeout elapses.

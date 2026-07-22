@@ -203,7 +203,9 @@ tools:
     side_effects:
       - kind: external_api
         target: chroma.collection
-        state: collection_upserted
+        state: read_only
+        description: Create-or-get is idempotent for a stable collection name, so
+          the call leaves no net change to reverse.
     reversibility:
       classification: reversible
       undo: noop
@@ -257,7 +259,9 @@ tools:
     side_effects:
       - kind: external_api
         target: chroma.collection
-        state: collection_upserted
+        state: read_only
+        description: Create-or-get is idempotent for a stable collection name, so
+          the call leaves no net change to reverse.
     reversibility:
       classification: reversible
       undo: noop
@@ -317,11 +321,12 @@ tools:
         target: chroma.records
         state: records_added
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop
-      description: Records can be removed by a separate delete word.
+      description: Records can be removed by a separate delete word, which is a
+        machine-selected action rather than a receipt-consuming undo of this word.
     errors:
       - signal: CommandError
         condition: The Chroma add call fails on network, timeout, schema, or mapping.

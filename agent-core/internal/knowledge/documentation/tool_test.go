@@ -12,40 +12,58 @@ import (
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
-func TestServeDocumentationFactoryBuildsFromConfig(t *testing.T) {
+func TestLaunchDocumentationFactoryBuildsFromConfig(t *testing.T) {
 	t.Parallel()
 
 	docsDir := t.TempDir()
 	def := catalog.ToolDef{
-		Name: "serve_documentation",
+		Name: "launch_documentation",
 		Config: map[string]any{
 			"addr":     ":0",
 			"docs_dir": docsDir,
 		},
 	}
 
-	builder, err := ServeDocumentationFactory()(def, nil)
+	builder, err := LaunchDocumentationFactory(NewDocumentationHostLifecycle())(def, nil)
 
 	require.NoError(t, err)
-	require.IsType(t, ServeDocumentationBuilder{}, builder)
-	require.Equal(t, ":0", builder.(ServeDocumentationBuilder).Config.Addr)
-	require.Equal(t, filepath.Clean(docsDir), builder.(ServeDocumentationBuilder).Config.DocsDir)
+	require.IsType(t, launchDocumentationBuilder{}, builder)
+	require.Equal(t, ":0", builder.(launchDocumentationBuilder).config.Addr)
+	require.Equal(t, filepath.Clean(docsDir), builder.(launchDocumentationBuilder).config.DocsDir)
 }
 
-func TestServeDocumentationFactoryRequiresDocsDir(t *testing.T) {
+func TestLaunchDocumentationFactoryRequiresDocsDir(t *testing.T) {
 	t.Parallel()
 
-	_, err := ServeDocumentationFactory()(catalog.ToolDef{Name: "serve_documentation"}, nil)
+	_, err := LaunchDocumentationFactory(NewDocumentationHostLifecycle())(catalog.ToolDef{Name: "launch_documentation"}, nil)
 
-	require.ErrorContains(t, err, `tool "serve_documentation" config requires docs_dir`)
+	require.ErrorContains(t, err, `tool "launch_documentation" config requires docs_dir`)
 }
 
-func TestRegisterFactoriesAddsServeDocumentation(t *testing.T) {
+func TestRegisterFactoriesAddsLaunchAndStopDocumentation(t *testing.T) {
 	t.Parallel()
 
 	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br)
 
-	_, ok := br.Resolve("serve_documentation")
-	require.True(t, ok)
+	_, launchOK := br.Resolve("launch_documentation")
+	require.True(t, launchOK)
+	_, stopOK := br.Resolve("stop_documentation")
+	require.True(t, stopOK)
+}
+
+func TestLaunchAndStopShareOneHost(t *testing.T) {
+	t.Parallel()
+
+	// stop_documentation must tear down exactly the listener launch_documentation
+	// started, so both factories close over the same host lifecycle owner.
+	host := NewDocumentationHostLifecycle()
+	docsDir := t.TempDir()
+	lb, err := LaunchDocumentationFactory(host)(catalog.ToolDef{Name: "launch_documentation", Config: map[string]any{"addr": ":0", "docs_dir": docsDir}}, nil)
+	require.NoError(t, err)
+	require.Same(t, host, lb.(launchDocumentationBuilder).host)
+
+	sb, err := StopDocumentationFactory(host)(catalog.ToolDef{Name: "stop_documentation"}, nil)
+	require.NoError(t, err)
+	require.Same(t, host, sb.(stopDocumentationBuilder).host)
 }

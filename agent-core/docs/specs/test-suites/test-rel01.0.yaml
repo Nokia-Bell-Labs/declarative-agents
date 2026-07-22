@@ -17,10 +17,8 @@ preconditions:
 
 test_cases:
   - use_case: rel01.0-uc001-generator-coding
-    name: Executor profile loads machine and validation sequence
-    go_test: TestExecutorConfig_MachineLoads
-    status: planned
-    follow_up_issue: "#601"
+    name: Generator profile loads machine and validation sequence
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestExecutorShippedProfileWiring'
     inputs:
       profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
       machine: agents/executor/machine.yaml
@@ -29,15 +27,18 @@ test_cases:
       machine_loaded: true
       terminal_states: [Succeeded, Failed, BudgetExceeded]
       validation_sequence: build_then_lint_then_test
+    planned:
+      # TestExecutorShippedProfileWiring asserts machine_loaded and the terminal
+      # states, but no current test asserts validation_sequence
+      # (build_then_lint_then_test). That assertion is planned, not proven.
+      - validation_sequence build_then_lint_then_test
     traces:
       - srd006-yaml-machine-config AC3
       - srd013-standard-tool-library AC2
 
   - use_case: rel01.0-uc001-generator-coding
-    name: Executor selected tools load from YAML declarations
-    go_test: TestExecutorConfig_ToolsLoad
-    status: planned
-    follow_up_issue: "#601"
+    name: Generator selected tools load from YAML declarations
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestExecutorShippedProfileWiring'
     inputs:
       tools: agents/executor/tools.yaml
       declarations:
@@ -60,10 +61,8 @@ test_cases:
       - srd023-cli-exec-tools AC4
 
   - use_case: rel01.0-uc001-generator-coding
-    name: Executor transition table validates selected tool emits
-    go_test: TestExecutorConfig_TransitionTable
-    status: planned
-    follow_up_issue: "#601"
+    name: Generator transition table validates selected tool emits
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestExecutorShippedProfileWiring'
     inputs:
       machine: agents/executor/machine.yaml
       selected_tools: agents/executor/tools.yaml
@@ -149,10 +148,8 @@ test_cases:
       - srd013-standard-tool-library AC2
 
   - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Critic session machine loads from profile config
-    go_test: TestCriticConfig_SessionMachineLoads
-    status: planned
-    follow_up_issue: "#601"
+    name: Evaluator session machine loads from profile config
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestCriticConformance'
     inputs:
       profile: ${AGENT_PROFILES_ROOT}/agents/critic/profile.yaml
       machine: agents/critic/machine.yaml
@@ -165,10 +162,8 @@ test_cases:
       - srd019-eval-harness AC0
 
   - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Critic session tools load from selected declarations
-    go_test: TestCriticConfig_ToolsLoad
-    status: planned
-    follow_up_issue: "#601"
+    name: Evaluator session tools load from selected declarations
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestCriticConformance'
     inputs:
       tools: agents/critic/tools.yaml
       declarations:
@@ -190,10 +185,8 @@ test_cases:
       - srd022-builtin-tools AC5
 
   - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Critic session transition table validates emitted signals
-    go_test: TestCriticConfig_TransitionTable
-    status: planned
-    follow_up_issue: "#601"
+    name: Evaluator session transition table validates emitted signals
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestCriticConformance'
     inputs:
       machine: agents/critic/machine.yaml
       selected_tools: agents/critic/tools.yaml
@@ -206,10 +199,8 @@ test_cases:
       - srd022-builtin-tools AC4
 
   - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Critic point machine prepares isolated workspace
-    go_test: TestCriticConfig_PointTransitionTable
-    status: planned
-    follow_up_issue: "#601"
+    name: Evaluator point machine prepares isolated workspace
+    go_test: go test ./internal/evaluation -run 'TestPointWorkspaceToolsPrepareWorkspaceSequence'
     inputs:
       point_machine: agents/critic/point.yaml
       point_tools: agents/critic/tools-point.yaml
@@ -285,9 +276,7 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench profile loads state machine
-    go_test: TestBenchConfig_MachineLoads
-    status: planned
-    follow_up_issue: "#601"
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestBenchConformance'
     inputs:
       profile: ${AGENT_PROFILES_ROOT}/agents/bench/profile.yaml
       machine: agents/bench/machine.yaml
@@ -301,13 +290,14 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench tools load serve_ui and launch_eval
-    go_test: TestBenchConfig_ToolsLoad
-    status: planned
-    follow_up_issue: "#601"
+    go_test: go test ./internal/evaluation/bench -run 'TestLaunchEvalFactoryAcceptsProfileConfig'
     inputs:
       tools: agents/bench/tools.yaml
       declarations: agents/bench/builtin.yaml
     expected:
+      # Coverage is split across two tests. The go_test above asserts
+      # launch_eval loads from profile config; serve_ui selection is asserted by
+      # TestBenchConformance (the bench transition case below, cross-module).
       serve_ui_selected: true
       launch_eval_selected: true
     traces:
@@ -317,9 +307,7 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench transition table validates UI action flow
-    go_test: TestBenchConfig_TransitionTable
-    status: planned
-    follow_up_issue: "#601"
+    go_test: cd ../agent-profiles && go test ./conformance -run 'TestBenchConformance'
     inputs:
       machine: agents/bench/machine.yaml
       selected_tools: agents/bench/tools.yaml

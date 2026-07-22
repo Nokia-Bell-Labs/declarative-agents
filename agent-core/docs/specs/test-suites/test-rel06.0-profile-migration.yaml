@@ -94,7 +94,7 @@ test_cases:
 
   - use_case: rel06.0-uc001-mounted-profile-container-runtime
     name: Runtime image excludes migrated profile assets
-    go_test: TestDockerfileRuntimeExcludesAgentProfiles
+    go_test: cd magefiles && go test ./... -run 'TestDockerfileRuntimeExcludesAgentProfiles'
     integration_target: mage docker
     status: implemented
     description: |
@@ -125,7 +125,7 @@ test_cases:
 
   - use_case: rel06.0-uc001-mounted-profile-container-runtime
     name: Container runs with mounted profile and workspace
-    go_test: TestContainerBuildSummaryForDocker
+    go_test: cd magefiles && go test ./... -run 'TestContainerBuildSummaryForDocker'
     integration_target: mage docker; Dockerfile target integration; agent-profiles mage containerSmoke
     status: implemented
     description: |

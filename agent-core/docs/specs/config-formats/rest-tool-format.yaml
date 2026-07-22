@@ -23,11 +23,11 @@ release_03_0_support:
     - OpenAPI-bound endpoint preservation for configured endpoint behavior.
     - REST client compensation mementos and rollback-time execution for mutating operations with configured compensation.
     - machine_request terminal response schema validation before success responses.
+    - lifecycle_control endpoints: ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback selector, and the endpoint enqueues the lifecycle request event for MachineSpec routing rather than running a lifecycle operation directly (TestRESTServer_LifecycleControlEnqueuesSignals). Configured emit_signal control routes that MachineSpec routes to exit_agent remain as an alternative used by current control profiles.
   partial:
     - rest_await_event read_policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
   reserved:
     - document_resources top-level config and machine_request.document_resources are typed target-format fields that ValidateDefinition rejects until generic REST document resource loading is implemented. Current request machines use profile-selected filesystem resource ToolDefs.
-    - lifecycle_control endpoint config is documented for the target format but current control profiles use emit_signal routes that MachineSpec routes to exit_agent.
 
 schema:
   description: |
@@ -406,7 +406,7 @@ schema:
       - field: lifecycle_control
         type: lifecycle_control_config
         required: false
-        description: Reserved target-format lifecycle control request mapping. Current profiles use emit_signal control endpoints routed through MachineSpec.
+        description: Lifecycle control request mapping. ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback selector; the endpoint enqueues the lifecycle request event for MachineSpec routing rather than running a lifecycle operation directly. Current control profiles alternatively use emit_signal control endpoints routed through MachineSpec.
       - field: machine_request
         type: machine_request_config
         required: false
@@ -498,6 +498,7 @@ schema:
         description: Auth profile required before accepting the control request.
 
   machine_request_config:
+    note: REST definitions load with strict field checking; any field not listed here is rejected at load rather than silently ignored (GH-486). Fields that were previously documented but never implemented (tools, tool_declarations, initial_state, error_responses, retain_trace, trace) are reserved for a future release and are not accepted today.
     fields:
       - field: profile
         type: string
@@ -507,18 +508,10 @@ schema:
         type: string
         required: false
         description: Optional MachineSpec override inside the trusted profile scope.
-      - field: tools
+      - field: initial_signal
         type: string
         required: false
-        description: Optional selected tools reference inside the trusted profile scope. Profile-backed request runners may narrow selection further to action names used by the request MachineSpec.
-      - field: tool_declarations
-        type: "[]string"
-        required: false
-        description: Optional declaration roots inside the trusted profile scope.
-      - field: initial_state
-        type: string
-        required: false
-        description: Optional initial state override for the request machine.
+        description: Optional initial signal seeded into the request machine's first transition. Defaults to Seed.
       - field: request
         type: machine_request_input_mapping
         required: true
@@ -531,37 +524,10 @@ schema:
         type: duration string
         required: false
         description: Maximum duration for the whole request machine run.
-      - field: error_responses
-        type: map[string]response_mapping
-        required: false
-        description: HTTP response mappings for request_invalid, machine_config_invalid, machine_run_failed, machine_timeout, response_invalid, and response_missing.
-      - field: retain_trace
-        type: bool
-        required: false
-        description: Keeps request-scoped run trace artifacts when true.
-      - field: trace
-        type: machine_request_trace_config
-        required: false
-        description: Optional controls for retaining or exposing generic machine_request trace metadata. The runtime emits route identity and run outcome when trace output is exposed.
       - field: document_resources
         type: "[]string"
         required: false
-        description: Reserved target-format references to document resources. ValidateDefinition rejects this field in release 03.0. Current request machines select filesystem resource words through trusted profile ToolDefs.
-
-  machine_request_trace_config:
-    fields:
-      - field: expose_response_trace
-        type: bool
-        required: false
-        description: Exposes generic trace metadata in the HTTP response body when the endpoint response policy permits trace evidence.
-      - field: retain_run_events
-        type: bool
-        required: false
-        description: Retains request-scoped RunEvent details for audit artifacts when configured by trusted profile or REST config.
-      - field: redact
-        type: "[]string"
-        required: false
-        description: Selectors removed from retained trace data before storage or response exposure.
+        description: Reserved target-format references to document resources. ValidateDefinition rejects this field. Current request machines select filesystem resource words through trusted profile ToolDefs.
 
   machine_request_input_mapping:
     fields:
@@ -581,29 +547,14 @@ schema:
         type: map[string]string
         required: false
         description: Selector mapping from validated body fields to RequestEvent fields.
-      - field: metadata
-        type: "[]string"
-        required: false
-        description: Request metadata fields to include, such as request_id, route, method, path_template, and correlation_id.
 
   machine_request_response_mapping:
+    note: default_signal, response_word, and missing_response_stage were previously documented but never implemented; they are reserved and rejected at load (GH-486).
     fields:
       - field: terminal_signals
         type: map[string]machine_request_terminal_response
         required: true
         description: HTTP response mapping by allowed terminal signal.
-      - field: default_signal
-        type: string
-        required: false
-        description: Terminal signal used when response word output does not specify one.
-      - field: response_word
-        type: string
-        required: false
-        description: Optional configured response word that must produce structured response output before terminal response mapping.
-      - field: missing_response_stage
-        type: string
-        required: false
-        description: Error stage emitted when terminal output cannot satisfy the response schema. Default is response_missing.
 
   machine_request_terminal_response:
     fields:
@@ -1404,9 +1355,7 @@ format_examples:
                 request:
                   body:
                     query: $.query
-                  metadata: [request_id, route, method, path_template, correlation_id]
                 response:
-                  response_word: prepare_http_response
                   terminal_signals:
                     DocumentationReady:
                       status: 200

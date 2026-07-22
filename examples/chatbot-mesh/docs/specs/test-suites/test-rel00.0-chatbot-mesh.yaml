@@ -17,7 +17,7 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama (or external LLM) are reachable with the configured embedding and answer models.
-  - agent-profiles owns the RAG server and chatbot assets named by the tracers.
+  - This example owns the RAG server and chatbot assets named by the tracers, under examples/chatbot-mesh/agents/.
 
 test_cases:
   - use_case: rel00.0-uc001-rag-server-query

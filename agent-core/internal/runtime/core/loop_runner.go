@@ -28,6 +28,11 @@ type loopRunner struct {
 	taskCompletedSig Signal
 	checkpoint       Checkpoint
 	execution        Execution
+	// checkpointSaveErr holds the error from the most recent dispatch-cycle
+	// Save (nil on success). A periodic-save failure is a traced diagnostic, but
+	// the same failure on the dispatch that suspends the run is terminal: srd025
+	// R5.3 forbids StatusSuspended without a persisted checkpoint.
+	checkpointSaveErr error
 }
 
 func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Context) (RunResult, error) {
@@ -206,17 +211,20 @@ func (r *loopRunner) dispatch(cmd Command, labels MetricLabels, transitionSignal
 }
 
 // saveCheckpoint persists the updated Position and appended Execution through the
-// checkpoint port after each dispatch cycle (srd035-checkpoint-port R6.1). Save
-// failures are traced, not fatal, so a persistence backend hiccup does not abort
-// an otherwise-progressing run.
+// checkpoint port after each dispatch cycle (srd035-checkpoint-port R6.1). A Save
+// failure on a progressing cycle is traced, not fatal, so a backend hiccup does
+// not abort an otherwise-progressing run; the error is retained in
+// checkpointSaveErr so stopForSuspend can treat it as terminal on a suspend
+// cycle (srd025 R5.3).
 func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal) {
 	r.execution = append(r.execution, dispatchEntry(r.iteration, fromState, r.state, transitionSignal, r.result))
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
 	r.foldConversation(&pos)
-	if err := r.checkpoint.Save(pos, r.execution); err != nil {
+	r.checkpointSaveErr = r.checkpoint.Save(pos, r.execution)
+	if r.checkpointSaveErr != nil {
 		r.trace.Event("checkpoint.save_failed",
 			attribute.Int("iteration", r.iteration),
-			attribute.String("error", err.Error()),
+			attribute.String("error", r.checkpointSaveErr.Error()),
 		)
 	}
 }
@@ -302,9 +310,21 @@ func (r *loopRunner) stopForSuspend() bool {
 	if r.signal != AwaitApproval {
 		return false
 	}
-	// The Checkpoint port already persisted this suspend step in dispatch's
-	// saveCheckpoint; there is no separate suspend-save path
-	// (srd035-checkpoint-port R4, srd018 R5).
+	// Suspend persistence is mandatory: dispatch's saveCheckpoint just ran, so
+	// if that Save failed there is no resumable checkpoint and the run must not
+	// report StatusSuspended (srd025 R5.3). Treat it as a terminal lifecycle
+	// error instead of a resumable suspend.
+	if r.checkpointSaveErr != nil {
+		r.trace.Event("run.suspend_persist_failed",
+			attribute.String("state", string(r.state)),
+			attribute.Int("iteration", r.iteration),
+			attribute.String("error", r.checkpointSaveErr.Error()),
+		)
+		r.run.Status = StatusFailed
+		r.run.FinalState = r.state
+		r.run.LastError = fmt.Errorf("suspend checkpoint not persisted at iteration %d: %w", r.iteration, r.checkpointSaveErr)
+		return true
+	}
 	r.trace.Event("run.suspended",
 		attribute.String("state", string(r.state)),
 		attribute.Int("iteration", r.iteration),
