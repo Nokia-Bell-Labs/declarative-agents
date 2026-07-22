@@ -25,7 +25,12 @@ func Test() error {
 	if err := testSubModules(subModules, moduleHasGoTests, runMageTest); err != nil {
 		return err
 	}
-	return testSubModules(exampleModules, moduleHasGoTests, runGoUnitTests)
+	if err := testSubModules(exampleModules, moduleHasGoTests, runGoUnitTests); err != nil {
+		return err
+	}
+	// Shipped UI reproducibility gate: fail if a tracked dist no longer matches a
+	// clean source build (GH-518). Skips cleanly where node/npm is absent.
+	return UIDist()
 }
 
 // TestUnit is a compatibility target for mage test:unit; use Test for release gates.
