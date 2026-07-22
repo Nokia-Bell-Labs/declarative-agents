@@ -163,6 +163,35 @@ func TestCheckpointRollbackRevertsDBStateToTargetStep(t *testing.T) {
 	require.Equal(t, "read", reloaded[0].CommandName)
 }
 
+func TestCheckpointRollbackRevertFailurePreservesStateAndSkipsUndo(t *testing.T) {
+	t.Parallel()
+	target := 1
+	original := core.Execution{
+		{Iteration: 1, CommandName: "read", Signal: core.ToolDone},
+		{Iteration: 2, CommandName: "write", Signal: core.ToolDone, Receipt: `{"path":"a.txt"}`},
+	}
+	rev := &fakeReverter{failRevert: true}
+	require.NoError(t, rev.Save(core.Position{CurrentState: "Working"}, original))
+	undoCalls := 0
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "write"}, &undoTrackingBuilder{calls: &undoCalls})
+
+	res := (&CheckpointRollbackBuilder{
+		Config:     catalog.CheckpointRollbackConfig{ToIteration: &target},
+		Checkpoint: rev,
+		Registry:   reg,
+		RunID:      "run-1",
+	}).Build(core.Result{}).Execute()
+
+	require.Equal(t, core.CommandError, res.Signal)
+	require.ErrorContains(t, res.Err, `revert run "run-1" to step 0`)
+	require.ErrorContains(t, res.Err, "revert boom")
+	require.Empty(t, rev.reverted)
+	require.Empty(t, rev.runID)
+	require.Equal(t, original, rev.execution)
+	require.Zero(t, undoCalls)
+}
+
 func TestCheckpointRollbackReportsMissingTargetIteration(t *testing.T) {
 	t.Parallel()
 	target := 99
@@ -376,4 +405,27 @@ func writeLifecycleJSON(t *testing.T, w http.ResponseWriter, status int, payload
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	require.NoError(t, json.NewEncoder(w).Encode(payload))
+}
+
+type undoTrackingBuilder struct {
+	calls *int
+}
+
+func (b *undoTrackingBuilder) Build(core.Result) core.Command {
+	return &undoTrackingCommand{calls: b.calls}
+}
+
+func (b *undoTrackingBuilder) BuildReverser() core.Command {
+	return &undoTrackingCommand{calls: b.calls}
+}
+
+type undoTrackingCommand struct {
+	calls *int
+}
+
+func (c *undoTrackingCommand) Name() string         { return "write" }
+func (c *undoTrackingCommand) Execute() core.Result { return core.Result{Signal: core.ToolDone} }
+func (c *undoTrackingCommand) Undo(core.Result) core.Result {
+	*c.calls = *c.calls + 1
+	return core.Result{Signal: core.ToolDone}
 }
