@@ -404,11 +404,11 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 	require.Contains(t, err.Error(), "requires at least one root")
 }
 
-// TestRunValidators_FailedTerminalWithZeroExit locks in the contract that
-// makes the rig able to fail at all: the agent binary exits 0 whether its
-// machine reached a success terminal or a failure terminal, so a validator is
-// judged on its reported terminal status, not its exit code alone.
-func TestRunValidators_FailedTerminalWithZeroExit(t *testing.T) {
+// TestRunValidators_JudgesOnExitCode locks in the contract that makes the rig
+// able to fail: a machine that reached a failure terminal exits non-zero
+// (srd018 R6), so a validator is judged on its exit code, with the reported
+// terminal status kept as naming detail.
+func TestRunValidators_JudgesOnExitCode(t *testing.T) {
 	t.Parallel()
 
 	outcomes := RunValidators(context.Background(), os.Args[0], []ValidatorSpec{
@@ -422,16 +422,16 @@ func TestRunValidators_FailedTerminalWithZeroExit(t *testing.T) {
 		byName[outcome.Name] = outcome
 	}
 
-	// Exit 0 but a failed terminal is a failure.
-	require.Equal(t, 0, byName["reports-failed"].ExitCode)
+	// A failure terminal exits non-zero and does not pass; the status is kept
+	// so a verdict can name it.
+	require.NotEqual(t, 0, byName["reports-failed"].ExitCode)
 	require.Equal(t, "failed", byName["reports-failed"].Terminal)
-	require.False(t, byName["reports-failed"].Passed,
-		"a validator whose machine reached Failed must not pass because it exited 0")
+	require.False(t, byName["reports-failed"].Passed)
 
 	require.True(t, byName["reports-ok"].Passed)
 	require.Equal(t, "succeeded", byName["reports-ok"].Terminal)
 
-	// A validator that reported no terminal state proved nothing.
-	require.False(t, byName["silent"].Passed)
-	require.Contains(t, byName["silent"].Error, "no terminal state")
+	// A silent child that exits zero completed its run; the rig trusts the
+	// exit code rather than requiring a status line.
+	require.True(t, byName["silent"].Passed)
 }

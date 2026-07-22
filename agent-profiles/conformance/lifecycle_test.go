@@ -82,8 +82,13 @@ func TestLifecycleApprovalSuspendResume(t *testing.T) {
 		}})
 
 		// srd009 R1.3/R3.2: the rejected signal re-enters the machine and reaches
-		// the Rejected terminal directly, a clean non-error outcome.
-		res.RequireExit(t, 0)
+		// the Rejected terminal directly, a clean non-error outcome in domain
+		// terms. Its RunStatus is still failed (the run did not reach a success
+		// terminal), and the exit code is taken from the RunStatus
+		// (srd018-cli-flag-contract R6.3), so the CLI exits 2: a completed run
+		// reporting failure, distinct from 1, which means the binary could not
+		// run. The trace still carries no error-status spans.
+		res.RequireExit(t, 2)
 		res.RootRequired(t)
 		res.RequireNoErrorSpans(t)
 		res.RequireTerminalState(t, "Rejected")

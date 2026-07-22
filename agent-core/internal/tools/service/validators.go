@@ -82,31 +82,19 @@ func runOneValidator(ctx context.Context, binary string, spec ValidatorSpec, tim
 	if result.Err != nil {
 		outcome.Error = result.Err.Error()
 	}
+	// The exit code carries the outcome: zero for a success terminal, non-zero
+	// for a failure terminal or a run the binary could not complete
+	// (srd018 R6). The reported terminal status is kept as detail for a
+	// verdict's reason, not as the judgement.
 	outcome.Terminal = terminalStatus(result.Stderr)
-	outcome.Passed = result.ExitCode == 0 && !result.TimedOut && result.Err == nil &&
-		outcome.Terminal != terminalFailed
-	if outcome.Passed && outcome.Terminal == "" {
-		// A validator that never reported a terminal status did not prove
-		// anything, so it does not pass by default.
-		outcome.Passed = false
-		outcome.Error = "validator reported no terminal state"
-	}
+	outcome.Passed = result.ExitCode == 0 && !result.TimedOut && result.Err == nil
 	return outcome
 }
 
-const (
-	terminalPrefix = "terminal state: "
-	terminalFailed = "failed"
-)
+const terminalPrefix = "terminal state: "
 
-// terminalStatus reads the terminal status the agent binary reports on stderr.
-//
-// Exit code alone cannot answer this: the binary exits 0 whether its machine
-// reached a success terminal or a failure terminal, so a validator whose
-// machine reached Failed would otherwise be scored as passing. Parsing the
-// reported status is the contained way to see the real outcome; making the
-// binary's exit code reflect its terminal status is a CLI contract change that
-// affects every caller, tracked separately.
+// terminalStatus reads the terminal status the agent binary reports on stderr,
+// so a failing verdict can name the status alongside the exit code.
 func terminalStatus(stderr string) string {
 	index := strings.LastIndex(stderr, terminalPrefix)
 	if index < 0 {

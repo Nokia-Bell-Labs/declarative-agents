@@ -129,7 +129,7 @@ func Audit() error {
 	var output bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &output)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &output)
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Run(); !agentRunCompleted(err) {
 		return err
 	}
 	if auditRunFailed(output.String()) {
@@ -201,7 +201,10 @@ func JuristCharterSmoke() error {
 	var output bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &output)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &output)
-	if err := cmd.Run(); err != nil {
+	// The smoke fixture carries findings by design, so this run reaches a
+	// failure terminal and exits non-zero; only a run the binary could not
+	// complete is an error here (srd018 R6).
+	if err := cmd.Run(); !agentRunCompleted(err) {
 		return fmt.Errorf("run jurist charter smoke: %w", err)
 	}
 	if err := assertJuristCharterSmoke(output.String()); err != nil {

@@ -51,9 +51,39 @@ const (
 	monitorServerName        = "monitor"
 )
 
+// Exit codes. A caller that runs an agent as a child process reads its
+// outcome here: zero means the machine reached a success terminal, and
+// ExitMachineFailed means it reached a failure terminal. Those are different
+// facts from ExitRunError, which means the binary could not complete a run at
+// all (bad config, unreadable profile, transport failure), so a caller can
+// tell a clean domain failure from a crash (srd018 R6).
+const (
+	ExitSucceeded     = 0
+	ExitRunError      = 1
+	ExitMachineFailed = 2
+)
+
+// runExitCode carries the terminal-status mapping from run() to main(), since
+// a failed terminal is not a cobra error: the binary did its job, and the
+// machine it interpreted reported failure.
+var runExitCode = ExitSucceeded
+
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(ExitRunError)
+	}
+	os.Exit(runExitCode)
+}
+
+// exitCodeForStatus maps a run's terminal status to the process exit code.
+// Suspended is a deliberate pause with a persisted checkpoint, not a failure,
+// so it exits zero; a caller resumes it rather than treating it as broken.
+func exitCodeForStatus(status core.RunStatus) int {
+	switch status {
+	case core.StatusSucceeded, core.StatusSuspended:
+		return ExitSucceeded
+	default:
+		return ExitMachineFailed
 	}
 }
 
@@ -87,28 +117,28 @@ func init() {
 }
 
 type agentState struct {
-	parser           llm.ResponseParser
-	conversation     *llm.Conversation
-	tracker          *validation.ToolTracker
-	registry         *core.Registry
-	tracer           tracing.Tracer
-	model            string
-	providerName     string
-	manifestState    core.State
-	parseRetries     *toollm.ParseErrorRetryTracker
+	parser        llm.ResponseParser
+	conversation  *llm.Conversation
+	tracker       *validation.ToolTracker
+	registry      *core.Registry
+	tracer        tracing.Tracer
+	model         string
+	providerName  string
+	manifestState core.State
+	parseRetries  *toollm.ParseErrorRetryTracker
 	// isolateConversations gives each invoke_llm word its own conversation instead
 	// of the shared one, so a request-scoped router word's tool call does not
 	// pollute the answer word's history. Set on request-local machine_request state.
 	isolateConversations bool
 	maxDuration          time.Duration
-	maxTokens        int
-	verbose          bool
-	ctx              context.Context
-	directory        string
-	request          string
-	output           string
-	childAgentBinary string
-	checkpoint       core.Checkpoint
+	maxTokens            int
+	verbose              bool
+	ctx                  context.Context
+	directory            string
+	request              string
+	output               string
+	childAgentBinary     string
+	checkpoint           core.Checkpoint
 	// lifecycleCheckpoint is the backend the checkpoint_history/checkpoint_rollback
 	// tools read and revert through. For the history and rollback families it is
 	// pinned to the request's target run so the inspecting machine never persists
@@ -178,6 +208,7 @@ func run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "terminal state: %s\n", result.Status)
+	runExitCode = exitCodeForStatus(result.Status)
 	prepared.Shutdown.Apply()
 	return nil
 }

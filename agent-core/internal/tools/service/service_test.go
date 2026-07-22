@@ -50,10 +50,9 @@ func TestMain(m *testing.M) {
 		// Exits zero and reports nothing: proved nothing.
 		os.Exit(0)
 	case "exit0failed":
-		// Exits zero but reports a failed terminal: the case exit code alone
-		// cannot see.
+		// A failed terminal now exits non-zero, matching the binary (srd018 R6).
 		fmt.Fprintln(os.Stderr, "terminal state: failed")
-		os.Exit(0)
+		os.Exit(2)
 	case "hang":
 		// A bare select{} would trip Go's deadlock detector and exit at once;
 		// sleeping actually hangs, which is what the timeout path needs.
