@@ -47,6 +47,12 @@ func (s *stubClient) ListModels(_ context.Context) ([]ModelInfo, error) {
 
 var _ Client = (*stubClient)(nil)
 
+func requireConversationSend(t *testing.T, conversation *Conversation, message string) {
+	t.Helper()
+	_, err := conversation.Send(context.Background(), message)
+	require.NoError(t, err)
+}
+
 func TestNewConversation(t *testing.T) {
 	t.Parallel()
 	c := NewConversation(&stubClient{}, "system prompt", ChatOptions{Model: "test"})
@@ -142,8 +148,8 @@ func TestConversation_Reset(t *testing.T) {
 	}
 	c := NewConversation(client, "sys", ChatOptions{})
 
-	_, _ = c.Send(context.Background(), "a")
-	_, _ = c.Send(context.Background(), "b")
+	requireConversationSend(t, c, "a")
+	requireConversationSend(t, c, "b")
 	require.Equal(t, 4, c.Len())
 
 	c.Reset()
@@ -158,7 +164,7 @@ func TestConversation_ResetThenSend(t *testing.T) {
 	}
 	c := NewConversation(client, "sys", ChatOptions{})
 
-	_, _ = c.Send(context.Background(), "old")
+	requireConversationSend(t, c, "old")
 	c.Reset()
 	_, err := c.Send(context.Background(), "fresh")
 	require.NoError(t, err)
@@ -176,7 +182,7 @@ func TestConversation_HistoryCopySemantics(t *testing.T) {
 	client := &stubClient{responses: []ChatResponse{{Content: "r"}}}
 	c := NewConversation(client, "", ChatOptions{})
 
-	_, _ = c.Send(context.Background(), "msg")
+	requireConversationSend(t, c, "msg")
 
 	snapshot := c.History()
 	snapshot[0].Content = "mutated"
@@ -205,11 +211,11 @@ func TestConversation_SetSystemPrompt(t *testing.T) {
 	}
 	c := NewConversation(client, "original", ChatOptions{})
 
-	_, _ = c.Send(context.Background(), "a")
+	requireConversationSend(t, c, "a")
 	require.Equal(t, "original", client.calls[0][0].Content)
 
 	c.SetSystemPrompt("updated")
-	_, _ = c.Send(context.Background(), "b")
+	requireConversationSend(t, c, "b")
 	require.Equal(t, "updated", client.calls[1][0].Content)
 }
 
@@ -338,7 +344,7 @@ func TestConversation_Messages(t *testing.T) {
 	client := &stubClient{responses: []ChatResponse{{Content: "r"}}}
 	c := NewConversation(client, "", ChatOptions{})
 
-	_, _ = c.Send(context.Background(), "hi")
+	requireConversationSend(t, c, "hi")
 
 	msgs := c.Messages()
 	hist := c.History()
