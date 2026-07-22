@@ -76,9 +76,11 @@ func TestRigSelfProof(t *testing.T) {
 				Timeout: 3 * time.Minute,
 			})
 
-			// The binary exits zero either way (#683); the terminal status line
-			// carries the aggregate. Failed is expected: broken must fail.
-			result.RequireExit(t, 0)
+			// The aggregate is failed by design, because the broken scenario
+			// must fail, and a failure terminal now exits 2 rather than 0
+			// (srd018-cli-flag-contract R6). The status line still carries the
+			// aggregate for a human reading the run.
+			result.RequireExit(t, 2)
 			if !strings.Contains(result.Output, "terminal state: failed") {
 				t.Fatalf("aggregate should be failed (the broken scenario must fail):\n%s", result.Output)
 			}

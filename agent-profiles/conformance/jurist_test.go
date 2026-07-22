@@ -78,8 +78,11 @@ func TestJuristConformance(t *testing.T) {
 		result := runJurist(t, juristFailingFixture)
 
 		// A failed validation is a domain outcome, not an infrastructure error:
-		// the CLI still exits 0 with one root span and no error-status spans.
-		result.RequireExit(t, 0)
+		// the machine reached its Failed terminal, so the CLI exits 2 (a clean
+		// domain failure) rather than 1 (the binary could not run), and the
+		// trace still has one root span and no error-status spans
+		// (srd018-cli-flag-contract R6).
+		result.RequireExit(t, 2)
 		result.RootRequired(t)
 		result.RequireNoErrorSpans(t)
 		result.RequireToolSpans(t, "load_corpus", "validate_specs", "format_report")

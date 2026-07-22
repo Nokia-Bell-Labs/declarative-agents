@@ -134,6 +134,7 @@ test_cases:
     traces:
       - rel09.0-uc001-scenario-rig-run S4
       - srd040-service-child-tools AC3
+      - srd018-cli-flag-contract AC6
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: list_scenarios is deterministic over a fixture tree
@@ -269,3 +270,25 @@ test_cases:
     traces:
       - rel09.0-uc001-scenario-rig-run S4
       - srd040-service-child-tools AC3
+      - srd018-cli-flag-contract AC6
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: A failed terminal state exits non-zero and distinctly
+    go_test: go test ./cmd/agent -run TestExitCode
+    status: implemented
+    description: |
+      A run whose machine reaches a failure terminal exits with a code
+      distinct from the one meaning the binary could not complete a run, and a
+      success or suspended terminal exits zero. The mapping comes from the
+      terminal RunStatus, not a terminal state name, so a validator is judged
+      on its exit code rather than parsed log output (srd018 R6).
+    inputs:
+      statuses: [succeeded, suspended, failed, budget_exceeded, cancelled]
+    expected:
+      succeeded_and_suspended_exit_zero: true
+      failure_terminal_exit_distinct_from_run_error: true
+      mapping_from_run_status: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S4
+      - srd040-service-child-tools AC3
+      - srd018-cli-flag-contract AC6

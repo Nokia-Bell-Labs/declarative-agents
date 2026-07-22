@@ -9,6 +9,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -95,8 +96,11 @@ func runJurist(binary, juristProfile, root, coreRoot string) error {
 	var out bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &out)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &out)
-	runErr := cmd.Run()
-	if runErr != nil {
+	// A corpus with findings drives the jurist to a failure terminal, which
+	// exits non-zero; that is a completed run reporting failure, not a broken
+	// invocation (srd018-cli-flag-contract R6). Only a run the binary could
+	// not complete is an error here; the outcome itself comes from the report.
+	if runErr := cmd.Run(); !agentRunCompleted(runErr) {
 		return fmt.Errorf("jurist run failed: %w", runErr)
 	}
 	ok, err := juristSucceeded(out.String())
@@ -111,10 +115,11 @@ func runJurist(binary, juristProfile, root, coreRoot string) error {
 	}
 }
 
-// juristSucceeded reads a clean/failing outcome from a jurist report. The jurist
-// exits zero even when it finds errors, so the outcome is taken from its terminal
-// state line, not the process exit code. A report with neither terminal marker is
-// an indeterminate run and returns an error.
+// juristSucceeded reads a clean/failing outcome from a jurist report. The
+// outcome is taken from the terminal state line rather than the exit code:
+// the exit code now distinguishes a failed terminal from a failed invocation
+// (srd018 R6), but the report is what names which checks failed. A report with
+// neither terminal marker is an indeterminate run and returns an error.
 func juristSucceeded(report string) (bool, error) {
 	switch {
 	case strings.Contains(report, "terminal state: failed") || strings.Contains(report, "status=failed"):
@@ -159,4 +164,22 @@ func envOrDefault(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// exitMachineFailed is the agent's exit code for a run whose machine reached a
+// failure terminal, as distinct from 1, which means the binary could not
+// complete a run at all (srd018-cli-flag-contract R6).
+const exitMachineFailed = 2
+
+// agentRunCompleted reports whether an agent invocation completed a run,
+// including one whose machine reached a failure terminal.
+func agentRunCompleted(runErr error) bool {
+	if runErr == nil {
+		return true
+	}
+	var exitErr *exec.ExitError
+	if errors.As(runErr, &exitErr) {
+		return exitErr.ExitCode() == exitMachineFailed
+	}
+	return false
 }
