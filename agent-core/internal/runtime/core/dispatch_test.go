@@ -109,6 +109,24 @@ func TestSafeExecute_LegacyWorkerCanFinishAfterTimeout(t *testing.T) {
 	}
 }
 
+func TestSafeExecute_ContextWorkerIsCanceledAndJoinedOnTimeout(t *testing.T) {
+	t.Parallel()
+	started := make(chan struct{})
+	finished := make(chan struct{})
+	cmd := &dispatchContextBlockingCmd{started: started, finished: finished}
+
+	result := SafeExecute(cmd, time.Millisecond)
+
+	require.Equal(t, CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "timeout executing context_blocking")
+	<-started
+	select {
+	case <-finished:
+	default:
+		t.Fatal("context-aware worker was not joined before SafeExecute returned")
+	}
+}
+
 func TestFillDurationAndForceErrorSignal(t *testing.T) {
 	t.Parallel()
 	start := time.Now().Add(-time.Millisecond)
@@ -130,6 +148,23 @@ type dispatchBlockingCmd struct {
 	release  chan struct{}
 	finished chan struct{}
 }
+
+type dispatchContextBlockingCmd struct {
+	started  chan struct{}
+	finished chan struct{}
+}
+
+func (c *dispatchContextBlockingCmd) Name() string { return "context_blocking" }
+func (c *dispatchContextBlockingCmd) Execute() Result {
+	panic("SafeExecute must select ExecuteContext")
+}
+func (c *dispatchContextBlockingCmd) ExecuteContext(ctx context.Context) Result {
+	close(c.started)
+	<-ctx.Done()
+	close(c.finished)
+	return Result{Signal: CommandError, Err: ctx.Err()}
+}
+func (c *dispatchContextBlockingCmd) Undo(Result) Result { return NoopUndo(c.Name()) }
 
 func (c *dispatchBlockingCmd) Name() string { return "blocking" }
 func (c *dispatchBlockingCmd) Execute() Result {
@@ -335,5 +370,6 @@ func (r *dispatchRuntimeRecorder) RecordRun(context.Context, monitor.RunSnapshot
 }
 
 var _ MonitorRecorderAware = (*dispatchMetricCmd)(nil)
+var _ ContextCommand = (*dispatchContextBlockingCmd)(nil)
 var _ monitor.RuntimeRecorder = (*dispatchRuntimeRecorder)(nil)
 var _ tracing.Tracer = (*dispatchTestTracer)(nil)

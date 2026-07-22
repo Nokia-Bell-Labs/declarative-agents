@@ -330,6 +330,22 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 	})
 }
 
+func TestRESTAwaitCommandSupportsDispatchCancellation(t *testing.T) {
+	t.Parallel()
+	server := namedControlServer("context_await")
+	server.Queue.Timeout = "30s"
+	state, _ := launchRESTServer(t, server, LimitProfile{})
+	defer stopRESTServer(t, state, "context_await")
+	command := awaitCommand(state, "context_await")
+	_, ok := command.(core.ContextCommand)
+	require.True(t, ok)
+
+	result := core.SafeExecute(command, time.Millisecond)
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "timeout executing")
+}
+
 func startRESTAwait(t *testing.T, await func() core.Result) <-chan core.Result {
 	t.Helper()
 	started := make(chan struct{})

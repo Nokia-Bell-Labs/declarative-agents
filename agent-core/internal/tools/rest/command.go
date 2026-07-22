@@ -3,6 +3,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -92,6 +93,17 @@ func (c serverCmd) Execute() core.Result {
 	}
 }
 
+func (c serverCmd) ExecuteContext(ctx context.Context) core.Result {
+	if c.init != InitServerAwait {
+		return c.Execute()
+	}
+	event, signal, err := c.state.AwaitContext(ctx, c.server.Name)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	return core.Result{Signal: core.Signal(signal), CommandName: c.toolName, Output: eventOutput(event)}
+}
+
 func (c serverCmd) Undo(_ core.Result) core.Result {
 	if c.init != InitServerLaunch {
 		return core.NoopUndo(c.toolName)
@@ -131,6 +143,14 @@ func (c awaitEventCmd) Name() string { return c.toolName }
 
 func (c awaitEventCmd) Execute() core.Result {
 	event, signal, err := c.state.AwaitAny(c.options)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	return core.Result{Signal: core.Signal(signal), CommandName: c.toolName, Output: eventOutput(event)}
+}
+
+func (c awaitEventCmd) ExecuteContext(ctx context.Context) core.Result {
+	event, signal, err := c.state.AwaitAnyContext(ctx, c.options)
 	if err != nil {
 		return commandError(c.toolName, err)
 	}

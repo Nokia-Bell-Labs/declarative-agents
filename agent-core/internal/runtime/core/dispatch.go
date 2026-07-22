@@ -66,22 +66,18 @@ func dispatchWithMonitor(
 // commands that outlive a timeout detach, but their single buffered result send
 // can always complete without racing or blocking on the returned timeout value.
 func SafeExecute(cmd Command, timeout time.Duration) Result {
+	if contextual, ok := cmd.(ContextCommand); ok {
+		return safeExecuteContext(cmd, contextual, timeout)
+	}
+	return safeExecuteLegacy(cmd, timeout)
+}
+
+func safeExecuteLegacy(cmd Command, timeout time.Duration) Result {
 	results := make(chan Result, 1)
 	start := time.Now()
 
 	go func() {
-		var result Result
-		defer func() {
-			if r := recover(); r != nil {
-				result = Result{
-					Signal: CommandError,
-					Err:    fmt.Errorf("panic in %s: %v", cmd.Name(), r),
-					Output: fmt.Sprintf("panic: %v", r),
-				}
-			}
-			results <- result
-		}()
-		result = cmd.Execute()
+		results <- executeSafely(cmd, cmd.Execute)
 	}()
 
 	if timeout <= 0 {
@@ -107,6 +103,52 @@ func SafeExecute(cmd Command, timeout time.Duration) Result {
 			Cost:   Cost{Duration: time.Since(start)},
 		}
 	}
+}
+
+func safeExecuteContext(cmd Command, contextual ContextCommand, timeout time.Duration) Result {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	results := make(chan Result, 1)
+	start := time.Now()
+	go func() {
+		results <- executeSafely(cmd, func() Result { return contextual.ExecuteContext(ctx) })
+	}()
+	if timeout <= 0 {
+		res := <-results
+		FillDuration(&res, start)
+		ForceErrorSignal(&res)
+		return res
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case res := <-results:
+		FillDuration(&res, start)
+		ForceErrorSignal(&res)
+		return res
+	case <-timer.C:
+		cancel()
+		<-results
+		return Result{
+			Signal: CommandError,
+			Err:    fmt.Errorf("timeout executing %s after %s", cmd.Name(), timeout),
+			Output: fmt.Sprintf("timeout: %s", cmd.Name()),
+			Cost:   Cost{Duration: time.Since(start)},
+		}
+	}
+}
+
+func executeSafely(cmd Command, execute func() Result) (result Result) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = Result{
+				Signal: CommandError,
+				Err:    fmt.Errorf("panic in %s: %v", cmd.Name(), r),
+				Output: fmt.Sprintf("panic: %v", r),
+			}
+		}
+	}()
+	return execute()
 }
 
 func recordDispatchMetrics(ctx context.Context, rec monitor.RuntimeRecorder, dc monitor.DispatchContext, res Result) {

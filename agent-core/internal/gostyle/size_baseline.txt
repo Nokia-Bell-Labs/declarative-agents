@@ -39,7 +39,6 @@ func:internal/planning/extract/output.go:BuildOutputTasks
 func:internal/planning/graph/graph.go:addReleaseEdges
 func:internal/planning/graph/persist.go:validateGraphState
 func:internal/planning/pipeline/factories.go:RegisterFactories
-func:internal/runtime/core/dispatch.go:SafeExecute
 func:internal/runtime/core/dolt_checkpoint.go:Save
 func:internal/runtime/core/dolt_checkpoint.go:createSchema
 func:internal/runtime/core/dolt_checkpoint.go:loadExecution
