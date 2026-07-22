@@ -11,7 +11,8 @@ import (
 )
 
 type executeTaskCmd struct {
-	ps *State
+	ps  *State
+	run func(*State) (*execute.Result, error)
 }
 
 func (c *executeTaskCmd) Name() string { return "execute_task" }
@@ -24,18 +25,19 @@ func (c *executeTaskCmd) Execute() core.Result {
 	if c.ps.CurrentTask == nil || c.ps.CurrentPlan == nil {
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Output: "no current task or plan"}
 	}
-	result, err := execute.Execute(
-		c.ps.Ctx,
-		c.ps.Tracer,
-		c.ps.ExecConfig,
-		c.ps.CurrentTask.ID,
-		c.ps.Directory,
-		c.ps.CurrentPlan,
-	)
+	run := c.run
+	if run == nil {
+		run = runExecuteTask
+	}
+	result, err := run(c.ps)
 	if err != nil {
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
 	}
 	return c.executionResult(result)
+}
+
+func runExecuteTask(ps *State) (*execute.Result, error) {
+	return execute.Execute(ps.Ctx, ps.Tracer, ps.ExecConfig, ps.CurrentTask.ID, ps.Directory, ps.CurrentPlan)
 }
 
 func (c *executeTaskCmd) executionResult(result *execute.Result) core.Result {
@@ -54,9 +56,10 @@ func (c *executeTaskCmd) executionResult(result *execute.Result) core.Result {
 
 // ExecuteTaskBuilder constructs execute_task commands.
 type ExecuteTaskBuilder struct {
-	PS *State
+	PS  *State
+	run func(*State) (*execute.Result, error)
 }
 
 func (b *ExecuteTaskBuilder) Build(_ core.Result) core.Command {
-	return &executeTaskCmd{ps: b.PS}
+	return &executeTaskCmd{ps: b.PS, run: b.run}
 }
