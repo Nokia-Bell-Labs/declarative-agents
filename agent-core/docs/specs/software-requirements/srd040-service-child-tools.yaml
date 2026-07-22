@@ -3,7 +3,7 @@ title: Service-Child and Scenario Tools
 
 problem: |
   A test-rig machine composes other machines: it starts a subject agent and its
-  digital-twin mocks as serve-mode children, runs validator machines against
+  mocks as serve-mode children, runs validator machines against
   the subject, and reduces their terminal states to a verdict. The existing
   child-agent path (execute.RunAgent, used by the critic) spawns children that
   run to completion. Serve-mode children are different: they must start in the
@@ -26,7 +26,7 @@ requirements:
     title: start_service
     items:
       - R1.1: start_service SHALL spawn one agent process for a declared profile path as a background child serving until stopped.
-      - R1.2: start_service SHALL inject declared environment additions into the child, so dependency URLs can be pointed at twin addresses.
+      - R1.2: start_service SHALL inject declared environment additions into the child, so dependency URLs can be pointed at mock addresses.
       - R1.3: start_service SHALL allocate or accept a listen address, and its output SHALL include a child handle and the base URL.
       - R1.4: Children SHALL be process-group managed; when the parent exits, running children SHALL be reaped rather than orphaned.
       - R1.5: start_service SHALL declare itself reversible with stop_service as its undo.

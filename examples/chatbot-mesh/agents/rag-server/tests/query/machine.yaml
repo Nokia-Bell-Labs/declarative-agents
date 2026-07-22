@@ -1,6 +1,6 @@
 name: rag-query-validator
 purpose: |-
-  Drives the rag-server's vector-in query boundary against a twin Chroma and
+  Drives the rag-server's vector-in query boundary against a mock Chroma and
   passes when the server answers with chunks and embedding-model metadata.
 
   The drive runs on the way into Checking so its signal decides the terminal

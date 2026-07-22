@@ -1,5 +1,5 @@
 # The dependency answers. The fixture name decides the variable the rig
-# publishes the twin's address as: dep.yaml -> DEP_URL, which the subject's
+# publishes the mock's address as: dep.yaml -> DEP_URL, which the subject's
 # rest.yaml declares as base_url: ${DEP_URL:-...}.
 routes:
   - method: GET

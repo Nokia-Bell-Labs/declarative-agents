@@ -3,9 +3,9 @@ title: The Assembler Runs an Agent's Scenarios to a Verdict Without Live Service
 
 summary: |
   A profile author adds a tests/<scenario>/ directory beside an agent and runs
-  the assembler. The assembler discovers the scenario, starts the twins its
+  the assembler. The assembler discovers the scenario, starts the mocks its
   fixtures declare, starts the subject with its REST dependency pointed at a
-  twin, awaits health, runs the scenario's validator machines, and reduces
+  mock, awaits health, runs the scenario's validator machines, and reduces
   their terminal states to a verdict. The subject gets a fresh instance per
   scenario, every child is torn down, and no live Chroma, Ollama, or
   Kubernetes is involved. A second scenario over the same subject scripts a
@@ -18,7 +18,7 @@ trigger: |
   that carries one or more scenario directories.
 
 preconditions:
-  - The assembler and twin profiles are shipped in agent-profiles.
+  - The assembler and mock profiles are shipped in agent-profiles.
   - agent-core provides the service-child, validator-execution, and discovery words (srd040) and the mock endpoint binding (srd039).
   - The subject agent's REST dependency base_url is environment-expandable.
 
@@ -26,13 +26,13 @@ flow:
   - id: F1
     text: The assembler enumerates scenarios under its configured roots and takes the first, which names the subject, its validators, and its fixture files.
   - id: F2
-    text: The assembler starts one twin per fixture file, each on its own address, and awaits their health.
+    text: The assembler starts one mock per fixture file, each on its own address, and awaits their health.
   - id: F3
-    text: The assembler starts the subject with environment additions pointing its dependency base_url at the twin addresses, and awaits its health.
+    text: The assembler starts the subject with environment additions pointing its dependency base_url at the mock addresses, and awaits its health.
   - id: F4
-    text: The assembler runs the scenario's validator machines; each drives the subject over HTTP and asserts on its responses and on the twin request log.
+    text: The assembler runs the scenario's validator machines; each drives the subject over HTTP and asserts on its responses and on the mock request log.
   - id: F5
-    text: The assembler collects the validators' terminal states, derives the scenario verdict, and tears down the subject and the twins.
+    text: The assembler collects the validators' terminal states, derives the scenario verdict, and tears down the subject and the mocks.
   - id: F6
     text: The assembler repeats for the subject's remaining scenarios with a fresh subject each time, then reports the aggregate verdict as its terminal state.
 
@@ -48,23 +48,23 @@ touchpoints:
     reason: Scenarios are discovered by convention under configurable roots.
   - id: T4
     target: srd018-assembler R4
-    reason: The subject reaches its twins through declared environment additions over base_url expansion, with its behavior unchanged.
+    reason: The subject reaches its mocks through declared environment additions over base_url expansion, with its behavior unchanged.
   - id: T5
     target: srd018-assembler R6
     reason: The verdict is the conjunction of validator terminals, and a failure names its cause.
   - id: T6
-    target: srd019-twin R2
-    reason: Each twin serves the scenario's fixture selected at start, so several twins run from one profile.
+    target: srd019-mock R2
+    reason: Each mock serves the scenario's fixture selected at start, so several mocks run from one profile.
   - id: T7
     target: sm-agent-role-taxonomy
-    reason: The assembler and twin join the role catalog as new profile families.
+    reason: The assembler and mock join the role catalog as new profile families.
 
 success_criteria:
   - id: S1
-    criterion: A scenario runs end to end with no live external service, every dependency response coming from a twin fixture.
+    criterion: A scenario runs end to end with no live external service, every dependency response coming from a mock fixture.
     traces:
       - srd018-assembler AC1
-      - srd019-twin AC2
+      - srd019-mock AC2
   - id: S2
     criterion: Adding a second scenario to the same subject requires only new files in a tests/ directory, with no change to the assembler profile.
     traces:
@@ -88,7 +88,7 @@ success_criteria:
 
 failure_scenarios:
   - id: E1
-    scenario: A scenario's twin fails to start and the assembler proceeds to run validators against a subject with a dead dependency.
+    scenario: A scenario's mock fails to start and the assembler proceeds to run validators against a subject with a dead dependency.
     expected: Rejected; a failed start or health timeout routes to teardown and the scenario reports Failed with the cause.
   - id: E2
     scenario: Two scenarios share one subject instance and the second observes state the first left behind.
@@ -100,7 +100,7 @@ failure_scenarios:
 out_of_scope:
   - The agent-core words themselves and the mock fixture schema; those are srd040 and srd039.
   - Kubernetes, containers, or a hierarchical control plane; children are local processes at this release.
-  - Span-based state assertion; responses and the twin request log are the witnesses.
+  - Span-based state assertion; responses and the mock request log are the witnesses.
   - Authoring scenarios for the existing mesh agents, which is examples-owned work.
 
 test_suite_trace: test-rel11.0-assembler-rig

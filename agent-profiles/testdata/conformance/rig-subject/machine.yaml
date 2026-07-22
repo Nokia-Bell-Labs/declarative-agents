@@ -3,7 +3,7 @@ purpose: |-
   A reference agent under test: it serves a route whose request-scoped machine
   reads one REST dependency, so a dependency failure surfaces as a mapped
   response rather than preventing the agent from starting. The rig points that
-  dependency at a scenario's twin.
+  dependency at a scenario's mock.
 configuration:
   machine: machine.yaml
   tools: tools.yaml

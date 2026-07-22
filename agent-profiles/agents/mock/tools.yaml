@@ -1,0 +1,4 @@
+tools:
+  - launch_mock_rest
+  - await_mock_control
+  - stop_mock_rest

@@ -1,28 +1,28 @@
-name: twin-rest-profile
+name: mock-rest-profile
 purpose: |-
   Serves a dependency's canned REST responses from a scenario fixture and
   records every request it received, standing in for a real upstream service
   while a subject agent is exercised. Serves until a control exit request
   stops the owned listener.
 configuration:
-  machine: agents/twin/machine.yaml
-  tools: agents/twin/tools.yaml
+  machine: agents/mock/machine.yaml
+  tools: agents/mock/tools.yaml
 metric_labels:
-  profile: twin
+  profile: mock
 initial_state: Idle
 budget:
   max_iterations: 6
 states:
   - name: Idle
-    meaning: Initial state before the twin server starts.
+    meaning: Initial state before the mock server starts.
   - name: Launching
     meaning: The REST server launch command is running; the fixture is loaded and validated here.
   - name: Serving
     meaning: Fixture routes and the request log are available while the machine waits for a control event.
   - name: Stopping
-    meaning: The machine stops the owned twin REST listener.
+    meaning: The machine stops the owned mock REST listener.
   - name: Done
-    meaning: Terminal. The twin listener stopped without error.
+    meaning: Terminal. The mock listener stopped without error.
   - name: Failed
     meaning: Terminal state for launch, fixture, and control failures.
 terminal_states:
@@ -32,35 +32,35 @@ signals:
   - name: Seed
     trigger: Loop initialization.
   - name: ServerLaunched
-    trigger: Twin REST routes were registered and the fixture loaded.
+    trigger: Mock REST routes were registered and the fixture loaded.
   - name: ExitRequested
-    trigger: A rig requested twin exit through REST control.
+    trigger: A rig requested mock exit through REST control.
   - name: AwaitTimedOut
     trigger: No matching control event arrived.
   - name: ServerStopped
-    trigger: Twin REST listener stopped.
+    trigger: Mock REST listener stopped.
   - name: CommandError
     trigger: REST server lifecycle command failed, including a malformed fixture.
 transitions:
   - state: Idle
     signal: Seed
     next: Launching
-    action: launch_twin_rest
+    action: launch_mock_rest
     metric_labels:
-      route_group: twin
+      route_group: mock
   - state: Launching
     signal: ServerLaunched
     next: Serving
-    action: await_twin_control
+    action: await_mock_control
   # A malformed fixture fails the launch rather than the first request, so the
-  # twin never serves with bad data (srd019 R2.4).
+  # mock never serves with bad data (srd019 R2.4).
   - state: Launching
     signal: CommandError
     next: Failed
   - state: Serving
     signal: ExitRequested
     next: Stopping
-    action: stop_twin_rest
+    action: stop_mock_rest
   - state: Serving
     signal: AwaitTimedOut
     next: Failed

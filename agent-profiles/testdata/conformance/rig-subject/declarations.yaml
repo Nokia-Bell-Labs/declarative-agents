@@ -184,7 +184,7 @@ tools:
     visibility: internal
     category: boundary
     description: Read the configured dependency once for this request.
-    problem: The subject must call a real dependency so a rig can redirect it at a twin.
+    problem: The subject must call a real dependency so a rig can redirect it at a mock.
     goals:
       - Read the dependency resource the client config declares.
       - Map its outcome to a signal the request machine routes on.

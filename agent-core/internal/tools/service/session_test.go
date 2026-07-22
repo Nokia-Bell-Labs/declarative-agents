@@ -192,15 +192,15 @@ func TestScenarioSession_ReportPassesOnlyWhenAllPass(t *testing.T) {
 	require.Equal(t, false, empty["passed"])
 }
 
-// TestScenarioSteps_ThreadsTwinURLIntoSubject is the core of this issue: a
-// twin binds a port at runtime and the subject observes that address in its
+// TestScenarioSteps_ThreadsMockURLIntoSubject is the core of this issue: a
+// mock binds a port at runtime and the subject observes that address in its
 // environment. Without this, the per-scenario pipeline cannot be expressed as
 // machine steps at all.
-func TestScenarioSteps_ThreadsTwinURLIntoSubject(t *testing.T) {
+func TestScenarioSteps_ThreadsMockURLIntoSubject(t *testing.T) {
 	root := scenarioTree(t, map[string]map[string][]string{"alpha": {"happy": {"dep.yaml"}}})
 
 	// The subject is the test binary in serve mode, echoing the environment
-	// variable the twin's URL is published as.
+	// variable the mock's URL is published as.
 	subjectDir := filepath.Join(root, "alpha")
 	require.NoError(t, os.WriteFile(
 		filepath.Join(subjectDir, profileFileName), []byte("name: alpha\n"), 0o644))
@@ -215,34 +215,34 @@ func TestScenarioSteps_ThreadsTwinURLIntoSubject(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	// Start the twin: the test binary serving health, standing in for the
+	// Start the mock: the test binary serving health, standing in for the
 	// dependency. Its address is chosen at runtime.
-	twinResult := Builder{
-		ToolName: "start_twins", Init: InitStartTwins, State: state, Session: session,
+	mockResult := Builder{
+		ToolName: "start_mocks", Init: InitStartMocks, State: state, Session: session,
 		Config: ToolConfig{
-			Profile: "twin-profile", Binary: os.Args[0],
+			Profile: "mock-profile", Binary: os.Args[0],
 			AddressEnv: envChildAddr,
 			Env:        []string{envChildMode + "=serve"},
 		},
 	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalTwinsStarted, twinResult.Signal, twinResult.Output)
+	require.Equal(t, SignalMocksStarted, mockResult.Signal, mockResult.Output)
 
-	twins := session.Twins()
-	require.Len(t, twins, 1)
-	require.Equal(t, "DEP_URL", twins[0].EnvVar, "fixture dep.yaml publishes DEP_URL")
-	require.NotEmpty(t, twins[0].BaseURL)
+	mocks := session.Mocks()
+	require.Len(t, mocks, 1)
+	require.Equal(t, "DEP_URL", mocks[0].EnvVar, "fixture dep.yaml publishes DEP_URL")
+	require.NotEmpty(t, mocks[0].BaseURL)
 
-	// The subject's environment carries the twin's runtime URL.
+	// The subject's environment carries the mock's runtime URL.
 	env := session.SubjectEnv()
-	require.Contains(t, env, "DEP_URL="+twins[0].BaseURL)
+	require.Contains(t, env, "DEP_URL="+mocks[0].BaseURL)
 
 	// Start the subject and confirm it actually observed that value: the child
-	// echoes SERVICE_TEST_ECHO, which we set from the twin's URL.
+	// echoes SERVICE_TEST_ECHO, which we set from the mock's URL.
 	subjectResult := Builder{
 		ToolName: "start_subject", Init: InitStartSubject, State: state, Session: session,
 		Config: ToolConfig{
 			Binary: os.Args[0], AddressEnv: envChildAddr,
-			Env: []string{envChildMode + "=serve", envChildEcho + "=" + twins[0].BaseURL},
+			Env: []string{envChildMode + "=serve", envChildEcho + "=" + mocks[0].BaseURL},
 		},
 	}.Build(core.Result{}).Execute()
 	require.Equal(t, SignalSubjectStarted, subjectResult.Signal, subjectResult.Output)
@@ -252,7 +252,7 @@ func TestScenarioSteps_ThreadsTwinURLIntoSubject(t *testing.T) {
 	require.Equal(t, filepath.Join(subjectDir, profileFileName), started["profile"],
 		"the subject is the agent under test, resolved from the scenario")
 
-	// The subject reports the twin URL it was given, proving the thread.
+	// The subject reports the mock URL it was given, proving the thread.
 	health := Builder{
 		ToolName: "await_subject", Init: InitAwaitSubject, State: state, Session: session,
 		Config: ToolConfig{URL: "/healthz", Timeout: "20s", Interval: "20ms"},
@@ -261,8 +261,8 @@ func TestScenarioSteps_ThreadsTwinURLIntoSubject(t *testing.T) {
 
 	_, subjectURL := session.Subject()
 	body := httpGetBody(t, subjectURL+"/healthz")
-	require.Contains(t, body, twins[0].BaseURL,
-		"the subject observed the twin's runtime address in its environment")
+	require.Contains(t, body, mocks[0].BaseURL,
+		"the subject observed the mock's runtime address in its environment")
 
 	// Teardown stops both children.
 	teardown := Builder{
@@ -287,14 +287,14 @@ func TestScenarioSteps_TeardownRunsOnFailurePath(t *testing.T) {
 	_, _, err = session.Next()
 	require.NoError(t, err)
 
-	twinResult := Builder{
-		ToolName: "start_twins", Init: InitStartTwins, State: state, Session: session,
+	mockResult := Builder{
+		ToolName: "start_mocks", Init: InitStartMocks, State: state, Session: session,
 		Config: ToolConfig{
-			Profile: "twin", Binary: os.Args[0], AddressEnv: envChildAddr,
+			Profile: "mock", Binary: os.Args[0], AddressEnv: envChildAddr,
 			Env: []string{envChildMode + "=serve"},
 		},
 	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalTwinsStarted, twinResult.Signal)
+	require.Equal(t, SignalMocksStarted, mockResult.Signal)
 	require.Len(t, state.Running(), 1)
 
 	// The subject starts but never serves the health path, so the wait times out.
@@ -381,7 +381,7 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 	session := NewScenarioSession(NewState())
 
 	// A step word with no current scenario is an error, not a panic.
-	for _, init := range []string{InitStartTwins, InitStartSubject, InitRunScenarioTests} {
+	for _, init := range []string{InitStartMocks, InitStartSubject, InitRunScenarioTests} {
 		result := Builder{
 			ToolName: init, Init: init, State: NewState(), Session: session,
 			Config: ToolConfig{Profile: "p"},
@@ -393,10 +393,10 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 			"%s: %s", init, result.Output)
 	}
 
-	// start_scenario_twins needs the twin profile declared.
-	err := validateToolConfig("t", InitStartTwins, ToolConfig{})
+	// start_scenario_mocks needs the mock profile declared.
+	err := validateToolConfig("t", InitStartMocks, ToolConfig{})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "requires the twin profile")
+	require.Contains(t, err.Error(), "requires the mock profile")
 
 	// init_scenario_session needs roots.
 	err = validateToolConfig("i", InitInitScenarioSession, ToolConfig{})

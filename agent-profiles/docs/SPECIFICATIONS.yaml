@@ -16,7 +16,7 @@ overview: |
   Release 11.0 adds two test-time families over the agent-core release 09.0
   words: srd018-assembler is the reusable test rig that composes a scenario
   from profile-owned data and reduces validator terminals to a verdict, and
-  srd019-twin is the one generic digital twin that stands in for any REST
+  srd019-mock is the one generic mock that stands in for any REST
   dependency. Scenarios live beside the agent they test, so one subject carries
   several tests and one rig serves both the agent families and the examples
   tree.
@@ -103,11 +103,11 @@ roadmap_summary:
       Two test-time role families over the agent-core release 09.0 words. The
       assembler (srd018) discovers scenarios under configurable roots covering
       the agent families and the examples tree, and for each starts the
-      scenario's twins, starts the subject with its REST dependencies
+      scenario's mocks, starts the subject with its REST dependencies
       redirected through base_url environment expansion, runs the scenario's
       validators against a fresh subject instance, reduces their terminal
       states to a verdict naming any failing validator, and tears every child
-      down. The twin (srd019) is one generic digital twin serving the canned,
+      down. The mock (srd019) is one generic mock serving the canned,
       scripted responses a scenario fixture declares and recording a
       per-instance request log validators read to verify a subject's outbound
       calls. Tests are profile-owned data in tests/<scenario>/ beside the agent,
@@ -267,7 +267,7 @@ srd_index:
     summary: The repository's test rig, named for the reference-architecture Assembler
       role (service composition, resource integration, testing). It discovers
       scenarios under configurable roots covering the agent families and the examples
-      tree, and for each starts the scenario's twins, starts the subject with its REST
+      tree, and for each starts the scenario's mocks, starts the subject with its REST
       dependencies redirected through base_url environment expansion, runs the
       scenario's validators against a fresh subject instance, reduces their terminal
       states to a verdict that names a failing validator, and tears every child down.
@@ -275,16 +275,16 @@ srd_index:
       subject carries several tests and adding one never edits the rig.
     status: planned
     path: docs/specs/software-requirements/srd018-assembler.yaml
-  - id: srd019-twin
-    title: Twin Functional Block
-    summary: One generic digital-twin profile standing in for any REST dependency a
+  - id: srd019-mock
+    title: Mock Functional Block
+    summary: One generic mock profile standing in for any REST dependency a
       subject calls. It serves the canned, scripted responses a scenario fixture
       declares through the agent-core mock endpoint binding, selects that fixture by
       environment so a new dependency needs a fixture rather than a profile or an
       image, exposes a health route, and records a per-instance request log validators
       read to verify a subject's outbound calls.
     status: planned
-    path: docs/specs/software-requirements/srd019-twin.yaml
+    path: docs/specs/software-requirements/srd019-mock.yaml
 
 config_format_index: []
 
@@ -462,21 +462,21 @@ use_case_index:
     path: docs/specs/use-cases/rel10.0-uc003-conformance-fixture-relocation.yaml
   - id: rel11.0-uc001-assembler-scenario-run
     title: The Assembler Runs an Agent's Scenarios to a Verdict Without Live Services
-    summary: The assembler discovers a scenario beside an agent, starts its twins,
+    summary: The assembler discovers a scenario beside an agent, starts its mocks,
       starts the subject with its dependency redirected, runs the validators, and
       reduces their terminals to a verdict; a second scenario is added as data only,
       a scripted dependency failure drives the subject's failure path, and a wrong
       expectation makes the rig fail and name the failing validator.
     status: specified
     path: docs/specs/use-cases/rel11.0-uc001-assembler-scenario-run.yaml
-  - id: rel11.0-uc002-twin-serves-fixtures
-    title: One Twin Profile Stands In for Any REST Dependency and Records What It Received
-    summary: One shipped twin serves a scenario's fixture routes, scripts a response
+  - id: rel11.0-uc002-mock-serves-fixtures
+    title: One Mock Profile Stands In for Any REST Dependency and Records What It Received
+    summary: One shipped mock serves a scenario's fixture routes, scripts a response
       sequence so a failure lands on a chosen call, 404s and records unmatched calls,
       and exposes a per-instance request log a validator reads to verify the subject's
       outbound calls; a second dependency needs another fixture, not another profile.
     status: specified
-    path: docs/specs/use-cases/rel11.0-uc002-twin-serves-fixtures.yaml
+    path: docs/specs/use-cases/rel11.0-uc002-mock-serves-fixtures.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -578,7 +578,7 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel10.0-role-catalog.yaml
   - id: test-rel11.0-assembler-rig
     title: Test Suite for Release 11.0 Assembler Test Rig
-    summary: Cases for twin fixture serving and sequencing, two twins from one
+    summary: Cases for mock fixture serving and sequencing, two mocks from one
       profile, request-log verification of a subject's outbound calls,
       malformed-fixture rejection, an end-to-end scenario verdict, several scenarios
       per subject added as data only, a scripted dependency failure, a deliberate rig

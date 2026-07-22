@@ -374,14 +374,14 @@ conformance_fixtures:
     actor_boundary: child agent processes plus profile-owned scenario data
     inputs:
       - discovery roots
-      - discovered scenario directories (validator profiles and twin fixtures)
+      - discovered scenario directories (validator profiles and mock fixtures)
     selected_tool_families:
       - service-child (start, await healthy, stop)
       - validator execution
       - scenario discovery
     runtime_dependencies:
       - agent-core service-child, validator-execution, and discovery words (srd040)
-      - agent-core mock endpoint binding by way of the twins it starts (srd039)
+      - agent-core mock endpoint binding by way of the mocks it starts (srd039)
     outputs:
       - per-scenario verdicts naming a failing validator and its cause
       - aggregate verdict
@@ -393,9 +393,9 @@ conformance_fixtures:
       - Confirm each scenario gets a fresh subject and leaves no surviving child process.
       - Confirm discovery covers the examples tree without special-casing.
 
-  - id: twin
-    title: Digital twin for a REST dependency
-    profile_path: agents/twin/profile.yaml
+  - id: mock
+    title: Mock for a REST dependency
+    profile_path: agents/mock/profile.yaml
     actor_boundary: inbound HTTP from a subject agent under test
     inputs:
       - fixture file path (selected by environment)
@@ -419,7 +419,7 @@ conformance_fixtures:
 taxonomy_rules:
   - Each role is a configured program, not a Go package.
   - Conformance grammar fixtures (rest, control, lifecycle) are not roles; they live under testdata/conformance/ and prove runtime vocabulary, keeping agents/ a role catalog (GH-328).
-  - The assembler and twin are test-time roles: the assembler composes and verdicts scenarios, and the twin stands in for a dependency. The reference architecture names such a stand-in a digital twin, so mock, stub, and emulator are not used for the family (GH-665).
+  - The assembler and mock are test-time roles: the assembler composes and verdicts scenarios, and the mock stands in for a dependency. The environment the assembler composes is a sandbox in the reference architecture's sense, and the per-scenario validators are its Sandbox Validators (Critic); the activity is safe-testing and the verdict reduction is output-evaluation. The reference has no term for a scripted test double, so the stand-in family takes the name of the runtime binding it configures, mock, rather than borrowing digital twin, which the reference reserves for a replica derived from a real referent (GH-704, superseding GH-665).
   - Actor boundaries name who or what crosses the profile boundary.
   - Runtime dependencies name agent-core capabilities without copying them into
     agent-profiles.

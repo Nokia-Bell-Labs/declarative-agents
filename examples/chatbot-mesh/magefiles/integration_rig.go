@@ -23,14 +23,14 @@ var rigExpectedVerdicts = []string{
 	"ScenarioPassed", // rig-subject/dep-failure: the subject degraded correctly
 	"ScenarioPassed", // rig-subject/happy-path
 	"ScenarioPassed", // chatbot/degraded-rag: the turn answers while rag0 fails every query
-	"ScenarioPassed", // chatbot/single-turn: the routed turn against twin provider and RAGs
-	"ScenarioPassed", // rag-server/query: the mesh agent against a twin Chroma
+	"ScenarioPassed", // chatbot/single-turn: the routed turn against mock provider and RAGs
+	"ScenarioPassed", // rag-server/query: the mesh agent against a mock Chroma
 }
 
 // Rig runs the assembler test rig over this example's agents and the
 // agent-profiles reference subject in one pass — the cross-root proof: one
 // rig, two repository areas, discovered by convention. The rag-server is
-// exercised end to end against a digital-twin Chroma pinned to the port the
+// exercised end to end against a mock Chroma pinned to the port the
 // server's network limits allow; no live Chroma, Ollama, Docker, or
 // Kubernetes is involved. The aggregate is failed by design, because the
 // reference subject ships a deliberately broken scenario that must fail; this
@@ -80,7 +80,12 @@ func (Integration) Rig() error {
 	cmd.Stderr = &out
 	fmt.Println("running the assembler rig over agents/ and the agent-profiles reference subject...")
 	start := time.Now()
-	if err := cmd.Run(); err != nil {
+	// The rig's aggregate is failed by design: the reference subject ships a
+	// scenario that must fail, so the run reaches a failure terminal and exits
+	// with the machine-failed code (srd018-cli-flag-contract R6). Only a run
+	// the binary could not complete is an error here; the verdict pattern
+	// below is the real assertion.
+	if err := cmd.Run(); !agentRunCompleted(err) {
 		return fmt.Errorf("rig run: %w\n%s", err, out.String())
 	}
 

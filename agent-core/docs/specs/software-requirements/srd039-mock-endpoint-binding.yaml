@@ -2,7 +2,7 @@ id: srd039-mock-endpoint-binding
 title: Mock REST Endpoint Binding
 
 problem: |
-  Scenario-driven agent tests need dependency mocks. A digital-twin profile
+  Scenario-driven agent tests need dependency mocks. A mock profile
   stands in for a real upstream service by serving canned REST responses, so a
   subject agent can be exercised hermetically: no live Chroma, Ollama, or
   Kubernetes, and every dependency response is controlled by the test scenario.

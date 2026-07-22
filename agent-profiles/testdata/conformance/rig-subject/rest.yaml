@@ -14,7 +14,7 @@ rest:
         hosts: [127.0.0.1, localhost]
   clients:
     dependency:
-      # The rig publishes the scenario twin's runtime address here. The
+      # The rig publishes the scenario mock's runtime address here. The
       # fixture file name decides the variable: mocks/dep.yaml -> DEP_URL.
       base_url: ${DEP_URL:-http://127.0.0.1:1}
       auth_ref: none

@@ -1,6 +1,6 @@
 name: chatbot-turn-validator
 purpose: |-
-  Drives one routed chatbot turn while the first RAG twin fails every query.
+  Drives one routed chatbot turn while the first RAG mock fails every query.
   Passing means the chatbot degraded the way srd002 requires: the failed
   source is excluded and the turn still answers from the remaining one.
 

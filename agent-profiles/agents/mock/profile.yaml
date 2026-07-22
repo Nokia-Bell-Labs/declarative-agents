@@ -1,4 +1,4 @@
-name: twin
+name: mock
 machine: machine.yaml
 tools:
   - tools.yaml

@@ -46,17 +46,17 @@ type ScenarioManifest struct {
 	// Env adds literal environment entries to the subject.
 	Env []string `yaml:"env,omitempty"`
 	// FixtureEnv maps a fixture base name to the environment variable that
-	// should carry that twin's base URL, overriding the derived name.
+	// should carry that mock's base URL, overriding the derived name.
 	FixtureEnv map[string]string `yaml:"fixture_env,omitempty"`
-	// FixtureAddress pins a fixture's twin to a fixed address instead of an
+	// FixtureAddress pins a fixture's mock to a fixed address instead of an
 	// allocated one, for a subject whose network limits allow only its real
-	// dependency's port. The twin then stands exactly where the dependency
+	// dependency's port. The mock then stands exactly where the dependency
 	// stands. Scenarios run sequentially, so a pinned port does not collide.
 	FixtureAddress map[string]string `yaml:"fixture_address,omitempty"`
 }
 
-// runningTwin is one twin started for the current scenario.
-type runningTwin struct {
+// runningMock is one mock started for the current scenario.
+type runningMock struct {
 	Fixture string `json:"fixture"`
 	Service string `json:"service"`
 	EnvVar  string `json:"env_var"`
@@ -76,7 +76,7 @@ type ScenarioSessionState struct {
 
 	current  *Scenario
 	manifest ScenarioManifest
-	twins    []runningTwin
+	mocks    []runningMock
 	subject  struct {
 		service string
 		baseURL string
@@ -130,7 +130,7 @@ func (s *ScenarioSessionState) Next() (Scenario, bool, error) {
 	defer s.mu.Unlock()
 	s.current = &scenario
 	s.manifest = manifest
-	s.twins = nil
+	s.mocks = nil
 	s.validators = nil
 	s.subject.service = ""
 	s.subject.baseURL = ""
@@ -163,33 +163,33 @@ func (s *ScenarioSessionState) SubjectProfile() (string, error) {
 	return filepath.Join(current.SubjectDir, profileFileName), nil
 }
 
-// RecordTwin remembers a started twin and the environment variable that
+// RecordMock remembers a started mock and the environment variable that
 // carries its base URL to the subject.
-func (s *ScenarioSessionState) RecordTwin(twin runningTwin) {
+func (s *ScenarioSessionState) RecordMock(mock runningMock) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.twins = append(s.twins, twin)
+	s.mocks = append(s.mocks, mock)
 }
 
-// Twins returns the twins started for the current scenario.
-func (s *ScenarioSessionState) Twins() []runningTwin {
+// Mocks returns the mocks started for the current scenario.
+func (s *ScenarioSessionState) Mocks() []runningMock {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]runningTwin, len(s.twins))
-	copy(out, s.twins)
+	out := make([]runningMock, len(s.mocks))
+	copy(out, s.mocks)
 	return out
 }
 
-// SubjectEnv builds the subject's environment additions from the twins started
-// for this scenario. This is the dependency redirection: a twin's base URL is
+// SubjectEnv builds the subject's environment additions from the mocks started
+// for this scenario. This is the dependency redirection: a mock's base URL is
 // only known once it binds a port, and it reaches the subject here rather than
 // through static config (srd018 R4.1).
 func (s *ScenarioSessionState) SubjectEnv() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	env := make([]string, 0, len(s.twins)+len(s.manifest.Env))
-	for _, twin := range s.twins {
-		env = append(env, twin.EnvVar+"="+twin.BaseURL)
+	env := make([]string, 0, len(s.mocks)+len(s.manifest.Env))
+	for _, mock := range s.mocks {
+		env = append(env, mock.EnvVar+"="+mock.BaseURL)
 	}
 	env = append(env, s.manifest.Env...)
 	return env
@@ -315,7 +315,7 @@ const scenarioManifestName = "scenario.yaml"
 
 var nonEnvChars = regexp.MustCompile(`[^A-Za-z0-9]+`)
 
-// fixtureEnvVar derives the environment variable a fixture's twin URL is
+// fixtureEnvVar derives the environment variable a fixture's mock URL is
 // published as: mocks/chroma.yaml becomes CHROMA_URL. A subject declares its
 // dependency as base_url: ${CHROMA_URL:-...}, so the fixture name and the
 // subject's declared variable line up without a manifest. A scenario that
@@ -328,7 +328,7 @@ func fixtureEnvVar(fixturePath string, overrides map[string]string) string {
 	name := strings.ToUpper(nonEnvChars.ReplaceAllString(base, "_"))
 	name = strings.Trim(name, "_")
 	if name == "" {
-		name = "TWIN"
+		name = "MOCK"
 	}
 	return name + "_URL"
 }

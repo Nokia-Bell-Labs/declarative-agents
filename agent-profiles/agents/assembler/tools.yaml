@@ -7,7 +7,7 @@
 tools:
   - discover_scenarios
   - next_scenario
-  - start_scenario_twins
+  - start_scenario_mocks
   - start_scenario_subject
   - await_scenario_subject
   - run_scenario_validators

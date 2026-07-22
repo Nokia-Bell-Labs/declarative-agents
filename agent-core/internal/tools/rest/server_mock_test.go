@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockServer builds a twin-shaped server: a catch-all mock mount, a log route,
+// mockServer builds a mock-profile-shaped server: a catch-all mock mount, a log route,
 // and health. The mock mount answers whatever methods and paths its fixture
 // declares, so the literal routes must stay more specific than the catch-all.
 func mockServer(t *testing.T, name string, cfg *MockConfig) Server {

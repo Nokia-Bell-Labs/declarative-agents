@@ -144,7 +144,7 @@ func scenarioValidators(dir string) ([]string, error) {
 	return validators, nil
 }
 
-// scenarioFixtures collects the twin fixture files a scenario mounts. A
+// scenarioFixtures collects the mock fixture files a scenario mounts. A
 // scenario without a mocks directory simply has none.
 func scenarioFixtures(dir string) ([]string, error) {
 	mocksDir := filepath.Join(dir, mocksDirName)

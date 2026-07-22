@@ -102,24 +102,24 @@ tools:
     config: {}
     relationships:
       after: [discover_scenarios, teardown_scenario]
-      before: [start_scenario_twins, report_rig_session]
+      before: [start_scenario_mocks, report_rig_session]
 
-  - name: start_scenario_twins
+  - name: start_scenario_mocks
     type: builtin
-    init: start_scenario_twins
+    init: start_scenario_mocks
     visibility: internal
     category: boundary
-    description: Start one digital twin per fixture the current scenario declares.
+    description: Start one mock per fixture the current scenario declares.
     problem: A subject's REST dependencies must answer controlled responses rather than a live service.
     goals:
-      - Start the shipped twin profile once per fixture, each on its own address.
-      - Record each twin's runtime base URL against the variable the subject reads.
+      - Start the shipped mock profile once per fixture, each on its own address.
+      - Record each mock's runtime base URL against the variable the subject reads.
     requirements:
       input:
-        - Tool config declares the twin profile the rig starts.
+        - Tool config declares the mock profile the rig starts.
         - The session holds the current scenario and its fixtures.
       output:
-        - Output reports each twin's fixture, service name, environment variable, and base URL.
+        - Output reports each mock's fixture, service name, environment variable, and base URL.
       errors:
         - A spawn or port failure emits CommandError.
     non_goals:
@@ -127,20 +127,20 @@ tools:
     parameters:
       type: object
       properties: {}
-    emits: [TwinsStarted, CommandError]
+    emits: [MocksStarted, CommandError]
     output:
-      description: The twins started for this scenario.
+      description: The mocks started for this scenario.
       schema:
         type: object
         properties:
-          twins: {type: array}
+          mocks: {type: array}
     side_effects:
       - kind: child_agent_execution
-        target: twin_agent
-        state: twin_serving
+        target: mock_agent
+        state: mock_serving
       - kind: state_mutation
         target: scenario_session
-        state: twins_recorded
+        state: mocks_recorded
     reversibility:
       classification: compensatable
       undo: teardown_scenario
@@ -149,10 +149,10 @@ tools:
       description: Stop the scenario's children rather than leave them running.
     errors:
       - signal: CommandError
-        condition: A twin fails to spawn or no port can be reserved.
-        state_after_failure: Twins started before the failure stay tracked for teardown.
+        condition: A mock fails to spawn or no port can be reserved.
+        state_after_failure: Mocks started before the failure stay tracked for teardown.
     config:
-      profile: agents/twin/profile.yaml
+      profile: agents/mock/profile.yaml
     relationships:
       after: [next_scenario]
       before: [start_scenario_subject]
@@ -162,14 +162,14 @@ tools:
     init: start_scenario_subject
     visibility: internal
     category: boundary
-    description: Start the agent under test with its dependencies redirected at this scenario's twins.
-    problem: The subject must reach the scenario's twins rather than a live service, without editing its profile.
+    description: Start the agent under test with its dependencies redirected at this scenario's mocks.
+    problem: The subject must reach the scenario's mocks rather than a live service, without editing its profile.
     goals:
       - Resolve the subject from the scenario's own directory.
-      - Inject each twin's runtime base URL and the allocated listen address.
+      - Inject each mock's runtime base URL and the allocated listen address.
     requirements:
       input:
-        - The session holds the current scenario and the twins started for it.
+        - The session holds the current scenario and the mocks started for it.
       output:
         - Output reports the subject service, profile, base URL, and injected environment.
       errors:
@@ -205,10 +205,10 @@ tools:
     errors:
       - signal: CommandError
         condition: The subject profile is missing, or the process fails to spawn.
-        state_after_failure: The scenario's twins stay tracked for teardown.
+        state_after_failure: The scenario's mocks stay tracked for teardown.
     config: {}
     relationships:
-      after: [start_scenario_twins]
+      after: [start_scenario_mocks]
       before: [await_scenario_subject]
 
   - name: await_scenario_subject
@@ -418,7 +418,7 @@ tools:
         - tool: collect_scenario_verdict
           difference: This word forces a failure reason for a start failure.
     config:
-      reason: the scenario's twins or subject failed to start
+      reason: the scenario's mocks or subject failed to start
 
   - name: fail_scenario_unhealthy
     type: builtin
@@ -528,7 +528,7 @@ tools:
     description: Stop every child this scenario started.
     problem: A child that outlives its scenario leaks a port and corrupts the next run.
     goals:
-      - Stop the subject and every twin, gracefully then forcibly.
+      - Stop the subject and every mock, gracefully then forcibly.
       - Leave nothing running before the loop continues.
     requirements:
       input:

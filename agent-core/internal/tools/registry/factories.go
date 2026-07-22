@@ -74,7 +74,7 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 		// service package imports this one, so the list cannot be read from it.
 		hookFactory("service", []string{
 			"start_service", "await_healthy", "stop_service", "run_validators", "list_scenarios",
-			"init_scenario_session", "next_scenario", "start_scenario_twins",
+			"init_scenario_session", "next_scenario", "start_scenario_mocks",
 			"start_scenario_subject", "await_scenario_subject", "run_scenario_validators",
 			"collect_scenario_verdict", "teardown_scenario", "report_scenario_session",
 		}, deps.RegisterService),

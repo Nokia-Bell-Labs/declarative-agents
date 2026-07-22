@@ -1,4 +1,4 @@
-# Digital twin for the first RAG server: the chatbot's rag_query0 word maps
+# Mock for the first RAG server: the chatbot's rag_query0 word maps
 # $.ids/$.documents/$.distances/$.embedding_model from a 200 (srd002).
 routes:
   - method: POST

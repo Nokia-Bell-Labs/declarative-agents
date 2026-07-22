@@ -180,13 +180,13 @@ test_cases:
     planned_go_test: go test ./internal/tools/service -run TestScenarioRig_EndToEndVerdict
     status: planned
     description: |
-      A tracer over the full flow: twin from fixture, subject with dependency
-      URL injected, health, one passing validator asserting the twin request
+      A tracer over the full flow: mock from fixture, subject with dependency
+      URL injected, health, one passing validator asserting the mock request
       log, verdict derived from the terminal state, teardown. A variant whose
       fixture scripts a 500 exercises the subject failure path and still
       passes via the validator's expectation.
     inputs:
-      scenario: twin + subject + validator, happy and scripted-failure variants
+      scenario: mock + subject + validator, happy and scripted-failure variants
     expected:
       happy_verdict: Passed
       scripted_failure_verdict: Passed
@@ -215,12 +215,12 @@ test_cases:
       - srd040-service-child-tools AC4
 
   - use_case: rel09.0-uc001-scenario-rig-run
-    name: A twin's runtime address reaches the subject's environment
-    go_test: go test ./internal/tools/service -run TestScenarioSteps_ThreadsTwinURLIntoSubject
+    name: A mock's runtime address reaches the subject's environment
+    go_test: go test ./internal/tools/service -run TestScenarioSteps_ThreadsMockURLIntoSubject
     status: implemented
     description: |
-      A twin binds a port chosen at runtime, and the subject started for that
-      scenario observes the twin's base URL in its environment under the
+      A mock binds a port chosen at runtime, and the subject started for that
+      scenario observes the mock's base URL in its environment under the
       variable derived from the fixture name. This is the dependency
       redirection the pipeline depends on (srd018 R4.1); without it the
       per-scenario steps cannot be expressed as machine transitions.
@@ -228,7 +228,7 @@ test_cases:
       fixture: mocks/dep.yaml
     expected:
       env_var_derived: DEP_URL
-      subject_observes_twin_url: true
+      subject_observes_mock_url: true
       subject_profile_resolved_from_scenario: true
     traces:
       - rel09.0-uc001-scenario-rig-run S1

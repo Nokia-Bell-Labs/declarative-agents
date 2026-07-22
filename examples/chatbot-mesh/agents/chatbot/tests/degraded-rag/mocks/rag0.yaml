@@ -1,4 +1,4 @@
-# Digital twin for a degraded first RAG server: every query fails with a 500,
+# Mock for a degraded first RAG server: every query fails with a 500,
 # which the chatbot's rag_query0 maps to CommandError. Per the request machine
 # (and srd002's degradation contract) the turn continues with the remaining
 # source, so the scenario passes when the turn still answers.
