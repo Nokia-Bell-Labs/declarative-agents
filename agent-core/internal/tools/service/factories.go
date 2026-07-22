@@ -24,7 +24,7 @@ const (
 	// transitions while working on data discovered at runtime (srd018 R1).
 	InitInitScenarioSession = "init_scenario_session"
 	InitNextScenario        = "next_scenario"
-	InitStartTwins          = "start_scenario_twins"
+	InitStartMocks          = "start_scenario_mocks"
 	InitStartSubject        = "start_scenario_subject"
 	InitAwaitSubject        = "await_scenario_subject"
 	InitRunScenarioTests    = "run_scenario_validators"
@@ -36,7 +36,7 @@ const (
 // StandardInits lists every service builtin init name.
 var StandardInits = []string{
 	InitStartService, InitAwaitHealthy, InitStopService, InitRunValidators, InitListScenarios,
-	InitInitScenarioSession, InitNextScenario, InitStartTwins, InitStartSubject,
+	InitInitScenarioSession, InitNextScenario, InitStartMocks, InitStartSubject,
 	InitAwaitSubject, InitRunScenarioTests, InitCollectVerdict, InitTeardownScenario,
 	InitReportSession,
 }
@@ -58,7 +58,7 @@ const (
 	SignalNoScenarios      core.Signal = "NoScenarios"
 	SignalScenarioReady    core.Signal = "ScenarioReady"
 	SignalAllScenariosDone core.Signal = "AllScenariosDone"
-	SignalTwinsStarted     core.Signal = "TwinsStarted"
+	SignalMocksStarted     core.Signal = "MocksStarted"
 	SignalSubjectStarted   core.Signal = "SubjectStarted"
 	SignalScenarioPassed   core.Signal = "ScenarioPassed"
 	SignalScenarioFailed   core.Signal = "ScenarioFailed"
@@ -94,7 +94,7 @@ type ToolConfig struct {
 	// AddressEnv names the environment variable that carries the address the
 	// rig allocated to a child. A child binds a port the rig chose, so it has
 	// to be told which one: its profile declares address: ${VAR:-...} and this
-	// names that VAR. Defaults to TWIN_ADDRESS for twins and SUBJECT_ADDRESS
+	// names that VAR. Defaults to MOCK_ADDRESS for mocks and SUBJECT_ADDRESS
 	// for the subject.
 	AddressEnv string `yaml:"address_env,omitempty"`
 }
@@ -166,9 +166,9 @@ func validateToolConfig(name, init string, cfg ToolConfig) error {
 		if len(cfg.Roots) == 0 {
 			return fmt.Errorf("tool %q (%s) requires at least one root", name, init)
 		}
-	case InitStartTwins:
+	case InitStartMocks:
 		if cfg.Profile == "" {
-			return fmt.Errorf("tool %q (%s) requires the twin profile", name, init)
+			return fmt.Errorf("tool %q (%s) requires the mock profile", name, init)
 		}
 	}
 	return nil
@@ -220,8 +220,8 @@ func (c command) ExecuteContext(ctx context.Context) core.Result {
 		return c.initSession()
 	case InitNextScenario:
 		return c.nextScenario()
-	case InitStartTwins:
-		return c.startTwins()
+	case InitStartMocks:
+		return c.startMocks()
 	case InitStartSubject:
 		return c.startSubject()
 	case InitAwaitSubject:
@@ -250,7 +250,7 @@ func (c command) Undo(_ core.Result) core.Result {
 		return core.Result{
 			Signal: SignalServiceStopped, CommandName: c.toolName, Output: jsonOutput(output),
 		}
-	case InitStartTwins, InitStartSubject:
+	case InitStartMocks, InitStartSubject:
 		// Both start children, so both reverse by tearing the scenario's
 		// children down rather than leaving a subtree running.
 		return c.teardownScenario()

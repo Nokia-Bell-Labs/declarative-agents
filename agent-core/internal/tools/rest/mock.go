@@ -15,8 +15,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// The mock binding serves canned responses from fixture data so a digital-twin
-// profile can stand in for a real upstream service (srd039). Routes are keyed
+// The mock binding serves canned responses from fixture data so a mock profile
+// can stand in for a real upstream service (srd039). Routes are keyed
 // by method and literal path, each carrying an ordered response script whose
 // last entry repeats once exhausted, and every received request is recorded so
 // a validator can assert what the subject under test actually sent.

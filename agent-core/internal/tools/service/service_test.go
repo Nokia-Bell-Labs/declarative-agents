@@ -107,13 +107,13 @@ func TestServiceChild_StartAwaitStopNoOrphans(t *testing.T) {
 			addr, err := FreeAddress()
 			require.NoError(t, err)
 
-			started, err := state.Start(childSpec(t, "twin", addr, "cycle"))
+			started, err := state.Start(childSpec(t, "mock", addr, "cycle"))
 			require.NoError(t, err)
-			require.Equal(t, "twin", started["service"])
+			require.Equal(t, "mock", started["service"])
 			require.Equal(t, "http://"+addr, started["base_url"])
 			pid, ok := started["pid"].(int)
 			require.True(t, ok)
-			require.Equal(t, []string{"twin"}, state.Running())
+			require.Equal(t, []string{"mock"}, state.Running())
 
 			health, healthy := state.AwaitHealthy(started["base_url"].(string)+"/healthz", 10*time.Second, 20*time.Millisecond)
 			require.True(t, healthy, "child should become healthy: %v", health)
@@ -126,7 +126,7 @@ func TestServiceChild_StartAwaitStopNoOrphans(t *testing.T) {
 			_ = resp.Body.Close()
 			require.Equal(t, "cycle", body["echo"])
 
-			stopped := state.Stop("twin", 2*time.Second)
+			stopped := state.Stop("mock", 2*time.Second)
 			require.Equal(t, true, stopped["stopped"])
 			require.Empty(t, state.Running())
 
@@ -348,16 +348,16 @@ func TestServiceTools_DeclarationsReversibilityAndUndo(t *testing.T) {
 	addr, err := FreeAddress()
 	require.NoError(t, err)
 	startCmd := Builder{
-		ToolName: "start_twin", Init: InitStartService, State: state,
+		ToolName: "start_mock", Init: InitStartService, State: state,
 		Config: ToolConfig{
-			Service: "twin", Profile: "p", Binary: os.Args[0], Address: addr,
+			Service: "mock", Profile: "p", Binary: os.Args[0], Address: addr,
 			Env: []string{envChildMode + "=serve", envChildAddr + "=" + addr},
 		},
 	}.Build(core.Result{})
 
 	result := startCmd.Execute()
 	require.Equal(t, SignalServiceStarted, result.Signal)
-	require.Equal(t, []string{"twin"}, state.Running())
+	require.Equal(t, []string{"mock"}, state.Running())
 
 	// start_service is reversible: its undo stops what it started.
 	undo := startCmd.Undo(result)

@@ -5,10 +5,10 @@ release: "11.0"
 
 overview: |
   This suite validates the assembler test rig: one shipped rig profile that
-  composes a scenario from profile-owned data, and one shipped twin profile
+  composes a scenario from profile-owned data, and one shipped mock profile
   that stands in for any REST dependency. It exists before the implementation
   issues start (no implementation issue before a test suite exists for its use
-  case): GH-668 delivers the twin, GH-669 the assembler, and GH-670 the
+  case): GH-668 delivers the mock, GH-669 the assembler, and GH-670 the
   reference subject with its scenarios and the mage target that runs them.
 
   Cases carry planned_go_test and planned_integration_target rather than
@@ -17,14 +17,14 @@ overview: |
   real inventory. Each implementing issue renames the field and sets status to
   implemented when its evidence lands.
 
-  GH-668 delivered the twin (the request-log case cites the delivered name
-  TestTwinRequestLogRecordsCalls), GH-669 the assembler profile, and GH-670 the
+  GH-668 delivered the mock (the request-log case cites the delivered name
+  TestMockRequestLogRecordsCalls), GH-669 the assembler profile, and GH-670 the
   reference subject, its three scenarios, the TestRigSelfProof conformance
   test, and the mage rig target, so those cases now carry real evidence. The
   no-orphan case cites TestRigSelfProof, whose two consecutive full runs are
   the delivered repeatability proof alongside the agent-core teardown test.
   GH-671 added the first examples scenario (the chatbot-mesh rag-server
-  against a twin Chroma) and the cross-root proof: the example's
+  against a mock Chroma) and the cross-root proof: the example's
   mage integration:rig runs one assembler over the mesh agents and the
   agent-profiles reference subject in a single pass, so every case now
   carries real evidence. The chatbot-turn scenarios continue in a
@@ -32,7 +32,7 @@ overview: |
 
 traces:
   - rel11.0-uc001-assembler-scenario-run
-  - rel11.0-uc002-twin-serves-fixtures
+  - rel11.0-uc002-mock-serves-fixtures
 
 preconditions:
   - agent-core provides the mock endpoint binding (srd039) and the service-child, validator-execution, and discovery words (srd040).
@@ -40,13 +40,13 @@ preconditions:
   - No live Chroma, Ollama, Docker, or Kubernetes is required by any case in this suite; a case that needs one is misfiled.
 
 test_cases:
-  - use_case: rel11.0-uc002-twin-serves-fixtures
-    name: One twin profile serves a fixture and scripts a sequence
+  - use_case: rel11.0-uc002-mock-serves-fixtures
+    name: One mock profile serves a fixture and scripts a sequence
     integration_target: mage rig
-    go_test: go test ./conformance -run TestTwinServesFixtureSequence
+    go_test: go test ./conformance -run TestMockServesFixtureSequence
     status: implemented
     description: |
-      The shipped twin profile starts with a fixture path and address supplied
+      The shipped mock profile starts with a fixture path and address supplied
       by environment, serves the fixture's routes, returns a route's ordered
       responses in sequence, repeats the last once exhausted, and 404s an
       unmatched route.
@@ -57,35 +57,35 @@ test_cases:
       statuses: [200, 500, 500, 404]
       profile_unchanged_between_dependencies: true
     traces:
-      - rel11.0-uc002-twin-serves-fixtures S2
-      - srd019-twin AC1
+      - rel11.0-uc002-mock-serves-fixtures S2
+      - srd019-mock AC1
 
-  - use_case: rel11.0-uc002-twin-serves-fixtures
-    name: Two twins from one profile serve different dependencies
-    go_test: go test ./conformance -run TestTwinTwoInstancesDifferentFixtures
+  - use_case: rel11.0-uc002-mock-serves-fixtures
+    name: Two mocks from one profile serve different dependencies
+    go_test: go test ./conformance -run TestMockTwoInstancesDifferentFixtures
     status: implemented
     description: |
-      Two twin instances start from the same shipped profile with different
+      Two mock instances start from the same shipped profile with different
       fixtures and addresses, each serving its own dependency's routes, with
       neither instance observing the other's requests.
     inputs:
-      twins: 2
+      mocks: 2
       fixtures: [dep_a.yaml, dep_b.yaml]
     expected:
       one_profile_two_dependencies: true
       logs_are_per_instance: true
     traces:
-      - rel11.0-uc002-twin-serves-fixtures S1
-      - rel11.0-uc002-twin-serves-fixtures S5
-      - srd019-twin AC2
-      - srd019-twin AC3
+      - rel11.0-uc002-mock-serves-fixtures S1
+      - rel11.0-uc002-mock-serves-fixtures S5
+      - srd019-mock AC2
+      - srd019-mock AC3
 
-  - use_case: rel11.0-uc002-twin-serves-fixtures
-    name: Validator reads the twin request log to verify outbound calls
-    go_test: go test ./conformance -run TestTwinRequestLogRecordsCalls
+  - use_case: rel11.0-uc002-mock-serves-fixtures
+    name: Validator reads the mock request log to verify outbound calls
+    go_test: go test ./conformance -run TestMockRequestLogRecordsCalls
     status: implemented
     description: |
-      After a subject drives its dependency, the twin's log route returns the
+      After a subject drives its dependency, the mock's log route returns the
       received requests in order with method, path, and body, and a validator
       distinguishes a correct call from a wrong or missing one, including an
       unmatched call recorded as a miss.
@@ -97,15 +97,15 @@ test_cases:
       wrong_call_asserts_fail: true
       miss_visible_in_log: true
     traces:
-      - rel11.0-uc002-twin-serves-fixtures S3
-      - srd019-twin AC3
+      - rel11.0-uc002-mock-serves-fixtures S3
+      - srd019-mock AC3
 
-  - use_case: rel11.0-uc002-twin-serves-fixtures
-    name: Malformed fixture blocks the twin from serving
-    go_test: go test ./conformance -run TestTwinMalformedFixtureFailsStartup
+  - use_case: rel11.0-uc002-mock-serves-fixtures
+    name: Malformed fixture blocks the mock from serving
+    go_test: go test ./conformance -run TestMockMalformedFixtureFailsStartup
     status: implemented
     description: |
-      A twin started against a malformed fixture fails configuration
+      A mock started against a malformed fixture fails configuration
       validation and startup with a named error, before serving any request,
       rather than failing mid-scenario.
     inputs:
@@ -115,20 +115,20 @@ test_cases:
       server_start_fails: true
       no_request_served: true
     traces:
-      - rel11.0-uc002-twin-serves-fixtures S4
-      - srd019-twin AC2
+      - rel11.0-uc002-mock-serves-fixtures S4
+      - srd019-mock AC2
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Assembler runs one scenario end to end to a verdict
     integration_target: mage rig
     status: implemented
     description: |
-      The assembler discovers a scenario, starts its twins, starts the subject
-      with its dependency base_url pointed at a twin through declared
+      The assembler discovers a scenario, starts its mocks, starts the subject
+      with its dependency base_url pointed at a mock through declared
       environment additions, awaits health, runs the validators, collects the
       verdict, and tears down. No live external service participates.
     inputs:
-      scenario: reference subject with one REST dependency, one twin, one validator
+      scenario: reference subject with one REST dependency, one mock, one validator
     expected:
       verdict: Passed
       no_live_services_used: true
@@ -196,12 +196,12 @@ test_cases:
     go_test: go test ./conformance -run TestRigSelfProof
     status: implemented
     description: |
-      After a scenario, no subject or twin process from the assembler's child
+      After a scenario, no subject or mock process from the assembler's child
       groups survives, and a second consecutive run passes without port or
       state leakage. A failure path tears children down as well.
     inputs:
       runs: 2
-      failure_path_variant: twin start failure
+      failure_path_variant: mock start failure
     expected:
       no_surviving_children: true
       second_run_passes: true
@@ -229,19 +229,19 @@ test_cases:
       - srd018-assembler AC3
 
   - use_case: rel11.0-uc001-assembler-scenario-run
-    name: Assembler and twin profiles validate and boot as shipped profiles
+    name: Assembler and mock profiles validate and boot as shipped profiles
     integration_target: mage validate
     status: implemented
     description: |
-      The assembler and twin profiles load and validate against agent-core and
+      The assembler and mock profiles load and validate against agent-core and
       pass the shipped-profile boot smoke alongside the existing families, so
       the role catalog grows without breaking profile wiring.
     inputs:
-      profiles: [agents/assembler, agents/twin]
+      profiles: [agents/assembler, agents/mock]
     expected:
       mage_validate_passes: true
       boot_smoke_covers_new_profiles: true
     traces:
       - srd018-assembler AC5
-      - srd019-twin AC4
-      - srd019-twin AC5
+      - srd019-mock AC4
+      - srd019-mock AC5

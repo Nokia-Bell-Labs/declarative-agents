@@ -18,7 +18,7 @@ import (
 
 const (
 	defaultSubjectHealthPath = "/healthz"
-	defaultTwinAddressEnv    = "TWIN_ADDRESS"
+	defaultMockAddressEnv    = "MOCK_ADDRESS"
 	defaultSubjectAddressEnv = "SUBJECT_ADDRESS"
 )
 
@@ -68,50 +68,50 @@ func (c command) nextScenario() core.Result {
 	}
 }
 
-// startTwins starts one twin per fixture the scenario declares, recording each
-// twin's runtime base URL against the environment variable the subject reads.
-func (c command) startTwins() core.Result {
+// startMocks starts one mock per fixture the scenario declares, recording each
+// mock's runtime base URL against the environment variable the subject reads.
+func (c command) startMocks() core.Result {
 	scenario, manifest, ok := c.session.Current()
 	if !ok {
 		return commandError(c.toolName, fmt.Errorf("%s: no current scenario", c.toolName))
 	}
 	if c.cfg.Profile == "" {
-		return commandError(c.toolName, fmt.Errorf("%s: requires the twin profile", c.toolName))
+		return commandError(c.toolName, fmt.Errorf("%s: requires the mock profile", c.toolName))
 	}
 
-	started := make([]runningTwin, 0, len(scenario.Fixtures))
+	started := make([]runningMock, 0, len(scenario.Fixtures))
 	for _, fixture := range scenario.Fixtures {
-		twin, err := c.startOneTwin(scenario, manifest, fixture)
+		mock, err := c.startOneMock(scenario, manifest, fixture)
 		if err != nil {
 			// Leave teardown to the machine's failure edge; children already
 			// started stay tracked in the shared service state.
 			return commandError(c.toolName, err)
 		}
-		c.session.RecordTwin(twin)
-		started = append(started, twin)
+		c.session.RecordMock(mock)
+		started = append(started, mock)
 	}
 
 	return core.Result{
-		Signal: SignalTwinsStarted, CommandName: c.toolName,
-		Output: jsonOutput(map[string]interface{}{"twins": started}),
+		Signal: SignalMocksStarted, CommandName: c.toolName,
+		Output: jsonOutput(map[string]interface{}{"mocks": started}),
 	}
 }
 
-// startOneTwin starts a single twin for one fixture, telling it which address
+// startOneMock starts a single mock for one fixture, telling it which address
 // to bind and which fixture to serve.
-func (c command) startOneTwin(scenario Scenario, manifest ScenarioManifest, fixture string) (runningTwin, error) {
-	name := twinServiceName(scenario, fixture)
+func (c command) startOneMock(scenario Scenario, manifest ScenarioManifest, fixture string) (runningMock, error) {
+	name := mockServiceName(scenario, fixture)
 	address := manifest.FixtureAddress[fixtureBase(fixture)]
 	if address == "" {
 		free, err := FreeAddress()
 		if err != nil {
-			return runningTwin{}, err
+			return runningMock{}, err
 		}
 		address = free
 	}
 	env := append([]string{
-		addressEnvName(c.cfg.AddressEnv, defaultTwinAddressEnv) + "=" + address,
-		"TWIN_FIXTURES=" + fixture,
+		addressEnvName(c.cfg.AddressEnv, defaultMockAddressEnv) + "=" + address,
+		"MOCK_FIXTURES=" + fixture,
 	}, c.cfg.Env...)
 
 	out, err := c.session.Services.Start(StartSpec{
@@ -119,18 +119,18 @@ func (c command) startOneTwin(scenario Scenario, manifest ScenarioManifest, fixt
 		Directory: c.cfg.Directory, Address: address, Env: env,
 	})
 	if err != nil {
-		return runningTwin{}, err
+		return runningMock{}, err
 	}
-	return runningTwin{
+	return runningMock{
 		Fixture: fixture, Service: name,
 		EnvVar:  fixtureEnvVar(fixture, manifest.FixtureEnv),
 		BaseURL: out["base_url"].(string),
 	}, nil
 }
 
-// startSubject starts the agent under test with every twin's base URL injected
+// startSubject starts the agent under test with every mock's base URL injected
 // into its environment, so its declared ${VAR:-default} base_url resolves at
-// the twin rather than a live service.
+// the mock rather than a live service.
 func (c command) startSubject() core.Result {
 	scenario, _, ok := c.session.Current()
 	if !ok {
@@ -267,8 +267,8 @@ func (c command) teardownScenario() core.Result {
 	if name, _ := c.session.Subject(); name != "" {
 		stopped = append(stopped, c.session.Services.Stop(name, grace))
 	}
-	for _, twin := range c.session.Twins() {
-		stopped = append(stopped, c.session.Services.Stop(twin.Service, grace))
+	for _, mock := range c.session.Mocks() {
+		stopped = append(stopped, c.session.Services.Stop(mock.Service, grace))
 	}
 
 	return core.Result{
@@ -287,9 +287,9 @@ func (c command) reportSession() core.Result {
 	return core.Result{Signal: signal, CommandName: c.toolName, Output: jsonOutput(report)}
 }
 
-func twinServiceName(scenario Scenario, fixture string) string {
+func mockServiceName(scenario Scenario, fixture string) string {
 	base := strings.TrimSuffix(filepath.Base(fixture), filepath.Ext(fixture))
-	return fmt.Sprintf("twin-%s-%s-%s", scenario.Subject, scenario.Name, base)
+	return fmt.Sprintf("mock-%s-%s-%s", scenario.Subject, scenario.Name, base)
 }
 
 func subjectServiceName(scenario Scenario) string {

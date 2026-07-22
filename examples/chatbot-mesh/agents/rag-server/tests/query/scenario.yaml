@@ -4,7 +4,7 @@
 # listener through SUBJECT_URL.
 subject_address: 127.0.0.1:18085
 subject_health_path: http://127.0.0.1:18086/api/lifecycle/health
-# The rag-server's client limits allow only Chroma's real port, so the twin
+# The rag-server's client limits allow only Chroma's real port, so the mock
 # is pinned to stand exactly where Chroma stands.
 fixture_address:
   chroma: 127.0.0.1:8000

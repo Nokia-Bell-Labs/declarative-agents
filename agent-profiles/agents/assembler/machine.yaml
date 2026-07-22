@@ -1,8 +1,8 @@
 name: assembler-rig
 purpose: |-
   Discovers scenarios beside the agents they test and composes each one: the
-  scenario's digital twins, the subject agent under test with its dependencies
-  redirected at those twins, and the scenario's validators. Reduces the
+  scenario's mocks, the subject agent under test with its dependencies
+  redirected at those mocks, and the scenario's validators. Reduces the
   validators' terminal states to a per-scenario verdict, tears every child
   down, and reports the aggregate.
 
@@ -25,10 +25,10 @@ states:
     meaning: Enumerating scenarios under the configured roots.
   - name: AdvancingScenario
     meaning: Taking the next scenario from the work list, or finding the list exhausted.
-  - name: StartingTwins
-    meaning: Starting one digital twin per fixture the scenario declares.
+  - name: StartingMocks
+    meaning: Starting one mock per fixture the scenario declares.
   - name: StartingSubject
-    meaning: Starting the agent under test with each twin's runtime address injected.
+    meaning: Starting the agent under test with each mock's runtime address injected.
   - name: AwaitingSubject
     meaning: Waiting for the subject to serve before driving it.
   - name: RunningValidators
@@ -59,8 +59,8 @@ signals:
     trigger: The work list yielded another scenario.
   - name: AllScenariosDone
     trigger: The work list is exhausted.
-  - name: TwinsStarted
-    trigger: Every twin the scenario declares is running.
+  - name: MocksStarted
+    trigger: Every mock the scenario declares is running.
   - name: SubjectStarted
     trigger: The agent under test is running with its dependencies redirected.
   - name: Healthy
@@ -103,8 +103,8 @@ transitions:
 
   - state: AdvancingScenario
     signal: ScenarioReady
-    next: StartingTwins
-    action: start_scenario_twins
+    next: StartingMocks
+    action: start_scenario_mocks
   - state: AdvancingScenario
     signal: AllScenariosDone
     next: Reporting
@@ -115,11 +115,11 @@ transitions:
 
   # Every failure edge below records a verdict naming its cause, then tears the
   # scenario's children down before the loop continues (srd018 R1.5, R6.2).
-  - state: StartingTwins
-    signal: TwinsStarted
+  - state: StartingMocks
+    signal: MocksStarted
     next: StartingSubject
     action: start_scenario_subject
-  - state: StartingTwins
+  - state: StartingMocks
     signal: CommandError
     next: MarkingFailure
     action: fail_scenario_start

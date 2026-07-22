@@ -3,11 +3,11 @@ title: A rig machine runs one scenario hermetically to a verdict
 
 summary: |
   A rig machine tests a subject agent without live services. It discovers a
-  scenario beside the subject, starts a digital-twin child serving the
+  scenario beside the subject, starts a mock child serving the
   scenario's mock fixtures, starts the subject with its dependency URL pointed
-  at the twin, awaits health, runs the scenario's validator machines
+  at the mock, awaits health, runs the scenario's validator machines
   concurrently, and reduces their terminal states to a verdict. The validator
-  asserts both what the subject answered and, through the twin's request log,
+  asserts both what the subject answered and, through the mock's request log,
   what the subject sent to its dependency. Everything is data: the scenario
   directory holds the validator machines and fixtures, and every child is the
   same agent binary running a mounted profile.
@@ -20,17 +20,17 @@ trigger: |
 
 flow:
   - F1: The rig runs list_scenarios over declared roots and receives the scenario entry naming the subject, validators, and fixtures (srd040 R5).
-  - F2: The rig runs start_service for the twin profile with the scenario's fixture file; the twin serves the mock binding routes and its request log (srd039 R2, srd040 R1).
-  - F3: The rig runs start_service for the subject with a dependency URL environment addition pointing at the twin's base URL, resolved through the subject's ${VAR:-default} base_url expansion (srd040 R1, srd028 R2).
+  - F2: The rig runs start_service for the mock profile with the scenario's fixture file; the mock serves the mock binding routes and its request log (srd039 R2, srd040 R1).
+  - F3: The rig runs start_service for the subject with a dependency URL environment addition pointing at the mock's base URL, resolved through the subject's ${VAR:-default} base_url expansion (srd040 R1, srd028 R2).
   - F4: The rig runs await_healthy against both children within declared bounds (srd040 R2).
-  - F5: The rig runs run_validators for the scenario's validator machines concurrently; each validator drives the subject over HTTP and asserts on responses and on the twin's request log (srd040 R4, srd039 R3).
+  - F5: The rig runs run_validators for the scenario's validator machines concurrently; each validator drives the subject over HTTP and asserts on responses and on the mock's request log (srd040 R4, srd039 R3).
   - F6: The rig collects per-validator terminal states from run_validators output and derives the scenario verdict, passing only when every validator reached its Passed terminal.
-  - F7: The rig runs stop_service for the subject and the twin; no child process survives (srd040 R1.4, R3).
-  - F8: A scenario whose twin fixture scripts a failure response exercises the subject's failure path, and the validator asserts the subject's clean failure terminal, so the scenario still passes.
+  - F7: The rig runs stop_service for the subject and the mock; no child process survives (srd040 R1.4, R3).
+  - F8: A scenario whose mock fixture scripts a failure response exercises the subject's failure path, and the validator asserts the subject's clean failure terminal, so the scenario still passes.
 
 touchpoints:
-  - T1: "srd039-mock-endpoint-binding R2 -- the twin serves canned, scripted responses from the scenario fixture"
-  - T2: "srd039-mock-endpoint-binding R3 -- the validator reads the twin request log to assert the subject's outbound calls"
+  - T1: "srd039-mock-endpoint-binding R2 -- the mock serves canned, scripted responses from the scenario fixture"
+  - T2: "srd039-mock-endpoint-binding R3 -- the validator reads the mock request log to assert the subject's outbound calls"
   - T3: "srd040-service-child-tools R1 -- serve-mode children start with injected environment and a reported base URL"
   - T4: "srd040-service-child-tools R2 -- children are health-checked within a declared bound"
   - T5: "srd040-service-child-tools R3 -- children stop cleanly with no surviving process group"
@@ -40,7 +40,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The scenario runs end-to-end with no live external service; every dependency response comes from the twin's fixture.
+    criterion: The scenario runs end-to-end with no live external service; every dependency response comes from the mock's fixture.
     traces:
       - srd039-mock-endpoint-binding AC1
   - id: S2
@@ -62,8 +62,8 @@ success_criteria:
 
 failure_scenarios:
   - id: E1
-    scenario: The twin fixture is malformed and the twin starts anyway, failing on the first request mid-scenario.
-    expected: Rejected; fixture validation fails twin startup before any request (srd039 AC4), and the rig routes to teardown.
+    scenario: The mock fixture is malformed and the mock starts anyway, failing on the first request mid-scenario.
+    expected: Rejected; fixture validation fails mock startup before any request (srd039 AC4), and the rig routes to teardown.
   - id: E2
     scenario: A validator hangs and the scenario blocks forever.
     expected: Rejected; run_validators reports the hung validator as timed out within its declared bound (srd040 AC3).
@@ -72,7 +72,7 @@ failure_scenarios:
     expected: Rejected; children are process-group managed and reaped with the parent (srd040 R1.4).
 
 out_of_scope:
-  - The assembler and twin profiles themselves, and the scenario authoring conventions; those are agent-profiles releases over these words.
+  - The assembler and mock profiles themselves, and the scenario authoring conventions; those are agent-profiles releases over these words.
   - Span-based state assertion; the request log and subject responses are the witnesses here.
   - Kubernetes, containers, or a hierarchical control plane; children are local processes.
   - Refreshing fixtures from real-service responses; real-stack verification is a separate concern.

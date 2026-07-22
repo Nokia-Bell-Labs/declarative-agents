@@ -12,7 +12,7 @@ import (
 )
 
 // rigBinDir stages the built agent binary as "agent" in a temp dir, so the
-// assembler's children — twins, subjects, validators — resolve it from PATH.
+// assembler's children — mocks, subjects, validators — resolve it from PATH.
 func rigBinDir(t *testing.T) string {
 	t.Helper()
 	coreRoot := RequireCoreRoot(t)

@@ -1,4 +1,4 @@
-# Digital twin for the Ollama provider, claiming these behaviors:
+# Mock for the Ollama provider, claiming these behaviors:
 # - GET /api/tags: model discovery, as read by agent-core's adapter checkModel
 #   (internal/model/llm/ollama/adapter.go tagsResp). It must list every model
 #   the chatbot's invoke_llm words declare: qwen2.5:3b (route, fast) and
@@ -40,6 +40,6 @@ routes:
         body:
           message:
             role: assistant
-            content: "The corpus describes the assembler rig and its digital twins."
+            content: "The corpus describes the assembler rig and its mocks."
           eval_count: 11
           prompt_eval_count: 42

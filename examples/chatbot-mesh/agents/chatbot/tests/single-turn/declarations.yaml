@@ -37,7 +37,7 @@ tools:
       undo: noop
     undo:
       strategy: noop
-      description: A chat turn against twins changes nothing durable.
+      description: A chat turn against mocks changes nothing durable.
     errors:
       - signal: CommandError
         condition: The chatbot is unreachable or returns an unmapped status.

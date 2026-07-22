@@ -3,7 +3,7 @@ title: Assembler Functional Block
 
 context: |
   The assembler profile is the repository's test rig. It composes other
-  machines: for each scenario it starts the digital-twin mocks a subject
+  machines: for each scenario it starts the mocks a subject
   depends on, starts the subject agent under test, runs the scenario's
   validator machines against it, and reduces their terminal states to a
   verdict.
@@ -14,9 +14,24 @@ context: |
   Resource Integrator sub-role owns the Testing activity. The assembler joins
   the role-named families the rel10.0 alignment established.
 
+  Assembler names the composition mechanics rather than the purpose. The
+  activity the rig performs is the catalog's safe-testing, "Safely tests and
+  validates new behaviors, policies, or models using sandboxes or digital
+  twins before they are deployed in the live environment", which the catalog
+  places under the Critic role's Sandbox Validator sub-role, not under the
+  Assembler; the Assembler's own testing activity is production readiness
+  testing of integrated resources "before they are made live". The environment
+  this machine composes is therefore a sandbox in the catalog's sense, its
+  per-scenario validators are Sandbox Validators, and the verdict reduction
+  corresponds to the Critic's output-evaluation, "Assesses the quality and
+  correctness of agent outputs and decisions against expected outcomes". The
+  stand-in components inside the sandbox are mocks (srd019-mock); the catalog
+  has no term for a scripted test double, and its digital twin, a replica
+  derived from a real referent, is a different concept.
+
   Scenario data is profile-owned and lives beside the agent it tests. The
   words the assembler machine calls are agent-core runtime capability
-  (srd040-service-child-tools), and the mock responses its twins serve come
+  (srd040-service-child-tools), and the mock responses its mocks serve come
   from the agent-core mock binding (srd039-mock-endpoint-binding).
 
 problem: |
@@ -41,7 +56,7 @@ requirements:
     title: Behavior model
     items:
       - R1.1: The assembler profile must model a deterministic pipeline that discovers scenarios, composes each one, collects a verdict, and reports an aggregate outcome.
-      - R1.2: For each scenario the assembler must start the scenario's digital-twin children, start the subject agent, await health, run the scenario's validators, collect their terminal states, and tear the children down.
+      - R1.2: For each scenario the assembler must start the scenario's mock children, start the subject agent, await health, run the scenario's validators, collect their terminal states, and tear the children down.
       - R1.3: The assembler must give each scenario a fresh subject instance, so scenarios stay independent of one another.
       - R1.4: Validators declared within one scenario must run against that scenario's single subject instance.
       - R1.5: The assembler must tear down every child it started, including on a failure path, so no child process outlives a scenario.
@@ -51,7 +66,7 @@ requirements:
     title: Scenario layout
     items:
       - R2.1: A scenario must live in a tests/<scenario-name>/ directory beside the agent it tests.
-      - R2.2: A scenario directory must hold one or more validator machine programs with their profiles, and the twin fixture files its subject's dependencies require.
+      - R2.2: A scenario directory must hold one or more validator machine programs with their profiles, and the mock fixture files its subject's dependencies require.
       - R2.3: A subject agent must be able to carry several scenario directories, each self-contained.
       - R2.4: Scenario data must be profile-owned and must not require changes to the assembler profile when a scenario is added.
 
@@ -65,7 +80,7 @@ requirements:
   R4:
     title: Dependency redirection
     items:
-      - R4.1: A subject's REST dependencies must be pointed at the scenario's twin addresses through declared environment additions.
+      - R4.1: A subject's REST dependencies must be pointed at the scenario's mock addresses through declared environment additions.
       - R4.2: Redirection must use the existing base_url environment expansion rather than rewriting the subject's behavior.
       - R4.3: A scenario must not alter the subject's machine, tool selections, or declared behavior; only addresses and other harness-controlled fields may differ.
 
@@ -74,8 +89,8 @@ requirements:
     items:
       - R5.1: Assembler inputs must include the discovery roots and the discovered scenario data.
       - R5.2: The assembler profile must select the service-child, validator-execution, and scenario-discovery tool families.
-      - R5.3: Assembler dependencies must name agent-core for child-process execution, validator execution, and discovery, and srd019-twin for the mock family it starts.
-      - R5.4: The assembler must run the subject and the twins as the same agent binary over mounted profiles, so no per-test container image is required.
+      - R5.3: Assembler dependencies must name agent-core for child-process execution, validator execution, and discovery, and srd019-mock for the mock family it starts.
+      - R5.4: The assembler must run the subject and the mocks as the same agent binary over mounted profiles, so no per-test container image is required.
 
   R6:
     title: Outputs and outcomes
@@ -89,7 +104,7 @@ non_goals:
   - Define Go package APIs for the agent-core child-process, validator, or discovery words.
   - Own the mock fixture format or the request-log contract; those are srd039 and srd019.
   - Kubernetes, container, or hierarchical control-plane deployment of the rig; children are local processes at this release.
-  - Span-based state assertion; validators witness through responses and the twin request log.
+  - Span-based state assertion; validators witness through responses and the mock request log.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
 
 acceptance_criteria:
@@ -103,7 +118,7 @@ acceptance_criteria:
     criterion: Discovery enumerates scenarios under configurable roots covering both the agent families and the examples tree, with no special-casing or absolute paths.
     traces: [R3.1, R3.2, R3.3]
   - id: AC4
-    criterion: A subject reaches its scenario's twins through declared environment additions over the existing base_url expansion, with its declared behavior unchanged.
+    criterion: A subject reaches its scenario's mocks through declared environment additions over the existing base_url expansion, with its declared behavior unchanged.
     traces: [R4.1, R4.2, R4.3]
   - id: AC5
     criterion: Assembler inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability, and every child runs the same binary over a mounted profile.
@@ -115,7 +130,7 @@ acceptance_criteria:
 depends_on:
   - srd_id: srd001-agent-functional-blocks
     symbols_used: [R1]
-  - srd_id: srd019-twin
+  - srd_id: srd019-mock
     symbols_used: [R1, R2]
 
 diagrams:
@@ -132,7 +147,7 @@ diagrams:
       R1 --> AC1["AC1: Deterministic composition pipeline"]
       R2 --> AC2["AC2: Several tests per subject, as data"]
       R3 --> AC3["AC3: Configurable-root discovery"]
-      R4 --> AC4["AC4: Twin redirection, behavior unchanged"]
+      R4 --> AC4["AC4: Mock redirection, behavior unchanged"]
       R5 --> AC5["AC5: Inputs, tools, dependencies named"]
       R6 --> AC6["AC6: Verdict, cause, terminal, budget"]
     ```
@@ -140,8 +155,8 @@ diagrams:
     ```mermaid
     flowchart LR
       Discover["DiscoverScenarios"] --> Next["NextScenario"]
-      Next --> Twins["StartTwins"]
-      Twins --> Subject["StartSubject"]
+      Next --> Mocks["StartMocks"]
+      Mocks --> Subject["StartSubject"]
       Subject --> Health["AwaitHealthy"]
       Health --> Validate["RunValidators"]
       Validate --> Collect["CollectVerdict"]
@@ -149,7 +164,7 @@ diagrams:
       Teardown --> Next
       Teardown --> Passed["Passed"]
       Teardown --> Failed["Failed"]
-      Twins -->|failure| Teardown
+      Mocks -->|failure| Teardown
       Subject -->|failure| Teardown
       Health -->|timeout| Teardown
     ```

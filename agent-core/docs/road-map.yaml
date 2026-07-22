@@ -337,14 +337,14 @@ releases:
     description: |
       Release 09.0 gives the runtime the words a scenario test rig needs. A
       mock REST endpoint binding (srd039) serves canned, scripted responses
-      from fixture data and records a request log, so a digital-twin profile
+      from fixture data and records a request log, so a mock profile
       can stand in for a real upstream service and a validator can assert what
       a subject agent actually sent. Service-child tools (srd040) start, health
       check, and stop background serve-mode child agents, run validator
       machines concurrently to completion, and discover scenario directories
       under configured roots.
 
-      The rig itself — the assembler and twin profiles, scenario authoring
+      The rig itself — the assembler and mock profiles, scenario authoring
       conventions, and the reference subject — is agent-profiles release 11.0
       work over these words (Epic #662). This release records the
       documentation and the runtime contracts; the mock binding lands in
@@ -365,7 +365,7 @@ releases:
       - srd040-service-child-tools
     use_cases:
       - id: rel09.0-uc001-scenario-rig-run
-        summary: A rig machine runs one scenario hermetically to a verdict over a twin, a subject, and concurrent validators.
+        summary: A rig machine runs one scenario hermetically to a verdict over a mock, a subject, and concurrent validators.
         status: specified
     test_suites:
       - id: test-rel09.0-scenario-rig

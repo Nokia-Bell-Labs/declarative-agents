@@ -1,17 +1,17 @@
 tools:
-  - name: launch_twin_rest
+  - name: launch_mock_rest
     type: builtin
     init: rest_server_launch
     visibility: internal
     category: boundary
-    description: Launch the twin REST endpoints that serve a scenario's fixture.
+    description: Launch the mock REST endpoints that serve a scenario's fixture.
     problem: A subject agent under test needs its REST dependency to answer controlled responses without a live upstream service.
     goals:
       - Register the fixture-backed mock mount, the request log, health, and control routes.
       - Load and validate the scenario fixture before serving any request.
     requirements:
       input:
-        - Tool config references the trusted twin REST server definition.
+        - Tool config references the trusted mock REST server definition.
         - The fixture path and listen address come from the environment, so one profile serves any dependency.
       output:
         - Output reports server name, bound address, route count, and binding kinds.
@@ -25,7 +25,7 @@ tools:
       properties: {}
     emits: [ServerLaunched, CommandError]
     output:
-      description: Twin REST server launch result.
+      description: Mock REST server launch result.
       schema:
         type: object
         properties:
@@ -35,7 +35,7 @@ tools:
           bindings: {type: array}
     side_effects:
       - kind: network_listen
-        target: twin_rest_server
+        target: mock_rest_server
         state: listener_started
       - kind: state_mutation
         target: rest_server_state
@@ -48,29 +48,29 @@ tools:
       description: Stop the REST server if the launch command owns the listener.
     errors:
       - signal: CommandError
-        condition: Twin REST server config, bind, route, schema, or fixture validation failure.
-        state_after_failure: No twin route is exposed and no request is served.
+        condition: Mock REST server config, bind, route, schema, or fixture validation failure.
+        state_after_failure: No mock route is exposed and no request is served.
     relationships:
       overlaps:
         - tool: rest_server_launch
-          difference: This profile-specific word binds the fixture-backed twin route set.
+          difference: This profile-specific word binds the fixture-backed mock route set.
     config:
-      rest_ref: twin
+      rest_ref: mock
 
-  - name: await_twin_control
+  - name: await_mock_control
     type: builtin
     init: rest_await_event
     visibility: internal
     category: boundary
-    description: Await the twin REST control exit event.
-    problem: The twin must keep serving while a subject is exercised, then stop on request rather than on a timer.
+    description: Await the mock REST control exit event.
+    problem: The mock must keep serving while a subject is exercised, then stop on request rather than on a timer.
     goals:
-      - Wait on the twin server queue after launch.
-      - Accept only configured twin control events.
+      - Wait on the mock server queue after launch.
+      - Accept only configured mock control events.
       - Return the selected lifecycle signal to MachineSpec.
     requirements:
       input:
-        - Tool config references the trusted twin REST server queue.
+        - Tool config references the trusted mock REST server queue.
       output:
         - Output reports source, route, signal, payload, and request ID.
       errors:
@@ -83,7 +83,7 @@ tools:
       properties: {}
     emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
     output:
-      description: Selected twin control event.
+      description: Selected mock control event.
       schema:
         type: object
         properties:
@@ -104,50 +104,50 @@ tools:
       description: A consumed control event cannot be returned to the queue.
     errors:
       - signal: CommandError
-        condition: Twin control source is missing or stopped with command_error policy.
-        state_after_failure: Twin listener state is unchanged.
+        condition: Mock control source is missing or stopped with command_error policy.
+        state_after_failure: Mock listener state is unchanged.
     relationships:
-      after: [launch_twin_rest]
-      before: [stop_twin_rest]
+      after: [launch_mock_rest]
+      before: [stop_mock_rest]
     config:
       sources:
-        - server: twin
+        - server: mock
           routes: [control_exit]
           signals: [ExitRequested]
       # Tool declarations are not environment-expanded (only REST definitions
       # are), so this bound is literal. It must outlast a scenario: a rig
-      # normally stops the twin explicitly, and an early timeout here would
+      # normally stops the mock explicitly, and an early timeout here would
       # take the dependency down mid-scenario.
       timeout: 10m
       stopped_behavior: emit_server_stopped
 
-  - name: stop_twin_rest
+  - name: stop_mock_rest
     type: builtin
     init: rest_server_stop
     visibility: internal
     category: boundary
-    description: Stop the owned twin REST listener.
-    problem: The twin must release its listener and its recorded log before reaching a success terminal state.
+    description: Stop the owned mock REST listener.
+    problem: The mock must release its listener and its recorded log before reaching a success terminal state.
     goals:
-      - Stop the configured twin REST server.
-      - Drain queued twin control events according to server shutdown config.
+      - Stop the configured mock REST server.
+      - Drain queued mock control events according to server shutdown config.
       - Emit ServerStopped so MachineSpec can route to Done.
     requirements:
       input:
-        - Tool config references the trusted twin REST server definition.
+        - Tool config references the trusted mock REST server definition.
       output:
         - Output reports server name, bound address, drained events, dropped events, and stopped status.
       errors:
         - Missing server, shutdown timeout, and cleanup failures emit CommandError.
     non_goals:
       - Does not persist the request log; it is scoped to the server instance.
-      - Does not relaunch the twin server.
+      - Does not relaunch the mock server.
     parameters:
       type: object
       properties: {}
     emits: [ServerStopped, CommandError]
     output:
-      description: Twin REST server stop result.
+      description: Mock REST server stop result.
       schema:
         type: object
         properties:
@@ -158,7 +158,7 @@ tools:
           status: {type: string}
     side_effects:
       - kind: network_listener_shutdown
-        target: twin_rest_server
+        target: mock_rest_server
         state: listener_stopped
       - kind: state_mutation
         target: rest_server_state
@@ -171,9 +171,9 @@ tools:
       description: The listener and its per-instance request log are gone; relaunch is a separate action.
     errors:
       - signal: CommandError
-        condition: Twin REST server is missing, shutdown times out, or cleanup fails.
-        state_after_failure: Twin listener state may be partially stopped.
+        condition: Mock REST server is missing, shutdown times out, or cleanup fails.
+        state_after_failure: Mock listener state may be partially stopped.
     relationships:
-      after: [await_twin_control]
+      after: [await_mock_control]
     config:
-      rest_ref: twin
+      rest_ref: mock

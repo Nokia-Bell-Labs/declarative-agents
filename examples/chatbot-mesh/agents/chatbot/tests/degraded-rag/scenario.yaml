@@ -1,6 +1,6 @@
 # The chatbot ships fixed listeners: chat on 18080, lifecycle control and
 # health on 18081. Its client limits and its chat words' provider_url allow
-# only the real dependency ports, so every twin is pinned to stand exactly
+# only the real dependency ports, so every mock is pinned to stand exactly
 # where the real service stands: the LLM provider at 11434, the RAG servers
 # at 18085 and 18095.
 subject_address: 127.0.0.1:18080

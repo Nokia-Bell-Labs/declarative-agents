@@ -1,0 +1,94 @@
+id: rel11.0-uc002-mock-serves-fixtures
+title: One Mock Profile Stands In for Any REST Dependency and Records What It Received
+
+summary: |
+  A scenario author needs a subject's REST dependency to return controlled
+  responses, including a failure on a chosen call. They write a fixture file
+  and start the shipped mock profile against it. The mock serves the fixture's
+  routes, scripts the declared sequence, and records every request it received
+  on a log route. A validator reads that log to assert the subject called the
+  dependency with the expected method, path, and body. Serving a second
+  dependency in the same scenario needs another fixture and another mock
+  instance, not another profile and not a container image.
+
+actor: A scenario author controlling a subject agent's REST dependencies.
+
+trigger: |
+  A scenario declares a dependency fixture, and the assembler starts a mock
+  against it before starting the subject.
+
+preconditions:
+  - agent-core provides the mock endpoint binding, fixture format, and request log (srd039).
+  - The mock profile is shipped in agent-profiles and selects its fixture by environment.
+
+flow:
+  - id: F1
+    text: The mock starts with a fixture path and listen address supplied by environment, loads and validates the fixture, and serves its health route.
+  - id: F2
+    text: The subject calls the mock; the mock answers the matching route with the next response in that route's declared sequence, repeating the last once the sequence is exhausted.
+  - id: F3
+    text: A call matching no route receives a 404 and is recorded as a miss.
+  - id: F4
+    text: The mock records every received request with its method, path, headers, and body, and serves the ordered log on its log route.
+  - id: F5
+    text: A validator reads the log route and asserts which calls the subject made, in what order, with what bodies.
+  - id: F6
+    text: A second mock instance in the same scenario serves a different dependency from a different fixture on a different address, from the same profile.
+
+touchpoints:
+  - id: T1
+    target: srd019-mock R1
+    reason: The mock serves through the agent-core mock binding, exposes health, and exits on a lifecycle signal without calling a model.
+  - id: T2
+    target: srd019-mock R2
+    reason: The fixture is selected by environment, so one profile serves any dependency and several mocks run per scenario.
+  - id: T3
+    target: srd019-mock R3
+    reason: The request log is readable, per-instance, and sufficient to verify outbound calls including misses.
+  - id: T4
+    target: srd007-rest R1
+    reason: The mock is a REST server profile over the shared server runtime.
+  - id: T5
+    target: sm-agent-role-taxonomy
+    reason: The mock family enters the catalog as the mock stand-in for a dependency.
+
+success_criteria:
+  - id: S1
+    criterion: One shipped mock profile serves two different dependencies in one scenario, differing only by fixture and address.
+    traces:
+      - srd019-mock AC2
+  - id: S2
+    criterion: A route declaring an ordered response sequence returns them in order and repeats the last, so a failure can be scripted on a chosen call.
+    traces:
+      - srd019-mock AC1
+  - id: S3
+    criterion: A validator reading the log route can assert the subject's calls, distinguishing a correct call from a wrong or missing one, and seeing unmatched calls.
+    traces:
+      - srd019-mock AC3
+  - id: S4
+    criterion: A malformed fixture prevents the mock from serving, failing at configuration validation and startup rather than mid-scenario.
+    traces:
+      - srd019-mock AC2
+  - id: S5
+    criterion: A fresh mock instance starts with an empty log, so one scenario never observes another's requests.
+    traces:
+      - srd019-mock AC3
+
+failure_scenarios:
+  - id: E1
+    scenario: The mock profile grows per-dependency response content so a new dependency needs a profile change.
+    expected: Rejected; response content lives in scenario fixtures (srd019 R2.2).
+  - id: E2
+    scenario: A malformed fixture is accepted at startup and fails on the first request, mid-scenario.
+    expected: Rejected; fixture validation blocks serving (srd019 R2.4).
+  - id: E3
+    scenario: The mock asserts an expectation itself and fails the run.
+    expected: Rejected; the mock serves and records, and the validator asserts (srd019 non-goals).
+
+out_of_scope:
+  - The fixture schema, matching rules, and log payload shape, which are srd039 in agent-core.
+  - Proxying to, recording from, or replaying a real upstream service.
+  - Refreshing fixtures from observed real-service responses, which real-stack verification owns.
+
+test_suite_trace: test-rel11.0-assembler-rig
+status: specified

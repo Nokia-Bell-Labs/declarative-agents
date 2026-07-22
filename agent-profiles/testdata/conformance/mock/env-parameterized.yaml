@@ -6,4 +6,4 @@ routes:
     responses:
       - status: 200
         body:
-          value: ${TWIN_ECHO_VALUE:-default-value}
+          value: ${MOCK_ECHO_VALUE:-default-value}
