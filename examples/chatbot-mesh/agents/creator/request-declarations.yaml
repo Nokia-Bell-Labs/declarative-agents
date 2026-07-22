@@ -63,9 +63,10 @@ tools:
       input:
         - The rollout read takes no request-scoped input beyond the applied operation.
       output:
-        - Output includes the reported health phase.
+        - Output includes the reported health phase and the Deployment's ready and desired replicas and revision.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError.
+        - A rollout read the executor could not serve answers 502, outside the declared success status, and so emits CommandError rather than a phase.
     non_goals:
       - Does not mutate the deployment state; the read is idempotent.
       - Does not accept a runtime method, URL, host, or credential for the deployment API.
@@ -74,11 +75,14 @@ tools:
       properties: {}
     emits: [HealthReported, CommandError]
     output:
-      description: Deployment-API rollout health.
+      description: Deployment-API rollout health and the Deployment's replica counts and revision.
       schema:
         type: object
         properties:
           health: {type: string}
+          ready: {type: integer}
+          desired: {type: integer}
+          revision: {type: integer}
     side_effects:
       - kind: external_api
         target: deployment_api.rollout

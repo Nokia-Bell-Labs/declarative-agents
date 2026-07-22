@@ -397,3 +397,177 @@ func TestCreatorHealthLegIsReusedNotDuplicated(t *testing.T) {
 		t.Fatal("no AwaitingRequest + SeedHealth transition; the read-only leg does not exist")
 	}
 }
+
+// The rollout counts hop tests (GH-686). The executor reads ready, desired, and
+// revision off the Deployment (srd006 R3.3); each hop between it and the panel
+// must carry them or the panel renders "undefined/undefined ready (rev
+// undefined)" from an interface that promises four fields and delivers one.
+
+// clientOperation is one declared REST client operation's response mapping.
+type clientOperation struct {
+	Method  string `yaml:"method"`
+	Path    string `yaml:"path"`
+	Success struct {
+		Status []int  `yaml:"status"`
+		Signal string `yaml:"signal"`
+	} `yaml:"success"`
+	Response struct {
+		Output map[string]string `yaml:"output"`
+	} `yaml:"response"`
+}
+
+type clientRest struct {
+	Rest struct {
+		Clients map[string]struct {
+			Operations map[string]clientOperation `yaml:"operations"`
+		} `yaml:"clients"`
+	} `yaml:"rest"`
+}
+
+// wordOutputProperties returns one declared word's output schema properties.
+func wordOutputProperties(t *testing.T, agent, file, word string) map[string]map[string]string {
+	t.Helper()
+	var decls struct {
+		Tools []struct {
+			Name   string `yaml:"name"`
+			Output struct {
+				Schema struct {
+					Properties map[string]map[string]string `yaml:"properties"`
+				} `yaml:"schema"`
+			} `yaml:"output"`
+		} `yaml:"tools"`
+	}
+	readIntakeYAML(t, filepath.Join(agentDir(t, agent), file), &decls)
+	for _, tool := range decls.Tools {
+		if tool.Name == word {
+			return tool.Output.Schema.Properties
+		}
+	}
+	t.Fatalf("%s declares no %s word", agent, word)
+	return nil
+}
+
+func clientOperationNamed(t *testing.T, agent, client, operation string) clientOperation {
+	t.Helper()
+	var rest clientRest
+	readIntakeYAML(t, filepath.Join(agentDir(t, agent), "rest.yaml"), &rest)
+	declared, ok := rest.Rest.Clients[client]
+	if !ok {
+		t.Fatalf("%s declares no %s client", agent, client)
+	}
+	op, ok := declared.Operations[operation]
+	if !ok {
+		t.Fatalf("%s's %s client declares no %s operation", agent, client, operation)
+	}
+	return op
+}
+
+// rolloutCountFields are the three fields the executor added beyond the phase.
+var rolloutCountFields = []string{"ready", "desired", "revision"}
+
+// TestRolloutCountsSurviveTheCreatorHop proves the creator maps the counts off
+// the executor's response and re-serves them, rather than discarding everything
+// but the phase.
+func TestRolloutCountsSurviveTheCreatorHop(t *testing.T) {
+	op := clientOperationNamed(t, "creator", "deployment_api", "read_rollout")
+	for _, field := range rolloutCountFields {
+		if got := op.Response.Output[field]; got != "$."+field {
+			t.Errorf("read_rollout maps %s = %q, want $.%s; the executor serves it and the creator drops it", field, got, field)
+		}
+	}
+	if op.Response.Output["health"] != "$.phase" {
+		t.Errorf("read_rollout maps health = %q, want $.phase", op.Response.Output["health"])
+	}
+
+	properties := wordOutputProperties(t, "creator", "request-declarations.yaml", "verify_health")
+	for _, field := range rolloutCountFields {
+		if properties[field]["type"] != "integer" {
+			t.Errorf("verify_health output schema declares %s as %q, want integer", field, properties[field]["type"])
+		}
+	}
+
+	var rest rolloutRest
+	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "rest.yaml"), &rest)
+	reported, ok := rest.Rest.Servers["creator_instance"].Endpoints["rollout"].
+		MachineRequest.Response.TerminalStates["HealthReported"]
+	if !ok {
+		t.Fatal("creator rollout does not map HealthReported")
+	}
+	for _, field := range rolloutCountFields {
+		if got := reported.Body[field]; got != "$.mapped."+field {
+			t.Errorf("creator rollout body %s = %q, want $.mapped.%s", field, got, field)
+		}
+	}
+}
+
+// TestRolloutCountsSurviveTheCoordinatorHop proves the same for the hop the
+// panel actually polls.
+func TestRolloutCountsSurviveTheCoordinatorHop(t *testing.T) {
+	op := clientOperationNamed(t, "coordinator", "creator", "creator_rollout_status")
+	for _, field := range rolloutCountFields {
+		if got := op.Response.Output[field]; got != "$."+field {
+			t.Errorf("creator_rollout_status maps %s = %q, want $.%s", field, got, field)
+		}
+	}
+
+	properties := wordOutputProperties(t, "coordinator", "request-declarations.yaml", "read_creator_rollout")
+	for _, field := range rolloutCountFields {
+		if properties[field]["type"] != "integer" {
+			t.Errorf("read_creator_rollout output schema declares %s as %q, want integer", field, properties[field]["type"])
+		}
+	}
+
+	var rest rolloutRest
+	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
+	read, ok := rest.Rest.Servers["coordinator_intent"].Endpoints["rollout"].
+		MachineRequest.Response.TerminalStates["StatusRead"]
+	if !ok {
+		t.Fatal("coordinator rollout does not map StatusRead")
+	}
+	for _, field := range rolloutCountFields {
+		if got := read.Body[field]; got != "$.mapped."+field {
+			t.Errorf("coordinator rollout body %s = %q, want $.mapped.%s", field, got, field)
+		}
+	}
+}
+
+// TestPanelRolloutInterfaceMatchesWhatIsServed proves the panel's RolloutStatus
+// declares exactly the fields the coordinator's poll serves. A type promising a
+// field no hop carries reads as a measurement in the UI and renders undefined;
+// the fix is to serve it or to stop declaring it, not to fabricate a zero.
+func TestPanelRolloutInterfaceMatchesWhatIsServed(t *testing.T) {
+	// agentDir walks up to the mesh root, so the panel sits two levels above it.
+	meshRoot := filepath.Dir(filepath.Dir(agentDir(t, "coordinator")))
+	source, err := os.ReadFile(filepath.Join(meshRoot, "ux", "app", "src", "provisioningApi.ts"))
+	if err != nil {
+		t.Fatalf("read provisioningApi.ts: %v", err)
+	}
+	block := regexp.MustCompile(`(?s)export interface RolloutStatus \{(.*?)\}`).FindSubmatch(source)
+	if block == nil {
+		t.Fatal("provisioningApi.ts declares no RolloutStatus")
+	}
+	declared := map[string]bool{}
+	for _, field := range regexp.MustCompile(`(?m)^\s*(\w+)(\??):`).FindAllSubmatch(block[1], -1) {
+		declared[string(field[1])] = string(field[2]) == "?"
+	}
+
+	var rest rolloutRest
+	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
+	served := rest.Rest.Servers["coordinator_intent"].Endpoints["rollout"].
+		MachineRequest.Response.TerminalStates["StatusRead"].Body
+
+	for field, optional := range declared {
+		if _, ok := served[field]; !ok && !optional {
+			t.Errorf("RolloutStatus requires %s, which the rollout poll never serves; serve it or narrow the interface", field)
+		}
+	}
+	for field := range served {
+		// schema_version is contract metadata the panel does not render.
+		if field == "schema_version" {
+			continue
+		}
+		if _, ok := declared[field]; !ok {
+			t.Errorf("the rollout poll serves %s, which RolloutStatus does not declare", field)
+		}
+	}
+}

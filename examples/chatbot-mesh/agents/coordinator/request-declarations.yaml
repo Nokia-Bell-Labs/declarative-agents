@@ -113,15 +113,16 @@ tools:
     description: Read the rollout status from the creator so the panel's poll is served by the coordinator.
     problem: The panel polls rollout progress while a reconfiguration runs, and it reads that progress from the coordinator rather than from the deployment API, which no browser may reach.
     goals:
-      - Read the creator-reported rollout phase.
+      - Read the creator-reported rollout phase and the Deployment's ready and desired replicas and revision.
       - Serve the aggregated status the provisioning panel renders (srd004 R1.3).
     requirements:
       input:
         - Takes no request-scoped input; the read is unparameterized.
       output:
-        - Output carries the creator-reported rollout phase.
+        - Output carries the creator-reported rollout phase and the Deployment's ready and desired replicas and revision.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError rather than an unknown phase.
+        - A creator read that answers 502 because the executor could not reach the Deployment is outside the declared success status and emits CommandError.
     non_goals:
       - Does not drive an instance operation; a poll mutates nothing.
       - Does not accept a runtime method, URL, host, or credential for the creator.
@@ -130,11 +131,14 @@ tools:
       properties: {}
     emits: [StatusRead, CommandError]
     output:
-      description: Creator-reported rollout phase.
+      description: Creator-reported rollout phase with the Deployment's replica counts and revision.
       schema:
         type: object
         properties:
           phase: {type: string}
+          ready: {type: integer}
+          desired: {type: integer}
+          revision: {type: integer}
     side_effects:
       - kind: external_api
         target: creator.rollout
