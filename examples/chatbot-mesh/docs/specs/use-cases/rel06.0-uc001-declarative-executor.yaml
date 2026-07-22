@@ -63,7 +63,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The executor exposes the state, apply, and rollout surface on the provisioner's Service name and port, so the creator's declared client and the panel are unchanged.
+    criterion: The executor exposes the state, apply, and rollout surface on the provisioner's Service name and port, so the creator's declared client is unchanged. The panel does not call this surface; it submits its intent to the coordinator, which drives the creator (srd003 R4.1, srd004 R1.5).
     traces:
       - srd006-executor R1.1
       - srd006-executor R1.3
@@ -93,6 +93,15 @@ success_criteria:
       - srd003-chatbot-deployment R4.2
       - srd006-executor AC4
       - srd003-chatbot-deployment AC4
+
+  - id: S6
+    criterion: The rendered chart routes browser provisioning traffic to the coordinator, not the apply surface, and the executor apply port stays reachable only from creator-labelled pods, so route and NetworkPolicy agree on one authority path.
+    traces:
+      - srd006-executor R4.4
+      - srd003-chatbot-deployment R4.4
+      - srd004-coordinator R1.5
+      - srd006-executor AC6
+      - srd003-chatbot-deployment AC7
 
 out_of_scope:
   - The decision of what to change, which is the coordinator's (srd004 R3.1).

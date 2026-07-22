@@ -60,9 +60,10 @@ requirements:
   R4:
     title: Authority boundary
     items:
-      - R4.1: The executor SHALL hold no chat authority; its actuation surface SHALL be authenticated apart from the chat path at the deployment plane (srd003 R4.1), and the apply path SHALL be reached only by the creator (srd005).
+      - R4.1: The executor SHALL hold no chat authority; its actuation surface SHALL be authenticated apart from the chat path at the deployment plane (srd003 R4.5), and the apply path SHALL be reached only by the creator (srd005). This holds for operator-originated changes too, because the panel submits its intent to the coordinator (srd004 R1.5), which drives the creator, so no browser reaches the apply surface (srd003 R4.4).
       - R4.2: Authority SHALL be set by declared, validated config, never by this control surface (srd003 R4.3, agent-core srd028 V30); the executor SHALL accept no endpoint or credential for a running agent.
       - R4.3: REST authority SHALL live in the executor's declared rest.yaml; no runtime input SHALL supply transport authority.
+      - R4.4: The apply surface SHALL be unreachable from any pod that is not the creator, enforced at the network layer rather than in the profile, because the declarative REST servers carry no inbound authentication. A rendered deployment that routes browser traffic at the apply surface SHALL be treated as a defect even where the policy blocks it, since route and policy then disagree and the surface is reachable the moment enforcement is relaxed.
   R5:
     title: Non-goals and packaging
     items:
@@ -114,6 +115,12 @@ acceptance_criteria:
   - id: AC4
     criterion: The actuation surface is authenticated apart from chat and reached only by the creator, authority is set by declared validated config and never by this surface (agent-core srd028 V30), and REST authority lives in the profile with no runtime-supplied transport authority.
     traces: [R4.1, R4.2, R4.3]
+  - id: AC6
+    criterion: The apply surface is unreachable from any non-creator pod, enforced at the network layer, and a rendered route pointing browser traffic at it is a defect even where the policy blocks it.
+    traces: [R4.1, R4.4]
+    tests:
+      - "test-rel06.0-executor: The panel route reaches only the authorized surface"
+      - "test-rel06.0-executor: The rendered chart routes provisioning to the coordinator"
   - id: AC5
     criterion: Deciding the values (coordinator) and template selection or lifecycle (creator) are non-goals, and the executor image carries helm and kubectl as a recorded, sanctioned divergence from the binary-only image contract.
     traces: [R5.1, R5.2, R5.3]

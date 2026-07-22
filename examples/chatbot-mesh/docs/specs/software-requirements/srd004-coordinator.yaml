@@ -46,8 +46,10 @@ requirements:
     items:
       - R1.1: The coordinator SHALL expose a machine_request intent endpoint (agent-core srd030) that binds one inbound provisioning intent from the UX agent (srd002) to one request-scoped run of a workflow machine and maps terminal signals to HTTP status.
       - R1.2: The intent endpoint SHALL accept a declared intent (add or remove a knowledge source, reconfigure a parameter) and SHALL NOT accept a host, URL, method, or credential for a running agent (srd003 R4.2 lineage, agent-core srd028 V30).
-      - R1.3: The coordinator SHALL run a monitor server (agent-core srd033) and a control server (health + lifecycle exit), and SHALL aggregate per-step status and progress into a form the provisioning panel can render.
+      - R1.3: The coordinator SHALL run a monitor server (agent-core srd033) and a control server (health + lifecycle exit), and SHALL aggregate per-step status and progress into a form the provisioning panel can render. The aggregate SHALL be readable by the panel, which polls it while a reconfiguration proceeds; the panel SHALL NOT read rollout progress from the deployment API directly (srd003 R4.4).
       - R1.4: The intent, monitor, and control server bind addresses SHALL be loopback-configurable inputs rather than agent-authored values.
+      - R1.5: The intent endpoint SHALL be the panel's only provisioning intake (srd003 R4.1). No other agent SHALL expose a browser-facing provisioning surface, so an operator intent enters the mesh in one place and follows one path to the apply surface.
+      - R1.6: The intent endpoint SHALL accept a values-only edit as well as an intent that names a new source to ingest. A values-plane document is replaced wholesale on apply (R3.1), so requiring source fields on every intent would make a pure reconfiguration inexpressible; an intent that does name a source SHALL still carry its collection and directory.
   R2:
     title: Ingestion workflow
     items:
@@ -77,6 +79,11 @@ acceptance_criteria:
   - id: AC1
     criterion: The coordinator is described as a persistent workflow orchestrator with a machine_request intent endpoint from the UX agent, monitor and control servers, aggregated status, and loopback-configurable bind addresses, accepting no agent endpoint or credential.
     traces: [R1.1, R1.2, R1.3, R1.4]
+  - id: AC6
+    criterion: The intent endpoint is the panel's only provisioning intake, it serves the panel's status polling rather than the deployment API doing so, and it accepts a values-only edit as well as an intent naming a source to ingest.
+    traces: [R1.3, R1.5, R1.6]
+    tests:
+      - "test-rel06.0-executor: The panel route reaches only the authorized surface"
   - id: AC2
     criterion: The ingestion workflow sequences one corpus-ingest instance request per directory through the creator, verifies collection counts, and reports partial failures without advancing.
     traces: [R2.1, R2.2, R2.3]

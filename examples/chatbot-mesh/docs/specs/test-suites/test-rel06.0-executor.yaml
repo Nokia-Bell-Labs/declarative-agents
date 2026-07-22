@@ -61,3 +61,59 @@ test_cases:
       - srd006-executor AC4
       - srd006-executor AC5
       - srd003-chatbot-deployment AC4
+
+  - use_case: rel06.0-uc001-declarative-executor
+    name: The rendered chart routes provisioning to the coordinator
+    integration_target: mage test (rendered-chart Go test, GH-681)
+    status: specified
+    description: |
+      Asserts over the rendered chart, not the template text, that browser
+      provisioning traffic and the apply surface agree on one authority path: the
+      ingress /provisioning backend is the coordinator Service, the executor policy
+      still admits only creator-labelled pods on the apply port, and the coordinator
+      policy admits the ingress controller on the intent port alone.
+
+      This is the check that would have caught GH-502. Each template was individually
+      correct -- the ingress named a real Service, the policy named a real selector --
+      and only the pair read together showed the route was dead.
+    inputs:
+      rendered_chart: default values with executor.enabled and networkPolicy.enabled
+    expected:
+      provisioning_ingress_backend: coordinator Service
+      executor_apply_ingress_from: creator-labelled pods only
+      coordinator_policy_admits_ingress_controller_on_intent_port: true
+      coordinator_monitor_and_control_not_ingress_reachable: true
+    traces:
+      - rel06.0-uc001-declarative-executor S6
+      - srd006-executor AC6
+      - srd003-chatbot-deployment AC7
+      - srd004-coordinator AC6
+
+  - use_case: rel06.0-uc001-declarative-executor
+    name: The panel route reaches only the authorized surface
+    integration_target: mage integration (kind request proof, GH-682)
+    status: specified
+    description: |
+      Proves against a live cluster with NetworkPolicy enforcement active that the
+      browser provisioning route reaches the coordinator and that the executor apply
+      port refuses traffic from any pod not labelled creator.
+
+      Enforcement is asserted before anything else. A CNI that ignores NetworkPolicy
+      would make every negative assertion here pass vacuously, which is the failure
+      mode this case exists to rule out, so an unenforcing cluster fails rather than
+      skips.
+    inputs:
+      cluster: kind with a NetworkPolicy-enforcing CNI
+      positive: request through the ingress to the coordinator intent surface
+      negative: request to the executor apply port from a non-creator pod
+    expected:
+      network_policy_enforcement_asserted_active: true
+      browser_route_reaches_coordinator: true
+      executor_apply_refuses_non_creator: true
+      creator_instance_port_not_ingress_reachable: true
+    traces:
+      - rel06.0-uc001-declarative-executor S6
+      - srd006-executor AC6
+      - srd003-chatbot-deployment AC7
+      - srd004-coordinator AC6
+      - srd005-creator AC6
