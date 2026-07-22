@@ -105,6 +105,26 @@ func (se *ToolSideEffects) UnmarshalYAML(value *yaml.Node) error {
 	}
 }
 
+// MarshalYAML preserves the accepted scalar/list surface instead of exposing
+// ToolSideEffects' internal representation.
+func (se ToolSideEffects) MarshalYAML() (interface{}, error) {
+	if se.LegacyText != "" && len(se.Items) > 0 {
+		return nil, fmt.Errorf("side_effects cannot contain both legacy text and structured items")
+	}
+	if se.LegacyText != "" {
+		return &yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Tag:   "!!str",
+			Value: se.LegacyText,
+			Style: yaml.DoubleQuotedStyle,
+		}, nil
+	}
+	if se.Items != nil {
+		return se.Items, nil
+	}
+	return nil, nil
+}
+
 // IsZero lets yaml omit empty side_effects when serializing.
 func (se ToolSideEffects) IsZero() bool {
 	return se.LegacyText == "" && len(se.Items) == 0

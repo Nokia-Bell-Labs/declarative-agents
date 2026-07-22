@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
@@ -178,6 +180,82 @@ func TestParseToolDefs_LegacySideEffectsString(t *testing.T) {
 	require.Len(t, defs, 1)
 	assert.Equal(t, "creates files in the destination directory", defs[0].SideEffects.LegacyText)
 	assert.Empty(t, defs[0].SideEffects.Items)
+}
+
+func TestToolSideEffectsYAMLRoundTrip(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		yaml string
+	}{
+		{name: "legacy scalar", yaml: "    side_effects: creates files\n"},
+		{name: "structured list", yaml: "    side_effects:\n      - kind: filesystem_write\n        target: workspace\n"},
+		{name: "empty list", yaml: "    side_effects: []\n"},
+		{name: "omitted", yaml: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			input := "tools:\n  - name: sample\n    binary: echo\n" + tt.yaml
+			defs, err := ParseToolDefs([]byte(input))
+			require.NoError(t, err)
+			require.Len(t, defs, 1)
+			encoded, err := yaml.Marshal(ToolDefsFile{Tools: defs})
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), "legacytext")
+			assert.NotContains(t, string(encoded), "items:")
+			roundTrip, err := ParseToolDefs(encoded)
+			require.NoError(t, err)
+			require.Len(t, roundTrip, 1)
+			assert.Equal(t, defs[0].SideEffects.LegacyText, roundTrip[0].SideEffects.LegacyText)
+			assert.Len(t, roundTrip[0].SideEffects.Items, len(defs[0].SideEffects.Items))
+			if len(defs[0].SideEffects.Items) > 0 {
+				assert.Equal(t, defs[0].SideEffects.Items, roundTrip[0].SideEffects.Items)
+			}
+		})
+	}
+}
+
+func TestToolDefYAMLRoundTripPreservesSemantics(t *testing.T) {
+	t.Parallel()
+	input, err := os.ReadFile(filepath.Join("testdata", "exectool_tools.yaml"))
+	require.NoError(t, err)
+	defs, err := ParseToolDefs(input)
+	require.NoError(t, err)
+	encoded, err := yaml.Marshal(ToolDefsFile{Tools: defs})
+	require.NoError(t, err)
+	roundTrip, err := ParseToolDefs(encoded)
+	require.NoError(t, err)
+	assert.Equal(t, defs, roundTrip)
+}
+
+func TestToolSideEffectsMarshalRejectsAmbiguousInternalState(t *testing.T) {
+	t.Parallel()
+	_, err := yaml.Marshal(ToolSideEffects{
+		LegacyText: "legacy",
+		Items:      []ToolSideEffect{{Kind: "filesystem_write"}},
+	})
+	require.ErrorContains(t, err, "both legacy text and structured items")
+}
+
+func FuzzToolSideEffectsLegacyScalarRoundTrip(f *testing.F) {
+	f.Add("creates files")
+	f.Add("unicode Δ and newline\ntext")
+	f.Add("")
+	f.Fuzz(func(t *testing.T, text string) {
+		if !utf8.ValidString(text) {
+			t.Skip()
+		}
+		def := ToolDef{Name: "sample", Binary: "echo"}
+		def.SideEffects.LegacyText = text
+		encoded, err := yaml.Marshal(ToolDefsFile{Tools: []ToolDef{def}})
+		require.NoError(t, err)
+		roundTrip, err := ParseToolDefs(encoded)
+		require.NoError(t, err, "encoded YAML:\n%s", encoded)
+		require.Len(t, roundTrip, 1)
+		assert.Equal(t, text, roundTrip[0].SideEffects.LegacyText)
+	})
 }
 
 func TestToolDef_ToToolSpec_IgnoresStructuredContractFields(t *testing.T) {

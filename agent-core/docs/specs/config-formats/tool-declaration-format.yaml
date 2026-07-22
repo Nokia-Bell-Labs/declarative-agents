@@ -151,6 +151,8 @@ schema:
       and may be appended to the LLM-visible description. New declarations
       should use the structured list form with entries containing kind,
       target, paths, state, and description.
+      Serialization preserves a legacy scalar as a scalar and structured
+      effects as a list; the internal representation is never emitted.
 
       Known side-effect kind vocabulary (from current declarations):
         none — no side effects (pure read or computation).
