@@ -172,7 +172,7 @@ func startRagServer(binary, profilesRoot, coreRoot string) (func(kill bool) erro
 // chatbot embeds once and fans out.
 func ollamaEmbedQuery(model, text string) ([]float64, error) {
 	body := fmt.Sprintf(`{"model":%q,"prompt":%q}`, model, text)
-	data, status, err := requestHTTP(http.MethodPost, ollamaEmbedURL, body)
+	data, status, err := requestInference(http.MethodPost, ollamaEmbedURL, body, "embed query vector with model "+model)
 	if err != nil {
 		return nil, err
 	}

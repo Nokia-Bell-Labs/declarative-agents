@@ -18,9 +18,42 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// integrationHTTPRequestTimeout bounds a probe: "is this service up?", a
+// question a reachable service answers immediately and an unreachable one must
+// fail fast on. It is not a bound on model work. Inference calls run on
+// integrationInferenceTimeout instead, because sharing one constant conflates
+// two different questions and only breaks under load, which is exactly when a
+// tracer runs (GH-709).
 const integrationHTTPRequestTimeout = 2 * time.Second
 
+// integrationInferenceTimeoutDefault bounds one model call. Embedding an 8B
+// model measures 0.15s warm but 1.91s under the tracer's own ingest load on an
+// M2 Max, and a cold 4.7GB load on a fresh machine is slower still, so the
+// bound is sized for model work rather than for a healthy round trip.
+const integrationInferenceTimeoutDefault = 120 * time.Second
+
+// integrationInferenceTimeoutEnv overrides the inference bound, so a slower host
+// or a larger model does not require a code change.
+const integrationInferenceTimeoutEnv = "MESH_INFERENCE_TIMEOUT"
+
 var integrationHTTPClient = &http.Client{Timeout: integrationHTTPRequestTimeout}
+
+var integrationInferenceClient = &http.Client{Timeout: integrationInferenceTimeout()}
+
+// integrationInferenceTimeout returns the configured inference bound, falling
+// back to the default when the override is unset or unparseable. A bad value
+// must not silently become a 2s bound and resurrect GH-709.
+func integrationInferenceTimeout() time.Duration {
+	raw := strings.TrimSpace(os.Getenv(integrationInferenceTimeoutEnv))
+	if raw == "" {
+		return integrationInferenceTimeoutDefault
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err != nil || parsed <= 0 {
+		return integrationInferenceTimeoutDefault
+	}
+	return parsed
+}
 
 // Integration groups the example's end-to-end tracer targets. Each starts real
 // services (a Chroma container, the mesh agents, an external Ollama) and skips
@@ -137,6 +170,10 @@ func waitHTTPStatusWithClient(client *http.Client, url string, want int, timeout
 }
 
 func requestHTTP(method, url, body string) ([]byte, int, error) {
+	return requestHTTPWithClient(integrationHTTPClient, method, url, body)
+}
+
+func requestHTTPWithClient(client *http.Client, method, url, body string) ([]byte, int, error) {
 	req, err := http.NewRequest(method, url, strings.NewReader(body))
 	if err != nil {
 		return nil, 0, err
@@ -144,13 +181,29 @@ func requestHTTP(method, url, body string) ([]byte, int, error) {
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := integrationHTTPClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
 	return data, resp.StatusCode, err
+}
+
+// requestInference issues a call that runs model inference, on the inference
+// bound rather than the probe bound. work names the model or operation so a
+// timeout reports which work exceeded its bound, at which endpoint, and how
+// long it waited: without that, a slow model and a dead service produce the
+// same bare "context deadline exceeded" (GH-709 R3).
+func requestInference(method, url, body, work string) ([]byte, int, error) {
+	started := time.Now()
+	data, status, err := requestHTTPWithClient(integrationInferenceClient, method, url, body)
+	if err != nil {
+		return nil, 0, fmt.Errorf("%s at %s failed after %s (inference timeout %s, override with %s): %w",
+			work, url, time.Since(started).Round(time.Millisecond),
+			integrationInferenceTimeout(), integrationInferenceTimeoutEnv, err)
+	}
+	return data, status, nil
 }
 
 func readIntegrationYAML(path, label string, out any) error {

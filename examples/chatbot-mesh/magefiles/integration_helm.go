@@ -325,7 +325,7 @@ func kubectlPortForward(target string, ports ...int) (func(), error) {
 // machine_request endpoint routes a turn through the chatbot in cluster.
 func assertSmokeChatServed(url string) error {
 	body := `{"message":"Summarize the most relevant record you can retrieve."}`
-	data, status, err := requestHTTP(http.MethodPost, url, body)
+	data, status, err := requestInference(http.MethodPost, url, body, "in-cluster chat turn")
 	if err != nil {
 		return fmt.Errorf("chat request: %w", err)
 	}

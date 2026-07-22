@@ -254,7 +254,10 @@ type chatResponse struct {
 
 func postChatTurn(message string, history string) (chatResponse, int, error) {
 	body := fmt.Sprintf(`{"message":%q,"history":%s}`, message, history)
-	data, status, err := requestHTTP(http.MethodPost, chatbotChatURL, body)
+	// A chat turn embeds, routes, fans out to the RAG tier and answers, so it is
+	// the longest inference chain in the mesh and never belongs on the probe
+	// bound (GH-709 R2).
+	data, status, err := requestInference(http.MethodPost, chatbotChatURL, body, "chatbot chat turn")
 	if err != nil {
 		return chatResponse{}, status, err
 	}
