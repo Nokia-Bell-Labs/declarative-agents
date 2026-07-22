@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/magefile/mage/mg"
@@ -37,6 +38,7 @@ func (i Integration) All() error {
 
 	for _, t := range tests {
 		fmt.Printf("\n=== %s ===\n", t.name)
+		beginUC(t.name)
 		err := t.fn()
 		switch {
 		case err != nil:
@@ -64,10 +66,14 @@ func (i Integration) All() error {
 	return nil
 }
 
-var skippedUCs = map[string]bool{}
+var skippedUCs = struct {
+	sync.Mutex
+	items map[string]bool
+}{items: make(map[string]bool)}
 
 // Uc001 runs rel01.0-uc001: Generator agent solves a Go coding task with Qwen 3.6.
 func (Integration) Uc001() error {
+	beginUC("uc001")
 	if err := requireOllama(); err != nil {
 		return skipUC("uc001", err.Error())
 	}
@@ -121,6 +127,7 @@ func uc001AgentArgs(profileRoot, coreRoot, workDir string) []string {
 
 // Uc002 runs rel01.0-uc002: Evaluator benchmarks generator across models.
 func (Integration) Uc002() error {
+	beginUC("uc002")
 	if err := requireOllama(); err != nil {
 		return skipUC("uc002", err.Error())
 	}
@@ -189,6 +196,7 @@ func uc002AgentArgs(profileRoot, coreRoot, requestPath, outputDir string) []stri
 
 // Uc003 runs rel01.0-uc003: Bench serves web UI for evaluation result exploration.
 func (Integration) Uc003() error {
+	beginUC("uc003")
 	return skipUC("uc003", "bench visualization — requires eval-results directory and a free port")
 }
 
@@ -241,13 +249,23 @@ func tempWorkspace(sampleDir string) (string, func(), error) {
 }
 
 func skipUC(id, reason string) error {
-	skippedUCs[id] = true
+	skippedUCs.Lock()
+	skippedUCs.items[id] = true
+	skippedUCs.Unlock()
 	fmt.Printf("SKIP %s: %s\n", id, reason)
 	return nil
 }
 
+func beginUC(id string) {
+	skippedUCs.Lock()
+	delete(skippedUCs.items, id)
+	skippedUCs.Unlock()
+}
+
 func wasSkipped(id string) bool {
-	return skippedUCs[id]
+	skippedUCs.Lock()
+	defer skippedUCs.Unlock()
+	return skippedUCs.items[id]
 }
 
 func buildIfNeeded() (string, error) {

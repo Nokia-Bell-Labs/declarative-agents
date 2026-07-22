@@ -25,6 +25,7 @@ const (
 
 // Uc005 runs rel03.0-uc005: Qwen lists Ollama models through an OpenAPI REST tool.
 func (Integration) Uc005() error {
+	beginUC("uc005")
 	model := configuredOllamaModel()
 	names, err := requireOllamaModels(model)
 	if err != nil {
