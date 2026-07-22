@@ -368,9 +368,58 @@ conformance_fixtures:
       - Confirm lifecycle behavior is expressed as machine actions.
       - Confirm approval uses resume signals instead of hidden CLI branches.
 
+  - id: assembler
+    title: Test rig and scenario composer
+    profile_path: agents/assembler/profile.yaml
+    actor_boundary: child agent processes plus profile-owned scenario data
+    inputs:
+      - discovery roots
+      - discovered scenario directories (validator profiles and twin fixtures)
+    selected_tool_families:
+      - service-child (start, await healthy, stop)
+      - validator execution
+      - scenario discovery
+    runtime_dependencies:
+      - agent-core service-child, validator-execution, and discovery words (srd040)
+      - agent-core mock endpoint binding by way of the twins it starts (srd039)
+    outputs:
+      - per-scenario verdicts naming a failing validator and its cause
+      - aggregate verdict
+    outcomes:
+      - Passed
+      - Failed
+    checks:
+      - Confirm the rig composes scenarios from profile-owned data, with no rig edit needed to add a test.
+      - Confirm each scenario gets a fresh subject and leaves no surviving child process.
+      - Confirm discovery covers the examples tree without special-casing.
+
+  - id: twin
+    title: Digital twin for a REST dependency
+    profile_path: agents/twin/profile.yaml
+    actor_boundary: inbound HTTP from a subject agent under test
+    inputs:
+      - fixture file path (selected by environment)
+      - listen address
+    selected_tool_families:
+      - REST server
+      - lifecycle control
+    runtime_dependencies:
+      - agent-core mock endpoint binding and REST server runtime (srd039)
+    outputs:
+      - canned and scripted responses
+      - per-instance request log
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm one profile serves any dependency, with response content living in scenario fixtures.
+      - Confirm the request log is readable, per-instance, and shows unmatched calls.
+      - Confirm a malformed fixture blocks serving instead of failing mid-scenario.
+
 taxonomy_rules:
   - Each role is a configured program, not a Go package.
   - Conformance grammar fixtures (rest, control, lifecycle) are not roles; they live under testdata/conformance/ and prove runtime vocabulary, keeping agents/ a role catalog (GH-328).
+  - The assembler and twin are test-time roles: the assembler composes and verdicts scenarios, and the twin stands in for a dependency. The reference architecture names such a stand-in a digital twin, so mock, stub, and emulator are not used for the family (GH-665).
   - Actor boundaries name who or what crosses the profile boundary.
   - Runtime dependencies name agent-core capabilities without copying them into
     agent-profiles.

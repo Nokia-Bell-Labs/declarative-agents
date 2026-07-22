@@ -1,0 +1,234 @@
+id: test-rel11.0-assembler-rig
+title: Test Suite for Release 11.0 Assembler Test Rig
+
+release: "11.0"
+
+overview: |
+  This suite validates the assembler test rig: one shipped rig profile that
+  composes a scenario from profile-owned data, and one shipped twin profile
+  that stands in for any REST dependency. It exists before the implementation
+  issues start (no implementation issue before a test suite exists for its use
+  case): GH-668 delivers the twin, GH-669 the assembler, and GH-670 the
+  reference subject with its scenarios and the mage target that runs them.
+
+  Cases carry planned_go_test and planned_integration_target rather than
+  go_test and integration_target, because the named tests and targets do not
+  exist yet and the formal evidence validator checks every cited command
+  against the real inventory. Each implementing issue renames the field and
+  sets status to implemented when its evidence lands.
+
+traces:
+  - rel11.0-uc001-assembler-scenario-run
+  - rel11.0-uc002-twin-serves-fixtures
+
+preconditions:
+  - agent-core provides the mock endpoint binding (srd039) and the service-child, validator-execution, and discovery words (srd040).
+  - agent-core is available as AGENT_CORE_ROOT or a sibling checkout for mage validate and the rig target.
+  - No live Chroma, Ollama, Docker, or Kubernetes is required by any case in this suite; a case that needs one is misfiled.
+
+test_cases:
+  - use_case: rel11.0-uc002-twin-serves-fixtures
+    name: One twin profile serves a fixture and scripts a sequence
+    planned_integration_target: mage rig
+    planned_go_test: go test ./conformance -run TestTwinServesFixtureSequence
+    status: planned
+    description: |
+      The shipped twin profile starts with a fixture path and address supplied
+      by environment, serves the fixture's routes, returns a route's ordered
+      responses in sequence, repeats the last once exhausted, and 404s an
+      unmatched route.
+    inputs:
+      fixture_route: "POST /deploy with responses [200, 500]"
+      requests: [POST /deploy, POST /deploy, POST /deploy, GET /nope]
+    expected:
+      statuses: [200, 500, 500, 404]
+      profile_unchanged_between_dependencies: true
+    traces:
+      - rel11.0-uc002-twin-serves-fixtures S2
+      - srd019-twin AC1
+
+  - use_case: rel11.0-uc002-twin-serves-fixtures
+    name: Two twins from one profile serve different dependencies
+    planned_go_test: go test ./conformance -run TestTwinTwoInstancesDifferentFixtures
+    status: planned
+    description: |
+      Two twin instances start from the same shipped profile with different
+      fixtures and addresses, each serving its own dependency's routes, with
+      neither instance observing the other's requests.
+    inputs:
+      twins: 2
+      fixtures: [dep_a.yaml, dep_b.yaml]
+    expected:
+      one_profile_two_dependencies: true
+      logs_are_per_instance: true
+    traces:
+      - rel11.0-uc002-twin-serves-fixtures S1
+      - rel11.0-uc002-twin-serves-fixtures S5
+      - srd019-twin AC2
+      - srd019-twin AC3
+
+  - use_case: rel11.0-uc002-twin-serves-fixtures
+    name: Validator reads the twin request log to verify outbound calls
+    planned_go_test: go test ./conformance -run TestTwinRequestLogVerifiesSubjectCalls
+    status: planned
+    description: |
+      After a subject drives its dependency, the twin's log route returns the
+      received requests in order with method, path, and body, and a validator
+      distinguishes a correct call from a wrong or missing one, including an
+      unmatched call recorded as a miss.
+    inputs:
+      subject_calls: [POST /deploy body A]
+      wrong_call_variant: [POST /deploy body B]
+    expected:
+      correct_call_asserts_pass: true
+      wrong_call_asserts_fail: true
+      miss_visible_in_log: true
+    traces:
+      - rel11.0-uc002-twin-serves-fixtures S3
+      - srd019-twin AC3
+
+  - use_case: rel11.0-uc002-twin-serves-fixtures
+    name: Malformed fixture blocks the twin from serving
+    planned_go_test: go test ./conformance -run TestTwinMalformedFixtureFailsStartup
+    status: planned
+    description: |
+      A twin started against a malformed fixture fails configuration
+      validation and startup with a named error, before serving any request,
+      rather than failing mid-scenario.
+    inputs:
+      fixtures: [unknown_method, empty_responses, duplicate_route]
+    expected:
+      validate_config_fails: true
+      server_start_fails: true
+      no_request_served: true
+    traces:
+      - rel11.0-uc002-twin-serves-fixtures S4
+      - srd019-twin AC2
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Assembler runs one scenario end to end to a verdict
+    planned_integration_target: mage rig
+    status: planned
+    description: |
+      The assembler discovers a scenario, starts its twins, starts the subject
+      with its dependency base_url pointed at a twin through declared
+      environment additions, awaits health, runs the validators, collects the
+      verdict, and tears down. No live external service participates.
+    inputs:
+      scenario: reference subject with one REST dependency, one twin, one validator
+    expected:
+      verdict: Passed
+      no_live_services_used: true
+      subject_behavior_unpatched: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S1
+      - srd018-assembler AC1
+      - srd018-assembler AC4
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
+    name: One subject carries several scenarios added as data only
+    planned_integration_target: mage rig
+    status: planned
+    description: |
+      The reference subject carries a happy-path scenario and a
+      dependency-failure scenario. Adding the second required only files under
+      tests/, with no change to the assembler profile, and each scenario runs
+      against a fresh subject instance.
+    inputs:
+      scenarios: [happy-path, dep-failure]
+    expected:
+      assembler_profile_unchanged: true
+      fresh_subject_per_scenario: true
+      both_scenarios_pass: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S2
+      - srd018-assembler AC2
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Scripted dependency failure drives the subject's failure path
+    planned_integration_target: mage rig
+    status: planned
+    description: |
+      A scenario whose fixture scripts a 500 on the dependency call drives the
+      subject to its clean failure terminal; the validator asserted that
+      outcome, so the scenario passes.
+    inputs:
+      fixture_sequence: [500]
+    expected:
+      subject_reaches_failure_terminal_cleanly: true
+      scenario_verdict: Passed
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S3
+      - srd018-assembler AC6
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
+    name: A wrong expectation makes the rig fail and name the cause
+    planned_integration_target: mage rig
+    status: planned
+    description: |
+      A scenario carrying a deliberately wrong validator expectation drives the
+      assembler to Failed, and the output names which validator failed and why.
+      This proves the rig can fail, not only pass.
+    inputs:
+      scenario: broken, with an expectation the subject does not satisfy
+    expected:
+      assembler_terminal: Failed
+      failing_validator_named: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S4
+      - srd018-assembler AC6
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Children do not outlive a scenario and runs are repeatable
+    planned_go_test: go test ./conformance -run TestAssemblerNoOrphansAndRepeatable
+    status: planned
+    description: |
+      After a scenario, no subject or twin process from the assembler's child
+      groups survives, and a second consecutive run passes without port or
+      state leakage. A failure path tears children down as well.
+    inputs:
+      runs: 2
+      failure_path_variant: twin start failure
+    expected:
+      no_surviving_children: true
+      second_run_passes: true
+      failure_path_tears_down: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S5
+      - srd018-assembler AC1
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Discovery covers the examples tree with no special-casing
+    planned_go_test: go test ./conformance -run TestAssemblerDiscoversConfiguredRoots
+    status: planned
+    description: |
+      With roots configured to cover both the agent families and the examples
+      tree, discovery enumerates scenarios from both, sorted and deterministic,
+      with no absolute paths and no per-area rig.
+    inputs:
+      roots: [agents, examples agents]
+    expected:
+      scenarios_found_in_both_roots: true
+      deterministic_sorted: true
+      no_absolute_paths: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S6
+      - srd018-assembler AC3
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Assembler and twin profiles validate and boot as shipped profiles
+    planned_integration_target: mage validate
+    status: planned
+    description: |
+      The assembler and twin profiles load and validate against agent-core and
+      pass the shipped-profile boot smoke alongside the existing families, so
+      the role catalog grows without breaking profile wiring.
+    inputs:
+      profiles: [agents/assembler, agents/twin]
+    expected:
+      mage_validate_passes: true
+      boot_smoke_covers_new_profiles: true
+    traces:
+      - srd018-assembler AC5
+      - srd019-twin AC4
+      - srd019-twin AC5

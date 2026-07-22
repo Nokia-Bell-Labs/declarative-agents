@@ -1,0 +1,155 @@
+id: srd018-assembler
+title: Assembler Functional Block
+
+context: |
+  The assembler profile is the repository's test rig. It composes other
+  machines: for each scenario it starts the digital-twin mocks a subject
+  depends on, starts the subject agent under test, runs the scenario's
+  validator machines against it, and reduces their terminal states to a
+  verdict.
+
+  The name follows the reference-architecture role catalog, whose Assembler
+  role covers service composition, validation, resource integration, testing,
+  and simulation. Its Service Composer sub-role composes the scenario and its
+  Resource Integrator sub-role owns the Testing activity. The assembler joins
+  the role-named families the rel10.0 alignment established.
+
+  Scenario data is profile-owned and lives beside the agent it tests. The
+  words the assembler machine calls are agent-core runtime capability
+  (srd040-service-child-tools), and the mock responses its twins serve come
+  from the agent-core mock binding (srd039-mock-endpoint-binding).
+
+problem: |
+  Agent tests today are hand-written Go harnesses that restate each agent's
+  behavior in code, one rig per integration test. That does not reuse across
+  the profile families, does not extend to the agents under examples/, and
+  covers REST tools poorly because a subject's dependencies must be live.
+
+  One agent under test has several tests. The rig must therefore be reusable
+  and data-driven: adding a test means adding scenario files beside an agent,
+  never editing the rig, and never building a container image per test.
+
+goals:
+  - G1: Model the assembler profile as a deterministic scenario composition and verdict pipeline.
+  - G2: Define the profile-owned scenario layout so one subject can carry several tests.
+  - G3: Define discovery over configurable roots so agents under agents/ and under examples/ are tested by one rig.
+  - G4: Record the assembler actor boundary, inputs, tool selections, runtime dependencies, outputs, and terminal outcomes.
+  - G5: Keep scenario data profile-owned while agent-core supplies child-process, validator, and discovery execution.
+
+requirements:
+  R1:
+    title: Behavior model
+    items:
+      - R1.1: The assembler profile must model a deterministic pipeline that discovers scenarios, composes each one, collects a verdict, and reports an aggregate outcome.
+      - R1.2: For each scenario the assembler must start the scenario's digital-twin children, start the subject agent, await health, run the scenario's validators, collect their terminal states, and tear the children down.
+      - R1.3: The assembler must give each scenario a fresh subject instance, so scenarios stay independent of one another.
+      - R1.4: Validators declared within one scenario must run against that scenario's single subject instance.
+      - R1.5: The assembler must tear down every child it started, including on a failure path, so no child process outlives a scenario.
+      - R1.6: The assembler must not invoke a model; its transitions are driven by tool results.
+
+  R2:
+    title: Scenario layout
+    items:
+      - R2.1: A scenario must live in a tests/<scenario-name>/ directory beside the agent it tests.
+      - R2.2: A scenario directory must hold one or more validator machine programs with their profiles, and the twin fixture files its subject's dependencies require.
+      - R2.3: A subject agent must be able to carry several scenario directories, each self-contained.
+      - R2.4: Scenario data must be profile-owned and must not require changes to the assembler profile when a scenario is added.
+
+  R3:
+    title: Discovery
+    items:
+      - R3.1: The assembler must enumerate scenarios by convention under roots supplied by configuration or run input.
+      - R3.2: Default roots must cover the repository's agent families and the agents under the examples tree.
+      - R3.3: Discovery must not require a per-repository-area rig, special-casing, or hardcoded absolute paths.
+
+  R4:
+    title: Dependency redirection
+    items:
+      - R4.1: A subject's REST dependencies must be pointed at the scenario's twin addresses through declared environment additions.
+      - R4.2: Redirection must use the existing base_url environment expansion rather than rewriting the subject's behavior.
+      - R4.3: A scenario must not alter the subject's machine, tool selections, or declared behavior; only addresses and other harness-controlled fields may differ.
+
+  R5:
+    title: Inputs, tools, and runtime dependencies
+    items:
+      - R5.1: Assembler inputs must include the discovery roots and the discovered scenario data.
+      - R5.2: The assembler profile must select the service-child, validator-execution, and scenario-discovery tool families.
+      - R5.3: Assembler dependencies must name agent-core for child-process execution, validator execution, and discovery, and srd019-twin for the mock family it starts.
+      - R5.4: The assembler must run the subject and the twins as the same agent binary over mounted profiles, so no per-test container image is required.
+
+  R6:
+    title: Outputs and outcomes
+    items:
+      - R6.1: A scenario must pass only when every validator in it reaches its passing terminal state.
+      - R6.2: Assembler outputs must record the per-scenario verdict and, for a failure, which validator failed and why, so a failing run names its cause.
+      - R6.3: Assembler terminal outcomes must be Passed or Failed, with the aggregate reflecting every scenario.
+      - R6.4: A scenario loop must be bounded by a declared iteration budget.
+
+non_goals:
+  - Define Go package APIs for the agent-core child-process, validator, or discovery words.
+  - Own the mock fixture format or the request-log contract; those are srd039 and srd019.
+  - Kubernetes, container, or hierarchical control-plane deployment of the rig; children are local processes at this release.
+  - Span-based state assertion; validators witness through responses and the twin request log.
+  - Own cross-profile dependency-direction invariants; those stay in srd001.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The assembler profile is described as a configured, deterministic scenario composition pipeline rather than a Go harness, and it composes, verdicts, and tears down each scenario with a fresh subject.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
+  - id: AC2
+    criterion: The scenario layout lets one subject carry several self-contained tests as profile-owned data, with no assembler change required to add one.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+  - id: AC3
+    criterion: Discovery enumerates scenarios under configurable roots covering both the agent families and the examples tree, with no special-casing or absolute paths.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC4
+    criterion: A subject reaches its scenario's twins through declared environment additions over the existing base_url expansion, with its declared behavior unchanged.
+    traces: [R4.1, R4.2, R4.3]
+  - id: AC5
+    criterion: Assembler inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability, and every child runs the same binary over a mounted profile.
+    traces: [R5.1, R5.2, R5.3, R5.4]
+  - id: AC6
+    criterion: A scenario passes only when all its validators pass, a failing run names the failing validator, the terminal outcome is Passed or Failed, and the loop is budget-bounded.
+    traces: [R6.1, R6.2, R6.3, R6.4]
+
+depends_on:
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1]
+  - srd_id: srd019-twin
+    symbols_used: [R1, R2]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: one rig per test, no reuse, poor REST coverage"] --> Goals["Goals: Assembler Functional Block"]
+      Goals --> R1["R1: Behavior model"]
+      Goals --> R2["R2: Scenario layout"]
+      Goals --> R3["R3: Discovery"]
+      Goals --> R4["R4: Dependency redirection"]
+      Goals --> R5["R5: Inputs, tools, dependencies"]
+      Goals --> R6["R6: Outputs and outcomes"]
+      R1 --> AC1["AC1: Deterministic composition pipeline"]
+      R2 --> AC2["AC2: Several tests per subject, as data"]
+      R3 --> AC3["AC3: Configurable-root discovery"]
+      R4 --> AC4["AC4: Twin redirection, behavior unchanged"]
+      R5 --> AC5["AC5: Inputs, tools, dependencies named"]
+      R6 --> AC6["AC6: Verdict, cause, terminal, budget"]
+    ```
+  scenario_pipeline: |
+    ```mermaid
+    flowchart LR
+      Discover["DiscoverScenarios"] --> Next["NextScenario"]
+      Next --> Twins["StartTwins"]
+      Twins --> Subject["StartSubject"]
+      Subject --> Health["AwaitHealthy"]
+      Health --> Validate["RunValidators"]
+      Validate --> Collect["CollectVerdict"]
+      Collect --> Teardown["TeardownScenario"]
+      Teardown --> Next
+      Teardown --> Passed["Passed"]
+      Teardown --> Failed["Failed"]
+      Twins -->|failure| Teardown
+      Subject -->|failure| Teardown
+      Health -->|timeout| Teardown
+    ```
