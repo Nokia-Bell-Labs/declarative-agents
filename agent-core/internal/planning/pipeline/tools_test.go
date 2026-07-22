@@ -136,6 +136,8 @@ func TestExtractAllBuilder_ExtractsAllReady(t *testing.T) {
 
 	assert.Equal(t, SigTaskExtracted, result.Signal)
 	assert.NotNil(t, ps.CurrentTask)
+	require.NotNil(t, ps.CurrentPlan)
+	assert.Equal(t, "Execute all ready requirements", ps.CurrentPlan.Title)
 	assert.Contains(t, result.Output, "extracted all")
 }
 
@@ -154,6 +156,7 @@ func TestExtractAllBuilder_UndoRestoresPipelineState(t *testing.T) {
 	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
+	require.Nil(t, ps.CurrentPlan)
 	require.Equal(t, 4, ps.retryCount)
 }
 
@@ -411,7 +414,7 @@ func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
 func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
 	t.Parallel()
 	br := toolregistry.NewBuiltinRegistry()
-	RegisterFactories(br, FactoryDeps{Ctx: context.Background()})
+	RegisterFactories(br, FactoryDeps{Ctx: context.Background(), ChildAgentBinary: "/tmp/controlled-agent"})
 
 	factory, ok := br.Resolve("execute_task")
 	require.True(t, ok)
@@ -427,6 +430,7 @@ func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
 
 	execBuilder, ok := builder.(*ExecuteTaskBuilder)
 	require.True(t, ok)
+	require.Equal(t, "/tmp/controlled-agent", execBuilder.PS.ExecConfig.Binary)
 	require.Equal(t, "agents/executor/profile.yaml", execBuilder.PS.ExecConfig.Profile)
 }
 
