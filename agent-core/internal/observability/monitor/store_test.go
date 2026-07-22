@@ -69,7 +69,7 @@ func TestToolMetricsRecorder_OwnershipBoundaries(t *testing.T) {
 	require.Equal(t, 2.0, snapshot.Metrics["files_written"].LastValue)
 }
 
-func TestMonitorMetricConfig_RejectsUnsafeLabels(t *testing.T) {
+func TestMonitorRecorderRejectsNamelessSample(t *testing.T) {
 	t.Parallel()
 	store := NewStore(Limits{})
 	rec := NewRecorder(store, nil)
