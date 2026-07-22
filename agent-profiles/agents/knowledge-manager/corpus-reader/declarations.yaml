@@ -193,7 +193,9 @@ tools:
     side_effects:
       - kind: external_api
         target: chroma.collection
-        state: collection_upserted
+        state: read_only
+        description: Create-or-get is idempotent for a stable collection name, so
+          the call leaves no net change to reverse.
     reversibility:
       classification: reversible
       undo: noop
