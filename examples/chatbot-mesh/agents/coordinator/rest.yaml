@@ -82,7 +82,7 @@ rest:
               directory: $.directory
               collection: $.collection
               embedding_model: $.embedding_model
-            carry_forward: [rag_name, collection, embedding_model]
+            carry_forward: [rag_name, collection, embedding_model, values]
           body:
             operation: ingest
             role: corpus-ingest
@@ -104,37 +104,31 @@ rest:
             undo: noop
         creator_rollout:
           # Delegate the decided rollout to the creator (srd004 R3.2): the coordinator
-          # is the sole author of the values patch (which RAG unit to add), threaded
-          # here from the carried intent; the creator executes the checkpoint-resume
-          # rollout and returns the reported health.
+          # forwards the caller's full desired mesh state as the values-plane document
+          # (srd004 R3.1; srd006 R1.4 content), threaded here from the carried intent.
+          # A values-plane list is replaced wholesale on apply, so the intent carries
+          # the complete desired values, not a delta; the creator applies it through
+          # the executor and returns the reported health.
           method: POST
           path: /api/v1/instance
           params:
             body_schema:
               type: object
-              required: [rag_name, collection]
+              required: [values]
               properties:
-                rag_name: {type: string}
-                collection: {type: string}
-                embedding_model: {type: string}
+                values: {type: string}
             body_source: previous_result
             input_mapping:
-              rag_name: $.carried.rag_name
-              collection: $.carried.collection
-              embedding_model: $.carried.embedding_model
+              values: $.carried.values
           body:
             operation: restart
             role: chatbot
-            patch:
-              add_rag:
-                name: "{{ params.rag_name }}"
-                collection: "{{ params.collection }}"
-                embedding_model: "{{ params.embedding_model }}"
+            schema_version: "1"
+            content: "{{ params.values }}"
           success: {status: [200], signal: Reconfigured}
           response:
             output:
               health: $.health
-              revision: $.revision
           side_effects:
             - kind: external_api
               target: creator.instance
@@ -158,10 +152,16 @@ rest:
           path: /api/v1/provision
           binding: machine_request
           request:
+            # The intent carries the full desired mesh state as values: the operator's
+            # panel serializes the complete desired values-plane document (the whole
+            # ragUnits list, params, and LLM config) that the coordinator forwards to
+            # the creator and executor (srd004 R3.1). rag_name, directory, and
+            # collection name the new source to ingest before the rollout.
             body_schema:
               type: object
-              required: [rag_name, collection]
+              required: [values, collection, directory]
               properties:
+                values: {type: string}
                 rag_name: {type: string}
                 collection: {type: string}
                 embedding_model: {type: string}
@@ -172,6 +172,7 @@ rest:
             timeout: 130s
             request:
               body:
+                values: $.values
                 rag_name: $.rag_name
                 collection: $.collection
                 embedding_model: $.embedding_model
@@ -184,7 +185,6 @@ rest:
                   body:
                     status: reconfigured
                     health: $.mapped.health
-                    revision: $.mapped.revision
                 Rejected:
                   status: 422
                   content_type: application/json

@@ -5,15 +5,15 @@ context: |
   The mesh control plane is two agents. The coordinator is the workflow
   orchestrator: the UX agent (chatbot, srd002) accomplishes a user's provisioning
   intent by delegating it to the coordinator, which sequences the ingestion and
-  reconfiguration workflows, decides what the mesh should look like (the values and
-  config changes), resolves conflicts, and aggregates status for the provisioning
-  panel. It plays the reference-architecture Coordinator role
+  reconfiguration workflows, realizes the caller's desired mesh state (the full
+  values-plane document, decided by the operator through the provisioning panel),
+  resolves conflicts, and aggregates status for the provisioning panel. It plays the reference-architecture Coordinator role
   (workflow-synchronization, conflict-resolution, consensus and status); the
   Agent Lifecycle Management component names the Orchestration and Coordination
   Engine as its primary interaction, which is the coordinator-to-creator boundary
   here.
 
-  The coordinator decides; the creator (srd005) acts. Every instance operation --
+  The coordinator orchestrates; the creator (srd005) acts. Every instance operation --
   creating a child ingest run, restarting a reconfigured agent, terminating an
   instance -- is a declared-client request to the creator, never a direct call to
   the deployment API or a run_agent word. The coordinator holds no deployment-API
@@ -24,10 +24,11 @@ context: |
 problem: |
   The provisioning surface (srd003 R4) edits deployment values and triggers
   rollouts, but a user's intent -- "add this directory as a knowledge source" --
-  is a workflow, not a single values edit: it ingests corpora, decides the values
-  changes, restarts affected agents, and reports progress. The mesh needs an agent
-  that owns that workflow, sequences it, and aggregates its status, while keeping
-  the decision-versus-action split and the authority boundary of srd003 R4 intact.
+  is a workflow, not a single values edit: it ingests corpora, realizes the
+  caller's desired values, restarts affected agents, and reports progress. The mesh
+  needs an agent that owns that workflow, sequences it, and aggregates its status,
+  while keeping the orchestration-versus-action split and the authority boundary of
+  srd003 R4 intact.
   The requirements must name the intent boundary, the ingestion and reconfiguration
   workflows, the delegation-to-creator rule, and what the coordinator does not do,
   separately from the agent-core request and REST runtime.
@@ -56,7 +57,7 @@ requirements:
   R3:
     title: Reconfiguration workflow
     items:
-      - R3.1: The coordinator SHALL decide the values and config changes that realize an intent (which RAG units, parameters, or LLM endpoints change) and SHALL be the sole author of that decision.
+      - R3.1: The coordinator SHALL accept the full desired mesh state -- the complete values-plane document (the whole ragUnits list, parameters, and LLM config) -- from the intent and realize it, forwarding it unchanged as the values document the creator applies (srd006 R1.4). The desired-state decision is the operator's, made through the provisioning panel (srd002), because a values-plane list is replaced wholesale on apply and a partial patch would drop unlisted units; the coordinator remains the sole orchestrator of the workflow (R3.2, R3.3).
       - R3.2: The coordinator SHALL request rollout or restart of the affected agents from the creator (srd005) and SHALL confirm the health the creator reports before completing the intent.
       - R3.3: The coordinator SHALL resolve conflicts between concurrent intents so two intents do not apply contradictory values, serializing or rejecting as needed.
   R4:
@@ -80,7 +81,7 @@ acceptance_criteria:
     criterion: The ingestion workflow sequences one corpus-ingest instance request per directory through the creator, verifies collection counts, and reports partial failures without advancing.
     traces: [R2.1, R2.2, R2.3]
   - id: AC3
-    criterion: The reconfiguration workflow makes the coordinator the sole author of the values and config decision, requests rollout from the creator, confirms reported health, and resolves conflicts between concurrent intents.
+    criterion: The reconfiguration workflow makes the coordinator realize the caller's full desired mesh state as the forwarded values document, requests rollout from the creator, confirms reported health, and resolves conflicts between concurrent intents.
     traces: [R3.1, R3.2, R3.3]
   - id: AC4
     criterion: Every instance operation is a declared-client request to the creator; the coordinator holds no deployment-API credentials, authenticates apart from chat, and receives no endpoint from runtime input.

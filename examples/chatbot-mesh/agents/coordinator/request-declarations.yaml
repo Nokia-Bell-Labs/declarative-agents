@@ -59,17 +59,17 @@ tools:
     type: builtin
     init: rest_client_invoke
     category: boundary
-    description: Decide the values patch and delegate the checkpoint-resume rollout to the creator.
-    problem: The coordinator is the sole author of which RAG unit to add, and it realizes that decision by delegating the rollout to the creator rather than editing config itself.
+    description: Forward the desired values document and delegate the checkpoint-resume rollout to the creator.
+    problem: The mesh values-plane list is replaced wholesale on apply, so the coordinator forwards the caller's full desired mesh state rather than a delta, realizing it by delegating the rollout to the creator rather than editing config itself.
     goals:
-      - Build the add-RAG values patch from the carried intent (the coordinator's decision).
-      - Request the reconfiguration rollout from the creator and thread the decided patch.
-      - Return the creator-reported health and revision for the aggregated status.
+      - Thread the caller's full desired values document from the carried intent.
+      - Request the reconfiguration rollout from the creator and forward the desired values as the content the creator applies.
+      - Return the creator-reported health for the aggregated status.
     requirements:
       input:
-        - The RAG name, collection, and embedding model are selected from the carried intent.
+        - The full desired values document is selected from the carried intent.
       output:
-        - Output includes the creator-reported rollout health and revision.
+        - Output includes the creator-reported rollout health.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError.
     non_goals:
@@ -78,9 +78,7 @@ tools:
     parameters:
       type: object
       properties:
-        rag_name: {type: string}
-        collection: {type: string}
-        embedding_model: {type: string}
+        values: {type: string}
     emits: [Reconfigured, CommandError]
     output:
       description: Creator-reported rollout health.
@@ -88,7 +86,6 @@ tools:
         type: object
         properties:
           health: {type: string}
-          revision: {type: integer}
     side_effects:
       - kind: external_api
         target: creator.instance
