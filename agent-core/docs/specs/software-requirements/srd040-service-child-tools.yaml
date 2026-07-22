@@ -1,0 +1,92 @@
+id: srd040-service-child-tools
+title: Service-Child and Scenario Tools
+
+problem: |
+  A test-rig machine composes other machines: it starts a subject agent and its
+  digital-twin mocks as serve-mode children, runs validator machines against
+  the subject, and reduces their terminal states to a verdict. The existing
+  child-agent path (execute.RunAgent, used by the critic) spawns children that
+  run to completion. Serve-mode children are different: they must start in the
+  background, report an address, stay up while validators run, and stop
+  cleanly without leaking processes.
+
+  The rig also needs to find its work. Scenarios live as data beside the agent
+  they test, in tests/<scenario>/ directories under configurable roots, so a
+  discovery word must enumerate them deterministically.
+
+goals:
+  - G1: Define start_service, await_healthy, and stop_service for background serve-mode child agents.
+  - G2: Define run_validators for concurrent run-to-completion validator children.
+  - G3: Define list_scenarios for deterministic scenario discovery under configured roots.
+  - G4: Keep every word deterministic, LLM-free, and bounded in time.
+  - G5: Declare honest reversibility and undo behavior for each word.
+
+requirements:
+  R1:
+    title: start_service
+    items:
+      - R1.1: start_service SHALL spawn one agent process for a declared profile path as a background child serving until stopped.
+      - R1.2: start_service SHALL inject declared environment additions into the child, so dependency URLs can be pointed at twin addresses.
+      - R1.3: start_service SHALL allocate or accept a listen address, and its output SHALL include a child handle and the base URL.
+      - R1.4: Children SHALL be process-group managed; when the parent exits, running children SHALL be reaped rather than orphaned.
+      - R1.5: start_service SHALL declare itself reversible with stop_service as its undo.
+
+  R2:
+    title: await_healthy
+    items:
+      - R2.1: await_healthy SHALL poll a declared URL until a success response or a declared timeout.
+      - R2.2: The poll interval and timeout SHALL be declared in configuration; polling SHALL NOT be unbounded.
+      - R2.3: await_healthy SHALL emit distinct signals for healthy and for timeout, so the machine can route teardown on failure.
+
+  R3:
+    title: stop_service
+    items:
+      - R3.1: stop_service SHALL stop a child by handle with a graceful signal, a bounded wait, then a kill.
+      - R3.2: stop_service SHALL be idempotent; stopping an already-stopped handle SHALL succeed.
+      - R3.3: stop_service undo SHALL be noop and the word SHALL be declared accordingly.
+
+  R4:
+    title: run_validators
+    items:
+      - R4.1: run_validators SHALL accept one or more validator profile paths with per-validator environment additions.
+      - R4.2: run_validators SHALL run the validators concurrently to completion through the shared child-agent execution path.
+      - R4.3: run_validators output SHALL include each validator's terminal state and exit code, keyed by validator.
+      - R4.4: run_validators SHALL enforce a declared overall timeout; a validator still running at timeout SHALL be stopped and reported as timed out, not omitted.
+      - R4.5: run_validators SHALL emit a signal distinguishing all-validators-completed from any-timeout-or-spawn-failure.
+
+  R5:
+    title: list_scenarios
+    items:
+      - R5.1: list_scenarios SHALL enumerate scenario directories matching tests/<scenario>/machine.yaml under declared roots.
+      - R5.2: Each scenario entry SHALL name the subject directory, the scenario name, the validator profile paths, and the fixture files present.
+      - R5.3: The output list SHALL be sorted and deterministic for a given tree.
+      - R5.4: Roots SHALL come from declared configuration or run input, not from hardcoded repository paths.
+
+  R6:
+    title: Determinism and boundaries
+    items:
+      - R6.1: The words in this SRD SHALL NOT invoke a model.
+      - R6.2: The words SHALL be declared as boundary tools crossing a child process, per the tool language boundary rules.
+      - R6.3: Failure of a child to spawn SHALL surface as a tool error signal, not a panic.
+
+non_goals:
+  - A Kubernetes or container backend for start_service; children are local processes in this SRD.
+  - Span-based assertion words; validators assert over HTTP responses and the srd039 request log.
+  - Scenario scheduling policy beyond one rig machine's sequential scenario loop; cross-scenario parallelism belongs to the caller.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A machine starts a serve-mode child with injected environment, awaits health, stops it, and no process from the child's group survives the parent.
+    traces: [R1.1, R1.2, R1.3, R1.4, R2.1, R3.1, R3.2]
+  - id: AC2
+    criterion: await_healthy against a never-healthy address returns the timeout signal within the declared bound rather than polling without limit.
+    traces: [R2.2, R2.3]
+  - id: AC3
+    criterion: run_validators over two validator profiles reports both terminal states keyed by validator, and a deliberately hung validator is stopped and reported as timed out within the declared bound.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+  - id: AC4
+    criterion: list_scenarios over a fixture tree returns the expected entries in sorted order with subject, scenario, validators, and fixtures, and repeated runs return identical output.
+    traces: [R5.1, R5.2, R5.3, R5.4]
+  - id: AC5
+    criterion: Each word declares its reversibility and undo consistently, invokes no model, and surfaces a spawn failure as a tool error signal, adding no tool-undo-mismatch audit warnings.
+    traces: [R1.5, R3.3, R6.1, R6.2, R6.3]

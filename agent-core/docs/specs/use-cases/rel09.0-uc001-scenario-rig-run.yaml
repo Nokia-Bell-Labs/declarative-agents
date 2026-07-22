@@ -1,0 +1,81 @@
+id: rel09.0-uc001-scenario-rig-run
+title: A rig machine runs one scenario hermetically to a verdict
+
+summary: |
+  A rig machine tests a subject agent without live services. It discovers a
+  scenario beside the subject, starts a digital-twin child serving the
+  scenario's mock fixtures, starts the subject with its dependency URL pointed
+  at the twin, awaits health, runs the scenario's validator machines
+  concurrently, and reduces their terminal states to a verdict. The validator
+  asserts both what the subject answered and, through the twin's request log,
+  what the subject sent to its dependency. Everything is data: the scenario
+  directory holds the validator machines and fixtures, and every child is the
+  same agent binary running a mounted profile.
+
+actor: Profile author testing an agent's machine and REST tools hermetically
+
+trigger: |
+  A rig machine runs with discovery roots that contain a subject agent
+  carrying a tests/<scenario>/ directory.
+
+flow:
+  - F1: The rig runs list_scenarios over declared roots and receives the scenario entry naming the subject, validators, and fixtures (srd040 R5).
+  - F2: The rig runs start_service for the twin profile with the scenario's fixture file; the twin serves the mock binding routes and its request log (srd039 R2, srd040 R1).
+  - F3: The rig runs start_service for the subject with a dependency URL environment addition pointing at the twin's base URL, resolved through the subject's ${VAR:-default} base_url expansion (srd040 R1, srd028 R2).
+  - F4: The rig runs await_healthy against both children within declared bounds (srd040 R2).
+  - F5: The rig runs run_validators for the scenario's validator machines concurrently; each validator drives the subject over HTTP and asserts on responses and on the twin's request log (srd040 R4, srd039 R3).
+  - F6: The rig collects per-validator terminal states from run_validators output and derives the scenario verdict, passing only when every validator reached its Passed terminal.
+  - F7: The rig runs stop_service for the subject and the twin; no child process survives (srd040 R1.4, R3).
+  - F8: A scenario whose twin fixture scripts a failure response exercises the subject's failure path, and the validator asserts the subject's clean failure terminal, so the scenario still passes.
+
+touchpoints:
+  - T1: "srd039-mock-endpoint-binding R2 -- the twin serves canned, scripted responses from the scenario fixture"
+  - T2: "srd039-mock-endpoint-binding R3 -- the validator reads the twin request log to assert the subject's outbound calls"
+  - T3: "srd040-service-child-tools R1 -- serve-mode children start with injected environment and a reported base URL"
+  - T4: "srd040-service-child-tools R2 -- children are health-checked within a declared bound"
+  - T5: "srd040-service-child-tools R3 -- children stop cleanly with no surviving process group"
+  - T6: "srd040-service-child-tools R4 -- validators run concurrently to completion with per-validator terminal states"
+  - T7: "srd040-service-child-tools R5 -- scenarios are discovered as data under declared roots"
+  - T8: "srd028-rest-client-tools R2 -- the subject's dependency base_url resolves through declared config with environment expansion"
+
+success_criteria:
+  - id: S1
+    criterion: The scenario runs end-to-end with no live external service; every dependency response comes from the twin's fixture.
+    traces:
+      - srd039-mock-endpoint-binding AC1
+  - id: S2
+    criterion: The validator's request-log assertion distinguishes a subject that called its dependency correctly from one that did not, without span parsing.
+    traces:
+      - srd039-mock-endpoint-binding AC3
+  - id: S3
+    criterion: All children are gone after the scenario; a second consecutive run passes without port or process leakage.
+    traces:
+      - srd040-service-child-tools AC1
+  - id: S4
+    criterion: Concurrent validators produce per-validator terminal states, and the scenario verdict is the conjunction of their Passed terminals.
+    traces:
+      - srd040-service-child-tools AC3
+  - id: S5
+    criterion: Discovery returns the same scenario list for the same tree on every run.
+    traces:
+      - srd040-service-child-tools AC4
+
+failure_scenarios:
+  - id: E1
+    scenario: The twin fixture is malformed and the twin starts anyway, failing on the first request mid-scenario.
+    expected: Rejected; fixture validation fails twin startup before any request (srd039 AC4), and the rig routes to teardown.
+  - id: E2
+    scenario: A validator hangs and the scenario blocks forever.
+    expected: Rejected; run_validators reports the hung validator as timed out within its declared bound (srd040 AC3).
+  - id: E3
+    scenario: The rig is killed mid-scenario and children survive as orphans.
+    expected: Rejected; children are process-group managed and reaped with the parent (srd040 R1.4).
+
+out_of_scope:
+  - The assembler and twin profiles themselves, and the scenario authoring conventions; those are agent-profiles releases over these words.
+  - Span-based state assertion; the request log and subject responses are the witnesses here.
+  - Kubernetes, containers, or a hierarchical control plane; children are local processes.
+  - Refreshing fixtures from real-service responses; real-stack verification is a separate concern.
+
+test_suite_trace: test-rel09.0-scenario-rig
+status: specified
