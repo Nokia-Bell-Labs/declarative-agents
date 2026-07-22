@@ -18,17 +18,27 @@ import (
 func TestRESTClient_SendRecordsAsyncRequest(t *testing.T) {
 	t.Parallel()
 
-	upstream := httptest.NewServer(http.HandlerFunc(asyncPaymentHandler))
+	handlerEntered := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		close(handlerEntered)
+		<-releaseHandler
+		writeJSON(w, http.StatusOK, map[string]interface{}{"id": pathSegments(req.URL.Path)[1]})
+	}))
 	defer upstream.Close()
 	def := asyncDefinition(t, upstream.URL, asyncPaymentClient())
 	state := NewAsyncState()
 
-	start := time.Now()
 	result := asyncCommand(t, def, state, InitClientSend, asyncParams("slow")).Execute()
 	require.Equal(t, core.Signal("RESTAccepted"), result.Signal, result.Output)
-	require.Less(t, time.Since(start), 50*time.Millisecond)
 	require.Contains(t, result.Output, `"request_id":"slow"`)
 	require.Contains(t, result.Output, `"idempotency_token":"slow"`)
+	select {
+	case <-handlerEntered:
+	case <-time.After(time.Second):
+		t.Fatal("async handler was not entered")
+	}
+	close(releaseHandler)
 
 	await := asyncCommand(t, def, state, InitClientAwait, map[string]interface{}{"request_id": "slow"}).Execute()
 	require.Equal(t, core.Signal("RESTResponded"), await.Signal, await.Output)

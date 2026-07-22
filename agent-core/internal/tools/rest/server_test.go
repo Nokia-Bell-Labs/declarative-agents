@@ -160,11 +160,12 @@ func TestRESTAwaitEvent_ServerStopped(t *testing.T) {
 	t.Parallel()
 
 	state, _ := launchRESTServer(t, namedControlServer("stopped"), LimitProfile{})
-	results := make(chan core.Result, 1)
-	go func() { results <- awaitAnyResult(state, AwaitSource{Server: "stopped"}) }()
-	time.Sleep(20 * time.Millisecond)
+	results := startRESTAwait(t, func() core.Result {
+		return awaitAnyResult(state, AwaitSource{Server: "stopped"})
+	})
+	requireAwaitBlocked(t, results)
 	stopRESTServer(t, state, "stopped")
-	require.Equal(t, core.Signal("ServerStopped"), (<-results).Signal)
+	require.Equal(t, core.Signal("ServerStopped"), requireRESTResult(t, results).Signal)
 }
 
 func TestRESTAwaitEvent_StoppedSourceCommandError(t *testing.T) {
@@ -172,11 +173,10 @@ func TestRESTAwaitEvent_StoppedSourceCommandError(t *testing.T) {
 
 	state, _ := launchRESTServer(t, namedControlServer("stopped_error"), LimitProfile{})
 	source := AwaitSource{Server: "stopped_error", StoppedBehavior: StoppedSourceCommandError}
-	results := make(chan core.Result, 1)
-	go func() { results <- awaitAnyResult(state, source) }()
-	time.Sleep(20 * time.Millisecond)
+	results := startRESTAwait(t, func() core.Result { return awaitAnyResult(state, source) })
+	requireAwaitBlocked(t, results)
 	stopRESTServer(t, state, "stopped_error")
-	require.Equal(t, core.Signal("CommandError"), (<-results).Signal)
+	require.Equal(t, core.Signal("CommandError"), requireRESTResult(t, results).Signal)
 }
 
 func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
@@ -321,12 +321,49 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 		server := namedControlServer("blocking")
 		server.Queue.Timeout = "1s"
 		state, _ := launchRESTServer(t, server, LimitProfile{})
-		results := make(chan core.Result, 1)
-		go func() { results <- awaitCommand(state, "blocking").Execute() }()
-		time.Sleep(20 * time.Millisecond)
+		results := startRESTAwait(t, func() core.Result {
+			return awaitCommand(state, "blocking").Execute()
+		})
+		requireAwaitBlocked(t, results)
 		require.Equal(t, "stopped", stopRESTServer(t, state, "blocking")["status"])
-		require.Equal(t, core.Signal("ServerStopped"), (<-results).Signal)
+		require.Equal(t, core.Signal("ServerStopped"), requireRESTResult(t, results).Signal)
 	})
+}
+
+func startRESTAwait(t *testing.T, await func() core.Result) <-chan core.Result {
+	t.Helper()
+	started := make(chan struct{})
+	results := make(chan core.Result, 1)
+	go func() {
+		close(started)
+		results <- await()
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out starting REST await")
+	}
+	return results
+}
+
+func requireAwaitBlocked(t *testing.T, results <-chan core.Result) {
+	t.Helper()
+	select {
+	case result := <-results:
+		t.Fatalf("await returned before server stop: signal=%s output=%s", result.Signal, result.Output)
+	default:
+	}
+}
+
+func requireRESTResult(t *testing.T, results <-chan core.Result) core.Result {
+	t.Helper()
+	select {
+	case result := <-results:
+		return result
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for REST command result")
+		return core.Result{}
+	}
 }
 
 func TestRESTServer_QueueOverflowPolicies(t *testing.T) {
