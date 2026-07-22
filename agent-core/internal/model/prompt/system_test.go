@@ -246,37 +246,40 @@ func TestSerializeManifest_NoLeadingBlankLine(t *testing.T) {
 // normalizeSchema
 // ---------------------------------------------------------------------------
 
-func TestNormalizeSchema_ReIndents(t *testing.T) {
+func TestNormalizeSchema(t *testing.T) {
 	t.Parallel()
-	raw := json.RawMessage(`{"a":1,"b":{"c":2}}`)
-	got := normalizeSchema(raw)
-	require.Contains(t, string(got), "  \"a\": 1")
-	require.Contains(t, string(got), "    \"c\": 2")
-}
+	tests := []struct {
+		name      string
+		raw       json.RawMessage
+		wantNil   bool
+		wantExact string
+		contains  []string
+	}{
+		{
+			name: "valid object is indented", raw: json.RawMessage(`{"a":1,"b":{"c":2}}`),
+			contains: []string{`  "a": 1`, `    "c": 2`},
+		},
+		{name: "nil", raw: nil, wantNil: true},
+		{name: "empty", raw: json.RawMessage{}, wantNil: true},
+		{name: "JSON null", raw: json.RawMessage(`null`), wantNil: true},
+		{name: "whitespace only", raw: json.RawMessage("   \n  "), wantNil: true},
+		{name: "malformed JSON remains raw", raw: json.RawMessage(`{not valid}`), wantExact: `{not valid}`},
+	}
 
-func TestNormalizeSchema_NilReturnsNil(t *testing.T) {
-	t.Parallel()
-	require.Nil(t, normalizeSchema(nil))
-}
-
-func TestNormalizeSchema_EmptyReturnsNil(t *testing.T) {
-	t.Parallel()
-	require.Nil(t, normalizeSchema(json.RawMessage{}))
-}
-
-func TestNormalizeSchema_NullReturnsNil(t *testing.T) {
-	t.Parallel()
-	require.Nil(t, normalizeSchema(json.RawMessage(`null`)))
-}
-
-func TestNormalizeSchema_InvalidJSON_ReturnsRaw(t *testing.T) {
-	t.Parallel()
-	raw := json.RawMessage(`{not valid}`)
-	got := normalizeSchema(raw)
-	require.Equal(t, []byte(`{not valid}`), got)
-}
-
-func TestNormalizeSchema_WhitespaceOnlyReturnsNil(t *testing.T) {
-	t.Parallel()
-	require.Nil(t, normalizeSchema(json.RawMessage("   \n  ")))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := normalizeSchema(tt.raw)
+			if tt.wantNil {
+				require.Nil(t, got)
+				return
+			}
+			if tt.wantExact != "" {
+				require.Equal(t, tt.wantExact, string(got))
+			}
+			for _, fragment := range tt.contains {
+				require.Contains(t, string(got), fragment)
+			}
+		})
+	}
 }
