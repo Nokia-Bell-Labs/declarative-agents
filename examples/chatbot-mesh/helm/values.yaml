@@ -176,11 +176,33 @@ executor:
 # the runtime image that turn a provisioning intent into an ingest and a rollout
 # through the deployment API. Disabled by default; the data plane serves without it.
 # The chatbot gains its declared coordinator client only when this is enabled.
+#
+# The ingress /provisioning route is gated on this too, because the coordinator is
+# the panel's intake (srd004 R1.5). With the control plane off, no provisioning
+# route renders at all -- previously the route rendered against the executor, whose
+# NetworkPolicy admits only the creator, so it was present but dead (GH-502).
 controlPlane:
   enabled: false
   coordinator:
     replicas: 1
     ports: {intent: 18100, control: 18101, monitor: 18102}
+    # The intent port is the panel's only provisioning intake, so it is the one
+    # control-plane surface the ingress controller may reach. Admitting it here is
+    # what lets the browser route work while the executor's apply surface stays
+    # creator-only (srd006 R4.1, srd003 R4.5).
+    #
+    # Name your own ingress controller with these selectors; the defaults match a
+    # conventional ingress-nginx install. Both apply together, so the source must
+    # be an ingress-controller pod in the ingress-controller namespace.
+    networkPolicy:
+      enabled: true
+      ingressController:
+        namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ingress-nginx
     resources:
       requests: {cpu: 50m, memory: 64Mi}
       limits: {cpu: 500m, memory: 256Mi}
