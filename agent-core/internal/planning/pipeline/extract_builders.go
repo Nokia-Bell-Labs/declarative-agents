@@ -9,6 +9,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/extract"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -79,6 +80,13 @@ func (c *extractAllCmd) Execute() core.Result {
 	}
 	c.ps.retryCount = 0
 	c.ps.CurrentTask = allReadyTask(ready)
+	if err := c.ps.advanceTaskNodesTo(graph.Planning); err != nil {
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
+	}
+	c.ps.CurrentPlan = &plan.ImplementationPlan{
+		Title:   "Execute all ready requirements",
+		Summary: fmt.Sprintf("Pass-through execution for %d ready graph nodes.", len(ready)),
+	}
 	return core.Result{
 		CommandName: c.Name(),
 		Signal:      SigTaskExtracted,

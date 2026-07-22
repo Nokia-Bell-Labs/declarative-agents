@@ -621,9 +621,9 @@ const (
 	helmLLMHealthURL = "http://127.0.0.1:18081/api/lifecycle/health"
 	helmLLMTagsURL   = "http://127.0.0.1:11434/api/tags"
 
-	// Model pulls run on CPU inside kind; --wait blocks on the preload Job and the
-	// chatbot's wait-for-llm-models init container, so the install itself carries the
-	// long timeout and the post-assertions are quick confirmations.
+	// Model pulls run on CPU inside kind. Installation deliberately does not use
+	// --wait: the integration observes the agent readiness transition around the
+	// suspended preload Job before allowing models to pull.
 	helmLLMInstallTimeout = 20 * time.Minute
 	helmLLMReadyTimeout   = 3 * time.Minute
 )
@@ -687,13 +687,14 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 
-	// --wait already blocked on these, but assert them directly so a regression in
-	// the preload Job or readiness gate reads as a tier failure, not a chat failure.
+	// Ollama must serve before the suspended preload Job can be resumed; agent
+	// readiness remains blocked until the transition proof below completes.
 	if err := kubectlRolloutStatus("statefulset", helmLLMRelease+"-chatbot-mesh-ollama", helmLLMReadyTimeout); err != nil {
 		return fmt.Errorf("ollama StatefulSet did not become ready: %w", err)
 	}
-	if err := waitJobComplete(helmLLMRelease+"-chatbot-mesh-ollama-preload", helmLLMReadyTimeout); err != nil {
-		return fmt.Errorf("ollama preload Job did not complete: %w", err)
+	workloads, err := beginLLMPreloadTransition(runHelmLLMCommand)
+	if err != nil {
+		return err
 	}
 
 	stopTags, err := kubectlPortForward("svc/"+helmLLMRelease+"-chatbot-mesh-ollama", 11434)
@@ -705,6 +706,9 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	stopTags()
+	if err := finishLLMPreloadTransition(runHelmLLMCommand, workloads); err != nil {
+		return err
+	}
 
 	stop, err := kubectlPortForward("svc/"+helmLLMRelease+"-chatbot-mesh-chatbot", 18080, 18081)
 	if err != nil {
@@ -723,18 +727,117 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 }
 
 func helmInstallLLM(chartPath string) error {
+	return helmInstallLLMWithRunner(chartPath, runHelmLLMCommand)
+}
+
+func helmInstallLLMWithRunner(chartPath string, run helmLLMCommandRunner) error {
 	repo, tag := splitImageRef(helmImage)
-	cmd := exec.Command("helm", "install", helmLLMRelease, chartPath,
+	args := []string{"install", helmLLMRelease, chartPath,
 		"--values", filepath.Join(chartPath, "ci", "kind-llm-values.yaml"),
-		"--set", "image.repository="+repo,
-		"--set", "image.tag="+tag,
+		"--set", "image.repository=" + repo,
+		"--set", "image.tag=" + tag,
 		"--set", "image.pullPolicy=Never",
-		"--wait", "--timeout", helmLLMInstallTimeout.String(),
-	)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
+		"--set", "ollama.preload.suspend=true",
+		"--timeout", helmLLMInstallTimeout.String(),
+	}
+	out, err := run("helm", args...)
+	if len(out) > 0 {
+		_, _ = os.Stderr.Write(out)
+	}
+	if err != nil {
 		return fmt.Errorf("helm install %s: %w", helmLLMRelease, err)
 	}
+	return nil
+}
+
+type helmLLMCommandRunner func(name string, args ...string) ([]byte, error)
+
+var runHelmLLMCommand helmLLMCommandRunner = func(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).CombinedOutput()
+}
+
+type llmWorkloadList struct {
+	Items []struct {
+		Metadata struct {
+			Name   string            `json:"name"`
+			Labels map[string]string `json:"labels"`
+		} `json:"metadata"`
+		Spec struct {
+			Replicas int `json:"replicas"`
+		} `json:"spec"`
+		Status struct {
+			ReadyReplicas int `json:"readyReplicas"`
+		} `json:"status"`
+	} `json:"items"`
+}
+
+func beginLLMPreloadTransition(run helmLLMCommandRunner) ([]string, error) {
+	job := helmLLMRelease + "-chatbot-mesh-ollama-preload"
+	jobData, err := run("kubectl", "get", "job/"+job, "-o", "json")
+	if err != nil {
+		return nil, fmt.Errorf("inspect suspended preload Job: %w: %s", err, strings.TrimSpace(string(jobData)))
+	}
+	var jobState struct {
+		Spec struct {
+			Suspend bool `json:"suspend"`
+		} `json:"spec"`
+		Status struct {
+			Succeeded int `json:"succeeded"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(jobData, &jobState); err != nil {
+		return nil, fmt.Errorf("decode preload Job: %w", err)
+	}
+	if !jobState.Spec.Suspend || jobState.Status.Succeeded != 0 {
+		return nil, fmt.Errorf("preload observation requires suspended incomplete Job; suspend=%t succeeded=%d",
+			jobState.Spec.Suspend, jobState.Status.Succeeded)
+	}
+
+	data, err := run("kubectl", "get", "deployment",
+		"-l", "app.kubernetes.io/instance="+helmLLMRelease, "-o", "json")
+	if err != nil {
+		return nil, fmt.Errorf("inspect pre-preload agent readiness: %w: %s", err, strings.TrimSpace(string(data)))
+	}
+	var list llmWorkloadList
+	if err := json.Unmarshal(data, &list); err != nil {
+		return nil, fmt.Errorf("decode agent workload readiness: %w", err)
+	}
+	var names []string
+	for _, item := range list.Items {
+		component := item.Metadata.Labels["app.kubernetes.io/component"]
+		if component != "chatbot" && component != "rag-server" {
+			continue
+		}
+		names = append(names, item.Metadata.Name)
+		if item.Spec.Replicas <= 0 || item.Status.ReadyReplicas >= item.Spec.Replicas {
+			return nil, fmt.Errorf("agent workload %s became ready before preload: ready=%d desired=%d",
+				item.Metadata.Name, item.Status.ReadyReplicas, item.Spec.Replicas)
+		}
+	}
+	if len(names) < 2 {
+		return nil, fmt.Errorf("expected chatbot and RAG workloads before preload, found %v", names)
+	}
+	fmt.Printf("helmLLMTier: agents unready while preload is suspended: %s\n", strings.Join(names, ", "))
+	patch := `{"spec":{"suspend":false}}`
+	if out, err := run("kubectl", "patch", "job/"+job, "--type=merge", "-p", patch); err != nil {
+		return nil, fmt.Errorf("resume preload Job: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	if out, err := run("kubectl", "wait", "--for=condition=complete", "job/"+job,
+		"--timeout", helmLLMReadyTimeout.String()); err != nil {
+		return nil, fmt.Errorf("preload Job did not complete: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return names, nil
+}
+
+func finishLLMPreloadTransition(run helmLLMCommandRunner, workloads []string) error {
+	for _, name := range workloads {
+		if out, err := run("kubectl", "rollout", "status", "deployment/"+name,
+			"--timeout", helmLLMReadyTimeout.String()); err != nil {
+			return fmt.Errorf("agent workload %s did not become ready after model preload: %w: %s",
+				name, err, strings.TrimSpace(string(out)))
+		}
+	}
+	fmt.Printf("helmLLMTier: agents ready after configured models became present: %s\n", strings.Join(workloads, ", "))
 	return nil
 }
 

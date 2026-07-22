@@ -144,8 +144,11 @@ func TestRegisterSingleBuiltinUnknownInitMatchesUnifiedPath(t *testing.T) {
 		return noopBuilder{}
 	})
 
-	require.EqualError(t, singleErr, `builtin tool "bad": unknown init "missing"`)
-	require.EqualError(t, unifiedErr, `builtin tool "bad": unknown init "missing"`)
+	require.Error(t, singleErr)
+	require.Error(t, unifiedErr)
+	require.Equal(t, singleErr.Error(), unifiedErr.Error(), "single and unified registration must report the same contract failure")
+	require.ErrorContains(t, singleErr, `builtin tool "bad"`)
+	require.ErrorContains(t, singleErr, `unknown init "missing"`)
 }
 
 func TestRegisterSingleBuiltinOverrides(t *testing.T) {

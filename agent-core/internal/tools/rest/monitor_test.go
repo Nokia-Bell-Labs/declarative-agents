@@ -99,9 +99,31 @@ func TestMonitorREST_FailureDoesNotMutateState(t *testing.T) {
 	defer stopRESTServer(t, state, "monitor_failure")
 
 	before := monitorState.Store.Snapshot()
-	requestStatus(t, http.MethodGet, baseURL+"/monitor/broken", "", http.StatusInternalServerError)
+	beforeMachine, err := json.Marshal(monitorState.Machine)
+	require.NoError(t, err)
+	beforeTools, err := json.Marshal(monitorState.Tools)
+	require.NoError(t, err)
+
+	body := requestBody(t, http.MethodGet, baseURL+"/monitor/broken", "", http.StatusInternalServerError)
+	var failure map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(body), &failure))
+	require.Len(t, failure, 3)
+	require.Equal(t, "monitor_broken", failure["endpoint"])
+	require.Equal(t, "monitor_view", failure["failure_stage"])
+	require.Contains(t, failure["message"], `monitor view "broken"`)
+	require.NotContains(t, body, "synthetic-token")
+	require.NotContains(t, body, "/tmp/unsafe")
+	require.NotContains(t, body, "request_id")
+
 	after := monitorState.Store.Snapshot()
-	require.Equal(t, len(before.RecentEvents), len(after.RecentEvents))
+	require.Equal(t, before, after)
+	afterMachine, err := json.Marshal(monitorState.Machine)
+	require.NoError(t, err)
+	require.JSONEq(t, string(beforeMachine), string(afterMachine))
+	afterTools, err := json.Marshal(monitorState.Tools)
+	require.NoError(t, err)
+	require.JSONEq(t, string(beforeTools), string(afterTools))
+	requireQueueEmpty(t, state, "monitor_failure")
 	requireAwaitSignal(t, state, "monitor_failure", "AwaitTimedOut")
 }
 

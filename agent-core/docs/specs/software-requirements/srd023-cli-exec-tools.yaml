@@ -50,6 +50,7 @@ requirements:
       - R2.4: The bool_flag extension SHALL be boolean; when true and the parameter value is true, the flag value is appended without a following value.
       - R2.5: The default extension SHALL provide a parameter value when the caller omits it.
       - R2.6: CLI mapping extensions SHALL be stripped from the ToolSpec schema sent to LLMs.
+      - R2.7: The position extension SHALL order mapped arguments numerically; mappings without a position SHALL follow in stable parameter-name order.
 
   R3:
     title: Subprocess execution
@@ -114,8 +115,8 @@ acceptance_criteria:
     traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
-    criterion: Parameter mapping converts JSON tool parameters into argv using flag, positional, bool_flag, and default extensions while stripping those extensions from LLM-visible schema.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
+    criterion: Parameter mapping converts JSON tool parameters into deterministic argv using flag, positional, bool_flag, default, and position extensions while stripping those extensions from LLM-visible schema.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
 
   - id: AC3
     criterion: Exec tools run subprocesses in the correct directory, capture output/exit/duration, honor output caps and cancellation, map outcomes to ToolDone, ToolFailed, or CommandError, and can declare those signals in emits.

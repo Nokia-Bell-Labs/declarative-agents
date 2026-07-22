@@ -56,6 +56,63 @@ func TestValidateDefinitionRejectsMergedNameCollisions(t *testing.T) {
 	}
 }
 
+func TestValidateDefinitionRejectsAmbiguousStatusMappings(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		success  []int
+		failures [][]int
+		valid    bool
+	}{
+		{name: "disjoint exact statuses", success: []int{200, 201}, failures: [][]int{{404}, {422, 500}}, valid: true},
+		{name: "success overlaps failure", success: []int{200}, failures: [][]int{{200}}},
+		{name: "failure mappings overlap", success: []int{200}, failures: [][]int{{404, 422}, {422, 500}}},
+		{name: "reversed failures still overlap", success: []int{200}, failures: [][]int{{422, 500}, {404, 422}}},
+		{name: "duplicate success status", success: []int{200, 200}},
+		{name: "duplicate within failure", success: []int{200}, failures: [][]int{{404, 404}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			def := baseDefinition()
+			def.Clients["github"].Operations["search_issues"] = operationWithStatusMappings(tt.success, tt.failures...)
+			err := ValidateDefinition(def)
+			if tt.valid {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, "maps HTTP status")
+			require.ErrorContains(t, err, "more than once")
+		})
+	}
+}
+
+func TestValidateStatusMappingsEveryHTTPCodeHasOneOwner(t *testing.T) {
+	t.Parallel()
+	for status := 100; status <= 599; status++ {
+		other := status + 1
+		if other > 599 {
+			other = 100
+		}
+		require.NoError(t, validateStatusMappings("probe", operationWithStatusMappings([]int{status}, []int{other})))
+		require.Error(t, validateStatusMappings("probe", operationWithStatusMappings([]int{status}, []int{status})))
+	}
+}
+
+func operationWithStatusMappings(success []int, failures ...[]int) Operation {
+	op := validReadOperation()
+	op.Success = StatusMapping{Status: success, Signal: "RESTDone"}
+	for index, statuses := range failures {
+		signal := "RESTFailed"
+		if index > 0 {
+			signal = "RESTDomainFailed"
+		}
+		op.Failures = append(op.Failures, StatusMapping{Status: statuses, Signal: signal})
+	}
+	return op
+}
+
 func clearVersion(def Definition) Definition {
 	def.Version = ""
 	return def

@@ -252,31 +252,37 @@ func requireActiveStreams(t *testing.T, state *ServerState, name string, want in
 	}, 500*time.Millisecond, 10*time.Millisecond)
 }
 
-func clientCommand(def Definition, init, operation string, input map[string]interface{}) core.Command {
-	return clientCommandWithCredentials(def, init, operation, input, nil)
+func clientCommand(t *testing.T, def Definition, init, operation string, input map[string]interface{}) core.Command {
+	t.Helper()
+	return clientCommandWithCredentials(t, def, init, operation, input, nil)
 }
 
 func clientCommandWithCredentials(
+	t *testing.T,
 	def Definition,
 	init string,
 	operation string,
 	input map[string]interface{},
 	credentials CredentialResolver,
 ) core.Command {
-	return clientCommandWithMetricsAndCredentials(def, init, operation, input, restMetrics(), credentials)
+	t.Helper()
+	return clientCommandWithMetricsAndCredentials(t, def, init, operation, input, restMetrics(), credentials)
 }
 
 func clientCommandWithMetrics(
+	t *testing.T,
 	def Definition,
 	init string,
 	operation string,
 	input map[string]interface{},
 	metrics core.MetricConfig,
 ) core.Command {
-	return clientCommandWithMetricsAndCredentials(def, init, operation, input, metrics, nil)
+	t.Helper()
+	return clientCommandWithMetricsAndCredentials(t, def, init, operation, input, metrics, nil)
 }
 
 func clientCommandWithMetricsAndCredentials(
+	t *testing.T,
 	def Definition,
 	init string,
 	operation string,
@@ -284,12 +290,15 @@ func clientCommandWithMetricsAndCredentials(
 	metrics core.MetricConfig,
 	credentials CredentialResolver,
 ) core.Command {
+	t.Helper()
 	collection := NewCollection()
-	_ = collection.Add(def)
-	resolved, _ := collection.ResolveClientOperation(ClientToolConfig{
+	require.NoError(t, collection.Add(def))
+	resolved, err := collection.ResolveClientOperation(ClientToolConfig{
 		RestRef: "github", Resource: "issue", Operation: operation,
 	})
-	params, _ := json.Marshal(map[string]interface{}{"tool": init, "parameters": input})
+	require.NoError(t, err)
+	params, err := json.Marshal(map[string]interface{}{"tool": init, "parameters": input})
+	require.NoError(t, err)
 	return ClientBuilder{
 		ToolName: init, Init: init, Operation: resolved, Credentials: credentials, Metrics: metrics,
 	}.Build(core.Result{Output: string(params)})
@@ -309,7 +318,7 @@ func restMetrics() core.MetricConfig {
 
 func requireClientSignal(t *testing.T, def Definition, init, operation string, input map[string]interface{}, signal string) {
 	t.Helper()
-	result := clientCommand(def, init, operation, input).Execute()
+	result := clientCommand(t, def, init, operation, input).Execute()
 	require.Equal(t, core.Signal(signal), result.Signal, result.Output)
 	require.Contains(t, result.Output, `"operation":"`+operation+`"`)
 }

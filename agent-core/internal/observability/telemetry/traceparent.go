@@ -14,6 +14,9 @@ import (
 // ParseTraceparent parses a W3C traceparent header (version 00) and
 // returns a remote SpanContext. Format: "00-<traceID>-<spanID>-<flags>".
 func ParseTraceparent(tp string) (trace.SpanContext, error) {
+	if tp != strings.ToLower(tp) {
+		return trace.SpanContext{}, fmt.Errorf("traceparent must use lowercase hexadecimal")
+	}
 	parts := strings.Split(tp, "-")
 	if len(parts) != 4 {
 		return trace.SpanContext{}, fmt.Errorf("expected 4 dash-separated parts, got %d", len(parts))

@@ -25,13 +25,23 @@ type chatbotMachine struct {
 	} `yaml:"transitions"`
 }
 
-func loadChatbotMachine(t *testing.T) chatbotMachine {
+func readRequiredChatbotAsset(t *testing.T, path string) []byte {
 	t.Helper()
-	path := filepath.Join("..", "agents", "chatbot", "request-machine.yaml")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Skipf("chatbot request-machine.yaml not found: %v", err)
+		t.Fatalf("read required chatbot asset %s: %v", path, err)
 	}
+	return data
+}
+
+func chatbotAssetPath(name string) string {
+	return filepath.Join("..", "..", "examples", "chatbot-mesh", "agents", "chatbot", name)
+}
+
+func loadChatbotMachine(t *testing.T) chatbotMachine {
+	t.Helper()
+	path := chatbotAssetPath("request-machine.yaml")
+	data := readRequiredChatbotAsset(t, path)
 	var m chatbotMachine
 	if err := yaml.Unmarshal(data, &m); err != nil {
 		t.Fatalf("parse request-machine.yaml: %v", err)
@@ -99,11 +109,8 @@ func TestChatbotFanOutRoutesDegradedAndExcluded(t *testing.T) {
 // request-fanout.yaml (split out in GH-372 so only that file varies with the RAG
 // count); the base declarations must carry no fan-out residue.
 func TestChatbotComposeReadsEachRagSource(t *testing.T) {
-	fanout := filepath.Join("..", "agents", "chatbot", "request-fanout.yaml")
-	data, err := os.ReadFile(fanout)
-	if err != nil {
-		t.Skipf("request-fanout.yaml not found: %v", err)
-	}
+	fanout := chatbotAssetPath("request-fanout.yaml")
+	data := readRequiredChatbotAsset(t, fanout)
 	text := string(data)
 	if strings.Contains(text, "rag_merge") || strings.Contains(text, "$from(rag_merge)") {
 		t.Error("request-fanout.yaml still references rag_merge (GH-365)")
@@ -114,13 +121,12 @@ func TestChatbotComposeReadsEachRagSource(t *testing.T) {
 		}
 	}
 	// The base declarations must no longer carry the fan-out words.
-	base := filepath.Join("..", "agents", "chatbot", "request-declarations.yaml")
-	if bdata, err := os.ReadFile(base); err == nil {
-		if strings.Contains(string(bdata), "rag_merge") {
-			t.Error("request-declarations.yaml still references rag_merge (GH-365)")
-		}
-		if strings.Contains(string(bdata), "name: rag_query0") {
-			t.Error("request-declarations.yaml still declares the fan-out words; they moved to request-fanout.yaml (GH-372)")
-		}
+	base := chatbotAssetPath("request-declarations.yaml")
+	bdata := readRequiredChatbotAsset(t, base)
+	if strings.Contains(string(bdata), "rag_merge") {
+		t.Error("request-declarations.yaml still references rag_merge (GH-365)")
+	}
+	if strings.Contains(string(bdata), "name: rag_query0") {
+		t.Error("request-declarations.yaml still declares the fan-out words; they moved to request-fanout.yaml (GH-372)")
 	}
 }

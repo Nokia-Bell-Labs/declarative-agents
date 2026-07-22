@@ -5,6 +5,7 @@ package spec
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +24,7 @@ func TestExecuteRefChecksResolvedInlineReferencesPass(t *testing.T) {
 	findings, err := ExecuteRefChecks(root, []Charter{charter})
 
 	require.NoError(t, err)
-	require.Empty(t, findings)
+	assert.Empty(t, findings)
 }
 
 func TestExecuteRefChecksReportsMissingReferenceWithProvenance(t *testing.T) {
@@ -42,13 +43,13 @@ func TestExecuteRefChecksReportsMissingReferenceWithProvenance(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Equal(t, "warning", findings[0].Level)
-	require.Equal(t, "citation-suite", findings[0].SuiteID)
-	require.Equal(t, "citations-resolve", findings[0].CheckID)
-	require.Equal(t, "ref_check", findings[0].Kind)
-	require.Equal(t, "paper.md", findings[0].File)
-	require.Equal(t, 2, findings[0].Line)
-	require.Contains(t, findings[0].Message, "missing")
+	assert.Equal(t, "warning", findings[0].Level)
+	assert.Equal(t, "citation-suite", findings[0].SuiteID)
+	assert.Equal(t, "citations-resolve", findings[0].CheckID)
+	assert.Equal(t, "ref_check", findings[0].Kind)
+	assert.Equal(t, "paper.md", findings[0].File)
+	assert.Equal(t, 2, findings[0].Line)
+	assert.Contains(t, findings[0].Message, "missing")
 }
 
 func TestExecuteRefChecksResolvesPathReferencesAgainstDirectory(t *testing.T) {
@@ -68,9 +69,9 @@ func TestExecuteRefChecksResolvesPathReferencesAgainstDirectory(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Equal(t, "manifest.txt", findings[0].File)
-	require.Equal(t, 2, findings[0].Line)
-	require.Contains(t, findings[0].Message, "results/missing.json")
+	assert.Equal(t, "manifest.txt", findings[0].File)
+	assert.Equal(t, 2, findings[0].Line)
+	assert.Contains(t, findings[0].Message, "results/missing.json")
 }
 
 func TestExecuteRefChecksLoadsBibtexKeys(t *testing.T) {
@@ -90,7 +91,7 @@ func TestExecuteRefChecksLoadsBibtexKeys(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Contains(t, findings[0].Message, "Missing2026")
+	assert.Contains(t, findings[0].Message, "Missing2026")
 }
 
 func TestExecuteRefChecksAllowMissingSuppressesNoReferenceFinding(t *testing.T) {
@@ -109,7 +110,7 @@ func TestExecuteRefChecksAllowMissingSuppressesNoReferenceFinding(t *testing.T) 
 	findings, err := ExecuteRefChecks(root, []Charter{charter})
 
 	require.NoError(t, err)
-	require.Empty(t, findings)
+	assert.Empty(t, findings)
 }
 
 func TestExecuteRefChecksSortsFindingsDeterministically(t *testing.T) {
@@ -124,15 +125,7 @@ func TestExecuteRefChecksSortsFindingsDeterministically(t *testing.T) {
 	findings, err := ExecuteRefChecks(root, charters)
 
 	require.NoError(t, err)
-	require.Len(t, findings, 4)
-	require.Equal(t, "suite-a", findings[0].SuiteID)
-	require.Equal(t, "a.md", findings[0].File)
-	require.Equal(t, "suite-a", findings[1].SuiteID)
-	require.Equal(t, "z.md", findings[1].File)
-	require.Equal(t, "suite-b", findings[2].SuiteID)
-	require.Equal(t, "a.md", findings[2].File)
-	require.Equal(t, "suite-b", findings[3].SuiteID)
-	require.Equal(t, "z.md", findings[3].File)
+	requireDeterministicCharterOrder(t, findings, ".md")
 }
 
 func TestExecuteRefChecksNoReferencesFoundIsFindingByDefault(t *testing.T) {
@@ -151,8 +144,8 @@ func TestExecuteRefChecksNoReferencesFoundIsFindingByDefault(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
-	require.Empty(t, findings[0].File)
-	require.Contains(t, findings[0].Message, "no references found")
+	assert.Empty(t, findings[0].File)
+	assert.Contains(t, findings[0].Message, "no references found")
 }
 
 func refCharter(id string, check CharterCheck) Charter {

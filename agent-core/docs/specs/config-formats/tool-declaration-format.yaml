@@ -151,6 +151,8 @@ schema:
       and may be appended to the LLM-visible description. New declarations
       should use the structured list form with entries containing kind,
       target, paths, state, and description.
+      Serialization preserves a legacy scalar as a scalar and structured
+      effects as a list; the internal representation is never emitted.
 
       Known side-effect kind vocabulary (from current declarations):
         none — no side effects (pure read or computation).
@@ -523,6 +525,13 @@ parameter_extensions:
       description: |
         Default value used when the LLM omits the parameter. Applied
         before CLI argument construction.
+
+    - field: position
+      type: int
+      description: |
+        Positive ordering key for mapped arguments. Positioned mappings are
+        appended in ascending order after the tool's base args. Unpositioned
+        mappings follow in stable parameter-name order.
 
 declaration_files:
   - file: tools/builtin/

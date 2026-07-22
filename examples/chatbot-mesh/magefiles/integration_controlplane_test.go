@@ -2,7 +2,11 @@
 
 package main
 
-import "testing"
+import (
+	"net"
+	"strings"
+	"testing"
+)
 
 // TestControlPlaneBodyIsClean pins the authority-boundary check: a deployment-API
 // request body carrying the decided operation (operation/role/collection/patch) is
@@ -33,4 +37,42 @@ func TestControlPlaneBodyIsClean(t *testing.T) {
 			t.Errorf("dirty[%d] %v should carry a transport-authority field", i, body)
 		}
 	}
+}
+
+func TestFakeDeploymentAPIBindFailureIsAnError(t *testing.T) {
+	t.Parallel()
+	reservation, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve address: %v", err)
+	}
+	defer reservation.Close()
+	address := reservation.Addr().String()
+
+	_, err = startFakeDeploymentAPIOnAddr(&deploymentAPIRecorder{}, address)
+	if err == nil || !strings.Contains(err.Error(), "bind fake deployment API") {
+		t.Fatalf("startFakeDeploymentAPIOnAddr() error = %v, want bind failure", err)
+	}
+}
+
+func TestFakeDeploymentAPIStopReleasesAddress(t *testing.T) {
+	t.Parallel()
+	reservation, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve address: %v", err)
+	}
+	address := reservation.Addr().String()
+	if err := reservation.Close(); err != nil {
+		t.Fatalf("release reservation: %v", err)
+	}
+	stop, err := startFakeDeploymentAPIOnAddr(&deploymentAPIRecorder{}, address)
+	if err != nil {
+		t.Fatalf("start fake API: %v", err)
+	}
+	stop()
+
+	rebound, err := net.Listen("tcp", address)
+	if err != nil {
+		t.Fatalf("fake API stop did not release %s: %v", address, err)
+	}
+	_ = rebound.Close()
 }

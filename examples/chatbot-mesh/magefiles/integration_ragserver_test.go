@@ -2,7 +2,11 @@
 
 package main
 
-import "testing"
+import (
+	"encoding/json"
+	"slices"
+	"testing"
+)
 
 func TestParseRagQueryResponseChunksAndMetadata(t *testing.T) {
 	body := []byte(`{
@@ -55,8 +59,17 @@ func TestRagQueryBodyMarshalsVector(t *testing.T) {
 	if err != nil {
 		t.Fatalf("body: %v", err)
 	}
-	want := `{"n_results":5,"query_embeddings":[0.1,0.2,0.3]}`
-	if body != want {
-		t.Fatalf("ragQueryBody = %s, want %s", body, want)
+	var payload struct {
+		NResults        int       `json:"n_results"`
+		QueryEmbeddings []float64 `json:"query_embeddings"`
+	}
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if payload.NResults != 5 {
+		t.Fatalf("n_results = %d, want 5", payload.NResults)
+	}
+	if want := []float64{0.1, 0.2, 0.3}; !slices.Equal(payload.QueryEmbeddings, want) {
+		t.Fatalf("query_embeddings = %v, want %v", payload.QueryEmbeddings, want)
 	}
 }

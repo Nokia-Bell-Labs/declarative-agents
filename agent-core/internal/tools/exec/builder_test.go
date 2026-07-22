@@ -50,6 +50,7 @@ func TestExecBuilder_WithDefault(t *testing.T) {
 }
 
 func TestExecCmd_BuildArgs(t *testing.T) {
+	t.Parallel()
 	def := catalog.ToolDef{
 		Name:   "test",
 		Binary: "go",
@@ -57,17 +58,19 @@ func TestExecCmd_BuildArgs(t *testing.T) {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"package": map[string]interface{}{"type": "string", "positional": true},
-				"verbose": map[string]interface{}{"type": "boolean", "flag": "-v", "bool_flag": true},
+				"source":      map[string]interface{}{"type": "string", "positional": true, "position": 1},
+				"verbose":     map[string]interface{}{"type": "boolean", "flag": "-v", "bool_flag": true, "position": 2},
+				"destination": map[string]interface{}{"type": "string", "positional": true, "position": 3},
 			},
 		},
 	}
-	cmd := &ExecCmd{def: def, root: "/tmp", params: map[string]string{"package": "./pkg/...", "verbose": "true"}}
-	args := cmd.buildArgs()
-	assert.Contains(t, args, "test")
-	assert.Contains(t, args, "-count=1")
-	assert.Contains(t, args, "./pkg/...")
-	assert.Contains(t, args, "-v")
+	cmd := &ExecCmd{def: def, root: "/tmp", params: map[string]string{
+		"source": "A", "verbose": "true", "destination": "B",
+	}}
+	want := []string{"test", "-count=1", "A", "-v", "B"}
+	for range 500 {
+		assert.Equal(t, want, cmd.buildArgs())
+	}
 }
 
 func TestExecCmd_BuildArgs_FlagParams(t *testing.T) {

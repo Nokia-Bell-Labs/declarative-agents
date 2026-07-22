@@ -248,14 +248,14 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 	var last core.Result
 	initialSignal := machineRequestInitialSignal(req.Config)
 	params := core.LoopParams{
-		MachineSpec:     req.Config.MachineSpec,
-		Registry:        req.Config.Registry,
-		InitFunc:        req.Config.InitFunc,
-		ToolAction:      req.Config.ToolAction,
-		InitialSignal:   initialSignal,
-		InitialResult:   requestSeed(req, initialSignal),
-		Budget:          req.Config.Budget,
-		CommandTimeout:  parseDuration(req.Config.CommandTimeout, 0),
+		MachineSpec:    req.Config.MachineSpec,
+		Registry:       req.Config.Registry,
+		InitFunc:       req.Config.InitFunc,
+		ToolAction:     req.Config.ToolAction,
+		InitialSignal:  initialSignal,
+		InitialResult:  requestSeed(req, initialSignal),
+		Budget:         req.Config.Budget,
+		CommandTimeout: parseDuration(req.Config.CommandTimeout, 0),
 		// Run the request-scoped machine under a real tracer rooted at the
 		// machine_request span in ctx, so its per-word dispatch and REST-client
 		// spans export as children of that span (one connected trace) and the
@@ -503,18 +503,8 @@ func machineSelectorValue(selector string, output map[string]interface{}) interf
 	if !strings.HasPrefix(selector, "$.") {
 		return selector
 	}
-	return nestedValue(output, strings.Split(strings.TrimPrefix(selector, "$."), "."))
-}
-
-func nestedValue(value interface{}, path []string) interface{} {
-	if len(path) == 0 {
-		return value
-	}
-	obj, _ := value.(map[string]interface{})
-	if obj == nil {
-		return nil
-	}
-	return nestedValue(obj[path[0]], path[1:])
+	value, _ := resolveResultSelector(selector, output)
+	return value
 }
 
 func machineRequestPayload(mapping MachineRequestMapping, payload map[string]interface{}) map[string]interface{} {

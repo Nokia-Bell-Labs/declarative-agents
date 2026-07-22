@@ -40,7 +40,9 @@ test_cases:
       renders each RAG under its own [ragN] header, no merge word). Stopping rag1
       degrades the next turn to a 200 with the disjoint corpus absent (R3.2 via the
       CommandError machine transition). Verified end to end against live Docker and
-      Ollama; skips cleanly without them, naming a missing model.
+      Ollama; skips cleanly without them, naming a missing model. The named Go test
+      locks the generated N-RAG wiring; the Mage target owns routing, cross-corpus
+      composition, and degradation behavior.
     inputs:
       chatbot_profile: agents/chatbot/profile.yaml
       rag_clients: [rag0, rag1]

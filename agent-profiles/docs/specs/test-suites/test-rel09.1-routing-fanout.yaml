@@ -9,19 +9,23 @@ overview: |
   failure (CommandError), and excludes an embedding-space mismatch (QueryRejected)
   through visible machine transitions.
 
+  This retained suite is a historical relocation pointer. The canonical suite,
+  profiles, tests, and integration target live under examples/chatbot-mesh as
+  release 01.0.
+
 traces:
   - rel09.1-uc001-routed-fanout
 
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama are reachable with the configured embedding, router, and two chat-LLM models.
-  - agent-profiles owns the chatbot profile, the router prompt, and the fan-out declarations.
+  - examples/chatbot-mesh owns the chatbot profile, router prompt, and fan-out declarations.
 
 test_cases:
   - use_case: rel09.1-uc001-routed-fanout
     name: Routed two-RAG fan-out tracer over disjoint corpora
-    integration_target: mage integration:chatbot
-    go_test: go test ./magefiles -run 'TestChatbotFanOut|TestChatbotComposeReadsEachRagSource'
+    integration_target: cd ../examples/chatbot-mesh && mage integration:chatbot
+    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$'
     status: implemented
     description: |
       Integration.Chatbot starts one Chroma container with two disjoint collections
@@ -36,7 +40,7 @@ test_cases:
       CommandError machine transition). Verified end to end against live Docker and
       Ollama; skips cleanly without them, naming a missing model.
     inputs:
-      chatbot_profile: agents/chatbot/profile.yaml
+      chatbot_profile: ../examples/chatbot-mesh/agents/chatbot/profile.yaml
       rag_clients: [rag0, rag1]
       turns: factual, analytical, cross-corpus, then a degraded follow-up
       fault: rag1 stopped before the degraded turn

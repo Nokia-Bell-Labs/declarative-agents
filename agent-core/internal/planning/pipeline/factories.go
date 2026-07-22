@@ -15,9 +15,10 @@ import (
 
 // FactoryDeps holds the dependencies needed by pipeline tool factories.
 type FactoryDeps struct {
-	Directory string
-	Tracer    tracing.Tracer
-	Ctx       context.Context
+	Directory        string
+	ChildAgentBinary string
+	Tracer           tracing.Tracer
+	Ctx              context.Context
 }
 
 // RegisterFactories registers all pipeline builtin tool factories
@@ -69,6 +70,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		}
 		ps := initPS(def)
 		ps.ExecConfig = execute.Config{
+			Binary:  deps.ChildAgentBinary,
 			Profile: childCfg.Profile,
 		}
 		return &ExecuteTaskBuilder{PS: ps}, nil

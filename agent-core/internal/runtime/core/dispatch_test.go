@@ -77,6 +77,56 @@ func TestSafeExecute_TimeoutAndIndefiniteWait(t *testing.T) {
 	require.Greater(t, wait.Cost.Duration, time.Duration(0))
 }
 
+func TestSafeExecute_CompletionTimeoutRaceHasSingleResultOwner(t *testing.T) {
+	t.Parallel()
+	for range 500 {
+		result := SafeExecute(dispatchResultCmd{name: "racy", res: Result{Signal: ToolDone}}, time.Nanosecond)
+		if result.Signal == CommandError {
+			require.ErrorContains(t, result.Err, "timeout executing racy")
+			continue
+		}
+		require.Equal(t, ToolDone, result.Signal)
+		require.NoError(t, result.Err)
+	}
+}
+
+func TestSafeExecute_LegacyWorkerCanFinishAfterTimeout(t *testing.T) {
+	t.Parallel()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	finished := make(chan struct{})
+	cmd := &dispatchBlockingCmd{started: started, release: release, finished: finished}
+
+	result := SafeExecute(cmd, time.Millisecond)
+	require.Equal(t, CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "timeout executing blocking")
+	<-started
+	close(release)
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("legacy worker remained blocked after command returned")
+	}
+}
+
+func TestSafeExecute_ContextWorkerIsCanceledAndJoinedOnTimeout(t *testing.T) {
+	t.Parallel()
+	started := make(chan struct{})
+	finished := make(chan struct{})
+	cmd := &dispatchContextBlockingCmd{started: started, finished: finished}
+
+	result := SafeExecute(cmd, time.Millisecond)
+
+	require.Equal(t, CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "timeout executing context_blocking")
+	<-started
+	select {
+	case <-finished:
+	default:
+		t.Fatal("context-aware worker was not joined before SafeExecute returned")
+	}
+}
+
 func TestFillDurationAndForceErrorSignal(t *testing.T) {
 	t.Parallel()
 	start := time.Now().Add(-time.Millisecond)
@@ -92,6 +142,38 @@ func TestFillDurationAndForceErrorSignal(t *testing.T) {
 	FillDuration(&kept, start)
 	require.Equal(t, 10*time.Millisecond, kept.Cost.Duration)
 }
+
+type dispatchBlockingCmd struct {
+	started  chan struct{}
+	release  chan struct{}
+	finished chan struct{}
+}
+
+type dispatchContextBlockingCmd struct {
+	started  chan struct{}
+	finished chan struct{}
+}
+
+func (c *dispatchContextBlockingCmd) Name() string { return "context_blocking" }
+func (c *dispatchContextBlockingCmd) Execute() Result {
+	panic("SafeExecute must select ExecuteContext")
+}
+func (c *dispatchContextBlockingCmd) ExecuteContext(ctx context.Context) Result {
+	close(c.started)
+	<-ctx.Done()
+	close(c.finished)
+	return Result{Signal: CommandError, Err: ctx.Err()}
+}
+func (c *dispatchContextBlockingCmd) Undo(Result) Result { return NoopUndo(c.Name()) }
+
+func (c *dispatchBlockingCmd) Name() string { return "blocking" }
+func (c *dispatchBlockingCmd) Execute() Result {
+	close(c.started)
+	<-c.release
+	close(c.finished)
+	return Result{Signal: ToolDone}
+}
+func (c *dispatchBlockingCmd) Undo(Result) Result { return NoopUndo(c.Name()) }
 
 func TestDispatchWithMonitor_EmitsDispatchMetrics(t *testing.T) {
 	t.Parallel()
@@ -113,7 +195,7 @@ func TestDispatchWithMonitor_EmitsDispatchMetrics(t *testing.T) {
 
 	require.Equal(t, ToolDone, res.Signal)
 	requireDispatchSample(t, rec.samples, "dispatch_duration", monitor.MetricSample{
-		Kind: monitor.InstrumentHistogram, Unit: "ms", ToolName: "metric_cmd",
+		Kind: monitor.InstrumentHistogram, Unit: "ms", Value: float64(res.Cost.Duration.Milliseconds()), ToolName: "metric_cmd",
 		RunID: "run-1", State: "Working", Signal: "ToolDone", Status: "success",
 		Attributes: map[string]string{"agent.name": "agent-a", "phase": "dispatch"},
 	})
@@ -166,6 +248,28 @@ func requireDispatchSample(t *testing.T, samples []monitor.MetricSample, name st
 		return
 	}
 	t.Fatalf("missing sample %s in %#v", name, samples)
+}
+
+func TestDispatch_MetricExportFailurePreservesCommandResult(t *testing.T) {
+	t.Parallel()
+	exportErr := fmt.Errorf("metric collector unavailable")
+	recorder := &dispatchRuntimeRecorder{err: exportErr}
+	want := Result{
+		CommandName: "build", Signal: ToolDone, Output: `{"built":true}`,
+		Cost: Cost{Duration: 17 * time.Millisecond, TokensIn: 2, TokensOut: 3, Dollars: 0.04},
+	}
+	got := dispatchWithMonitor(
+		dispatchResultCmd{name: "build", res: want},
+		&dispatchTestTracer{},
+		0,
+		recorder,
+		monitor.DispatchContext{RunID: "run-1", State: "Working", Iteration: 2},
+	)
+
+	require.Equal(t, want, got)
+	require.NotEmpty(t, recorder.samples)
+	require.Equal(t, "ToolDone", recorder.samples[0].Signal)
+	require.Equal(t, "success", recorder.samples[0].Status)
 }
 
 type dispatchResultCmd struct {
@@ -253,11 +357,12 @@ func dispatchAttrs(attrs []attribute.KeyValue) map[string]attribute.Value {
 
 type dispatchRuntimeRecorder struct {
 	samples []monitor.MetricSample
+	err     error
 }
 
 func (r *dispatchRuntimeRecorder) RecordMetric(_ context.Context, sample monitor.MetricSample) error {
 	r.samples = append(r.samples, sample)
-	return nil
+	return r.err
 }
 func (r *dispatchRuntimeRecorder) RecordEvent(context.Context, monitor.RunEvent) error { return nil }
 func (r *dispatchRuntimeRecorder) RecordRun(context.Context, monitor.RunSnapshot) error {
@@ -265,5 +370,6 @@ func (r *dispatchRuntimeRecorder) RecordRun(context.Context, monitor.RunSnapshot
 }
 
 var _ MonitorRecorderAware = (*dispatchMetricCmd)(nil)
+var _ ContextCommand = (*dispatchContextBlockingCmd)(nil)
 var _ monitor.RuntimeRecorder = (*dispatchRuntimeRecorder)(nil)
 var _ tracing.Tracer = (*dispatchTestTracer)(nil)

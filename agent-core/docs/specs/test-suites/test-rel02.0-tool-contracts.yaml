@@ -58,7 +58,7 @@ test_cases:
 
   - use_case: rel02.0-uc003-tool-authoring
     name: Typed input and output contracts are machine-consumable
-    go_test: TestParseToolDefs_ContractFields, TestToolDef_ToToolSpec_IgnoresStructuredContractFields
+    go_test: TestParseToolDefs_ContractFields, TestValidate_SelectedToolContractCompletenessPassesCompleteTool
     status: done
     description: |
       Load a tool declaration with JSON Schema parameters and output.schema.

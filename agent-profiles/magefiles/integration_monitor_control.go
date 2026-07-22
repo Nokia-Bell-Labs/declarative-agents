@@ -18,7 +18,7 @@ type monitorControlEvidence struct {
 	MonitorControlRoute     string   `yaml:"monitor_control_route"`
 	MonitorExitSignal       string   `yaml:"monitor_exit_signal"`
 	ControlLifecycleSignal  string   `yaml:"control_lifecycle_signal"`
-	MonitorListenerCleanup  bool     `yaml:"monitor_listener_cleanup"`
+	MonitorStopTransition   bool     `yaml:"monitor_stop_transition_declared"`
 	HTTPHandlersEnqueueOnly bool     `yaml:"http_handlers_enqueue_only"`
 	TargetOwner             string   `yaml:"target_owner"`
 }
@@ -73,7 +73,7 @@ func (Integration) MonitorControl() error {
 	if err := assertMonitorControlEvidence(runDir, expected); err != nil {
 		return err
 	}
-	fmt.Println("integration:monitorControl PASS - monitor routes and control lifecycle boundary recorded")
+	fmt.Println("integration:monitorControl PASS - monitor/control route and lifecycle wiring recorded")
 	return nil
 }
 
@@ -110,7 +110,7 @@ func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence,
 		MonitorControlRoute:     monitorControl.Path,
 		MonitorExitSignal:       monitorControl.Signal,
 		ControlLifecycleSignal:  "AgentExited",
-		MonitorListenerCleanup:  hasTransition(monitorMachine, "AwaitingControl", "ExitRequested", "Stopping", "stop_monitor_rest") && hasTransition(monitorMachine, "Stopping", "ServerStopped", "Done", ""),
+		MonitorStopTransition:   hasTransition(monitorMachine, "AwaitingControl", "ExitRequested", "Stopping", "stop_monitor_rest") && hasTransition(monitorMachine, "Stopping", "ServerStopped", "Done", ""),
 		HTTPHandlersEnqueueOnly: monitorControl.Binding == "emit_signal" && controlExit.Binding == "emit_signal" && hasTransition(controlMachine, "AwaitingControl", "ExitRequested", "Exiting", "exit_agent") && hasTransition(controlMachine, "Exiting", "AgentExited", "Succeeded", ""),
 		TargetOwner:             "agent-profiles",
 	}
@@ -137,8 +137,8 @@ func assertMonitorControlEvidence(runDir string, want monitorControlEvidence) er
 	if fmt.Sprintf("%#v", got) != fmt.Sprintf("%#v", want) {
 		return fmt.Errorf("monitor-control evidence = %#v, want %#v", got, want)
 	}
-	if !got.MonitorListenerCleanup {
-		return fmt.Errorf("monitor-control evidence missing monitor listener cleanup")
+	if !got.MonitorStopTransition {
+		return fmt.Errorf("monitor-control evidence missing declared monitor stop transition")
 	}
 	if !got.HTTPHandlersEnqueueOnly {
 		return fmt.Errorf("monitor-control evidence missing HTTP enqueue-only lifecycle boundary")

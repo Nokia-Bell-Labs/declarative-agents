@@ -4,8 +4,10 @@ package core
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
 )
@@ -122,4 +124,107 @@ func TestCheckpointWireFormat(t *testing.T) {
 	withReceipt, err := json.Marshal(Entry{CommandName: "write", Receipt: `{"path":"a"}`})
 	require.NoError(t, err)
 	require.Contains(t, string(withReceipt), `"receipt":"{\"path\":\"a\"}"`)
+}
+
+func TestCheckpointJSONRoundTripPreservesBoundaryValues(t *testing.T) {
+	t.Parallel()
+	timestamp := time.Date(2262, time.April, 11, 23, 47, 16, 854775807, time.UTC)
+	original := struct {
+		Position  Position  `json:"position"`
+		Execution Execution `json:"execution"`
+	}{
+		Position: Position{
+			CurrentState: "Σ-working",
+			LastSignal:   "Signal\u0001",
+			Snapshot: AgentSnapshot{
+				State: "Σ-working", Signal: "Signal\u0001",
+				Iteration: math.MaxInt, TokensIn: math.MaxInt, TokensOut: math.MaxInt,
+				TotalCost: math.MaxFloat64,
+				Conversation: json.RawMessage(`[
+					{"role":"user","content":"hello \u2603"},
+					{"role":"assistant","content":"line 1\nline 2"}
+				]`),
+			},
+		},
+		Execution: Execution{{
+			Iteration: math.MaxInt, Timestamp: timestamp, CommandName: "unicode-Δ",
+			FromState: "Σ-working", ToState: "Done", Signal: "Signal\u0001",
+			Result: ResultDigest{
+				Signal: "Signal\u0001", Output: "output\u0000snowman ☃", Error: "error\nline",
+				Cost: Cost{Duration: time.Duration(math.MaxInt64), TokensIn: math.MaxInt, TokensOut: math.MaxInt, Dollars: math.MaxFloat64},
+			},
+			Receipt: "opaque\u0000receipt\n☃",
+		}},
+	}
+
+	data, err := json.Marshal(original)
+	require.NoError(t, err)
+	var restored struct {
+		Position  Position  `json:"position"`
+		Execution Execution `json:"execution"`
+	}
+	require.NoError(t, json.Unmarshal(data, &restored))
+	require.Equal(t, original.Position.CurrentState, restored.Position.CurrentState)
+	require.Equal(t, original.Position.Snapshot.Iteration, restored.Position.Snapshot.Iteration)
+	require.Equal(t, original.Position.Snapshot.TotalCost, restored.Position.Snapshot.TotalCost)
+	require.JSONEq(t, string(original.Position.Snapshot.Conversation), string(restored.Position.Snapshot.Conversation))
+	require.Equal(t, original.Execution, restored.Execution)
+	require.Equal(t, original.Execution[0].Receipt, restored.Execution[0].Receipt)
+	require.True(t, original.Execution[0].Timestamp.Equal(restored.Execution[0].Timestamp))
+}
+
+func TestInMemoryCheckpointPreservesNilAndEmptyExecution(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		execution Execution
+		wantNil   bool
+	}{
+		{name: "nil", execution: nil, wantNil: true},
+		{name: "empty", execution: Execution{}, wantNil: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cp := &InMemoryCheckpoint{}
+			require.NoError(t, cp.Save(Position{}, tt.execution))
+			_, restored, err := cp.Load()
+			require.NoError(t, err)
+			require.Equal(t, tt.wantNil, restored == nil)
+			encoded, err := json.Marshal(restored)
+			require.NoError(t, err)
+			if tt.wantNil {
+				require.Equal(t, "null", string(encoded))
+			} else {
+				require.Equal(t, "[]", string(encoded))
+			}
+		})
+	}
+}
+
+func TestInMemoryCheckpointRejectsInvalidConversationJSON(t *testing.T) {
+	t.Parallel()
+	cp := &InMemoryCheckpoint{}
+	err := cp.Save(Position{Snapshot: AgentSnapshot{Conversation: json.RawMessage(`{"broken":`)}}, nil)
+	require.ErrorContains(t, err, "conversation is not valid JSON")
+	_, _, loadErr := cp.Load()
+	require.ErrorIs(t, loadErr, ErrNoCheckpoint)
+}
+
+func FuzzCheckpointReceiptJSONRoundTrip(f *testing.F) {
+	f.Add("opaque receipt")
+	f.Add("unicode ☃")
+	f.Add("control\u0000newline\n")
+	f.Add("")
+	f.Fuzz(func(t *testing.T, receipt string) {
+		if !utf8.ValidString(receipt) {
+			t.Skip()
+		}
+		original := Entry{CommandName: "word", Receipt: receipt}
+		data, err := json.Marshal(original)
+		require.NoError(t, err)
+		var restored Entry
+		require.NoError(t, json.Unmarshal(data, &restored))
+		require.Equal(t, receipt, restored.Receipt)
+	})
 }

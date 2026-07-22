@@ -97,9 +97,10 @@ func OpenDoltCheckpoint(dsn, runID string, terminal func(State) bool) (*DoltChec
 // Close releases the underlying database handle.
 func (d *DoltCheckpoint) Close() error { return d.db.Close() }
 
-// Save appends the current step's rows and creates one Dolt commit per step on
-// the run branch, all within a single transaction, then merges to main when the
-// Position current state is terminal (srd036-dolt-state-persistence R4).
+// Save reconciles the persisted execution with the supplied history and creates
+// one Dolt commit per call on the run branch, all within a single transaction,
+// then merges to main when the Position current state is terminal
+// (srd036-dolt-state-persistence R4).
 func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 	if err := d.prepare(); err != nil {
 		return err
@@ -115,6 +116,10 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 		return fmt.Errorf("%w: save: begin: %v", ErrDolt, err)
 	}
 	if err := writeMachine(tx, d.runID, position); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err := reconcileExecution(tx, d.runID, len(execution)); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
@@ -135,6 +140,20 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 	if d.terminal != nil && d.terminal(position.CurrentState) {
 		if err := d.Merge(); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// reconcileExecution removes the replaced tail, including the final entry that
+// Save writes again below. Replacing that entry guarantees an empty receipt is
+// represented by row absence rather than preserving a receipt from an older
+// version of the same step.
+func reconcileExecution(tx Transaction, runID string, length int) error {
+	for _, table := range []string{"receipts", "tool_outputs", "execution_steps", "transitions"} {
+		query := fmt.Sprintf(`DELETE FROM %s WHERE run_id = ? AND step_index >= ?`, table)
+		if err := tx.Exec(query, runID, max(0, length-1)); err != nil {
+			return fmt.Errorf("%w: save: reconcile %s: %v", ErrDolt, table, err)
 		}
 	}
 	return nil

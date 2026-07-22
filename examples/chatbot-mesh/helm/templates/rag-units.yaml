@@ -38,6 +38,12 @@ spec:
         app.kubernetes.io/component: rag-server
         chatbot-mesh/rag-unit: {{ $unit.name }}
     spec:
+      {{- if $root.Values.ollama.enabled }}
+      # Do not start an in-cluster RAG agent until the chart-owned preload Job
+      # has made every declared model observable from the Ollama API.
+      initContainers:
+        {{- include "chatbot-mesh.llmReadyInit" $root | nindent 8 }}
+      {{- end }}
       containers:
         - name: rag-server
           image: {{ include "chatbot-mesh.image" $root | quote }}

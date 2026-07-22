@@ -203,11 +203,9 @@ func TestRESTServer_TraceparentFallbackToNewRoot(t *testing.T) {
 	}
 }
 
-// TestOtelParentSpanPropagationUnchanged proves the subprocess trace-context path
-// (ParseParentSpan) still parents a child on the caller's remote span,
-// independent of and complementary to the HTTP path (srd016 R5.4; rel08.0-uc001
-// S1).
-func TestOtelParentSpanPropagationUnchanged(t *testing.T) {
+// TestParseParentSpanRoundTripAndEmptyInput proves the in-process parser restores
+// the formatted remote context and treats empty input as no parent.
+func TestParseParentSpanRoundTripAndEmptyInput(t *testing.T) {
 	t.Parallel()
 	sc := traceContextFixture(t, "")
 	ctx, err := telemetry.ParseParentSpan(telemetry.FormatTraceparent(sc))

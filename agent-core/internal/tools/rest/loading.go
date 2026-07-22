@@ -51,9 +51,9 @@ func ParseDefinition(data []byte) (Definition, error) {
 // like) were accepted and then had no effect (GH-486).
 func parseDefinitionRaw(data []byte) (Definition, error) {
 	var file DefinitionFile
-	dec := yaml.NewDecoder(bytes.NewReader(expandEnv(data)))
-	dec.KnownFields(true)
-	if err := dec.Decode(&file); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(expandEnv(data)))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&file); err != nil {
 		return Definition{}, fmt.Errorf("parse REST definition: %w", err)
 	}
 	return file.Rest, nil

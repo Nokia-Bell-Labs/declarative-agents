@@ -4,6 +4,7 @@ package evaluation
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -267,10 +268,23 @@ func WriteCSV(path string, groups map[GroupKey][]EvalRunResult) error {
 	if err != nil {
 		return fmt.Errorf("create CSV: %w", err)
 	}
-	defer func() { _ = f.Close() }()
+	return writeCSV(f, groups)
+}
 
-	w := csv.NewWriter(f)
-	defer w.Flush()
+func writeCSV(output io.WriteCloser, groups map[GroupKey][]EvalRunResult) error {
+	writeErr := writeCSVRows(output, groups)
+	closeErr := output.Close()
+	if writeErr != nil {
+		writeErr = fmt.Errorf("write CSV: %w", writeErr)
+	}
+	if closeErr != nil {
+		closeErr = fmt.Errorf("close CSV: %w", closeErr)
+	}
+	return errors.Join(writeErr, closeErr)
+}
+
+func writeCSVRows(output io.Writer, groups map[GroupKey][]EvalRunResult) error {
+	w := csv.NewWriter(output)
 
 	header := []string{
 		"sample", "model", "repetition",
@@ -322,6 +336,10 @@ func WriteCSV(path string, groups map[GroupKey][]EvalRunResult) error {
 		}
 	}
 
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return fmt.Errorf("flush CSV: %w", err)
+	}
 	return nil
 }
 

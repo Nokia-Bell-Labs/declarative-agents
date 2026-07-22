@@ -1253,7 +1253,7 @@ test_cases:
 
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST client safety and async selectors are enforced
-    go_test: TestRESTClient_SafetyAndAsyncConformance
+    go_test: TestRESTClient_CIDRAllowlistPolicy, TestRESTClient_ResponseSchemaAndDomainErrorOutput, TestRESTClient_AsyncCorrelationAndIdempotencyHeader, TestRESTClient_AwaitOperationReferenceValidation
     status: done
     description: |
       Validate CIDR allowlists, response schema checks, domain_error_code

@@ -71,6 +71,7 @@ requirements:
       - R5.2: InMemoryCheckpoint SHALL be a reference adapter for tests that round-trips Position and Execution in process, including conversation and receipts.
       - R5.3: DoltCheckpoint SHALL be the default persistent backend; this SRD names it and defers its schema, commit-per-step, branch-per-run, and revert behavior to srd036.
       - R5.4: Disabled-mode (Noop) execution SHALL preserve current loop behavior and SHALL add no persistence overhead.
+      - R5.5: InMemoryCheckpoint SHALL isolate saved and loaded caller memory, preserve nil versus empty Execution, and reject invalid conversation JSON without replacing the last valid checkpoint.
 
   R6:
     title: Save timing, resume, and non-goals
@@ -106,8 +107,8 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3]
 
   - id: AC5
-    criterion: NoopCheckpoint is the disabled-mode default, InMemoryCheckpoint is the test reference adapter, and Dolt is named as the default persistent backend without changing disabled-mode behavior.
-    traces: [R5.1, R5.2, R5.3, R5.4]
+    criterion: NoopCheckpoint is the disabled-mode default, InMemoryCheckpoint is an isolated validating reference adapter that preserves nil/empty execution semantics, and Dolt is named as the default persistent backend without changing disabled-mode behavior.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
 
   - id: AC6
     criterion: Save runs after each dispatch cycle, resume is a single Load-and-re-enter path, and CheckpointPolicy and the engine undo-walk are declared non-goals with rollback deferred to the Dolt adapter.
@@ -144,6 +145,7 @@ implementation_status:
     - Typed Checkpoint port with Position, Execution, Entry, and opaque Receipt on Result.
     - NoopCheckpoint and InMemoryCheckpoint adapters, with DoltCheckpoint as the persistent backend when configured.
     - Save-after-dispatch timing, single resume path, and retirement of CheckpointPolicy and the engine undo-walk.
+    - Boundary-value JSON round trips, byte-exact valid UTF-8 receipts, caller-memory isolation, nil/empty execution preservation, and invalid conversation rejection.
 
 diagrams:
   requirements_trace: |

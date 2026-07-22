@@ -91,6 +91,7 @@ metadata:
     # pull is idempotent, so a re-run over already-present models is a no-op (R6.2).
     checksum/models: {{ include "chatbot-mesh.ollamaModels" . | sha256sum }}
 spec:
+  suspend: {{ .Values.ollama.preload.suspend }}
   backoffLimit: 6
   template:
     metadata:

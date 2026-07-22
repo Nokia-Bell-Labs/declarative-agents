@@ -5,6 +5,7 @@
 package core
 
 import (
+	"context"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -61,6 +62,13 @@ type Command interface {
 	Name() string
 	Execute() Result
 	Undo(prior Result) Result
+}
+
+// ContextCommand is an optional execution contract for commands that can block.
+// SafeExecute cancels and joins these commands on timeout; legacy Command
+// implementations retain detached timeout compatibility.
+type ContextCommand interface {
+	ExecuteContext(ctx context.Context) Result
 }
 
 // MonitorRecorderAware lets commands receive the tool-facing monitor recorder.

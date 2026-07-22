@@ -4,12 +4,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/magefile/mage/mg"
@@ -37,6 +39,7 @@ func (i Integration) All() error {
 
 	for _, t := range tests {
 		fmt.Printf("\n=== %s ===\n", t.name)
+		beginUC(t.name)
 		err := t.fn()
 		switch {
 		case err != nil:
@@ -64,10 +67,14 @@ func (i Integration) All() error {
 	return nil
 }
 
-var skippedUCs = map[string]bool{}
+var skippedUCs = struct {
+	sync.Mutex
+	items map[string]bool
+}{items: make(map[string]bool)}
 
 // Uc001 runs rel01.0-uc001: Generator agent solves a Go coding task with Qwen 3.6.
 func (Integration) Uc001() error {
+	beginUC("uc001")
 	if err := requireOllama(); err != nil {
 		return skipUC("uc001", err.Error())
 	}
@@ -121,6 +128,7 @@ func uc001AgentArgs(profileRoot, coreRoot, workDir string) []string {
 
 // Uc002 runs rel01.0-uc002: Evaluator benchmarks generator across models.
 func (Integration) Uc002() error {
+	beginUC("uc002")
 	if err := requireOllama(); err != nil {
 		return skipUC("uc002", err.Error())
 	}
@@ -169,13 +177,63 @@ func (Integration) Uc002() error {
 		return fmt.Errorf("uc002: evaluator failed: %w", err)
 	}
 
-	entries, err := os.ReadDir(outputDir)
-	if err != nil || len(entries) == 0 {
-		return fmt.Errorf("uc002: no results in output dir %s", outputDir)
+	passed, total, err := validateEvaluationResults(outputDir)
+	if err != nil {
+		return fmt.Errorf("uc002: invalid evaluator results: %w", err)
 	}
 
-	fmt.Printf("uc002: PASS — evaluator completed with %d result entries\n", len(entries))
+	fmt.Printf("uc002: PASS — evaluator completed with %d/%d successful points\n", passed, total)
 	return nil
+}
+
+func validateEvaluationResults(outputDir string) (passed, total int, err error) {
+	var validationErrors []error
+	walkErr := filepath.Walk(outputDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			validationErrors = append(validationErrors, walkErr)
+			return nil
+		}
+		if info.IsDir() || info.Name() != "meta.json" {
+			return nil
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("read %s: %w", path, readErr))
+			return nil
+		}
+		var meta struct {
+			Sample      string `json:"sample"`
+			Model       string `json:"model"`
+			TestsPassed bool   `json:"tests_passed"`
+		}
+		if decodeErr := json.Unmarshal(data, &meta); decodeErr != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("parse %s: %w", path, decodeErr))
+			return nil
+		}
+		total++
+		if meta.Sample == "" || meta.Model == "" {
+			validationErrors = append(validationErrors, fmt.Errorf("%s requires sample and model", path))
+		}
+		pointDir := filepath.Dir(path)
+		for _, artifact := range []string{"experiment.yaml", "trace.ndjson"} {
+			if _, statErr := os.Stat(filepath.Join(pointDir, artifact)); statErr != nil {
+				validationErrors = append(validationErrors, fmt.Errorf("%s missing %s: %w", path, artifact, statErr))
+			}
+		}
+		if meta.TestsPassed {
+			passed++
+		}
+		return nil
+	})
+	if walkErr != nil {
+		validationErrors = append(validationErrors, walkErr)
+	}
+	if total == 0 {
+		validationErrors = append(validationErrors, fmt.Errorf("no valid point metadata under %s", outputDir))
+	} else if passed == 0 {
+		validationErrors = append(validationErrors, fmt.Errorf("all %d evaluation points failed", total))
+	}
+	return passed, total, errors.Join(validationErrors...)
 }
 
 func uc002AgentArgs(profileRoot, coreRoot, requestPath, outputDir string) []string {
@@ -189,6 +247,7 @@ func uc002AgentArgs(profileRoot, coreRoot, requestPath, outputDir string) []stri
 
 // Uc003 runs rel01.0-uc003: Bench serves web UI for evaluation result exploration.
 func (Integration) Uc003() error {
+	beginUC("uc003")
 	return skipUC("uc003", "bench visualization — requires eval-results directory and a free port")
 }
 
@@ -241,13 +300,23 @@ func tempWorkspace(sampleDir string) (string, func(), error) {
 }
 
 func skipUC(id, reason string) error {
-	skippedUCs[id] = true
+	skippedUCs.Lock()
+	skippedUCs.items[id] = true
+	skippedUCs.Unlock()
 	fmt.Printf("SKIP %s: %s\n", id, reason)
 	return nil
 }
 
+func beginUC(id string) {
+	skippedUCs.Lock()
+	delete(skippedUCs.items, id)
+	skippedUCs.Unlock()
+}
+
 func wasSkipped(id string) bool {
-	return skippedUCs[id]
+	skippedUCs.Lock()
+	defer skippedUCs.Unlock()
+	return skippedUCs.items[id]
 }
 
 func buildIfNeeded() (string, error) {
@@ -267,7 +336,7 @@ func buildIfNeeded() (string, error) {
 }
 
 func requireOllama() error {
-	resp, err := http.Get("http://localhost:11434/api/version")
+	resp, err := integrationHTTPClient.Get("http://localhost:11434/api/version")
 	if err != nil {
 		return fmt.Errorf("ollama not reachable at localhost:11434: %w", err)
 	}
@@ -279,7 +348,7 @@ func requireOllama() error {
 }
 
 func requireModel(model string) error {
-	resp, err := http.Get("http://localhost:11434/api/tags")
+	resp, err := integrationHTTPClient.Get("http://localhost:11434/api/tags")
 	if err != nil {
 		return fmt.Errorf("ollama not reachable: %w", err)
 	}

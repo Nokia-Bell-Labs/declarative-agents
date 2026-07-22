@@ -21,7 +21,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh Helm deployment smoke tracer on kind
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run 'TestSplitImageRef|TestJaegerAgentServices|TestAssertSmoke|TestHelmSmoke'
+    go_test: go test ./magefiles -run '^(TestSplitImageRef|TestJaegerAgentServicesExcludesJaeger|TestAssertSmokeSpansBelowThreshold|TestAssertSmokeChatServedRejectsEmptyAnswer|TestAssertSmokeChatServedAcceptsAnswer|TestHelmSmokeSkipReasonMissingBinary)$'
     status: implemented
     description: |
       Integration.HelmSmoke deploys the chatbot-mesh chart on a disposable kind
@@ -51,7 +51,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Chatbot rest.yaml co-generation drift lock
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run 'TestChatbotRestCoGenerated|TestChatbotUXMonitored|TestChatbotFanOutCoGeneratedForNRags'
+    go_test: go test ./magefiles -run '^(TestChatbotRestCoGeneratedFromRagUnits|TestChatbotUXMonitoredAgentsCoGenerated|TestChatbotFanOutCoGeneratedForNRags)$'
     status: implemented
     description: |
       Locks srd003 R2: the chatbot rest.yaml, ux.yaml, request-machine.yaml, and
@@ -78,7 +78,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh hot-swap tracer on kind
     integration_target: mage integration:helmSwap
-    go_test: go test ./magefiles -run TestChatbotFanOutCoGeneratedForNRags
+    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$'
     status: implemented
     description: |
       Integration.HelmSwap proves the tiered-swap rollout mechanics on a kind

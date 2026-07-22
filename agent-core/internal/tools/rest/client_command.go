@@ -5,7 +5,9 @@ package rest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -382,9 +384,83 @@ func (c clientCmd) doWithRetry(request *http.Request) (*http.Response, int, erro
 }
 
 func httpClient(limits LimitProfile) *http.Client {
-	client := &http.Client{Timeout: parseDuration(limits.Timeout, 0)}
+	client := &http.Client{
+		Timeout:   parseDuration(limits.Timeout, 0),
+		Transport: networkPolicyTransport(limits.Network, net.DefaultResolver, (&net.Dialer{}).DialContext),
+	}
 	client.CheckRedirect = redirectPolicy(limits)
 	return client
+}
+
+type ipAddrResolver interface {
+	LookupIPAddr(context.Context, string) ([]net.IPAddr, error)
+}
+
+type contextDialer func(context.Context, string, string) (net.Conn, error)
+
+func networkPolicyTransport(
+	policy NetworkPolicy,
+	resolver ipAddrResolver,
+	dial contextDialer,
+) http.RoundTripper {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if len(policy.CIDRs) == 0 {
+		return transport
+	}
+	// A proxy would make DialContext validate the proxy rather than the declared
+	// destination. CIDR-restricted operations therefore connect directly.
+	transport.Proxy = nil
+	transport.DialContext = cidrPolicyDialer(policy, resolver, dial)
+	return transport
+}
+
+func cidrPolicyDialer(
+	policy NetworkPolicy,
+	resolver ipAddrResolver,
+	dial contextDialer,
+) contextDialer {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("CIDR policy split address %q: %w", address, err)
+		}
+		ips, err := resolveDialIPs(ctx, resolver, host)
+		if err != nil {
+			return nil, err
+		}
+		for _, ip := range ips {
+			if !ipAllowedByCIDR(ip, policy.CIDRs) {
+				return nil, fmt.Errorf("host %q resolves outside CIDR policy: %s", host, ip)
+			}
+		}
+		var dialErr error
+		for _, ip := range ips {
+			conn, err := dial(ctx, network, net.JoinHostPort(ip.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+			dialErr = errors.Join(dialErr, err)
+		}
+		return nil, fmt.Errorf("dial allowed host %q: %w", host, dialErr)
+	}
+}
+
+func resolveDialIPs(ctx context.Context, resolver ipAddrResolver, host string) ([]net.IP, error) {
+	if ip := net.ParseIP(host); ip != nil {
+		return []net.IP{ip}, nil
+	}
+	addrs, err := resolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve host %q for CIDR policy: %w", host, err)
+	}
+	ips := make([]net.IP, 0, len(addrs))
+	for _, addr := range addrs {
+		ips = append(ips, addr.IP)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("host %q resolved to no addresses", host)
+	}
+	return ips, nil
 }
 
 func redirectPolicy(limits LimitProfile) func(*http.Request, []*http.Request) error {

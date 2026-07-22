@@ -42,17 +42,32 @@ test_cases:
       - srd003-chatbot-deployment AC6
 
   - use_case: rel04.0-uc001-in-cluster-llm-tier
-    name: Preload gates agent readiness
-    integration_target: mage integration:helmLLMTier
+    name: Rendered workloads carry the preload gate
+    go_test: go test ./magefiles -run 'TestOllama(TierRendersWithDefaults|DisabledReproducesExternalEndpoint)'
     status: implemented
     description: |
-      Before the model-preload Job completes, the agent pods are not ready; after
-      the models are present in Ollama /api/tags the agents become ready. The test
-      asserts the readiness ordering, so a missing model is a deploy-time gate
-      rather than a runtime turn failure.
+      Wiring evidence. The in-cluster render gives both chatbot and RAG workloads
+      a positive model-presence init gate, while the external-tier render retains
+      those workloads and omits the chart-owned Ollama resources and gate.
     inputs:
       chart: examples/chatbot-mesh/helm/
-      readiness_probe: models present in /api/tags
+      tiers: [in_cluster, external]
+    expected:
+      chatbot_and_rag_wait_for_models: true
+      external_tier_omits_only_tier_owned_resources: true
+    traces:
+      - rel04.0-uc001-in-cluster-llm-tier S2
+      - rel04.0-uc001-in-cluster-llm-tier S3
+
+  - use_case: rel04.0-uc001-in-cluster-llm-tier
+    name: Preload controls the observed agent readiness transition
+    integration_target: mage integration:helmLLMTier
+    go_test: go test ./magefiles -run 'Test(LLMPreloadReadinessTransition|HelmLLMTierInstallExposesTransition)'
+    status: implemented
+    description: |
+      Install without Helm --wait and hold the preload Job suspended while
+      observing chatbot and RAG workloads unready. Resume preload, assert every
+      configured model appears, then observe each workload become ready.
     expected:
       agents_not_ready_before_preload: true
       agents_ready_after_preload: true

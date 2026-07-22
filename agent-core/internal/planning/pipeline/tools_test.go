@@ -73,6 +73,15 @@ func minimalState(t *testing.T) *State {
 	}
 }
 
+func markAllDone(t *testing.T, g *graph.Graph) {
+	t.Helper()
+	for _, node := range g.Nodes() {
+		require.NoError(t, node.MarkPlanning())
+		require.NoError(t, node.MarkExecuting())
+		require.NoError(t, node.MarkDone())
+	}
+}
+
 func TestExtractTaskBuilder_ExtractsTask(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
@@ -108,11 +117,7 @@ func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
 
-	for _, n := range ps.Graph.Nodes() {
-		_ = n.MarkPlanning()
-		_ = n.MarkExecuting()
-		_ = n.MarkDone()
-	}
+	markAllDone(t, ps.Graph)
 
 	builder := &ExtractTaskBuilder{PS: ps}
 	cmd := builder.Build(core.Result{})
@@ -131,6 +136,8 @@ func TestExtractAllBuilder_ExtractsAllReady(t *testing.T) {
 
 	assert.Equal(t, SigTaskExtracted, result.Signal)
 	assert.NotNil(t, ps.CurrentTask)
+	require.NotNil(t, ps.CurrentPlan)
+	assert.Equal(t, "Execute all ready requirements", ps.CurrentPlan.Title)
 	assert.Contains(t, result.Output, "extracted all")
 }
 
@@ -149,17 +156,14 @@ func TestExtractAllBuilder_UndoRestoresPipelineState(t *testing.T) {
 	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
+	require.Nil(t, ps.CurrentPlan)
 	require.Equal(t, 4, ps.retryCount)
 }
 
 func TestExtractAllBuilder_NoReady(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
-	for _, n := range ps.Graph.Nodes() {
-		_ = n.MarkPlanning()
-		_ = n.MarkExecuting()
-		_ = n.MarkDone()
-	}
+	markAllDone(t, ps.Graph)
 
 	builder := &ExtractAllBuilder{PS: ps}
 	cmd := builder.Build(core.Result{})
@@ -204,7 +208,7 @@ func TestParsePlanBuilder_ValidYAML(t *testing.T) {
 	result := cmd.Execute()
 
 	assert.Equal(t, SigPlanReady, result.Signal)
-	assert.NotNil(t, ps.CurrentPlan)
+	require.NotNil(t, ps.CurrentPlan)
 	assert.Equal(t, "Implement config parser", ps.CurrentPlan.Title)
 }
 
@@ -410,7 +414,7 @@ func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
 func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
 	t.Parallel()
 	br := toolregistry.NewBuiltinRegistry()
-	RegisterFactories(br, FactoryDeps{Ctx: context.Background()})
+	RegisterFactories(br, FactoryDeps{Ctx: context.Background(), ChildAgentBinary: "/tmp/controlled-agent"})
 
 	factory, ok := br.Resolve("execute_task")
 	require.True(t, ok)
@@ -426,6 +430,7 @@ func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
 
 	execBuilder, ok := builder.(*ExecuteTaskBuilder)
 	require.True(t, ok)
+	require.Equal(t, "/tmp/controlled-agent", execBuilder.PS.ExecConfig.Binary)
 	require.Equal(t, "agents/executor/profile.yaml", execBuilder.PS.ExecConfig.Profile)
 }
 

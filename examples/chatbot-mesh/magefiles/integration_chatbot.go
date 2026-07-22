@@ -66,7 +66,11 @@ func (Integration) Chatbot() error {
 	); err != nil {
 		return err
 	}
-	if reason := chatbotOllamaSkipReason(profilesRoot); reason != "" {
+	requiredModels, err := chatbotRequiredModels(profilesRoot)
+	if err != nil {
+		return fmt.Errorf("invalid shipped chatbot model config: %w", err)
+	}
+	if reason := chatbotOllamaSkipReasonForModels(requiredModels); reason != "" {
 		fmt.Printf("SKIP chatbot: %s\n", reason)
 		return nil
 	}
@@ -87,10 +91,9 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("create chroma data dir: %w", err)
 	}
 	defer os.RemoveAll(dataDir)
-	containerID, err := startChromaContainer(dataDir)
+	containerID, err := startRequiredChromaContainer(dataDir, startChromaContainer)
 	if err != nil {
-		fmt.Printf("SKIP chatbot: %s\n", err)
-		return nil
+		return fmt.Errorf("chatbot dependency startup: %w", err)
 	}
 	defer stopChromaContainer(containerID)
 
@@ -532,12 +535,16 @@ func generateRag1Variant(profilesRoot string) (string, func(), error) {
 // that seeds both collections, the chatbot's embedding model, and the router and
 // two chat models. Reading them from config keeps the gate from duplicating names.
 func chatbotOllamaSkipReason(profilesRoot string) string {
-	if err := waitHTTPStatus(ollamaVersionURL, http.StatusOK, 2*time.Second); err != nil {
-		return fmt.Sprintf("Ollama not reachable at %s: %v", ollamaVersionURL, err)
-	}
 	required, err := chatbotRequiredModels(profilesRoot)
 	if err != nil {
 		return fmt.Sprintf("read chatbot model config: %v", err)
+	}
+	return chatbotOllamaSkipReasonForModels(required)
+}
+
+func chatbotOllamaSkipReasonForModels(required []string) string {
+	if err := waitHTTPStatus(ollamaVersionURL, http.StatusOK, 2*time.Second); err != nil {
+		return fmt.Sprintf("Ollama not reachable at %s: %v", ollamaVersionURL, err)
 	}
 	names, err := fetchChromaOllamaModels()
 	if err != nil {

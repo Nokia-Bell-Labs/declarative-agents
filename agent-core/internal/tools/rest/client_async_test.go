@@ -18,19 +18,29 @@ import (
 func TestRESTClient_SendRecordsAsyncRequest(t *testing.T) {
 	t.Parallel()
 
-	upstream := httptest.NewServer(http.HandlerFunc(asyncPaymentHandler))
+	handlerEntered := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		close(handlerEntered)
+		<-releaseHandler
+		writeJSON(w, http.StatusOK, map[string]interface{}{"id": pathSegments(req.URL.Path)[1]})
+	}))
 	defer upstream.Close()
 	def := asyncDefinition(t, upstream.URL, asyncPaymentClient())
 	state := NewAsyncState()
 
-	start := time.Now()
-	result := asyncCommand(def, state, InitClientSend, asyncParams("slow")).Execute()
+	result := asyncCommand(t, def, state, InitClientSend, asyncParams("slow")).Execute()
 	require.Equal(t, core.Signal("RESTAccepted"), result.Signal, result.Output)
-	require.Less(t, time.Since(start), 50*time.Millisecond)
 	require.Contains(t, result.Output, `"request_id":"slow"`)
 	require.Contains(t, result.Output, `"idempotency_token":"slow"`)
+	select {
+	case <-handlerEntered:
+	case <-time.After(time.Second):
+		t.Fatal("async handler was not entered")
+	}
+	close(releaseHandler)
 
-	await := asyncCommand(def, state, InitClientAwait, map[string]interface{}{"request_id": "slow"}).Execute()
+	await := asyncCommand(t, def, state, InitClientAwait, map[string]interface{}{"request_id": "slow"}).Execute()
 	require.Equal(t, core.Signal("RESTResponded"), await.Signal, await.Output)
 }
 
@@ -53,17 +63,17 @@ func TestRESTClient_AwaitAsyncRequest(t *testing.T) {
 			defer upstream.Close()
 			def := asyncDefinition(t, upstream.URL, asyncPaymentClient())
 			state := NewAsyncState()
-			send := asyncCommand(def, state, InitClientSend, asyncParams(tc.id)).Execute()
+			send := asyncCommand(t, def, state, InitClientSend, asyncParams(tc.id)).Execute()
 			require.Equal(t, core.Signal("RESTAccepted"), send.Signal, send.Output)
 
-			await := asyncCommand(def, state, InitClientAwait, map[string]interface{}{"request_id": tc.id}).Execute()
+			await := asyncCommand(t, def, state, InitClientAwait, map[string]interface{}{"request_id": tc.id}).Execute()
 			require.Equal(t, tc.signal, await.Signal, await.Output)
 		})
 	}
 
 	state := NewAsyncState()
 	def := asyncDefinition(t, "http://127.0.0.1:1", asyncPaymentClient())
-	result := asyncCommand(def, state, InitClientAwait, map[string]interface{}{"request_id": "missing"}).Execute()
+	result := asyncCommand(t, def, state, InitClientAwait, map[string]interface{}{"request_id": "missing"}).Execute()
 	require.Equal(t, core.CommandError, result.Signal)
 	require.Contains(t, result.Output, "async_state_missing")
 }
@@ -74,23 +84,15 @@ func TestRESTClient_AsyncCorrelationAndIdempotencyHeader(t *testing.T) {
 	requireAsyncCorrelationAndIdempotencyHeader(t)
 }
 
-func TestRESTClient_SafetyAndAsyncConformance(t *testing.T) {
-	t.Parallel()
-
-	t.Run("CIDR allowlist policy", requireCIDRAllowlistPolicy)
-	t.Run("response schema and domain error output", requireResponseSchemaAndDomainErrorOutput)
-	t.Run("async correlation and idempotency header", requireAsyncCorrelationAndIdempotencyHeader)
-	t.Run("async retry policy validation", requireAsyncRetryPolicyValidation)
-	t.Run("await_operation unknown reference rejected", requireAwaitOperationUnknownReferenceRejected)
-	t.Run("await_operation defined reference accepted", requireAwaitOperationDefinedReferenceAccepted)
-}
-
 func requireAsyncCorrelationAndIdempotencyHeader(t *testing.T) {
 	t.Helper()
 
-	var idempotencyKey string
+	idempotencyKeys := make(chan string, 1)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		idempotencyKey = req.Header.Get("Idempotency-Key")
+		select {
+		case idempotencyKeys <- req.Header.Get("Idempotency-Key"):
+		default:
+		}
 		writeJSON(w, http.StatusOK, map[string]interface{}{"id": "corr"})
 	}))
 	defer upstream.Close()
@@ -102,13 +104,18 @@ func requireAsyncCorrelationAndIdempotencyHeader(t *testing.T) {
 	def := asyncDefinition(t, upstream.URL, client)
 	state := NewAsyncState()
 
-	send := asyncCommand(def, state, InitClientSend, map[string]interface{}{
+	send := asyncCommand(t, def, state, InitClientSend, map[string]interface{}{
 		"order_id": "corr", "correlation": "payment-corr",
 	}).Execute()
 	require.Equal(t, core.Signal("RESTAccepted"), send.Signal, send.Output)
-	require.Eventually(t, func() bool { return idempotencyKey == "corr" }, time.Second, time.Millisecond)
+	select {
+	case idempotencyKey := <-idempotencyKeys:
+		require.Equal(t, "corr", idempotencyKey)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for async idempotency header")
+	}
 
-	await := asyncCommand(def, state, InitClientAwait, map[string]interface{}{"correlation": "payment-corr"}).Execute()
+	await := asyncCommand(t, def, state, InitClientAwait, map[string]interface{}{"correlation": "payment-corr"}).Execute()
 	require.Equal(t, core.Signal("RESTResponded"), await.Signal, await.Output)
 }
 
@@ -209,10 +216,10 @@ func TestRESTClient_AwaitOperationPolling(t *testing.T) {
 		collection := pollingCollection(t, upstream.URL, "2s")
 		state := NewAsyncState()
 
-		send := pollingCommand(collection, state, InitClientSend, map[string]interface{}{"order_id": "pay1"}).Execute()
+		send := pollingCommand(t, collection, state, InitClientSend, map[string]interface{}{"order_id": "pay1"}).Execute()
 		require.Equal(t, core.Signal("RESTAccepted"), send.Signal, send.Output)
 
-		await := pollingCommand(collection, state, InitClientAwait, map[string]interface{}{"request_id": "pay1"}).Execute()
+		await := pollingCommand(t, collection, state, InitClientAwait, map[string]interface{}{"request_id": "pay1"}).Execute()
 		require.Equal(t, core.Signal("RESTResponded"), await.Signal, await.Output)
 		mu.Lock()
 		defer mu.Unlock()
@@ -232,10 +239,10 @@ func TestRESTClient_AwaitOperationPolling(t *testing.T) {
 		collection := pollingCollection(t, upstream.URL, "300ms")
 		state := NewAsyncState()
 
-		send := pollingCommand(collection, state, InitClientSend, map[string]interface{}{"order_id": "pay2"}).Execute()
+		send := pollingCommand(t, collection, state, InitClientSend, map[string]interface{}{"order_id": "pay2"}).Execute()
 		require.Equal(t, core.Signal("RESTAccepted"), send.Signal, send.Output)
 
-		await := pollingCommand(collection, state, InitClientAwait, map[string]interface{}{"request_id": "pay2"}).Execute()
+		await := pollingCommand(t, collection, state, InitClientAwait, map[string]interface{}{"request_id": "pay2"}).Execute()
 		require.Equal(t, core.Signal("RESTAwaitTimedOut"), await.Signal, await.Output)
 	})
 }
@@ -275,12 +282,14 @@ func pollingCollection(t *testing.T, baseURL, timeout string) Collection {
 
 // pollingCommand resolves create_payment from the collection and builds a
 // send/await command wired with the resolver the poll path needs.
-func pollingCommand(collection Collection, state *AsyncState, init string, input map[string]interface{}) core.Command {
-	resolved, _ := collection.ResolveClientOperation(ClientToolConfig{RestRef: "payments", Operation: "create_payment"})
+func pollingCommand(t *testing.T, collection Collection, state *AsyncState, init string, input map[string]interface{}) core.Command {
+	t.Helper()
+	resolved, err := collection.ResolveClientOperation(ClientToolConfig{RestRef: "payments", Operation: "create_payment"})
+	require.NoError(t, err)
 	return ClientBuilder{
 		ToolName: init, Init: init, Operation: resolved, Definitions: collection,
 		AsyncState: state, Credentials: EmptyCredentialResolver{},
-	}.Build(core.Result{Output: mustToolParams(init, input)})
+	}.Build(core.Result{Output: mustToolParams(t, init, input)})
 }
 
 func asyncPaymentHandler(w http.ResponseWriter, req *http.Request) {
@@ -299,19 +308,23 @@ func asyncPaymentHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func asyncCommand(def Definition, state *AsyncState, init string, input map[string]interface{}) core.Command {
+func asyncCommand(t *testing.T, def Definition, state *AsyncState, init string, input map[string]interface{}) core.Command {
+	t.Helper()
 	collection := NewCollection()
-	_ = collection.Add(def)
-	resolved, _ := collection.ResolveClientOperation(ClientToolConfig{
+	require.NoError(t, collection.Add(def))
+	resolved, err := collection.ResolveClientOperation(ClientToolConfig{
 		RestRef: "payments", Operation: "create_payment",
 	})
+	require.NoError(t, err)
 	return ClientBuilder{
 		ToolName: init, Init: init, Operation: resolved, AsyncState: state,
-	}.Build(core.Result{Output: mustToolParams(init, input)})
+	}.Build(core.Result{Output: mustToolParams(t, init, input)})
 }
 
-func mustToolParams(tool string, input map[string]interface{}) string {
-	data, _ := json.Marshal(map[string]interface{}{"tool": tool, "parameters": input})
+func mustToolParams(t *testing.T, tool string, input map[string]interface{}) string {
+	t.Helper()
+	data, err := json.Marshal(map[string]interface{}{"tool": tool, "parameters": input})
+	require.NoError(t, err)
 	return string(data)
 }
 

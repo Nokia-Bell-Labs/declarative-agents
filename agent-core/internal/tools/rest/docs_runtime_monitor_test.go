@@ -5,6 +5,7 @@ package rest
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -46,6 +47,14 @@ func TestDocsRuntimeMonitorREST_StateEventsAndUI(t *testing.T) {
 	uiBody := requestBody(t, "GET", baseURL+"/ui/index.html", "", 200)
 	require.Contains(t, uiBody, `id="app"`)
 	require.Contains(t, uiBody, "Docs Runtime Monitor")
+	linkedAssets := regexp.MustCompile(`(src|href)="([^"]+)"`).FindAllStringSubmatch(uiBody, -1)
+	require.NotEmpty(t, linkedAssets, "monitor UI index should link its executable/style assets")
+	for _, match := range linkedAssets {
+		assetPath := strings.TrimPrefix(match[2], "./")
+		assetBody := requestBody(t, "GET", baseURL+"/ui/"+assetPath, "", 200)
+		require.NotEmpty(t, assetBody, "linked monitor UI asset %q must be served", assetPath)
+		require.NotEqual(t, uiBody, assetBody, "linked asset %q must not resolve through the SPA index fallback", assetPath)
+	}
 
 	spaFallback := requestBody(t, "GET", baseURL+"/ui/monitor-spa-fallback", "", 200)
 	require.Contains(t, spaFallback, `id="app"`)

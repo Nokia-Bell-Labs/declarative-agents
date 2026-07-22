@@ -154,21 +154,11 @@ func selectPreviousResultParams(source map[string]interface{}, binding RequestBi
 // resolveResultSelector resolves a $.-style selector against a Result output
 // map, walking nested maps (for example $.mapped.embedding or $.carried.input).
 func resolveResultSelector(selector string, source map[string]interface{}) (interface{}, bool) {
-	if !strings.HasPrefix(selector, "$.") {
+	parsed, ok := core.ParseSelector(selector)
+	if !ok || parsed.Label != "" {
 		return nil, false
 	}
-	var current interface{} = source
-	for _, key := range strings.Split(strings.TrimPrefix(selector, "$."), ".") {
-		container, ok := current.(map[string]interface{})
-		if !ok {
-			return nil, false
-		}
-		current, ok = container[key]
-		if !ok {
-			return nil, false
-		}
-	}
-	return current, true
+	return parsed.Resolve(source)
 }
 
 func validateDeclaredRuntimeParams(params map[string]interface{}, binding RequestBinding) error {
@@ -182,7 +172,8 @@ func validateDeclaredRuntimeParams(params map[string]interface{}, binding Reques
 		}
 	}
 	for name := range binding.Path {
-		if _, ok := params[name]; !ok {
+		value, ok := params[name]
+		if !ok || value == nil || strings.TrimSpace(fmt.Sprint(value)) == "" {
 			return fmt.Errorf("path param %q is required", name)
 		}
 	}
@@ -423,12 +414,15 @@ func validateCIDR(host string, policy NetworkPolicy) error {
 	if err != nil {
 		return err
 	}
+	if len(ips) == 0 {
+		return fmt.Errorf("host %q resolved to no addresses", host)
+	}
 	for _, ip := range ips {
-		if ipAllowedByCIDR(ip, policy.CIDRs) {
-			return nil
+		if !ipAllowedByCIDR(ip, policy.CIDRs) {
+			return fmt.Errorf("host %q resolves outside CIDR policy: %s", host, ip)
 		}
 	}
-	return fmt.Errorf("host %q is not allowed by CIDR policy", host)
+	return nil
 }
 
 func hostIPs(host string) ([]net.IP, error) {

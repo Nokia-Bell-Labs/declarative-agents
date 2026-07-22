@@ -182,10 +182,7 @@ func mappedOutput(selectors map[string]string, payload map[string]interface{}) m
 }
 
 func selectorValue(selector string, payload map[string]interface{}) interface{} {
-	if !strings.HasPrefix(selector, "$.") {
-		return nil
-	}
-	value, ok := payload[strings.TrimPrefix(selector, "$.")]
+	value, ok := resolveResultSelector(selector, payload)
 	if !ok {
 		return nil
 	}

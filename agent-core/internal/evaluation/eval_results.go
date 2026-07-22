@@ -4,6 +4,7 @@ package evaluation
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,19 +41,27 @@ type EvalRunResult struct {
 // Each directory should contain point subdirectories with meta.json files.
 func LoadMultiple(dirs []string) (map[GroupKey][]EvalRunResult, error) {
 	groups := make(map[GroupKey][]EvalRunResult)
+	var loadErrors []error
+	seen := make(map[string]string)
 
 	for _, dir := range dirs {
 		results, err := loadDir(dir)
 		if err != nil {
-			return nil, fmt.Errorf("load %s: %w", dir, err)
+			loadErrors = append(loadErrors, fmt.Errorf("load %s: %w", dir, err))
 		}
 		for _, r := range results {
+			identity := fmt.Sprintf("%s/%s/%d", r.Sample, r.Model, r.Repetition)
+			if previous, duplicate := seen[identity]; duplicate {
+				loadErrors = append(loadErrors, fmt.Errorf("duplicate evaluation point %s in %s and %s", identity, previous, dir))
+				continue
+			}
+			seen[identity] = dir
 			key := GroupKey{Sample: r.Sample, Model: r.Model}
 			groups[key] = append(groups[key], r)
 		}
 	}
 
-	return groups, nil
+	return groups, errors.Join(loadErrors...)
 }
 
 func loadDir(dir string) ([]EvalRunResult, error) {
@@ -62,6 +71,7 @@ func loadDir(dir string) ([]EvalRunResult, error) {
 	}
 
 	var results []EvalRunResult
+	var loadErrors []error
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -71,11 +81,13 @@ func loadDir(dir string) ([]EvalRunResult, error) {
 
 		data, err := os.ReadFile(metaPath)
 		if err != nil {
+			loadErrors = append(loadErrors, fmt.Errorf("%s: read %s: %w", e.Name(), ArtifactMeta, err))
 			continue
 		}
 
 		var meta EvalMeta
 		if err := json.Unmarshal(data, &meta); err != nil {
+			loadErrors = append(loadErrors, fmt.Errorf("%s: parse %s: %w", e.Name(), ArtifactMeta, err))
 			continue
 		}
 
@@ -90,7 +102,10 @@ func loadDir(dir string) ([]EvalRunResult, error) {
 		}
 
 		// Token counts may be stored in meta or derived from traces.
-		r.TokensIn, r.TokensOut, r.Iterations = extractTokensFromTrace(pointDir)
+		r.TokensIn, r.TokensOut, r.Iterations, err = extractTokensFromTrace(pointDir)
+		if err != nil {
+			loadErrors = append(loadErrors, fmt.Errorf("%s: read %s: %w", e.Name(), ArtifactTrace, err))
+		}
 
 		tracePath := filepath.Join(pointDir, ArtifactTrace)
 		if spans, err := ReadTraceFile(tracePath); err == nil && len(spans) > 0 {
@@ -105,14 +120,17 @@ func loadDir(dir string) ([]EvalRunResult, error) {
 		results = append(results, r)
 	}
 
-	return results, nil
+	return results, errors.Join(loadErrors...)
 }
 
-func extractTokensFromTrace(pointDir string) (tokensIn, tokensOut, iterations int) {
+func extractTokensFromTrace(pointDir string) (tokensIn, tokensOut, iterations int, err error) {
 	tracePath := filepath.Join(pointDir, ArtifactTrace)
 	spans, err := ReadTraceFile(tracePath)
 	if err != nil {
-		return 0, 0, 0
+		return 0, 0, 0, err
+	}
+	if len(spans) == 0 {
+		return 0, 0, 0, fmt.Errorf("trace contains no spans")
 	}
 
 	for _, s := range spans {
@@ -122,7 +140,7 @@ func extractTokensFromTrace(pointDir string) (tokensIn, tokensOut, iterations in
 		}
 	}
 
-	return tokensIn, tokensOut, countIterations(spans)
+	return tokensIn, tokensOut, countIterations(spans), nil
 }
 
 func countIterations(spans []*Span) int {

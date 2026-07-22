@@ -9,7 +9,6 @@ import (
 	"os"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -25,6 +24,11 @@ import (
 // An optional tracer records the replay lifecycle. If no tracer is provided,
 // the function operates silently (errors are still returned).
 func ReplayFile(path string, endpoint string, tr ...tracing.Tracer) error {
+	return ReplayFileContext(context.Background(), path, endpoint, tr...)
+}
+
+// ReplayFileContext is ReplayFile with caller-controlled cancellation.
+func ReplayFileContext(ctx context.Context, path string, endpoint string, tr ...tracing.Tracer) error {
 	var t tracing.Tracer
 	if len(tr) > 0 && tr[0] != nil {
 		t = tr[0]
@@ -56,7 +60,6 @@ func ReplayFile(path string, endpoint string, tr ...tracing.Tracer) error {
 	}
 	replayEvent(t, "replay.parsed", attribute.Int("span_count", spanCount))
 
-	ctx := context.Background()
 	conn, err := grpc.NewClient(endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
@@ -66,16 +69,18 @@ func ReplayFile(path string, endpoint string, tr ...tracing.Tracer) error {
 	}
 	defer func() { _ = conn.Close() }()
 
-	exp, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+	resp, err := coltracepb.NewTraceServiceClient(conn).Export(ctx, &req)
 	if err != nil {
-		replayEvent(t, "replay.exporter_error", attribute.String("error", err.Error()))
-		return fmt.Errorf("replay: create exporter: %w", err)
-	}
-	defer func() { _ = exp.Shutdown(ctx) }()
-
-	if err := exp.ExportSpans(ctx, nil); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			err = ctxErr
+		}
 		replayEvent(t, "replay.export_error", attribute.String("error", err.Error()))
 		return fmt.Errorf("replay: export to %s: %w", endpoint, err)
+	}
+	if partial := resp.GetPartialSuccess(); partial != nil && partial.GetRejectedSpans() > 0 {
+		err := fmt.Errorf("%d spans rejected: %s", partial.GetRejectedSpans(), partial.GetErrorMessage())
+		replayEvent(t, "replay.export_error", attribute.String("error", err.Error()))
+		return fmt.Errorf("replay: partial export to %s: %w", endpoint, err)
 	}
 
 	replayEvent(t, "replay.done", attribute.Int("span_count", spanCount))

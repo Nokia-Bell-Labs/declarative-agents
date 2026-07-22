@@ -412,6 +412,24 @@ test_cases:
       - srd004-planner AC1
       - sm-agent-role-taxonomy planner
 
+  - family: planner
+    name: Planner shipped-profile terminal task execution
+    status: implemented
+    test: conformance/planner_test.go TestPlannerShippedProfileTerminalExecution
+    coverage: shipped-behavioral
+    coverage_note: |
+      Runs the shipped pass-through machine and real execute_task factory with a
+      controlled child executable; no planner builder or machine action is
+      replaced.
+    description: |
+      Loads a real specification corpus, extracts all ready graph nodes, selects
+      execute_task, invokes the configured child executable, runs vet/build/test,
+      maps validation success through check_result, and reaches Completed.
+    traces:
+      - srd004-planner AC1
+      - srd004-planner AC3
+      - sm-agent-role-taxonomy planner
+
   - family: rest
     name: REST inbound webhook server boundary conformance
     status: implemented

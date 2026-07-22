@@ -5,6 +5,7 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 
@@ -16,6 +17,7 @@ var cliExtensionKeys = map[string]bool{
 	"positional": true,
 	"bool_flag":  true,
 	"default":    true,
+	"position":   true,
 }
 
 // ToolDef is a declarative, YAML-driven tool definition.
@@ -103,6 +105,26 @@ func (se *ToolSideEffects) UnmarshalYAML(value *yaml.Node) error {
 	}
 }
 
+// MarshalYAML preserves the accepted scalar/list surface instead of exposing
+// ToolSideEffects' internal representation.
+func (se ToolSideEffects) MarshalYAML() (interface{}, error) {
+	if se.LegacyText != "" && len(se.Items) > 0 {
+		return nil, fmt.Errorf("side_effects cannot contain both legacy text and structured items")
+	}
+	if se.LegacyText != "" {
+		return &yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Tag:   "!!str",
+			Value: se.LegacyText,
+			Style: yaml.DoubleQuotedStyle,
+		}, nil
+	}
+	if se.Items != nil {
+		return se.Items, nil
+	}
+	return nil, nil
+}
+
 // IsZero lets yaml omit empty side_effects when serializing.
 func (se ToolSideEffects) IsZero() bool {
 	return se.LegacyText == "" && len(se.Items) == 0
@@ -153,6 +175,7 @@ type ParamMapping struct {
 	BoolFlag   bool
 	Default    string
 	Required   bool
+	Position   int
 }
 
 // ToolDefsFile is the top-level YAML structure for declaration files.
@@ -267,8 +290,24 @@ func (td *ToolDef) ExtractParamMappings() []ParamMapping {
 		if d, ok := pMap["default"].(string); ok {
 			pm.Default = d
 		}
+		if position, ok := pMap["position"].(int); ok {
+			pm.Position = position
+		}
 		mappings = append(mappings, pm)
 	}
+	sort.Slice(mappings, func(i, j int) bool {
+		left, right := mappings[i], mappings[j]
+		switch {
+		case left.Position > 0 && right.Position > 0 && left.Position != right.Position:
+			return left.Position < right.Position
+		case left.Position > 0 && right.Position == 0:
+			return true
+		case left.Position == 0 && right.Position > 0:
+			return false
+		default:
+			return left.Name < right.Name
+		}
+	})
 	return mappings
 }
 
