@@ -36,6 +36,56 @@ func TestParseSRD(t *testing.T) {
 	assert.Equal(t, []string{"R1.1", "R1.2", "R1.3"}, srd.AcceptanceCriteria[0].Traces)
 }
 
+func TestParseSRDRejectsMalformedRequirementShapes(t *testing.T) {
+	t.Parallel()
+	const source = "docs/specs/software-requirements/srd-malformed.yaml"
+	tests := []struct {
+		name string
+		yaml string
+		want []string
+	}{
+		{
+			name: "scalar items",
+			yaml: "requirements:\n  R1:\n    items: R1.1\n",
+			want: []string{"group R1", "items: expected sequence"},
+		},
+		{
+			name: "mapping items",
+			yaml: "requirements:\n  R1:\n    items:\n      R1.1: text\n",
+			want: []string{"group R1", "items: expected sequence"},
+		},
+		{
+			name: "null items",
+			yaml: "requirements:\n  R1:\n    items: null\n",
+			want: []string{"group R1", "items: expected sequence"},
+		},
+		{
+			name: "mixed sequence items",
+			yaml: "requirements:\n  R1:\n    items:\n      - R1.1: valid\n      - malformed\n",
+			want: []string{"group R1", "items: expected mapping entry"},
+		},
+		{
+			name: "requirements nested as sequence",
+			yaml: "requirements:\n  - R1:\n      items:\n        - R1.1: valid\n",
+			want: []string{"requirements: expected mapping"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := parseSRDBytes([]byte("id: srd-malformed\n"+tt.yaml), source)
+
+			require.Error(t, err)
+			assert.ErrorContains(t, err, source)
+			assert.ErrorContains(t, err, "requirements")
+			for _, fragment := range tt.want {
+				assert.ErrorContains(t, err, fragment)
+			}
+		})
+	}
+}
+
 func TestParseSRD_NonGoals(t *testing.T) {
 	srd, err := ParseSRD(filepath.Join("testdata", "valid", "docs", "specs",
 		"software-requirements", "srd003-storage.yaml"))
