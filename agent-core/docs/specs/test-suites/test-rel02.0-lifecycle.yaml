@@ -153,14 +153,14 @@ test_cases:
 
   - use_case: rel02.0-uc001-approval-suspend-resume
     name: End-to-end suspend and resume across processes through the Dolt backend
-    go_test: TestDoltCheckpointSuspendResumeRoundTrip
+    go_test: TestDoltCheckpointSuspendResumeAcrossProcesses
     status: done
     description: |
-      Against a reachable local dolt sql-server, open a DoltCheckpoint
-      through the composition-root driver, save a suspended run, then load it
-      from a fresh adapter instance and verify the Position, folded
-      conversation, and Execution (including receipts) match the pre-suspend
-      state. Skipped when no dolt sql-server is reachable.
+      Against a reachable local dolt sql-server, start one composition-root
+      child process to save a suspended run and let that process exit. Start a
+      second child process to load the run and emit an artifact proving the
+      Position, folded conversation, and Execution (including receipts) match
+      the pre-suspend state. Skipped when no dolt sql-server is reachable.
     inputs:
       backend: DoltCheckpoint
       dsn: root@tcp(127.0.0.1:3306)/agent_core_test
