@@ -63,6 +63,37 @@ test_cases:
       - srd003-chatbot-deployment AC4
 
   - use_case: rel06.0-uc001-declarative-executor
+    name: A broken rollout read is distinguishable from a progressing one, and the counts reach the panel
+    integration_target: mage test (magefiles/executor_rollout_test.go, magefiles/coordinator_intake_test.go, GH-686)
+    go_test: TestExecutorRolloutMachineSeparatesBrokenRead, TestExecutorRolloutEndpointMapsThreeOutcomes, TestExecutorRolloutTerminalMappingsAgree, TestExecutorRolloutCountsWordContract, TestExecutorRolloutCountsRenderJSON, TestRolloutCountsSurviveTheCreatorHop, TestRolloutCountsSurviveTheCoordinatorHop, TestPanelRolloutInterfaceMatchesWhatIsServed
+    status: done
+    description: |
+      Asserts over the declared profiles that the rollout read reaches three
+      outcomes rather than two. kubectl rollout status exits non-zero for a
+      rollout that is still progressing and for one it could not read at all, so
+      a phase taken from that exit code alone reported an absent Deployment, a
+      wrong kubeconfig, a denied RBAC read, or an unreachable API server as
+      ongoing progress -- in a panel that polls every 3s, indefinitely.
+
+      A second read of the Deployment object separates the two and supplies the
+      counts, and the three terminal states map to three responses from two
+      signals. The hop assertions follow the counts to the panel and compare the
+      declared TypeScript interface against what the poll actually serves, in
+      both directions.
+    inputs:
+      declared_config: the executor, creator, and coordinator profiles and the panel's provisioningApi.ts
+      deployment_shapes: rolled out, no replica ready yet, freshly created with no revision annotation
+    expected:
+      unreadable_deployment_returns_gateway_error_not_a_phase: true
+      complete_and_progressing_remain_distinguishable: true
+      both_phases_carry_ready_desired_revision: true
+      counts_survive_the_creator_and_coordinator_hops: true
+      panel_interface_declares_exactly_what_is_served: true
+    traces:
+      - rel06.0-uc001-declarative-executor S7
+      - srd006-executor AC3
+
+  - use_case: rel06.0-uc001-declarative-executor
     name: The rendered chart routes provisioning to the coordinator
     integration_target: mage test (magefiles/provisioning_route_render_test.go, GH-681)
     go_test: TestProvisioningIngressRoutesToTheCoordinator, TestExecutorApplyStaysCreatorOnly, TestCoordinatorAdmitsOnlyTheIngressControllerOnIntent, TestNoProvisioningRouteWithoutTheControlPlane
