@@ -91,7 +91,7 @@ tools:
         target: creator.instance
         state: rollout_executed
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop

@@ -121,6 +121,57 @@ func TestValidateReceiptContractIgnoresReadOnlyReversibleTool(t *testing.T) {
 	assert.Empty(t, finding.ToolName)
 }
 
+func TestValidateReceiptContractIgnoresReadOnlyStateThroughMutatingKind(t *testing.T) {
+	t.Parallel()
+
+	// A read through a kind that is not itself whitelisted (an external_api GET, a
+	// child_process status read) mutates nothing when it declares state: read_only,
+	// so it needs no rollback receipt.
+	for _, kind := range []string{"external_api", "child_process"} {
+		def := ToolDef{
+			Name:          "read_" + kind,
+			Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+			SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: kind, State: "read_only"}}},
+		}
+
+		finding := ValidateReceiptContract(def)
+
+		assert.Empty(t, finding.ToolName, "kind %q with state read_only should not trip the contract", kind)
+	}
+}
+
+func TestValidateReceiptContractIgnoresProcessLocalListenerShutdown(t *testing.T) {
+	t.Parallel()
+
+	// Stopping a network listener is process-local; it does not persist across a
+	// restart, so a reversible server-lifecycle word producing it needs no receipt.
+	def := ToolDef{
+		Name:          "stop_server",
+		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "network_listener_shutdown", State: "listener_stopped"}}},
+	}
+
+	finding := ValidateReceiptContract(def)
+
+	assert.Empty(t, finding.ToolName)
+}
+
+func TestValidateReceiptContractFailsMutatingStateThroughSameKind(t *testing.T) {
+	t.Parallel()
+
+	// The same kind without a read_only state is still a mutation needing a receipt.
+	def := ToolDef{
+		Name:          "write_external",
+		Reversibility: ToolReversibility{Classification: "reversible", Undo: "noop"},
+		SideEffects:   ToolSideEffects{Items: []ToolSideEffect{{Kind: "external_api", State: "records_added"}}},
+	}
+
+	finding := ValidateReceiptContract(def)
+
+	require.NotEmpty(t, finding.ToolName)
+	assert.Contains(t, finding.Message, "no receipt-consuming undo")
+}
+
 func TestValidateReceiptContractsAggregatesSelectedTools(t *testing.T) {
 	t.Parallel()
 

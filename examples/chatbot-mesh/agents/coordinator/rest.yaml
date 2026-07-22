@@ -76,12 +76,14 @@ rest:
                 directory: {type: string}
                 collection: {type: string}
                 embedding_model: {type: string}
+                values: {type: string}
             body_source: previous_result
             input_mapping:
               rag_name: $.rag_name
               directory: $.directory
               collection: $.collection
               embedding_model: $.embedding_model
+              values: $.values
             carry_forward: [rag_name, collection, embedding_model, values]
           body:
             operation: ingest

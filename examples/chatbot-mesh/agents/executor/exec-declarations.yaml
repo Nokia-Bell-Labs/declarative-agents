@@ -51,6 +51,7 @@ tools:
         required: [exit_code, output]
     side_effects:
       - kind: child_process
+        state: read_only
         target: helm
         description: Runs `helm upgrade --dry-run` as a child process; renders only, mutates no cluster state.
     reversibility:
@@ -158,7 +159,7 @@ tools:
         target: helm
         description: Runs `helm rollback` as a child process; returns the release to its prior revision.
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
       requires_confirmation: false
     errors:
@@ -204,6 +205,7 @@ tools:
         required: [exit_code, output]
     side_effects:
       - kind: child_process
+        state: read_only
         target: kubectl
         description: Runs `kubectl rollout status` with a short timeout as a child process; reads status and mutates nothing.
     reversibility:
@@ -253,6 +255,7 @@ tools:
         required: [exit_code, output]
     side_effects:
       - kind: child_process
+        state: read_only
         target: kubectl
         description: Runs `kubectl rollout status` as a child process; reads the Deployment's rollout progress and mutates nothing.
     reversibility:

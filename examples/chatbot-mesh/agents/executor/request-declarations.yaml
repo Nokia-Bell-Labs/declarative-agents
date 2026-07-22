@@ -93,7 +93,7 @@ tools:
         target: request_run
         state: completed
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
     undo:
       strategy: noop

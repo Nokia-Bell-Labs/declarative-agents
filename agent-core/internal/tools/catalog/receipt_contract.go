@@ -12,13 +12,23 @@ import (
 // nonMutatingSideEffectKinds are side-effect kinds that observe but do not mutate
 // world state, so a reversible tool producing only these needs no rollback receipt.
 var nonMutatingSideEffectKinds = map[string]bool{
-	"":                true,
-	"none":            true,
-	"filesystem_read": true,
-	"state_read":      true,
-	"stdout":          true,
-	"stderr_write":    true,
-	"human_boundary":  true,
+	"":                          true,
+	"none":                      true,
+	"filesystem_read":           true,
+	"state_read":                true,
+	"stdout":                    true,
+	"stderr_write":              true,
+	"human_boundary":            true,
+	"network_listener_shutdown": true, // process-local; a stopped listener does not persist across a restart
+}
+
+// nonMutatingSideEffect reports whether a side effect observes but does not mutate
+// world state. An effect is non-mutating when its kind is a read/observe kind, or
+// when it explicitly declares state: read_only -- a read through any kind (an
+// external_api GET, a child_process status read) mutates nothing to roll back, so
+// it needs no rollback receipt regardless of the kind label.
+func nonMutatingSideEffect(effect ToolSideEffect) bool {
+	return nonMutatingSideEffectKinds[effect.Kind] || effect.State == "read_only"
 }
 
 // ValidateReceiptPresence reports an error finding when a tool declared reversible
@@ -61,7 +71,7 @@ func declaresReversibleMutation(def ToolDef) bool {
 
 func hasStateMutatingEffect(def ToolDef) bool {
 	for _, effect := range def.SideEffects.Items {
-		if !nonMutatingSideEffectKinds[effect.Kind] {
+		if !nonMutatingSideEffect(effect) {
 			return true
 		}
 	}
