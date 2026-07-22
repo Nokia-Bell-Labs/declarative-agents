@@ -12,10 +12,23 @@ overview: |
   reference subject with its scenarios and the mage target that runs them.
 
   Cases carry planned_go_test and planned_integration_target rather than
-  go_test and integration_target, because the named tests and targets do not
-  exist yet and the formal evidence validator checks every cited command
-  against the real inventory. Each implementing issue renames the field and
-  sets status to implemented when its evidence lands.
+  go_test and integration_target until the named tests and targets exist,
+  because the formal evidence validator checks every cited command against the
+  real inventory. Each implementing issue renames the field and sets status to
+  implemented when its evidence lands.
+
+  GH-668 delivered the twin (the request-log case cites the delivered name
+  TestTwinRequestLogRecordsCalls), GH-669 the assembler profile, and GH-670 the
+  reference subject, its three scenarios, the TestRigSelfProof conformance
+  test, and the mage rig target, so those cases now carry real evidence. The
+  no-orphan case cites TestRigSelfProof, whose two consecutive full runs are
+  the delivered repeatability proof alongside the agent-core teardown test.
+  GH-671 added the first examples scenario (the chatbot-mesh rag-server
+  against a twin Chroma) and the cross-root proof: the example's
+  mage integration:rig runs one assembler over the mesh agents and the
+  agent-profiles reference subject in a single pass, so every case now
+  carries real evidence. The chatbot-turn scenarios continue in a
+  follow-on issue.
 
 traces:
   - rel11.0-uc001-assembler-scenario-run
@@ -29,9 +42,9 @@ preconditions:
 test_cases:
   - use_case: rel11.0-uc002-twin-serves-fixtures
     name: One twin profile serves a fixture and scripts a sequence
-    planned_integration_target: mage rig
-    planned_go_test: go test ./conformance -run TestTwinServesFixtureSequence
-    status: planned
+    integration_target: mage rig
+    go_test: go test ./conformance -run TestTwinServesFixtureSequence
+    status: implemented
     description: |
       The shipped twin profile starts with a fixture path and address supplied
       by environment, serves the fixture's routes, returns a route's ordered
@@ -49,8 +62,8 @@ test_cases:
 
   - use_case: rel11.0-uc002-twin-serves-fixtures
     name: Two twins from one profile serve different dependencies
-    planned_go_test: go test ./conformance -run TestTwinTwoInstancesDifferentFixtures
-    status: planned
+    go_test: go test ./conformance -run TestTwinTwoInstancesDifferentFixtures
+    status: implemented
     description: |
       Two twin instances start from the same shipped profile with different
       fixtures and addresses, each serving its own dependency's routes, with
@@ -69,8 +82,8 @@ test_cases:
 
   - use_case: rel11.0-uc002-twin-serves-fixtures
     name: Validator reads the twin request log to verify outbound calls
-    planned_go_test: go test ./conformance -run TestTwinRequestLogVerifiesSubjectCalls
-    status: planned
+    go_test: go test ./conformance -run TestTwinRequestLogRecordsCalls
+    status: implemented
     description: |
       After a subject drives its dependency, the twin's log route returns the
       received requests in order with method, path, and body, and a validator
@@ -89,8 +102,8 @@ test_cases:
 
   - use_case: rel11.0-uc002-twin-serves-fixtures
     name: Malformed fixture blocks the twin from serving
-    planned_go_test: go test ./conformance -run TestTwinMalformedFixtureFailsStartup
-    status: planned
+    go_test: go test ./conformance -run TestTwinMalformedFixtureFailsStartup
+    status: implemented
     description: |
       A twin started against a malformed fixture fails configuration
       validation and startup with a named error, before serving any request,
@@ -107,8 +120,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Assembler runs one scenario end to end to a verdict
-    planned_integration_target: mage rig
-    status: planned
+    integration_target: mage rig
+    status: implemented
     description: |
       The assembler discovers a scenario, starts its twins, starts the subject
       with its dependency base_url pointed at a twin through declared
@@ -127,8 +140,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: One subject carries several scenarios added as data only
-    planned_integration_target: mage rig
-    status: planned
+    integration_target: mage rig
+    status: implemented
     description: |
       The reference subject carries a happy-path scenario and a
       dependency-failure scenario. Adding the second required only files under
@@ -146,8 +159,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Scripted dependency failure drives the subject's failure path
-    planned_integration_target: mage rig
-    status: planned
+    integration_target: mage rig
+    status: implemented
     description: |
       A scenario whose fixture scripts a 500 on the dependency call drives the
       subject to its clean failure terminal; the validator asserted that
@@ -163,8 +176,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: A wrong expectation makes the rig fail and name the cause
-    planned_integration_target: mage rig
-    status: planned
+    integration_target: mage rig
+    status: implemented
     description: |
       A scenario carrying a deliberately wrong validator expectation drives the
       assembler to Failed, and the output names which validator failed and why.
@@ -180,8 +193,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Children do not outlive a scenario and runs are repeatable
-    planned_go_test: go test ./conformance -run TestAssemblerNoOrphansAndRepeatable
-    status: planned
+    go_test: go test ./conformance -run TestRigSelfProof
+    status: implemented
     description: |
       After a scenario, no subject or twin process from the assembler's child
       groups survives, and a second consecutive run passes without port or
@@ -199,8 +212,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Discovery covers the examples tree with no special-casing
-    planned_go_test: go test ./conformance -run TestAssemblerDiscoversConfiguredRoots
-    status: planned
+    integration_target: mage integration:rig (run from examples/chatbot-mesh)
+    status: implemented
     description: |
       With roots configured to cover both the agent families and the examples
       tree, discovery enumerates scenarios from both, sorted and deterministic,
@@ -217,8 +230,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Assembler and twin profiles validate and boot as shipped profiles
-    planned_integration_target: mage validate
-    status: planned
+    integration_target: mage validate
+    status: implemented
     description: |
       The assembler and twin profiles load and validate against agent-core and
       pass the shipped-profile boot smoke alongside the existing families, so

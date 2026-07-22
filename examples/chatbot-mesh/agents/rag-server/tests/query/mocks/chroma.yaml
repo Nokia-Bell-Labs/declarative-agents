@@ -1,0 +1,22 @@
+# Digital twin for the Chroma vector store. The fixture name publishes the
+# twin's address as CHROMA_URL, which the rag-server's client declares as
+# base_url: ${CHROMA_URL:-...}. The request machine resolves the collection,
+# then queries it; the collection id in the first response selects the literal
+# query route below.
+routes:
+  - method: POST
+    path: /api/v2/tenants/default_tenant/databases/default_database/collections
+    responses:
+      - status: 200
+        body:
+          id: twin-collection
+          name: repo-docs
+
+  - method: POST
+    path: /api/v2/tenants/default_tenant/databases/default_database/collections/twin-collection/query
+    responses:
+      - status: 200
+        body:
+          ids: [["doc-1", "doc-2"]]
+          documents: [["first chunk", "second chunk"]]
+          distances: [[0.12, 0.34]]

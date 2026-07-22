@@ -1,0 +1,19 @@
+# Tool selection for the assembler rig machine (machine.yaml).
+#
+# The three fail_scenario_* words share one init with collect_scenario_verdict:
+# each declares the reason its failure edge records, so a scenario that fails
+# before its validators run still names its cause.
+
+tools:
+  - discover_scenarios
+  - next_scenario
+  - start_scenario_twins
+  - start_scenario_subject
+  - await_scenario_subject
+  - run_scenario_validators
+  - collect_scenario_verdict
+  - fail_scenario_start
+  - fail_scenario_unhealthy
+  - fail_scenario_validators
+  - teardown_scenario
+  - report_session

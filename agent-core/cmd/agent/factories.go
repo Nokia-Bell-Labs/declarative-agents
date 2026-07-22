@@ -22,6 +22,7 @@ import (
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/service"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
 )
 
@@ -61,6 +62,7 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterREST:           registerRESTFactories(st),
 		RegisterDocumentation:  registerDocumentationFactories(),
 		RegisterCompose:        registerComposeFactories(),
+		RegisterService:        registerServiceFactories(),
 	}
 }
 
@@ -259,6 +261,19 @@ func registerValidationFactory(st *agentState) toolregistry.FactoryRegistrar {
 func registerControlFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		br.Register("self_invoke", selfInvokeFactory(st))
+	}
+}
+
+// registerServiceFactories registers the rig's service words. One service
+// state and one scenario session are shared across the family, so every child
+// a run starts stays reachable for teardown.
+func registerServiceFactories() toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		state := service.NewState()
+		service.RegisterBuiltins(br, service.FactoryDeps{
+			State:   state,
+			Session: service.NewScenarioSession(state),
+		})
 	}
 }
 

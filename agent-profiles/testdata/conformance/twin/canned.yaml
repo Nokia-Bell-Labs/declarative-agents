@@ -1,0 +1,19 @@
+# A single canned response per route: the common case, where a dependency
+# always answers the same way for the length of a scenario.
+routes:
+  - method: GET
+    path: /v1/status
+    responses:
+      - status: 200
+        headers:
+          X-Twin-Fixture: canned
+        body:
+          state: ready
+          collection: demo
+
+  - method: POST
+    path: /v1/deploy
+    responses:
+      - status: 202
+        body:
+          accepted: true

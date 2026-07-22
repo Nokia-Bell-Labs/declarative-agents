@@ -9,13 +9,14 @@ preconditions:
   - srd039-mock-endpoint-binding defines the mock binding, fixture format, request log, and validation.
   - srd040-service-child-tools defines start_service, await_healthy, stop_service, run_validators, and list_scenarios.
   - GH-666 implements the mock binding; GH-667 implements the service-child tools. Test names below are the contracts those issues implement.
-  - Cases carry planned_go_test rather than go_test because the named tests do not exist yet. The formal go_test evidence validator checks every go_test string against the real test inventory, so citing an unwritten test would record false evidence. Each implementing issue renames planned_go_test to go_test and sets status to implemented when its test lands.
+  - Cases carry planned_go_test rather than go_test until their named tests exist. The formal go_test evidence validator checks every go_test string against the real test inventory, so citing an unwritten test would record false evidence. Each implementing issue renames planned_go_test to go_test and sets status to implemented when its test lands.
+  - GH-666 delivered the mock binding, so the four mock cases below now carry go_test and status implemented. The service-child cases stay planned until GH-667.
 
 test_cases:
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Mock binding serves scripted responses in order
-    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingServesScriptedResponses
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingServesScriptedResponses
+    status: implemented
     description: |
       An endpoint with the mock binding serves a route's ordered responses on
       successive requests, repeats the last response after the script is
@@ -32,8 +33,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Request log returns received requests in order
-    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingRequestLog
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingRequestLog
+    status: implemented
     description: |
       After a scripted request sequence, the log endpoint returns every
       received request in order with method, path, headers, and body, and
@@ -50,8 +51,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Malformed fixture fails validate-config and startup
-    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingFixtureValidation
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingFixtureValidation
+    status: implemented
     description: |
       Fixtures with an unknown method, an empty response list, and a duplicate
       route each fail validation with a named error under --validate-config
@@ -67,8 +68,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Concurrent requests neither skip nor duplicate script positions
-    planned_go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingConcurrentSequencing
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestRESTServer_MockBindingConcurrentSequencing
+    status: implemented
     description: |
       Concurrent requests to a scripted route consume script positions exactly
       once each, and a serial sequence is deterministic.
@@ -82,8 +83,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Serve-mode child lifecycle leaves no orphans
-    planned_go_test: go test ./internal/tools/service -run TestServiceChild_StartAwaitStopNoOrphans
-    status: planned
+    go_test: go test ./internal/tools/service -run TestServiceChild_StartAwaitStopNoOrphans
+    status: implemented
     description: |
       start_service spawns a serve-mode child with injected environment,
       await_healthy reports healthy, stop_service stops it, and no process
@@ -102,8 +103,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: await_healthy times out within its declared bound
-    planned_go_test: go test ./internal/tools/service -run TestServiceChild_AwaitHealthyTimeout
-    status: planned
+    go_test: go test ./internal/tools/service -run TestServiceChild_AwaitHealthyTimeout
+    status: implemented
     description: |
       await_healthy against a never-healthy address emits the timeout signal
       within the declared bound rather than polling forever.
@@ -118,8 +119,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: run_validators reports concurrent terminal states and timeouts
-    planned_go_test: go test ./internal/tools/service -run TestRunValidators_ConcurrentTerminalStatesAndTimeout
-    status: planned
+    go_test: go test ./internal/tools/service -run TestRunValidators_ConcurrentTerminalStatesAndTimeout
+    status: implemented
     description: |
       Two validator profiles run concurrently and both terminal states are
       reported keyed by validator; a deliberately hung validator is stopped at
@@ -136,8 +137,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: list_scenarios is deterministic over a fixture tree
-    planned_go_test: go test ./internal/tools/service -run TestListScenarios_DeterministicDiscovery
-    status: planned
+    go_test: go test ./internal/tools/service -run TestListScenarios_DeterministicDiscovery
+    status: implemented
     description: |
       list_scenarios over a fixture tree with two subjects and three scenarios
       returns the expected entries, sorted, with subject directory, scenario
@@ -154,8 +155,8 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Service tool declarations state reversibility and undo honestly
-    planned_go_test: go test ./internal/tools/service -run TestServiceTools_DeclarationsReversibilityAndUndo
-    status: planned
+    go_test: go test ./internal/tools/service -run TestServiceTools_DeclarationsReversibilityAndUndo
+    status: implemented
     description: |
       Each service word's declaration states its reversibility and undo
       strategy consistently: start_service is reversible with stop_service as
@@ -193,3 +194,78 @@ test_cases:
       - rel09.0-uc001-scenario-rig-run S1
       - rel09.0-uc001-scenario-rig-run S2
       - rel09.0-uc001-scenario-rig-run S3
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Scenario session iterates each scenario exactly once
+    go_test: go test ./internal/tools/service -run TestScenarioSession_IteratesEachScenarioOnce
+    status: implemented
+    description: |
+      The session seeds from discovery roots and walks every scenario once in
+      deterministic order, then reports the work list exhausted. This is the
+      cursor the assembler machine loops on (srd018 R1.1).
+    inputs:
+      tree: two subjects, three scenarios
+    expected:
+      visited_once_each: true
+      deterministic_order: true
+      exhausted_stays_exhausted: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S5
+      - srd040-service-child-tools AC4
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: A twin's runtime address reaches the subject's environment
+    go_test: go test ./internal/tools/service -run TestScenarioSteps_ThreadsTwinURLIntoSubject
+    status: implemented
+    description: |
+      A twin binds a port chosen at runtime, and the subject started for that
+      scenario observes the twin's base URL in its environment under the
+      variable derived from the fixture name. This is the dependency
+      redirection the pipeline depends on (srd018 R4.1); without it the
+      per-scenario steps cannot be expressed as machine transitions.
+    inputs:
+      fixture: mocks/dep.yaml
+    expected:
+      env_var_derived: DEP_URL
+      subject_observes_twin_url: true
+      subject_profile_resolved_from_scenario: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S1
+      - srd040-service-child-tools AC1
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: A failed scenario tears its children down and names its cause
+    go_test: go test ./internal/tools/service -run TestScenarioSteps_TeardownRunsOnFailurePath
+    status: implemented
+    description: |
+      A subject that never becomes healthy drives the health-timeout signal;
+      the machine routes to a forced verdict and teardown, leaving nothing
+      running, and the session report names the cause (srd018 R1.5, R6.2).
+    inputs:
+      subject: started but never serving
+      health_timeout: declared
+    expected:
+      health_timeout_signal: true
+      nothing_running_after_teardown: true
+      report_names_cause: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S3
+      - srd040-service-child-tools AC1
+
+  - use_case: rel09.0-uc001-scenario-rig-run
+    name: Verdict passes only when every validator passed
+    go_test: go test ./internal/tools/service -run TestScenarioSession_VerdictNamesItsCause
+    status: implemented
+    description: |
+      A scenario passes only when all its validators passed; a failure names
+      the failing validator and why, and the aggregate names the first failing
+      scenario. An empty run does not pass (srd018 R6.1, R6.2).
+    inputs:
+      scenarios: [all-pass, one-failing, forced-reason]
+    expected:
+      pass_requires_all: true
+      failure_names_validator: true
+      empty_run_does_not_pass: true
+    traces:
+      - rel09.0-uc001-scenario-rig-run S4
+      - srd040-service-child-tools AC3

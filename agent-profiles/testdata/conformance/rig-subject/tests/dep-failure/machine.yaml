@@ -1,0 +1,75 @@
+name: rig-subject-validator
+purpose: |-
+  The dependency succeeds once then fails, so the subject must answer on the
+  first drive and degrade cleanly on the second. Passing here means the
+  subject failed the way it is supposed to.
+configuration:
+  machine: machine.yaml
+  tools: tools.yaml
+initial_state: Idle
+budget:
+  max_iterations: 6
+states:
+  - name: Idle
+    meaning: Before the subject is driven.
+  - name: Priming
+    meaning: The first drive consumed the dependency's healthy response.
+  - name: Checking
+    meaning: The second drive has run; the subject must have degraded.
+  - name: Passed
+    meaning: Terminal. The subject answered, then degraded cleanly.
+  - name: Failed
+    meaning: Terminal. The subject did not behave as this scenario expects.
+terminal_states: [Passed, Failed]
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: SubjectAnswered
+    trigger: The subject reported its dependency answered.
+  - name: SubjectDegraded
+    trigger: The subject reported its dependency unavailable, its clean failure path.
+  - name: SubjectBroke
+    trigger: The subject returned an unreachable or missing mapping.
+  - name: RESTResourceRead
+    trigger: The read succeeded and mapped to the generic read signal.
+  - name: CommandError
+    trigger: The subject was unreachable or returned an unmapped status.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Priming
+    action: drive_subject
+  # First drive: the dependency's scripted 200 means the subject answers.
+  - state: Priming
+    signal: SubjectAnswered
+    next: Checking
+    action: drive_subject
+  - state: Priming
+    signal: RESTResourceRead
+    next: Checking
+    action: drive_subject
+  - state: Priming
+    signal: SubjectDegraded
+    next: Failed
+  - state: Priming
+    signal: SubjectBroke
+    next: Failed
+  - state: Priming
+    signal: CommandError
+    next: Failed
+  # Second drive: the scripted 500 must surface as the subject's clean 503.
+  - state: Checking
+    signal: SubjectDegraded
+    next: Passed
+  - state: Checking
+    signal: SubjectAnswered
+    next: Failed
+  - state: Checking
+    signal: RESTResourceRead
+    next: Failed
+  - state: Checking
+    signal: SubjectBroke
+    next: Failed
+  - state: Checking
+    signal: CommandError
+    next: Failed

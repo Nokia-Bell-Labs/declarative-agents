@@ -154,6 +154,7 @@ type Endpoint struct {
 	StaticAssets       *StaticAssetsConfig `yaml:"static_assets,omitempty"`
 	Redirect           *RedirectConfig     `yaml:"redirect,omitempty"`
 	MonitorProxy       *MonitorProxyConfig `yaml:"monitor_proxy,omitempty"`
+	Mock               *MockConfig         `yaml:"mock,omitempty"`
 }
 
 // MonitorProxyConfig maps agent names to their monitor base URLs for binding
