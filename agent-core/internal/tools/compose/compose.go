@@ -4,6 +4,11 @@
 // from command-state $from(label).path selectors, so a later word (for example
 // invoke_llm) receives one composed input assembled from non-adjacent prior
 // steps without carry_forward chains (srd038-command-state-store).
+//
+// A template may substitute a value raw ("{{ key }}") or JSON-encoded
+// ("{{ json key }}"). The encoded form is what makes a rendered JSON document
+// safe: values that carry quotes or newlines are escaped rather than breaking
+// the document, and an unresolved selector encodes to "" rather than a hole.
 package compose
 
 import (
@@ -69,7 +74,7 @@ func (c *composeCmd) Execute() core.Result {
 			missing = append(missing, fmt.Sprintf("%s: %v", key, err))
 			value = ""
 		}
-		rendered = substitute(rendered, key, stringify(value))
+		rendered = substitute(rendered, key, stringify(value), jsonify(value))
 	}
 	signal := c.signal
 	if signal == "" {
@@ -82,10 +87,30 @@ func (c *composeCmd) Execute() core.Result {
 	return res
 }
 
-// substitute replaces "{{ key }}" and "{{key}}" placeholders with value.
-func substitute(template, key, value string) string {
-	template = strings.ReplaceAll(template, "{{ "+key+" }}", value)
-	return strings.ReplaceAll(template, "{{"+key+"}}", value)
+// substitute replaces a key's placeholders. "{{ key }}" inserts the value as
+// it renders; "{{ json key }}" inserts its JSON encoding, so a template that
+// builds a JSON document stays valid whatever the value holds. Without the json
+// form a string carrying a quote, backslash, or newline — an LLM answer,
+// routinely — breaks the document it is substituted into.
+func substitute(template, key, raw, encoded string) string {
+	template = strings.ReplaceAll(template, "{{ json "+key+" }}", encoded)
+	template = strings.ReplaceAll(template, "{{json "+key+"}}", encoded)
+	template = strings.ReplaceAll(template, "{{ "+key+" }}", raw)
+	return strings.ReplaceAll(template, "{{"+key+"}}", raw)
+}
+
+// jsonify renders a resolved value as a JSON literal. An unresolved selector
+// arrives as the empty string and encodes to "", so a rendered JSON document
+// stays parseable rather than being left with a hole where the value belonged.
+func jsonify(v interface{}) string {
+	if v == nil {
+		return `""`
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return `""`
+	}
+	return string(data)
 }
 
 // stringify renders a resolved value: strings pass through; anything else is
