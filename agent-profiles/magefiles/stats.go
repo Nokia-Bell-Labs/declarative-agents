@@ -11,8 +11,9 @@ import (
 )
 
 type profileStatsOutput struct {
-	Go   profileGoStats   `json:"go"`
-	YAML profileYAMLStats `json:"yaml"`
+	Go     profileGoStats   `json:"go"`
+	YAML   profileYAMLStats `json:"yaml"`
+	Agents agentsSection    `json:"agents"`
 }
 
 type profileGoStats struct {
@@ -67,6 +68,11 @@ func Stats() error {
 		return err
 	}
 	rec.Go.TotalLines = rec.Go.SrcLines + rec.Go.TestLines
+
+	rec.Agents, err = scanAgents("agents", profileCountLines)
+	if err != nil {
+		return err
+	}
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")

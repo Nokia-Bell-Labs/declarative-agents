@@ -16,11 +16,11 @@ var subModules = []string{
 }
 
 // exampleModules are standalone example modules that participate in the root
-// audit and Go-test gates but expose no build, stats, or default target. Each
-// owns a mage audit target and Go tests under magefiles/, so the root gate runs
-// those two directly rather than the full submodule target set. They are absent
-// from Build, Stats, and All because they define no such targets: an example is
-// a deployable artifact governed by its own spec corpus, not a platform module.
+// audit, Go-test, and stats gates but expose no build or default target. Each
+// owns a mage audit target, Go tests, and an agents-only mage stats target
+// under magefiles/. They are absent from Build and All because they define no
+// such targets: an example is a deployable artifact governed by its own spec
+// corpus, not a platform module.
 var exampleModules = []string{
 	"examples/chatbot-mesh",
 }
@@ -29,6 +29,14 @@ var exampleModules = []string{
 // platform submodules plus the example modules, all of which own a mage audit
 // target.
 func auditParticipants() []string {
+	return append(append([]string{}, subModules...), exampleModules...)
+}
+
+// statsParticipants lists every module the root stats target dispatches to:
+// the platform submodules plus the example modules, whose stats targets
+// report their agents so the repo-wide agents total covers every agent
+// (GH-754).
+func statsParticipants() []string {
 	return append(append([]string{}, subModules...), exampleModules...)
 }
 
