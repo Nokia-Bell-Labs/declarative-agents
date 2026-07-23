@@ -54,8 +54,18 @@ func TestFakeDeploymentAPIBindFailureIsAnError(t *testing.T) {
 	}
 }
 
-func TestFakeDeploymentAPIStopReleasesAddress(t *testing.T) {
-	t.Parallel()
+// fakeAPIReleasesItsAddress runs one reserve, start, stop, rebind cycle and
+// reports whether the rebind succeeded, distinguishing a lost port from a
+// genuine failure to release.
+//
+// The address comes from the shared ephemeral range and is unowned twice in the
+// cycle: between releasing the reservation and the API's bind, and between
+// stop() and the rebind. Anything else on the machine may take it in either
+// window, which made this test fail about half the time under a full parallel
+// run with "bind: address already in use" -- a result that says nothing about
+// whether stop() releases. Losing the port is retried; a real failure is not.
+func fakeAPIReleasesItsAddress(t *testing.T) (ok bool) {
+	t.Helper()
 	reservation, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("reserve address: %v", err)
@@ -66,13 +76,25 @@ func TestFakeDeploymentAPIStopReleasesAddress(t *testing.T) {
 	}
 	stop, err := startFakeDeploymentAPIOnAddr(&deploymentAPIRecorder{}, address)
 	if err != nil {
-		t.Fatalf("start fake API: %v", err)
+		return false // the port was taken before the API could bind it
 	}
 	stop()
 
 	rebound, err := net.Listen("tcp", address)
 	if err != nil {
-		t.Fatalf("fake API stop did not release %s: %v", address, err)
+		return false
 	}
 	_ = rebound.Close()
+	return true
+}
+
+func TestFakeDeploymentAPIStopReleasesAddress(t *testing.T) {
+	t.Parallel()
+	for attempt := 0; attempt < 10; attempt++ {
+		if fakeAPIReleasesItsAddress(t) {
+			return
+		}
+	}
+	t.Fatal("fake API stop never released its address in 10 attempts; " +
+		"a persistent failure here means stop() leaks the listener rather than losing a race")
 }

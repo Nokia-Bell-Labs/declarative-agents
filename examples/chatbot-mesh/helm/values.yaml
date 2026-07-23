@@ -124,7 +124,12 @@ dolt:
 # backend that the observability panel queries (R5.2).
 collector:
   enabled: true
-  image: {repository: otel/opentelemetry-collector-contrib, tag: "0.116.0", pullPolicy: IfNotPresent}
+  # 0.127.0 ships a statically linked arm64 binary. The 0.116.0 arm64 image is
+  # dynamically linked against /lib/ld-linux-aarch64.so.1, which a distroless
+  # image does not carry, so the collector exited 255 with
+  # "exec /otelcol-contrib: no such file or directory" on every Apple Silicon
+  # host and no agent span ever reached the trace backend (GH-736).
+  image: {repository: otel/opentelemetry-collector-contrib, tag: "0.127.0", pullPolicy: IfNotPresent}
   otlpGRPCPort: 4317
   otlpHTTPPort: 4318
 
