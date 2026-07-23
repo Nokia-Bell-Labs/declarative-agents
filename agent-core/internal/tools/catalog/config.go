@@ -37,14 +37,18 @@ type ComposeConfig struct {
 	Signal   string            `json:"signal"`
 }
 
-// CompareConfig holds the compare_state word's two $from(label).path operand
-// selectors and the signals it emits for an equal and an unequal verdict,
-// resolved against the command-state view (srd038).
-type CompareConfig struct {
-	Left     string `json:"left"`
-	Right    string `json:"right"`
-	Matched  string `json:"matched"`
-	Differed string `json:"differed"`
+// ValuePredicateConfig holds the value predicate word's operands, its
+// comparison, and the signal it emits for each outcome (srd041 R1.2, R1.4).
+// OperandType defaults to number when absent, because the ordering operators are
+// the reason to reach for the word and a REST read of a scalar body yields a
+// string (R3.1).
+type ValuePredicateConfig struct {
+	Left        string `json:"left"`
+	Op          string `json:"op"`
+	Right       string `json:"right"`
+	OperandType string `json:"operand_type"`
+	Satisfied   string `json:"satisfied"`
+	Unsatisfied string `json:"unsatisfied"`
 }
 
 // CheckpointHistoryConfig holds config for checkpoint_history.
@@ -98,16 +102,16 @@ type LLMToolConfig struct {
 	// word dispatched non-adjacently (for example a chat-LLM word reached through
 	// a $tool router) can read a non-adjacent composed prompt. Omitted: the user
 	// message stays the previous Result's Output.
-	UserPromptFrom string `json:"user_prompt_from"`
+	UserPromptFrom  string `json:"user_prompt_from"`
 	// AnswerOnly omits the tool manifest from the prompt so the word produces a
 	// final answer rather than a tool call. Set for a chat-LLM word a $tool router
 	// dispatches, which the manifest of the state it runs in would otherwise offer
 	// the chat-LLM vocabulary (including itself).
-	AnswerOnly bool `json:"answer_only"`
-	NumCtx     int  `json:"num_ctx"`
-	LLMTimeout int  `json:"llm_timeout"`
-	MaxTime    int  `json:"max_time"`
-	MaxTokens  int  `json:"max_tokens"`
+	AnswerOnly      bool   `json:"answer_only"`
+	NumCtx          int    `json:"num_ctx"`
+	LLMTimeout      int    `json:"llm_timeout"`
+	MaxTime         int    `json:"max_time"`
+	MaxTokens       int    `json:"max_tokens"`
 	// Temperature and Seed are optional decoding parameters. Pointers so an
 	// omitted field is distinguishable from an explicit zero: nil selects the
 	// deterministic defaults (temperature 0, seed 42) applied at build time.

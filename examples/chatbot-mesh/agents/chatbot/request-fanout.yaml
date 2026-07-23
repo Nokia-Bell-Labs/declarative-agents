@@ -105,7 +105,7 @@ tools:
 
   - name: compare_model0
     type: builtin
-    init: compare_state
+    init: value_predicate
     visibility: internal
     category: response
     description: Compare the first RAG's reported embedding model with the query embedding's model.
@@ -149,9 +149,11 @@ tools:
       description: Comparing two command-state values has no durable effect.
     config:
       left: $from(declare_query_model).model
+      op: eq
       right: $from(rag_query0).mapped.embedding_model
-      matched: ModelMatched
-      differed: ModelDiffered
+      operand_type: string
+      satisfied: ModelMatched
+      unsatisfied: ModelDiffered
 
   - name: keep_chunks0
     type: builtin
@@ -204,7 +206,7 @@ tools:
 
   - name: compare_model1
     type: builtin
-    init: compare_state
+    init: value_predicate
     visibility: internal
     category: response
     description: Compare the second RAG's reported embedding model with the query embedding's model.
@@ -248,9 +250,11 @@ tools:
       description: Comparing two command-state values has no durable effect.
     config:
       left: $from(declare_query_model).model
+      op: eq
       right: $from(rag_query1).mapped.embedding_model
-      matched: ModelMatched
-      differed: ModelDiffered
+      operand_type: string
+      satisfied: ModelMatched
+      unsatisfied: ModelDiffered
 
   - name: keep_chunks1
     type: builtin

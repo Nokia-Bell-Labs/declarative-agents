@@ -15,7 +15,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/compare"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/compose"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/control"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
@@ -63,7 +62,6 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterREST:           registerRESTFactories(st),
 		RegisterDocumentation:  registerDocumentationFactories(),
 		RegisterCompose:        registerComposeFactories(),
-		RegisterComparison:     registerCompareFactories(),
 		RegisterService:        registerServiceFactories(),
 	}
 }
@@ -80,24 +78,6 @@ func registerComposeFactories() toolregistry.FactoryRegistrar {
 				Template: cfg.Template,
 				Inputs:   cfg.Inputs,
 				Signal:   core.Signal(cfg.Signal),
-			}, nil
-		})
-	}
-}
-
-func registerCompareFactories() toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		br.Register("compare_state", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
-			var cfg catalog.CompareConfig
-			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
-				return nil, err
-			}
-			return compare.Builder{
-				ToolName: def.Name,
-				Left:     cfg.Left,
-				Right:    cfg.Right,
-				Matched:  core.Signal(cfg.Matched),
-				Differed: core.Signal(cfg.Differed),
 			}, nil
 		})
 	}
@@ -281,6 +261,33 @@ func registerValidationFactory(st *agentState) toolregistry.FactoryRegistrar {
 func registerControlFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		br.Register("self_invoke", selfInvokeFactory(st))
+		br.Register("value_predicate", valuePredicateFactory())
+	}
+}
+
+// valuePredicateFactory builds the value predicate word (srd041). Config is
+// validated here rather than at dispatch, so an unknown operator or a missing
+// signal name fails registration before a run reaches the branch it names.
+func valuePredicateFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var cfg catalog.ValuePredicateConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		if err := control.ValidateValuePredicateConfig(
+			def.Name, cfg.Left, cfg.Op, cfg.Right, cfg.OperandType, cfg.Satisfied, cfg.Unsatisfied,
+		); err != nil {
+			return nil, err
+		}
+		return control.ValuePredicateBuilder{
+			ToolName:    def.Name,
+			Left:        cfg.Left,
+			Op:          cfg.Op,
+			Right:       cfg.Right,
+			OperandType: cfg.OperandType,
+			Satisfied:   core.Signal(cfg.Satisfied),
+			Unsatisfied: core.Signal(cfg.Unsatisfied),
+		}, nil
 	}
 }
 

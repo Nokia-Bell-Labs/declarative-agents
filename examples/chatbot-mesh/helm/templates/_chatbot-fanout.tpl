@@ -61,7 +61,7 @@ tools:
 
   - name: compare_model{{ $i }}
     type: builtin
-    init: compare_state
+    init: value_predicate
     visibility: internal
     category: response
     description: Compare RAG server {{ $i }} ({{ $unit.name }}) reported embedding model with the query embedding's model.
@@ -105,9 +105,11 @@ tools:
       description: Comparing two command-state values has no durable effect.
     config:
       left: $from(declare_query_model).model
+      op: eq
       right: $from(rag_query{{ $i }}).mapped.embedding_model
-      matched: ModelMatched
-      differed: ModelDiffered
+      operand_type: string
+      satisfied: ModelMatched
+      unsatisfied: ModelDiffered
 
   - name: keep_chunks{{ $i }}
     type: builtin

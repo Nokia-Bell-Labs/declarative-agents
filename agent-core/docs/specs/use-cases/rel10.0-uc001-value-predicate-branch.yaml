@@ -1,0 +1,85 @@
+id: rel10.0-uc001-value-predicate-branch
+title: A machine branches on a value it read from a service
+
+summary: |
+  A machine reads a value from a service, compares it against a declared
+  threshold, and takes a different transition depending on the answer. The
+  comparison is a declared word: its operands, operator, and both outcome
+  signals live in configuration, so the branch is readable from the machine
+  rather than buried in a Go tool or exported from a child process's exit code.
+
+  The value arrives as a string, because a REST read of a scalar body yields
+  one, and the word compares it as a number under its declared operand type.
+  When an operand cannot be resolved or coerced, the word emits CommandError
+  rather than the negative signal, so a machine never takes the "value was
+  false" branch on a comparison that never happened.
+
+actor: Profile author whose machine must act on a value, not only on a call's success
+
+trigger: |
+  A machine reaches a state after a word that produced a value, and the next
+  transition depends on what that value is.
+
+flow:
+  - F1: A boundary word reads a value from a service; a REST read of a scalar body yields it as a string (srd028).
+  - F2: The machine dispatches the predicate word, whose config names the left operand as a selector over the previous Result, an operator, a right operand, and the two signals to emit (srd041 R1.2, R1.3, R1.4).
+  - F3: The word resolves the operands through the existing selector primitive (srd041 R1.3, srd038).
+  - F4: The word coerces both operands under the declared operand type, defaulting to number, so a value that arrived as a string is compared numerically (srd041 R3.1, R3.2).
+  - F5: The word compares under the declared operator and emits the configured satisfied or unsatisfied signal (srd041 R2.1, R4.1).
+  - F6: The machine routes each signal to its own next state, so both outcomes are visible transitions in the grammar.
+  - F7: A predicate whose operand does not resolve, or does not coerce, emits CommandError, which the machine routes to a failure state distinct from the unsatisfied branch (srd041 R3.4, R4.2).
+
+touchpoints:
+  - T1: "srd041-value-predicate-tool R1 -- operands, operator, and both signals are typed configuration decoded at registration"
+  - T2: "srd041-value-predicate-tool R2 -- the operator set is closed and enumerable from the specification"
+  - T3: "srd041-value-predicate-tool R3 -- operand typing is declared, so a string-typed value compares numerically rather than lexicographically"
+  - T4: "srd041-value-predicate-tool R4 -- an infrastructure fault emits CommandError and never the unsatisfied signal"
+  - T5: "srd041-value-predicate-tool R5 -- the word is pure: no side effects, noop undo"
+  - T6: "srd022-builtin-tools R2 -- the init name resolves through BuiltinRegistry"
+  - T7: "srd022-builtin-tools R3 -- config decodes into a typed struct at registration, failing with the tool name"
+  - T8: "srd038-command-state-store R2 -- operand selectors resolve through the existing dotted-path selector grammar rather than a parallel one"
+
+success_criteria:
+  - id: S1
+    criterion: A machine takes two different transitions from the same state depending on a value, through a declared word, with no bespoke Go tool and no comparison delegated to a child process's exit code.
+    traces:
+      - srd041-value-predicate-tool AC1
+  - id: S2
+    criterion: Every operator decides correctly at its boundary, and the emptiness operators test the left operand alone.
+    traces:
+      - srd041-value-predicate-tool AC2
+  - id: S3
+    criterion: A count read back from a store as the string "10" orders above "6" under the default operand type, and a string-typed comparison orders lexicographically.
+    traces:
+      - srd041-value-predicate-tool AC3
+  - id: S4
+    criterion: An unresolvable operand and a failed coercion each reach the machine as CommandError, distinguishable from the unsatisfied branch.
+    traces:
+      - srd041-value-predicate-tool AC4
+  - id: S5
+    criterion: A malformed operator or a missing signal name fails registration with the tool name, before any run.
+    traces:
+      - srd041-value-predicate-tool AC5
+
+failure_scenarios:
+  - id: E1
+    scenario: A mistyped operand selector resolves to nothing and the word reports the comparison as false.
+    expected: Rejected; an unresolvable operand emits CommandError, because a machine that reads a typo as a legitimate negative takes a plausible branch on a comparison that never ran (srd041 AC4).
+  - id: E2
+    scenario: A count that arrived as a string is compared with the ordering operators as a string, so "10" sorts below "6".
+    expected: Rejected; the default operand type coerces numerically, and the coercion is declared rather than inferred from the values (srd041 AC3).
+  - id: E3
+    scenario: A profile names an operator the implementation does not know, and the run reaches the predicate before failing.
+    expected: Rejected; registration validates the operator against the closed set and fails with the tool name before any run (srd041 AC5).
+  - id: E4
+    scenario: A machine routes CommandError and the unsatisfied signal to the same next state, collapsing a fault into a branch.
+    expected: Permitted but discouraged; the word emits them distinctly, and a profile that merges them has chosen to, rather than being unable to tell them apart.
+
+out_of_scope:
+  - The selector grammar itself, which srd038 owns.
+  - Arithmetic or string transformation of operands; the word compares and nothing else.
+  - Boolean connectives across several comparisons; a machine composes predicate words across states so each branch stays a visible transition.
+  - Wiring any particular caller's rejection path; consuming profiles adopt the word on their own schedule.
+
+test_suite_trace: test-rel10.0-value-predicate
+status: specified

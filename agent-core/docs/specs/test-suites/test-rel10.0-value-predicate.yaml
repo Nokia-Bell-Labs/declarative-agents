@@ -1,0 +1,183 @@
+id: test-rel10.0-value-predicate
+title: Test Suite for Release 10.0 Value Predicate Tool
+release: "10.0"
+
+traces:
+  - rel10.0-uc001-value-predicate-branch
+
+preconditions:
+  - srd041-value-predicate-tool defines the declaration, the closed operator set, operand typing and coercion, the signal contract, and purity.
+  - srd022-builtin-tools defines the BuiltinRegistry factory lookup and typed config decoding the word registers through.
+  - srd038-command-state-store defines the selector primitive operands resolve through.
+  - GH-770 implemented the word; every case below carries the go_test that proves it. The cases were authored with planned_go_test while the tests did not yet exist, because the formal evidence validator runs every go_test string against the real inventory and citing an unwritten test would have recorded false evidence.
+
+test_cases:
+  - use_case: rel10.0-uc001-value-predicate-branch
+    name: Each operator decides correctly at its boundary
+    go_test: go test ./internal/tools/control -run TestValuePredicateOperators
+    status: implemented
+    description: |
+      Every operator in the closed set decides correctly on both sides of its
+      boundary, so no operator is off by one. The equal case is what separates
+      lt from lte and gt from gte, which is why each is exercised at the
+      boundary rather than only well clear of it.
+    inputs:
+      comparisons:
+        - {left: "5", op: eq, right: "5", expect: satisfied}
+        - {left: "5", op: eq, right: "6", expect: unsatisfied}
+        - {left: "5", op: ne, right: "6", expect: satisfied}
+        - {left: "5", op: lt, right: "5", expect: unsatisfied}
+        - {left: "4", op: lt, right: "5", expect: satisfied}
+        - {left: "5", op: lte, right: "5", expect: satisfied}
+        - {left: "5", op: gt, right: "5", expect: unsatisfied}
+        - {left: "6", op: gt, right: "5", expect: satisfied}
+        - {left: "5", op: gte, right: "5", expect: satisfied}
+    expected:
+      every_comparison: emits the configured signal for its expected outcome
+    traces:
+      - rel10.0-uc001-value-predicate-branch S2
+      - srd041-value-predicate-tool AC2
+
+  - use_case: rel10.0-uc001-value-predicate-branch
+    name: Emptiness operators test the left operand alone
+    go_test: go test ./internal/tools/control -run TestValuePredicateEmptiness
+    status: implemented
+    description: |
+      empty and non_empty judge the left operand and ignore any right operand,
+      and an absent right operand does not fail registration for them. An empty
+      string, an empty list, an empty object, and a null are all empty; every
+      other resolved value is not.
+    inputs:
+      empty_values: ["", [], {}, null]
+      non_empty_values: ["0", "false", [0], {"a": 1}]
+      right_operand: absent
+    expected:
+      empty_values: emit the satisfied signal under empty
+      non_empty_values: emit the satisfied signal under non_empty
+      registration: succeeds with no right operand
+    traces:
+      - rel10.0-uc001-value-predicate-branch S2
+      - srd041-value-predicate-tool AC2
+
+  - use_case: rel10.0-uc001-value-predicate-branch
+    name: A string-typed count compares numerically under the default operand type
+    go_test: go test ./internal/tools/control -run TestValuePredicateNumericCoercion
+    status: implemented
+    description: |
+      A REST read of a scalar body yields a string, so a count read back from a
+      store arrives as "10" rather than 10. Under the default number operand
+      type it orders above "6"; a lexicographic comparison would put it below,
+      which is the bug this case exists to catch. The string operand type
+      orders lexicographically on purpose.
+    inputs:
+      numeric: {left: "10", op: gt, right: "6", operand_type: default}
+      lexicographic: {left: "10", op: gt, right: "6", operand_type: string}
+    expected:
+      numeric: satisfied
+      lexicographic: unsatisfied
+    traces:
+      - rel10.0-uc001-value-predicate-branch S3
+      - srd041-value-predicate-tool AC3
+
+  - use_case: rel10.0-uc001-value-predicate-branch
+    name: An unresolvable operand emits CommandError and never the unsatisfied signal
+    go_test: go test ./internal/tools/control -run TestValuePredicateUnresolvedOperandIsAFault
+    status: implemented
+    description: |
+      This is the assertion that matters most, because the failure it prevents
+      is silent. A mistyped or absent selector must not read as a legitimate
+      negative: a machine would take the unsatisfied branch on a comparison
+      that never ran, and nothing in the trace would say so. The same rule
+      applies to a coercion that fails.
+    inputs:
+      unresolved_selector: a selector naming a path absent from the previous Result
+      uncoercible: {left: "not-a-number", op: gt, right: "0", operand_type: number}
+    expected:
+      signal: CommandError
+      never: the configured unsatisfied signal
+      output: names the operand that could not be resolved or coerced
+    traces:
+      - rel10.0-uc001-value-predicate-branch S4
+      - srd041-value-predicate-tool AC4
+
+  - use_case: rel10.0-uc001-value-predicate-branch
+    name: Malformed config fails registration with the tool name
+    go_test: go test ./internal/tools/control -run TestValuePredicateRegistrationRejectsMalformedConfig
+    status: implemented
+    description: |
+      An operator outside the closed set and a missing signal name each fail at
+      registration rather than at the first run, so a misconfigured predicate
+      never reaches a machine. The error names the tool, per srd022 R3.3.
+    inputs:
+      unknown_operator: {op: "approximately"}
+      missing_signal: {satisfied: "Ok", unsatisfied: absent}
+    expected:
+      registration: fails
+      error: names the tool and the offending field
+    traces:
+      - rel10.0-uc001-value-predicate-branch S5
+      - srd041-value-predicate-tool AC5
+
+  - use_case: rel10.0-uc001-value-predicate-branch
+    name: A machine branches on a value through the declared word
+    go_test: go test ./internal/tools/control -run TestValuePredicateDrivesTwoTransitions
+    status: implemented
+    description: |
+      The end-to-end shape: a machine dispatches the predicate from one state
+      and reaches two different next states depending on the value, with both
+      outcomes as visible transitions. This is what makes the word a branch in
+      the grammar rather than a decision hidden in Go.
+    inputs:
+      machine: one state dispatching the predicate, routing each configured signal to its own next state
+      values: [a value that satisfies, a value that does not]
+    expected:
+      transitions: the two values reach the two different next states
+      side_effects: none recorded; undo is a noop
+    traces:
+      - rel10.0-uc001-value-predicate-branch S1
+      - srd041-value-predicate-tool AC1
+      - srd041-value-predicate-tool AC6
+
+  - use_case: rel10.0-uc001-value-predicate-branch
+    name: A predicate compares across an intervening word
+    go_test: go test ./internal/tools/control -run TestValuePredicateComparesAcrossAnInterveningWord
+    status: implemented
+    description: |
+      A predicate compares a value from an earlier labelled step against one
+      from the previous Result, so a machine can measure a change across an
+      action rather than only a level after it. The words are not adjacent, and
+      the word between them is an exec word whose Result carries nothing
+      forward, so the earlier value is reachable only through command state
+      (GH-774).
+    inputs:
+      before_step: "count_before, output {mapped:{count:'4'}}"
+      after_previous_result: "{mapped:{count:'6'}} and {mapped:{count:'4'}}"
+      comparison: "$.mapped.count gt $from(count_before).mapped.count"
+    expected:
+      grew: satisfied
+      unchanged: unsatisfied
+      both_operands_from_earlier_steps: satisfied
+    traces:
+      - rel10.0-uc001-value-predicate-branch S1
+      - srd041-value-predicate-tool AC1
+
+  - use_case: rel10.0-uc001-value-predicate-branch
+    name: An unreachable label is a fault, not a shortfall
+    go_test: go test ./internal/tools/control -run TestValuePredicateUnreachableLabelIsAFault
+    status: implemented
+    description: |
+      The failure separation holds for the command-state operand form too. A
+      label that never ran, a path absent from the step it names, and a missing
+      view each emit CommandError rather than the unsatisfied signal, so a
+      machine never reads an unreachable operand as a legitimate negative.
+    inputs:
+      no_such_label: "$from(count_before).mapped.count with only other_step recorded"
+      missing_path: "$from(count_before).mapped.count with count_before output {mapped:{}}"
+      no_view: "$from(count_before).mapped.count with no command-state view"
+    expected:
+      signal: CommandError
+      never: the configured unsatisfied signal
+      output: explains which operand could not be reached
+    traces:
+      - rel10.0-uc001-value-predicate-branch S4
+      - srd041-value-predicate-tool AC4

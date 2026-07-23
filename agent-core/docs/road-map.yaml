@@ -376,6 +376,53 @@ releases:
       - go test ./internal/tools/service
       - mage audit
 
+  - version: "10.0"
+    name: Value predicate word
+    description: |
+      Release 10.0 lets a machine branch on a value. A machine branches on
+      signals and signals come from words, so branching on a value needs a word
+      that emits one from a comparison -- and none existed. Response schema
+      validation implements only required and type and raises CommandError
+      rather than a domain signal; client status mapping branches on the HTTP
+      status, which is unchanged whether a counted collection holds zero
+      documents or five hundred; exec words emit two signals from an exit code.
+      The fallback was a bespoke Go tool per comparison, or pushing a caller's
+      decision into an unrelated agent so its exit code carried the answer.
+
+      srd041 specifies the word: operands, a closed operator set, declared
+      signals for both outcomes, and explicit operand typing, because values
+      read from REST responses arrive as strings and a count of "10" must not
+      order below "6". Its sharpest requirement separates an infrastructure
+      fault from a legitimate negative -- an operand that will not resolve emits
+      CommandError, never the unsatisfied signal -- so a machine cannot take a
+      plausible-looking branch on a comparison that never ran.
+
+      This is the third gap of the same shape, after terminal-state response
+      mapping (GH-615) and the raw file read (GH-521): a declarative agent could
+      express the flow but not one small decision inside it. The word is
+      specified in GH-769 and implemented in GH-770.
+    status: implemented
+    planned_work:
+      - id: gh-769
+        summary: Specify the value predicate word (this release's documentation).
+        status: done
+      - id: gh-770
+        summary: Implement the value predicate word in internal/tools/control.
+        status: done
+    srds:
+      - srd041-value-predicate-tool
+    use_cases:
+      - id: rel10.0-uc001-value-predicate-branch
+        summary: A machine reads a value from a service and takes a different transition depending on it, through a declared word.
+        status: implemented
+    test_suites:
+      - id: test-rel10.0-value-predicate
+        summary: Formal tests for the operator boundaries, emptiness, numeric coercion of string-typed values, the unresolvable-operand fault, registration validation, and the end-to-end two-transition branch.
+        status: implemented
+    proof:
+      - go test ./internal/tools/control
+      - mage audit
+
   - version: "99.0"
     name: Tool dispatch simplification planning
     description: |
