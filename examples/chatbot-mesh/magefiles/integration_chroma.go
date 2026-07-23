@@ -23,8 +23,13 @@ const (
 	chromaImage = "chromadb/chroma:1.5.3"
 
 	chromaHeartbeatURL = "http://127.0.0.1:8000/api/v2/heartbeat"
-	ollamaVersionURL   = "http://127.0.0.1:11434/api/version"
-	ollamaTagsURL      = "http://127.0.0.1:11434/api/tags"
+
+	// chromaReuseProbeTimeout bounds the "is a Chroma already there?" question.
+	// It is short because the answer is local and immediate, and every run with
+	// no Chroma present pays it before starting its own.
+	chromaReuseProbeTimeout = 2 * time.Second
+	ollamaVersionURL        = "http://127.0.0.1:11434/api/version"
+	ollamaTagsURL           = "http://127.0.0.1:11434/api/tags"
 )
 
 // Chroma proves the corpus-ingest profile against a live Chroma server run from
@@ -248,7 +253,7 @@ func runChromaIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("create chroma data dir: %w", err)
 	}
 	defer os.RemoveAll(dataDir)
-	containerID, err := startRequiredChromaContainer(dataDir, startChromaContainer)
+	containerID, err := startRequiredChromaContainer(dataDir, ensureChromaServer)
 	if err != nil {
 		return err
 	}
@@ -268,6 +273,24 @@ func startRequiredChromaContainer(dataDir string, start func(string) (string, er
 	return containerID, nil
 }
 
+// ensureChromaServer reuses a Chroma already serving the port and otherwise
+// starts one. It returns a container id only when this run created it, so the
+// empty id is the created-by-me guard: stopChromaContainer ignores it, and a
+// Chroma the operator started by hand survives the run. This mirrors the kind
+// helper's reuse-and-do-not-delete rule (GH-589) and makes the target compose
+// with a pre-existing Chroma that previously killed it on a port conflict
+// (GH-708).
+func ensureChromaServer(dataDir string) (string, error) {
+	if waitHTTPStatus(chromaHeartbeatURL, http.StatusOK, chromaReuseProbeTimeout) == nil {
+		fmt.Printf("chroma: reusing the server already answering %s; it will not be removed. "+
+			"Its image and data are not this target's %s and %s, so a corpus collection left "+
+			"there at a different embedding dimension will fail the query\n",
+			chromaHeartbeatURL, chromaImage, dataDir)
+		return "", nil
+	}
+	return startChromaContainer(dataDir)
+}
+
 // startChromaContainer runs the chromadb/chroma image detached with the
 // persistence directory bind-mounted at /data and the v2 API published on
 // 127.0.0.1:8000, then waits for the heartbeat. A missing Docker daemon, an
@@ -281,7 +304,7 @@ func startChromaContainer(dataDir string) (string, error) {
 		image,
 	).CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("docker run %s: %v: %s", image, err, strings.TrimSpace(string(out)))
+		return "", chromaLaunchError(image, err, strings.TrimSpace(string(out)))
 	}
 	containerID := strings.TrimSpace(string(out))
 	if err := waitHTTPStatus(chromaHeartbeatURL, http.StatusOK, 60*time.Second); err != nil {
@@ -289,6 +312,23 @@ func startChromaContainer(dataDir string) (string, error) {
 		return "", fmt.Errorf("chroma container served no heartbeat: %w", err)
 	}
 	return containerID, nil
+}
+
+// chromaLaunchError names the cause when the port is held by something that is
+// not a Chroma. Reuse already handled a healthy one, so reaching here means the
+// occupant never answered the heartbeat, and the bare docker "exit status 125"
+// sends the reader to the daemon rather than to the process holding the port.
+func chromaLaunchError(image string, err error, detail string) error {
+	for _, marker := range []string{"port is already allocated", "address already in use"} {
+		if strings.Contains(detail, marker) {
+			return fmt.Errorf(
+				"port 8000 is held by a process that does not answer the Chroma heartbeat at %s. "+
+					"Stop it, or start a Chroma there and this target will reuse it, then re-run "+
+					"(docker run %s: %v: %s)",
+				chromaHeartbeatURL, image, err, detail)
+		}
+	}
+	return fmt.Errorf("docker run %s: %v: %s", image, err, detail)
 }
 
 func stopChromaContainer(containerID string) {
