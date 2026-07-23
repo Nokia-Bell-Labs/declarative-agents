@@ -48,11 +48,45 @@ rules:
   - apiGroups: [apps]
     resources: [deployments, statefulsets]
     verbs: [get, list, watch]
+  # helm --wait judges readiness by watching the ReplicaSets and Pods a
+  # Deployment owns, so an apply that waits needs to read them even though it
+  # never writes them. Reading them is also what kubectl rollout status does.
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
   {{- if .Values.executor.allowApply }}
   # The apply path runs helm upgrade in-cluster, which manages the chart's objects
   # and the release Secret. Scoped to this namespace by the RoleBinding.
+  #
+  # helm needs to *read* the release Secrets before it can do anything at all --
+  # even --dry-run queries them to find the current release -- so secrets appear
+  # in a read rule here and not only in the write rule below. Without it an apply
+  # fails at the validate step with "secrets is forbidden ... cannot list", which
+  # the executor reports as a rejected patch: the caller is told their values were
+  # bad when the executor could not read its own release (GH-747).
   - apiGroups: [""]
-    resources: [configmaps, secrets, services]
+    resources: [secrets, serviceaccounts]
+    verbs: [get, list, watch]
+  # An upgrade re-renders the whole chart (srd006 R2.2), so the executor must be
+  # able to read and write every object kind the chart contains -- not only the
+  # workloads. It renders its own NetworkPolicy, ServiceAccount, Role, and
+  # RoleBinding, and helm compares each against the cluster before applying.
+  #
+  # Writing Roles is a privilege-escalation surface, bounded here by two things:
+  # the RoleBinding keeps every grant namespace-scoped, and Kubernetes forbids
+  # granting permissions the grantor does not already hold, so the executor can
+  # re-apply its own Role but cannot widen it.
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: [get, list, watch, create, update, patch]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch]
+  - apiGroups: [""]
+    resources: [configmaps, secrets, services, serviceaccounts]
     verbs: [create, update, patch, delete]
   - apiGroups: [apps]
     resources: [deployments, statefulsets]

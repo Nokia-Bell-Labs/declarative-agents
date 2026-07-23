@@ -135,20 +135,29 @@ test_cases:
 
   - use_case: rel06.0-uc001-declarative-executor
     name: A live on-cluster rollout through the executor
-    integration_target: mage integration:executor live tier (planned, GH-735)
-    status: planned
+    integration_target: mage integration:executorLive (GH-735)
+    status: done
     description: |
-      The remaining gap. Every case above runs against fake CLIs or a rendered
-      chart; none proves that real helm and kubectl behave as the declarations
-      assume, or that a values patch applied through the executor changes a release.
+      What the fake CLIs cannot stand in for. The executor image is built on the
+      runtime under test, loaded into kind, and the mesh installed with the
+      executor enabled; a values patch then goes through the apply endpoint and
+      the release moves to a new revision, which is the evidence a 200 is not --
+      the fake tier returns one of those without helm existing.
 
-      Needs the executor image built and kind-loaded (executor.Dockerfile exists and
-      nothing builds it), the executor enabled in a kind values file, and a real
-      patch driven from a creator-labelled pod. Deferred from GH-602 because it is
-      gated on docker and kind and the image plumbing does not exist yet.
+      The same non-conforming document the schema case validates locally is
+      rejected here against the real chart schema, leaving the release untouched.
+
+      Finding this tier produced: the executor Role could not read the Secrets
+      helm queries to find its own release, so an apply failed at the validate
+      step and the caller was told their values were bad. Nor could it read or
+      write the NetworkPolicy, ServiceAccount, Role, and RoleBinding the chart it
+      re-renders contains, nor the ReplicaSets and Pods helm --wait watches. The
+      Role now covers what the chart it manages holds, and every rule traces to
+      an observed denial.
     inputs:
-      cluster: kind with the executor image loaded
-      patch: a values-plane patch that changes the release
+      cluster: kind with the executor image built and loaded
+      patch: testdata/integration/executor-values/conforming.yaml
+      rejected: testdata/integration/executor-values/non-conforming.yaml
     expected:
       real_helm_upgrade_changes_the_release: true
       rollout_endpoint_reports_complete_with_real_counts: true

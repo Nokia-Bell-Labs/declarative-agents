@@ -25,6 +25,7 @@ const (
 
 	executorLiveControlURL = "http://127.0.0.1:18091/api/lifecycle/health"
 	executorLiveRolloutURL = "http://127.0.0.1:18090/provisioning/api/rollout"
+	executorLiveApplyURL   = "http://127.0.0.1:18090/provisioning/api/apply"
 )
 
 // ExecutorLive proves the executor against a real cluster, which the fake-CLI
@@ -104,12 +105,12 @@ func runExecutorLive(coreRoot, profilesRoot string) error {
 	if err := waitExecutorDeploymentReady(); err != nil {
 		return err
 	}
-	if err := assertExecutorServesItsSurface(); err != nil {
+	if err := assertExecutorServesItsSurface(profilesRoot); err != nil {
 		return err
 	}
-	fmt.Println("integration:executorLive PASS - the executor image builds on the runtime under test, " +
-		"carries the helm and kubectl its declarations name, ships a chart that renders every profile, " +
-		"and runs on kind reading a real Deployment's rollout")
+	fmt.Println("integration:executorLive PASS - the executor runs on kind from an image built on the runtime " +
+		"under test, reads a real Deployment's rollout, applies a values patch that moves the release to a new " +
+		"revision, and rejects a non-conforming one against the real chart schema without touching it")
 	return nil
 }
 
@@ -310,7 +311,7 @@ const executorDeclaredHelmMajor = "3"
 // the rollout read runs two kubectl words against the cluster's own API, using
 // the ServiceAccount the chart binds, so a working read is evidence about RBAC,
 // the kubeconfig the pod gets, and the counts word's go-template all at once.
-func assertExecutorServesItsSurface() error {
+func assertExecutorServesItsSurface(profilesRoot string) error {
 	stop, err := kubectlPortForward("svc/"+executorLiveRelease+"-chatbot-mesh-executor", 18090, 18091)
 	if err != nil {
 		return err
@@ -325,6 +326,24 @@ func assertExecutorServesItsSurface() error {
 	body, status, err := requestInference(http.MethodGet, executorLiveRolloutURL, "", "executor live rollout read")
 	if err != nil {
 		return fmt.Errorf("rollout read failed: %w", err)
+	}
+	if err := assertLiveRolloutBody(body, status); err != nil {
+		return err
+	}
+
+	// The apply path, which is what the fake-CLI tracer cannot reach: a real
+	// helm upgrade against a real release (GH-747).
+	if err := assertLiveApplyChangesTheRelease(profilesRoot); err != nil {
+		return err
+	}
+	if err := assertLiveSchemaRejection(profilesRoot); err != nil {
+		return err
+	}
+
+	// After a real apply, the rollout read must still answer off the cluster.
+	body, status, err = requestInference(http.MethodGet, executorLiveRolloutURL, "", "executor live rollout recheck")
+	if err != nil {
+		return fmt.Errorf("rollout read after apply failed: %w", err)
 	}
 	return assertLiveRolloutBody(body, status)
 }
@@ -364,4 +383,126 @@ func assertLiveRolloutBody(body []byte, status int) error {
 	fmt.Printf("executorLive: rollout read reports phase %s, %d/%d ready, revision %d from the live Deployment\n",
 		rollout.Phase, rollout.Ready, rollout.Desired, rollout.Revision)
 	return nil
+}
+
+// assertLiveApplyChangesTheRelease drives a real values patch through the apply
+// endpoint and proves the release actually changed.
+//
+// A 200 is not evidence here: the fake-CLI tracer already returns one, and that
+// is exactly what it cannot distinguish. What makes this different is the helm
+// revision -- the executor's helm_upgrade ran in-cluster against the release,
+// re-rendering the co-generated topology (srd006 R2.2), so a revision that did
+// not move means nothing was applied whatever the response said.
+func assertLiveApplyChangesTheRelease(profilesRoot string) error {
+	before, err := helmReleaseRevision(executorLiveRelease)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("executorLive: release at revision %d before the apply\n", before)
+
+	patch, err := executorValuesPatch(profilesRoot, "conforming.yaml")
+	if err != nil {
+		return err
+	}
+	body, status, err := requestInference(http.MethodPost, executorLiveApplyURL, patch, "executor live apply")
+	if err != nil {
+		return fmt.Errorf("apply request failed: %w", err)
+	}
+	if status != http.StatusOK {
+		return fmt.Errorf("apply status = %d, want 200: %s\n%s", status, body, executorPodDiagnostics())
+	}
+	if !strings.Contains(string(body), `"status":"applied"`) {
+		return fmt.Errorf("apply did not report applied: %s", body)
+	}
+
+	after, err := helmReleaseRevision(executorLiveRelease)
+	if err != nil {
+		return err
+	}
+	if after <= before {
+		return fmt.Errorf("the release is still at revision %d after an apply reported success; "+
+			"helm_upgrade did not reach the release, so the 200 proved nothing", after)
+	}
+	fmt.Printf("executorLive: the apply moved the release from revision %d to %d\n", before, after)
+	return nil
+}
+
+// assertLiveSchemaRejection closes the loop GH-732 opened with a local dry-run:
+// the same non-conforming document, now against a real release on a cluster.
+// The release must not move -- a rejected patch applies nothing (srd006 R2.1).
+func assertLiveSchemaRejection(profilesRoot string) error {
+	before, err := helmReleaseRevision(executorLiveRelease)
+	if err != nil {
+		return err
+	}
+	patch, err := executorValuesPatch(profilesRoot, "non-conforming.yaml")
+	if err != nil {
+		return err
+	}
+	body, status, err := requestInference(http.MethodPost, executorLiveApplyURL, patch, "executor live reject")
+	if err != nil {
+		return fmt.Errorf("apply request failed: %w", err)
+	}
+	if status != http.StatusBadRequest {
+		return fmt.Errorf("a non-conforming patch returned %d, want 400: %s", status, body)
+	}
+	if !strings.Contains(string(body), "validate_rejected") {
+		return fmt.Errorf("the rejection did not report validate_rejected: %s", body)
+	}
+	after, err := helmReleaseRevision(executorLiveRelease)
+	if err != nil {
+		return err
+	}
+	if after != before {
+		return fmt.Errorf("the release moved from revision %d to %d on a rejected patch; "+
+			"a schema rejection must apply nothing", before, after)
+	}
+	fmt.Printf("executorLive: the non-conforming patch was rejected and left the release at revision %d\n", after)
+	return nil
+}
+
+// executorPodDiagnostics returns the executor's own log tail. A live apply that
+// fails reports only the terminal the machine reached; what helm actually said
+// is in the pod, and without it a failure here is a mystery rather than a
+// finding.
+func executorPodDiagnostics() string {
+	out, err := exec.Command("kubectl", "logs",
+		"-l", "app.kubernetes.io/component=executor", "--tail", "60").CombinedOutput()
+	if err != nil {
+		return fmt.Sprintf("(could not read executor logs: %v)", err)
+	}
+	return "executor log tail:\n" + string(out)
+}
+
+// executorValuesPatch reads a shared fixture and wraps it as the apply request
+// the creator would send (srd006 R1.4). The fixtures are GH-732's, so the local
+// dry-run tier and this one validate the same documents.
+func executorValuesPatch(profilesRoot, fixture string) (string, error) {
+	path := filepath.Join(profilesRoot, "testdata", "integration", "executor-values", fixture)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read values fixture %s: %w", fixture, err)
+	}
+	request := map[string]string{"schema_version": "1", "content": string(content)}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+// helmReleaseRevision reads the release's current revision, which is what a real
+// upgrade moves and a rejected patch leaves alone.
+func helmReleaseRevision(release string) (int, error) {
+	out, err := exec.Command("helm", "get", "metadata", release, "-o", "json").CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("helm get metadata %s: %w\n%s", release, err, out)
+	}
+	var metadata struct {
+		Revision int `json:"revision"`
+	}
+	if err := json.Unmarshal(out, &metadata); err != nil {
+		return 0, fmt.Errorf("decode helm metadata: %w: %s", err, out)
+	}
+	return metadata.Revision, nil
 }

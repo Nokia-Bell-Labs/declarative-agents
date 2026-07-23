@@ -171,9 +171,13 @@ implementation_status:
       it drives the shipped profile against recording fake helm and kubectl,
       walking every terminal of the apply and rollout machines and asserting the
       arguments each word constructs, with the chart schema proven against real
-      helm separately. The remaining planned work is the live on-cluster rollout
-      -- the built image driving real helm against a cluster (GH-735), which is
-      what fakes cannot stand in for -- and the state read
+      helm separately. The live on-cluster rollout shipped with GH-735: mage
+      integration:executorLive builds the executor image, stands it up on kind,
+      and drives a values patch that moves the release to a new revision, with a
+      non-conforming one rejected against the real chart schema. That tier is
+      also what found the executor Role could not read the Secrets helm queries
+      to locate its own release, nor the other object kinds the chart it
+      re-renders contains. The remaining planned work is the state read
       endpoint (GET /provisioning/api/state), which the executor profile does not
       yet serve -- it needs the agent-core raw file-read binding tracked by issue
       #468. Until the state endpoint lands, the provisioning panel cannot load its
