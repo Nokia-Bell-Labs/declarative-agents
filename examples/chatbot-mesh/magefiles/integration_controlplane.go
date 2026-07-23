@@ -9,31 +9,46 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	cpCoordinatorControl   = "http://127.0.0.1:18101/api/lifecycle/health"
-	cpCoordinatorExit      = "http://127.0.0.1:18101/api/lifecycle/exit"
-	cpCoordinatorProvision = "http://127.0.0.1:18100/api/v1/provision"
-	cpCoordinatorState     = "http://127.0.0.1:18100/provisioning/api/state"
-	cpCreatorControl       = "http://127.0.0.1:18111/api/lifecycle/health"
-	cpCreatorExit          = "http://127.0.0.1:18111/api/lifecycle/exit"
-	cpDeploymentAPIAddr    = "127.0.0.1:18090"
+	cpCoordinatorControl = "http://127.0.0.1:18101/api/lifecycle/health"
+	cpCoordinatorExit    = "http://127.0.0.1:18101/api/lifecycle/exit"
+	cpCoordinatorApply   = "http://127.0.0.1:18100/provisioning/api/apply"
+	cpCoordinatorState   = "http://127.0.0.1:18100/provisioning/api/state"
+	cpCreatorControl     = "http://127.0.0.1:18111/api/lifecycle/health"
+	cpCreatorExit        = "http://127.0.0.1:18111/api/lifecycle/exit"
+	cpDeploymentAPIAddr  = "127.0.0.1:18090"
 )
 
-// ControlPlane proves the mesh control-plane flow end to end without a cluster: a
-// provisioning intent flows chatbot -> coordinator -> creator -> deployment API. The
-// coordinator and creator run as the real declarative agents; a fake deployment API
-// stands in for the executor (srd006) and records what the creator sends. The test drives
-// the intent the way the chatbot's provisioning panel does -- a POST through the
-// coordinator's declared intent endpoint -- then asserts the coordinator sequenced
-// an ingest and a rollout through the creator, the creator drove the deployment API,
-// the request reconfigured, and the authority boundary held: no running-agent
-// endpoint or credential is submitted through the flow (srd004/srd005, rel05.0
-// uc001). It skips only if Go cannot build the agent; the live grounded-turn tier
-// (rel05.0 S5) rides on Integration.Chatbot and the deploy swap.
+// ControlPlane proves the realized mesh control-plane flow end to end without a
+// cluster: an operator's values-apply intent flows panel -> coordinator -> creator
+// -> deployment API. The coordinator and creator run as the real declarative
+// agents; a fake deployment API stands in for the executor (srd006) and records
+// what the creator sends. The test drives the panel's apply the way the SPA does --
+// a POST to the coordinator's /provisioning/api/apply -- then asserts the
+// coordinator delegated the rollout to the creator, the creator drove the
+// deployment API and verified health, the request reconfigured, the panel's mesh
+// view reads back through both hops, and the authority boundary held: no
+// running-agent endpoint or credential is submitted through the flow
+// (srd004/srd005). It skips only if Go cannot build the agent; the live
+// grounded-turn tier rides on Integration.Chatbot and the deploy swap.
+//
+// What this does NOT drive is the coordinator's other intake,
+// POST /api/v1/provision, whose Seed leg ingests a directory before reconfiguring.
+// Nothing realizes that ingest: srd005 R3.1 specifies the creator creating
+// corpus-ingest child runs, but the creator declares one client (deployment_api)
+// and its machine drives apply_instance on Seed whatever the operation says, so an
+// ingest was only ever a values apply wearing an operation label -- and the
+// {collection, count} the coordinator declares it reads back was never populated,
+// leaving the 422 shortfall leg unreachable. Driving it here asserted a flow the
+// mesh does not have, and it broke outright once apply_instance's body became
+// {schema_version, content} (GH-521): an ingest carries no content, so the request
+// died in rendering. GH-755 scoped this tracer to the path that is real; the
+// child-run gap is tracked on its own issue.
 func (Integration) ControlPlane() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
@@ -109,18 +124,21 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("coordinator control health never came up: %w", err)
 	}
 
-	// Drive the intent the chatbot's provisioning panel does: a declared-client POST
-	// to the coordinator, carrying the full desired mesh state as a values-plane
-	// document (srd004 R3.1) and no host, URL, or credential (srd002 R5.1).
-	intent := `{"values":"{\"ragUnits\":[{\"name\":\"rag0\",\"collection\":\"corpus\"},{\"name\":\"rag2\",\"collection\":\"corpus2\"}]}","rag_name":"rag2","collection":"corpus2","embedding_model":"qwen3-embedding:8b","directory":"/corpus/new"}`
+	// Drive the intent the chatbot's provisioning panel does: the operator's
+	// values-apply, a POST to the coordinator's browser-facing apply endpoint
+	// carrying the full desired mesh state as a values-plane document
+	// (srd004 R3.1) and no host, URL, or credential (srd002 R5.1). The endpoint
+	// seeds SeedValues, so the run takes the reconfigure leg -- the path the mesh
+	// actually realizes (see the note on ControlPlane about the ingest leg).
+	intent := `{"values":"{\"ragUnits\":[{\"name\":\"rag0\",\"collection\":\"corpus\"},{\"name\":\"rag2\",\"collection\":\"corpus2\"}]}"}`
 	// The coordinator answers the intent by driving a model-backed machine, so
 	// this is inference work behind an HTTP call, not a probe (GH-709 R2).
-	data, status, err := requestInference(http.MethodPost, cpCoordinatorProvision, intent, "coordinator provision intent")
+	data, status, err := requestInference(http.MethodPost, cpCoordinatorApply, intent, "coordinator apply intent")
 	if err != nil {
-		return fmt.Errorf("provision intent request failed: %w", err)
+		return fmt.Errorf("apply intent request failed: %w", err)
 	}
 	if status != http.StatusOK {
-		return fmt.Errorf("provision intent status = %d, want 200: %s", status, data)
+		return fmt.Errorf("apply intent status = %d, want 200: %s", status, data)
 	}
 	var resp struct {
 		Status string `json:"status"`
@@ -129,16 +147,23 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 		} `json:"trace"`
 	}
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return fmt.Errorf("decode provision response: %w: %s", err, data)
+		return fmt.Errorf("decode apply response: %w: %s", err, data)
 	}
 	if resp.Status != "reconfigured" || resp.Trace.Status != "succeeded" {
-		return fmt.Errorf("provision response = %s, want status reconfigured / trace succeeded", data)
+		return fmt.Errorf("apply response = %s, want status reconfigured / trace succeeded", data)
 	}
 
-	// The flow reached the creator, which drove the deployment API: the fake saw both
-	// an apply (from the ingest-then-reconfigure sequence) and a rollout read.
+	// The flow reached the creator, which drove the deployment API: the fake saw
+	// the values apply and the rollout read that verifies it.
 	if got := rec.applyCount(); got < 1 {
 		return fmt.Errorf("the creator did not drive the deployment-API apply path (apply count %d)", got)
+	}
+	// The decided values document itself crossed the boundary, not merely a call.
+	// Counting applies alone would pass on an empty or dropped content field,
+	// which is exactly the failure mode that let the ingest leg look green while
+	// forwarding nothing (GH-755).
+	if content := rec.appliedContent(); !strings.Contains(content, "rag2") {
+		return fmt.Errorf("the apply carried content %q, which does not contain the decided topology; the values document did not survive the coordinator -> creator hop", content)
 	}
 	if got := rec.rolloutCount(); got < 1 {
 		return fmt.Errorf("the creator did not read the deployment-API rollout (rollout count %d)", got)
@@ -204,7 +229,7 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	}
 	creatorStopped = true
 
-	fmt.Println("integration:controlPlane PASS - the intent flowed chatbot->coordinator->creator->deployment API, the creator applied and health-checked the reconfiguration, the request reconfigured, and no endpoint or credential crossed the authority boundary")
+	fmt.Println("integration:controlPlane PASS - the panel's values apply flowed coordinator->creator->deployment API carrying the decided document, the creator applied and health-checked the reconfiguration, the panel's mesh view read back through both hops, and no endpoint or credential crossed the authority boundary")
 	return nil
 }
 
@@ -217,6 +242,10 @@ type deploymentAPIRecorder struct {
 	states   int
 	authSeen bool
 	badField string
+	// content is the values-plane document the last apply carried, so the test can
+	// assert the decided values reached the executor rather than only that a call
+	// was made.
+	content string
 }
 
 var transportAuthorityFields = []string{"host", "url", "method", "token", "credential", "authorization", "endpoint", "base_url"}
@@ -244,6 +273,11 @@ func (r *deploymentAPIRecorder) stateCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.states
+}
+func (r *deploymentAPIRecorder) appliedContent() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.content
 }
 func (r *deploymentAPIRecorder) sawAuthHeader() bool {
 	r.mu.Lock()
@@ -277,6 +311,9 @@ func startFakeDeploymentAPIOnAddr(rec *deploymentAPIRecorder, address string) (f
 		rec.record(req, body)
 		rec.mu.Lock()
 		rec.applies++
+		if content, ok := body["content"].(string); ok {
+			rec.content = content
+		}
 		rec.mu.Unlock()
 		// Mirror the executor's versioned apply response (srd006 R1.4): a
 		// schema_version-tagged status. Strict request validation (schema_version +

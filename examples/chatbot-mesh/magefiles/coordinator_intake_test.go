@@ -207,8 +207,13 @@ func TestApplySeedsTheValuesOnlyLeg(t *testing.T) {
 			continue
 		}
 		found = true
-		if tr.Action != "request_rollout" {
-			t.Errorf("%s action = %q, want request_rollout: a values-only apply has no directory to ingest", seed, tr.Action)
+		// request_rollout_values, not request_rollout: with no ingest step ahead
+		// of it this leg has no carried intent, and request_rollout's selector
+		// ($.carried.values) found nothing, so every panel apply died in request
+		// rendering with `body field "values" is required`. This assertion pinned
+		// that break in place until GH-755 (the word reads $.values instead).
+		if tr.Action != "request_rollout_values" {
+			t.Errorf("%s action = %q, want request_rollout_values: a values-only apply reads the desired document off the seed, not off a carried intent", seed, tr.Action)
 		}
 		if tr.Next != "Reconfiguring" {
 			t.Errorf("%s next = %q, want Reconfiguring", seed, tr.Next)
@@ -228,6 +233,65 @@ func TestApplySeedsTheValuesOnlyLeg(t *testing.T) {
 		}
 	}
 	t.Error("the Seed leg is gone; an intent naming a source can no longer ingest")
+}
+
+// TestEachRolloutLegReadsItsOwnProvenance pins the defect GH-755 fixed: the two
+// rollout words differ only in where the desired values document comes from, and
+// reading the wrong one fails in request rendering rather than at config load, so
+// nothing catches it until a request actually runs. The values leg reads the seed
+// ($.values); the ingest leg reads what creator_ingest carried forward
+// ($.carried.values). Swapping them silently breaks one intake apiece.
+func TestEachRolloutLegReadsItsOwnProvenance(t *testing.T) {
+	for _, tc := range []struct{ operation, selector, why string }{
+		{"creator_rollout_values", "$.values", "the values-only apply has no ingest step ahead of it, so nothing populated $.carried"},
+		{"creator_rollout", "$.carried.values", "the ingest leg's document arrives via creator_ingest's carry_forward"},
+	} {
+		t.Run(tc.operation, func(t *testing.T) {
+			op := clientOperationNamed(t, "coordinator", "creator", tc.operation)
+			if got := op.Response.Output; len(got) == 0 {
+				t.Errorf("%s maps no response output", tc.operation)
+			}
+			var rest struct {
+				Rest struct {
+					Clients map[string]struct {
+						Operations map[string]struct {
+							Params struct {
+								InputMapping map[string]string `yaml:"input_mapping"`
+							} `yaml:"params"`
+						} `yaml:"operations"`
+					} `yaml:"clients"`
+				} `yaml:"rest"`
+			}
+			readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
+			got := rest.Rest.Clients["creator"].Operations[tc.operation].Params.InputMapping["values"]
+			if got != tc.selector {
+				t.Errorf("%s maps values = %q, want %q: %s", tc.operation, got, tc.selector, tc.why)
+			}
+		})
+	}
+}
+
+// TestCreatorInstanceRequiresContent proves a values-less operation is refused as
+// a declared client error. Every operation the creator realizes goes through
+// apply_instance, whose body is {schema_version, content}; while content was
+// optional the request died inside rendering and surfaced as an opaque 500, which
+// is what broke mage integration:controlPlane (GH-755). The corpus-ingest child
+// run srd005 R3.1 specifies needs its own leg, not a values apply missing a field.
+func TestCreatorInstanceRequiresContent(t *testing.T) {
+	var rest intakeRest
+	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "rest.yaml"), &rest)
+	instance, ok := rest.Rest.Servers["creator_instance"].Endpoints["instance"]
+	if !ok {
+		t.Fatal("creator declares no instance endpoint")
+	}
+	required := map[string]bool{}
+	for _, field := range instance.Request.BodySchema.Required {
+		required[field] = true
+	}
+	if !required["content"] {
+		t.Errorf("instance required fields = %v, want content among them; without it a values-less operation fails in request rendering as a 500 instead of a 400",
+			instance.Request.BodySchema.Required)
+	}
 }
 
 // TestApplyMapsOutcomesByTerminalState proves a rejected reconfiguration reaches

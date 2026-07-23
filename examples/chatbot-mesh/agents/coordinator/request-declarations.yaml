@@ -106,6 +106,60 @@ tools:
       rest_ref: creator
       operation: creator_rollout
 
+  - name: request_rollout_values
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Forward the operator's desired values document and delegate the rollout to the creator, for an apply that adds no source.
+    problem: A panel apply changes values without ingesting a directory, so it reaches the rollout with the desired document on the seed rather than on a carried intent, and the ingest leg's word cannot read it.
+    goals:
+      - Thread the caller's full desired values document straight from the seeded intent.
+      - Request the reconfiguration rollout from the creator and forward the desired values as the content the creator applies.
+      - Return the creator-reported health for the aggregated status.
+    requirements:
+      input:
+        - The full desired values document is selected from the seeded intent.
+      output:
+        - Output includes the creator-reported rollout health.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not execute the rollout itself; the creator holds the deployment-API authority.
+      - Does not ingest a directory; an intent that names a source enters on the ingest leg instead.
+      - Does not accept a runtime method, URL, host, or credential for the creator.
+    parameters:
+      type: object
+      properties:
+        values: {type: string}
+    emits: [Reconfigured, CommandError]
+    output:
+      description: Creator-reported rollout health.
+      schema:
+        type: object
+        properties:
+          health: {type: string}
+    side_effects:
+      - kind: external_api
+        target: creator.instance
+        state: rollout_executed
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: A completed rollout is superseded by a subsequent decided rollout, not undone in place.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, schema, or mapping failure reaching the creator.
+        state_after_failure: The rollout outcome is unknown; the request ends in Failed.
+    relationships:
+      overlaps:
+        - tool: request_rollout
+          difference: request_rollout_values reads the desired document off the seed for a values-only apply; request_rollout reads it from the intent carried through the ingest leg.
+    config:
+      rest_ref: creator
+      operation: creator_rollout_values
+
   - name: read_creator_rollout
     type: builtin
     init: rest_client_invoke

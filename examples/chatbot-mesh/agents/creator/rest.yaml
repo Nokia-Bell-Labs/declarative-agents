@@ -174,11 +174,24 @@ rest:
           request:
             # The coordinator's rollout operation carries the decided values-plane
             # document as content (srd006 R1.4); the creator forwards it to the
-            # executor apply. content is optional here so a non-rollout operation
-            # (e.g. ingest) omits it.
+            # executor apply.
+            #
+            # content is required, because every operation this endpoint realizes
+            # goes through apply_instance, whose body is {schema_version, content}.
+            # It was optional until GH-755, on the premise that a non-rollout
+            # operation (an ingest) would omit it -- but no leg realizes such an
+            # operation: the creator declares one client (deployment_api) and the
+            # machine drives apply_instance on Seed whatever the operation says.
+            # A request without content therefore died inside request rendering
+            # ("body field \"content\" must be string") and surfaced as an opaque
+            # 500, which is what broke mage integration:controlPlane. Declaring it
+            # required turns that into a 400 the caller can read. The corpus-ingest
+            # child run srd005 R3.1 specifies is not implemented; it is tracked
+            # separately and needs its own leg and endpoint, not a values apply
+            # with a missing field.
             body_schema:
               type: object
-              required: [operation]
+              required: [operation, content]
               properties:
                 operation: {type: string}
                 role: {type: string}
