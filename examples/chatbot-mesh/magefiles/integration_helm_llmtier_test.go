@@ -4,15 +4,20 @@ package main
 
 import (
 	"errors"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // TestOllamaTierRendersWithDefaults locks srd003 R6: with the defaults
 // (ollama.enabled=true) the chart renders the in-cluster LLM tier -- an Ollama
 // StatefulSet, its Service, the model-preload Job pulling every declared model,
-// and the chatbot's wait-for-llm-models readiness init container.
+// and a wait-for-llm-models readiness init container on every agent workload.
 func TestOllamaTierRendersWithDefaults(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
@@ -52,14 +57,100 @@ func TestOllamaTierRendersWithDefaults(t *testing.T) {
 	if strings.Contains(render, "wget -qO- \"$OLLAMA_HOST") {
 		t.Error("preload must not probe reachability with wget: the ollama image ships no wget, so the loop never exits")
 	}
-	// The default chart has one chatbot and one RAG workload. Both must carry the
-	// positive preload-completion gate. Removing the gate from either workload,
-	// or rendering it only when Ollama is disabled, changes this exact count.
-	if got := strings.Count(render, "- name: wait-for-llm-models"); got != 2 {
-		t.Errorf("wait-for-llm-models init containers = %d, want 2 (chatbot + RAG)", got)
+	// Every agent workload must carry the positive preload-completion gate: the
+	// chatbot and one rag-server per declared unit. Asserted as a set rather than
+	// a count, so the gate landing on the wrong workload fails too -- and so the
+	// assertion does not go stale when the default topology changes, which is
+	// what a hardcoded 2 did against a two-unit default (GH-701).
+	assertLLMGatedWorkloads(t, render, expectedGatedWorkloads(t, "t"))
+}
+
+// expectedGatedWorkloads names the agent workloads that must wait on the LLM
+// preload under the chart defaults: the chatbot and one rag-server per declared
+// ragUnit, each named <release>-chatbot-mesh-<unit> as rag-units.yaml renders it.
+func expectedGatedWorkloads(t *testing.T, release string) []string {
+	t.Helper()
+	var values struct {
+		RagUnits []struct {
+			Name string `yaml:"name"`
+		} `yaml:"ragUnits"`
 	}
-	if got := strings.Count(render, "until wget -qO- \"$url\""); got != 2 {
-		t.Errorf("positive model-presence gates = %d, want 2", got)
+	data, err := os.ReadFile(filepath.Join(findChartDir(t), "values.yaml"))
+	if err != nil {
+		t.Fatalf("read values.yaml: %v", err)
+	}
+	if err := yaml.Unmarshal(data, &values); err != nil {
+		t.Fatalf("parse values.yaml: %v", err)
+	}
+	if len(values.RagUnits) == 0 {
+		t.Fatal("values.yaml declares no ragUnits; the RAG topology or the key name changed")
+	}
+	fullname := release + "-chatbot-mesh"
+	want := []string{fullname + "-chatbot"}
+	for _, unit := range values.RagUnits {
+		want = append(want, fullname+"-"+unit.Name)
+	}
+	return want
+}
+
+// assertLLMGatedWorkloads proves the workloads carrying the wait-for-llm-models
+// init container are exactly the expected set, and that each gate is the positive
+// model-presence poll rather than a bare sleep or a completion-blind wait.
+func assertLLMGatedWorkloads(t *testing.T, render string, want []string) {
+	t.Helper()
+	type workload struct {
+		Kind     string `yaml:"kind"`
+		Metadata struct {
+			Name string `yaml:"name"`
+		} `yaml:"metadata"`
+		Spec struct {
+			Template struct {
+				Spec struct {
+					InitContainers []struct {
+						Name string   `yaml:"name"`
+						Args []string `yaml:"args"`
+					} `yaml:"initContainers"`
+				} `yaml:"spec"`
+			} `yaml:"template"`
+		} `yaml:"spec"`
+	}
+
+	gated := map[string]bool{}
+	decoder := yaml.NewDecoder(strings.NewReader(render))
+	for {
+		var object workload
+		err := decoder.Decode(&object)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("decode rendered manifest: %v", err)
+		}
+		if object.Kind == "" {
+			continue
+		}
+		for _, init := range object.Spec.Template.Spec.InitContainers {
+			if init.Name != "wait-for-llm-models" {
+				continue
+			}
+			gated[object.Metadata.Name] = true
+			// The gate is positive: it polls until every declared model is
+			// present in /api/tags. A gate that only waited for the Job object
+			// would let an agent start before the models it needs exist.
+			if !strings.Contains(strings.Join(init.Args, "\n"), `until wget -qO- "$url"`) {
+				t.Errorf("%s carries wait-for-llm-models without the model-presence poll", object.Metadata.Name)
+			}
+		}
+	}
+
+	for _, name := range want {
+		if !gated[name] {
+			t.Errorf("%s does not wait on the LLM preload; it could start before its models exist", name)
+		}
+		delete(gated, name)
+	}
+	for name := range gated {
+		t.Errorf("%s carries the LLM preload gate but is not an agent workload that needs it", name)
 	}
 }
 
@@ -93,12 +184,10 @@ func TestOllamaDisabledReproducesExternalEndpoint(t *testing.T) {
 		t.Error("disabled render does not point the embedding client at the external endpoint override")
 	}
 	// External-tier rendering removes chart-owned Ollama resources and their
-	// preload gates, but retains both agent workloads.
-	for _, workload := range []string{
-		"name: t-chatbot-mesh-chatbot",
-		"name: t-chatbot-mesh-rag0",
-	} {
-		if !strings.Contains(render, workload) {
+	// preload gates, but retains every agent workload -- the same set the gate
+	// assertion above covers, so neither goes stale against the other.
+	for _, workload := range expectedGatedWorkloads(t, "t") {
+		if !strings.Contains(render, "name: "+workload) {
 			t.Errorf("external-tier render removed agent workload %q", workload)
 		}
 	}

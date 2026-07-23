@@ -46,14 +46,21 @@ test_cases:
     go_test: go test ./magefiles -run 'TestOllama(TierRendersWithDefaults|DisabledReproducesExternalEndpoint)'
     status: implemented
     description: |
-      Wiring evidence. The in-cluster render gives both chatbot and RAG workloads
-      a positive model-presence init gate, while the external-tier render retains
-      those workloads and omits the chart-owned Ollama resources and gate.
+      Wiring evidence. The in-cluster render gives every agent workload -- the
+      chatbot and one rag-server per declared ragUnit -- a positive
+      model-presence init gate, while the external-tier render retains those
+      workloads and omits the chart-owned Ollama resources and gate.
+
+      Asserted as a set read from the declared ragUnits, not as a workload count.
+      The count form named a two-workload topology the chart never had, so the
+      evidence recorded here did not pass (GH-701); a set also catches the gate
+      landing on a workload that should not carry it, which no count can.
     inputs:
       chart: examples/chatbot-mesh/helm/
       tiers: [in_cluster, external]
     expected:
-      chatbot_and_rag_wait_for_models: true
+      every_declared_agent_workload_waits_for_models: true
+      no_other_workload_carries_the_gate: true
       external_tier_omits_only_tier_owned_resources: true
     traces:
       - rel04.0-uc001-in-cluster-llm-tier S2
