@@ -158,3 +158,65 @@ tools:
     config:
       rest_ref: creator
       operation: creator_rollout_status
+
+  - name: read_creator_state
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Read the deployed mesh view from the creator so the provisioning panel's initial load is served by the coordinator.
+    problem: The panel loads its mesh view from the coordinator, which no browser may reach past (srd003 R4.4); the coordinator asks the creator, which is the only agent that declares a deployment-API client.
+    goals:
+      - Read the creator-reported RAG topology, LLM configuration, and parameters.
+      - Serve the mesh view the provisioning panel renders on its initial load (srd006 R1.5).
+    requirements:
+      input:
+        - Takes no request-scoped input; the read is unparameterized.
+      output:
+        - Output carries the flat mesh-view fields the creator's state read reports.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError rather than an empty view.
+        - A creator read that answers 502 because the executor could not read the release is outside the declared success status and emits CommandError.
+    non_goals:
+      - Does not drive an instance operation; a state read mutates nothing.
+      - Does not accept a runtime method, URL, host, or credential for the creator.
+    parameters:
+      type: object
+      properties: {}
+    emits: [StateRead, CommandError]
+    output:
+      description: Creator-reported mesh view -- topology, LLM configuration, and parameters -- as the flat fields the state_response contract declares (srd006 deployment_api_contract).
+      schema:
+        type: object
+        properties:
+          rags: {type: array}
+          llmInCluster: {type: boolean}
+          llmExternalURL: {type: string}
+          llmChatModel: {type: string}
+          llmEmbedModel: {type: string}
+          llmChatModels: {type: array}
+          llmRouterModel: {type: string}
+          llmTopology: {type: string}
+          paramsNResults: {type: integer}
+          paramsChunkCap: {type: integer}
+          paramsRouterDefault: {type: string}
+    side_effects:
+      - kind: external_api
+        target: creator.state
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Reading the deployed mesh view changes nothing.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, schema, or mapping failure reaching the creator.
+        state_after_failure: No mesh view is reported; the request ends in Failed.
+    relationships:
+      overlaps:
+        - tool: read_creator_rollout
+          difference: read_creator_state reads the deployed mesh view for the panel's initial load; read_creator_rollout reads rollout health while a reconfiguration proceeds.
+    config:
+      rest_ref: creator
+      operation: creator_state

@@ -122,6 +122,41 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
+        read_state:
+          # Read the deployed mesh view through the deployment API's state read
+          # (srd006 R1.5), so the provisioning panel's initial load is served by
+          # the creator rather than 404ing. The state_response contract is flat
+          # (srd006 deployment_api_contract): machine_request response bodies map
+          # one selector per named field, so these fields travel through
+          # unchanged rather than being regrouped into a nested object at this
+          # hop. A read the executor could not serve answers 502, which is
+          # outside the declared success status and so emits CommandError rather
+          # than a mapped-empty view.
+          method: GET
+          path: /provisioning/api/state
+          params:
+            body_source: none
+          success: {status: [200], signal: StateReported}
+          response:
+            output:
+              rags: $.rags
+              llmInCluster: $.llmInCluster
+              llmExternalURL: $.llmExternalURL
+              llmChatModel: $.llmChatModel
+              llmEmbedModel: $.llmEmbedModel
+              llmChatModels: $.llmChatModels
+              llmRouterModel: $.llmRouterModel
+              llmTopology: $.llmTopology
+              paramsNResults: $.paramsNResults
+              paramsChunkCap: $.paramsChunkCap
+              paramsRouterDefault: $.paramsRouterDefault
+          side_effects:
+            - kind: external_api
+              target: deployment_api.state
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
 
   servers:
     creator_instance:
@@ -213,6 +248,53 @@ rest:
                   content_type: application/json
                   body:
                     error: rollout_read_failed
+                    stage: $.failure_stage
+                    message: $.message
+        state:
+          # The deployed mesh view the coordinator carries to the provisioning
+          # panel's initial load (srd006 R1.5). Reached by the coordinator, not a
+          # browser: the creator exposes no browser-facing surface (srd005 R5.4).
+          method: GET
+          path: /api/v1/state
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            timeout: 15s
+            # SeedState runs the read_state leg alone. A read: it applies nothing
+            # and mutates no instance state.
+            initial_signal: SeedState
+            request:
+              body: {}
+            response:
+              # Keyed by terminal state. A read that fails must not arrive as a
+              # successful mapped-empty view (agent-core srd030 R4.6, GH-615).
+              # The fields are flat, matching the executor's state_response
+              # contract: machine_request response bodies map one selector per
+              # named field, so they travel through unchanged rather than being
+              # regrouped into a nested object at this hop (GH-753).
+              terminal_states:
+                StateReported:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    rags: $.mapped.rags
+                    llmInCluster: $.mapped.llmInCluster
+                    llmExternalURL: $.mapped.llmExternalURL
+                    llmChatModel: $.mapped.llmChatModel
+                    llmEmbedModel: $.mapped.llmEmbedModel
+                    llmChatModels: $.mapped.llmChatModels
+                    llmRouterModel: $.mapped.llmRouterModel
+                    llmTopology: $.mapped.llmTopology
+                    paramsNResults: $.mapped.paramsNResults
+                    paramsChunkCap: $.mapped.paramsChunkCap
+                    paramsRouterDefault: $.mapped.paramsRouterDefault
+                Failed:
+                  status: 502
+                  content_type: application/json
+                  body:
+                    error: state_read_failed
                     stage: $.failure_stage
                     message: $.message
 

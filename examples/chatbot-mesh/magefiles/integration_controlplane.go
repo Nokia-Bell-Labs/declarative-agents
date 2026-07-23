@@ -17,6 +17,7 @@ const (
 	cpCoordinatorControl   = "http://127.0.0.1:18101/api/lifecycle/health"
 	cpCoordinatorExit      = "http://127.0.0.1:18101/api/lifecycle/exit"
 	cpCoordinatorProvision = "http://127.0.0.1:18100/api/v1/provision"
+	cpCoordinatorState     = "http://127.0.0.1:18100/provisioning/api/state"
 	cpCreatorControl       = "http://127.0.0.1:18111/api/lifecycle/health"
 	cpCreatorExit          = "http://127.0.0.1:18111/api/lifecycle/exit"
 	cpDeploymentAPIAddr    = "127.0.0.1:18090"
@@ -151,6 +152,42 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("a deployment-API request body carried a transport-authority field %q; no endpoint may cross the boundary", field)
 	}
 
+	// The provisioning panel's initial mesh-view load (srd006 R1.5, GH-753): a
+	// GET through the coordinator, which asks the creator, which reads the
+	// deployment API's state surface. Live evidence that the flat
+	// executor -> creator -> coordinator field mapping actually works end to
+	// end, not just that the YAML declares it.
+	stateData, stateStatus, err := requestInference(http.MethodGet, cpCoordinatorState, "", "coordinator state read")
+	if err != nil {
+		return fmt.Errorf("state read request failed: %w", err)
+	}
+	if stateStatus != http.StatusOK {
+		return fmt.Errorf("state read status = %d, want 200: %s", stateStatus, stateData)
+	}
+	var stateResp struct {
+		SchemaVersion string `json:"schema_version"`
+		Rags          []struct {
+			Name string `json:"name"`
+		} `json:"rags"`
+		LLMInCluster        bool   `json:"llmInCluster"`
+		ParamsRouterDefault string `json:"paramsRouterDefault"`
+	}
+	if err := json.Unmarshal(stateData, &stateResp); err != nil {
+		return fmt.Errorf("decode state response: %w: %s", err, stateData)
+	}
+	if stateResp.SchemaVersion != "1" {
+		return fmt.Errorf("state schema_version = %q, want 1: %s", stateResp.SchemaVersion, stateData)
+	}
+	if len(stateResp.Rags) == 0 {
+		return fmt.Errorf("state carries no rags; the fake deployment API's topology did not survive the hop: %s", stateData)
+	}
+	if stateResp.ParamsRouterDefault == "" {
+		return fmt.Errorf("state carries no paramsRouterDefault; a flat field was dropped somewhere in the chain: %s", stateData)
+	}
+	if got := rec.stateCount(); got < 1 {
+		return fmt.Errorf("the creator did not read the deployment-API state surface (state count %d)", got)
+	}
+
 	// Exit both agents gracefully so their span logs flush.
 	if _, s, err := requestHTTP(http.MethodPost, cpCoordinatorExit, `{"reason":"controlplane done"}`); err != nil || s/100 != 2 {
 		return fmt.Errorf("coordinator exit failed: status %d: %v", s, err)
@@ -177,6 +214,7 @@ type deploymentAPIRecorder struct {
 	mu       sync.Mutex
 	applies  int
 	rollouts int
+	states   int
 	authSeen bool
 	badField string
 }
@@ -201,6 +239,11 @@ func (r *deploymentAPIRecorder) rolloutCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.rollouts
+}
+func (r *deploymentAPIRecorder) stateCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.states
 }
 func (r *deploymentAPIRecorder) sawAuthHeader() bool {
 	r.mu.Lock()
@@ -249,6 +292,29 @@ func startFakeDeploymentAPIOnAddr(rec *deploymentAPIRecorder, address string) (f
 		// Mirror the executor's trimmed rollout response (srd006 R1.4): schema_version
 		// and phase only.
 		writeJSON(w, map[string]interface{}{"schema_version": "1", "phase": "complete"})
+	})
+	mux.HandleFunc("/provisioning/api/state", func(w http.ResponseWriter, req *http.Request) {
+		rec.record(req, nil)
+		rec.mu.Lock()
+		rec.states++
+		rec.mu.Unlock()
+		// Mirror the executor's flat state_response (srd006 deployment_api_contract,
+		// GH-752/GH-753): one selector per named field, so the fake sends what a real
+		// executor's helm_get_values read would produce.
+		writeJSON(w, map[string]interface{}{
+			"schema_version":      "1",
+			"rags":                []map[string]interface{}{{"name": "rag0", "collection": "corpus", "embeddingModel": "qwen3-embedding:8b", "replicas": 1}},
+			"llmInCluster":        true,
+			"llmExternalURL":      "http://ollama.default.svc.cluster.local:11434",
+			"llmChatModel":        "qwen2.5:3b",
+			"llmEmbedModel":       "qwen3-embedding:8b",
+			"llmChatModels":       []string{"qwen2.5:3b", "ornith:9b"},
+			"llmRouterModel":      "qwen2.5:3b",
+			"llmTopology":         "single",
+			"paramsNResults":      5,
+			"paramsChunkCap":      0,
+			"paramsRouterDefault": "invoke_llm_fast",
+		})
 	})
 	srv := &http.Server{Handler: mux}
 	go func() { _ = srv.Serve(listener) }()

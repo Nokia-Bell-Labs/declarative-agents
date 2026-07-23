@@ -15,6 +15,12 @@ purpose: |-
   nothing, so it reuses verify_health rather than declaring a second way to read the
   same thing, and the coordinator polls it while a reconfiguration proceeds
   (srd004 R1.3; GH-684).
+
+  The state read enters on SeedState and runs the read_state leg alone (GH-753):
+  the provisioning panel's initial load reads the deployed mesh view rather than
+  rollout health, so it is its own leg rather than folded into verify_health,
+  whose output shape (a health phase and replica counts) is unrelated to the mesh
+  view (RAG topology, LLM configuration, parameters).
 initial_state: AwaitingRequest
 budget:
   max_iterations: 6
@@ -22,22 +28,30 @@ states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted instance endpoint with the decided operation body.}
   - {name: Applying, meaning: The creator is realizing the operation by driving the deployment API.}
   - {name: Verifying, meaning: The creator is reading the rollout status to verify the instance's health.}
+  - {name: ReadingState, meaning: The creator is reading the deployed mesh view from the executor.}
   - {name: HealthReported, meaning: Terminal. The instance is healthy and the reported health is ready for the HTTP response.}
+  - {name: StateReported, meaning: Terminal. The executor reported the deployed mesh view.}
   - {name: Failed, meaning: Terminal. A deployment-API boundary word failed.}
 terminal_states:
   - HealthReported
+  - StateReported
   - Failed
 signals:
   - {name: Seed, trigger: The instance endpoint starts a request-scoped run.}
   - {name: SeedHealth, trigger: The rollout endpoint starts a request-scoped read of the rollout status.}
+  - {name: SeedState, trigger: The state endpoint starts a request-scoped read of the deployed mesh view.}
   - {name: InstanceApplied, trigger: The deployment API accepted the operation and started the rollout.}
   - {name: HealthReported, trigger: The rollout read reported the instance healthy.}
+  - {name: StateReported, trigger: The state read reported the deployed mesh view.}
   - {name: CommandError, trigger: A deployment-API boundary word failed.}
 transitions:
-  - {state: AwaitingRequest, signal: Seed,            next: Applying,  action: apply_instance}
-  - {state: AwaitingRequest, signal: SeedHealth,      next: Verifying, action: verify_health}
+  - {state: AwaitingRequest, signal: Seed,            next: Applying,     action: apply_instance}
+  - {state: AwaitingRequest, signal: SeedHealth,      next: Verifying,    action: verify_health}
+  - {state: AwaitingRequest, signal: SeedState,       next: ReadingState, action: read_state}
   - {state: AwaitingRequest, signal: CommandError,    next: Failed}
-  - {state: Applying,        signal: InstanceApplied, next: Verifying, action: verify_health}
+  - {state: Applying,        signal: InstanceApplied, next: Verifying,    action: verify_health}
   - {state: Applying,        signal: CommandError,    next: Failed}
   - {state: Verifying,       signal: HealthReported,  next: HealthReported}
   - {state: Verifying,       signal: CommandError,    next: Failed}
+  - {state: ReadingState,    signal: StateReported,   next: StateReported}
+  - {state: ReadingState,    signal: CommandError,    next: Failed}

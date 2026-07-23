@@ -160,6 +160,37 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
+        creator_state:
+          # Read the deployed mesh view the creator reads from the deployment API,
+          # so the coordinator can serve the panel's initial load (srd006 R1.5). A
+          # read: it drives no instance operation and decides nothing. Flat
+          # fields, matching the executor's state_response contract -- they
+          # travel through unchanged rather than being regrouped here (GH-753).
+          method: GET
+          path: /api/v1/state
+          params:
+            body_source: none
+          success: {status: [200], signal: StateRead}
+          response:
+            output:
+              rags: $.rags
+              llmInCluster: $.llmInCluster
+              llmExternalURL: $.llmExternalURL
+              llmChatModel: $.llmChatModel
+              llmEmbedModel: $.llmEmbedModel
+              llmChatModels: $.llmChatModels
+              llmRouterModel: $.llmRouterModel
+              llmTopology: $.llmTopology
+              paramsNResults: $.paramsNResults
+              paramsChunkCap: $.paramsChunkCap
+              paramsRouterDefault: $.paramsRouterDefault
+          side_effects:
+            - kind: external_api
+              target: creator.state
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
 
   servers:
     coordinator_intent:
@@ -314,6 +345,55 @@ rest:
                   content_type: application/json
                   body:
                     error: rollout_read_failed
+                    stage: $.failure_stage
+                    message: $.message
+        state:
+          # The panel's initial mesh-view load (srd006 R1.5). It reads here
+          # rather than from the deployment API, which no browser may reach
+          # (srd003 R4.4). Its own machine, because a read must not enter the
+          # ingest or rollout legs of the provisioning machine -- the same
+          # reasoning as the rollout poll (GH-684).
+          method: GET
+          path: /provisioning/api/state
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: state-machine.yaml
+            timeout: 20s
+            request:
+              body: {}
+            response:
+              # Flat fields, matching the executor's state_response contract
+              # (srd006 deployment_api_contract): machine_request response bodies
+              # map one selector per named field, so a nested llm/params object
+              # cannot be assembled here from several source paths in one step.
+              # provisioningApi.ts reassembles the nested MeshView client-side
+              # from these flat fields (GH-753).
+              terminal_states:
+                StateRead:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    rags: $.mapped.rags
+                    llmInCluster: $.mapped.llmInCluster
+                    llmExternalURL: $.mapped.llmExternalURL
+                    llmChatModel: $.mapped.llmChatModel
+                    llmEmbedModel: $.mapped.llmEmbedModel
+                    llmChatModels: $.mapped.llmChatModels
+                    llmRouterModel: $.mapped.llmRouterModel
+                    llmTopology: $.mapped.llmTopology
+                    paramsNResults: $.mapped.paramsNResults
+                    paramsChunkCap: $.mapped.paramsChunkCap
+                    paramsRouterDefault: $.mapped.paramsRouterDefault
+                # A read that cannot reach the mesh view is an error, not a
+                # successful mapped-empty view: the panel would otherwise render
+                # a topology-less mesh as if it were real.
+                Failed:
+                  status: 502
+                  content_type: application/json
+                  body:
+                    error: state_read_failed
                     stage: $.failure_stage
                     message: $.message
 

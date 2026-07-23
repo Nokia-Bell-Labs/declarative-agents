@@ -1,0 +1,36 @@
+name: coordinator-state-request
+purpose: |-
+  One request-scoped read of the deployed mesh view, serving the panel's initial
+  load (srd006 R1.5). The panel loads its mesh view from the coordinator, not from
+  the deployment API, which no browser may reach (srd003 R4.4). The coordinator
+  asks the creator (read_creator_state), which reads the executor's state
+  endpoint.
+
+  This machine is separate from the provisioning request machine because a read
+  is a read: it drives no instance operation, decides nothing, and must not
+  perturb a reconfiguration already in flight -- the same reasoning that keeps
+  the rollout poll on its own machine (rollout-machine.yaml).
+
+  A read that fails terminates in Failed rather than reporting a mapped-empty
+  view, so a broken read is visible as an error instead of a mesh with no RAGs
+  and no LLM configuration (GH-686's rule, applied here).
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 3
+states:
+  - {name: AwaitingRequest, meaning: Seeded by the state endpoint.}
+  - {name: Reading, meaning: Asking the creator for the deployed mesh view.}
+  - {name: StateRead, meaning: Terminal. The creator reported the deployed mesh view.}
+  - {name: Failed, meaning: Terminal. The mesh view could not be read.}
+terminal_states:
+  - StateRead
+  - Failed
+signals:
+  - {name: Seed, trigger: The state endpoint starts a request-scoped read.}
+  - {name: StateRead, trigger: The creator reported the deployed mesh view.}
+  - {name: CommandError, trigger: The creator could not be reached or its response did not map.}
+transitions:
+  - {state: AwaitingRequest, signal: Seed,         next: Reading, action: read_creator_state}
+  - {state: AwaitingRequest, signal: CommandError, next: Failed}
+  - {state: Reading,         signal: StateRead,    next: StateRead}
+  - {state: Reading,         signal: CommandError, next: Failed}

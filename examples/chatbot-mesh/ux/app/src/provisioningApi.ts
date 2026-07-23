@@ -61,6 +61,48 @@ export interface RolloutStatus {
   revision: number;
 }
 
+// MeshStateResponse is the flat wire shape GET /provisioning/api/state serves
+// (srd006 deployment_api_contract). machine_request response bodies map one
+// selector per named field, so the executor -> creator -> coordinator chain
+// cannot assemble a nested llm/params object from several source paths in one
+// step (GH-753); fetchMeshState reassembles the MeshView the rest of the panel
+// renders from these flat fields -- the one reshape in this feature that
+// happens client-side rather than in a declarative binding.
+interface MeshStateResponse {
+  schema_version: string;
+  rags: RagView[];
+  llmInCluster: boolean;
+  llmExternalURL: string;
+  llmChatModel: string;
+  llmEmbedModel: string;
+  llmChatModels: string[];
+  llmRouterModel: string;
+  llmTopology: string;
+  paramsNResults: number;
+  paramsChunkCap: number;
+  paramsRouterDefault: string;
+}
+
+function toMeshView(wire: MeshStateResponse): MeshView {
+  return {
+    rags: wire.rags,
+    llm: {
+      inCluster: wire.llmInCluster,
+      externalURL: wire.llmExternalURL,
+      chatModel: wire.llmChatModel,
+      embedModel: wire.llmEmbedModel,
+      chatModels: wire.llmChatModels,
+      routerModel: wire.llmRouterModel,
+      topology: wire.llmTopology,
+    },
+    params: {
+      nResults: wire.paramsNResults,
+      chunkCap: wire.paramsChunkCap,
+      routerDefault: wire.paramsRouterDefault,
+    },
+  };
+}
+
 function authHeaders(token: string): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
@@ -78,7 +120,7 @@ async function readError(res: Response): Promise<string> {
 export async function fetchMeshState(token: string): Promise<MeshView> {
   const res = await fetch(`${PROVISIONING_BASE}/state`, { headers: authHeaders(token) });
   if (!res.ok) throw new Error(await readError(res));
-  return (await res.json()) as MeshView;
+  return toMeshView((await res.json()) as MeshStateResponse);
 }
 
 export async function applyMesh(token: string, view: MeshView): Promise<void> {
