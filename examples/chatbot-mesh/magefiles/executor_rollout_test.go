@@ -27,8 +27,9 @@ type rolloutEndpoint struct {
 	Method         string `yaml:"method"`
 	Path           string `yaml:"path"`
 	MachineRequest struct {
-		Machine  string `yaml:"machine"`
-		Response struct {
+		Machine       string `yaml:"machine"`
+		InitialSignal string `yaml:"initial_signal"`
+		Response      struct {
 			TerminalStates  map[string]rolloutResponseMapping `yaml:"terminal_states"`
 			TerminalSignals map[string]rolloutResponseMapping `yaml:"terminal_signals"`
 		} `yaml:"response"`

@@ -50,6 +50,237 @@ tools:
       rest_ref: deployment_api
       operation: apply_instance
 
+  # The corpus-ingest child run (srd005 R3.1), realized through agent-core's
+  # agent-as-child-CLI contract (agent-core srd021): the creator runs the agent
+  # binary its own image already carries against the corpus-ingest profile.
+  # launch_eval and run_agent are not reusable -- both are bench-harness words
+  # needing a suite path or a point workspace -- and srd021 R1.1 prescribes
+  # exactly this shape: type exec, binary agent.
+  #
+  # The child's exit code is the outcome: agent-core maps a success terminal to 0
+  # and a failure terminal to ExitMachineFailed (cmd/agent/main.go), which exec
+  # surfaces as ToolDone and ToolFailed.
+  - name: run_corpus_ingest
+    type: exec
+    binary: agent
+    # --core-root resolves the /opt/agent-core builtin declaration paths the child
+    # profile references. The defaults are the in-cluster mounted-profile layout
+    # (srd003 R1.3); both are overridable so the same declaration runs from a
+    # local checkout.
+    args:
+      - --profile
+      - "${CORPUS_INGEST_PROFILE:-/profiles/agents/corpus-ingest/profile.yaml}"
+      - --core-root
+      - "${AGENT_CORE_ROOT:-/opt/agent-core}"
+    category: boundary
+    visibility: internal
+    description: Run a corpus-ingest child agent over the requested directory, so the creator realizes an ingest operation rather than forwarding it to the deployment API.
+    problem: The creator must create a child agent run per requested directory (srd005 R3.1); its only other client drives the deployment API, which applies values and cannot ingest a corpus.
+    goals:
+      - Run the corpus-ingest profile as a child agent over the requested directory.
+      - Emit ToolDone when the child reaches a success terminal and ToolFailed when it reaches a failure terminal.
+    requirements:
+      input:
+        - must run the configured corpus-ingest profile with the requested directory as the child workspace
+      output:
+        - must include the child's exit status and captured output
+      errors:
+        - must emit ToolFailed when the child reaches a failure terminal or cannot run
+    non_goals:
+      - Does not decide what to ingest; the coordinator names the directory.
+      - Does not verify the outcome; the collection count read does, because a child can exit zero having written nothing.
+      - Does not choose the collection; the child profile owns it (agent-core srd021 R2.2).
+    parameters:
+      type: object
+      properties:
+        directory:
+          type: string
+          flag: --directory
+          description: The corpus directory to ingest, which becomes the child's workspace; the corpus-ingest profile roots its document resource at the workspace.
+      required: [directory]
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: corpus-ingest child agent process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        target: corpus_ingest_agent
+        description: Runs the agent binary against the corpus-ingest profile; the child writes embeddings into the configured Chroma collection.
+    reversibility:
+      classification: irreversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the child reaches a failure terminal, exhausts its budget, or the binary cannot run
+        message_shape: <captured child agent output>
+        state_after_failure: the collection may hold a partial ingest; the count read reports what landed
+    relationships:
+      before: [resolve_ingest_collection]
+    undo:
+      strategy: noop
+      description: Documents a child run added are superseded by a later ingest, not removed in place.
+
+  - name: resolve_ingest_collection
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Resolve the ingested collection to its id, so the count read can address it.
+    problem: Chroma's count endpoint addresses a collection by id, and the creator knows only the configured name.
+    goals:
+      - Resolve the corpus-ingest collection to its id.
+      - Keep the read total by creating the collection when absent, so an ingest that wrote nothing counts zero rather than failing as a missing resource.
+    requirements:
+      input:
+        - Takes no request-scoped input; the collection is the child profile's configured one.
+      output:
+        - Output carries the resolved collection id.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not write documents; the child does.
+    parameters:
+      type: object
+      properties: {}
+    emits: [CollectionResolved, CommandError]
+    output:
+      description: Resolved Chroma collection id.
+      schema:
+        type: object
+        properties:
+          collection_id: {type: string}
+    side_effects:
+      - kind: external_api
+        target: chroma.collection
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Resolving a collection changes no documents.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, schema, or mapping failure reaching Chroma.
+        state_after_failure: No count is read; the request ends in IngestFailed.
+    relationships:
+      after: [run_corpus_ingest]
+      before: [count_ingested_documents]
+    config:
+      rest_ref: chroma
+      operation: resolve_ingest_collection
+
+  - name: count_ingested_documents
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Read the ingested collection's document count, so the creator reports what the child run actually wrote.
+    problem: A corpus-ingest child can exit zero having written nothing -- its machine reaches Succeeded on CountReady whatever the count -- so the exit code alone does not report the outcome the coordinator asked for.
+    goals:
+      - Read the item count of the resolved collection.
+      - Report it as the child run's outcome (srd005 R3.1).
+    requirements:
+      input:
+        - The collection id is selected from the previous Result output.
+      output:
+        - Output carries the collection's item count.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not judge whether the count is sufficient; no declarative primitive expresses that comparison today, so the shortfall decision is tracked separately.
+      - Does not mutate the collection.
+    parameters:
+      type: object
+      properties:
+        collection: {type: string}
+    emits: [DocumentsCounted, CommandError]
+    output:
+      description: The ingested collection's item count, carried as a string because Chroma answers with a bare integer.
+      schema:
+        type: object
+        properties:
+          count: {type: string}
+    side_effects:
+      - kind: external_api
+        target: chroma.count
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Reading a count changes nothing.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, schema, or mapping failure reaching Chroma.
+        state_after_failure: No count is reported; the request ends in IngestFailed.
+    relationships:
+      after: [resolve_ingest_collection]
+      before: [ingest_wrote_documents]
+    config:
+      rest_ref: chroma
+      operation: count_ingested_documents
+
+  - name: ingest_wrote_documents
+    type: builtin
+    init: value_predicate
+    category: word
+    visibility: internal
+    description: Decide whether the child run met the requested source, by testing the counted documents against zero.
+    problem: A corpus-ingest child reaches its own Succeeded terminal on CountReady whatever the count, so a run that wrote nothing still exits zero; the creator must tell that apart from a real ingest to answer the coordinator's declared rejection.
+    goals:
+      - Compare the counted documents against zero and route the two outcomes to distinct terminals.
+      - Keep the shortfall decision in the machine, where the branch is readable, rather than in the child's contract.
+    requirements:
+      input:
+        - The count is selected from the previous Result, which is the Chroma count read.
+      output:
+        - Output reports the comparison that was made and its outcome.
+      errors:
+        - An unresolvable count emits CommandError rather than a shortfall, so a broken read is never reported as an empty corpus.
+    non_goals:
+      - Does not read or write documents; it compares a number the previous word produced.
+      - Does not judge relevance or content; "met the requested source" means documents were written.
+    parameters:
+      type: object
+      properties: {}
+    emits: [DocumentsWritten, NoDocumentsWritten, CommandError]
+    output:
+      description: The count comparison and its outcome.
+      schema:
+        type: object
+        properties:
+          output: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Comparing a count changes nothing.
+    errors:
+      - signal: CommandError
+        condition: The counted documents cannot be resolved from the previous Result or coerced to a number.
+        message_shape: 'ingest_wrote_documents: operand <selector> did not resolve against the previous result'
+        state_after_failure: No shortfall decision is made; the request ends in IngestFailed rather than reporting an empty corpus.
+    relationships:
+      after: [count_ingested_documents]
+    config:
+      # The count arrives from the Chroma read as a string, because Chroma
+      # answers with a bare integer that agent-core stores under raw. The
+      # default number operand type compares it as a number, so a corpus of ten
+      # documents is not judged smaller than one of six (agent-core srd041 R3.2).
+      left: $.mapped.count
+      op: gt
+      right: "0"
+      satisfied: DocumentsWritten
+      unsatisfied: NoDocumentsWritten
+
   - name: read_state
     type: builtin
     init: rest_client_invoke

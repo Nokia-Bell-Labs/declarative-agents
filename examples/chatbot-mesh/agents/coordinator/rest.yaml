@@ -62,11 +62,17 @@ rest:
       operations:
         creator_ingest:
           # Delegate a corpus-ingest run for the requested directory to the creator
-          # (srd004 R2.1). The creator verifies the collection count and returns it; a
-          # count that does not meet the requested source is a 422 the creator returns,
-          # mapped to IngestRejected so the coordinator does not advance to reconfigure.
+          # (srd004 R2.1). The creator runs the child, reads the collection back, and
+          # returns the count; a run that wrote nothing is a 422 the creator returns,
+          # mapped to Rejected so the coordinator does not reconfigure over an empty
+          # source.
+          #
+          # /api/v1/ingest, not /api/v1/instance: the instance endpoint applies a
+          # values document, and every operation posted there took that leg whatever
+          # the operation named, so this delegation ran no child at all and the
+          # count it declares it reads back was never populated (GH-755, GH-762).
           method: POST
-          path: /api/v1/instance
+          path: /api/v1/ingest
           params:
             body_schema:
               type: object
@@ -86,17 +92,29 @@ rest:
               values: $.values
             carry_forward: [rag_name, collection, embedding_model, values]
           body:
-            operation: ingest
-            role: corpus-ingest
             directory: "{{ params.directory }}"
             collection: "{{ params.collection }}"
           success: {status: [200], signal: IngestReported}
           failures:
             - {status: [422], signal: Rejected}
           response:
-            output:
-              collection: $.collection
-              count: $.count
+            # Neither collection nor count survives this hop, and the GH-686 rule
+            # is to stop declaring what no hop serves rather than ship undefined.
+            #
+            # collection: the corpus-ingest profile owns its collection name and
+            # agent-core exec tools pass no environment, so the child always
+            # writes that profile's collection whatever the intent named. The
+            # coordinator already carries the requested one in its own params
+            # (carry_forward below).
+            #
+            # count: the creator's success response cannot carry it, because a
+            # response body maps from the last word's output and that word is the
+            # shortfall predicate, whose output is its comparison rather than the
+            # count it judged.
+            #
+            # The decision itself still arrives, which is what this leg acts on:
+            # 200 advances to the rollout, 422 lands in Rejected.
+            output: {}
           side_effects:
             - kind: external_api
               target: creator.instance
