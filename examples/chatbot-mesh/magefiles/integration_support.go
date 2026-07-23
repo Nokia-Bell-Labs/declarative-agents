@@ -84,19 +84,51 @@ func startDetachedAgent(binary, profilesRoot, coreRoot, profile, tracePath strin
 }
 
 func startDetachedAgentWithTimeout(binary, profilesRoot, coreRoot, profile, tracePath string, gracefulWait time.Duration) (func(kill bool) error, error) {
+	return startDetachedAgentWithEnv(agentLaunch{
+		Binary: binary, ProfilesRoot: profilesRoot, CoreRoot: coreRoot,
+		Profile: profile, TracePath: tracePath, GracefulWait: gracefulWait,
+	})
+}
+
+// agentLaunch is one detached agent invocation. Workdir and Env exist for
+// integrations that must place the agent's workspace somewhere they control or
+// point its declared environment at test doubles -- the executor tracer runs the
+// shipped profile against fake helm and kubectl on PATH (GH-731).
+type agentLaunch struct {
+	Binary       string
+	ProfilesRoot string
+	CoreRoot     string
+	Profile      string
+	TracePath    string
+	Workdir      string   // defaults to os.TempDir()
+	Env          []string // appended to the parent environment
+	GracefulWait time.Duration
+}
+
+func startDetachedAgentWithEnv(launch agentLaunch) (func(kill bool) error, error) {
+	profile := launch.Profile
+	profilesRoot := launch.ProfilesRoot
+	gracefulWait := launch.GracefulWait
 	profilePath := profile
 	if !filepath.IsAbs(profilePath) {
 		profilePath = filepath.Join(profilesRoot, profile)
 	}
-	cmd := exec.Command(binary,
+	workdir := launch.Workdir
+	if workdir == "" {
+		workdir = os.TempDir()
+	}
+	cmd := exec.Command(launch.Binary,
 		"--profile", profilePath,
-		"--directory", os.TempDir(),
-		"--core-root", coreRoot,
-		"--otel-log-file", tracePath,
+		"--directory", workdir,
+		"--core-root", launch.CoreRoot,
+		"--otel-log-file", launch.TracePath,
 	)
 	cmd.Dir = profilesRoot
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
+	if len(launch.Env) > 0 {
+		cmd.Env = append(os.Environ(), launch.Env...)
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", profile, err)
 	}
