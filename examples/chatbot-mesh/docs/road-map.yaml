@@ -134,17 +134,32 @@ releases:
       coordinator sequences corpus-ingest runs and the rollout, the creator executes
       the checkpoint-resume rollout through the deployment API (srd003 R4) and
       reports health, and the new source serves a grounded turn.
-    status: implemented
+    status: partial
     srds:
       - srd004-coordinator
       - srd005-creator
     use_cases:
       - id: rel05.0-uc001-control-plane-provisioning
-        summary: A provisioning intent flows chatbot -> coordinator -> creator, ingests and reconfigures, and the new source serves a grounded turn; only the creator holds the deployment-API authority.
-        status: implemented
+        summary: >-
+          A provisioning intent flows panel -> coordinator -> creator and
+          reconfigures the mesh; only the creator holds the deployment-API
+          authority. The values-only apply -- the panel's operator intent -- is
+          realized end to end and proven by mage integration:controlPlane. The
+          ingest-carrying intent is not: srd005 R3.1's corpus-ingest child run has
+          no implementation, so the "ingests, then the new source serves a grounded
+          turn" half of this use case does not hold. GH-755 established that; the
+          gap is tracked on its own issue.
+        status: partial
     test_suites:
       - id: test-rel05.0-control-plane
-        summary: Tracer for the intent -> ingest -> reconfigure -> restart -> serve flow across the three agents, asserting the authority boundary. Realized as mage integration:controlPlane (deterministic, no cluster); the live grounded turn rides on integration:chatbot and the deploy swap.
+        summary: >-
+          Tracer for the apply -> reconfigure -> verify flow across the
+          coordinator and creator, asserting the decided values document crosses
+          each hop and the authority boundary holds. Realized as mage
+          integration:controlPlane (deterministic, no cluster), which also reads
+          the panel's mesh view back through both hops (srd006 R1.5). It does not
+          cover the ingest leg, which nothing realizes; the live grounded turn
+          rides on integration:chatbot and the deploy swap.
         status: implemented
 
   - version: "06.0"

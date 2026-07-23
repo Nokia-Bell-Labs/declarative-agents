@@ -111,6 +111,11 @@ rest:
           # A values-plane list is replaced wholesale on apply, so the intent carries
           # the complete desired values, not a delta; the creator applies it through
           # the executor and returns the reported health.
+          #
+          # This is the ingest leg's rollout: it reads $.carried.values, which
+          # creator_ingest's carry_forward populates. The values-only leg cannot use
+          # it -- with no ingest step ahead of it there is no carried intent -- so it
+          # has its own operation below (GH-755).
           method: POST
           path: /api/v1/instance
           params:
@@ -122,6 +127,45 @@ rest:
             body_source: previous_result
             input_mapping:
               values: $.carried.values
+          body:
+            operation: restart
+            role: chatbot
+            schema_version: "1"
+            content: "{{ params.values }}"
+          success: {status: [200], signal: Reconfigured}
+          response:
+            output:
+              health: $.health
+          side_effects:
+            - kind: external_api
+              target: creator.instance
+              state: rollout_executed
+          reversibility:
+            classification: reversible
+            undo: noop
+        creator_rollout_values:
+          # The panel's values-only apply (srd004 R1.6): the same delegation as
+          # creator_rollout, reading the desired document straight off the seed
+          # rather than from a carried intent. The apply endpoint seeds SeedValues
+          # and never ingests, so nothing populated $.carried and creator_rollout's
+          # selector resolved to nothing -- every panel apply failed in request
+          # rendering with `body field "values" is required` (GH-755).
+          #
+          # Two operations rather than one selector that tries both, because the
+          # two legs genuinely differ in where the document comes from, and which
+          # leg a run took stays readable from the machine (srd004 R1.6, GH-680)
+          # rather than hidden inside a word.
+          method: POST
+          path: /api/v1/instance
+          params:
+            body_schema:
+              type: object
+              required: [values]
+              properties:
+                values: {type: string}
+            body_source: previous_result
+            input_mapping:
+              values: $.values
           body:
             operation: restart
             role: chatbot

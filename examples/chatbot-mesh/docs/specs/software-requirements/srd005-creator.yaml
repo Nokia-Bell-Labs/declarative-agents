@@ -121,14 +121,31 @@ platform_dependencies:
     symbols_used: [V30]
 
 implementation_status:
+  implemented:
+    - >-
+      The creator profile (agents/creator): its instance endpoint, the
+      values-plane rollout client to the deployment API (apply_instance), the
+      rollout health verification (verify_health, R4), the deployed-values state
+      read the provisioning panel loads through (read_state, srd006 R1.5), and the
+      authority boundary (R5) -- the creator is the mesh's only declared
+      deployment-API client. mage integration:controlPlane drives the panel's
+      values apply through coordinator -> creator -> deployment API against the
+      real agents and a recording fake, asserting the decided document crosses
+      each hop and that no endpoint or credential does.
   planned:
     - >-
-      The creator profile (agents/creator) and its instance endpoint, template
-      resolution, checkpoint-resume rollout client to the deployment API, and
-      monitor-read health checks. Documentation-only until the control-plane
-      release (rel05.0) builds the profile; until then the deployment API executes
-      rollouts directly (srd003 R3.2, R4) and the creator's authority boundary
-      describes where that credential moves.
+      The corpus-ingest child run (R3.1, AC3). The creator declares one client
+      (deployment_api) and its request-machine drives apply_instance on Seed
+      whatever the operation names, so an ingest operation was only ever a values
+      apply wearing a label: no corpus-ingest instance is created, and the
+      {collection, count} the coordinator declares it reads back (srd004 R2.1) is
+      never populated, which leaves the 422 shortfall leg unreachable. This stayed
+      invisible while apply_instance took an operation-shaped body; once it became
+      {schema_version, content} (GH-521) an ingest carried no content and failed in
+      request rendering, which is how GH-755 surfaced it. Realizing R3.1 needs its
+      own machine leg and endpoint -- corpus-ingest is a one-shot batch agent with
+      no server, so the creator cannot reach it over REST the way it reaches the
+      deployment API -- and is tracked separately.
 
 diagrams:
   requirements_trace: |

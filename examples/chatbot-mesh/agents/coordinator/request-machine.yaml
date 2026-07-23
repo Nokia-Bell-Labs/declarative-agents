@@ -15,6 +15,12 @@ purpose: |-
   source, so it has no directory to ingest and enters on SeedValues, skipping the
   ingest leg. Which leg a run took is readable from the machine rather than hidden
   in a word, because the endpoint chooses the seed (srd004 R1.6; GH-680).
+
+  The two legs reach the rollout through different words because the desired
+  document reaches them differently: request_rollout reads it from the intent
+  creator_ingest carried forward, while request_rollout_values reads it off the
+  seed. The values leg drove request_rollout until GH-755, so its selector found
+  no carried intent and every panel apply failed in request rendering.
 initial_state: AwaitingRequest
 budget:
   max_iterations: 8
@@ -38,7 +44,7 @@ signals:
   - {name: CommandError, trigger: A creator boundary word failed.}
 transitions:
   - {state: AwaitingRequest, signal: Seed,           next: Ingesting,     action: request_ingest}
-  - {state: AwaitingRequest, signal: SeedValues,     next: Reconfiguring, action: request_rollout}
+  - {state: AwaitingRequest, signal: SeedValues,     next: Reconfiguring, action: request_rollout_values}
   - {state: AwaitingRequest, signal: CommandError,   next: Failed}
   - {state: Ingesting,       signal: IngestReported, next: Reconfiguring, action: request_rollout}
   - {state: Ingesting,       signal: Rejected,       next: Rejected}
