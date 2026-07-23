@@ -125,6 +125,11 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	if err := waitHTTPStatus(helmHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
 		return fmt.Errorf("chatbot control health not ready: %w", err)
 	}
+	// Checked before the turn that is supposed to produce its spans, so a
+	// collector that cannot start is reported as itself (GH-736).
+	if err := assertCollectorAvailable(helmRelease, helmReadyTimeout); err != nil {
+		return err
+	}
 	if err := assertSmokeChatServed(helmChatURL); err != nil {
 		return err
 	}
@@ -344,6 +349,39 @@ func assertSmokeChatServed(url string) error {
 	return nil
 }
 
+// assertCollectorAvailable waits for the collector Deployment to report
+// available. Nothing else in the smoke touches the collector, so before GH-736
+// a collector that never started surfaced only as an empty Jaeger service list
+// after the span timeout -- a symptom two hops from the cause.
+func assertCollectorAvailable(release string, timeout time.Duration) error {
+	target := "deploy/" + release + "-chatbot-mesh-collector"
+	out, err := exec.Command("kubectl", "wait", "--for=condition=available", target,
+		fmt.Sprintf("--timeout=%ds", int(timeout.Seconds()))).CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("collector never became available: %v: %s%s",
+		err, strings.TrimSpace(string(out)), collectorDiagnostics(release))
+}
+
+// collectorDiagnostics returns the collector's pod line and last log lines, so
+// a span failure names the hop that dropped them instead of leaving the reader
+// to guess between "the agents never exported" and "the collector never ran"
+// (GH-736 R4).
+func collectorDiagnostics(release string) string {
+	selector := "app.kubernetes.io/component=collector,app.kubernetes.io/instance=" + release
+	var b strings.Builder
+	if out, err := exec.Command("kubectl", "get", "pods", "-l", selector, "--no-headers").CombinedOutput(); err == nil {
+		b.WriteString("\n  collector pod: " + strings.TrimSpace(string(out)))
+	}
+	if out, err := exec.Command("kubectl", "logs", "-l", selector, "--tail=5").CombinedOutput(); err == nil {
+		if trimmed := strings.TrimSpace(string(out)); trimmed != "" {
+			b.WriteString("\n  collector logs: " + trimmed)
+		}
+	}
+	return b.String()
+}
+
 // assertSmokeSpans queries Jaeger for the services that have reported spans and
 // asserts at least minServices agent services appear, retrying while the export
 // pipeline flushes. Jaeger's own service name is not counted.
@@ -362,7 +400,7 @@ func assertSmokeSpans(jaegerBase string, minServices int, timeout time.Duration)
 		}
 		time.Sleep(2 * time.Second)
 	}
-	return lastErr
+	return fmt.Errorf("%w%s", lastErr, collectorDiagnostics(helmRelease))
 }
 
 // jaegerAgentServices returns the services Jaeger has traces for, excluding

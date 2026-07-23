@@ -14,6 +14,33 @@ preconditions:
 
 test_cases:
   - use_case: rel02.0-uc003-tool-authoring
+    name: Declared provider address is an environment reference the loader expands
+    go_test: TestLoadToolDefsExpandsEnvReference, TestLoadToolDefsUsesDefaultWhenUnset, TestLoadToolDefsLeavesSelectorsUntouched
+    status: done
+    description: |
+      Load a declaration whose provider_url is an environment reference and
+      verify the loader expands it before parsing. A set variable wins, an unset
+      one falls back to the declared local default so the shipped program runs
+      unconfigured, and $-prefixed selectors survive expansion unchanged.
+
+      The address matters because a chart co-generates the REST client base_url
+      but mounts tool declarations verbatim, so a literal loopback address is
+      correct on a developer machine and unreachable in a pod (GH-728).
+    inputs:
+      declaration_field: provider_url
+      declared_value: "${OLLAMA_URL:-http://localhost:11434}"
+      environment_value: http://ollama.svc:11434
+      selectors_present:
+        - "$from(compose).prompt"
+        - "$.output.answer"
+    expected:
+      expands_to_environment_value: true
+      falls_back_to_declared_default: true
+      selectors_unchanged: true
+    traces:
+      - srd013-standard-tool-library AC10
+
+  - use_case: rel02.0-uc003-tool-authoring
     name: Tool definition includes all required contract sections
     go_test: TestValidateToolContractsReportsMissingFields, TestAuditToolContractsClassifiesCoverage
     status: done

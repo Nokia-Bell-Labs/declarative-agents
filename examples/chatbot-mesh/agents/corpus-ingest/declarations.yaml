@@ -584,7 +584,7 @@ tools:
     config:
       model: "ornith:9b"
       provider: ollama
-      provider_url: "http://localhost:11434"
+      provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: Composing
       response_profile: qwen
       max_time: 120
