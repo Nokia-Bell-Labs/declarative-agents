@@ -107,6 +107,12 @@ type TestCase struct {
 	// [-run <regex>]" command, or a Mage/descriptive label. ValidateGoTestEvidence
 	// checks the executable forms against the real test inventory.
 	GoTest string `yaml:"go_test"`
+	// Status is the case's own claim about its evidence. The field is optional --
+	// the test_suite format rule does not require it -- so an absent status is
+	// read as a live claim by RunGoTestEvidence: a case that names a test and says
+	// nothing else is asserting that test as its proof. Only "planned" withholds
+	// the claim.
+	Status string `yaml:"status"`
 }
 
 // Roadmap is the parsed road-map.yaml.

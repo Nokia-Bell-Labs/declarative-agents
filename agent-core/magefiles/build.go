@@ -138,7 +138,12 @@ func Audit() error {
 	if err := validateGoTestEvidence(rootDir); err != nil {
 		return err
 	}
-	return nil
+	// Resolution proves each named test exists; `go test -list` compiles the test
+	// binaries and runs none of them. A suite could therefore claim evidence for a
+	// test that fails and the audit stayed green, which is how a downstream case
+	// claimed a proof that had never passed (GH-701, GH-717). Run what the suites
+	// claim.
+	return runGoTestEvidence(rootDir)
 }
 
 // validateGoTestEvidence checks that every formal test suite's go_test evidence
@@ -150,6 +155,24 @@ func validateGoTestEvidence(rootDir string) error {
 	findings, err := spec.AuditGoTestEvidence(rootDir)
 	if err != nil {
 		return fmt.Errorf("validate go_test evidence: %w", err)
+	}
+	return goTestEvidenceError(findings)
+}
+
+// runGoTestEvidence runs this module's tests once and checks that every test the
+// formal suites claim as evidence actually passed. It is the execution half of
+// the evidence gate: validateGoTestEvidence asks whether the named test exists,
+// this asks whether it holds. A skipped test is reported too -- it proves
+// nothing, and reads as success to anything watching only the exit code.
+func runGoTestEvidence(rootDir string) error {
+	fmt.Println("running formal go_test evidence...")
+	findings, err := spec.RunGoTestEvidence(rootDir)
+	if err != nil {
+		return fmt.Errorf("run go_test evidence: %w", err)
+	}
+	if len(findings) == 0 {
+		fmt.Println("every go_test claim ran and passed")
+		return nil
 	}
 	return goTestEvidenceError(findings)
 }
