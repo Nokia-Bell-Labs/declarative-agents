@@ -114,6 +114,10 @@ spec:
             {{- end }}
           env:
             - {name: EXECUTOR_BIND_HOST, value: "0.0.0.0"}
+            # The workspace the agent writes its values file into, the same path
+            # mounted as the work volume below and passed as --directory, so the
+            # write stays inside the workspace wherever the mount moves (GH-737).
+            - {name: EXECUTOR_WORK_DIR, value: {{ .Values.profiles.workMountPath | quote }}}
           ports:
             - {name: apply, containerPort: {{ .Values.executor.ports.apply }}}
             - {name: control, containerPort: {{ .Values.executor.ports.control }}}

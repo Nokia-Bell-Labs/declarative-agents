@@ -164,9 +164,9 @@ releases:
       - srd006-executor
     use_cases:
       - id: rel06.0-uc001-declarative-executor
-        summary: The executor agent validates a values patch against the chart schema, applies it as a values-file rollout, verifies the rollout, and rolls back on failure, replacing the Go provisioner with zero agent-core changes.
+        summary: The executor agent validates a values patch against the chart schema, applies it as a values-file rollout, verifies the rollout, and rolls back on failure, replacing the Go provisioner with zero agent-core changes. Stays planned while the live on-cluster rollout is outstanding (GH-735) -- the flow is proven against recording fake CLIs and the chart schema against real helm, but nothing yet proves that a patch applied through the executor changes a real release.
         status: planned
     test_suites:
       - id: test-rel06.0-executor
-        summary: Tracer for the validate -> apply -> verify -> rollback flow against the executor agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Planned; to be realized as mage integration:executor, which is not yet implemented. integration:controlPlane exercises the coordinator and creator against a fake deployment API and is not executor evidence.
-        status: planned
+        summary: Tracer for the validate -> apply -> verify -> rollback flow against the executor agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:executor, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier stays planned (GH-735).
+        status: implemented

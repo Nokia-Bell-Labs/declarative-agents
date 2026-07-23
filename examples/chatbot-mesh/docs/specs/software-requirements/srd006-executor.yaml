@@ -167,8 +167,13 @@ implementation_status:
       the provisioner, are built for release rel06.0; the Go provisioner is removed
       and issue #429's deployment-plane exemption no longer applies. The rollout
       read endpoint (GET /provisioning/api/rollout) shipped; issue #466 delivered
-      rollout only and was closed. The remaining planned work is the live
-      on-cluster rollout (built image, integration:executor) and the state read
+      rollout only and was closed. mage integration:executor shipped with GH-602:
+      it drives the shipped profile against recording fake helm and kubectl,
+      walking every terminal of the apply and rollout machines and asserting the
+      arguments each word constructs, with the chart schema proven against real
+      helm separately. The remaining planned work is the live on-cluster rollout
+      -- the built image driving real helm against a cluster (GH-735), which is
+      what fakes cannot stand in for -- and the state read
       endpoint (GET /provisioning/api/state), which the executor profile does not
       yet serve -- it needs the agent-core raw file-read binding tracked by issue
       #468. Until the state endpoint lands, the provisioning panel cannot load its

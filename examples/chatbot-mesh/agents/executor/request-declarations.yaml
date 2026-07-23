@@ -24,7 +24,7 @@ tools:
       properties:
         path:
           type: string
-          description: The values-file path to write (seeded literal /work/overrides.yaml).
+          description: The values-file path to write, seeded by the apply endpoint from the agent's workspace mount (EXECUTOR_WORK_DIR, /work by default).
         content:
           type: string
           description: The values overrides content from the apply request.
