@@ -23,20 +23,35 @@ preconditions:
 test_cases:
   - use_case: rel06.0-uc001-declarative-executor
     name: Executor validates, applies, and verifies a values change through the deployment API
-    integration_target: mage integration:executor (planned, not yet implemented; integration:controlPlane drives a fake deployment API and is not executor evidence)
-    status: planned
+    integration_target: mage integration:executor
+    go_test: TestAssertExecutorCallsRejectsMissingAndForbidden, TestExecutorAuthorityProblemRejectsTransportAuthority, TestExecutorScenariosCoverEveryTerminal, TestFakeScriptsClassifyTheDeclaredInvocations
+    status: implemented
     description: |
-      Drives a decided values patch end to end against the executor agent: the creator
-      posts the patch to the apply endpoint through its declared client; the executor
-      validates it against the chart's values schema by a helm dry-run, rejecting a
-      non-conforming patch with a client error and no rollout; for a valid patch the
-      executor materializes the values as a file and applies helm upgrade
-      --reuse-values --atomic, re-rendering the co-generated topology; the executor
-      verifies the affected Deployment's rollout via kubectl rollout status and reports
-      the phase, rolling the release back on an apply or verify failure; and it reports
-      health back. Asserts the authority boundary: the patch carries no endpoint or
-      credential for a running agent, the apply path is reached only by the creator,
-      and authority stays set by declared validated config.
+      Drives a decided values patch against the shipped executor profile: the apply
+      endpoint receives the patch, the executor validates it against the chart's
+      values schema by a helm dry-run, rejecting a non-conforming patch with a client
+      error and no rollout; for a valid patch it materializes the values as a file and
+      applies helm upgrade --reuse-values --atomic; it verifies the rollout via
+      kubectl rollout status and reports the phase, rolling the release back on a
+      verify stall. Asserts the authority boundary: no invocation carries an endpoint,
+      a credential, or per-field --set construction.
+
+      What it rests on, so the status is not read for more than it says: helm and
+      kubectl are recording fakes on the executor's PATH, taking their exit codes
+      from the scenario. That is what lets one run walk every terminal of both
+      machines -- four on the apply machine, three on the rollout read -- since a
+      machine of exec words tells its outcomes apart only by which word failed. It is
+      evidence about the machine, the arguments it constructs, and the responses it
+      maps. It is not evidence that real helm and kubectl behave as the declarations
+      assume, nor that the executor works against a cluster; the chart schema is
+      covered by its own case below against real helm, and the live tier stays
+      planned (GH-735).
+
+      Two hops this case does not cover: the creator posting the patch through its
+      declared client, which Integration.ControlPlane drives against a fake
+      deployment API, and the network-layer restriction of the apply path to
+      creator-labelled pods, which TestExecutorApplyStaysCreatorOnly asserts over the
+      rendered chart.
     inputs:
       valid_patch: add a RAG source through a values-plane patch
       invalid_patch: a patch violating the chart values schema
@@ -48,7 +63,6 @@ test_cases:
       rollout_verified_via_kubectl_rollout_status: true
       apply_or_verify_failure_rolls_back: true
       patch_carries_no_endpoint_or_credential: true
-      only_creator_calls_apply: true
     traces:
       - rel06.0-uc001-declarative-executor S1
       - rel06.0-uc001-declarative-executor S2
@@ -61,6 +75,88 @@ test_cases:
       - srd006-executor AC4
       - srd006-executor AC5
       - srd003-chatbot-deployment AC4
+
+  - use_case: rel06.0-uc001-declarative-executor
+    name: The chart schema rejects a non-conforming values patch
+    integration_target: mage test (magefiles/executor_schema_test.go, GH-732)
+    go_test: TestChartSchemaAcceptsAConformingPatch, TestChartSchemaRejectsANonConformingPatch, TestChartSchemaConstrainsTheRAGUnitName
+    status: done
+    description: |
+      The executor's validate step is a helm dry-run against the chart's
+      values.schema.json, so the rejection is only as real as the schema. The case
+      above cannot prove it: its fake helm returns whatever exit code the scenario
+      sets, and a schema that accepted every document would pass it unchanged.
+
+      Real helm renders the real chart with two fixtures. The rejection must name
+      /ragUnits/0/name and the pattern it violated, not merely exit non-zero -- a
+      chart failing to render for an unrelated reason exits non-zero too. A third
+      assertion pins the constraint the fixture rests on, so loosening the schema
+      reads as the guard being removed rather than as a broken fixture.
+
+      Substitution: the executor issues helm upgrade --dry-run, which needs a
+      reachable cluster. helm template validates against the same schema without one.
+      The executor's own command form is proven on a cluster by GH-735.
+    inputs:
+      conforming: testdata/integration/executor-values/conforming.yaml
+      non_conforming: testdata/integration/executor-values/non-conforming.yaml
+    expected:
+      conforming_patch_renders: true
+      non_conforming_patch_rejected_by_name_and_pattern: true
+      rag_unit_name_constrained_to_a_dns_label: true
+    traces:
+      - rel06.0-uc001-declarative-executor S2
+      - srd006-executor AC2
+
+  - use_case: rel06.0-uc001-declarative-executor
+    name: An executor-enabled chart renders a coherent surface
+    integration_target: mage test (magefiles/executor_chart_test.go, GH-733)
+    go_test: TestExecutorServiceTargetsItsDeployment, TestExecutorMountsEveryProfileItStarts, TestExecutorRendersItsWholeSurface
+    status: done
+    description: |
+      helm/ci/kind-values.yaml disables the executor, because its image bundles helm,
+      kubectl, and the chart while the smoke tests kind-load only the runtime image.
+      Every cluster-level test therefore stands up a mesh without it, and the
+      packaging path that would carry the executor into a cluster is proven here.
+
+      Asserted over the staged render: the Service selects the pods the Deployment
+      creates, and the profile the Deployment's args name is a path the profiles
+      volume actually projects. The second is GH-485 at the render -- the executor
+      Deployment once mounted a profile the staging list did not copy, and an enabled
+      executor started with nothing to run.
+    inputs:
+      rendered_chart: staged chart with executor.enabled
+    expected:
+      service_targets_the_deployment_pods: true
+      every_started_profile_is_projected: true
+      whole_executor_object_set_renders: true
+    traces:
+      - rel06.0-uc001-declarative-executor S1
+      - srd006-executor AC1
+
+  - use_case: rel06.0-uc001-declarative-executor
+    name: A live on-cluster rollout through the executor
+    integration_target: mage integration:executor live tier (planned, GH-735)
+    status: planned
+    description: |
+      The remaining gap. Every case above runs against fake CLIs or a rendered
+      chart; none proves that real helm and kubectl behave as the declarations
+      assume, or that a values patch applied through the executor changes a release.
+
+      Needs the executor image built and kind-loaded (executor.Dockerfile exists and
+      nothing builds it), the executor enabled in a kind values file, and a real
+      patch driven from a creator-labelled pod. Deferred from GH-602 because it is
+      gated on docker and kind and the image plumbing does not exist yet.
+    inputs:
+      cluster: kind with the executor image loaded
+      patch: a values-plane patch that changes the release
+    expected:
+      real_helm_upgrade_changes_the_release: true
+      rollout_endpoint_reports_complete_with_real_counts: true
+      non_conforming_patch_rejected_on_the_cluster: true
+    traces:
+      - rel06.0-uc001-declarative-executor S3
+      - rel06.0-uc001-declarative-executor S4
+      - srd006-executor AC3
 
   - use_case: rel06.0-uc001-declarative-executor
     name: A broken rollout read is distinguishable from a progressing one, and the counts reach the panel
