@@ -10,18 +10,17 @@ import (
 )
 
 // These cover the values-file path the executor writes and helm then reads
-// (GH-737). The two are configured by different mechanisms and must agree:
-// write_overrides takes its path from rest.yaml, which the runtime env-expands,
-// while the helm words take theirs from exec-declarations.yaml, which it does
-// not -- only REST definitions are expanded (agent-core
-// internal/tools/rest/loading.go). The chart holds the second to the first by
-// rewriting the exec args at packaging time.
+// (GH-737). Both sides name the same environment reference, which the runtime
+// expands in REST definitions and, since GH-728, in tool declarations too
+// (srd013 R5.6) -- so one mounted profile parameterizes per pod and the write
+// and the read cannot drift apart at packaging time.
 //
-// When they drift, nothing reports it: write_overrides writes one path, helm
-// reads another, and helm renders whatever the release already had. Worse, if
-// the written path falls outside the agent's workspace the write is refused
-// outright and every apply dies on its first word -- which is what happened
-// whenever profiles.workMountPath was changed from /work.
+// They still must be asserted together, because when they drift nothing reports
+// it: write_overrides writes one path, helm reads another, and helm renders
+// whatever the release already had. Worse, if the written path falls outside the
+// agent's workspace the write is refused outright and every apply dies on its
+// first word -- which is what happened whenever profiles.workMountPath was
+// changed from /work.
 
 // executorValuesPath returns the values-file path the apply endpoint seeds,
 // with placeholders resolved to their declared defaults.
@@ -79,11 +78,13 @@ func TestExecutorValuesPathAgreesAcrossTheProfile(t *testing.T) {
 	}
 }
 
-// TestExecutorWorkDirFollowsTheMount proves a non-default workMountPath moves
-// both paths together through the packaging path. This is the drift the
-// hardcoded /work could not survive: the chart mounted the work volume
-// elsewhere, the agent's workspace moved with it, and the write was then
-// refused as outside the workspace.
+// TestExecutorWorkDirFollowsTheMount proves a non-default workMountPath reaches
+// the agent. The profile carries the reference unresolved -- expansion happens
+// when the agent loads it, not when helm renders it -- so what the render must
+// carry is the variable the deployment sets. This is the drift the hardcoded
+// /work could not survive: the chart mounted the work volume elsewhere, the
+// agent's workspace moved with it, and the write was then refused as outside
+// the workspace.
 func TestExecutorWorkDirFollowsTheMount(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
@@ -105,22 +106,21 @@ func TestExecutorWorkDirFollowsTheMount(t *testing.T) {
 	}
 	render := string(out)
 
-	// The helm words must read the moved path, not the baked default.
-	if !strings.Contains(render, "/scratch/overrides.yaml") {
-		t.Error("the rendered exec args still read /work/overrides.yaml under workMountPath=/scratch")
+	// The agent must be told where its workspace is, or write_overrides resolves
+	// against a workspace that no longer contains the path.
+	if !strings.Contains(render, `{name: EXECUTOR_WORK_DIR, value: "/scratch"}`) {
+		t.Error("the executor Deployment does not pass EXECUTOR_WORK_DIR=/scratch; the paths would not follow the mount")
 	}
-	if strings.Contains(render, "/work/overrides.yaml") {
-		t.Error("the rendered chart still carries /work/overrides.yaml under workMountPath=/scratch")
-	}
-	// And the agent must be told where its workspace is, or write_overrides
-	// resolves against a workspace that no longer contains the path.
-	if !strings.Contains(render, "EXECUTOR_WORK_DIR") {
-		t.Error("the executor Deployment does not pass EXECUTOR_WORK_DIR; the write path would not follow the mount")
+	// Both sides must carry the reference rather than a baked path, so the one
+	// variable moves them together.
+	if !strings.Contains(render, "${EXECUTOR_WORK_DIR:-/work}/overrides.yaml") {
+		t.Error("the mounted profile bakes a values-file path instead of the reference; the mount could move without it")
 	}
 }
 
 // TestExecutorDefaultRenderKeepsTheWorkPath proves the parameterization did not
-// move production: a default render still writes and reads /work/overrides.yaml.
+// move production: with the default workMountPath the reference resolves to
+// /work, which is where the executor has always written.
 func TestExecutorDefaultRenderKeepsTheWorkPath(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
@@ -137,7 +137,10 @@ func TestExecutorDefaultRenderKeepsTheWorkPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("helm template: %v\n%s", err, out)
 	}
-	if !strings.Contains(string(out), "/work/overrides.yaml") {
-		t.Error("a default render no longer uses /work/overrides.yaml; production moved")
+	if !strings.Contains(string(out), `{name: EXECUTOR_WORK_DIR, value: "/work"}`) {
+		t.Error("a default render no longer sets EXECUTOR_WORK_DIR=/work; production moved")
+	}
+	if !strings.Contains(string(out), "${EXECUTOR_WORK_DIR:-/work}/overrides.yaml") {
+		t.Error("a default render no longer carries the values-file reference")
 	}
 }

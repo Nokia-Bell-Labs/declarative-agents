@@ -7,8 +7,9 @@
 # params only from the previous result by name (ExecBuilder.Build ->
 # ExtractStringParam), so a per-field parameter would be order-nondeterministic
 # (properties is a Go map) and unsourced. The only dynamic input is the values
-# file content, which the write_overrides word writes to /work/overrides.yaml
-# from the request seed; helm reads that fixed path. The chatbot-mesh release,
+# file content, which the write_overrides word writes from the request seed to
+# the agent's workspace; helm reads the same ${EXECUTOR_WORK_DIR:-/work} path,
+# so one mounted profile follows the workspace mount per pod (srd013 R5.6). The chatbot-mesh release,
 # default namespace, and chatbot-mesh-chatbot deployment below are placeholder
 # defaults kept as valid YAML for agent-core validation; when the chart packages
 # this file, profiles-configmap.yaml rewrites them to the installed release name,
@@ -22,7 +23,7 @@ tools:
   - name: helm_dry_run
     type: exec
     binary: helm
-    args: [upgrade, chatbot-mesh, /chart, --namespace, default, --reuse-values, --atomic, --dry-run, -f, /work/overrides.yaml]
+    args: [upgrade, chatbot-mesh, /chart, --namespace, default, --reuse-values, --atomic, --dry-run, -f, "${EXECUTOR_WORK_DIR:-/work}/overrides.yaml"]
     category: boundary
     visibility: internal
     description: Validate a values patch against the chart values.schema.json without applying it, by rendering the release with helm upgrade --dry-run.
@@ -75,7 +76,7 @@ tools:
   - name: helm_upgrade
     type: exec
     binary: helm
-    args: [upgrade, chatbot-mesh, /chart, --namespace, default, --reuse-values, --atomic, --wait, -f, /work/overrides.yaml]
+    args: [upgrade, chatbot-mesh, /chart, --namespace, default, --reuse-values, --atomic, --wait, -f, "${EXECUTOR_WORK_DIR:-/work}/overrides.yaml"]
     category: boundary
     visibility: internal
     description: Apply a validated values patch by upgrading the release in place, re-rendering the co-generated topology and rolling the affected agents.
