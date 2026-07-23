@@ -132,20 +132,38 @@ implementation_status:
       values apply through coordinator -> creator -> deployment API against the
       real agents and a recording fake, asserting the decided document crosses
       each hop and that no endpoint or credential does.
+    - >-
+      The corpus-ingest child run (R3.1) shipped with GH-762: POST /api/v1/ingest
+      runs a corpus-ingest child agent over the requested directory through
+      agent-core's agent-as-child-CLI contract (srd021) -- the creator runs the
+      agent binary its image already carries against the child profile, so no
+      agent-core change was needed -- then resolves the ingested collection and
+      reads its count to report what the run actually wrote. That read is not
+      redundant with the child's exit code: corpus-ingest reaches its own Succeeded
+      terminal on CountReady whatever the count, so a run that ingested nothing
+      still exits zero. The ingest is its own endpoint and machine leg because
+      initial_signal is per-endpoint and a machine cannot branch on a body field,
+      which is why an ingest posted at /instance could only ever take the
+      values-apply leg (GH-755).
   planned:
     - >-
-      The corpus-ingest child run (R3.1, AC3). The creator declares one client
-      (deployment_api) and its request-machine drives apply_instance on Seed
-      whatever the operation names, so an ingest operation was only ever a values
-      apply wearing a label: no corpus-ingest instance is created, and the
-      {collection, count} the coordinator declares it reads back (srd004 R2.1) is
-      never populated, which leaves the 422 shortfall leg unreachable. This stayed
-      invisible while apply_instance took an operation-shaped body; once it became
-      {schema_version, content} (GH-521) an ingest carried no content and failed in
-      request rendering, which is how GH-755 surfaced it. Realizing R3.1 needs its
-      own machine leg and endpoint -- corpus-ingest is a one-shot batch agent with
-      no server, so the creator cannot reach it over REST the way it reaches the
-      deployment API -- and is tracked separately.
+      Rejecting an ingest that did not meet the requested source (AC3's shortfall
+      half). That decision is a comparison against zero and no declarative
+      primitive expresses one: response schema validation implements only required
+      and type, and no builtin emits a signal from a value test (tracked in
+      agent-core). Pushing the check into corpus-ingest was rejected because that
+      agent reaches Succeeded whatever the count, so changing it would alter its
+      contract for every other caller. The ingest endpoint therefore declares no
+      422 and the coordinator's Rejected leg (srd004 R2.1) stays unreachable until
+      the primitive exists.
+    - >-
+      Ingesting into a caller-named collection. The coordinator sends a collection
+      with its intent, but it does not reach the child: agent-core exec tools pass
+      no environment (srd021) and the corpus-ingest profile hardcodes its
+      collection name, so the child always writes that profile's own collection,
+      which is also the one the creator reads back. The endpoint accepts the field
+      so the declared intent stays whole; honouring it needs the child profile
+      parameterized first.
 
 diagrams:
   requirements_trace: |

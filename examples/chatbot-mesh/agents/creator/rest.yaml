@@ -18,6 +18,20 @@ rest:
         # loopback locally.
         hosts: [${PROVISIONER_HOST:-127.0.0.1}]
         ports: [18090]
+    local_chroma_client:
+      # The creator reads the ingested collection's count to report a child run's
+      # outcome (srd005 R3.1). Read-only: the corpus-ingest child does the writing,
+      # and the creator declares no add or delete operation.
+      timeout: 30s
+      read_timeout: 30s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        schemes: [http]
+        hosts: [${CHROMA_HOST:-127.0.0.1}]
+        ports: [8000]
     local_creator_instance:
       timeout: 130s
       read_timeout: 130s
@@ -158,6 +172,72 @@ rest:
             classification: reversible
             undo: noop
 
+    chroma:
+      # The vector store the corpus-ingest child writes into. The creator reads it
+      # back to report the child run's outcome (srd005 R3.1) rather than trusting
+      # the child's exit code alone: a run can exit zero having written nothing.
+      base_url: ${CHROMA_URL:-http://127.0.0.1:8000}
+      auth_ref: none
+      limits_ref: local_chroma_client
+      operations:
+        resolve_ingest_collection:
+          # Resolve the collection the child ingested into, to its id. get_or_create
+          # keeps the read total: a collection the child never created resolves to an
+          # empty one and counts zero, rather than failing as a missing resource.
+          #
+          # The name is the corpus-ingest profile's own configured collection, which
+          # that profile hardcodes (agents/corpus-ingest/corpus-rest.yaml). It is not
+          # per-request: agent-core exec tools pass no environment, so the child
+          # cannot be told a different collection at invocation. Ingesting into a
+          # caller-named collection needs the child profile parameterized first, and
+          # is tracked separately.
+          method: POST
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections
+          params:
+            body_source: previous_result
+            input_mapping: {}
+          body:
+            name: corpus
+            get_or_create: true
+          success: {status: [200, 201], signal: CollectionResolved}
+          response:
+            output:
+              collection_id: $.id
+          side_effects:
+            - kind: external_api
+              target: chroma.collection
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        count_ingested_documents:
+          # Chroma answers this with a bare integer, which agent-core cannot decode
+          # into an object, so it lands under `raw` as a string (client_response.go
+          # decodeResponsePayload). The count therefore travels as a string; nothing
+          # downstream does arithmetic on it.
+          method: GET
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections/{collection}/count
+          params:
+            path:
+              collection: {type: string}
+            body_source: previous_result
+            # $.mapped.collection_id, not $.collection_id: a REST word's output
+            # arrives nested under mapped, which is how corpus-ingest's own
+            # count_records selects the same id.
+            input_mapping:
+              collection: $.mapped.collection_id
+          success: {status: [200], signal: DocumentsCounted}
+          response:
+            output:
+              count: $.raw
+          side_effects:
+            - kind: external_api
+              target: chroma.count
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+
   servers:
     creator_instance:
       # The instance endpoint is served on its own service and port, reached only by
@@ -263,6 +343,64 @@ rest:
                     error: rollout_read_failed
                     stage: $.failure_stage
                     message: $.message
+        ingest:
+          # The corpus-ingest child run the coordinator delegates (srd004 R2.1,
+          # srd005 R3.1). Its own endpoint rather than an operation on /instance,
+          # because initial_signal is per-endpoint: the machine cannot branch on a
+          # body field, which is why an ingest posted at /instance could only ever
+          # take the values-apply leg (GH-755).
+          method: POST
+          path: /api/v1/ingest
+          binding: machine_request
+          request:
+            body_schema:
+              type: object
+              required: [directory]
+              properties:
+                directory: {type: string}
+                collection: {type: string}
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            timeout: 600s
+            initial_signal: SeedIngest
+            request:
+              body:
+                # The directory becomes the child's workspace; the corpus-ingest
+                # profile roots its document resource there. collection is accepted
+                # so the coordinator's declared intent stays whole, but it does not
+                # reach the child: agent-core exec tools pass no environment, and
+                # the child profile hardcodes its collection name. Ingesting into a
+                # caller-named collection needs that profile parameterized first.
+                directory: $.directory
+            response:
+              # Keyed by terminal state. The child-run and Chroma words emit a fixed
+              # signal vocabulary, so signal keying could not separate a failed child
+              # from an unreadable collection (agent-core srd030 R4.6, GH-615).
+              #
+              # There is no 422 here. Rejecting a shortfall is a comparison against
+              # zero and no declarative primitive expresses one, so the coordinator's
+              # Rejected leg stays unreachable rather than being faked; it is tracked
+              # separately.
+              terminal_states:
+                Ingested:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    status: ingested
+                    # Carried as a string: Chroma answers count with a bare integer,
+                    # which agent-core stores under raw rather than decoding to a
+                    # number. $.mapped.count, like the rollout and state endpoints:
+                    # a REST word's output arrives nested under mapped.
+                    count: $.mapped.count
+                IngestFailed:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    status: ingest_failed
+                    error: ingest_failed
         state:
           # The deployed mesh view the coordinator carries to the provisioning
           # panel's initial load (srd006 R1.5). Reached by the coordinator, not a
