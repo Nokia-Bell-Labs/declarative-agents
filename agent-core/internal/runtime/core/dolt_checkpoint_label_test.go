@@ -4,6 +4,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -42,9 +43,11 @@ func TestDoltCheckpointSchemaUpgradeAddsNullableLabel(t *testing.T) {
 	_, restored, err := fresh.Load()
 	require.NoError(t, err)
 	require.Empty(t, restored[0].Label)
-	output, ok := NewCommandStateView(restored).Lookup("invoke")
-	require.True(t, ok, "a legacy null label falls back to command_name")
-	require.Equal(t, "hi", output)
+	view := NewCommandStateView(restored)
+	_, err = ResolveFromSelector(view, "$from(invoke).value")
+	var unavailable *CommandStateOutputUnavailableError
+	require.True(t, errors.As(err, &unavailable), "legacy output is blocked after command-name matching")
+	require.Equal(t, "invoke", unavailable.Label)
 }
 
 func TestCommandStateAuthoredLabelPersistsAcrossDoltRestart(t *testing.T) {
@@ -110,17 +113,17 @@ transitions:
 	require.Equal(t, "receipt:second_command", restored[1].Receipt)
 
 	view := NewCommandStateView(restored)
-	value, err := ResolveFromSelector(view, "$from(repeated).value")
-	require.NoError(t, err)
-	require.Equal(t, "second_command", value, "duplicate restored labels resolve to the highest step")
+	_, err = ResolveFromSelector(view, "$from(repeated).value")
+	var unavailable *CommandStateOutputUnavailableError
+	require.True(t, errors.As(err, &unavailable))
+	require.Equal(t, "repeated", unavailable.Label, "the newest restored label matches before legacy output denial")
 
-	value, err = ResolveFromSelector(view, "$from(first_command).value")
-	require.NoError(t, err, "restored entries retain command-name addressing")
-	require.Equal(t, "first_command", value)
+	_, err = ResolveFromSelector(view, "$from(first_command).value")
+	require.True(t, errors.As(err, &unavailable))
+	require.Equal(t, "first_command", unavailable.Label, "restored entries retain command-name matching")
 
 	_, err = ResolveFromSelector(view, "$from(repeated).receipt")
-	var pathErr *UnresolvedPathError
-	require.ErrorAs(t, err, &pathErr, "the forward view cannot resolve the separately restored receipt")
+	require.True(t, errors.As(err, &unavailable), "legacy output denial does not expose the separate receipt")
 }
 
 type labelOutputBuilder struct {

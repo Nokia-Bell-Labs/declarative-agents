@@ -89,12 +89,20 @@ func TestExecBuilderCommandStateSourceAcrossInterveningStep(t *testing.T) {
 		{
 			CommandName: "seed",
 			Label:       "seed",
-			Result:      core.ResultDigest{Output: `{"parameters":{"directory":"/tmp/corpus"}}`},
+			Result: core.ResultDigest{
+				Output:           `{"parameters":{"directory":"/tmp/corpus"}}`,
+				RedactionVersion: core.OutputRedactionVersion1,
+				RedactionStatus:  core.OutputRedactionApplied,
+			},
 		},
 		{
 			CommandName: "count_before",
 			Label:       "count_before",
-			Result:      core.ResultDigest{Output: `{"mapped":{"count":"4"}}`},
+			Result: core.ResultDigest{
+				Output:           `{"mapped":{"count":"4"}}`,
+				RedactionVersion: core.OutputRedactionVersion1,
+				RedactionStatus:  core.OutputRedactionApplied,
+			},
 		},
 	}))
 
@@ -126,7 +134,11 @@ func TestExecBuilderCommandStateSourceFailures(t *testing.T) {
 		cmd.(core.CommandStateAware).SetCommandState(core.NewCommandStateView(core.Execution{{
 			CommandName: "seed",
 			Label:       "seed",
-			Result:      core.ResultDigest{Output: `{"parameters":{"directory":"/tmp/corpus"}}`},
+			Result: core.ResultDigest{
+				Output:           `{"parameters":{"directory":"/tmp/corpus"}}`,
+				RedactionVersion: core.OutputRedactionVersion1,
+				RedactionStatus:  core.OutputRedactionApplied,
+			},
 		}}))
 
 		result := cmd.Execute()

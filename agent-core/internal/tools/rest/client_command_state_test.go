@@ -50,8 +50,8 @@ func TestRESTClient_CommandStateThreadsNonAdjacentStep(t *testing.T) {
 	// The store view holds embed_query and a later intervening step, so word 3
 	// resolves embed_query non-adjacently by label.
 	view := core.NewCommandStateView(core.Execution{
-		{CommandName: "embed_query", Result: core.ResultDigest{Output: embedResult.Output}},
-		{CommandName: "record_event", Result: core.ResultDigest{Output: `{"status":"logged"}`}},
+		{CommandName: "embed_query", Result: commandStateDigest(embedResult.Output)},
+		{CommandName: "record_event", Result: commandStateDigest(`{"status":"logged"}`)},
 	})
 
 	queryCmd := threadingCommand(resolveThreadingOp(t, def, "chroma", "query_collection"), core.Result{})
@@ -67,8 +67,8 @@ func TestRESTClient_CommandStateThreadsNonAdjacentStep(t *testing.T) {
 func TestRESTClient_CommandStateDuplicateLabelMostRecentWins(t *testing.T) {
 	t.Parallel()
 	view := core.NewCommandStateView(core.Execution{
-		{CommandName: "embed_query", Result: core.ResultDigest{Output: `{"embedding":[1]}`}},
-		{CommandName: "embed_query", Result: core.ResultDigest{Output: `{"embedding":[2]}`}},
+		{CommandName: "embed_query", Result: commandStateDigest(`{"embedding":[1]}`)},
+		{CommandName: "embed_query", Result: commandStateDigest(`{"embedding":[2]}`)},
 	})
 	binding := RequestBinding{
 		BodySchema:   objectSchema([]string{"query_embeddings"}, map[string]string{"query_embeddings": "array"}),
@@ -83,7 +83,7 @@ func TestRESTClient_CommandStateDuplicateLabelMostRecentWins(t *testing.T) {
 func TestRESTClient_CommandStateMissNamesLabel(t *testing.T) {
 	t.Parallel()
 	view := core.NewCommandStateView(core.Execution{
-		{CommandName: "other_step", Result: core.ResultDigest{Output: `{"x":1}`}},
+		{CommandName: "other_step", Result: commandStateDigest(`{"x":1}`)},
 	})
 	binding := RequestBinding{
 		BodySchema:   objectSchema([]string{"query_embeddings"}, map[string]string{"query_embeddings": "array"}),

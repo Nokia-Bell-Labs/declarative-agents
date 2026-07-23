@@ -417,7 +417,11 @@ func TestValuePredicatePreservesTypedCommandStateErrors(t *testing.T) {
 		view := core.NewCommandStateView(core.Execution{{
 			CommandName: "collect",
 			Label:       "before",
-			Result:      core.ResultDigest{Output: `{"mapped":{}}`},
+			Result: core.ResultDigest{
+				Output:           `{"mapped":{}}`,
+				RedactionVersion: core.OutputRedactionVersion1,
+				RedactionStatus:  core.OutputRedactionApplied,
+			},
 		}})
 		got := runWithView(t, `{"mapped":{"count":"6"}}`, view, ValuePredicateBuilder{
 			Left: "$.mapped.count", Op: OpGt, Right: "$from(before).mapped.count",

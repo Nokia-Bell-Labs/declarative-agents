@@ -11,9 +11,17 @@ import (
 
 func cmdStateExecution() Execution {
 	return Execution{
-		{Iteration: 1, CommandName: "embed_query", Label: "query_embedding", Result: ResultDigest{Output: "vec-0"}, Receipt: `{"r":0}`},
-		{Iteration: 2, CommandName: "record_event", Label: "audit", Result: ResultDigest{Output: "logged"}, Receipt: `{"r":1}`},
-		{Iteration: 3, CommandName: "embed_query_retry", Label: "query_embedding", Result: ResultDigest{Output: "vec-2"}, Receipt: `{"r":2}`},
+		{Iteration: 1, CommandName: "embed_query", Label: "query_embedding", Result: commandStateDigest("vec-0"), Receipt: `{"r":0}`},
+		{Iteration: 2, CommandName: "record_event", Label: "audit", Result: commandStateDigest("logged"), Receipt: `{"r":1}`},
+		{Iteration: 3, CommandName: "embed_query_retry", Label: "query_embedding", Result: commandStateDigest("vec-2"), Receipt: `{"r":2}`},
+	}
+}
+
+func commandStateDigest(output string) ResultDigest {
+	return ResultDigest{
+		Output:           output,
+		RedactionVersion: OutputRedactionVersion1,
+		RedactionStatus:  OutputRedactionApplied,
 	}
 }
 
@@ -52,8 +60,8 @@ func TestCommandStateViewCommandNameFallbackAndAddressCollision(t *testing.T) {
 	t.Parallel()
 
 	view := NewCommandStateView(Execution{
-		{CommandName: "collect", Label: "shared", Result: ResultDigest{Output: "older-label"}},
-		{CommandName: "shared", Label: "publish", Result: ResultDigest{Output: "newer-command"}},
+		{CommandName: "collect", Label: "shared", Result: commandStateDigest("older-label")},
+		{CommandName: "shared", Label: "publish", Result: commandStateDigest("newer-command")},
 	})
 
 	out, ok := view.Lookup("collect")
@@ -64,13 +72,13 @@ func TestCommandStateViewCommandNameFallbackAndAddressCollision(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "newer-command", out, "one newest-to-oldest scan governs address collisions")
 
-	legacy := NewCommandStateView(Execution{{
-		CommandName: "legacy_step",
-		Result:      ResultDigest{Output: "legacy"},
+	unlabeled := NewCommandStateView(Execution{{
+		CommandName: "unlabeled_step",
+		Result:      commandStateDigest("unlabeled"),
 	}})
-	out, ok = legacy.Lookup("legacy_step")
+	out, ok = unlabeled.Lookup("unlabeled_step")
 	require.True(t, ok)
-	require.Equal(t, "legacy", out)
+	require.Equal(t, "unlabeled", out)
 }
 
 func TestCommandStateViewEmptyLog(t *testing.T) {
@@ -156,7 +164,7 @@ func TestResolveFromSelectorTypedErrors(t *testing.T) {
 		view := NewCommandStateView(Execution{{
 			CommandName: "load",
 			Label:       "source",
-			Result:      ResultDigest{Output: `{"mapped":{}}`},
+			Result:      commandStateDigest(`{"mapped":{}}`),
 		}})
 		_, err := ResolveFromSelector(view, "$from(source).mapped.id")
 		var target *UnresolvedPathError

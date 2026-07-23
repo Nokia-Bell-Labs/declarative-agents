@@ -71,8 +71,8 @@ func TestRESTClient_CommandStateTracerBulletNonAdjacentWithRestart(t *testing.T)
 
 	// The loop's execution log after two steps.
 	execution := core.Execution{
-		{Iteration: 1, CommandName: "embed_query", Result: core.ResultDigest{Output: embedResult.Output}},
-		{Iteration: 2, CommandName: "transform_event", Result: core.ResultDigest{Output: transformResult.Output}},
+		{Iteration: 1, CommandName: "embed_query", Result: commandStateDigest(embedResult.Output)},
+		{Iteration: 2, CommandName: "transform_event", Result: commandStateDigest(transformResult.Output)},
 	}
 
 	// Suspend and resume in a fresh process: persist the log, drop live state,

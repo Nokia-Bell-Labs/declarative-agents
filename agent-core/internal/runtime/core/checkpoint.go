@@ -107,8 +107,20 @@ type AgentSnapshot struct {
 // ResultDigest is the serializable portion of a command result retained in
 // each Execution Entry.
 type ResultDigest struct {
-	Signal Signal `json:"signal"`
-	Output string `json:"output,omitempty"`
-	Error  string `json:"error,omitempty"`
-	Cost   Cost   `json:"cost"`
+	Signal           Signal                `json:"signal"`
+	Output           string                `json:"output,omitempty"`
+	Error            string                `json:"error,omitempty"`
+	Cost             Cost                  `json:"cost"`
+	RedactionVersion uint16                `json:"redaction_version,omitempty"`
+	RedactedPaths    []OutputRedactionPath `json:"redacted_paths,omitempty"`
+	RedactionStatus  OutputRedactionStatus `json:"redaction_status,omitempty"`
 }
+
+// OutputRedactionStatus records whether typed field removal succeeded or core
+// discarded the complete output to fail closed (srd035 R7.2, R7.5).
+type OutputRedactionStatus string
+
+const (
+	OutputRedactionApplied OutputRedactionStatus = "applied"
+	OutputRedactionOmitted OutputRedactionStatus = "output_omitted"
+)
