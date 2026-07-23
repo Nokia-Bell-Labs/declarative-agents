@@ -44,9 +44,14 @@ const (
 	OperandString = "string"
 )
 
-// selectorPrefix marks an operand as a path into the previous Result rather than
-// a literal (srd041 R1.3).
-const selectorPrefix = "$."
+// Operand prefixes (srd041 R1.3). selectorPrefix addresses the previous Result;
+// fromPrefix addresses an earlier labelled step through the command-state view,
+// which is how a predicate compares across a word whose Result carries nothing
+// forward -- an exec word, for instance (GH-774). Anything else is a literal.
+const (
+	selectorPrefix = "$."
+	fromPrefix     = "$from("
+)
 
 // unaryOps test the left operand alone and ignore any right operand (R2.3).
 var unaryOps = map[string]bool{OpEmpty: true, OpNonEmpty: true}
@@ -93,13 +98,15 @@ func ValidateValuePredicateConfig(toolName, left, op, right, operandType, satisf
 		return fmt.Errorf("tool %q: unknown operand type %q, want %q or %q (srd041 R3.1)",
 			toolName, operandType, OperandNumber, OperandString)
 	}
-	// $from(label) addresses the command-state view, which this word does not
-	// read: R1.3 resolves operands against the previous Result. Rejecting it
-	// here is louder than treating it as a literal, which would compare the
-	// selector text itself and quietly never match.
+	// A $from(label).path operand is validated here so a malformed one fails
+	// registration rather than at dispatch (R1.3, R1.6). ParseFromSelector
+	// rejects empty labels and paths and malformed parentheses (srd038 R2.5).
 	for _, operand := range []string{left, right} {
-		if strings.HasPrefix(operand, "$from(") {
-			return fmt.Errorf("tool %q: operand %q addresses command state; this word resolves against the previous Result (srd041 R1.3)",
+		if !strings.HasPrefix(operand, fromPrefix) {
+			continue
+		}
+		if _, _, ok := core.ParseFromSelector(operand); !ok {
+			return fmt.Errorf("tool %q: operand %q is not a valid $from(label).path selector (srd041 R1.3)",
 				toolName, operand)
 		}
 	}
@@ -132,9 +139,16 @@ type valuePredicateCmd struct {
 	satisfied   core.Signal
 	unsatisfied core.Signal
 	prev        core.Result
+	view        core.CommandStateView
 }
 
 func (c *valuePredicateCmd) Name() string { return c.name }
+
+// SetCommandState receives the read-only command-state view, so a $from(label)
+// operand can address an earlier step. The engine injects it before dispatch.
+func (c *valuePredicateCmd) SetCommandState(view core.CommandStateView) { c.view = view }
+
+var _ core.CommandStateAware = (*valuePredicateCmd)(nil)
 
 // Undo is a noop: comparing two values changes nothing (srd041 R5.2).
 func (c *valuePredicateCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
@@ -161,11 +175,20 @@ func (c *valuePredicateCmd) Execute() core.Result {
 	return c.signalFor(held, left, right)
 }
 
-// resolveOperand returns a literal unchanged and resolves a selector against the
-// previous Result. An unresolved selector is an error rather than a zero value,
-// so it reaches Execute's fault path instead of silently comparing as empty
-// (srd041 R4.2).
+// resolveOperand returns a literal unchanged, resolves a $. selector against the
+// previous Result, and resolves a $from(label).path selector against the
+// command-state view. Either selector form that does not resolve is an error
+// rather than a zero value, so it reaches Execute's fault path instead of
+// silently comparing as empty (srd041 R4.2) -- a label that never ran must not
+// read as a false comparison any more than a mistyped path does.
 func (c *valuePredicateCmd) resolveOperand(operand string, output map[string]interface{}) (interface{}, error) {
+	if strings.HasPrefix(operand, fromPrefix) {
+		value, err := core.ResolveFromSelector(c.view, operand)
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
+	}
 	if !strings.HasPrefix(operand, selectorPrefix) {
 		return operand, nil
 	}

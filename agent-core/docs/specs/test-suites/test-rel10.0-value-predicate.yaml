@@ -137,3 +137,47 @@ test_cases:
       - rel10.0-uc001-value-predicate-branch S1
       - srd041-value-predicate-tool AC1
       - srd041-value-predicate-tool AC6
+
+  - use_case: rel10.0-uc001-value-predicate-branch
+    name: A predicate compares across an intervening word
+    go_test: go test ./internal/tools/control -run TestValuePredicateComparesAcrossAnInterveningWord
+    status: implemented
+    description: |
+      A predicate compares a value from an earlier labelled step against one
+      from the previous Result, so a machine can measure a change across an
+      action rather than only a level after it. The words are not adjacent, and
+      the word between them is an exec word whose Result carries nothing
+      forward, so the earlier value is reachable only through command state
+      (GH-774).
+    inputs:
+      before_step: "count_before, output {mapped:{count:'4'}}"
+      after_previous_result: "{mapped:{count:'6'}} and {mapped:{count:'4'}}"
+      comparison: "$.mapped.count gt $from(count_before).mapped.count"
+    expected:
+      grew: satisfied
+      unchanged: unsatisfied
+      both_operands_from_earlier_steps: satisfied
+    traces:
+      - rel10.0-uc001-value-predicate-branch S1
+      - srd041-value-predicate-tool AC1
+
+  - use_case: rel10.0-uc001-value-predicate-branch
+    name: An unreachable label is a fault, not a shortfall
+    go_test: go test ./internal/tools/control -run TestValuePredicateUnreachableLabelIsAFault
+    status: implemented
+    description: |
+      The failure separation holds for the command-state operand form too. A
+      label that never ran, a path absent from the step it names, and a missing
+      view each emit CommandError rather than the unsatisfied signal, so a
+      machine never reads an unreachable operand as a legitimate negative.
+    inputs:
+      no_such_label: "$from(count_before).mapped.count with only other_step recorded"
+      missing_path: "$from(count_before).mapped.count with count_before output {mapped:{}}"
+      no_view: "$from(count_before).mapped.count with no command-state view"
+    expected:
+      signal: CommandError
+      never: the configured unsatisfied signal
+      output: explains which operand could not be reached
+    traces:
+      - rel10.0-uc001-value-predicate-branch S4
+      - srd041-value-predicate-tool AC4

@@ -43,11 +43,12 @@ requirements:
     items:
       - R1.1: The declaration SHALL set type builtin and an init name resolved through BuiltinRegistry (srd022 R1.1, R1.3, R2.1).
       - R1.2: Configuration SHALL name the left operand, the comparison operator, and the right operand.
-      - R1.3: An operand SHALL be either a selector or a literal. A value beginning with the selector prefix is resolved against the previous Result; any other value is a literal.
+      - R1.3: An operand SHALL be either a selector or a literal. A value beginning with the current-value selector prefix SHALL resolve against the previous Result, a value beginning with the $from(label) prefix SHALL resolve against the command-state view (srd038 R2), and any other value is a literal. Both forms are needed because a predicate's operands are not always adjacent. Measuring a change across an action rather than a level after one puts a word between them, and a word whose Result carries nothing forward -- an exec word running a child, for instance -- leaves the earlier value reachable only through command state.
       - R1.4: Configuration SHALL name the signal emitted when the comparison holds and the signal emitted when it does not.
       - R1.5: Configuration SHALL be decoded into a typed struct by DecodeToolConfig at registration time, and a decode failure SHALL name the tool (srd022 R3.1, R3.3).
       - R1.6: Registration SHALL fail when the operator is not one this SRD names, or when either signal name is absent, so a misconfigured predicate never reaches a run.
       - R1.7: No operand, operator, or signal name SHALL be supplied by runtime input; a predicate's decision is declared, not chosen by a model or a request body.
+      - R1.8: A malformed $from(label).path operand SHALL fail registration, so an empty label, an empty path, or unbalanced parentheses is refused before a run rather than at dispatch (srd038 R2.5).
 
   R2:
     title: Operators
@@ -71,7 +72,7 @@ requirements:
     title: Signals and failure separation
     items:
       - R4.1: The word SHALL emit the configured satisfied signal when the comparison holds and the configured unsatisfied signal when it does not.
-      - R4.2: An operand selector that does not resolve, and a coercion that fails, SHALL emit CommandError. Neither SHALL emit the unsatisfied signal. A broken selector answering "the value was false" is the failure mode this requirement exists to prevent, and it is a silent one -- the machine takes a legitimate-looking branch on a comparison that never happened. The distinction is the one srd030 R4.6 draws between a broken read and a real outcome.
+      - R4.2: An operand selector that does not resolve -- including a $from(label) naming a step that never ran, or a path absent from the step it names -- and a coercion that fails, SHALL emit CommandError. Neither SHALL emit the unsatisfied signal. A broken selector answering "the value was false" is the failure mode this requirement exists to prevent, and it is a silent one -- the machine takes a legitimate-looking branch on a comparison that never happened. The distinction is the one srd030 R4.6 draws between a broken read and a real outcome.
       - R4.3: The declaration's emits SHALL list the configured signals and CommandError.
       - R4.4: Output SHALL report the resolved operands and the comparison outcome, so a run's trace shows what was compared and not only which branch it took.
 
@@ -108,7 +109,7 @@ acceptance_criteria:
 
   - id: AC5
     criterion: A malformed operator or a missing signal name fails registration with the tool name in the error, before any run.
-    traces: [R1.5, R1.6, R1.7]
+    traces: [R1.5, R1.6, R1.7, R1.8]
 
   - id: AC6
     criterion: The word records no side effect, reverses as a noop, and mutates no command state, workspace, or history.
