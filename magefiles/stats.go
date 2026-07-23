@@ -14,8 +14,25 @@ import (
 // Stats runs mage stats in each sub-module and participating example module,
 // then outputs combined JSON to stdout. Modules that own agents report an
 // "agents" section; the combined output adds an "agents_total" key summing
-// those sections across the repository (GH-754).
+// those sections across the repository (GH-754). Values that fit on one line
+// are printed on one line, so a leaf such as {"files": 4, "lines": 145} reads
+// as a single fact (GH-758).
 func Stats() error {
+	raw, err := collectStats()
+	if err != nil {
+		return err
+	}
+	formatted, err := formatJSON(raw)
+	if err != nil {
+		return err
+	}
+	_, err = os.Stdout.Write(formatted)
+	return err
+}
+
+// collectStats dispatches mage stats to every participating module and returns
+// the combined document, including the repository-wide agents_total.
+func collectStats() ([]byte, error) {
 	results := make(map[string]json.RawMessage)
 
 	for _, mod := range statsParticipants() {
@@ -26,25 +43,32 @@ func Stats() error {
 
 		raw, err := runMageStats(mod)
 		if err != nil {
-			return fmt.Errorf("stats in %s: %w", mod, err)
+			return nil, fmt.Errorf("stats in %s: %w", mod, err)
 		}
 		results[mod] = raw
 	}
 
 	total, err := sumAgentsTotals(results)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	rawTotal, err := json.Marshal(total)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	results["agents_total"] = rawTotal
+	results[agentsTotalKey] = rawTotal
 
-	enc := json.NewEncoder(os.Stdout)
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
 	enc.SetIndent("", "  ")
-	return enc.Encode(results)
+	if err := enc.Encode(results); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
+
+// agentsTotalKey is the combined document's repository-wide agents total.
+const agentsTotalKey = "agents_total"
 
 // agentsTotalJSON mirrors the "agents.total" object each module's stats
 // target emits for its agents/ directory.
