@@ -498,8 +498,9 @@ parameter_extensions:
     Exec tools support custom JSON Schema extensions on individual
     parameter properties. These extensions control how parameter values
     are mapped to CLI arguments when invoking the external executable.
-    All extensions are stripped from the schema before it is sent to the
-    LLM, so the model never sees CLI-level details.
+    A source extension can instead select a value from an earlier command-state
+    entry. All extensions are stripped from the schema before it is sent to the
+    LLM, so the model never sees CLI-level or command-state wiring details.
   fields:
     - field: flag
       type: string
@@ -532,6 +533,18 @@ parameter_extensions:
         Positive ordering key for mapped arguments. Positioned mappings are
         appended in ascending order after the tool's base args. Unpositioned
         mappings follow in stable parameter-name order.
+
+    - field: source
+      type: string
+      description: |
+        Optional canonical $from(<label>).<dotted-path> selector. The exec
+        command resolves it from the injected command-state view before
+        subprocess launch. When omitted, the parameter keeps the existing
+        parameters.<name> lookup against the immediately previous Result.
+        A malformed selector fails declaration validation. An unresolved label
+        or path emits CommandError and prevents subprocess launch; it never
+        substitutes an empty value.
+      example: "$from(seed).parameters.directory"
 
 declaration_files:
   - file: tools/builtin/

@@ -13,6 +13,7 @@ preconditions:
   - srd006-yaml-machine-config and cfg-machine-format define optional TransitionSpec label as the authored command-state address, distinct from command_name and metric_labels.
   - Epics GH-269 (persistence split) and GH-270 (core store and REST consumption) established the original executable evidence.
   - GH-781, GH-782, and GH-783 add authored-label capture, typed selector errors, and restart persistence evidence.
+  - GH-787 specifies exec parameter sources and the reserved machine_request seed; GH-786 adds their executable evidence.
 
 test_cases:
   - use_case: rel07.0-uc001-command-state-threading
@@ -58,6 +59,77 @@ test_cases:
       - rel07.0-uc001-command-state-threading S1
       - srd038-command-state-store AC2
       - srd028-rest-client-tools AC12
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Exec arguments select a non-adjacent labelled result
+    planned_go_test: go test ./internal/tools/exec -run TestExecBuilderCommandStateSourceAcrossInterveningStep
+    status: planned
+    owner: GH-786
+    description: |
+      An exec parameter whose declaration names source resolves from an earlier
+      labelled entry after another word has completed. A parameter without
+      source still resolves from the immediately previous Result.
+    inputs:
+      chain: [capture_request, count_before, run_corpus_ingest]
+      sourced_parameter: {name: directory, source: "$from(capture_request).parameters.directory"}
+      adjacent_parameter: {name: mode, previous_result_path: parameters.mode}
+    expected:
+      sourced_argument_present: true
+      intervening_word_ignored: true
+      adjacent_mapping_unchanged: true
+    traces:
+      - rel07.0-uc001-command-state-threading S1
+      - srd038-command-state-store AC2
+      - srd023-cli-exec-tools AC2
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Broken exec sources fail before subprocess launch
+    planned_go_test: go test ./internal/tools/exec -run TestExecBuilderCommandStateSourceFailures
+    status: planned
+    owner: GH-786
+    description: |
+      Missing labels and paths preserve their typed selector causes and emit
+      CommandError. The exec word does not launch its binary with an empty
+      argument. A malformed source fails declaration validation before the run.
+    inputs:
+      missing_label: "$from(absent).parameters.directory"
+      missing_path: "$from(seed).parameters.absent"
+      malformed_source: "$from(seed"
+    expected:
+      signal: CommandError
+      typed_cause_preserved: true
+      subprocess_started: false
+      malformed_source_rejected_at_startup: true
+    traces:
+      - rel07.0-uc001-command-state-threading E1
+      - srd038-command-state-store AC1
+      - srd023-cli-exec-tools AC3
+      - srd023-cli-exec-tools AC4
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Machine request seed remains addressable after intervening words
+    planned_go_test: go test ./internal/tools/rest -run TestMachineRequestSeedCommandStateAddress
+    status: planned
+    owner: GH-786
+    description: |
+      A fresh machine_request execution contains one synthetic entry labelled
+      seed whose output matches InitialResult. An exec word after intervening
+      reads resolves mapped input through $from(seed).parameters.directory, and
+      resumed execution does not prepend a second seed.
+    inputs:
+      selector: "$from(seed).parameters.directory"
+      intervening_words: 2
+      resume_with_seed_entry: true
+    expected:
+      directory_resolved: true
+      seed_entries_fresh_run: 1
+      seed_entries_resumed_run: 1
+    traces:
+      - rel07.0-uc001-command-state-threading S1
+      - rel07.0-uc001-command-state-threading S3
+      - srd038-command-state-store AC1
+      - srd038-command-state-store AC2
+      - srd030-machine-request-rest-binding AC4
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Duplicate authored labels resolve to the most recent step
