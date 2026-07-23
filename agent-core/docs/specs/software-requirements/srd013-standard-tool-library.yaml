@@ -82,6 +82,8 @@ requirements:
       - R5.3: RegisterSingleBuiltin resolves a ToolDef against the BuiltinRegistry and registers the resulting Builder in the core.Registry.
       - R5.4: LoadToolDefs parses YAML tool declaration files and returns ToolDef slices. This is the legacy path; production uses LoadToolDeclarations + LoadToolSelection + SelectTools.
       - R5.5: Legacy RegisterFileTools, RegisterBuildTools, and RegisterAll helpers remain for programmatic use.
+      - R5.6: Tool declaration files SHALL have ${VAR} and ${VAR:-default} environment references expanded before parsing, under the same rules the REST definition loader applies, so one mounted declaration parameterizes per pod. A set variable wins; otherwise the default applies, or empty when the variable is unset with no default. Non-brace uses of $ are untouched.
+      - R5.7: A declared provider address that differs between a local run and a deployment SHALL be written as an environment reference carrying the local address as its default, so the shipped declaration runs unconfigured and a deployment overrides it without editing the program.
 
   R6:
     title: Workspace utilities
@@ -182,6 +184,10 @@ acceptance_criteria:
   - id: AC5
     criterion: BuiltinRegistry maps init names to factory functions. YAML tool declarations are loaded via LoadToolDeclarations + LoadToolSelection + SelectTools (production path) or the legacy LoadToolDefs, and registered via RegisterSingleBuiltin. Legacy Register* helpers remain available.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+
+  - id: AC10
+    criterion: Tool declarations expand ${VAR} and ${VAR:-default} before parsing, by the same rules the REST definition loader applies. A set variable wins, an unset one falls back to the declared default, and $-prefixed selectors are unchanged. A declared provider address carries the local address as its default, so the shipped declaration runs unconfigured and a deployment overrides it by setting the variable.
+    traces: [R5.6, R5.7]
 
   - id: AC8
     criterion: Generator validation order is visible in machine.yaml; validate only runs an explicitly supplied sequence when selected, remains internal-only, and is documented as a compatibility boundary aggregator. nudge_reread appends re-read instructions. done signals TaskCompleted.

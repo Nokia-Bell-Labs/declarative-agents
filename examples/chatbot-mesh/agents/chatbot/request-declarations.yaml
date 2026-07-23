@@ -107,7 +107,7 @@ tools:
     config:
       model: "qwen2.5:3b"
       provider: ollama
-      provider_url: "http://localhost:11434"
+      provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       # manifest_state is the tool manifest the router selects over and the state
       # parse_route validates the chosen word against (parse_response's StateFunc
       # tracks the most recent invoke_llm manifest state). It must be Answering,
@@ -246,7 +246,7 @@ tools:
     config:
       model: "qwen2.5:3b"
       provider: ollama
-      provider_url: "http://localhost:11434"
+      provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: Answering
       response_profile: qwen
       user_prompt_from: "$from(compose_prompt)"
@@ -327,7 +327,7 @@ tools:
     config:
       model: "ornith:9b"
       provider: ollama
-      provider_url: "http://localhost:11434"
+      provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: Answering
       response_profile: qwen
       user_prompt_from: "$from(compose_prompt)"
