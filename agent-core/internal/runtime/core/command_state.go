@@ -16,9 +16,9 @@ import (
 // cannot acquire transport authority or a receipt
 // (srd038-command-state-store R1, R3).
 type CommandStateView interface {
-	// Lookup returns the output of the most recent prior step whose label
-	// matches, resolving duplicates most-recent-wins. A miss returns ok=false
-	// and never an error, so callers raise their own typed errors
+	// Lookup returns the output of the most recent prior step whose authored
+	// label or command name matches the address. A miss returns ok=false and
+	// never an error, so selector resolution can raise a typed error
 	// (srd038-command-state-store R2, R1.5).
 	Lookup(label string) (output string, ok bool)
 }
@@ -28,8 +28,9 @@ type CommandStateView interface {
 // unreachable by construction: a compile error, not a runtime filter, guards the
 // boundary (srd038-command-state-store R3.3).
 type commandStateEntry struct {
-	label  string
-	output string
+	label       string
+	commandName string
+	output      string
 }
 
 type commandStateView struct {
@@ -37,25 +38,27 @@ type commandStateView struct {
 }
 
 // NewCommandStateView projects the execution log into the receipt-blind view.
-// Labels resolve to a step's command name today; a future declared-label field
-// can extend the projection without changing the interface. The projection reads
-// only CommandName and Output from each Entry, never the receipt.
+// It retains both the optional authored label and the executed command name so
+// either can address a step. The projection never reads the receipt.
 func NewCommandStateView(execution Execution) CommandStateView {
 	projected := make([]commandStateEntry, 0, len(execution))
 	for _, e := range execution {
 		projected = append(projected, commandStateEntry{
-			label:  e.CommandName,
-			output: e.Result.Output,
+			label:       e.Label,
+			commandName: e.CommandName,
+			output:      e.Result.Output,
 		})
 	}
 	return &commandStateView{entries: projected}
 }
 
-// Lookup scans from the most recent entry backward so duplicate labels resolve
-// to the highest step index (srd038-command-state-store R2.2).
+// Lookup scans from the most recent entry backward and matches either authored
+// label or command name. One scan makes duplicate labels and cross-address
+// collisions resolve to the highest step index (srd038 R2.2, R2.7).
 func (v *commandStateView) Lookup(label string) (string, bool) {
 	for i := len(v.entries) - 1; i >= 0; i-- {
-		if v.entries[i].label == label {
+		if (v.entries[i].label != "" && v.entries[i].label == label) ||
+			v.entries[i].commandName == label {
 			return v.entries[i].output, true
 		}
 	}
@@ -160,6 +163,27 @@ func ParseFromSelector(selector string) (label, path string, ok bool) {
 	return parsed.Label, strings.Join(parsed.Path, "."), true
 }
 
+// UnresolvedLabelError reports a selector whose authored label or command name
+// does not match any completed step.
+type UnresolvedLabelError struct {
+	Label string
+}
+
+func (e *UnresolvedLabelError) Error() string {
+	return fmt.Sprintf("no prior step labeled %q", e.Label)
+}
+
+// UnresolvedPathError reports a selector path absent from the matched step's
+// output. Label and Path retain the authored selector components for callers.
+type UnresolvedPathError struct {
+	Label string
+	Path  string
+}
+
+func (e *UnresolvedPathError) Error() string {
+	return fmt.Sprintf("path %q not found in step %q output", e.Path, e.Label)
+}
+
 // ResolveFromSelector resolves a $from(label).path selector against the
 // command-state view: it looks up the most recent step labeled label, decodes its
 // output, and walks the dotted path. It returns a typed error for a malformed
@@ -177,7 +201,7 @@ func ResolveFromSelector(view CommandStateView, selector string) (interface{}, e
 	}
 	output, found := view.Lookup(label)
 	if !found {
-		return nil, fmt.Errorf("selector %q: no prior step labeled %q", selector, label)
+		return nil, fmt.Errorf("selector %q: %w", selector, &UnresolvedLabelError{Label: label})
 	}
 	var decoded map[string]interface{}
 	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
@@ -185,7 +209,11 @@ func ResolveFromSelector(view CommandStateView, selector string) (interface{}, e
 	}
 	value, ok := parsed.Resolve(decoded)
 	if !ok {
-		return nil, fmt.Errorf("selector %q: path %q not found in step %q output", selector, path, label)
+		return nil, fmt.Errorf(
+			"selector %q: %w",
+			selector,
+			&UnresolvedPathError{Label: label, Path: path},
+		)
 	}
 	return value, nil
 }

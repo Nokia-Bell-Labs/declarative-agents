@@ -13,6 +13,7 @@ package compose
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -68,12 +69,12 @@ func (c *composeCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Na
 // (srd038-command-state-store R1.5).
 func (c *composeCmd) Execute() core.Result {
 	rendered := c.template
-	var missing []string
+	var missing []error
 	for _, key := range sortedKeys(c.inputs) {
 		selector := c.inputs[key]
 		value, err := c.resolve(selector)
 		if err != nil {
-			missing = append(missing, fmt.Sprintf("%s: %v", key, err))
+			missing = append(missing, fmt.Errorf("%s: %w", key, err))
 			value = ""
 		}
 		rendered = substitute(rendered, key, stringify(value), jsonify(value))
@@ -84,7 +85,7 @@ func (c *composeCmd) Execute() core.Result {
 	}
 	res := core.Result{Signal: signal, CommandName: c.Name(), Output: rendered}
 	if len(missing) > 0 {
-		res.Err = fmt.Errorf("compose: unresolved selectors: %s", strings.Join(missing, "; "))
+		res.Err = fmt.Errorf("compose: unresolved selectors: %w", errors.Join(missing...))
 	}
 	return res
 }

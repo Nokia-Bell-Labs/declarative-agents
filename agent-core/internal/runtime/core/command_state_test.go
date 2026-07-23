@@ -3,6 +3,7 @@
 package core
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,9 +11,9 @@ import (
 
 func cmdStateExecution() Execution {
 	return Execution{
-		{Iteration: 1, CommandName: "embed_query", Result: ResultDigest{Output: "vec-0"}, Receipt: `{"r":0}`},
-		{Iteration: 2, CommandName: "record_event", Result: ResultDigest{Output: "logged"}, Receipt: `{"r":1}`},
-		{Iteration: 3, CommandName: "embed_query", Result: ResultDigest{Output: "vec-2"}, Receipt: `{"r":2}`},
+		{Iteration: 1, CommandName: "embed_query", Label: "query_embedding", Result: ResultDigest{Output: "vec-0"}, Receipt: `{"r":0}`},
+		{Iteration: 2, CommandName: "record_event", Label: "audit", Result: ResultDigest{Output: "logged"}, Receipt: `{"r":1}`},
+		{Iteration: 3, CommandName: "embed_query_retry", Label: "query_embedding", Result: ResultDigest{Output: "vec-2"}, Receipt: `{"r":2}`},
 	}
 }
 
@@ -20,7 +21,7 @@ func TestCommandStateViewLookupHit(t *testing.T) {
 	t.Parallel()
 	view := NewCommandStateView(cmdStateExecution())
 
-	out, ok := view.Lookup("record_event")
+	out, ok := view.Lookup("audit")
 	require.True(t, ok)
 	require.Equal(t, "logged", out)
 }
@@ -40,10 +41,36 @@ func TestCommandStateViewDuplicateLabelMostRecentWins(t *testing.T) {
 	t.Parallel()
 	view := NewCommandStateView(cmdStateExecution())
 
-	// Two steps share the label embed_query; the later step (vec-2) wins.
-	out, ok := view.Lookup("embed_query")
+	// Two different commands share an authored label; the later step (vec-2)
+	// wins by step order, proving lookup uses Entry.Label rather than command.
+	out, ok := view.Lookup("query_embedding")
 	require.True(t, ok)
 	require.Equal(t, "vec-2", out)
+}
+
+func TestCommandStateViewCommandNameFallbackAndAddressCollision(t *testing.T) {
+	t.Parallel()
+
+	view := NewCommandStateView(Execution{
+		{CommandName: "collect", Label: "shared", Result: ResultDigest{Output: "older-label"}},
+		{CommandName: "shared", Label: "publish", Result: ResultDigest{Output: "newer-command"}},
+	})
+
+	out, ok := view.Lookup("collect")
+	require.True(t, ok, "labeled entries remain addressable by command name")
+	require.Equal(t, "older-label", out)
+
+	out, ok = view.Lookup("shared")
+	require.True(t, ok)
+	require.Equal(t, "newer-command", out, "one newest-to-oldest scan governs address collisions")
+
+	legacy := NewCommandStateView(Execution{{
+		CommandName: "legacy_step",
+		Result:      ResultDigest{Output: "legacy"},
+	}})
+	out, ok = legacy.Lookup("legacy_step")
+	require.True(t, ok)
+	require.Equal(t, "legacy", out)
 }
 
 func TestCommandStateViewEmptyLog(t *testing.T) {
@@ -70,7 +97,7 @@ func TestCommandStateViewRehydratesAcrossInMemoryCheckpoint(t *testing.T) {
 	require.NoError(t, err)
 	rehydrated := NewCommandStateView(restored)
 
-	for _, label := range []string{"embed_query", "record_event", "missing"} {
+	for _, label := range []string{"query_embedding", "record_event", "missing"} {
 		liveOut, liveOK := live.Lookup(label)
 		rehOut, rehOK := rehydrated.Lookup(label)
 		require.Equal(t, liveOK, rehOK, "label %q resolves the same after rehydration", label)
@@ -86,7 +113,7 @@ func TestInjectCommandStateOnlyForAwareCommands(t *testing.T) {
 	injectCommandState(aware, cmdStateExecution())
 	require.NotNil(t, aware.view, "an aware command receives the view")
 
-	out, ok := aware.view.Lookup("embed_query")
+	out, ok := aware.view.Lookup("query_embedding")
 	require.True(t, ok)
 	require.Equal(t, "vec-2", out)
 
@@ -111,3 +138,31 @@ type commandStatePlainStub struct{}
 func (c *commandStatePlainStub) Name() string             { return "plain" }
 func (c *commandStatePlainStub) Execute() Result          { return Result{} }
 func (c *commandStatePlainStub) Undo(prior Result) Result { return NoopUndo(c.Name()) }
+
+func TestResolveFromSelectorTypedErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unresolved label", func(t *testing.T) {
+		t.Parallel()
+		_, err := ResolveFromSelector(NewCommandStateView(nil), "$from(missing).mapped.id")
+		var target *UnresolvedLabelError
+		require.ErrorAs(t, err, &target)
+		require.Equal(t, "missing", target.Label)
+		require.ErrorContains(t, err, `$from(missing).mapped.id`)
+	})
+
+	t.Run("unresolved path", func(t *testing.T) {
+		t.Parallel()
+		view := NewCommandStateView(Execution{{
+			CommandName: "load",
+			Label:       "source",
+			Result:      ResultDigest{Output: `{"mapped":{}}`},
+		}})
+		_, err := ResolveFromSelector(view, "$from(source).mapped.id")
+		var target *UnresolvedPathError
+		require.True(t, errors.As(err, &target))
+		require.Equal(t, "source", target.Label)
+		require.Equal(t, "mapped.id", target.Path)
+		require.ErrorContains(t, err, `$from(source).mapped.id`)
+	})
+}
