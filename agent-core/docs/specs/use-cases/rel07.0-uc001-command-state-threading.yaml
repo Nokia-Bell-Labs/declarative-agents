@@ -21,12 +21,14 @@ flow:
   - F3: Word 3 (query-shaped) declares body_source command_state and selects word 1's fields through input_mapping $from(<label>).<path> selectors, resolving by label with most-recent-wins and no absolute indices (srd038 R2, srd028 R13).
   - F4: The store hands word 3 only the fields it selected into declared params; no transport authority or receipt is addressable (srd038 R3).
   - F5: The run suspends after word 1 and resumes in a fresh process; the store rehydrates from the srd036 tool_outputs plane so word 3 resolves the same label (srd038 R1).
+  - F6: If word 1 marks a sensitive object path, core removes that field before the live Entry becomes selectable and the checkpoint adapter reapplies removal before Save; word 3 cannot select it live or after resume (srd038 R5).
 
 touchpoints:
   - T1: "srd038-command-state-store R1 -- read-only forward view over the execution log, rehydrated from tool_outputs after restart"
   - T2: "srd038-command-state-store R2 -- $from label addressing, most-recent-wins, run-scoped, no absolute indices"
   - T3: "srd038-command-state-store R3 -- declared-param-only authority boundary; no transport, no receipts"
   - T4: "srd028-rest-client-tools R13 -- REST body_source command_state consumes the store through $from selectors"
+  - T5: "srd038-command-state-store R5 -- versioned typed redaction before live Entry construction and defense-in-depth enforcement before persistence"
 
 success_criteria:
   - id: S1
@@ -48,7 +50,7 @@ success_criteria:
     traces:
       - srd038-command-state-store AC2
   - id: S5
-    criterion: A field removed by response redaction is never readable by a later word, whether the run is live or resumed.
+    criterion: A typed sensitive-output path is absent from the live Entry and persisted tool_outputs row, and a later word cannot resolve it before or after resume. Malformed metadata omits the whole output, and an unversioned legacy output returns a typed unavailable error.
     traces:
       - srd038-command-state-store AC5
 
@@ -62,6 +64,12 @@ failure_scenarios:
   - id: E3
     scenario: A selector names an authentication header.
     expected: The selector is rejected before the request is built (srd028 R13.3).
+  - id: E4
+    scenario: A command supplies an invalid sensitive-output path or marks a path on non-object output.
+    expected: Core omits the whole output before the Entry becomes live, and Save persists no raw output (srd038 R5.4-R5.5).
+  - id: E5
+    scenario: A resumed run loads an Entry whose output has no recognized redaction version.
+    expected: Lifecycle accounting and receipt rollback remain available, but command-state lookup returns a typed unavailable error and exposes no output (srd038 R1.8, R5.6).
 
 out_of_scope:
   - Cross-run addressing.

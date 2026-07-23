@@ -23,7 +23,7 @@ problem: |
 goals:
   - G1: Define a DoltCheckpoint adapter that implements the srd035 Checkpoint port behind a database/sql seam, with no Dolt import in core.
   - G2: Define a generic, idempotently created five-table schema (machines, transitions, execution_steps, tool_outputs, receipts) with no per-machine tables. This diverges from the spindle srd015 four-table mirror, which keeps output and receipt in one tool_results table; we split that table into a forward plane (tool_outputs, readable by the srd038 command-state store) and a reverse plane (receipts, consumed only by the rollback walk) so a forward selector can never reach a receipt.
-  - G3: Persist step output in the tool_outputs forward plane and the opaque Result.Receipt verbatim in the receipts reverse plane, keeping the two planes separate.
+  - G3: Persist only versioned, redacted step output and its typed redaction metadata in the tool_outputs forward plane, and persist the opaque Result.Receipt verbatim in the receipts reverse plane.
   - G4: Define commit-per-step, branch-per-run, and merge-to-main-on-terminal versioning.
   - G5: Define Load reconstruction of Position and Execution from the latest commit on the run branch.
   - G6: Define Revert(run_id, step_index) for git-style rollback scoped to DB-persisted state.
@@ -48,12 +48,17 @@ requirements:
   R3:
     title: Forward-plane outputs and reverse-plane receipts
     items:
-      - R3.1: tool_outputs (the forward plane) SHALL carry output as JSON and error as a nullable column.
+      - R3.1: tool_outputs (the forward plane) SHALL carry sanitized output as JSON, error as a nullable column, and the redaction_version, redacted_paths, and redaction_status fields defined by srd035 R7.
       - R3.2: receipts (the reverse plane) SHALL carry a receipt column holding the opaque Result.Receipt JSON string, mirroring spindle srd015 R2.4 and R5.4; the receipt SHALL live only in receipts and SHALL NOT be duplicated into tool_outputs.
       - R3.3: The receipt SHALL be persisted and restored verbatim; the adapter SHALL NOT parse or interpret it.
       - R3.4: A step with no receipt (for example a read-only tool) SHALL store SQL NULL in receipts and restore an empty receipt; a step with no output SHALL store SQL NULL in tool_outputs and restore an empty output.
       - R3.5: tool_outputs SHALL additionally carry the step signal and cost so the forward plane holds everything the srd038 command-state store reads; that store SHALL read tool_outputs only and SHALL NOT read receipts.
       - R3.6: receipts SHALL NOT be addressable by any forward selector; the plane split makes this non-addressability structural rather than a runtime filter, satisfying srd038 R3.3.
+      - R3.7: DoltCheckpoint.Save SHALL reapply every typed redacted path to the supplied output inside the save boundary, even when core already sanitized the live Entry.
+      - R3.8: Save SHALL remove marked fields instead of storing a replacement marker. If metadata is missing, unknown, or malformed, or marked output is not a JSON object, Save SHALL write SQL NULL for output and SHALL NOT write the raw value.
+      - R3.9: A successfully sanitized row SHALL record redaction_version 1 and redaction_status applied. A fail-closed row SHALL record version 1 and redaction_status output_omitted with no redacted paths or output bytes.
+      - R3.10: Schema upgrade SHALL add nullable redaction metadata columns idempotently. Null redaction_version identifies a legacy row and SHALL NOT prevent Load from reconstructing lifecycle state.
+      - R3.11: Load SHALL restore redaction metadata with each ResultDigest. It SHALL NOT upgrade, infer safety for, or otherwise mark a legacy row as sanitized.
 
   R4:
     title: Commit-per-step and branch-per-run versioning
@@ -98,8 +103,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4]
 
   - id: AC3
-    criterion: tool_outputs stores output, nullable error, signal, and cost for the forward plane the command-state store reads; receipts stores the opaque Result.Receipt verbatim in a separate reverse plane; each plane restores an empty value for steps that stored NULL; and a forward selector can never reach a receipt because the split makes non-addressability structural.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+    criterion: tool_outputs stores only sanitized output with versioned typed redaction metadata plus nullable error, signal, and cost. DoltCheckpoint.Save reapplies field removal and omits unsafe output, schema upgrade preserves legacy rows without declaring them safe, and Load restores metadata. Receipts remain verbatim in a structurally separate, forward-inaccessible plane.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10, R3.11]
 
   - id: AC4
     criterion: The adapter commits once per step with step_index and signal metadata, branches per run_id, writes both the tool_outputs and receipts rows inside the one per-step transaction, merges to main and deletes the branch on terminal state, and permits asymmetric plane retention with both planes reaped by default.
@@ -115,7 +120,9 @@ acceptance_criteria:
 
 test_trace_plan:
   - test_suite: test-rel02.0-lifecycle
-    covers: [AC1, AC2, AC3, AC4, AC5, AC6]
+    covers: [AC1, AC2, AC4, AC5, AC6]
+  - test_suite: test-rel07.0-command-state
+    covers: [AC3]
 
 depends_on:
   - srd_id: srd035-checkpoint-port
@@ -146,7 +153,9 @@ implementation_status:
     - DoltCheckpoint adapter, database/sql seam, generic schema, commit-per-step, branch-per-run, merge-on-terminal, and Revert.
     - cmd/agent wiring that enables Dolt through --dolt-dsn and uses NoopCheckpoint when persistence is disabled.
     - Five-table split of tool_results into tool_outputs (forward plane; signal, output, error, cost) and receipts (reverse plane; opaque receipt), both keyed (run_id, step_index) and written in one per-step transaction. An empty receipt is represented by receipts-row absence and restores "" on Load; tool_outputs carries no receipt column. Delivered by GH-275.
-    - Two-plane lifetime invariants pinned by tests (GH-276): revert reaps both planes past the target step by branch construction (R4, R6.4); terminal merge-and-delete reaps the run branch and both planes (R4.3); response redaction runs before persistence so a redacted field never reaches tool_outputs (R3, aligned with srd038 R5).
+    - Two-plane lifetime invariants pinned by tests (GH-276): revert reaps both planes past the target step by branch construction (R4, R6.4); terminal merge-and-delete reaps the run branch and both planes (R4.3).
+  planned:
+    - "GH-489: Versioned redaction columns, defense-in-depth sanitization in DoltCheckpoint.Save, legacy-row preservation, and fail-closed output omission (R3.7-R3.11)."
 
 diagrams:
   requirements_trace: |

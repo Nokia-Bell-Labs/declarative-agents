@@ -288,22 +288,55 @@ test_cases:
       - srd028-rest-client-tools AC12
 
   - use_case: rel07.0-uc001-command-state-threading
-    name: Redaction runs before persistence so a redacted field is unreadable
+    name: REST response mapping applies its configured local redaction
     go_test: go test ./internal/tools/rest -run TestRESTClient_RedactionRunsBeforePersistence
     status: implemented
+    coverage: unit
     description: |
-      A response field removed by redaction is never written to tool_outputs and
-      never resolves through a later $from selector, live or resumed. Redaction
-      runs inside mapClientResponse before Execute returns the Result the loop
-      persists, so the field is already absent from the checkpointed output.
+      mapClientResponse applies the REST operation's configured selector before
+      Execute returns Result. This unit test inspects only that Result. It does
+      not construct a live Execution Entry, call Checkpoint.Save or Load,
+      inspect tool_outputs, or resolve a later $from selector.
     inputs:
-      redacted_field: api_key
-      selector: $from(fetch).api_key
+      configured_selector: body.secret
+      response_secret: body-secret
     expected:
+      original_secret_absent_from_result: true
+      replacement_marker_present_in_result: true
+    traces:
+      - srd028-rest-client-tools AC7
+      - srd028-rest-client-tools AC8
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Typed redaction denies sensitive output live and after persistence
+    status: planned
+    owner: GH-489
+    coverage: component-integration
+    description: |
+      A REST Result carries a versioned typed sensitive-output path. Core removes
+      the field before appending the live Entry. InMemoryCheckpoint and
+      DoltCheckpoint reapply the policy on Save; a fresh Load and
+      CommandStateView cannot recover the value. The proof inspects tool_outputs
+      and exercises malformed metadata, marked non-object output, and an
+      unversioned legacy row.
+    inputs:
+      redacted_field: body.secret
+      selector: $from(fetch).body.secret
+      persistence_backends: [in_memory, dolt]
+      failure_cases: [invalid_path, non_object_output, unversioned_legacy]
+    expected:
+      field_absent_from_live_entry: true
       field_absent_in_tool_outputs: true
       selector_resolves_field: false
+      unsafe_output_omitted: true
+      legacy_selector_error_typed: true
+      receipt_unchanged: true
     traces:
       - rel07.0-uc001-command-state-threading S5
+      - rel07.0-uc001-command-state-threading E4
+      - rel07.0-uc001-command-state-threading E5
+      - srd035-checkpoint-port AC7
+      - srd036-dolt-state-persistence AC3
       - srd038-command-state-store AC5
 
   - use_case: rel07.0-uc002-two-plane-revert

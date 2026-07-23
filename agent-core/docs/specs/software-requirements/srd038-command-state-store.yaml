@@ -30,7 +30,7 @@ goals:
   - G2: Define label addressing so a word selects declared params from an earlier step by command name or label through a $from(<label>).<dotted-path> selector, with most-recent-wins on duplicate labels.
   - G3: Define an authority boundary so selectors reach only declared param fields and can never name transport authority, and so receipts are structurally unaddressable.
   - G4: Define branch-scoped entry lifetime tied to Revert and terminal-state reaping, with no TTL or refcount machinery.
-  - G5: Define redaction-before-persistence ordering so a redacted field is never readable by a later word.
+  - G5: Define a versioned, typed redaction boundary so sensitive output is removed before live selection and rechecked before persistence.
   - G6: Define how declared input sites adopt command-state selectors and how a machine_request seed remains addressable after intervening words.
 
 requirements:
@@ -42,8 +42,9 @@ requirements:
       - R1.3: During a run the store SHALL be populated from the in-memory Execution Entries the loop already records; it SHALL NOT introduce a second source of truth for step output.
       - R1.4: After a process restart the store SHALL rehydrate outputs from the srd036 tool_outputs plane and step labels from the persisted execution metadata so a resumed run resolves the same authored labels it resolved before suspension.
       - R1.5: A selector that resolves to no recorded entry SHALL surface a typed error that names the unresolved label; it SHALL NOT silently yield an empty value.
-      - R1.6: Persisted execution metadata SHALL store the optional authored label separately from command_name. An existing row with no label SHALL remain readable and addressable by command_name after schema upgrade.
+      - R1.6: Persisted execution metadata SHALL store the optional authored label separately from command_name. An existing row with no label SHALL retain command-name addressing after schema upgrade only when its output has recognized redaction metadata.
       - R1.7: A machine_request runner MAY place its initial Result in InitialExecution as one synthetic forward entry before the first dispatch, so later words can select the trusted request seed without a second state store.
+      - R1.8: Load SHALL retain an Entry whose output has no recognized redaction version for lifecycle accounting, but CommandStateView SHALL exclude its output and return a typed unavailable error on lookup by label or command name.
   R2:
     title: Label addressing
     items:
@@ -56,7 +57,7 @@ requirements:
       - R2.7: A transition with no authored label SHALL remain addressable by its executed command name. The same fallback SHALL apply to legacy persisted entries and programmatic TransitionTable runs with no MachineSpec label.
       - R2.8: A labeled $tool transition SHALL record the transition label as its stable authored address and the dynamically selected tool as its command name. Both addresses SHALL resolve to that step.
       - R2.9: TransitionSpec label SHALL be distinct from metric_labels; command-state selection SHALL NOT read observability labels.
-      - R2.10: The synthetic machine_request entry SHALL reserve label and command_name seed. Its output SHALL have the same shape as the initial Result: mapped request input under parameters, with optional path and request_id fields. A mapped field SHALL therefore be addressable as $from(seed).parameters.<field>. A fresh request SHALL add this entry exactly once, and a resumed execution that already contains it SHALL NOT add another.
+      - R2.10: "The synthetic machine_request entry SHALL reserve label and command_name seed. Its output SHALL have the same shape as the initial Result: mapped request input under parameters, with optional path and request_id fields. A mapped field SHALL therefore be addressable as $from(seed).parameters.<field>. A fresh request SHALL add this entry exactly once, and a resumed execution that already contains it SHALL NOT add another."
       - R2.11: A declared input site MAY adopt canonical $from(<label>).<dotted-path> selectors when its subsystem specifies that extension. The consumer SHALL opt in through CommandStateAware and ResolveFromSelector; support SHALL NOT be inferred for every input site. An unresolved selector SHALL be an infrastructure fault such as CommandError, not a domain miss or an empty value.
   R3:
     title: Authority boundary
@@ -75,9 +76,14 @@ requirements:
   R5:
     title: Redaction before persistence
     items:
-      - R5.1: Response redaction SHALL run before an Entry is persisted, so a redacted field is never written to the tool_outputs plane and never rehydrated.
-      - R5.2: A field removed by redaction SHALL NOT be readable by any later word through a $from selector, whether the run is live or resumed.
-      - R5.3: The redaction-before-persistence ordering SHALL be a store invariant, not a per-tool convention, so every persisted Entry is already redacted at the point the store reads it.
+      - R5.1: "A command Result SHALL carry versioned OutputRedaction metadata whose paths are typed sequences of object-key segments. Tool families SHALL identify sensitive fields; core SHALL validate and enforce the metadata."
+      - R5.2: Before appending an Entry to live Execution, core SHALL remove each marked field from JSON object output. It SHALL remove the field rather than substitute a marker value.
+      - R5.3: ResultDigest SHALL carry redaction_version, redacted_paths, and redaction_status. Version 1 statuses SHALL be applied and output_omitted, as defined by srd035 R7.
+      - R5.4: Invalid paths, unsupported versions, or marked non-object output SHALL cause core to omit the whole output before constructing the Entry. Raw output SHALL NOT remain available to the live view.
+      - R5.5: Every stateful Checkpoint Save implementation SHALL reapply typed field removal as defense in depth. Missing or malformed metadata SHALL cause output omission, never raw persistence.
+      - R5.6: CommandStateView SHALL expose output only when it has a recognized version and applied status. It SHALL return a typed unavailable error for output_omitted, unversioned legacy, and unknown-version entries.
+      - R5.7: A field removed by redaction SHALL NOT be readable by any later word through a $from selector, whether the run is live or resumed.
+      - R5.8: Receipts SHALL remain opaque and unchanged in the reverse plane; output redaction metadata SHALL neither inspect nor rewrite them.
 
 non_goals:
   - Cross-run addressing; a selector resolves only within its own run and never reaches another run's steps.
@@ -89,8 +95,8 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: The store is a read-only forward view keyed by (run_id, step_index), populated from in-memory Entries during a run and rehydrated from persisted outputs and execution metadata after restart. Authored labels persist separately from command names, legacy rows remain readable, an unresolved label produces a typed error, and machine_request may expose its initial Result through the same execution view.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
+    criterion: The store is a read-only forward view keyed by (run_id, step_index), populated from in-memory Entries during a run and rehydrated from persisted outputs and execution metadata after restart. Authored labels persist separately from command names, legacy entries remain loadable but their unversioned output is selector-inaccessible, unresolved and unavailable reads produce typed errors, and machine_request may expose its initial Result through the same execution view.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
   - id: AC2
     criterion: Authors optionally label a transition and select an earlier step by command name or label through a canonical $from(<label>).<dotted-path> grammar. One newest-to-oldest rule resolves duplicate labels and label/command-name collisions. Unlabeled, legacy, and programmatic steps retain command-name addressing; labeled $tool steps retain both addresses; absolute indices and metric_labels are excluded from the authoring surface. Machine requests reserve one seed address, and each declared input subsystem adopts selectors explicitly with infrastructure-fault semantics.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R2.10, R2.11]
@@ -101,8 +107,8 @@ acceptance_criteria:
     criterion: Entries are branch-scoped, Revert invalidates later entries by construction, terminal-state reaping removes a run's entries, and the store carries no TTL or refcount machinery.
     traces: [R4.1, R4.2, R4.3, R4.4]
   - id: AC5
-    criterion: Redaction runs before persistence so a redacted field is never persisted, never rehydrated, and never readable by a later word, as a store invariant rather than a per-tool convention.
-    traces: [R5.1, R5.2, R5.3]
+    criterion: Tool families supply versioned typed sensitive-output paths; core removes marked fields before live Entry construction; malformed metadata and marked non-object output cause whole-output omission; checkpoint adapters reapply removal before storage; and selectors reject omitted, unknown-version, and unversioned legacy output live and after reload while receipts remain unchanged.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8]
 
 neighboring_contracts: |
   srd028 R12 (REST client tools, previous_result threading) stays unchanged. Its
@@ -128,7 +134,7 @@ depends_on:
   - srd_id: srd035-checkpoint-port
     symbols_used: [Execution, Entry, Receipt, Position]
   - srd_id: srd036-dolt-state-persistence
-    symbols_used: [tool_results, Revert, merge-to-main]
+    symbols_used: [tool_outputs, Revert, merge-to-main]
   - srd_id: srd028-rest-client-tools
     symbols_used: [body_source, input_mapping, carry_forward, previous_result]
   - srd_id: srd001-core-types
@@ -143,6 +149,8 @@ implementation_status:
     - Canonical selector AST: core.ParseSelector validates both $.path and $from(label).path forms, and the parsed selector owns the shared nested-map resolver used by core and REST consumers.
     - "GH-488: TransitionSpec authored labels are validated with the canonical selector grammar, recorded separately from command names, resolved with exported typed label/path errors, and persisted through an idempotent nullable Dolt schema upgrade. Real MachineSpec execution proves dynamic-tool separation, command-name fallback, duplicate-label newest-match behavior, and fresh-view restart rehydration."
     - "GH-786: Exec parameter source declarations resolve through CommandStateAware after command construction, and machine_request exposes its initial Result through the reserved seed entry."
+  planned:
+    - "GH-489: Typed output-redaction metadata, pre-Entry removal, checkpoint defense in depth, selector denial for unsafe and legacy output, and persisted REST conformance evidence (R1.8, R5)."
 
 diagrams:
   requirements_trace: |
