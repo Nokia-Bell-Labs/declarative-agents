@@ -189,7 +189,8 @@ schema:
     required: true
     description: |
       The transition table. Each entry maps a (state, signal) pair to
-      a next state and an optional action.
+      a next state, an optional action, and an optional stable
+      command-state label for the completed action step.
     sub_fields:
       - field: state
         type: string
@@ -205,6 +206,22 @@ schema:
         description: |
           Tool to execute during the transition. See action_semantics
           for the three modes. May be omitted for terminal transitions.
+      - field: label
+        type: string
+        required: false
+        description: |
+          Stable authored address for the action's completed execution step.
+          A later word selects its output with $from(label).path. The label
+          belongs to this transition because MachineSpec owns workflow order
+          and step identity.
+
+          The label must be non-empty when present and must not contain dots,
+          parentheses, whitespace, or control characters. Duplicate labels are
+          valid; lookup resolves the most recent matching completed step.
+
+          When omitted, the step remains addressable by its executed command
+          name. On a $tool transition, label remains the stable authored
+          address while command_name records the tool selected at runtime.
       - field: metric_labels
         type: object
         status: planned
@@ -236,6 +253,42 @@ action_semantics:
       No command is executed. Used for terminal transitions where the
       machine simply moves to a halting state (e.g. Succeeded, Failed,
       BudgetExceeded).
+
+command_state_step_labels:
+  purpose: |
+    Defines the stable authoring surface for command-state selectors. The
+    transition label identifies one workflow step independently of the tool
+    that implements it. This lets two transitions execute the same tool under
+    different addresses, and lets a $tool transition keep one address while
+    runtime dispatch chooses different commands.
+  addressing:
+    - A completed labeled transition is addressable by both label and its executed command name.
+    - A completed unlabeled transition is addressable by its executed command name.
+    - A programmatic TransitionTable run without MachineSpec metadata has command-name addressing only.
+    - Lookup scans completed steps from newest to oldest and matches either address.
+    - If one step's authored label equals another step's command name, the same newest-match rule resolves the collision.
+    - Absolute step indices are persistence keys and are not part of selector syntax.
+  persistence:
+    - Entry records label separately from command_name.
+    - Checkpoint adapters persist and restore both fields.
+    - Legacy persisted entries with no label remain addressable by command_name.
+    - A schema upgrade adds nullable label storage without invalidating existing rows.
+  relationship_to_metric_labels: |
+    label is one command-state address. metric_labels is a map of bounded
+    observability attributes. A command-state selector never reads
+    metric_labels, and monitor grouping never changes command-state identity.
+  example: |
+    transitions:
+      - state: ReadingCorpus
+        signal: Seed
+        next: CorpusRead
+        action: read
+        label: source_document
+      - state: ChoosingTool
+        signal: LLMResponded
+        next: RunningTool
+        action: $tool
+        label: selected_operation
 
 state_scoped_dynamic_dispatch:
   purpose: |
@@ -321,6 +374,8 @@ validation_rules: |
   - Every signal in transitions must exist in the signals list
   - initial_state must be a member of states
   - terminal_states must be a subset of states
+  - Each present transition label satisfies the canonical selector-label grammar
+  - Duplicate valid transition labels are allowed
 
   Phase 2 — BuildTransitionTable():
   - Named actions (not $tool, not empty) must resolve to a registered tool

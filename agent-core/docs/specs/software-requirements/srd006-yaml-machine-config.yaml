@@ -17,9 +17,12 @@ requirements:
     title: YAML schema (MachineSpec)
     items:
       - R1.1: "Top-level fields: name (string), initial_state (string), states (list), terminal_states (list), signals (list), transitions (list of TransitionSpec), budget (optional BudgetSpec)."
-      - R1.2: "TransitionSpec fields: state (string), signal (string), next (string), action (string, optional)."
+      - R1.2: "TransitionSpec fields: state (string), signal (string), next (string), action (string, optional), and label (string, optional)."
       - R1.3: "action is either a tool name resolvable from the Registry, the special sentinel $tool for dynamic dispatch, or empty for terminal transitions."
       - R1.4: "$tool is resolved using a caller-supplied ActionFunc for runtime tool lookup."
+      - R1.5: "label is the stable, authored command-state address for the action executed by that transition. It is distinct from action and metric_labels."
+      - R1.6: "When label is absent, the completed step remains addressable by its executed command name. This preserves existing unlabeled machines and programmatic TransitionTable runs with no MachineSpec label."
+      - R1.7: "A labeled $tool transition records label as the stable workflow-step address and records the dynamically selected tool separately as the command name."
 
   R2:
     title: Validation
@@ -30,6 +33,8 @@ requirements:
       - R2.4: Every transition's signal must appear in the signals list.
       - R2.5: At least one state, one terminal_state, and one transition are required.
       - R2.6: Validation errors are collected and reported together, not one at a time.
+      - R2.7: "A non-empty transition label must satisfy the canonical $from(label).path label grammar: no dots, parentheses, whitespace, or control characters. The error identifies the transition index and label field."
+      - R2.8: Duplicate transition labels are valid because command-state lookup resolves the most recent matching completed step.
 
   R3:
     title: BuildTransitionTable
@@ -54,12 +59,12 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: MachineSpec has name, initial_state, states, terminal_states, signals, and transitions. TransitionSpec has state, signal, next, and optional action.
-    traces: [R1.1, R1.2, R1.3, R1.4]
+    criterion: MachineSpec has name, initial_state, states, terminal_states, signals, and transitions. TransitionSpec has state, signal, next, optional action, and optional command-state label. An unlabeled transition falls back to its executed command name, including programmatic tables without MachineSpec labels, while a labeled $tool transition keeps its stable label distinct from the selected command.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
-    criterion: Validation checks referential integrity for initial_state, terminal_states, transitions, and minimum counts. Errors collected together.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6]
+    criterion: Validation checks referential integrity for initial_state, terminal_states, transitions, minimum counts, and transition-label grammar. Duplicate valid labels remain legal. Errors are collected together.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8]
 
   - id: AC3
     criterion: BuildTransitionTable resolves named actions from Registry, uses toolAction for "$tool", nil for empty. Returns TransitionTable, TerminalFunc, and error.

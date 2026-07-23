@@ -10,7 +10,9 @@ preconditions:
   - srd038-command-state-store defines the core store contract, label addressing, authority boundary, lifetime, and redaction ordering before code changes.
   - srd036-dolt-state-persistence (amended) defines the five-table schema splitting tool_results into tool_outputs and receipts.
   - srd028-rest-client-tools R13 defines body_source command_state consumption through $from selectors.
+  - srd006-yaml-machine-config and cfg-machine-format define optional TransitionSpec label as the authored command-state address, distinct from command_name and metric_labels.
   - Epics GH-269 (persistence split) and GH-270 (core store and REST consumption) own the executable Go tests these cases name.
+  - GH-781, GH-782, and GH-783 cases use planned_go_test until their named tests exist; the formal evidence validator executes only go_test fields.
 
 test_cases:
   - use_case: rel07.0-uc001-command-state-threading
@@ -58,16 +60,17 @@ test_cases:
       - srd028-rest-client-tools AC12
 
   - use_case: rel07.0-uc001-command-state-threading
-    name: Duplicate labels resolve to the most recent step
+    name: Duplicate command-name addresses resolve to the most recent step
     go_test: go test ./internal/runtime/core -run TestCommandStateViewDuplicateLabelMostRecentWins
     status: implemented
     description: |
-      Two steps share a label; a later $from selector resolves to the higher
-      step_index, and absolute step indices are not part of the authoring surface.
+      Two synthetic entries share a command name; a later $from selector resolves
+      to the higher step_index. This is compatibility evidence for command-name
+      fallback, not evidence that MachineSpec authored labels are captured.
     inputs:
       steps:
-        - {label: fetch, step_index: 0}
-        - {label: fetch, step_index: 2}
+        - {command_name: fetch, step_index: 0}
+        - {command_name: fetch, step_index: 2}
       selector: $from(fetch).id
     expected:
       resolved_step_index: 2
@@ -76,19 +79,83 @@ test_cases:
       - srd038-command-state-store AC2
 
   - use_case: rel07.0-uc001-command-state-threading
-    name: Restart rehydration resolves the same label mid-chain
+    name: MachineSpec captures a validated authored transition label
+    planned_go_test: go test ./internal/runtime/core -run TestCommandStateAuthoredLabelMachineExecution
+    status: planned
+    owner: GH-782
+    description: |
+      A real declarative loop executes a transition whose label differs from its
+      action. The resulting Entry records both values. Invalid label grammar
+      fails startup with the transition index and field name, while duplicate
+      valid labels remain legal.
+    inputs:
+      transition:
+        action: fetch_document
+        label: source
+      invalid_labels: ["", "source.part", "source label", "source(label)"]
+    expected:
+      entry_label: source
+      entry_command_name: fetch_document
+      invalid_label_rejected: true
+      duplicate_valid_labels_accepted: true
+    traces:
+      - rel07.0-uc001-command-state-threading S1
+      - srd038-command-state-store AC2
+      - srd006-yaml-machine-config AC1
+      - srd006-yaml-machine-config AC2
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Authored labels and command names share one newest-match lookup
+    planned_go_test: go test ./internal/runtime/core -run 'TestCommandStateView(AuthoredLabelMostRecentWins|CommandNameFallback|AddressCollision)'
+    status: planned
+    owner: GH-783
+    description: |
+      Entries carry labels distinct from command names. Lookup matches either
+      address while scanning newest to oldest, so duplicate labels and a label
+      that collides with another step's command name resolve deterministically.
+    inputs:
+      steps:
+        - {label: fetch, command_name: rest_get, step_index: 0}
+        - {label: transform, command_name: fetch, step_index: 1}
+        - {label: fetch, command_name: rest_get, step_index: 2}
+    expected:
+      authored_label_fetch_resolves_step_index: 2
+      command_name_rest_get_resolves_step_index: 2
+      label_command_name_collision_uses_newest_match: true
+      unlabeled_legacy_entry_uses_command_name: true
+    traces:
+      - rel07.0-uc001-command-state-threading S4
+      - srd038-command-state-store AC2
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Unresolved label and path failures retain typed causes
+    planned_go_test: go test ./internal/runtime/core -run TestResolveFromSelectorTypedErrors
+    status: planned
+    owner: GH-783
+    description: |
+      ResolveFromSelector returns exported structured errors for a missing label
+      and a missing path. Consumer wrapping preserves errors.As access to the
+      offending label and path while retaining selector context in the message.
+    inputs:
+      unresolved_label: missing
+      unresolved_path: mapped.absent
+    expected:
+      unresolved_label_error_typed: true
+      unresolved_path_error_typed: true
+      consumer_wrap_preserves_cause: true
+    traces:
+      - rel07.0-uc001-command-state-threading E1
+      - srd038-command-state-store AC1
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Synthetic restart rehydration resolves the same command-name address
     go_test: go test ./internal/runtime/core -run 'TestCommandStateViewRehydrates(AcrossInMemoryCheckpoint|FromDoltLoad)'
     status: implemented
     coverage: component-integration
     description: |
-      A run suspends after the first word; the store rehydrates from the persisted
-      tool_outputs plane so the later word resolves the same label with an
-      equivalent value. This is component integration: the test reconstructs the
-      store from a fresh checkpoint load (InMemory and Dolt), not a real OS process
-      restart running core.Loop suspend/resume, so it proves the rehydration logic
-      rather than an end-to-end lifecycle resume. The process-restart tracer that
-      runs core.Loop, suspends, resumes in a new process, and resolves the label is
-      not exercised here.
+      The store reconstructs synthetic command-name entries from a fresh
+      checkpoint load (InMemory and Dolt). This proves existing output
+      rehydration, not authored-label persistence or a real MachineSpec loop.
     inputs:
       suspend_after: embed_query
       resume_in: fresh_process
@@ -99,6 +166,34 @@ test_cases:
     traces:
       - rel07.0-uc001-command-state-threading S3
       - srd038-command-state-store AC1
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Real MachineSpec labels survive schema upgrade and restart rehydration
+    planned_go_test: go test ./internal/runtime/core -run 'TestDoltCheckpoint(AuthoredLabelRoundTrip|LegacyLabelUpgrade|MachineLabelRehydration)'
+    status: planned
+    owner: GH-781
+    coverage: component-integration
+    description: |
+      A real MachineSpec loop records an authored label, a fresh checkpoint
+      instance loads the persisted execution, and a fresh CommandStateView
+      resolves the same label. The schema upgrade is idempotent, and an old row
+      with a null label remains addressable by command name.
+    inputs:
+      authored_label: embed
+      command_name: rest_embed
+      legacy_label: null
+      upgrade_runs: 2
+    expected:
+      authored_label_round_trips: true
+      fresh_view_resolves_label: true
+      legacy_row_uses_command_name: true
+      repeated_upgrade_succeeds: true
+      receipt_remains_unaddressable: true
+    traces:
+      - rel07.0-uc001-command-state-threading S3
+      - rel07.0-uc001-command-state-threading S4
+      - srd038-command-state-store AC1
+      - srd038-command-state-store AC2
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Selector rejection table blocks unsafe threading
