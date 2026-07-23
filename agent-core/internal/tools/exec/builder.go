@@ -27,11 +27,17 @@ type ExecBuilder struct {
 	Root string
 }
 
-// Build extracts parameters from the previous result and creates an ExecCmd.
+// Build extracts adjacent parameters from the previous result and defers
+// command-state sources until the command receives its view before dispatch.
 func (b *ExecBuilder) Build(res core.Result) core.Command {
 	mappings := b.Def.ExtractParamMappings()
 	params := make(map[string]string)
+	var sources []catalog.ParamMapping
 	for _, pm := range mappings {
+		if pm.Source != "" {
+			sources = append(sources, pm)
+			continue
+		}
 		val := ExtractStringParam(res.Output, pm.Name)
 		if val == "" && pm.Default != "" {
 			val = pm.Default
@@ -43,7 +49,7 @@ func (b *ExecBuilder) Build(res core.Result) core.Command {
 			params[pm.Name] = val
 		}
 	}
-	return &ExecCmd{def: b.Def, root: b.Root, params: params}
+	return &ExecCmd{def: b.Def, root: b.Root, params: params, sources: sources}
 }
 
 // BuildReverser returns an exec command configured only for receipt-driven Undo:
@@ -55,13 +61,21 @@ func (b *ExecBuilder) BuildReverser() core.Command {
 
 // ExecCmd is the generic Command for YAML-defined exec tools.
 type ExecCmd struct {
-	def    catalog.ToolDef
-	root   string
-	params map[string]string
-	rec    monitor.ToolMetricsRecorder
+	def     catalog.ToolDef
+	root    string
+	params  map[string]string
+	sources []catalog.ParamMapping
+	view    core.CommandStateView
+	rec     monitor.ToolMetricsRecorder
 }
 
 func (c *ExecCmd) Name() string { return c.def.Name }
+
+// SetCommandState supplies the view needed to resolve non-adjacent parameter
+// sources after Build and before subprocess launch (srd023 R2.8, R3.9).
+func (c *ExecCmd) SetCommandState(view core.CommandStateView) { c.view = view }
+
+var _ core.CommandStateAware = (*ExecCmd)(nil)
 
 // Undo reverses the exec effect using the tool-owned receipt on the prior
 // Result, falling back to the declared undo contract for the live in-process
@@ -95,6 +109,15 @@ func (c *ExecCmd) Undo(prior core.Result) core.Result {
 }
 
 func (c *ExecCmd) Execute() core.Result {
+	if err := c.resolveSourceParams(); err != nil {
+		wrapped := fmt.Errorf("%s: resolve exec parameter source: %w", c.Name(), err)
+		return core.Result{
+			Output:      wrapped.Error(),
+			Signal:      core.CommandError,
+			CommandName: c.Name(),
+			Err:         wrapped,
+		}
+	}
 	dir := c.execDir()
 	if err := c.checkPrecondition(dir); err != nil {
 		return core.Result{Output: err.Error(), Signal: core.ToolFailed, CommandName: c.def.Name}
@@ -113,6 +136,36 @@ func (c *ExecCmd) Execute() core.Result {
 		res.Receipt = c.encodeReceipt()
 	}
 	return res
+}
+
+func (c *ExecCmd) resolveSourceParams() error {
+	if c.params == nil {
+		c.params = make(map[string]string)
+	}
+	for _, pm := range c.sources {
+		delete(c.params, pm.Name)
+		value, err := core.ResolveFromSelector(c.view, pm.Source)
+		if err != nil {
+			return fmt.Errorf("parameter %q from %q: %w", pm.Name, pm.Source, err)
+		}
+		resolved, ok := value.(string)
+		if !ok {
+			return fmt.Errorf(
+				"parameter %q from %q resolved to %T, want string",
+				pm.Name, pm.Source, value,
+			)
+		}
+		if resolved == "" {
+			resolved = pm.Default
+		}
+		if resolved == "" && pm.Required {
+			return fmt.Errorf("required parameter %q from %q resolved to an empty string", pm.Name, pm.Source)
+		}
+		if resolved != "" {
+			c.params[pm.Name] = resolved
+		}
+	}
+	return nil
 }
 
 func (c *ExecCmd) execDir() string {

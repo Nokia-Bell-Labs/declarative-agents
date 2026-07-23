@@ -247,15 +247,17 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 	}
 	var last core.Result
 	initialSignal := machineRequestInitialSignal(req.Config)
+	seed := requestSeed(req, initialSignal)
 	params := core.LoopParams{
-		MachineSpec:    req.Config.MachineSpec,
-		Registry:       req.Config.Registry,
-		InitFunc:       req.Config.InitFunc,
-		ToolAction:     req.Config.ToolAction,
-		InitialSignal:  initialSignal,
-		InitialResult:  requestSeed(req, initialSignal),
-		Budget:         req.Config.Budget,
-		CommandTimeout: parseDuration(req.Config.CommandTimeout, 0),
+		MachineSpec:      req.Config.MachineSpec,
+		Registry:         req.Config.Registry,
+		InitFunc:         req.Config.InitFunc,
+		ToolAction:       req.Config.ToolAction,
+		InitialSignal:    initialSignal,
+		InitialResult:    seed,
+		InitialExecution: machineRequestSeedExecution(seed, nil),
+		Budget:           req.Config.Budget,
+		CommandTimeout:   parseDuration(req.Config.CommandTimeout, 0),
 		// Run the request-scoped machine under a real tracer rooted at the
 		// machine_request span in ctx, so its per-word dispatch and REST-client
 		// spans export as children of that span (one connected trace) and the
@@ -370,6 +372,24 @@ func requestSeed(req MachineRequestRun, signal core.Signal) core.Result {
 		return core.Result{Signal: signal, Output: `{"parameters":{}}`}
 	}
 	return core.Result{Signal: signal, Output: string(data)}
+}
+
+// machineRequestSeedExecution makes trusted request input addressable after
+// intervening words as $from(seed).parameters.<field>. Existing execution wins
+// on resume so the synthetic forward entry is never duplicated (srd030 R3.8).
+func machineRequestSeedExecution(seed core.Result, existing core.Execution) core.Execution {
+	if len(existing) > 0 {
+		return existing
+	}
+	return core.Execution{{
+		CommandName: "seed",
+		Label:       "seed",
+		Signal:      seed.Signal,
+		Result: core.ResultDigest{
+			Signal: seed.Signal,
+			Output: seed.Output,
+		},
+	}}
 }
 
 func machineRequestResult(req MachineRequestRun, rr core.RunResult, last core.Result) (MachineRequestResult, error) {

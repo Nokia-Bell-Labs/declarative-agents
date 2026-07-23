@@ -4,6 +4,8 @@ package exec
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,6 +49,140 @@ func TestExecBuilder_WithDefault(t *testing.T) {
 	cmd := (&ExecBuilder{Def: td, Root: "/tmp"}).Build(core.Result{Output: `{"parameters":{}}`})
 	ec := cmd.(*ExecCmd)
 	assert.Equal(t, ".", ec.params["path"])
+}
+
+func TestExecBuilderCommandStateSourceAcrossInterveningStep(t *testing.T) {
+	td := catalog.ToolDef{
+		Name:   "run_corpus_ingest",
+		Binary: "printf",
+		Args:   []string{"%s|%s"},
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"directory": map[string]interface{}{
+					"type": "string", "positional": true, "position": 1,
+					"source": "$from(seed).parameters.directory",
+				},
+				"mode": map[string]interface{}{
+					"type": "string", "positional": true, "position": 2,
+				},
+			},
+			"required": []interface{}{"directory", "mode"},
+		},
+	}
+
+	mappings := td.ExtractParamMappings()
+	directory := findParamMapping(t, mappings, "directory")
+	require.Equal(t, "$from(seed).parameters.directory", directory.Source)
+
+	var schema map[string]interface{}
+	require.NoError(t, json.Unmarshal(td.ToToolSpec().InputSchema, &schema))
+	properties := schema["properties"].(map[string]interface{})
+	require.NotContains(t, properties["directory"].(map[string]interface{}), "source")
+
+	cmd := (&ExecBuilder{Def: td, Root: t.TempDir()}).Build(core.Result{
+		Output: `{"parameters":{"mode":"full"}}`,
+	})
+	aware, ok := cmd.(core.CommandStateAware)
+	require.True(t, ok)
+	aware.SetCommandState(core.NewCommandStateView(core.Execution{
+		{
+			CommandName: "seed",
+			Label:       "seed",
+			Result:      core.ResultDigest{Output: `{"parameters":{"directory":"/tmp/corpus"}}`},
+		},
+		{
+			CommandName: "count_before",
+			Label:       "count_before",
+			Result:      core.ResultDigest{Output: `{"mapped":{"count":"4"}}`},
+		},
+	}))
+
+	result := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, result.Signal, result.Output)
+	require.Equal(t, "/tmp/corpus|full", result.Output)
+}
+
+func TestExecBuilderCommandStateSourceFailures(t *testing.T) {
+	t.Run("missing label preserves typed cause and does not launch", func(t *testing.T) {
+		marker := t.TempDir() + "/launched"
+		cmd := sourceTouchBuilder(marker, "$from(absent).parameters.directory").Build(core.Result{})
+		cmd.(core.CommandStateAware).SetCommandState(core.NewCommandStateView(nil))
+
+		result := cmd.Execute()
+
+		require.Equal(t, core.CommandError, result.Signal)
+		var target *core.UnresolvedLabelError
+		require.ErrorAs(t, result.Err, &target)
+		require.Equal(t, "absent", target.Label)
+		_, err := os.Stat(marker)
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("missing path preserves typed cause and does not launch", func(t *testing.T) {
+		marker := t.TempDir() + "/launched"
+		cmd := sourceTouchBuilder(marker, "$from(seed).parameters.absent").Build(core.Result{})
+		cmd.(core.CommandStateAware).SetCommandState(core.NewCommandStateView(core.Execution{{
+			CommandName: "seed",
+			Label:       "seed",
+			Result:      core.ResultDigest{Output: `{"parameters":{"directory":"/tmp/corpus"}}`},
+		}}))
+
+		result := cmd.Execute()
+
+		require.Equal(t, core.CommandError, result.Signal)
+		var target *core.UnresolvedPathError
+		require.ErrorAs(t, result.Err, &target)
+		require.Equal(t, "parameters.absent", target.Path)
+		_, err := os.Stat(marker)
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("malformed source fails declaration parsing", func(t *testing.T) {
+		_, err := catalog.ParseToolDefs([]byte(`
+tools:
+  - name: run_corpus_ingest
+    type: exec
+    binary: "true"
+    parameters:
+      type: object
+      properties:
+        directory:
+          type: string
+          source: $from(seed
+`))
+		require.ErrorContains(t, err, `tool "run_corpus_ingest" parameter "directory"`)
+		require.ErrorContains(t, err, "must be a $from(label).path selector")
+	})
+}
+
+func sourceTouchBuilder(marker, source string) *ExecBuilder {
+	return &ExecBuilder{Def: catalog.ToolDef{
+		Name:   "source_touch",
+		Binary: "touch",
+		Args:   []string{marker},
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"directory": map[string]interface{}{
+					"type": "string", "flag": "--directory", "source": source,
+				},
+			},
+			"required": []interface{}{"directory"},
+		},
+	}}
+}
+
+func findParamMapping(t *testing.T, mappings []catalog.ParamMapping, name string) catalog.ParamMapping {
+	t.Helper()
+	for _, mapping := range mappings {
+		if mapping.Name == name {
+			return mapping
+		}
+	}
+	t.Fatalf("parameter mapping %q not found", name)
+	return catalog.ParamMapping{}
 }
 
 func TestExecCmd_BuildArgs(t *testing.T) {

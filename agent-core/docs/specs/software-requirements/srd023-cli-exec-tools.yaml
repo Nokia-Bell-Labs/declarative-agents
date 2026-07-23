@@ -9,11 +9,9 @@ problem: |
   focused contract for exec tools, each external command risks becoming a
   bespoke builtin instead of a reusable declarative capability.
 
-  The current ExecBuilder and ToolDef implementation lives in
-  internal/tools/stl. The target layout moves ToolDef and parameter schema
-  contracts to internal/tools/catalog, moves exec command construction to
-  internal/tools/exec, shares undo payload helpers through internal/tools/undo,
-  and keeps internal/tools/stl only as a temporary facade.
+  ToolDef and parameter schema contracts live in internal/tools/catalog.
+  ExecBuilder and subprocess command construction live in internal/tools/exec,
+  and shared undo payload helpers live in internal/tools/undo.
 
 goals:
   - "G1": "Define the YAML contract for type: exec tool declarations."
@@ -22,6 +20,7 @@ goals:
   - G4: Define declaration includes, declaration loading, and selection behavior for exec tools.
   - G5: Clarify how exec tools differ from builtin tools.
   - G6: Define the target package ownership for exec declarations, command construction, and undo helpers.
+  - G7: Let an exec parameter select a non-adjacent command-state value without changing adjacent previous-Result mapping.
 
 requirements:
   R0:
@@ -51,6 +50,8 @@ requirements:
       - R2.5: The default extension SHALL provide a parameter value when the caller omits it.
       - R2.6: CLI mapping extensions SHALL be stripped from the ToolSpec schema sent to LLMs.
       - R2.7: The position extension SHALL order mapped arguments numerically; mappings without a position SHALL follow in stable parameter-name order.
+      - R2.8: A parameter property MAY declare source as one canonical $from(<label>).<dotted-path> selector (srd038 R2). When source is absent, ExecBuilder SHALL continue to read parameters.<name> from the immediately previous Result.
+      - R2.9: The source extension SHALL be stripped from the ToolSpec schema sent to LLMs with the other CLI mapping extensions.
 
   R3:
     title: Subprocess execution
@@ -63,6 +64,7 @@ requirements:
       - R3.6: Output SHALL be capped when output_cap is configured.
       - R3.7: Parent context cancellation SHALL stop the subprocess.
       - "R3.8": "Exec tools used as named machine actions SHOULD declare emits: [ToolDone, ToolFailed] unless they implement a more specific signal mapping."
+      - R3.9: ExecBuilder SHALL defer a source selector until the command receives its CommandStateView and SHALL resolve it before subprocess launch. An unresolved label or path SHALL emit CommandError with the selector cause preserved, and the subprocess SHALL NOT run with an empty substituted value.
 
   R4:
     title: Declaration loading and selection
@@ -71,6 +73,7 @@ requirements:
       - R4.2: Included declarations SHALL load before the including file so local definitions can override shared definitions.
       - R4.3: Production startup SHOULD use LoadToolDeclarations + LoadToolSelection + SelectTools.
       - R4.4: Selected exec tools SHALL fail startup if the selected name is not declared.
+      - R4.5: A source value that is not a canonical $from(<label>).<dotted-path> selector SHALL fail declaration validation before a run.
 
   R5:
     title: Relationship to builtin tools
@@ -115,16 +118,16 @@ acceptance_criteria:
     traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
 
   - id: AC2
-    criterion: Parameter mapping converts JSON tool parameters into deterministic argv using flag, positional, bool_flag, default, and position extensions while stripping those extensions from LLM-visible schema.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
+    criterion: Parameter mapping converts JSON tool parameters into deterministic argv using flag, positional, bool_flag, default, position, and optional command-state source extensions while stripping those extensions from the LLM-visible schema. Omitting source preserves immediately previous Result mapping.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9]
 
   - id: AC3
-    criterion: Exec tools run subprocesses in the correct directory, capture output/exit/duration, honor output caps and cancellation, map outcomes to ToolDone, ToolFailed, or CommandError, and can declare those signals in emits.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
+    criterion: Exec tools run subprocesses in the correct directory, capture output/exit/duration, honor output caps and cancellation, map outcomes to ToolDone, ToolFailed, or CommandError, and can declare those signals in emits. A command-state source resolves after view injection and a broken source prevents subprocess launch with CommandError.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9]
 
   - id: AC4
-    criterion: Declaration includes and declaration+selection loading support shared exec definitions with mode-local overrides.
-    traces: [R4.1, R4.2, R4.3, R4.4]
+    criterion: Declaration includes and declaration+selection loading support shared exec definitions with mode-local overrides, and malformed command-state sources fail validation before a run.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
 
   - id: AC5
     criterion: Architecture guidance prefers exec tools for external CLIs and builtin tools only for in-process behavior that cannot be represented declaratively.
@@ -141,6 +144,8 @@ depends_on:
     symbols_used: [agent]
   - srd_id: srd022-builtin-tools
     symbols_used: [BuiltinRegistry]
+  - srd_id: srd038-command-state-store
+    symbols_used: [CommandStateAware, CommandStateView, ResolveFromSelector]
 
 implementation:
   - tools/exec/ (current flat shared exec declarations)

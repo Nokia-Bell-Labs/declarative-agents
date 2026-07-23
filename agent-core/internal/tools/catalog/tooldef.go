@@ -18,6 +18,7 @@ var cliExtensionKeys = map[string]bool{
 	"bool_flag":  true,
 	"default":    true,
 	"position":   true,
+	"source":     true,
 }
 
 // ToolDef is a declarative, YAML-driven tool definition.
@@ -50,6 +51,40 @@ type ToolDef struct {
 	Phases        []string               `yaml:"phases,omitempty"`
 	OutputCap     int                    `yaml:"output_cap,omitempty"`
 	phaseScoped   bool
+}
+
+// UnmarshalYAML validates command-state parameter sources while declarations
+// are loaded, before an exec tool can be registered or dispatched (srd023 R4.5).
+func (td *ToolDef) UnmarshalYAML(value *yaml.Node) error {
+	type rawToolDef ToolDef
+	var decoded rawToolDef
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+	*td = ToolDef(decoded)
+	return td.validateParamSources()
+}
+
+func (td ToolDef) validateParamSources() error {
+	if td.Type == "builtin" {
+		return nil
+	}
+	props, _ := td.Parameters["properties"].(map[string]interface{})
+	for name, value := range props {
+		property, _ := value.(map[string]interface{})
+		raw, exists := property["source"]
+		if !exists {
+			continue
+		}
+		source, ok := raw.(string)
+		if !ok {
+			return fmt.Errorf("tool %q parameter %q source must be a $from(label).path selector", td.Name, name)
+		}
+		if _, _, ok := core.ParseFromSelector(source); !ok {
+			return fmt.Errorf("tool %q parameter %q source %q must be a $from(label).path selector", td.Name, name, source)
+		}
+	}
+	return nil
 }
 
 // ToolRequirements groups observable behaviors a tool must satisfy.
@@ -174,6 +209,7 @@ type ParamMapping struct {
 	Positional bool
 	BoolFlag   bool
 	Default    string
+	Source     string
 	Required   bool
 	Position   int
 }
@@ -289,6 +325,9 @@ func (td *ToolDef) ExtractParamMappings() []ParamMapping {
 		}
 		if d, ok := pMap["default"].(string); ok {
 			pm.Default = d
+		}
+		if source, ok := pMap["source"].(string); ok {
+			pm.Source = source
 		}
 		if position, ok := pMap["position"].(int); ok {
 			pm.Position = position

@@ -49,6 +49,7 @@ requirements:
       - R3.5: Invalid HTTP input SHALL return the configured validation error response and SHALL NOT start a machine run.
       - R3.6: The seed Result SHALL expose the mapped request input under a parameters key so that either a filesystem word or a REST-client word can be the initial machine action, reading the same parameters selector surface.
       - R3.7: The seed Result SHALL NOT expose transport authority (method, host, URL, auth, redirect) to the request machine, so the initial action cannot receive transport authority and does not trip the REST runtime-input authority guard; non-authority context such as the URL path and request id MAY be exposed for adapters.
+      - R3.8: A fresh request run SHALL add the seed Result to InitialExecution exactly once with label and command_name seed. A later word MAY select mapped input as $from(seed).parameters.<field> through a consumer that adopts srd038 command-state selectors. If a resumed execution already contains the seed entry, the runner SHALL NOT prepend a duplicate.
 
   R4:
     title: Response extraction
@@ -101,8 +102,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
 
   - id: AC4
-    criterion: Request input mapping validates HTTP fields, builds structured machine input, carries request metadata, rejects invalid input before machine execution, exposes the input under a parameters key so a filesystem or REST-client word can be the initial action, and withholds transport authority from the request machine.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7]
+    criterion: Request input mapping validates HTTP fields, builds structured machine input, carries request metadata, rejects invalid input before machine execution, exposes the input under a parameters key so a filesystem or REST-client word can be the initial action, and withholds transport authority from the request machine. The initial execution records one reserved seed entry so a later command-state-aware word can select $from(seed).parameters.<field> without duplication after resume.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
 
   - id: AC5
     criterion: Response extraction uses configured response words or terminal output to shape HTTP status, headers, body, and content type.
@@ -149,6 +150,7 @@ implementation_status:
     - Plain go test covers generic request-to-machine response behavior, trace evidence, selected request factories, and same-origin proxy lifecycle cleanup; the concrete browser tracer belongs to agent-profiles.
     - Configured machine_request terminal response schemas are enforced before success responses; invalid terminal output maps to response_invalid error handling.
     - Response mapping accepts terminal_states alongside terminal_signals and resolves state first, so an exec-driven request machine returns a distinct response per outcome; examples/chatbot-mesh executor apply maps Done, Rejected, RolledBack, and Failed to 200, 400, 500, and 500.
+    - "GH-786: machine_request exposes the trusted request seed as one InitialExecution entry named seed, so non-adjacent exec arguments resolve $from(seed).parameters.<field>."
   partial: []
   planned_follow_up: []
 
