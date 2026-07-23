@@ -91,7 +91,7 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("create chroma data dir: %w", err)
 	}
 	defer os.RemoveAll(dataDir)
-	containerID, err := startRequiredChromaContainer(dataDir, startChromaContainer)
+	containerID, err := startRequiredChromaContainer(dataDir, ensureChromaServer)
 	if err != nil {
 		return fmt.Errorf("chatbot dependency startup: %w", err)
 	}
