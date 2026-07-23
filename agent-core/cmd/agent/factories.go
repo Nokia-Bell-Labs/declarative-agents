@@ -15,6 +15,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/compare"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/compose"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/control"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
@@ -62,6 +63,7 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterREST:           registerRESTFactories(st),
 		RegisterDocumentation:  registerDocumentationFactories(),
 		RegisterCompose:        registerComposeFactories(),
+		RegisterComparison:     registerCompareFactories(),
 		RegisterService:        registerServiceFactories(),
 	}
 }
@@ -78,6 +80,24 @@ func registerComposeFactories() toolregistry.FactoryRegistrar {
 				Template: cfg.Template,
 				Inputs:   cfg.Inputs,
 				Signal:   core.Signal(cfg.Signal),
+			}, nil
+		})
+	}
+}
+
+func registerCompareFactories() toolregistry.FactoryRegistrar {
+	return func(br *toolregistry.BuiltinRegistry) {
+		br.Register("compare_state", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+			var cfg catalog.CompareConfig
+			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+				return nil, err
+			}
+			return compare.Builder{
+				ToolName: def.Name,
+				Left:     cfg.Left,
+				Right:    cfg.Right,
+				Matched:  core.Signal(cfg.Matched),
+				Differed: core.Signal(cfg.Differed),
 			}, nil
 		})
 	}
