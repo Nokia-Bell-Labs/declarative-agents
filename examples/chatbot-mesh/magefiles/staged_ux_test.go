@@ -141,3 +141,42 @@ func TestStagedProfilesFitTheConfigMapLimit(t *testing.T) {
 			total, configMapLimit)
 	}
 }
+
+// TestStagedProfilesExcludeTestFixtures proves the agent rig fixtures do not
+// reach a pod (GH-729). They are mock LLM and RAG definitions, scenarios, and
+// their own profiles: test doubles with no runtime role. Every staged file
+// becomes a ConfigMap key and a projected mount item in every agent pod, so
+// shipping them means production pods mount mock service definitions and the
+// ConfigMap grows with the test suite rather than with the product.
+//
+// This is the coupling GH-702 removed for the ux tree, reintroduced by fixtures
+// that arrived after it. The assertion exists so the next fixture directory
+// cannot re-enter silently.
+func TestStagedProfilesExcludeTestFixtures(t *testing.T) {
+	for _, key := range renderedProfileKeys(t) {
+		if strings.Contains(key, "__"+stagedTestsDir+"__") {
+			t.Errorf("rendered ConfigMap carries %s; agent test fixtures do not belong in a pod", key)
+		}
+	}
+}
+
+// TestStagedProfilesKeepWhatAnAgentRuns is the counterpart: pruning fixtures must
+// not take a profile an agent needs. TestStagedProfilesCoverEnabledDeployments
+// guards the staging list, and this guards what survives the prune -- the
+// distinction matters because a prune runs after that list is satisfied.
+func TestStagedProfilesKeepWhatAnAgentRuns(t *testing.T) {
+	keys := renderedProfileKeys(t)
+	for _, agent := range []string{"chatbot", "rag-server", "coordinator", "creator", "executor"} {
+		want := "agents__" + agent + "__profile.yaml"
+		var found bool
+		for _, key := range keys {
+			if key == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("no %s key in the rendered ConfigMap; the prune took a profile an agent starts with", want)
+		}
+	}
+}
