@@ -1,0 +1,16 @@
+# Layers on ci/kind-values.yaml to stand the executor up on kind, for the live
+# tier (mage integration:executorLive, GH-735).
+#
+# kind-values.yaml disables the executor: its image bundles helm, kubectl, and
+# the chart rather than being the runtime image the smoke and swap tests
+# kind-load, so those tests would wait on an image they never loaded. The live
+# tier builds and loads that image, so it re-enables the executor here rather
+# than editing the values every other cluster test depends on.
+executor:
+  enabled: true
+  # Loaded into the kind node by the target; never pulled.
+  image:
+    pullPolicy: Never
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}

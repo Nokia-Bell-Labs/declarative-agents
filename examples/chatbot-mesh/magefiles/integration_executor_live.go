@@ -3,12 +3,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
@@ -16,6 +19,12 @@ import (
 const (
 	executorLiveImage   = "declarative-agents/chatbot-mesh-executor:live"
 	executorLiveCluster = "da-chatbot-mesh-executor"
+	executorLiveRelease = "live"
+
+	executorReadyWait = 3 * time.Minute
+
+	executorLiveControlURL = "http://127.0.0.1:18091/api/lifecycle/health"
+	executorLiveRolloutURL = "http://127.0.0.1:18090/provisioning/api/rollout"
 )
 
 // ExecutorLive proves the executor against a real cluster, which the fake-CLI
@@ -79,8 +88,67 @@ func runExecutorLive(coreRoot, profilesRoot string) error {
 	if err := kindrig.LoadImage(executorLiveCluster, executorLiveImage); err != nil {
 		return err
 	}
+	if err := kindrig.LoadImage(executorLiveCluster, helmImage); err != nil {
+		return err
+	}
+
+	chartDir := exampleChartDir(profilesRoot)
+	staged, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
+	if err != nil {
+		return err
+	}
+	defer cleanupChart()
+	if err := helmInstallExecutorLive(staged); err != nil {
+		return err
+	}
+	if err := waitExecutorDeploymentReady(); err != nil {
+		return err
+	}
+	if err := assertExecutorServesItsSurface(); err != nil {
+		return err
+	}
 	fmt.Println("integration:executorLive PASS - the executor image builds on the runtime under test, " +
-		"carries the helm and kubectl its declarations name, ships the chart at /chart, and loads into kind")
+		"carries the helm and kubectl its declarations name, ships a chart that renders every profile, " +
+		"and runs on kind reading a real Deployment's rollout")
+	return nil
+}
+
+// helmInstallExecutorLive installs the mesh with the executor enabled. The two
+// values files layer: the kind footprint every cluster test shares, then the
+// executor the others deliberately disable.
+func helmInstallExecutorLive(chartPath string) error {
+	repo, tag := splitImageRef(helmImage)
+	execRepo, execTag := splitImageRef(executorLiveImage)
+	cmd := exec.Command("helm", "install", executorLiveRelease, chartPath,
+		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
+		"--values", filepath.Join(chartPath, "ci", "kind-executor-values.yaml"),
+		"--set", "image.repository="+repo,
+		"--set", "image.tag="+tag,
+		"--set", "image.pullPolicy=Never",
+		"--set", "executor.image.repository="+execRepo,
+		"--set", "executor.image.tag="+execTag,
+		"--set", "llm.externalURL=http://host.docker.internal:11434",
+		"--timeout", helmInstallTimeout.String(),
+	)
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("helm install %s: %w", executorLiveRelease, err)
+	}
+	return nil
+}
+
+// waitExecutorDeploymentReady waits for the executor alone. The install does not
+// use --wait: the chatbot needs an LLM this tier does not require, so blocking on
+// the whole mesh would make the executor's own readiness depend on something
+// unrelated to it.
+func waitExecutorDeploymentReady() error {
+	deployment := "deployment/" + executorLiveRelease + "-chatbot-mesh-executor"
+	cmd := exec.Command("kubectl", "rollout", "status", deployment,
+		"--timeout", executorReadyWait.String())
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("the executor Deployment never became ready: %w", err)
+	}
 	return nil
 }
 
@@ -231,3 +299,69 @@ func assertExecutorImageHelmMajor(image string) error {
 // for. TestExecutorHelmFlagsMatchTheShippedHelm holds it to the Dockerfile pin;
 // this constant is what the running image is checked against.
 const executorDeclaredHelmMajor = "3"
+
+// assertExecutorServesItsSurface proves the executor is an agent that started,
+// not just a container that is running, and that its rollout read reaches a real
+// Deployment.
+//
+// Readiness alone is the weaker claim: the probe hits the control server, which
+// the runtime serves once the profile loads, so it already means more than a
+// live process. What it cannot show is that the request machine dispatches --
+// the rollout read runs two kubectl words against the cluster's own API, using
+// the ServiceAccount the chart binds, so a working read is evidence about RBAC,
+// the kubeconfig the pod gets, and the counts word's go-template all at once.
+func assertExecutorServesItsSurface() error {
+	stop, err := kubectlPortForward("svc/"+executorLiveRelease+"-chatbot-mesh-executor", 18090, 18091)
+	if err != nil {
+		return err
+	}
+	defer stop()
+
+	if err := waitHTTPStatus(executorLiveControlURL, http.StatusOK, executorReadyWait); err != nil {
+		return fmt.Errorf("the executor control health never answered: %w", err)
+	}
+	fmt.Println("executorLive: the executor answers its control health")
+
+	body, status, err := requestInference(http.MethodGet, executorLiveRolloutURL, "", "executor live rollout read")
+	if err != nil {
+		return fmt.Errorf("rollout read failed: %w", err)
+	}
+	return assertLiveRolloutBody(body, status)
+}
+
+// assertLiveRolloutBody checks a rollout read against a real Deployment. The
+// phase is deliberately not pinned: whether the chatbot has rolled out depends on
+// an LLM this tier does not stand up, and both complete and progressing are
+// honest answers about a real cluster. What must hold is that the counts are the
+// Deployment's own -- a 502 would mean the executor could not reach it at all,
+// and a zero desired would mean it read something that is not there (srd006
+// R3.3, GH-686).
+func assertLiveRolloutBody(body []byte, status int) error {
+	if status != http.StatusOK {
+		return fmt.Errorf("rollout read status = %d, want 200; the executor could not read the Deployment: %s",
+			status, body)
+	}
+	var rollout struct {
+		Phase    string `json:"phase"`
+		Ready    int    `json:"ready"`
+		Desired  int    `json:"desired"`
+		Revision int    `json:"revision"`
+	}
+	if err := json.Unmarshal(body, &rollout); err != nil {
+		return fmt.Errorf("decode rollout response: %w: %s", err, body)
+	}
+	if rollout.Phase != "complete" && rollout.Phase != "progressing" {
+		return fmt.Errorf("rollout phase = %q, want complete or progressing: %s", rollout.Phase, body)
+	}
+	if rollout.Desired < 1 {
+		return fmt.Errorf("rollout desired = %d; the counts did not come from a real Deployment: %s",
+			rollout.Desired, body)
+	}
+	if rollout.Revision < 1 {
+		return fmt.Errorf("rollout revision = %d; a deployed release has at least revision 1: %s",
+			rollout.Revision, body)
+	}
+	fmt.Printf("executorLive: rollout read reports phase %s, %d/%d ready, revision %d from the live Deployment\n",
+		rollout.Phase, rollout.Ready, rollout.Desired, rollout.Revision)
+	return nil
+}
