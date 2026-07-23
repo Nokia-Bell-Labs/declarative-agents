@@ -33,11 +33,14 @@ const (
 // self-governs: load_corpus reads docs/SPECIFICATIONS.yaml, docs/specs, and
 // agents; validate_specs runs the corpus consistency checks; a single error
 // finding (a broken index path, touchpoint, or citation) fails the target. The
-// jurist exits zero on a failing corpus, so the outcome is read from its terminal
-// state, not the process exit code. Audit is the self-governance gate: it fails
-// clearly when the agent-core runtime or the jurist validator profile is not
-// reachable, rather than skipping, so a copied-out example without the platform
-// tools reports an honest failure instead of a false green.
+// outcome is read from the jurist's report rather than its exit code: a failing
+// corpus makes the jurist reach a failed terminal, which exits 2 (agent-core
+// srd018 R6.1/R6.2, GH-683), and agentRunCompleted accepts that as a completed
+// run because the report -- not the exit status -- names which checks failed.
+// Audit is the self-governance gate: it fails clearly when the agent-core
+// runtime or the jurist validator profile is not reachable, rather than
+// skipping, so a copied-out example without the platform tools reports an
+// honest failure instead of a false green.
 //
 // The gate has four steps, each answering a question the one before it cannot:
 // the jurist validates the corpus, the boot smoke proves every profile starts,

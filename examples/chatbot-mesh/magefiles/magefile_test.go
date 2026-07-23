@@ -10,9 +10,11 @@ import (
 
 // TestJuristSucceeded pins the report classification to the jurist's observed
 // output contract: a clean run ends "terminal state: succeeded"; a failing run
-// ends "terminal state: failed" (with "status=failed" in the run-complete log);
-// both exit zero, so the terminal state is the only signal. A report with neither
-// marker is an indeterminate run and must be an error, not a silent pass.
+// ends "terminal state: failed" (with "status=failed" in the run-complete log).
+// The classification reads the report rather than the exit code because the
+// report names which checks failed, where the exit code only says that some did
+// (agent-core srd018 R6, GH-683). A report with neither marker is an
+// indeterminate run and must be an error, not a silent pass.
 func TestJuristSucceeded(t *testing.T) {
 	cases := []struct {
 		name    string
