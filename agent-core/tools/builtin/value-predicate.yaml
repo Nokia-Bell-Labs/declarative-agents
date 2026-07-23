@@ -1,0 +1,69 @@
+tools:
+- name: value_predicate
+  type: builtin
+  init: value_predicate
+  category: word
+  visibility: internal
+  emits:
+  - Satisfied
+  - Unsatisfied
+  - CommandError
+  description: Compare two operands and emit one of two declared signals, so a machine can branch on a value rather than only on a call's success.
+  problem: A machine branches on signals and signals come from words, so branching on a value needs a word that emits one from a comparison; without it a decision the machine should own lives in a bespoke Go tool or in an unrelated agent's exit code.
+  goals:
+  - Resolve two operands against the previous Result and compare them under a declared operator.
+  - Emit the machine-declared signal for each outcome, so the word composes into any grammar.
+  - Emit CommandError for an operand that will not resolve or coerce, so a fault is never read as a negative.
+  requirements:
+    input:
+    - Operands, operator, operand type, and both outcome signal names come from tool config; no runtime input supplies them.
+    output:
+    - Output reports the resolved operands, the operator, and the comparison outcome.
+    errors:
+    - An unresolvable operand selector or a failed coercion emits CommandError rather than either outcome signal.
+  non_goals:
+  - Does not transform operands; it compares them and does nothing else.
+  - Does not combine several comparisons; a machine composes predicate words across states so each branch stays a visible transition.
+  - Does not read command state; operands resolve against the previous Result, and a $from(label) operand is refused at registration.
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: The comparison that was made and its outcome.
+    schema:
+      type: object
+      properties:
+        output:
+          type: string
+      required:
+      - output
+  side_effects: []
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Comparing two values changes nothing.
+  errors:
+  - signal: CommandError
+    condition: an operand selector does not resolve against the previous Result, or an operand does not coerce under the declared operand type
+    message_shape: '<tool>: operand <selector> did not resolve against the previous result'
+    state_after_failure: no comparison was made and no signal outcome is reported; the machine routes the fault apart from the unsatisfied branch
+  relationships:
+    before:
+    - machine-selected successor
+    after:
+    - the word whose Result the operands select from
+  config:
+    # The operands, the comparison, and both outcome signal names. left and
+    # right are selectors when they begin with "$." and literals otherwise.
+    # operand_type defaults to number when absent, so a count that arrives from
+    # a REST read as the string "6" compares as six rather than as text.
+    # The values below are a valid default so the declaration loads standalone;
+    # a profile overrides them.
+    left: "$.output"
+    op: non_empty
+    right: ""
+    operand_type: string
+    satisfied: Satisfied
+    unsatisfied: Unsatisfied

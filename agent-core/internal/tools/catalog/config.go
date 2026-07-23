@@ -37,6 +37,20 @@ type ComposeConfig struct {
 	Signal   string            `json:"signal"`
 }
 
+// ValuePredicateConfig holds the value predicate word's operands, its
+// comparison, and the signal it emits for each outcome (srd041 R1.2, R1.4).
+// OperandType defaults to number when absent, because the ordering operators are
+// the reason to reach for the word and a REST read of a scalar body yields a
+// string (R3.1).
+type ValuePredicateConfig struct {
+	Left        string `json:"left"`
+	Op          string `json:"op"`
+	Right       string `json:"right"`
+	OperandType string `json:"operand_type"`
+	Satisfied   string `json:"satisfied"`
+	Unsatisfied string `json:"unsatisfied"`
+}
+
 // CheckpointHistoryConfig holds config for checkpoint_history.
 type CheckpointHistoryConfig struct {
 	Checkpoint string `json:"checkpoint"`
