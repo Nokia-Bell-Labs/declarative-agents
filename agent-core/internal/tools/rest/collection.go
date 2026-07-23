@@ -369,14 +369,35 @@ func requestSeed(req MachineRequestRun, signal core.Signal) core.Result {
 	}
 	data, err := json.Marshal(seed)
 	if err != nil {
-		return core.Result{Signal: signal, Output: `{"parameters":{}}`}
+		return core.Result{
+			Signal:    signal,
+			Output:    `{"parameters":{}}`,
+			Redaction: machineRequestSeedRedaction(req.Config.Request),
+		}
 	}
-	return core.Result{Signal: signal, Output: string(data)}
+	return core.Result{
+		Signal:    signal,
+		Output:    string(data),
+		Redaction: machineRequestSeedRedaction(req.Config.Request),
+	}
+}
+
+func machineRequestSeedRedaction(mapping MachineRequestMapping) core.OutputRedaction {
+	paths := make([]core.OutputRedactionPath, 0, len(mapping.Sensitive))
+	for _, name := range mapping.Sensitive {
+		paths = append(paths, core.OutputRedactionPath{"parameters", name})
+	}
+	return core.OutputRedaction{
+		Version: core.OutputRedactionVersion1,
+		Paths:   paths,
+	}
 }
 
 // machineRequestSeedExecution makes trusted request input addressable after
 // intervening words as $from(seed).parameters.<field>. Existing execution wins
-// on resume so the synthetic forward entry is never duplicated (srd030 R3.8).
+// on resume so the synthetic forward entry is never duplicated. DigestResult
+// applies the same output-redaction boundary as loop dispatch (srd030 R3.8,
+// srd038 R5).
 func machineRequestSeedExecution(seed core.Result, existing core.Execution) core.Execution {
 	if len(existing) > 0 {
 		return existing
@@ -385,10 +406,7 @@ func machineRequestSeedExecution(seed core.Result, existing core.Execution) core
 		CommandName: "seed",
 		Label:       "seed",
 		Signal:      seed.Signal,
-		Result: core.ResultDigest{
-			Signal: seed.Signal,
-			Output: seed.Output,
-		},
+		Result:      core.DigestResult(seed),
 	}}
 }
 

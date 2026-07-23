@@ -50,6 +50,9 @@ requirements:
       - R3.6: The seed Result SHALL expose the mapped request input under a parameters key so that either a filesystem word or a REST-client word can be the initial machine action, reading the same parameters selector surface.
       - R3.7: The seed Result SHALL NOT expose transport authority (method, host, URL, auth, redirect) to the request machine, so the initial action cannot receive transport authority and does not trip the REST runtime-input authority guard; non-authority context such as the URL path and request id MAY be exposed for adapters.
       - R3.8: A fresh request run SHALL add the seed Result to InitialExecution exactly once with label and command_name seed. A later word MAY select mapped input as $from(seed).parameters.<field> through a consumer that adopts srd038 command-state selectors. If a resumed execution already contains the seed entry, the runner SHALL NOT prepend a duplicate.
+      - R3.9: Trusted request mapping configuration MAY list mapped field names as sensitive. Each name SHALL refer to a declared path, query, header, or body mapping key; the list SHALL contain field names only, never request values.
+      - R3.10: The seed Result SHALL translate each sensitive mapped field into the typed output path [parameters, field] and pass through the same core ResultDigest redaction boundary as loop-dispatched Results before entering InitialExecution.
+      - R3.11: A sensitive seed field SHALL be absent from fresh and rehydrated command-state views. Invalid seed redaction metadata SHALL omit the whole seed output, and a resumed execution SHALL retain its existing single seed rather than adding an unredacted replacement.
 
   R4:
     title: Response extraction
@@ -102,8 +105,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7]
 
   - id: AC4
-    criterion: Request input mapping validates HTTP fields, builds structured machine input, carries request metadata, rejects invalid input before machine execution, exposes the input under a parameters key so a filesystem or REST-client word can be the initial action, and withholds transport authority from the request machine. The initial execution records one reserved seed entry so a later command-state-aware word can select $from(seed).parameters.<field> without duplication after resume.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8]
+    criterion: Request input mapping validates HTTP fields, builds structured machine input, carries request metadata, rejects invalid input before machine execution, exposes the input under a parameters key so a filesystem or REST-client word can be the initial action, and withholds transport authority from the request machine. The initial execution records one reserved seed entry so a later command-state-aware word can select a non-sensitive $from(seed).parameters.<field> without duplication after resume, while trusted sensitive field names become typed paths that core removes before live or persisted selection.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10, R3.11]
 
   - id: AC5
     criterion: Response extraction uses configured response words or terminal output to shape HTTP status, headers, body, and content type.

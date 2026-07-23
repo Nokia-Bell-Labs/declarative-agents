@@ -43,7 +43,7 @@ requirements:
       - R1.4: After a process restart the store SHALL rehydrate outputs from the srd036 tool_outputs plane and step labels from the persisted execution metadata so a resumed run resolves the same authored labels it resolved before suspension.
       - R1.5: A selector that resolves to no recorded entry SHALL surface a typed error that names the unresolved label; it SHALL NOT silently yield an empty value.
       - R1.6: Persisted execution metadata SHALL store the optional authored label separately from command_name. An existing row with no label SHALL retain command-name addressing after schema upgrade only when its output has recognized redaction metadata.
-      - R1.7: A machine_request runner MAY place its initial Result in InitialExecution as one synthetic forward entry before the first dispatch, so later words can select the trusted request seed without a second state store.
+      - R1.7: A machine_request runner MAY place its initial Result in InitialExecution as one synthetic forward entry before the first dispatch, so later words can select the trusted request seed without a second state store. The synthetic producer SHALL apply the same typed ResultDigest redaction boundary as loop dispatch before the entry becomes live.
       - R1.8: Load SHALL retain an Entry whose output has no recognized redaction version for lifecycle accounting, but CommandStateView SHALL exclude its output and return a typed unavailable error on lookup by label or command name.
   R2:
     title: Label addressing
@@ -57,7 +57,7 @@ requirements:
       - R2.7: A transition with no authored label SHALL remain addressable by its executed command name. The same fallback SHALL apply to legacy persisted entries and programmatic TransitionTable runs with no MachineSpec label.
       - R2.8: A labeled $tool transition SHALL record the transition label as its stable authored address and the dynamically selected tool as its command name. Both addresses SHALL resolve to that step.
       - R2.9: TransitionSpec label SHALL be distinct from metric_labels; command-state selection SHALL NOT read observability labels.
-      - R2.10: "The synthetic machine_request entry SHALL reserve label and command_name seed. Its output SHALL have the same shape as the initial Result: mapped request input under parameters, with optional path and request_id fields. A mapped field SHALL therefore be addressable as $from(seed).parameters.<field>. A fresh request SHALL add this entry exactly once, and a resumed execution that already contains it SHALL NOT add another."
+      - R2.10: "The synthetic machine_request entry SHALL reserve label and command_name seed. Its output SHALL have the same safe shape as the initial Result: non-sensitive mapped request input under parameters, with optional path and request_id fields. A non-sensitive mapped field SHALL therefore be addressable as $from(seed).parameters.<field>, while a configured sensitive field SHALL be absent. A fresh request SHALL add this entry exactly once, and a resumed execution that already contains it SHALL NOT add another."
       - R2.11: A declared input site MAY adopt canonical $from(<label>).<dotted-path> selectors when its subsystem specifies that extension. The consumer SHALL opt in through CommandStateAware and ResolveFromSelector; support SHALL NOT be inferred for every input site. An unresolved selector SHALL be an infrastructure fault such as CommandError, not a domain miss or an empty value.
   R3:
     title: Authority boundary
@@ -84,6 +84,7 @@ requirements:
       - R5.6: CommandStateView SHALL expose output only when it has a recognized version and applied status. It SHALL return a typed unavailable error for output_omitted, unversioned legacy, and unknown-version entries.
       - R5.7: A field removed by redaction SHALL NOT be readable by any later word through a $from selector, whether the run is live or resumed.
       - R5.8: Receipts SHALL remain opaque and unchanged in the reverse plane; output redaction metadata SHALL neither inspect nor rewrite them.
+      - R5.9: Synthetic forward entries, including machine_request seed, SHALL use the core Result-to-ResultDigest redaction boundary rather than constructing an unversioned ResultDigest directly. Trusted seed configuration SHALL identify sensitive mapped field names without carrying request values in metadata.
 
 non_goals:
   - Cross-run addressing; a selector resolves only within its own run and never reaches another run's steps.
@@ -107,8 +108,8 @@ acceptance_criteria:
     criterion: Entries are branch-scoped, Revert invalidates later entries by construction, terminal-state reaping removes a run's entries, and the store carries no TTL or refcount machinery.
     traces: [R4.1, R4.2, R4.3, R4.4]
   - id: AC5
-    criterion: Tool families supply versioned typed sensitive-output paths; core removes marked fields before live Entry construction; malformed metadata and marked non-object output cause whole-output omission; checkpoint adapters reapply removal before storage; and selectors reject omitted, unknown-version, and unversioned legacy output live and after reload while receipts remain unchanged.
-    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8]
+    criterion: Tool families and synthetic forward-entry producers supply versioned typed sensitive-output paths; core removes marked fields before live Entry construction; malformed metadata and marked non-object output cause whole-output omission; checkpoint adapters reapply removal before storage; and selectors reject omitted, unknown-version, and unversioned legacy output live and after reload while receipts remain unchanged. Machine-request seed metadata contains configured field names, never request values.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9]
 
 neighboring_contracts: |
   srd028 R12 (REST client tools, previous_result threading) stays unchanged. Its

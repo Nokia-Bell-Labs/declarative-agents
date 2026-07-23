@@ -488,6 +488,34 @@ func validateMachineRequestEndpoint(name string, endpoint Endpoint) error {
 	if cfg.Timeout == "" {
 		return fmt.Errorf("endpoint %q machine_request requires timeout", name)
 	}
+	if err := validateMachineRequestSensitiveFields(cfg.Request); err != nil {
+		return fmt.Errorf("endpoint %q machine_request request: %w", name, err)
+	}
+	return nil
+}
+
+func validateMachineRequestSensitiveFields(mapping MachineRequestMapping) error {
+	declared := map[string]bool{}
+	for _, fields := range []map[string]string{
+		mapping.Body, mapping.Query, mapping.Path, mapping.Headers,
+	} {
+		for name := range fields {
+			declared[name] = true
+		}
+	}
+	seen := map[string]bool{}
+	for _, name := range mapping.Sensitive {
+		if name == "" {
+			return fmt.Errorf("sensitive field name must not be empty")
+		}
+		if seen[name] {
+			return fmt.Errorf("sensitive field %q is duplicated", name)
+		}
+		if !declared[name] {
+			return fmt.Errorf("sensitive field %q is not a mapped request field", name)
+		}
+		seen[name] = true
+	}
 	return nil
 }
 
@@ -576,7 +604,8 @@ func machineRequestYAMLSet(cfg MachineRequest) bool {
 		return true
 	}
 	m := cfg.Request
-	return len(m.Body) > 0 || len(m.Query) > 0 || len(m.Path) > 0 || len(m.Headers) > 0
+	return len(m.Body) > 0 || len(m.Query) > 0 || len(m.Path) > 0 ||
+		len(m.Headers) > 0 || len(m.Sensitive) > 0
 }
 
 func queueConfigSet(q QueueConfig) bool {

@@ -205,10 +205,11 @@ type MachineRequest struct {
 
 // MachineRequestMapping declares which request data seeds the machine.
 type MachineRequestMapping struct {
-	Body    map[string]string `yaml:"body,omitempty"`
-	Query   map[string]string `yaml:"query,omitempty"`
-	Path    map[string]string `yaml:"path,omitempty"`
-	Headers map[string]string `yaml:"headers,omitempty"`
+	Body      map[string]string `yaml:"body,omitempty"`
+	Query     map[string]string `yaml:"query,omitempty"`
+	Path      map[string]string `yaml:"path,omitempty"`
+	Headers   map[string]string `yaml:"headers,omitempty"`
+	Sensitive []string          `yaml:"sensitive,omitempty"`
 }
 
 // MachineRequestResponse maps terminal machine output to HTTP, keyed either by

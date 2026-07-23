@@ -107,21 +107,27 @@ test_cases:
       - srd023-cli-exec-tools AC4
 
   - use_case: rel07.0-uc001-command-state-threading
-    name: Machine request seed remains addressable after intervening words
-    go_test: go test ./internal/tools/rest -run TestMachineRequestSeedCommandStateAddress
+    name: Machine request seed stays safe and addressable after intervening words
+    go_test: go test ./internal/tools/rest -run 'TestMachineRequest(Seed(CommandStateAddress|RedactionLiveAndReloaded|RedactionFailsClosed)|SensitiveFieldsMustBeMapped)'
     status: implemented
-    owner: GH-786
+    owner: GH-489
     description: |
       A fresh machine_request execution contains one synthetic entry labelled
-      seed whose output matches InitialResult. An exec word after intervening
-      reads resolves mapped input through $from(seed).parameters.directory, and
-      resumed execution does not prepend a second seed.
+      seed. Core removes its configured sensitive field before the entry becomes
+      live or reaches checkpoint storage. An exec word after intervening reads
+      still resolves non-sensitive input through
+      $from(seed).parameters.directory, and resumed execution does not prepend a
+      second seed. Malformed metadata omits the whole seed output.
     inputs:
       selector: "$from(seed).parameters.directory"
+      sensitive_selector: "$from(seed).parameters.token"
       intervening_words: 2
       resume_with_seed_entry: true
     expected:
       directory_resolved: true
+      sensitive_field_resolved: false
+      sensitive_value_persisted: false
+      malformed_output_omitted: true
       seed_entries_fresh_run: 1
       seed_entries_resumed_run: 1
     traces:
@@ -129,6 +135,7 @@ test_cases:
       - rel07.0-uc001-command-state-threading S3
       - srd038-command-state-store AC1
       - srd038-command-state-store AC2
+      - srd038-command-state-store AC5
       - srd030-machine-request-rest-binding AC4
 
   - use_case: rel07.0-uc001-command-state-threading

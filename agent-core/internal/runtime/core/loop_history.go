@@ -49,12 +49,15 @@ func dispatchEntry(iteration int, fromState, toState State, transitionSignal Sig
 		FromState:   fromState,
 		ToState:     toState,
 		Signal:      transitionSignal,
-		Result:      digestResult(res),
+		Result:      DigestResult(res),
 		Receipt:     res.Receipt,
 	}
 }
 
-func digestResult(res Result) ResultDigest {
+// DigestResult applies the core output-redaction boundary and returns the
+// serializable forward-plane projection of a Result. Synthetic execution
+// producers use this same boundary as loop dispatch (srd035 R7, srd038 R5).
+func DigestResult(res Result) ResultDigest {
 	version := res.Redaction.Version
 	if version == 0 && len(res.Redaction.Paths) == 0 {
 		version = OutputRedactionVersion1
