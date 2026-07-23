@@ -59,7 +59,11 @@ func TestLoadToolDefsExpandsEnvReference(t *testing.T) {
 // declaration has to run unconfigured, which is what keeps the local targets
 // working with no environment set.
 func TestLoadToolDefsUsesDefaultWhenUnset(t *testing.T) {
-	os.Unsetenv("OLLAMA_URL")
+	// Register restoration of the original value before exercising the unset case.
+	t.Setenv("OLLAMA_URL", "")
+	if err := os.Unsetenv("OLLAMA_URL"); err != nil {
+		t.Fatalf("unset OLLAMA_URL: %v", err)
+	}
 
 	defs, err := LoadToolDefs(writeDecl(t, "${OLLAMA_URL:-http://localhost:11434}"))
 
