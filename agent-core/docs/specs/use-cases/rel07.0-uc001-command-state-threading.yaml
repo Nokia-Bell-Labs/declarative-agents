@@ -21,7 +21,7 @@ flow:
   - F3: Word 3 (query-shaped) declares body_source command_state and selects word 1's fields through input_mapping $from(<label>).<path> selectors, resolving by label with most-recent-wins and no absolute indices (srd038 R2, srd028 R13).
   - F4: The store hands word 3 only the fields it selected into declared params; no transport authority or receipt is addressable (srd038 R3).
   - F5: The run suspends after word 1 and resumes in a fresh process; the store rehydrates from the srd036 tool_outputs plane so word 3 resolves the same label (srd038 R1).
-  - F6: If word 1 marks a sensitive object path, core removes that field before the live Entry becomes selectable and the checkpoint adapter reapplies removal before Save; word 3 cannot select it live or after resume (srd038 R5).
+  - F6: If word 1 is a REST command, it translates configured body and header redaction selectors into typed paths through its emitted Result shape while preserving its immediate marker response; core removes those paths before the live Entry becomes selectable and the checkpoint adapter reapplies removal before Save, so word 3 cannot select them live or after resume (srd038 R5).
 
 touchpoints:
   - T1: "srd038-command-state-store R1 -- read-only forward view over the execution log, rehydrated from tool_outputs after restart"
@@ -50,7 +50,7 @@ success_criteria:
     traces:
       - srd038-command-state-store AC2
   - id: S5
-    criterion: A typed sensitive-output path is absent from the live Entry and persisted tool_outputs row, and a later word cannot resolve it before or after resume. Malformed metadata omits the whole output, and an unversioned legacy output returns a typed unavailable error.
+    criterion: REST body and header selectors produce typed sensitive-output paths without secret values; each path is absent from the live Entry and persisted tool_outputs row, and a later word cannot resolve it before or after resume. Malformed metadata omits the whole output, and an unversioned legacy output returns a typed unavailable error.
     traces:
       - srd038-command-state-store AC5
 

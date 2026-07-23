@@ -2,7 +2,11 @@
 
 package rest
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+)
 
 const (
 	redactionBody    = "body"
@@ -22,6 +26,65 @@ func clientRedactionSelectors(def ClientOperationDefinition, mapping StatusMappi
 	selectors := append([]string{}, responseMap.Redact...)
 	selectors = append(selectors, authRedactionSelectors(def.Auth)...)
 	return selectors
+}
+
+// clientOutputRedaction converts REST selector syntax into typed paths through
+// the emitted Result output. REST keeps its immediate marker-based response
+// contract; core uses these paths to remove marked fields from Execution.
+func clientOutputRedaction(
+	def ClientOperationDefinition,
+	mapping StatusMapping,
+	selectors []string,
+) core.OutputRedaction {
+	responseMap := resolvedResponseMapping(def, mapping)
+	var paths []core.OutputRedactionPath
+	for _, selector := range selectors {
+		scope, field, ok := parseRedactionSelector(selector)
+		if !ok {
+			continue
+		}
+		switch scope {
+		case redactionBody:
+			paths = appendUniqueOutputPath(paths, append(
+				core.OutputRedactionPath{"body"},
+				strings.Split(field, ".")...,
+			))
+			for name, source := range responseMap.Output {
+				if sameBodyRedactionField(source, field) {
+					paths = appendUniqueOutputPath(paths, core.OutputRedactionPath{"mapped", name})
+				}
+			}
+			if sameBodyRedactionField(responseMap.ResourceID, field) {
+				paths = appendUniqueOutputPath(paths, core.OutputRedactionPath{"resource_id"})
+			}
+			if sameBodyRedactionField(responseMap.RequestID, field) {
+				paths = appendUniqueOutputPath(paths, core.OutputRedactionPath{"request_id"})
+			}
+		case redactionHeaders:
+			paths = appendUniqueOutputPath(paths, core.OutputRedactionPath{
+				"headers",
+				strings.ToLower(field),
+			})
+		}
+	}
+	return core.OutputRedaction{Version: core.OutputRedactionVersion1, Paths: paths}
+}
+
+func sameBodyRedactionField(selector, field string) bool {
+	scope, selectedField, ok := parseRedactionSelector(selector)
+	return ok && scope == redactionBody && selectedField == field
+}
+
+func appendUniqueOutputPath(
+	paths []core.OutputRedactionPath,
+	candidate core.OutputRedactionPath,
+) []core.OutputRedactionPath {
+	for _, path := range paths {
+		if strings.Join(path, "\x00") == strings.Join(candidate, "\x00") {
+			return paths
+		}
+	}
+	return append(paths, candidate)
 }
 
 func authRedactionSelectors(auth AuthProfile) []string {
@@ -45,6 +108,31 @@ func redactClientOutput(output map[string]interface{}, selectors []string) {
 				redactNested(output["headers"], field)
 			}
 		})
+	}
+}
+
+func redactClientDerivedOutput(
+	output map[string]interface{},
+	responseMap ResponseMapping,
+	selectors []string,
+) {
+	mapped, _ := output["mapped"].(map[string]interface{})
+	for _, selector := range selectors {
+		scope, field, ok := parseRedactionSelector(selector)
+		if !ok || scope != redactionBody {
+			continue
+		}
+		for name, source := range responseMap.Output {
+			if sameBodyRedactionField(source, field) {
+				mapped[name] = redactedValue
+			}
+		}
+		if sameBodyRedactionField(responseMap.ResourceID, field) {
+			output["resource_id"] = redactedValue
+		}
+		if sameBodyRedactionField(responseMap.RequestID, field) {
+			output["request_id"] = redactedValue
+		}
 	}
 }
 

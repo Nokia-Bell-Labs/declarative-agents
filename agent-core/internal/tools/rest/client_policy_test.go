@@ -3,6 +3,7 @@
 package rest
 
 import (
+	"errors"
 	"fmt"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/stretchr/testify/require"
@@ -29,13 +30,9 @@ func TestRESTClient_RejectsAuthorityOverride(t *testing.T) {
 	require.Zero(t, requests)
 }
 
-// TestRESTClient_RedactionRunsBeforePersistence proves invariant (3): response
-// redaction runs inside mapClientResponse before Execute returns the Result, so
-// the Result the loop hands to the checkpoint Save — and therefore the
-// tool_outputs forward plane and any later command-state $from read — never sees
-// a redacted field (srd038-command-state-store R5, srd036-dolt-state-persistence
-// R5.1). The Result returned by Execute is exactly what a persisting caller
-// checkpoints, so asserting the field is already gone here proves the ordering.
+// TestRESTClient_RedactionRunsBeforePersistence proves that REST preserves its
+// immediate marker contract while typed paths keep sensitive fields out of live
+// and rehydrated command-state views (srd038 R5, srd036 R3).
 func TestRESTClient_RedactionRunsBeforePersistence(t *testing.T) {
 	t.Parallel()
 
@@ -47,14 +44,55 @@ func TestRESTClient_RedactionRunsBeforePersistence(t *testing.T) {
 
 	// issueClient's get operation redacts body.secret.
 	def := clientDefinition(t, upstream.URL, issueClient())
+	op := def.Clients["github"].Resources["issue"].Operations["get"]
+	op.Response.Output["secret_copy"] = "$.secret"
+	def.Clients["github"].Resources["issue"].Operations["get"] = op
 
 	result := clientCommand(t, def, InitClientGet, "get", params("1")).Execute()
 	require.Equal(t, core.Signal("RESTResourceRead"), result.Signal)
 
-	// The redacted value is absent from the persisted Result output and the
-	// [REDACTED] marker is present in its place; nothing downstream can recover it.
+	// REST callers retain the marker-based response contract, including mapped
+	// copies, without carrying the secret value in redaction metadata.
 	require.NotContains(t, result.Output, "body-secret")
 	require.Contains(t, result.Output, "[REDACTED]")
+	require.Equal(t, core.OutputRedactionVersion1, result.Redaction.Version)
+	require.ElementsMatch(t, []core.OutputRedactionPath{
+		{"body", "secret"},
+		{"mapped", "secret_copy"},
+	}, result.Redaction.Paths)
+
+	digest := core.ResultDigest{
+		Signal:           result.Signal,
+		Output:           result.Output,
+		RedactionVersion: result.Redaction.Version,
+		RedactedPaths:    result.Redaction.Paths,
+		RedactionStatus:  core.OutputRedactionApplied,
+	}
+	execution := core.Execution{{
+		CommandName: result.CommandName,
+		Label:       "fetch",
+		Signal:      result.Signal,
+		Result:      digest,
+	}}
+
+	assertSecretPathUnavailable(t, core.NewCommandStateView(execution))
+
+	checkpoint := &core.InMemoryCheckpoint{}
+	require.NoError(t, checkpoint.Save(core.Position{}, execution))
+	_, loaded, err := checkpoint.Load()
+	require.NoError(t, err)
+	require.NotContains(t, loaded[0].Result.Output, "body-secret")
+	require.NotContains(t, loaded[0].Result.Output, `"secret"`)
+	require.NotContains(t, loaded[0].Result.Output, "secret_copy")
+	assertSecretPathUnavailable(t, core.NewCommandStateView(loaded))
+}
+
+func assertSecretPathUnavailable(t *testing.T, view core.CommandStateView) {
+	t.Helper()
+	value, err := core.ResolveFromSelector(view, "$from(fetch).body.secret")
+	require.Nil(t, value)
+	var missing *core.UnresolvedPathError
+	require.True(t, errors.As(err, &missing), err)
 }
 
 func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
@@ -78,6 +116,8 @@ func TestRESTTools_TracingRedactionAndErrors(t *testing.T) {
 	require.NotContains(t, result.Output, "synthetic-token")
 	require.NotContains(t, result.Output, "body-secret")
 	require.Contains(t, result.Output, "[REDACTED]")
+	require.Contains(t, result.Redaction.Paths, core.OutputRedactionPath{"body", "secret"})
+	require.Contains(t, result.Redaction.Paths, core.OutputRedactionPath{"headers", "x-token"})
 
 	badDef := clientDefinition(t, upstream.URL, issueClient())
 	op := badDef.Clients["github"].Resources["issue"].Operations["get"]

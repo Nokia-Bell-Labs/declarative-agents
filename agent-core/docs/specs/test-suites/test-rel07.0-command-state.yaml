@@ -309,15 +309,16 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Typed redaction denies sensitive output live and after persistence
-    status: planned
+    go_test: go test ./internal/runtime/core ./internal/tools/rest -run 'Test(DoltCheckpointReappliesAndPersistsOutputRedaction|OutputRedactionFailsClosed|CommandStateRejectsUnversionedLegacyOutput|RESTClient_RedactionRunsBeforePersistence)'
+    status: implemented
     owner: GH-489
     coverage: component-integration
     description: |
-      A REST Result carries a versioned typed sensitive-output path. Core removes
-      the field before appending the live Entry. InMemoryCheckpoint and
-      DoltCheckpoint reapply the policy on Save; a fresh Load and
-      CommandStateView cannot recover the value. The proof inspects tool_outputs
-      and exercises malformed metadata, marked non-object output, and an
+      A REST Result translates its configured selector into versioned typed paths
+      covering direct and mapped output. Live CommandStateView and
+      InMemoryCheckpoint reload cannot recover the field. The Dolt adapter proof
+      inspects tool_outputs write arguments and fresh-load selection. Companion
+      core cases exercise malformed metadata, marked non-object output, and an
       unversioned legacy row.
     inputs:
       redacted_field: body.secret
