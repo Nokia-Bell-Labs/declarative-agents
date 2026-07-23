@@ -377,8 +377,11 @@ func runChromaAgent(binary, profilesRoot, coreRoot, profile, directory, tracePat
 	if err != nil {
 		return fmt.Errorf("%w\n%s", err, out)
 	}
-	// The agent exits zero even when the machine reaches a Failed terminal, so
-	// the exit code alone does not prove the run succeeded.
+	// The exit code above already rules out a failed terminal, which exits 2
+	// (agent-core srd018 R6.1/R6.2, GH-683). This asserts the terminal state
+	// itself because a suspended run also exits 0 -- a deliberate pause with a
+	// persisted checkpoint is not a failure (R6.4) -- and a tracer that ingested
+	// nothing because its machine parked mid-run has not proven the flow.
 	if !strings.Contains(string(out), "status=succeeded") {
 		return fmt.Errorf("agent did not reach a succeeded terminal state:\n%s", out)
 	}
