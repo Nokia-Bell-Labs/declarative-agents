@@ -131,15 +131,12 @@ depends_on:
 
 implementation_status:
   done:
-    - Core CommandStateView (internal/runtime/core/command_state.go): a read-only, receipt-blind forward view over the run's execution log with $from-style lookup currently keyed by command name, most-recent-wins on duplicate command names, and ok=false on a miss. Built from a projected struct that omits Entry.Receipt so the receipt is unreachable by construction (R1, R3). The engine injects it before dispatch into commands implementing CommandStateAware, mirroring MonitorRecorderAware. Rehydrates command-name addresses from the execution restored by the checkpoint port (in-memory and Dolt tool_outputs). Delivered by GH-277.
+    - Core CommandStateView (internal/runtime/core/command_state.go): a read-only, receipt-blind forward view over the run's execution log. One newest-to-oldest scan matches either an authored label or executed command name, while the projected struct omits Entry.Receipt so receipts are unreachable by construction (R1, R2, R3). The engine injects it before dispatch into commands implementing CommandStateAware, mirroring MonitorRecorderAware. Initially delivered by GH-277 and extended with authored labels and typed lookup errors by GH-488.
     - REST body_source command_state consumption and $from(label).path selector validation (V32): clientCmd implements CommandStateAware and resolves selectors against the injected view, with the no-store rejection enforced at runtime (R13.5). Delivered by GH-278.
     - rel07.0-uc001 tracer bullet (a three-word chain where word 3 selects word 1 non-adjacently and the run resumes mid-chain) and a commit-per-step large-blob storage benchmark showing per-step write cost bounded by the new blob (~linear, not cumulative). Delivered by GH-279.
     - Shared $from resolution: core.ParseFromSelector and core.ResolveFromSelector factor the selector parse and path walk out of the REST client so a second consumer, the compose builtin, resolves $from(label).path against the same view. The compose word renders a template from $from selectors, letting a later word (invoke_llm) receive one composed input assembled from non-adjacent prior steps without carry_forward chains. Delivered by GH-342.
     - Canonical selector AST: core.ParseSelector validates both $.path and $from(label).path forms, and the parsed selector owns the shared nested-map resolver used by core and REST consumers.
-  planned:
-    - "GH-488 / GH-782: parse TransitionSpec label and record it on Entry through real MachineSpec execution."
-    - "GH-488 / GH-783: resolve authored labels with command-name fallback and exported typed unresolved-label and unresolved-path errors."
-    - "GH-488 / GH-781: persist nullable authored labels, upgrade existing Dolt schemas, and prove restart rehydration."
+    - "GH-488: TransitionSpec authored labels are validated with the canonical selector grammar, recorded separately from command names, resolved with exported typed label/path errors, and persisted through an idempotent nullable Dolt schema upgrade. Real MachineSpec execution proves dynamic-tool separation, command-name fallback, duplicate-label newest-match behavior, and fresh-view restart rehydration."
 
 diagrams:
   requirements_trace: |

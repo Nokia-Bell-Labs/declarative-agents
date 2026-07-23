@@ -11,8 +11,8 @@ preconditions:
   - srd036-dolt-state-persistence (amended) defines the five-table schema splitting tool_results into tool_outputs and receipts.
   - srd028-rest-client-tools R13 defines body_source command_state consumption through $from selectors.
   - srd006-yaml-machine-config and cfg-machine-format define optional TransitionSpec label as the authored command-state address, distinct from command_name and metric_labels.
-  - Epics GH-269 (persistence split) and GH-270 (core store and REST consumption) own the executable Go tests these cases name.
-  - GH-781, GH-782, and GH-783 cases use planned_go_test until their named tests exist; the formal evidence validator executes only go_test fields.
+  - Epics GH-269 (persistence split) and GH-270 (core store and REST consumption) established the original executable evidence.
+  - GH-781, GH-782, and GH-783 add authored-label capture, typed selector errors, and restart persistence evidence.
 
 test_cases:
   - use_case: rel07.0-uc001-command-state-threading
@@ -60,17 +60,16 @@ test_cases:
       - srd028-rest-client-tools AC12
 
   - use_case: rel07.0-uc001-command-state-threading
-    name: Duplicate command-name addresses resolve to the most recent step
+    name: Duplicate authored labels resolve to the most recent step
     go_test: go test ./internal/runtime/core -run TestCommandStateViewDuplicateLabelMostRecentWins
     status: implemented
     description: |
-      Two synthetic entries share a command name; a later $from selector resolves
-      to the higher step_index. This is compatibility evidence for command-name
-      fallback, not evidence that MachineSpec authored labels are captured.
+      Two synthetic entries with different command names share an authored
+      label; a later lookup resolves to the higher step_index.
     inputs:
       steps:
-        - {command_name: fetch, step_index: 0}
-        - {command_name: fetch, step_index: 2}
+        - {label: fetch, command_name: rest_get, step_index: 0}
+        - {label: fetch, command_name: rest_retry, step_index: 2}
       selector: $from(fetch).id
     expected:
       resolved_step_index: 2
@@ -80,8 +79,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: MachineSpec captures a validated authored transition label
-    planned_go_test: go test ./internal/runtime/core -run TestCommandStateAuthoredLabelMachineExecution
-    status: planned
+    go_test: go test ./internal/runtime/core -run TestCommandStateAuthoredLabelMachineExecution
+    status: implemented
     owner: GH-782
     description: |
       A real declarative loop executes a transition whose label differs from its
@@ -106,8 +105,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Authored labels and command names share one newest-match lookup
-    planned_go_test: go test ./internal/runtime/core -run 'TestCommandStateView(AuthoredLabelMostRecentWins|CommandNameFallback|AddressCollision)'
-    status: planned
+    go_test: go test ./internal/runtime/core -run TestCommandStateViewCommandNameFallbackAndAddressCollision
+    status: implemented
     owner: GH-783
     description: |
       Entries carry labels distinct from command names. Lookup matches either
@@ -129,8 +128,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Unresolved label and path failures retain typed causes
-    planned_go_test: go test ./internal/runtime/core -run TestResolveFromSelectorTypedErrors
-    status: planned
+    go_test: go test ./internal/runtime/core -run TestResolveFromSelectorTypedErrors
+    status: implemented
     owner: GH-783
     description: |
       ResolveFromSelector returns exported structured errors for a missing label
@@ -169,8 +168,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Real MachineSpec labels survive schema upgrade and restart rehydration
-    planned_go_test: go test ./internal/runtime/core -run 'TestDoltCheckpoint(AuthoredLabelRoundTrip|LegacyLabelUpgrade|MachineLabelRehydration)'
-    status: planned
+    go_test: go test ./internal/runtime/core -run 'Test(DoltCheckpointSchemaUpgradeAddsNullableLabel|CommandStateAuthoredLabelPersistsAcrossDoltRestart)'
+    status: implemented
     owner: GH-781
     coverage: component-integration
     description: |
