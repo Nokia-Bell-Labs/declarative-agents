@@ -74,13 +74,15 @@ type Position struct {
 // array, or null when empty.
 type Execution []Entry
 
-// Entry records one completed dispatch. Receipt is an opaque, tool-owned string
-// persisted verbatim; the engine and every adapter treat it as opaque and never
-// parse it (srd035-checkpoint-port R2.4, R3).
+// Entry records one completed dispatch. Label is the optional MachineSpec
+// transition label and stays distinct from the executed CommandName. Receipt is
+// an opaque, tool-owned string persisted verbatim; the engine and every adapter
+// treat it as opaque and never parse it (srd035 R2.4, R3; srd038 R1.6, R2).
 type Entry struct {
 	Iteration   int          `json:"iteration"`
 	Timestamp   time.Time    `json:"timestamp"`
 	CommandName string       `json:"command_name"`
+	Label       string       `json:"label,omitempty"`
 	FromState   State        `json:"from_state"`
 	ToState     State        `json:"to_state"`
 	Signal      Signal       `json:"signal"`

@@ -160,13 +160,34 @@ func (bs *BudgetSpec) ToBudget(defaults Budget) Budget {
 
 // TransitionSpec is one row in the transition table YAML.
 // Action is either a tool name (resolved from the registry) or "$tool"
-// for dynamic dispatch. Empty action means terminal (no command).
+// for dynamic dispatch. Label is the optional stable command-state address for
+// the completed action. Empty action means terminal (no command).
 type TransitionSpec struct {
 	State        string       `yaml:"state"`
 	Signal       string       `yaml:"signal"`
 	Next         string       `yaml:"next"`
 	Action       string       `yaml:"action,omitempty"`
+	Label        string       `yaml:"label,omitempty"`
 	MetricLabels MetricLabels `yaml:"metric_labels,omitempty"`
+	labelSet     bool
+}
+
+// UnmarshalYAML records whether label was authored so validation can distinguish
+// an omitted label from an explicitly empty one (srd006 R1.5, R2.7).
+func (t *TransitionSpec) UnmarshalYAML(value *yaml.Node) error {
+	type transitionSpec TransitionSpec
+	var decoded transitionSpec
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+	*t = TransitionSpec(decoded)
+	for i := 0; i+1 < len(value.Content); i += 2 {
+		if value.Content[i].Value == "label" {
+			t.labelSet = true
+			break
+		}
+	}
+	return nil
 }
 
 // MachineDiagnosticSeverity classifies non-fatal grammar diagnostics.
@@ -293,6 +314,12 @@ func validateSpec(spec MachineSpec) error {
 		}
 		if !stateSet[tr.Next] {
 			errs = append(errs, fmt.Sprintf("transition[%d]: next %q not in states list", i, tr.Next))
+		}
+		if (tr.labelSet || tr.Label != "") && !validSelectorLabel(tr.Label) {
+			errs = append(errs, fmt.Sprintf(
+				"transition[%d].label: %q is not a valid command-state label",
+				i, tr.Label,
+			))
 		}
 		if err := ValidateMetricLabels(fmt.Sprintf("transition[%d].metric_labels", i), tr.MetricLabels); err != nil {
 			errs = append(errs, err.Error())

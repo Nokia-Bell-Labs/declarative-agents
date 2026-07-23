@@ -97,7 +97,7 @@ func (r *loopRunner) done() bool {
 		return true
 	}
 	r.applyBudget()
-	nextState, cmd, transitionSignal, metricLabels := r.nextTransition()
+	nextState, cmd, transitionSignal, commandStateLabel, metricLabels := r.nextTransition()
 	if r.stopForTerminal(nextState) {
 		return true
 	}
@@ -105,7 +105,7 @@ func (r *loopRunner) done() bool {
 	if r.stopForNilCommand(cmd) {
 		return true
 	}
-	r.dispatch(cmd, metricLabels, transitionSignal, fromState)
+	r.dispatch(cmd, metricLabels, transitionSignal, commandStateLabel, fromState)
 	return r.stopForSuspend()
 }
 
@@ -136,8 +136,9 @@ func (r *loopRunner) applyBudget() {
 	r.signal = BudgetExhausted
 }
 
-func (r *loopRunner) nextTransition() (State, Command, Signal, MetricLabels) {
+func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLabels) {
 	transitionSignal := r.signal
+	commandStateLabel := transitionCommandStateLabel(r.params.MachineSpec, r.state, transitionSignal)
 	labels := transitionMetricLabels(r.params.MachineSpec, r.state, transitionSignal)
 	nextState, cmd, err := r.sm.Step(r.state, transitionSignal, r.result)
 	if err != nil {
@@ -145,7 +146,19 @@ func (r *loopRunner) nextTransition() (State, Command, Signal, MetricLabels) {
 	} else {
 		r.recordTransition(nextState)
 	}
-	return nextState, cmd, transitionSignal, labels
+	return nextState, cmd, transitionSignal, commandStateLabel, labels
+}
+
+func transitionCommandStateLabel(spec *MachineSpec, state State, signal Signal) string {
+	if spec == nil {
+		return ""
+	}
+	for _, transition := range spec.Transitions {
+		if transition.State == string(state) && transition.Signal == string(signal) {
+			return transition.Label
+		}
+	}
+	return ""
 }
 
 func (r *loopRunner) recordUnhandledTransition(err error) {
@@ -199,7 +212,13 @@ func (r *loopRunner) stopForNilCommand(cmd Command) bool {
 	return true
 }
 
-func (r *loopRunner) dispatch(cmd Command, labels MetricLabels, transitionSignal Signal, fromState State) {
+func (r *loopRunner) dispatch(
+	cmd Command,
+	labels MetricLabels,
+	transitionSignal Signal,
+	commandStateLabel string,
+	fromState State,
+) {
 	injectCommandState(cmd, r.execution)
 	r.result = dispatchWithMonitorContext(
 		r.ctx, cmd, r.trace, r.params.CommandTimeout, r.params.MonitorRecorder, r.dispatchContext(labels),
@@ -208,7 +227,7 @@ func (r *loopRunner) dispatch(cmd Command, labels MetricLabels, transitionSignal
 	r.applyAfterDispatch(cmd)
 	r.accumulateResult()
 	r.recordResultEvent(fromState)
-	r.saveCheckpoint(fromState, transitionSignal)
+	r.saveCheckpoint(fromState, transitionSignal, commandStateLabel)
 	emitIterationSpan(r.trace, r.iteration, r.result, fromState, r.state)
 }
 
@@ -218,8 +237,11 @@ func (r *loopRunner) dispatch(cmd Command, labels MetricLabels, transitionSignal
 // not abort an otherwise-progressing run; the error is retained in
 // checkpointSaveErr so stopForSuspend can treat it as terminal on a suspend
 // cycle (srd025 R5.3).
-func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal) {
-	r.execution = append(r.execution, dispatchEntry(r.iteration, fromState, r.state, transitionSignal, r.result))
+func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal, commandStateLabel string) {
+	r.execution = append(
+		r.execution,
+		dispatchEntry(r.iteration, fromState, r.state, transitionSignal, commandStateLabel, r.result),
+	)
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
 	r.foldConversation(&pos)
 	r.checkpointSaveErr = r.checkpoint.Save(pos, r.execution)
