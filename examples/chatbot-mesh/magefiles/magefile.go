@@ -38,6 +38,11 @@ const (
 // clearly when the agent-core runtime or the jurist validator profile is not
 // reachable, rather than skipping, so a copied-out example without the platform
 // tools reports an honest failure instead of a false green.
+//
+// The gate has four steps, each answering a question the one before it cannot:
+// the jurist validates the corpus, the boot smoke proves every profile starts,
+// the evidence resolver proves each named test exists, and the evidence run
+// proves the tests a suite claims as implemented actually pass.
 func Audit() error {
 	root, err := os.Getwd()
 	if err != nil {
@@ -66,7 +71,14 @@ func Audit() error {
 	}
 	// A proof command can name a test that lives in another module and still exit
 	// green, so resolve this example's go_test evidence against its real tests.
-	return validateTestEvidence(defaultSmokeRun, binary, root)
+	if err := validateTestEvidence(defaultSmokeRun, binary, root); err != nil {
+		return err
+	}
+	// Resolution proves the named test exists, not that it passes -- `go test
+	// -list` compiles and runs nothing. A suite claiming implemented evidence for
+	// a failing test kept the gate green until someone ran the package by hand
+	// (GH-713), so run what the suites claim.
+	return runTestEvidence(defaultEvidenceRun, root)
 }
 
 // resolveAuditTools locates the agent-core runtime checkout and the jurist
