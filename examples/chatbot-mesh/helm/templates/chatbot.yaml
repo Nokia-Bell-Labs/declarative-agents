@@ -61,6 +61,14 @@ spec:
             - "--otel-service-name"
             - "chatbot"
             {{- end }}
+          env:
+            # The staged tool declarations reach the LLM provider through this
+            # reference. The chart co-generates the REST client's base_url, but
+            # the declarations are mounted verbatim, so their localhost default
+            # is correct only where the agent shares a host with Ollama, which a
+            # pod never does (srd013 R5.7, GH-728).
+            - name: OLLAMA_URL
+              value: {{ include "chatbot-mesh.llmURL" . | quote }}
           ports:
             - {name: chat, containerPort: {{ .Values.chatbot.ports.chat }}}
             - {name: control, containerPort: {{ .Values.chatbot.ports.control }}}

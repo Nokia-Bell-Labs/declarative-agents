@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/envexpand"
 )
 
 // LoadToolSelection reads a YAML file listing tool names.
@@ -114,28 +115,43 @@ func loadToolDefsRecursive(path string, seen map[string]bool) ([]ToolDef, error)
 	if err != nil {
 		return nil, fmt.Errorf("load tool defs %s: %w", abs, err)
 	}
+	// Expanded before parsing, by the same rules the REST definition loader
+	// applies, so an address that differs between a local run and a deployment
+	// is an environment reference rather than a literal the deployment cannot
+	// reach (srd013 R5.6).
 	var file ToolDefsFile
-	if err := yaml.Unmarshal(data, &file); err != nil {
+	if err := yaml.Unmarshal(envexpand.Expand(data), &file); err != nil {
 		return nil, fmt.Errorf("parse tool defs %s: %w", abs, err)
 	}
 
+	base, err := loadIncludedToolDefs(file.Includes, abs, seen)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateToolDefs(file.Tools); err != nil {
+		return nil, err
+	}
+	return MergeToolDefs(base, file.Tools), nil
+}
+
+// loadIncludedToolDefs resolves a file's includes against its own directory and
+// merges them in declaration order. from names the including file, so a failure
+// deep in an include chain reports which file pulled it in.
+func loadIncludedToolDefs(includes []string, from string, seen map[string]bool) ([]ToolDef, error) {
 	var base []ToolDef
-	dir := filepath.Dir(abs)
-	for _, inc := range file.Includes {
+	dir := filepath.Dir(from)
+	for _, inc := range includes {
 		incPath := inc
 		if !filepath.IsAbs(incPath) {
 			incPath = filepath.Join(dir, incPath)
 		}
 		incDefs, err := loadToolDefsRecursive(incPath, seen)
 		if err != nil {
-			return nil, fmt.Errorf("include %s from %s: %w", inc, abs, err)
+			return nil, fmt.Errorf("include %s from %s: %w", inc, from, err)
 		}
 		base = MergeToolDefs(base, incDefs)
 	}
-	if err := validateToolDefs(file.Tools); err != nil {
-		return nil, err
-	}
-	return MergeToolDefs(base, file.Tools), nil
+	return base, nil
 }
 
 // ParseToolDefs parses YAML bytes into tool definitions without resolving includes.
