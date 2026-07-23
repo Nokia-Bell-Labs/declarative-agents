@@ -51,21 +51,20 @@ func TestCreatorIngestIsItsOwnEndpoint(t *testing.T) {
 	}
 }
 
-// TestCreatorIngestLegRunsAChildThenCounts proves the leg does both halves. The
-// child's exit code alone does not report the outcome: corpus-ingest reaches its
-// own Succeeded terminal on CountReady whatever the count, so a run that wrote
-// nothing still exits zero. Only the collection read says what landed.
-func TestCreatorIngestLegRunsAChildThenCounts(t *testing.T) {
+// TestCreatorIngestLegMeasuresChildDelta proves the leg brackets the child with
+// count reads. The child's exit code alone does not report the outcome:
+// corpus-ingest reaches its own Succeeded terminal on CountReady whatever the
+// count, and an accumulated collection total does not identify this run's work.
+func TestCreatorIngestLegMeasuresChildDelta(t *testing.T) {
 	var machine intakeMachine
 	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "request-machine.yaml"), &machine)
 
 	want := []struct{ state, signal, action, next string }{
-		{"AwaitingRequest", "SeedIngest", "run_corpus_ingest", "Ingesting"},
-		{"Ingesting", "ToolDone", "resolve_ingest_collection", "ResolvingIngested"},
-		{"ResolvingIngested", "CollectionResolved", "count_ingested_documents", "CountingIngested"},
-		// The count is judged rather than reported directly: GH-763 added the
-		// shortfall predicate between the read and the terminal.
-		{"CountingIngested", "DocumentsCounted", "ingest_wrote_documents", "JudgingIngest"},
+		{"AwaitingRequest", "SeedIngest", "resolve_ingest_collection", "ResolvingIngested"},
+		{"ResolvingIngested", "CollectionResolved", "count_before_ingest", "CountingBeforeIngest"},
+		{"CountingBeforeIngest", "DocumentsCounted", "run_corpus_ingest", "Ingesting"},
+		{"Ingesting", "ToolDone", "count_after_ingest", "CountingAfterIngest"},
+		{"CountingAfterIngest", "DocumentsCounted", "ingest_wrote_documents", "JudgingIngest"},
 	}
 	for _, w := range want {
 		var found bool
@@ -88,7 +87,7 @@ func TestCreatorIngestLegRunsAChildThenCounts(t *testing.T) {
 
 	// A failed child and an unreadable collection both have to land somewhere;
 	// an unmapped terminal answers response_missing at runtime.
-	for _, state := range []string{"Ingesting", "ResolvingIngested", "CountingIngested"} {
+	for _, state := range []string{"ResolvingIngested", "CountingBeforeIngest", "Ingesting", "CountingAfterIngest"} {
 		var reaches bool
 		for _, tr := range machine.Transitions {
 			if tr.State == state && tr.Next == "IngestFailed" {
@@ -116,13 +115,11 @@ func TestCreatorIngestMapsItsTerminals(t *testing.T) {
 	if ingested.Status != 200 {
 		t.Errorf("Ingested status = %d, want 200", ingested.Status)
 	}
-	// The success body carries no count. A response maps from the last word's
-	// output, and since GH-763 that word is the shortfall predicate, whose
-	// output is its comparison rather than the count it judged. Declaring a
-	// count here would serve null -- the GH-686 mistake. Restoring it needs the
-	// predicate to emit structured operands, tracked separately.
+	// The success body still omits the count. The predicate now exposes its
+	// operands, but adopting that field in the endpoint response is a separate
+	// profile contract change; this test prevents an undeclared null mapping.
 	if _, present := ingested.Body["count"]; present {
-		t.Error("Ingested declares a count, which the predicate's output cannot serve; it would render null")
+		t.Error("Ingested declares a count before the endpoint contract adopts one")
 	}
 
 	failed, ok := states["IngestFailed"]
@@ -202,7 +199,7 @@ func TestCreatorIngestJudgesTheCountBeforeReporting(t *testing.T) {
 	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "request-machine.yaml"), &machine)
 
 	want := []struct{ state, signal, action, next string }{
-		{"CountingIngested", "DocumentsCounted", "ingest_wrote_documents", "JudgingIngest"},
+		{"CountingAfterIngest", "DocumentsCounted", "ingest_wrote_documents", "JudgingIngest"},
 		{"JudgingIngest", "DocumentsWritten", "", "Ingested"},
 		{"JudgingIngest", "NoDocumentsWritten", "", "IngestRejected"},
 		// A count that will not resolve is a fault, not an empty corpus. Routing
@@ -227,6 +224,87 @@ func TestCreatorIngestJudgesTheCountBeforeReporting(t *testing.T) {
 		if !found {
 			t.Errorf("no %s + %s transition; the shortfall leg is incomplete", w.state, w.signal)
 		}
+	}
+}
+
+// TestCreatorIngestPopulatedCollectionUsesRunDelta covers the failure mode from
+// GH-772. A post-run total above zero is insufficient when the collection was
+// already populated; success requires the post-run count to exceed the pre-run
+// count preserved in command state.
+func TestCreatorIngestPopulatedCollectionUsesRunDelta(t *testing.T) {
+	var decls struct {
+		Tools []struct {
+			Name   string `yaml:"name"`
+			Config struct {
+				RestRef   string `yaml:"rest_ref"`
+				Operation string `yaml:"operation"`
+				Left      string `yaml:"left"`
+				Op        string `yaml:"op"`
+				Right     string `yaml:"right"`
+			} `yaml:"config"`
+		} `yaml:"tools"`
+	}
+	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "request-declarations.yaml"), &decls)
+
+	tools := make(map[string]struct {
+		RestRef   string
+		Operation string
+		Left      string
+		Op        string
+		Right     string
+	})
+	for _, tool := range decls.Tools {
+		tools[tool.Name] = struct {
+			RestRef   string
+			Operation string
+			Left      string
+			Op        string
+			Right     string
+		}{
+			RestRef: tool.Config.RestRef, Operation: tool.Config.Operation,
+			Left: tool.Config.Left, Op: tool.Config.Op, Right: tool.Config.Right,
+		}
+	}
+
+	for _, name := range []string{"count_before_ingest", "count_after_ingest"} {
+		count, ok := tools[name]
+		if !ok {
+			t.Fatalf("creator declares no %s word", name)
+		}
+		if count.RestRef != "chroma" || count.Operation != "count_ingested_documents" {
+			t.Errorf("%s invokes %s.%s, want chroma.count_ingested_documents", name, count.RestRef, count.Operation)
+		}
+	}
+
+	predicate, ok := tools["ingest_wrote_documents"]
+	if !ok {
+		t.Fatal("creator declares no ingest_wrote_documents predicate")
+	}
+	if predicate.Left != "$.mapped.count" || predicate.Op != "gt" ||
+		predicate.Right != "$from(count_before_ingest).mapped.count" {
+		t.Errorf("ingest predicate = %q %s %q, want post-run count gt $from(count_before_ingest).mapped.count",
+			predicate.Left, predicate.Op, predicate.Right)
+	}
+
+	var rest struct {
+		Rest struct {
+			Clients map[string]struct {
+				Operations map[string]struct {
+					Params struct {
+						BodySource   string            `yaml:"body_source"`
+						InputMapping map[string]string `yaml:"input_mapping"`
+					} `yaml:"params"`
+				} `yaml:"operations"`
+			} `yaml:"clients"`
+		} `yaml:"rest"`
+	}
+	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "rest.yaml"), &rest)
+	params := rest.Rest.Clients["chroma"].Operations["count_ingested_documents"].Params
+	if params.BodySource != "command_state" {
+		t.Errorf("count body_source = %q, want command_state", params.BodySource)
+	}
+	if got := params.InputMapping["collection"]; got != "$from(resolve_ingest_collection).mapped.collection_id" {
+		t.Errorf("count collection selector = %q, want resolved collection from command state", got)
 	}
 }
 

@@ -55,7 +55,7 @@ requirements:
   R3:
     title: Instance operations
     items:
-      - R3.1: The creator SHALL create child agent runs -- a corpus-ingest instance per requested directory -- and return each run's outcome.
+      - R3.1: The creator SHALL create child agent runs -- a corpus-ingest instance per requested directory -- and return each run's outcome. For an ingest, the outcome SHALL measure the change in the target collection's document count across that child run, not the collection's accumulated total. A run whose post-run count does not exceed its pre-run count SHALL be rejected as an ingest shortfall, including an unchanged re-ingest; idempotent storage state does not satisfy a request to contribute documents.
       - R3.2: The creator SHALL execute a checkpoint-resume rollout of a reconfigured agent through the deployment API (srd003 R3.2), so the agent resumes from its Dolt checkpoint via --dolt-dsn and --resume-checkpoint rather than cold-starting.
       - R3.3: The creator SHALL terminate an instance on request and handle resource allocation for a created instance.
   R4:
@@ -84,7 +84,7 @@ acceptance_criteria:
     criterion: Template selection resolves a role to a profile path and rendered ConfigMap under the mounted-profile contract without authoring the config.
     traces: [R2.1, R2.2]
   - id: AC3
-    criterion: The instance operations -- child ingest runs, checkpoint-resume rollout restarts through the deployment API, and termination with resource allocation -- are specified.
+    criterion: The instance operations -- child ingest runs measured by their document-count delta, checkpoint-resume rollout restarts through the deployment API, and termination with resource allocation -- are specified; a zero-delta run is rejected even when the collection was already populated or the same directory was ingested before.
     traces: [R3.1, R3.2, R3.3]
   - id: AC4
     criterion: Post-operation health verification via monitor reads is reported to the coordinator for the provisioning panel.
@@ -148,22 +148,17 @@ implementation_status:
     - >-
       Rejecting an ingest that wrote no documents (AC3's shortfall half) shipped
       with GH-763, once agent-core's value predicate word (srd041) made the
-      comparison expressible. The creator judges the counted documents against
-      zero through a declared word, so the branch is readable in its machine, and
-      the corpus-ingest contract is unchanged for its other callers -- pushing the
-      check into that agent was rejected because it reaches Succeeded whatever the
-      count. A shortfall answers 422 and reaches the coordinator's Rejected leg
-      (srd004 R2.1), which no request could reach before. A count that will not
-      resolve reaches IngestFailed rather than IngestRejected, because a broken
-      read is not an empty corpus.
+      comparison expressible. GH-772 made that comparison measure the run rather
+      than the collection: the creator resolves the collection and reads its count
+      before the child, reads it again afterward, and uses command state to compare
+      the post-run count with the pre-run baseline. A zero delta answers 422 and
+      reaches the coordinator's Rejected leg even when the collection was already
+      populated. An unchanged re-ingest is deliberately a shortfall: the operation
+      promises a run contribution, not merely an already-satisfied storage state.
+      The corpus-ingest contract remains unchanged for its other callers. A count
+      that will not resolve reaches IngestFailed rather than IngestRejected,
+      because a broken read is not an empty corpus.
   planned:
-    - >-
-      Measuring the run rather than the collection. The shortfall test reads the
-      ingested collection's total, so an ingest that writes nothing into an
-      already-populated collection still counts non-zero and reports success. The
-      honest measure is a delta across the child run. Tracked separately; it is
-      why AC3 is satisfied for an empty collection and not yet for a populated
-      one.
     - >-
       Ingesting into a caller-named collection. The coordinator sends a collection
       with its intent, but it does not reach the child: agent-core exec tools pass

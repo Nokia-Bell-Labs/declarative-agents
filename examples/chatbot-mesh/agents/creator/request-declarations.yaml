@@ -119,9 +119,10 @@ tools:
       - signal: ToolFailed
         condition: the child reaches a failure terminal, exhausts its budget, or the binary cannot run
         message_shape: <captured child agent output>
-        state_after_failure: the collection may hold a partial ingest; the count read reports what landed
+        state_after_failure: the collection may hold a partial ingest; the request ends in IngestFailed
     relationships:
-      before: [resolve_ingest_collection]
+      after: [count_before_ingest]
+      before: [count_after_ingest]
     undo:
       strategy: noop
       description: Documents a child run added are superseded by a later ingest, not removed in place.
@@ -130,7 +131,7 @@ tools:
     type: builtin
     init: rest_client_invoke
     category: boundary
-    description: Resolve the ingested collection to its id, so the count read can address it.
+    description: Resolve the ingested collection to its id before the child run, so both count reads address the same collection.
     problem: Chroma's count endpoint addresses a collection by id, and the creator knows only the configured name.
     goals:
       - Resolve the corpus-ingest collection to its id.
@@ -169,30 +170,29 @@ tools:
         condition: Network, timeout, schema, or mapping failure reaching Chroma.
         state_after_failure: No count is read; the request ends in IngestFailed.
     relationships:
-      after: [run_corpus_ingest]
-      before: [count_ingested_documents]
+      before: [count_before_ingest]
     config:
       rest_ref: chroma
       operation: resolve_ingest_collection
 
-  - name: count_ingested_documents
+  - name: count_before_ingest
     type: builtin
     init: rest_client_invoke
     category: boundary
-    description: Read the ingested collection's document count, so the creator reports what the child run actually wrote.
-    problem: A corpus-ingest child can exit zero having written nothing -- its machine reaches Succeeded on CountReady whatever the count -- so the exit code alone does not report the outcome the coordinator asked for.
+    description: Read the collection's document count before the child run, establishing the baseline for this run's outcome.
+    problem: A collection can already hold documents, so its total after a child run cannot show whether that run contributed anything.
     goals:
-      - Read the item count of the resolved collection.
-      - Report it as the child run's outcome (srd005 R3.1).
+      - Read the item count of the resolved collection before the child runs.
+      - Leave the baseline addressable through command state for the later predicate (agent-core srd038).
     requirements:
       input:
-        - The collection id is selected from the previous Result output.
+        - The collection id is selected from resolve_ingest_collection through command state.
       output:
-        - Output carries the collection's item count.
+        - Output carries the pre-run collection count.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError.
     non_goals:
-      - Does not judge whether the count is sufficient; no declarative primitive expresses that comparison today, so the shortfall decision is tracked separately.
+      - Does not judge the run; the predicate compares this baseline with the post-run count.
       - Does not mutate the collection.
     parameters:
       type: object
@@ -200,7 +200,7 @@ tools:
         collection: {type: string}
     emits: [DocumentsCounted, CommandError]
     output:
-      description: The ingested collection's item count, carried as a string because Chroma answers with a bare integer.
+      description: The pre-run collection count, carried as a string because Chroma answers with a bare integer.
       schema:
         type: object
         properties:
@@ -218,9 +218,60 @@ tools:
     errors:
       - signal: CommandError
         condition: Network, timeout, schema, or mapping failure reaching Chroma.
-        state_after_failure: No count is reported; the request ends in IngestFailed.
+        state_after_failure: No baseline is recorded and the child does not run; the request ends in IngestFailed.
     relationships:
       after: [resolve_ingest_collection]
+      before: [run_corpus_ingest]
+    config:
+      rest_ref: chroma
+      operation: count_ingested_documents
+
+  - name: count_after_ingest
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Read the collection's document count after the child run, so the creator can measure this run's contribution.
+    problem: A corpus-ingest child can exit zero having written nothing, and a populated collection's total remains non-zero even when the child contributes nothing.
+    goals:
+      - Read the item count of the same collection after the child runs.
+      - Supply the post-run count to the predicate while the pre-run baseline remains in command state.
+    requirements:
+      input:
+        - The collection id is selected from resolve_ingest_collection through command state.
+      output:
+        - Output carries the post-run collection count.
+      errors:
+        - Network, timeout, schema, and mapping failures emit CommandError.
+    non_goals:
+      - Does not judge the run; the predicate compares this count with the pre-run baseline.
+      - Does not mutate the collection.
+    parameters:
+      type: object
+      properties:
+        collection: {type: string}
+    emits: [DocumentsCounted, CommandError]
+    output:
+      description: The post-run collection count, carried as a string because Chroma answers with a bare integer.
+      schema:
+        type: object
+        properties:
+          count: {type: string}
+    side_effects:
+      - kind: external_api
+        target: chroma.count
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Reading a count changes nothing.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, schema, or mapping failure reaching Chroma.
+        state_after_failure: No post-run count is reported; the request ends in IngestFailed.
+    relationships:
+      after: [run_corpus_ingest]
       before: [ingest_wrote_documents]
     config:
       rest_ref: chroma
@@ -231,14 +282,14 @@ tools:
     init: value_predicate
     category: word
     visibility: internal
-    description: Decide whether the child run met the requested source, by testing the counted documents against zero.
-    problem: A corpus-ingest child reaches its own Succeeded terminal on CountReady whatever the count, so a run that wrote nothing still exits zero; the creator must tell that apart from a real ingest to answer the coordinator's declared rejection.
+    description: Decide whether the child run met the requested source, by testing whether the post-run count exceeds the pre-run count.
+    problem: A corpus-ingest child reaches its own Succeeded terminal on CountReady whatever the count, and an existing collection can remain non-zero when the child adds nothing; the creator must measure this run rather than the collection total.
     goals:
-      - Compare the counted documents against zero and route the two outcomes to distinct terminals.
+      - Compare the post-run count against the pre-run baseline and route the two outcomes to distinct terminals.
       - Keep the shortfall decision in the machine, where the branch is readable, rather than in the child's contract.
     requirements:
       input:
-        - The count is selected from the previous Result, which is the Chroma count read.
+        - The post-run count is selected from the previous Result and the pre-run count from count_before_ingest through command state.
       output:
         - Output reports the comparison that was made and its outcome.
       errors:
@@ -251,11 +302,15 @@ tools:
       properties: {}
     emits: [DocumentsWritten, NoDocumentsWritten, CommandError]
     output:
-      description: The count comparison and its outcome.
+      description: The raw pre-run and post-run counts, numeric comparison type and operator, and outcome.
       schema:
         type: object
         properties:
-          output: {type: string}
+          left: {type: string}
+          op: {type: string}
+          right: {type: string}
+          operand_type: {type: string}
+          held: {type: boolean}
     side_effects: []
     reversibility:
       classification: reversible
@@ -265,19 +320,19 @@ tools:
       description: Comparing a count changes nothing.
     errors:
       - signal: CommandError
-        condition: The counted documents cannot be resolved from the previous Result or coerced to a number.
-        message_shape: 'ingest_wrote_documents: operand <selector> did not resolve against the previous result'
+        condition: Either count cannot be resolved or coerced to a number.
+        message_shape: 'ingest_wrote_documents: operand <selector> did not resolve'
         state_after_failure: No shortfall decision is made; the request ends in IngestFailed rather than reporting an empty corpus.
     relationships:
-      after: [count_ingested_documents]
+      after: [count_after_ingest]
     config:
-      # The count arrives from the Chroma read as a string, because Chroma
-      # answers with a bare integer that agent-core stores under raw. The
-      # default number operand type compares it as a number, so a corpus of ten
-      # documents is not judged smaller than one of six (agent-core srd041 R3.2).
+      # Both counts arrive as strings because Chroma answers with a bare integer
+      # that agent-core stores under raw. The default number operand type compares
+      # them numerically (agent-core srd041 R3.2). The baseline is non-adjacent,
+      # so command state preserves it across the child and post-run count.
       left: $.mapped.count
       op: gt
-      right: "0"
+      right: $from(count_before_ingest).mapped.count
       satisfied: DocumentsWritten
       unsatisfied: NoDocumentsWritten
 
