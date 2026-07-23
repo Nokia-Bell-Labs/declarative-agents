@@ -63,7 +63,9 @@ func TestCreatorIngestLegRunsAChildThenCounts(t *testing.T) {
 		{"AwaitingRequest", "SeedIngest", "run_corpus_ingest", "Ingesting"},
 		{"Ingesting", "ToolDone", "resolve_ingest_collection", "ResolvingIngested"},
 		{"ResolvingIngested", "CollectionResolved", "count_ingested_documents", "CountingIngested"},
-		{"CountingIngested", "DocumentsCounted", "", "Ingested"},
+		// The count is judged rather than reported directly: GH-763 added the
+		// shortfall predicate between the read and the terminal.
+		{"CountingIngested", "DocumentsCounted", "ingest_wrote_documents", "JudgingIngest"},
 	}
 	for _, w := range want {
 		var found bool
@@ -99,12 +101,8 @@ func TestCreatorIngestLegRunsAChildThenCounts(t *testing.T) {
 	}
 }
 
-// TestCreatorIngestMapsItsTerminals proves the two outcomes map to distinct
-// responses, and that no 422 is claimed. Rejecting a shortfall is a comparison
-// against zero, and no declarative primitive expresses one -- response schema
-// validation supports only required and type, and no builtin emits a signal from
-// a value test -- so the coordinator's Rejected leg stays honestly unreachable
-// rather than being faked here.
+// TestCreatorIngestMapsItsTerminals proves every terminal the leg can reach maps
+// to a response. An unmapped terminal answers response_missing at runtime.
 func TestCreatorIngestMapsItsTerminals(t *testing.T) {
 	states := creatorIngestEndpoint(t).MachineRequest.Response.TerminalStates
 	if len(states) == 0 {
@@ -118,10 +116,13 @@ func TestCreatorIngestMapsItsTerminals(t *testing.T) {
 	if ingested.Status != 200 {
 		t.Errorf("Ingested status = %d, want 200", ingested.Status)
 	}
-	// $.mapped.count, not $.count: a REST word's output arrives nested under
-	// mapped, and the un-prefixed selector silently served count: null.
-	if got := ingested.Body["count"]; got != "$.mapped.count" {
-		t.Errorf("Ingested body count = %q, want $.mapped.count; the un-prefixed selector resolves to null", got)
+	// The success body carries no count. A response maps from the last word's
+	// output, and since GH-763 that word is the shortfall predicate, whose
+	// output is its comparison rather than the count it judged. Declaring a
+	// count here would serve null -- the GH-686 mistake. Restoring it needs the
+	// predicate to emit structured operands, tracked separately.
+	if _, present := ingested.Body["count"]; present {
+		t.Error("Ingested declares a count, which the predicate's output cannot serve; it would render null")
 	}
 
 	failed, ok := states["IngestFailed"]
@@ -132,11 +133,22 @@ func TestCreatorIngestMapsItsTerminals(t *testing.T) {
 		t.Errorf("IngestFailed status = %d, which the coordinator reads as success", failed.Status)
 	}
 
+	// Every terminal the machine declares must be mapped, and nothing else.
+	var machine intakeMachine
+	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "request-machine.yaml"), &machine)
+	ingestTerminals := map[string]bool{"Ingested": true, "IngestRejected": true, "IngestFailed": true}
 	for state := range states {
-		if state == "Ingested" || state == "IngestFailed" {
-			continue
+		if !ingestTerminals[state] {
+			t.Errorf("ingest maps unexpected terminal %q", state)
 		}
-		t.Errorf("ingest maps unexpected terminal %q", state)
+		if !containsString(machine.TerminalStates, state) {
+			t.Errorf("ingest maps %q, which the machine does not declare terminal", state)
+		}
+	}
+	for want := range ingestTerminals {
+		if _, ok := states[want]; !ok {
+			t.Errorf("ingest does not map terminal %q", want)
+		}
 	}
 }
 
@@ -178,5 +190,100 @@ func TestCorpusIngestChildRunFollowsSrd021(t *testing.T) {
 		if !containsString(word.Emits, signal) {
 			t.Errorf("emits %v missing %s", word.Emits, signal)
 		}
+	}
+}
+
+// TestCreatorIngestJudgesTheCountBeforeReporting proves the shortfall decision is
+// a declared word in the machine rather than a check inside the child or a Go
+// branch (GH-763). corpus-ingest reaches its own Succeeded terminal whatever the
+// count, so without this leg a run that wrote nothing reported success.
+func TestCreatorIngestJudgesTheCountBeforeReporting(t *testing.T) {
+	var machine intakeMachine
+	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "request-machine.yaml"), &machine)
+
+	want := []struct{ state, signal, action, next string }{
+		{"CountingIngested", "DocumentsCounted", "ingest_wrote_documents", "JudgingIngest"},
+		{"JudgingIngest", "DocumentsWritten", "", "Ingested"},
+		{"JudgingIngest", "NoDocumentsWritten", "", "IngestRejected"},
+		// A count that will not resolve is a fault, not an empty corpus. Routing
+		// it to IngestRejected would tell the coordinator a directory held no
+		// documents when nobody looked (agent-core srd041 R4.2).
+		{"JudgingIngest", "CommandError", "", "IngestFailed"},
+	}
+	for _, w := range want {
+		var found bool
+		for _, tr := range machine.Transitions {
+			if tr.State != w.state || tr.Signal != w.signal {
+				continue
+			}
+			found = true
+			if tr.Action != w.action {
+				t.Errorf("%s + %s action = %q, want %q", w.state, w.signal, tr.Action, w.action)
+			}
+			if tr.Next != w.next {
+				t.Errorf("%s + %s next = %q, want %q", w.state, w.signal, tr.Next, w.next)
+			}
+		}
+		if !found {
+			t.Errorf("no %s + %s transition; the shortfall leg is incomplete", w.state, w.signal)
+		}
+	}
+}
+
+// TestCreatorIngestShortfallIsAClientError proves a run that wrote nothing is a
+// 422 and a broken run a 500, which is the distinction the coordinator's declared
+// failure mapping needs.
+func TestCreatorIngestShortfallIsAClientError(t *testing.T) {
+	states := creatorIngestEndpoint(t).MachineRequest.Response.TerminalStates
+
+	rejected, ok := states["IngestRejected"]
+	if !ok {
+		t.Fatal("ingest does not map IngestRejected; the coordinator's Rejected leg stays unreachable")
+	}
+	if rejected.Status != 422 {
+		t.Errorf("IngestRejected status = %d, want 422; a shortfall is the caller's source falling short, not our failure", rejected.Status)
+	}
+	if failed := states["IngestFailed"]; failed.Status != 500 {
+		t.Errorf("IngestFailed status = %d, want 500", failed.Status)
+	}
+}
+
+// TestCoordinatorIngestReachesTheIngestEndpoint proves the delegation targets the
+// endpoint that runs a child. It posted at /api/v1/instance until GH-763, where
+// every operation took the values-apply leg whatever it named, so this hop ran no
+// ingest at all.
+func TestCoordinatorIngestReachesTheIngestEndpoint(t *testing.T) {
+	op := clientOperationNamed(t, "coordinator", "creator", "creator_ingest")
+	if op.Path != "/api/v1/ingest" {
+		t.Errorf("creator_ingest path = %q, want /api/v1/ingest", op.Path)
+	}
+	if op.Success.Signal != "IngestReported" {
+		t.Errorf("success signal = %q, want IngestReported", op.Success.Signal)
+	}
+	// The 422 must map to Rejected, or a shortfall would surface as an
+	// unmapped status and collapse into CommandError.
+	var rejects bool
+	var rest struct {
+		Rest struct {
+			Clients map[string]struct {
+				Operations map[string]struct {
+					Failures []struct {
+						Status []int  `yaml:"status"`
+						Signal string `yaml:"signal"`
+					} `yaml:"failures"`
+				} `yaml:"operations"`
+			} `yaml:"clients"`
+		} `yaml:"rest"`
+	}
+	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
+	for _, f := range rest.Rest.Clients["creator"].Operations["creator_ingest"].Failures {
+		for _, s := range f.Status {
+			if s == 422 && f.Signal == "Rejected" {
+				rejects = true
+			}
+		}
+	}
+	if !rejects {
+		t.Error("creator_ingest does not map 422 to Rejected; a shortfall would arrive as an unmapped status")
 	}
 }

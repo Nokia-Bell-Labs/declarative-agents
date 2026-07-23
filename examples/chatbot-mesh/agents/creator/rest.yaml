@@ -378,10 +378,12 @@ rest:
               # signal vocabulary, so signal keying could not separate a failed child
               # from an unreadable collection (agent-core srd030 R4.6, GH-615).
               #
-              # There is no 422 here. Rejecting a shortfall is a comparison against
-              # zero and no declarative primitive expresses one, so the coordinator's
-              # Rejected leg stays unreachable rather than being faked; it is tracked
-              # separately.
+              # IngestRejected is a 422 and IngestFailed a 500, which is the
+              # distinction the coordinator's declared failure mapping needs: a run
+              # that wrote nothing is the caller's source falling short, while a
+              # child that could not run, or a collection that could not be read,
+              # is ours. A count that will not resolve reaches IngestFailed, not
+              # IngestRejected -- a broken read is not an empty corpus.
               terminal_states:
                 Ingested:
                   status: 200
@@ -389,11 +391,25 @@ rest:
                   body:
                     schema_version: "1"
                     status: ingested
-                    # Carried as a string: Chroma answers count with a bare integer,
-                    # which agent-core stores under raw rather than decoding to a
-                    # number. $.mapped.count, like the rollout and state endpoints:
-                    # a REST word's output arrives nested under mapped.
-                    count: $.mapped.count
+                    # No count on the success path. A response body maps from the
+                    # last word's output, and on this leg that word is the
+                    # predicate, whose output is its comparison rather than the
+                    # count it judged -- a pure predicate does not forward its
+                    # input. The 422 below can carry a literal "0" because that
+                    # branch is only reached when the count was zero. Serving a
+                    # count here again needs the predicate to emit its operands as
+                    # structured fields, which is an agent-core change tracked
+                    # separately; declaring a field no hop serves would be the
+                    # GH-686 mistake.
+                    status_detail: documents were written
+                IngestRejected:
+                  status: 422
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    status: rejected
+                    error: ingest_shortfall
+                    count: "0"
                 IngestFailed:
                   status: 500
                   content_type: application/json

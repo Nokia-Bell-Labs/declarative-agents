@@ -221,9 +221,65 @@ tools:
         state_after_failure: No count is reported; the request ends in IngestFailed.
     relationships:
       after: [resolve_ingest_collection]
+      before: [ingest_wrote_documents]
     config:
       rest_ref: chroma
       operation: count_ingested_documents
+
+  - name: ingest_wrote_documents
+    type: builtin
+    init: value_predicate
+    category: word
+    visibility: internal
+    description: Decide whether the child run met the requested source, by testing the counted documents against zero.
+    problem: A corpus-ingest child reaches its own Succeeded terminal on CountReady whatever the count, so a run that wrote nothing still exits zero; the creator must tell that apart from a real ingest to answer the coordinator's declared rejection.
+    goals:
+      - Compare the counted documents against zero and route the two outcomes to distinct terminals.
+      - Keep the shortfall decision in the machine, where the branch is readable, rather than in the child's contract.
+    requirements:
+      input:
+        - The count is selected from the previous Result, which is the Chroma count read.
+      output:
+        - Output reports the comparison that was made and its outcome.
+      errors:
+        - An unresolvable count emits CommandError rather than a shortfall, so a broken read is never reported as an empty corpus.
+    non_goals:
+      - Does not read or write documents; it compares a number the previous word produced.
+      - Does not judge relevance or content; "met the requested source" means documents were written.
+    parameters:
+      type: object
+      properties: {}
+    emits: [DocumentsWritten, NoDocumentsWritten, CommandError]
+    output:
+      description: The count comparison and its outcome.
+      schema:
+        type: object
+        properties:
+          output: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Comparing a count changes nothing.
+    errors:
+      - signal: CommandError
+        condition: The counted documents cannot be resolved from the previous Result or coerced to a number.
+        message_shape: 'ingest_wrote_documents: operand <selector> did not resolve against the previous result'
+        state_after_failure: No shortfall decision is made; the request ends in IngestFailed rather than reporting an empty corpus.
+    relationships:
+      after: [count_ingested_documents]
+    config:
+      # The count arrives from the Chroma read as a string, because Chroma
+      # answers with a bare integer that agent-core stores under raw. The
+      # default number operand type compares it as a number, so a corpus of ten
+      # documents is not judged smaller than one of six (agent-core srd041 R3.2).
+      left: $.mapped.count
+      op: gt
+      right: "0"
+      satisfied: DocumentsWritten
+      unsatisfied: NoDocumentsWritten
 
   - name: read_state
     type: builtin

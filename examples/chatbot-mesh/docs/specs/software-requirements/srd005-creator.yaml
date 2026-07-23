@@ -145,17 +145,25 @@ implementation_status:
       initial_signal is per-endpoint and a machine cannot branch on a body field,
       which is why an ingest posted at /instance could only ever take the
       values-apply leg (GH-755).
+    - >-
+      Rejecting an ingest that wrote no documents (AC3's shortfall half) shipped
+      with GH-763, once agent-core's value predicate word (srd041) made the
+      comparison expressible. The creator judges the counted documents against
+      zero through a declared word, so the branch is readable in its machine, and
+      the corpus-ingest contract is unchanged for its other callers -- pushing the
+      check into that agent was rejected because it reaches Succeeded whatever the
+      count. A shortfall answers 422 and reaches the coordinator's Rejected leg
+      (srd004 R2.1), which no request could reach before. A count that will not
+      resolve reaches IngestFailed rather than IngestRejected, because a broken
+      read is not an empty corpus.
   planned:
     - >-
-      Rejecting an ingest that did not meet the requested source (AC3's shortfall
-      half). That decision is a comparison against zero and no declarative
-      primitive expresses one: response schema validation implements only required
-      and type, and no builtin emits a signal from a value test (tracked in
-      agent-core). Pushing the check into corpus-ingest was rejected because that
-      agent reaches Succeeded whatever the count, so changing it would alter its
-      contract for every other caller. The ingest endpoint therefore declares no
-      422 and the coordinator's Rejected leg (srd004 R2.1) stays unreachable until
-      the primitive exists.
+      Measuring the run rather than the collection. The shortfall test reads the
+      ingested collection's total, so an ingest that writes nothing into an
+      already-populated collection still counts non-zero and reports success. The
+      honest measure is a delta across the child run. Tracked separately; it is
+      why AC3 is satisfied for an empty collection and not yet for a populated
+      one.
     - >-
       Ingesting into a caller-named collection. The coordinator sends a collection
       with its intent, but it does not reach the child: agent-core exec tools pass

@@ -30,12 +30,17 @@ purpose: |-
   terminal on CountReady whatever the count, so a run that ingested nothing still
   exits zero, and only the count says what landed.
 
-  What this leg does not do is reject a shortfall. Deciding that an ingest "did
-  not meet the requested source" is a comparison against zero, and no declarative
-  primitive expresses one: response schema validation supports only required and
-  type, and no builtin emits a signal from a value test. So the leg declares no
-  rejected terminal and the coordinator's 422 stays unreachable, tracked
-  separately rather than faked here.
+  The leg then judges the count (ingest_wrote_documents, GH-763). Deciding that
+  a run "did not meet the requested source" is a comparison against zero, which
+  no declarative primitive could express until agent-core's value predicate word
+  landed (srd041, GH-768); the leg previously stopped at the count and the
+  coordinator's rejection was unreachable. The comparison is a word rather than
+  a check inside the child, so the branch stays readable in this machine and the
+  corpus-ingest contract is unchanged for its other callers.
+
+  A count that will not resolve reaches IngestFailed rather than IngestRejected.
+  A broken read is not an empty corpus, and reporting one as the other would
+  tell the coordinator a directory held no documents when nobody looked.
 initial_state: AwaitingRequest
 budget:
   max_iterations: 8
@@ -49,13 +54,16 @@ states:
   - {name: CountingIngested, meaning: The ingested collection's document count is being read.}
   - {name: HealthReported, meaning: Terminal. The instance is healthy and the reported health is ready for the HTTP response.}
   - {name: StateReported, meaning: Terminal. The executor reported the deployed mesh view.}
-  - {name: Ingested, meaning: Terminal. The child run completed and the collection count reports what it wrote.}
+  - {name: JudgingIngest, meaning: The counted documents are being tested against zero to decide whether the run met the requested source.}
+  - {name: Ingested, meaning: Terminal. The child run wrote documents and the collection count reports how many.}
+  - {name: IngestRejected, meaning: Terminal. The child run completed but wrote no documents, so it did not meet the requested source.}
   - {name: IngestFailed, meaning: Terminal. The child run failed, or the collection could not be read.}
   - {name: Failed, meaning: Terminal. A deployment-API boundary word failed.}
 terminal_states:
   - HealthReported
   - StateReported
   - Ingested
+  - IngestRejected
   - IngestFailed
   - Failed
 signals:
@@ -70,6 +78,8 @@ signals:
   - {name: ToolFailed, trigger: The corpus-ingest child agent reached a failure terminal or could not run.}
   - {name: CollectionResolved, trigger: The ingested collection resolved to its id.}
   - {name: DocumentsCounted, trigger: The ingested collection's document count was read.}
+  - {name: DocumentsWritten, trigger: The counted documents met the requested source.}
+  - {name: NoDocumentsWritten, trigger: The child run wrote no documents.}
   - {name: CommandError, trigger: A deployment-API or Chroma boundary word failed.}
 transitions:
   - {state: AwaitingRequest, signal: Seed,            next: Applying,     action: apply_instance}
@@ -87,5 +97,8 @@ transitions:
   - {state: Ingesting,         signal: ToolFailed,         next: IngestFailed}
   - {state: ResolvingIngested, signal: CollectionResolved, next: CountingIngested,  action: count_ingested_documents}
   - {state: ResolvingIngested, signal: CommandError,       next: IngestFailed}
-  - {state: CountingIngested,  signal: DocumentsCounted,   next: Ingested}
+  - {state: CountingIngested,  signal: DocumentsCounted,   next: JudgingIngest,     action: ingest_wrote_documents}
   - {state: CountingIngested,  signal: CommandError,       next: IngestFailed}
+  - {state: JudgingIngest,     signal: DocumentsWritten,   next: Ingested}
+  - {state: JudgingIngest,     signal: NoDocumentsWritten, next: IngestRejected}
+  - {state: JudgingIngest,     signal: CommandError,       next: IngestFailed}
