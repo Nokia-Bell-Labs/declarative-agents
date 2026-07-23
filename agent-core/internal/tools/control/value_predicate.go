@@ -323,20 +323,28 @@ func formatOperand(value interface{}) string {
 }
 
 // signalFor emits the declared outcome signal and reports what was compared, so
-// a run's trace shows the operands and not only the branch taken (srd041 R4.4).
+// a run's trace shows the operands and not only the branch taken. The JSON
+// object also leaves every part addressable to a later word or machine_request
+// response mapping (srd041 R4.4).
 func (c *valuePredicateCmd) signalFor(held bool, left, right interface{}) core.Result {
 	signal := c.unsatisfied
 	if held {
 		signal = c.satisfied
 	}
-	var output string
-	if unaryOps[c.op] {
-		output = fmt.Sprintf("%s(%s) = %t", c.op, formatOperand(left), held)
-	} else {
-		output = fmt.Sprintf("%s %s %s = %t (%s)",
-			formatOperand(left), c.op, formatOperand(right), held, c.operandType)
+	output := map[string]interface{}{
+		"left":         left,
+		"op":           c.op,
+		"operand_type": c.operandType,
+		"held":         held,
 	}
-	return core.Result{Signal: signal, CommandName: c.Name(), Output: output}
+	if !unaryOps[c.op] {
+		output["right"] = right
+	}
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return c.fault(fmt.Errorf("encode comparison output: %w", err))
+	}
+	return core.Result{Signal: signal, CommandName: c.Name(), Output: string(encoded)}
 }
 
 // fault emits CommandError for an operand that would not resolve or coerce. It

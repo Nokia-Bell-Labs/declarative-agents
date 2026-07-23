@@ -18,7 +18,7 @@ tools:
     input:
     - Operands, operator, operand type, and both outcome signal names come from tool config; no runtime input supplies them.
     output:
-    - Output reports the resolved operands, the operator, and the comparison outcome.
+    - Output is a JSON object exposing the raw resolved operands, operator, operand type, and comparison outcome as selectable fields.
     errors:
     - An unresolvable operand selector or a failed coercion emits CommandError rather than either outcome signal.
   non_goals:
@@ -29,14 +29,25 @@ tools:
     type: object
     properties: {}
   output:
-    description: The comparison that was made and its outcome.
+    description: The comparison as selectable fields; right is absent for unary empty and non_empty operations.
     schema:
       type: object
       properties:
-        output:
+        left:
+          description: The raw resolved left operand, before comparison coercion.
+        right:
+          description: The raw resolved right operand, before comparison coercion; absent for unary operations.
+        op:
           type: string
+        operand_type:
+          type: string
+        held:
+          type: boolean
       required:
-      - output
+      - left
+      - op
+      - operand_type
+      - held
   side_effects: []
   reversibility:
     classification: reversible

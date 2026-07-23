@@ -3,6 +3,7 @@
 package control
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -253,6 +254,45 @@ func TestValuePredicateDrivesTwoTransitions(t *testing.T) {
 	undo := cmd.Undo(ingested)
 	if undo.Signal != core.NoopUndo("predicate").Signal {
 		t.Errorf("undo signal = %s, want the noop undo signal", undo.Signal)
+	}
+}
+
+// TestValuePredicateOutputIsSelectable proves a predicate does not trap the
+// value it judged in prose. A downstream selector can recover the raw operand,
+// while the remaining fields describe the comparison that produced the signal
+// (srd041 R4.4).
+func TestValuePredicateOutputIsSelectable(t *testing.T) {
+	got := run(t, `{"mapped":{"count":"6"}}`, ValuePredicateBuilder{
+		Left: "$.mapped.count", Op: OpGt, Right: "0",
+	})
+
+	var output map[string]interface{}
+	if err := json.Unmarshal([]byte(got.Output), &output); err != nil {
+		t.Fatalf("output %q is not a JSON object: %v", got.Output, err)
+	}
+	selector, ok := core.ParseSelector("$.left")
+	if !ok {
+		t.Fatal("test selector $.left did not parse")
+	}
+	left, ok := selector.Resolve(output)
+	if !ok {
+		t.Fatalf("$.left did not resolve against %#v", output)
+	}
+	if left != "6" {
+		t.Errorf("$.left = %#v, want raw operand %q", left, "6")
+	}
+	if output["right"] != "0" || output["op"] != OpGt ||
+		output["operand_type"] != OperandNumber || output["held"] != true {
+		t.Errorf("comparison output = %#v, want right/op/operand_type/held fields", output)
+	}
+
+	unary := run(t, `{"v":""}`, ValuePredicateBuilder{Left: "$.v", Op: OpEmpty})
+	output = nil
+	if err := json.Unmarshal([]byte(unary.Output), &output); err != nil {
+		t.Fatalf("unary output %q is not a JSON object: %v", unary.Output, err)
+	}
+	if _, present := output["right"]; present {
+		t.Errorf("unary output carries an unused right operand: %#v", output)
 	}
 }
 
