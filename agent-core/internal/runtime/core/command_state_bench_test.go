@@ -28,7 +28,7 @@ func largeBlobExecution(steps, blobSize int) Execution {
 			FromState:   "Working",
 			ToState:     "Working",
 			Signal:      LLMResponded,
-			Result:      ResultDigest{Signal: LLMResponded, Output: fmt.Sprintf(`{"blob":%q}`, blob)},
+			Result:      checkpointDigest(LLMResponded, fmt.Sprintf(`{"blob":%q}`, blob), Cost{}),
 		})
 	}
 	return exec

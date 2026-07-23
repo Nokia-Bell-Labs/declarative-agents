@@ -95,7 +95,11 @@ func TestInvokeLLM_ReceiptRestoresConversationFromFreshInstance(t *testing.T) {
 	require.Equal(t, 3, history.Len())
 
 	cp := &core.InMemoryCheckpoint{}
-	require.NoError(t, cp.Save(core.Position{}, core.Execution{{CommandName: "invoke_llm", Receipt: res.Receipt}}))
+	require.NoError(t, cp.Save(core.Position{}, core.Execution{{
+		CommandName: "invoke_llm",
+		Result:      safeCheckpointResult(),
+		Receipt:     res.Receipt,
+	}}))
 	_, exec, err := cp.Load()
 	require.NoError(t, err)
 	require.Len(t, exec, 1)

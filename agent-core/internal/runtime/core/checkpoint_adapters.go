@@ -37,10 +37,14 @@ func (c *InMemoryCheckpoint) Save(position Position, execution Execution) error 
 	if conversation := position.Snapshot.Conversation; len(conversation) > 0 && !json.Valid(conversation) {
 		return fmt.Errorf("in-memory checkpoint save: conversation is not valid JSON")
 	}
+	sanitized, err := sanitizeExecutionForSave(execution)
+	if err != nil {
+		return fmt.Errorf("in-memory checkpoint save: %w", err)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.position = clonePosition(position)
-	c.execution = cloneExecution(execution)
+	c.execution = sanitized
 	c.saved = true
 	return nil
 }
@@ -73,5 +77,50 @@ func cloneExecution(e Execution) Execution {
 	}
 	out := make(Execution, len(e))
 	copy(out, e)
+	for i := range out {
+		out[i].Result.RedactedPaths = cloneOutputRedactionPaths(out[i].Result.RedactedPaths)
+	}
 	return out
+}
+
+// sanitizeExecutionForSave reapplies typed field removal before an adapter
+// retains Execution. It validates into a detached copy, so a failure cannot
+// partially replace the adapter's last valid state (srd035 R7.6).
+func sanitizeExecutionForSave(execution Execution) (Execution, error) {
+	sanitized := cloneExecution(execution)
+	for i := range sanitized {
+		result, err := sanitizeResultDigestForSave(sanitized[i].Result)
+		if err != nil {
+			return nil, fmt.Errorf("step %d output redaction: %w", i, err)
+		}
+		sanitized[i].Result = result
+	}
+	return sanitized, nil
+}
+
+func sanitizeResultDigestForSave(result ResultDigest) (ResultDigest, error) {
+	if result.RedactionVersion != OutputRedactionVersion1 {
+		return ResultDigest{}, fmt.Errorf("unsupported or missing version %d", result.RedactionVersion)
+	}
+	switch result.RedactionStatus {
+	case OutputRedactionApplied:
+		output, paths, status := applyOutputRedaction(
+			result.Output,
+			result.RedactionVersion,
+			result.RedactedPaths,
+		)
+		if status != OutputRedactionApplied {
+			return ResultDigest{}, fmt.Errorf("cannot safely apply typed paths")
+		}
+		result.Output = output
+		result.RedactedPaths = paths
+		return result, nil
+	case OutputRedactionOmitted:
+		if result.Output != "" || len(result.RedactedPaths) != 0 {
+			return ResultDigest{}, fmt.Errorf("omitted output carries data or paths")
+		}
+		return result, nil
+	default:
+		return ResultDigest{}, fmt.Errorf("unsupported or missing status %q", result.RedactionStatus)
+	}
 }

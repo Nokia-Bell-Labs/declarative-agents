@@ -34,7 +34,7 @@ func samplePositionExecution() (Position, Execution) {
 			FromState:   State("Start"),
 			ToState:     State("Reading"),
 			Signal:      ToolDone,
-			Result:      ResultDigest{Signal: ToolDone, Output: "ok"},
+			Result:      checkpointDigest(ToolDone, "ok", Cost{}),
 			Receipt:     `{"path":"a.txt","previous":null}`,
 		},
 		{
@@ -44,7 +44,7 @@ func samplePositionExecution() (Position, Execution) {
 			FromState:   State("Reading"),
 			ToState:     State("Reading"),
 			Signal:      ToolDone,
-			Result:      ResultDigest{Signal: ToolDone},
+			Result:      checkpointDigest(ToolDone, "", Cost{}),
 		},
 	}
 	return pos, exec
@@ -209,6 +209,65 @@ func TestInMemoryCheckpointRejectsInvalidConversationJSON(t *testing.T) {
 	require.ErrorContains(t, err, "conversation is not valid JSON")
 	_, _, loadErr := cp.Load()
 	require.ErrorIs(t, loadErr, ErrNoCheckpoint)
+}
+
+func TestInMemoryCheckpointReappliesOutputRedaction(t *testing.T) {
+	t.Parallel()
+
+	cp := &InMemoryCheckpoint{}
+	execution := Execution{redactionCheckpointEntry("memory-secret")}
+	require.NoError(t, cp.Save(Position{}, execution))
+
+	// Caller mutation after Save cannot alter either the output or path metadata.
+	execution[0].Result.Output = `{"secret":"mutated"}`
+	execution[0].Result.RedactedPaths[0][0] = "public"
+
+	_, restored, err := cp.Load()
+	require.NoError(t, err)
+	require.JSONEq(t, `{"public":"ok"}`, restored[0].Result.Output)
+	require.Equal(t, []OutputRedactionPath{{"secret"}}, restored[0].Result.RedactedPaths)
+	require.Equal(t, `{"opaque":"receipt"}`, restored[0].Receipt)
+
+	view := NewCommandStateView(restored)
+	value, err := ResolveFromSelector(view, "$from(fetch).public")
+	require.NoError(t, err)
+	require.Equal(t, "ok", value)
+	_, err = ResolveFromSelector(view, "$from(fetch).secret")
+	var missing *UnresolvedPathError
+	require.ErrorAs(t, err, &missing)
+}
+
+func TestInMemoryCheckpointRedactionFailurePreservesLastSave(t *testing.T) {
+	t.Parallel()
+
+	cp := &InMemoryCheckpoint{}
+	valid := Execution{redactionCheckpointEntry("first-secret")}
+	require.NoError(t, cp.Save(Position{CurrentState: "Valid"}, valid))
+
+	invalid := Execution{redactionCheckpointEntry("second-secret")}
+	invalid[0].Result.RedactedPaths = []OutputRedactionPath{{}}
+	err := cp.Save(Position{CurrentState: "Invalid"}, invalid)
+	require.ErrorContains(t, err, "output redaction")
+
+	position, restored, loadErr := cp.Load()
+	require.NoError(t, loadErr)
+	require.Equal(t, State("Valid"), position.CurrentState)
+	require.NotContains(t, restored[0].Result.Output, "first-secret")
+	require.Equal(t, `{"opaque":"receipt"}`, restored[0].Receipt)
+}
+
+func redactionCheckpointEntry(secret string) Entry {
+	return Entry{
+		CommandName: "fetch",
+		Label:       "fetch",
+		Result: ResultDigest{
+			Output:           `{"secret":"` + secret + `","public":"ok"}`,
+			RedactionVersion: OutputRedactionVersion1,
+			RedactedPaths:    []OutputRedactionPath{{"secret"}},
+			RedactionStatus:  OutputRedactionApplied,
+		},
+		Receipt: `{"opaque":"receipt"}`,
+	}
 }
 
 func FuzzCheckpointReceiptJSONRoundTrip(f *testing.F) {

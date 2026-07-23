@@ -41,7 +41,11 @@ func TestRESTClient_CompensationExecutorRunsFromReceipt(t *testing.T) {
 	require.NotEmpty(t, res.Receipt)
 
 	cp := &core.InMemoryCheckpoint{}
-	require.NoError(t, cp.Save(core.Position{}, core.Execution{{CommandName: write.Name(), Receipt: res.Receipt}}))
+	require.NoError(t, cp.Save(core.Position{}, core.Execution{{
+		CommandName: write.Name(),
+		Result:      commandStateDigest(""),
+		Receipt:     res.Receipt,
+	}}))
 	_, exec, err := cp.Load()
 	require.NoError(t, err)
 	require.Len(t, exec, 1)

@@ -4,6 +4,7 @@ package core
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -102,13 +103,22 @@ func (d *DoltCheckpoint) Close() error { return d.db.Close() }
 // then merges to main when the Position current state is terminal
 // (srd036-dolt-state-persistence R4).
 func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
+	step := len(execution) - 1
+	var current Entry
+	if step >= 0 {
+		current = execution[step]
+		sanitized, err := sanitizeResultDigestForSave(current.Result)
+		if err != nil {
+			return fmt.Errorf("%w: save: step %d output redaction: %v", ErrDolt, step, err)
+		}
+		current.Result = sanitized
+	}
 	if err := d.prepare(); err != nil {
 		return err
 	}
-	step := len(execution) - 1
 	sig := Signal("")
 	if step >= 0 {
-		sig = execution[step].Signal
+		sig = current.Signal
 	}
 
 	tx, err := d.db.Begin()
@@ -124,7 +134,7 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 		return err
 	}
 	if step >= 0 {
-		if err := writeStep(tx, d.runID, step, execution[step]); err != nil {
+		if err := writeStep(tx, d.runID, step, current); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
@@ -173,6 +183,9 @@ func (d *DoltCheckpoint) Load() (Position, Execution, error) {
 			return Position{}, nil, ErrNoCheckpoint
 		}
 		return Position{}, nil, fmt.Errorf("%w: load: machine: %v", ErrDolt, err)
+	}
+	if err := ensureToolOutputRedactionColumns(d.db); err != nil {
+		return Position{}, nil, fmt.Errorf("%w: load: redaction schema: %v", ErrDolt, err)
 	}
 	exec, err := loadExecution(d.db, d.runID)
 	if err != nil {
@@ -292,6 +305,9 @@ func createSchema(db Database) error {
 			%s VARCHAR(255) NOT NULL,
 			output LONGTEXT,
 			error LONGTEXT,
+			redaction_version INT,
+			redacted_paths LONGTEXT,
+			redaction_status VARCHAR(32),
 			cost_duration BIGINT NOT NULL,
 			cost_tokens_in INT NOT NULL,
 			cost_tokens_out INT NOT NULL,
@@ -312,6 +328,9 @@ func createSchema(db Database) error {
 		}
 	}
 	if err := ensureExecutionStepLabelColumn(db); err != nil {
+		return err
+	}
+	if err := ensureToolOutputRedactionColumns(db); err != nil {
 		return err
 	}
 	return nil
@@ -335,6 +354,39 @@ func ensureExecutionStepLabelColumn(db Database) error {
 	}
 	if err := db.Exec(`ALTER TABLE execution_steps ADD COLUMN label VARCHAR(255)`); err != nil {
 		return fmt.Errorf("%w: schema: add execution_steps.label: %v", ErrDolt, err)
+	}
+	return nil
+}
+
+func ensureToolOutputRedactionColumns(db Database) error {
+	columns := []struct {
+		name       string
+		definition string
+	}{
+		{name: "redaction_version", definition: "INT"},
+		{name: "redacted_paths", definition: "LONGTEXT"},
+		{name: "redaction_status", definition: "VARCHAR(32)"},
+	}
+	for _, column := range columns {
+		var count int
+		query := fmt.Sprintf(`SELECT COUNT(*)
+			FROM information_schema.columns
+			WHERE table_schema = DATABASE()
+				AND table_name = 'tool_outputs'
+				AND column_name = '%s'`, column.name)
+		if err := db.QueryRow(query).Scan(&count); err != nil {
+			return fmt.Errorf("%w: schema: inspect tool_outputs.%s: %v", ErrDolt, column.name, err)
+		}
+		if count > 0 {
+			continue
+		}
+		if err := db.Exec(fmt.Sprintf(
+			"ALTER TABLE tool_outputs ADD COLUMN %s %s",
+			column.name,
+			column.definition,
+		)); err != nil {
+			return fmt.Errorf("%w: schema: add tool_outputs.%s: %v", ErrDolt, column.name, err)
+		}
 	}
 	return nil
 }
@@ -364,6 +416,10 @@ func writeMachine(tx Transaction, runID string, p Position) error {
 // per-step transaction, so a step with an output row but no matching receipt row
 // is never committed (srd036-dolt-state-persistence R3, R4.1, R4.4).
 func writeStep(tx Transaction, runID string, step int, e Entry) error {
+	redactedPaths, err := json.Marshal(e.Result.RedactedPaths)
+	if err != nil {
+		return fmt.Errorf("%w: save: output redacted paths: %v", ErrDolt, err)
+	}
 	if err := tx.Exec(
 		fmt.Sprintf(`REPLACE INTO transitions (run_id, step_index, from_state, %s, to_state) VALUES (?, ?, ?, ?, ?)`, doltSignalColumn),
 		runID, step, string(e.FromState), string(e.Signal), string(e.ToState),
@@ -378,10 +434,12 @@ func writeStep(tx Transaction, runID string, step int, e Entry) error {
 	}
 	if err := tx.Exec(
 		fmt.Sprintf(`REPLACE INTO tool_outputs
-			(run_id, step_index, %s, output, error, cost_duration, cost_tokens_in, cost_tokens_out, cost_dollars)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, doltSignalColumn),
+			(run_id, step_index, %s, output, error, redaction_version, redacted_paths, redaction_status,
+			 cost_duration, cost_tokens_in, cost_tokens_out, cost_dollars)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doltSignalColumn),
 		runID, step, string(e.Result.Signal),
 		nullString(e.Result.Output), nullString(e.Result.Error),
+		int(e.Result.RedactionVersion), string(redactedPaths), string(e.Result.RedactionStatus),
 		int64(e.Result.Cost.Duration), e.Result.Cost.TokensIn, e.Result.Cost.TokensOut, e.Result.Cost.Dollars,
 	); err != nil {
 		return fmt.Errorf("%w: save: output: %v", ErrDolt, err)
@@ -441,7 +499,8 @@ func loadExecution(db Database, runID string) (Execution, error) {
 	rows, err := db.Query(
 		fmt.Sprintf(`SELECT es.step_index, es.iteration, es.ts, es.command_name, es.label,
 			t.from_state, t.to_state, t.%[1]s,
-			o.%[1]s, o.output, o.error, o.cost_duration, o.cost_tokens_in, o.cost_tokens_out, o.cost_dollars, r.receipt
+			o.%[1]s, o.output, o.error, o.redaction_version, o.redacted_paths, o.redaction_status,
+			o.cost_duration, o.cost_tokens_in, o.cost_tokens_out, o.cost_dollars, r.receipt
 			FROM execution_steps es
 			JOIN transitions t ON t.run_id = es.run_id AND t.step_index = es.step_index
 			JOIN tool_outputs o ON o.run_id = es.run_id AND o.step_index = es.step_index
@@ -461,6 +520,8 @@ func loadExecution(db Database, runID string) (Execution, error) {
 			ts, commandName                       string
 			fromState, toState, signal, resSignal string
 			label, output, errStr, receipt        sql.NullString
+			redactionVersion                      sql.NullInt64
+			redactedPaths, redactionStatus        sql.NullString
 			costDuration                          int64
 			costTokensIn, costTokensOut           int
 			costDollars                           float64
@@ -468,9 +529,33 @@ func loadExecution(db Database, runID string) (Execution, error) {
 		if err := rows.Scan(
 			&stepIndex, &iteration, &ts, &commandName, &label,
 			&fromState, &toState, &signal,
-			&resSignal, &output, &errStr, &costDuration, &costTokensIn, &costTokensOut, &costDollars, &receipt,
+			&resSignal, &output, &errStr, &redactionVersion, &redactedPaths, &redactionStatus,
+			&costDuration, &costTokensIn, &costTokensOut, &costDollars, &receipt,
 		); err != nil {
 			return nil, err
+		}
+		digest := ResultDigest{
+			Signal: Signal(resSignal),
+			Output: output.String,
+			Error:  errStr.String,
+			Cost: Cost{
+				Duration:  time.Duration(costDuration),
+				TokensIn:  costTokensIn,
+				TokensOut: costTokensOut,
+				Dollars:   costDollars,
+			},
+		}
+		if redactionVersion.Valid {
+			if redactionVersion.Int64 < 0 || redactionVersion.Int64 > int64(^uint16(0)) {
+				return nil, fmt.Errorf("step %d redaction version %d is out of range", stepIndex, redactionVersion.Int64)
+			}
+			digest.RedactionVersion = uint16(redactionVersion.Int64)
+			digest.RedactionStatus = OutputRedactionStatus(redactionStatus.String)
+			if redactedPaths.Valid && redactedPaths.String != "" {
+				if err := json.Unmarshal([]byte(redactedPaths.String), &digest.RedactedPaths); err != nil {
+					return nil, fmt.Errorf("step %d redacted paths: %w", stepIndex, err)
+				}
+			}
 		}
 		execution = append(execution, Entry{
 			Iteration:   iteration,
@@ -480,18 +565,8 @@ func loadExecution(db Database, runID string) (Execution, error) {
 			FromState:   State(fromState),
 			ToState:     State(toState),
 			Signal:      Signal(signal),
-			Result: ResultDigest{
-				Signal: Signal(resSignal),
-				Output: output.String,
-				Error:  errStr.String,
-				Cost: Cost{
-					Duration:  time.Duration(costDuration),
-					TokensIn:  costTokensIn,
-					TokensOut: costTokensOut,
-					Dollars:   costDollars,
-				},
-			},
-			Receipt: receipt.String,
+			Result:      digest,
+			Receipt:     receipt.String,
 		})
 	}
 	if err := rows.Err(); err != nil {
