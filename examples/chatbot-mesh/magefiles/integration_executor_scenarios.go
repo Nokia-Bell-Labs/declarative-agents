@@ -7,8 +7,12 @@ package main
 // must not) have invoked.
 type executorScenario struct {
 	name string
-	// applyBody drives the apply endpoint; empty drives the rollout read.
-	applyBody   string
+	// applyBody drives the apply endpoint; empty drives the rollout read, unless
+	// stateRead selects the state read instead.
+	applyBody string
+	// stateRead selects the state read when applyBody is empty; false selects the
+	// rollout read, preserving the existing two-way inference for those scenarios.
+	stateRead   bool
 	exits       map[string]int    // verb -> exit code, unplanned verbs exit 0
 	stdout      map[string]string // verb -> stdout
 	wantStatus  int
@@ -26,10 +30,21 @@ const applyPatch = `{"schema_version":"1","content":"ragUnits:\n  - name: rag0\n
 // compact object the rollout response maps by field (srd006 R3.3, GH-686).
 const countsJSON = `{"ready":2,"desired":2,"revision":7}`
 
-// executorScenarios walks every terminal of both machines. The apply machine has
-// four (Done, Rejected, RolledBack, Failed) and the rollout machine three
-// (Complete, Progressing, Unavailable); each is reached by failing a different
-// word, which is the only way an exec-word machine tells its outcomes apart.
+// stateValuesJSON is what helm get values --all -o json renders for the release:
+// one JSON object the state response maps by field (srd006 R1.5, GH-752). --all
+// is what makes ragUnits and executor.params present even when no operator apply
+// has ever patched them -- a fresh install's chart defaults, not just overrides.
+const stateValuesJSON = `{"ragUnits":[{"name":"rag0","collection":"corpus","embeddingModel":"qwen3-embedding:8b","replicas":1}],` +
+	`"llm":{"externalURL":"http://ollama.default.svc.cluster.local:11434"},` +
+	`"ollama":{"enabled":true,"topology":"single","models":{"embedding":"qwen3-embedding:8b","chat":["qwen2.5:3b","ornith:9b"],"router":"qwen2.5:3b"}},` +
+	`"chatbot":{"embeddingModel":"qwen3-embedding:8b"},` +
+	`"executor":{"params":{"nResults":5,"chunkCap":0,"routerDefault":"invoke_llm_fast","chatModel":"qwen2.5:3b"}}}`
+
+// executorScenarios walks every terminal of all three machines. The apply
+// machine has four (Done, Rejected, RolledBack, Failed), the rollout machine
+// three (Complete, Progressing, Unavailable), and the state machine two (Read,
+// Unavailable); each is reached by failing a different word, which is the only
+// way an exec-word machine tells its outcomes apart.
 func executorScenarios() []executorScenario {
 	return []executorScenario{
 		{
@@ -102,6 +117,31 @@ func executorScenarios() []executorScenario {
 			wantStatus: 502,
 			wantBody:   []string{`"error":"rollout_read_failed"`, `"status":"unavailable"`},
 			wantCalls:  []string{"kubectl get"},
+		},
+		{
+			name:       "a state read reports the deployed mesh view",
+			stateRead:  true,
+			stdout:     map[string]string{"get-values": stateValuesJSON},
+			wantStatus: 200,
+			wantBody: []string{
+				`"name":"rag0"`, `"collection":"corpus"`, `"embeddingModel":"qwen3-embedding:8b"`,
+				`"llmInCluster":true`,
+				`"llmExternalURL":"http://ollama.default.svc.cluster.local:11434"`,
+				`"llmChatModel":"qwen2.5:3b"`,
+				`"llmEmbedModel":"qwen3-embedding:8b"`,
+				`"llmRouterModel":"qwen2.5:3b"`,
+				`"llmTopology":"single"`,
+				`"paramsNResults":5`, `"paramsChunkCap":0`, `"paramsRouterDefault":"invoke_llm_fast"`,
+			},
+			wantCalls: []string{"get values", "--all", "-o json"},
+		},
+		{
+			name:       "an unreadable release is a gateway error, not an empty view",
+			stateRead:  true,
+			exits:      map[string]int{"get-values": 1},
+			wantStatus: 502,
+			wantBody:   []string{`"error":"state_read_failed"`, `"status":"unavailable"`},
+			wantCalls:  []string{"get values"},
 		},
 	}
 }

@@ -1,0 +1,33 @@
+name: executor-state-request
+purpose: |-
+  One request-scoped read of the deployed mesh view, serving the state GET endpoint
+  (srd006 R1.5). The machine reads the release's fully computed values (chart
+  defaults merged with any applied overrides) via helm get values --all -o json,
+  so the read works from a fresh install with no prior apply -- unlike the
+  executor's own overrides file, which exists only after the first apply and
+  reflects the last submitted patch rather than the deployed release.
+
+  helm's -o json guarantees the read's output is one JSON object, so the response
+  mapping can select individual fields (ragUnits, ollama, chatbot, executor.params)
+  rather than embedding one opaque blob (agent-core srd030 R4.3). A release the
+  cluster cannot read -- absent, or a kubeconfig/RBAC/API-server failure -- lands
+  in Unavailable so the endpoint answers 502 rather than a stale or empty view.
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 3
+states:
+  - {name: AwaitingRequest, meaning: Seeded by the state endpoint.}
+  - {name: Reading,         meaning: Reading the release's computed values.}
+  - {name: Read,            meaning: Terminal. The deployed values were read.}
+  - {name: Unavailable,     meaning: Terminal. The release's values could not be read.}
+terminal_states:
+  - Read
+  - Unavailable
+signals:
+  - {name: Seed,       trigger: The state endpoint starts a request-scoped read.}
+  - {name: ToolDone,   trigger: helm reported the release's computed values.}
+  - {name: ToolFailed, trigger: helm could not read the release.}
+transitions:
+  - {state: AwaitingRequest, signal: Seed,       next: Reading, action: helm_get_values}
+  - {state: Reading,         signal: ToolDone,   next: Read}
+  - {state: Reading,         signal: ToolFailed, next: Unavailable}

@@ -45,7 +45,8 @@ requirements:
       - R1.1: The executor SHALL expose the deployment API surface -- a read state endpoint, a POST apply endpoint bound as a request-scoped machine_request (agent-core srd030), and a read rollout endpoint -- on the Service name and port the provisioner served, so the creator's declared deployment_api client (srd005) and the provisioning panel are unchanged.
       - R1.2: The executor SHALL run a control server (health and lifecycle exit) and a monitor server (agent-core srd033), with loopback-configurable bind addresses.
       - R1.3: The apply endpoint SHALL bind one inbound apply request to one request-scoped run and map terminal signals to HTTP status.
-      - R1.4: The deployment API surface SHALL use one versioned contract (deployment_api_contract) -- a schema_version-tagged apply request (the decided values-plane document), an apply response, and a rollout response -- that the executor, the creator's deployment_api client (srd005), the provisioning panel (reaching the surface only through the creator, GH-502), and the integration fake all consume, so no consumer sends or reads a field the executor does not define.
+      - R1.4: The deployment API surface SHALL use one versioned contract (deployment_api_contract) -- a schema_version-tagged apply request (the decided values-plane document), an apply response, a rollout response, and a state response -- that the executor, the creator's deployment_api client (srd005), the provisioning panel (reaching the surface only through the creator, GH-502), and the integration fake all consume, so no consumer sends or reads a field the executor does not define.
+      - R1.5: The state read SHALL read the deployed Helm release's fully computed values (chart defaults merged with any applied overrides) and report the mesh view fields the provisioning panel needs -- RAG topology, LLM configuration, and parameters; a release the cluster cannot read SHALL return a gateway error rather than a stale or mapped-empty view, so the panel's initial load is never silently wrong.
   R2:
     title: Validate then apply
     items:
@@ -108,11 +109,36 @@ deployment_api_contract:
       - {name: revision, type: integer, required: true, note: the Deployment's current rollout revision}
       - {name: status, type: string, required: false, note: unavailable, on the 502 alone}
       - {name: error, type: string, required: false, note: rollout_read_failed, on the 502 alone}
+  state_response:
+    endpoint: GET /provisioning/api/state
+    description: |
+      Flat by necessity: agent-core's machine_request response body maps one
+      selector per named field (rest.MachineResponseMapping.Body is a flat
+      string map), so a nested llm/params object cannot be assembled from
+      several source paths in one step. The provisioning panel's client
+      (ux/app/src/provisioningApi.ts) reassembles the nested MeshView it
+      renders from these flat fields (GH-753); this contract states the wire
+      shape the executor actually serves, not the panel's internal type.
+    fields:
+      - {name: schema_version, type: string, required: true}
+      - {name: rags, type: array, required: true, note: "the deployed ragUnits list, each {name, collection, embeddingModel, replicas}; absent on the 502, which carries status and error instead"}
+      - {name: llmInCluster, type: boolean, required: true, note: whether the in-cluster Ollama tier is enabled}
+      - {name: llmExternalURL, type: string, required: true, note: the external LLM endpoint, used when the in-cluster tier is disabled}
+      - {name: llmChatModel, type: string, required: true, note: the panel's configured default chat model}
+      - {name: llmEmbedModel, type: string, required: true, note: the embedding model the chatbot uses to embed a query}
+      - {name: llmChatModels, type: array, required: true, note: the in-cluster tier's configured chat models}
+      - {name: llmRouterModel, type: string, required: true, note: the in-cluster tier's configured router model}
+      - {name: llmTopology, type: string, required: true, note: "the in-cluster tier's topology: single or per-model"}
+      - {name: paramsNResults, type: integer, required: true, note: the per-RAG retrieval bound}
+      - {name: paramsChunkCap, type: integer, required: true, note: the chunk cap parameter}
+      - {name: paramsRouterDefault, type: string, required: true, note: the router's default word}
+      - {name: status, type: string, required: false, note: unavailable, on the 502 alone}
+      - {name: error, type: string, required: false, note: state_read_failed, on the 502 alone}
 
 acceptance_criteria:
   - id: AC1
-    criterion: The executor exposes the state, apply, and rollout surface on the provisioner's Service name and port with the apply endpoint bound as a request-scoped machine_request, alongside control and monitor servers on loopback-configurable addresses, and every request and response carries the schema_version-tagged deployment_api_contract that the creator, panel, and integration fake share.
-    traces: [R1.1, R1.2, R1.3, R1.4]
+    criterion: The executor exposes the state, apply, and rollout surface on the provisioner's Service name and port with the apply endpoint bound as a request-scoped machine_request, alongside control and monitor servers on loopback-configurable addresses, and every request and response carries the schema_version-tagged deployment_api_contract that the creator, panel, and integration fake share. The state read reports the deployed release's computed values and returns a gateway error rather than a stale or empty view when the release cannot be read.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
   - id: AC2
     criterion: A submitted values document is validated against the chart's values schema by a helm dry-run and, when valid, written to a values file and applied with helm upgrade --reuse-values --atomic -- values-plane only, with no per-field --set construction and no endpoint submitted to a running agent.
     traces: [R2.1, R2.2, R2.3]
@@ -177,12 +203,21 @@ implementation_status:
       non-conforming one rejected against the real chart schema. That tier is
       also what found the executor Role could not read the Secrets helm queries
       to locate its own release, nor the other object kinds the chart it
-      re-renders contains. The remaining planned work is the state read
-      endpoint (GET /provisioning/api/state), which the executor profile does not
-      yet serve -- it needs the agent-core raw file-read binding tracked by issue
-      #468. Until the state endpoint lands, the provisioning panel cannot load its
-      MeshView from the executor (ux/app/src/provisioningApi.ts fetches
-      /provisioning/api/state, which returns no route).
+      re-renders contains. The state read endpoint (GET /provisioning/api/state,
+      R1.5) shipped with GH-752: it reads the release's fully computed values via
+      helm get values --all -o json (an exec word, mirroring kubectl_rollout_poll
+      and kubectl_get_rollout_counts) rather than a raw read of the executor's own
+      overrides file, so it works from a fresh install with no prior apply. Issue
+      #468 is closed, but shipped narrower than earlier text here implied: a raw
+      mode on the filesystem read builtin (agent-core, GH-521), not a REST
+      binding; it was not the mechanism this endpoint uses. The creator and
+      coordinator hops that carry this response to the provisioning panel
+      shipped with GH-753, carrying the flat fields through unchanged at each
+      hop and reassembling the panel's nested MeshView client-side in
+      provisioningApi.ts (agent-core's machine_request response mapping is a
+      flat field-to-selector map, so no hop can assemble a nested object from
+      several source paths). The provisioning panel now loads its initial mesh
+      view from a running mesh; rel06.0's last functional gap is closed.
 
 diagrams:
   requirements_trace: |
