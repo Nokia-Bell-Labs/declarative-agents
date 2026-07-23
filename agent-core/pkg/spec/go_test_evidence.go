@@ -186,17 +186,35 @@ func (inv *GoTestInventory) checkBareNames(names []string) string {
 // least one test within the resolved packages. A package-only command is valid
 // once its packages resolve.
 func (inv *GoTestInventory) checkGoTestCommand(evidence string) string {
+	pkgArgs, runPattern, problem := parseGoTestCommand(evidence)
+	if problem != "" {
+		return problem
+	}
+
+	pkgs, missing := inv.resolvePackages(pkgArgs)
+	if len(missing) > 0 {
+		return fmt.Sprintf("unknown package %s", strings.Join(missing, ", "))
+	}
+	if runPattern == "" {
+		return "" // package-only command: packages resolved, nothing to match
+	}
+	return inv.checkRunPattern(runPattern, pkgs)
+}
+
+// parseGoTestCommand splits a "go test <pkgs> [-run <pattern>]" evidence string
+// into its package arguments and -run pattern, or reports a problem. Shared by
+// the resolver, which asks whether the command names anything real, and the
+// runner, which asks whether what it names passed; splitting the parse means the
+// two cannot disagree about what a command says.
+func parseGoTestCommand(evidence string) (pkgArgs []string, runPattern, problem string) {
 	fields := strings.Fields(evidence)
 	fields = fields[2:] // drop the "go test" prefix
-
-	var pkgArgs []string
-	var runPattern string
 	for i := 0; i < len(fields); i++ {
 		tok := fields[i]
 		switch {
 		case tok == "-run":
 			if i+1 >= len(fields) {
-				return "-run flag has no pattern"
+				return nil, "", "-run flag has no pattern"
 			}
 			runPattern = stripQuotes(fields[i+1])
 			i++
@@ -211,15 +229,7 @@ func (inv *GoTestInventory) checkGoTestCommand(evidence string) string {
 	if len(pkgArgs) == 0 {
 		pkgArgs = []string{"./..."}
 	}
-
-	pkgs, missing := inv.resolvePackages(pkgArgs)
-	if len(missing) > 0 {
-		return fmt.Sprintf("unknown package %s", strings.Join(missing, ", "))
-	}
-	if runPattern == "" {
-		return "" // package-only command: packages resolved, nothing to match
-	}
-	return inv.checkRunPattern(runPattern, pkgs)
+	return pkgArgs, runPattern, ""
 }
 
 // resolvePackages maps `go test` package arguments to import paths and collects
