@@ -17,6 +17,7 @@ problem: |
   - srd022-builtin-tools for builtin declarations and factories
   - srd023-cli-exec-tools for external CLI/exec tool declarations
   - srd024-blocking-input-tools for tools that block waiting for input
+  - srd041-value-predicate-tool for branching a machine on a value
 
 goals:
   - G1: Shared file tools (read, write, edit, find, list_files) confined to a workspace root.
