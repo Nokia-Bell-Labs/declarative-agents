@@ -51,6 +51,8 @@ body {
   color: var(--text-primary);
 }
 
+/* The nav items are anchors so a panel can be opened in a new tab or its link
+   copied. The reset keeps them looking like the buttons they replaced. */
 .nav-item {
   display: flex;
   align-items: center;
@@ -64,6 +66,7 @@ body {
   padding: 8px 12px;
   border-radius: 6px;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .nav-item:hover { background: var(--bg-secondary); }
