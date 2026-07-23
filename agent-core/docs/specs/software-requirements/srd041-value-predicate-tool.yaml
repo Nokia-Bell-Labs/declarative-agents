@@ -74,7 +74,7 @@ requirements:
       - R4.1: The word SHALL emit the configured satisfied signal when the comparison holds and the configured unsatisfied signal when it does not.
       - R4.2: An operand selector that does not resolve -- including a $from(label) naming a step that never ran, or a path absent from the step it names -- and a coercion that fails, SHALL emit CommandError. Neither SHALL emit the unsatisfied signal. A broken selector answering "the value was false" is the failure mode this requirement exists to prevent, and it is a silent one -- the machine takes a legitimate-looking branch on a comparison that never happened. The distinction is the one srd030 R4.6 draws between a broken read and a real outcome.
       - R4.3: The declaration's emits SHALL list the configured signals and CommandError.
-      - R4.4: Output SHALL report the resolved operands and the comparison outcome, so a run's trace shows what was compared and not only which branch it took.
+      - R4.4: Output SHALL be a JSON object containing the raw resolved left operand, operator, operand type, and boolean comparison outcome under the fields left, op, operand_type, and held. A binary comparison SHALL also contain the raw resolved right operand under right; a unary empty or non_empty comparison SHALL omit right. The object leaves each part addressable to a later word or machine_request response mapping while preserving what arrived before coercion.
 
   R5:
     title: Purity
@@ -92,8 +92,8 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: A machine branches on a value read from a REST response into two declared signals, through a declared word, with no bespoke Go tool and no comparison hidden in a child program.
-    traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R4.1, R4.3]
+    criterion: A machine branches on a value read from a REST response into two declared signals, through a declared word, with no bespoke Go tool and no comparison hidden in a child program; the terminal predicate output leaves its resolved operand addressable to a response mapping.
+    traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R4.1, R4.3, R4.4]
 
   - id: AC2
     criterion: Every operator the SRD names decides correctly at its boundary, empty and non_empty test the left operand alone, and the set a machine may branch on stays enumerable from this specification rather than from the implementation.
@@ -136,14 +136,15 @@ implementation_status:
       the control family shipped for release rel10.0 with GH-770. Operands
       resolve through the existing selector primitive against the previous
       Result, and config is validated at registration so an unknown operator or
-      a missing signal name never reaches a run.
+      a missing signal name never reaches a run. GH-773 made successful
+      comparison output a JSON object whose raw operands and outcome remain
+      selectable after the predicate becomes the terminal word.
   planned:
     - >-
-      Adopting the word in the chatbot-mesh creator, whose corpus-ingest run
-      reports a document count but does not yet reject a run that wrote nothing.
-      That surface declares no 422 and its caller's rejection leg stays
-      unreachable until it adopts this word; consuming profiles move on their
-      own schedule.
+      Mapping the chatbot-mesh creator's successful corpus-ingest response count
+      from the predicate's left field. The profile already uses this word to
+      reject a run that wrote nothing; adopting the newly selectable field in
+      that response is a separate profile change.
 
 diagrams:
   requirements_trace: |
