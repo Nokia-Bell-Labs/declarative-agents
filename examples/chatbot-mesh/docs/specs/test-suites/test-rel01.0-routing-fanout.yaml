@@ -61,3 +61,38 @@ test_cases:
       - srd002-chatbot-agent AC2
       - srd002-chatbot-agent AC3
       - srd002-chatbot-agent AC6
+
+  - use_case: rel01.0-uc001-routed-fanout
+    name: Embedding-model exclusion where dimensions match but identities differ
+    integration_target: mage integration:embeddingExclusion
+    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$'
+    status: implemented
+    description: |
+      The case srd002 R3.3 exists for, and the one the mapped 400 cannot reach. That
+      400 originates in Chroma rejecting the query vector, so it fires on a dimension
+      mismatch; two models of the same width both answer 200. This target stands two
+      RAG mocks returning the same vector shape that differ only in the embedding model
+      they report, and reads the composed prompt out of the LLM mock's request log
+      rather than the answer, which is canned fixture text and therefore identical
+      whichever chunks were composed. The mismatched source's chunk must be absent and
+      the matching source's chunk present in the same prompt: asserting only the
+      absence would also pass for a turn that simply lost both sources. The turn must
+      still answer 200, since an exclusion degrades the grounding rather than failing
+      the turn (R3.2). The chatbot runs from a port-shifted profile copy so the proof
+      does not contend with a real Ollama on the shipped embedding port, moving the
+      client base_urls and the network limits that pin them together (R6.1). Verified
+      in both directions: with the comparison neutralized so a differing identity
+      reports as matched, the target fails naming the mismatched chunk in the prompt.
+    inputs:
+      chatbot_profile: agents/chatbot/profile.yaml
+      query_embedding_model: qwen3-embedding:8b
+      rag0_reported_model: nomic-embed-text:v1.5
+      rag1_reported_model: qwen3-embedding:8b
+      rag_status: both answer 200 with the same vector shape
+    expected:
+      mismatched_source_excluded_from_prompt: true
+      matching_source_composed_in_same_turn: true
+      turn_degrades_rather_than_fails: true
+    traces:
+      - rel01.0-uc001-routed-fanout S3
+      - srd002-chatbot-agent AC3

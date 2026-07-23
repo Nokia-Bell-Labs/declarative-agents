@@ -69,7 +69,11 @@ rest:
               input: $.message
             carry_forward: [input]
           body:
-            model: qwen3-embedding:8b
+            # One environment reference names the query embedding model for both this
+            # request and declare_query_model, which puts that identity into command
+            # state for the per-RAG comparison (srd002 R3.3). Keep the two in step: a
+            # drift between them would compare against an identity nothing embedded with.
+            model: ${CHATBOT_EMBEDDING_MODEL:-qwen3-embedding:8b}
             prompt: "{{ params.input }}"
           success: {status: [200], signal: QueryEmbedded}
           response:
@@ -227,13 +231,19 @@ rest:
                 message: $.message
                 history: $.history
             response:
-              terminal_signals:
+              # Keyed by terminal state, not signal: compose_response reports the
+              # unresolved selectors for every source outcome that did not happen,
+              # so the turn can reach LLMResponded on either ResponseComposed or
+              # CommandError and both must map to the same 200 (rest-tool-format
+              # machine_request_response_mapping, GH-615).
+              terminal_states:
                 LLMResponded:
                   status: 200
                   content_type: application/json
                   body:
-                    answer: $.output
-                CommandError:
+                    answer: $.answer
+                    metadata: $.metadata
+                Failed:
                   status: 500
                   content_type: application/json
                   body:

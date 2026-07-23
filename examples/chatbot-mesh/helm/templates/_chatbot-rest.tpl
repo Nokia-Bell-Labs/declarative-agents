@@ -215,13 +215,14 @@ rest:
                 message: $.message
                 history: $.history
             response:
-              terminal_signals:
+              terminal_states:
                 LLMResponded:
                   status: 200
                   content_type: application/json
                   body:
-                    answer: $.output
-                CommandError:
+                    answer: $.answer
+                    metadata: $.metadata
+                Failed:
                   status: 500
                   content_type: application/json
                   body:
