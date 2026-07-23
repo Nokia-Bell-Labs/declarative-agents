@@ -159,14 +159,14 @@ releases:
       back on failure. The authority boundary is unchanged -- the apply path is
       reached only by the creator and authority stays set by declared, validated
       config -- and no agent-core change is required.
-    status: planned
+    status: implemented
     srds:
       - srd006-executor
     use_cases:
       - id: rel06.0-uc001-declarative-executor
-        summary: The executor agent validates a values patch against the chart schema, applies it as a values-file rollout, verifies the rollout, and rolls back on failure, replacing the Go provisioner with zero agent-core changes. Stays planned while the live on-cluster rollout is outstanding (GH-735) -- the flow is proven against recording fake CLIs and the chart schema against real helm, but nothing yet proves that a patch applied through the executor changes a real release.
-        status: planned
+        summary: The executor agent validates a values patch against the chart schema, applies it as a values-file rollout, verifies the rollout, and rolls back on failure, replacing the Go provisioner with zero agent-core changes. The live on-cluster rollout shipped with GH-735, proving a patch applied through the executor changes a real release. The provisioning panel's initial mesh-view load (GET /provisioning/api/state, srd006 R1.5) shipped with GH-750/752/753 -- the executor reads the deployed release's computed values, and the creator and coordinator carry the flat response through to the panel, which reassembles it client-side.
+        status: implemented
     test_suites:
       - id: test-rel06.0-executor
-        summary: Tracer for the validate -> apply -> verify -> rollback flow against the executor agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:executor, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier stays planned (GH-735).
+        summary: Tracer for the validate -> apply -> verify -> rollback flow against the executor agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:executor, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier is mage integration:executorLive (GH-735). The state-read chain (GH-750/752/753) is covered by unit tests pinning every hop's field mapping and failure-status behavior, plus a manual live verification against real creator/coordinator binaries; mage integration:controlPlane's automated live assertion of the same round trip is blocked by a pre-existing, unrelated bug (GH-755).
         status: implemented

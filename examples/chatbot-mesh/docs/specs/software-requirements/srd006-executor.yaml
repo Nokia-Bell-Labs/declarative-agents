@@ -211,8 +211,13 @@ implementation_status:
       #468 is closed, but shipped narrower than earlier text here implied: a raw
       mode on the filesystem read builtin (agent-core, GH-521), not a REST
       binding; it was not the mechanism this endpoint uses. The creator and
-      coordinator hops that carry this response to the provisioning panel are
-      GH-753, tracked separately.
+      coordinator hops that carry this response to the provisioning panel
+      shipped with GH-753, carrying the flat fields through unchanged at each
+      hop and reassembling the panel's nested MeshView client-side in
+      provisioningApi.ts (agent-core's machine_request response mapping is a
+      flat field-to-selector map, so no hop can assemble a nested object from
+      several source paths). The provisioning panel now loads its initial mesh
+      view from a running mesh; rel06.0's last functional gap is closed.
 
 diagrams:
   requirements_trace: |
