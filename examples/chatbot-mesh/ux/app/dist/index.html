@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Declaring an icon is what stops the browser requesting /favicon.ico and
+         logging a 404 on every load (GH-724). The href is relative because the
+         chatbot serves this app under /ui/ while the vite dev server serves it
+         at the root. -->
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <title>Chatbot</title>
     <script type="module" crossorigin src="./assets/index-BraNNQV6.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-DlbXKRwk.css">
