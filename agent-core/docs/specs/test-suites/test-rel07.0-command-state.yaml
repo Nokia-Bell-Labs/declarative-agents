@@ -62,8 +62,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Exec arguments select a non-adjacent labelled result
-    planned_go_test: go test ./internal/tools/exec -run TestExecBuilderCommandStateSourceAcrossInterveningStep
-    status: planned
+    go_test: go test ./internal/tools/exec -run TestExecBuilderCommandStateSourceAcrossInterveningStep
+    status: implemented
     owner: GH-786
     description: |
       An exec parameter whose declaration names source resolves from an earlier
@@ -84,8 +84,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Broken exec sources fail before subprocess launch
-    planned_go_test: go test ./internal/tools/exec -run TestExecBuilderCommandStateSourceFailures
-    status: planned
+    go_test: go test ./internal/tools/exec -run TestExecBuilderCommandStateSourceFailures
+    status: implemented
     owner: GH-786
     description: |
       Missing labels and paths preserve their typed selector causes and emit
@@ -108,8 +108,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Machine request seed remains addressable after intervening words
-    planned_go_test: go test ./internal/tools/rest -run TestMachineRequestSeedCommandStateAddress
-    status: planned
+    go_test: go test ./internal/tools/rest -run TestMachineRequestSeedCommandStateAddress
+    status: implemented
     owner: GH-786
     description: |
       A fresh machine_request execution contains one synthetic entry labelled

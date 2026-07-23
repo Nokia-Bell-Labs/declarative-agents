@@ -142,7 +142,6 @@ implementation_status:
     - Shared $from resolution: core.ParseFromSelector and core.ResolveFromSelector factor the selector parse and path walk out of the REST client so a second consumer, the compose builtin, resolves $from(label).path against the same view. The compose word renders a template from $from selectors, letting a later word (invoke_llm) receive one composed input assembled from non-adjacent prior steps without carry_forward chains. Delivered by GH-342.
     - Canonical selector AST: core.ParseSelector validates both $.path and $from(label).path forms, and the parsed selector owns the shared nested-map resolver used by core and REST consumers.
     - "GH-488: TransitionSpec authored labels are validated with the canonical selector grammar, recorded separately from command names, resolved with exported typed label/path errors, and persisted through an idempotent nullable Dolt schema upgrade. Real MachineSpec execution proves dynamic-tool separation, command-name fallback, duplicate-label newest-match behavior, and fresh-view restart rehydration."
-  planned:
     - "GH-786: Exec parameter source declarations resolve through CommandStateAware after command construction, and machine_request exposes its initial Result through the reserved seed entry."
 
 diagrams:

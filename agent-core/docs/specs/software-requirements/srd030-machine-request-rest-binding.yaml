@@ -150,9 +150,9 @@ implementation_status:
     - Plain go test covers generic request-to-machine response behavior, trace evidence, selected request factories, and same-origin proxy lifecycle cleanup; the concrete browser tracer belongs to agent-profiles.
     - Configured machine_request terminal response schemas are enforced before success responses; invalid terminal output maps to response_invalid error handling.
     - Response mapping accepts terminal_states alongside terminal_signals and resolves state first, so an exec-driven request machine returns a distinct response per outcome; examples/chatbot-mesh executor apply maps Done, Rejected, RolledBack, and Failed to 200, 400, 500, and 500.
+    - "GH-786: machine_request exposes the trusted request seed as one InitialExecution entry named seed, so non-adjacent exec arguments resolve $from(seed).parameters.<field>."
   partial: []
-  planned_follow_up:
-    - "GH-786: expose the trusted request seed as one InitialExecution entry named seed, so non-adjacent exec arguments can resolve $from(seed).parameters.<field>."
+  planned_follow_up: []
 
 diagrams:
   requirements_trace: |

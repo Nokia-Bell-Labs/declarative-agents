@@ -3,6 +3,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	exectool "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/exec"
 )
 
 // TestMachineRequestSeedFeedsRESTClientFirstWord proves a REST-client word can be
@@ -104,6 +107,102 @@ func TestRequestSeedExposesParametersNotTransportMetadata(t *testing.T) {
 	require.NotContains(t, out, "server")
 	require.NotContains(t, out, "route")
 	require.NoError(t, ValidateRuntimeInput(out), "the seed passes the runtime-input authority guard")
+}
+
+func TestMachineRequestSeedCommandStateAddress(t *testing.T) {
+	t.Parallel()
+
+	cfg := MachineRequest{
+		MachineSpec: &core.MachineSpec{
+			Name:           "seed-exec-source",
+			InitialState:   "Start",
+			States:         core.StateSpecsFromNames("Start", "Counted", "Running", "Done"),
+			TerminalStates: []string{"Done"},
+			Signals:        core.SignalSpecsFromNames(string(core.Seed), string(core.ToolDone)),
+			Transitions: []core.TransitionSpec{
+				{State: "Start", Signal: string(core.Seed), Next: "Counted", Action: "count_before", Label: "count_before"},
+				{State: "Counted", Signal: string(core.ToolDone), Next: "Running", Action: "run_corpus_ingest"},
+				{State: "Running", Signal: string(core.ToolDone), Next: "Done"},
+			},
+		},
+		Budget: core.Budget{MaxIterations: 3},
+		InitFunc: func(reg *core.Registry) error {
+			reg.Register(
+				core.ToolSpec{Name: "count_before", Visibility: core.Internal},
+				seedInterveningBuilder{},
+			)
+			exectool.RegisterToolDefs(reg, t.TempDir(), []catalog.ToolDef{{
+				Name:   "run_corpus_ingest",
+				Type:   "exec",
+				Binary: "printf",
+				Args:   []string{"%s"},
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"directory": map[string]interface{}{
+							"type": "string", "positional": true,
+							"source": "$from(seed).parameters.directory",
+						},
+					},
+					"required": []interface{}{"directory"},
+				},
+			}})
+			return nil
+		},
+	}
+
+	result, err := (defaultMachineRequestRunner{}).RunMachineRequest(
+		context.Background(),
+		MachineRequestRun{
+			Payload: map[string]interface{}{"directory": "/tmp/corpus"},
+			Config:  cfg,
+		},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, "/tmp/corpus", result.Output["output"])
+
+	seed := requestSeed(MachineRequestRun{
+		Payload: map[string]interface{}{"directory": "/tmp/corpus"},
+	}, core.Seed)
+	fresh := machineRequestSeedExecution(seed, nil)
+	require.Len(t, fresh, 1)
+	require.Equal(t, "seed", fresh[0].Label)
+	require.Equal(t, seed.Output, fresh[0].Result.Output)
+
+	resumed := append(fresh, core.Entry{CommandName: "count_before", Label: "count_before"})
+	require.Len(t, machineRequestSeedExecution(seed, resumed), 2)
+	require.Equal(t, 1, countExecutionLabel(resumed, "seed"))
+}
+
+type seedInterveningBuilder struct{}
+
+func (seedInterveningBuilder) Build(core.Result) core.Command {
+	return seedInterveningCommand{}
+}
+
+type seedInterveningCommand struct{}
+
+func (seedInterveningCommand) Name() string { return "count_before" }
+func (seedInterveningCommand) Execute() core.Result {
+	return core.Result{
+		Signal:      core.ToolDone,
+		CommandName: "count_before",
+		Output:      `{"mapped":{"count":"4"}}`,
+	}
+}
+func (seedInterveningCommand) Undo(core.Result) core.Result {
+	return core.NoopUndo("count_before")
+}
+
+func countExecutionLabel(execution core.Execution, label string) int {
+	var count int
+	for _, entry := range execution {
+		if entry.Label == label {
+			count++
+		}
+	}
+	return count
 }
 
 // plainTextRespondBuilder emits a raw (non-JSON) string, as invoke_llm does.
