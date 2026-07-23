@@ -1,0 +1,15 @@
+# A values-plane patch of the shape the coordinator decides and the creator
+# forwards to the executor's apply endpoint (srd006 R1.4). It carries deployment
+# values only: no host, URL, method, or credential for a running agent (R2.3).
+#
+# The executor validates a patch of this shape against the chart's
+# values.schema.json by a helm dry-run before applying it (R2.1).
+ragUnits:
+  - name: rag0
+    collection: corpus
+    embeddingModel: qwen3-embedding:8b
+    replicas: 1
+  - name: rag1
+    collection: corpus2
+    embeddingModel: qwen3-embedding:8b
+    replicas: 2

@@ -1,0 +1,11 @@
+# A patch the chart's values.schema.json must reject. The RAG unit name is
+# constrained to a DNS label -- it becomes a Kubernetes object name -- and
+# "Rag_0" violates it on two counts: an uppercase letter and an underscore.
+#
+# The violation is deliberately one the schema names by path, so the test can
+# assert the rejection came from the constraint it means to exercise rather than
+# from helm failing to render for some unrelated reason.
+ragUnits:
+  - name: Rag_0
+    collection: corpus
+    embeddingModel: qwen3-embedding:8b
