@@ -72,7 +72,17 @@ rest:
             request:
               body:
                 content: $.content
-                path: /work/overrides.yaml
+                # The values file lands in the agent's workspace, which the
+                # deployment sets from .Values.profiles.workMountPath. Binding
+                # both to one value keeps write_overrides inside the workspace:
+                # a path outside it is refused (agent-core filesystem
+                # ValidatePath), which failed every apply on its first word
+                # whenever the mount moved. The default keeps a default render
+                # byte-identical. The helm words' -f argument is held to the
+                # same path by the chart's exec-arg rewrite, because tool
+                # declarations are not env-expanded -- only REST definitions are
+                # (GH-737).
+                path: ${EXECUTOR_WORK_DIR:-/work}/overrides.yaml
             response:
               # Keyed by terminal state, not terminal signal: every word in
               # apply-machine.yaml is an exec word emitting only ToolDone or

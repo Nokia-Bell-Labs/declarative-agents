@@ -23,6 +23,11 @@ data:
     {{- $exec = $exec | replace "upgrade, chatbot-mesh," (printf "upgrade, %s," $.Release.Name) }}
     {{- $exec = $exec | replace "rollback, chatbot-mesh]" (printf "rollback, %s]" $.Release.Name) }}
     {{- $exec = $exec | replace "--namespace, default," (printf "--namespace, %s," $.Release.Namespace) }}
+    {{- /* The helm words read the values file write_overrides wrote. That write
+          goes to the workspace (EXECUTOR_WORK_DIR, set from workMountPath), and
+          tool declarations are not env-expanded -- only REST definitions are --
+          so the read path is rewritten here to keep the two in step (GH-737). */}}
+    {{- $exec = $exec | replace "/work/overrides.yaml" (printf "%s/overrides.yaml" $.Values.profiles.workMountPath) }}
     {{- $exec | nindent 4 }}
   {{- else }}
     {{- $.Files.Get $path | nindent 4 }}
