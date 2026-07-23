@@ -14,6 +14,7 @@ import (
 const (
 	execApplyURL   = "http://127.0.0.1:18090/provisioning/api/apply"
 	execRolloutURL = "http://127.0.0.1:18090/provisioning/api/rollout"
+	execStateURL   = "http://127.0.0.1:18090/provisioning/api/state"
 	execControlURL = "http://127.0.0.1:18091/api/lifecycle/health"
 	execReadyWait  = 30 * time.Second
 )
@@ -41,7 +42,8 @@ func (Integration) Executor() error {
 	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
 	if err := requireProfilePaths(profilesRoot,
 		"agents/executor/profile.yaml", "agents/executor/apply-machine.yaml",
-		"agents/executor/rollout-machine.yaml", "agents/executor/exec-declarations.yaml",
+		"agents/executor/rollout-machine.yaml", "agents/executor/state-machine.yaml",
+		"agents/executor/exec-declarations.yaml",
 	); err != nil {
 		return err
 	}
@@ -140,10 +142,13 @@ func runExecutorScenario(fakes *executorFakes, scenario executorScenario) error 
 }
 
 func executorRequest(scenario executorScenario) ([]byte, int, error) {
-	if scenario.applyBody == "" {
-		return requestInference(http.MethodGet, execRolloutURL, "", "executor rollout read")
+	if scenario.applyBody != "" {
+		return requestInference(http.MethodPost, execApplyURL, scenario.applyBody, "executor apply")
 	}
-	return requestInference(http.MethodPost, execApplyURL, scenario.applyBody, "executor apply")
+	if scenario.stateRead {
+		return requestInference(http.MethodGet, execStateURL, "", "executor state read")
+	}
+	return requestInference(http.MethodGet, execRolloutURL, "", "executor rollout read")
 }
 
 // assertExecutorCalls checks what the run invoked, which is where an argv
@@ -278,6 +283,7 @@ func (f *executorFakes) calls() ([]string, error) {
 const helmVerbCase = `case "$*" in
   *--dry-run*) verb=dry-run ;;
   rollback*) verb=rollback ;;
+  "get values"*) verb=get-values ;;
   upgrade*) verb=upgrade ;;
   *) verb=other ;;
 esac`

@@ -51,6 +51,57 @@ rest:
       address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18090
       limits_ref: local_executor_apply
       endpoints:
+        state:
+          # Read the deployed mesh view for the provisioning panel (srd006 R1.5).
+          # helm get values --all reads the release's fully computed values (chart
+          # defaults merged with any applied overrides), so this works on a fresh
+          # install with no prior apply -- unlike the executor's own overrides
+          # file, which exists only after the first apply.
+          method: GET
+          path: /provisioning/api/state
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: state-machine.yaml
+            timeout: 15s
+            request:
+              body: {}
+            response:
+              # Keyed by terminal state. The state_response contract (srd006
+              # deployment_api_contract) is flat: machine_request response bodies
+              # map one selector per named field (agent-core
+              # rest.MachineResponseMapping.Body is a flat string map), so a
+              # nested llm/params object cannot be assembled here from several
+              # source paths in one step. The panel's provisioningApi.ts
+              # reassembles the nested MeshView client-side from these flat
+              # fields (GH-753).
+              terminal_states:
+                Read:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    rags: $.ragUnits
+                    llmInCluster: $.ollama.enabled
+                    llmExternalURL: $.llm.externalURL
+                    llmChatModel: $.executor.params.chatModel
+                    llmEmbedModel: $.chatbot.embeddingModel
+                    llmChatModels: $.ollama.models.chat
+                    llmRouterModel: $.ollama.models.router
+                    llmTopology: $.ollama.topology
+                    paramsNResults: $.executor.params.nResults
+                    paramsChunkCap: $.executor.params.chunkCap
+                    paramsRouterDefault: $.executor.params.routerDefault
+                # helm could not read the release: absent, or a kubeconfig, RBAC,
+                # or API-server failure. Reporting a mapped-empty view here would
+                # render as a legitimate but topology-less mesh to the panel.
+                Unavailable:
+                  status: 502
+                  content_type: application/json
+                  body:
+                    schema_version: "1"
+                    status: unavailable
+                    error: state_read_failed
         apply:
           method: POST
           path: /provisioning/api/apply

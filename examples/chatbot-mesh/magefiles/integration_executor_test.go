@@ -74,13 +74,16 @@ func TestExecutorAuthorityProblemRejectsTransportAuthority(t *testing.T) {
 // carried an unmapped outcome before GH-686.
 func TestExecutorScenariosCoverEveryTerminal(t *testing.T) {
 	scenarios := executorScenarios()
-	var applyLegs, rolloutLegs int
+	var applyLegs, rolloutLegs, stateLegs int
 	for _, scenario := range scenarios {
-		if scenario.applyBody == "" {
+		switch {
+		case scenario.applyBody != "":
+			applyLegs++
+		case scenario.stateRead:
+			stateLegs++
+		default:
 			rolloutLegs++
-			continue
 		}
-		applyLegs++
 	}
 
 	for _, tc := range []struct {
@@ -89,6 +92,7 @@ func TestExecutorScenariosCoverEveryTerminal(t *testing.T) {
 	}{
 		{"apply-machine.yaml", applyLegs},
 		{"rollout-machine.yaml", rolloutLegs},
+		{"state-machine.yaml", stateLegs},
 	} {
 		var machine rolloutMachine
 		readIntakeYAML(t, filepath.Join(agentDir(t, "executor"), tc.machine), &machine)
@@ -130,6 +134,7 @@ func TestFakeScriptsClassifyTheDeclaredInvocations(t *testing.T) {
 		{"kubectl_rollout_poll", "kubectl", "poll"},
 		{"kubectl_rollout_status", "kubectl", "verify"},
 		{"kubectl_get_rollout_counts", "kubectl", "counts"},
+		{"helm_get_values", "helm", "get-values"},
 	} {
 		t.Run(tc.word, func(t *testing.T) {
 			declared, ok := args[tc.word]

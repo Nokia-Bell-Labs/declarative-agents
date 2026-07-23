@@ -184,6 +184,66 @@ tools:
       strategy: noop
       description: A rollback is itself the compensating action.
 
+  - name: helm_get_values
+    type: exec
+    binary: helm
+    args: [get, values, chatbot-mesh, --namespace, default, --all, -o, json]
+    category: boundary
+    visibility: internal
+    description: Read the release's fully computed values (chart defaults merged with overrides) as JSON, for the state GET endpoint.
+    problem: The provisioning panel's state read (srd006 R1.5) needs the deployed mesh view -- topology, LLM configuration, and parameters -- and must work from a fresh install with no prior apply, not just from the executor's own last-written overrides file.
+    goals:
+      - Read the named release's computed values with --all, so chart defaults are present even when no apply has ever patched them.
+      - Emit the values as one JSON object on stdout (-o json), so the response mapping can select individual fields rather than one opaque blob.
+      - Emit ToolDone on a clean read and ToolFailed when the release cannot be read.
+    requirements:
+      input:
+        - must read the configured release's values in the configured namespace
+      output:
+        - must emit the computed values as a JSON object on stdout
+      errors:
+        - must emit ToolFailed when the release does not exist or the read fails
+    non_goals:
+      - Does not decide or edit the values; it only reads what is deployed.
+      - Does not mutate cluster state.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: The release's computed values, rendered by helm -o json so the response body maps ragUnits, llm, ollama, chatbot, and executor.params by field.
+      schema:
+        type: object
+        properties:
+          # Nested one level to document the field, not the full values.yaml
+          # shape: ragUnits is an array of {name, collection, embeddingModel,
+          # replicas}; llm.externalURL; ollama.enabled/topology/models
+          # (embedding, chat, router); chatbot.embeddingModel;
+          # executor.params (nResults, chunkCap, routerDefault, chatModel).
+          ragUnits: {type: array}
+          llm: {type: object}
+          ollama: {type: object}
+          chatbot: {type: object}
+          executor: {type: object}
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: helm
+        description: Runs `helm get values --all -o json` as a child process; reads the release and mutates nothing.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the release does not exist, or the kubeconfig, RBAC, or API server makes the read impossible
+        message_shape: <captured helm output>
+        state_after_failure: no cluster state changed; the machine reaches Unavailable and the endpoint answers 502
+    relationships:
+      overlaps:
+        - tool: helm_upgrade
+          difference: helm_get_values reads the deployed release's values; helm_upgrade applies a new values patch and rolls the release.
+    undo:
+      strategy: noop
+      description: A values read mutates nothing.
+
   - name: kubectl_rollout_poll
     type: exec
     binary: kubectl
