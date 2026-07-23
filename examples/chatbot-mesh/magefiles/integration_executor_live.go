@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -87,18 +88,43 @@ func runExecutorLive(coreRoot, profilesRoot string) error {
 // image rather than a published tag, so the live tier runs the code under test
 // the way the smoke does.
 //
+// The build context carries the *staged* chart, not the one in the repo. The
+// Dockerfile's `COPY helm /chart` takes whatever the context has, and the chart
+// in the repo has no agent profiles -- the packaging step stages them
+// (chartProfilePrograms). An image built from the unstaged chart renders a
+// profiles ConfigMap with only the four co-generated keys, so an in-cluster
+// upgrade would replace the live ConfigMap with a nearly empty one and no agent
+// would survive its next restart (GH-748). Re-rendering the whole chart is the
+// contract -- a values change re-renders the co-generated topology (srd006 R2.2,
+// srd003 R2) -- which is exactly why what /chart contains matters.
+//
 // TARGETARCH is passed explicitly. The Dockerfile defaults it to amd64, and a
 // plain `docker build` on an arm64 host does not set it -- the result is an
-// arm64 image carrying amd64 helm and kubectl, which fail with an exec format
-// error the first time an exec word runs one. The kind nodes are the host's
-// architecture, so the image has to be too.
+// arm64 image carrying amd64 helm and kubectl, which crash the first time an
+// exec word runs one. The kind nodes are the host's architecture, so the image
+// has to be too.
 func buildExecutorImage(profilesRoot, runtimeImage, image string) error {
+	chartDir := exampleChartDir(profilesRoot)
+	staged, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
+	if err != nil {
+		return fmt.Errorf("stage the chart the image ships: %w", err)
+	}
+	defer cleanupChart()
+
+	buildCtx, err := os.MkdirTemp("", "executor-image-ctx-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(buildCtx) }()
+	if err := copyDirContents(staged, filepath.Join(buildCtx, "helm")); err != nil {
+		return fmt.Errorf("place the staged chart in the build context: %w", err)
+	}
+
 	cmd := exec.Command("docker", "build",
-		"-f", "executor.Dockerfile",
+		"-f", filepath.Join(profilesRoot, "executor.Dockerfile"),
 		"--build-arg", "RUNTIME_IMAGE="+runtimeImage,
 		"--build-arg", "TARGETARCH="+runtime.GOARCH,
-		"-t", image, ".")
-	cmd.Dir = profilesRoot
+		"-t", image, buildCtx)
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("docker build %s: %w", image, err)
@@ -146,7 +172,38 @@ func assertExecutorImageCarriesItsTools(image string) error {
 		}
 		fmt.Printf("executorLive: image carries %s\n", probe.what)
 	}
-	return assertExecutorImageHelmMajor(image)
+	if err := assertExecutorImageHelmMajor(image); err != nil {
+		return err
+	}
+	return assertExecutorImageChartCarriesProfiles(image)
+}
+
+// assertExecutorImageChartCarriesProfiles renders the chart the image ships,
+// using the image's own helm, and requires every agent profile an enabled
+// Deployment mounts to appear in the profiles ConfigMap.
+//
+// This is what an apply actually does. The executor runs
+// `helm upgrade chatbot-mesh /chart`, which re-renders the co-generated topology
+// (srd006 R2.2), so the ConfigMap that render produces replaces the live one. If
+// /chart carries an unstaged chart the render is nearly empty, the replacement
+// strips every agent profile, and no agent survives its next restart -- with the
+// apply reporting success, because helm did exactly what it was asked (GH-748).
+func assertExecutorImageChartCarriesProfiles(image string) error {
+	out, err := exec.Command("docker", "run", "--rm", "--entrypoint", "helm", image,
+		"template", "chatbot-mesh", "/chart").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("render /chart with the image's own helm: %w\n%s", err, out)
+	}
+	render := string(out)
+	for _, agent := range []string{"chatbot", "rag-server", "coordinator", "creator", "executor"} {
+		key := "agents__" + agent + "__profile.yaml"
+		if !strings.Contains(render, key) {
+			return fmt.Errorf("the chart at /chart renders no %s; an apply would replace the live profiles "+
+				"ConfigMap with one missing it, and that agent would not come back from a restart", key)
+		}
+	}
+	fmt.Println("executorLive: the chart at /chart renders every agent profile")
+	return nil
 }
 
 // assertExecutorImageHelmMajor proves the helm inside the image is the major the
