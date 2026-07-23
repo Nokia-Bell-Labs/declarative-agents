@@ -75,10 +75,11 @@ func Audit() error {
 		return err
 	}
 	// Resolution proves the named test exists, not that it passes -- `go test
-	// -list` compiles and runs nothing. A suite claiming implemented evidence for
-	// a failing test kept the gate green until someone ran the package by hand
-	// (GH-713), so run what the suites claim.
-	return runTestEvidence(defaultEvidenceRun, root)
+	// -list` compiles and runs nothing. A suite claiming evidence for a failing
+	// test kept the gate green until someone ran the package by hand (GH-713), so
+	// run what the suites claim, through the same shared runner agent-core's own
+	// audit uses (GH-717).
+	return runTestEvidence(defaultSmokeRun, binary, root)
 }
 
 // resolveAuditTools locates the agent-core runtime checkout and the jurist
