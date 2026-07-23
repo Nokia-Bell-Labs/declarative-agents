@@ -9,14 +9,13 @@ preconditions:
   - srd041-value-predicate-tool defines the declaration, the closed operator set, operand typing and coercion, the signal contract, and purity.
   - srd022-builtin-tools defines the BuiltinRegistry factory lookup and typed config decoding the word registers through.
   - srd038-command-state-store defines the selector primitive operands resolve through.
-  - GH-770 implements the word. The test names below are the contracts that issue implements.
-  - Cases carry planned_go_test rather than go_test until their named tests exist. The formal go_test evidence validator checks every go_test string against the real test inventory, so citing an unwritten test would record false evidence. GH-770 renames planned_go_test to go_test and sets status to implemented when each test lands.
+  - GH-770 implemented the word; every case below carries the go_test that proves it. The cases were authored with planned_go_test while the tests did not yet exist, because the formal evidence validator runs every go_test string against the real inventory and citing an unwritten test would have recorded false evidence.
 
 test_cases:
   - use_case: rel10.0-uc001-value-predicate-branch
     name: Each operator decides correctly at its boundary
-    planned_go_test: go test ./internal/tools/control -run TestValuePredicateOperators
-    status: planned
+    go_test: go test ./internal/tools/control -run TestValuePredicateOperators
+    status: implemented
     description: |
       Every operator in the closed set decides correctly on both sides of its
       boundary, so no operator is off by one. The equal case is what separates
@@ -41,8 +40,8 @@ test_cases:
 
   - use_case: rel10.0-uc001-value-predicate-branch
     name: Emptiness operators test the left operand alone
-    planned_go_test: go test ./internal/tools/control -run TestValuePredicateEmptiness
-    status: planned
+    go_test: go test ./internal/tools/control -run TestValuePredicateEmptiness
+    status: implemented
     description: |
       empty and non_empty judge the left operand and ignore any right operand,
       and an absent right operand does not fail registration for them. An empty
@@ -62,8 +61,8 @@ test_cases:
 
   - use_case: rel10.0-uc001-value-predicate-branch
     name: A string-typed count compares numerically under the default operand type
-    planned_go_test: go test ./internal/tools/control -run TestValuePredicateNumericCoercion
-    status: planned
+    go_test: go test ./internal/tools/control -run TestValuePredicateNumericCoercion
+    status: implemented
     description: |
       A REST read of a scalar body yields a string, so a count read back from a
       store arrives as "10" rather than 10. Under the default number operand
@@ -82,8 +81,8 @@ test_cases:
 
   - use_case: rel10.0-uc001-value-predicate-branch
     name: An unresolvable operand emits CommandError and never the unsatisfied signal
-    planned_go_test: go test ./internal/tools/control -run TestValuePredicateUnresolvedOperandIsAFault
-    status: planned
+    go_test: go test ./internal/tools/control -run TestValuePredicateUnresolvedOperandIsAFault
+    status: implemented
     description: |
       This is the assertion that matters most, because the failure it prevents
       is silent. A mistyped or absent selector must not read as a legitimate
@@ -103,8 +102,8 @@ test_cases:
 
   - use_case: rel10.0-uc001-value-predicate-branch
     name: Malformed config fails registration with the tool name
-    planned_go_test: go test ./internal/tools/control -run TestValuePredicateRegistrationRejectsMalformedConfig
-    status: planned
+    go_test: go test ./internal/tools/control -run TestValuePredicateRegistrationRejectsMalformedConfig
+    status: implemented
     description: |
       An operator outside the closed set and a missing signal name each fail at
       registration rather than at the first run, so a misconfigured predicate
@@ -121,8 +120,8 @@ test_cases:
 
   - use_case: rel10.0-uc001-value-predicate-branch
     name: A machine branches on a value through the declared word
-    planned_go_test: go test ./internal/tools/control -run TestValuePredicateDrivesTwoTransitions
-    status: planned
+    go_test: go test ./internal/tools/control -run TestValuePredicateDrivesTwoTransitions
+    status: implemented
     description: |
       The end-to-end shape: a machine dispatches the predicate from one state
       and reaches two different next states depending on the value, with both

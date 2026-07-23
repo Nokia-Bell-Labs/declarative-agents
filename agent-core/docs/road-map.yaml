@@ -401,24 +401,24 @@ releases:
       mapping (GH-615) and the raw file read (GH-521): a declarative agent could
       express the flow but not one small decision inside it. The word is
       specified in GH-769 and implemented in GH-770.
-    status: planned
+    status: implemented
     planned_work:
       - id: gh-769
         summary: Specify the value predicate word (this release's documentation).
-        status: open
+        status: done
       - id: gh-770
         summary: Implement the value predicate word in internal/tools/control.
-        status: open
+        status: done
     srds:
       - srd041-value-predicate-tool
     use_cases:
       - id: rel10.0-uc001-value-predicate-branch
         summary: A machine reads a value from a service and takes a different transition depending on it, through a declared word.
-        status: specified
+        status: implemented
     test_suites:
       - id: test-rel10.0-value-predicate
         summary: Formal tests for the operator boundaries, emptiness, numeric coercion of string-typed values, the unresolvable-operand fault, registration validation, and the end-to-end two-transition branch.
-        status: specified
+        status: implemented
     proof:
       - go test ./internal/tools/control
       - mage audit

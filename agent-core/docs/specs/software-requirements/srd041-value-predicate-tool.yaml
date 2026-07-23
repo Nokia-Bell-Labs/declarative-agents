@@ -128,13 +128,21 @@ related_documents:
   - cfg-tool-authoring-standard
 
 implementation_status:
+  implemented:
+    - >-
+      The predicate word (internal/tools/control), its declaration
+      (tools/builtin/value-predicate.yaml), and its factory registration under
+      the control family shipped for release rel10.0 with GH-770. Operands
+      resolve through the existing selector primitive against the previous
+      Result, and config is validated at registration so an unknown operator or
+      a missing signal name never reaches a run.
   planned:
     - >-
-      The predicate word, its declaration, and its factory registration are
-      built for release rel10.0. Until it exists, a machine cannot branch on a
-      value: the chatbot-mesh creator's corpus-ingest run reports a document
-      count but cannot reject a run that wrote nothing, so that surface declares
-      no 422 and its caller's rejection leg is unreachable.
+      Adopting the word in the chatbot-mesh creator, whose corpus-ingest run
+      reports a document count but does not yet reject a run that wrote nothing.
+      That surface declares no 422 and its caller's rejection leg stays
+      unreachable until it adopts this word; consuming profiles move on their
+      own schedule.
 
 diagrams:
   requirements_trace: |
