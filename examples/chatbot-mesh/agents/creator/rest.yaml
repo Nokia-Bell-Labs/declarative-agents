@@ -19,9 +19,9 @@ rest:
         hosts: [${PROVISIONER_HOST:-127.0.0.1}]
         ports: [18090]
     local_chroma_client:
-      # The creator reads the ingested collection's count to report a child run's
-      # outcome (srd005 R3.1). Read-only: the corpus-ingest child does the writing,
-      # and the creator declares no add or delete operation.
+      # The creator reads the collection count before and after the child to report
+      # that run's contribution (srd005 R3.1). Read-only: the corpus-ingest child
+      # does the writing, and the creator declares no add or delete operation.
       timeout: 30s
       read_timeout: 30s
       max_request_bytes: 16384
@@ -174,8 +174,9 @@ rest:
 
     chroma:
       # The vector store the corpus-ingest child writes into. The creator reads it
-      # back to report the child run's outcome (srd005 R3.1) rather than trusting
-      # the child's exit code alone: a run can exit zero having written nothing.
+      # before and after the child to report the run's contribution (srd005 R3.1)
+      # rather than trusting the child's exit code or the accumulated collection
+      # total: a run can exit zero having written nothing.
       base_url: ${CHROMA_URL:-http://127.0.0.1:8000}
       auth_ref: none
       limits_ref: local_chroma_client
@@ -213,19 +214,21 @@ rest:
         count_ingested_documents:
           # Chroma answers this with a bare integer, which agent-core cannot decode
           # into an object, so it lands under `raw` as a string (client_response.go
-          # decodeResponsePayload). The count therefore travels as a string; nothing
-          # downstream does arithmetic on it.
+          # decodeResponsePayload). The count therefore travels as a string and the
+          # value predicate coerces both reads to numbers.
+          #
+          # Both the pre-run and post-run words invoke this operation. Their
+          # immediately preceding results differ, so the collection id is selected
+          # from the earlier resolve through command state rather than from the
+          # previous result (agent-core srd038).
           method: GET
           path: /api/v2/tenants/default_tenant/databases/default_database/collections/{collection}/count
           params:
             path:
               collection: {type: string}
-            body_source: previous_result
-            # $.mapped.collection_id, not $.collection_id: a REST word's output
-            # arrives nested under mapped, which is how corpus-ingest's own
-            # count_records selects the same id.
+            body_source: command_state
             input_mapping:
-              collection: $.mapped.collection_id
+              collection: $from(resolve_ingest_collection).mapped.collection_id
           success: {status: [200], signal: DocumentsCounted}
           response:
             output:
@@ -391,16 +394,9 @@ rest:
                   body:
                     schema_version: "1"
                     status: ingested
-                    # No count on the success path. A response body maps from the
-                    # last word's output, and on this leg that word is the
-                    # predicate, whose output is its comparison rather than the
-                    # count it judged -- a pure predicate does not forward its
-                    # input. The 422 below can carry a literal "0" because that
-                    # branch is only reached when the count was zero. Serving a
-                    # count here again needs the predicate to emit its operands as
-                    # structured fields, which is an agent-core change tracked
-                    # separately; declaring a field no hop serves would be the
-                    # GH-686 mistake.
+                    # The predicate exposes both counts, but adding either to this
+                    # response changes the endpoint contract and is tracked
+                    # separately. Do not declare a field until that contract does.
                     status_detail: documents were written
                 IngestRejected:
                   status: 422
